@@ -64,7 +64,7 @@ Third Party Projects
 
 The TF-RMM project requires to be linked with certain other 3rd party projects
 and they are to be cloned from their repositories into ``ext`` folder before
-building. The projects are `MbedTLS`_, `t_cose`_, and `QCBOR`_.
+building. The projects are `MbedTLS`_, `t_cose`_, `QCBOR`_ and `CppUTest`_.
 
 The project also contains files which are imported from other projects
 into the source tree and may have a different license. Such files with
@@ -119,3 +119,4 @@ To report a bug, please file an `issue on Github`_
 .. _BSD-3-Clause License: https://tf-rmm.readthedocs.io/en/latest/about/license.html
 .. _License and Copyright for Contributions: https://tf-rmm.readthedocs.io/en/latest/process/contributing.html#license-and-copyright-for-contributions
 .. _Contributor's Guide: https://tf-rmm.readthedocs.io/en/latest/process/contributing.html
+.. _CppUTest: https://github.com/cpputest/cpputest.git

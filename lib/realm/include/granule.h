@@ -221,7 +221,7 @@ struct granule *find_lock_unused_granule(unsigned long addr,
 
 	g = find_lock_granule(addr, expected_state);
 	if (g == NULL) {
-		return status_ptr(RMI_ERROR_INPUT);
+		return (struct granule *)status_ptr(RMI_ERROR_INPUT);
 	}
 
 	/*
@@ -230,7 +230,7 @@ struct granule *find_lock_unused_granule(unsigned long addr,
 	 */
 	if (granule_refcount_read_acquire(g)) {
 		granule_unlock(g);
-		return status_ptr(RMI_ERROR_IN_USE);
+		return (struct granule *)status_ptr(RMI_ERROR_IN_USE);
 	}
 
 	return g;

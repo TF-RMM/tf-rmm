@@ -1,0 +1,15 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+ */
+
+#ifndef TEST_GROUPS_H
+#define TEST_GROUPS_H
+
+/*
+ * Add an IMPORT_TEST_GROUP for each test group, so the linker can
+ * find the tests.
+ */
+@IMPORT_TEST_GROUPS@
+
+#endif

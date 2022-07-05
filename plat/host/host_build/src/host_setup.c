@@ -96,6 +96,7 @@ int main(int argc, char *argv[])
 	 */
 	enable_fake_host_mmu();
 
+	/* Start RMM */
 	rmm_main();
 
 	VERBOSE("RMM: Fake Host execution completed\n");

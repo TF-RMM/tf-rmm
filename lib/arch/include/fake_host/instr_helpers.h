@@ -9,6 +9,20 @@
 #include <host_harness.h>
 #include <stddef.h>
 
+#ifdef __cplusplus
+/*
+ * Disable write-strings warnings when building C++ code (used for unit
+ * testing) as ISO C++ forbits converting a string constant to char*,
+ * which is actually done by DEFINE_SYSREG_{READ, WRITE}_FUNC macros.
+ */
+
+#ifdef __clang__
+	#pragma clang diagnostic ignored "-Wwrite-strings"
+#else
+	#pragma GCC diagnostic ignored "-Wwrite-strings"
+#endif /* __clang__ */
+#endif /* __cplusplus__ */
+
 /**********************************************************************
  * Macros which create inline functions to read or write CPU system
  * registers
