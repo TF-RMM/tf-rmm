@@ -8,6 +8,7 @@
 
 #include <buffer.h>
 
-uintptr_t realm_test_util_get_slot_va(uintptr_t pa);
+uintptr_t realm_test_util_slot_to_pa(enum buffer_slot slot);
+uintptr_t realm_test_util_slot_va_from_pa(uintptr_t pa);
 
 #endif /* REALM_TEST_UTILS_H */

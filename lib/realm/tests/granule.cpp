@@ -1711,9 +1711,9 @@ TEST(granule, granule_memzero_TC1)
 	union test_harness_cbs cb;
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map;
+	cb.buffer_map = test_buffer_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap;
+	cb.buffer_unmap = test_buffer_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/***************************************************************
@@ -1773,7 +1773,7 @@ ASSERT_TEST(granule, granule_memzero_TC2)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-TEST(granule, granule_memzero_mapped_TC1)
+IGNORE_TEST(granule, granule_memzero_mapped_TC1)
 {
 	/*
 	 * Current implementation for granule_memzero_mapped()
