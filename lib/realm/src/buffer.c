@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <attestation_token.h>
 #include <buffer.h>
+#include <buffer_private.h>
 #include <cpuid.h>
 #include <debug.h>
 #include <errno.h>
@@ -21,19 +22,6 @@
 #include <table.h>
 #include <xlat_contexts.h>
 #include <xlat_tables.h>
-
-/*
- * The VA space size for the high region, which maps the slot buffers,
- * needs to be a power of two, so round NR_CPU_SLOTS up to the closest
- * power of two.
- */
-#define ROUNDED_NR_CPU_SLOTS (1ULL << (64ULL - \
-				       __builtin_clzll((NR_CPU_SLOTS) - 1)))
-
-#define RMM_SLOT_BUF_VA_SIZE	((ROUNDED_NR_CPU_SLOTS) * (GRANULE_SIZE))
-
-#define SLOT_VIRT		((ULL(0xffffffffffffffff) - \
-				 RMM_SLOT_BUF_VA_SIZE + ULL(1)))
 
 /*
  * All the slot buffers for a given CPU must be mapped by a single translation
@@ -93,7 +81,7 @@ static struct xlat_ctx slot_buf_xlat_ctx[MAX_CPUS];
  */
 static struct xlat_table_entry te_cache[MAX_CPUS];
 
-static uintptr_t slot_to_va(enum buffer_slot slot)
+uintptr_t slot_to_va(enum buffer_slot slot)
 {
 	assert(slot < NR_CPU_SLOTS);
 
@@ -105,7 +93,7 @@ static inline struct xlat_ctx *get_slot_buf_xlat_ctx(void)
 	return &slot_buf_xlat_ctx[my_cpuid()];
 }
 
-static inline struct xlat_table_entry *get_cache_entry(void)
+struct xlat_table_entry *get_cache_entry(void)
 {
 	return &te_cache[my_cpuid()];
 }

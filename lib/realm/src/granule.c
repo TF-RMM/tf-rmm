@@ -29,6 +29,7 @@ unsigned long granule_addr(struct granule *g)
 	unsigned long idx;
 
 	assert(g != NULL);
+	assert(g >= &granules[0]);
 
 	idx = g - &granules[0];
 
