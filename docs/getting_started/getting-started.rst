@@ -49,6 +49,7 @@ The following tools are required to obtain and build |RMM|:
    "Git",, "Firmware, Documentation"
    "Graphviz dot",">v2.38.0","Documentation"
    "docutils",">v2.38.0","Documentation"
+   "gcovr",">=v4.2","Tools(Coverage analysis)"
 
 .. _getting_started_toolchain:
 
@@ -142,6 +143,30 @@ Install them with ``pip3``:
     pip3 install --upgrade pip
     cd <rmm source folder>
     pip3 install -r docs/requirements.txt
+
+############################################
+Install coverage tools analysis dependencies
+############################################
+
+.. note::
+
+    This is an optional step only needed if you intend to run coverage
+    analysis on the source code.
+
+On Ubuntu, ``gcovr`` tool can be installed in two different ways:
+
+Using the pagckage manager:
+
+.. code-block:: bash
+
+    sudo apt-get install gcovr
+
+The second (and recommended) way is install it with ``pip3``:
+
+.. code-block:: bash
+
+    pip3 install --upgrade pip
+    pip3 install gcovr
 
 .. _getting_started_get_source:
 

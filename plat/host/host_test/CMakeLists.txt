@@ -9,6 +9,7 @@ add_library(rmm-plat-host_test)
 arm_config_option(
     NAME RMM_UNITTESTS
     HELP "Enable Unitests for the build"
+    TYPE BOOL
     DEFAULT "ON"
     TYPE INTERNAL)
 

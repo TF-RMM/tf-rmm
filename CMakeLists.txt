@@ -61,10 +61,16 @@ set(CMAKE_C_EXTENSIONS TRUE)
 if(RMM_STATIC_ANALYSIS_CPPCHECK)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 endif()
+
 #
 # Include the platform makefile
 #
 include("cmake/Platforms.cmake")
+
+#
+# Include Coverage report framework
+#
+include("cmake/CoverageReport.cmake")
 
 #
 # Include the Unit Test Framework
