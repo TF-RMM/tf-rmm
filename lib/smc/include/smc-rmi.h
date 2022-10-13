@@ -122,11 +122,11 @@
 #define RMI_EXIT_SERROR			(6U)
 
 /* RmiRttEntryState represents the state of an RTTE */
-#define RMI_RTT_STATE_UNASSIGNED	(0U)
-#define RMI_RTT_STATE_DESTROYED		(1U)
-#define RMI_RTT_STATE_ASSIGNED		(2U)
-#define RMI_RTT_STATE_TABLE		(3U)
-#define RMI_RTT_STATE_VALID_NS		(4U)
+#define RMI_UNASSIGNED		(0U)
+#define RMI_DESTROYED		(1U)
+#define RMI_ASSIGNED		(2U)
+#define RMI_TABLE		(3U)
+#define RMI_VALID_NS		(4U)
 
 /* RmiFeatureRegister0 format */
 #define RMM_FEATURE_REGISTER_0_INDEX		UL(0)

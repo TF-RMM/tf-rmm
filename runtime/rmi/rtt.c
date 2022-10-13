@@ -728,23 +728,23 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 	if (s2tte_is_unassigned(s2tte)) {
 		enum ripas ripas = s2tte_get_ripas(s2tte);
 
-		ret->x[2] = RMI_RTT_STATE_UNASSIGNED;
+		ret->x[2] = RMI_UNASSIGNED;
 		ret->x[4] = (unsigned long)ripas;
 	} else if (s2tte_is_destroyed(s2tte)) {
-		ret->x[2] = RMI_RTT_STATE_DESTROYED;
+		ret->x[2] = RMI_DESTROYED;
 	} else if (s2tte_is_assigned(s2tte, wi.last_level)) {
-		ret->x[2] = RMI_RTT_STATE_ASSIGNED;
+		ret->x[2] = RMI_ASSIGNED;
 		ret->x[3] = s2tte_pa(s2tte, wi.last_level);
 		ret->x[4] = RMI_EMPTY;
 	} else if (s2tte_is_valid(s2tte, wi.last_level)) {
-		ret->x[2] = RMI_RTT_STATE_ASSIGNED;
+		ret->x[2] = RMI_ASSIGNED;
 		ret->x[3] = s2tte_pa(s2tte, wi.last_level);
 		ret->x[4] = RMI_RAM;
 	} else if (s2tte_is_valid_ns(s2tte, wi.last_level)) {
-		ret->x[2] = RMI_RTT_STATE_VALID_NS;
+		ret->x[2] = RMI_VALID_NS;
 		ret->x[3] = host_ns_s2tte(s2tte, wi.last_level);
 	} else if (s2tte_is_table(s2tte, wi.last_level)) {
-		ret->x[2] = RMI_RTT_STATE_TABLE;
+		ret->x[2] = RMI_TABLE;
 		ret->x[3] = s2tte_pa_table(s2tte, wi.last_level);
 	} else {
 		assert(false);
