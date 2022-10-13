@@ -10,6 +10,8 @@
 #include <smc-rmi.h>
 #include <status.h>
 
+#define RMM_FEATURE_MIN_IPA_SIZE		PARANGE_0000_WIDTH
+
 static unsigned long get_feature_register_0(void)
 {
 	/* Set S2SZ field */
