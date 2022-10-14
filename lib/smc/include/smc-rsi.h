@@ -18,7 +18,7 @@
  * The major version number of the RSI implementation.  Increase this whenever
  * the binary format or semantics of the SMC calls change.
  */
-#define RSI_ABI_VERSION_MAJOR		12U
+#define RSI_ABI_VERSION_MAJOR		U(12)
 
 /*
  * The minor version number of the RSI implementation.  Increase this when
@@ -26,11 +26,11 @@
  */
 #define RSI_ABI_VERSION_MINOR		0
 
-#define RSI_ABI_VERSION			((RSI_ABI_VERSION_MAJOR << 16U) | \
+#define RSI_ABI_VERSION			((RSI_ABI_VERSION_MAJOR << U(16)) | \
 					 RSI_ABI_VERSION_MINOR)
 
-#define RSI_ABI_VERSION_GET_MAJOR(_version) ((_version) >> 16U)
-#define RSI_ABI_VERSION_GET_MINOR(_version) ((_version) & 0xFFFFU)
+#define RSI_ABI_VERSION_GET_MAJOR(_version) ((_version) >> U(16))
+#define RSI_ABI_VERSION_GET_MINOR(_version) ((_version) & U(0xFFFF))
 
 #define IS_SMC64_RSI_FID(_fid)		IS_SMC64_STD_FAST_IN_RANGE(RSI, _fid)
 
@@ -40,21 +40,21 @@
 
 /* RSI Status code enumeration as per Section D4.3.6 of the RMM Spec */
 /* Command completed successfully */
-#define RSI_SUCCESS		0U
+#define RSI_SUCCESS		U(0)
 
 /* The value of a command input value caused the command to fail */
-#define RSI_ERROR_INPUT		1U
+#define RSI_ERROR_INPUT		U(1)
 
 /*
  * The state of the current Realm or current REC
  * does not match the state expected by the command
  */
-#define RSI_ERROR_STATE		2U
+#define RSI_ERROR_STATE		U(2)
 
 /* The operation requested by the command is not complete */
-#define RSI_INCOMPLETE		3U
+#define RSI_INCOMPLETE		U(3)
 
-#define RSI_ERROR_COUNT		4U
+#define RSI_ERROR_COUNT		U(4)
 
 /*
  * Returns a measurement.
@@ -111,6 +111,7 @@
  */
 #define SMC_RSI_ATTEST_TOKEN_CONTINUE	SMC64_RSI_FID(U(0x5))
 
+#ifndef __ASSEMBLER__
 /*
  * Defines member of structure and reserves space
  * for the next member with specified offset.
@@ -121,6 +122,8 @@ struct rsi_realm_config {
 	/* IPA width in bits */
 	SET_MEMBER_RSI(unsigned long ipa_width, 0, 0x1000);	/* Offset 0 */
 };
+
+#endif /* __ASSEMBLER__ */
 
 /*
  * arg0 == struct rsi_realm_config address
@@ -143,8 +146,9 @@ struct rsi_realm_config {
  */
 #define SMC_RSI_IPA_STATE_GET		SMC64_RSI_FID(U(0x8))
 
-#define RSI_HOST_CALL_NR_GPRS		7U
+#define RSI_HOST_CALL_NR_GPRS		U(7)
 
+#ifndef __ASSEMBLER__
 struct rsi_host_call {
 	SET_MEMBER_RSI(struct {
 		/* Immediate value */
@@ -153,6 +157,8 @@ struct rsi_host_call {
 		unsigned long gprs[RSI_HOST_CALL_NR_GPRS];
 		}, 0, 0x100);
 };
+
+#endif /* __ASSEMBLER__ */
 
 /*
  * arg0 == struct rsi_host_call addr
