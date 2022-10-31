@@ -15,7 +15,8 @@ target_include_directories(rmm-lib-smc
 if(NOT RMM_ARCH STREQUAL fake_host)
     target_sources(rmm-lib-smc
         PRIVATE "src/aarch64/smc.S"
-                "src/smc-rmi-offsets.c")
+                "src/smc-rmi-offsets.c"
+                "src/smc-rsi-offsets.c")
 else()
     target_sources(rmm-lib-smc
         PRIVATE "src/fake_host/smc_wrapper.c")
