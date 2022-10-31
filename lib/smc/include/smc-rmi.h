@@ -39,6 +39,45 @@
 
 #define IS_SMC64_RMI_FID(_fid)		IS_SMC64_STD_FAST_IN_RANGE(RMI, _fid)
 
+/* Command completed successfully. index is zero. */
+#define RMI_SUCCESS			U(0)
+
+/*
+ * The value of a command input value caused the command to fail.
+ * Index is zero.
+ */
+#define RMI_ERROR_INPUT			U(1)
+
+/*
+ * An attribute of a Realm does not match the expected value.
+ * index varies between usages.
+ */
+#define RMI_ERROR_REALM			U(2)
+
+/*
+ * An attribute of a REC does not match the expected value.
+ * Index is zero.
+ */
+#define RMI_ERROR_REC			U(3)
+
+/*
+ * An RTT walk terminated before reaching the target RTT level, or reached
+ * an RTTE with an unexpected value. index: RTT level at which the walk
+ * terminated
+ */
+#define RMI_ERROR_RTT			U(4)
+
+/*
+ * An operation cannot be completed because a resource is in use.
+ * Index is zero.
+ */
+#define RMI_ERROR_IN_USE		U(5)
+
+/*
+ * Number of RMI Status Errors.
+ */
+#define RMI_ERROR_COUNT			U(6)
+
 /*
  * The number of GPRs (starting from X0) that are
  * configured by the host when a REC is created.
