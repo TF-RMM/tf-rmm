@@ -145,6 +145,10 @@
 #define RMM_FEATURE_REGISTER_0_HASH_SHA_512_SHIFT      UL(29)
 #define RMM_FEATURE_REGISTER_0_HASH_SHA_512_WIDTH      UL(1)
 
+/* The RmmRipas enumeration representing realm IPA state */
+#define RMI_EMPTY   (0)
+#define RMI_RAM     (1)
+
 /* no parameters */
 #define SMC_RMM_VERSION				SMC64_RMI_FID(U(0x0))
 

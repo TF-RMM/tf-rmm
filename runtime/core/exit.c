@@ -115,7 +115,7 @@ static bool ipa_is_empty(unsigned long ipa, struct rec *rec)
 		goto out_unmap_ll_table;
 	}
 	ripas = s2tte_get_ripas(s2tte);
-	ret = (ripas == RMI_EMPTY);
+	ret = (ripas == RIPAS_EMPTY);
 
 out_unmap_ll_table:
 	buffer_unmap(ll_table);

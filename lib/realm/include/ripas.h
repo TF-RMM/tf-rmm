@@ -6,9 +6,7 @@
 #ifndef RIPAS_H
 #define RIPAS_H
 
-/* The RmmRipas enumeration representing realm IPA state */
-#define	EMPTY	0U	/* Unused IPA location */
-#define	RAM	1U	/* Private code or data owned by the Realm */
+#include <smc-rmi.h>
 
 /*
  * The RmiRipas enumeration representing realm IPA state.
@@ -16,8 +14,8 @@
  * Map RmmRipas to RmiRipas to simplify code/decode operations.
  */
 enum ripas {
-	RMI_EMPTY = EMPTY,
-	RMI_RAM = RAM
+	RIPAS_EMPTY = RMI_EMPTY,	/* Unused IPA for Realm */
+	RIPAS_RAM = RMI_RAM		/* IPA used for Code/Data by Realm */
 };
 
 #endif /* RIPAS_H */
