@@ -461,7 +461,7 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		rec->regs[0] = handle_rsi_extend_measurement(rec);
 		break;
 	case SMC_RSI_REALM_CONFIG: {
-		struct rsi_config_result res;
+		struct rsi_walk_smc_result res;
 
 		res = handle_rsi_realm_config(rec);
 		if (res.walk_result.abort) {
@@ -483,12 +483,17 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		}
 		break;
 	case SMC_RSI_IPA_STATE_GET: {
-		enum ripas ripas;
+		struct rsi_walk_smc_result res;
 
-		rec->regs[0] = handle_rsi_ipa_state_get(rec, rec->regs[1],
-							&ripas);
-		if (rec->regs[0] == RSI_SUCCESS) {
-			rec->regs[1] = ripas;
+		res = handle_rsi_ipa_state_get(rec);
+		if (res.walk_result.abort) {
+			emulate_stage2_data_abort(rec, rec_exit,
+						  res.walk_result.rtt_level);
+			/* Exit to Host */
+			ret_to_rec = false;
+		} else {
+			/* Exit to Realm */
+			return_result_to_realm(rec, res.smc_res);
 		}
 		break;
 	}

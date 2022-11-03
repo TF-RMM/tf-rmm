@@ -51,24 +51,32 @@ bool handle_rsi_ipa_state_set(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	return false;
 }
 
-rsi_status_t handle_rsi_ipa_state_get(struct rec *rec, unsigned long ipa,
-				      enum ripas *ripas_ptr)
+struct rsi_walk_smc_result handle_rsi_ipa_state_get(struct rec *rec)
 {
-	bool s2tte_destroyed;
+	struct rsi_walk_smc_result res = { 0 };
+	enum s2_walk_status ws;
+	unsigned long rtt_level, ipa;
+	enum ripas ripas;
 
-	if (!GRANULE_ALIGNED(ipa)) {
-		return RSI_ERROR_INPUT;
+	ipa = rec->regs[1];
+
+	/* Exit to realm */
+	res.walk_result.abort = false;
+
+	if (!GRANULE_ALIGNED(ipa) || !addr_in_rec_par(rec, ipa)) {
+		res.smc_res.x[0] = RSI_ERROR_INPUT;
+		return res;
 	}
 
-	if (!addr_in_rec_par(rec, ipa)) {
-		return RSI_ERROR_INPUT;
+	ws = realm_ipa_get_ripas(rec, ipa, &ripas, &rtt_level);
+	if (ws == WALK_SUCCESS) {
+		res.smc_res.x[0] = RSI_SUCCESS;
+		res.smc_res.x[1] = ripas;
+	} else {
+		/* Exit to Host */
+		res.walk_result.abort = true;
+		res.walk_result.rtt_level = rtt_level;
 	}
 
-	realm_ipa_get_ripas(rec, ipa, ripas_ptr, &s2tte_destroyed);
-	if (s2tte_destroyed == true) {
-		/* TODO: handle destroyed state appropriately */
-		return RSI_ERROR_INPUT;
-	}
-
-	return RSI_SUCCESS;
+	return res;
 }
