@@ -1,0 +1,7 @@
+.. |TF-A| replace:: :term:`TF-A`
+.. |RMM| replace:: :term:`RMM`
+.. |AArch64| replace:: :term:`AArch64`
+.. |REC| replace:: :term:`REC`
+.. |RD| replace:: :term:`RD`
+.. |PAR| replace:: :term:`PAR`
+.. |PAS| replace:: :term:`PAS`

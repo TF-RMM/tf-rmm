@@ -1,0 +1,10 @@
+[submodule "mbedtls"]
+	path = ext/mbedtls
+	url = https://github.com/ARMmbed/mbedtls.git
+	ignore = dirty
+[submodule "ext/qcbor"]
+	path = ext/qcbor
+	url = https://github.com/laurencelundblade/QCBOR.git
+[submodule "ext/t_cose"]
+	path = ext/t_cose
+	url = https://github.com/matetothpal/t_cose.git

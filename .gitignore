@@ -1,0 +1,12 @@
+build
+*.cscope
+cscope.*
+.tags
+tags
+*.dump
+*-info
+*-list
+out
+*~
+*.patch
+*.swp

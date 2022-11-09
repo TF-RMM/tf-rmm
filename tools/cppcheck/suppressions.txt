@@ -1,0 +1,18 @@
+// Cppcheck includes its own system headers so we do not ask it to search for
+// our own (freestanding headers are provided by the compiler, and anything else
+// is provided by the `rmm-lib-libc` target).
+missingIncludeSystem
+
+// Cppcheck reports a lot of false positives for unused functions, as it cannot
+// analyze the SMC call boundary. Short of manually suppressing half of the
+// code-base, there's not much we can do about this.
+unusedFunction
+
+// Because files are analyzed individually, Cppcheck sometimes complains that
+// the `missingIncludeSystem` suppression was useless. It's right, but it's
+// also not particularly helpful.
+unmatchedSuppression
+
+// We don't want to receive warnings about code we don't control, which includes
+// any external libraries we vendor.
+*:ext/*
