@@ -11,8 +11,8 @@ diagram gives an overview of the boot flow.
 |Boot Design|
 
 Both warm and cold boot enters RMM at the same entry point
-``rmm_entry()``. This scheme simplifies the `boot contract between
-RMM and EL3 <rmm-el3-comms>`_. The boot args as specified by boot
+``rmm_entry()``. This scheme simplifies the
+`RMM-EL3 communications interface`_. The boot args as specified by boot
 contract are stashed to high registers.
 
 The boot is divided into several phases as described below:
@@ -40,7 +40,7 @@ The boot is divided into several phases as described below:
    The boot args are restored to their original registers and plat_setup()
    and plat_warmboot_setup() are invoked for cold and warm boot respectively.
    During cold boot, the platform is expected to consume the boot manifest
-   which is part of the `boot contract <emm-el3-comms>`_. The platform
+   which is part of the `RMM-EL3 communications interface`_. The platform
    initializes any platform specific peripherals and also intializes and
    configures the translation table contexts for Stage 1.
 
@@ -66,9 +66,8 @@ RMM-EL3 communication specification
 ###################################
 
 The communication interface between RMM and EL3 is specified in
-`RMM-EL3 communication interface <rmm-el3-comms>`_ specification in
-TF-A repository.
+`RMM-EL3 communications interface`_ specification in the TF-A repository.
 
 .. |Boot Design| image:: ./diagrams/boot_design.drawio.png
-.. _`rmm-el3-comms`: https://trustedfirmware-a.readthedocs.io/en/latest/components/rmm-el3-comms-spec.html
+.. _`RMM-EL3 communications interface`: https://trustedfirmware-a.readthedocs.io/en/latest/components/rmm-el3-comms-spec.html
 

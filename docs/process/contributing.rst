@@ -70,9 +70,11 @@ Making Changes
 Submitting Changes
 ==================
 
--  Submit your changes for review at https://review.trustedfirmware.org
-   targeting the ``integration`` branch. Create a topic that describes
-   the target of your changes to help group related patches together.
+-  Assuming the clone of the repo has been done as mentioned in the
+   :ref:`getting_started_get_source` and *origin* refers to the upstream repo,
+   submit your changes for review targeting the ``integration`` branch.
+   Create a topic that describes the target of your changes to help group
+   related patches together.
 
    .. code::
 
