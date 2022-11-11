@@ -48,8 +48,6 @@ The following tools are required to obtain and build |RMM|:
    "Git",, "Firmware, Documentation"
    "Graphviz dot",">v2.38.0","Documentation"
    "docutils",">v2.38.0","Documentation"
-   "JRE",">=10.0","Documentation"
-   "plantuml",,"Documentation"
 
 .. _getting_started_toolchain:
 
@@ -107,13 +105,8 @@ required packages with the following commands:
 
 .. code:: shell
 
-    sudo apt-get install -y git build-essential python3 python3-pip make ninja-build default-jre
+    sudo apt-get install -y git build-essential python3 python3-pip make ninja-build
     sudo snap install cmake
-    wget https://github.com/plantuml/plantuml/releases/download/v1.2022.7/plantuml-1.2022.7.jar -P <plantuml install path>
-
-.. note::
-
-    platUML and JRE are only required for documentation build.
 
 2. Verify cmake version:
 
@@ -125,12 +118,11 @@ required packages with the following commands:
 
     Please download cmake 3.19 or later version from https://cmake.org/download/.
 
-3. Add CMake and platUML path into environment:
+3. Add CMake path into environment:
 
 .. code-block:: bash
 
     export PATH=<CMake path>/bin:$PATH
-    export PLANTUML_JAR_PATH=<plantuml install path>/plantuml.jar
 
 ###########################
 Install python dependencies
@@ -141,14 +133,14 @@ Install python dependencies
     The installation of Python dependencies is an optional step. This is required only
     if building documentation.
 
-RMM's ``tools/requirements.txt`` file declares additional Python dependencies.
+RMM's ``docs/requirements.txt`` file declares additional Python dependencies.
 Install them with ``pip3``:
 
 .. code-block:: bash
 
     pip3 install --upgrade pip
     cd <rmm source folder>
-    pip3 install -r tools/requirements.txt
+    pip3 install -r docs/requirements.txt
 
 .. _getting_started_get_source:
 

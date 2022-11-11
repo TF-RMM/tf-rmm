@@ -7,11 +7,8 @@
 # See the options documentation at http://www.sphinx-doc.org/en/master/config
 
 import os
-
-RMM_ROOT_DIR                = "@CMAKE_SOURCE_DIR@"
-PLANTUML_JAR_PATH           = "@PLANTUML_JAR_PATH@"
-Java_JAVA_EXECUTABLE        = "@Java_JAVA_EXECUTABLE@"
-SPHINXCFG_RMM_VERSION       = "v@CMAKE_PROJECT_VERSION@"
+import re
+from subprocess import check_output
 
 # -- Project information -----------------------------------------------------
 
@@ -19,7 +16,18 @@ project = 'Realm Management Monitor'
 copyright = 'TF-RMM Contributors'
 author = 'TF-RMM Contributors'
 title = 'User Guide'
-version = SPHINXCFG_RMM_VERSION
+
+try:
+  vregx = re.compile(r'tf-rmm-(?P<GIT_VERSION>v.+?)'
+                     r'(-[0-9]+-)?(?P<GIT_SHA>g[a-f0-9]{7,})?$')
+  git_result = check_output("git describe --tags --always",
+                            shell = True, encoding = 'UTF-8')
+  _v = vregx.match(git_result)
+  release = _v.group('GIT_VERSION')
+  if _v.group('GIT_SHA'):
+    version = release + "+" + _v.group('GIT_SHA')[:7]
+except:
+  version = 'Unknown'
 
 # -- General configuration ---------------------------------------------------
 
@@ -27,9 +35,6 @@ version = SPHINXCFG_RMM_VERSION
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = ['sphinx.ext.autosectionlabel', 'sphinxcontrib.plantuml']
-
-#Location of PlantUML
-plantuml = Java_JAVA_EXECUTABLE + " -jar " + PLANTUML_JAR_PATH
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -57,7 +62,7 @@ pygments_style = 'sphinx'
 
 # Load the contents of the global substitutions file into the 'rst_prolog'
 # variable. This ensures that the substitutions are all inserted into each page.
-with open(RMM_ROOT_DIR + '/docs/global_substitutions.txt', 'r') as subs:
+with open('global_substitutions.txt', 'r') as subs:
   rst_prolog = subs.read()
 
 # Minimum version of sphinx required
@@ -76,7 +81,7 @@ html_show_copyright = True
 html_theme = "sphinx_rtd_theme"
 
 # The logo to display in the sidebar
-html_logo = RMM_ROOT_DIR + '/docs/_static/images/TrustedFirmware-Logo_standard-white.png'
+html_logo = '_static/images/TrustedFirmware-Logo_standard-white.png'
 
 # Options for the "sphinx-rtd-theme" theme
 html_theme_options = {
@@ -86,10 +91,10 @@ html_theme_options = {
 }
 
 # Path to _static directory
-html_static_path = [RMM_ROOT_DIR + '/docs/_static']
+html_static_path = ['_static']
 
 # Path to css file relative to html_static_path
-html_css_files = [RMM_ROOT_DIR + '/docs/_static/css/rmm_custom.css',]
+html_css_files = ['css/rmm_custom.css',]
 
 # -- Options for autosectionlabel --------------------------------------------
 
