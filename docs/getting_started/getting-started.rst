@@ -173,7 +173,8 @@ inside your cloned RMM source folder.
 
 The `TF-RMM Gerrit page`_ under trustedfirmware.org contains a
 *Clone with commit-msg hook* subsection under its **Download** header where
-you can copy the command to clone the repo with the required git hooks.
+you can copy the command to clone the repo with the required git hooks. Please
+use the **SSH** option to clone the repository on your local machine.
 
 If needed, you can also manually install the hooks separately on an existing
 repo:
