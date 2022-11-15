@@ -9,9 +9,9 @@
 #include <rsi-walk.h>
 #include <smc-rsi.h>
 
-struct rsi_config_result  handle_rsi_realm_config(struct rec *rec)
+struct rsi_walk_smc_result  handle_rsi_realm_config(struct rec *rec)
 {
-	struct rsi_config_result res = { 0 };
+	struct rsi_walk_smc_result res = { 0 };
 	unsigned long ipa = rec->regs[1];
 	struct rd *rd;
 	enum s2_walk_status walk_status;

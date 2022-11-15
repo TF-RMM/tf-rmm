@@ -99,19 +99,24 @@ out_unmap_table:
  * Parameters:
  *	[in]  @rec:		Pointer to the rec
  *	[in]  @ipa:		IPA for which RIPAS is queried.
- *	[out] @ripas_ptr:	RIPAS value returned for the IPA
- *	[out] @s2tte_destroyed: Set to true when s2tte has HIPAS=DESTROYED
+ *	[out] @ripas_ptr:	RIPAS value returned for the IPA. This is set in
+ *				case of WALK_SUCCESS is returned.
+ *	[out] @rtt_level:	Value of last level reached by table walk. This
+ *				is set in case of WALK_FAIL is returned.
  * Returns:
- *	None
+ *	WALK_SUCCESS:		RIPAS of IPA found
+ *	WALK_FAIL:		RIPAS of IPA not found. s2tte has HIPAS=DESTROYED
  */
-void realm_ipa_get_ripas(struct rec *rec, unsigned long ipa,
-			 enum ripas *ripas_ptr, bool *s2tte_destroyed)
+enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long ipa,
+					enum ripas *ripas_ptr,
+					unsigned long *rtt_level)
 {
 	unsigned long s2tte, *ll_table;
 	struct rtt_walk wi;
+	enum s2_walk_status ws;
 
 	assert(ripas_ptr != NULL);
-	assert(s2tte_destroyed != NULL);
+	assert(rtt_level != NULL);
 	assert(GRANULE_ALIGNED(ipa));
 	assert(addr_in_rec_par(rec, ipa));
 
@@ -126,12 +131,20 @@ void realm_ipa_get_ripas(struct rec *rec, unsigned long ipa,
 	s2tte = s2tte_read(&ll_table[wi.index]);
 
 	if (s2tte_is_destroyed(s2tte)) {
-		*s2tte_destroyed = true;
+		*rtt_level = wi.last_level;
+		/*
+		 * The IPA has been destroyed by NS Host. Return data_abort back
+		 * to NS Host and there is no recovery possible of this Rec
+		 * after this.
+		 */
+		ws = WALK_FAIL;
 	} else {
-		*s2tte_destroyed = false;
 		*ripas_ptr = s2tte_get_ripas(s2tte);
+		ws = WALK_SUCCESS;
 	}
 
 	buffer_unmap(ll_table);
 	granule_unlock(wi.g_llt);
+
+	return ws;
 }
