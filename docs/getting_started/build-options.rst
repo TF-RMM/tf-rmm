@@ -74,7 +74,6 @@ Build using LLVM toolchain
 
 .. code-block:: bash
 
-    export PLANTUML_JAR_PATH=<install path>/bin/plantuml/plantuml.jar
     cmake -DRMM_CONFIG=fvp_defcfg -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR} -DRMM_DOCS=ON
     cmake --build ${RMM_BUILD_DIR} -- docs
 
