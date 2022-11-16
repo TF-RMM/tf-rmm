@@ -505,6 +505,8 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		if (res.walk_result.abort) {
 			emulate_stage2_data_abort(rec, rec_exit,
 						  res.walk_result.rtt_level);
+			/* Exit to Host */
+			ret_to_rec = false;
 		} else {
 			rec->regs[0] = res.smc_result;
 
@@ -523,7 +525,6 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		}
 		break;
 	}
-
 	default:
 		rec->regs[0] = SMC_UNKNOWN;
 		break;
