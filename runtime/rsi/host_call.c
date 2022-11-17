@@ -20,10 +20,10 @@
  *   - Return value is RSI_SUCCESS.
  *
  * If the RTT walk succeeds then:
- *   - If @exit is not NULL and @entry is NULL, then copy host call arguments
- *     from host call data structure (in Realm memory) to @exit.
- *   - If @exit is NULL and @entry is not NULL, then copy host call results to
- *     host call data structure (in Realm memory).
+ *   - If @rec_exit is not NULL and @rec_entry is NULL, then copy host call
+ *     arguments from host call data structure (in Realm memory) to @rec_exit.
+ *   - If @rec_exit is NULL and @rec_entry is not NULL, then copy host call
+ *     results to host call data structure (in Realm memory).
  *   - Return value is RSI_SUCCESS.
  */
 static unsigned int do_host_call(struct rec *rec,
@@ -43,7 +43,9 @@ static unsigned int do_host_call(struct rec *rec,
 	unsigned int ret = RSI_SUCCESS;
 
 	assert(addr_in_rec_par(rec, ipa));
-	assert(((unsigned long)rec_entry | (unsigned long)rec_exit) != 0UL);
+
+	/* Only 'rec_entry' or 'rec_exit' should be set */
+	assert((rec_entry != NULL) ^ (rec_exit != NULL));
 
 	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
 
@@ -77,9 +79,7 @@ static unsigned int do_host_call(struct rec *rec,
 		for (i = 0U; i < RSI_HOST_CALL_NR_GPRS; i++) {
 			rec_exit->gprs[i] = host_call->gprs[i];
 		}
-	}
-
-	if (rec_entry != NULL) {
+	} else {
 		/* Copy host call results to host call data structure */
 		for (i = 0U; i < RSI_HOST_CALL_NR_GPRS; i++) {
 			host_call->gprs[i] = rec_entry->gprs[i];
