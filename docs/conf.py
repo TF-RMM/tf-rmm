@@ -18,14 +18,14 @@ author = 'TF-RMM Contributors'
 title = 'User Guide'
 
 try:
-  vregx = re.compile(r'tf-rmm-(?P<GIT_VERSION>v.+?)'
+  vregx = re.compile(r'(?P<RMM_VERSION>v.+?)'
                      r'(-[0-9]+-)?(?P<GIT_SHA>g[a-f0-9]{7,})?$')
   git_result = check_output("git describe --tags --always",
                             shell = True, encoding = 'UTF-8')
   _v = vregx.match(git_result)
-  release = _v.group('GIT_VERSION')
+  version = _v.group('RMM_VERSION')
   if _v.group('GIT_SHA'):
-    version = release + "+" + _v.group('GIT_SHA')[:7]
+    version += "+" + _v.group('GIT_SHA')[:7]
 except:
   version = 'Unknown'
 
