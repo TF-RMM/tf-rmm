@@ -5,10 +5,12 @@
 Prerequisite
 #############
 
-This document describes the software requirements for building |RMM| for AArch64 target platforms.
+This document describes the software requirements for building |RMM| for
+AArch64 target platforms.
 
-It may possible to build |RMM| with combinations of software packages that are different from
-those listed below, however only the software described in this document can be officially supported.
+It may possible to build |RMM| with combinations of software packages that
+are different from those listed below, however only the software described in
+this document can be officially supported.
 
 ###########
 Build Host
@@ -22,10 +24,9 @@ described below. In case of problems, the |RMM| team provides support only
 for these environments, but building in other environments can still be
 possible.
 
-A relatively recent Linux distribution is recommended for building RMM. We
-have performed tests using Ubuntu 18.04 LTS (64-bit) but other distributions
-should also work fine as a base, provided that the necessary tools and
-libraries can be installed.
+We recommend at least Ubuntu 20.04 LTS (x64) for build environment. The
+arm64/AArch64 Ubuntu and other Linux distributions should also work fine,
+provided that the necessary tools and libraries can be installed.
 
 ##########################
 Tool & Dependency overview
@@ -95,7 +96,7 @@ The ``CROSS_COMPILE`` variable is ignored for ``fake_host`` build and
 the native host toolchain is used for the build.
 
 #######################################
-Package Installation (Ubuntu-18.04 x64)
+Package Installation (Ubuntu-20.04 x64)
 #######################################
 
 If you are using the recommended Ubuntu distribution then we can install the
