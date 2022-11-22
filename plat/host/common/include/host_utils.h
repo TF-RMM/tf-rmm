@@ -42,18 +42,35 @@ typedef u_register_t (*rd_cb_t)(u_register_t *reg);
 typedef void (*wr_cb_t)(u_register_t val, u_register_t *reg);
 
 /*
- * Structure to hold the callback pointers and value of the emulated sysreg.
+ * Structure to hold the callback pointers for register access emulation.
  */
 struct sysreg_cb {
-	char sysreg[MAX_SYSREG_NAME_LEN + 1U];
 	rd_cb_t rd_cb;
 	wr_cb_t wr_cb;
-	u_register_t value;
+	/*
+	 * Pointer to the instance of the register corresponding to the
+	 * current CPU
+	 */
+	u_register_t *reg;
+};
+
+/*
+ * Structure to hold register access emulation data.
+ */
+struct sysreg_data {
+	char name[MAX_SYSREG_NAME_LEN + 1U];
+	struct sysreg_cb callbacks;
+	u_register_t value[MAX_CPUS];
 };
 
 /*
  * Return the callbacks for a given sysreg or NULL
  * if no callbacks are found.
+ *
+ * Arguments:
+ *	name - String containing the name of the sysreg. The name cannot exceed
+ *	       MAX_SYSREG_NAME_LEN (excluding the terminatig NULL character)
+ *	       or it will be truncated.
  */
 struct sysreg_cb *host_util_get_sysreg_cb(char *name);
 
@@ -64,10 +81,10 @@ struct sysreg_cb *host_util_get_sysreg_cb(char *name);
  * read or write operations. This allows to control what to return on
  * a read or how to process a write.
  *
- * Argsuments:
+ * Arguments:
  *	name - String containing the name of the sysreg. The name of
  *	       the sysreg cannot exceed MAX_SYSREG_NAME_LEN (excluding
- *	       the terminating null character) or it will be truncated.
+ *	       the terminating NULL character) or it will be truncated.
  *	rd_cb - Callback to be invoked on a read operation.
  *	wr_cb - Callback to be invoked on a write operation.
  *	init - Value used as reset value for the sysreg.
@@ -87,7 +104,7 @@ int host_util_set_sysreg_cb(char *name, rd_cb_t rd_cb, wr_cb_t wr_cb,
  * Arguments:
  *	name - String containing the name of the sysreg. The name of
  *	       the sysreg cannot exceed MAX_SYSREG_NAME_LEN (excluding
- *	       the terminating null character) or it will be truncated.
+ *	       the terminating NULL character) or it will be truncated.
  *	init - Value used as reset value for the sysreg.
  *
  * Returns:
@@ -104,5 +121,10 @@ void host_util_reset_all_sysreg_cb(void);
  * Return the configured address for the granule base.
  */
 unsigned long host_util_get_granule_base(void);
+
+/*
+ * Set the current CPU emulated by the platform.
+ */
+void host_util_set_cpuid(unsigned int cpuid);
 
 #endif /* HOST_UTILS_H */
