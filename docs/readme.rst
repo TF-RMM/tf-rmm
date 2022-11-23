@@ -48,7 +48,7 @@ EL3 Firmware implementation `TF-A`_.
 More details about the RMM and how it fits in the Software Stack can be
 found in `Arm CCA Software Stack Guide`_.
 
-The :ref:`Change-log and Release notes` has the details of features implemented
+The `Change-log and Release notes`_ has the details of features implemented
 by this version of TF-RMM and lists any known issues.
 
 *******
@@ -56,8 +56,8 @@ License
 *******
 
 Unless specifically indicated otherwise in a file, TF-RMM files are provided
-under the :ref:`BSD-3-Clause License <License>`. For contributions, please
-see :ref:`License and Copyright for Contributions <copyright-license-guidance>`.
+under the `BSD-3-Clause License`_. For contributions, please
+see `License and Copyright for Contributions`_.
 
 Third Party Projects
 ====================
@@ -92,7 +92,7 @@ Contributing
 ************
 
 We gratefully accept bug reports and contributions from the community.
-Please see the :ref:`Contributor's Guide` for details on how to do this.
+Please see the `Contributor's Guide`_ for details on how to do this.
 
 ********************
 Feedback and support
@@ -115,3 +115,7 @@ To report a bug, please file an `issue on Github`_
 .. _MbedTLS: https://github.com/ARMmbed/mbedtls.git
 .. _t_cose: https://github.com/laurencelundblade/t_cose
 .. _QCBOR: https://github.com/laurencelundblade/QCBOR.git
+.. _Change-log and Release notes: https://tf-rmm.readthedocs.io/en/latest/about/change-log.html
+.. _BSD-3-Clause License: https://tf-rmm.readthedocs.io/en/latest/about/license.html
+.. _License and Copyright for Contributions: https://tf-rmm.readthedocs.io/en/latest/process/contributing.html#license-and-copyright-for-contributions
+.. _Contributor's Guide: https://tf-rmm.readthedocs.io/en/latest/process/contributing.html
