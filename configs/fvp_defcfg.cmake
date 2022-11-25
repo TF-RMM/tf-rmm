@@ -9,16 +9,15 @@
 set(RMM_PLATFORM "fvp" CACHE STRING "platform")
 arm_config_option_override(NAME RMM_TOOLCHAIN DEFAULT "gnu")
 
-
 #
 # Width of the virtual address space for the system.
 #
 arm_config_option_override(NAME VIRT_ADDR_SPACE_WIDTH DEFAULT 38)
 
 #
-# Set RMM_MAX_SIZE for this platform (16 MB)
+# Set RMM_MAX_SIZE for this platform (20MB)
 #
-arm_config_option_override(NAME RMM_MAX_SIZE DEFAULT 0x01000000)
+arm_config_option_override(NAME RMM_MAX_SIZE DEFAULT 0x01400000)
 
 #
 # UART Base address. This must be dynamically discovered in future.
@@ -41,6 +40,7 @@ arm_config_option_override(NAME PLAT_CMN_CTX_MAX_XLAT_TABLES DEFAULT 5)
 arm_config_option_override(NAME RMM_FPU_USE_AT_REL2 DEFAULT OFF)
 
 #
-# Maximum number of granules supported, enough to cover 2GB of DDR0.
+# Maximum number of granules supported, enough to cover
+# (2GB - 64MB) of DRAM0 and 2GB of DRAM1.
 #
-arm_config_option_override(NAME RMM_MAX_GRANULES DEFAULT 0x80000)
+arm_config_option_override(NAME RMM_MAX_GRANULES DEFAULT 0xfc000)
