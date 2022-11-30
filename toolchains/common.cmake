@@ -11,7 +11,7 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 
-foreach(language IN ITEMS ASM C)
+foreach(language IN ITEMS ASM C CXX)
     string(APPEND CMAKE_${language}_FLAGS_INIT "-fno-common ")
     string(APPEND CMAKE_${language}_FLAGS_INIT "-fomit-frame-pointer ")
     string(APPEND CMAKE_${language}_FLAGS_INIT "-ffunction-sections ")

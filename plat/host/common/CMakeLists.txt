@@ -6,8 +6,8 @@
 add_library(rmm-host-common)
 
 target_link_libraries(rmm-host-common
-    PRIVATE  rmm-plat-common
-             rmm-lib)
+    PRIVATE  rmm-lib
+             rmm-plat-common)
 
 target_sources(rmm-host-common
     PRIVATE "src/host_harness_cmn.c"

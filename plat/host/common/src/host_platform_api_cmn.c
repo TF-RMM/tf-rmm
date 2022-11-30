@@ -60,8 +60,8 @@ void plat_setup(uint64_t x0, uint64_t x1,
 unsigned long plat_granule_addr_to_idx(unsigned long addr)
 {
 	if (!(GRANULE_ALIGNED(addr) &&
-		(addr < (host_util_get_granule_base() + HOST_MEM_SIZE))) &&
-		(addr >= host_util_get_granule_base())) {
+		(addr < (host_util_get_granule_base() + HOST_MEM_SIZE)) &&
+		(addr >= host_util_get_granule_base()))) {
 		return UINT64_MAX;
 	}
 

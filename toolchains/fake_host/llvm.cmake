@@ -14,9 +14,10 @@ find_program(CMAKE_C_COMPILER
 
 set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
 
-foreach(language IN ITEMS ASM C)
+foreach(language IN ITEMS ASM C CXX)
     string(APPEND CMAKE_${language}_FLAGS_INIT "-Wno-unknown-warning-option ")
     string(APPEND CMAKE_${language}_FLAGS_INIT "-Wno-unused-function ")
+    string(APPEND CMAKE_${language}_FLAGS_INIT "-fPIC ")
 endforeach()
 
 string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-Wl,--build-id=none ")

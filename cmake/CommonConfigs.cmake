@@ -51,7 +51,7 @@ if(MAX_CPUS EQUAL 0x0)
 endif()
 
 target_compile_definitions(rmm-common
-    INTERFACE "MAX_CPUS=U(${MAX_CPUS})")
+    INTERFACE "MAX_CPUS=${MAX_CPUS}U")
 
 if(NOT(GRANULE_SIZE EQUAL 4096))
     message(FATAL_ERROR "GRANULE_SIZE is not initialized correctly")
