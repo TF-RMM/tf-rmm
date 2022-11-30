@@ -183,7 +183,8 @@ enum granule_state {
 	 *   - Valid_NS s2tte.
 	 *   - Assigned s2tte.
 	 */
-	GRANULE_STATE_RTT
+	GRANULE_STATE_RTT,
+	GRANULE_STATE_LAST = GRANULE_STATE_RTT
 };
 
 struct granule {
