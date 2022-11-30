@@ -91,7 +91,7 @@ u_register_t host_read_sysreg(char *reg_name)
 		return 0UL;
 	}
 
-	return callbacks->rd_cb(&callbacks->value);
+	return callbacks->rd_cb(callbacks->reg);
 }
 
 void host_write_sysreg(char *reg_name, u_register_t v)
@@ -104,7 +104,7 @@ void host_write_sysreg(char *reg_name, u_register_t v)
 	 */
 	if (callbacks != NULL) {
 		if (callbacks->wr_cb != NULL) {
-			callbacks->wr_cb(v, &callbacks->value);
+			callbacks->wr_cb(v, callbacks->reg);
 		}
 	}
 }

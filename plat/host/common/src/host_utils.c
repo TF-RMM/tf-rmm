@@ -11,8 +11,9 @@
 #include <string.h>
 #include <xlat_tables.h>
 
-static struct sysreg_cb callbacks[SYSREG_MAX_CBS];
+static struct sysreg_data sysregs[SYSREG_MAX_CBS];
 static unsigned int installed_cb_idx;
+static unsigned int current_cpuid;
 
 /*
  * Allocate memory to emulate physical memory to initialize the
@@ -39,9 +40,16 @@ static void sysreg_wr_cb(u_register_t val, u_register_t *reg)
 struct sysreg_cb *host_util_get_sysreg_cb(char *name)
 {
 	for (unsigned int i = 0U; i < SYSREG_MAX_CBS; i++) {
-		if (strncmp(name, &callbacks[i].sysreg[0],
+		if (strncmp(name, &sysregs[i].name[0],
 			    MAX_SYSREG_NAME_LEN) == 0) {
-			return &callbacks[i];
+
+			/*
+			 * Get a pointer to the register value for the
+			 * current CPU.
+			 */
+			sysregs[i].callbacks.reg =
+					&(sysregs[i].value[current_cpuid]);
+			return &sysregs[i].callbacks;
 		}
 	}
 
@@ -52,18 +60,23 @@ int host_util_set_sysreg_cb(char *name, rd_cb_t rd_cb, wr_cb_t wr_cb,
 			    u_register_t init)
 {
 	if (installed_cb_idx < SYSREG_MAX_CBS) {
-		callbacks[installed_cb_idx].rd_cb = rd_cb;
-		callbacks[installed_cb_idx].wr_cb = wr_cb;
-		callbacks[installed_cb_idx].value = init;
+		sysregs[installed_cb_idx].callbacks.rd_cb = rd_cb;
+		sysregs[installed_cb_idx].callbacks.wr_cb = wr_cb;
+		sysregs[installed_cb_idx].callbacks.reg =
+							(u_register_t *)NULL;
 
-		(void)strncpy(&(callbacks[installed_cb_idx].sysreg[0]),
+		for (unsigned int i = 0U; i < MAX_CPUS; i++) {
+			sysregs[installed_cb_idx].value[i] = init;
+		}
+
+		(void)strncpy(&(sysregs[installed_cb_idx].name[0]),
 			      &name[0], MAX_SYSREG_NAME_LEN);
 
 		/*
 		 * Add a string termination character in case the
 		 * name were truncated.
 		 */
-		callbacks[installed_cb_idx].sysreg[MAX_SYSREG_NAME_LEN] = '\0';
+		sysregs[installed_cb_idx].name[MAX_SYSREG_NAME_LEN] = '\0';
 
 		++installed_cb_idx;
 
@@ -76,8 +89,8 @@ int host_util_set_sysreg_cb(char *name, rd_cb_t rd_cb, wr_cb_t wr_cb,
 void host_util_reset_all_sysreg_cb(void)
 {
 
-	(void)memset((void *)callbacks, 0,
-		     sizeof(struct sysreg_cb) * SYSREG_MAX_CBS);
+	(void)memset((void *)sysregs, 0,
+		     sizeof(struct sysreg_data) * SYSREG_MAX_CBS);
 
 	installed_cb_idx = 0U;
 }
@@ -85,10 +98,17 @@ void host_util_reset_all_sysreg_cb(void)
 int host_util_set_default_sysreg_cb(char *name, u_register_t init)
 {
 	return host_util_set_sysreg_cb(name, &sysreg_rd_cb,
-				     &sysreg_wr_cb, init);
+				       &sysreg_wr_cb, init);
 }
 
 unsigned long host_util_get_granule_base(void)
 {
 	return (unsigned long)granules_buffer;
+}
+
+void host_util_set_cpuid(unsigned int cpuid)
+{
+	assert(cpuid < MAX_CPUS);
+
+	current_cpuid = cpuid;
 }
