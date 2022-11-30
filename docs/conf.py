@@ -18,7 +18,7 @@ author = 'TF-RMM Contributors'
 title = 'User Guide'
 
 try:
-  vregx = re.compile(r'(?P<RMM_VERSION>v.+?)'
+  vregx = re.compile(r'tf-rmm-(?P<RMM_VERSION>v.+?)'
                      r'(-[0-9]+-)?(?P<GIT_SHA>g[a-f0-9]{7,})?$')
   git_result = check_output("git describe --tags --always",
                             shell = True, encoding = 'UTF-8')
