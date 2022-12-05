@@ -9,12 +9,11 @@ add_custom_target(docs)
 
 find_package(Python3)
 find_package(Sphinx)
-find_package(PythonModules COMPONENTS sphinx-rtd-theme sphinxcontrib.plantuml)
 find_package(Git)
 
 set(SPHINXCFG_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR}/user_guide)
 
-if (SPHINX_FOUND AND PY_SPHINX-RTD-THEME_FOUND AND PY_SPHINXCONTRIB.PLANTUML AND GIT_FOUND)
+if (SPHINX_FOUND AND GIT_FOUND)
 
     file(GLOB_RECURSE SPHINXCFG_DOC_FILES ${CMAKE_CURRENT_SOURCE_DIR} *.rst conf.py)
 
