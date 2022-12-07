@@ -580,7 +580,7 @@ static bool s2tte_check(unsigned long s2tte, long level, unsigned long ns)
 
 	/* Only pages at L3 and valid blocks at L2 allowed */
 	if (((level == RTT_PAGE_LEVEL) && (desc_type == S2TTE_L3_PAGE)) ||
-	    ((level == RTT_MIN_BLOCK_LEVEL) && (desc_type == S2TTE_BLOCK))) {
+	    ((level == RTT_MIN_BLOCK_LEVEL) && (desc_type == S2TTE_L012_BLOCK))) {
 		return true;
 	}
 

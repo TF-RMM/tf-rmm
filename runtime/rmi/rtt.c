@@ -373,7 +373,7 @@ unsigned long smc_rtt_fold(unsigned long rtt_addr,
 		}
 
 		s2tte = s2tte_read(&table[0]);
-		block_pa = s2tte_pa(s2tte, level - 1L);
+		block_pa = s2tte_pa(s2tte, level);
 
 		/*
 		 * The table must also refer to a contiguous block through
@@ -385,9 +385,10 @@ unsigned long smc_rtt_fold(unsigned long rtt_addr,
 			parent_s2tte = s2tte_create_valid(block_pa, level - 1L);
 		} else if (table_maps_valid_ns_block(table, level)) {
 			parent_s2tte = s2tte_create_valid_ns(block_pa, level - 1L);
-		/* This 'else' case should not happen */
+		/* The table contains mixed entries that cannot be folded */
 		} else {
-			assert(false);
+			ret = pack_return_code(RMI_ERROR_RTT, level);
+			goto out_unmap_table;
 		}
 
 		__granule_refcount_dec(g_tbl, S2TTES_PER_S2TT);
