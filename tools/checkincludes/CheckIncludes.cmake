@@ -84,9 +84,12 @@ function(run_checkincludes source_files errors_ret)
     COMMAND ${CHECKINCLUDES_EXECUTABLE} ${source_files}
     OUTPUT_VARIABLE checkincludes_output
     RESULT_VARIABLE checkincludes_rc
-    ECHO_OUTPUT_VARIABLE
     OUTPUT_STRIP_TRAILING_WHITESPACE
     )
+
+  if(checkincludes_output)
+    message(${checkincludes_output})
+  endif()
 
   # checkincludes failed for this file. Collect no.of errors
   if(${checkincludes_rc} GREATER 0)
@@ -145,8 +148,10 @@ if(CHECKINCLUDES_PATCH)
     set(source_files "")
     filter_source_files("${files_in_commit}" source_files)
 
-    run_checkincludes("${source_files}" errors)
-    MATH(EXPR total_errors "${total_errors}+${errors}")
+    if(source_files)
+      run_checkincludes("${source_files}" errors)
+      MATH(EXPR total_errors "${total_errors}+${errors}")
+    endif()
   endforeach()
 
   print_stats_and_exit("checkincludes-patch" ${total_errors})

@@ -76,9 +76,12 @@ function(run_checkspdx source_files errors_ret)
     COMMAND ${CHECKSPDX_EXECUTABLE} -r docs/readme.rst ${source_files}
     OUTPUT_VARIABLE checkspdx_output
     RESULT_VARIABLE checkspdx_rc
-    ECHO_OUTPUT_VARIABLE
     OUTPUT_STRIP_TRAILING_WHITESPACE
     )
+
+  if(checkspdx_output)
+    message(${checkspdx_output})
+  endif()
 
   # checkspdx failed for this file. Collect no.of errors
   if(${checkspdx_rc} GREATER 0)
@@ -141,8 +144,11 @@ if(CHECKSPDX_PATCH)
       list(FILTER source_files EXCLUDE REGEX "${exclude}")
     endforeach()
 
-    run_checkspdx("${source_files}" errors)
-    MATH(EXPR total_errors "${total_errors}+${errors}")
+    # run check if the list is not empty
+    if(source_files)
+      run_checkspdx("${source_files}" errors)
+      MATH(EXPR total_errors "${total_errors}+${errors}")
+    endif()
   endforeach()
 
   print_stats_and_exit("checkspdx-patch" ${total_errors})
