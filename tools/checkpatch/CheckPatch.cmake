@@ -147,8 +147,11 @@ if(CHECKPATCH_RUN)
       COMMAND ${CHECKPATCH_EXECUTABLE} -
       OUTPUT_VARIABLE checkpatch_output
       RESULT_VARIABLE checkpatch_rc
-      ECHO_OUTPUT_VARIABLE
       )
+
+    if(checkpatch_output)
+      message(${checkpatch_output})
+    endif()
 
     # checkpatch.pl failed for this commit. Collect no.of errors and warnings
     if(${checkpatch_rc})
