@@ -59,7 +59,7 @@ static inline void __granule_assert_unlocked_invariants(struct granule *g,
 		assert(g->refcount == 0UL);
 		break;
 	case GRANULE_STATE_RTT:
-		assert(g->refcount >= 0UL);
+		assert(g->refcount <= 512UL);
 		break;
 	case GRANULE_STATE_REC_AUX:
 		assert(g->refcount == 0UL);
@@ -128,7 +128,7 @@ static inline void granule_unlock_transition(struct granule *g,
 	granule_unlock(g);
 }
 
-unsigned long granule_addr(struct granule *g);
+unsigned long granule_addr(const struct granule *g);
 struct granule *addr_to_granule(unsigned long addr);
 struct granule *find_granule(unsigned long addr);
 struct granule *find_lock_granule(unsigned long addr,

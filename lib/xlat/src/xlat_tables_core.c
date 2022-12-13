@@ -437,7 +437,6 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, unsigned int level)
 {
 	uint64_t desc;
 	uint32_t mem_type;
-	uint32_t shareability_type;
 
 	if ((MT_TYPE(attr) == MT_TRANSIENT)) {
 		/* Transient entry requested. */
@@ -525,6 +524,8 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, unsigned int level)
 		 * translation regime and the policy applied in
 		 * XLAT_GET_PXN_DESC().
 		 */
+		uint32_t shareability_type;
+
 		if (((attr & MT_RW) != 0UL) || ((attr & MT_EXECUTE_NEVER) != 0UL)) {
 			desc |= XLAT_GET_PXN_DESC();
 		}

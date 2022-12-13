@@ -12,3 +12,9 @@ unusedFunction
 // the `missingIncludeSystem` suppression was useless. It's right, but it's
 // also not particularly helpful.
 unmatchedSuppression
+
+// Ignore Preprocessor Error Directive usage
+preprocessorErrorDirective
+
+// Ignore unusedLabel which triggers false positives for COMPILER_ASSERT_ZERO
+unusedLabel

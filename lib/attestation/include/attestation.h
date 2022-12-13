@@ -62,7 +62,7 @@ int attestation_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx);
  *
  * Returns 0 on success, negative error code on error.
  */
-int attestation_heap_ctx_unassign_pe(struct buffer_alloc_ctx *ctx);
+int attestation_heap_ctx_unassign_pe(void);
 
 /*
  * Reinit the heap on this CPU used for attestation operations.

@@ -26,7 +26,6 @@ static bool prng_init_done;
 
 static int get_random_seed(unsigned char *output, size_t len)
 {
-	bool rc;
 	uint64_t *random_output;
 	uint64_t *random_end;
 
@@ -39,6 +38,8 @@ static int get_random_seed(unsigned char *output, size_t len)
 	random_end = (uint64_t *)(output + len);
 
 	for (; random_output < random_end; ++random_output) {
+		bool rc = false;
+
 		rc = arch_collect_entropy(random_output);
 		if (!rc) {
 			return -EINVAL;

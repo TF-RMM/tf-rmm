@@ -352,11 +352,12 @@ static void return_result_to_realm(struct rec *rec, struct smc_result result)
 static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 {
 	bool ret_to_rec = true;	/* Return to Realm */
-	unsigned int function_id = rec->regs[0];
+	unsigned int function_id = (unsigned int)rec->regs[0];
 
 	RSI_LOG_SET(rec->regs[1], rec->regs[2],
 		    rec->regs[3], rec->regs[4], rec->regs[5]);
 
+	/* cppcheck-suppress unsignedPositive */
 	if (!IS_SMC32_PSCI_FID(function_id) && !IS_SMC64_PSCI_FID(function_id)
 	    && !IS_SMC64_RSI_FID(function_id)) {
 

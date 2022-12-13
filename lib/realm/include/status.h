@@ -119,7 +119,7 @@ static inline return_code_t unpack_return_code(unsigned long error_code)
  */
 static inline void *status_ptr(status_t status)
 {
-	return (void *)(-1 * (unsigned long)status);
+	return (void *)(-1 * (long)status);
 }
 
 /*
@@ -135,7 +135,7 @@ static inline bool ptr_is_err(const void *ptr)
  */
 static inline status_t ptr_status(const void *ptr)
 {
-	return (status_t)(-1 * (unsigned long)ptr);
+	return (status_t)(-1 * (long)ptr);
 }
 
 #endif /* STATUS_H */
