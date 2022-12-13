@@ -12,7 +12,3 @@ unusedFunction
 // the `missingIncludeSystem` suppression was useless. It's right, but it's
 // also not particularly helpful.
 unmatchedSuppression
-
-// We don't want to receive warnings about code we don't control, which includes
-// any external libraries we vendor.
-*:ext/*
