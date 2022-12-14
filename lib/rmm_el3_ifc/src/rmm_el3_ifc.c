@@ -26,16 +26,16 @@ static bool initialized;
  * Abort the boot process and return to EL3 FW reporting
  * the ec error code.
  */
-__dead2 static void report_fail_to_el3(uint64_t ec)
+__dead2 void rmm_el3_ifc_report_fail_to_el3(int ec)
 {
-	(void)monitor_call(SMC_RMM_BOOT_COMPLETE,
-			   ec, 0UL, 0UL, 0UL, 0UL, 0UL);
+	(void)monitor_call(SMC_RMM_BOOT_COMPLETE, (unsigned long)ec,
+			   0UL, 0UL, 0UL, 0UL, 0UL);
 	/* EL3 should never return back here */
 	panic();
 }
 
 /*
- * Validate the boot arguments and Initialize the rmm_el3_ifc library.
+ * Validate the boot arguments and initialize the rmm_el3_ifc library.
  * This function must be called only once during cold boot.
  *
  * This function must be called prior to enable the MMU and data cache.
@@ -58,7 +58,7 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 	 * x1: RMM-EL3 Interface version.
 	 */
 	if (RMM_EL3_IFC_GET_VERS_MAJOR(x1) != RMM_EL3_IFC_VERS_MAJOR) {
-		report_fail_to_el3(E_RMM_BOOT_VERSION_MISMATCH);
+		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_VERSION_NOT_VALID);
 	}
 
 	/*
@@ -67,7 +67,7 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 	 * x2: Number of CPUs in the system as reported by EL3.
 	 */
 	if (x2 > MAX_CPUS) {
-		report_fail_to_el3(E_RMM_BOOT_CPUS_OUT_OF_RANGE);
+		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_CPUS_OUT_OF_RANGE);
 	}
 
 	/*
@@ -78,7 +78,7 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 	 * x2: Number of CPUs in the system as reported by EL3.
 	 */
 	if (x0 >= x2) {
-		report_fail_to_el3(E_RMM_BOOT_CPU_ID_OUT_OF_RANGE);
+		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_CPU_ID_OUT_OF_RANGE);
 	}
 
 	/*
@@ -86,8 +86,8 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 	 *
 	 * x3: Pointer to the start of the EL3-RMM shared buffer.
 	 */
-	if ((x3 == 0UL) || ((x3 & PAGE_SIZE_MASK) != 0U)) {
-		report_fail_to_el3(E_RMM_BOOT_INVALID_SHARED_POINTER);
+	if ((x3 == 0UL) || ((x3 & PAGE_SIZE_MASK) != 0UL)) {
+		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_INVALID_SHARED_BUFFER);
 	}
 
 	rmm_el3_ifc_abi_version = x1;
@@ -96,13 +96,13 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 
 	initialized = true;
 
-	flush_dcache_range((uintptr_t)(void *)&rmm_shared_buffer_start_pa,
-			 sizeof(rmm_shared_buffer_start_pa));
-	flush_dcache_range((uintptr_t)(void *)&rmm_el3_ifc_abi_version,
-			 sizeof(rmm_el3_ifc_abi_version));
-	flush_dcache_range((uintptr_t)(void *)&rmm_shared_buffer_start_va,
-			 sizeof(rmm_shared_buffer_start_va));
-	flush_dcache_range((uintptr_t)(void *)&initialized, sizeof(bool));
+	flush_dcache_range((uintptr_t)&rmm_shared_buffer_start_pa,
+				sizeof(rmm_shared_buffer_start_pa));
+	flush_dcache_range((uintptr_t)&rmm_el3_ifc_abi_version,
+				sizeof(rmm_el3_ifc_abi_version));
+	flush_dcache_range((uintptr_t)&rmm_shared_buffer_start_va,
+				sizeof(rmm_shared_buffer_start_va));
+	flush_dcache_range((uintptr_t)&initialized, sizeof(bool));
 
 	/* Process the Boot Manifest */
 	rmm_el3_ifc_process_boot_manifest();
@@ -115,7 +115,7 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
  */
 uintptr_t rmm_el3_ifc_get_shared_buf_pa(void)
 {
-	assert((initialized == true));
+	assert(initialized == true);
 
 	return rmm_shared_buffer_start_pa;
 }
