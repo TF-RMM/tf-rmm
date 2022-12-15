@@ -83,8 +83,14 @@ if(RMM_STATIC_ANALYSIS_CPPCHECK)
     list(APPEND cppcheck-flags "-DCHAR_BIT=8")
 
     #
-    # Suppress files or directories we don't want to receive warnings about. If
-    # you want to suppress specific files without using an inline suppression,
+    # Exclude files or directories we don't want to receive warnings about.
+    #
+
+    list(APPEND cppcheck-flags "-i${CMAKE_SOURCE_DIR}/ext/")
+    list(APPEND cppcheck-flags "-i${CMAKE_SOURCE_DIR}/lib/libc")
+
+    #
+    # If you want to suppress specific files without using an inline suppression,
     # do it in `suppressions.txt`.
     #
 
