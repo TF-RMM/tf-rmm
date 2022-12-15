@@ -57,6 +57,9 @@ foreach(language IN ITEMS ASM C)
     string(APPEND CMAKE_${language}_STANDARD_INCLUDE_DIRECTORIES "${A64_GCC_INC_DIR}")
     string(APPEND CMAKE_${language}_FLAGS_INIT "-Wno-unknown-warning-option ")
     string(APPEND CMAKE_${language}_FLAGS_INIT "-Wno-unused-function ")
+
+    # Avoid warning for -mbranch-protection option not being recognized by clang during link phase.
+    string(APPEND CMAKE_${language}_FLAGS_INIT "-Wno-unused-command-line-argument ")
 endforeach()
 
 # Use lld as default linker

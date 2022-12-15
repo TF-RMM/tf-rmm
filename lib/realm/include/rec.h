@@ -12,6 +12,7 @@
 #include <attestation_token.h>
 #include <gic.h>
 #include <memory_alloc.h>
+#include <pauth.h>
 #include <pmu.h>
 #include <ripas.h>
 #include <simd.h>
@@ -121,6 +122,13 @@ struct rec {
 	bool runnable;
 
 	unsigned long regs[31];
+
+	/*
+	 * PAuth state of Realm.
+	 * Note that we do not need to save NS state as EL3 will save this as part of world switch.
+	 */
+	struct pauth_state pauth;
+
 	unsigned long pc;
 	unsigned long pstate;
 

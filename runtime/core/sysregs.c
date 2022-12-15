@@ -87,18 +87,6 @@
 	MASK(ID_AA64DFR1_EL1_ICNTR)
 
 /*
- * ID_AA64ISAR1_EL1:
- *
- * Cleared fields:
- * - Address and Generic Authentication are not implemented
- */
-#define ID_AA64ISAR1_EL1_CLEAR		  \
-	MASK(ID_AA64ISAR1_EL1_APA)	| \
-	MASK(ID_AA64ISAR1_EL1_API)	| \
-	MASK(ID_AA64ISAR1_EL1_GPA)	| \
-	MASK(ID_AA64ISAR1_EL1_GPI)
-
-/*
  * ID_AA64PFR0_EL1:
  *
  * Cleared fields:
@@ -163,7 +151,7 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 		value = SYSREG_READ(ISAR0);
 		break;
 	SYSREG_CASE(ISAR1)
-		value = SYSREG_READ_CLEAR(ISAR1);
+		value = SYSREG_READ(ISAR1);
 		break;
 	SYSREG_CASE(MMFR0)
 		value = SYSREG_READ(MMFR0);

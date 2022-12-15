@@ -122,6 +122,7 @@ func rmm_entry
 	 */
 	bl	plat_setup
 	bl	xlat_enable_mmu_el2
+	bl	pauth_init_enable_el2
 
 	bl	rmm_main
 	b	smc_ret
@@ -132,6 +133,7 @@ skip_to_warmboot:
 	 */
 	bl	plat_warmboot_setup
 	bl	xlat_enable_mmu_el2
+	bl	pauth_init_enable_el2
 
 	bl	rmm_warmboot_main
 smc_ret:

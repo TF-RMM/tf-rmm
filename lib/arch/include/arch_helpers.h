@@ -86,12 +86,12 @@ void flush_dcache_range(uintptr_t addr, size_t size);
 void clean_dcache_range(uintptr_t addr, size_t size);
 void inv_dcache_range(uintptr_t addr, size_t size);
 
-#define is_dcache_enabled() ((read_sctlr_el2() & SCTLR_EL2_C) != 0U)
+#define is_dcache_enabled() ((read_sctlr_el2() & SCTLR_ELx_C_BIT) != 0UL)
 
 /*******************************************************************************
  * MMU management
  ******************************************************************************/
-#define is_mmu_enabled() ((read_sctlr_el2() & SCTLR_EL2_M) != 0U)
+#define is_mmu_enabled() ((read_sctlr_el2() & SCTLR_ELx_M_BIT) != 0UL)
 
 /*******************************************************************************
  * FPU management
@@ -463,11 +463,22 @@ DEFINE_RENAME_SYSREG_READ_FUNC(ich_misr_el2, ICH_MISR_EL2)
 /* Armv8.3 Pointer Authentication Registers */
 DEFINE_RENAME_SYSREG_RW_FUNCS(apiakeyhi_el1, APIAKeyHi_EL1)
 DEFINE_RENAME_SYSREG_RW_FUNCS(apiakeylo_el1, APIAKeyLo_EL1)
+DEFINE_RENAME_SYSREG_RW_FUNCS(apibkeyhi_el1, APIBKeyHi_EL1)
+DEFINE_RENAME_SYSREG_RW_FUNCS(apibkeylo_el1, APIBKeyLo_EL1)
+DEFINE_RENAME_SYSREG_RW_FUNCS(apdakeyhi_el1, APDAKeyHi_EL1)
+DEFINE_RENAME_SYSREG_RW_FUNCS(apdakeylo_el1, APDAKeyLo_EL1)
+DEFINE_RENAME_SYSREG_RW_FUNCS(apdbkeyhi_el1, APDBKeyHi_EL1)
+DEFINE_RENAME_SYSREG_RW_FUNCS(apdbkeylo_el1, APDBKeyLo_EL1)
+DEFINE_RENAME_SYSREG_RW_FUNCS(apgakeyhi_el1, APGAKeyHi_EL1)
+DEFINE_RENAME_SYSREG_RW_FUNCS(apgakeylo_el1, APGAKeyLo_EL1)
 
 /* Armv8.5 MTE Registers */
 DEFINE_RENAME_SYSREG_RW_FUNCS(tfsre0_el1, TFSRE0_EL1)
 DEFINE_RENAME_SYSREG_RW_FUNCS(tfsr_el1, TFSR_EL1)
 DEFINE_RENAME_SYSREG_RW_FUNCS(rgsr_el1, RGSR_EL1)
 DEFINE_RENAME_SYSREG_RW_FUNCS(gcr_el1, GCR_EL1)
+
+/* Armv8.5 Random Number Register */
+DEFINE_RENAME_SYSREG_READ_FUNC(rndr, RNDR)
 
 #endif /* ARCH_HELPERS_H */
