@@ -35,7 +35,7 @@ target_link_libraries(rmm-lib-attestation
   PUBLIC
     rmm-lib-allocator
     rmm-lib-measurement
-    MbedTLS::Crypto
+    rmm-mbedtls
     t_cose)
 
 target_include_directories(rmm-lib-attestation

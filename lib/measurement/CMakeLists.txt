@@ -6,7 +6,7 @@
 add_library(rmm-lib-measurement)
 
 target_link_libraries(rmm-lib-measurement
-    PUBLIC MbedTLS::Crypto
+    PUBLIC rmm-mbedtls
     PRIVATE rmm-lib-arch
             rmm-lib-common
             rmm-lib-debug)
