@@ -85,7 +85,7 @@
  * _i: index
  * _v: variable/value to write
  */
-#define	ARRAY_READ(_a, _i, _v)		\
+#define	SAFE_ARRAY_READ(_a, _i, _v)	\
 ({					\
 	CHECK_ARRAY_TYPE(_a, _v);	\
 	if (_i >= ARRAY_SIZE(_a)) {	\
@@ -94,7 +94,7 @@
 	_v = _a[_i];			\
 })
 
-#define	ARRAY_WRITE(_a, _i, _v)		\
+#define	SAFE_ARRAY_WRITE(_a, _i, _v)	\
 ({					\
 	CHECK_ARRAY_TYPE(_a, _v);	\
 	if (_i >= ARRAY_SIZE(_a)) {	\
