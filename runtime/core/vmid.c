@@ -32,7 +32,8 @@ bool vmid_reserve(unsigned int vmid)
 	unsigned int vmid_count;
 
 	/* Number of supported VMID values */
-	vmid_count = is_feat_vmid16_present() ?	VMID16_COUNT : VMID8_COUNT;
+	vmid_count = is_feat_vmid16_present() ? VMID16_COUNT : VMID8_COUNT;
+
 	/*
 	 * The input from NS as part of RMI_REALM_CREATE is 'short int' type,
 	 * so this check will not fail on systems with FEAT_VMID16 implemented.
@@ -42,6 +43,7 @@ bool vmid_reserve(unsigned int vmid)
 	}
 
 	offset = vmid / BITS_PER_UL;
+	vmid %= BITS_PER_UL;
 
 	return !atomic_bit_set_acquire_release_64(&vmids[offset], vmid);
 }
@@ -60,6 +62,7 @@ void vmid_free(unsigned int vmid)
 	/* Check the number of supported VMID values */
 	assert(vmid < vmid_count);
 	offset = vmid / BITS_PER_UL;
+	vmid %= BITS_PER_UL;
 
 	atomic_bit_clear_release_64(&vmids[offset], vmid);
 }
