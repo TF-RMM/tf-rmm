@@ -7,6 +7,8 @@ include_guard()
 
 include(${CMAKE_CURRENT_LIST_DIR}/../common.cmake)
 
+set(CMAKE_SYSTEM_PROCESSOR aarch64)
+
 foreach(language IN ITEMS ASM C)
 	string(APPEND CMAKE_${language}_FLAGS_INIT "-ffreestanding ")
 	string(APPEND CMAKE_${language}_FLAGS_INIT "-march=armv8.5-a ")

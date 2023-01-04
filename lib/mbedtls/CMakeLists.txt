@@ -12,6 +12,14 @@ target_compile_definitions(rmm-mbedtls INTERFACE MBEDTLS_CONFIG_FILE=<mbedtls_co
 include_directories(${RMM_SOURCE_DIR}/configs/mbedtls)
 add_compile_definitions(MBEDTLS_CONFIG_FILE=<mbedtls_config.h>)
 
+#
+# Workaround for CMake not detecting size of pointer on AArch64 toolchain and
+# causing MbedTLS compilation to print warning during configuration.
+#
+if(RMM_ARCH STREQUAL aarch64)
+    set(CMAKE_SIZEOF_VOID_P 8)
+endif()
+
 set(ENABLE_PROGRAMS OFF CACHE BOOL "Setting for mbedtls program")
 set(ENABLE_TESTING OFF CACHE BOOL "Setting for mbedtls tests")
 
