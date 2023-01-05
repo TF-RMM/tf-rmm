@@ -12,7 +12,7 @@ target_link_libraries(rmm-lib-allocator
     rmm-lib-debug
     rmm-lib-libc
     rmm-lib-rmm_el3_ifc
-    MbedTLS::Crypto
+    rmm-mbedtls
     t_cose)
 
 target_include_directories(rmm-lib-allocator

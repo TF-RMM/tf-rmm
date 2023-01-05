@@ -20,7 +20,7 @@ target_link_libraries(t_cose
 
 target_link_libraries(t_cose
     PUBLIC
-       MbedTLS::Crypto
+       rmm-mbedtls
        qcbor
 )
 

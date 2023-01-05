@@ -93,19 +93,6 @@ add_subdirectory("lib/libc")
 link_libraries(rmm-lib-libc)
 
 #
-# Build the MbedTLS we package in the source tree, and import the targets from
-# it so that we can model the library dependency properly.
-#
-
-include("cmake/BuildMbedTLS.cmake")
-
-set(MbedTLS_ROOT "${MbedTLS_INSTALL_DIR}")
-find_package(MbedTLS COMPONENTS Crypto REQUIRED)
-
-target_link_libraries(MbedTLS
-    INTERFACE rmm-lib-libc)
-
-#
 # Build and link QCBOR
 #
 include("cmake/BuildQCBOR.cmake")
