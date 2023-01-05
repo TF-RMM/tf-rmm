@@ -75,13 +75,12 @@ void slot_buf_init(void);
  *****************************************************************************/
 
 /*
- * Maps a given PA into the specified slot. This API verifies that the slot
- * matches the 'ns' argument.
+ * Maps a given PA into the specified slot.
  *
  * On success, it returns the VA of the slot where the PA has been mapped to.
  * Otherwise, it will return NULL.
  */
-void *buffer_map_internal(enum buffer_slot slot, unsigned long addr, bool ns);
+void *buffer_map_internal(enum buffer_slot slot, unsigned long addr);
 
 /*
  * Unmaps the slot buffer corresponding to the VA passed via `buf` argument.

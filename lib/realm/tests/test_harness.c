@@ -59,10 +59,9 @@ static uintptr_t host_pa_to_slot_va(uintptr_t pa)
  * fake VA for the slot (the current addr), so the host can perform R/W
  * operations on the mapped granule.
  */
-void *test_buffer_map(enum buffer_slot slot,
-		      unsigned long addr, bool ns)
+void *test_buffer_map(enum buffer_slot slot, unsigned long addr)
 {
-	uintptr_t va = (uintptr_t)buffer_map_internal(slot, addr, ns);
+	uintptr_t va = (uintptr_t)buffer_map_internal(slot, addr);
 
 	if ((void *)va == NULL) {
 		return NULL;

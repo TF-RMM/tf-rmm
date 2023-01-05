@@ -232,7 +232,7 @@ static void *ns_granule_map(enum buffer_slot slot, struct granule *granule)
 	unsigned long addr = granule_addr(granule);
 
 	assert(is_ns_slot(slot));
-	return buffer_arch_map(slot, addr, true);
+	return buffer_arch_map(slot, addr);
 }
 
 static void ns_buffer_unmap(enum buffer_slot slot)
@@ -254,7 +254,7 @@ void *granule_map(struct granule *g, enum buffer_slot slot)
 
 	assert(is_realm_slot(slot));
 
-	return buffer_arch_map(slot, addr, false);
+	return buffer_arch_map(slot, addr);
 }
 
 void buffer_unmap(void *buf)
@@ -347,7 +347,7 @@ bool ns_buffer_write(enum buffer_slot slot,
  * Internal helpers
  ******************************************************************************/
 
-void *buffer_map_internal(enum buffer_slot slot, unsigned long addr, bool ns)
+void *buffer_map_internal(enum buffer_slot slot, unsigned long addr)
 {
 	uint64_t attr = SLOT_DESC_ATTR;
 	uintptr_t va = slot_to_va(slot);
@@ -355,7 +355,7 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr, bool ns)
 
 	assert(GRANULE_ALIGNED(addr));
 
-	attr |= (ns == true ? MT_NS : MT_REALM);
+	attr |= (slot == SLOT_NS ? MT_NS : MT_REALM);
 
 	if (xlat_map_memory_page_with_attrs(entry, va,
 					    (uintptr_t)addr, attr) != 0) {
