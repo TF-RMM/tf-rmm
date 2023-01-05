@@ -106,6 +106,12 @@
 
 /* All other bits are reserved */
 
+/* Macro to access translatio table lower attributes */
+#define LOWER_ATTRS(x)			(((x) & UL(0xfff)) << UL(2))
+
+/* Public definitions to use with the LOWER_ATTRS() macro*/
+#define NS				(U(0x1) << UL(3))   /* Bit[5] absolutely */
+
 /*
  * Memory mapping attributes
  */

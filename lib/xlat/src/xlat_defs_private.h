@@ -76,12 +76,10 @@
 #define AP_RW				(AP2_RW << UL(5))
 #define AP_ACCESS_UNPRIVILEGED		(AP1_ACCESS_UNPRIVILEGED    << UL(4))
 #define AP_NO_ACCESS_UNPRIVILEGED	(AP1_NO_ACCESS_UNPRIVILEGED << UL(4))
-#define NS				(U(0x1) << UL(3))   /* Bit[5] absolutely */
 #define ATTR_NON_CACHEABLE_INDEX	UL(0x2)
 #define ATTR_DEVICE_INDEX		UL(0x1)
 #define ATTR_IWBWA_OWBWA_NTR_INDEX	UL(0x0)
 #define NG_HINT				(ULL(1) << 9)
-#define LOWER_ATTRS(x)			(((x) & UL(0xfff)) << UL(2))
 
 /* Normal Memory, Outer Write-Through non-transient, Inner Non-cacheable */
 #define ATTR_NON_CACHEABLE		MAKE_MAIR_NORMAL_MEMORY(MAIR_NORM_NC, MAIR_NORM_NC)

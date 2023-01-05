@@ -13,9 +13,11 @@ extern "C" {
 #include <granule.h>	/* Interface to exercise */
 #include <host_harness.h>
 #include <host_utils.h>
+#include <realm_test_utils.h>
 #include <status.h>
 #include <stdlib.h>
 #include <string.h>
+#include <test_harness.h>
 #include <test_helpers.h>
 #include <time.h>
 #include <unistd.h>
@@ -125,6 +127,13 @@ TEST_GROUP(granule) {
 		memset((void *)get_granule_struct_base(), 0,
 			sizeof(struct granule) *
 					test_helpers_get_nr_granules());
+
+		/*
+		 * Unregister any existing callback that might
+		 * have been installed
+		 */
+		(void)test_helpers_unregister_cb(CB_BUFFER_MAP);
+		(void)test_helpers_unregister_cb(CB_BUFFER_UNMAP);
 	}
 };
 
@@ -1484,6 +1493,13 @@ TEST(granule, granule_memzero_TC1)
 					host_util_get_granule_base()};
 	struct granule *granule;
 	int *val;
+	union test_harness_cbs cb;
+
+	/* Register harness callbacks to use by this test */
+	cb.buffer_map = test_buffer_map;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
+	cb.buffer_unmap = test_buffer_unmap;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/***************************************************************
 	 * TEST CASE 1:

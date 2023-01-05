@@ -235,11 +235,9 @@ static void *ns_granule_map(enum buffer_slot slot, struct granule *granule)
 	return buffer_arch_map(slot, addr);
 }
 
-static void ns_buffer_unmap(enum buffer_slot slot)
+static inline void ns_buffer_unmap(void *buf)
 {
-	assert(is_ns_slot(slot));
-
-	buffer_arch_unmap((void *)slot_to_va(slot));
+	buffer_arch_unmap(buf);
 }
 
 /*
@@ -297,9 +295,9 @@ bool ns_buffer_read(enum buffer_slot slot,
 	offset &= ~GRANULE_MASK;
 	assert(offset + size <= GRANULE_SIZE);
 
-	src = (uintptr_t)ns_granule_map(slot, ns_gr) + offset;
-	retval = memcpy_ns_read(dest, (void *)src, size);
-	ns_buffer_unmap(slot);
+	src = (uintptr_t)ns_granule_map(slot, ns_gr);
+	retval = memcpy_ns_read(dest, (void *)(src + offset), size);
+	ns_buffer_unmap((void *)src);
 
 	return retval;
 }
@@ -336,9 +334,9 @@ bool ns_buffer_write(enum buffer_slot slot,
 	offset &= ~GRANULE_MASK;
 	assert(offset + size <= GRANULE_SIZE);
 
-	dest = (uintptr_t)ns_granule_map(slot, ns_gr) + offset;
-	retval = memcpy_ns_write((void *)dest, src, size);
-	ns_buffer_unmap(slot);
+	dest = (uintptr_t)ns_granule_map(slot, ns_gr);
+	retval = memcpy_ns_write((void *)(dest + offset), src, size);
+	ns_buffer_unmap((void *)dest);
 
 	return retval;
 }
