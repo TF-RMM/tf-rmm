@@ -8,6 +8,7 @@
 #include <host_utils.h>
 #include <platform_api.h>
 #include <rmm_el3_ifc.h>
+#include <stdlib.h>
 #include <xlat_tables.h>
 
 /* Implemented in init.c and needed here */
@@ -119,7 +120,7 @@ static void start_secondary_pe(unsigned int cpuid)
 	rmm_warmboot_main();
 }
 
-void test_helper_rmm_start(bool secondaries)
+void test_helpers_rmm_start(bool secondaries)
 {
 	static bool initialized;
 
@@ -140,7 +141,13 @@ void test_helper_rmm_start(bool secondaries)
 	}
 }
 
-unsigned int test_helper_get_nr_granules(void)
+unsigned int test_helpers_get_nr_granules(void)
 {
 	return HOST_NR_GRANULES;
+}
+
+
+int test_helpers_get_rand_in_range(int min, int max)
+{
+	return (rand() % (max - min + 1)) + min;
 }
