@@ -4,6 +4,7 @@
  */
 
 #include <arch.h>
+#include <arch_helpers.h>
 #include <debug.h>
 #include <gic.h>
 #include <host_utils.h>

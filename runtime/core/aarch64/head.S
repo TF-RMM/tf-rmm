@@ -6,8 +6,6 @@
 #include <arch.h>
 #include <asm_macros.S>
 #include <rmm_el3_ifc.h>
-#include <sizes.h>
-#include <smc.h>
 #include <xlat_tables.h>
 
 #define RMM_STACK_SIZE		(SZ_4K * RMM_NUM_PAGES_PER_STACK)

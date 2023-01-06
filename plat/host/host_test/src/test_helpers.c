@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <arch_helpers.h>
 #include <buffer.h>
 #include <errno.h>
 #include <gic.h>
