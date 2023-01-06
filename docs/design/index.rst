@@ -9,6 +9,7 @@ Design
     :numbered:
 
     locking
+    memory-management
     file-org-and-config
     fake-host-architecture
     cold-and-warm-boot-design
