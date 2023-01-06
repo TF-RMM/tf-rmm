@@ -107,7 +107,9 @@ static bool complete_sea_insertion(struct rec *rec, struct rmi_rec_entry *rec_en
 static void complete_sysreg_emulation(struct rec *rec, struct rmi_rec_entry *rec_entry)
 {
 	unsigned long esr = rec->last_run_info.esr;
-	unsigned int rt = esr_sysreg_rt(esr);
+
+	/* Rt bits [9:5] of ISS field cannot exceed 0b11111 */
+	unsigned int rt = ESR_EL2_SYSREG_ISS_RT(esr);
 
 	if ((esr & ESR_EL2_EC_MASK) != ESR_EL2_EC_SYSREG) {
 		return;

@@ -66,13 +66,4 @@ static inline unsigned long access_mask(unsigned long esr)
 	}
 }
 
-/*
- * For a trapped msr/mrs sysreg access, get the transfer register in the
- * ESR_EL2.
- */
-static inline unsigned int esr_sysreg_rt(unsigned long esr)
-{
-	return EXTRACT(ESR_EL2_SYSREG_TRAP_RT, esr);
-}
-
 #endif /* ESR_H */
