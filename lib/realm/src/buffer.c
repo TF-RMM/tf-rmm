@@ -232,14 +232,12 @@ static void *ns_granule_map(enum buffer_slot slot, struct granule *granule)
 	unsigned long addr = granule_addr(granule);
 
 	assert(is_ns_slot(slot));
-	return buffer_arch_map(slot, addr, true);
+	return buffer_arch_map(slot, addr);
 }
 
-static void ns_buffer_unmap(enum buffer_slot slot)
+static inline void ns_buffer_unmap(void *buf)
 {
-	assert(is_ns_slot(slot));
-
-	buffer_arch_unmap((void *)slot_to_va(slot));
+	buffer_arch_unmap(buf);
 }
 
 /*
@@ -254,7 +252,7 @@ void *granule_map(struct granule *g, enum buffer_slot slot)
 
 	assert(is_realm_slot(slot));
 
-	return buffer_arch_map(slot, addr, false);
+	return buffer_arch_map(slot, addr);
 }
 
 void buffer_unmap(void *buf)
@@ -297,9 +295,9 @@ bool ns_buffer_read(enum buffer_slot slot,
 	offset &= ~GRANULE_MASK;
 	assert(offset + size <= GRANULE_SIZE);
 
-	src = (uintptr_t)ns_granule_map(slot, ns_gr) + offset;
-	retval = memcpy_ns_read(dest, (void *)src, size);
-	ns_buffer_unmap(slot);
+	src = (uintptr_t)ns_granule_map(slot, ns_gr);
+	retval = memcpy_ns_read(dest, (void *)(src + offset), size);
+	ns_buffer_unmap((void *)src);
 
 	return retval;
 }
@@ -336,9 +334,9 @@ bool ns_buffer_write(enum buffer_slot slot,
 	offset &= ~GRANULE_MASK;
 	assert(offset + size <= GRANULE_SIZE);
 
-	dest = (uintptr_t)ns_granule_map(slot, ns_gr) + offset;
-	retval = memcpy_ns_write((void *)dest, src, size);
-	ns_buffer_unmap(slot);
+	dest = (uintptr_t)ns_granule_map(slot, ns_gr);
+	retval = memcpy_ns_write((void *)(dest + offset), src, size);
+	ns_buffer_unmap((void *)dest);
 
 	return retval;
 }
@@ -347,7 +345,7 @@ bool ns_buffer_write(enum buffer_slot slot,
  * Internal helpers
  ******************************************************************************/
 
-void *buffer_map_internal(enum buffer_slot slot, unsigned long addr, bool ns)
+void *buffer_map_internal(enum buffer_slot slot, unsigned long addr)
 {
 	uint64_t attr = SLOT_DESC_ATTR;
 	uintptr_t va = slot_to_va(slot);
@@ -355,7 +353,7 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr, bool ns)
 
 	assert(GRANULE_ALIGNED(addr));
 
-	attr |= (ns == true ? MT_NS : MT_REALM);
+	attr |= (slot == SLOT_NS ? MT_NS : MT_REALM);
 
 	if (xlat_map_memory_page_with_attrs(entry, va,
 					    (uintptr_t)addr, attr) != 0) {

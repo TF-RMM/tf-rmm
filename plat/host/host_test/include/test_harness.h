@@ -18,12 +18,10 @@
  * Args
  *	slot - Slot buffer type where to map to
  *	addr - Granule address to map
- *	ns - Flag to indicate if the granule is a non-secure one
  * Return
  *	The VA (or platform equivalent) where the granule was mapped to
  */
-void *test_buffer_map(enum buffer_slot slot,
-		      unsigned long addr, bool ns);
+void *test_buffer_map(enum buffer_slot slot, unsigned long addr);
 
 /*
  * Unmap a given granule from its corresponding slot buffer given the

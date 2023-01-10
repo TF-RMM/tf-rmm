@@ -3,11 +3,15 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <buffer.h>
+#include <errno.h>
 #include <gic.h>
 #include <host_defs.h>
 #include <host_utils.h>
 #include <platform_api.h>
 #include <rmm_el3_ifc.h>
+#include <stdlib.h>
+#include <test_private.h>
 #include <xlat_tables.h>
 
 /* Implemented in init.c and needed here */
@@ -21,6 +25,8 @@ void rmm_main(void);
 #define RMM_EL3_MAX_CPUS		(MAX_CPUS)
 
 static unsigned char el3_rmm_shared_buffer[PAGE_SIZE] __aligned(PAGE_SIZE);
+
+static uintptr_t callbacks[CB_IDS];
 
 /*
  * Create a basic boot manifest.
@@ -119,7 +125,7 @@ static void start_secondary_pe(unsigned int cpuid)
 	rmm_warmboot_main();
 }
 
-void test_helper_rmm_start(bool secondaries)
+void test_helpers_rmm_start(bool secondaries)
 {
 	static bool initialized;
 
@@ -140,7 +146,52 @@ void test_helper_rmm_start(bool secondaries)
 	}
 }
 
-unsigned int test_helper_get_nr_granules(void)
+unsigned int test_helpers_get_nr_granules(void)
 {
 	return HOST_NR_GRANULES;
+}
+
+int test_helpers_get_rand_in_range(int min, int max)
+{
+	return (rand() % (max - min + 1)) + min;
+}
+
+int test_helpers_register_cb(union test_harness_cbs cb, enum cb_ids id)
+{
+	if (id >= CB_IDS) {
+		return -EINVAL;
+	}
+
+	/*
+	 * Covert the pointer stored in cb into a generic one
+	 * and store it.
+	 * We ignore the exact the cb corresponding to the cbs_id
+	 * and just use the first one.
+	 */
+	callbacks[id] = (uintptr_t)cb.buffer_map;
+
+	return 0;
+}
+
+int test_helpers_unregister_cb(enum cb_ids id)
+{
+	union test_harness_cbs cb;
+
+	/*
+	 * Set the callback to NULL.
+	 * We ignore the exact the cb corresponding to the cbs_id
+	 * and just use the first one.
+	 */
+	cb.buffer_map = NULL;
+	return test_helpers_register_cb(cb, id);
+}
+
+/******************************************************************
+ * Private APIs shared with other host_test files.
+ *****************************************************************/
+uintptr_t get_cb(enum cb_ids id)
+{
+	assert(id < CB_IDS);
+
+	return callbacks[id];
 }
