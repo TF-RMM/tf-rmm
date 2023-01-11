@@ -5,7 +5,6 @@
 
 #include <asm_macros.S>
 #include <rmm_el3_ifc.h>
-#include <smc.h>
 
 	.globl rmm_el3_ifc_validate_cpuid
 

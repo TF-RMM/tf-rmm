@@ -8,7 +8,6 @@ add_library(rmm-lib INTERFACE)
 target_link_libraries(rmm-lib
     INTERFACE rmm-lib-allocator
               rmm-lib-arch
-              rmm-lib-asc
               rmm-lib-attestation
               rmm-lib-common
               rmm-lib-debug
@@ -24,7 +23,6 @@ target_link_libraries(rmm-lib
 add_subdirectory("allocator")
 add_subdirectory("arch")
 add_subdirectory("attestation")
-add_subdirectory("asc")
 add_subdirectory("common")
 add_subdirectory("debug")
 add_subdirectory("gic")
