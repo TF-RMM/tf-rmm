@@ -62,10 +62,12 @@ if(RMM_UNITTESTS)
     # Include CTest for unittests
     include(CTest)
 
+    set(CMAKE_CTEST_ARGUMENTS "--verbose")
+
     # Custom target to run the unit tests
     add_custom_target(run-unittests
         WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-        COMMAND ctest -C "$<CONFIG>"
+        COMMAND ctest "${CMAKE_CTEST_ARGUMENTS}" -C "$<CONFIG>"
         DEPENDS rmm.elf rmm.map
     )
 endif()
