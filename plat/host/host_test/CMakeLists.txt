@@ -13,6 +13,13 @@ arm_config_option(
     DEFAULT "ON"
     TYPE INTERNAL)
 
+arm_config_option(
+    NAME RMM_UNITTESTS_RUN_ONCE
+    HELP "Force to run the unit tests only once"
+    TYPE BOOL
+    DEFAULT "ON"
+    ADVANCED)
+
 target_link_libraries(rmm-plat-host_test
     PRIVATE rmm-lib
             CppUTest

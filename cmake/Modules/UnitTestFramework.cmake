@@ -97,7 +97,8 @@ function(rmm_build_unittest)
         endif()
 
         if("ITERATIONS" IN_LIST arg_KEYWORDS_MISSING_VALUES OR
-            NOT DEFINED arg_ITERATIONS)
+            NOT DEFINED arg_ITERATIONS OR
+            RMM_UNITTESTS_RUN_ONCE)
             set(arg_ITERATIONS "1")
         endif()
 
