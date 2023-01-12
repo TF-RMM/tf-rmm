@@ -13,7 +13,8 @@
  * clang++ older than v14 can cause problems when enabling
  * assertion control on unit tests.
  */
-#if ((NDEBUG) || (__clang_major__ < 14))
+#if ((NDEBUG) || \
+	((defined __clang_major__) && (__clang_major__ < 14)))
 #define ASSERT_TEST IGNORE_TEST
 #else
 #define ASSERT_TEST TEST
