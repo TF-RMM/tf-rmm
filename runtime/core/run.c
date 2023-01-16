@@ -351,7 +351,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	restore_ns_state(ns_state);
 
 	/* Undo the heap association */
-	attestation_heap_ctx_unassign_pe(&rec->alloc_info.ctx);
+	attestation_heap_ctx_unassign_pe();
 	/* Unmap auxiliary granules */
 	unmap_rec_aux(rec_aux, rec->num_rec_aux);
 }

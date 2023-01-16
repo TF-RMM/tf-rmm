@@ -177,19 +177,18 @@ bool handle_sysreg_access_trap(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	 * Rt bits [9:5] of ISS field cannot exceed 0b11111.
 	 */
 	unsigned int rt = ESR_EL2_SYSREG_ISS_RT(esr);
-	unsigned int i;
 	unsigned int __unused op0, op1, crn, crm, op2;
 	unsigned long __unused sysreg;
 
 	/* Check for 32-bit instruction trapped */
 	assert(ESR_IL(esr) != 0UL);
 
-	for (i = 0U; i < ARRAY_LEN(sysreg_handlers); i++) {
+	for (unsigned int i = 0U; i < ARRAY_LEN(sysreg_handlers); i++) {
 		const struct sysreg_handler *handler = &sysreg_handlers[i];
-		bool handled;
 
 		if ((esr & handler->esr_mask) == handler->esr_value) {
-			handled = handler->fn(rec, rec_exit, esr);
+			bool handled = handler->fn(rec, rec_exit, esr);
+
 			if (!handled) {
 				emulate_sysreg_access_ns(rec, rec_exit, esr);
 			}

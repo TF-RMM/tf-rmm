@@ -24,7 +24,7 @@ static struct granule granules[RMM_MAX_GRANULES];
  * This is purely a lookup, and provides no guarantees about the attributes of
  * the granule (i.e. whether it is locked, its state or its reference count).
  */
-unsigned long granule_addr(struct granule *g)
+unsigned long granule_addr(const struct granule *g)
 {
 	unsigned long idx;
 
@@ -234,14 +234,14 @@ bool find_lock_two_granules(
 			enum granule_state expected_state2,
 			struct granule **g2)
 {
-	struct granule_set granules[] = {
+	struct granule_set gs[] = {
 		{0U, addr1, expected_state1, NULL, g1},
 		{1U, addr2, expected_state2, NULL, g2}
 	};
 
 	assert((g1 != NULL) && (g2 != NULL));
 
-	return find_lock_granules(granules, ARRAY_SIZE(granules));
+	return find_lock_granules(gs, ARRAY_SIZE(gs));
 }
 
 void granule_memzero(struct granule *g, enum buffer_slot slot)
