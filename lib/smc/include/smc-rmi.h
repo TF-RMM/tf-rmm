@@ -248,18 +248,24 @@
 #define RPV_SIZE		64
 
 /*
+ * Defines member of structure and reserves space
+ * for the next member with specified offset.
+ */
+#define SET_MEMBER_RMI	SET_MEMBER
+
+/*
  * The Realm attribute parameters are shared by the Host via
  * RMI_REALM_CREATE::params_ptr. The values can be observed or modified
  * either by the Host or by the Realm.
  */
 struct rmi_realm_params {
 	/* Realm feature register 0 */
-	SET_MEMBER(unsigned long features_0, 0, 0x100);		/* Offset 0 */
+	SET_MEMBER_RMI(unsigned long features_0, 0, 0x100);		/* Offset 0 */
 	/* Measurement algorithm */
-	SET_MEMBER(unsigned char hash_algo, 0x100, 0x400);	/* 0x100 */
+	SET_MEMBER_RMI(unsigned char hash_algo, 0x100, 0x400);	/* 0x100 */
 	/* Realm Personalization Value */
-	SET_MEMBER(unsigned char rpv[RPV_SIZE], 0x400, 0x800);	/* 0x400 */
-	SET_MEMBER(struct {
+	SET_MEMBER_RMI(unsigned char rpv[RPV_SIZE], 0x400, 0x800);	/* 0x400 */
+	SET_MEMBER_RMI(struct {
 			/* Virtual Machine Identifier */
 			unsigned short vmid;			/* 0x800 */
 			/* Realm Translation Table base */
@@ -278,14 +284,14 @@ struct rmi_realm_params {
  */
 struct rmi_rec_params {
 	/* Flags */
-	SET_MEMBER(unsigned long flags, 0, 0x100);	/* Offset 0 */
+	SET_MEMBER_RMI(unsigned long flags, 0, 0x100);	/* Offset 0 */
 	/* MPIDR of the REC */
-	SET_MEMBER(unsigned long mpidr, 0x100, 0x200);	/* 0x100 */
+	SET_MEMBER_RMI(unsigned long mpidr, 0x100, 0x200);	/* 0x100 */
 	/* Program counter */
-	SET_MEMBER(unsigned long pc, 0x200, 0x300);	/* 0x200 */
+	SET_MEMBER_RMI(unsigned long pc, 0x200, 0x300);	/* 0x200 */
 	/* General-purpose registers */
-	SET_MEMBER(unsigned long gprs[REC_CREATE_NR_GPRS], 0x300, 0x800); /* 0x300 */
-	SET_MEMBER(struct {
+	SET_MEMBER_RMI(unsigned long gprs[REC_CREATE_NR_GPRS], 0x300, 0x800); /* 0x300 */
+	SET_MEMBER_RMI(struct {
 			/* Number of auxiliary Granules */
 			unsigned long num_aux;			/* 0x800 */
 			/* Addresses of auxiliary Granules */
@@ -298,10 +304,10 @@ struct rmi_rec_params {
  */
 struct rmi_rec_entry {
 	/* Flags */
-	SET_MEMBER(unsigned long flags, 0, 0x200);	/* Offset 0 */
+	SET_MEMBER_RMI(unsigned long flags, 0, 0x200);	/* Offset 0 */
 	/* General-purpose registers */
-	SET_MEMBER(unsigned long gprs[REC_EXIT_NR_GPRS], 0x200, 0x300); /* 0x200 */
-	SET_MEMBER(struct {
+	SET_MEMBER_RMI(unsigned long gprs[REC_EXIT_NR_GPRS], 0x200, 0x300); /* 0x200 */
+	SET_MEMBER_RMI(struct {
 			/* GICv3 Hypervisor Control Register */
 			unsigned long gicv3_hcr;			/* 0x300 */
 			/* GICv3 List Registers */
@@ -314,8 +320,8 @@ struct rmi_rec_entry {
  */
 struct rmi_rec_exit {
 	/* Exit reason */
-	SET_MEMBER(unsigned long exit_reason, 0, 0x100);/* Offset 0 */
-	SET_MEMBER(struct {
+	SET_MEMBER_RMI(unsigned long exit_reason, 0, 0x100);/* Offset 0 */
+	SET_MEMBER_RMI(struct {
 			/* Exception Syndrome Register */
 			unsigned long esr;		/* 0x100 */
 			/* Fault Address Register */
@@ -324,8 +330,8 @@ struct rmi_rec_exit {
 			unsigned long hpfar;		/* 0x110 */
 		   }, 0x100, 0x200);
 	/* General-purpose registers */
-	SET_MEMBER(unsigned long gprs[REC_EXIT_NR_GPRS], 0x200, 0x300); /* 0x200 */
-	SET_MEMBER(struct {
+	SET_MEMBER_RMI(unsigned long gprs[REC_EXIT_NR_GPRS], 0x200, 0x300); /* 0x200 */
+	SET_MEMBER_RMI(struct {
 			/* GICv3 Hypervisor Control Register */
 			unsigned long gicv3_hcr;	/* 0x300 */
 			/* GICv3 List Registers */
@@ -335,7 +341,7 @@ struct rmi_rec_exit {
 			/* GICv3 Virtual Machine Control Register */
 			unsigned long gicv3_vmcr;	/* 0x390 */
 		   }, 0x300, 0x400);
-	SET_MEMBER(struct {
+	SET_MEMBER_RMI(struct {
 			/* Counter-timer Physical Timer Control Register */
 			unsigned long cntp_ctl;		/* 0x400 */
 			/* Counter-timer Physical Timer CompareValue Register */
@@ -345,7 +351,7 @@ struct rmi_rec_exit {
 			/* Counter-timer Virtual Timer CompareValue Register */
 			unsigned long cntv_cval;	/* 0x418 */
 		   }, 0x400, 0x500);
-	SET_MEMBER(struct {
+	SET_MEMBER_RMI(struct {
 			/* Base address of pending RIPAS change */
 			unsigned long ripas_base;	/* 0x500 */
 			/* Size of pending RIPAS change */
@@ -354,7 +360,7 @@ struct rmi_rec_exit {
 			unsigned char ripas_value;	/* 0x510 */
 		   }, 0x500, 0x600);
 	/* Host call immediate value */
-	SET_MEMBER(unsigned int imm, 0x600, 0x800);	/* 0x600 */
+	SET_MEMBER_RMI(unsigned int imm, 0x600, 0x800);	/* 0x600 */
 };
 
 /*
@@ -363,9 +369,9 @@ struct rmi_rec_exit {
  */
 struct rmi_rec_run {
 	/* Entry information */
-	SET_MEMBER(struct rmi_rec_entry entry, 0, 0x800);	/* Offset 0 */
+	SET_MEMBER_RMI(struct rmi_rec_entry entry, 0, 0x800);	/* Offset 0 */
 	/* Exit information */
-	SET_MEMBER(struct rmi_rec_exit exit, 0x800, 0x1000);	/* 0x800 */
+	SET_MEMBER_RMI(struct rmi_rec_exit exit, 0x800, 0x1000);	/* 0x800 */
 };
 
 #endif /* SMC_RMI_H */
