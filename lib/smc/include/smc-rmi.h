@@ -126,6 +126,10 @@
 #define RMI_TABLE		U(3)
 #define RMI_VALID_NS		U(4)
 
+/* RmiFeature enumerations */
+#define RMI_NOT_SUPPORTED			UL(0)
+#define RMI_SUPPORTED				UL(1)
+
 /* RmiFeatureRegister0 format */
 #define RMM_FEATURE_REGISTER_0_INDEX		UL(0)
 
@@ -142,6 +146,12 @@
 
 #define RMM_FEATURE_REGISTER_0_HASH_SHA_512_SHIFT      UL(29)
 #define RMM_FEATURE_REGISTER_0_HASH_SHA_512_WIDTH      UL(1)
+
+#define RMM_FEATURE_REGISTER_0_PMU_EN_SHIFT		UL(22)
+#define RMM_FEATURE_REGISTER_0_PMU_EN_WIDTH		UL(1)
+
+#define RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS_SHIFT	UL(23)
+#define RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS_WIDTH	UL(5)
 
 /* The RmmRipas enumeration representing realm IPA state */
 #define RMI_EMPTY   (0)

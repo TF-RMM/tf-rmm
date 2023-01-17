@@ -32,8 +32,8 @@ static inline bool is_feat_sve_present(void)
  */
 static inline bool is_feat_rng_present(void)
 {
-	return ((read_ID_AA64ISAR0_EL1() >> ID_AA64ISAR0_RNDR_SHIFT) &
-		ID_AA64ISAR0_RNDR_MASK) != 0UL;
+	return ((read_ID_AA64ISAR0_EL1() >> ID_AA64ISAR0_EL1_RNDR_SHIFT) &
+		ID_AA64ISAR0_EL1_RNDR_MASK) != 0UL;
 }
 
 /*
