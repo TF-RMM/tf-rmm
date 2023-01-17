@@ -13,27 +13,25 @@
  * This file describes the Realm Management Interface (RMI) Application Binary
  * Interface (ABI) for SMC calls made from Non-secure state to the RMM and
  * serviced by the RMM.
- *
- * See doc/rmm_interface.md for more details.
  */
 
 /*
  * The major version number of the RMI implementation.  Increase this whenever
  * the binary format or semantics of the SMC calls change.
  */
-#define RMI_ABI_VERSION_MAJOR		(56U)
+#define RMI_ABI_VERSION_MAJOR		U(56)
 
 /*
  * The minor version number of the RMI implementation.  Increase this when
  * a bug is fixed, or a feature is added without breaking binary compatibility.
  */
-#define RMI_ABI_VERSION_MINOR		(0U)
+#define RMI_ABI_VERSION_MINOR		U(0)
 
-#define RMI_ABI_VERSION			((RMI_ABI_VERSION_MAJOR << 16U) | \
+#define RMI_ABI_VERSION			((RMI_ABI_VERSION_MAJOR << U(16)) | \
 					RMI_ABI_VERSION_MINOR)
 
-#define RMI_ABI_VERSION_GET_MAJOR(_version) ((_version) >> 16U)
-#define RMI_ABI_VERSION_GET_MINOR(_version) ((_version) & 0xFFFFU)
+#define RMI_ABI_VERSION_GET_MAJOR(_version) ((_version) >> U(16))
+#define RMI_ABI_VERSION_GET_MINOR(_version) ((_version) & U(0xFFFF))
 
 #define SMC64_RMI_FID(_offset)		SMC64_STD_FID(RMI, _offset)
 
@@ -82,51 +80,51 @@
  * The number of GPRs (starting from X0) that are
  * configured by the host when a REC is created.
  */
-#define REC_CREATE_NR_GPRS		(8U)
+#define REC_CREATE_NR_GPRS		U(8)
 
-#define REC_PARAMS_FLAG_RUNNABLE	(1UL << 0U)
+#define REC_PARAMS_FLAG_RUNNABLE	(UL(1) << 0)
 
 /*
  * The number of GPRs (starting from X0) per voluntary exit context.
  * Per SMCCC.
  */
-#define REC_EXIT_NR_GPRS		(31U)
+#define REC_EXIT_NR_GPRS		U(31)
 
 /* RmiHashAlgorithm type */
 #define RMI_HASH_ALGO_SHA256	0
 #define RMI_HASH_ALGO_SHA512	1
 
 /* Maximum number of Interrupt Controller List Registers */
-#define REC_GIC_NUM_LRS			(16U)
+#define REC_GIC_NUM_LRS			U(16)
 
 /* Maximum number of auxiliary granules required for a REC */
-#define MAX_REC_AUX_GRANULES		(16U)
+#define MAX_REC_AUX_GRANULES		U(16)
 
-#define REC_ENTRY_FLAG_EMUL_MMIO	(1UL << 0U)
-#define REC_ENTRY_FLAG_INJECT_SEA	(1UL << 1U)
+#define REC_ENTRY_FLAG_EMUL_MMIO	(UL(1) << 0)
+#define REC_ENTRY_FLAG_INJECT_SEA	(UL(1) << 1)
 
 /* Flags to specify if WFI/WFE should be trapped to host */
-#define REC_ENTRY_FLAG_TRAP_WFI		(1UL << 2U)
-#define REC_ENTRY_FLAG_TRAP_WFE		(1UL << 3U)
+#define REC_ENTRY_FLAG_TRAP_WFI		(UL(1) << 2)
+#define REC_ENTRY_FLAG_TRAP_WFE		(UL(1) << 3)
 
 /*
  * RmiRecExitReason represents the reason for a REC exit.
  * This is returned to NS hosts via RMI_REC_ENTER::run_ptr.
  */
-#define RMI_EXIT_SYNC			(0U)
-#define RMI_EXIT_IRQ			(1U)
-#define RMI_EXIT_FIQ			(2U)
-#define RMI_EXIT_PSCI			(3U)
-#define RMI_EXIT_RIPAS_CHANGE		(4U)
-#define RMI_EXIT_HOST_CALL		(5U)
-#define RMI_EXIT_SERROR			(6U)
+#define RMI_EXIT_SYNC			U(0)
+#define RMI_EXIT_IRQ			U(1)
+#define RMI_EXIT_FIQ			U(2)
+#define RMI_EXIT_PSCI			U(3)
+#define RMI_EXIT_RIPAS_CHANGE		U(4)
+#define RMI_EXIT_HOST_CALL		U(5)
+#define RMI_EXIT_SERROR			U(6)
 
 /* RmiRttEntryState represents the state of an RTTE */
-#define RMI_UNASSIGNED		(0U)
-#define RMI_DESTROYED		(1U)
-#define RMI_ASSIGNED		(2U)
-#define RMI_TABLE		(3U)
-#define RMI_VALID_NS		(4U)
+#define RMI_UNASSIGNED		U(0)
+#define RMI_DESTROYED		U(1)
+#define RMI_ASSIGNED		U(2)
+#define RMI_TABLE		U(3)
+#define RMI_VALID_NS		U(4)
 
 /* RmiFeatureRegister0 format */
 #define RMM_FEATURE_REGISTER_0_INDEX		UL(0)
@@ -307,6 +305,7 @@
 /* Size of Realm Personalization Value */
 #define RPV_SIZE		64
 
+#ifndef __ASSEMBLER__
 /*
  * Defines member of structure and reserves space
  * for the next member with specified offset.
@@ -433,5 +432,7 @@ struct rmi_rec_run {
 	/* Exit information */
 	SET_MEMBER_RMI(struct rmi_rec_exit exit, 0x800, 0x1000);	/* 0x800 */
 };
+
+#endif /* __ASSEMBLER__ */
 
 #endif /* SMC_RMI_H */
