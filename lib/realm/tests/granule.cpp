@@ -318,6 +318,26 @@ ASSERT_TEST(granule, granule_addr_TC4)
 
 }
 
+ASSERT_TEST(granule, granule_addr_TC5)
+{
+	uintptr_t granule;
+
+	/******************************************************************
+	 * TEST CASE 5:
+	 *
+	 * Verify that granule_addr() asserts if the granule address is
+	 * not properly aligned.
+	 ******************************************************************/
+
+	granule = (uintptr_t)get_granule_struct_base();
+	granule += test_helpers_get_rand_in_range(1,
+					sizeof(struct granule) - 1U);
+	test_helpers_expect_assert_fail(true);
+	(void)granule_addr((struct granule *)granule);
+	test_helpers_fail_if_no_assert_failed();
+
+}
+
 TEST(granule, granule_refcount_read_relaxed_TC1)
 {
 	struct granule *granule;
@@ -1773,7 +1793,7 @@ ASSERT_TEST(granule, granule_memzero_TC2)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-IGNORE_TEST(granule, granule_memzero_mapped_TC1)
+TEST(granule, granule_memzero_mapped_TC1)
 {
 	/*
 	 * Current implementation for granule_memzero_mapped()
