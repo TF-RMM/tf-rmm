@@ -39,27 +39,22 @@
 #define SMC_RSI_ABI_VERSION		SMC64_RSI_FID(U(0x0))
 
 /* RSI Status code enumeration as per Section D4.3.6 of the RMM Spec */
-typedef enum {
-	/* Command completed successfully */
-	RSI_SUCCESS = 0U,
+/* Command completed successfully */
+#define RSI_SUCCESS		0U
 
-	/*
-	 * The value of a command input value
-	 * caused the command to fail
-	 */
-	RSI_ERROR_INPUT	= 1U,
+/* The value of a command input value caused the command to fail */
+#define RSI_ERROR_INPUT		1U
 
-	/*
-	 * The state of the current Realm or current REC
-	 * does not match the state expected by the command
-	 */
-	RSI_ERROR_STATE	= 2U,
+/*
+ * The state of the current Realm or current REC
+ * does not match the state expected by the command
+ */
+#define RSI_ERROR_STATE		2U
 
-	/* The operation requested by the command is not complete */
-	RSI_INCOMPLETE = 3U,
+/* The operation requested by the command is not complete */
+#define RSI_INCOMPLETE		3U
 
-	RSI_ERROR_COUNT
-} rsi_status_t;
+#define RSI_ERROR_COUNT		4U
 
 /*
  * Returns a measurement.
