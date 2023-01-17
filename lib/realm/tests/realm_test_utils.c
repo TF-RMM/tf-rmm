@@ -13,7 +13,7 @@
  * NOTE:	This API assumes a 4KB granularity and that the architecture
  *		has a VA space of 48 bits.
  */
-static uintptr_t slot_to_pa(enum buffer_slot slot)
+uintptr_t realm_test_util_slot_to_pa(enum buffer_slot slot)
 {
 	struct xlat_table_entry *entry = get_cache_entry();
 	uintptr_t va = slot_to_va(slot);
@@ -29,10 +29,10 @@ static uintptr_t slot_to_pa(enum buffer_slot slot)
  * mapped the given PA to the VA that would be expected by the
  * aarch64 VMSA.
  */
-uintptr_t realm_test_util_get_slot_va(uintptr_t pa)
+uintptr_t realm_test_util_slot_va_from_pa(uintptr_t pa)
 {
 	for (unsigned int i = 0U; i < NR_CPU_SLOTS; i++) {
-		if (pa == slot_to_pa((enum buffer_slot)i)) {
+		if (pa == realm_test_util_slot_to_pa((enum buffer_slot)i)) {
 			/*
 			 * Found a slot returning the same address, get
 			 * the VA for that slot (the one that would be

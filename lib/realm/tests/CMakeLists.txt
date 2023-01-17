@@ -13,3 +13,10 @@ rmm_build_unittest(NAME granule
                            "tests/realm_test_utils.c"
                            "tests/test_harness.c"
                    ITERATIONS 10)
+
+rmm_build_unittest(NAME slot_buffer
+                   TARGET rmm-lib-realm
+                   SOURCES "tests/buffer.cpp"
+                           "tests/realm_test_utils.c"
+                           "tests/test_harness.c"
+                   ITERATIONS 10)
