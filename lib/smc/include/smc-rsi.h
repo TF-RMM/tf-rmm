@@ -7,15 +7,11 @@
 #define SMC_RSI_H
 
 #include <smc.h>
-#include <stddef.h>
-#include <utils_def.h>
 
 /*
  * This file describes the Realm Services Interface (RSI) Application Binary
  * Interface (ABI) for SMC calls made from within the Realm to the RMM and
  * serviced by the RMM.
- *
- * See doc/rmm_interface.md for more details.
  */
 
 /*
@@ -120,9 +116,15 @@ typedef enum {
  */
 #define SMC_RSI_ATTEST_TOKEN_CONTINUE	SMC64_RSI_FID(U(0x5))
 
+/*
+ * Defines member of structure and reserves space
+ * for the next member with specified offset.
+ */
+#define SET_MEMBER_RSI SET_MEMBER
+
 struct rsi_realm_config {
 	/* IPA width in bits */
-	SET_MEMBER(unsigned long ipa_width, 0, 0x1000);	/* Offset 0 */
+	SET_MEMBER_RSI(unsigned long ipa_width, 0, 0x1000);	/* Offset 0 */
 };
 
 /*
@@ -149,7 +151,7 @@ struct rsi_realm_config {
 #define RSI_HOST_CALL_NR_GPRS		7U
 
 struct rsi_host_call {
-	SET_MEMBER(struct {
+	SET_MEMBER_RSI(struct {
 		/* Immediate value */
 		unsigned int imm;		/* Offset 0 */
 		/* Registers */
