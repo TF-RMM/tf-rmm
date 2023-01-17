@@ -7,7 +7,7 @@
 #ifndef SMC_RMI_H
 #define SMC_RMI_H
 
-#include <measurement.h>
+#include <stddef.h>
 #include <smc.h>
 
 /*
@@ -55,8 +55,8 @@
 #define REC_EXIT_NR_GPRS		(31U)
 
 /* RmiHashAlgorithm type */
-#define RMI_HASH_ALGO_SHA256	HASH_ALGO_SHA256
-#define RMI_HASH_ALGO_SHA512	HASH_ALGO_SHA512
+#define RMI_HASH_ALGO_SHA256	0
+#define RMI_HASH_ALGO_SHA512	1
 
 /* Maximum number of Interrupt Controller List Registers */
 #define REC_GIC_NUM_LRS			(16U)

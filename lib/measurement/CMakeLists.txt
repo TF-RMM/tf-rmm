@@ -7,6 +7,7 @@ add_library(rmm-lib-measurement)
 
 target_link_libraries(rmm-lib-measurement
     PUBLIC rmm-mbedtls
+           rmm-lib-smc
     PRIVATE rmm-lib-arch
             rmm-lib-common
             rmm-lib-debug)

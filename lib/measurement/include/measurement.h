@@ -7,26 +7,15 @@
 #define MEASUREMENT_H
 
 #include <assert.h>
+#include <smc-rmi.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <utils_def.h>
 
 /* Supported algorithms */
 enum hash_algo {
-	HASH_ALGO_SHA256 = 0,
-	HASH_ALGO_SHA512 = 1,
-};
-
-/*
- * RmiDataMeasureContent enumeration representing
- * whether to measure DATA Granule contents.
- */
-enum rmi_data_measure_content {
-	/* Do not measure DATA Granule contents */
-	RMI_NO_MEASURE_CONTENT = 0U,
-
-	/* Measure DATA Granule contents */
-	RMI_MEASURE_CONTENT = 1U
+	HASH_ALGO_SHA256 = RMI_HASH_ALGO_SHA256,
+	HASH_ALGO_SHA512 = RMI_HASH_ALGO_SHA512,
 };
 
 /*
