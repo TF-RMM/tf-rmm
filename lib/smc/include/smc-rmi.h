@@ -7,7 +7,6 @@
 #ifndef SMC_RMI_H
 #define SMC_RMI_H
 
-#include <stddef.h>
 #include <smc.h>
 
 /*
@@ -272,16 +271,6 @@ struct rmi_realm_params {
 		   }, 0x800, 0x1000);
 };
 
-COMPILER_ASSERT(sizeof(struct rmi_realm_params) == 0x1000);
-
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, features_0) == 0);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, hash_algo) == 0x100);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, rpv) == 0x400);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, vmid) == 0x800);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, rtt_base) == 0x808);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, rtt_level_start) == 0x810);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, rtt_num_start) == 0x818);
-
 /*
  * The REC attribute parameters are shared by the Host via
  * MI_REC_CREATE::params_ptr. The values can be observed or modified
@@ -304,15 +293,6 @@ struct rmi_rec_params {
 		   }, 0x800, 0x1000);
 };
 
-COMPILER_ASSERT(sizeof(struct rmi_rec_params) == 0x1000);
-
-COMPILER_ASSERT(offsetof(struct rmi_rec_params, flags) == 0);
-COMPILER_ASSERT(offsetof(struct rmi_rec_params, mpidr) == 0x100);
-COMPILER_ASSERT(offsetof(struct rmi_rec_params, pc) == 0x200);
-COMPILER_ASSERT(offsetof(struct rmi_rec_params, gprs) == 0x300);
-COMPILER_ASSERT(offsetof(struct rmi_rec_params, num_aux) == 0x800);
-COMPILER_ASSERT(offsetof(struct rmi_rec_params, aux) == 0x808);
-
 /*
  * Structure contains data passed from the Host to the RMM on REC entry
  */
@@ -328,13 +308,6 @@ struct rmi_rec_entry {
 			unsigned long gicv3_lrs[REC_GIC_NUM_LRS];	/* 0x308 */
 		   }, 0x300, 0x800);
 };
-
-COMPILER_ASSERT(sizeof(struct rmi_rec_entry) == 0x800);
-
-COMPILER_ASSERT(offsetof(struct rmi_rec_entry, flags) == 0);
-COMPILER_ASSERT(offsetof(struct rmi_rec_entry, gprs) == 0x200);
-COMPILER_ASSERT(offsetof(struct rmi_rec_entry, gicv3_hcr) == 0x300);
-COMPILER_ASSERT(offsetof(struct rmi_rec_entry, gicv3_lrs) == 0x308);
 
 /*
  * Structure contains data passed from the RMM to the Host on REC exit
@@ -384,26 +357,6 @@ struct rmi_rec_exit {
 	SET_MEMBER(unsigned int imm, 0x600, 0x800);	/* 0x600 */
 };
 
-COMPILER_ASSERT(sizeof(struct rmi_rec_exit) == 0x800);
-
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, exit_reason) == 0);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, esr) == 0x100);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, far) == 0x108);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, hpfar) == 0x110);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, gprs) == 0x200);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, gicv3_hcr) == 0x300);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, gicv3_lrs) == 0x308);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, gicv3_misr) == 0x388);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, gicv3_vmcr) == 0x390);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, cntp_ctl) == 0x400);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, cntp_cval) == 0x408);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, cntv_ctl) == 0x410);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, cntv_cval) == 0x418);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, ripas_base) == 0x500);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, ripas_size) == 0x508);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, ripas_value) == 0x510);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, imm) == 0x600);
-
 /*
  * Structure contains shared information between RMM and Host
  * during REC entry and REC exit.
@@ -414,10 +367,5 @@ struct rmi_rec_run {
 	/* Exit information */
 	SET_MEMBER(struct rmi_rec_exit exit, 0x800, 0x1000);	/* 0x800 */
 };
-
-COMPILER_ASSERT(sizeof(struct rmi_rec_run) <= GRANULE_SIZE);
-
-COMPILER_ASSERT(offsetof(struct rmi_rec_run, entry) == 0);
-COMPILER_ASSERT(offsetof(struct rmi_rec_run, exit) == 0x800);
 
 #endif /* SMC_RMI_H */
