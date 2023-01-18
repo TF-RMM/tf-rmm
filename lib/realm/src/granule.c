@@ -29,8 +29,7 @@ unsigned long granule_addr(const struct granule *g)
 	unsigned long idx;
 
 	assert(g != NULL);
-	assert(ALIGNED((void *)g, sizeof(struct granule)));
-	assert(g >= &granules[0]);
+	assert(ALIGNED_TO_ARRAY(g, granules));
 
 	idx = g - &granules[0];
 
