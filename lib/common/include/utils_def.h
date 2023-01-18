@@ -103,7 +103,8 @@
 	_a[_i] = _v;			\
 })
 
-#define COMPILER_ASSERT(_condition) extern char compiler_assert[(_condition) ? 1 : -1]
+#define COMPILER_ASSERT(_condition)	\
+			extern char compiler_assert[(_condition) ? 1 : -1]
 
 /*
  * If _expr is false, this will result in a compile time error as it tries to
@@ -118,16 +119,22 @@
 				- sizeof(struct { char: 0; }))
 
 #define CHECK_TYPE_IS_ARRAY(_v) \
-	COMPILER_ASSERT_ZERO(!__builtin_types_compatible_p(typeof(_v), typeof(&(_v[0]))))
+	COMPILER_ASSERT_ZERO(!__builtin_types_compatible_p(typeof(_v),	\
+							typeof(&(_v[0]))))
 
 #define IS_POWER_OF_TWO(x)			\
 	((((x) + UL(0)) & ((x) - UL(1))) == UL(0))
 
 #define COMPILER_BARRIER() __asm__ volatile ("" ::: "memory")
 
-#define ALIGNED(_size, _alignment) (((unsigned long)(_size) % (_alignment)) == UL(0))
+#define ALIGNED(_size, _alignment)		\
+			(((unsigned long)(_size) % (_alignment)) == UL(0))
 
 #define GRANULE_ALIGNED(_addr) ALIGNED((void *)(_addr), GRANULE_SIZE)
+#define ALIGNED_TO_ARRAY(_addr, _array)		\
+			(((uintptr_t)_addr >= (uintptr_t)&_array[0]) && \
+			 ((((uintptr_t)_addr - (uintptr_t)&_array[0]) % \
+						sizeof(_array[0])) == UL(0)))
 #define GRANULE_SHIFT	(UL(12))
 #define GRANULE_MASK	(~0xfffUL)
 
@@ -195,8 +202,8 @@
 /*
  * Generates an unsigned long long (64-bit) value where the bits @_msb
  * through @_lsb (inclusive) are set to one and all other bits are zero.  The
- * parameters can hold values from 0 through 63 and if _msb == _lsb a single bit
- * is set at that location.
+ * parameters can hold values from 0 through 63 and if _msb == _lsb a single
+ * bit is set at that location.
  */
 #define BIT_MASK_ULL(_msb, _lsb) \
 	((~ULL(0) >> (63UL - (_msb))) & (~ULL(0) << (_lsb)))
