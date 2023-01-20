@@ -19,7 +19,6 @@ extern "C" {
 #include <string.h>
 #include <test_harness.h>
 #include <test_helpers.h>
-#include <time.h>
 #include <xlat_tables.h>
 }
 
@@ -80,19 +79,13 @@ TEST_GROUP(slot_buffer) {
 	 */
 	TEST_SETUP()
 	{
-		static int random_seed = 0;
+		test_helpers_init();
 
 		/* Enable the platform with support for multiple PEs */
 		test_helpers_rmm_start(true);
 
 		/* Make sure current cpu id is 0 (primary processor) */
 		host_util_set_cpuid(0U);
-
-		/* Initialize the random seed */
-		while (random_seed == 0) {
-			random_seed = (int)time(NULL);
-			srand(random_seed);
-		}
 
 		test_helpers_expect_assert_fail(false);
 	}

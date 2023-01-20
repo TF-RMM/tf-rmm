@@ -45,3 +45,5 @@ endif()
 
 target_compile_definitions(rmm-lib-xlat
     PUBLIC "XLAT_GRANULARITY_SIZE_SHIFT=UL(${XLAT_GRANULARITY_SIZE_SHIFT})")
+
+include (tests/CMakeLists.txt)
