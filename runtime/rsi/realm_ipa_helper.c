@@ -84,7 +84,7 @@ enum s2_walk_status realm_ipa_to_pa(struct rd *rd,
 	s2_walk->pa = s2tte_pa(s2tte, wi.last_level);
 	offset = ipa & (s2tte_map_size(wi.last_level) - 1UL);
 	s2_walk->pa += offset;
-	s2_walk->ripas = RMI_RAM;
+	s2_walk->ripas = RIPAS_RAM;
 
 	walk_status = WALK_SUCCESS;
 

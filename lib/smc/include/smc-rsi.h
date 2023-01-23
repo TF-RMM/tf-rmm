@@ -7,22 +7,18 @@
 #define SMC_RSI_H
 
 #include <smc.h>
-#include <stddef.h>
-#include <utils_def.h>
 
 /*
  * This file describes the Realm Services Interface (RSI) Application Binary
  * Interface (ABI) for SMC calls made from within the Realm to the RMM and
  * serviced by the RMM.
- *
- * See doc/rmm_interface.md for more details.
  */
 
 /*
  * The major version number of the RSI implementation.  Increase this whenever
  * the binary format or semantics of the SMC calls change.
  */
-#define RSI_ABI_VERSION_MAJOR		12U
+#define RSI_ABI_VERSION_MAJOR		U(12)
 
 /*
  * The minor version number of the RSI implementation.  Increase this when
@@ -30,11 +26,11 @@
  */
 #define RSI_ABI_VERSION_MINOR		0
 
-#define RSI_ABI_VERSION			((RSI_ABI_VERSION_MAJOR << 16U) | \
+#define RSI_ABI_VERSION			((RSI_ABI_VERSION_MAJOR << U(16)) | \
 					 RSI_ABI_VERSION_MINOR)
 
-#define RSI_ABI_VERSION_GET_MAJOR(_version) ((_version) >> 16U)
-#define RSI_ABI_VERSION_GET_MINOR(_version) ((_version) & 0xFFFFU)
+#define RSI_ABI_VERSION_GET_MAJOR(_version) ((_version) >> U(16))
+#define RSI_ABI_VERSION_GET_MINOR(_version) ((_version) & U(0xFFFF))
 
 #define IS_SMC64_RSI_FID(_fid)		IS_SMC64_STD_FAST_IN_RANGE(RSI, _fid)
 
@@ -43,27 +39,22 @@
 #define SMC_RSI_ABI_VERSION		SMC64_RSI_FID(U(0x0))
 
 /* RSI Status code enumeration as per Section D4.3.6 of the RMM Spec */
-typedef enum {
-	/* Command completed successfully */
-	RSI_SUCCESS = 0U,
+/* Command completed successfully */
+#define RSI_SUCCESS		U(0)
 
-	/*
-	 * The value of a command input value
-	 * caused the command to fail
-	 */
-	RSI_ERROR_INPUT	= 1U,
+/* The value of a command input value caused the command to fail */
+#define RSI_ERROR_INPUT		U(1)
 
-	/*
-	 * The state of the current Realm or current REC
-	 * does not match the state expected by the command
-	 */
-	RSI_ERROR_STATE	= 2U,
+/*
+ * The state of the current Realm or current REC
+ * does not match the state expected by the command
+ */
+#define RSI_ERROR_STATE		U(2)
 
-	/* The operation requested by the command is not complete */
-	RSI_INCOMPLETE = 3U,
+/* The operation requested by the command is not complete */
+#define RSI_INCOMPLETE		U(3)
 
-	RSI_ERROR_COUNT
-} rsi_status_t;
+#define RSI_ERROR_COUNT		U(4)
 
 /*
  * Returns a measurement.
@@ -120,14 +111,19 @@ typedef enum {
  */
 #define SMC_RSI_ATTEST_TOKEN_CONTINUE	SMC64_RSI_FID(U(0x5))
 
+#ifndef __ASSEMBLER__
+/*
+ * Defines member of structure and reserves space
+ * for the next member with specified offset.
+ */
+#define SET_MEMBER_RSI SET_MEMBER
+
 struct rsi_realm_config {
 	/* IPA width in bits */
-	SET_MEMBER(unsigned long ipa_width, 0, 0x1000);	/* Offset 0 */
+	SET_MEMBER_RSI(unsigned long ipa_width, 0, 0x1000);	/* Offset 0 */
 };
 
-COMPILER_ASSERT(sizeof(struct rsi_realm_config) == 0x1000);
-
-COMPILER_ASSERT(offsetof(struct rsi_realm_config, ipa_width) == 0);
+#endif /* __ASSEMBLER__ */
 
 /*
  * arg0 == struct rsi_realm_config address
@@ -150,10 +146,11 @@ COMPILER_ASSERT(offsetof(struct rsi_realm_config, ipa_width) == 0);
  */
 #define SMC_RSI_IPA_STATE_GET		SMC64_RSI_FID(U(0x8))
 
-#define RSI_HOST_CALL_NR_GPRS		7U
+#define RSI_HOST_CALL_NR_GPRS		U(7)
 
+#ifndef __ASSEMBLER__
 struct rsi_host_call {
-	SET_MEMBER(struct {
+	SET_MEMBER_RSI(struct {
 		/* Immediate value */
 		unsigned int imm;		/* Offset 0 */
 		/* Registers */
@@ -161,13 +158,7 @@ struct rsi_host_call {
 		}, 0, 0x100);
 };
 
-COMPILER_ASSERT(sizeof(struct rsi_host_call) == 0x100);
-
-COMPILER_ASSERT(offsetof(struct rsi_host_call, imm) == 0);
-COMPILER_ASSERT(offsetof(struct rsi_host_call, gprs[0]) == 8);
-COMPILER_ASSERT(offsetof(struct rsi_host_call,
-			 gprs[RSI_HOST_CALL_NR_GPRS - 1]) ==
-			 8 * RSI_HOST_CALL_NR_GPRS);
+#endif /* __ASSEMBLER__ */
 
 /*
  * arg0 == struct rsi_host_call addr

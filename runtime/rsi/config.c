@@ -29,7 +29,7 @@ struct rsi_walk_smc_result  handle_rsi_realm_config(struct rec *rec)
 	walk_status = realm_ipa_to_pa(rd, ipa, &walk_res);
 
 	if (walk_status == WALK_FAIL) {
-		if (s2_walk_result_match_ripas(&walk_res, RMI_EMPTY)) {
+		if (s2_walk_result_match_ripas(&walk_res, RIPAS_EMPTY)) {
 			res.smc_res.x[0] = RSI_ERROR_INPUT;
 		} else {
 			/* Exit to Host */

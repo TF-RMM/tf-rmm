@@ -17,7 +17,7 @@ bool handle_rsi_ipa_state_set(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	unsigned long end = start + size;
 	enum ripas ripas = (enum ripas)rec->regs[3];
 
-	if (ripas > RMI_RAM) {
+	if (ripas > RIPAS_RAM) {
 		return true;
 	}
 

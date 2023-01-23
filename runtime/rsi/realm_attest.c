@@ -122,7 +122,7 @@ static void attest_token_continue_write_state(struct rec *rec,
 	assert(walk_status != WALK_INVALID_PARAMS);
 
 	if (walk_status == WALK_FAIL) {
-		if (s2_walk_result_match_ripas(&walk_res, RMI_EMPTY)) {
+		if (s2_walk_result_match_ripas(&walk_res, RIPAS_EMPTY)) {
 			res->smc_res.x[0] = RSI_ERROR_INPUT;
 		} else {
 			/*

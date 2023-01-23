@@ -7,88 +7,145 @@
 #ifndef SMC_RMI_H
 #define SMC_RMI_H
 
-#include <measurement.h>
 #include <smc.h>
 
 /*
  * This file describes the Realm Management Interface (RMI) Application Binary
  * Interface (ABI) for SMC calls made from Non-secure state to the RMM and
  * serviced by the RMM.
- *
- * See doc/rmm_interface.md for more details.
  */
 
 /*
  * The major version number of the RMI implementation.  Increase this whenever
  * the binary format or semantics of the SMC calls change.
  */
-#define RMI_ABI_VERSION_MAJOR		(56U)
+#define RMI_ABI_VERSION_MAJOR		U(56)
 
 /*
  * The minor version number of the RMI implementation.  Increase this when
  * a bug is fixed, or a feature is added without breaking binary compatibility.
  */
-#define RMI_ABI_VERSION_MINOR		(0U)
+#define RMI_ABI_VERSION_MINOR		U(0)
 
-#define RMI_ABI_VERSION			((RMI_ABI_VERSION_MAJOR << 16U) | \
+#define RMI_ABI_VERSION			((RMI_ABI_VERSION_MAJOR << U(16)) | \
 					RMI_ABI_VERSION_MINOR)
 
-#define RMI_ABI_VERSION_GET_MAJOR(_version) ((_version) >> 16U)
-#define RMI_ABI_VERSION_GET_MINOR(_version) ((_version) & 0xFFFFU)
+#define RMI_ABI_VERSION_GET_MAJOR(_version) ((_version) >> U(16))
+#define RMI_ABI_VERSION_GET_MINOR(_version) ((_version) & U(0xFFFF))
 
 #define SMC64_RMI_FID(_offset)		SMC64_STD_FID(RMI, _offset)
 
 #define IS_SMC64_RMI_FID(_fid)		IS_SMC64_STD_FAST_IN_RANGE(RMI, _fid)
 
+/* Command completed successfully. index is zero. */
+#define RMI_SUCCESS			U(0)
+
+/*
+ * The value of a command input value caused the command to fail.
+ * Index is zero.
+ */
+#define RMI_ERROR_INPUT			U(1)
+
+/*
+ * An attribute of a Realm does not match the expected value.
+ * index varies between usages.
+ */
+#define RMI_ERROR_REALM			U(2)
+
+/*
+ * An attribute of a REC does not match the expected value.
+ * Index is zero.
+ */
+#define RMI_ERROR_REC			U(3)
+
+/*
+ * An RTT walk terminated before reaching the target RTT level, or reached
+ * an RTTE with an unexpected value. index: RTT level at which the walk
+ * terminated
+ */
+#define RMI_ERROR_RTT			U(4)
+
+/*
+ * An operation cannot be completed because a resource is in use.
+ * Index is zero.
+ */
+#define RMI_ERROR_IN_USE		U(5)
+
+/*
+ * Number of RMI Status Errors.
+ */
+#define RMI_ERROR_COUNT			U(6)
+
 /*
  * The number of GPRs (starting from X0) that are
  * configured by the host when a REC is created.
  */
-#define REC_CREATE_NR_GPRS		(8U)
+#define REC_CREATE_NR_GPRS		U(8)
 
-#define REC_PARAMS_FLAG_RUNNABLE	(1UL << 0U)
+#define REC_PARAMS_FLAG_RUNNABLE	(UL(1) << 0)
 
 /*
  * The number of GPRs (starting from X0) per voluntary exit context.
  * Per SMCCC.
  */
-#define REC_EXIT_NR_GPRS		(31U)
+#define REC_EXIT_NR_GPRS		U(31)
 
 /* RmiHashAlgorithm type */
-#define RMI_HASH_ALGO_SHA256	HASH_ALGO_SHA256
-#define RMI_HASH_ALGO_SHA512	HASH_ALGO_SHA512
+#define RMI_HASH_ALGO_SHA256	0
+#define RMI_HASH_ALGO_SHA512	1
 
 /* Maximum number of Interrupt Controller List Registers */
-#define REC_GIC_NUM_LRS			(16U)
+#define REC_GIC_NUM_LRS			U(16)
 
 /* Maximum number of auxiliary granules required for a REC */
-#define MAX_REC_AUX_GRANULES		(16U)
+#define MAX_REC_AUX_GRANULES		U(16)
 
-#define REC_ENTRY_FLAG_EMUL_MMIO	(1UL << 0U)
-#define REC_ENTRY_FLAG_INJECT_SEA	(1UL << 1U)
+#define REC_ENTRY_FLAG_EMUL_MMIO	(UL(1) << 0)
+#define REC_ENTRY_FLAG_INJECT_SEA	(UL(1) << 1)
 
 /* Flags to specify if WFI/WFE should be trapped to host */
-#define REC_ENTRY_FLAG_TRAP_WFI		(1UL << 2U)
-#define REC_ENTRY_FLAG_TRAP_WFE		(1UL << 3U)
+#define REC_ENTRY_FLAG_TRAP_WFI		(UL(1) << 2)
+#define REC_ENTRY_FLAG_TRAP_WFE		(UL(1) << 3)
 
 /*
  * RmiRecExitReason represents the reason for a REC exit.
  * This is returned to NS hosts via RMI_REC_ENTER::run_ptr.
  */
-#define RMI_EXIT_SYNC			(0U)
-#define RMI_EXIT_IRQ			(1U)
-#define RMI_EXIT_FIQ			(2U)
-#define RMI_EXIT_PSCI			(3U)
-#define RMI_EXIT_RIPAS_CHANGE		(4U)
-#define RMI_EXIT_HOST_CALL		(5U)
-#define RMI_EXIT_SERROR			(6U)
+#define RMI_EXIT_SYNC			U(0)
+#define RMI_EXIT_IRQ			U(1)
+#define RMI_EXIT_FIQ			U(2)
+#define RMI_EXIT_PSCI			U(3)
+#define RMI_EXIT_RIPAS_CHANGE		U(4)
+#define RMI_EXIT_HOST_CALL		U(5)
+#define RMI_EXIT_SERROR			U(6)
 
 /* RmiRttEntryState represents the state of an RTTE */
-#define RMI_RTT_STATE_UNASSIGNED	(0U)
-#define RMI_RTT_STATE_DESTROYED		(1U)
-#define RMI_RTT_STATE_ASSIGNED		(2U)
-#define RMI_RTT_STATE_TABLE		(3U)
-#define RMI_RTT_STATE_VALID_NS		(4U)
+#define RMI_UNASSIGNED		U(0)
+#define RMI_DESTROYED		U(1)
+#define RMI_ASSIGNED		U(2)
+#define RMI_TABLE		U(3)
+#define RMI_VALID_NS		U(4)
+
+/* RmiFeatureRegister0 format */
+#define RMM_FEATURE_REGISTER_0_INDEX		UL(0)
+
+#define RMM_FEATURE_REGISTER_0_S2SZ_SHIFT	UL(0)
+#define RMM_FEATURE_REGISTER_0_S2SZ_WIDTH	UL(8)
+
+#define RMM_FEATURE_REGISTER_0_LPA2_SHIFT	UL(8)
+#define RMM_FEATURE_REGISTER_0_LPA2_WIDTH	UL(1)
+#define RMI_NO_LPA2				UL(0)
+#define RMI_LPA2				UL(1)
+
+#define RMM_FEATURE_REGISTER_0_HASH_SHA_256_SHIFT      UL(28)
+#define RMM_FEATURE_REGISTER_0_HASH_SHA_256_WIDTH      UL(1)
+
+#define RMM_FEATURE_REGISTER_0_HASH_SHA_512_SHIFT      UL(29)
+#define RMM_FEATURE_REGISTER_0_HASH_SHA_512_WIDTH      UL(1)
+
+/* The RmmRipas enumeration representing realm IPA state */
+#define RMI_EMPTY   (0)
+#define RMI_RAM     (1)
 
 /* no parameters */
 #define SMC_RMM_VERSION				SMC64_RMI_FID(U(0x0))
@@ -248,6 +305,13 @@
 /* Size of Realm Personalization Value */
 #define RPV_SIZE		64
 
+#ifndef __ASSEMBLER__
+/*
+ * Defines member of structure and reserves space
+ * for the next member with specified offset.
+ */
+#define SET_MEMBER_RMI	SET_MEMBER
+
 /*
  * The Realm attribute parameters are shared by the Host via
  * RMI_REALM_CREATE::params_ptr. The values can be observed or modified
@@ -255,12 +319,12 @@
  */
 struct rmi_realm_params {
 	/* Realm feature register 0 */
-	SET_MEMBER(unsigned long features_0, 0, 0x100);		/* Offset 0 */
+	SET_MEMBER_RMI(unsigned long features_0, 0, 0x100);		/* Offset 0 */
 	/* Measurement algorithm */
-	SET_MEMBER(unsigned char hash_algo, 0x100, 0x400);	/* 0x100 */
+	SET_MEMBER_RMI(unsigned char hash_algo, 0x100, 0x400);	/* 0x100 */
 	/* Realm Personalization Value */
-	SET_MEMBER(unsigned char rpv[RPV_SIZE], 0x400, 0x800);	/* 0x400 */
-	SET_MEMBER(struct {
+	SET_MEMBER_RMI(unsigned char rpv[RPV_SIZE], 0x400, 0x800);	/* 0x400 */
+	SET_MEMBER_RMI(struct {
 			/* Virtual Machine Identifier */
 			unsigned short vmid;			/* 0x800 */
 			/* Realm Translation Table base */
@@ -272,16 +336,6 @@ struct rmi_realm_params {
 		   }, 0x800, 0x1000);
 };
 
-COMPILER_ASSERT(sizeof(struct rmi_realm_params) == 0x1000);
-
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, features_0) == 0);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, hash_algo) == 0x100);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, rpv) == 0x400);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, vmid) == 0x800);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, rtt_base) == 0x808);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, rtt_level_start) == 0x810);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, rtt_num_start) == 0x818);
-
 /*
  * The REC attribute parameters are shared by the Host via
  * MI_REC_CREATE::params_ptr. The values can be observed or modified
@@ -289,14 +343,14 @@ COMPILER_ASSERT(offsetof(struct rmi_realm_params, rtt_num_start) == 0x818);
  */
 struct rmi_rec_params {
 	/* Flags */
-	SET_MEMBER(unsigned long flags, 0, 0x100);	/* Offset 0 */
+	SET_MEMBER_RMI(unsigned long flags, 0, 0x100);	/* Offset 0 */
 	/* MPIDR of the REC */
-	SET_MEMBER(unsigned long mpidr, 0x100, 0x200);	/* 0x100 */
+	SET_MEMBER_RMI(unsigned long mpidr, 0x100, 0x200);	/* 0x100 */
 	/* Program counter */
-	SET_MEMBER(unsigned long pc, 0x200, 0x300);	/* 0x200 */
+	SET_MEMBER_RMI(unsigned long pc, 0x200, 0x300);	/* 0x200 */
 	/* General-purpose registers */
-	SET_MEMBER(unsigned long gprs[REC_CREATE_NR_GPRS], 0x300, 0x800); /* 0x300 */
-	SET_MEMBER(struct {
+	SET_MEMBER_RMI(unsigned long gprs[REC_CREATE_NR_GPRS], 0x300, 0x800); /* 0x300 */
+	SET_MEMBER_RMI(struct {
 			/* Number of auxiliary Granules */
 			unsigned long num_aux;			/* 0x800 */
 			/* Addresses of auxiliary Granules */
@@ -304,24 +358,15 @@ struct rmi_rec_params {
 		   }, 0x800, 0x1000);
 };
 
-COMPILER_ASSERT(sizeof(struct rmi_rec_params) == 0x1000);
-
-COMPILER_ASSERT(offsetof(struct rmi_rec_params, flags) == 0);
-COMPILER_ASSERT(offsetof(struct rmi_rec_params, mpidr) == 0x100);
-COMPILER_ASSERT(offsetof(struct rmi_rec_params, pc) == 0x200);
-COMPILER_ASSERT(offsetof(struct rmi_rec_params, gprs) == 0x300);
-COMPILER_ASSERT(offsetof(struct rmi_rec_params, num_aux) == 0x800);
-COMPILER_ASSERT(offsetof(struct rmi_rec_params, aux) == 0x808);
-
 /*
  * Structure contains data passed from the Host to the RMM on REC entry
  */
 struct rmi_rec_entry {
 	/* Flags */
-	SET_MEMBER(unsigned long flags, 0, 0x200);	/* Offset 0 */
+	SET_MEMBER_RMI(unsigned long flags, 0, 0x200);	/* Offset 0 */
 	/* General-purpose registers */
-	SET_MEMBER(unsigned long gprs[REC_EXIT_NR_GPRS], 0x200, 0x300); /* 0x200 */
-	SET_MEMBER(struct {
+	SET_MEMBER_RMI(unsigned long gprs[REC_EXIT_NR_GPRS], 0x200, 0x300); /* 0x200 */
+	SET_MEMBER_RMI(struct {
 			/* GICv3 Hypervisor Control Register */
 			unsigned long gicv3_hcr;			/* 0x300 */
 			/* GICv3 List Registers */
@@ -329,20 +374,13 @@ struct rmi_rec_entry {
 		   }, 0x300, 0x800);
 };
 
-COMPILER_ASSERT(sizeof(struct rmi_rec_entry) == 0x800);
-
-COMPILER_ASSERT(offsetof(struct rmi_rec_entry, flags) == 0);
-COMPILER_ASSERT(offsetof(struct rmi_rec_entry, gprs) == 0x200);
-COMPILER_ASSERT(offsetof(struct rmi_rec_entry, gicv3_hcr) == 0x300);
-COMPILER_ASSERT(offsetof(struct rmi_rec_entry, gicv3_lrs) == 0x308);
-
 /*
  * Structure contains data passed from the RMM to the Host on REC exit
  */
 struct rmi_rec_exit {
 	/* Exit reason */
-	SET_MEMBER(unsigned long exit_reason, 0, 0x100);/* Offset 0 */
-	SET_MEMBER(struct {
+	SET_MEMBER_RMI(unsigned long exit_reason, 0, 0x100);/* Offset 0 */
+	SET_MEMBER_RMI(struct {
 			/* Exception Syndrome Register */
 			unsigned long esr;		/* 0x100 */
 			/* Fault Address Register */
@@ -351,8 +389,8 @@ struct rmi_rec_exit {
 			unsigned long hpfar;		/* 0x110 */
 		   }, 0x100, 0x200);
 	/* General-purpose registers */
-	SET_MEMBER(unsigned long gprs[REC_EXIT_NR_GPRS], 0x200, 0x300); /* 0x200 */
-	SET_MEMBER(struct {
+	SET_MEMBER_RMI(unsigned long gprs[REC_EXIT_NR_GPRS], 0x200, 0x300); /* 0x200 */
+	SET_MEMBER_RMI(struct {
 			/* GICv3 Hypervisor Control Register */
 			unsigned long gicv3_hcr;	/* 0x300 */
 			/* GICv3 List Registers */
@@ -362,7 +400,7 @@ struct rmi_rec_exit {
 			/* GICv3 Virtual Machine Control Register */
 			unsigned long gicv3_vmcr;	/* 0x390 */
 		   }, 0x300, 0x400);
-	SET_MEMBER(struct {
+	SET_MEMBER_RMI(struct {
 			/* Counter-timer Physical Timer Control Register */
 			unsigned long cntp_ctl;		/* 0x400 */
 			/* Counter-timer Physical Timer CompareValue Register */
@@ -372,7 +410,7 @@ struct rmi_rec_exit {
 			/* Counter-timer Virtual Timer CompareValue Register */
 			unsigned long cntv_cval;	/* 0x418 */
 		   }, 0x400, 0x500);
-	SET_MEMBER(struct {
+	SET_MEMBER_RMI(struct {
 			/* Base address of pending RIPAS change */
 			unsigned long ripas_base;	/* 0x500 */
 			/* Size of pending RIPAS change */
@@ -381,28 +419,8 @@ struct rmi_rec_exit {
 			unsigned char ripas_value;	/* 0x510 */
 		   }, 0x500, 0x600);
 	/* Host call immediate value */
-	SET_MEMBER(unsigned int imm, 0x600, 0x800);	/* 0x600 */
+	SET_MEMBER_RMI(unsigned int imm, 0x600, 0x800);	/* 0x600 */
 };
-
-COMPILER_ASSERT(sizeof(struct rmi_rec_exit) == 0x800);
-
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, exit_reason) == 0);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, esr) == 0x100);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, far) == 0x108);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, hpfar) == 0x110);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, gprs) == 0x200);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, gicv3_hcr) == 0x300);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, gicv3_lrs) == 0x308);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, gicv3_misr) == 0x388);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, gicv3_vmcr) == 0x390);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, cntp_ctl) == 0x400);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, cntp_cval) == 0x408);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, cntv_ctl) == 0x410);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, cntv_cval) == 0x418);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, ripas_base) == 0x500);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, ripas_size) == 0x508);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, ripas_value) == 0x510);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, imm) == 0x600);
 
 /*
  * Structure contains shared information between RMM and Host
@@ -410,14 +428,11 @@ COMPILER_ASSERT(offsetof(struct rmi_rec_exit, imm) == 0x600);
  */
 struct rmi_rec_run {
 	/* Entry information */
-	SET_MEMBER(struct rmi_rec_entry entry, 0, 0x800);	/* Offset 0 */
+	SET_MEMBER_RMI(struct rmi_rec_entry entry, 0, 0x800);	/* Offset 0 */
 	/* Exit information */
-	SET_MEMBER(struct rmi_rec_exit exit, 0x800, 0x1000);	/* 0x800 */
+	SET_MEMBER_RMI(struct rmi_rec_exit exit, 0x800, 0x1000);	/* 0x800 */
 };
 
-COMPILER_ASSERT(sizeof(struct rmi_rec_run) <= GRANULE_SIZE);
-
-COMPILER_ASSERT(offsetof(struct rmi_rec_run, entry) == 0);
-COMPILER_ASSERT(offsetof(struct rmi_rec_run, exit) == 0x800);
+#endif /* __ASSEMBLER__ */
 
 #endif /* SMC_RMI_H */

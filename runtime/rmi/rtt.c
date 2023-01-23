@@ -728,23 +728,23 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 	if (s2tte_is_unassigned(s2tte)) {
 		enum ripas ripas = s2tte_get_ripas(s2tte);
 
-		ret->x[2] = RMI_RTT_STATE_UNASSIGNED;
+		ret->x[2] = RMI_UNASSIGNED;
 		ret->x[4] = (unsigned long)ripas;
 	} else if (s2tte_is_destroyed(s2tte)) {
-		ret->x[2] = RMI_RTT_STATE_DESTROYED;
+		ret->x[2] = RMI_DESTROYED;
 	} else if (s2tte_is_assigned(s2tte, wi.last_level)) {
-		ret->x[2] = RMI_RTT_STATE_ASSIGNED;
+		ret->x[2] = RMI_ASSIGNED;
 		ret->x[3] = s2tte_pa(s2tte, wi.last_level);
-		ret->x[4] = RMI_EMPTY;
+		ret->x[4] = RIPAS_EMPTY;
 	} else if (s2tte_is_valid(s2tte, wi.last_level)) {
-		ret->x[2] = RMI_RTT_STATE_ASSIGNED;
+		ret->x[2] = RMI_ASSIGNED;
 		ret->x[3] = s2tte_pa(s2tte, wi.last_level);
-		ret->x[4] = RMI_RAM;
+		ret->x[4] = RIPAS_RAM;
 	} else if (s2tte_is_valid_ns(s2tte, wi.last_level)) {
-		ret->x[2] = RMI_RTT_STATE_VALID_NS;
+		ret->x[2] = RMI_VALID_NS;
 		ret->x[3] = host_ns_s2tte(s2tte, wi.last_level);
 	} else if (s2tte_is_table(s2tte, wi.last_level)) {
-		ret->x[2] = RMI_RTT_STATE_TABLE;
+		ret->x[2] = RMI_TABLE;
 		ret->x[3] = s2tte_pa_table(s2tte, wi.last_level);
 	} else {
 		assert(false);
@@ -906,7 +906,7 @@ static unsigned long data_create(unsigned long data_addr,
 
 	new_data_state = GRANULE_STATE_DATA;
 
-	s2tte = (ripas == RMI_EMPTY) ?
+	s2tte = (ripas == RIPAS_EMPTY) ?
 		s2tte_create_assigned_empty(data_addr, RTT_PAGE_LEVEL) :
 		s2tte_create_valid(data_addr, RTT_PAGE_LEVEL);
 
@@ -1022,7 +1022,7 @@ unsigned long smc_data_destroy(unsigned long rd_addr,
 	 * transition to UNASSIGNED.
 	 */
 	s2tte = valid ? s2tte_create_destroyed() :
-			s2tte_create_unassigned(RMI_EMPTY);
+			s2tte_create_unassigned(RIPAS_EMPTY);
 
 	s2tte_write(&s2tt[wi.index], s2tte);
 
@@ -1061,7 +1061,7 @@ static bool update_ripas(unsigned long *s2tte, unsigned long level,
 	}
 
 	if (s2tte_is_valid(*s2tte, level)) {
-		if (ripas == RMI_EMPTY) {
+		if (ripas == RIPAS_EMPTY) {
 			unsigned long pa = s2tte_pa(*s2tte, level);
 			*s2tte = s2tte_create_assigned_empty(pa, level);
 		}
@@ -1162,7 +1162,7 @@ unsigned long smc_rtt_init_ripas(unsigned long rd_addr,
 		goto out_unmap_llt;
 	}
 
-	s2tte |= s2tte_create_ripas(RMI_RAM);
+	s2tte |= s2tte_create_ripas(RIPAS_RAM);
 
 	s2tte_write(&s2tt[wi.index], s2tte);
 
@@ -1197,7 +1197,7 @@ unsigned long smc_rtt_set_ripas(unsigned long rd_addr,
 	bool valid;
 	int sl;
 
-	if (ripas > RMI_RAM) {
+	if (ripas > RIPAS_RAM) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -1273,7 +1273,7 @@ unsigned long smc_rtt_set_ripas(unsigned long rd_addr,
 
 	s2tte_write(&s2tt[wi.index], s2tte);
 
-	if (valid && (ripas == RMI_EMPTY)) {
+	if (valid && (ripas == RIPAS_EMPTY)) {
 		if (level == RTT_PAGE_LEVEL) {
 			invalidate_page(&s2_ctx, map_addr);
 		} else {

@@ -56,7 +56,7 @@ static unsigned int do_host_call(struct rec *rec,
 	case WALK_SUCCESS:
 		break;
 	case WALK_FAIL:
-		if (s2_walk_result_match_ripas(&walk_result, RMI_EMPTY)) {
+		if (s2_walk_result_match_ripas(&walk_result, RIPAS_EMPTY)) {
 			ret = RSI_ERROR_INPUT;
 		} else {
 			rsi_walk_result->abort = true;

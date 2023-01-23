@@ -394,7 +394,7 @@ out:
  */
 unsigned long s2tte_create_ripas(enum ripas ripas)
 {
-	if (ripas == RMI_EMPTY) {
+	if (ripas == RIPAS_EMPTY) {
 		return S2TTE_INVALID_RIPAS_EMPTY;
 	}
 	return S2TTE_INVALID_RIPAS_RAM;
@@ -638,10 +638,10 @@ enum ripas s2tte_get_ripas(unsigned long s2tte)
 	}
 
 	if (desc_ripas == S2TTE_INVALID_RIPAS_EMPTY) {
-		return RMI_EMPTY;
+		return RIPAS_EMPTY;
 	}
 
-	return RMI_RAM;
+	return RIPAS_RAM;
 }
 
 /*
