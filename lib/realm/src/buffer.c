@@ -282,6 +282,7 @@ bool ns_buffer_read(enum buffer_slot slot,
 
 	assert(is_ns_slot(slot));
 	assert(ns_gr != NULL);
+	assert(dest != NULL);
 
 	/*
 	 * To simplify the trapping mechanism around NS access,
@@ -321,6 +322,7 @@ bool ns_buffer_write(enum buffer_slot slot,
 
 	assert(is_ns_slot(slot));
 	assert(ns_gr != NULL);
+	assert(src != NULL);
 
 	/*
 	 * To simplify the trapping mechanism around NS access,

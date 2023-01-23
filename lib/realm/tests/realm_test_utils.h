@@ -10,5 +10,6 @@
 
 uintptr_t realm_test_util_slot_to_pa(enum buffer_slot slot);
 uintptr_t realm_test_util_slot_va_from_pa(uintptr_t pa);
+struct granule *realm_test_util_granule_struct_base(void);
 
 #endif /* REALM_TEST_UTILS_H */

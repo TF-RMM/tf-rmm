@@ -89,15 +89,6 @@ static bool get_out_of_range_granule(unsigned long *addr, bool higher_range)
 	return true;
 }
 
-/*
- * Function to return a pointer to the first granule structure.
- * This function relies on addr_to_granule().
- */
-static inline struct granule *get_granule_struct_base(void)
-{
-	return addr_to_granule(host_util_get_granule_base());
-}
-
 TEST_GROUP(granule) {
 
 
@@ -126,7 +117,7 @@ TEST_GROUP(granule) {
 		 * Clean RMM's internal struct granule array
 		 * for a clean state for the next tests.
 		 */
-		memset((void *)get_granule_struct_base(), 0,
+		memset((void *)realm_test_util_granule_struct_base(), 0,
 			sizeof(struct granule) *
 					test_helpers_get_nr_granules());
 
@@ -159,7 +150,8 @@ TEST(granule, addr_to_granule_TC1)
 
 	for (unsigned int i = 0U; i < 3; i++) {
 		/* Calculate the expected granule address */
-		expected_granule = get_granule_struct_base() + granule_indexes[i];
+		expected_granule = realm_test_util_granule_struct_base() +
+							granule_indexes[i];
 		/* Calculated the expected PA for the granule */
 		addr = (granule_indexes[i] * GRANULE_SIZE) +
 						host_util_get_granule_base();
@@ -253,7 +245,8 @@ TEST(granule, granule_addr_TC1)
 	 * granules in between.
 	 ******************************************************************/
 	for (unsigned int i = 0U; i < 3U; i++) {
-		granule = get_granule_struct_base() + granule_indexes[i];
+		granule = realm_test_util_granule_struct_base() +
+							granule_indexes[i];
 		expected_address = (granule_indexes[i] * GRANULE_SIZE) +
 						host_util_get_granule_base();
 		addr = granule_addr(granule);
@@ -294,7 +287,7 @@ ASSERT_TEST(granule, granule_addr_TC3)
 	 ******************************************************************/
 
 	idx += test_helpers_get_rand_in_range(1, 10);
-	granule = get_granule_struct_base() + idx;
+	granule = realm_test_util_granule_struct_base() + idx;
 	test_helpers_expect_assert_fail(true);
 	(void)granule_addr(granule);
 	test_helpers_fail_if_no_assert_failed();
@@ -311,7 +304,7 @@ ASSERT_TEST(granule, granule_addr_TC4)
 	 * granule[0];
 	 ******************************************************************/
 
-	granule = get_granule_struct_base() - 1U;
+	granule = realm_test_util_granule_struct_base() - 1U;
 	test_helpers_expect_assert_fail(true);
 	(void)granule_addr(granule);
 	test_helpers_fail_if_no_assert_failed();
@@ -329,7 +322,7 @@ ASSERT_TEST(granule, granule_addr_TC5)
 	 * not properly aligned.
 	 ******************************************************************/
 
-	granule = (uintptr_t)get_granule_struct_base();
+	granule = (uintptr_t)realm_test_util_granule_struct_base();
 	granule += test_helpers_get_rand_in_range(1,
 					sizeof(struct granule) - 1U);
 	test_helpers_expect_assert_fail(true);
@@ -342,7 +335,8 @@ TEST(granule, granule_refcount_read_relaxed_TC1)
 {
 	struct granule *granule;
 	unsigned long addr = get_rand_granule_addr();
-	unsigned long val = (unsigned long)test_helpers_get_rand_in_range(10, INT_MAX);
+	unsigned long val =
+		(unsigned long)test_helpers_get_rand_in_range(10, INT_MAX);
 	unsigned long read_val;
 
 	/******************************************************************
@@ -374,7 +368,8 @@ TEST(granule, granule_refcount_read_acquire_TC1)
 {
 	struct granule *granule;
 	unsigned long addr = get_rand_granule_addr();
-	unsigned long val = (unsigned long)test_helpers_get_rand_in_range(10, 10000);
+	unsigned long val =
+		(unsigned long)test_helpers_get_rand_in_range(10, 10000);
 	unsigned long read_val;
 
 	/******************************************************************
@@ -422,7 +417,8 @@ TEST(granule, find_granule_TC1)
 	 ******************************************************************/
 
 	for (unsigned int i = 0U; i < 3U; i++) {
-		expected_granule = get_granule_struct_base() + granule_indexes[i];
+		expected_granule = realm_test_util_granule_struct_base() + \
+							granule_indexes[i];
 		address = (granule_indexes[i] * GRANULE_SIZE) +
 						host_util_get_granule_base();
 		granule = find_granule(address);
@@ -501,8 +497,8 @@ TEST(granule, find_lock_two_granules_TC1)
 	} while (g1_index == g2_index);
 
 	/* Get the expected address for the granules */
-	exp_g1 = get_granule_struct_base() + g1_index;
-	exp_g2 = get_granule_struct_base() + g2_index;
+	exp_g1 = realm_test_util_granule_struct_base() + g1_index;
+	exp_g2 = realm_test_util_granule_struct_base() + g2_index;
 
 	/* Get the expected PA for the corresponding granules */
 	addr1 = (g1_index * GRANULE_SIZE) + host_util_get_granule_base();
@@ -1310,7 +1306,8 @@ TEST(granule, granule_refcount_inc_TC1)
 {
 	unsigned long address = get_rand_granule_addr();
 	struct granule *granule = find_granule(address);
-	unsigned long val = (unsigned long)test_helpers_get_rand_in_range(1, INT_MAX);
+	unsigned long val =
+		(unsigned long)test_helpers_get_rand_in_range(1, INT_MAX);
 
 	/******************************************************************
 	 * TEST CASE 1:
@@ -1336,7 +1333,8 @@ TEST(granule, granule_refcount_dec_TC1)
 {
 	unsigned long address = get_rand_granule_addr();
 	struct granule *granule = find_granule(address);
-	unsigned long val = (unsigned long)test_helpers_get_rand_in_range(10, INT_MAX);
+	unsigned long val =
+		(unsigned long)test_helpers_get_rand_in_range(10, INT_MAX);
 
 	/******************************************************************
 	 * TEST CASE 1:
@@ -1361,7 +1359,8 @@ TEST(granule, granule_refcount_dec_TC2)
 {
 	unsigned long address = get_rand_granule_addr();
 	struct granule *granule = find_granule(address);
-	unsigned long val = (unsigned long)test_helpers_get_rand_in_range(10, INT_MAX);
+	unsigned long val =
+		(unsigned long)test_helpers_get_rand_in_range(10, INT_MAX);
 
 	/******************************************************************
 	 * TEST CASE 2:
@@ -1392,7 +1391,8 @@ ASSERT_TEST(granule, granule_refcount_dec_TC3)
 {
 	unsigned long address = get_rand_granule_addr();
 	struct granule *granule = find_granule(address);
-	unsigned long val = (unsigned long)test_helpers_get_rand_in_range(10, INT_MAX - 1);
+	unsigned long val =
+		(unsigned long)test_helpers_get_rand_in_range(10, INT_MAX - 1);
 
 	/******************************************************************
 	 * TEST CASE 3:
