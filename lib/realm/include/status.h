@@ -71,7 +71,6 @@ static inline return_code_t unpack_return_code(unsigned long error_code)
  */
 static inline void *status_ptr(unsigned int status)
 {
-	assert(status < RMI_ERROR_COUNT);
 	return (void *)(-1 * (long)status);
 }
 
