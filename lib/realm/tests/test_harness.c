@@ -14,9 +14,9 @@
  */
 void *test_buffer_map_access(enum buffer_slot slot, unsigned long addr)
 {
-	uintptr_t va = (uintptr_t)buffer_map_internal(slot, addr);
+	void *va = buffer_map_internal(slot, addr);
 
-	if ((void *)va == NULL) {
+	if (va == NULL) {
 		return NULL;
 	}
 
