@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <assert.h>
 #include <debug.h>
 #include <host_defs.h>
 #include <host_utils.h>
@@ -11,11 +12,6 @@
 #include <xlat_tables.h>
 
 COMPILER_ASSERT(RMM_MAX_GRANULES >= HOST_NR_GRANULES);
-
-/* No regions to add for host */
-struct xlat_mmap_region plat_regions[] = {
-	{0}
-};
 
 /*
  * Local platform setup for RMM.
@@ -50,7 +46,7 @@ void plat_setup(uint64_t x0, uint64_t x1,
 		uint64_t x2, uint64_t x3)
 {
 	/* Initialize xlat table */
-	if (plat_cmn_setup(x0, x1, x2, x3, plat_regions) != 0) {
+	if (plat_cmn_setup(x0, x1, x2, x3, NULL, 0) != 0) {
 		panic();
 	}
 

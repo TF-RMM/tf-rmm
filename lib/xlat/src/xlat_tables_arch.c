@@ -79,7 +79,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 		return -EINVAL;
 	}
 
-	if (xlat_ctx_cfg_initialized(ctx) == false) {
+	if (ctx->cfg->initialized == false) {
 		return -EINVAL;
 	}
 
@@ -152,7 +152,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 	 * Set TTBR bits as well and enable CnP bit so as to share page
 	 * tables with all PEs.
 	 */
-	ttbrx = (uint64_t)(void *)ctx_tbls->base_table;
+	ttbrx = (uint64_t)(void *)ctx_tbls->tables;
 
 	/*
 	 * The VA region is not common for the HIGH region as it is used

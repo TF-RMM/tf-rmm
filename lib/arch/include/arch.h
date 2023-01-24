@@ -140,8 +140,7 @@
 #define TCR_EL2_E0PD1		(UL(1) << 56)	/* TODO: ARMv8.5-E0PD, otherwise RES0 */
 
 #define TCR_TxSZ_MIN		UL(16)
-#define TCR_TxSZ_MAX		UL(39)
-#define TCR_TxSZ_MAX_TTST	UL(48)
+#define TCR_TxSZ_MAX		UL(48)
 
 /* HCR definitions */
 #define HCR_FWB		(UL(1) << 46)

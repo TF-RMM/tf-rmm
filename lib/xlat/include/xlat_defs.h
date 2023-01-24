@@ -12,10 +12,6 @@
 #include <arch.h>
 #include <utils_def.h>
 
-#define PAGE_SIZE_4KB		(1UL << 12)
-#define PAGE_SIZE_16KB		(1UL << 14)
-#define PAGE_SIZE_64KB		(1UL << 16)
-
 /*
  * The ARMv8-A architecture allows translation granule sizes of 4KB, 16KB or 64KB.
  *
@@ -64,20 +60,15 @@
 
 /*
  * In AArch64 state, the MMU may support 4KB, 16KB and 64KB page
- * granularity. For 4KB granularity, a level 0 table descriptor doesn't support
- * block translation. For 16KB, the same thing happens to levels 0 and 1. For
- * 64KB, same for level 1. See section D4.3.1 of the ARMv8-A Architecture
+ * granularity. For 4KB granularity (the only one supported by
+ * this library), a level 0 table descriptor doesn't support
+ * block translation. See section D4.3.1 of the ARMv8-A Architecture
  * Reference Manual (DDI 0487A.k) for more information.
  *
  * The define below specifies the first table level that allows block
  * descriptors.
  */
-#if PAGE_SIZE == PAGE_SIZE_4KB
-# define MIN_LVL_BLOCK_DESC	U(1)
-#elif (PAGE_SIZE == PAGE_SIZE_16KB) || (PAGE_SIZE == PAGE_SIZE_64KB)
-# define MIN_LVL_BLOCK_DESC	U(2)
-#endif
-
+#define MIN_LVL_BLOCK_DESC	U(1)
 #define XLAT_TABLE_LEVEL_MIN	U(0)
 
 /* Mask used to know if an address belongs to a high va region. */
@@ -88,22 +79,22 @@
  * state.
  *
  * TCR.TxSZ is calculated as 64 minus the width of said address space.
- * The value of TCR.TxSZ must be in the range 16 to 39 [1] or 48 [2],
- * depending on Small Translation Table Support which means that
- * the virtual address space width must be in the range 48 to 25 or 16 bits.
+ * The value of TCR.TxSZ must be in the range 16 to 48 [1], which means that
+ * the virtual address space width must be in the range 48 to 16 bits.
  *
  * [1] See the ARMv8-A Architecture Reference Manual (DDI 0487A.j) for more
  * information:
  * Page 1730: 'Input address size', 'For all translation stages'.
- * [2] See section 12.2.55 in the ARMv8-A Architecture Reference Manual
+ * and section 12.2.55 in the ARMv8-A Architecture Reference Manual
  * (DDI 0487D.a)
  */
-/* Maximum value of TCR_ELx.T(0,1)SZ is 39 */
+/*
+ * Maximum value of TCR_ELx.T(0,1)SZ is 39 for a min VA size of 16 bits.
+ * RMM is only supported with FEAT_TTST implemented.
+ */
 #define MIN_VIRT_ADDR_SPACE_SIZE	(UL(1) << (UL(64) - TCR_TxSZ_MAX))
 
-/* Maximum value of TCR_ELx.T(0,1)SZ is 48 */
-#define MIN_VIRT_ADDR_SPACE_SIZE_TTST	\
-				(UL(1) << (UL(64) - TCR_TxSZ_MAX_TTST))
+/* Minimum value of TCR_ELx.T(0,1)SZ is 16, for a VA of 48 bits */
 #define MAX_VIRT_ADDR_SPACE_SIZE	(UL(1) << (UL(64) - TCR_TxSZ_MIN))
 
 /*

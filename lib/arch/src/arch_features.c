@@ -18,7 +18,7 @@ unsigned int arch_feat_get_pa_width(void)
 	 * Physical Address ranges supported in the AArch64 Memory Model.
 	 * Value 0b110 is supported in ARMv8.2 onwards but not used in RMM.
 	 */
-	static const unsigned int pa_range_bits_arr[] = {
+	const unsigned int pa_range_bits_arr[] = {
 		PARANGE_0000_WIDTH, PARANGE_0001_WIDTH, PARANGE_0010_WIDTH,
 		PARANGE_0011_WIDTH, PARANGE_0100_WIDTH, PARANGE_0101_WIDTH,
 		/*

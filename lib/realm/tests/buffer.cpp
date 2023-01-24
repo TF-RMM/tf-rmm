@@ -1315,10 +1315,10 @@ TEST(slot_buffer, slot_buf_setup_xlat_TC1)
 	 */
 }
 
-TEST(slot_buffer, slot_buf_init_TC1)
+TEST(slot_buffer, slot_buf_finish_warmboot_init_TC1)
 {
 	/*
-	 * slot_buf_init() has already been used during initialization
-	 * for all tests, so skip it.
+	 * slot_buf_finish_warmboot_init() has already been used during
+	 * initialization for all tests, so skip it.
 	 */
 }

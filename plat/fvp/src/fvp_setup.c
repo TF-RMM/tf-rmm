@@ -59,7 +59,10 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 	uart_init(RMM_UART_ADDR, FVP_UART_CLK_IN_HZ, FVP_UART_BAUDRATE);
 
 	/* Initialize the RMM <-> EL3 interface and xlat table */
-	if (plat_cmn_setup(x0, x1, x2, x3, plat_regions) != 0) {
+	ret = plat_cmn_setup(x0, x1, x2, x3, plat_regions, 1U);
+	if (ret != 0) {
+		ERROR("%s (%u): Failed to setup the platform (%i)\n",
+			__func__, __LINE__, ret);
 		panic();
 	}
 

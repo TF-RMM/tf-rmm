@@ -12,6 +12,16 @@
 #include <stdbool.h>
 #include <xlat_contexts.h>
 
+/*
+ * Initialize translation tables associated to the current context.
+ *
+ * This function assumes that the xlat_ctx_cfg field of the context has been
+ * properly configured by previous calls to xlat_ctx_cfg_init().
+ *
+ * This function returns 0 on success or an error code otherwise.
+ */
+int xlat_init_tables_ctx(struct xlat_ctx *ctx);
+
 /* Determine the physical address space encoded in the 'attr' parameter. */
 uint64_t xlat_arch_get_pas(uint64_t attr);
 
@@ -72,55 +82,23 @@ uintptr_t xlat_arch_get_max_supported_pa(void);
 #define XLAT_GET_NG_HINT() (LOWER_ATTRS(NG_HINT))
 
 /*
- * Set up the xlat_ctx_cfg field of a given context.
- * This macro doesn't check parameters.
- *
- * _ctx:
- *   Pointer to xlat_ctx.
- *
- * _cfg:
- *   reference to xlat_ctx_cfg that needs to be set to _ctx.
- */
-#define XLAT_SETUP_CTX_CFG(_ctx, _cfg)		(_ctx)->cfg = (_cfg)
-
-/*
- * Set up the xlat_ctx_tbls field of a given context.
- * This macro doesn't check parameters.
- *
- * _ctx:
- *   Context where to add the configuration strucutre.
- *
- * _tlbs:
- *   Reference to the xlat_ctx_tlbs structure where to add to the context.
- */
-#define XLAT_SETUP_CTX_TBLS(_ctx, _tbls)	(_ctx)->tbls = (_tbls)
-
-/*
  * Initialize an existing xlat_ctx_tbls structure with the given parameters
  * This macro doesn't check parameters.
  *
  * _tlbs:
- *   Pointer to xlat_ctx.
+ *   Pointer to xlat_ctx_tlbs structure.
  *
  * _tables:
- *   pointer to non-base xlat_ctx_tbls.
+ *   pointer to a translation table array containing all the translation
+ *   tables.
  *
  * _tnum:
- *   Maximum number of intermediate tables that can fit in the _tables area.
- *
- * _btables:
- *   pointer to base xlat_ctx_tbls.
- *
- * _bt_entries:
- *   Maximum number of entries available on the base table.
+ *   Maximum number of tables that can fit in the _tables area.
  */
-#define XLAT_INIT_CTX_TBLS(_tbls, _tables, _tnum,			\
-			   _btables, _bt_entries)			\
+#define XLAT_INIT_CTX_TBLS(_tbls, _tables, _tnum)			\
 	{								\
 		(_tbls)->tables = (_tables);				\
 		(_tbls)->tables_num = (_tnum);				\
-		(_tbls)->base_table = (_btables);			\
-		(_tbls)->max_base_table_entries = (_bt_entries);	\
 		(_tbls)->next_table = 0U;				\
 		(_tbls)->initialized = false;				\
 	}
