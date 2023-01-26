@@ -114,7 +114,7 @@ function(rmm_build_unittest)
             NOT DEFINED arg_RUN_ISOLATED_TESTS)
             # Run all tests at once
             add_test(NAME "${arg_NAME}"
-                    COMMAND ${CMAKE_BINARY_DIR}/rmm.elf
+                    COMMAND ${CMAKE_BINARY_DIR}/$<CONFIG>/rmm.elf
                             -g${arg_NAME}
                             -r${arg_ITERATIONS})
         else()
@@ -122,7 +122,7 @@ function(rmm_build_unittest)
             # run on isolation.
             foreach(TEST IN LISTS arg_RUN_ISOLATED_TESTS)
                 add_test(NAME "${arg_NAME}::${TEST}"
-                         COMMAND ${CMAKE_BINARY_DIR}/rmm.elf
+                         COMMAND ${CMAKE_BINARY_DIR}/$<CONFIG>/rmm.elf
                                  -sg${arg_NAME}
                                  -sn${TEST})
             endforeach()

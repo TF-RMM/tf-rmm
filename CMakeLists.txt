@@ -108,14 +108,25 @@ if(RMM_DOCS)
 endif()
 
 #
+# Copy 'rmm-runtime' executable to 'build/$<CONFIG>/rmm.elf'.
+#
+
+set(ARTEFACT_DIR "${CMAKE_BINARY_DIR}/$<CONFIG>")
+add_custom_command(
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${ARTEFACT_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-runtime>" "${ARTEFACT_DIR}/rmm.elf"
+    OUTPUT rmm.elf
+    DEPENDS rmm-runtime)
+
+#
 # Create the flat binary using whatever tool comes with the toolchain.
 #
 
 if(CMAKE_OBJCOPY)
     add_custom_command(
-        COMMAND "${CMAKE_OBJCOPY}" -O binary "$<TARGET_FILE:rmm-runtime>" rmm.img
+        COMMAND "${CMAKE_OBJCOPY}" -O binary "${ARTEFACT_DIR}/rmm.elf" "${ARTEFACT_DIR}/rmm.img"
         OUTPUT rmm.img
-        DEPENDS rmm-runtime)
+        DEPENDS rmm.elf)
 endif()
 
 #
@@ -124,26 +135,17 @@ endif()
 
 if(CMAKE_OBJDUMP)
     add_custom_command(
-        COMMAND "${CMAKE_OBJDUMP}" -dx "$<TARGET_FILE:rmm-runtime>" > rmm.dump
+        COMMAND "${CMAKE_OBJDUMP}" -dx "${ARTEFACT_DIR}/rmm.elf" > "${ARTEFACT_DIR}/rmm.dump"
         OUTPUT rmm.dump
-        DEPENDS rmm-runtime)
+        DEPENDS rmm.elf)
 endif()
 
 #
-# Copy 'rmm-runtime' executable to 'build\rmm.elf'.
+# Copy 'rmm-runtime.map' to 'build/$<CONFIG>/rmm.map'
 #
 
 add_custom_command(
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-runtime>" rmm.elf
-    OUTPUT rmm.elf
-    DEPENDS rmm-runtime)
-
-#
-# Copy 'rmm-runtime.map' to 'build\rmm.map'
-#
-
-add_custom_command(
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-runtime>.map" rmm.map
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-runtime>.map" "${ARTEFACT_DIR}/rmm.map"
     OUTPUT rmm.map
     DEPENDS rmm-runtime)
 
