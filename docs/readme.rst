@@ -1,12 +1,12 @@
 .. SPDX-License-Identifier: BSD-3-Clause
 .. SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 
-######
-TF-RMM
-######
+#################
+Readme for TF-RMM
+#################
 
-TF-RMM (or simply RMM) is the Trusted Firmware Implementation of the `Realm
-Management Monitor (RMM) Specification`_. The RMM
+`TF-RMM`_ (or simply RMM) is the `Trusted Firmware`_ Implementation of the
+`Realm Management Monitor (RMM) Specification`_. The RMM
 is a software component that runs at Realm EL2 and forms part of a system
 which implements the Arm Confidential Compute Architecture (Arm CCA).
 `Arm CCA`_ is an architecture which provides Protected Execution Environments
@@ -41,7 +41,7 @@ confidential Realm VM :
 
 Figure 1. Realm VM execution
 
-The TF-RMM interacts with the Root EL3 Firmware via the
+The `TF-RMM`_ interacts with the Root EL3 Firmware via the
 `RMM-EL3 Communication Interface`_ and this is implemented by the reference
 EL3 Firmware implementation `TF-A`_.
 
@@ -49,22 +49,23 @@ More details about the RMM and how it fits in the Software Stack can be
 found in `Arm CCA Software Stack Guide`_.
 
 The `Change-log and Release notes`_ has the details of features implemented
-by this version of TF-RMM and lists any known issues.
+by this version of `TF-RMM`_ and lists any known issues.
 
 *******
 License
 *******
 
-Unless specifically indicated otherwise in a file, TF-RMM files are provided
+Unless specifically indicated otherwise in a file, `TF-RMM`_ files are provided
 under the `BSD-3-Clause License`_. For contributions, please
 see `License and Copyright for Contributions`_.
 
 Third Party Projects
 ====================
 
-The TF-RMM project requires to be linked with certain other 3rd party projects
-and they are to be cloned from their repositories into ``ext`` folder before
-building. The projects are `MbedTLS`_, `t_cose`_, `QCBOR`_ and `CppUTest`_.
+The `TF-RMM`_ project requires to be linked with certain other 3rd party
+projects and they are to be cloned from their repositories into ``ext`` folder
+before building. The projects are `MbedTLS`_, `t_cose`_, `QCBOR`_ and
+`CppUTest`_.
 
 The project also contains files which are imported from other projects
 into the source tree and may have a different license. Such files with
@@ -120,3 +121,5 @@ To report a bug, please file an `issue on Github`_
 .. _License and Copyright for Contributions: https://tf-rmm.readthedocs.io/en/latest/process/contributing.html#license-and-copyright-for-contributions
 .. _Contributor's Guide: https://tf-rmm.readthedocs.io/en/latest/process/contributing.html
 .. _CppUTest: https://github.com/cpputest/cpputest.git
+.. _Trusted Firmware: https://www.trustedfirmware.org/
+.. _TF-RMM: https://www.trustedfirmware.org/projects/tf-rmm/
