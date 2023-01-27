@@ -12,33 +12,92 @@
 #include <rec.h>
 #include <smc-rmi.h>
 
-#define SYSREG_READ_CASE(reg) \
-	case ESR_EL2_SYSREG_##reg: return read_##reg()
+#define SYSREG_CASE(reg) \
+	case ESR_EL2_SYSREG_##ID_AA64##reg##_EL1:
 
-static unsigned long read_idreg(unsigned int idreg)
-{
-	switch (idreg) {
-	SYSREG_READ_CASE(ID_AA64PFR0_EL1);
-	SYSREG_READ_CASE(ID_AA64PFR1_EL1);
-	/*
-	 * TODO: not supported without SVE:
-	 * SYSREG_READ_CASE(ID_AA64ZFR0_EL1);
-	 */
-	SYSREG_READ_CASE(ID_AA64DFR0_EL1);
-	SYSREG_READ_CASE(ID_AA64DFR1_EL1);
-	SYSREG_READ_CASE(ID_AA64AFR0_EL1);
-	SYSREG_READ_CASE(ID_AA64AFR1_EL1);
-	SYSREG_READ_CASE(ID_AA64ISAR0_EL1);
-	SYSREG_READ_CASE(ID_AA64ISAR1_EL1);
-	SYSREG_READ_CASE(ID_AA64MMFR0_EL1);
-	SYSREG_READ_CASE(ID_AA64MMFR1_EL1);
-	SYSREG_READ_CASE(ID_AA64MMFR2_EL1);
+#define SYSREG_READ(reg)		\
+	read_ID_AA64##reg##_EL1()
 
-	default:
-		/* All other encodings are in the RES0 space */
-		return 0UL;
-	}
-}
+#define SYSREG_READ_CLEAR(reg)		\
+	(read_ID_AA64##reg##_EL1() &	\
+	~(ID_AA64##reg##_EL1_CLEAR))
+
+#define SYSREG_READ_CLEAR_SET(reg)	\
+	((read_ID_AA64##reg##_EL1()  &	\
+	~(ID_AA64##reg##_EL1_CLEAR)) |	\
+	 (ID_AA64##reg##_EL1_SET))
+
+/* System registers ID_AA64xxx_EL1 feature clear masks and set values */
+
+/*
+ * ID_AA64DFR0_EL1:
+ *
+ * Cleared fields:
+ * - Debug architecture version:
+ *   set in ID_AA64DFR0_EL1_SET
+ * - Trace unit System registers not implemented
+ * - PMU is not implemented
+ * - Number of breakpoints:
+ *   set in ID_AA64DFR0_EL1_SET
+ * - Number of watchpoints:
+ *   set in ID_AA64DFR0_EL1_SET
+ * - Number of breakpoints that are context-aware
+ * - Statistical Profiling Extension not implemented
+ * - Armv8.4 Self-hosted Trace Extension not implemented
+ * - Trace Buffer Extension not implemented
+ * - FEAT_MTPMU not implemented
+ * - Branch Record Buffer Extension not implemented
+ */
+#define ID_AA64DFR0_EL1_CLEAR			  \
+	ID_AA64DFR0_EL1_DebugVer_MASK		| \
+	ID_AA64DFR0_EL1_TraceVer_MASK		| \
+	ID_AA64DFR0_EL1_PMUVer_MASK		| \
+	ID_AA64DFR0_EL1_BRPs_MASK		| \
+	ID_AA64DFR0_EL1_WRPs_MASK		| \
+	ID_AA64DFR0_EL1_CTX_CMPS_MASK		| \
+	ID_AA64DFR0_EL1_PMSVer_MASK		| \
+	ID_AA64DFR0_EL1_TraceFilt_MASK		| \
+	ID_AA64DFR0_EL1_TraceBuffer_MASK	| \
+	ID_AA64DFR0_EL1_MTPMU_MASK		| \
+	ID_AA64DFR0_EL1_BRBE_MASK
+
+/*
+ * Set fields:
+ * - Armv8 debug architecture
+ * - Number of breakpoints: 2
+ * - Number of watchpoints: 2
+ */
+#define ID_AA64DFR0_EL1_SET			  \
+	ID_AA64DFR0_EL1_DebugVer_8		| \
+	INPLACE(ID_AA64DFR0_EL1_BRPs, 1UL)	| \
+	INPLACE(ID_AA64DFR0_EL1_WRPs, 1UL)
+
+/*
+ * ID_AA64ISAR1_EL1:
+ *
+ * Cleared fields:
+ * - Address and Generic Authentication are not implemented
+ */
+#define ID_AA64ISAR1_EL1_CLEAR		  \
+	ID_AA64ISAR1_EL1_APA_MASK	| \
+	ID_AA64ISAR1_EL1_API_MASK	| \
+	ID_AA64ISAR1_EL1_GPA_MASK	| \
+	ID_AA64ISAR1_EL1_GPI_MASK
+
+/*
+ * ID_AA64PFR0_EL1:
+ *
+ * Cleared fields:
+ * - Activity Monitors Extension not implemented
+ * - Scalable Vector Extension not implemented.
+ *   This is a temporary fix until RMM completely supports SVE.
+ *
+ * TODO: use and define:
+ * ID_AA64PFR0_EL1_AMU_MASK & ID_AA64PFR0_EL1_SVE_MASK
+ */
+#define ID_AA64PFR0_EL1_CLEAR		  \
+	MASK(ID_AA64PFR0_EL1_AMU)	| \
+	MASK(ID_AA64PFR0_EL1_SVE)
 
 /*
  * Handle ID_AA64XXX<n>_EL1 instructions
@@ -48,7 +107,7 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 				  unsigned long esr)
 {
 	unsigned int rt;
-	unsigned long idreg, mask;
+	unsigned long idreg, value;
 
 	/*
 	 * We only set HCR_EL2.TID3 to trap ID registers at the moment and
@@ -71,30 +130,54 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 
 	idreg = esr & ESR_EL2_SYSREG_MASK;
 
-	if (idreg == ESR_EL2_SYSREG_ID_AA64ISAR1_EL1) {
-		/* Clear Address and Generic Authentication bits */
-		mask = (0xfUL << ESR_EL2_SYSREG_ID_AA64ISAR1_APA_SHIFT) |
-		       (0xfUL << ESR_EL2_SYSREG_ID_AA64ISAR1_API_SHIFT) |
-		       (0xfUL << ESR_EL2_SYSREG_ID_AA64ISAR1_GPA_SHIFT) |
-		       (0xfUL << ESR_EL2_SYSREG_ID_AA64ISAR1_GPI_SHIFT);
-	/*
-	 * Workaround for TF-A trapping AMU registers access
-	 * to EL3 in Realm state
-	 */
-	} else if (idreg == ESR_EL2_SYSREG_ID_AA64PFR0_EL1) {
-		/* Clear support for Activity Monitors Extension */
-		mask = MASK(ID_AA64PFR0_EL1_AMU);
-
+	switch (idreg) {
+	SYSREG_CASE(AFR0)
+		value = SYSREG_READ(AFR0);
+		break;
+	SYSREG_CASE(AFR1)
+		value = SYSREG_READ(AFR1);
+		break;
+	SYSREG_CASE(DFR0)
+		value = SYSREG_READ_CLEAR_SET(DFR0);
+		break;
+	SYSREG_CASE(DFR1)
+		value = SYSREG_READ(DFR1);
+		break;
+	SYSREG_CASE(ISAR0)
+		value = SYSREG_READ(ISAR0);
+		break;
+	SYSREG_CASE(ISAR1)
+		value = SYSREG_READ_CLEAR(ISAR1);
+		break;
+	SYSREG_CASE(MMFR0)
+		value = SYSREG_READ(MMFR0);
+		break;
+	SYSREG_CASE(MMFR1)
+		value = SYSREG_READ(MMFR1);
+		break;
+	SYSREG_CASE(MMFR2)
+		value = SYSREG_READ(MMFR2);
+		break;
+	SYSREG_CASE(PFR0)
 		/*
-		 * Clear support for SVE. This is a temporary fix until RMM
-		 * completely supports SVE.
+		 * Workaround for TF-A trapping AMU registers access
+		 * to EL3 in Realm state.
 		 */
-		mask |= MASK(ID_AA64PFR0_EL1_SVE);
-	} else {
-		mask = 0UL;
+		value = SYSREG_READ_CLEAR(PFR0);
+		break;
+	SYSREG_CASE(PFR1)
+		value = SYSREG_READ(PFR1);
+		break;
+	/*
+	 * TODO: not supported without SVE:
+	 * SYSREG_CASE(ZFR0)
+	 */
+	default:
+		/* All other encodings are in the RES0 space */
+		value = 0UL;
 	}
 
-	rec->regs[rt] = read_idreg(idreg) & ~mask;
+	rec->regs[rt] = value;
 	return true;
 }
 

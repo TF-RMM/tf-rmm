@@ -24,8 +24,15 @@ static unsigned long get_feature_register_0(void)
 	}
 
 	/* Set support for SHA256 and SHA512 hash algorithms */
-	feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_HASH_SHA_256, 1);
-	feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_HASH_SHA_512, 1);
+	feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_HASH_SHA_256,
+				RMI_SUPPORTED);
+	feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_HASH_SHA_512,
+				RMI_SUPPORTED);
+
+	/* PMU is not supported */
+	feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_PMU_EN,
+				RMI_NOT_SUPPORTED);
+	feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS, 0U);
 
 	return feat_reg0;
 }
@@ -57,6 +64,12 @@ static bool validate_feature_register_0(unsigned long value)
 	/* Validate LPA2 flag */
 	if ((EXTRACT(RMM_FEATURE_REGISTER_0_LPA2, value) == RMI_LPA2) &&
 	    !is_feat_lpa2_4k_present()) {
+		return false;
+	}
+
+	/* Validate PMU_EN flag */
+	if ((EXTRACT(RMM_FEATURE_REGISTER_0_PMU_EN, value) == RMI_SUPPORTED) ||
+	    (EXTRACT(RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS, value) != 0U)) {
 		return false;
 	}
 
