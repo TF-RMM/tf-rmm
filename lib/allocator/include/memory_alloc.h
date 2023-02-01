@@ -11,11 +11,15 @@
 struct _memory_header;
 typedef struct memory_header_s memory_header_t;
 
-/*
- * Number of pages per REC to be allocated. MbedTLS needs 8K of heap
- * for attestation usecases.
- */
+/* MbedTLS needs 8K of heap for attestation usecases */
 #define REC_HEAP_PAGES		2
+#define REC_HEAP_SIZE		(REC_HEAP_PAGES * SZ_4K)
+
+/* Number of pages per REC for PMU state */
+#define REC_PMU_PAGES		1
+
+/* Number of pages per REC to be allocated */
+#define REC_NUM_PAGES		(REC_HEAP_PAGES + REC_PMU_PAGES)
 
 struct buffer_alloc_ctx {
 	unsigned char		*buf;
@@ -35,7 +39,6 @@ struct memory_header_s {
 	memory_header_t		*next_free;
 	size_t			magic2;
 };
-
 
 /*
  * Function to assign a heap context to the current CPU for

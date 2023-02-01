@@ -72,6 +72,12 @@ struct rd {
 	/* Algorithm to use for measurements */
 	enum hash_algo algorithm;
 
+	/* PMU enabled flag */
+	bool pmu_enabled;
+
+	/* Number of PMU counters */
+	unsigned int pmu_num_cnts;
+
 	/* Realm measurement */
 	unsigned char measurement[MEASUREMENT_SLOT_NR][MAX_MEASUREMENT_SIZE];
 

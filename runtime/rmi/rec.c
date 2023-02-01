@@ -74,11 +74,12 @@ static void rec_params_measure(struct rd *rd, struct rmi_rec_params *rec_params)
 static void init_rec_sysregs(struct rec *rec, unsigned long mpidr)
 {
 	/* Set non-zero values only */
-	rec->sysregs.pmcr_el0 = PMCR_EL0_RES1;
+	rec->sysregs.pmcr_el0 = rec->realm_info.pmu_enabled ?
+				PMCR_EL0_INIT_RESET : PMCR_EL0_INIT;
+
 	rec->sysregs.sctlr_el1 = SCTLR_EL1_FLAGS;
 	rec->sysregs.mdscr_el1 = MDSCR_EL1_TDCC_BIT;
 	rec->sysregs.vmpidr_el2 = mpidr | VMPIDR_EL2_RES1;
-
 	rec->sysregs.cnthctl_el2 = CNTHCTL_EL2_NO_TRAPS;
 }
 
@@ -115,12 +116,23 @@ static unsigned long realm_vtcr(struct rd *rd)
 
 static void init_common_sysregs(struct rec *rec, struct rd *rd)
 {
+	unsigned long mdcr_el2_val = read_mdcr_el2();
+
 	/* Set non-zero values only */
 	rec->common_sysregs.hcr_el2 = HCR_FLAGS;
 	rec->common_sysregs.vtcr_el2 =  realm_vtcr(rd);
-	rec->common_sysregs.vttbr_el2 = granule_addr(rd->s2_ctx.g_rtt);
-	rec->common_sysregs.vttbr_el2 &= MASK(TTBRx_EL2_BADDR);
-	rec->common_sysregs.vttbr_el2 |= INPLACE(VTTBR_EL2_VMID, rd->s2_ctx.vmid);
+	rec->common_sysregs.vttbr_el2 = (granule_addr(rd->s2_ctx.g_rtt) &
+					MASK(TTBRx_EL2_BADDR)) |
+					INPLACE(VTTBR_EL2_VMID, rd->s2_ctx.vmid);
+
+	/* Control trapping of accesses to PMU registers */
+	if (rd->pmu_enabled) {
+		mdcr_el2_val &= ~(MDCR_EL2_TPM_BIT | MDCR_EL2_TPMCR_BIT);
+	} else {
+		mdcr_el2_val |= (MDCR_EL2_TPM_BIT | MDCR_EL2_TPMCR_BIT);
+	}
+
+	rec->common_sysregs.mdcr_el2 = mdcr_el2_val;
 }
 
 static void init_rec_regs(struct rec *rec,
@@ -266,6 +278,9 @@ unsigned long smc_rec_create(unsigned long rec_addr,
 	rec->realm_info.s2_starting_level = realm_rtt_starting_level(rd);
 	rec->realm_info.g_rtt = rd->s2_ctx.g_rtt;
 	rec->realm_info.g_rd = g_rd;
+
+	rec->realm_info.pmu_enabled = rd->pmu_enabled;
+	rec->realm_info.pmu_num_cnts = rd->pmu_num_cnts;
 
 	rec_params_measure(rd, &rec_params);
 

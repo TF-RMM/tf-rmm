@@ -429,7 +429,16 @@ struct rmi_rec_exit {
 			unsigned char ripas_value;	/* 0x510 */
 		   }, 0x500, 0x600);
 	/* Host call immediate value */
-	SET_MEMBER_RMI(unsigned int imm, 0x600, 0x800);	/* 0x600 */
+	SET_MEMBER_RMI(unsigned int imm, 0x600, 0x700);	/* 0x600 */
+
+	/* PMU overflow */
+	SET_MEMBER_RMI(unsigned long pmu_ovf, 0x700, 0x708);	 /* 0x700 */
+
+	/* PMU interrupt enable */
+	SET_MEMBER_RMI(unsigned long pmu_intr_en, 0x708, 0x710); /* 0x708 */
+
+	/* PMU counter enable */
+	SET_MEMBER_RMI(unsigned long pmu_cntr_en, 0x710, 0x800); /* 0x710 */
 };
 
 /*
@@ -440,7 +449,7 @@ struct rmi_rec_run {
 	/* Entry information */
 	SET_MEMBER_RMI(struct rmi_rec_entry entry, 0, 0x800);	/* Offset 0 */
 	/* Exit information */
-	SET_MEMBER_RMI(struct rmi_rec_exit exit, 0x800, 0x1000);	/* 0x800 */
+	SET_MEMBER_RMI(struct rmi_rec_exit exit, 0x800, 0x1000);/* 0x800 */
 };
 
 #endif /* __ASSEMBLER__ */

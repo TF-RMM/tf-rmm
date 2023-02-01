@@ -6,7 +6,8 @@
 add_library(rmm-lib-arch)
 
 target_link_libraries(rmm-lib-arch
-    PRIVATE rmm-lib-common)
+    PRIVATE rmm-lib-common
+            rmm-lib-smc)
 
 target_include_directories(rmm-lib-arch
     PUBLIC "include"
@@ -14,7 +15,8 @@ target_include_directories(rmm-lib-arch
 
 target_sources(rmm-lib-arch
         PRIVATE "src/arch_features.c"
-                "src/fpu_helpers.c")
+                "src/fpu_helpers.c"
+                "src/pmu.c")
 
 if(NOT RMM_ARCH STREQUAL fake_host)
     target_sources(rmm-lib-arch
