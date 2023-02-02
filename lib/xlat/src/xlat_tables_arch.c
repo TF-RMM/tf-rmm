@@ -112,9 +112,9 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 	tcr = read_tcr_el2();
 	if (ctx_cfg->region == VA_LOW_REGION) {
 		t0sz = txsz;
-		t1sz = (tcr >> TCR_EL2_T1SZ_SHIFT) & TCR_EL2_T1SZ_MASK;
+		t1sz = EXTRACT(TCR_EL2_T1SZ, tcr);
 	} else {
-		t0sz = (tcr >> TCR_EL2_T0SZ_SHIFT) & TCR_EL2_T0SZ_MASK;
+		t0sz = EXTRACT(TCR_EL2_T0SZ, tcr);
 		t1sz = txsz;
 	}
 

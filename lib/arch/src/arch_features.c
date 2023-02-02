@@ -28,9 +28,8 @@ unsigned int arch_feat_get_pa_width(void)
 		PARANGE_0101_WIDTH
 	};
 
-	register_t pa_range = (read_id_aa64mmfr0_el1() >>
-			       ID_AA64MMFR0_EL1_PARANGE_SHIFT) &
-			       ID_AA64MMFR0_EL1_PARANGE_MASK;
+	register_t pa_range = EXTRACT(ID_AA64MMFR0_EL1_PARANGE,
+					read_id_aa64mmfr0_el1());
 
 	assert(pa_range < ARRAY_SIZE(pa_range_bits_arr));
 

@@ -313,8 +313,8 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		unsigned long cptr;
 
 		cptr = read_cptr_el2();
-		cptr &= ~(CPTR_EL2_ZEN_MASK << CPTR_EL2_ZEN_SHIFT);
-		cptr |= (CPTR_EL2_ZEN_NO_TRAP_11 << CPTR_EL2_ZEN_SHIFT);
+		cptr &= ~MASK(CPTR_EL2_ZEN);
+		cptr |= INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_NO_TRAP_11);
 		write_cptr_el2(cptr);
 
 		fpu_save_state(&rec->fpu_ctx.fpu);
@@ -326,10 +326,9 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		}
 
 		cptr = read_cptr_el2();
-		cptr &= ~(CPTR_EL2_FPEN_MASK << CPTR_EL2_FPEN_SHIFT);
-		cptr |= (CPTR_EL2_FPEN_TRAP_ALL_00 << CPTR_EL2_FPEN_SHIFT);
-		cptr &= ~(CPTR_EL2_ZEN_MASK << CPTR_EL2_ZEN_SHIFT);
-		cptr |= (CPTR_EL2_ZEN_TRAP_ALL_00 << CPTR_EL2_ZEN_SHIFT);
+		cptr &= ~(MASK(CPTR_EL2_FPEN) | MASK(CPTR_EL2_ZEN));
+		cptr |= INPLACE(CPTR_EL2_FPEN, CPTR_EL2_FPEN_TRAP_ALL_00) |
+			INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_TRAP_ALL_00);
 		write_cptr_el2(cptr);
 		rec->fpu_ctx.used = false;
 	}

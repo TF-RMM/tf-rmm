@@ -81,12 +81,12 @@ static unsigned long calc_esr_idabort(unsigned long esr_el2,
 	 * - FnV. It will set to zero.
 	 * - S1PTW. It will be set to zero.
 	 */
-	unsigned long esr_el1 = esr_el2 & ~(ESR_EL2_EC_MASK  |
-					    ESR_EL2_ABORT_FSC_MASK |
-					    ESR_EL2_ABORT_FNV_BIT |
+	unsigned long esr_el1 = esr_el2 & ~(MASK(ESR_EL2_EC)	    |
+					    MASK(ESR_EL2_ABORT_FSC) |
+					    ESR_EL2_ABORT_FNV_BIT   |
 					    ESR_EL2_ABORT_S1PTW_BIT);
 
-	unsigned long ec = esr_el2 & ESR_EL2_EC_MASK;
+	unsigned long ec = esr_el2 & MASK(ESR_EL2_EC);
 
 	assert((ec == ESR_EL2_EC_INST_ABORT) || (ec == ESR_EL2_EC_DATA_ABORT));
 	if ((spsr_el2 & MASK(SPSR_EL2_MODE)) != SPSR_EL2_MODE_EL0t) {
@@ -97,7 +97,7 @@ static unsigned long calc_esr_idabort(unsigned long esr_el2,
 	/*
 	 * Set the I/DFSC.
 	 */
-	assert((fsc & ~ESR_EL2_ABORT_FSC_MASK) == 0UL);
+	assert((fsc & ~MASK(ESR_EL2_ABORT_FSC)) == 0UL);
 	esr_el1 |= fsc;
 
 	/*
@@ -152,7 +152,7 @@ void inject_sync_idabort_rec(struct rec *rec, unsigned long fsc)
  */
 void realm_inject_undef_abort(void)
 {
-	unsigned long esr = ESR_EL2_IL_MASK | ESR_EL2_EC_UNKNOWN;
+	unsigned long esr = MASK(ESR_EL2_IL) | ESR_EL2_EC_UNKNOWN;
 	unsigned long elr = read_elr_el2();
 	unsigned long spsr = read_spsr_el2();
 	unsigned long vbar = read_vbar_el12();

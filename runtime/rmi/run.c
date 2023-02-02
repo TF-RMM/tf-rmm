@@ -34,7 +34,7 @@ static bool complete_mmio_emulation(struct rec *rec, struct rmi_rec_entry *rec_e
 		return true;
 	}
 
-	if (((esr & ESR_EL2_EC_MASK) != ESR_EL2_EC_DATA_ABORT) ||
+	if (((esr & MASK(ESR_EL2_EC)) != ESR_EL2_EC_DATA_ABORT) ||
 	    !(esr & ESR_EL2_ABORT_ISV_BIT)) {
 		/*
 		 * MMIO emulation is requested but the REC did not exit with
@@ -90,11 +90,11 @@ static bool complete_sea_insertion(struct rec *rec, struct rmi_rec_entry *rec_en
 		return true;
 	}
 
-	if ((esr & ESR_EL2_EC_MASK) != ESR_EL2_EC_DATA_ABORT) {
+	if ((esr & MASK(ESR_EL2_EC)) != ESR_EL2_EC_DATA_ABORT) {
 		return false;
 	}
 
-	fipa = (hpfar & HPFAR_EL2_FIPA_MASK) << HPFAR_EL2_FIPA_OFFSET;
+	fipa = (hpfar & MASK(HPFAR_EL2_FIPA)) << HPFAR_EL2_FIPA_OFFSET;
 	if (addr_in_rec_par(rec, fipa)) {
 		return false;
 	}
@@ -111,7 +111,7 @@ static void complete_sysreg_emulation(struct rec *rec, struct rmi_rec_entry *rec
 	/* Rt bits [9:5] of ISS field cannot exceed 0b11111 */
 	unsigned int rt = ESR_EL2_SYSREG_ISS_RT(esr);
 
-	if ((esr & ESR_EL2_EC_MASK) != ESR_EL2_EC_SYSREG) {
+	if ((esr & MASK(ESR_EL2_EC)) != ESR_EL2_EC_SYSREG) {
 		return;
 	}
 
@@ -130,7 +130,7 @@ static void complete_hvc_exit(struct rec *rec, struct rmi_rec_entry *rec_entry)
 	unsigned long esr = rec->last_run_info.esr;
 	unsigned int i;
 
-	if ((esr & ESR_EL2_EC_MASK) != ESR_EL2_EC_HVC) {
+	if ((esr & MASK(ESR_EL2_EC)) != ESR_EL2_EC_HVC) {
 		return;
 	}
 
