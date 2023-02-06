@@ -12,29 +12,12 @@ arm_config_option(
     TYPE STRING
     ADVANCED)
 
-#
-# RMM_MAX_GRANULES. Maximum number of granules supported.
-#
-arm_config_option(
-    NAME RMM_MAX_GRANULES
-    HELP "Maximum number of granules supported"
-    DEFAULT 0x0
-    TYPE STRING)
-
 if(VIRT_ADDR_SPACE_WIDTH EQUAL 0x0)
     message(FATAL_ERROR "VIRT_ADDR_SPACE_WIDTH is not initialized")
 endif()
 
 target_compile_definitions(rmm-lib-realm
     PUBLIC "VIRT_ADDR_SPACE_SIZE=(1ULL << ULL(${VIRT_ADDR_SPACE_WIDTH}))")
-
-if (RMM_MAX_GRANULES EQUAL 0x0)
-    message (FATAL_ERROR "RMM_MAX_GRANULES not configured")
-endif()
-
-# Export RMM_MAX_GRANULES for use in `plat` component.
-target_compile_definitions(rmm-lib-realm
-    PUBLIC "RMM_MAX_GRANULES=U(${RMM_MAX_GRANULES})")
 
 target_link_libraries(rmm-lib-realm
     PRIVATE rmm-lib-arch

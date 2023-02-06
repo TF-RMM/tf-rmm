@@ -85,7 +85,7 @@ int plat_cmn_setup(unsigned long x0, unsigned long x1,
 	ret = rmm_el3_ifc_init(x0, x1, x2, x3, RMM_SHARED_BUFFER_START);
 	if (ret != 0) {
 		ERROR("%s (%u): Failed to initialized RMM EL3 Interface\n",
-		      __func__, __LINE__);
+			__func__, __LINE__);
 		return ret;
 	}
 
@@ -117,13 +117,14 @@ int plat_cmn_setup(unsigned long x0, unsigned long x1,
 	ret = xlat_mmap_add_ctx(&runtime_xlat_ctx, runtime_regions, true);
 	if (ret != 0) {
 		ERROR("%s (%u): Failed to add RMM common regions to xlat mapping\n",
-					__func__, __LINE__);
+			__func__, __LINE__);
 		return ret;
 	}
 
 	ret = xlat_init_tables_ctx(&runtime_xlat_ctx);
 	if (ret != 0) {
-		ERROR("%s (%u): xlat initialization failed\n", __func__, __LINE__);
+		ERROR("%s (%u): xlat initialization failed\n",
+			__func__, __LINE__);
 		return ret;
 	}
 
@@ -144,11 +145,11 @@ int plat_cmn_warmboot_setup(void)
 {
 	int ret;
 
-	/* Setup the MMU cfg for the low region (runtime context). */
+	/* Setup the MMU cfg for the low region (runtime context) */
 	ret = xlat_arch_setup_mmu_cfg(&runtime_xlat_ctx);
 	if (ret != 0) {
 		ERROR("%s (%u): Failed to setup xlat tables for CPU[%u]\n",
-					__func__, __LINE__, my_cpuid());
+			__func__, __LINE__, my_cpuid());
 		return ret;
 	}
 

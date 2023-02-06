@@ -21,6 +21,15 @@ arm_config_option(
     TYPE STRING
     DEFAULT 4096)
 
+#
+# RMM_MAX_GRANULES. Maximum number of granules supported.
+#
+arm_config_option(
+    NAME RMM_MAX_GRANULES
+    HELP "Maximum number of granules supported"
+    TYPE STRING
+    DEFAULT 0x0)
+
 arm_config_option(
     NAME RMM_DOCS
     HELP "RMM Documentation build"
@@ -59,6 +68,13 @@ endif()
 
 target_compile_definitions(rmm-common
     INTERFACE "GRANULE_SIZE=U(${GRANULE_SIZE})")
+
+if (RMM_MAX_GRANULES EQUAL 0x0)
+    message (FATAL_ERROR "RMM_MAX_GRANULES not configured")
+endif()
+
+target_compile_definitions(rmm-common
+    INTERFACE "RMM_MAX_GRANULES=U(${RMM_MAX_GRANULES})")
 
 if(RMM_FPU_USE_AT_REL2)
     target_compile_definitions(rmm-common
