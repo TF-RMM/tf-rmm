@@ -25,17 +25,15 @@
 	do { \
 		assert(fpu_is_my_state_saved(my_cpuid())); \
 		write_cptr_el2( \
-			(read_cptr_el2() & \
-			(~(CPTR_EL2_FPEN_MASK << CPTR_EL2_FPEN_SHIFT))) | \
-			(CPTR_EL2_FPEN_NO_TRAP_11 << CPTR_EL2_FPEN_SHIFT)); \
+			(read_cptr_el2() & ~MASK(CPTR_EL2_FPEN)) | \
+			(INPLACE(CPTR_EL2_FPEN, CPTR_EL2_FPEN_NO_TRAP_11))); \
 		isb(); \
 		expression; \
 		write_cptr_el2( \
-			(read_cptr_el2() & \
-			(~(CPTR_EL2_FPEN_MASK << CPTR_EL2_FPEN_SHIFT))) | \
-			(CPTR_EL2_FPEN_TRAP_ALL_00 << CPTR_EL2_FPEN_SHIFT)); \
+			(read_cptr_el2() & ~MASK(CPTR_EL2_FPEN)) | \
+			(INPLACE(CPTR_EL2_FPEN, CPTR_EL2_FPEN_TRAP_ALL_00))); \
 		isb(); \
-	} while (0)
+	} while (false)
 
 #define IS_FPU_ALLOWED() \
 	(fpu_is_my_state_saved(my_cpuid()) && is_fpen_enabled())
@@ -44,7 +42,7 @@
 #define FPU_ALLOW(expression) \
 	do { \
 		expression; \
-	} while (0)
+	} while (false)
 
 #define IS_FPU_ALLOWED() (true)
 

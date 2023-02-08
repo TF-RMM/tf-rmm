@@ -349,8 +349,8 @@ static void fatal_abort(void)
 
 static bool is_el2_data_abort_gpf(unsigned long esr)
 {
-	if (((esr & ESR_EL2_EC_MASK) == ESR_EL2_EC_DATA_ABORT_SEL) &&
-	    ((esr & ESR_EL2_ABORT_FSC_MASK) == ESR_EL2_ABORT_FSC_GPF))
+	if (((esr & MASK(ESR_EL2_EC)) == ESR_EL2_EC_DATA_ABORT_SEL) &&
+	    ((esr & MASK(ESR_EL2_ABORT_FSC)) == ESR_EL2_ABORT_FSC_GPF))
 		return true;
 	return false;
 }

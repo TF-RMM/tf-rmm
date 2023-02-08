@@ -49,17 +49,17 @@
  * - Branch Record Buffer Extension not implemented
  */
 #define ID_AA64DFR0_EL1_CLEAR			  \
-	ID_AA64DFR0_EL1_DebugVer_MASK		| \
-	ID_AA64DFR0_EL1_TraceVer_MASK		| \
-	ID_AA64DFR0_EL1_PMUVer_MASK		| \
-	ID_AA64DFR0_EL1_BRPs_MASK		| \
-	ID_AA64DFR0_EL1_WRPs_MASK		| \
-	ID_AA64DFR0_EL1_CTX_CMPS_MASK		| \
-	ID_AA64DFR0_EL1_PMSVer_MASK		| \
-	ID_AA64DFR0_EL1_TraceFilt_MASK		| \
-	ID_AA64DFR0_EL1_TraceBuffer_MASK	| \
-	ID_AA64DFR0_EL1_MTPMU_MASK		| \
-	ID_AA64DFR0_EL1_BRBE_MASK
+	MASK(ID_AA64DFR0_EL1_DebugVer)		| \
+	MASK(ID_AA64DFR0_EL1_TraceVer)		| \
+	MASK(ID_AA64DFR0_EL1_PMUVer)		| \
+	MASK(ID_AA64DFR0_EL1_BRPs)		| \
+	MASK(ID_AA64DFR0_EL1_WRPs)		| \
+	MASK(ID_AA64DFR0_EL1_CTX_CMPS)		| \
+	MASK(ID_AA64DFR0_EL1_PMSVer)		| \
+	MASK(ID_AA64DFR0_EL1_TraceFilt)		| \
+	MASK(ID_AA64DFR0_EL1_TraceBuffer)	| \
+	MASK(ID_AA64DFR0_EL1_MTPMU)		| \
+	MASK(ID_AA64DFR0_EL1_BRBE)
 
 /*
  * Set fields:
@@ -79,10 +79,10 @@
  * - Address and Generic Authentication are not implemented
  */
 #define ID_AA64ISAR1_EL1_CLEAR		  \
-	ID_AA64ISAR1_EL1_APA_MASK	| \
-	ID_AA64ISAR1_EL1_API_MASK	| \
-	ID_AA64ISAR1_EL1_GPA_MASK	| \
-	ID_AA64ISAR1_EL1_GPI_MASK
+	MASK(ID_AA64ISAR1_EL1_APA)	| \
+	MASK(ID_AA64ISAR1_EL1_API)	| \
+	MASK(ID_AA64ISAR1_EL1_GPA)	| \
+	MASK(ID_AA64ISAR1_EL1_GPI)
 
 /*
  * ID_AA64PFR0_EL1:
@@ -91,9 +91,6 @@
  * - Activity Monitors Extension not implemented
  * - Scalable Vector Extension not implemented.
  *   This is a temporary fix until RMM completely supports SVE.
- *
- * TODO: use and define:
- * ID_AA64PFR0_EL1_AMU_MASK & ID_AA64PFR0_EL1_SVE_MASK
  */
 #define ID_AA64PFR0_EL1_CLEAR		  \
 	MASK(ID_AA64PFR0_EL1_AMU)	| \

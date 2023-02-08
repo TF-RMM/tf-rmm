@@ -147,8 +147,8 @@ static bool handle_sync_external_abort(struct rec *rec,
 				       struct rmi_rec_exit *rec_exit,
 				       unsigned long esr)
 {
-	unsigned long fsc = esr & ESR_EL2_ABORT_FSC_MASK;
-	unsigned long set = esr & ESR_EL2_ABORT_SET_MASK;
+	unsigned long fsc = esr & MASK(ESR_EL2_ABORT_FSC);
+	unsigned long set = esr & MASK(ESR_EL2_ABORT_SET);
 
 	if (!fsc_is_external_abort(fsc)) {
 		return false;
@@ -223,7 +223,7 @@ static bool handle_data_abort(struct rec *rec, struct rmi_rec_exit *rec_exit,
 {
 	unsigned long far = 0UL;
 	unsigned long hpfar = read_hpfar_el2();
-	unsigned long fipa = (hpfar & HPFAR_EL2_FIPA_MASK) << HPFAR_EL2_FIPA_OFFSET;
+	unsigned long fipa = (hpfar & MASK(HPFAR_EL2_FIPA)) << HPFAR_EL2_FIPA_OFFSET;
 	unsigned long write_val = 0UL;
 
 	if (handle_sync_external_abort(rec, rec_exit, esr)) {
@@ -273,10 +273,10 @@ end:
 static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_exit,
 				     unsigned long esr)
 {
-	unsigned long fsc = esr & ESR_EL2_ABORT_FSC_MASK;
-	unsigned long fsc_type = fsc & ~ESR_EL2_ABORT_FSC_LEVEL_MASK;
+	unsigned long fsc = esr & MASK(ESR_EL2_ABORT_FSC);
+	unsigned long fsc_type = fsc & ~MASK(ESR_EL2_ABORT_FSC_LEVEL);
 	unsigned long hpfar = read_hpfar_el2();
-	unsigned long fipa = (hpfar & HPFAR_EL2_FIPA_MASK) << HPFAR_EL2_FIPA_OFFSET;
+	unsigned long fipa = (hpfar & MASK(HPFAR_EL2_FIPA)) << HPFAR_EL2_FIPA_OFFSET;
 
 	if (handle_sync_external_abort(rec, rec_exit, esr)) {
 		/*
@@ -544,9 +544,9 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 {
 	const unsigned long esr = read_esr_el2();
 
-	switch (esr & ESR_EL2_EC_MASK) {
+	switch (esr & MASK(ESR_EL2_EC)) {
 	case ESR_EL2_EC_WFX:
-		rec_exit->esr = esr & (ESR_EL2_EC_MASK | ESR_EL2_WFx_TI_BIT);
+		rec_exit->esr = esr & (MASK(ESR_EL2_EC) | ESR_EL2_WFx_TI_BIT);
 		advance_pc();
 		return false;
 	case ESR_EL2_EC_HVC:
@@ -584,10 +584,9 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 		 * the NS state and load the realm state.
 		 */
 		cptr = read_cptr_el2();
-		cptr &= ~(CPTR_EL2_FPEN_MASK << CPTR_EL2_FPEN_SHIFT);
-		cptr |= (CPTR_EL2_FPEN_NO_TRAP_11 << CPTR_EL2_FPEN_SHIFT);
-		cptr &= ~(CPTR_EL2_ZEN_MASK << CPTR_EL2_ZEN_SHIFT);
-		cptr |= (CPTR_EL2_ZEN_NO_TRAP_11 << CPTR_EL2_ZEN_SHIFT);
+		cptr &= ~(MASK(CPTR_EL2_FPEN) | MASK(CPTR_EL2_ZEN));
+		cptr |= INPLACE(CPTR_EL2_FPEN, CPTR_EL2_FPEN_NO_TRAP_11) |
+			INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_NO_TRAP_11);
 		write_cptr_el2(cptr);
 
 		/*
@@ -609,8 +608,8 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 		 * implemented
 		 */
 		cptr = read_cptr_el2();
-		cptr &= ~(CPTR_EL2_ZEN_MASK << CPTR_EL2_ZEN_SHIFT);
-		cptr |= (CPTR_EL2_ZEN_TRAP_ALL_00 << CPTR_EL2_ZEN_SHIFT);
+		cptr &= ~MASK(CPTR_EL2_ZEN);
+		cptr |= INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_TRAP_ALL_00);
 		write_cptr_el2(cptr);
 
 		/*
@@ -628,9 +627,7 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 	}
 
 	VERBOSE("Unhandled sync exit ESR: %08lx (EC: %lx ISS: %lx)\n",
-		esr,
-		(esr & ESR_EL2_EC_MASK) >> ESR_EL2_EC_SHIFT,
-		(esr & ESR_EL2_ISS_MASK) >> ESR_EL2_ISS_SHIFT);
+		esr, EXTRACT(ESR_EL2_EC, esr), EXTRACT(ESR_EL2_ISS, esr));
 
 	/*
 	 * Zero values in esr, far & hpfar of 'rec_exit' structure
@@ -656,14 +653,14 @@ static bool handle_exception_serror_lel(struct rec *rec, struct rmi_rec_exit *re
 		system_abort();
 	}
 
-	if ((esr & ESR_EL2_SERROR_DFSC_MASK) != ESR_EL2_SERROR_DFSC_ASYNC) {
+	if ((esr & MASK(ESR_EL2_SERROR_DFSC)) != ESR_EL2_SERROR_DFSC_ASYNC) {
 		/*
 		 * Either Uncategorized or Reserved fault status code.
 		 */
 		system_abort();
 	}
 
-	switch (esr & ESR_EL2_SERROR_AET_MASK) {
+	switch (esr & MASK(ESR_EL2_SERROR_AET)) {
 	case ESR_EL2_SERROR_AET_UEU:	/* Unrecoverable RAS Error */
 	case ESR_EL2_SERROR_AET_UER:	/* Recoverable RAS Error */
 		/*
