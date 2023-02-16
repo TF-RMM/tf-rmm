@@ -185,7 +185,7 @@ void assert_cpu_slots_empty(void)
 	unsigned int i;
 
 	for (i = 0; i < NR_CPU_SLOTS; i++) {
-		assert(slot_to_descriptor(i) == INVALID_DESC);
+		assert(slot_to_descriptor(i) == TRANSIENT_DESC);
 	}
 }
 

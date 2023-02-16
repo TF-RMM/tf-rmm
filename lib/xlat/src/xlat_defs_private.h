@@ -33,6 +33,9 @@
 #define BLOCK_DESC		UL(0x1) /* Table levels 0-2 */
 /* A table descriptor points to the next level of translation table. */
 #define TABLE_DESC		UL(0x3) /* Table levels 0-2 */
+/* Definition of an invalid descriptor */
+#define INVALID_DESC		UL(0x0)
+
 /*
  * A page descriptor points to a page, i.e. a memory region whose size is the
  * translation granule size (e.g. 4KB).

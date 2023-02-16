@@ -360,7 +360,7 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, unsigned int level)
 
 	if ((MT_TYPE(attr) == MT_TRANSIENT)) {
 		/* Transient entry requested. */
-		desc = 0ULL;
+		desc = TRANSIENT_DESC;
 		return desc;
 	}
 

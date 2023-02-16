@@ -102,8 +102,11 @@ static const char * const level_spacers[] = {
 	"      [LV3] "
 };
 
-static const char *invalid_descriptors_ommited =
+static char *invalid_descriptors_ommited =
 		"%s(%d invalid descriptors omitted)\n";
+
+static char *tr_invalid_descriptors_ommited =
+		"%s(%d transient invalid descriptors omitted)\n";
 
 /*
  * Recursive function that reads the translation tables passed as an argument
@@ -115,10 +118,13 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 				       unsigned int level)
 {
 	uint64_t *addr_inner;
-	unsigned int invalid_row_count;
+	unsigned int multiple_row_count;
 	unsigned int table_idx = 0U;
+	bool is_invalid, is_transient_inv;
+	uint64_t prev_desc;
 	size_t level_size;
 	uintptr_t table_idx_va;
+	char *str = NULL;
 
 	if (level > XLAT_TABLE_LEVEL_MAX) {
 		/* Level out of bounds */
@@ -135,35 +141,44 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 			(table_base_va + ctx->cfg->base_va));
 
 	/*
-	 * Keep track of how many invalid descriptors are counted in a row.
-	 * Whenever multiple invalid descriptors are found, only the first one
-	 * is printed, and a line is added to inform about how many descriptors
-	 * have been omitted.
+	 * Keep track of how many invalid or transient descriptors are counted
+	 * in a row. Whenever multiple invalid descriptors are found, only the
+	 * first one is printed, and a line is added to inform about how many
+	 * descriptors have been omitted.
 	 */
-	invalid_row_count = 0U;
+	multiple_row_count = 0U;
+	prev_desc = 0ULL;
 
 	while (table_idx < XLAT_TABLE_ENTRIES) {
 		uint64_t desc;
 
 		desc = table_base[table_idx];
 
-		if ((desc & DESC_MASK) == INVALID_DESC) {
+		is_transient_inv = (desc == TRANSIENT_DESC);
+		is_invalid = (desc == INVALID_DESC);
 
-			if (invalid_row_count == 0U) {
+		if ((is_invalid == true) || (is_transient_inv == true)) {
+			if (multiple_row_count == 0U) {
+				prev_desc = desc;
 				VERBOSE("%sVA:0x%lx size:0x%zx\n",
 					level_spacers[level],
 					table_idx_va, level_size);
+
+
+				if (is_invalid == true) {
+					str = invalid_descriptors_ommited;
+				} else {
+					str = tr_invalid_descriptors_ommited;
+				}
 			}
-			invalid_row_count++;
+			multiple_row_count++;
 
 		} else {
-
-			if (invalid_row_count > 1U) {
-				VERBOSE(invalid_descriptors_ommited,
-				       level_spacers[level],
-				       invalid_row_count - 1U);
+			if ((multiple_row_count > 0U) && (prev_desc != desc)) {
+				VERBOSE(str, level_spacers[level],
+					multiple_row_count - 1U);
+				multiple_row_count = 0U;
 			}
-			invalid_row_count = 0U;
 
 			/*
 			 * Check if this is a table or a block. Tables are only
@@ -193,6 +208,9 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 				       (uint64_t)(desc & TABLE_ADDR_MASK),
 				       level_size);
 				xlat_desc_print(desc);
+				if (desc & TRANSIENT_DESC) {
+					VERBOSE("[TRANSIENT]");
+				}
 				VERBOSE("\n");
 			}
 		}
@@ -201,9 +219,8 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 		table_idx_va += level_size;
 	}
 
-	if (invalid_row_count > 1U) {
-		VERBOSE(invalid_descriptors_ommited,
-			level_spacers[level], invalid_row_count - 1U);
+	if (multiple_row_count > 1U) {
+		VERBOSE(str, level_spacers[level], multiple_row_count - 1U);
 	}
 }
 
@@ -258,7 +275,8 @@ void xlat_tables_print(struct xlat_ctx *ctx)
  *
  * On success, return the address of the last level table within the
  * translation table. Its lookup level is stored in '*out_level'.
- * On error, return NULL.
+ * On error, or if the VA is unmapped or does not correspond to a transient
+ * mapping, return NULL.
  */
 static uint64_t *find_xlat_last_table(uintptr_t va_offset,
 				      const struct xlat_ctx * const ctx,
@@ -297,10 +315,17 @@ static uint64_t *find_xlat_last_table(uintptr_t va_offset,
 		desc = ret_table[idx];
 		desc_type = desc & DESC_MASK;
 
-		if (desc_type != TABLE_DESC) {
-			if (((desc_type == BLOCK_DESC) ||
-			    (((desc_type == PAGE_DESC) || (desc_type == INVALID_DESC))
-			      && (level == XLAT_TABLE_LEVEL_MAX)))) {
+		if ((desc_type != TABLE_DESC) ||
+					(level == XLAT_TABLE_LEVEL_MAX)) {
+			/*
+			 * Return a valid table if
+			 *	- it is a TRANSIENT_DESC or
+			 *	- it is a BLOCK_DESC or
+			 *	- it is a PAGE_DESC at XLAT_TABLE_LEVEL_MAX level
+			 */
+			if ((desc_type == BLOCK_DESC) || (desc == TRANSIENT_DESC)
+			    || ((desc_type == PAGE_DESC) &&
+					(level == XLAT_TABLE_LEVEL_MAX))) {
 				*out_level = level;
 				return ret_table;
 			}
@@ -323,9 +348,11 @@ static uint64_t *find_xlat_last_table(uintptr_t va_offset,
  ****************************************************************************/
 
 /*
- * Function to unmap a physical memory page from the TTE and VA given.
- * This function implements the "Break" part of the Break-Before-Make semantics
- * needed by the Armv8.x architecture in order to update the page descriptors.
+ * Function to unmap a memory page for a given VA. The TTE should have been
+ * marked transient for this API to work.
+ * This function implements the "Break" part of the Break-Before-Make
+ * semantics needed by the Armv8.x architecture in order to update the page
+ * descriptors.
  *
  * This function returns 0 on success or an error code otherwise.
  *
@@ -347,10 +374,13 @@ int xlat_unmap_memory_page(struct xlat_tbl_info * const table,
 	}
 
 	/*
-	 * No need to perform any checks on this page descriptor as it is going
-	 * to be made invalid anyway.
+	 * This function must only be called on invalid transient descriptors
 	 */
-	xlat_write_tte(tte, INVALID_DESC);
+	if ((xlat_read_tte(tte) & TRANSIENT_DESC) == 0ULL) {
+		return -EFAULT;
+	}
+
+	xlat_write_tte(tte, TRANSIENT_DESC);
 
 	/* Invalidate any cached copy of this mapping in the TLBs. */
 	xlat_arch_tlbi_va(va);
@@ -362,10 +392,10 @@ int xlat_unmap_memory_page(struct xlat_tbl_info * const table,
 }
 
 /*
- * Function to map a physical memory page from the TTE and VA given.
- * This function implements the "Make" part of the Break-Before-Make
- * semantics needed by the armv8.x architecture in order to update the page
- * descriptors.
+ * Function to map a physical memory page or block to the transient TTE
+ * with the given VA. This function implements the "Make" part of the
+ * Break-Before-Make semantics needed by the armv8.x architecture in order
+ * to update the page descriptors.
  *
  * This function eturns 0 on success or an error code otherwise.
  *
@@ -389,8 +419,7 @@ int xlat_map_memory_page_with_attrs(const struct xlat_tbl_info * const table,
 		return -EFAULT;
 	}
 
-	/* This function must only be called on invalid descriptors */
-	if (xlat_read_tte(tte_ptr) != INVALID_DESC) {
+	if (xlat_read_tte(tte_ptr) != TRANSIENT_DESC) {
 		return -EFAULT;
 	}
 
@@ -400,7 +429,7 @@ int xlat_map_memory_page_with_attrs(const struct xlat_tbl_info * const table,
 	}
 
 	/* Generate the new descriptor */
-	tte = xlat_desc(attrs, pa, table->level);
+	tte = (xlat_desc(attrs, pa, table->level) | TRANSIENT_DESC);
 
 	xlat_write_tte(tte_ptr, tte);
 
@@ -426,11 +455,12 @@ int xlat_get_table_from_va(struct xlat_tbl_info * const retval,
 	unsigned int level;
 	struct xlat_ctx_cfg *ctx_cfg;
 
-	assert((ctx != NULL) &&
-	       (ctx->cfg != NULL) &&
-	       (ctx->tbls != NULL) &&
-	       (retval != NULL) &&
-	       (ctx->tbls->initialized == true));
+	assert(ctx != NULL);
+	assert(ctx->cfg != NULL);
+	assert(ctx->tbls != NULL);
+	assert(retval != NULL);
+	assert(ctx->tbls->initialized == true);
+	assert(ctx->cfg->initialized == true);
 
 	ctx_cfg = ctx->cfg;
 
