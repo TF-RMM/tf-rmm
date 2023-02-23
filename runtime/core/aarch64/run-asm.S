@@ -5,7 +5,6 @@
 
 #include <asm_macros.S>
 #include <rec.h>
-#include <sve.h>
 
 .globl run_realm
 .globl realm_exit

@@ -10,7 +10,6 @@
 #include <buffer.h>
 #include <esr.h>
 #include <exit.h>
-#include <fpu_helpers.h>
 #include <gic.h>
 #include <granule.h>
 #include <inject_exp.h>
@@ -25,10 +24,11 @@
 #include <rsi-logger.h>
 #include <rsi-memory.h>
 #include <rsi-walk.h>
+#include <run.h>
+#include <simd.h>
 #include <smc-rmi.h>
 #include <smc-rsi.h>
 #include <status.h>
-#include <sve.h>
 #include <sysreg_traps.h>
 #include <table.h>
 
@@ -318,6 +318,40 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 }
 
 /*
+ * Handle FPU or SVE exceptions.
+ * Returns: true if the exception is handled.
+ */
+static bool
+handle_simd_exception(simd_t exp_type, struct rec *rec)
+{
+	/*
+	 * If the REC wants to use SVE and if SVE is not enabled for this REC
+	 * then inject undefined abort. This can happen when CPU implements
+	 * FEAT_SVE but the Realm didn't request this feature during creation.
+	 */
+	if (exp_type == SIMD_SVE && rec_simd_type(rec) != SIMD_SVE) {
+		realm_inject_undef_abort();
+		return true;
+	}
+
+	/* FPU or SVE exception can happen only when REC hasn't used SIMD */
+	assert(rec_is_simd_allowed(rec) == false);
+
+	/*
+	 * Allow the REC to use SIMD. Save NS SIMD state and restore REC SIMD
+	 * state from memory to registers.
+	 */
+	simd_save_ns_state();
+	rec_simd_enable_restore(rec);
+
+	/*
+	 * Return 'true' indicating that this exception has been handled and
+	 * execution can continue.
+	 */
+	return true;
+}
+
+/*
  * Return 'false' if no IRQ is pending,
  * return 'true' if there is an IRQ pending, and need to return to host.
  */
@@ -568,7 +602,6 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 		return true;
 	case ESR_EL2_EC_SYSREG: {
 		bool ret = handle_sysreg_access_trap(rec, rec_exit, esr);
-
 		advance_pc();
 		return ret;
 	}
@@ -576,51 +609,10 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 		return handle_instruction_abort(rec, rec_exit, esr);
 	case ESR_EL2_EC_DATA_ABORT:
 		return handle_data_abort(rec, rec_exit, esr);
-	case ESR_EL2_EC_FPU: {
-		unsigned long cptr;
-
-		/*
-		 * Realm has requested FPU/SIMD access, so save NS state and
-		 * load realm state.  Start by disabling traps so we can save
-		 * the NS state and load the realm state.
-		 */
-		cptr = read_cptr_el2();
-		cptr &= ~(MASK(CPTR_EL2_FPEN) | MASK(CPTR_EL2_ZEN));
-		cptr |= INPLACE(CPTR_EL2_FPEN, CPTR_EL2_FPEN_NO_TRAP_11) |
-			INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_NO_TRAP_11);
-		write_cptr_el2(cptr);
-		isb();
-
-		/*
-		 * Save NS state, restore realm state, and set flag indicating
-		 * realm has used FPU so we know to save and restore NS state at
-		 * realm exit.
-		 */
-		if (rec->ns->sve != NULL) {
-			save_sve_state(rec->ns->sve);
-		} else {
-			assert(rec->ns->fpu != NULL);
-			fpu_save_state(rec->ns->fpu);
-		}
-		fpu_restore_state(&rec->fpu_ctx.fpu);
-		rec->fpu_ctx.used = true;
-
-		/*
-		 * Disable SVE for now, until per rec save/restore is
-		 * implemented
-		 */
-		cptr = read_cptr_el2();
-		cptr &= ~MASK(CPTR_EL2_ZEN);
-		cptr |= INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_TRAP_ALL_00);
-		write_cptr_el2(cptr);
-		isb();
-
-		/*
-		 * Return 'true' indicating that this exception
-		 * has been handled and execution can continue.
-		 */
-		return true;
-	}
+	case ESR_EL2_EC_FPU:
+		return handle_simd_exception(SIMD_FPU, rec);
+	case ESR_EL2_EC_SVE:
+		return handle_simd_exception(SIMD_SVE, rec);
 	default:
 		/*
 		 * TODO: Check if there are other exit reasons we could

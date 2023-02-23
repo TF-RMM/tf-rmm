@@ -8,11 +8,11 @@
 #include <attestation_priv.h>
 #include <debug.h>
 #include <errno.h>
-#include <fpu_helpers.h>
 #include <mbedtls/sha256.h>
 #include <measurement.h>
 #include <psa/crypto.h>
 #include <rmm_el3_ifc.h>
+#include <simd.h>
 #include <sizes.h>
 
 #define ECC_P384_PUBLIC_KEY_SIZE	(97U)

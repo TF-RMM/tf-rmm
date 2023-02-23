@@ -8,10 +8,10 @@
 #include <attestation_priv.h>
 #include <debug.h>
 #include <errno.h>
-#include <fpu_helpers.h>
 #include <mbedtls/ecp.h>
 #include <mbedtls/memory_buffer_alloc.h>
 #include <memory_alloc.h>
+#include <simd.h>
 #include <sizes.h>
 
 /*

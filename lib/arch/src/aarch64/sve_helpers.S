@@ -3,46 +3,48 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-/*
- * void save_sve_zcr_fpu_state(unsigned long *data)
- */
-
 #include <asm_macros.S>
-#include <sve.h>
 
-.globl save_sve_zcr_fpu_state
-.globl save_sve_z_state
-.globl save_sve_p_ffr_state
-.globl restore_sve_zcr_fpu_state
-.globl restore_sve_z_state
-.globl restore_sve_p_ffr_state
+.globl sve_rdvl
+.globl sve_save_z_state
+.globl sve_save_p_ffr_state
+.globl sve_save_zcr_fpu_state
+.globl sve_restore_z_state
+.globl sve_restore_p_ffr_state
+.globl sve_restore_zcr_fpu_state
 
-func save_sve_zcr_fpu_state
+/*
+ * uint64_t sve_rdvl(void)
+ */
+func sve_rdvl
 .arch_extension sve
-	/* Save the FPSR/FPCR */
-	mrs	x1, fpsr
-	mrs	x2, fpcr
+	rdvl	x0, #1
+	ret
+.arch_extension nosve
+endfunc sve_rdvl
+
+/*
+ * void sve_save_zcr_fpu_state(uint8_t *regs)
+ */
+func sve_save_zcr_fpu_state
+.arch_extension sve
+	/* Save the ZCR_EL12, FPSR & FPCR */
+	mrs	x1, zcr_el12
+	mrs	x2, fpsr
 	stp	x1, x2, [x0], #16
 
-	/* Save the ZCR_EL1/EL2 */
-	mrs	x1, zcr_el1
-	mrs	x2, zcr_el2
-	stp	x1, x2, [x0]
+	mrs	x1, fpcr
+	str	x1, [x0]
 
 	ret
 .arch_extension nosve
-endfunc save_sve_zcr_fpu_state
+endfunc sve_save_zcr_fpu_state
 
 /*
- * void save_sve_z_state(unsigned char *data)
+ * void sve_save_z_state(unsigned char *data)
  */
-func save_sve_z_state
+func sve_save_z_state
 .arch_extension sve
-	/* maximise VL */
-	mrs	x1, zcr_el2
-	orr	x2, x1, #SVE_VLA_ZCR_LEN_MAX
-	msr	zcr_el2, x2
-
 	/* Save the z register bank to memory. */
 	str 	z0, [x0, #0, MUL VL]
 	str	z1, [x0, #1, MUL VL]
@@ -77,23 +79,15 @@ func save_sve_z_state
 	str	z30, [x0, #30, MUL VL]
 	str	z31, [x0, #31, MUL VL]
 
-	/* restore back zcr */
-	msr	zcr_el2, x1
-
 	ret
 .arch_extension nosve
-endfunc save_sve_z_state
+endfunc sve_save_z_state
 
 /*
- * void save_sve_p_ffr_state(unsigned char *data)
+ * void sve_save_p_ffr_state(unsigned char *data)
  */
-func save_sve_p_ffr_state
+func sve_save_p_ffr_state
 .arch_extension sve
-	/* maximise VL */
-	mrs	x1, zcr_el2
-	orr	x2, x1, #SVE_VLA_ZCR_LEN_MAX
-	msr	zcr_el2, x2
-
 	/* Save the P register bank to memory. */
 	str 	p0, [x0, #0, MUL VL]
 	str 	p1, [x0, #1, MUL VL]
@@ -116,42 +110,32 @@ func save_sve_p_ffr_state
 	rdffr	p0.B
 	str 	p0, [x0, #16, MUL VL]
 
-	/* restore back zcr */
-	msr	zcr_el2, x1
-
 	ret
 .arch_extension nosve
-endfunc save_sve_p_ffr_state
+endfunc sve_save_p_ffr_state
 
 /*
- * void restore_sve_zcr_fpu_state(unsigned long *data)
+ * void sve_restore_zcr_fpu_state(uint8_t *regs)
  */
-func restore_sve_zcr_fpu_state
+func sve_restore_zcr_fpu_state
 .arch_extension sve
-	/* Load the FPSR/FPCR */
+	/* Load the ZCR_EL12, FPSR & FPCR */
 	ldp	x1, x2, [x0], #16
-	msr	fpsr, x1
-	msr	fpcr, x2
+	msr	zcr_el12, x1
+	msr	fpsr, x2
 
-	/* Load the ZCR_EL1/EL2 */
-	ldp	x1, x2, [x0]
-	msr	zcr_el1, x1
-	msr	zcr_el2, x2
+	ldr	x1, [x0]
+	msr	fpcr, x1
 
 	ret
 .arch_extension nosve
-endfunc restore_sve_zcr_fpu_state
+endfunc sve_restore_zcr_fpu_state
 
 /*
- * void restore_sve_z_state(unsigned char *data)
+ * void sve_restore_z_state(unsigned char *data)
  */
-func restore_sve_z_state
+func sve_restore_z_state
 .arch_extension sve
-	/* maximise VL */
-	mrs	x1, zcr_el2
-	orr	x2, x1, #SVE_VLA_ZCR_LEN_MAX
-	msr	zcr_el2, x2
-
 	/* Load the z register bank from memory. */
 	ldr 	z0, [x0, #0, MUL VL]
 	ldr	z1, [x0, #1, MUL VL]
@@ -186,23 +170,15 @@ func restore_sve_z_state
 	ldr	z30, [x0, #30, MUL VL]
 	ldr	z31, [x0, #31, MUL VL]
 
-	/* restore back zcr */
-	msr	zcr_el2, x1
-
 	ret
 .arch_extension nosve
-endfunc restore_sve_z_state
+endfunc sve_restore_z_state
 
 /*
- * void restore_sve_p_ffr_state(unsigned char *data)
+ * void sve_restore_p_ffr_state(unsigned char *data)
  */
-func restore_sve_p_ffr_state
+func sve_restore_p_ffr_state
 .arch_extension sve
-	/* maximise VL */
-	mrs	x1, zcr_el2
-	orr	x2, x1, #SVE_VLA_ZCR_LEN_MAX
-	msr	zcr_el2, x2
-
 	/* Load the P register bank from memory. */
 	ldr 	p1, [x0, #1, MUL VL]
 	ldr 	p2, [x0, #2, MUL VL]
@@ -227,9 +203,6 @@ func restore_sve_p_ffr_state
 	/* restore P0 */
 	ldr 	p0, [x0]
 
-	/* restore back zcr */
-	msr	zcr_el2, x1
-
 	ret
 .arch_extension nosve
-endfunc restore_sve_p_ffr_state
+endfunc sve_restore_p_ffr_state

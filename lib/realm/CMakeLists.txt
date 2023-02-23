@@ -41,15 +41,11 @@ target_include_directories(rmm-lib-realm
 target_sources(rmm-lib-realm
     PRIVATE "src/buffer.c"
             "src/granule.c"
-            "src/s2tt.c"
-            "src/sve.c")
+            "src/s2tt.c")
 
 if(RMM_ARCH STREQUAL fake_host)
     target_sources(rmm-lib-realm
         PRIVATE "src/fake_host/sve_helpers.c")
-else()
-    target_sources(rmm-lib-realm
-        PRIVATE "src/aarch64/sve_helpers.S")
 endif()
 
 include (tests/CMakeLists.txt)

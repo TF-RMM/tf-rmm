@@ -5,6 +5,7 @@
  */
 
 #include <arch.h>
+#include <arch_features.h>
 #include <arch_helpers.h>
 #include <debug.h>
 #include <esr.h>
@@ -102,13 +103,9 @@
  *
  * Cleared fields:
  * - Activity Monitors Extension not implemented
- * - Scalable Vector Extension not implemented.
- *   This is a temporary fix until RMM completely supports SVE.
  */
 #define ID_AA64PFR0_EL1_CLEAR		  \
-	MASK(ID_AA64PFR0_EL1_AMU)	| \
-	MASK(ID_AA64PFR0_EL1_SVE)
-
+	MASK(ID_AA64PFR0_EL1_AMU)
 /*
  * ID_AA64PFR1_EL1:
  *
@@ -183,14 +180,26 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 		 * to EL3 in Realm state.
 		 */
 		value = SYSREG_READ_CLEAR(PFR0);
+
+		/*
+		 * Clear SVE bits if architecture supports it but SVE is
+		 * disabled for current realm.
+		 */
+		if ((EXTRACT(ID_AA64PFR0_EL1_SVE, value) != 0UL) &&
+		    rec->realm_info.sve_enabled == false) {
+			value &= ~MASK(ID_AA64PFR0_EL1_SVE);
+		}
 		break;
 	SYSREG_CASE(PFR1)
 		value = SYSREG_READ_CLEAR(PFR1);
 		break;
-	/*
-	 * TODO: not supported without SVE:
-	 * SYSREG_CASE(ZFR0)
-	 */
+	SYSREG_CASE(ZFR0)
+		if (is_feat_sve_present() && rec->realm_info.sve_enabled) {
+			value = read_id_aa64zfr0_el1();
+		} else {
+			value = 0UL;
+		}
+		break;
 	default:
 		/* All other encodings are in the RES0 space */
 		value = 0UL;

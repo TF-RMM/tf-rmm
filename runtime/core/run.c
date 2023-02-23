@@ -10,17 +10,14 @@
 #include <buffer.h>
 #include <cpuid.h>
 #include <exit.h>
-#include <fpu_helpers.h>
 #include <pmu.h>
 #include <rec.h>
 #include <run.h>
+#include <simd.h>
 #include <smc-rmi.h>
-#include <sve.h>
 #include <timers.h>
 
 static struct ns_state g_ns_data[MAX_CPUS];
-static uint8_t g_sve_data[MAX_CPUS][sizeof(struct sve_state)]
-		__aligned(sizeof(__uint128_t));
 static struct pmu_state g_pmu_data[MAX_CPUS];
 
 /*
@@ -35,8 +32,13 @@ static void init_aux_data(struct rec_aux_data *aux_data,
 	assert(num_rec_aux >= REC_NUM_PAGES);
 
 	aux_data->attest_heap_buf = (uint8_t *)rec_aux;
+
 	aux_data->pmu = (struct pmu_state *)((uint8_t *)rec_aux +
-						REC_HEAP_SIZE);
+					     REC_HEAP_SIZE);
+
+	aux_data->rec_simd.simd = (struct simd_state *)((uint8_t *)rec_aux +
+							REC_HEAP_SIZE +
+							REC_PMU_SIZE);
 }
 
 /*
@@ -274,6 +276,72 @@ void inject_serror(struct rec *rec, unsigned long vsesr)
 	rec->serror_info.inject = true;
 }
 
+/* Initialize REC simd state once on the first REC enter */
+static void rec_simd_state_init(struct rec *rec)
+{
+	struct rec_simd_state *rec_simd;
+	simd_t stype;
+
+	rec_simd = &rec->aux_data.rec_simd;
+	assert(rec_simd->simd != NULL);
+
+	if (rec_simd->init_done == true) {
+		return;
+	}
+
+	stype = rec_simd_type(rec);
+	/*
+	 * As part of lazy save/restore, the first state will be restored from
+	 * the REC's simd_state. So the initial state is considered saved, call
+	 * simd_state_init() to set the simd type. sve_vq will be set if the REC
+	 * 'stype' is SIMD_SVE.
+	 */
+	simd_state_init(stype, rec_simd->simd, rec->realm_info.sve_vq);
+	rec_simd->simd_allowed = false;
+	rec_simd->init_done = true;
+}
+
+/* Save the REC SIMD state to memory and disable simd access for the REC */
+static void rec_simd_save_disable(struct rec *rec)
+{
+	struct rec_simd_state *rec_simd;
+	simd_t stype;
+
+	rec_simd = &rec->aux_data.rec_simd;
+
+	assert(rec_simd->simd != NULL);
+	assert(rec_simd->simd_allowed == true);
+
+	stype = rec_simd_type(rec);
+
+	/*
+	 * As the REC has used the SIMD, no need to disable traps as it must be
+	 * already disabled as part of last restore.
+	 */
+	rec_simd->simd_allowed = false;
+	simd_save_state(stype, rec_simd->simd);
+	simd_disable();
+}
+
+/* Restore the REC SIMD state from memory and enable simd access for the REC */
+void rec_simd_enable_restore(struct rec *rec)
+{
+	struct rec_simd_state *rec_simd;
+	simd_t stype;
+
+	assert(rec != NULL);
+	rec_simd = &rec->aux_data.rec_simd;
+
+	assert(rec_simd->simd != NULL);
+	assert(rec_simd->simd_allowed == false);
+
+	stype = rec_simd_type(rec);
+	simd_enable(stype);
+	simd_restore_state(stype, rec_simd->simd);
+	rec_simd->simd_allowed = true;
+	/* return with traps disabled to allow REC to use FPU and/or SVE */
+}
+
 void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 {
 	struct ns_state *ns_state;
@@ -283,13 +351,10 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 	assert(cpuid < MAX_CPUS);
 	assert(rec->ns == NULL);
-	assert(rec->fpu_ctx.used == false);
 
 	ns_state = &g_ns_data[cpuid];
 
-	/* Ensure SVE/FPU and PMU context is cleared */
-	assert(ns_state->sve == NULL);
-	assert(ns_state->fpu == NULL);
+	/* Ensure PMU context is cleared */
 	assert(ns_state->pmu == NULL);
 
 	rec->ns = ns_state;
@@ -316,16 +381,15 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		rec->alloc_info.ctx_initialised = true;
 	}
 
-	if (is_feat_sve_present()) {
-		ns_state->sve = (struct sve_state *)&g_sve_data[cpuid];
-	} else {
-		ns_state->fpu = (struct fpu_state *)&g_sve_data[cpuid];
-	}
+	rec_simd_state_init(rec);
 
 	ns_state->pmu = &g_pmu_data[cpuid];
 
 	save_ns_state(rec);
 	restore_realm_state(rec);
+
+	/* The REC must enter run loop with SIMD access disabled */
+	assert(rec_is_simd_allowed(rec) == false);
 
 	do {
 		/*
@@ -347,30 +411,12 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	 * Check if FPU/SIMD was used, and if it was, save the realm state,
 	 * restore the NS state, and reenable traps in CPTR_EL2.
 	 */
-	if (rec->fpu_ctx.used) {
-		unsigned long cptr;
+	if (rec_is_simd_allowed(rec)) {
+		/* Save REC SIMD state to memory and disable SIMD for REC */
+		rec_simd_save_disable(rec);
 
-		cptr = read_cptr_el2();
-		cptr &= ~MASK(CPTR_EL2_ZEN);
-		cptr |= INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_NO_TRAP_11);
-		write_cptr_el2(cptr);
-		isb();
-
-		fpu_save_state(&rec->fpu_ctx.fpu);
-		if (ns_state->sve != NULL) {
-			restore_sve_state(ns_state->sve);
-		} else {
-			assert(ns_state->fpu != NULL);
-			fpu_restore_state(ns_state->fpu);
-		}
-
-		cptr = read_cptr_el2();
-		cptr &= ~(MASK(CPTR_EL2_FPEN) | MASK(CPTR_EL2_ZEN));
-		cptr |= INPLACE(CPTR_EL2_FPEN, CPTR_EL2_FPEN_TRAP_ALL_00) |
-			INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_TRAP_ALL_00);
-		write_cptr_el2(cptr);
-		isb();
-		rec->fpu_ctx.used = false;
+		/* Restore NS state based on system support for SVE or FPU */
+		simd_restore_ns_state();
 	}
 
 	report_timer_state_to_ns(rec_exit);
@@ -379,10 +425,8 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	restore_ns_state(rec);
 
 	/*
-	 * Clear FPU/SVE and PMU context while exiting
+	 * Clear PMU context while exiting
 	 */
-	ns_state->sve = NULL;
-	ns_state->fpu = NULL;
 	ns_state->pmu = NULL;
 
 	/*
