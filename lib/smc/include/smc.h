@@ -30,6 +30,10 @@
 #define SMC_MBZ_MASK		U(0xFF)
 #define SMC_MBZ_ZERO		U(0x0)
 
+/* SVE Hint bit (SMCCCv1.3), denoting the absence of SVE specific live state */
+#define SMC_SVE_HINT_SHIFT	U(16)
+#define SMC_SVE_HINT_WIDTH	U(1)
+
 /* FID: Function number */
 #define SMC_FNUM_SHIFT		U(0)
 #define SMC_FNUM_MASK		U(0xFFFF)

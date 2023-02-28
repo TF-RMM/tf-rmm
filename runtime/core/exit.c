@@ -391,6 +391,9 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	RSI_LOG_SET(rec->regs[1], rec->regs[2],
 		    rec->regs[3], rec->regs[4], rec->regs[5]);
 
+	/* Ignore SVE hint bit, until RMM supports SVE hint bit */
+	function_id &= ~MASK(SMC_SVE_HINT);
+
 	/* cppcheck-suppress unsignedPositive */
 	if (!IS_SMC32_PSCI_FID(function_id) && !IS_SMC64_PSCI_FID(function_id)
 	    && !IS_SMC64_RSI_FID(function_id)
