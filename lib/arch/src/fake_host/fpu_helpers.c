@@ -6,4 +6,4 @@
 #include <fpu_helpers.h>
 
 void fpu_save_state(struct fpu_state *fpu) {}
-void fpu_restore_state(struct fpu_state *fpu) {}
+void fpu_restore_state(const struct fpu_state *fpu) {}

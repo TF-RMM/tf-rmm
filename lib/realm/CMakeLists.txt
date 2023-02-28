@@ -43,9 +43,4 @@ target_sources(rmm-lib-realm
             "src/granule.c"
             "src/s2tt.c")
 
-if(RMM_ARCH STREQUAL fake_host)
-    target_sources(rmm-lib-realm
-        PRIVATE "src/fake_host/sve_helpers.c")
-endif()
-
 include (tests/CMakeLists.txt)
