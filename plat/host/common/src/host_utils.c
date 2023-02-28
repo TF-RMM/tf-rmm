@@ -161,6 +161,12 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 				INPLACE(ID_AA64ISAR0_EL1_RNDR, 1UL));
 
 	/*
+	 * Add callback to elr_el2 so that the realm entry point can be accessed
+	 * by host_run_realm
+	 */
+	ret = host_util_set_default_sysreg_cb("elr_el2", 0UL);
+
+	/*
 	 * Only check the return value of the last callback setup, to detect
 	 * if we are out of callback slots.
 	 */
