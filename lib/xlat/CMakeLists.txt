@@ -20,7 +20,8 @@ target_include_directories(rmm-lib-xlat
 target_sources(rmm-lib-xlat
     PRIVATE "src/xlat_tables_core.c"
             "src/xlat_tables_utils.c"
-	    "src/xlat_tables_arch.c")
+            "src/xlat_tables_arch.c"
+            "src/xlat_contexts.c")
 
 if(NOT RMM_ARCH STREQUAL fake_host)
     target_sources(rmm-lib-xlat

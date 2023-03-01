@@ -79,17 +79,7 @@ SECTIONS
 		bss_end = .;
 	} >RAM
 
-	/*
-	 * The slot_buffer_xlat_tbl section is for full, aligned page tables.
-	 * The dynamic tables are used for transient memory areas that can
-	 * change at any time, so the tables must have RW access.
-	 *
-	 * The tables will be erased by the xlat library during start up.
-	 */
-	slot_buffer_xlat_tbl ALIGN(GRANULE_SIZE) (NOLOAD) : {
-		*(slot_buffer_xlat_tbls)
-	} >RAM
-
+	. = ALIGN(GRANULE_SIZE);
 	rmm_rw_end = .;
 	rmm_end = rmm_rw_end;
 

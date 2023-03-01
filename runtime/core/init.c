@@ -41,7 +41,7 @@ void rmm_warmboot_main(void)
 	/*
 	 * Finish initializing the slot buffer mechanism
 	 */
-	slot_buf_init();
+	slot_buf_finish_warmboot_init();
 }
 
 void rmm_main(void)

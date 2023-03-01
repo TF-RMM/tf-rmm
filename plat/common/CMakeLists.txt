@@ -22,21 +22,22 @@ arm_config_option(
     TYPE STRING)
 
 #
-# PLAT_CMN_MAX_MMAP_REGIONS is set a default value and in case when there are
-# not enough mmap regions allocated, adding regions to the xlat tables will
-# fail.
+# Number of extra mmap regions to be allocated for a given platform.
+# This is allowed to be 0. If the number of platform memory regions
+# needed by a given platform is lower than PLAT_CMN_EXTRA_MMAP_REGIONS,
+# the xlat library should fail when trying to initialize the context.
 #
 arm_config_option(
-    NAME PLAT_CMN_MAX_MMAP_REGIONS
-    HELP "Maximum number of static regions to be mapped in xlat tables"
-    DEFAULT 0x5
+    NAME PLAT_CMN_EXTRA_MMAP_REGIONS
+    HELP "Extra platform mmap regions that need to be mapped in S1 xlat tables"
+    DEFAULT 0
     TYPE STRING)
 
 target_compile_definitions(rmm-plat-common
-    PUBLIC "PLAT_CMN_CTX_MAX_XLAT_TABLES=U(${PLAT_CMN_CTX_MAX_XLAT_TABLES})")
+    PRIVATE "PLAT_CMN_CTX_MAX_XLAT_TABLES=U(${PLAT_CMN_CTX_MAX_XLAT_TABLES})")
 
 target_compile_definitions(rmm-plat-common
-    PUBLIC "PLAT_CMN_MAX_MMAP_REGIONS=U(${PLAT_CMN_MAX_MMAP_REGIONS})")
+    PRIVATE "PLAT_CMN_EXTRA_MMAP_REGIONS=U(${PLAT_CMN_EXTRA_MMAP_REGIONS})")
 
 target_include_directories(rmm-plat-common
     PUBLIC "include")

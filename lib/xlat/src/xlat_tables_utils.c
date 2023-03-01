@@ -7,6 +7,7 @@
 /* This file is derived from xlat_table_v2 library in TF-A project */
 
 #include <arch_helpers.h>
+#include <assert.h>
 #include <debug.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -40,7 +41,7 @@ void xlat_mmap_print(const struct xlat_ctx *ctx)
 {
 	VERBOSE("mmap:\n");
 
-	for (unsigned int i = 0U; i < ctx->cfg->mmap_num; i++) {
+	for (unsigned int i = 0U; i < ctx->cfg->mmap_regions; i++) {
 		uintptr_t base_va;
 
 		base_va = ((ctx->cfg->region == VA_LOW_REGION) ?
@@ -108,9 +109,10 @@ static const char *invalid_descriptors_ommited =
  * Recursive function that reads the translation tables passed as an argument
  * and prints their status.
  */
-static void xlat_tables_print_internal(struct xlat_ctx *ctx, uintptr_t table_base_va,
-		const uint64_t *table_base, unsigned int table_entries,
-		unsigned int level)
+static void xlat_tables_print_internal(struct xlat_ctx *ctx,
+				       uintptr_t table_base_va,
+				       const uint64_t *table_base,
+				       unsigned int level)
 {
 	uint64_t *addr_inner;
 	unsigned int invalid_row_count;
@@ -140,7 +142,7 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx, uintptr_t table_bas
 	 */
 	invalid_row_count = 0U;
 
-	while (table_idx < table_entries) {
+	while (table_idx < XLAT_TABLE_ENTRIES) {
 		uint64_t desc;
 
 		desc = table_base[table_idx];
@@ -184,8 +186,7 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx, uintptr_t table_bas
 
 				/* FIXME: Recursion. */
 				xlat_tables_print_internal(ctx, table_idx_va,
-					addr_inner, XLAT_TABLE_ENTRIES,
-					level + 1U);
+					addr_inner, level + 1U);
 			} else {
 				VERBOSE("%sVA:0x%lx PA:0x%lx size:0x%zx ",
 				       level_spacers[level], table_idx_va,
@@ -224,7 +225,7 @@ void xlat_tables_print(struct xlat_ctx *ctx)
 	VERBOSE("  Max allowed PA:  0x%lx\n", xlat_arch_get_max_supported_pa());
 	VERBOSE("  Max allowed VA:  0x%lx\n", max_allowed_va);
 	VERBOSE("  Max mapped PA:   0x%lx", ctx_cfg->max_mapped_pa);
-	for (unsigned int i = 0U; i < ctx_cfg->mmap_num; i++) {
+	for (unsigned int i = 0U; i < ctx->cfg->mmap_regions; i++) {
 		if (ctx_cfg->mmap[i].attr == MT_TRANSIENT) {
 			/*
 			 * If there is a transient region on this context, we
@@ -239,16 +240,13 @@ void xlat_tables_print(struct xlat_ctx *ctx)
 	VERBOSE("  Max mapped VA:   0x%lx\n", max_mapped_va_offset);
 
 	VERBOSE("  Initial lookup level: %u\n", ctx_cfg->base_level);
-	VERBOSE("  Entries @initial lookup level: %u\n",
-					ctx->tbls->max_base_table_entries);
 
 	used_page_tables = ctx->tbls->next_table;
 	VERBOSE("  Used %d tables out of %d (spare: %d)\n",
 				used_page_tables, ctx->tbls->tables_num,
 				ctx->tbls->tables_num - used_page_tables);
 
-	xlat_tables_print_internal(ctx, 0U, ctx->tbls->base_table,
-				   ctx->tbls->max_base_table_entries,
+	xlat_tables_print_internal(ctx, 0U, ctx->tbls->tables,
 				   ctx_cfg->base_level);
 }
 
@@ -256,19 +254,18 @@ void xlat_tables_print(struct xlat_ctx *ctx)
 
 /*
  * Do a translation table walk to find the last level table that maps
- * virtual_addr.
+ * va_offset with regards to the context va_base.
  *
  * On success, return the address of the last level table within the
  * translation table. Its lookup level is stored in '*out_level'.
  * On error, return NULL.
  */
-static uint64_t *find_xlat_last_table(uintptr_t virtual_addr,
+static uint64_t *find_xlat_last_table(uintptr_t va_offset,
 				      const struct xlat_ctx * const ctx,
 				      unsigned int * const out_level)
 {
 	unsigned int start_level;
 	uint64_t *ret_table;
-	unsigned int entries;
 	struct xlat_ctx_tbls *ctx_tbls;
 	struct xlat_ctx_cfg *ctx_cfg;
 
@@ -281,8 +278,7 @@ static uint64_t *find_xlat_last_table(uintptr_t virtual_addr,
 	ctx_tbls = ctx->tbls;
 	ctx_cfg = ctx->cfg;
 	start_level = ctx_cfg->base_level;
-	ret_table = ctx_tbls->base_table;
-	entries = ctx_tbls->max_base_table_entries;
+	ret_table = ctx_tbls->tables;
 
 	for (unsigned int level = start_level;
 	     level <= XLAT_TABLE_LEVEL_MAX;
@@ -291,10 +287,10 @@ static uint64_t *find_xlat_last_table(uintptr_t virtual_addr,
 		uint64_t desc;
 		uint64_t desc_type;
 
-		idx = XLAT_TABLE_IDX(virtual_addr, level);
-		if (idx >= entries) {
-			WARN("Missing xlat table entry at address 0x%lx\n",
-			      virtual_addr);
+		idx = XLAT_TABLE_IDX(va_offset, level);
+		if (idx >= XLAT_TABLE_ENTRIES) {
+			WARN("Missing TTE at address 0x%lx\n",
+			      va_offset + ctx_cfg->base_va);
 			return NULL;
 		}
 
@@ -312,7 +308,6 @@ static uint64_t *find_xlat_last_table(uintptr_t virtual_addr,
 		}
 
 		ret_table = (uint64_t *)(void *)(desc & TABLE_ADDR_MASK);
-		entries = XLAT_TABLE_ENTRIES;
 	}
 
 	/*
@@ -328,27 +323,26 @@ static uint64_t *find_xlat_last_table(uintptr_t virtual_addr,
  ****************************************************************************/
 
 /*
- * Function to unmap a physical memory page from the descriptor entry and
- * VA given.
+ * Function to unmap a physical memory page from the TTE and VA given.
  * This function implements the "Break" part of the Break-Before-Make semantics
  * needed by the Armv8.x architecture in order to update the page descriptors.
  *
  * This function returns 0 on success or an error code otherwise.
  *
  * For simplicity, this function will not take into consideration holes on the
- * table pointed by entry, as long as va belongs to the VA space owned by the
+ * table pointed by TTE, as long as va belongs to the VA space owned by the
  * context.
  */
-int xlat_unmap_memory_page(struct xlat_table_entry * const table,
+int xlat_unmap_memory_page(struct xlat_tbl_info * const table,
 			   const uintptr_t va)
 {
-	uint64_t *entry;
+	uint64_t *tte;
 
 	assert(table != NULL);
 
-	entry = xlat_get_pte_from_table(table, va);
+	tte = xlat_get_tte_ptr(table, va);
 
-	if (entry == NULL) {
+	if (tte == NULL) {
 		return -EFAULT;
 	}
 
@@ -356,7 +350,7 @@ int xlat_unmap_memory_page(struct xlat_table_entry * const table,
 	 * No need to perform any checks on this page descriptor as it is going
 	 * to be made invalid anyway.
 	 */
-	xlat_write_descriptor(entry, INVALID_DESC);
+	xlat_write_tte(tte, INVALID_DESC);
 
 	/* Invalidate any cached copy of this mapping in the TLBs. */
 	xlat_arch_tlbi_va(va);
@@ -368,35 +362,35 @@ int xlat_unmap_memory_page(struct xlat_table_entry * const table,
 }
 
 /*
- * Function to map a physical memory page from the descriptor table entry
- * and VA given. This function implements the "Make" part of the
- * Break-Before-Make semantics needed by the armv8.x architecture in order
- * to update the page descriptors.
+ * Function to map a physical memory page from the TTE and VA given.
+ * This function implements the "Make" part of the Break-Before-Make
+ * semantics needed by the armv8.x architecture in order to update the page
+ * descriptors.
  *
  * This function eturns 0 on success or an error code otherwise.
  *
  * For simplicity, this function will not take into consideration holes on the
- * table pointed by entry, as long as va belongs to the VA space owned by the
+ * table pointed by the TTE, as long as va belongs to the VA space owned by the
  * context.
  */
-int xlat_map_memory_page_with_attrs(const struct xlat_table_entry * const table,
+int xlat_map_memory_page_with_attrs(const struct xlat_tbl_info * const table,
 				    const uintptr_t va,
 				    const uintptr_t pa,
 				    const uint64_t attrs)
 {
-	uint64_t desc;
-	uint64_t *desc_ptr;
+	uint64_t tte;
+	uint64_t *tte_ptr;
 
 	assert(table != NULL);
 
-	desc_ptr = xlat_get_pte_from_table(table, va);
+	tte_ptr = xlat_get_tte_ptr(table, va);
 
-	if (desc_ptr == NULL) {
+	if (tte_ptr == NULL) {
 		return -EFAULT;
 	}
 
 	/* This function must only be called on invalid descriptors */
-	if (xlat_read_descriptor(desc_ptr) != INVALID_DESC) {
+	if (xlat_read_tte(tte_ptr) != INVALID_DESC) {
 		return -EFAULT;
 	}
 
@@ -406,9 +400,9 @@ int xlat_map_memory_page_with_attrs(const struct xlat_table_entry * const table,
 	}
 
 	/* Generate the new descriptor */
-	desc = xlat_desc(attrs, pa, table->level);
+	tte = xlat_desc(attrs, pa, table->level);
 
-	xlat_write_descriptor(desc_ptr, desc);
+	xlat_write_tte(tte_ptr, tte);
 
 	/* Ensure the translation table write has drained into memory */
 	dsb(ishst);
@@ -418,12 +412,12 @@ int xlat_map_memory_page_with_attrs(const struct xlat_table_entry * const table,
 }
 
 /*
- * Return a table entry structure given a context and a VA.
+ * Return a tte info structure given a context and a VA.
  * The return structure is populated on the retval field.
  *
  * This function returns 0 on success or a Linux error code otherwise.
  */
-int xlat_get_table_from_va(struct xlat_table_entry * const retval,
+int xlat_get_table_from_va(struct xlat_tbl_info * const retval,
 			   const struct xlat_ctx * const ctx,
 			   const uintptr_t va)
 {
@@ -463,7 +457,8 @@ int xlat_get_table_from_va(struct xlat_table_entry * const retval,
 
 	/* Maximum number of entries used by this table. */
 	if (level == ctx_cfg->base_level) {
-		retval->entries = ctx->tbls->max_base_table_entries;
+		retval->entries = GET_NUM_BASE_LEVEL_ENTRIES(
+					ctx->cfg->max_mapped_va_offset);
 	} else {
 		retval->entries = XLAT_TABLE_ENTRIES;
 	}
@@ -476,8 +471,8 @@ int xlat_get_table_from_va(struct xlat_table_entry * const retval,
 }
 
 /*
- * This function finds the descriptor entry on a table given the corresponding
- * table entry structure and the VA for that descriptor.
+ * This function finds the TTE on a table given the corresponding
+ * tte info structure and the VA for that descriptor.
  *
  * If va is not mapped by the table pointed by entry, it returns NULL.
  *
@@ -486,8 +481,8 @@ int xlat_get_table_from_va(struct xlat_table_entry * const retval,
  * on the table pointed by entry either because the address is not mapped by
  * the caller or left as INVALID_DESC for future dynamic mapping.
  */
-uint64_t *xlat_get_pte_from_table(const struct xlat_table_entry * const entry,
-				    const uintptr_t va)
+uint64_t *xlat_get_tte_ptr(const struct xlat_tbl_info * const entry,
+			   const uintptr_t va)
 {
 	unsigned int index;
 	uint64_t *table;

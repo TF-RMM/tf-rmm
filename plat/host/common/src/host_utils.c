@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <assert.h>
 #include <debug.h>
 #include <errno.h>
 #include <host_defs.h>

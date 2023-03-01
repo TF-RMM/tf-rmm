@@ -8,9 +8,9 @@
 
 #include <arch_features.h>
 #include <arch_helpers.h>
+#include <assert.h>
 #include <debug.h>
 #include <errno.h>
-#include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -51,7 +51,9 @@ typedef enum {
 static inline uint64_t *xlat_table_get_empty(struct xlat_ctx *ctx)
 {
 	assert(ctx->tbls->next_table < ctx->tbls->tables_num);
-	return ctx->tbls->tables[ctx->tbls->next_table++];
+
+	return &ctx->tbls->tables[XLAT_TABLE_ENTRIES *
+					ctx->tbls->next_table++];
 }
 
 /*
@@ -286,7 +288,6 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 			table_idx_va, level);
 
 		if (action == ACTION_WRITE_BLOCK_ENTRY) {
-
 			table_base[table_idx] =
 				xlat_desc(mm->attr, table_idx_pa, level);
 
@@ -347,87 +348,6 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 	}
 
 	return table_idx_va - 1U;
-}
-
-/*
- * Function that verifies that a region can be mapped.
- * Returns:
- *        0: Success, the mapping is allowed.
- *   EINVAL: Invalid values were used as arguments.
- *   ERANGE: The memory limits were surpassed.
- *   ENOMEM: There is not enough memory in the mmap array.
- *    EPERM: Region overlaps another one in an invalid way.
- * EALREADY: The context configuration is already marked as initialized.
- */
-static int mmap_add_region_check(const struct xlat_ctx *ctx,
-				 const struct xlat_mmap_region *mm)
-{
-	uintptr_t base_pa = mm->base_pa;
-	uintptr_t base_va = mm->base_va;
-	size_t size = mm->size;
-	size_t granularity = mm->granularity;
-	uintptr_t end_pa = base_pa + size - 1UL;
-	uintptr_t end_va = base_va + size - 1UL;
-	unsigned int index;
-	struct xlat_ctx_cfg *ctx_cfg = ctx->cfg;
-
-	if (!IS_PAGE_ALIGNED(base_pa) || !IS_PAGE_ALIGNED(base_va) ||
-			!IS_PAGE_ALIGNED(size)) {
-		return -EFAULT;
-	}
-
-	if ((granularity != XLAT_BLOCK_SIZE(1U)) &&
-	    (granularity != XLAT_BLOCK_SIZE(2U)) &&
-	    (granularity != XLAT_BLOCK_SIZE(3U))) {
-		return -EINVAL;
-	}
-
-	/* Check for overflows */
-	if ((base_pa > end_pa) || (base_va > end_va)) {
-		return -ERANGE;
-	}
-
-	/*
-	 * end_va is calculated as an offset with regards to the base address
-	 * for the current context, so compare it against max_va_size to ensure
-	 * we are within the allowed range.
-	 */
-	if (end_va > ctx_cfg->max_va_size) {
-		return -ERANGE;
-	}
-
-	if (end_pa > xlat_arch_get_max_supported_pa()) {
-		return -ERANGE;
-	}
-
-	/* Check that there is space in the ctx->mmap array */
-	if (ctx_cfg->mmap[ctx_cfg->mmap_num - 1U].size != 0UL) {
-		return -ENOMEM;
-	}
-
-	/* Check for PAs and VAs overlaps with all other regions in this context */
-	index = 0U;
-	while ((index < ctx_cfg->mmap_num) &&
-	       (ctx_cfg->mmap[index].size != 0UL)) {
-		uintptr_t mm_cursor_end_va = ctx_cfg->mmap[index].base_va +
-					     ctx_cfg->mmap[index].size - 1UL;
-
-		unsigned long long mm_cursor_end_pa =
-				ctx_cfg->mmap[index].base_pa
-				+ ctx_cfg->mmap[index].size - 1UL;
-
-		bool separated_pa = (end_pa < ctx_cfg->mmap[index].base_pa) ||
-						(base_pa > mm_cursor_end_pa);
-		bool separated_va = (end_va < ctx_cfg->mmap[index].base_va) ||
-						(base_va > mm_cursor_end_va);
-
-		if (!separated_va || !separated_pa) {
-			return -EPERM;
-		}
-		++index;
-	}
-
-	return 0;
 }
 
 /*
@@ -558,276 +478,13 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, unsigned int level)
 	return desc;
 }
 
-/*****************************************************************************
- * Public part of the core translation library.
- ****************************************************************************/
-
-/*
- * Add a memory region with defined base PA and base VA. This function can only
- * be used before marking the xlat_ctx_cfg for the current xlat_ctx as
- * initialized.
- *
- * The region cannot be removed once added.
- *
- * This function returns 0 on success or an error code otherwise.
- */
-int xlat_mmap_add_region_ctx(struct xlat_ctx *ctx,
-			     struct xlat_mmap_region *mm)
-{
-	unsigned int mm_last_idx = 0U;
-	unsigned int mm_cursor_idx = 0U;
-	uintptr_t end_pa;
-	uintptr_t end_va;
-	struct xlat_ctx_cfg *ctx_cfg;
-	struct xlat_ctx_tbls *ctx_tbls;
-	int ret;
-
-	if (ctx == NULL) {
-		return -EINVAL;
-	}
-
-	ctx_cfg = ctx->cfg;
-	ctx_tbls = ctx->tbls;
-
-	if (ctx_cfg == NULL || ctx_tbls == NULL) {
-		return -EINVAL;
-	}
-
-	if (mm == NULL) {
-		return -EINVAL;
-	}
-
-	/* The context data cannot be initialized */
-	if (xlat_ctx_cfg_initialized(ctx) == true) {
-		return -EINVAL;
-	}
-
-	/* Memory regions must be added before initializing the xlat tables. */
-	assert(ctx_tbls->initialized == false);
-
-	/* Ignore empty regions */
-	if (mm->size == 0UL) {
-		return 0;
-	}
-
-	if (ctx_cfg->region == VA_LOW_REGION) {
-		/*
-		 * Initialize the base_va for the current context if not
-		 * initialized yet.
-		 *
-		 * For the low region, the architecture mandates that
-		 * base_va has to be 0.
-		 *
-		 * Overwriting this field should not be a problem as its value
-		 * is expected to be always the same.
-		 */
-		ctx_cfg->base_va = 0ULL;
-
-		if ((mm->base_va & HIGH_REGION_MASK) ||
-		     ((mm->base_va + mm->size) & HIGH_REGION_MASK)) {
-			ERROR("%s (%u): Base VA and address space do not match: ",
-							__func__, __LINE__);
-			ERROR("Base va = 0x%lx, Address space = Low region\n",
-				mm->base_va);
-			return -EINVAL;
-		}
-	} else {
-		/*
-		 * Initialize the base_va for the current context if not
-		 * initialized yet.
-		 *
-		 * For the high region, the architecture mandates that
-		 * base_va has to be 0xFFFF-FFFF-FFFF-FFFF minus the VA space
-		 * size plus one.
-		 *
-		 * Overwriting this field should not be a problem as its value
-		 * is expected to be always the same.
-		 */
-		ctx_cfg->base_va = (ULONG_MAX - ctx_cfg->max_va_size + 1ULL);
-
-		if (mm->base_va < ctx_cfg->base_va) {
-			ERROR("%s (%u): Base VA is not aligned with the high region start: ",
-							__func__, __LINE__);
-			ERROR("Base VA = 0x%lx, high region start VA = 0x%lx\n",
-				mm->base_va, ctx_cfg->base_va);
-			return -EINVAL;
-		}
-
-		/*
-		 * If this context is handling the high half region of the VA,
-		 * adjust the start address of this area by substracting the
-		 * start address of the region as the table entries are
-		 * relative to the latter. Once ttbr1_el2 is configured, the
-		 * MMU will translate the addresses properly.
-		 */
-		mm->base_va -= ctx_cfg->base_va;
-	}
-
-	end_pa = mm->base_pa + mm->size - 1UL;
-	end_va = mm->base_va + mm->size - 1UL;
-
-	ret = mmap_add_region_check(ctx, mm);
-	if (ret != 0) {
-		ERROR("%s (%u): mmap_add_region_check() failed. error %d\n",
-					__func__, __LINE__, ret);
-		return ret;
-	}
-
-	/*
-	 * Find correct place in mmap to insert new region.
-	 * Overlapping is not allowed.
-	 */
-	while (((ctx_cfg->mmap[mm_cursor_idx].base_va) < mm->base_va)
-	       && (ctx_cfg->mmap[mm_cursor_idx].size != 0UL)
-	       && (mm_cursor_idx < ctx_cfg->mmap_num)) {
-		++mm_cursor_idx;
-	}
-
-	/*
-	 * Find the last entry marker in the mmap
-	 */
-	while ((mm_last_idx < ctx_cfg->mmap_num) &&
-	       (ctx_cfg->mmap[mm_last_idx].size != 0UL)) {
-		++mm_last_idx;
-	}
-
-	/*
-	 * Check if we have enough space in the memory mapping table.
-	 * This shouldn't happen as we have checked in mmap_add_region_check
-	 * that there is free space.
-	 */
-	assert(ctx_cfg->mmap[mm_last_idx].size == 0UL);
-
-	/*
-	 * Make room for new region by moving other regions up by one place.
-	 */
-	(void)memmove((void *)(&ctx_cfg->mmap[mm_cursor_idx + 1U]),
-		      (void *)(&ctx_cfg->mmap[mm_cursor_idx]),
-		      sizeof(struct xlat_mmap_region) *
-						(mm_last_idx - mm_cursor_idx));
-
-	/* Store the memory mapping information into the context. */
-	(void)memcpy((void *)(&ctx_cfg->mmap[mm_cursor_idx]), (void *)mm,
-						sizeof(struct xlat_mmap_region));
-
-	if (end_pa > ctx_cfg->max_mapped_pa) {
-		ctx_cfg->max_mapped_pa = end_pa;
-	}
-
-	if (end_va > ctx_cfg->max_mapped_va_offset) {
-		ctx_cfg->max_mapped_va_offset = end_va;
-	}
-
-	return 0;
-}
-
-/*
- * Add an array of memory regions with defined base PA and base VA.
- * This function needs to be called before initialiting the xlat_ctx_cfg.
- * Setting the `last` argument to true will initialise the xlat_ctx_cfg.
- *
- * The regions cannot be removed once added.
- *
- * Return 0 on success or a negative error code otherwise.
- */
-int xlat_mmap_add_ctx(struct xlat_ctx *ctx,
-		      struct xlat_mmap_region *mm,
-		      bool last)
-{
-	if ((ctx == NULL) || (mm == NULL)) {
-		return -EINVAL;
-	}
-
-	struct xlat_mmap_region *mm_cursor = mm;
-
-	while (mm_cursor->size != 0UL) {
-		int retval;
-
-		retval = xlat_mmap_add_region_ctx(ctx, mm_cursor);
-		if (retval != 0) {
-			/*
-			 * In case of error, stop an return.
-			 * Note, the context might be in an invalid
-			 * state and it will need to be restarted.
-			 */
-			return retval;
-		}
-		mm_cursor++;
-	}
-
-	if (last) {
-		/*
-		 * Mark the configuration part of the context as initialized.
-		 * From this point on, no more memory mapping areas can be
-		 * added to this context (or any other sharing the same
-		 * configuration).
-		 */
-		ctx->cfg->initialized = true;
-		flush_dcache_range((uintptr_t)(void *)ctx->cfg,
-				   sizeof(struct xlat_ctx_cfg));
-
-	}
-
-#if LOG_LEVEL >= LOG_LEVEL_VERBOSE
-	VERBOSE("Runtime mapings");
-	if (ctx->cfg->region == VA_LOW_REGION) {
-		VERBOSE("(Low Region):\n");
-	} else {
-		VERBOSE("(High Region):\n");
-	}
-
-	for (unsigned int i = 0U; i < ctx->cfg->mmap_num; i++) {
-		VERBOSE("\tRegion: 0x%lx - 0x%lx has attributes 0x%lx\n",
-			ctx->cfg->mmap[i].base_va,
-			ctx->cfg->mmap[i].base_va + ctx->cfg->mmap[i].size - 1U,
-			ctx->cfg->mmap[i].attr);
-	}
-#endif /* LOG_LEVEL_VERBOSE */
-
-	return 0;
-}
-
-/*
- * Initialize translation tables (and mark xlat_ctx_cfg as initialized if
- * not already initialized) associated to the current context.
- *
- * The struct xlat_ctx_cfg of the context might be shared with other
- * contexts that might have already initialized it. This is expected and
- * should not cause any problem.
- *
- * This function assumes that the xlat_ctx_cfg field of the context has been
- * properly configured by previous calls to xlat_mmap_add_region_ctx().
- *
- * This function returns 0 on success or an error code otherwise.
- */
 int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 {
 	struct xlat_ctx_cfg *ctx_cfg;
 	struct xlat_ctx_tbls *ctx_tbls;
-	unsigned int index;
-
-	if (ctx == NULL) {
-		return -EINVAL;
-	}
 
 	ctx_cfg = ctx->cfg;
 	ctx_tbls = ctx->tbls;
-
-	if (ctx_cfg == NULL || ctx_tbls == NULL) {
-		return -EINVAL;
-	}
-
-	if (xlat_ctx_tbls_initialized(ctx)) {
-		VERBOSE("%s (%u): Translation tables already initialized\n",
-					__func__, __LINE__);
-		return -EALREADY;
-	}
-
-	if (!xlat_ctx_cfg_initialized(ctx)) {
-		VERBOSE("%s (%u): Translation context configuration not initialized\n",
-					__func__, __LINE__);
-		return -EINVAL;
-	}
 
 	if (is_mmu_enabled() == true) {
 		ERROR("%s (%u): MMU is already enabled\n", __func__, __LINE__);
@@ -840,42 +497,37 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 	 * All tables must be zeroed/initialized before mapping any region
 	 * as they are allocated outside the .bss area.
 	 */
-	for (unsigned int i = 0U; i < XLAT_TABLE_ENTRIES; i++) {
-		ctx_tbls->base_table[i] = INVALID_DESC;
-	}
-
 	for (unsigned int j = 0; j < ctx_tbls->tables_num; j++) {
 		for (unsigned int i = 0U; i < XLAT_TABLE_ENTRIES; i++) {
-			ctx_tbls->tables[j][i] = INVALID_DESC;
+			ctx_tbls->tables[(j * XLAT_TABLE_ENTRIES) + i] =
+								INVALID_DESC;
 		}
 	}
 
-	index = 0U;
-	while ((index < ctx_cfg->mmap_num) &&
-	       (ctx_cfg->mmap[index].size != 0UL)) {
+	/*
+	 * Use the first table as table base and setup the
+	 * next available table.
+	 */
+	ctx_tbls->next_table++;
+	for (unsigned int i = 0U; i < ctx->cfg->mmap_regions; i++) {
 		uintptr_t end_va = xlat_tables_map_region(ctx,
-						&ctx_cfg->mmap[index],
-						0U,
-						ctx_tbls->base_table,
-						ctx_tbls->max_base_table_entries,
+						&ctx_cfg->mmap[i], 0U,
+						ctx_tbls->tables,
+						XLAT_TABLE_ENTRIES,
 						ctx_cfg->base_level);
-		if (end_va != (ctx_cfg->mmap[index].base_va +
-					ctx_cfg->mmap[index].size - 1UL)) {
+		if (end_va != (ctx_cfg->mmap[i].base_va +
+					ctx_cfg->mmap[i].size - 1UL)) {
 			ERROR("%s (%u): Not enough memory to map region: "
 			      " VA:0x%lx  PA:0x%lx  size:0x%zx  attr:0x%lx\n",
-			      __func__, __LINE__, ctx_cfg->mmap[index].base_va,
-						  ctx_cfg->mmap[index].base_pa,
-						  ctx_cfg->mmap[index].size,
-						  ctx_cfg->mmap[index].attr);
+			      __func__, __LINE__, ctx_cfg->mmap[i].base_va,
+						  ctx_cfg->mmap[i].base_pa,
+						  ctx_cfg->mmap[i].size,
+						  ctx_cfg->mmap[i].attr);
 			return -ENOMEM;
 		}
-
-		++index;
 	}
 
 	/* Flush the cache as a good measure */
-	flush_dcache_range((uintptr_t)(void *)ctx_tbls->base_table,
-			 sizeof(uint64_t) * XLAT_TABLE_ENTRIES);
 	flush_dcache_range((uintptr_t)(void *)ctx_tbls->tables,
 			 sizeof(uint64_t) * (unsigned long)ctx_tbls->tables_num
 						* XLAT_TABLE_ENTRIES);
@@ -884,67 +536,8 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 
 	flush_dcache_range((uintptr_t)(void *)ctx_tbls,
 			   sizeof(struct xlat_ctx_tbls));
-	flush_dcache_range((uintptr_t)(void *)ctx, sizeof(struct xlat_ctx));
 
 	xlat_tables_print(ctx);
 
 	return 0;
-}
-
-/*
- * Initialize a context dynamically at runtime using the given xlat_ctx_cfg
- * and xlat_ctx_tbls structures.
- *
- * Return 0 if success or a Posix erro code otherwise.
- */
-int xlat_ctx_create_dynamic(struct xlat_ctx *ctx,
-			    struct xlat_ctx_cfg *cfg,
-			    struct xlat_ctx_tbls *tbls,
-			    void *base_tables,
-			    unsigned int base_level_entries,
-			    void *tables_ptr,
-			    unsigned int ntables)
-{
-	if (ctx == NULL) {
-		return -EINVAL;
-	}
-
-	if (XLAT_TABLES_CTX_CFG_VALID(ctx) &&
-	    XLAT_TABLES_CTX_TBL_VALID(ctx)) {
-		return -EALREADY;
-	}
-
-	/* Add the configuration to the context */
-	XLAT_SETUP_CTX_CFG(ctx, cfg);
-
-	/* Initialize the tables structure */
-	XLAT_INIT_CTX_TBLS(tbls, tables_ptr, ntables,
-			   base_tables, base_level_entries);
-
-	/* Add the tables to the context */
-	XLAT_SETUP_CTX_TBLS(ctx, tbls);
-
-	return 0;
-}
-
-/*
- * Returns true if the context is already initialized and false otherwise.
- * This function only takes into account whether xlat_ctx_cfg is initialized.
- */
-bool xlat_ctx_cfg_initialized(const struct xlat_ctx * const ctx)
-{
-	assert(ctx != NULL);
-	assert(ctx->cfg != NULL);
-	return ctx->cfg->initialized;
-}
-
-/*
- * Returns true if the translation tables on the current context are already
- * initialized or false otherwise.
- */
-bool xlat_ctx_tbls_initialized(const struct xlat_ctx * const ctx)
-{
-	assert(ctx != NULL);
-	assert(ctx->tbls != NULL);
-	return ctx->tbls->initialized;
 }

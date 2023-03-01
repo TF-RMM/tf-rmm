@@ -26,10 +26,15 @@ arm_config_option_override(NAME RMM_MAX_SIZE DEFAULT 0x01400000)
 arm_config_option_override(NAME RMM_UART_ADDR DEFAULT 0x1c0c0000)
 
 #
+# Extra memory regions needed by this platform
+#
+arm_config_option_override(NAME PLAT_CMN_EXTRA_MMAP_REGIONS DEFAULT 1)
+
+#
 # Maximum number of translation tables allocated by the runtime context
 # for the translation library.
 #
-arm_config_option_override(NAME PLAT_CMN_CTX_MAX_XLAT_TABLES DEFAULT 5)
+arm_config_option_override(NAME PLAT_CMN_CTX_MAX_XLAT_TABLES DEFAULT 6)
 
 #
 # Disable FPU/SIMD usage in RMM. Enabling this option turns on
