@@ -156,6 +156,10 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	/* TPIDR_EL2 is reset to zero */
 	ret = host_util_set_default_sysreg_cb("tpidr_el2", 0UL);
 
+	/* ID_AA64ISAR0.RNDR is reset to 1 */
+	ret = host_util_set_default_sysreg_cb("id_aa64isar0_el1",
+				INPLACE(ID_AA64ISAR0_EL1_RNDR, 1UL));
+
 	/*
 	 * Only check the return value of the last callback setup, to detect
 	 * if we are out of callback slots.
