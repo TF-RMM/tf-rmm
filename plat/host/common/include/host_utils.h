@@ -127,4 +127,15 @@ unsigned long host_util_get_granule_base(void);
  */
 void host_util_set_cpuid(unsigned int cpuid);
 
+/*
+ * Return the address of the EL3 RMM shared buffer.
+ */
+unsigned char *host_util_get_el3_rmm_shared_buffer(void);
+
+/*
+ * Performs some initialization needed before RMM can be run, such as
+ * setting up callbacks for sysreg access.
+ */
+void host_util_setup_sysreg_and_boot_manifest(void);
+
 #endif /* HOST_UTILS_H */
