@@ -112,8 +112,14 @@ void test_helpers_rmm_start(bool secondaries)
 				start_secondary_pe(i);
 			}
 			host_util_set_cpuid(0U);
+
+			/* Take a snapshot of the current sysreg status */
+			host_util_take_sysreg_snapshot();
 		}
 		initialized = true;
+	} else {
+		/* Restore the sysreg status */
+		host_util_restore_sysreg_snapshot();
 	}
 }
 
