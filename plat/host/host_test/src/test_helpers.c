@@ -4,10 +4,8 @@
  */
 
 #include <arch_helpers.h>
-#include <buffer.h>
 #include <debug.h>
 #include <errno.h>
-#include <gic.h>
 #include <host_defs.h>
 #include <host_utils.h>
 #include <platform_api.h>
@@ -16,7 +14,6 @@
 #include <string.h>
 #include <test_private.h>
 #include <utest_exit.h>
-#include <xlat_tables.h>
 
 /* Implemented in init.c and needed here */
 void rmm_warmboot_main(void);
@@ -36,45 +33,7 @@ static char assert_check[CHECK_SIZE + 1U];
 static bool assert_expected;
 static bool asserted;
 
-static unsigned char el3_rmm_shared_buffer[PAGE_SIZE] __aligned(PAGE_SIZE);
-
 static uintptr_t callbacks[CB_IDS];
-
-/*
- * Create a basic boot manifest.
- */
-static struct rmm_core_manifest *boot_manifest =
-			(struct rmm_core_manifest *)el3_rmm_shared_buffer;
-
-/*
- * Performs some initialization needed before RMM can be run, such as
- * setting up callbacks for sysreg access.
- */
-static void setup_sysreg_and_boot_manifest(void)
-{
-	/*
-	 * Initialize ID_AA64MMFR0_EL1 with a physical address
-	 * range of 18 bits
-	 */
-	(void)host_util_set_default_sysreg_cb("id_aa64mmfr0_el1",
-			INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5UL));
-
-	/*
-	 * Initialize ICH_VTR_EL2 with 6 preemption bits.
-	 * (PREbits is equal number of preemption bits minus one)
-	 */
-	(void)host_util_set_default_sysreg_cb("ich_vtr_el2",
-			INPLACE(ICH_VTR_EL2_PRE_BITS, 5UL));
-
-	/* Used to hold CPU Id. Reset to CPUid 0. */
-	(void)host_util_set_default_sysreg_cb("tpidr_el2", 0UL);
-
-	(void)host_util_set_default_sysreg_cb("sctlr_el2", 0UL);
-
-	/* Initialize the boot manifest */
-	boot_manifest->version = RMM_EL3_IFC_SUPPORTED_VERSION;
-	boot_manifest->plat_data = (uintptr_t)NULL;
-}
 
 /*
  * Function to emulate the turn on of the MMU for the fake_host architecture.
@@ -94,7 +53,7 @@ static void start_primary_pe(void)
 	plat_setup(0UL,
 		   RMM_EL3_IFC_ABI_VERSION,
 		   RMM_EL3_MAX_CPUS,
-		   (uintptr_t)&el3_rmm_shared_buffer);
+		   (uintptr_t)host_util_get_el3_rmm_shared_buffer());
 
 	/*
 	 * Enable the MMU. This is needed as some initialization code
@@ -122,7 +81,7 @@ static void start_secondary_pe(unsigned int cpuid)
 	plat_warmboot_setup(0UL,
 			    RMM_EL3_IFC_ABI_VERSION,
 			    RMM_EL3_MAX_CPUS,
-			    (uintptr_t)&el3_rmm_shared_buffer);
+			    (uintptr_t)host_util_get_el3_rmm_shared_buffer());
 
 	/*
 	 * Enable the MMU. This is needed to avoid assertions during boot up
@@ -143,7 +102,7 @@ void test_helpers_rmm_start(bool secondaries)
 
 	if (initialized == false) {
 		/* Enable RMM and setup basic structures for each test. */
-		setup_sysreg_and_boot_manifest();
+		host_util_setup_sysreg_and_boot_manifest();
 
 		/* bringup primary CPU */
 		start_primary_pe();

@@ -10,27 +10,13 @@
 #include <debug.h>
 #include <errno.h>
 #include <gic.h>
-#include <import_sym.h>
+#include <plat_import_sym.h>
 #include <rmm_el3_ifc.h>
 #include <sizes.h>
 #include <stdint.h>
 #include <string.h>
 #include <xlat_contexts.h>
 #include <xlat_tables.h>
-
-IMPORT_SYM(uintptr_t, rmm_text_start,		RMM_CODE_START);
-IMPORT_SYM(uintptr_t, rmm_text_end,		RMM_CODE_END);
-IMPORT_SYM(uintptr_t, rmm_ro_start,		RMM_RO_START);
-IMPORT_SYM(uintptr_t, rmm_ro_end,		RMM_RO_END);
-IMPORT_SYM(uintptr_t, rmm_rw_start,		RMM_RW_START);
-IMPORT_SYM(uintptr_t, rmm_rw_end,		RMM_RW_END);
-
-/*
- * Leave an invalid page between the end of RMM memory and the beginning
- * of the shared buffer VA. This will help to detect any memory access
- * underflow by RMM.
- */
-#define RMM_SHARED_BUFFER_START	(RMM_RW_END + SZ_4K)
 
 /*
  * Memory map REGIONS used for the RMM runtime (static mappings)
@@ -99,6 +85,11 @@ int plat_cmn_setup(unsigned long x0, unsigned long x1,
 	int ret;
 	unsigned int plat_offset, cmn_offset;
 
+	(void)x0;
+	(void)x1;
+	(void)x2;
+	(void)x3;
+
 	/* Common regions sorted by ascending VA */
 	struct xlat_mmap_region regions[COMMON_REGIONS] = {
 		RMM_CODE,
@@ -113,14 +104,6 @@ int plat_cmn_setup(unsigned long x0, unsigned long x1,
 
 	if (nregions > 0U && plat_regions == NULL) {
 		return -EINVAL;
-	}
-
-	/* Initialize the RMM <-> EL3 interface */
-	ret = rmm_el3_ifc_init(x0, x1, x2, x3, RMM_SHARED_BUFFER_START);
-	if (ret != 0) {
-		ERROR("%s (%u): Failed to initialize the RMM EL3 Interface\n",
-		      __func__, __LINE__);
-		return ret;
 	}
 
 	/* Setup the parameters of the shared area */
