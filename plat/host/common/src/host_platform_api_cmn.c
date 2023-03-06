@@ -46,15 +46,6 @@ void plat_warmboot_setup(uint64_t x0, uint64_t x1,
 void plat_setup(uint64_t x0, uint64_t x1,
 		uint64_t x2, uint64_t x3)
 {
-	/* Initialize the RMM <-> EL3 interface.
-	 * Since host platform does not have VA address translation, we pass the
-	 * same shared buf address as the VA to be used for access by users of
-	 * rmm-el3-ifc.
-	 */
-	if (rmm_el3_ifc_init(x0, x1, x2, x3, x3) != 0) {
-		panic();
-	}
-
 	/* Carry on with the rest of the system setup */
 	if (plat_cmn_setup(x0, x1, x2, x3, NULL, 0) != 0) {
 		panic();
