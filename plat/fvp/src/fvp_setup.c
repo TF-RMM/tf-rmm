@@ -8,7 +8,6 @@
 #include <fvp_private.h>
 #include <pl011.h>
 #include <plat_common.h>
-#include <plat_import_sym.h>
 #include <rmm_el3_ifc.h>
 #include <sizes.h>
 #include <xlat_tables.h>
@@ -58,14 +57,6 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 	struct ns_dram_info *plat_dram;
 
 	uart_init(RMM_UART_ADDR, FVP_UART_CLK_IN_HZ, FVP_UART_BAUDRATE);
-
-	/* Initialize the RMM <-> EL3 interface */
-	ret = rmm_el3_ifc_init(x0, x1, x2, x3, RMM_SHARED_BUFFER_START);
-	if (ret != 0) {
-		ERROR("%s (%u): Failed to initialize the RMM EL3 Interface\n",
-		      __func__, __LINE__);
-		panic();
-	}
 
 	/* Carry on with the rest of the system setup */
 	ret = plat_cmn_setup(x0, x1, x2, x3, plat_regions, 1U);

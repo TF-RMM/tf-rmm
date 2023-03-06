@@ -40,7 +40,8 @@ target_compile_definitions(rmm-plat-common
     PRIVATE "PLAT_CMN_EXTRA_MMAP_REGIONS=U(${PLAT_CMN_EXTRA_MMAP_REGIONS})")
 
 target_include_directories(rmm-plat-common
-    PUBLIC "include")
+    PUBLIC "include"
+    PRIVATE "src/${RMM_ARCH}")
 
 target_sources(rmm-plat-common
     PRIVATE "src/plat_common_init.c")
