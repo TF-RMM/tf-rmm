@@ -316,6 +316,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		cptr &= ~MASK(CPTR_EL2_ZEN);
 		cptr |= INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_NO_TRAP_11);
 		write_cptr_el2(cptr);
+		isb();
 
 		fpu_save_state(&rec->fpu_ctx.fpu);
 		if (ns_state->sve != NULL) {
@@ -330,6 +331,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		cptr |= INPLACE(CPTR_EL2_FPEN, CPTR_EL2_FPEN_TRAP_ALL_00) |
 			INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_TRAP_ALL_00);
 		write_cptr_el2(cptr);
+		isb();
 		rec->fpu_ctx.used = false;
 	}
 
