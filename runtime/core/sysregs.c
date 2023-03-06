@@ -97,6 +97,15 @@
 	MASK(ID_AA64PFR0_EL1_SVE)
 
 /*
+ * ID_AA64PFR1_EL1:
+ *
+ * Cleared fields:
+ * - Memory Tagging Extension is not implemented
+ */
+#define ID_AA64PFR1_EL1_CLEAR		  \
+	MASK(ID_AA64PFR1_EL1_MTE)
+
+/*
  * Handle ID_AA64XXX<n>_EL1 instructions
  */
 static bool handle_id_sysreg_trap(struct rec *rec,
@@ -163,7 +172,7 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 		value = SYSREG_READ_CLEAR(PFR0);
 		break;
 	SYSREG_CASE(PFR1)
-		value = SYSREG_READ(PFR1);
+		value = SYSREG_READ_CLEAR(PFR1);
 		break;
 	/*
 	 * TODO: not supported without SVE:
