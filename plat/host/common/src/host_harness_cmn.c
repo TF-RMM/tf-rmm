@@ -4,6 +4,7 @@
  */
 
 #include <arch.h>
+#include <arch_helpers.h>
 #include <debug.h>
 #include <errno.h>
 #include <host_utils.h>
@@ -205,6 +206,11 @@ void host_monitor_call_with_res(unsigned long id,
 
 int host_run_realm(unsigned long *regs)
 {
+	unsigned long pc = read_elr_el2();
+	void (*realm_entry_point)(void) = (void *)pc;
+
+	realm_entry_point();
+
 	/* Return an arbitrary exception */
 	return ARM_EXCEPTION_SYNC_LEL;
 }

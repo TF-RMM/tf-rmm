@@ -44,7 +44,10 @@ target_sources(rmm-lib-realm
             "src/s2tt.c"
             "src/sve.c")
 
-if(NOT RMM_ARCH STREQUAL fake_host)
+if(RMM_ARCH STREQUAL fake_host)
+    target_sources(rmm-lib-realm
+        PRIVATE "src/fake_host/sve_helpers.c")
+else()
     target_sources(rmm-lib-realm
         PRIVATE "src/aarch64/sve_helpers.S")
 endif()
