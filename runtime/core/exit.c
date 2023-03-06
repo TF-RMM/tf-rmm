@@ -359,7 +359,8 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 	/* cppcheck-suppress unsignedPositive */
 	if (!IS_SMC32_PSCI_FID(function_id) && !IS_SMC64_PSCI_FID(function_id)
-	    && !IS_SMC64_RSI_FID(function_id)) {
+	    && !IS_SMC64_RSI_FID(function_id)
+	    && !(function_id == SMCCC_VERSION)) {
 
 		ERROR("Invalid RSI function_id = %x\n", function_id);
 		rec->regs[0] = SMC_UNKNOWN;
