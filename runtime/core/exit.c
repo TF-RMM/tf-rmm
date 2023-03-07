@@ -359,7 +359,8 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 	/* cppcheck-suppress unsignedPositive */
 	if (!IS_SMC32_PSCI_FID(function_id) && !IS_SMC64_PSCI_FID(function_id)
-	    && !IS_SMC64_RSI_FID(function_id)) {
+	    && !IS_SMC64_RSI_FID(function_id)
+	    && !(function_id == SMCCC_VERSION)) {
 
 		ERROR("Invalid RSI function_id = %x\n", function_id);
 		rec->regs[0] = SMC_UNKNOWN;
@@ -588,6 +589,7 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 		cptr |= INPLACE(CPTR_EL2_FPEN, CPTR_EL2_FPEN_NO_TRAP_11) |
 			INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_NO_TRAP_11);
 		write_cptr_el2(cptr);
+		isb();
 
 		/*
 		 * Save NS state, restore realm state, and set flag indicating
@@ -611,6 +613,7 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 		cptr &= ~MASK(CPTR_EL2_ZEN);
 		cptr |= INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_TRAP_ALL_00);
 		write_cptr_el2(cptr);
+		isb();
 
 		/*
 		 * Return 'true' indicating that this exception
