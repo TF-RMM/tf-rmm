@@ -368,6 +368,7 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, unsigned int level)
 	if ((addr_pa & XLAT_BLOCK_MASK(level)) != 0U) {
 		ERROR("%s (%u): 0x%lx has incorrect granularity\n",
 			__func__, __LINE__, addr_pa);
+		panic();
 	}
 
 	desc = addr_pa;

@@ -30,17 +30,18 @@
  * A block descriptor points to a region of memory bigger than the granule size
  * (e.g. a 2MB region when the granule size is 4KB).
  */
-#define BLOCK_DESC		UL(0x1) /* Table levels 0-2 */
+/* Definition of a valid descriptor mask */
+#define VALID_DESC		UL(0x1)
+#define BLOCK_DESC		VALID_DESC /* Table levels 0-2 */
 /* A table descriptor points to the next level of translation table. */
-#define TABLE_DESC		UL(0x3) /* Table levels 0-2 */
+#define TABLE_DESC		(UL(0x2) | VALID_DESC) /* Table levels 0-2 */
 /* Definition of an invalid descriptor */
 #define INVALID_DESC		UL(0x0)
-
 /*
  * A page descriptor points to a page, i.e. a memory region whose size is the
  * translation granule size (e.g. 4KB).
  */
-#define PAGE_DESC		UL(0x3) /* Table level 3 */
+#define PAGE_DESC		(UL(0x2) | VALID_DESC) /* Table level 3 */
 
 #define DESC_MASK		UL(0x3)
 

@@ -73,7 +73,7 @@ static struct xlat_ctx slot_buf_xlat_ctx[MAX_CPUS];
  * are mapped to avoid needing to perform a table walk every time a buffer
  * slot operation has to be done.
  */
-static struct xlat_tbl_info tbl_info_cache[MAX_CPUS];
+static struct xlat_llt_info llt_info_cache[MAX_CPUS];
 
 uintptr_t slot_to_va(enum buffer_slot slot)
 {
@@ -87,14 +87,14 @@ static inline struct xlat_ctx *get_slot_buf_xlat_ctx(void)
 	return &slot_buf_xlat_ctx[my_cpuid()];
 }
 
-struct xlat_tbl_info *get_cached_tbl_info(void)
+struct xlat_llt_info *get_cached_llt_info(void)
 {
-	return &tbl_info_cache[my_cpuid()];
+	return &llt_info_cache[my_cpuid()];
 }
 
 __unused static uint64_t slot_to_descriptor(enum buffer_slot slot)
 {
-	uint64_t *entry = xlat_get_tte_ptr(get_cached_tbl_info(),
+	uint64_t *entry = xlat_get_tte_ptr(get_cached_llt_info(),
 				       slot_to_va(slot));
 
 	return xlat_read_tte(entry);
@@ -164,10 +164,10 @@ void slot_buf_finish_warmboot_init(void)
 	 * translation table that holds the MMU descriptors for the slot
 	 * buffers, so we can access them faster when we need to map/unmap.
 	 */
-	if ((get_cached_tbl_info())->table == NULL) {
-		if (xlat_get_table_from_va(get_cached_tbl_info(),
-					   get_slot_buf_xlat_ctx(),
-					   slot_to_va(SLOT_NS)) != 0) {
+	if ((get_cached_llt_info())->table == NULL) {
+		if (xlat_get_llt_from_va(get_cached_llt_info(),
+					 get_slot_buf_xlat_ctx(),
+					 slot_to_va(SLOT_NS)) != 0) {
 			ERROR("%s (%u): Failed to initialize table entry cache for CPU %u\n",
 					__func__, __LINE__, my_cpuid());
 			panic();
@@ -323,7 +323,7 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr)
 {
 	uint64_t attr = SLOT_DESC_ATTR;
 	uintptr_t va = slot_to_va(slot);
-	struct xlat_tbl_info *entry = get_cached_tbl_info();
+	struct xlat_llt_info *entry = get_cached_llt_info();
 
 	assert(GRANULE_ALIGNED(addr));
 
@@ -346,5 +346,5 @@ void buffer_unmap_internal(void *buf)
 	 */
 	COMPILER_BARRIER();
 
-	xlat_unmap_memory_page(get_cached_tbl_info(), (uintptr_t)buf);
+	xlat_unmap_memory_page(get_cached_llt_info(), (uintptr_t)buf);
 }

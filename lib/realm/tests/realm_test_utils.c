@@ -17,7 +17,7 @@
  */
 uintptr_t realm_test_util_slot_to_pa(enum buffer_slot slot)
 {
-	struct xlat_tbl_info *entry = get_cached_tbl_info();
+	struct xlat_llt_info *entry = get_cached_llt_info();
 	uintptr_t va = slot_to_va(slot);
 	uint64_t *desc_ptr = xlat_get_tte_ptr(entry, va);
 	uint64_t descriptor = xlat_read_tte(desc_ptr);

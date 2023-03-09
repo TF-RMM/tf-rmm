@@ -193,11 +193,10 @@ struct xlat_mmap_region {
 /*
  * Structure containing a table entry and its related information.
  */
-struct xlat_tbl_info {
+struct xlat_llt_info {
 	uint64_t *table;	/* Pointer to the translation table. */
-	uintptr_t base_va;	/* Context base VA for the current entry. */
+	uintptr_t llt_base_va;	/* Base VA that is applicable to this llt. */
 	unsigned int level;	/* Table level of the current entry. */
-	unsigned int entries;   /* Number of entries used by this table. */
 };
 
 /******************************************************************************
@@ -215,46 +214,65 @@ static inline uint64_t xlat_read_tte(uint64_t *entry)
 }
 
 /*
- * Return a table entry structure given a context and a VA.
- * VA must be an address corresponding to a last level block/page.
- *
+ * Return a xlat_llt_info structure given a context and a VA.
  * The return structure is populated on the retval field.
  *
- * This function returns 0 on success or a negative error code otherwise.
+ * If 'va' is within the boundaries of the context's VA space, this function
+ * will return the last level table information, regardless of whether 'va'
+ * is mapped or not.
+ *
+ * This function returns 0 on success or a POSIX error code otherwise.
  */
-int xlat_get_table_from_va(struct xlat_tbl_info * const retval,
-			   const struct xlat_ctx * const ctx,
-			   const uintptr_t va);
+int xlat_get_llt_from_va(struct xlat_llt_info * const retval,
+			 const struct xlat_ctx * const ctx,
+			 const uintptr_t va);
 
 /*
- * Function to unmap a physical memory page from the descriptor entry and
- * VA given.
- * This function implements the "Break" part of the Break-Before-Make semantics
- * mandated by the Armv8.x architecture in order to update the page descriptors.
+ * Function to unmap a memory page for a given VA. The region to which the VA
+ * belongs should have been configured as TRANSIENT during the xlat library
+ * configuration.
  *
- * This function returns 0 on success or a negative error code otherwise.
+ * This function implements the "Break" part of the Break-Before-Make
+ * semantics needed by the Armv8.x architecture in order to update the page
+ * descriptors.
+ *
+ * This function returns 0 on success or an error code otherwise.
  */
-int xlat_unmap_memory_page(struct xlat_tbl_info * const table,
+int xlat_unmap_memory_page(struct xlat_llt_info * const table,
 			   const uintptr_t va);
 
 /*
  * Function to map a physical memory page from the descriptor table entry
- * and VA given. This function implements the "Make" part of the
- * Break-Before-Make semantics mandated by the armv8.x architecture in order
+ * and VA given. The region to which the VA belongs should have been configured
+ * as TRANSIENT during the xlat library configuration.
+ * This function implements the "Make" part of the
+ * Break-Before-Make semantics mandated by the Armv8.x architecture in order
  * to update the page descriptors.
  *
  * This function returns 0 on success or a negative error code otherwise.
+ *
+ * For simplicity, this function
+ *	- will not check for overlaps of the PA with other mmap regions.
+ *	- will mask out the LSBs of the PA so the page/block corresponding to
+ *	  the PA will actually be mapped.
  */
-int xlat_map_memory_page_with_attrs(const struct xlat_tbl_info * const table,
+int xlat_map_memory_page_with_attrs(const struct xlat_llt_info * const table,
 				    const uintptr_t va,
 				    const uintptr_t pa,
 				    const uint64_t attrs);
 
 /*
- * This function finds the descriptor entry on a table given the corresponding
- * table entry structure and the VA for that descriptor.
+ * This function finds the TTE on a table given the corresponding
+ * xlat_llt_info structure and the VA corresponding to the entry.
+ *
+ * If va is outside the range for the table, it returns NULL.
+ *
+ * For simplicity and as long as va is applicable to the table, this function
+ * will return a pointer to a tte on the table without making any asumption
+ * about its type or validity. It is the caller responsibility to do any
+ * necessary checks on the returned tte before using it.
  */
-uint64_t *xlat_get_tte_ptr(const struct xlat_tbl_info * const table,
+uint64_t *xlat_get_tte_ptr(const struct xlat_llt_info * const table,
 			   const uintptr_t va);
 
 /*
