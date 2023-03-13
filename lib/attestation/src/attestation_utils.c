@@ -61,7 +61,7 @@ int attestation_init(void)
 	 *
 	 * This adjusts the length of a single signing loop.
 	 */
-	FPU_ALLOW(mbedtls_ecp_set_max_ops(ECP_MAX_OPS));
+	FPU_ALLOW(mbedtls_ecp_set_max_ops(MBEDTLS_ECP_MAX_OPS));
 
 	FPU_ALLOW(ret = attest_rnd_prng_init());
 	if (ret != 0) {

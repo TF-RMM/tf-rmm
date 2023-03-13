@@ -6,19 +6,19 @@
 add_library(rmm-lib-attestation)
 
 arm_config_option(
-    NAME ECP_MAX_OPS
+    NAME MBEDTLS_ECP_MAX_OPS
     HELP "Set the number of max operations per ECC signing iteration (min: 248)"
     TYPE STRING
     DEFAULT 1000
     ADVANCED)
 
-if(ECP_MAX_OPS LESS 248)
+if(MBEDTLS_ECP_MAX_OPS LESS 248)
     message(FATAL_ERROR "ECP_MAX_OPS is less than the lowest effective
                          value for curve and MBEDTLS_ECP_WINDOW_SIZE")
 endif()
 
 target_compile_definitions(rmm-lib-attestation
-    PRIVATE "ECP_MAX_OPS=${ECP_MAX_OPS}U")
+    PRIVATE "MBEDTLS_ECP_MAX_OPS=${MBEDTLS_ECP_MAX_OPS}U")
 
 target_link_libraries(rmm-lib-attestation
   PRIVATE
