@@ -297,7 +297,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	rd->s2_ctx.ipa_bits = requested_ipa_bits(&p);
 	rd->s2_ctx.s2_starting_level = p.rtt_level_start;
 	rd->s2_ctx.num_root_rtts = p.rtt_num_start;
-	memcpy(&rd->rpv[0], &p.rpv[0], RPV_SIZE);
+	(void)memcpy(&rd->rpv[0], &p.rpv[0], RPV_SIZE);
 
 	rd->s2_ctx.vmid = (unsigned int)p.vmid;
 
@@ -315,6 +315,10 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 		rd->algorithm = HASH_ALGO_SHA512;
 		break;
 	}
+
+	rd->pmu_enabled = EXTRACT(RMM_FEATURE_REGISTER_0_PMU_EN, p.features_0);
+	rd->pmu_num_cnts = EXTRACT(RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS, p.features_0);
+
 	realm_params_measure(rd, &p);
 
 	buffer_unmap(rd);

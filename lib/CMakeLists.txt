@@ -16,9 +16,9 @@ target_link_libraries(rmm-lib
               rmm-lib-realm
               rmm-lib-rmm_el3_ifc
               rmm-lib-smc
-              t_cose
               rmm-lib-timers
-              rmm-lib-xlat)
+              rmm-lib-xlat
+              t_cose)
 
 add_subdirectory("allocator")
 add_subdirectory("arch")
@@ -29,8 +29,8 @@ add_subdirectory("gic")
 add_subdirectory("mbedtls")
 add_subdirectory("measurement")
 add_subdirectory("realm")
-add_subdirectory("smc")
 add_subdirectory("rmm_el3_ifc")
+add_subdirectory("smc")
 add_subdirectory("t_cose")
 add_subdirectory("timers")
 add_subdirectory("xlat")

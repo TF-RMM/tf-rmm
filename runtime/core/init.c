@@ -3,7 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include <arch_helpers.h>
+#include <arch_features.h>
 #include <attestation.h>
 #include <buffer.h>
 #include <debug.h>
@@ -28,7 +28,10 @@ static void rmm_arch_init(void)
 	SPE(write_pmscr_el2(PMSCR_EL2_INIT));
 
 	write_cnthctl_el2(CNTHCTL_EL2_INIT);
-	write_mdcr_el2(MDCR_EL2_INIT);
+	write_vpidr_el2(read_midr_el1());
+	write_mdcr_el2(MDCR_EL2_INIT |
+			INPLACE(MDCR_EL2_HPMN,
+			EXTRACT(PMCR_EL0_N, read_pmcr_el0())));
 }
 
 void rmm_warmboot_main(void)

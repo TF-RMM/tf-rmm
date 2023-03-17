@@ -186,7 +186,7 @@ unsigned long handle_rsi_attest_token_init(struct rec *rec)
 
 		rec->token_sign_ctx.state = ATTEST_SIGN_NOT_STARTED;
 		restart = attestation_heap_reinit_pe(rec->aux_data.attest_heap_buf,
-						      REC_HEAP_PAGES * SZ_4K);
+							REC_HEAP_SIZE);
 		if (restart != 0) {
 			/* There is no provision for this failure so panic */
 			panic();

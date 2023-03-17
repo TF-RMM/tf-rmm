@@ -137,6 +137,13 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	int ret;
 
 	/*
+	 * Initialize ID_AA64DFR0_EL1 with PMUVer field to PMUv3p7.
+	 * (ID_AA64DFR0_EL1.PMUVer, bits [11:8] set to 7)
+	 */
+	ret = host_util_set_default_sysreg_cb("id_aa64dfr0_el1",
+			INPLACE(ID_AA64DFR0_EL1_PMUVer, 7UL));
+
+	/*
 	 * Initialize ID_AA64MMFR0_EL1 with a physical address
 	 * range of 48 bits (PARange bits set to 0b0101)
 	 */
@@ -165,6 +172,13 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	 * by host_run_realm
 	 */
 	ret = host_util_set_default_sysreg_cb("elr_el2", 0UL);
+
+	/*
+	 * Set number of event counters implemented to 31.
+	 * (PMCR_EL0.N, bits [15:11] set to 31)
+	 */
+	ret = host_util_set_default_sysreg_cb("pmcr_el0",
+			INPLACE(PMCR_EL0_N, 31UL));
 
 	/*
 	 * Only check the return value of the last callback setup, to detect

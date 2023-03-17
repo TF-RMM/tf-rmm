@@ -13,6 +13,7 @@
 #include <fpu_helpers.h>
 #include <gic.h>
 #include <memory_alloc.h>
+#include <pmu.h>
 #include <ripas.h>
 #include <sizes.h>
 #include <smc-rmi.h>
@@ -29,7 +30,6 @@ struct sysreg_state {
 	unsigned long elr_el1;
 	unsigned long spsr_el1;
 	unsigned long pmcr_el0;
-	unsigned long pmuserenr_el0;
 	unsigned long tpidrro_el0;
 	unsigned long tpidr_el0;
 	unsigned long csselr_el1;
@@ -84,6 +84,7 @@ struct common_sysreg_state {
 	unsigned long vttbr_el2;
 	unsigned long vtcr_el2;
 	unsigned long hcr_el2;
+	unsigned long mdcr_el2;
 };
 
 /*
@@ -96,25 +97,27 @@ struct ns_state {
 	unsigned long icc_sre_el2;
 	struct fpu_state *fpu; /* FPU/SVE saved lazily. */
 	struct sve_state *sve;
+	struct pmu_state *pmu;
 } __attribute__((aligned(CACHE_WRITEBACK_GRANULE)));
 
 /*
- * This structure contains pointers to data that is allocated
- * in auxilary granules.
+ * This structure contains pointers to data that are allocated
+ * in auxilary granules for a REC.
  */
 struct rec_aux_data {
-	uint8_t *attest_heap_buf; /* Pointer to the heap buffer of this REC. */
+	uint8_t *attest_heap_buf; /* pointer to the heap buffer */
+	struct pmu_state *pmu;	  /* pointer to PMU state */
 };
 
-/* This structure is used for storing FPU/SIMD context for realm. */
+/* This structure is used for storing FPU/SIMD context for REC */
 struct rec_fpu_context {
 	struct fpu_state fpu;
 	bool used;
 };
 
 struct rec {
-	struct granule *g_rec; /* the granule in which this rec lives */
-	unsigned long rec_idx; /* Which rec is this */
+	struct granule *g_rec;	/* the granule in which this REC lives */
+	unsigned long rec_idx;	/* which REC is this */
 	bool runnable;
 
 	unsigned long regs[31];
@@ -139,6 +142,8 @@ struct rec {
 		int s2_starting_level;
 		struct granule *g_rtt;
 		struct granule *g_rd;
+		bool pmu_enabled;
+		unsigned int pmu_num_cnts;
 	} realm_info;
 
 	struct {
@@ -153,7 +158,7 @@ struct rec {
 		unsigned long far;
 	} last_run_info;
 
-	/* Structure for storing FPU/SIMD context for realm. */
+	/* Structure for storing FPU/SIMD context for Realm */
 	struct rec_fpu_context fpu_ctx;
 
 	/* Pointer to per-cpu non-secure state */
