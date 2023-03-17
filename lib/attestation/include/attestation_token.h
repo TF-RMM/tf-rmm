@@ -16,6 +16,7 @@
 #include <qcbor/qcbor.h>
 #include <t_cose/q_useful_buf.h>
 #include <t_cose/t_cose_sign1_sign.h>
+#include <t_cose_psa_crypto.h>
 
 #define ATTEST_TOKEN_BUFFER_SIZE		GRANULE_SIZE
 
@@ -59,12 +60,12 @@ enum attest_token_gen_state_t {
 
 struct attest_token_encode_ctx {
 	/* Private data structure */
-	QCBOREncodeContext                   cbor_enc_ctx;
-	uint32_t                             opt_flags;
-	int32_t                              key_select;
-	struct t_cose_sign1_sign_ctx         signer_ctx;
-	struct t_cose_sign1_sign_restart_ctx signer_restart_ctx;
-	struct t_cose_crypto_backend_ctx     crypto_ctx;
+	QCBOREncodeContext                            cbor_enc_ctx;
+	uint32_t                                      opt_flags;
+	int32_t                                       key_select;
+	struct t_cose_sign1_sign_ctx                  signer_ctx;
+	struct t_cose_signature_sign_main_restart_ctx signer_restart_ctx;
+	struct t_cose_psa_crypto_context              crypto_ctx;
 };
 
 #define ATTEST_CHALLENGE_SIZE			(64)

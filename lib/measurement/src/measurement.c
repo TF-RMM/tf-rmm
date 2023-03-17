@@ -5,9 +5,8 @@
 
 #include <assert.h>
 #include <debug.h>
-#include <mbedtls/sha256.h>
-#include <mbedtls/sha512.h>
 #include <measurement.h>
+#include <psa/crypto.h>
 #include <simd.h>
 #include <stdbool.h>
 
@@ -47,23 +46,29 @@ static void do_hash(enum hash_algo hash_algo,
 		    unsigned char *out)
 {
 	__unused int ret;
+	psa_algorithm_t psa_algorithm = PSA_ALG_NONE;
+	size_t hash_size;
 
 	assert(size <= GRANULE_SIZE);
 	assert((data != NULL) && (out != NULL));
 
+
 	if (hash_algo == HASH_ALGO_SHA256) {
-		/* 0 to indicate SHA256 not SHA224 */
-		SIMD_FPU_ALLOW(ret = mbedtls_sha256(data, size, out, 0));
-
-		assert(ret == 0);
+		psa_algorithm = PSA_ALG_SHA_256;
 	} else if (hash_algo == HASH_ALGO_SHA512) {
-		/* 0 to indicate SHA512 not SHA384 */
-		SIMD_FPU_ALLOW(ret = mbedtls_sha512(data, size, out, 0));
-
-		assert(ret == 0);
+		psa_algorithm = PSA_ALG_SHA_512;
 	} else {
 		assert(false);
 	}
+
+	SIMD_FPU_ALLOW(ret = psa_hash_compute(psa_algorithm,
+			data,
+			size,
+			out,
+			PSA_HASH_LENGTH(psa_algorithm),
+			&hash_size));
+	assert(hash_size == PSA_HASH_LENGTH(psa_algorithm));
+	assert(ret == 0);
 
 #if LOG_LEVEL >= LOG_LEVEL_VERBOSE
 	measurement_print(out, hash_algo);
@@ -77,67 +82,36 @@ void measurement_hash_compute(enum hash_algo hash_algo,
 {
 	do_hash(hash_algo, data, size, out);
 }
-
-static void measurement_extend_sha256(void *current_measurement,
-				      size_t current_measurement_size,
-				      void *extend_measurement,
-				      size_t extend_measurement_size,
-				      unsigned char *out)
+static void do_extend(psa_algorithm_t psa_algorithm,
+		      void *current_measurement,
+		      void *extend_measurement,
+		      size_t extend_measurement_size,
+		      unsigned char *out)
 {
-	mbedtls_sha256_context sha256_ctx;
+	size_t hash_size;
+	__unused psa_status_t ret;
+	psa_hash_operation_t operation = PSA_HASH_OPERATION_INIT;
+	size_t current_measurement_size = PSA_HASH_LENGTH(psa_algorithm);
 
-	__unused int ret = 0;
+	ret = psa_hash_setup(&operation, psa_algorithm);
+	assert(ret == PSA_SUCCESS);
 
-	mbedtls_sha256_init(&sha256_ctx);
-	/* 0 to indicate SHA256 not SHA224 */
-	ret = mbedtls_sha256_starts(&sha256_ctx, 0);
-	assert(ret == 0);
+	ret = psa_hash_update(&operation,
+			      (unsigned char *)current_measurement,
+			      current_measurement_size);
+	assert(ret == PSA_SUCCESS);
 
-	/* Update the measurement */
-	ret = mbedtls_sha256_update(
-		&sha256_ctx,
-		(unsigned char *)current_measurement,
-		current_measurement_size);
-	assert(ret == 0);
+	ret = psa_hash_update(&operation,
+			      (unsigned char *)extend_measurement,
+			      extend_measurement_size);
+	assert(ret == PSA_SUCCESS);
 
-	ret = mbedtls_sha256_update(&sha256_ctx,
-					(unsigned char *)extend_measurement,
-					extend_measurement_size);
-	assert(ret == 0);
-
-	ret = mbedtls_sha256_finish(&sha256_ctx, out);
-	assert(ret == 0);
-}
-
-static void measurement_extend_sha512(void *current_measurement,
-				      size_t current_measurement_size,
-				      void *extend_measurement,
-				      size_t extend_measurement_size,
-				      unsigned char *out)
-{
-	mbedtls_sha512_context sha512_ctx;
-	__unused int ret = 0;
-
-	mbedtls_sha512_init(&sha512_ctx);
-	/* 0 to indicate SHA256 not SHA384 */
-	ret = mbedtls_sha512_starts(&sha512_ctx, 0);
-	assert(ret == 0);
-
-	/* Update the measurement */
-	ret = mbedtls_sha512_update(
-		&sha512_ctx,
-		(unsigned char *)current_measurement,
-		current_measurement_size);
-	assert(ret == 0);
-
-	ret = mbedtls_sha512_update(
-		&sha512_ctx,
-		(unsigned char *)extend_measurement,
-		extend_measurement_size);
-	assert(ret == 0);
-
-	ret = mbedtls_sha512_finish(&sha512_ctx, out);
-	assert(ret == 0);
+	ret = psa_hash_finish(&operation,
+			      out,
+			      PSA_HASH_LENGTH(psa_algorithm),
+			      &hash_size);
+	assert(hash_size == PSA_HASH_LENGTH(psa_algorithm));
+	assert(ret == PSA_SUCCESS);
 }
 
 void measurement_extend(enum hash_algo hash_algo,
@@ -146,7 +120,7 @@ void measurement_extend(enum hash_algo hash_algo,
 			size_t extend_measurement_size,
 			unsigned char *out)
 {
-	size_t current_measurement_size = measurement_get_size(hash_algo);
+	psa_algorithm_t psa_algorithm = PSA_ALG_NONE;
 
 	/* We limit the maximum size of the payload to be of GRANULE_SIZE */
 	assert(current_measurement != NULL);
@@ -156,24 +130,21 @@ void measurement_extend(enum hash_algo hash_algo,
 
 	switch (hash_algo) {
 	case HASH_ALGO_SHA256:
-		SIMD_FPU_ALLOW(
-			measurement_extend_sha256(current_measurement,
-					  current_measurement_size,
-					  extend_measurement,
-					  extend_measurement_size,
-					  out));
+		psa_algorithm = PSA_ALG_SHA_256;
 		break;
 	case HASH_ALGO_SHA512:
-		SIMD_FPU_ALLOW(
-			measurement_extend_sha512(current_measurement,
-					  current_measurement_size,
-					  extend_measurement,
-					  extend_measurement_size,
-					  out));
+		psa_algorithm = PSA_ALG_SHA_512;
 		break;
 	default:
 		assert(false);
 	}
+
+	SIMD_FPU_ALLOW(
+		do_extend(psa_algorithm,
+			  current_measurement,
+			  extend_measurement,
+			  extend_measurement_size,
+			  out));
 
 #if LOG_LEVEL >= LOG_LEVEL_VERBOSE
 	measurement_print(out, hash_algo);

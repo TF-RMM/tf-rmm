@@ -13,6 +13,7 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/hmac_drbg.h>
 #include <platform_api.h>
+#include <psa/crypto.h>
 #include <simd.h>
 #include <stdbool.h>
 #include <utils_def.h>
@@ -51,11 +52,12 @@ static int get_random_seed(unsigned char *output, size_t len)
 /*
  * This function is used by Mbed TLS as a source of entropy. This means it is
  * called during RMM operation, to add entropy to the signing process.
- * See declaration in mbedtls/entropy_poll.h.
- * For details see `MBEDTLS_ENTROPY_HARDWARE_ALT` in mbedtls/config.h
+ * See declaration in ext/mbedtls/include/psa/crypto_extra.h.
+ * For details see `MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG` in mbedtls/mbedtls_config.h
  */
-int mbedtls_hardware_poll(void  *data, unsigned char *output,
-			  size_t len,  size_t        *olen)
+psa_status_t mbedtls_psa_external_get_random(
+    mbedtls_psa_external_random_context_t *context,
+    uint8_t *output, size_t output_size, size_t *output_length)
 {
 	int ret;
 	unsigned int cpu_id = my_cpuid();
@@ -63,17 +65,17 @@ int mbedtls_hardware_poll(void  *data, unsigned char *output,
 
 	assert(prng_init_done);
 
-	(void)data;
+	(void)context;
 
 	/* Not in RMM init, PRNGs are already initialized, use them. */
 	rng_ctx = &cpu_drbg_ctx[cpu_id];
-	ret = mbedtls_hmac_drbg_random(rng_ctx, output, len);
+	ret = mbedtls_hmac_drbg_random(rng_ctx, output, output_size);
 	if (ret != 0) {
-		return ret;
+		return PSA_ERROR_HARDWARE_FAILURE;
 	}
-	*olen = len;
+	*output_length = output_size;
 
-	return 0;
+	return PSA_SUCCESS;
 }
 
 void attest_get_cpu_rng_context(struct attest_rng_context *rng_ctx)

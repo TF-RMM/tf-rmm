@@ -83,7 +83,7 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 	enum t_cose_err_t cose_res;
 	uint32_t t_cose_options = 0;
 	struct t_cose_key attest_key;
-	const void *signing_key;
+	psa_key_handle_t key_handle;
 	struct q_useful_buf_c attest_key_id = NULL_Q_USEFUL_BUF_C;
 
 	assert(me != NULL);
@@ -97,8 +97,8 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 			       t_cose_options,
 			       cose_alg_id);
 
-	cose_res = t_cose_sign1_set_restart_context(&(me->signer_ctx),
-						    &(me->signer_restart_ctx));
+	cose_res = t_cose_sign1_set_restart(&(me->signer_ctx),
+					    &(me->signer_restart_ctx));
 	if (cose_res != T_COSE_SUCCESS) {
 		return ATTEST_TOKEN_ERR_COSE_ERROR;
 	}
@@ -110,9 +110,8 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 	/*
 	 * Get the reference to `mbedtls_ecp_keypair` and set it to t_cose.
 	 */
-	attest_get_realm_signing_key(&signing_key);
-	attest_key.crypto_lib = T_COSE_CRYPTO_LIB_MBEDTLS;
-	attest_key.k.key_ptr = (void *)signing_key;
+	attest_get_realm_signing_key(&key_handle);
+	attest_key.key.handle = key_handle;
 	t_cose_sign1_set_signing_key(&(me->signer_ctx),
 				     attest_key,
 				     attest_key_id);

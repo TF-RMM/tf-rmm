@@ -8,15 +8,13 @@
 #include <attestation_priv.h>
 #include <debug.h>
 #include <errno.h>
-#include <mbedtls/sha256.h>
 #include <measurement.h>
 #include <psa/crypto.h>
 #include <rmm_el3_ifc.h>
 #include <simd.h>
 #include <sizes.h>
 
-#define ECC_P384_PUBLIC_KEY_SIZE	(97U)
-#define SHA256_DIGEST_SIZE		(32U)
+#define ECC_P384_PUBLIC_KEY_SIZE	PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(384)
 
 /*
  * The size of X and Y coordinate in 2 parameter style EC public key. Format is
@@ -25,8 +23,8 @@
  *
  * This size is well-known and documented in public standards.
  */
-#define ECC_P384_COORD_SIZE		(48U) /* 384 bits -> 48 bytes */
-#define BIT_SIZE_OF_P384		(384U)
+#define ECC_P384_COORD_SIZE	PSA_BITS_TO_BYTES(384)
+#define BIT_SIZE_OF_P384	(384U)
 
 /* ECC Curve type define for querying attestation key from monitor */
 #define ATTEST_KEY_CURVE_ECC_SECP384R1	0
@@ -48,13 +46,14 @@ static size_t realm_attest_public_key_len;
  * The hash of the realm attestation public key is included in the Platform
  * attestation token as the challenge claim.
  */
-static uint8_t realm_attest_public_key_hash[SHA256_DIGEST_SIZE];
+static uint8_t realm_attest_public_key_hash[PSA_HASH_LENGTH(PSA_ALG_SHA_256)];
 static size_t realm_attest_public_key_hash_len;
 
 /*
- * The keypair for the sign operation
+ * The key handle for the sign operation
  */
-static mbedtls_ecp_keypair realm_attest_keypair = {0};
+static bool attest_signing_key_loaded; /* = false */
+static psa_key_handle_t attest_signing_key;
 
 /* Specify the hash algorithm to use for computing the hash of the
  * realm public key.
@@ -63,27 +62,23 @@ static enum hash_algo public_key_hash_algo_id = HASH_ALGO_SHA256;
 
 /*
  * TODO: review panic usage and try to gracefully exit on error. Also
- * improve documentation of usage of MbedTLS APIs
+ * improve documentation of usage of PSA APIs
  */
 int attest_init_realm_attestation_key(void)
 {
-	int ret;
-	struct q_useful_buf realm_attest_private_key;
+	psa_status_t ret;
 	uintptr_t buf;
 	size_t attest_key_size = 0UL;
-
-	struct attest_rng_context rng_ctx;
+	psa_key_attributes_t key_attributes = psa_key_attributes_init();
 
 	assert(SIMD_IS_FPU_ALLOWED());
-
-	attest_get_cpu_rng_context(&rng_ctx);
 
 	/*
 	 * The realm attestation key is requested from the root world in the
 	 * boot phase only once. Then the same key is used in the entire power
 	 * cycle to sign the realm attestation tokens.
 	 */
-	if (realm_attest_keypair.MBEDTLS_PRIVATE(d).MBEDTLS_PRIVATE(p) != NULL) {
+	if (attest_signing_key_loaded) {
 		ERROR("Realm attestation key already loaded.\n");
 		return -EINVAL;
 	}
@@ -101,99 +96,68 @@ int attest_init_realm_attestation_key(void)
 		return -EINVAL;
 	}
 
-	realm_attest_private_key.len = attest_key_size;
-	realm_attest_private_key.ptr = (void *)buf;
+	/* Setup the key policy for private key */
+	psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_SIGN_HASH);
+	psa_set_key_algorithm(&key_attributes, PSA_ALG_ECDSA(PSA_ALG_SHA_384));
+	psa_set_key_type(&key_attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
 
-	/*
-	 * Setup ECC key.
-	 * The memory for the keypair is allocated from MbedTLS Heap.
-	 */
-	mbedtls_ecp_keypair_init(&realm_attest_keypair);
-	ret = mbedtls_ecp_group_load(&realm_attest_keypair.MBEDTLS_PRIVATE(grp),
-				     MBEDTLS_ECP_DP_SECP384R1);
-	if (ret != 0) {
-		ERROR("mbedtls_ecp_group_load has failed\n");
-		rmm_el3_ifc_release_shared_buf();
-		return -EINVAL;
-	}
-
-	ret = mbedtls_mpi_read_binary(&realm_attest_keypair.MBEDTLS_PRIVATE(d),
-				      realm_attest_private_key.ptr,
-				      realm_attest_private_key.len);
-	if (ret != 0) {
-		ERROR("mbedtls_mpi_read_binary has failed\n");
-		rmm_el3_ifc_release_shared_buf();
-		return -EINVAL;
-	}
-
-	ret = mbedtls_ecp_check_privkey(&realm_attest_keypair.MBEDTLS_PRIVATE(grp),
-					&realm_attest_keypair.MBEDTLS_PRIVATE(d));
-	if (ret != 0) {
-		ERROR("mbedtls_ecp_check_privkey has failed: %d\n", ret);
-		rmm_el3_ifc_release_shared_buf();
-		return -EINVAL;
-	}
-
-	ret = mbedtls_ecp_mul(&realm_attest_keypair.MBEDTLS_PRIVATE(grp),
-			      &realm_attest_keypair.MBEDTLS_PRIVATE(Q),
-			      &realm_attest_keypair.MBEDTLS_PRIVATE(d),
-			      &realm_attest_keypair.MBEDTLS_PRIVATE(grp).G,
-			      rng_ctx.f_rng,
-			      rng_ctx.p_rng);
-	if (ret != 0) {
-		ERROR("mbedtls_ecp_mul priv has failed: %d\n", ret);
-		rmm_el3_ifc_release_shared_buf();
-		return -EINVAL;
-	}
-
-	ret = mbedtls_ecp_point_write_binary(&realm_attest_keypair.MBEDTLS_PRIVATE(grp),
-					     &realm_attest_keypair.MBEDTLS_PRIVATE(Q),
-					     MBEDTLS_ECP_PF_UNCOMPRESSED,
-					     &realm_attest_public_key_len,
-					     realm_attest_public_key,
-					     sizeof(realm_attest_public_key));
-	if (ret != 0) {
-		ERROR("mbedtls_ecp_point_write_binary pub has failed\n");
-		rmm_el3_ifc_release_shared_buf();
-		return -EINVAL;
-	}
-
-	/* Compute the hash of the realm attestation public key */
-	ret = mbedtls_sha256(realm_attest_public_key,
-			     realm_attest_public_key_len,
-			     realm_attest_public_key_hash,
-			     false);
-	if (ret != 0) {
-		ERROR("mbedtls_sha256 has failed\n");
-		rmm_el3_ifc_release_shared_buf();
-		return -EINVAL;
-	}
-
-	realm_attest_public_key_hash_len = sizeof(realm_attest_public_key_hash);
+	/* Import private key to mbed-crypto */
+	ret = psa_import_key(&key_attributes,
+			     (const uint8_t *)buf,
+			     attest_key_size,
+			     &attest_signing_key);
 
 	/* Clear the private key from the buffer */
-	(void)memset(realm_attest_private_key.ptr, 0,
-			realm_attest_private_key.len);
+	(void)memset((uint8_t *)buf, 0, attest_key_size);
+
+	if (ret != PSA_SUCCESS) {
+		return -EINVAL;
+	}
+	attest_signing_key_loaded = true;
+
+	/* Get the RMM public attestation key */
+	ret = psa_export_public_key(attest_signing_key,
+				    realm_attest_public_key,
+				    sizeof(realm_attest_public_key),
+				    &realm_attest_public_key_len);
+	if (ret != PSA_SUCCESS) {
+		ERROR("psa_export_public_key has failed\n");
+		rmm_el3_ifc_release_shared_buf();
+		return -EINVAL;
+	}
+
+	/* Compute the hash of the RMM public attestation key */
+	ret = psa_hash_compute(PSA_ALG_SHA_256,
+			       realm_attest_public_key,
+			       realm_attest_public_key_len,
+			       realm_attest_public_key_hash,
+			       sizeof(realm_attest_public_key_hash),
+			       &realm_attest_public_key_hash_len);
+	if (ret != PSA_SUCCESS) {
+		ERROR("psa_hash_compute has failed\n");
+		rmm_el3_ifc_release_shared_buf();
+		return -EINVAL;
+	}
 
 	rmm_el3_ifc_release_shared_buf();
 
 	return 0;
 }
 
-int attest_get_realm_signing_key(const void **keypair)
+int attest_get_realm_signing_key(psa_key_handle_t *key_handle)
 {
-	if (realm_attest_keypair.MBEDTLS_PRIVATE(d).MBEDTLS_PRIVATE(p) == NULL) {
+	if (!attest_signing_key_loaded) {
 		ERROR("Realm attestation key not initialized\n");
 		return -EINVAL;
 	}
 
-	*keypair = &realm_attest_keypair;
+	*key_handle = attest_signing_key;
 	return 0;
 }
 
 int attest_get_realm_public_key_hash(struct q_useful_buf_c *public_key_hash)
 {
-	if (realm_attest_keypair.MBEDTLS_PRIVATE(d).MBEDTLS_PRIVATE(p) == NULL) {
+	if (!attest_signing_key_loaded) {
 		ERROR("Realm attestation key not initialized\n");
 		return -EINVAL;
 	}
@@ -205,7 +169,7 @@ int attest_get_realm_public_key_hash(struct q_useful_buf_c *public_key_hash)
 
 int attest_get_realm_public_key(struct q_useful_buf_c *public_key)
 {
-	if (realm_attest_keypair.MBEDTLS_PRIVATE(d).MBEDTLS_PRIVATE(p) == NULL) {
+	if (!attest_signing_key_loaded) {
 		ERROR("Realm attestation key not initialized\n");
 		return -EINVAL;
 	}
@@ -241,7 +205,7 @@ int attest_setup_platform_token(void)
 	ret = rmm_el3_ifc_get_platform_token(shared_buf,
 					     rmm_el3_ifc_get_shared_buf_size(),
 					     &platform_token_len,
-					     SHA256_DIGEST_SIZE);
+					     PSA_HASH_LENGTH(PSA_ALG_SHA_256));
 
 	if (ret != 0) {
 		rmm_el3_ifc_release_shared_buf();

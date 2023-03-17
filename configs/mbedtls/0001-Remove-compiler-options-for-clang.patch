@@ -1,0 +1,31 @@
+From df7986b31ed41d976298abec06d312b2f13310c6 Mon Sep 17 00:00:00 2001
+From: Mate Toth-Pal <mate.toth-pal@arm.com>
+Date: Thu, 25 May 2023 15:20:53 +0200
+Subject: [PATCH 1/2] Remove compiler options for clang
+
+With more recent clang versions some options trigger warnings in
+the Mbed TLS code, that result in a build error.
+
+The compiler options removed:
+    -Wunreachable-code
+    -Wdocumentation
+---
+ library/CMakeLists.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/library/CMakeLists.txt b/library/CMakeLists.txt
+index 535988303..26e664d3c 100644
+--- a/library/CMakeLists.txt
++++ b/library/CMakeLists.txt
+@@ -194,7 +194,7 @@ if(CMAKE_COMPILER_IS_GNUCC)
+ endif(CMAKE_COMPILER_IS_GNUCC)
+
+ if(CMAKE_COMPILER_IS_CLANG)
+-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-declarations -Wmissing-prototypes -Wdocumentation -Wno-documentation-deprecated-sync -Wunreachable-code")
++    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-declarations -Wmissing-prototypes -Wno-documentation-deprecated-sync")
+ endif(CMAKE_COMPILER_IS_CLANG)
+
+ if(CMAKE_COMPILER_IS_MSVC)
+--
+2.25.1
+
