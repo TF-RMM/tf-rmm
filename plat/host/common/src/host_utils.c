@@ -173,6 +173,9 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	/* SCTLR_EL2 is reset to zero */
 	ret = host_util_set_default_sysreg_cb("sctlr_el2", 0UL);
 
+	/* HCR_EL2 is reset to zero */
+	ret = host_util_set_default_sysreg_cb("hcr_el2", 0UL);
+
 	/* TPIDR_EL2 is reset to zero */
 	ret = host_util_set_default_sysreg_cb("tpidr_el2", 0UL);
 

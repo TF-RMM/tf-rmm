@@ -14,6 +14,7 @@
 #include <string.h>
 #include <test_private.h>
 #include <utest_exit.h>
+#include <xlat_tables.h>
 
 /* Implemented in init.c and needed here */
 void rmm_warmboot_main(void);
@@ -35,14 +36,6 @@ static bool asserted;
 
 static uintptr_t callbacks[CB_IDS];
 
-/*
- * Function to emulate the turn on of the MMU for the fake_host architecture.
- */
-static void enable_fake_mmu(void)
-{
-	write_sctlr_el2(SCTLR_EL2_WXN | SCTLR_EL2_M);
-}
-
 static void start_primary_pe(void)
 {
 	host_util_set_cpuid(0U);
@@ -59,7 +52,7 @@ static void start_primary_pe(void)
 	 * Enable the MMU. This is needed as some initialization code
 	 * called by rmm_main() asserts that the mmu is enabled.
 	 */
-	enable_fake_mmu();
+	xlat_enable_mmu_el2();
 
 	/*
 	 * rmm_main() finishhes the warmboot path.
@@ -87,7 +80,7 @@ static void start_secondary_pe(unsigned int cpuid)
 	 * Enable the MMU. This is needed to avoid assertions during boot up
 	 * that would otherwise occur if the MMU is disabled.
 	 */
-	enable_fake_mmu();
+	xlat_enable_mmu_el2();
 
 	/*
 	 * Finalize the warmboot path.

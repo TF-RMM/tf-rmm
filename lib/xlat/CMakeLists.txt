@@ -23,7 +23,10 @@ target_sources(rmm-lib-xlat
             "src/xlat_tables_arch.c"
             "src/xlat_contexts.c")
 
-if(NOT RMM_ARCH STREQUAL fake_host)
+if(RMM_ARCH STREQUAL fake_host)
+    target_sources(rmm-lib-xlat
+        PRIVATE "src/fake_host/enable_mmu.c")
+else()
     target_sources(rmm-lib-xlat
         PRIVATE "src/aarch64/enable_mmu.S")
 endif()
