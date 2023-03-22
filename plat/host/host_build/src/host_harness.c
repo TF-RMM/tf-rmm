@@ -6,7 +6,7 @@
 #include <buffer.h>
 #include <host_harness.h>
 
-void *host_buffer_arch_map(enum buffer_slot slot, unsigned long addr)
+void *host_buffer_arch_map(unsigned int slot, unsigned long addr)
 {
 	(void)slot;
 

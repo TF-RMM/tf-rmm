@@ -14,11 +14,11 @@
  * This harness searches for a valid pointer to CB_BUFFER_MAP and calls it.
  * If there is no valid pointer, the default behavior is to return addr
  */
-void *host_buffer_arch_map(enum buffer_slot slot, unsigned long addr)
+void *host_buffer_arch_map(unsigned int slot, unsigned long addr)
 {
 	cb_buffer_map cb = (cb_buffer_map)get_cb(CB_BUFFER_MAP);
 
-	return (cb == NULL) ? (void *)addr : cb(slot, addr);
+	return (cb == NULL) ? (void *)addr : cb((enum buffer_slot)slot, addr);
 }
 
 /*

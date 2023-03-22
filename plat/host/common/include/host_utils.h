@@ -6,6 +6,7 @@
 #ifndef HOST_UTILS_H
 #define HOST_UTILS_H
 
+#include <stddef.h>
 #include <types.h>
 
 /***********************************************************************
@@ -113,9 +114,23 @@ int host_util_set_sysreg_cb(char *name, rd_cb_t rd_cb, wr_cb_t wr_cb,
 int host_util_set_default_sysreg_cb(char *name, u_register_t init);
 
 /*
- * Clear the list of sysreg callbacks.
+ * Save the sysreg state across all PEs in the system along with registered
+ * callbacks. This function must only be used during RMM runtime bring-up,
+ * at a point wherein the system is initialized properly and can restored
+ * for later test iterations.
  */
-void host_util_reset_all_sysreg_cb(void);
+void host_util_take_sysreg_snapshot(void);
+
+/*
+ * Restore a saved sysreg state and associated callbacks. The state is already
+ * assumed to be saved prior to calling this API.
+ */
+void host_util_restore_sysreg_snapshot(void);
+
+/*
+ * Zero all sysreg values and unregister all sysreg callbacks.
+ */
+void host_util_zero_sysregs_and_cbs(void);
 
 /*
  * Return the configured address for the granule base.

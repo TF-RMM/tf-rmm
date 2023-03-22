@@ -10,9 +10,6 @@
 #include <stdint.h>
 #include <types.h>
 
-/* Forward declaration of buffer_slot */
-enum buffer_slot;
-
 /* Fake host wrapper to read and write sysregs */
 u_register_t host_read_sysreg(char *reg_name);
 void host_write_sysreg(char *reg_name, u_register_t v);
@@ -82,7 +79,7 @@ void host_monitor_call_with_res(unsigned long id, unsigned long arg0,
  *
  * It returns the VA to which the buffer is mapped.
  */
-void *host_buffer_arch_map(enum buffer_slot slot, unsigned long addr);
+void *host_buffer_arch_map(unsigned int slot, unsigned long addr);
 
 /*
  * Fake host wrapper to unmap a buffer slot correspondig to the VA passed

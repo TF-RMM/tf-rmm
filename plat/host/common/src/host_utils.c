@@ -15,6 +15,7 @@
 #include <xlat_tables.h>
 
 static struct sysreg_data sysregs[SYSREG_MAX_CBS];
+static struct sysreg_data sysregs_snapshot[SYSREG_MAX_CBS];
 static unsigned int installed_cb_idx;
 static unsigned int current_cpuid;
 
@@ -100,7 +101,19 @@ int host_util_set_sysreg_cb(char *name, rd_cb_t rd_cb, wr_cb_t wr_cb,
 	return -ENOMEM;
 }
 
-void host_util_reset_all_sysreg_cb(void)
+void host_util_take_sysreg_snapshot(void)
+{
+	memcpy((void *)&sysregs_snapshot[0], (void *)&sysregs[0],
+		sizeof(struct sysreg_data) * SYSREG_MAX_CBS);
+}
+
+void host_util_restore_sysreg_snapshot(void)
+{
+	memcpy((void *)&sysregs[0], (void *)&sysregs_snapshot[0],
+		sizeof(struct sysreg_data) * SYSREG_MAX_CBS);
+}
+
+void host_util_zero_sysregs_and_cbs(void)
 {
 
 	(void)memset((void *)sysregs, 0,
@@ -159,6 +172,9 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 
 	/* SCTLR_EL2 is reset to zero */
 	ret = host_util_set_default_sysreg_cb("sctlr_el2", 0UL);
+
+	/* HCR_EL2 is reset to zero */
+	ret = host_util_set_default_sysreg_cb("hcr_el2", 0UL);
 
 	/* TPIDR_EL2 is reset to zero */
 	ret = host_util_set_default_sysreg_cb("tpidr_el2", 0UL);
