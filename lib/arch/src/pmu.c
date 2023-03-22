@@ -92,6 +92,8 @@ void pmu_restore_state(struct pmu_state *pmu, unsigned int num_cnts)
 {
 	assert(pmu != NULL);
 
+	write_pmccfiltr_el0(pmu->pmccfiltr_el0);
+	write_pmccntr_el0(pmu->pmccntr_el0);
 	write_pmcntenset_el0(pmu->pmcntenset_el0);
 	write_pmcntenclr_el0(pmu->pmcntenclr_el0 ^ PMU_CLEAR_ALL);
 	write_pmintenset_el1(pmu->pmintenset_el1);
