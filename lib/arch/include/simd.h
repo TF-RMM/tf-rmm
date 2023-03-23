@@ -60,6 +60,12 @@ void simd_save_ns_state(void);
  */
 void simd_restore_ns_state(void);
 
+/*
+ * Returns 'true' if the current CPU's SIMD (FPU/SVE) live state is saved in
+ * memory else 'false'.
+ */
+bool simd_is_state_saved(void);
+
 /* Allow FPU and/or SVE access */
 static inline void simd_enable(simd_t type)
 {
@@ -103,45 +109,27 @@ static inline void simd_disable(void)
 }
 
 /*
- * These functions and macros will be renamed to simd_* once RMM supports
- * SIMD (FPU/SVE) at REL2
+ * RMM support to use SIMD (FPU) at REL2
  */
 #ifdef RMM_FPU_USE_AT_REL2
-#define FPU_ALLOW(expression) \
-	do { \
-		assert(false); \
-		expression; \
+#define SIMD_FPU_ALLOW(expression)				\
+	do {							\
+		assert(simd_is_state_saved() == true);		\
+		simd_enable(SIMD_FPU);				\
+		expression;					\
+		simd_disable();					\
 	} while (false)
 
-#define IS_FPU_ALLOWED() \
-	(false)
+#define SIMD_IS_FPU_ALLOWED()	(simd_is_state_saved() && is_fpen_enabled())
 
-#else /* RMM_FPU_USE_AT_REL2 */
-#define FPU_ALLOW(expression) \
-	do { \
-		expression; \
+#else /* !RMM_FPU_USE_AT_REL2 */
+#define SIMD_FPU_ALLOW(expression)				\
+	do {							\
+		expression;					\
 	} while (false)
 
-#define IS_FPU_ALLOWED() (true)
+#define SIMD_IS_FPU_ALLOWED() (true)
 
 #endif /* RMM_FPU_USE_AT_REL2 */
-
-/*
- * Save/restore FPU state to/from a per-cpu buffer allocated within the library.
- * The FPU instruction trap is disabled by this function during the access to
- * the FPU registers.
- * These functions are expected to be called before FPU is used by RMM to save
- * the incoming FPU context.
- */
-void fpu_save_my_state(void);
-void fpu_restore_my_state(void);
-
-/*
- * Return true if an SIMD state is saved in the per-cpu buffer in this library.
- *
- * After calling 'fpu_save_my_state' this function returns true. After calling
- * 'fpu_restore_my_state' this function returns false.
- */
-bool fpu_is_my_state_saved(unsigned int cpu_id);
 
 #endif /* SIMD_H */

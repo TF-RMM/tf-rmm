@@ -96,7 +96,7 @@ int attest_rnd_prng_init(void)
 	int retval = 0;
 
 	assert(!prng_init_done);
-	assert(IS_FPU_ALLOWED());
+	assert(SIMD_IS_FPU_ALLOWED());
 
 	if (!is_feat_rng_present()) {
 		return -EINVAL;

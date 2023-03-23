@@ -51,23 +51,19 @@ static void do_hash(enum hash_algo hash_algo,
 	assert(size <= GRANULE_SIZE);
 	assert((data != NULL) && (out != NULL));
 
-	fpu_save_my_state();
-
 	if (hash_algo == HASH_ALGO_SHA256) {
 		/* 0 to indicate SHA256 not SHA224 */
-		FPU_ALLOW(ret = mbedtls_sha256(data, size, out, 0));
+		SIMD_FPU_ALLOW(ret = mbedtls_sha256(data, size, out, 0));
 
 		assert(ret == 0);
 	} else if (hash_algo == HASH_ALGO_SHA512) {
 		/* 0 to indicate SHA512 not SHA384 */
-		FPU_ALLOW(ret = mbedtls_sha512(data, size, out, 0));
+		SIMD_FPU_ALLOW(ret = mbedtls_sha512(data, size, out, 0));
 
 		assert(ret == 0);
 	} else {
 		assert(false);
 	}
-
-	fpu_restore_my_state();
 
 #if LOG_LEVEL >= LOG_LEVEL_VERBOSE
 	measurement_print(out, hash_algo);
@@ -158,11 +154,9 @@ void measurement_extend(enum hash_algo hash_algo,
 	assert(extend_measurement != NULL);
 	assert(out != NULL);
 
-	fpu_save_my_state();
-
 	switch (hash_algo) {
 	case HASH_ALGO_SHA256:
-		FPU_ALLOW(
+		SIMD_FPU_ALLOW(
 			measurement_extend_sha256(current_measurement,
 					  current_measurement_size,
 					  extend_measurement,
@@ -170,7 +164,7 @@ void measurement_extend(enum hash_algo hash_algo,
 					  out));
 		break;
 	case HASH_ALGO_SHA512:
-		FPU_ALLOW(
+		SIMD_FPU_ALLOW(
 			measurement_extend_sha512(current_measurement,
 					  current_measurement_size,
 					  extend_measurement,
@@ -180,8 +174,6 @@ void measurement_extend(enum hash_algo hash_algo,
 	default:
 		assert(false);
 	}
-
-	fpu_restore_my_state();
 
 #if LOG_LEVEL >= LOG_LEVEL_VERBOSE
 	measurement_print(out, hash_algo);

@@ -149,7 +149,7 @@ attest_realm_token_sign(struct attest_token_encode_ctx *me,
 	assert(completed_token != NULL);
 
 	/* Finish up the COSE_Sign1. This is where the signing happens */
-	FPU_ALLOW(
+	SIMD_FPU_ALLOW(
 		cose_res = t_cose_sign1_encode_signature(&(me->signer_ctx),
 							 &(me->cbor_enc_ctx)));
 
