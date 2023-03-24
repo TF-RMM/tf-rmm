@@ -404,6 +404,15 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		return true;
 	}
 
+	/*
+	 * If the REC is allowed to access SIMD, then we will enter RMM with
+	 * SIMD traps disabled. So enable SIMD traps as RMM by default runs with
+	 * SIMD traps enabled
+	 */
+	if (rec_is_simd_allowed(rec)) {
+		simd_disable();
+	}
+
 	switch (function_id) {
 	case SMCCC_VERSION:
 		rec->regs[0] = SMCCC_VERSION_NUMBER;
@@ -567,6 +576,11 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	default:
 		rec->regs[0] = SMC_UNKNOWN;
 		break;
+	}
+
+	/* Re-enable SIMD access if REC is allowed to access */
+	if (rec_is_simd_allowed(rec)) {
+		simd_enable(rec_simd_type(rec));
 	}
 
 	/* Log RSI call */
