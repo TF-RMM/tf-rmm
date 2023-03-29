@@ -68,7 +68,10 @@
 /* Guarded Page bit */
 #define GP			(ULL(1) << 50)
 
-#define TABLE_ADDR_MASK		XLAT_TTE_L3_PA_MASK
+/* Table address field on a table descriptor given 4KB granularity. */
+#define TABLE_ADDR_SHIFT	(12U)
+#define TABLE_ADDR_WIDTH	(48U - TABLE_ADDR_SHIFT)
+#define TABLE_ADDR_MASK		MASK(TABLE_ADDR)
 
 #define AP2_SHIFT			UL(0x7)
 #define AP2_RO				ULL(0x1)
