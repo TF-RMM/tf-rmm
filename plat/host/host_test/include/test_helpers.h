@@ -6,7 +6,8 @@
 #ifndef TEST_HELPERS_H
 #define TEST_HELPERS_H
 
-#include <buffer.h>
+#include <assert.h>
+#include <stdbool.h>
 
 /*
  * Definitions used for assertion tests.
@@ -48,7 +49,7 @@ enum cb_ids {
  *	The VA (or platform equivalent) where the granule was mapped to
  */
 
-typedef void *(*cb_buffer_map)(enum buffer_slot slot, unsigned long addr);
+typedef void *(*cb_buffer_map)(unsigned int slot, unsigned long addr);
 
 /*
  * Callback ID: CB_BUFFER_UNMAP
