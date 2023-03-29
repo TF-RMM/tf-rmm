@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <buffer.h>
 #include <realm_test_utils.h>
 #include <stddef.h>
 
@@ -12,9 +13,9 @@
  * per aarch64 VMSA and walks the xlat tables to retrieve the original
  * `addr` thus verifying that the `addr` was mapped correctly in the tables.
  */
-void *test_buffer_map_access(enum buffer_slot slot, unsigned long addr)
+void *test_buffer_map_access(unsigned int slot, unsigned long addr)
 {
-	void *va = buffer_map_internal(slot, addr);
+	void *va = buffer_map_internal((enum buffer_slot)slot, addr);
 
 	if (va == NULL) {
 		return NULL;
@@ -24,7 +25,7 @@ void *test_buffer_map_access(enum buffer_slot slot, unsigned long addr)
 	 * Perform a table walk to get the PA mapped to `slot`.
 	 * If everything went well it should return the same address as `addr`.
 	 */
-	return (void *)realm_test_util_slot_to_pa(slot);
+	return (void *)realm_test_util_slot_to_pa((enum buffer_slot)slot);
 }
 
 /*
@@ -45,9 +46,9 @@ void test_buffer_unmap_access(void *buf)
  * Maps addr to the requested slot buffer and returns a mapped VA
  * corresponding to the slot buffer as per aarch64 VMSA.
  */
-void *test_buffer_map_aarch64_vmsa(enum buffer_slot slot, unsigned long addr)
+void *test_buffer_map_aarch64_vmsa(unsigned int slot, unsigned long addr)
 {
-	return buffer_map_internal(slot, addr);
+	return buffer_map_internal((enum buffer_slot)slot, addr);
 }
 
 /*
