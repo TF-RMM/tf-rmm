@@ -72,7 +72,7 @@
 #define XLAT_TABLE_LEVEL_MIN	U(0)
 
 /* Mask used to know if an address belongs to a high va region. */
-#define HIGH_REGION_MASK	(ULL(0xFFF) << 52)
+#define HIGH_REGION_MASK	(ULL(0xFFFF) << 52)
 
 /*
  * Define the architectural limits of the virtual address space in AArch64

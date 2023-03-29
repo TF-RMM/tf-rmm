@@ -230,7 +230,7 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 		return -EINVAL;
 	}
 
-	if ((va_size % GRANULE_SIZE) != 0ULL) {
+	if ((va_size & (GRANULE_SIZE - 1ULL)) != 0ULL) {
 		return -EINVAL;
 	}
 
