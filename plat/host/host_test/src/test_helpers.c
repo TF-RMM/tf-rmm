@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <test_private.h>
+#include <time.h>
 #include <utest_exit.h>
 #include <xlat_tables.h>
 
@@ -220,6 +221,17 @@ void test_helpers_fail_if_no_assert_failed(void)
 		assert_expected = false;
 	}
 
+}
+
+void test_helpers_init(void)
+{
+	static int random_seed;
+
+	/* Initialize the random seed */
+	while (random_seed == 0) {
+		random_seed = (int)time(NULL);
+		srand(random_seed);
+	}
 }
 
 /******************************************************************

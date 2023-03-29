@@ -31,3 +31,8 @@ arm_config_option_override(NAME PLAT_CMN_CTX_MAX_XLAT_TABLES DEFAULT 6)
 # Maximum number of granules supported, enough to cover 2GB of DDR0.
 #
 arm_config_option_override(NAME RMM_MAX_GRANULES DEFAULT 0x80000)
+
+#
+# Add a large number of MMAP regions to exercise unittests on xlat lib.
+#
+arm_config_option_override(NAME PLAT_CMN_MAX_MMAP_REGIONS DEFAULT 0xff)
