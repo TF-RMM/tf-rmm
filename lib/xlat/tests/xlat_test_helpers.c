@@ -58,7 +58,7 @@ void xlat_test_helpers_init_ctx(struct xlat_ctx *ctx,
 
 void xlat_test_hepers_arch_init(void)
 {
-	unsigned int retval;
+	unsigned int retval __unused;
 
 	/* Enable the platform with support for multiple PEs */
 	test_helpers_rmm_start(true);
