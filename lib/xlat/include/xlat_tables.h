@@ -119,10 +119,13 @@
 /* All other bits are reserved */
 
 /* Macro to access translatio table lower attributes */
-#define LOWER_ATTRS(x)			(((x) & UL(0xfff)) << UL(2))
+#define LOWER_ATTRS_SHIFT	(2U)
+#define LOWER_ATTRS_WIDTH	(10U)
+#define LOWER_ATTRS_MASK	MASK(LOWER_ATTRS)
+#define LOWER_ATTRS(x)		(INPLACE(LOWER_ATTRS, x) & (LOWER_ATTRS_MASK))
 
 /* Public definitions to use with the LOWER_ATTRS() macro*/
-#define NS				(U(0x1) << UL(3))   /* Bit[5] absolutely */
+#define NS			(U(0x1) << UL(3))   /* Bit[5] absolutely */
 
 /*
  * Memory mapping attributes
@@ -135,7 +138,6 @@
  * stronger.
  */
 #define MT_DEVICE		UL(0)
-#define MT_NON_CACHEABLE	UL(1)
 #define MT_MEMORY		UL(2)
 #define MT_TRANSIENT		UL(3)
 /* Values up to 7 are reserved to add new memory types in the future */
@@ -168,7 +170,6 @@
 #define MT_SHAREABILITY_OSH	INPLACE(MT_SHAREABILITY, 2UL)
 #define MT_SHAREABILITY_NSH	INPLACE(MT_SHAREABILITY, 3UL)
 
-#define MT_CONT			INPLACE(MT_CONT, 1UL)
 #define MT_NG			INPLACE(MT_NG, 1UL)
 
 /* Compound attributes for most common usages */

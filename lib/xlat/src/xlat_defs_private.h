@@ -53,7 +53,11 @@
 #define UXN			(ULL(1) << 2)
 #define PXN			(ULL(1) << 1)
 #define CONT_HINT		(ULL(1) << 0)
-#define UPPER_ATTRS(x)		(((x) & ULL(0x7)) << 52)
+
+#define UPPER_ATTRS_SHIFT	(52U)
+#define UPPER_ATTRS_WIDTH	(3U)
+#define UPPER_ATTRS_MASK	MASK(UPPER_ATTRS)
+#define UPPER_ATTRS(x)		(INPLACE(UPPER_ATTRS, x) & (UPPER_ATTRS_MASK))
 
 #define NON_GLOBAL		(UL(1) << 9)
 #define ACCESS_FLAG		(UL(1) << 8)
