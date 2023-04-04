@@ -127,8 +127,8 @@
 #define RMI_VALID_NS		U(4)
 
 /* RmiFeature enumerations */
-#define RMI_NOT_SUPPORTED			UL(0)
-#define RMI_SUPPORTED				UL(1)
+#define RMI_FEATURE_FALSE	UL(0)
+#define RMI_FEATURE_TRUE	UL(1)
 
 /* RmiFeatureRegister0 format */
 #define RMM_FEATURE_REGISTER_0_INDEX		UL(0)
