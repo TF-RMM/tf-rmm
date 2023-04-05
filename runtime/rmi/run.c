@@ -125,20 +125,6 @@ static void complete_sysreg_emulation(struct rec *rec, struct rmi_rec_entry *rec
 	}
 }
 
-static void complete_hvc_exit(struct rec *rec, struct rmi_rec_entry *rec_entry)
-{
-	unsigned long esr = rec->last_run_info.esr;
-	unsigned int i;
-
-	if ((esr & MASK(ESR_EL2_EC)) != ESR_EL2_EC_HVC) {
-		return;
-	}
-
-	for (i = 0U; i < REC_EXIT_NR_GPRS; i++) {
-		rec->regs[i] = rec_entry->gprs[i];
-	}
-}
-
 static bool complete_host_call(struct rec *rec, struct rmi_rec_run *rec_run)
 {
 	struct rsi_walk_result walk_result;
@@ -265,7 +251,6 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 
 	complete_set_ripas(rec);
 	complete_sysreg_emulation(rec, &rec_run.entry);
-	complete_hvc_exit(rec, &rec_run.entry);
 
 	if (!complete_host_call(rec, &rec_run)) {
 		ret = RMI_SUCCESS;
