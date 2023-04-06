@@ -249,21 +249,9 @@ static inline bool rec_is_simd_allowed(struct rec *rec)
 }
 
 void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit);
-
-unsigned long smc_rec_create(unsigned long rec_addr,
-			     unsigned long rd_addr,
-			     unsigned long rec_params_addr);
-
-unsigned long smc_rec_destroy(unsigned long rec_addr);
-
-unsigned long smc_rec_enter(unsigned long rec_addr,
-			    unsigned long rec_run_addr);
-
 void inject_serror(struct rec *rec, unsigned long vsesr);
-
 void emulate_stage2_data_abort(struct rec *rec, struct rmi_rec_exit *exit,
 			       unsigned long rtt_level);
 
 #endif /* __ASSEMBLER__ */
-
 #endif /* REC_H */
