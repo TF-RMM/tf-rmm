@@ -35,6 +35,13 @@ Realm Management Monitor Documentation
             </a>
             <p>Design documentation for RMM.</p>
         </li>
+        <li class="grid-item">
+            <a href="security/index.html">
+               <img alt="" src="_static/images/rmm-documentation.png"/>
+               <h2>Security</h2>
+            </a>
+            <p>Security.</p>
+        </li>
     </ul>
 
 .. toctree::
@@ -46,4 +53,5 @@ Realm Management Monitor Documentation
    getting_started/index
    process/index
    design/index
+   security/index
    glossary
