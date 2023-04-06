@@ -211,12 +211,10 @@ static inline void atomic_granule_put_release(struct granule *g)
  *
  * Returns:
  *     struct granule if @addr is a valid granule physical address.
- *     RMI_ERROR_INPUT if @addr is not aligned to the size of a granule.
- *     RMI_ERROR_INPUT if @addr is out of range.
- *     RMI_ERROR_INPUT if the state of the granule at @addr is not
- *     @expected_state.
- *     RMI_ERROR_IN_USE if the granule at @addr has a non-zero
- *     reference count.
+ *     1 if @addr is not aligned to the size of a granule.
+ *     1 if @addr is out of range.
+ *     1 if the state of the granule at @addr is not @expected_state.
+ *     2 if the granule at @addr has a non-zero reference count.
  */
 static inline
 struct granule *find_lock_unused_granule(unsigned long addr,
@@ -226,7 +224,7 @@ struct granule *find_lock_unused_granule(unsigned long addr,
 
 	g = find_lock_granule(addr, expected_state);
 	if (g == NULL) {
-		return (struct granule *)status_ptr(RMI_ERROR_INPUT);
+		return (struct granule *)status_ptr(1U);
 	}
 
 	/*
@@ -235,7 +233,7 @@ struct granule *find_lock_unused_granule(unsigned long addr,
 	 */
 	if (granule_refcount_read_acquire(g)) {
 		granule_unlock(g);
-		return (struct granule *)status_ptr(RMI_ERROR_IN_USE);
+		return (struct granule *)status_ptr(2U);
 	}
 
 	return g;

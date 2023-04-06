@@ -350,7 +350,7 @@ unsigned long smc_rtt_fold(unsigned long rtt_addr,
 			 * The table holds a mixture of destroyed and
 			 * unassigned entries.
 			 */
-			ret = RMI_ERROR_IN_USE;
+			ret = pack_return_code(RMI_ERROR_RTT, level);
 			goto out_unmap_table;
 		}
 
@@ -368,7 +368,7 @@ unsigned long smc_rtt_fold(unsigned long rtt_addr,
 		 * would create a block mapping below RTT_MIN_BLOCK_LEVEL.
 		 */
 		if (level <= RTT_MIN_BLOCK_LEVEL) {
-			ret = RMI_ERROR_IN_USE;
+			ret = pack_return_code(RMI_ERROR_RTT, wi.last_level);
 			goto out_unmap_table;
 		}
 
@@ -396,7 +396,7 @@ unsigned long smc_rtt_fold(unsigned long rtt_addr,
 		/*
 		 * The table holds a mixture of different types of s2ttes.
 		 */
-		ret = RMI_ERROR_IN_USE;
+		ret = pack_return_code(RMI_ERROR_RTT, level);
 		goto out_unmap_table;
 	}
 
@@ -509,7 +509,7 @@ unsigned long smc_rtt_destroy(unsigned long rtt_addr,
 	 * the refcount can be accessed without atomic operations.
 	 */
 	if (g_tbl->refcount != 0UL) {
-		ret = RMI_ERROR_IN_USE;
+		ret = pack_return_code(RMI_ERROR_RTT, level);
 		goto out_unlock_table;
 	}
 
@@ -1209,7 +1209,7 @@ unsigned long smc_rtt_set_ripas(unsigned long rd_addr,
 	}
 
 	if (granule_refcount_read_acquire(g_rec) != 0UL) {
-		ret = RMI_ERROR_IN_USE;
+		ret = RMI_ERROR_REC;
 		goto out_unlock_rec_rd;
 	}
 

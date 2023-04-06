@@ -29,8 +29,7 @@ const char *rmi_status_string[] = {
 	RMI_STATUS_STRING(ERROR_INPUT),
 	RMI_STATUS_STRING(ERROR_REALM),
 	RMI_STATUS_STRING(ERROR_REC),
-	RMI_STATUS_STRING(ERROR_RTT),
-	RMI_STATUS_STRING(ERROR_IN_USE)
+	RMI_STATUS_STRING(ERROR_RTT)
 };
 COMPILER_ASSERT(ARRAY_LEN(rmi_status_string) == RMI_ERROR_COUNT);
 
@@ -54,8 +53,13 @@ typedef unsigned long (*handler_5)(unsigned long arg0, unsigned long arg1,
 				   unsigned long arg2, unsigned long arg3,
 				   unsigned long arg4);
 typedef void (*handler_1_o)(unsigned long arg0, struct smc_result *ret);
+typedef void (*handler_2_o)(unsigned long arg0, unsigned long arg1,
+			    struct smc_result *ret);
 typedef void (*handler_3_o)(unsigned long arg0, unsigned long arg1,
 			    unsigned long arg2, struct smc_result *ret);
+typedef void (*handler_4_o)(unsigned long arg0, unsigned long arg1,
+			    unsigned long arg2, unsigned long arg3,
+			    struct smc_result *ret);
 
 /*
  * SMC RMI handler type encoding:
@@ -73,7 +77,11 @@ enum rmi_type {
 	rmi_type(4, 0),	/* 4 arguments, 0 output values */
 	rmi_type(5, 0),	/* 5 arguments, 0 output values */
 	rmi_type(1, 1), /* 1 argument,  1 output value */
-	rmi_type(3, 4)	/* 3 arguments, 4 output values */
+	rmi_type(2, 2), /* 2 arguments, 2 output values */
+	rmi_type(3, 1),	/* 3 arguments, 1 output value */
+	rmi_type(3, 2),	/* 3 arguments, 2 output values */
+	rmi_type(3, 4),	/* 3 arguments, 4 output values */
+	rmi_type(4, 1)	/* 4 arguments, 1 output value */
 };
 
 struct smc_handler {
@@ -87,7 +95,11 @@ struct smc_handler {
 		handler_4	f_40;
 		handler_5	f_50;
 		handler_1_o	f_11;
+		handler_2_o	f_22;
+		handler_3_o	f_31;
+		handler_3_o	f_32;
 		handler_3_o	f_34;
+		handler_4_o	f_41;
 		void		*fn_dummy;
 	};
 	bool		log_exec;	/* print handler execution */
@@ -282,8 +294,20 @@ void handle_ns_smc(unsigned long function_id,
 	case rmi_type_11:
 		handler->f_11(arg0, ret);
 		break;
+	case rmi_type_22:
+		handler->f_22(arg0, arg1, ret);
+		break;
+	case rmi_type_31:
+		handler->f_31(arg0, arg1, arg2, ret);
+		break;
+	case rmi_type_32:
+		handler->f_32(arg0, arg1, arg2, ret);
+		break;
 	case rmi_type_34:
 		handler->f_34(arg0, arg1, arg2, ret);
+		break;
+	case rmi_type_41:
+		handler->f_41(arg0, arg1, arg2, arg3, ret);
 		break;
 	default:
 		assert(false);

@@ -66,15 +66,9 @@
 #define RMI_ERROR_RTT			U(4)
 
 /*
- * An operation cannot be completed because a resource is in use.
- * Index is zero.
- */
-#define RMI_ERROR_IN_USE		U(5)
-
-/*
  * Number of RMI Status Errors.
  */
-#define RMI_ERROR_COUNT			U(6)
+#define RMI_ERROR_COUNT			U(5)
 
 /*
  * The number of GPRs (starting from X0) that are

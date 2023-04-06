@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <buffer.h>
+#include <debug.h>
 #include <feature.h>
 #include <granule.h>
 #include <measurement.h>
@@ -402,7 +403,15 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	/* RD should not be destroyed if refcount != 0. */
 	g_rd = find_lock_unused_granule(rd_addr, GRANULE_STATE_RD);
 	if (ptr_is_err(g_rd)) {
-		return (unsigned long)ptr_status(g_rd);
+		switch (ptr_status(g_rd)) {
+		case 1U:
+			return RMI_ERROR_INPUT;
+		case 2U:
+			/* RD should not be destroyed if refcount != 0 */
+			return RMI_ERROR_REALM;
+		default:
+			panic();
+		}
 	}
 
 	rd = granule_map(g_rd, SLOT_RD);
@@ -421,7 +430,7 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	/* Check if granules are unused */
 	if (total_root_rtt_refcount(g_rtt, num_rtts) != 0UL) {
 		granule_unlock(g_rd);
-		return RMI_ERROR_IN_USE;
+		return RMI_ERROR_REALM;
 	}
 
 	free_sl_rtts(g_rtt, num_rtts);
