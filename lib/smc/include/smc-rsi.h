@@ -146,7 +146,7 @@ struct rsi_realm_config {
  */
 #define SMC_RSI_IPA_STATE_GET		SMC64_RSI_FID(U(0x8))
 
-#define RSI_HOST_CALL_NR_GPRS		U(7)
+#define RSI_HOST_CALL_NR_GPRS		U(31)
 
 #ifndef __ASSEMBLER__
 struct rsi_host_call {
@@ -161,7 +161,7 @@ struct rsi_host_call {
 #endif /* __ASSEMBLER__ */
 
 /*
- * arg0 == struct rsi_host_call addr
+ * arg0 == struct rsi_host_call address
  */
 #define SMC_RSI_HOST_CALL		SMC64_RSI_FID(U(0x9))
 
