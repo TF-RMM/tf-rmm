@@ -76,7 +76,7 @@ struct rd {
 	bool pmu_enabled;
 
 	/* Number of PMU counters */
-	unsigned int pmu_num_cnts;
+	unsigned int pmu_num_ctrs;
 
 	/* SVE enabled flag */
 	bool sve_enabled;

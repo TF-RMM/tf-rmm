@@ -151,7 +151,7 @@ struct rec {
 		struct granule *g_rtt;
 		struct granule *g_rd;
 		bool pmu_enabled;
-		unsigned int pmu_num_cnts;
+		unsigned int pmu_num_ctrs;
 		bool sve_enabled;
 		uint8_t sve_vq;
 	} realm_info;
@@ -238,9 +238,8 @@ static inline simd_t rec_simd_type(struct rec *rec)
 {
 	if (rec->realm_info.sve_enabled) {
 		return SIMD_SVE;
-	} else {
-		return SIMD_FPU;
 	}
+	return SIMD_FPU;
 }
 
 static inline bool rec_is_simd_allowed(struct rec *rec)

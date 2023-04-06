@@ -138,25 +138,30 @@
 
 #define RMM_FEATURE_REGISTER_0_LPA2_SHIFT	UL(8)
 #define RMM_FEATURE_REGISTER_0_LPA2_WIDTH	UL(1)
-#define RMI_NO_LPA2				UL(0)
-#define RMI_LPA2				UL(1)
 
-#define RMM_FEATURE_REGISTER_0_HASH_SHA_256_SHIFT      UL(28)
-#define RMM_FEATURE_REGISTER_0_HASH_SHA_256_WIDTH      UL(1)
+#define RMM_FEATURE_REGISTER_0_SVE_EN_SHIFT	UL(9)
+#define RMM_FEATURE_REGISTER_0_SVE_EN_WIDTH	UL(1)
 
-#define RMM_FEATURE_REGISTER_0_HASH_SHA_512_SHIFT      UL(29)
-#define RMM_FEATURE_REGISTER_0_HASH_SHA_512_WIDTH      UL(1)
+#define RMM_FEATURE_REGISTER_0_SVE_VL_SHIFT	UL(10)
+#define RMM_FEATURE_REGISTER_0_SVE_VL_WIDTH	UL(4)
 
-#define RMM_FEATURE_REGISTER_0_PMU_EN_SHIFT		UL(22)
-#define RMM_FEATURE_REGISTER_0_PMU_EN_WIDTH		UL(1)
+#define RMM_FEATURE_REGISTER_0_NUM_BPS_SHIFT	UL(14)
+#define RMM_FEATURE_REGISTER_0_NUM_BPS_WIDTH	UL(4)
+
+#define RMM_FEATURE_REGISTER_0_NUM_WPS_SHIFT	UL(18)
+#define RMM_FEATURE_REGISTER_0_NUM_WPS_WIDTH	UL(4)
+
+#define RMM_FEATURE_REGISTER_0_PMU_EN_SHIFT	UL(22)
+#define RMM_FEATURE_REGISTER_0_PMU_EN_WIDTH	UL(1)
 
 #define RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS_SHIFT	UL(23)
 #define RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS_WIDTH	UL(5)
 
-#define RMM_FEATURE_REGISTER_0_SVE_EN_SHIFT		UL(9)
-#define RMM_FEATURE_REGISTER_0_SVE_EN_WIDTH		UL(1)
-#define RMM_FEATURE_REGISTER_0_SVE_VL_SHIFT		UL(10)
-#define RMM_FEATURE_REGISTER_0_SVE_VL_WIDTH		UL(4)
+#define RMM_FEATURE_REGISTER_0_HASH_SHA_256_SHIFT	UL(28)
+#define RMM_FEATURE_REGISTER_0_HASH_SHA_256_WIDTH	UL(1)
+
+#define RMM_FEATURE_REGISTER_0_HASH_SHA_512_SHIFT	UL(29)
+#define RMM_FEATURE_REGISTER_0_HASH_SHA_512_WIDTH	UL(1)
 
 /* The RmmRipas enumeration representing realm IPA state */
 #define RMI_EMPTY   (0)
@@ -320,6 +325,16 @@
 /* Size of Realm Personalization Value */
 #define RPV_SIZE		64
 
+/* RmiRealmFlags format */
+#define RMI_REALM_FLAGS_LPA2_SHIFT	UL(0)
+#define RMI_REALM_FLAGS_LPA2_WIDTH	UL(1)
+
+#define RMI_REALM_FLAGS_SVE_SHIFT	UL(1)
+#define RMI_REALM_FLAGS_SVE_WIDTH	UL(1)
+
+#define RMI_REALM_FLAGS_PMU_SHIFT	UL(2)
+#define RMI_REALM_FLAGS_PMU_WIDTH	UL(1)
+
 #ifndef __ASSEMBLER__
 /*
  * Defines member of structure and reserves space
@@ -333,12 +348,22 @@
  * either by the Host or by the Realm.
  */
 struct rmi_realm_params {
-	/* Realm feature register 0 */
-	SET_MEMBER_RMI(unsigned long features_0, 0, 0x100);		/* Offset 0 */
+	/* Flags */
+	SET_MEMBER_RMI(unsigned long flags, 0, 0x8);		/* Offset 0 */
+	/* Requested IPA width */
+	SET_MEMBER_RMI(unsigned int s2sz, 0x8, 0x10);		/* 0x8 */
+	/* Requested SVE vector length */
+	SET_MEMBER_RMI(unsigned int sve_vl, 0x10, 0x18);	/* 0x10 */
+	/* Requested number of breakpoints */
+	SET_MEMBER_RMI(unsigned int num_bps, 0x18, 0x20);	/* 0x18 */
+	/* Requested number of watchpoints */
+	SET_MEMBER_RMI(unsigned int num_wps, 0x20, 0x28);	/* 0x20 */
+	/* Requested number of PMU counters */
+	SET_MEMBER_RMI(unsigned int pmu_num_ctrs, 0x28, 0x30);	/* 0x28 */
 	/* Measurement algorithm */
-	SET_MEMBER_RMI(unsigned char hash_algo, 0x100, 0x400);	/* 0x100 */
+	SET_MEMBER_RMI(unsigned char hash_algo, 0x30, 0x400);	/* 0x30 */
 	/* Realm Personalization Value */
-	SET_MEMBER_RMI(unsigned char rpv[RPV_SIZE], 0x400, 0x800);	/* 0x400 */
+	SET_MEMBER_RMI(unsigned char rpv[RPV_SIZE], 0x400, 0x800); /* 0x400 */
 	SET_MEMBER_RMI(struct {
 			/* Virtual Machine Identifier */
 			unsigned short vmid;			/* 0x800 */

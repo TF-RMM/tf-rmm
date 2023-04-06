@@ -6,8 +6,6 @@
 #ifndef FEATURE_H
 #define FEATURE_H
 
-#include <arch.h>
-
-bool validate_feature_register(unsigned long index, unsigned long value);
+unsigned long get_feature_register_0(void);
 
 #endif /* FEATURE_H */

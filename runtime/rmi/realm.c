@@ -18,6 +18,8 @@
 #include <table.h>
 #include <vmid.h>
 
+#define RMM_FEATURE_MIN_IPA_SIZE	PARANGE_0000_WIDTH
+
 unsigned long smc_realm_activate(unsigned long rd_addr)
 {
 	struct rd *rd;
@@ -106,11 +108,6 @@ static bool validate_ipa_bits_and_sl(unsigned int ipa_bits, long sl)
 	return !s2_inconsistent_sl(ipa_bits, sl);
 }
 
-static unsigned int requested_ipa_bits(struct rmi_realm_params *p)
-{
-	return EXTRACT(RMM_FEATURE_REGISTER_0_S2SZ, p->features_0);
-}
-
 static unsigned int s2_num_root_rtts(unsigned int ipa_bits, int sl)
 {
 	unsigned int levels = (unsigned int)(RTT_PAGE_LEVEL - sl);
@@ -130,18 +127,54 @@ static unsigned int s2_num_root_rtts(unsigned int ipa_bits, int sl)
 
 static bool validate_realm_params(struct rmi_realm_params *p)
 {
-	if (!validate_feature_register(RMM_FEATURE_REGISTER_0_INDEX,
-					p->features_0)) {
+	unsigned long feat_reg0 = get_feature_register_0();
+
+	/* Validate LPA2 flag */
+	if ((EXTRACT(RMI_REALM_FLAGS_LPA2, p->flags) == RMI_FEATURE_TRUE) &&
+	    (EXTRACT(RMM_FEATURE_REGISTER_0_LPA2, feat_reg0) ==
+							RMI_FEATURE_FALSE)) {
 		return false;
 	}
 
-	if (!validate_ipa_bits_and_sl(requested_ipa_bits(p),
-					p->rtt_level_start)) {
+	/* Validate S2SZ field */
+	if ((p->s2sz < RMM_FEATURE_MIN_IPA_SIZE) ||
+	    (p->s2sz > EXTRACT(RMM_FEATURE_REGISTER_0_S2SZ, feat_reg0))) {
 		return false;
 	}
 
-	if (s2_num_root_rtts(requested_ipa_bits(p),
-				p->rtt_level_start) != p->rtt_num_start) {
+	/* Validate number of breakpoints */
+	if ((p->num_bps !=
+		EXTRACT(RMM_FEATURE_REGISTER_0_NUM_BPS, feat_reg0)) ||
+	    (p->num_wps !=
+		EXTRACT(RMM_FEATURE_REGISTER_0_NUM_WPS, feat_reg0))) {
+		return false;
+	}
+
+	/* Validate RMI_REALM_FLAGS_SVE flag */
+	if ((EXTRACT(RMI_REALM_FLAGS_SVE, p->flags) ==
+						RMI_FEATURE_TRUE) &&
+	    (EXTRACT(RMM_FEATURE_REGISTER_0_SVE_EN, feat_reg0) ==
+						RMI_FEATURE_FALSE)) {
+		return false;
+	}
+
+	/*
+	 * Skip validation of RMI_REALM_FLAGS_PMU flag
+	 * as RMM always assumes that PMUv3p7+ is present.
+	 */
+
+	/* Validate number of PMU counters if PMUv3 is enabled */
+	if ((EXTRACT(RMI_REALM_FLAGS_PMU, p->flags) == RMI_FEATURE_TRUE) &&
+	    (p->pmu_num_ctrs !=
+		EXTRACT(RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS, feat_reg0))) {
+		return false;
+	}
+
+	if (!validate_ipa_bits_and_sl(p->s2sz, p->rtt_level_start)) {
+		return false;
+	}
+
+	if (s2_num_root_rtts(p->s2sz, p->rtt_level_start) != p->rtt_num_start) {
 		return false;
 	}
 
@@ -295,7 +328,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	set_rd_state(rd, REALM_STATE_NEW);
 	set_rd_rec_count(rd, 0UL);
 	rd->s2_ctx.g_rtt = find_granule(p.rtt_base);
-	rd->s2_ctx.ipa_bits = requested_ipa_bits(&p);
+	rd->s2_ctx.ipa_bits = p.s2sz;
 	rd->s2_ctx.s2_starting_level = p.rtt_level_start;
 	rd->s2_ctx.num_root_rtts = p.rtt_num_start;
 	(void)memcpy(&rd->rpv[0], &p.rpv[0], RPV_SIZE);
@@ -304,10 +337,10 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 
 	rd->num_rec_aux = MAX_REC_AUX_GRANULES;
 
-	rd->sve_enabled = EXTRACT(RMM_FEATURE_REGISTER_0_SVE_EN, p.features_0);
+	rd->sve_enabled = EXTRACT(RMM_FEATURE_REGISTER_0_SVE_EN, p.flags);
 	if (rd->sve_enabled) {
 		rd->sve_vq = EXTRACT(RMM_FEATURE_REGISTER_0_SVE_VL,
-				     p.features_0);
+				     p.flags);
 	}
 
 	rd->algorithm = p.hash_algo;
@@ -321,8 +354,8 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 		break;
 	}
 
-	rd->pmu_enabled = EXTRACT(RMM_FEATURE_REGISTER_0_PMU_EN, p.features_0);
-	rd->pmu_num_cnts = EXTRACT(RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS, p.features_0);
+	rd->pmu_enabled = (bool)EXTRACT(RMI_REALM_FLAGS_PMU, p.flags);
+	rd->pmu_num_ctrs = p.pmu_num_ctrs;
 
 	realm_params_measure(rd, &p);
 

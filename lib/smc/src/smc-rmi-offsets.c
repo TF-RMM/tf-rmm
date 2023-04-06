@@ -7,14 +7,18 @@
 #include <stddef.h>
 
 COMPILER_ASSERT(sizeof(struct rmi_realm_params) == 0x1000);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, features_0) == 0);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, hash_algo) == 0x100);
+COMPILER_ASSERT(offsetof(struct rmi_realm_params, flags) == 0);
+COMPILER_ASSERT(offsetof(struct rmi_realm_params, s2sz) == 0x8);
+COMPILER_ASSERT(offsetof(struct rmi_realm_params, sve_vl) == 0x10);
+COMPILER_ASSERT(offsetof(struct rmi_realm_params, num_bps) == 0x18);
+COMPILER_ASSERT(offsetof(struct rmi_realm_params, num_wps) == 0x20);
+COMPILER_ASSERT(offsetof(struct rmi_realm_params, pmu_num_ctrs) == 0x28);
+COMPILER_ASSERT(offsetof(struct rmi_realm_params, hash_algo) == 0x30);
 COMPILER_ASSERT(offsetof(struct rmi_realm_params, rpv) == 0x400);
 COMPILER_ASSERT(offsetof(struct rmi_realm_params, vmid) == 0x800);
 COMPILER_ASSERT(offsetof(struct rmi_realm_params, rtt_base) == 0x808);
 COMPILER_ASSERT(offsetof(struct rmi_realm_params, rtt_level_start) == 0x810);
 COMPILER_ASSERT(offsetof(struct rmi_realm_params, rtt_num_start) == 0x818);
-
 
 COMPILER_ASSERT(sizeof(struct rmi_rec_params) == 0x1000);
 COMPILER_ASSERT(offsetof(struct rmi_rec_params, flags) == 0);
