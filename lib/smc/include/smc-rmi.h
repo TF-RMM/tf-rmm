@@ -185,8 +185,8 @@
 #define RMI_MEASURE_CONTENT  1
 
 /*
- * arg0 == data address
- * arg1 == RD address
+ * arg0 == RD address
+ * arg1 == data address
  * arg2 == map address
  * arg3 == SRC address
  * arg4 == flags
@@ -194,8 +194,8 @@
 #define SMC_RMM_DATA_CREATE			SMC64_RMI_FID(U(0x3))
 
 /*
- * arg0 == data address
- * arg1 == RD address
+ * arg0 == RD address
+ * arg1 == data address
  * arg2 == map address
  */
 #define SMC_RMM_DATA_CREATE_UNKNOWN		SMC64_RMI_FID(U(0x4))
@@ -213,7 +213,7 @@
 
 /*
  * arg0 == RD address
- * arg1 == struct rmi_realm_params addr
+ * arg1 == struct rmi_realm_params address
  */
 #define SMC_RMM_REALM_CREATE			SMC64_RMI_FID(U(0x8))
 
@@ -223,8 +223,8 @@
 #define SMC_RMM_REALM_DESTROY			SMC64_RMI_FID(U(0x9))
 
 /*
- * arg0 == REC address
- * arg1 == RD address
+ * arg0 == RD address
+ * arg1 == REC address
  * arg2 == struct rmm_rec address
  */
 #define SMC_RMM_REC_CREATE			SMC64_RMI_FID(U(0xA))
@@ -236,13 +236,13 @@
 
 /*
  * arg0 == rec address
- * arg1 == rec_run address
+ * arg1 == struct rec_run address
  */
 #define SMC_RMM_REC_ENTER			SMC64_RMI_FID(U(0xC))
 
 /*
- * arg0 == RTT address
- * arg1 == RD address
+ * arg0 == RD address
+ * arg1 == RTT address
  * arg2 == map address
  * arg3 == level
  */
@@ -307,9 +307,9 @@
 #define SMC_RMM_REC_AUX_COUNT			SMC64_RMI_FID(U(0x17))
 
 /*
- * arg1 == RD address
- * arg2 == map address
- * arg3 == level
+ * arg0 == RD address
+ * arg1 == map address
+ * arg2 == level
  */
 #define SMC_RMM_RTT_INIT_RIPAS			SMC64_RMI_FID(U(0x18))
 

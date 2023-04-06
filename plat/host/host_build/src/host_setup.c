@@ -165,7 +165,7 @@ static int create_realm(void)
 
 	/* Create RTT table to start at IPA 0x0 */
 	for (i = 1; i < RTT_COUNT; ++i) {
-		host_rmi_rtt_create(rtts[i], rd, 0, i, &result);
+		host_rmi_rtt_create(rd, rtts[i], 0, i, &result);
 		CHECK_RMI_RESULT();
 	}
 
@@ -176,7 +176,7 @@ static int create_realm(void)
 	host_rmi_rtt_init_ripas(rd, REALM_BUFFER_IPA, 3, &result);
 	CHECK_RMI_RESULT();
 
-	host_rmi_data_create_unknown(realm_buffer, rd, REALM_BUFFER_IPA, &result);
+	host_rmi_data_create_unknown(rd, realm_buffer, REALM_BUFFER_IPA, &result);
 	CHECK_RMI_RESULT();
 
 	host_rmi_rec_aux_count(rd, &result);
@@ -197,7 +197,7 @@ static int create_realm(void)
 	rec_params->flags |= REC_PARAMS_FLAG_RUNNABLE;
 	rec_params->pc = (uintptr_t)realm_start;
 
-	host_rmi_rec_create(rec, rd, rec_params, &result);
+	host_rmi_rec_create(rd, rec, rec_params, &result);
 	CHECK_RMI_RESULT();
 	host_rmi_realm_activate(rd, &result);
 	CHECK_RMI_RESULT();

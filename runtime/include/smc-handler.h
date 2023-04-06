@@ -13,14 +13,14 @@ unsigned long smc_version(void);
 void smc_read_feature_register(unsigned long index,
 				struct smc_result *ret_struct);
 
-unsigned long smc_data_create(unsigned long data_addr,
-			      unsigned long rd_addr,
+unsigned long smc_data_create(unsigned long rd_addr,
+			      unsigned long data_addr,
 			      unsigned long map_addr,
 			      unsigned long src_addr,
 			      unsigned long flags);
 
-unsigned long smc_data_create_unknown(unsigned long data_addr,
-				      unsigned long rd_addr,
+unsigned long smc_data_create_unknown(unsigned long rd_addr,
+				      unsigned long data_addr,
 				      unsigned long map_addr);
 
 unsigned long smc_data_destroy(unsigned long rd_addr,
@@ -37,8 +37,8 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 
 unsigned long smc_realm_destroy(unsigned long rd_addr);
 
-unsigned long smc_rec_create(unsigned long rec_addr,
-			     unsigned long rd_addr,
+unsigned long smc_rec_create(unsigned long rd_addr,
+			     unsigned long rec_addr,
 			     unsigned long rec_params_addr);
 
 unsigned long smc_rec_destroy(unsigned long rec_addr);
@@ -49,8 +49,8 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 void smc_rec_aux_count(unsigned long rd_addr,
 			struct smc_result *ret_struct);
 
-unsigned long smc_rtt_create(unsigned long rtt_addr,
-			     unsigned long rd_addr,
+unsigned long smc_rtt_create(unsigned long rd_addr,
+			     unsigned long rtt_addr,
 			     unsigned long map_addr,
 			     unsigned long ulevel);
 

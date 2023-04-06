@@ -184,8 +184,8 @@ static void free_rec_aux_granules(struct granule *rec_aux[],
 	}
 }
 
-unsigned long smc_rec_create(unsigned long rec_addr,
-			     unsigned long rd_addr,
+unsigned long smc_rec_create(unsigned long rd_addr,
+			     unsigned long rec_addr,
 			     unsigned long rec_params_addr)
 {
 	struct granule *g_rd;

@@ -78,8 +78,8 @@ static bool validate_rtt_entry_cmds(unsigned long map_addr,
 	return validate_map_addr(map_addr, level, rd);
 }
 
-unsigned long smc_rtt_create(unsigned long rtt_addr,
-			     unsigned long rd_addr,
+unsigned long smc_rtt_create(unsigned long rd_addr,
+			     unsigned long rtt_addr,
 			     unsigned long map_addr,
 			     unsigned long ulevel)
 {
@@ -822,8 +822,8 @@ static unsigned long validate_data_create(unsigned long map_addr,
  * if @g_src == NULL, this implemented Data.CreateUnknown
  * and otherwise this implemented Data.Create.
  */
-static unsigned long data_create(unsigned long data_addr,
-				 unsigned long rd_addr,
+static unsigned long data_create(unsigned long rd_addr,
+				 unsigned long data_addr,
 				 unsigned long map_addr,
 				 struct granule *g_src,
 				 unsigned long flags)
@@ -926,14 +926,13 @@ out_unmap_rd:
 	return ret;
 }
 
-unsigned long smc_data_create(unsigned long data_addr,
-			      unsigned long rd_addr,
+unsigned long smc_data_create(unsigned long rd_addr,
+			      unsigned long data_addr,
 			      unsigned long map_addr,
 			      unsigned long src_addr,
 			      unsigned long flags)
 {
 	struct granule *g_src;
-	unsigned long ret;
 
 	if (flags != RMI_NO_MEASURE_CONTENT && flags != RMI_MEASURE_CONTENT) {
 		return RMI_ERROR_INPUT;
@@ -944,16 +943,14 @@ unsigned long smc_data_create(unsigned long data_addr,
 		return RMI_ERROR_INPUT;
 	}
 
-	ret = data_create(data_addr, rd_addr, map_addr, g_src, flags);
-
-	return ret;
+	return data_create(rd_addr, data_addr, map_addr, g_src, flags);
 }
 
-unsigned long smc_data_create_unknown(unsigned long data_addr,
-				      unsigned long rd_addr,
+unsigned long smc_data_create_unknown(unsigned long rd_addr,
+				      unsigned long data_addr,
 				      unsigned long map_addr)
 {
-	return data_create(data_addr, rd_addr, map_addr, NULL, 0);
+	return data_create(rd_addr, data_addr, map_addr, NULL, 0);
 }
 
 unsigned long smc_data_destroy(unsigned long rd_addr,
@@ -1148,6 +1145,7 @@ unsigned long smc_rtt_init_ripas(unsigned long rd_addr,
 
 	rtt_walk_lock_unlock(g_rtt_root, sl, ipa_bits,
 				map_addr, level, &wi);
+
 	if (wi.last_level != level) {
 		ret = pack_return_code(RMI_ERROR_RTT, wi.last_level);
 		goto out_unlock_llt;
