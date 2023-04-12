@@ -589,15 +589,8 @@ static unsigned long map_unmap_ns(unsigned long rd_addr,
 	sl = realm_rtt_starting_level(rd);
 	ipa_bits = realm_ipa_bits(rd);
 
-	/*
-	 * We don't have to check PAR boundaries for unmap_ns
-	 * operation because we already test that the s2tte is Valid_NS
-	 * and only outside-PAR IPAs can be translated by such s2tte.
-	 *
-	 * For "map_ns", however, the s2tte is verified to be Unassigned
-	 * but both inside & outside PAR IPAs can be translated by such s2ttes.
-	 */
-	if ((op == MAP_NS) && addr_in_par(rd, map_addr)) {
+	/* Check if map_addr is outside PAR */
+	if (addr_in_par(rd, map_addr)) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
 		return RMI_ERROR_INPUT;
