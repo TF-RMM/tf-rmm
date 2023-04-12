@@ -74,38 +74,32 @@
 #define S2TTE_INVALID	0
 
 /*
- * The type of an S2TTE is one of the following:
+ * The type of stage 2 translation table entry (s2tte) is defined by:
+ * 1. Table level where it resides
+ * 2. DESC_TYPE field[1:0]
+ * 4. HIPAS field [5:2]
+ * 4. RIPAS field [6]
+ * 5. NS field [55]
  *
- * - Invalid
- * - Valid page
- * - Valid block
- * - Table
- *
- * Within an invalid S2TTE for a Protected IPA, architecturally RES0 bits are
- * used to encode the HIPAS and RIPAS.
- *
- * A valid S2TTE for a Protected IPA implies HIPAS=ASSIGNED and RIPAS=RAM.
- *
- * An invalid S2TTE for an Unprotected IPA implies HIPAS=INVALID_NS.
- * A valid S2TTE for an Unprotected IPA implies HIPAS=VALID_NS.
- *
- * The following table defines the mapping from a (HIPAS, RIPAS) tuple to the
- * value of the S2TTE.
- *
- * ------------------------------------------------------------------------------
- * IPA		HIPAS		RIPAS		S2TTE value
- * ==============================================================================
- * Protected	UNASSIGNED	EMPTY		(S2TTE_INVALID_HIPAS_UNASSIGNED	|
- *						 S2TTE_INVALID_RIPAS_EMPTY)
- * Protected	UNASSIGNED	RAM		(S2TTE_INVALID_HIPAS_UNASSIGNED	|
- *						 S2TTE_INVALID_RIPAS_RAM)
- * Protected	ASSIGNED	EMPTY		(S2TTE_INVALID_HIPAS_ASSIGNED	|
- *						 S2TTE_INVALID_RIPAS_EMPTY)
- * Protected	ASSIGNED	RAM		Valid page / block with NS=0
- * Protected	DESTROYED	*		S2TTE_INVALID_DESTROYED
- * Unprotected	INVALID_NS	N/A		S2TTE_INVALID_UNPROTECTED
- * Unprotected	VALID_NS	N/A		Valid page / block with NS=1
- * ------------------------------------------------------------------------------
+ * s2tte type       level DESC_TYPE[1:0] HIPAS[5:2]    RIPAS[6] NS  OA alignment
+ * =============================================================================
+ * unassigned_empty any   invalid[0]     unassigned[0] empty[0]  0   n/a
+ * -----------------------------------------------------------------------------
+ * unassigned_ram   any   invalid[0]     unassigned[0] ram[1]    0   n/a
+ * -----------------------------------------------------------------------------
+ * assigned_empty   2,3   invalid[0]     assigned[1]   empty[0]  0   to level
+ * -----------------------------------------------------------------------------
+ * assigned_ram     3     page[1]        n/a           n/a       0   to level
+ *                  2     block[3]       n/a           n/a       0   to level
+ * -----------------------------------------------------------------------------
+ * destroyed        any   invalid[0]     destroyed[2]  n/a       0   n/a
+ * =============================================================================
+ * unassigned_ns    any   invalid[0]     unassigned[0] n/a       1   n/a
+ * -----------------------------------------------------------------------------
+ * assigned_ns	    3     page[1]        n/a           n/a       1   to level
+ *                  2     block[3]       n/a           n/a       1   to level
+ * =============================================================================
+ * table            <=2   table[1]       n/a           n/a       n/a to 4K
  */
 
 #define S2TTE_INVALID_HIPAS_SHIFT	2
@@ -440,11 +434,12 @@ unsigned long s2tte_create_valid(unsigned long pa, long level)
 }
 
 /*
- * Creates an invalid s2tte with HIPAS=INVALID_NS.
+ * Creates an unassigned_ns s2tte.
  */
-unsigned long s2tte_create_invalid_ns(void)
+unsigned long s2tte_create_unassigned_ns(void)
 {
-	return S2TTE_INVALID_UNPROTECTED;
+	return S2TTE_NS | S2TTE_INVALID_HIPAS_UNASSIGNED |
+			  S2TTE_INVALID_UNPROTECTED;
 }
 
 /*
@@ -542,10 +537,26 @@ static bool s2tte_has_hipas(unsigned long s2tte, unsigned long hipas)
 }
 
 /*
- * Returns true if @s2tte has HIPAS=UNASSIGNED or HIPAS=INVALID_NS.
+ * Returns true if @s2tte has HIPAS=UNASSIGNED.
  */
 bool s2tte_is_unassigned(unsigned long s2tte)
 {
+	if ((s2tte & S2TTE_NS) != 0UL) {
+		return false;
+	}
+
+	return s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED);
+}
+
+/*
+ * Returns true if @s2tte is unassigned_ns.
+ */
+bool s2tte_is_unassigned_ns(unsigned long s2tte)
+{
+	if ((s2tte & S2TTE_NS) == 0UL) {
+		return false;
+	}
+
 	return s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED);
 }
 
@@ -653,6 +664,21 @@ void s2tt_init_unassigned(unsigned long *s2tt, enum ripas ripas)
 {
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
 		s2tt[i] = s2tte_create_unassigned(ripas);
+	}
+
+	dsb(ish);
+}
+
+/*
+ * Populates @s2tt with unassigned_ns s2ttes.
+ *
+ * The granule is populated before it is made a table,
+ * hence, don't use s2tte_write for access.
+ */
+void s2tt_init_unassigned_ns(unsigned long *s2tt)
+{
+	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
+		s2tt[i] = s2tte_create_unassigned_ns();
 	}
 
 	dsb(ish);
@@ -810,6 +836,14 @@ static bool __table_is_uniform_block(unsigned long *table,
 bool table_is_unassigned_block(unsigned long *table, enum ripas *ripas)
 {
 	return __table_is_uniform_block(table, s2tte_is_unassigned, ripas);
+}
+
+/*
+ * Returns true if all s2ttes in @table are unassigned_ns
+ */
+bool table_is_unassigned_ns_block(unsigned long *table)
+{
+	return __table_is_uniform_block(table, s2tte_is_unassigned_ns, NULL);
 }
 
 /*

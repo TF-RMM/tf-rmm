@@ -140,10 +140,6 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 	s2tt = granule_map(g_tbl, SLOT_DELEGATED);
 
 	if (s2tte_is_unassigned(parent_s2tte)) {
-		/*
-		 * Note that if map_addr is an Unprotected IPA, the RIPAS field
-		 * is guaranteed to be zero, in both parent and child s2ttes.
-		 */
 		enum ripas ripas = s2tte_get_ripas(parent_s2tte);
 
 		s2tt_init_unassigned(s2tt, ripas);
@@ -154,6 +150,10 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 * Atomicity and acquire/release semantics not required because
 		 * the table is accessed always locked.
 		 */
+		__granule_get(wi.g_llt);
+
+	} else if (s2tte_is_unassigned_ns(parent_s2tte)) {
+		s2tt_init_unassigned_ns(s2tt);
 		__granule_get(wi.g_llt);
 
 	} else if (s2tte_is_destroyed(parent_s2tte)) {
@@ -338,12 +338,10 @@ unsigned long smc_rtt_fold(unsigned long rtt_addr,
 			__granule_put(wi.g_llt);
 
 		} else if (table_is_unassigned_block(table, &ripas)) {
-			/*
-			 * Note that if map_addr is an Unprotected IPA, the
-			 * RIPAS field is guaranteed to be zero, in both parent
-			 * and child s2ttes.
-			 */
 			parent_s2tte = s2tte_create_unassigned(ripas);
+			__granule_put(wi.g_llt);
+		} else if (table_is_unassigned_ns_block(table)) {
+			parent_s2tte = s2tte_create_unassigned_ns();
 			__granule_put(wi.g_llt);
 		} else {
 			/*
@@ -520,7 +518,7 @@ unsigned long smc_rtt_destroy(unsigned long rtt_addr,
 	if (in_par) {
 		parent_s2tte = s2tte_create_destroyed();
 	} else {
-		parent_s2tte = s2tte_create_invalid_ns();
+		parent_s2tte = s2tte_create_unassigned_ns();
 	}
 
 	__granule_put(wi.g_llt);
@@ -613,7 +611,7 @@ static unsigned long map_unmap_ns(unsigned long rd_addr,
 	s2tte = s2tte_read(&s2tt[wi.index]);
 
 	if (op == MAP_NS) {
-		if (!s2tte_is_unassigned(s2tte)) {
+		if (!s2tte_is_unassigned_ns(s2tte)) {
 			ret = pack_return_code(RMI_ERROR_RTT,
 						(unsigned int)level);
 			goto out_unmap_table;
@@ -634,7 +632,7 @@ static unsigned long map_unmap_ns(unsigned long rd_addr,
 			goto out_unmap_table;
 		}
 
-		s2tte = s2tte_create_invalid_ns();
+		s2tte = s2tte_create_unassigned_ns();
 		s2tte_write(&s2tt[wi.index], s2tte);
 		__granule_put(wi.g_llt);
 		if (level == RTT_PAGE_LEVEL) {
@@ -733,6 +731,9 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 		ret->x[2] = RMI_ASSIGNED;
 		ret->x[3] = s2tte_pa(s2tte, wi.last_level);
 		ret->x[4] = RIPAS_RAM;
+	} else if (s2tte_is_unassigned_ns(s2tte)) {
+		ret->x[2] = RMI_UNASSIGNED;
+		ret->x[4] = RIPAS_EMPTY;
 	} else if (s2tte_is_valid_ns(s2tte, wi.last_level)) {
 		ret->x[2] = RMI_VALID_NS;
 		ret->x[3] = host_ns_s2tte(s2tte, wi.last_level);

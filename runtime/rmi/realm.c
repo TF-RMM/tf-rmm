@@ -126,6 +126,56 @@ static unsigned int s2_num_root_rtts(unsigned int ipa_bits, int sl)
 	return (1U << (ipa_bits - sl_ipa_bits));
 }
 
+/*
+ * Initialize the starting level of stage 2 translation tables.
+ *
+ * The protected half of the IPA space is initialized to
+ * unassigned_empty type of s2tte.
+ * The unprotected half of the IPA space is initialized to
+ * unassigned_ns type of s2tte.
+ * The remaining entries are not initialized.
+ */
+static void init_s2_starting_level(struct rd *rd)
+{
+	unsigned long current_ipa = 0U;
+	struct granule *g_rtt = rd->s2_ctx.g_rtt;
+	int levels = RTT_PAGE_LEVEL - rd->s2_ctx.s2_starting_level;
+
+	/*
+	 * The size of the IPA space that is covered by one S2TTE at
+	 * the starting level.
+	 */
+	unsigned long sl_entry_map_size =
+			1UL << (levels * S2TTE_STRIDE + GRANULE_SHIFT);
+
+	for (unsigned int rtt = 0U; rtt < rd->s2_ctx.num_root_rtts; rtt++) {
+		unsigned long *s2tt = granule_map(g_rtt, SLOT_RTT);
+
+		for (unsigned int rtte = 0U; rtte < S2TTES_PER_S2TT; rtte++) {
+			if (addr_in_par(rd, current_ipa)) {
+				s2tt[rtte] = s2tte_create_unassigned(RIPAS_EMPTY);
+			} else {
+				s2tt[rtte] = s2tte_create_unassigned_ns();
+			}
+
+			current_ipa += sl_entry_map_size;
+			if (current_ipa == realm_ipa_size(rd)) {
+				buffer_unmap(s2tt);
+				return;
+			}
+
+		}
+		buffer_unmap(s2tt);
+		g_rtt++;
+	}
+
+	/*
+	 * We have come to the end of starting level s2tts but we haven't
+	 * reached the ipa size.
+	 */
+	assert(false);
+}
+
 static bool validate_realm_params(struct rmi_realm_params *p)
 {
 	unsigned long feat_reg0 = get_feature_register_0();
@@ -359,6 +409,8 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	rd->pmu_num_ctrs = p.pmu_num_ctrs;
 
 	realm_params_measure(rd, &p);
+
+	init_s2_starting_level(rd);
 
 	buffer_unmap(rd);
 
