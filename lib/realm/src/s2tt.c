@@ -4,6 +4,7 @@
  */
 
 #include <arch_helpers.h>
+#include <attestation_token.h>
 #include <bitmap.h>
 #include <buffer.h>
 #include <gic.h>
@@ -421,9 +422,9 @@ unsigned long s2tte_create_assigned_empty(unsigned long pa, long level)
 }
 
 /*
- * Creates a page or block s2tte for a Protected IPA, with output address @pa.
+ * Creates an assigned_ram s2tte with output address @pa.
  */
-unsigned long s2tte_create_valid(unsigned long pa, long level)
+unsigned long s2tte_create_assigned_ram(unsigned long pa, long level)
 {
 	assert(level >= RTT_MIN_BLOCK_LEVEL);
 	assert(addr_is_level_aligned(pa, level));
@@ -443,7 +444,7 @@ unsigned long s2tte_create_unassigned_ns(void)
 }
 
 /*
- * Creates a page or block s2tte for an Unprotected IPA at level @level.
+ * Creates an assigned_ns s2tte at level @level.
  *
  * The following S2 TTE fields are provided through @s2tte argument:
  * - The physical address
@@ -451,7 +452,7 @@ unsigned long s2tte_create_unassigned_ns(void)
  * - S2AP
  * - Shareability
  */
-unsigned long s2tte_create_valid_ns(unsigned long s2tte, long level)
+unsigned long s2tte_create_assigned_ns(unsigned long s2tte, long level)
 {
 	assert(level >= RTT_MIN_BLOCK_LEVEL);
 	if (level == RTT_PAGE_LEVEL) {
@@ -569,9 +570,9 @@ bool s2tte_is_destroyed(unsigned long s2tte)
 }
 
 /*
- * Returns true if @s2tte has HIPAS=ASSIGNED.
+ * Returns true if @s2tte is an assigned_empty.
  */
-bool s2tte_is_assigned(unsigned long s2tte, long level)
+bool s2tte_is_assigned_empty(unsigned long s2tte, long level)
 {
 	(void)level;
 
@@ -598,17 +599,17 @@ static bool s2tte_check(unsigned long s2tte, long level, unsigned long ns)
 }
 
 /*
- * Returns true if @s2tte is a page or block s2tte, and NS=0.
+ * Returns true if @s2tte is an assigned_ram.
  */
-bool s2tte_is_valid(unsigned long s2tte, long level)
+bool s2tte_is_assigned_ram(unsigned long s2tte, long level)
 {
 	return s2tte_check(s2tte, level, 0UL);
 }
 
 /*
- * Returns true if @s2tte is a page or block s2tte, and NS=1.
+ * Returns true if @s2tte is an assigned_ns s2tte.
  */
-bool s2tte_is_valid_ns(unsigned long s2tte, long level)
+bool s2tte_is_assigned_ns(unsigned long s2tte, long level)
 {
 	return s2tte_check(s2tte, level, S2TTE_NS);
 }
@@ -720,9 +721,8 @@ unsigned long s2tte_map_size(int level)
 void s2tt_init_assigned_empty(unsigned long *s2tt, unsigned long pa, long level)
 {
 	const unsigned long map_size = s2tte_map_size(level);
-	unsigned int i;
 
-	for (i = 0U; i < S2TTES_PER_S2TT; i++) {
+	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
 		s2tt[i] = s2tte_create_assigned_empty(pa, level);
 		pa += map_size;
 	}
@@ -730,38 +730,36 @@ void s2tt_init_assigned_empty(unsigned long *s2tt, unsigned long pa, long level)
 }
 
 /*
- * Populates @s2tt with HIPAS=VALID, RIPAS=@ripas s2ttes that refer to a
+ * Populates @s2tt with assigned_ram s2ttes that refer to a
  * contiguous memory block starting at @pa, and mapped at level @level.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
  */
-void s2tt_init_valid(unsigned long *s2tt, unsigned long pa, long level)
+void s2tt_init_assigned_ram(unsigned long *s2tt, unsigned long pa, long level)
 {
 	const unsigned long map_size = s2tte_map_size(level);
-	unsigned int i;
 
-	for (i = 0U; i < S2TTES_PER_S2TT; i++) {
-		s2tt[i] = s2tte_create_valid(pa, level);
+	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
+		s2tt[i] = s2tte_create_assigned_ram(pa, level);
 		pa += map_size;
 	}
 	dsb(ish);
 }
 
 /*
- * Populates @s2tt with HIPAS=VALID_NS, RIPAS=@ripas s2ttes that refer to a
+ * Populates @s2tt with assigned_ns s2ttes that refer to a
  * contiguous memory block starting at @pa, and mapped at level @level.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
  */
-void s2tt_init_valid_ns(unsigned long *s2tt, unsigned long pa, long level)
+void s2tt_init_assigned_ns(unsigned long *s2tt, unsigned long pa, long level)
 {
 	const unsigned long map_size = s2tte_map_size(level);
-	unsigned int i;
 
-	for (i = 0U; i < S2TTES_PER_S2TT; i++) {
-		s2tt[i] = s2tte_create_valid_ns(pa, level);
+	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
+		s2tt[i] = s2tte_create_assigned_ns(pa, level);
 		pa += map_size;
 	}
 	dsb(ish);
@@ -892,28 +890,30 @@ static bool __table_maps_block(unsigned long *table,
 }
 
 /*
- * Returns true if all s2ttes in @table have HIPAS=ASSIGNED
+ * Returns true if all s2ttes are assigned_empty
  * and refer to a contiguous block of granules aligned to @level - 1.
  */
-bool table_maps_assigned_block(unsigned long *table, long level)
+bool table_maps_assigned_empty_block(unsigned long *table, long level)
 {
-	return __table_maps_block(table, level, s2tte_is_assigned);
+	return __table_maps_block(table, level, s2tte_is_assigned_empty);
 }
 
 /*
- * Returns true if all s2ttes in @table have HIPAS=VALID and
+ * Returns true if all s2ttes are assigned_ram and
  * refer to a contiguous block of granules aligned to @level - 1.
  */
-bool table_maps_valid_block(unsigned long *table, long level)
+bool table_maps_assigned_ram_block(unsigned long *table, long level)
 {
-	return __table_maps_block(table, level, s2tte_is_valid);
+	return __table_maps_block(table, level, s2tte_is_assigned_ram);
 }
 
 /*
- * Returns true if all s2ttes in @table have HIPAS=VALID_NS and
+ * Returns true if all s2ttes in @table are assigned_ns s2ttes and
  * refer to a contiguous block of granules aligned to @level - 1.
+ *
+ * @pre: @table maps IPA outside PAR.
  */
-bool table_maps_valid_ns_block(unsigned long *table, long level)
+bool table_maps_assigned_ns_block(unsigned long *table, long level)
 {
-	return __table_maps_block(table, level, s2tte_is_valid_ns);
+	return __table_maps_block(table, level, s2tte_is_assigned_ns);
 }

@@ -63,7 +63,7 @@ enum s2_walk_status realm_ipa_to_pa(struct rd *rd,
 	s2_walk->llt = wi.g_llt;
 	s2tte = s2tte_read(&ll_table[wi.index]);
 
-	if (!s2tte_is_valid(s2tte, wi.last_level)) {
+	if (!s2tte_is_assigned_ram(s2tte, wi.last_level)) {
 		/*
 		 * This 'tte' is still not been made valid by the Host.
 		 * Depending on the RIPAS value, the caller needs to

@@ -179,8 +179,8 @@ enum granule_state {
 	 * A reference is held on this granule for each entry in the RTT that
 	 * refers to a granule:
 	 *   - Table s2tte.
-	 *   - Valid s2tte.
-	 *   - Valid_NS s2tte.
+	 *   - Assigned_RAM s2tte.
+	 *   - Assigned_NS s2tte.
 	 *   - Assigned s2tte.
 	 */
 	GRANULE_STATE_RTT,

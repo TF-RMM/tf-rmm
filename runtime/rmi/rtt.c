@@ -160,7 +160,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		s2tt_init_destroyed(s2tt);
 		__granule_get(wi.g_llt);
 
-	} else if (s2tte_is_assigned(parent_s2tte, level - 1L)) {
+	} else if (s2tte_is_assigned_empty(parent_s2tte, level - 1L)) {
 		unsigned long block_pa;
 
 		/*
@@ -179,7 +179,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 */
 		__granule_refcount_inc(g_tbl, S2TTES_PER_S2TT);
 
-	} else if (s2tte_is_valid(parent_s2tte, level - 1L)) {
+	} else if (s2tte_is_assigned_ram(parent_s2tte, level - 1L)) {
 		unsigned long block_pa;
 
 		/*
@@ -196,7 +196,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 
 		block_pa = s2tte_pa(parent_s2tte, level - 1L);
 
-		s2tt_init_valid(s2tt, block_pa, level);
+		s2tt_init_assigned_ram(s2tt, block_pa, level);
 
 		/*
 		 * Increase the refcount to mark the granule as in-use. refcount
@@ -204,11 +204,11 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 */
 		__granule_refcount_inc(g_tbl, S2TTES_PER_S2TT);
 
-	} else if (s2tte_is_valid_ns(parent_s2tte, level - 1L)) {
+	} else if (s2tte_is_assigned_ns(parent_s2tte, level - 1L)) {
 		unsigned long block_pa;
 
 		/*
-		 * We should observe parent valid_ns s2tte only when
+		 * We should observe parent assigned_ns s2tte only when
 		 * we create tables above this level.
 		 */
 		assert(level > RTT_MIN_BLOCK_LEVEL);
@@ -221,7 +221,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 
 		block_pa = s2tte_pa(parent_s2tte, level - 1L);
 
-		s2tt_init_valid_ns(s2tt, block_pa, level);
+		s2tt_init_assigned_ns(s2tt, block_pa, level);
 
 		/*
 		 * Increase the refcount to mark the granule as in-use. refcount
@@ -374,15 +374,18 @@ unsigned long smc_rtt_fold(unsigned long rtt_addr,
 		block_pa = s2tte_pa(s2tte, level);
 
 		/*
-		 * The table must also refer to a contiguous block through
-		 * the same type of s2tte, either Assigned, Valid  or Valid_NS.
+		 * The table must also refer to a contiguous block through the
+		 * same type of s2tte, either Assigned, Valid or Assigned_NS.
 		 */
-		if (table_maps_assigned_block(table, level)) {
-			parent_s2tte = s2tte_create_assigned_empty(block_pa, level - 1L);
-		} else if (table_maps_valid_block(table, level)) {
-			parent_s2tte = s2tte_create_valid(block_pa, level - 1L);
-		} else if (table_maps_valid_ns_block(table, level)) {
-			parent_s2tte = s2tte_create_valid_ns(block_pa, level - 1L);
+		if (table_maps_assigned_empty_block(table, level)) {
+			parent_s2tte = s2tte_create_assigned_empty(block_pa,
+								   level - 1L);
+		} else if (table_maps_assigned_ram_block(table, level)) {
+			parent_s2tte = s2tte_create_assigned_ram(block_pa,
+								 level - 1L);
+		} else if (table_maps_assigned_ns_block(table, level)) {
+			parent_s2tte = s2tte_create_assigned_ns(block_pa,
+								level - 1L);
 		/* The table contains mixed entries that cannot be folded */
 		} else {
 			ret = pack_return_code(RMI_ERROR_RTT, level);
@@ -405,8 +408,8 @@ unsigned long smc_rtt_fold(unsigned long rtt_addr,
 	 */
 	s2tte_write(&parent_s2tt[wi.index], 0UL);
 
-	if (s2tte_is_valid(parent_s2tte, level - 1L) ||
-	    s2tte_is_valid_ns(parent_s2tte, level - 1L)) {
+	if (s2tte_is_assigned_ram(parent_s2tte, level - 1L) ||
+	    s2tte_is_assigned_ns(parent_s2tte, level - 1L)) {
 		invalidate_pages_in_block(&s2_ctx, map_addr);
 	} else {
 		invalidate_block(&s2_ctx, map_addr);
@@ -617,7 +620,7 @@ static unsigned long map_unmap_ns(unsigned long rd_addr,
 			goto out_unmap_table;
 		}
 
-		s2tte = s2tte_create_valid_ns(host_s2tte, level);
+		s2tte = s2tte_create_assigned_ns(host_s2tte, level);
 		s2tte_write(&s2tt[wi.index], s2tte);
 		__granule_get(wi.g_llt);
 
@@ -626,7 +629,7 @@ static unsigned long map_unmap_ns(unsigned long rd_addr,
 		 * The following check also verifies that map_addr is outside
 		 * PAR, as valid_NS s2tte may only cover outside PAR IPA range.
 		 */
-		if (!s2tte_is_valid_ns(s2tte, level)) {
+		if (!s2tte_is_assigned_ns(s2tte, level)) {
 			ret = pack_return_code(RMI_ERROR_RTT,
 						(unsigned int)level);
 			goto out_unmap_table;
@@ -723,18 +726,18 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 		ret->x[4] = (unsigned long)ripas;
 	} else if (s2tte_is_destroyed(s2tte)) {
 		ret->x[2] = RMI_DESTROYED;
-	} else if (s2tte_is_assigned(s2tte, wi.last_level)) {
+	} else if (s2tte_is_assigned_empty(s2tte, wi.last_level)) {
 		ret->x[2] = RMI_ASSIGNED;
 		ret->x[3] = s2tte_pa(s2tte, wi.last_level);
 		ret->x[4] = RIPAS_EMPTY;
-	} else if (s2tte_is_valid(s2tte, wi.last_level)) {
+	} else if (s2tte_is_assigned_ram(s2tte, wi.last_level)) {
 		ret->x[2] = RMI_ASSIGNED;
 		ret->x[3] = s2tte_pa(s2tte, wi.last_level);
 		ret->x[4] = RIPAS_RAM;
 	} else if (s2tte_is_unassigned_ns(s2tte)) {
 		ret->x[2] = RMI_UNASSIGNED;
 		ret->x[4] = RIPAS_EMPTY;
-	} else if (s2tte_is_valid_ns(s2tte, wi.last_level)) {
+	} else if (s2tte_is_assigned_ns(s2tte, wi.last_level)) {
 		ret->x[2] = RMI_VALID_NS;
 		ret->x[3] = host_ns_s2tte(s2tte, wi.last_level);
 	} else if (s2tte_is_table(s2tte, wi.last_level)) {
@@ -902,7 +905,7 @@ static unsigned long data_create(unsigned long rd_addr,
 
 	s2tte = (ripas == RIPAS_EMPTY) ?
 		s2tte_create_assigned_empty(data_addr, RTT_PAGE_LEVEL) :
-		s2tte_create_valid(data_addr, RTT_PAGE_LEVEL);
+		s2tte_create_assigned_ram(data_addr, RTT_PAGE_LEVEL);
 
 	s2tte_write(&s2tt[wi.index], s2tte);
 	__granule_get(wi.g_llt);
@@ -994,13 +997,13 @@ unsigned long smc_data_destroy(unsigned long rd_addr,
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
 	s2tte = s2tte_read(&s2tt[wi.index]);
 
-	valid = s2tte_is_valid(s2tte, RTT_PAGE_LEVEL);
+	valid = s2tte_is_assigned_ram(s2tte, RTT_PAGE_LEVEL);
 
 	/*
 	 * Check if either HIPAS=ASSIGNED or map_addr is a
 	 * valid Protected IPA.
 	 */
-	if (!valid && !s2tte_is_assigned(s2tte, RTT_PAGE_LEVEL)) {
+	if (!valid && !s2tte_is_assigned_empty(s2tte, RTT_PAGE_LEVEL)) {
 		ret = pack_return_code(RMI_ERROR_RTT, RTT_PAGE_LEVEL);
 		goto out_unmap_ll_table;
 	}
@@ -1051,7 +1054,7 @@ static bool update_ripas(unsigned long *s2tte, unsigned long level,
 		return false;
 	}
 
-	if (s2tte_is_valid(*s2tte, level)) {
+	if (s2tte_is_assigned_ram(*s2tte, level)) {
 		if (ripas == RIPAS_EMPTY) {
 			unsigned long pa = s2tte_pa(*s2tte, level);
 			*s2tte = s2tte_create_assigned_empty(pa, level);
@@ -1059,7 +1062,8 @@ static bool update_ripas(unsigned long *s2tte, unsigned long level,
 		return true;
 	}
 
-	if (s2tte_is_unassigned(*s2tte) || s2tte_is_assigned(*s2tte, level)) {
+	if (s2tte_is_unassigned(*s2tte) ||
+	    s2tte_is_assigned_empty(*s2tte, level)) {
 		*s2tte |= s2tte_create_ripas(ripas);
 		return true;
 	}
@@ -1256,7 +1260,7 @@ unsigned long smc_rtt_set_ripas(unsigned long rd_addr,
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
 	s2tte = s2tte_read(&s2tt[wi.index]);
 
-	valid = s2tte_is_valid(s2tte, level);
+	valid = s2tte_is_assigned_ram(s2tte, level);
 
 	if (!update_ripas(&s2tte, level, ripas)) {
 		ret = pack_return_code(RMI_ERROR_RTT, (unsigned int)level);
