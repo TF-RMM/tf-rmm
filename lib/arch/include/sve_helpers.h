@@ -77,7 +77,7 @@ void sve_save_z_state(uint8_t *regs_base);
 void sve_save_p_ffr_state(uint8_t *regs_base);
 void sve_save_zcr_fpu_state(uint8_t *regs_base);
 void sve_restore_z_state(uint8_t *regs_base);
-void sve_restore_p_ffr_state(uint8_t *regs_base);
+void sve_restore_ffr_p_state(uint8_t *regs_base);
 void sve_restore_zcr_fpu_state(uint8_t *regs_base);
 
 #endif /* SVE_H */

@@ -35,7 +35,7 @@ void sve_restore_z_state(unsigned char *data)
 	(void)data;
 }
 
-void sve_restore_p_ffr_state(unsigned char *data)
+void sve_restore_ffr_p_state(unsigned char *data)
 {
 	(void)data;
 }

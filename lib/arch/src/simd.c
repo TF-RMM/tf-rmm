@@ -115,8 +115,8 @@ void simd_restore_state(simd_t type, struct simd_state *simd)
 
 		/* Restore SVE vector registers Z0-Z31 */
 		sve_restore_z_state((uint8_t *)&simd->t.sve.z);
-		/* Restore SVE P0-P15, FFR registers */
-		sve_restore_p_ffr_state((uint8_t *)&simd->t.sve.p);
+		/* Restore SVE FFR, P0-P15 registers */
+		sve_restore_ffr_p_state((uint8_t *)&simd->t.sve.p);
 		/* Restore SVE ZCR_EL12 and FPU status register */
 		sve_restore_zcr_fpu_state((uint8_t *)&simd->t.sve.zcr_el12);
 		break;

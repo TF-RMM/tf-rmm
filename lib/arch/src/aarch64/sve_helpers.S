@@ -10,7 +10,7 @@
 .globl sve_save_p_ffr_state
 .globl sve_save_zcr_fpu_state
 .globl sve_restore_z_state
-.globl sve_restore_p_ffr_state
+.globl sve_restore_ffr_p_state
 .globl sve_restore_zcr_fpu_state
 
 /*
@@ -106,7 +106,7 @@ func sve_save_p_ffr_state
 	str 	p14, [x0, #14, MUL VL]
 	str 	p15, [x0, #15, MUL VL]
 
-	/* Save the ffr register bank to memory. */
+	/* Save the ffr register, after predicates are saved. */
 	rdffr	p0.B
 	str 	p0, [x0, #16, MUL VL]
 
@@ -175,11 +175,16 @@ func sve_restore_z_state
 endfunc sve_restore_z_state
 
 /*
- * void sve_restore_p_ffr_state(unsigned char *data)
+ * void sve_restore_ffr_p_state(unsigned char *data)
  */
-func sve_restore_p_ffr_state
+func sve_restore_ffr_p_state
 .arch_extension sve
+	/* Restore the ffr register before restoring predicates */
+	ldr 	p0, [x0, #16, MUL VL]
+	wrffr	p0.B
+
 	/* Load the P register bank from memory. */
+	ldr 	p0, [x0, #0, MUL VL]
 	ldr 	p1, [x0, #1, MUL VL]
 	ldr 	p2, [x0, #2, MUL VL]
 	ldr 	p3, [x0, #3, MUL VL]
@@ -196,13 +201,6 @@ func sve_restore_p_ffr_state
 	ldr 	p14, [x0, #14, MUL VL]
 	ldr 	p15, [x0, #15, MUL VL]
 
-	/* Load the ffr register bank from memory. */
-	ldr 	p0, [x0, #16, MUL VL]
-	wrffr	p0.B
-
-	/* restore P0 */
-	ldr 	p0, [x0]
-
 	ret
 .arch_extension nosve
-endfunc sve_restore_p_ffr_state
+endfunc sve_restore_ffr_p_state
