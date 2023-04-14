@@ -395,11 +395,19 @@ unsigned long s2tte_create_ripas(enum ripas ripas)
 }
 
 /*
- * Creates an invalid s2tte with HIPAS=UNASSIGNED and RIPAS=@ripas.
+ * Creates an unassigned_empty s2tte.
  */
-unsigned long s2tte_create_unassigned(enum ripas ripas)
+unsigned long s2tte_create_unassigned_empty(void)
 {
-	return S2TTE_INVALID_HIPAS_UNASSIGNED | s2tte_create_ripas(ripas);
+	return S2TTE_INVALID_HIPAS_UNASSIGNED | S2TTE_INVALID_RIPAS_EMPTY;
+}
+
+/*
+ * Creates an unassigned_ram s2tte.
+ */
+unsigned long s2tte_create_unassigned_ram(void)
+{
+	return S2TTE_INVALID_HIPAS_UNASSIGNED | S2TTE_INVALID_RIPAS_RAM;
 }
 
 /*
@@ -538,15 +546,46 @@ static bool s2tte_has_hipas(unsigned long s2tte, unsigned long hipas)
 }
 
 /*
- * Returns true if @s2tte has HIPAS=UNASSIGNED.
+ * Returns true if @s2tte has HIPAS=UNASSIGNED and RIPAS=@ripas.
  */
-bool s2tte_is_unassigned(unsigned long s2tte)
+static bool s2tte_has_unassigned_ripas(unsigned long s2tte, unsigned long ripas)
 {
-	if ((s2tte & S2TTE_NS) != 0UL) {
+	unsigned long invalid_desc_ripas;
+
+	if (!s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED)) {
 		return false;
 	}
 
+	invalid_desc_ripas = s2tte & S2TTE_INVALID_RIPAS_MASK;
+	return (invalid_desc_ripas == ripas);
+}
+
+/*
+ * Returns true if @s2tte has HIPAS=UNASSIGNED or HIPAS=INVALID_NS.
+ */
+bool s2tte_is_unassigned(unsigned long s2tte)
+{
 	return s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED);
+}
+
+/*
+ * Returns true if @s2tte is an unassigned_empty.
+ */
+bool s2tte_is_unassigned_empty(unsigned long s2tte)
+{
+	if (!s2tte_has_unassigned_ripas(s2tte, S2TTE_INVALID_RIPAS_EMPTY)) {
+		return false;
+	}
+
+	return ((s2tte & S2TTE_NS) == 0UL);
+}
+
+/*
+ * Returns true if @s2tte is an unassigned_ram.
+ */
+bool s2tte_is_unassigned_ram(unsigned long s2tte)
+{
+	return s2tte_has_unassigned_ripas(s2tte, S2TTE_INVALID_RIPAS_RAM);
 }
 
 /*
@@ -554,11 +593,11 @@ bool s2tte_is_unassigned(unsigned long s2tte)
  */
 bool s2tte_is_unassigned_ns(unsigned long s2tte)
 {
-	if ((s2tte & S2TTE_NS) == 0UL) {
+	if (!s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED)) {
 		return false;
 	}
 
-	return s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED);
+	return ((s2tte & S2TTE_NS) != 0UL);
 }
 
 /*
@@ -656,15 +695,30 @@ enum ripas s2tte_get_ripas(unsigned long s2tte)
 }
 
 /*
- * Populates @s2tt with s2ttes which have HIPAS=UNASSIGNED and RIPAS=@ripas.
+ * Populates @s2tt with unassigned_empty s2ttes.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
  */
-void s2tt_init_unassigned(unsigned long *s2tt, enum ripas ripas)
+void s2tt_init_unassigned_empty(unsigned long *s2tt)
 {
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
-		s2tt[i] = s2tte_create_unassigned(ripas);
+		s2tt[i] = s2tte_create_unassigned_empty();
+	}
+
+	dsb(ish);
+}
+
+/*
+ * Populates @s2tt with unassigned_ram s2ttes.
+ *
+ * The granule is populated before it is made a table,
+ * hence, don't use s2tte_write for access.
+ */
+void s2tt_init_unassigned_ram(unsigned long *s2tt)
+{
+	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
+		s2tt[i] = s2tte_create_unassigned_ram();
 	}
 
 	dsb(ish);
@@ -765,13 +819,39 @@ void s2tt_init_assigned_ns(unsigned long *s2tt, unsigned long pa, long level)
 	dsb(ish);
 }
 
+/*
+ * Returns true if s2tte has 'output address' field, namely, if it is one of:
+ * - assigned_empty
+ * - assigned_ram
+ * - assigned_ns
+ * - table
+ */
+static bool s2tte_has_pa(unsigned long s2tte, long level)
+{
+	unsigned long desc_type = s2tte & DESC_TYPE_MASK;
+
+	/*
+	 * Block, page or table
+	 */
+	if ((desc_type != S2TTE_INVALID) ||
+	     s2tte_is_assigned_empty(s2tte, level)) {
+		return true;
+	}
+
+	return false;
+}
+
 /* Returns physical address of a page entry or block */
 unsigned long s2tte_pa(unsigned long s2tte, long level)
 {
-	if (s2tte_is_unassigned(s2tte) || s2tte_is_destroyed(s2tte) ||
-	    s2tte_is_table(s2tte, level)) {
+	if (!s2tte_has_pa(s2tte, level)) {
 		assert(false);
 	}
+
+	if (s2tte_is_table(s2tte, level)) {
+		return addr_level_mask(s2tte, RTT_PAGE_LEVEL);
+	}
+
 	return addr_level_mask(s2tte, level);
 }
 
@@ -826,14 +906,19 @@ static bool __table_is_uniform_block(unsigned long *table,
 }
 
 /*
- * Returns true if all s2ttes in @table have HIPAS=UNASSIGNED and
- * have the same RIPAS.
- *
- * If return value is true, the RIPAS value is returned in @ripas.
+ * Returns true if all s2ttes in @table are unassigned_empty.
  */
-bool table_is_unassigned_block(unsigned long *table, enum ripas *ripas)
+bool table_is_unassigned_empty_block(unsigned long *table)
 {
-	return __table_is_uniform_block(table, s2tte_is_unassigned, ripas);
+	return __table_is_uniform_block(table, s2tte_is_unassigned_empty, NULL);
+}
+
+/*
+ * Returns true if all s2ttes in @table are unassigned_ram.
+ */
+bool table_is_unassigned_ram_block(unsigned long *table)
+{
+	return __table_is_uniform_block(table, s2tte_is_unassigned_ram, NULL);
 }
 
 /*
