@@ -91,7 +91,7 @@ static bool ipa_is_empty(unsigned long ipa, struct rec *rec)
 {
 	unsigned long s2tte, *ll_table;
 	struct rtt_walk wi;
-	enum ripas ripas;
+	enum ripas ripas_val;
 	bool ret;
 
 	assert(GRANULE_ALIGNED(ipa));
@@ -113,8 +113,8 @@ static bool ipa_is_empty(unsigned long ipa, struct rec *rec)
 		ret = false;
 		goto out_unmap_ll_table;
 	}
-	ripas = s2tte_get_ripas(s2tte);
-	ret = (ripas == RIPAS_EMPTY);
+	ripas_val = s2tte_get_ripas(s2tte);
+	ret = (ripas_val == RIPAS_EMPTY);
 
 out_unmap_ll_table:
 	buffer_unmap(ll_table);

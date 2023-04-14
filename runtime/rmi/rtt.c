@@ -839,7 +839,7 @@ static unsigned long data_create(unsigned long rd_addr,
 	struct rd *rd;
 	struct rtt_walk wi;
 	unsigned long s2tte, *s2tt;
-	enum ripas ripas;
+	enum ripas ripas_val;
 	enum granule_state new_data_state = GRANULE_STATE_DELEGATED;
 	unsigned long ipa_bits;
 	unsigned long ret;
@@ -879,15 +879,15 @@ static unsigned long data_create(unsigned long rd_addr,
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
 	s2tte = s2tte_read(&s2tt[wi.index]);
 	if (s2tte_is_unassigned_empty(s2tte)) {
-		ripas = RIPAS_EMPTY;
+		ripas_val = RIPAS_EMPTY;
 	} else if (s2tte_is_unassigned_ram(s2tte)) {
-		ripas = RIPAS_RAM;
+		ripas_val = RIPAS_RAM;
 	} else {
 		ret = pack_return_code(RMI_ERROR_RTT, RTT_PAGE_LEVEL);
 		goto out_unmap_ll_table;
 	}
 
-	ripas = s2tte_get_ripas(s2tte);
+	ripas_val = s2tte_get_ripas(s2tte);
 
 	if (g_src != NULL) {
 		bool ns_access_ok;
@@ -915,7 +915,7 @@ static unsigned long data_create(unsigned long rd_addr,
 
 	new_data_state = GRANULE_STATE_DATA;
 
-	s2tte = (ripas == RIPAS_EMPTY) ?
+	s2tte = (ripas_val == RIPAS_EMPTY) ?
 		s2tte_create_assigned_empty(data_addr, RTT_PAGE_LEVEL) :
 		s2tte_create_assigned_ram(data_addr, RTT_PAGE_LEVEL);
 
@@ -1059,29 +1059,43 @@ out_unlock_ll_table:
 	return ret;
 }
 
-static bool update_ripas(unsigned long *s2tte, unsigned long level,
-			 enum ripas ripas)
+/*
+ * Sets new ripas value in @s2tte.
+ *
+ * It returns false if the @s2tte has no ripas value.
+ * It sets @(*do_tlbi) to 'true' if the TLBs have to be invalidated.
+ */
+static bool update_ripas(unsigned long *s2tte, bool *do_tlbi,
+			 unsigned long level, enum ripas ripas_val)
 {
-	if (s2tte_is_table(*s2tte, level)) {
+	unsigned long pa;
+
+	*do_tlbi = false;
+
+	if (!s2tte_has_ripas(*s2tte, level)) {
 		return false;
 	}
 
-	if (s2tte_is_assigned_ram(*s2tte, level)) {
-		if (ripas == RIPAS_EMPTY) {
-			unsigned long pa = s2tte_pa(*s2tte, level);
-			*s2tte = s2tte_create_assigned_empty(pa, level);
+	if (ripas_val == RIPAS_RAM) {
+		if (s2tte_is_unassigned_empty(*s2tte)) {
+			*s2tte = s2tte_create_unassigned_ram();
+		} else if (s2tte_is_assigned_empty(*s2tte, level)) {
+			pa = s2tte_pa(*s2tte, level);
+			*s2tte = s2tte_create_assigned_ram(pa, level);
 		}
-		return true;
+	} else if (ripas_val == RIPAS_EMPTY) {
+		if (s2tte_is_unassigned_ram(*s2tte)) {
+			*s2tte = s2tte_create_unassigned_empty();
+		} else if (s2tte_is_assigned_ram(*s2tte, level)) {
+			pa = s2tte_pa(*s2tte, level);
+			*s2tte = s2tte_create_assigned_empty(pa, level);
+			*do_tlbi = true;
+		}
+	} else {
+		assert(false);
 	}
 
-	if (s2tte_is_unassigned_empty(*s2tte) ||
-	    s2tte_is_unassigned_ram(*s2tte)   ||
-	    s2tte_is_assigned_empty(*s2tte, level)) {
-		*s2tte |= s2tte_create_ripas(ripas);
-		return true;
-	}
-
-	return false;
+	return true;
 }
 
 static void ripas_granule_measure(struct rd *rd,
@@ -1165,17 +1179,16 @@ unsigned long smc_rtt_init_ripas(unsigned long rd_addr,
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
 	s2tte = s2tte_read(&s2tt[wi.index]);
 
-	/* Allowed only for HIPAS=UNASSIGNED */
-	if (s2tte_is_table(s2tte, level) || !s2tte_is_unassigned(s2tte)) {
-		ret = pack_return_code(RMI_ERROR_RTT, (unsigned int)level);
+	if (s2tte_is_unassigned_empty(s2tte)) {
+		s2tte = s2tte_create_unassigned_ram();
+		s2tte_write(&s2tt[wi.index], s2tte);
+		ripas_granule_measure(rd, map_addr, level);
+	} else if (s2tte_is_unassigned_ram(s2tte)) {
+		ripas_granule_measure(rd, map_addr, level);
+	} else {
+		ret = pack_return_code(RMI_ERROR_RTT, level);
 		goto out_unmap_llt;
 	}
-
-	s2tte |= s2tte_create_ripas(RIPAS_RAM);
-
-	s2tte_write(&s2tt[wi.index], s2tte);
-
-	ripas_granule_measure(rd, map_addr, level);
 
 	ret = RMI_SUCCESS;
 
@@ -1201,12 +1214,12 @@ unsigned long smc_rtt_set_ripas(unsigned long rd_addr,
 	unsigned long s2tte, *s2tt;
 	struct realm_s2_context s2_ctx;
 	long level = (long)ulevel;
-	enum ripas ripas = (enum ripas)uripas;
+	enum ripas ripas_val = (enum ripas)uripas;
 	unsigned long ret;
-	bool valid;
+	bool tlbi_required;
 	int sl;
 
-	if (ripas > RIPAS_RAM) {
+	if (ripas_val > RIPAS_RAM) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -1231,7 +1244,7 @@ unsigned long smc_rtt_set_ripas(unsigned long rd_addr,
 		goto out_unmap_rec;
 	}
 
-	if (ripas != rec->set_ripas.ripas) {
+	if (ripas_val != rec->set_ripas.ripas_val) {
 		ret = RMI_ERROR_INPUT;
 		goto out_unmap_rec;
 	}
@@ -1273,16 +1286,14 @@ unsigned long smc_rtt_set_ripas(unsigned long rd_addr,
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
 	s2tte = s2tte_read(&s2tt[wi.index]);
 
-	valid = s2tte_is_assigned_ram(s2tte, level);
-
-	if (!update_ripas(&s2tte, level, ripas)) {
+	if (!update_ripas(&s2tte, &tlbi_required, level, ripas_val)) {
 		ret = pack_return_code(RMI_ERROR_RTT, (unsigned int)level);
 		goto out_unmap_llt;
 	}
 
 	s2tte_write(&s2tt[wi.index], s2tte);
 
-	if (valid && (ripas == RIPAS_EMPTY)) {
+	if (tlbi_required) {
 		if (level == RTT_PAGE_LEVEL) {
 			invalidate_page(&s2_ctx, map_addr);
 		} else {

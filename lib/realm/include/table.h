@@ -33,7 +33,7 @@ COMPILER_ASSERT(MIN_STARTING_LEVEL >= 0);
 struct rd;
 enum ripas;
 
-unsigned long s2tte_create_ripas(enum ripas ripas);
+unsigned long s2tte_create_ripas(enum ripas ripas_val);
 unsigned long s2tte_create_unassigned_empty(void);
 unsigned long s2tte_create_unassigned_ram(void);
 unsigned long s2tte_create_unassigned_ns(void);
@@ -46,10 +46,10 @@ unsigned long s2tte_create_table(unsigned long pa, long level);
 bool host_ns_s2tte_is_valid(unsigned long s2tte, long level);
 unsigned long host_ns_s2tte(unsigned long s2tte, long level);
 
+bool s2tte_has_ripas(unsigned long s2tte, long level);
 bool s2tte_is_unassigned_empty(unsigned long s2tte);
 bool s2tte_is_unassigned_ram(unsigned long s2tte);
 bool s2tte_is_unassigned_ns(unsigned long s2tte);
-bool s2tte_is_unassigned(unsigned long s2tte);
 bool s2tte_is_destroyed(unsigned long s2tte);
 bool s2tte_is_assigned_empty(unsigned long s2tte, long level);
 bool s2tte_is_assigned_ram(unsigned long s2tte, long level);

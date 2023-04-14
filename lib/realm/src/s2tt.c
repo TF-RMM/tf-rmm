@@ -386,9 +386,9 @@ out:
 /*
  * Creates a value which can be OR'd with an s2tte to set RIPAS=@ripas.
  */
-unsigned long s2tte_create_ripas(enum ripas ripas)
+unsigned long s2tte_create_ripas(enum ripas ripas_val)
 {
-	if (ripas == RIPAS_EMPTY) {
+	if (ripas_val == RIPAS_EMPTY) {
 		return S2TTE_INVALID_RIPAS_EMPTY;
 	}
 	return S2TTE_INVALID_RIPAS_RAM;
@@ -532,6 +532,22 @@ unsigned long s2tte_create_table(unsigned long pa, long level)
 }
 
 /*
+ * Returns true if s2tte has defined ripas value, namely if it is one of:
+ * - unassigned_empty
+ * - unassigned_ram
+ * - assigned_empty
+ * - assigned_ram
+ */
+bool s2tte_has_ripas(unsigned long s2tte, long level)
+{
+	if (s2tte_is_table(s2tte, level) || s2tte_is_destroyed(s2tte) ||
+	   ((s2tte & S2TTE_NS) != 0UL)) {
+		return false;
+	}
+	return true;
+}
+
+/*
  * Returns true if @s2tte has HIPAS=@hipas.
  */
 static bool s2tte_has_hipas(unsigned long s2tte, unsigned long hipas)
@@ -558,14 +574,6 @@ static bool s2tte_has_unassigned_ripas(unsigned long s2tte, unsigned long ripas)
 
 	invalid_desc_ripas = s2tte & S2TTE_INVALID_RIPAS_MASK;
 	return (invalid_desc_ripas == ripas);
-}
-
-/*
- * Returns true if @s2tte has HIPAS=UNASSIGNED or HIPAS=INVALID_NS.
- */
-bool s2tte_is_unassigned(unsigned long s2tte)
-{
-	return s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED);
 }
 
 /*
@@ -874,7 +882,7 @@ static bool __table_is_uniform_block(unsigned long *table,
 			      enum ripas *ripas_ptr)
 {
 	unsigned long s2tte = s2tte_read(&table[0]);
-	enum ripas ripas;
+	enum ripas ripas_val;
 	unsigned int i;
 
 	if (!s2tte_is_x(s2tte)) {
@@ -882,7 +890,7 @@ static bool __table_is_uniform_block(unsigned long *table,
 	}
 
 	if (ripas_ptr != NULL) {
-		ripas = s2tte_get_ripas(s2tte);
+		ripas_val = s2tte_get_ripas(s2tte);
 	}
 
 	for (i = 1U; i < S2TTES_PER_S2TT; i++) {
@@ -893,13 +901,13 @@ static bool __table_is_uniform_block(unsigned long *table,
 		}
 
 		if ((ripas_ptr != NULL) &&
-		    (s2tte_get_ripas(s2tte) != ripas)) {
+		    (s2tte_get_ripas(s2tte) != ripas_val)) {
 			return false;
 		}
 	}
 
 	if (ripas_ptr != NULL) {
-		*ripas_ptr = ripas;
+		*ripas_ptr = ripas_val;
 	}
 
 	return true;

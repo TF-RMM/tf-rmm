@@ -139,7 +139,7 @@ struct rec {
 		unsigned long start;
 		unsigned long end;
 		unsigned long addr;
-		enum ripas ripas;
+		enum ripas ripas_val;
 	} set_ripas;
 
 	/*

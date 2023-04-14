@@ -16,7 +16,7 @@
  * [in]   s2_walk	    Address of s2_walk_result structure to return:
  * [out]  s2_walk.pa	    The physical address of the realm granule.
  * [out]  s2_walk.rtt_level The last level reached by the table walk.
- * [out]  s2_walk.ripas	    RIPAS of s2tte.
+ * [out]  s2_walk.ripas_val RIPAS of s2tte.
  * [out]  s2_walk.destroyed 'true', if s2tte has HIPAS=DESTROYED.
  * [out]  s2_walk.llt	    Pointer to the last level page table which contains
  *			    the mapping of the granule. If function returns with
@@ -74,7 +74,7 @@ enum s2_walk_status realm_ipa_to_pa(struct rd *rd,
 		if (s2tte_is_destroyed(s2tte)) {
 			s2_walk->destroyed = true;
 		} else {
-			s2_walk->ripas = s2tte_get_ripas(s2tte);
+			s2_walk->ripas_val = s2tte_get_ripas(s2tte);
 		}
 		granule_unlock(wi.g_llt);
 		walk_status = WALK_FAIL;
@@ -84,7 +84,7 @@ enum s2_walk_status realm_ipa_to_pa(struct rd *rd,
 	s2_walk->pa = s2tte_pa(s2tte, wi.last_level);
 	offset = ipa & (s2tte_map_size(wi.last_level) - 1UL);
 	s2_walk->pa += offset;
-	s2_walk->ripas = RIPAS_RAM;
+	s2_walk->ripas_val = RIPAS_RAM;
 
 	walk_status = WALK_SUCCESS;
 
