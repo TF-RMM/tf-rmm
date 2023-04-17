@@ -974,7 +974,6 @@ unsigned long smc_data_destroy(unsigned long rd_addr,
 	unsigned long ipa_bits;
 	unsigned long ret;
 	struct realm_s2_context s2_ctx;
-	bool valid;
 	int sl;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
@@ -1009,31 +1008,18 @@ unsigned long smc_data_destroy(unsigned long rd_addr,
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
 	s2tte = s2tte_read(&s2tt[wi.index]);
 
-	valid = s2tte_is_assigned_ram(s2tte, RTT_PAGE_LEVEL);
-
-	/*
-	 * Check if either HIPAS=ASSIGNED or map_addr is a
-	 * valid Protected IPA.
-	 */
-	if (!valid && !s2tte_is_assigned_empty(s2tte, RTT_PAGE_LEVEL)) {
+	if (s2tte_is_assigned_ram(s2tte, RTT_PAGE_LEVEL)) {
+		data_addr = s2tte_pa(s2tte, RTT_PAGE_LEVEL);
+		s2tte = s2tte_create_destroyed();
+		s2tte_write(&s2tt[wi.index], s2tte);
+		invalidate_page(&s2_ctx, map_addr);
+	} else if (s2tte_is_assigned_empty(s2tte, RTT_PAGE_LEVEL)) {
+		data_addr = s2tte_pa(s2tte, RTT_PAGE_LEVEL);
+		s2tte = s2tte_create_unassigned_empty();
+		s2tte_write(&s2tt[wi.index], s2tte);
+	} else {
 		ret = pack_return_code(RMI_ERROR_RTT, RTT_PAGE_LEVEL);
 		goto out_unmap_ll_table;
-	}
-
-	data_addr = s2tte_pa(s2tte, RTT_PAGE_LEVEL);
-
-	/*
-	 * We have already established either HIPAS=ASSIGNED or a valid mapping.
-	 * If valid, transition HIPAS to DESTROYED and if HIPAS=ASSIGNED,
-	 * transition to UNASSIGNED.
-	 */
-	s2tte = valid ? s2tte_create_destroyed() :
-			s2tte_create_unassigned_empty();
-
-	s2tte_write(&s2tt[wi.index], s2tte);
-
-	if (valid) {
-		invalidate_page(&s2_ctx, map_addr);
 	}
 
 	__granule_put(wi.g_llt);
