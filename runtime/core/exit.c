@@ -91,7 +91,6 @@ static bool ipa_is_empty(unsigned long ipa, struct rec *rec)
 {
 	unsigned long s2tte, *ll_table;
 	struct rtt_walk wi;
-	enum ripas ripas_val;
 	bool ret;
 
 	assert(GRANULE_ALIGNED(ipa));
@@ -109,14 +108,9 @@ static bool ipa_is_empty(unsigned long ipa, struct rec *rec)
 	ll_table = granule_map(wi.g_llt, SLOT_RTT);
 	s2tte = s2tte_read(&ll_table[wi.index]);
 
-	if (s2tte_is_destroyed(s2tte)) {
-		ret = false;
-		goto out_unmap_ll_table;
-	}
-	ripas_val = s2tte_get_ripas(s2tte);
-	ret = (ripas_val == RIPAS_EMPTY);
+	ret = s2tte_is_unassigned_empty(s2tte) ||
+		s2tte_is_assigned_empty(s2tte, wi.last_level);
 
-out_unmap_ll_table:
 	buffer_unmap(ll_table);
 	granule_unlock(wi.g_llt);
 	return ret;
