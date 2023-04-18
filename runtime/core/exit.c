@@ -89,31 +89,18 @@ static bool access_in_rec_par(struct rec *rec, unsigned long addr)
  */
 static bool ipa_is_empty(unsigned long ipa, struct rec *rec)
 {
-	unsigned long s2tte, *ll_table;
-	struct rtt_walk wi;
-	bool ret;
+	struct s2_walk_result s2_walk;
+	enum s2_walk_status walk_status;
 
 	assert(GRANULE_ALIGNED(ipa));
 
-	if (!addr_in_rec_par(rec, ipa)) {
-		return false;
+	walk_status = realm_ipa_to_pa(rec, ipa, &s2_walk);
+
+	if ((walk_status != WALK_INVALID_PARAMS) &&
+	    (s2_walk.ripas == RIPAS_EMPTY)) {
+		return true;
 	}
-	granule_lock(rec->realm_info.g_rtt, GRANULE_STATE_RTT);
-
-	rtt_walk_lock_unlock(rec->realm_info.g_rtt,
-			     rec->realm_info.s2_starting_level,
-			     rec->realm_info.ipa_bits,
-			     ipa, RTT_PAGE_LEVEL, &wi);
-
-	ll_table = granule_map(wi.g_llt, SLOT_RTT);
-	s2tte = s2tte_read(&ll_table[wi.index]);
-
-	ret = s2tte_is_unassigned_empty(s2tte) ||
-		s2tte_is_assigned_empty(s2tte, wi.last_level);
-
-	buffer_unmap(ll_table);
-	granule_unlock(wi.g_llt);
-	return ret;
+	return false;
 }
 
 static bool fsc_is_external_abort(unsigned long fsc)
