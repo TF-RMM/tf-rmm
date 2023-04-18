@@ -844,7 +844,6 @@ static unsigned long data_create(unsigned long rd_addr,
 	struct rd *rd;
 	struct rtt_walk wi;
 	unsigned long s2tte, *s2tt;
-	enum ripas ripas_val;
 	enum granule_state new_data_state = GRANULE_STATE_DELEGATED;
 	unsigned long ipa_bits;
 	unsigned long ret;
@@ -883,16 +882,10 @@ static unsigned long data_create(unsigned long rd_addr,
 
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
 	s2tte = s2tte_read(&s2tt[wi.index]);
-	if (s2tte_is_unassigned_empty(s2tte)) {
-		ripas_val = RIPAS_EMPTY;
-	} else if (s2tte_is_unassigned_ram(s2tte)) {
-		ripas_val = RIPAS_RAM;
-	} else {
+	if (!s2tte_is_unassigned_ram(s2tte)) {
 		ret = pack_return_code(RMI_ERROR_RTT, RTT_PAGE_LEVEL);
 		goto out_unmap_ll_table;
 	}
-
-	ripas_val = s2tte_get_ripas(s2tte);
 
 	if (g_src != NULL) {
 		bool ns_access_ok;
@@ -920,9 +913,7 @@ static unsigned long data_create(unsigned long rd_addr,
 
 	new_data_state = GRANULE_STATE_DATA;
 
-	s2tte = (ripas_val == RIPAS_EMPTY) ?
-		s2tte_create_assigned_empty(data_addr, RTT_PAGE_LEVEL) :
-		s2tte_create_assigned_ram(data_addr, RTT_PAGE_LEVEL);
+	s2tte = s2tte_create_assigned_ram(data_addr, RTT_PAGE_LEVEL);
 
 	s2tte_write(&s2tt[wi.index], s2tte);
 	__granule_get(wi.g_llt);
