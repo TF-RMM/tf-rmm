@@ -118,7 +118,6 @@
 #define RMI_DESTROYED		U(1)
 #define RMI_ASSIGNED		U(2)
 #define RMI_TABLE		U(3)
-#define RMI_VALID_NS		U(4)
 
 /* RmiFeature enumerations */
 #define RMI_FEATURE_FALSE	UL(0)
@@ -158,8 +157,9 @@
 #define RMM_FEATURE_REGISTER_0_HASH_SHA_512_WIDTH	UL(1)
 
 /* The RmmRipas enumeration representing realm IPA state */
-#define RMI_EMPTY   (0)
-#define RMI_RAM     (1)
+#define RMI_EMPTY	U(0)
+#define RMI_RAM		U(1)
+#define RMI_UNDEFINED	U(2)
 
 /* no parameters */
 #define SMC_RMM_VERSION				SMC64_RMI_FID(U(0x0))

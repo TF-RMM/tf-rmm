@@ -723,17 +723,19 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
 	s2tte = s2tte_read(&s2tt[wi.index]);
 	ret->x[1] =  wi.last_level;
-	ret->x[3] = 0UL;
-	ret->x[4] = 0UL;
 
 	if (s2tte_is_unassigned_empty(s2tte)) {
 		ret->x[2] = RMI_UNASSIGNED;
+		ret->x[3] = 0UL;
 		ret->x[4] = RIPAS_EMPTY;
 	} else if (s2tte_is_unassigned_ram(s2tte)) {
 		ret->x[2] = RMI_UNASSIGNED;
+		ret->x[3] = 0UL;
 		ret->x[4] = RIPAS_RAM;
 	} else if (s2tte_is_destroyed(s2tte)) {
 		ret->x[2] = RMI_DESTROYED;
+		ret->x[3] = 0UL;
+		ret->x[4] = RIPAS_UNDEFINED;
 	} else if (s2tte_is_assigned_empty(s2tte, wi.last_level)) {
 		ret->x[2] = RMI_ASSIGNED;
 		ret->x[3] = s2tte_pa(s2tte, wi.last_level);
@@ -744,13 +746,16 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 		ret->x[4] = RIPAS_RAM;
 	} else if (s2tte_is_unassigned_ns(s2tte)) {
 		ret->x[2] = RMI_UNASSIGNED;
-		ret->x[4] = RIPAS_EMPTY;
+		ret->x[3] = 0UL;
+		ret->x[4] = RIPAS_UNDEFINED;
 	} else if (s2tte_is_assigned_ns(s2tte, wi.last_level)) {
-		ret->x[2] = RMI_VALID_NS;
+		ret->x[2] = RMI_ASSIGNED;
 		ret->x[3] = host_ns_s2tte(s2tte, wi.last_level);
+		ret->x[4] = RIPAS_UNDEFINED;
 	} else if (s2tte_is_table(s2tte, wi.last_level)) {
 		ret->x[2] = RMI_TABLE;
 		ret->x[3] = s2tte_pa_table(s2tte, wi.last_level);
+		ret->x[4] = RIPAS_UNDEFINED;
 	} else {
 		assert(false);
 	}

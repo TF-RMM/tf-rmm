@@ -15,7 +15,8 @@
  */
 enum ripas {
 	RIPAS_EMPTY = RMI_EMPTY,	/* Unused IPA for Realm */
-	RIPAS_RAM = RMI_RAM		/* IPA used for Code/Data by Realm */
+	RIPAS_RAM = RMI_RAM,		/* IPA used for Code/Data by Realm */
+	RIPAS_UNDEFINED = RMI_UNDEFINED	/* Implied by HIPAS=DESTROYED */
 };
 
 #endif /* RIPAS_H */
