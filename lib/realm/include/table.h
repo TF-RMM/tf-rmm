@@ -33,7 +33,6 @@ COMPILER_ASSERT(MIN_STARTING_LEVEL >= 0);
 struct rd;
 enum ripas;
 
-unsigned long s2tte_create_ripas(enum ripas ripas_val);
 unsigned long s2tte_create_unassigned_empty(void);
 unsigned long s2tte_create_unassigned_ram(void);
 unsigned long s2tte_create_unassigned_ns(void);

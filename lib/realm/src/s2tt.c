@@ -384,17 +384,6 @@ out:
 }
 
 /*
- * Creates a value which can be OR'd with an s2tte to set RIPAS=@ripas.
- */
-unsigned long s2tte_create_ripas(enum ripas ripas_val)
-{
-	if (ripas_val == RIPAS_EMPTY) {
-		return S2TTE_INVALID_RIPAS_EMPTY;
-	}
-	return S2TTE_INVALID_RIPAS_RAM;
-}
-
-/*
  * Creates an unassigned_empty s2tte.
  */
 unsigned long s2tte_create_unassigned_empty(void)

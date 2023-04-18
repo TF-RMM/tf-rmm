@@ -97,7 +97,7 @@ static bool ipa_is_empty(unsigned long ipa, struct rec *rec)
 	walk_status = realm_ipa_to_pa(rec, ipa, &s2_walk);
 
 	if ((walk_status != WALK_INVALID_PARAMS) &&
-	    (s2_walk.ripas == RIPAS_EMPTY)) {
+	    (s2_walk.ripas_val == RIPAS_EMPTY)) {
 		return true;
 	}
 	return false;
