@@ -252,17 +252,10 @@ struct s2_walk_result {
 	unsigned long pa;
 	unsigned long rtt_level;
 	enum ripas ripas_val;
-	bool destroyed;
 	struct granule *llt;
 };
 
-static inline bool s2_walk_result_match_ripas(struct s2_walk_result *res,
-					      enum ripas ripas_val)
-{
-	return (!res->destroyed && (res->ripas_val == ripas_val));
-}
-
-enum s2_walk_status realm_ipa_to_pa(struct rd *rd,
+enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 				    unsigned long ipa,
 				    struct s2_walk_result *res);
 

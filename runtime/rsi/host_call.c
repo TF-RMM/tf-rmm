@@ -35,7 +35,6 @@ static unsigned int do_host_call(struct rec *rec,
 	struct s2_walk_result walk_result;
 	unsigned long ipa = rec->regs[1];
 	unsigned long page_ipa;
-	struct rd *rd;
 	struct granule *gr;
 	unsigned char *data;
 	struct rsi_host_call *host_call;
@@ -47,22 +46,20 @@ static unsigned int do_host_call(struct rec *rec,
 	/* Only 'rec_entry' or 'rec_exit' should be set */
 	assert((rec_entry != NULL) ^ (rec_exit != NULL));
 
-	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
-
 	page_ipa = ipa & GRANULE_MASK;
-	walk_status = realm_ipa_to_pa(rd, page_ipa, &walk_result);
+	walk_status = realm_ipa_to_pa(rec, page_ipa, &walk_result);
 
 	switch (walk_status) {
 	case WALK_SUCCESS:
 		break;
 	case WALK_FAIL:
-		if (s2_walk_result_match_ripas(&walk_result, RIPAS_EMPTY)) {
+		if (walk_result.ripas_val == RIPAS_EMPTY) {
 			ret = RSI_ERROR_INPUT;
 		} else {
 			rsi_walk_result->abort = true;
 			rsi_walk_result->rtt_level = walk_result.rtt_level;
 		}
-		goto out;
+		return ret;
 	case WALK_INVALID_PARAMS:
 		assert(false);
 		break;
@@ -92,8 +89,6 @@ static unsigned int do_host_call(struct rec *rec,
 	/* Unlock last level RTT */
 	granule_unlock(walk_result.llt);
 
-out:
-	buffer_unmap(rd);
 	return ret;
 }
 

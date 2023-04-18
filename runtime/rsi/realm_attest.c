@@ -95,7 +95,6 @@ static void attest_token_continue_sign_state(struct rec *rec,
 static void attest_token_continue_write_state(struct rec *rec,
 					      struct attest_result *res)
 {
-	struct rd *rd = NULL;
 	struct granule *gr;
 	uint8_t *realm_att_token;
 	unsigned long realm_att_token_ipa = rec->regs[1];
@@ -104,24 +103,17 @@ static void attest_token_continue_write_state(struct rec *rec,
 	size_t attest_token_len;
 
 	/*
-	 * The refcount on rd and rec will protect from any changes
-	 * while REC is running.
-	 */
-	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
-
-	/*
 	 * Translate realm granule IPA to PA. If returns with
 	 * WALK_SUCCESS then the last level page table (llt),
 	 * which holds the realm_att_token_buf mapping, is locked.
 	 */
-	walk_status = realm_ipa_to_pa(rd, realm_att_token_ipa, &walk_res);
-	buffer_unmap(rd);
+	walk_status = realm_ipa_to_pa(rec, realm_att_token_ipa, &walk_res);
 
 	/* Walk parameter validity was checked by RSI_ATTESTATION_TOKEN_INIT */
 	assert(walk_status != WALK_INVALID_PARAMS);
 
 	if (walk_status == WALK_FAIL) {
-		if (s2_walk_result_match_ripas(&walk_res, RIPAS_EMPTY)) {
+		if (walk_res.ripas_val == RIPAS_EMPTY) {
 			res->smc_res.x[0] = RSI_ERROR_INPUT;
 		} else {
 			/*
