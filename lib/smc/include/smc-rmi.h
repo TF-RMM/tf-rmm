@@ -197,6 +197,11 @@
 /*
  * arg0 == RD address
  * arg1 == map address
+ *
+ * ret1 == Address(PA) of the DATA granule, if ret0 == RMI_SUCCESS.
+ *         Otherwise, undefined.
+ * ret2 == Top of the non-live address region. Only valid
+ *         if ret0 == RMI_SUCCESS or ret0 == (RMI_ERROR_RTT_WALK, x)
  */
 #define SMC_RMM_DATA_DESTROY			SMC64_RMI_FID(U(0x5))
 
@@ -243,10 +248,14 @@
 #define SMC_RMM_RTT_CREATE			SMC64_RMI_FID(U(0xD))
 
 /*
- * arg0 == RTT address
- * arg1 == RD address
- * arg2 == map address
- * arg3 == level
+ * arg0 == RD address
+ * arg1 == map address
+ * arg2 == level
+ *
+ * ret1 == Address (PA) of the RTT, if ret0 == RMI_SUCCESS
+ *         Otherwise, undefined.
+ * ret2 == Top of the non-live address region. Only valid
+ *         if ret0 == RMI_SUCCESS or ret0 == (RMI_ERROR_RTT_WALK, x)
  */
 #define SMC_RMM_RTT_DESTROY			SMC64_RMI_FID(U(0xE))
 
@@ -288,10 +297,11 @@
 #define SMC_RMM_FEATURES			SMC64_RMI_FID(U(0x15))
 
 /*
- * arg0 == RTT address
- * arg1 == RD address
- * arg2 == map address
- * arg3 == level
+ * arg0 == RD address
+ * arg1 == map address
+ * arg2 == level
+ *
+ * ret1 == Address(PA) of the RTT folded, if ret0 == RMI_SUCCESS
  */
 #define SMC_RMM_RTT_FOLD			SMC64_RMI_FID(U(0x16))
 

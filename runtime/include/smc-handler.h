@@ -23,8 +23,9 @@ unsigned long smc_data_create_unknown(unsigned long rd_addr,
 				      unsigned long data_addr,
 				      unsigned long map_addr);
 
-unsigned long smc_data_destroy(unsigned long rd_addr,
-			       unsigned long map_addr);
+void smc_data_destroy(unsigned long rd_addr,
+		      unsigned long map_addr,
+		      struct smc_result *ret_struct);
 
 unsigned long smc_granule_delegate(unsigned long addr);
 
@@ -33,7 +34,7 @@ unsigned long smc_granule_undelegate(unsigned long addr);
 unsigned long smc_realm_activate(unsigned long rd_addr);
 
 unsigned long smc_realm_create(unsigned long rd_addr,
-			     unsigned long realm_params_addr);
+				unsigned long realm_params_addr);
 
 unsigned long smc_realm_destroy(unsigned long rd_addr);
 
@@ -54,15 +55,15 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 			     unsigned long map_addr,
 			     unsigned long ulevel);
 
-unsigned long smc_rtt_destroy(unsigned long rtt_addr,
-			      unsigned long rd_addr,
-			      unsigned long map_addr,
-			      unsigned long ulevel);
+void smc_rtt_destroy(unsigned long rd_addr,
+		     unsigned long map_addr,
+		     unsigned long ulevel,
+		     struct smc_result *ret_struct);
 
-unsigned long smc_rtt_fold(unsigned long rtt_addr,
-			   unsigned long rd_addr,
-			   unsigned long map_addr,
-			   unsigned long ulevel);
+void smc_rtt_fold(unsigned long rd_addr,
+		  unsigned long map_addr,
+		  unsigned long ulevel,
+		  struct smc_result *ret_struct);
 
 unsigned long smc_rtt_map_unprotected(unsigned long rd_addr,
 				      unsigned long map_addr,

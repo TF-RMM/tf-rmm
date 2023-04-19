@@ -59,15 +59,14 @@ void host_rmi_rtt_create(void *rd, void *rtt, void *ipa, unsigned int level, str
 		ret);
 }
 
-void host_rmi_rtt_destroy(void *rtt, void *rd, void *ipa,
-			  unsigned int level, struct smc_result *ret)
+void host_rmi_rtt_destroy(void *rd, void *ipa, unsigned int level,
+			  struct smc_result *ret)
 {
 	handle_ns_smc(SMC_RMM_RTT_DESTROY,
-		(uintptr_t)rtt,
 		(uintptr_t)rd,
 		(uintptr_t)ipa,
 		level,
-		0, 0,
+		0, 0, 0,
 		ret);
 }
 

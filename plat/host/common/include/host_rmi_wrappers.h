@@ -14,8 +14,8 @@ void host_rmi_realm_create(void *rd, void *params_ptr, struct smc_result *ret);
 void host_rmi_realm_destroy(void *rd, struct smc_result *ret);
 void host_rmi_rtt_create(void *rd, void *rtt, void *ipa,
 			 unsigned int level, struct smc_result *ret);
-void host_rmi_rtt_destroy(void *rtt, void *rd, void *ipa,
-			  unsigned int level, struct smc_result *ret);
+void host_rmi_rtt_destroy(void *rd, void *ipa, unsigned int level,
+			  struct smc_result *ret);
 void host_rmi_rec_aux_count(void *rd, struct smc_result *ret);
 void host_rmi_rec_create(void *rd, void *rec, void *params_ptr,
 			 struct smc_result *ret);

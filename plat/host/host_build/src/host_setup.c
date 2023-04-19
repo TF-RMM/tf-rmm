@@ -232,7 +232,7 @@ static int create_realm(void)
 	CHECK_RMI_RESULT();
 
 	for (i = RTT_COUNT-1; i >= 1; --i) {
-		host_rmi_rtt_destroy(rtts[i], rd, 0, i, &result);
+		host_rmi_rtt_destroy(rd, 0, i, &result);
 		CHECK_RMI_RESULT();
 		host_rmi_granule_undelegate(rtts[i], &result);
 		CHECK_RMI_RESULT();

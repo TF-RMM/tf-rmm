@@ -256,10 +256,10 @@ out_unlock_llt:
 	return ret;
 }
 
-unsigned long smc_rtt_fold(unsigned long rtt_addr,
-			   unsigned long rd_addr,
-			   unsigned long map_addr,
-			   unsigned long ulevel)
+void smc_rtt_fold(unsigned long rd_addr,
+		  unsigned long map_addr,
+		  unsigned long ulevel,
+		  struct smc_result *res)
 {
 	struct granule *g_rd;
 	struct granule *g_tbl;
@@ -268,14 +268,15 @@ unsigned long smc_rtt_fold(unsigned long rtt_addr,
 	struct rtt_walk wi;
 	unsigned long *table, *parent_s2tt, parent_s2tte;
 	long level = (long)ulevel;
-	unsigned long ipa_bits;
+	unsigned long ipa_bits, rtt_addr;
 	unsigned long ret;
 	struct realm_s2_context s2_ctx;
 	int sl;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	rd = granule_map(g_rd, SLOT_RD);
@@ -283,7 +284,8 @@ unsigned long smc_rtt_fold(unsigned long rtt_addr,
 	if (!validate_rtt_structure_cmds(map_addr, level, rd)) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	g_table_root = rd->s2_ctx.g_rtt;
@@ -309,16 +311,7 @@ unsigned long smc_rtt_fold(unsigned long rtt_addr,
 		goto out_unmap_parent_table;
 	}
 
-	/*
-	 * Check that the 'rtt_addr' RTT is used at (map_addr, level).
-	 * Note that this also verifies that the rtt_addr is properly aligned.
-	 */
-	if (rtt_addr != s2tte_pa_table(parent_s2tte, level - 1L)) {
-		ret = pack_return_code(RMI_ERROR_RTT,
-					(unsigned int)(level - 1L));
-		goto out_unmap_parent_table;
-	}
-
+	rtt_addr = s2tte_pa_table(parent_s2tte, level - 1L);
 	g_tbl = find_lock_granule(rtt_addr, GRANULE_STATE_RTT);
 
 	/*
@@ -409,6 +402,7 @@ unsigned long smc_rtt_fold(unsigned long rtt_addr,
 	}
 
 	ret = RMI_SUCCESS;
+	res->x[1] = rtt_addr;
 
 	/*
 	 * Break before make.
@@ -434,13 +428,13 @@ out_unmap_parent_table:
 	buffer_unmap(parent_s2tt);
 out_unlock_parent_table:
 	granule_unlock(wi.g_llt);
-	return ret;
+	res->x[0] = ret;
 }
 
-unsigned long smc_rtt_destroy(unsigned long rtt_addr,
-			      unsigned long rd_addr,
-			      unsigned long map_addr,
-			      unsigned long ulevel)
+void smc_rtt_destroy(unsigned long rd_addr,
+		     unsigned long map_addr,
+		     unsigned long ulevel,
+		     struct smc_result *res)
 {
 	struct granule *g_rd;
 	struct granule *g_tbl;
@@ -449,7 +443,7 @@ unsigned long smc_rtt_destroy(unsigned long rtt_addr,
 	struct rtt_walk wi;
 	unsigned long *table, *parent_s2tt, parent_s2tte;
 	long level = (long)ulevel;
-	unsigned long ipa_bits;
+	unsigned long ipa_bits, rtt_addr;
 	unsigned long ret;
 	struct realm_s2_context s2_ctx;
 	int sl;
@@ -457,7 +451,8 @@ unsigned long smc_rtt_destroy(unsigned long rtt_addr,
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	rd = granule_map(g_rd, SLOT_RD);
@@ -465,7 +460,8 @@ unsigned long smc_rtt_destroy(unsigned long rtt_addr,
 	if (!validate_rtt_structure_cmds(map_addr, level, rd)) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	g_table_root = rd->s2_ctx.g_rtt;
@@ -492,14 +488,7 @@ unsigned long smc_rtt_destroy(unsigned long rtt_addr,
 		goto out_unmap_parent_table;
 	}
 
-	/*
-	 * Check that the 'rtt_addr' RTT is used at (map_addr, level).
-	 * Note that this also verifies that the rtt_addr is properly aligned.
-	 */
-	if (rtt_addr != s2tte_pa_table(parent_s2tte, level - 1L)) {
-		ret = RMI_ERROR_INPUT;
-		goto out_unmap_parent_table;
-	}
+	rtt_addr = s2tte_pa_table(parent_s2tte, level - 1L);
 
 	/*
 	 * Lock the RTT granule. The 'rtt_addr' is verified, thus can be treated
@@ -522,6 +511,7 @@ unsigned long smc_rtt_destroy(unsigned long rtt_addr,
 	}
 
 	ret = RMI_SUCCESS;
+	res->x[1] = rtt_addr;
 
 	table = granule_map(g_tbl, SLOT_RTT2);
 
@@ -550,7 +540,7 @@ out_unmap_parent_table:
 	buffer_unmap(parent_s2tt);
 out_unlock_parent_table:
 	granule_unlock(wi.g_llt);
-	return ret;
+	res->x[0] = ret;
 }
 
 enum map_unmap_ns_op {
@@ -958,8 +948,9 @@ unsigned long smc_data_create_unknown(unsigned long rd_addr,
 	return data_create(rd_addr, data_addr, map_addr, NULL, 0);
 }
 
-unsigned long smc_data_destroy(unsigned long rd_addr,
-			       unsigned long map_addr)
+void smc_data_destroy(unsigned long rd_addr,
+		      unsigned long map_addr,
+		      struct smc_result *res)
 {
 	struct granule *g_data;
 	struct granule *g_rd;
@@ -967,14 +958,14 @@ unsigned long smc_data_destroy(unsigned long rd_addr,
 	struct rtt_walk wi;
 	unsigned long data_addr, s2tte, *s2tt;
 	struct rd *rd;
-	unsigned long ipa_bits;
-	unsigned long ret;
+	unsigned long ipa_bits, ret;
 	struct realm_s2_context s2_ctx;
 	int sl;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	rd = granule_map(g_rd, SLOT_RD);
@@ -982,7 +973,8 @@ unsigned long smc_data_destroy(unsigned long rd_addr,
 	if (!validate_map_addr(map_addr, RTT_PAGE_LEVEL, rd)) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	g_table_root = rd->s2_ctx.g_rtt;
@@ -1032,13 +1024,13 @@ unsigned long smc_data_destroy(unsigned long rd_addr,
 	granule_unlock_transition(g_data, GRANULE_STATE_DELEGATED);
 
 	ret = RMI_SUCCESS;
+	res->x[1] = data_addr;
 
 out_unmap_ll_table:
 	buffer_unmap(s2tt);
 out_unlock_ll_table:
 	granule_unlock(wi.g_llt);
-
-	return ret;
+	res->x[0] = ret;
 }
 
 /*
