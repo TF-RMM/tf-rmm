@@ -9,7 +9,7 @@ target_link_libraries(rmm-lib-gic
     PRIVATE rmm-lib-arch
             rmm-lib-common
             rmm-lib-debug
-            rmm-lib-realm)
+            rmm-lib-smc)
 
 target_include_directories(rmm-lib-gic
     PUBLIC "include")

@@ -28,7 +28,6 @@ target_link_libraries(rmm-lib-attestation
     rmm-lib-libc
     rmm-lib-rmm_el3_ifc
     rmm-lib-smc
-    qcbor
 )
 
 target_link_libraries(rmm-lib-attestation

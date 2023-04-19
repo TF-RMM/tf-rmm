@@ -4,9 +4,6 @@
  */
 
 #include <arch_helpers.h>
-#include <attestation_token.h>
-#include <gic.h>
-#include <memory_alloc.h>
 #include <rec.h>
 #include <smc-rmi.h>
 
