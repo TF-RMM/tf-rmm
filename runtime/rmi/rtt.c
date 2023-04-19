@@ -324,7 +324,7 @@ unsigned long smc_rtt_fold(unsigned long rtt_addr,
 	/*
 	 * A table descriptor S2TTE always points to a TABLE granule.
 	 */
-	assert(g_tbl);
+	assert(g_tbl != NULL);
 
 	table = granule_map(g_tbl, SLOT_RTT2);
 
@@ -1027,7 +1027,7 @@ unsigned long smc_data_destroy(unsigned long rd_addr,
 	 * transition to or from GRANULE_STATE_DATA for granule address can happen.
 	 */
 	g_data = find_lock_granule(data_addr, GRANULE_STATE_DATA);
-	assert(g_data);
+	assert(g_data != NULL);
 	granule_memzero(g_data, SLOT_DELEGATED);
 	granule_unlock_transition(g_data, GRANULE_STATE_DELEGATED);
 
