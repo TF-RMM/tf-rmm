@@ -93,11 +93,6 @@ add_subdirectory("lib/libc")
 link_libraries(rmm-lib-libc)
 
 #
-# Build and link QCBOR
-#
-include("cmake/BuildQCBOR.cmake")
-
-#
 # Recurse into the various component subdirectories
 #
 add_subdirectory("lib")
