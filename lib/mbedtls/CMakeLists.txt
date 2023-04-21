@@ -39,6 +39,6 @@ endif()
 # Add the mbedtls subdirectory and exclude all targets in mbedtls from
 # default `all` target
 #
-add_subdirectory("${RMM_SOURCE_DIR}/ext/mbedtls" "${CMAKE_BINARY_DIR}/ext/medtls" EXCLUDE_FROM_ALL)
+add_subdirectory("${RMM_SOURCE_DIR}/ext/mbedtls" "${CMAKE_BINARY_DIR}/ext/mbedtls" EXCLUDE_FROM_ALL)
 
 target_link_libraries(rmm-mbedtls INTERFACE mbedtls)
