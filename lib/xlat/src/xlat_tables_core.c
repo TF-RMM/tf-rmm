@@ -392,10 +392,6 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, unsigned int level)
 	 */
 	desc |= ((attr & MT_RW) != 0UL) ? LOWER_ATTRS(AP_RW) : LOWER_ATTRS(AP_RO);
 
-	if ((attr & MT_CONT) != 0UL) {
-		desc |= XLAT_GET_CONT_HINT();
-	}
-
 	if ((attr & MT_NG) != 0UL) {
 		desc |= XLAT_GET_NG_HINT();
 	}
@@ -452,28 +448,24 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, unsigned int level)
 		}
 
 		shareability_type = MT_SHAREABILITY(attr);
-		if (mem_type == MT_MEMORY) {
-			desc |= LOWER_ATTRS(ATTR_IWBWA_OWBWA_NTR_INDEX);
-			if (shareability_type == MT_SHAREABILITY_NSH) {
-				desc |= LOWER_ATTRS(NSH);
-			} else if (shareability_type == MT_SHAREABILITY_OSH) {
-				desc |= LOWER_ATTRS(OSH);
-			} else {
-				desc |= LOWER_ATTRS(ISH);
-			}
 
-			/* Check if Branch Target Identification is enabled */
-			/* TODO: This is needed if BTI is enabled. Double check this code. */
-			/* Set GP bit for block and page code entries
-			 * if BTI mechanism is implemented.
-			 */
+		/* Only MT_MEMORY allowed from here on */
+		assert(mem_type == MT_MEMORY);
+
+		desc |= LOWER_ATTRS(ATTR_IWBWA_OWBWA_NTR_INDEX);
+		if (shareability_type == MT_SHAREABILITY_NSH) {
+			desc |= LOWER_ATTRS(NSH);
+		} else if (shareability_type == MT_SHAREABILITY_OSH) {
+			desc |= LOWER_ATTRS(OSH);
 		} else {
-			if (mem_type != MT_NON_CACHEABLE) {
-				/* Only non cacheable memory at this point */
-				panic();
-			}
-			desc |= LOWER_ATTRS(ATTR_NON_CACHEABLE_INDEX | OSH);
+			desc |= LOWER_ATTRS(ISH);
 		}
+
+		/* Check if Branch Target Identification is enabled */
+		/* TODO: This is needed if BTI is enabled. Double check this code. */
+		/* Set GP bit for block and page code entries
+		 * if BTI mechanism is implemented.
+		 */
 	}
 
 	return desc;

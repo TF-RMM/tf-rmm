@@ -10,6 +10,12 @@
 #include <xlat_contexts.h>
 #include <xlat_defs.h>
 
+/* Maximum number of tables to use for tests */
+#define XLAT_TESTS_MAX_TABLES	(20U)
+
+/* Maximum number of mmap regions to use for tests */
+#define XLAT_TESTS_MAX_MMAPS	(20U)
+
 /*
  * Helper function to initialize a xlat_ctx_tbls structure with
  * a given set of parameters.
@@ -58,6 +64,21 @@ void xlat_test_helpers_init_ctx(struct xlat_ctx *ctx,
  */
 void xlat_test_hepers_arch_init(void);
 
+/* Helper function to return a random set of attributes for a mmap region */
+uint64_t xlat_test_helpers_rand_mmap_attrs(void);
+
+/*
+ * Generate a random array of xlat_mmap_region
+ * structure ordered by ascending VA.
+ */
+void xlat_test_helpers_rand_mmap_array(struct xlat_mmap_region *mmap,
+					size_t size, uintptr_t min_va,
+					uintptr_t max_va);
+
+/* Return the base VA according to the region */
+uintptr_t xlat_test_helpers_get_start_va(xlat_addr_region_id_t region,
+					 size_t va_size);
+
 /*
  * Helper function to perform a table walk given a VA.
  * This function returns the tte for the VA, as well as the
@@ -71,5 +92,33 @@ int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,
 				 uint64_t **table_ptr,
 				 unsigned int *level,
 				 unsigned int *index);
+
+/*
+ * Helper function to generate the lower and upper attributes as expected
+ * to be in a block/page tte given the `mmap_attrs` field of a mmap region.
+ * The generated attributes are returned via the `attrs` parameter.
+ *
+ * This function returns 0 if the attributes can be generated and a negative
+ * error code otherwise.
+ */
+int xlat_test_helpers_gen_attrs(uint64_t *attrs, uint64_t mmap_attrs);
+
+/*
+ * Helper function to get the attributes (lower and upper) corresponding
+ * to VA as specified by mmap region array in the translation context.
+ *
+ * This function returns 0 if the attributes can be generated and a negative
+ * error code otherwise.
+ *
+ * This function assumes that the context is valid and properly initialized.
+ */
+int xlat_test_helpers_get_attrs_for_va(struct xlat_ctx *ctx,
+					unsigned long long va,
+					uint64_t *attrs);
+
+/*
+ * Return a pointer to the memory allocated for the xlat tables.
+ */
+uint64_t *xlat_test_helpers_tbls(void);
 
 #endif /* XLAT_TEST_HELPERS_H */

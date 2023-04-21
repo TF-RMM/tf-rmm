@@ -13,3 +13,10 @@ rmm_build_unittest(NAME xlat_tests_G1
                    SOURCES "tests/xlat_tests_g1.cpp"
                            "tests/xlat_test_helpers.c"
                    ITERATIONS 10)
+
+rmm_build_unittest(NAME xlat_tests_G2
+                   LIBRARIES rmm-platform
+                   TARGET rmm-lib-xlat
+                   SOURCES "tests/xlat_tests_g2.cpp"
+                           "tests/xlat_test_helpers.c"
+                   ITERATIONS 10)
