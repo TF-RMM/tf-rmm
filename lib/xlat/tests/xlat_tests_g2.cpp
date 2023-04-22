@@ -943,16 +943,18 @@ TEST(xlat_tests_G2, xlat_get_tte_ptr_TC1)
 	 *
 	 * This test tries three different mmap areas per VA region:
 	 *
-	 * 	- An address corresponding to the first entry at a
+	 *	- An address corresponding to the first entry at a
 	 *	  last level table.
 	 *	- An address corresponding to the last entry at a
 	 *	  last level table.
 	 *	- An address corresponding to an intermediate entry
 	 *	  at a last level table.
 	 *
-	 * The test also tests a negative case wherein it tries to get
-	 * the TTE via xlat_get_tte() for a lower than the base VA for
-	 * the last level table.
+	 * The test also tests 2 negative cases :
+	 * 	1. It tries to get the TTE via xlat_get_tte() for a lower
+	 * 	   VA  than the base VA.
+	 * 	2. It tries to get the TTE for a higher VA than is mapped
+	 * 	   by the last level table.
 	 ***************************************************************/
 
 	/*
@@ -1067,6 +1069,26 @@ TEST(xlat_tests_G2, xlat_get_tte_ptr_TC1)
 
 		tte_ptr = xlat_get_tte_ptr(&tbl_info, test_va);
 
+
+		/* Validate the output */
+		CHECK_VERBOSE((tte_ptr == NULL),
+			      "Check address 0x%lx against TT at VA 0x%lx",
+			      test_va, tbl_info.llt_base_va);
+
+		/*
+		 * test xlat_get_tte_ptr() against a VA above the max
+		 * VA mapped by 'tbl_info'. Use init_mmap[0] for this test.
+		 */
+		test_va = ctx.cfg->base_va + init_mmap[0U].base_va;
+		retval = xlat_get_llt_from_va(&tbl_info, &ctx, test_va);
+
+		/* Ensure that so far the test setup is OK */
+		CHECK_TRUE(retval == 0);
+
+		test_va = tbl_info.llt_base_va + XLAT_BLOCK_SIZE(tbl_info.level - 1);
+		test_va += test_helpers_get_rand_in_range(1, PAGE_SIZE - 1);
+
+		tte_ptr = xlat_get_tte_ptr(&tbl_info, test_va);
 
 		/* Validate the output */
 		CHECK_VERBOSE((tte_ptr == NULL),
@@ -1758,7 +1780,7 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC2)
 		 * the PA both to 0x0.
 		 */
 		test_va = init_mmap[0U].base_va + ctx.cfg->base_va;
-		test_va -= test_helpers_get_rand_in_range(0, PAGE_SIZE - 1);
+		test_va += test_helpers_get_rand_in_range(0, init_mmap[0U].size - 1);
 
 		/* Try to map to the page/block containing `test_va` */
 		retval = xlat_map_memory_page_with_attrs(&tbl_info, test_va,
@@ -1854,6 +1876,15 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC2)
 		CHECK_TRUE(retval == 0);
 
 		/*
+		 * Retrieve the xlat_llt_info structure needed to feed
+		 * xlat_map_memory_page_with_attrs().
+		 */
+		retval = xlat_get_llt_from_va(&tbl_info, &ctx, test_va);
+
+		/* Verify that the test setup is correct so far */
+		CHECK_TRUE(retval == 0);
+
+		/*
 		 * Make the TTEs of the mapped region, which is expected
 		 * to be valid, transient valid.
 		 */
@@ -1866,7 +1897,7 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC2)
 		val_tte = tbl_ptr[tte_idx];
 
 		/*
-		 * Now try to map to a valid VA. In this case the associated
+		 * Now try to map a valid VA. In this case the associated
 		 * TTE will contain a transient valid mapping.
 		 */
 		test_va = init_mmap[2U].base_va + ctx.cfg->base_va;
