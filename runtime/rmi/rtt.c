@@ -329,20 +329,17 @@ void smc_rtt_fold(unsigned long rd_addr,
 	if (g_tbl->refcount == 0UL) {
 		if (table_is_destroyed_block(table)) {
 			parent_s2tte = s2tte_create_destroyed();
-			__granule_put(wi.g_llt);
-
 		} else if (table_is_unassigned_empty_block(table)) {
 			parent_s2tte = s2tte_create_unassigned_empty();
-			__granule_put(wi.g_llt);
-
 		} else if (table_is_unassigned_ram_block(table)) {
 			parent_s2tte = s2tte_create_unassigned_ram();
-			__granule_put(wi.g_llt);
-
 		} else if (table_is_unassigned_ns_block(table)) {
 			parent_s2tte = s2tte_create_unassigned_ns();
-			__granule_put(wi.g_llt);
+		} else if (table_maps_assigned_ns_block(table, level)) {
+			unsigned long s2tte = s2tte_read(&table[0]);
+			unsigned long block_pa = s2tte_pa(s2tte, level);
 
+			parent_s2tte = s2tte_create_assigned_ns(block_pa, level - 1L);
 		} else {
 			/*
 			 * The table holds a mixture of destroyed and
@@ -351,7 +348,7 @@ void smc_rtt_fold(unsigned long rd_addr,
 			ret = pack_return_code(RMI_ERROR_RTT, level);
 			goto out_unmap_table;
 		}
-
+		__granule_put(wi.g_llt);
 	} else if (g_tbl->refcount == S2TTES_PER_S2TT) {
 
 		unsigned long s2tte, block_pa;
@@ -383,9 +380,6 @@ void smc_rtt_fold(unsigned long rd_addr,
 		} else if (table_maps_assigned_ram_block(table, level)) {
 			parent_s2tte = s2tte_create_assigned_ram(block_pa,
 								 level - 1L);
-		} else if (table_maps_assigned_ns_block(table, level)) {
-			parent_s2tte = s2tte_create_assigned_ns(block_pa,
-								level - 1L);
 		/* The table contains mixed entries that cannot be folded */
 		} else {
 			ret = pack_return_code(RMI_ERROR_RTT, level);
@@ -628,7 +622,6 @@ static void map_unmap_ns(unsigned long rd_addr,
 
 		s2tte = s2tte_create_assigned_ns(host_s2tte, level);
 		s2tte_write(&s2tt[wi.index], s2tte);
-		__granule_get(wi.g_llt);
 
 	} else if (op == UNMAP_NS) {
 		/*
@@ -645,7 +638,6 @@ static void map_unmap_ns(unsigned long rd_addr,
 
 		s2tte = s2tte_create_unassigned_ns();
 		s2tte_write(&s2tt[wi.index], s2tte);
-		__granule_put(wi.g_llt);
 		if (level == RTT_PAGE_LEVEL) {
 			invalidate_page(&s2_ctx, map_addr);
 		} else {
