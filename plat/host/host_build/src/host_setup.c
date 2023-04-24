@@ -12,6 +12,7 @@
 #include <platform_api.h>
 #include <rmm_el3_ifc.h>
 #include <smc-rmi.h>
+#include <smc-rsi.h>
 #include <string.h>
 #include <table.h>
 
@@ -53,11 +54,23 @@ static void *allocate_granule(void)
 	return (void *)granule;
 }
 
-void realm_entry_point(void)
+int realm_continue(unsigned long *regs);
+
+int realm_start(unsigned long *regs)
 {
 	INFO("###########################\n");
 	INFO("# Hello World from a Realm!\n");
 	INFO("###########################\n");
+
+	regs[0] = SMC_RSI_ABI_VERSION;
+	return host_util_rsi_helper(realm_continue);
+}
+
+int realm_continue(unsigned long *regs)
+{
+	INFO("RSI Version is 0x%lx\n", regs[0]);
+
+	return 0;
 }
 
 static int create_realm(void)
@@ -113,7 +126,7 @@ static int create_realm(void)
 	}
 	rec_params->num_aux = rec_aux_count;
 	rec_params->flags |= REC_PARAMS_FLAG_RUNNABLE;
-	rec_params->pc = (uintptr_t)realm_entry_point;
+	rec_params->pc = (uintptr_t)realm_start;
 
 	host_rmi_rec_create(rec, rd, rec_params, &result);
 	CHECK_RMI_RESULT();
