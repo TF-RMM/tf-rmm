@@ -823,7 +823,7 @@ void s2tt_init_assigned_ns(unsigned long *s2tt, unsigned long pa, long level)
  * - assigned_ns
  * - table
  */
-static bool s2tte_has_pa(unsigned long s2tte, long level)
+bool s2tte_has_pa(unsigned long s2tte, long level)
 {
 	unsigned long desc_type = s2tte & DESC_TYPE_MASK;
 
@@ -836,6 +836,18 @@ static bool s2tte_has_pa(unsigned long s2tte, long level)
 	}
 
 	return false;
+}
+
+/*
+ * Returns true if s2tte is a live RTTE entry. i.e.,
+ * neither UNASSIGNED nor DESTROYED.
+ *
+ * NOTE: For now, only the RTTE with PA are live.
+ * This could change with EXPORT/IMPORT support.
+ */
+bool s2tte_is_live(unsigned long s2tte, long level)
+{
+	return s2tte_has_pa(s2tte, level);
 }
 
 /* Returns physical address of a page entry or block */
@@ -976,4 +988,58 @@ bool table_maps_assigned_ram_block(unsigned long *table, long level)
 bool table_maps_assigned_ns_block(unsigned long *table, long level)
 {
 	return __table_maps_block(table, level, s2tte_is_assigned_ns);
+}
+
+/*
+ * Scan the RTT @s2tt (which is @wi.level), from the entry (@wi.index) and
+ * skip the non-live entries (i.e., HIPAS is either UNASSIGNED or DESTROYED).
+ * In other words, the scanning stops when a live RTTE is encountered or we
+ * reach the end of this RTT.
+ *
+ * For now an RTTE can be considered non-live if it doesn't have a PA.
+ * NOTE: This would change with EXPORT/IMPORT where we may have metadata stored
+ * in the RTTE.
+ *
+ * @addr is not necessarily aligned to the wi.last_level (e.g., if we were called
+ * with RMI_ERROR_RTT).
+ *
+ * Returns:
+ * - If the entry @wi.index is live, returns @addr.
+ * - If none of the entries in the @s2tt are "live", returns the address of the
+ *   first entry in the next table.
+ * - Otherwise, the address of the first live entry in @s2tt
+ */
+unsigned long skip_non_live_entries(unsigned long addr,
+				    unsigned long *s2tt,
+				    const struct rtt_walk *wi)
+{
+	unsigned int i, index = wi->index;
+	long level = wi->last_level;
+	unsigned long map_size;
+
+	/*
+	 * If the entry for the map_addr is live,
+	 * return @addr.
+	 */
+	if (s2tte_is_live(s2tte_read(&s2tt[index]), level)) {
+		return addr;
+	}
+
+	/*
+	 * Align the address DOWN to the map_size, as expected for the @level,
+	 * so that we can compute the correct address by using the index.
+	 */
+	map_size = s2tte_map_size(level);
+	addr &= ~(map_size - 1UL);
+
+	/* Skip the "index" */
+	for (i = index + 1U; i < S2TTES_PER_S2TT; i++) {
+		unsigned long s2tte = s2tte_read(&s2tt[i]);
+
+		if (s2tte_is_live(s2tte, level)) {
+			break;
+		}
+	}
+
+	return addr + (i - index) * map_size;
 }

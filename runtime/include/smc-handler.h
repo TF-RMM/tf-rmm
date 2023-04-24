@@ -70,9 +70,10 @@ unsigned long smc_rtt_map_unprotected(unsigned long rd_addr,
 				      unsigned long ulevel,
 				      unsigned long s2tte);
 
-unsigned long smc_rtt_unmap_unprotected(unsigned long rd_addr,
-					unsigned long map_addr,
-					unsigned long ulevel);
+void smc_rtt_unmap_unprotected(unsigned long rd_addr,
+				unsigned long map_addr,
+				unsigned long ulevel,
+				struct smc_result *res);
 
 void smc_rtt_read_entry(unsigned long rd_addr,
 			unsigned long map_addr,

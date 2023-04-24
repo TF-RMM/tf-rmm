@@ -113,7 +113,6 @@
  * This is the main entry for both Primary and secondary PEs.
  */
 func rmm_entry
-
 	rmm_el2_init_env el2_vectors, cold_boot_flag, skip_to_warmboot
 
 	/*

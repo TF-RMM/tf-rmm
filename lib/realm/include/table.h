@@ -46,6 +46,9 @@ bool host_ns_s2tte_is_valid(unsigned long s2tte, long level);
 unsigned long host_ns_s2tte(unsigned long s2tte, long level);
 
 bool s2tte_has_ripas(unsigned long s2tte, long level);
+bool s2tte_has_pa(unsigned long s2tte, long level);
+
+bool s2tte_is_live(unsigned long s2tte, long level);
 bool s2tte_is_unassigned_empty(unsigned long s2tte);
 bool s2tte_is_unassigned_ram(unsigned long s2tte);
 bool s2tte_is_unassigned_ns(unsigned long s2tte);
@@ -130,4 +133,7 @@ static inline unsigned int max_ipa_size(void)
 	return ipa_size > MAX_IPA_BITS ? MAX_IPA_BITS : ipa_size;
 }
 
+unsigned long skip_non_live_entries(unsigned long addr,
+				    unsigned long *s2tt,
+				    const struct rtt_walk *wi);
 #endif /* TABLE_H */
