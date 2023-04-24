@@ -14,7 +14,7 @@
  **********************************************************************/
 
 /* Maximum number of sysregs for which we can install callbacks */
-#define SYSREG_MAX_CBS		(10U)
+#define SYSREG_MAX_CBS		(15U)
 
 /* Maximum size allowed for a sysreg name */
 #define MAX_SYSREG_NAME_LEN	(25U)
@@ -152,5 +152,17 @@ unsigned char *host_util_get_el3_rmm_shared_buffer(void);
  * setting up callbacks for sysreg access.
  */
 void host_util_setup_sysreg_and_boot_manifest(void);
+
+/*
+ * Runs the realm entrypoint as programmed in elr_el2 and resets
+ * the esr_el2 before entering the Realm.
+ */
+int host_util_rec_run(unsigned long *regs);
+
+/* Prototype for Realm entrypoint */
+typedef int (*realm_entrypoint_t)(unsigned long *);
+
+/* Helper for invoking RSI calls */
+int host_util_rsi_helper(realm_entrypoint_t ep);
 
 #endif /* HOST_UTILS_H */

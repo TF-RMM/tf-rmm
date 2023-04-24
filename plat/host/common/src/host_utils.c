@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <arch_helpers.h>
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
@@ -190,6 +191,11 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	ret = host_util_set_default_sysreg_cb("elr_el2", 0UL);
 
 	/*
+	 * Add callback to esr_el2 so that the realm exceptions can be handled.
+	 */
+	ret = host_util_set_default_sysreg_cb("esr_el2", 0UL);
+
+	/*
 	 * Set number of event counters implemented to 31.
 	 * (PMCR_EL0.N, bits [15:11] set to 31)
 	 */
@@ -207,4 +213,22 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	/* Initialize the boot manifest */
 	boot_manifest->version = RMM_EL3_IFC_SUPPORTED_VERSION;
 	boot_manifest->plat_data = (uintptr_t)NULL;
+}
+
+int host_util_rec_run(unsigned long *regs)
+{
+	unsigned long pc = read_elr_el2();
+	realm_entrypoint_t realm_ep = (void *)pc;
+
+	write_esr_el2(0x0);
+	return realm_ep(regs);
+}
+
+int host_util_rsi_helper(realm_entrypoint_t ep)
+{
+	/* Reduce the ep by 0x4 as RMM will advance_pc as part of handling RSI */
+	write_elr_el2((u_register_t) ep - 0x4);
+	write_esr_el2(ESR_EL2_EC_SMC);
+
+	return ARM_EXCEPTION_SYNC_LEL;
 }

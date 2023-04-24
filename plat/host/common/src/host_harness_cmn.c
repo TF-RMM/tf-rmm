@@ -206,13 +206,7 @@ void host_monitor_call_with_res(unsigned long id,
 
 int host_run_realm(unsigned long *regs)
 {
-	unsigned long pc = read_elr_el2();
-	void (*realm_entry_point)(void) = (void *)pc;
-
-	realm_entry_point();
-
-	/* Return an arbitrary exception */
-	return ARM_EXCEPTION_SYNC_LEL;
+	return host_util_rec_run(regs);
 }
 
 void host_spinlock_acquire(spinlock_t *l)
