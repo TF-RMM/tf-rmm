@@ -87,11 +87,10 @@ unsigned long smc_rtt_init_ripas(unsigned long rd_addr,
 				 unsigned long map_addr,
 				 unsigned long ulevel);
 
-unsigned long smc_rtt_set_ripas(unsigned long rd_addr,
-				unsigned long rec_addr,
-				unsigned long map_addr,
-				unsigned long ulevel,
-				unsigned long uripas);
-
+void smc_rtt_set_ripas(unsigned long rd_addr,
+			unsigned long rec_addr,
+			unsigned long base,
+			unsigned long top,
+			struct smc_result *ret_struct);
 
 #endif /* SMC_HANDLER_H */

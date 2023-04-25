@@ -38,8 +38,8 @@ bool handle_rsi_ipa_state_set(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		return true;
 	}
 
-	rec->set_ripas.start = start;
-	rec->set_ripas.end = end;
+	rec->set_ripas.base = start;
+	rec->set_ripas.top = end;
 	rec->set_ripas.addr = start;
 	rec->set_ripas.ripas_val = ripas_val;
 

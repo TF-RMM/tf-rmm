@@ -135,9 +135,10 @@ struct rec {
 	struct sysreg_state sysregs;
 	struct common_sysreg_state common_sysregs;
 
+	/* Populated when the REC issues a RIPAS change request */
 	struct {
-		unsigned long start;
-		unsigned long end;
+		unsigned long base;
+		unsigned long top;
 		unsigned long addr;
 		enum ripas ripas_val;
 	} set_ripas;

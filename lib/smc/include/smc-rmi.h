@@ -320,9 +320,11 @@
 /*
  * arg0 == RD address
  * arg1 == REC address
- * arg2 == map address
- * arg3 == level
- * arg4 == ripas
+ * arg2 == start address
+ * arg3 == end address
+ *
+ * ret1 == Top of the address range where the RIPAS was updated,
+ *	   if ret0 == RMI_SUCCESS
  */
 #define SMC_RMM_RTT_SET_RIPAS			SMC64_RMI_FID(U(0x19))
 

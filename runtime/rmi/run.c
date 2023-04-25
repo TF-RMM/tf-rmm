@@ -70,13 +70,13 @@ static bool complete_mmio_emulation(struct rec *rec, struct rmi_rec_entry *rec_e
 
 static void complete_set_ripas(struct rec *rec)
 {
-	if (rec->set_ripas.start != rec->set_ripas.end) {
+	if (rec->set_ripas.base != rec->set_ripas.top) {
 		/* Pending request from Realm */
 		rec->regs[0] = RSI_SUCCESS;
 		rec->regs[1] = rec->set_ripas.addr;
 
-		rec->set_ripas.start = 0UL;
-		rec->set_ripas.end = 0UL;
+		rec->set_ripas.base = 0UL;
+		rec->set_ripas.top = 0UL;
 	}
 }
 
@@ -281,7 +281,6 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	ret = RMI_SUCCESS;
 
 	rec_run_loop(rec, &rec_run.exit);
-	/* Undo the heap association */
 
 	gic_copy_state_to_ns(&rec->sysregs.gicstate, &rec_run.exit);
 

@@ -1040,42 +1040,51 @@ out_unmap_ll_table:
 }
 
 /*
- * Sets new ripas value in @s2tte.
+ * Update the ripas value for the entry pointed by @s2ttep.
  *
- * It returns false if the @s2tte has no ripas value.
- * It sets @(*do_tlbi) to 'true' if the TLBs have to be invalidated.
+ * Returns:
+ *  < 0  - On error and the operation was aborted,
+ *	   e.g., entry cannot have a ripas.
+ *    0  - Operation was success and no TLBI is required.
+ *  > 0  - Operation was success and TLBI is required.
+ * Sets:
+ * @(*do_tlbi) to 'true' if the TLBs have to be invalidated.
  */
-static bool update_ripas(unsigned long *s2tte, bool *do_tlbi,
-			 unsigned long level, enum ripas ripas_val)
+static int update_ripas(unsigned long *s2ttep, unsigned long level,
+			enum ripas ripas_val)
 {
-	unsigned long pa;
+	unsigned long pa, s2tte = s2tte_read(s2ttep);
+	int ret = 0;
 
-	*do_tlbi = false;
-
-	if (!s2tte_has_ripas(*s2tte, level)) {
-		return false;
+	if (!s2tte_has_ripas(s2tte, level)) {
+		return -1;
 	}
 
 	if (ripas_val == RIPAS_RAM) {
-		if (s2tte_is_unassigned_empty(*s2tte)) {
-			*s2tte = s2tte_create_unassigned_ram();
-		} else if (s2tte_is_assigned_empty(*s2tte, level)) {
-			pa = s2tte_pa(*s2tte, level);
-			*s2tte = s2tte_create_assigned_ram(pa, level);
+		if (s2tte_is_unassigned_empty(s2tte)) {
+			s2tte = s2tte_create_unassigned_ram();
+		} else if (s2tte_is_assigned_empty(s2tte, level)) {
+			pa = s2tte_pa(s2tte, level);
+			s2tte = s2tte_create_assigned_ram(pa, level);
+		} else {
+			/* No action is required */
+			return 0;
 		}
 	} else if (ripas_val == RIPAS_EMPTY) {
-		if (s2tte_is_unassigned_ram(*s2tte)) {
-			*s2tte = s2tte_create_unassigned_empty();
-		} else if (s2tte_is_assigned_ram(*s2tte, level)) {
-			pa = s2tte_pa(*s2tte, level);
-			*s2tte = s2tte_create_assigned_empty(pa, level);
-			*do_tlbi = true;
+		if (s2tte_is_unassigned_ram(s2tte)) {
+			s2tte = s2tte_create_unassigned_empty();
+		} else if (s2tte_is_assigned_ram(s2tte, level)) {
+			pa = s2tte_pa(s2tte, level);
+			s2tte = s2tte_create_assigned_empty(pa, level);
+			/* TLBI is required */
+			ret = 1;
+		} else {
+			/* No action is required */
+			return 0;
 		}
-	} else {
-		assert(false);
 	}
-
-	return true;
+	s2tte_write(s2ttep, s2tte);
+	return ret;
 }
 
 static void ripas_granule_measure(struct rd *rd,
@@ -1089,9 +1098,9 @@ static void ripas_granule_measure(struct rd *rd,
 	measure_desc.len = sizeof(struct measurement_desc_ripas);
 	measure_desc.ipa = ipa;
 	measure_desc.level = level;
-	memcpy(measure_desc.rim,
-	       &rd->measurement[RIM_MEASUREMENT_SLOT],
-	       measurement_get_size(rd->algorithm));
+	(void)memcpy(measure_desc.rim,
+		     &rd->measurement[RIM_MEASUREMENT_SLOT],
+		     measurement_get_size(rd->algorithm));
 
 	/*
 	 * Hashing the measurement descriptor structure; the result is the
@@ -1180,28 +1189,76 @@ out_unlock_llt:
 	return ret;
 }
 
-unsigned long smc_rtt_set_ripas(unsigned long rd_addr,
-				unsigned long rec_addr,
-				unsigned long map_addr,
-				unsigned long ulevel,
-				unsigned long uripas)
+static void rtt_set_ripas_range(struct realm_s2_context *s2_ctx,
+				unsigned long *s2tt,
+				unsigned long base,
+				unsigned long top,
+				struct rtt_walk *wi,
+				unsigned long ripas_val,
+				struct smc_result *res)
+{
+	unsigned long addr;
+	unsigned int index = wi->index;
+	long level = wi->last_level;
+	unsigned long map_size = s2tte_map_size(level);
+
+	/* Align to the RTT level */
+	addr = base & ~(map_size - 1UL);
+
+	/* Make sure we don't touch a range below the requested range */
+	if (addr != base) {
+		res->x[0] = pack_return_code(RMI_ERROR_RTT, level);
+		return;
+	}
+
+	for (index = wi->index; index < S2TTES_PER_S2TT;
+					index++, addr += map_size) {
+		unsigned long next = addr + map_size;
+		int ret;
+
+		/* If this entry crosses the range, abort. */
+		if (next > top) {
+			break;
+		}
+
+		ret = update_ripas(&s2tt[index], level, ripas_val);
+		if (ret < 0) {
+			break;
+		}
+
+		/* Handle TLBI */
+		if (ret != 0) {
+			if (level == RTT_PAGE_LEVEL) {
+				invalidate_page(s2_ctx, addr);
+			} else {
+				invalidate_block(s2_ctx, addr);
+			}
+		}
+	}
+
+	if (addr > base) {
+		res->x[0] = RMI_SUCCESS;
+		res->x[1] = addr;
+	} else {
+		res->x[0] = pack_return_code(RMI_ERROR_RTT, level);
+	}
+}
+
+void smc_rtt_set_ripas(unsigned long rd_addr,
+		       unsigned long rec_addr,
+		       unsigned long base,
+		       unsigned long top,
+		       struct smc_result *res)
 {
 	struct granule *g_rd, *g_rec, *g_rtt_root;
 	struct rec *rec;
 	struct rd *rd;
-	unsigned long map_size, ipa_bits;
+	unsigned long ipa_bits;
 	struct rtt_walk wi;
-	unsigned long s2tte, *s2tt;
+	unsigned long *s2tt;
 	struct realm_s2_context s2_ctx;
-	long level = (long)ulevel;
-	enum ripas ripas_val = (enum ripas)uripas;
-	unsigned long ret;
-	bool tlbi_required;
+	enum ripas ripas_val;
 	int sl;
-
-	if (ripas_val > RIPAS_RAM) {
-		return RMI_ERROR_INPUT;
-	}
 
 	if (!find_lock_two_granules(rd_addr,
 				   GRANULE_STATE_RD,
@@ -1209,43 +1266,44 @@ unsigned long smc_rtt_set_ripas(unsigned long rd_addr,
 				   rec_addr,
 				   GRANULE_STATE_REC,
 				   &g_rec)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	if (granule_refcount_read_acquire(g_rec) != 0UL) {
-		ret = RMI_ERROR_REC;
+		res->x[0] = RMI_ERROR_REC;
 		goto out_unlock_rec_rd;
 	}
 
 	rec = granule_map(g_rec, SLOT_REC);
 
 	if (g_rd != rec->realm_info.g_rd) {
-		ret = RMI_ERROR_REC;
+		res->x[0] = RMI_ERROR_REC;
 		goto out_unmap_rec;
 	}
 
-	if (ripas_val != rec->set_ripas.ripas_val) {
-		ret = RMI_ERROR_INPUT;
-		goto out_unmap_rec;
-	}
+	ripas_val = rec->set_ripas.ripas_val;
 
-	if (map_addr != rec->set_ripas.addr) {
-		/* Target region is not next chunk of requested region */
-		ret = RMI_ERROR_INPUT;
+	/*
+	 * Return error in case of target region:
+	 * - is not the next chunk of requested region
+	 * - extends beyond the end of requested region
+	 */
+	if ((base != rec->set_ripas.addr) || (top > rec->set_ripas.top)) {
+		res->x[0] = RMI_ERROR_INPUT;
 		goto out_unmap_rec;
 	}
 
 	rd = granule_map(g_rd, SLOT_RD);
 
-	if (!validate_rtt_entry_cmds(map_addr, level, rd)) {
-		ret = RMI_ERROR_INPUT;
-		goto out_unmap_rd;
-	}
+	/*
+	 * At this point, we know base == rec->set_ripas.addr
+	 * and thus must be aligned to GRANULE size.
+	 */
+	assert(validate_map_addr(base, RTT_PAGE_LEVEL, rd));
 
-	map_size = s2tte_map_size(level);
-	if (map_addr + map_size > rec->set_ripas.end) {
-		/* Target region extends beyond end of requested region */
-		ret = RMI_ERROR_INPUT;
+	if (!validate_map_addr(top, RTT_PAGE_LEVEL, rd)) {
+		res->x[0] = RMI_ERROR_INPUT;
 		goto out_unmap_rd;
 	}
 
@@ -1256,38 +1314,18 @@ unsigned long smc_rtt_set_ripas(unsigned long rd_addr,
 
 	granule_lock(g_rtt_root, GRANULE_STATE_RTT);
 
+	/* Walk to the deepest level possible */
 	rtt_walk_lock_unlock(g_rtt_root, sl, ipa_bits,
-				map_addr, level, &wi);
-	if (wi.last_level != level) {
-		ret = pack_return_code(RMI_ERROR_RTT, wi.last_level);
-		goto out_unlock_llt;
-	}
+			     base, RTT_PAGE_LEVEL, &wi);
 
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
-	s2tte = s2tte_read(&s2tt[wi.index]);
 
-	if (!update_ripas(&s2tte, &tlbi_required, level, ripas_val)) {
-		ret = pack_return_code(RMI_ERROR_RTT, (unsigned int)level);
-		goto out_unmap_llt;
+	rtt_set_ripas_range(&s2_ctx, s2tt, base, top, &wi, ripas_val, res);
+	if (res->x[0] == RMI_SUCCESS) {
+		rec->set_ripas.addr = res->x[1];
 	}
 
-	s2tte_write(&s2tt[wi.index], s2tte);
-
-	if (tlbi_required) {
-		if (level == RTT_PAGE_LEVEL) {
-			invalidate_page(&s2_ctx, map_addr);
-		} else {
-			invalidate_block(&s2_ctx, map_addr);
-		}
-	}
-
-	rec->set_ripas.addr += map_size;
-
-	ret = RMI_SUCCESS;
-
-out_unmap_llt:
 	buffer_unmap(s2tt);
-out_unlock_llt:
 	granule_unlock(wi.g_llt);
 out_unmap_rd:
 	buffer_unmap(rd);
@@ -1296,5 +1334,4 @@ out_unmap_rec:
 out_unlock_rec_rd:
 	granule_unlock(g_rec);
 	granule_unlock(g_rd);
-	return ret;
 }
