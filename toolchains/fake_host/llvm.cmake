@@ -5,7 +5,7 @@
 
 include_guard()
 
-include(${CMAKE_CURRENT_LIST_DIR}/../common.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/common_fake_host.cmake)
 
 find_program(CMAKE_C_COMPILER
     NAMES "clang"
