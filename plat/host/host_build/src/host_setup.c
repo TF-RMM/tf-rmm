@@ -173,7 +173,9 @@ static int create_realm(void)
 	host_rmi_granule_delegate((void *)realm_buffer, &result);
 	CHECK_RMI_RESULT();
 
-	host_rmi_rtt_init_ripas(rd, REALM_BUFFER_IPA, 3, &result);
+	host_rmi_rtt_init_ripas(rd, REALM_BUFFER_IPA,
+				REALM_BUFFER_IPA + GRANULE_SIZE,
+				&result);
 	CHECK_RMI_RESULT();
 
 	host_rmi_data_create_unknown(rd, realm_buffer, REALM_BUFFER_IPA, &result);

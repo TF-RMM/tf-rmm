@@ -83,9 +83,10 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 unsigned long smc_psci_complete(unsigned long calling_rec_addr,
 				unsigned long target_rec_addr);
 
-unsigned long smc_rtt_init_ripas(unsigned long rd_addr,
-				 unsigned long map_addr,
-				 unsigned long ulevel);
+void smc_rtt_init_ripas(unsigned long rd_addr,
+			unsigned long base,
+			unsigned long top,
+			struct smc_result *res);
 
 void smc_rtt_set_ripas(unsigned long rd_addr,
 			unsigned long rec_addr,

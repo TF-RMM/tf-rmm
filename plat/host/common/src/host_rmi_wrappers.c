@@ -133,12 +133,12 @@ void host_rmi_data_create_unknown(void *rd, uintptr_t data, uintptr_t ipa,
 		ret);
 }
 
-void host_rmi_rtt_init_ripas(void *rd, uintptr_t ipa, int64_t level,
+void host_rmi_rtt_init_ripas(void *rd, uintptr_t base, uintptr_t top,
 			struct smc_result *ret)
 {
 	handle_ns_smc(SMC_RMM_RTT_INIT_RIPAS,
 		(uintptr_t)rd,
-		ipa, level,
+		base, top,
 		0, 0, 0,
 		ret);
 }

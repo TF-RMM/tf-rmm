@@ -100,18 +100,18 @@ struct measurement_desc_ripas {
 	SET_MEMBER(unsigned long len, 0x8, 0x10);
 	/* Current RIM value */
 	SET_MEMBER(unsigned char rim[MAX_MEASUREMENT_SIZE], 0x10, 0x50);
-	/* IPA at which the RIPAS change occurred */
-	SET_MEMBER(unsigned long ipa, 0x50, 0x58);
-	/* RTT level at which the RIPAS change occurred */
-	SET_MEMBER(unsigned char level, 0x58, 0x100);
+	/* Base IPA at which the RIPAS change occurred */
+	SET_MEMBER(unsigned long base, 0x50, 0x58);
+	/* Top IPA at which the RIPAS change occurred */
+	SET_MEMBER(unsigned char top, 0x58, 0x100);
 };
 COMPILER_ASSERT(sizeof(struct measurement_desc_ripas) == 0x100);
 
 COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, desc_type) == 0x0);
 COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, len) == 0x8);
 COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, rim) == 0x10);
-COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, ipa) == 0x50);
-COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, level) == 0x58);
+COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, base) == 0x50);
+COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, top) == 0x58);
 
 /*
  * Calculate the hash of data with algorithm hash_algo to the buffer `out`.

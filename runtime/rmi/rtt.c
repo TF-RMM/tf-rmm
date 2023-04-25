@@ -1088,16 +1088,16 @@ static int update_ripas(unsigned long *s2ttep, unsigned long level,
 }
 
 static void ripas_granule_measure(struct rd *rd,
-				  unsigned long ipa,
-				  unsigned long level)
+				  unsigned long base,
+				  unsigned long top)
 {
 	struct measurement_desc_ripas measure_desc = {0};
 
 	/* Initialize the measurement descriptior structure */
 	measure_desc.desc_type = MEASURE_DESC_TYPE_RIPAS;
 	measure_desc.len = sizeof(struct measurement_desc_ripas);
-	measure_desc.ipa = ipa;
-	measure_desc.level = level;
+	measure_desc.base = base;
+	measure_desc.top = top;
 	(void)memcpy(measure_desc.rim,
 		     &rd->measurement[RIM_MEASUREMENT_SLOT],
 		     measurement_get_size(rd->algorithm));
@@ -1112,22 +1112,24 @@ static void ripas_granule_measure(struct rd *rd,
 				 rd->measurement[RIM_MEASUREMENT_SLOT]);
 }
 
-unsigned long smc_rtt_init_ripas(unsigned long rd_addr,
-				 unsigned long map_addr,
-				 unsigned long ulevel)
+void smc_rtt_init_ripas(unsigned long rd_addr,
+			unsigned long base,
+			unsigned long top,
+			struct smc_result *res)
 {
 	struct granule *g_rd, *g_rtt_root;
 	struct rd *rd;
-	unsigned long ipa_bits;
+	unsigned long ipa_bits, addr, map_size;
 	struct rtt_walk wi;
 	unsigned long s2tte, *s2tt;
-	unsigned long ret;
-	long level = (long)ulevel;
+	long level;
+	unsigned int index;
 	int sl;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	rd = granule_map(g_rd, SLOT_RD);
@@ -1135,19 +1137,23 @@ unsigned long smc_rtt_init_ripas(unsigned long rd_addr,
 	if (get_rd_state_locked(rd) != REALM_STATE_NEW) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
-		return RMI_ERROR_REALM;
+		res->x[0] = RMI_ERROR_REALM;
+		return;
 	}
 
-	if (!validate_rtt_entry_cmds(map_addr, level, rd)) {
+	if (!validate_map_addr(base, RTT_PAGE_LEVEL, rd) ||
+	    !validate_rtt_entry_cmds(top, RTT_PAGE_LEVEL, rd)) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
-	if (!addr_in_par(rd, map_addr)) {
+	if (!addr_in_par(rd, base) || !addr_in_par(rd, top)) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	g_rtt_root = rd->s2_ctx.g_rtt;
@@ -1158,35 +1164,52 @@ unsigned long smc_rtt_init_ripas(unsigned long rd_addr,
 	granule_unlock(g_rd);
 
 	rtt_walk_lock_unlock(g_rtt_root, sl, ipa_bits,
-				map_addr, level, &wi);
-
-	if (wi.last_level != level) {
-		ret = pack_return_code(RMI_ERROR_RTT, wi.last_level);
-		goto out_unlock_llt;
-	}
-
+				base, RTT_PAGE_LEVEL, &wi);
+	level = wi.last_level;
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
-	s2tte = s2tte_read(&s2tt[wi.index]);
+	map_size = s2tte_map_size(level);
+	addr = base & ~(map_size - 1UL);
 
-	if (s2tte_is_unassigned_empty(s2tte)) {
-		s2tte = s2tte_create_unassigned_ram();
-		s2tte_write(&s2tt[wi.index], s2tte);
-		ripas_granule_measure(rd, map_addr, level);
-	} else if (s2tte_is_unassigned_ram(s2tte)) {
-		ripas_granule_measure(rd, map_addr, level);
-	} else {
-		ret = pack_return_code(RMI_ERROR_RTT, level);
+	/*
+	 * If the RTTE covers a range below "base", we need to
+	 * go deeper.
+	 */
+	if (addr != base) {
+		res->x[0] = pack_return_code(RMI_ERROR_RTT,
+						(unsigned int)level);
 		goto out_unmap_llt;
 	}
 
-	ret = RMI_SUCCESS;
+	for (index = wi.index; index < S2TTES_PER_S2TT;
+				index++, addr += map_size) {
+		unsigned long next = addr + map_size;
+
+		if (next > top) {
+			break;
+		}
+
+		s2tte = s2tte_read(&s2tt[index]);
+		if (s2tte_is_unassigned_empty(s2tte)) {
+			s2tte = s2tte_create_unassigned_ram();
+			s2tte_write(&s2tt[index], s2tte);
+		} else if (!s2tte_is_unassigned_ram(s2tte)) {
+			break;
+		}
+		ripas_granule_measure(rd, addr, next);
+	}
+
+	if (addr > base) {
+		res->x[0] = RMI_SUCCESS;
+		res->x[1] = addr;
+	} else {
+		res->x[0] = pack_return_code(RMI_ERROR_RTT,
+						(unsigned int)level);
+	}
 
 out_unmap_llt:
 	buffer_unmap(s2tt);
-out_unlock_llt:
 	buffer_unmap(rd);
 	granule_unlock(wi.g_llt);
-	return ret;
 }
 
 static void rtt_set_ripas_range(struct realm_s2_context *s2_ctx,
