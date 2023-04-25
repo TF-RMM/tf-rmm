@@ -201,7 +201,7 @@
  * ret1 == Address(PA) of the DATA granule, if ret0 == RMI_SUCCESS.
  *         Otherwise, undefined.
  * ret2 == Top of the non-live address region. Only valid
- *         if ret0 == RMI_SUCCESS or ret0 == (RMI_ERROR_RTT_WALK, x)
+ *         if ret0 == RMI_SUCCESS or ret0 == (RMI_ERROR_RTT, x)
  */
 #define SMC_RMM_DATA_DESTROY			SMC64_RMI_FID(U(0x5))
 
@@ -255,7 +255,7 @@
  * ret1 == Address (PA) of the RTT, if ret0 == RMI_SUCCESS
  *         Otherwise, undefined.
  * ret2 == Top of the non-live address region. Only valid
- *         if ret0 == RMI_SUCCESS or ret0 == (RMI_ERROR_RTT_WALK, x)
+ *         if ret0 == RMI_SUCCESS or ret0 == (RMI_ERROR_RTT, x)
  */
 #define SMC_RMM_RTT_DESTROY			SMC64_RMI_FID(U(0xE))
 
@@ -271,10 +271,12 @@
  * arg0 == RD address
  * arg1 == map address
  * arg2 == level
+ *
  * ret1 == level
  * ret2 == s2tte type
  * ret3 == s2tte
  * ret4 == ripas
+ * if ret0 == RMI_SUCCESS, otherwise, undefined.
  */
 #define SMC_RMM_RTT_READ_ENTRY			SMC64_RMI_FID(U(0x11))
 

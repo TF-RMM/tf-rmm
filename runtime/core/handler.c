@@ -214,7 +214,12 @@ static void rmi_log_on_exit(unsigned long handler_id,
 		     (rc.status == RMI_ERROR_REALM)) ||
 		     (rc.status == RMI_ERROR_RTT)) {
 			INFO(" %x", rc.index);
-		} else if (rc.status == RMI_SUCCESS) {
+		}
+
+		if ((rc.status == RMI_SUCCESS) ||
+		   ((rc.status == RMI_ERROR_RTT) &&
+		   ((function_id == SMC_RMM_RTT_DESTROY) ||
+		    (function_id == SMC_RMM_DATA_DESTROY)))) {
 			/* Print output values */
 			num = (handler->type >> 8) & 0xFF;
 			assert(num <= MAX_NUM_OUTPUT_VALS);
