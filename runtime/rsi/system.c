@@ -8,7 +8,7 @@
 COMPILER_ASSERT(RSI_ABI_VERSION_MAJOR <= 0x7FFF);
 COMPILER_ASSERT(RSI_ABI_VERSION_MINOR <= 0xFFFF);
 
-unsigned long system_rsi_abi_version(void)
+unsigned long handle_rsi_version(void)
 {
 	return RSI_ABI_VERSION;
 }

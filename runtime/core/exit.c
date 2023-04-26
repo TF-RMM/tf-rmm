@@ -411,7 +411,7 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		rec->regs[0] = SMCCC_VERSION_NUMBER;
 		break;
 	case SMC_RSI_ABI_VERSION:
-		rec->regs[0] = system_rsi_abi_version();
+		rec->regs[0] = handle_rsi_version();
 		break;
 	case SMC32_PSCI_FID_MIN ... SMC32_PSCI_FID_MAX:
 	case SMC64_PSCI_FID_MIN ... SMC64_PSCI_FID_MAX: {
