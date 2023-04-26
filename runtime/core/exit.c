@@ -15,14 +15,9 @@
 #include <memory_alloc.h>
 #include <psci.h>
 #include <realm.h>
-#include <realm_attest.h>
 #include <rec.h>
-#include <rsi-config.h>
 #include <rsi-handler.h>
-#include <rsi-host-call.h>
 #include <rsi-logger.h>
-#include <rsi-memory.h>
-#include <rsi-walk.h>
 #include <run.h>
 #include <simd.h>
 #include <smc-rmi.h>
@@ -505,7 +500,7 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		rec->regs[0] = handle_rsi_extend_measurement(rec);
 		break;
 	case SMC_RSI_REALM_CONFIG: {
-		struct rsi_walk_smc_result res;
+		struct rsi_result res;
 
 		res = handle_rsi_realm_config(rec);
 		if (res.walk_result.abort) {
@@ -542,17 +537,16 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		break;
 	}
 	case SMC_RSI_HOST_CALL: {
-		struct rsi_host_call_result res;
+		struct rsi_result res;
 
 		res = handle_rsi_host_call(rec, rec_exit);
-
 		if (res.walk_result.abort) {
 			emulate_stage2_data_abort(rec, rec_exit,
 						  res.walk_result.rtt_level);
 			/* Exit to Host */
 			ret_to_rec = false;
 		} else {
-			rec->regs[0] = res.smc_result;
+			rec->regs[0] = res.smc_res.x[0];
 
 			/*
 			 * Return to Realm in case of error,
@@ -620,6 +614,7 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 		return true;
 	case ESR_EL2_EC_SYSREG: {
 		bool ret = handle_sysreg_access_trap(rec, rec_exit, esr);
+
 		advance_pc();
 		return ret;
 	}

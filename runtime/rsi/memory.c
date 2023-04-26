@@ -6,7 +6,7 @@
 
 #include <realm.h>
 #include <ripas.h>
-#include <rsi-memory.h>
+#include <rsi-handler.h>
 #include <smc-rsi.h>
 #include <status.h>
 

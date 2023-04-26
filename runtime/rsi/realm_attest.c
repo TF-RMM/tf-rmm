@@ -8,7 +8,7 @@
 #include <granule.h>
 #include <measurement.h>
 #include <realm.h>
-#include <realm_attest.h>
+#include <rsi-handler.h>
 #include <smc-rsi.h>
 #include <smc.h>
 #include <string.h>

@@ -5,13 +5,12 @@
 
 #include <granule.h>
 #include <realm.h>
-#include <rsi-config.h>
-#include <rsi-walk.h>
+#include <rsi-handler.h>
 #include <smc-rsi.h>
 
-struct rsi_walk_smc_result handle_rsi_realm_config(struct rec *rec)
+struct rsi_result handle_rsi_realm_config(struct rec *rec)
 {
-	struct rsi_walk_smc_result res = { 0 };
+	struct rsi_result res = { 0 };
 	unsigned long ipa = rec->regs[1];
 	enum s2_walk_status walk_status;
 	struct s2_walk_result walk_res;

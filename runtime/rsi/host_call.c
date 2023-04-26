@@ -6,7 +6,7 @@
 #include <buffer.h>
 #include <granule.h>
 #include <realm.h>
-#include <rsi-host-call.h>
+#include <rsi-handler.h>
 #include <smc-rsi.h>
 #include <status.h>
 #include <string.h>
@@ -92,29 +92,29 @@ static unsigned int do_host_call(struct rec *rec,
 	return ret;
 }
 
-struct rsi_host_call_result handle_rsi_host_call(struct rec *rec,
-						 struct rmi_rec_exit *rec_exit)
+struct rsi_result handle_rsi_host_call(struct rec *rec,
+					struct rmi_rec_exit *rec_exit)
 {
-	struct rsi_host_call_result res = { { false, 0UL } };
+	struct rsi_result res = { 0 };
 	unsigned long ipa = rec->regs[1];
 
 	if (!ALIGNED(ipa, sizeof(struct rsi_host_call))) {
-		res.smc_result = RSI_ERROR_INPUT;
+		res.smc_res.x[0] = RSI_ERROR_INPUT;
 		return res;
 	}
 
 	if ((ipa / GRANULE_SIZE) !=
 		((ipa + sizeof(struct rsi_host_call) - 1UL) / GRANULE_SIZE)) {
-		res.smc_result = RSI_ERROR_INPUT;
+		res.smc_res.x[0] = RSI_ERROR_INPUT;
 		return res;
 	}
 
 	if (!addr_in_rec_par(rec, ipa)) {
-		res.smc_result = RSI_ERROR_INPUT;
+		res.smc_res.x[0] = RSI_ERROR_INPUT;
 		return res;
 	}
 
-	res.smc_result = do_host_call(rec, rec_exit, NULL, &res.walk_result);
+	res.smc_res.x[0] = do_host_call(rec, rec_exit, NULL, &res.walk_result);
 
 	return res;
 }

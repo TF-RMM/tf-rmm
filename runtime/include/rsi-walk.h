@@ -6,16 +6,17 @@
 #ifndef RSI_WALK_H
 #define RSI_WALK_H
 
-struct smc_result;
+#include <stdbool.h>
 
 struct rsi_walk_result {
 	/*
 	 * If true, RTT walk failed due to missing PTE at level @rtt_level.
-	 *
-	 * If false, @smc_result contains GPR values to be returned to the
-	 * Realm.
 	 */
 	bool abort;
+
+	/*
+	 * RTT level at which the walk terminated.
+	 */
 	unsigned long rtt_level;
 };
 
