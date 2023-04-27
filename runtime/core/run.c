@@ -21,15 +21,15 @@ static struct ns_state g_ns_data[MAX_CPUS];
 static struct pmu_state g_pmu_data[MAX_CPUS];
 
 /*
- * Initialize the aux data and any buffer pointers to the aux granule memory for
- * use by REC when it is entered.
+ * Initialize pointers in @aux_data
+ *
+ * Call with parent REC granule's lock held.
  */
-static void init_aux_data(struct rec_aux_data *aux_data,
-			  void *rec_aux,
-			  unsigned int num_rec_aux)
+void init_rec_aux_data(struct rec_aux_data *aux_data, void *rec_aux,
+		       unsigned long num_aux)
 {
 	/* Ensure we have enough aux granules for use by REC */
-	assert(num_rec_aux >= REC_NUM_PAGES);
+	assert(num_aux >= REC_NUM_PAGES);
 
 	aux_data->attest_heap_buf = (uint8_t *)rec_aux;
 
@@ -42,10 +42,11 @@ static void init_aux_data(struct rec_aux_data *aux_data,
 }
 
 /*
- * The parent REC granules lock is expected to be acquired
- * before functions map_rec_aux() and unmap_rec_aux() are called.
+ * Map REC auxiliary Granules
+ *
+ * Call with parent REC granule's lock held.
  */
-static void *map_rec_aux(struct granule *rec_aux_pages[], unsigned long num_aux)
+void *map_rec_aux(struct granule *rec_aux_pages[], unsigned long num_aux)
 {
 	void *rec_aux = NULL;
 
@@ -59,7 +60,12 @@ static void *map_rec_aux(struct granule *rec_aux_pages[], unsigned long num_aux)
 	return rec_aux;
 }
 
-static void unmap_rec_aux(void *rec_aux, unsigned long num_aux)
+/*
+ * Unmap REC auxiliary Granules
+ *
+ * Call with parent REC granule's lock held.
+ */
+void unmap_rec_aux(void *rec_aux, unsigned long num_aux)
 {
 	unsigned char *rec_aux_vaddr = (unsigned char *)rec_aux;
 
@@ -362,7 +368,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	/* Map auxiliary granules */
 	rec_aux = map_rec_aux(rec->g_aux, rec->num_rec_aux);
 
-	init_aux_data(&(rec->aux_data), rec_aux, rec->num_rec_aux);
+	init_rec_aux_data(&(rec->aux_data), rec_aux, rec->num_rec_aux);
 
 	/*
 	 * The attset heap on the REC aux pages is mapped now. It is time to
