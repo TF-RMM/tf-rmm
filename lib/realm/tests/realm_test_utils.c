@@ -22,7 +22,7 @@ uintptr_t realm_test_util_slot_to_pa(enum buffer_slot slot)
 	uint64_t *desc_ptr = xlat_get_tte_ptr(entry, va);
 	uint64_t descriptor = xlat_read_tte(desc_ptr);
 
-	return (uintptr_t)(descriptor & XLAT_TTE_L3_PA_MASK);
+	return (uintptr_t)xlat_get_oa_from_tte(descriptor);
 }
 
 /*

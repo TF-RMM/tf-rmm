@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <arch_features.h>
 #include <arch_helpers.h>
 #include <assert.h>
 #include <debug.h>
@@ -14,6 +15,7 @@
 #include <utils_def.h>
 #include <xlat_contexts.h>
 #include <xlat_defs.h>
+#include <xlat_defs_private.h>
 #include <xlat_tables.h>
 #include <xlat_tables_private.h>
 
@@ -88,7 +90,8 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 			return -EFAULT;
 		}
 
-		if ((granularity != XLAT_BLOCK_SIZE(1U)) &&
+		if ((granularity != XLAT_BLOCK_SIZE(0U)) &&
+		    (granularity != XLAT_BLOCK_SIZE(1U)) &&
 		    (granularity != XLAT_BLOCK_SIZE(2U)) &&
 		    (granularity != XLAT_BLOCK_SIZE(3U))) {
 			return -EINVAL;
@@ -217,6 +220,8 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 		      size_t va_size)
 {
 	int retval;
+	size_t max_va_size = (is_feat_lpa2_4k_present() == true) ?
+		MAX_VIRT_ADDR_SPACE_SIZE_LPA2 : MAX_VIRT_ADDR_SPACE_SIZE;
 
 	if (cfg == NULL) {
 		return -EINVAL;
@@ -234,7 +239,7 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 		return -EINVAL;
 	}
 
-	if ((va_size > MAX_VIRT_ADDR_SPACE_SIZE) ||
+	if ((va_size > max_va_size) ||
 	    (va_size < MIN_VIRT_ADDR_SPACE_SIZE)) {
 		return -EINVAL;
 	}

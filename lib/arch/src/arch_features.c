@@ -21,11 +21,7 @@ unsigned int arch_feat_get_pa_width(void)
 	const unsigned int pa_range_bits_arr[] = {
 		PARANGE_0000_WIDTH, PARANGE_0001_WIDTH, PARANGE_0010_WIDTH,
 		PARANGE_0011_WIDTH, PARANGE_0100_WIDTH, PARANGE_0101_WIDTH,
-		/*
-		 * FEAT_LPA/LPA2 is not supported yet in RMM,
-		 * so max PA width is 48.
-		 */
-		PARANGE_0101_WIDTH
+		PARANGE_0110_WIDTH
 	};
 
 	register_t pa_range = EXTRACT(ID_AA64MMFR0_EL1_PARANGE,

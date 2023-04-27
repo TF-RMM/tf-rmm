@@ -69,8 +69,6 @@ static void xlat_desc_print(uint64_t desc)
 
 	if (mem_type_index == ATTR_IWBWA_OWBWA_NTR_INDEX) {
 		VERBOSE("MEM");
-	} else if (mem_type_index == ATTR_NON_CACHEABLE_INDEX) {
-		VERBOSE("NC");
 	} else {
 		if (mem_type_index != ATTR_DEVICE_INDEX) {
 			/* Unsupported memory type */
@@ -96,10 +94,11 @@ static void xlat_desc_print(uint64_t desc)
 }
 
 static const char * const level_spacers[] = {
-	"[LV0] ",
-	"  [LV1] ",
-	"    [LV2] ",
-	"      [LV3] "
+	"[LV-1] ",
+	"  [LV0] ",
+	"    [LV1] ",
+	"      [LV2] ",
+	"        [LV3] "
 };
 
 static char *invalid_descriptors_ommited =
@@ -115,7 +114,7 @@ static char *tr_invalid_descriptors_ommited =
 static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 				       uintptr_t table_base_va,
 				       const uint64_t *table_base,
-				       unsigned int level)
+				       int level)
 {
 	uint64_t *addr_inner;
 	unsigned int multiple_row_count;
@@ -149,7 +148,7 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 	multiple_row_count = 0U;
 	prev_desc = 0ULL;
 
-	while (table_idx < XLAT_TABLE_ENTRIES) {
+	while (table_idx < XLAT_GET_TABLE_ENTRIES(level)) {
 		uint64_t desc;
 
 		desc = table_base[table_idx];
@@ -161,7 +160,7 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 			if (multiple_row_count == 0U) {
 				prev_desc = desc;
 				VERBOSE("%sVA:0x%lx size:0x%zx\n",
-					level_spacers[level],
+					level_spacers[level + 1],
 					table_idx_va, level_size);
 
 
@@ -175,7 +174,7 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 
 		} else {
 			if ((multiple_row_count > 0U) && (prev_desc != desc)) {
-				VERBOSE(str, level_spacers[level],
+				VERBOSE(str, level_spacers[level + 1],
 					multiple_row_count - 1U);
 				multiple_row_count = 0U;
 			}
@@ -194,18 +193,19 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 				 * table in the translation table walk.
 				 */
 				VERBOSE("%sVA:0x%lx size:0x%zx\n",
-				       level_spacers[level],
+				       level_spacers[level + 1],
 				       table_idx_va, level_size);
 
-				addr_inner = (uint64_t *)(void *)(desc & TABLE_ADDR_MASK);
+				addr_inner =
+					(uint64_t *)(void *)xlat_get_oa_from_tte(desc);
 
 				/* FIXME: Recursion. */
 				xlat_tables_print_internal(ctx, table_idx_va,
 					addr_inner, level + 1U);
 			} else {
 				VERBOSE("%sVA:0x%lx PA:0x%lx size:0x%zx ",
-				       level_spacers[level], table_idx_va,
-				       (uint64_t)(desc & TABLE_ADDR_MASK),
+				       level_spacers[level + 1], table_idx_va,
+				       (uint64_t)xlat_get_oa_from_tte(desc),
 				       level_size);
 				xlat_desc_print(desc);
 				if (desc & TRANSIENT_DESC) {
@@ -220,7 +220,8 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 	}
 
 	if (multiple_row_count > 1U) {
-		VERBOSE(str, level_spacers[level], multiple_row_count - 1U);
+		VERBOSE(str, level_spacers[level + 1],
+						multiple_row_count - 1U);
 	}
 }
 
@@ -256,7 +257,7 @@ void xlat_tables_print(struct xlat_ctx *ctx)
 	VERBOSE("\n");
 	VERBOSE("  Max mapped VA:   0x%lx\n", max_mapped_va_offset);
 
-	VERBOSE("  Initial lookup level: %u\n", ctx_cfg->base_level);
+	VERBOSE("  Initial lookup level: %i\n", ctx_cfg->base_level);
 
 	used_page_tables = ctx->tbls->next_table;
 	VERBOSE("  Used %d tables out of %d (spare: %d)\n",
@@ -282,11 +283,11 @@ void xlat_tables_print(struct xlat_ctx *ctx)
  */
 static uint64_t *find_xlat_last_table(uintptr_t va,
 				      const struct xlat_ctx * const ctx,
-				      unsigned int * const out_level,
+				      int * const out_level,
 				      uintptr_t * const tt_base_va)
 {
 	uintptr_t va_offset;
-	unsigned int start_level;
+	int start_level;
 	uint64_t *ret_table;
 	struct xlat_ctx_tbls *ctx_tbls;
 	struct xlat_ctx_cfg *ctx_cfg;
@@ -316,7 +317,7 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 	ret_table = ctx_tbls->tables;
 	table_base_va = ctx_cfg->base_va;
 
-	for (unsigned int level = start_level;
+	for (int level = start_level;
 	     level <= XLAT_TABLE_LEVEL_MAX;
 	     level++) {
 		unsigned int idx;
@@ -341,7 +342,7 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 		table_base_va += (XLAT_BLOCK_SIZE(level) * idx);
 
 		/* Get the next table */
-		ret_table = (uint64_t *)(void *)(desc & TABLE_ADDR_MASK);
+		ret_table = (uint64_t *)(void *)xlat_get_oa_from_tte(desc);
 	}
 
 	/*
@@ -468,7 +469,7 @@ int xlat_get_llt_from_va(struct xlat_llt_info * const llt,
 {
 	uintptr_t tt_base_va;
 	uint64_t *table;
-	unsigned int level;
+	int level;
 
 	assert(ctx != NULL);
 	assert(ctx->cfg != NULL);
@@ -510,6 +511,9 @@ uint64_t *xlat_get_tte_ptr(const struct xlat_llt_info * const llt,
 
 	assert(llt != NULL);
 
+	assert(llt->level <= XLAT_TABLE_LEVEL_MAX);
+	assert(llt->level >= XLAT_TABLE_LEVEL_MIN);
+
 	if (va < llt->llt_base_va) {
 		return NULL;
 	}
@@ -517,6 +521,6 @@ uint64_t *xlat_get_tte_ptr(const struct xlat_llt_info * const llt,
 	offset = va - llt->llt_base_va;
 	index = (unsigned int)(offset >> XLAT_ADDR_SHIFT(llt->level));
 
-	return (index < XLAT_TABLE_ENTRIES) ?
+	return (index < XLAT_GET_TABLE_ENTRIES(llt->level)) ?
 			&llt->table[index] : NULL;
 }

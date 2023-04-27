@@ -11,6 +11,7 @@
 
 #ifndef __ASSEMBLER__
 
+#include <arch_features.h>
 #include <limits.h>
 #include <memory.h>
 #include <stddef.h>
@@ -105,28 +106,13 @@
 /* NG Flag */
 #define MT_NG_SHIFT		(MT_CONT_SHIFT + 1UL)
 
-/* Shareability attribute for the memory region */
-#define MT_SHAREABILITY_SHIFT	(MT_NG_SHIFT + 1UL)
-#define MT_SHAREABILITY_WIDTH	UL(2)
-#define MT_SHAREABILITY_MASK	MASK(MT_SHAREABILITY)
-#define MT_SHAREABILITY(_attr)	((_attr) & MT_SHAREABILITY_MASK)
-
 /* Physical address space (REALM/NS, as ROOT/SECURE do not apply to R-EL2) */
-#define MT_PAS_SHIFT		(MT_SHAREABILITY_SHIFT + MT_SHAREABILITY_WIDTH)
+#define MT_PAS_SHIFT		(MT_NG_SHIFT + 1UL)
 #define MT_PAS_WIDTH		UL(1)
 #define MT_PAS_MASK		MASK(MT_PAS)
 #define MT_PAS(_attr)		((_attr) & MT_PAS_MASK)
 
 /* All other bits are reserved */
-
-/* Macro to access translatio table lower attributes */
-#define LOWER_ATTRS_SHIFT	(2U)
-#define LOWER_ATTRS_WIDTH	(10U)
-#define LOWER_ATTRS_MASK	MASK(LOWER_ATTRS)
-#define LOWER_ATTRS(x)		(INPLACE(LOWER_ATTRS, x) & (LOWER_ATTRS_MASK))
-
-/* Public definitions to use with the LOWER_ATTRS() macro*/
-#define NS			(U(0x1) << UL(3))   /* Bit[5] absolutely */
 
 /*
  * Memory mapping attributes
@@ -159,27 +145,42 @@
 #define MT_EXECUTE		INPLACE(MT_EXECUTE_FLAG, 0UL)
 #define MT_EXECUTE_NEVER	INPLACE(MT_EXECUTE_FLAG, 1UL)
 
-/*
- * Shareability defines the visibility of any cache changes to
- * all masters belonging to a shareable domain.
- *
- * MT_SHAREABILITY_ISH: For inner shareable domain
- * MT_SHAREABILITY_OSH: For outer shareable domain
- * MT_SHAREABILITY_NSH: For non shareable domain
- */
-#define MT_SHAREABILITY_ISH	INPLACE(MT_SHAREABILITY, 1UL)
-#define MT_SHAREABILITY_OSH	INPLACE(MT_SHAREABILITY, 2UL)
-#define MT_SHAREABILITY_NSH	INPLACE(MT_SHAREABILITY, 3UL)
-
 #define MT_NG			INPLACE(MT_NG, 1UL)
 
 /* Compound attributes for most common usages */
-#define MT_CODE			(MT_MEMORY | MT_SHAREABILITY_ISH \
-				 | MT_RO | MT_EXECUTE)
-#define MT_RO_DATA		(MT_MEMORY | MT_SHAREABILITY_ISH \
-				 | MT_RO | MT_EXECUTE_NEVER)
-#define MT_RW_DATA		(MT_MEMORY | MT_SHAREABILITY_ISH \
-				 | MT_RW | MT_EXECUTE_NEVER)
+#define MT_CODE			(MT_MEMORY | MT_RO | MT_EXECUTE)
+#define MT_RO_DATA		(MT_MEMORY | MT_RO | MT_EXECUTE_NEVER)
+#define MT_RW_DATA		(MT_MEMORY | MT_RW | MT_EXECUTE_NEVER)
+
+/*
+ * Public macros related to the TTEs
+ */
+
+/* Output address field on a TTE given 4KB granularity. */
+#define OA_SHIFT		(XLAT_GRANULARITY_SIZE_SHIFT)
+
+/* The output address MSB for non-LPA2 format */
+#define TTE_OA_MSB		(47U)
+
+/*
+ * Table descriptor format for 52 bit OA (FEAT_LPA2) is [49:12] for
+ * the bits [49:12] of the table address. For bits [51:50] it is [9:8]
+ * of descriptor. See D8.3.1 Table descriptor format in Issue I.a of Arm ARM.
+ */
+#define TTE_OA_BIT_49_LPA2	(49U)
+
+/*
+ * When FEAT_LPA2 is enabled bits [51:50] of the OA are
+ * bits [9:8] on the TTE.
+ */
+#define TTE_OA_BITS_50_51_SHIFT		ULL(8)
+#define TTE_OA_BITS_50_51_WIDTH		ULL(2)
+#define TTE_OA_BITS_50_51_MASK		MASK(TTE_OA_BITS_50_51)
+
+/* Bitfields for the MSBs on a 52-bit OA */
+#define OA_BITS_50_51_SHIFT	ULL(50)
+#define OA_BITS_50_51_WIDTH	TTE_OA_BITS_50_51_WIDTH
+#define OA_BITS_50_51_MASK	MASK(OA_BITS_50_51)
 
 /*
  * Structure for specifying a single region of memory.
@@ -198,7 +199,7 @@ struct xlat_mmap_region {
 struct xlat_llt_info {
 	uint64_t *table;	/* Pointer to the translation table. */
 	uintptr_t llt_base_va;	/* Base VA that is applicable to this llt. */
-	unsigned int level;	/* Table level of the current entry. */
+	int level;		/* Table level of the current entry. */
 };
 
 /******************************************************************************
@@ -293,6 +294,20 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx);
 
 /* MMU control */
 void xlat_enable_mmu_el2(void);
+
+/* Function to extract the OA from a TTE */
+static inline uint64_t xlat_get_oa_from_tte(uint64_t tte)
+{
+	uint64_t oa;
+
+	if (is_feat_lpa2_4k_present() == true) {
+		oa = tte & BIT_MASK_ULL(TTE_OA_BIT_49_LPA2, OA_SHIFT);
+		oa |= INPLACE(OA_BITS_50_51, EXTRACT(TTE_OA_BITS_50_51, tte));
+	} else {
+		oa = tte & BIT_MASK_ULL(TTE_OA_MSB, OA_SHIFT);
+	}
+	return oa;
+}
 
 #endif /*__ASSEMBLER__*/
 #endif /* XLAT_TABLES_H */

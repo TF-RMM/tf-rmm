@@ -28,18 +28,43 @@
 #define XLAT_TABLE_SIZE_SHIFT	XLAT_GRANULARITY_SIZE_SHIFT
 #define XLAT_TABLE_SIZE		(UL(1) << XLAT_TABLE_SIZE_SHIFT)
 
-#define XLAT_TABLE_LEVEL_MAX	UL(3)
+/* Level 3 is the highest level for translation tables */
+#define XLAT_TABLE_LEVEL_MAX	(3)
 
 /* Values for number of entries in each MMU translation table */
 #define XLAT_TABLE_ENTRIES_SHIFT (XLAT_TABLE_SIZE_SHIFT - XLAT_ENTRY_SIZE_SHIFT)
 #define XLAT_TABLE_ENTRIES	(UL(1) << XLAT_TABLE_ENTRIES_SHIFT)
 #define XLAT_TABLE_ENTRIES_MASK	(XLAT_TABLE_ENTRIES - UL(1))
 
+/* Values for number of entries in a MMU translation table at level -1 */
+#define XLAT_LM1_TABLE_ENTRIES_SHIFT	(4U)
+#define XLAT_LM1_TABLE_ENTRIES	(UL(1) << XLAT_LM1_TABLE_ENTRIES_SHIFT)
+#define XLAT_LM1_TABLE_ENTRIES_MASK	(XLAT_LM1_TABLE_ENTRIES - UL(1))
+
+/*
+ * Return the number of entries per table base on the level.
+ * This macro does not consider whether FEAT_LPA2 is available and/or enabled
+ * and it does not make any sanity check on `_level`.
+ */
+#define XLAT_GET_TABLE_ENTRIES(_level)					\
+	((_level == XLAT_TABLE_LEVEL_MIN) ?				\
+		XLAT_LM1_TABLE_ENTRIES : XLAT_TABLE_ENTRIES)
+
+/*
+ * Return the xlat table entry mask as per the table level.
+ * This macro does not consider whether FEAT_LPA2 is available and/or enabled
+ * and it does not make any sanity check on `_level`.
+ */
+#define XLAT_GET_TABLE_ENTRIES_MASK(_level)				\
+	((_level == XLAT_TABLE_LEVEL_MIN) ?				\
+		XLAT_LM1_TABLE_ENTRIES_MASK : XLAT_TABLE_ENTRIES_MASK)
+
 /* Values to convert a memory address to an index into a translation table */
 #define L3_XLAT_ADDRESS_SHIFT	XLAT_GRANULARITY_SIZE_SHIFT
 #define L2_XLAT_ADDRESS_SHIFT	(L3_XLAT_ADDRESS_SHIFT + XLAT_TABLE_ENTRIES_SHIFT)
 #define L1_XLAT_ADDRESS_SHIFT	(L2_XLAT_ADDRESS_SHIFT + XLAT_TABLE_ENTRIES_SHIFT)
 #define L0_XLAT_ADDRESS_SHIFT	(L1_XLAT_ADDRESS_SHIFT + XLAT_TABLE_ENTRIES_SHIFT)
+#define LM1_XLAT_ADDRESS_SHIFT	(L0_XLAT_ADDRESS_SHIFT + XLAT_TABLE_ENTRIES_SHIFT)
 #define XLAT_ADDR_SHIFT(level)	(XLAT_GRANULARITY_SIZE_SHIFT + \
 		  ((XLAT_TABLE_LEVEL_MAX - (level)) * XLAT_TABLE_ENTRIES_SHIFT))
 
@@ -55,32 +80,30 @@
 #define XLAT_TABLE_IDX(virtual_addr, level)	\
 	(((virtual_addr) >> XLAT_ADDR_SHIFT(level)) & ULL(0x1FF))
 
-/* Mask to get the PA given a L3 descriptor entry (4KB granularity) */
-#define XLAT_TTE_L3_PA_MASK	ULL(0x0000FFFFFFFFF000)
-
 /*
  * In AArch64 state, the MMU may support 4KB, 16KB and 64KB page
  * granularity. For 4KB granularity (the only one supported by
- * this library), a level 0 table descriptor doesn't support
- * block translation. See section D4.3.1 of the ARMv8-A Architecture
- * Reference Manual (DDI 0487A.k) for more information.
+ * this library), a level -1 table descriptor doesn't support
+ * block translation. See section Table D8-9 of the ARMv8-A Architecture
+ * Reference Manual (Issue I.a) for more information.
  *
  * The define below specifies the first table level that allows block
  * descriptors.
  */
-#define MIN_LVL_BLOCK_DESC	U(1)
-#define XLAT_TABLE_LEVEL_MIN	U(0)
+#define MIN_LVL_BLOCK_DESC	(0)
+#define XLAT_TABLE_LEVEL_MIN	(-1)
 
 /* Mask used to know if an address belongs to a high va region. */
-#define HIGH_REGION_MASK	(ULL(0xFFFF) << 52)
+#define HIGH_REGION_MASK	ADDR_MASK_52_TO_63
 
 /*
  * Define the architectural limits of the virtual address space in AArch64
  * state.
  *
  * TCR.TxSZ is calculated as 64 minus the width of said address space.
- * The value of TCR.TxSZ must be in the range 16 to 48 [1], which means that
- * the virtual address space width must be in the range 48 to 16 bits.
+ * The value of TCR.TxSZ must be in the range 16 or 12 to 48 [1], which
+ * means that the virtual address space width must be in the range 48 or 52
+ * to 16 bits respectively.
  *
  * [1] See the ARMv8-A Architecture Reference Manual (DDI 0487A.j) for more
  * information:
@@ -89,7 +112,7 @@
  * (DDI 0487D.a)
  */
 /*
- * Maximum value of TCR_ELx.T(0,1)SZ is 39 for a min VA size of 16 bits.
+ * Maximum value of TCR_ELx.T(0,1)SZ is 48 for a min VA size of 16 bits.
  * RMM is only supported with FEAT_TTST implemented.
  */
 #define MIN_VIRT_ADDR_SPACE_SIZE	(UL(1) << (UL(64) - TCR_TxSZ_MAX))
@@ -98,18 +121,24 @@
 #define MAX_VIRT_ADDR_SPACE_SIZE	(UL(1) << (UL(64) - TCR_TxSZ_MIN))
 
 /*
+ * With LPA2 supported, the minimum value of TCR_ELx.T(0,1)SZ is 12
+ * for a VA of 52 bits.
+ */
+#define MAX_VIRT_ADDR_SPACE_SIZE_LPA2	(UL(1) << (UL(64) - TCR_TxSZ_MIN_LPA2))
+
+/*
  * Here we calculate the initial lookup level from the value of the given
  * virtual address space size. For a 4 KB page size,
- * - level 0 supports virtual address spaces of widths 48 to 40 bits;
+ * - level -1 (if FEAT_LPA2 is supported) supports virtual addresses spaces from
+ *   52 to 49 bits;
+ * - level 0 from 48 to 40;
  * - level 1 from 39 to 31;
  * - level 2 from 30 to 22.
  * - level 3 from 21 to 16.
  *
  * Small Translation Table (Armv8.4-TTST) support allows the starting level
  * of the translation table from 3 for 4KB granularity. See section 12.2.55 in
- * the ARMv8-A Architecture Reference Manual (DDI 0487D.a). In Armv8.3 and below
- * wider or narrower address spaces are not supported. As a result, level 3
- * cannot be used as initial lookup level with 4 KB granularity. See section
+ * the ARMv8-A Architecture Reference Manual (DDI 0487D.a). See section
  * D4.2.5 in the ARMv8-A Architecture Reference Manual (DDI 0487A.j) for more
  * information.
  *
@@ -122,11 +151,13 @@
  * valid.
  */
 #define GET_XLAT_TABLE_LEVEL_BASE(_virt_addr_space_sz)			\
-	(((_virt_addr_space_sz) > (ULL(1) << L0_XLAT_ADDRESS_SHIFT))	\
-	? 0U								\
+	(((_virt_addr_space_sz) > (ULL(1) << LM1_XLAT_ADDRESS_SHIFT))	\
+	? -1								\
+	: (((_virt_addr_space_sz) > (ULL(1) << L0_XLAT_ADDRESS_SHIFT))	\
+	? 0								\
 	: (((_virt_addr_space_sz) > (ULL(1) << L1_XLAT_ADDRESS_SHIFT))	\
-	? 1U								\
+	? 1								\
 	: (((_virt_addr_space_sz) > (ULL(1) << L2_XLAT_ADDRESS_SHIFT))	\
-	? 2U : 3U)))
+	? 2 : 3))))
 
 #endif /* XLAT_DEFS_H */

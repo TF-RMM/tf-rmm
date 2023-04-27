@@ -72,7 +72,7 @@ struct xlat_ctx_cfg {
 	uintptr_t max_mapped_va_offset;
 
 	/* Level of the base translation table. */
-	unsigned int base_level;
+	int base_level;
 
 	/*
 	 * Virtual address region handled by this context.
