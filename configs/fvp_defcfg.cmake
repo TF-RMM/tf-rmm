@@ -15,9 +15,9 @@ arm_config_option_override(NAME RMM_TOOLCHAIN DEFAULT "gnu")
 arm_config_option_override(NAME VIRT_ADDR_SPACE_WIDTH DEFAULT 38)
 
 #
-# Set RMM_MAX_SIZE for this platform (20MB)
+# Set RMM_MAX_SIZE for this platform (24MB)
 #
-arm_config_option_override(NAME RMM_MAX_SIZE DEFAULT 0x01400000)
+arm_config_option_override(NAME RMM_MAX_SIZE DEFAULT 0x01800000)
 
 #
 # UART Base address. This must be dynamically discovered in future.
@@ -46,6 +46,7 @@ arm_config_option_override(NAME RMM_FPU_USE_AT_REL2 DEFAULT OFF)
 
 #
 # Maximum number of granules supported, enough to cover
-# (2GB - 64MB) of DRAM0 and 2GB of DRAM1.
+# (2GB - 64MB) of DRAM0 and 2GB of DRAM1. We overprovision
+# for the case that DT has not catered for the 64 MB carveout.
 #
-arm_config_option_override(NAME RMM_MAX_GRANULES DEFAULT 0xfc000)
+arm_config_option_override(NAME RMM_MAX_GRANULES DEFAULT 0x100000)
