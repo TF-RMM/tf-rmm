@@ -296,8 +296,7 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
  * Handle FPU or SVE exceptions.
  * Returns: true if the exception is handled.
  */
-static bool
-handle_simd_exception(simd_t exp_type, struct rec *rec)
+static bool handle_simd_exception(simd_t exp_type, struct rec *rec)
 {
 	/*
 	 * If the REC wants to use SVE and if SVE is not enabled for this REC
@@ -326,19 +325,6 @@ handle_simd_exception(simd_t exp_type, struct rec *rec)
 	return true;
 }
 
-/*
- * Return 'false' if no IRQ is pending,
- * return 'true' if there is an IRQ pending, and need to return to host.
- */
-static bool check_pending_irq(void)
-{
-	unsigned long pending_irq;
-
-	pending_irq = read_isr_el1();
-
-	return (pending_irq != 0UL);
-}
-
 static void advance_pc(void)
 {
 	unsigned long pc = read_elr_el2();
@@ -346,19 +332,11 @@ static void advance_pc(void)
 	write_elr_el2(pc + 4UL);
 }
 
-static void return_result_to_realm(struct rec *rec, struct smc_result result)
-{
-	rec->regs[0] = result.x[0];
-	rec->regs[1] = result.x[1];
-	rec->regs[2] = result.x[2];
-	rec->regs[3] = result.x[3];
-}
-
 static inline bool rsi_handler_needs_fpu(unsigned int id)
 {
 #ifdef RMM_FPU_USE_AT_REL2
-	if (id == SMC_RSI_ATTEST_TOKEN_CONTINUE ||
-	    id == SMC_RSI_MEASUREMENT_EXTEND) {
+	if ((id == SMC_RSI_ATTEST_TOKEN_CONTINUE) ||
+	    (id == SMC_RSI_MEASUREMENT_EXTEND)) {
 		return true;
 	}
 #endif
@@ -371,16 +349,18 @@ static inline bool rsi_handler_needs_fpu(unsigned int id)
  */
 static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 {
-	bool ret_to_rec = true;	/* Return to Realm */
+	struct rsi_result res = { 0 };
 	unsigned int function_id = (unsigned int)rec->regs[0];
 	bool restore_rec_simd_state = false;
+	bool needs_fpu, ret_to_rec;
 
 	RSI_LOG_SET(rec->regs);
 
 	/* Ignore SVE hint bit, until RMM supports SVE hint bit */
 	function_id &= ~MASK(SMC_SVE_HINT);
 
-	if (rsi_handler_needs_fpu(function_id) == true) {
+	needs_fpu = rsi_handler_needs_fpu(function_id);
+	if (needs_fpu) {
 		/*
 		 * RSI handler uses FPU at REL2, so actively save REC SIMD state
 		 * if REC is using SIMD or NS SIMD state. Restore the same before
@@ -403,172 +383,47 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 	switch (function_id) {
 	case SMCCC_VERSION:
-		rec->regs[0] = SMCCC_VERSION_NUMBER;
+		res.action = UPDATE_REC_RETURN_TO_REALM;
+		res.smc_res.x[0] = SMCCC_VERSION_NUMBER;
 		break;
 	case SMC_RSI_ABI_VERSION:
-		rec->regs[0] = handle_rsi_version();
+		handle_rsi_version(&res);
 		break;
 	case SMC32_PSCI_FID_MIN ... SMC32_PSCI_FID_MAX:
-	case SMC64_PSCI_FID_MIN ... SMC64_PSCI_FID_MAX: {
-		struct psci_result res;
-
-		res = psci_rsi(rec,
-			       function_id,
-			       rec->regs[1],
-			       rec->regs[2],
-			       rec->regs[3]);
-
-		if (!rec->psci_info.pending) {
-			rec->regs[0] = res.smc_res.x[0];
-			rec->regs[1] = res.smc_res.x[1];
-			rec->regs[2] = res.smc_res.x[2];
-			rec->regs[3] = res.smc_res.x[3];
-		}
-
-		if (res.hvc_forward.forward_psci_call) {
-			unsigned int i;
-
-			rec_exit->exit_reason = RMI_EXIT_PSCI;
-			rec_exit->gprs[0] = function_id;
-			rec_exit->gprs[1] = res.hvc_forward.x1;
-			rec_exit->gprs[2] = res.hvc_forward.x2;
-			rec_exit->gprs[3] = res.hvc_forward.x3;
-
-			for (i = 4U; i < REC_EXIT_NR_GPRS; i++) {
-				rec_exit->gprs[i] = 0UL;
-			}
-
-			advance_pc();
-			ret_to_rec = false;
-		}
+	case SMC64_PSCI_FID_MIN ... SMC64_PSCI_FID_MAX:
+		handle_psci(rec, rec_exit, &res);
 		break;
-	}
 	case SMC_RSI_ATTEST_TOKEN_INIT:
-		rec->regs[0] = handle_rsi_attest_token_init(rec);
+		handle_rsi_attest_token_init(rec, &res);
 		break;
-	case SMC_RSI_ATTEST_TOKEN_CONTINUE: {
-		struct attest_result res;
-		while (true) {
-			/*
-			 * Possible outcomes:
-			 *     if res.incomplete is true
-			 *         if IRQ pending
-			 *             check for pending IRQ and return to host
-			 *         else try a new iteration
-			 *     else
-			 *         if RTT table walk has failed,
-			 *             emulate data abort back to host
-			 *         otherwise
-			 *             return to realm because the token
-			 *             creation is complete or input parameter
-			 *             validation failed.
-			 */
-			handle_rsi_attest_token_continue(rec, &res);
-
-			if (res.incomplete) {
-				if (check_pending_irq()) {
-					rec_exit->exit_reason = RMI_EXIT_IRQ;
-
-					/* Copy the result to rec prior to return to host */
-					return_result_to_realm(rec, res.smc_res);
-					advance_pc();
-
-					/* Return to NS host to handle IRQ. */
-					ret_to_rec = false;
-					break;
-				}
-			} else {
-				if (res.walk_result.abort) {
-					emulate_stage2_data_abort(
-						rec, rec_exit,
-						res.walk_result.rtt_level);
-					ret_to_rec = false; /* Exit to Host */
-					break;
-				}
-
-				/* Return to Realm */
-				return_result_to_realm(rec, res.smc_res);
-				break;
-			}
-		}
+	case SMC_RSI_ATTEST_TOKEN_CONTINUE:
+		handle_rsi_attest_token_continue(rec, rec_exit, &res);
 		break;
-	}
 	case SMC_RSI_MEASUREMENT_READ:
-		rec->regs[0] = handle_rsi_read_measurement(rec);
+		handle_rsi_measurement_read(rec, &res);
 		break;
 	case SMC_RSI_MEASUREMENT_EXTEND:
-		rec->regs[0] = handle_rsi_extend_measurement(rec);
+		handle_rsi_measurement_extend(rec, &res);
 		break;
-	case SMC_RSI_REALM_CONFIG: {
-		struct rsi_result res;
-
-		res = handle_rsi_realm_config(rec);
-		if (res.walk_result.abort) {
-			emulate_stage2_data_abort(rec, rec_exit,
-						  res.walk_result.rtt_level);
-			ret_to_rec = false; /* Exit to Host */
-		} else {
-			/* Return to Realm */
-			return_result_to_realm(rec, res.smc_res);
-		}
+	case SMC_RSI_REALM_CONFIG:
+		handle_rsi_realm_config(rec, &res);
 		break;
-	}
 	case SMC_RSI_IPA_STATE_SET:
-		if (handle_rsi_ipa_state_set(rec, rec_exit)) {
-			rec->regs[0] = RSI_ERROR_INPUT;
-		} else {
-			advance_pc();
-			ret_to_rec = false; /* Return to Host */
-		}
+		handle_rsi_ipa_state_set(rec, rec_exit, &res);
 		break;
-	case SMC_RSI_IPA_STATE_GET: {
-		struct rsi_walk_smc_result res;
-
-		res = handle_rsi_ipa_state_get(rec);
-		if (res.walk_result.abort) {
-			emulate_stage2_data_abort(rec, rec_exit,
-						  res.walk_result.rtt_level);
-			/* Exit to Host */
-			ret_to_rec = false;
-		} else {
-			/* Exit to Realm */
-			return_result_to_realm(rec, res.smc_res);
-		}
+	case SMC_RSI_IPA_STATE_GET:
+		handle_rsi_ipa_state_get(rec, &res);
 		break;
-	}
-	case SMC_RSI_HOST_CALL: {
-		struct rsi_result res;
-
-		res = handle_rsi_host_call(rec, rec_exit);
-		if (res.walk_result.abort) {
-			emulate_stage2_data_abort(rec, rec_exit,
-						  res.walk_result.rtt_level);
-			/* Exit to Host */
-			ret_to_rec = false;
-		} else {
-			rec->regs[0] = res.smc_res.x[0];
-
-			/*
-			 * Return to Realm in case of error,
-			 * parent function calls advance_pc()
-			 */
-			if (rec->regs[0] == RSI_SUCCESS) {
-				advance_pc();
-
-				/* Exit to Host */
-				rec->host_call = true;
-				rec_exit->exit_reason = RMI_EXIT_HOST_CALL;
-				ret_to_rec = false;
-			}
-		}
+	case SMC_RSI_HOST_CALL:
+		handle_rsi_host_call(rec, rec_exit, &res);
 		break;
-	}
 	default:
-		rec->regs[0] = SMC_UNKNOWN;
+		res.action = UPDATE_REC_RETURN_TO_REALM;
+		res.smc_res.x[0] = SMC_UNKNOWN;
 		break;
 	}
 
-	if (rsi_handler_needs_fpu(function_id) == true) {
+	if (needs_fpu) {
 		if (restore_rec_simd_state == true) {
 			rec_simd_enable_restore(rec);
 		} else {
@@ -577,6 +432,20 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	} else if (rec_is_simd_allowed(rec)) {
 		simd_enable(rec_simd_type(rec));
 	}
+
+	if ((res.action & FLAG_UPDATE_REC) != 0) {
+		for (unsigned int i = 0U; i < SMC_RESULT_REGS; ++i) {
+			rec->regs[i] = res.smc_res.x[i];
+		}
+	}
+
+	if ((res.action & FLAG_STAGE_2_ABORT) != 0) {
+		emulate_stage2_data_abort(rec, rec_exit, res.rtt_level);
+	} else {
+		advance_pc();
+	}
+
+	ret_to_rec = ((res.action & FLAG_EXIT_TO_HOST) == 0);
 
 	/* Log RSI call */
 	RSI_LOG_EXIT(function_id, rec->regs, ret_to_rec);
@@ -600,18 +469,7 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 		realm_inject_undef_abort();
 		return true;
 	case ESR_EL2_EC_SMC:
-		if (!handle_realm_rsi(rec, rec_exit)) {
-			return false;
-		}
-		/*
-		 * Advance PC.
-		 * HCR_EL2.TSC traps execution of the SMC instruction.
-		 * It is not a routing control for the SMC exception.
-		 * Trap exceptions and SMC exceptions have different
-		 * preferred return addresses.
-		 */
-		advance_pc();
-		return true;
+		return handle_realm_rsi(rec, rec_exit);
 	case ESR_EL2_EC_SYSREG: {
 		bool ret = handle_sysreg_access_trap(rec, rec_exit, esr);
 
@@ -654,7 +512,7 @@ static bool handle_exception_serror_lel(struct rec *rec, struct rmi_rec_exit *re
 {
 	const unsigned long esr = read_esr_el2();
 
-	if (esr & ESR_EL2_SERROR_IDS_BIT) {
+	if ((esr & ESR_EL2_SERROR_IDS_BIT) != 0UL) {
 		/*
 		 * Implementation defined content of the esr.
 		 */
@@ -765,7 +623,7 @@ bool handle_realm_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int excep
 	default:
 		INFO("Unrecognized exit reason: %d\n", exception);
 		break;
-	};
+	}
 
 	return false;
 }

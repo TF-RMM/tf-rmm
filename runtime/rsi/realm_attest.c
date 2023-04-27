@@ -51,12 +51,10 @@ static bool verify_input_parameters_consistency(struct rec *rec)
 }
 
 /*
- * Function to continue with the sign operation.
- * It returns void as the result will be updated in the
- * struct attest_result passed as argument.
+ * Function to continue with the sign operation
  */
 static void attest_token_continue_sign_state(struct rec *rec,
-					     struct attest_result *res)
+					     struct rsi_result *res)
 {
 	/*
 	 * Sign and finish creating the token.
@@ -72,7 +70,6 @@ static void attest_token_continue_sign_state(struct rec *rec,
 		 * to check is there anything else to do (pending IRQ)
 		 * or next signing iteration can be executed.
 		 */
-		res->incomplete = true;
 		res->smc_res.x[0] = RSI_INCOMPLETE;
 
 		/* If this was the last signing cycle */
@@ -88,12 +85,10 @@ static void attest_token_continue_sign_state(struct rec *rec,
 }
 
 /*
- * Function to continue with the token write operation.
- * It returns void as the result will be updated in the
- * struct attest_result passed as argument.
+ * Function to continue with the token write operation
  */
 static void attest_token_continue_write_state(struct rec *rec,
-					      struct attest_result *res)
+					      struct rsi_result *res)
 {
 	struct granule *gr;
 	uint8_t *realm_att_token;
@@ -117,12 +112,11 @@ static void attest_token_continue_write_state(struct rec *rec,
 			res->smc_res.x[0] = RSI_ERROR_INPUT;
 		} else {
 			/*
-			 * Translation failed, IPA is not mapped. Return to NS host to
-			 * fix the issue.
+			 * Translation failed, IPA is not mapped.
+			 * Return to NS host to fix the issue.
 			 */
-			res->walk_result.abort = true;
-			res->walk_result.rtt_level = walk_res.rtt_level;
-			res->smc_res.x[0] = RSI_INCOMPLETE;
+			res->action = STAGE_2_TRANSLATION_FAULT;
+			res->rtt_level = walk_res.rtt_level;
 		}
 		return;
 	}
@@ -154,16 +148,17 @@ static void attest_token_continue_write_state(struct rec *rec,
 	rec->token_sign_ctx.state = ATTEST_SIGN_NOT_STARTED;
 }
 
-unsigned long handle_rsi_attest_token_init(struct rec *rec)
+void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 {
 	struct rd *rd = NULL;
-	unsigned long ret;
 	unsigned long realm_buf_ipa = rec->regs[1];
 	void *rpv_ptr;
 	size_t rpv_len;
 	int att_ret;
 
 	assert(rec != NULL);
+
+	res->action = UPDATE_REC_RETURN_TO_REALM;
 
 	/*
 	 * Calling RSI_ATTESTATION_TOKEN_INIT any time aborts any ongoing
@@ -183,7 +178,8 @@ unsigned long handle_rsi_attest_token_init(struct rec *rec)
 	}
 
 	if (!GRANULE_ALIGNED(realm_buf_ipa)) {
-		return RSI_ERROR_INPUT;
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		return;
 	}
 
 	/*
@@ -193,7 +189,7 @@ unsigned long handle_rsi_attest_token_init(struct rec *rec)
 	granule_lock(rec->realm_info.g_rd, GRANULE_STATE_RD);
 	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
 	if (!addr_in_par(rd, realm_buf_ipa)) {
-		ret = RSI_ERROR_INPUT;
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
 		goto out_unmap_rd;
 	}
 
@@ -212,66 +208,92 @@ unsigned long handle_rsi_attest_token_init(struct rec *rec)
 					    rec->rmm_realm_token_buf,
 					    sizeof(rec->rmm_realm_token_buf));
 	if (att_ret != 0) {
-		ERROR("FATAL_ERROR: Realm token creation failed,\n");
+		ERROR("FATAL_ERROR: Realm token creation failed\n");
 		panic();
 	}
 
 	rec->token_sign_ctx.state = ATTEST_SIGN_IN_PROGRESS;
-	ret = RSI_SUCCESS;
+	res->smc_res.x[0] = RSI_SUCCESS;
 
 out_unmap_rd:
 	buffer_unmap(rd);
 	granule_unlock(rec->realm_info.g_rd);
-	return ret;
+}
+
+/*
+ * Return 'false' if no IRQ is pending,
+ * return 'true' if there is an IRQ pending, and need to return to Host.
+ */
+static bool check_pending_irq(void)
+{
+	return (read_isr_el1() != 0UL);
 }
 
 void handle_rsi_attest_token_continue(struct rec *rec,
-				      struct attest_result *res)
+				      struct rmi_rec_exit *rec_exit,
+				      struct rsi_result *res)
 {
 	assert(rec != NULL);
-	assert(res != NULL);
+	assert(rec_exit != NULL);
 
-	/* Initialize attest_result */
-	res->incomplete = false;
-	res->walk_result.abort = false;
+	res->action = UPDATE_REC_RETURN_TO_REALM;
 
 	if (!verify_input_parameters_consistency(rec)) {
 		res->smc_res.x[0] = RSI_ERROR_INPUT;
 		return;
 	}
 
-	switch (rec->token_sign_ctx.state) {
-	case ATTEST_SIGN_NOT_STARTED:
-		/*
-		 * Before this call the initial attestation token call
-		 * (SMC_RSI_ATTEST_TOKEN_INIT) must have been executed
-		 * successfully.
-		 */
-		res->smc_res.x[0] = RSI_ERROR_STATE;
-		break;
-	case ATTEST_SIGN_IN_PROGRESS:
-		attest_token_continue_sign_state(rec, res);
-		break;
-	case ATTEST_SIGN_TOKEN_WRITE_IN_PROGRESS:
-		attest_token_continue_write_state(rec, res);
-		break;
-	default:
-		/* Any other state is considered an error. */
-		assert(false);
+	while (true) {
+		switch (rec->token_sign_ctx.state) {
+		case ATTEST_SIGN_NOT_STARTED:
+			/*
+			 * Before this call the initial attestation token call
+			 * (SMC_RSI_ATTEST_TOKEN_INIT) must have been executed
+			 * successfully.
+			 */
+			res->smc_res.x[0] = RSI_ERROR_STATE;
+			break;
+		case ATTEST_SIGN_IN_PROGRESS:
+			attest_token_continue_sign_state(rec, res);
+			break;
+		case ATTEST_SIGN_TOKEN_WRITE_IN_PROGRESS:
+			attest_token_continue_write_state(rec, res);
+			break;
+		default:
+			/* Any other state is considered an error */
+			panic();
+		}
+
+		if (res->smc_res.x[0] == RSI_INCOMPLETE) {
+			if (check_pending_irq()) {
+				res->action = UPDATE_REC_EXIT_TO_HOST;
+				res->smc_res.x[0] = RSI_INCOMPLETE;
+				rec_exit->exit_reason = RMI_EXIT_IRQ;
+				break;
+			}
+			if ((res->action & FLAG_EXIT_TO_HOST) != 0) {
+				break;
+			}
+		} else {
+			break;
+		}
 	}
 }
 
-unsigned long handle_rsi_extend_measurement(struct rec *rec)
+void handle_rsi_measurement_extend(struct rec *rec, struct rsi_result *res)
 {
 	struct granule *g_rd;
 	struct rd *rd;
 	unsigned long index;
 	unsigned long rd_addr;
 	size_t size;
-	unsigned long ret;
 	void *extend_measurement;
 	unsigned char *current_measurement;
 	int __unused meas_ret;
+
+	assert(rec != NULL);
+
+	res->action = UPDATE_REC_RETURN_TO_REALM;
 
 	/*
 	 * rd lock is acquired so that measurement cannot be updated
@@ -293,14 +315,14 @@ unsigned long handle_rsi_extend_measurement(struct rec *rec)
 
 	if ((index == RIM_MEASUREMENT_SLOT) ||
 	    (index >= MEASUREMENT_SLOT_NR)) {
-		ret = RSI_ERROR_INPUT;
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
 		goto out_unmap_rd;
 	}
 
 	size  = rec->regs[2];
 
 	if (size > MAX_EXTENDED_SIZE) {
-		ret = RSI_ERROR_INPUT;
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
 		goto out_unmap_rd;
 	}
 
@@ -313,15 +335,14 @@ unsigned long handle_rsi_extend_measurement(struct rec *rec)
 			   size,
 			   current_measurement);
 
-	ret = RSI_SUCCESS;
+	res->smc_res.x[0] = RSI_SUCCESS;
 
 out_unmap_rd:
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
-	return ret;
 }
 
-unsigned long handle_rsi_read_measurement(struct rec *rec)
+void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 {
 	struct rd *rd;
 	unsigned long idx;
@@ -329,11 +350,14 @@ unsigned long handle_rsi_read_measurement(struct rec *rec)
 
 	assert(rec != NULL);
 
+	res->action = UPDATE_REC_RETURN_TO_REALM;
+
 	/* X1: Index */
 	idx = rec->regs[1];
 
 	if (idx >= MEASUREMENT_SLOT_NR) {
-		return RSI_ERROR_INPUT;
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		return;
 	}
 
 	/*
@@ -356,5 +380,5 @@ unsigned long handle_rsi_read_measurement(struct rec *rec)
 	buffer_unmap(rd);
 	granule_unlock(rec->realm_info.g_rd);
 
-	return RSI_SUCCESS;
+	res->smc_res.x[0] = RSI_SUCCESS;
 }

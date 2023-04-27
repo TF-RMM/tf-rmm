@@ -7,41 +7,64 @@
 #include <psci.h>
 #include <realm.h>
 #include <rec.h>
+#include <rsi-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
 #include <stdint.h>
 
-static struct psci_result psci_version(struct rec *rec)
+/*
+ * Copy @count GPRs from @rec to @rec_exit.
+ * The remaining @rec_exit.gprs[] values are zero filled.
+ */
+static void forward_args_to_host(unsigned int count, struct rec *rec,
+				 struct rmi_rec_exit *rec_exit)
 {
-	struct psci_result result = { 0 };
-	unsigned int version_1_1 = (1U << 16) | 1U;
+	unsigned int i;
 
-	result.smc_res.x[0] = (unsigned long)version_1_1;
-	return result;
+	assert(count <= 4U);
+
+	for (i = 0U; i < count; ++i) {
+		rec_exit->gprs[i] = rec->regs[i];
+	}
+
+	for (i = count; i < REC_EXIT_NR_GPRS; ++i) {
+		rec_exit->gprs[i] = 0UL;
+	}
 }
 
-static struct psci_result psci_cpu_suspend(struct rec *rec,
-					  unsigned long entry_point_address,
-					  unsigned long context_id)
+static void psci_version(struct rsi_result *res)
 {
-	struct psci_result result = { 0 };
+	const unsigned long version_1_1 = (1UL << 16) | 1UL;
+
+	res->action = UPDATE_REC_RETURN_TO_REALM;
+	res->smc_res.x[0] = version_1_1;
+}
+
+static void psci_cpu_suspend(struct rec *rec, struct rmi_rec_exit *rec_exit,
+			     struct rsi_result *res)
+{
+	res->action = UPDATE_REC_EXIT_TO_HOST;
 
 	/*
-	 * We treat all target power states as suspend requests, so all we
-	 * need to do is inform that NS hypervisor and we can ignore all the
-	 * parameters.
+	 * We treat all target power states as suspend requests,
+	 * so all we need to do is forward the FID to the NS hypervisor,
+	 * and we can ignore all the parameters.
 	 */
-	result.hvc_forward.forward_psci_call = true;
+	forward_args_to_host(1U, rec, rec_exit);
 
-	result.smc_res.x[0] = PSCI_RETURN_SUCCESS;
-	return result;
+	/*
+	 * The exit to the Host is just a notification; the Host does not need
+	 * to complete a PSCI request before the next call to RMI_REC_ENTER.
+	 * We therefore update the REC immediately with the results of the PSCI
+	 * command.
+	 */
+	res->smc_res.x[0] = PSCI_RETURN_SUCCESS;
 }
 
-static struct psci_result psci_cpu_off(struct rec *rec)
+static void psci_cpu_off(struct rec *rec, struct rmi_rec_exit *rec_exit,
+			 struct rsi_result *res)
 {
-	struct psci_result result = { 0 };
-
-	result.hvc_forward.forward_psci_call = true;
+	res->action = UPDATE_REC_EXIT_TO_HOST;
 
 	/*
 	 * It should be fine to set this flag without holding a lock on the
@@ -55,8 +78,16 @@ static struct psci_result psci_cpu_off(struct rec *rec)
 	 */
 	rec->runnable = false;
 
-	result.smc_res.x[0] = PSCI_RETURN_SUCCESS;
-	return result;
+	/* Notify the Host, passing the FID only. */
+	forward_args_to_host(1U, rec, rec_exit);
+
+	/*
+	 * The exit to the Host is just a notification; the Host does not need
+	 * to complete a PSCI request before the next call to RMI_REC_ENTER.
+	 * We therefore update the REC immediately with the results of the PSCI
+	 * command.
+	 */
+	res->smc_res.x[0] = PSCI_RETURN_SUCCESS;
 }
 
 static void psci_reset_rec(struct rec *rec, unsigned long caller_sctlr_el1)
@@ -86,18 +117,19 @@ static unsigned long rd_map_read_rec_count(struct granule *g_rd)
 	return rec_count;
 }
 
-static struct psci_result psci_cpu_on(struct rec *rec,
-				      unsigned long target_cpu,
-				      unsigned long entry_point_address,
-				      unsigned long context_id)
+static void psci_cpu_on(struct rec *rec, struct rmi_rec_exit *rec_exit,
+			struct rsi_result *res)
 {
-	struct psci_result result = { 0 };
+	unsigned long target_cpu = rec->regs[1];
+	unsigned long entry_point_address = rec->regs[2];
 	unsigned long target_rec_idx;
+
+	res->action = UPDATE_REC_RETURN_TO_REALM;
 
 	/* Check that entry_point_address is a Protected Realm Address */
 	if (!addr_in_rec_par(rec, entry_point_address)) {
-		result.smc_res.x[0] = PSCI_RETURN_INVALID_ADDRESS;
-		return result;
+		res->smc_res.x[0] = PSCI_RETURN_INVALID_ADDRESS;
+		return;
 	}
 
 	/* Get REC index from MPIDR */
@@ -109,33 +141,40 @@ static struct psci_result psci_cpu_on(struct rec *rec,
 	 * consecutively increasing indexes starting from zero.
 	 */
 	if (target_rec_idx >= rd_map_read_rec_count(rec->realm_info.g_rd)) {
-		result.smc_res.x[0] = PSCI_RETURN_INVALID_PARAMS;
-		return result;
+		res->smc_res.x[0] = PSCI_RETURN_INVALID_PARAMS;
+		return;
 	}
 
 	/* Check if we're trying to turn ourselves on */
 	if (target_rec_idx == rec->rec_idx) {
-		result.smc_res.x[0] = PSCI_RETURN_ALREADY_ON;
-		return result;
+		res->smc_res.x[0] = PSCI_RETURN_ALREADY_ON;
+		return;
 	}
 
+	/* Record that a PSCI request is outstanding */
 	rec->psci_info.pending = true;
 
-	result.hvc_forward.forward_psci_call = true;
-	result.hvc_forward.x1 = target_cpu;
-	return result;
+	/*
+	 * Notify the Host, passing the FID and MPIDR arguments.
+	 * Leave REC registers unchanged; these will be read and updated by
+	 * psci_complete_request.
+	 */
+	forward_args_to_host(2U, rec, rec_exit);
+	res->action = EXIT_TO_HOST;
 }
 
-static struct psci_result psci_affinity_info(struct rec *rec,
-					     unsigned long target_affinity,
-					     unsigned long lowest_affinity_level)
+static void psci_affinity_info(struct rec *rec, struct rmi_rec_exit *rec_exit,
+			       struct rsi_result *res)
 {
-	struct psci_result result = { 0 };
+	unsigned long target_affinity = rec->regs[1];
+	unsigned long lowest_affinity_level = rec->regs[2];
 	unsigned long target_rec_idx;
 
+	res->action = UPDATE_REC_RETURN_TO_REALM;
+
 	if (lowest_affinity_level != 0UL) {
-		result.smc_res.x[0] = PSCI_RETURN_INVALID_PARAMS;
-		return result;
+		res->smc_res.x[0] = PSCI_RETURN_INVALID_PARAMS;
+		return;
 	}
 
 	/* Get REC index from MPIDR */
@@ -147,21 +186,27 @@ static struct psci_result psci_affinity_info(struct rec *rec,
 	 * consecutively increasing indexes starting from zero.
 	 */
 	if (target_rec_idx >= rd_map_read_rec_count(rec->realm_info.g_rd)) {
-		result.smc_res.x[0] = PSCI_RETURN_INVALID_PARAMS;
-		return result;
+		res->smc_res.x[0] = PSCI_RETURN_INVALID_PARAMS;
+		return;
 	}
 
 	/* Check if the vCPU targets itself */
 	if (target_rec_idx == rec->rec_idx) {
-		result.smc_res.x[0] = PSCI_AFFINITY_INFO_ON;
-		return result;
+		res->smc_res.x[0] = PSCI_AFFINITY_INFO_ON;
+		return;
 	}
 
+	/* Record that a PSCI request is outstanding */
 	rec->psci_info.pending = true;
 
-	result.hvc_forward.forward_psci_call = true;
-	result.hvc_forward.x1 = target_affinity;
-	return result;
+	/*
+	 * Notify the Host, passing the FID and MPIDR arguments.
+	 * Leave REC registers unchanged; these will be read and updated
+	 * by psci_complete_request.
+	 */
+	forward_args_to_host(2U, rec, rec_exit);
+
+	res->action = EXIT_TO_HOST;
 }
 
 /*
@@ -191,31 +236,21 @@ static void system_off_reboot(struct rec *rec)
 	/* TODO: Invalidate all stage 2 entris to ensure REC exits */
 }
 
-static struct psci_result psci_system_off(struct rec *rec)
+static void psci_system_off_reset(struct rec *rec,
+				  struct rmi_rec_exit *rec_exit,
+				  struct rsi_result *res)
 {
-	struct psci_result result = { 0 };
-
 	system_off_reboot(rec);
 
-	result.hvc_forward.forward_psci_call = true;
-	return result;
+	/* Notify the Host, passing the FID only */
+	forward_args_to_host(1U, rec, rec_exit);
+
+	res->action = EXIT_TO_HOST;
 }
 
-static struct psci_result psci_system_reset(struct rec *rec)
+static void psci_features(struct rec *rec, struct rsi_result *res)
 {
-	struct psci_result result = { 0 };
-
-	system_off_reboot(rec);
-
-	result.hvc_forward.forward_psci_call = true;
-	return result;
-}
-
-static struct psci_result psci_features(struct rec *rec,
-				       unsigned int psci_func_id)
-{
-	struct psci_result result = { 0 };
-	unsigned long ret;
+	unsigned int psci_func_id = (unsigned int)rec->regs[1];
 
 	switch (psci_func_id) {
 	case SMC32_PSCI_CPU_SUSPEND:
@@ -229,66 +264,56 @@ static struct psci_result psci_features(struct rec *rec,
 	case SMC32_PSCI_SYSTEM_RESET:
 	case SMC32_PSCI_FEATURES:
 	case SMCCC_VERSION:
-		ret = 0UL;
+		res->smc_res.x[0] = PSCI_RETURN_SUCCESS;
 		break;
 	default:
-		ret = PSCI_RETURN_NOT_SUPPORTED;
+		res->smc_res.x[0] = PSCI_RETURN_NOT_SUPPORTED;
 	}
 
-	result.smc_res.x[0] = ret;
-	return result;
+	res->action = UPDATE_REC_RETURN_TO_REALM;
 }
 
-struct psci_result psci_rsi(struct rec *rec,
-			    unsigned int function_id,
-			    unsigned long arg0,
-			    unsigned long arg1,
-			    unsigned long arg2)
+void handle_psci(struct rec *rec,
+		 struct rmi_rec_exit *rec_exit,
+		 struct rsi_result *res)
 {
-	struct psci_result result = { false };
+	unsigned int function_id = (unsigned int)rec->regs[0];
 
 	switch (function_id) {
 	case SMC32_PSCI_VERSION:
-		result = psci_version(rec);
+		psci_version(res);
 		break;
 	case SMC32_PSCI_CPU_SUSPEND:
 	case SMC64_PSCI_CPU_SUSPEND:
-		result = psci_cpu_suspend(rec, arg0, arg1);
+		psci_cpu_suspend(rec, rec_exit, res);
 		break;
 	case SMC32_PSCI_CPU_OFF:
-		result = psci_cpu_off(rec);
+		psci_cpu_off(rec, rec_exit, res);
 		break;
 	case SMC32_PSCI_CPU_ON:
-		arg0 = (unsigned int)arg0;
-		arg1 = (unsigned int)arg1;
-		arg2 = (unsigned int)arg2;
-		FALLTHROUGH;
 	case SMC64_PSCI_CPU_ON:
-		result = psci_cpu_on(rec, arg0, arg1, arg2);
+		psci_cpu_on(rec, rec_exit, res);
 		break;
 	case SMC32_PSCI_AFFINITY_INFO:
-		arg0 = (unsigned int)arg0;
-		arg1 = (unsigned int)arg1;
-		FALLTHROUGH;
 	case SMC64_PSCI_AFFINITY_INFO:
-		result = psci_affinity_info(rec, arg0, arg1);
+		psci_affinity_info(rec, rec_exit, res);
 		break;
 	case SMC32_PSCI_SYSTEM_OFF:
-		result = psci_system_off(rec);
-		break;
 	case SMC32_PSCI_SYSTEM_RESET:
-		result = psci_system_reset(rec);
+		psci_system_off_reset(rec, rec_exit, res);
 		break;
 	case SMC32_PSCI_FEATURES:
-		result = psci_features(rec, arg0);
+		psci_features(rec, res);
 		break;
 	default:
-		result.smc_res.x[0] = PSCI_RETURN_NOT_SUPPORTED;
-		result.hvc_forward.forward_psci_call = false;
+		res->action = UPDATE_REC_RETURN_TO_REALM;
+		res->smc_res.x[0] = PSCI_RETURN_NOT_SUPPORTED;
 		break;
 	}
 
-	return result;
+	if ((res->action & FLAG_EXIT_TO_HOST) != 0) {
+		rec_exit->exit_reason = RMI_EXIT_PSCI;
+	}
 }
 
 /*

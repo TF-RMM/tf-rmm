@@ -10,32 +10,22 @@
 #include <smc-rsi.h>
 #include <status.h>
 
-bool handle_rsi_ipa_state_set(struct rec *rec, struct rmi_rec_exit *rec_exit)
+void handle_rsi_ipa_state_set(struct rec *rec,
+			      struct rmi_rec_exit *rec_exit,
+			      struct rsi_result *res)
 {
 	unsigned long start = rec->regs[1];
 	unsigned long size = rec->regs[2];
 	unsigned long end = start + size;
 	enum ripas ripas_val = (enum ripas)rec->regs[3];
 
-	if (ripas_val > RIPAS_RAM) {
-		return true;
-	}
-
-	if (!GRANULE_ALIGNED(start)) {
-		return true;
-	}
-
-	if (!GRANULE_ALIGNED(size)) {
-		return true;
-	}
-
-	if (end <= start) {
-		/* Size is zero, or range overflows */
-		return true;
-	}
-
-	if (!region_in_rec_par(rec, start, end)) {
-		return true;
+	if ((ripas_val > RIPAS_RAM)	    ||
+	    !GRANULE_ALIGNED(start) || !GRANULE_ALIGNED(size) ||
+	    (end <= start)	    || /* Size is zero, or range overflows */
+	    !region_in_rec_par(rec, start, end)) {
+		res->action = UPDATE_REC_RETURN_TO_REALM;
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		return;
 	}
 
 	rec->set_ripas.base = start;
@@ -48,35 +38,32 @@ bool handle_rsi_ipa_state_set(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	rec_exit->ripas_size = size;
 	rec_exit->ripas_value = (unsigned int)ripas_val;
 
-	return false;
+	res->action = UPDATE_REC_EXIT_TO_HOST;
 }
 
-struct rsi_walk_smc_result handle_rsi_ipa_state_get(struct rec *rec)
+void handle_rsi_ipa_state_get(struct rec *rec,
+			      struct rsi_result *res)
 {
-	struct rsi_walk_smc_result res = { 0 };
+	unsigned long ipa = rec->regs[1];
+	unsigned long rtt_level;
 	enum s2_walk_status ws;
-	unsigned long rtt_level, ipa;
 	enum ripas ripas_val;
 
-	ipa = rec->regs[1];
-
-	/* Exit to realm */
-	res.walk_result.abort = false;
+	res->action = UPDATE_REC_RETURN_TO_REALM;
 
 	if (!GRANULE_ALIGNED(ipa) || !addr_in_rec_par(rec, ipa)) {
-		res.smc_res.x[0] = RSI_ERROR_INPUT;
-		return res;
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		return;
 	}
 
 	ws = realm_ipa_get_ripas(rec, ipa, &ripas_val, &rtt_level);
 	if (ws == WALK_SUCCESS) {
-		res.smc_res.x[0] = RSI_SUCCESS;
-		res.smc_res.x[1] = ripas_val;
+		res->smc_res.x[0] = RSI_SUCCESS;
+		res->smc_res.x[1] = ripas_val;
 	} else {
 		/* Exit to Host */
-		res.walk_result.abort = true;
-		res.walk_result.rtt_level = rtt_level;
+		res->action = STAGE_2_TRANSLATION_FAULT;
+		res->rtt_level = rtt_level;
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
 	}
-
-	return res;
 }

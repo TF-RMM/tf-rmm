@@ -97,22 +97,6 @@
 
 struct rec;
 
-struct psci_result {
-	struct {
-		bool forward_psci_call;
-		unsigned long x1;
-		unsigned long x2;
-		unsigned long x3;
-	} hvc_forward;
-	struct smc_result smc_res;
-};
-
-struct psci_result psci_rsi(struct rec *rec,
-			    unsigned int function_id,
-			    unsigned long arg0,
-			    unsigned long arg1,
-			    unsigned long arg2);
-
 unsigned long psci_complete_request(struct rec *calling_rec,
 				    struct rec *target_rec);
 
