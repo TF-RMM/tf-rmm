@@ -7,6 +7,7 @@
 #define RUN_H
 
 struct granule;
+struct rec;
 struct rec_aux_data;
 
 void init_rec_aux_data(struct rec_aux_data *aux_data, void *rec_aux,

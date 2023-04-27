@@ -28,17 +28,22 @@ static struct pmu_state g_pmu_data[MAX_CPUS];
 void init_rec_aux_data(struct rec_aux_data *aux_data, void *rec_aux,
 		       unsigned long num_aux)
 {
-	/* Ensure we have enough aux granules for use by REC */
+	/*
+	 * Ensure we have enough aux granules for use by REC:
+	 * - REC_HEAP_PAGES for MbedTLS heap
+	 * - REC_PMU_PAGES for PMU state
+	 * - REC_SIMD_PAGES for SIMD state
+	 * - REC_ATTEST_PAGES for 'rec_attest_data' structure
+	 */
 	assert(num_aux >= REC_NUM_PAGES);
 
 	aux_data->attest_heap_buf = (uint8_t *)rec_aux;
-
 	aux_data->pmu = (struct pmu_state *)((uint8_t *)rec_aux +
-					     REC_HEAP_SIZE);
-
+				REC_HEAP_SIZE);
 	aux_data->rec_simd.simd = (struct simd_state *)((uint8_t *)rec_aux +
-							REC_HEAP_SIZE +
-							REC_PMU_SIZE);
+				REC_HEAP_SIZE + REC_PMU_SIZE);
+	aux_data->attest_data = (struct rec_attest_data *)((uint8_t *)rec_aux +
+				REC_HEAP_SIZE + REC_PMU_SIZE + REC_SIMD_SIZE);
 }
 
 /*
@@ -354,6 +359,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	int realm_exception_code;
 	void *rec_aux;
 	unsigned int cpuid = my_cpuid();
+	struct rec_attest_data *attest_data;
 
 	assert(cpuid < MAX_CPUS);
 	assert(rec->ns == NULL);
@@ -368,23 +374,22 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	/* Map auxiliary granules */
 	rec_aux = map_rec_aux(rec->g_aux, rec->num_rec_aux);
 
-	init_rec_aux_data(&(rec->aux_data), rec_aux, rec->num_rec_aux);
-
 	/*
 	 * The attset heap on the REC aux pages is mapped now. It is time to
 	 * associate it with the current CPU.
 	 * This heap will be used for attestation RSI calls when the
 	 * REC is running.
 	 */
-	attestation_heap_ctx_assign_pe(&rec->alloc_info.ctx);
+	attest_data = rec->aux_data.attest_data;
+	attestation_heap_ctx_assign_pe(&attest_data->alloc_info.ctx);
 
 	/*
 	 * Initialise the heap for attestation if necessary.
 	 */
-	if (!rec->alloc_info.ctx_initialised) {
+	if (!attest_data->alloc_info.ctx_initialised) {
 		(void)attestation_heap_ctx_init(rec->aux_data.attest_heap_buf,
 						REC_HEAP_SIZE);
-		rec->alloc_info.ctx_initialised = true;
+		attest_data->alloc_info.ctx_initialised = true;
 	}
 
 	rec_simd_state_init(rec);
@@ -456,6 +461,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 	/* Undo the heap association */
 	attestation_heap_ctx_unassign_pe();
+
 	/* Unmap auxiliary granules */
 	unmap_rec_aux(rec_aux, rec->num_rec_aux);
 }

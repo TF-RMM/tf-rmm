@@ -107,13 +107,38 @@ struct ns_state {
 } __attribute__((aligned(CACHE_WRITEBACK_GRANULE)));
 
 /*
+ * Data used when handling attestation requests
+ */
+struct rec_attest_data {
+	unsigned char rmm_realm_token_buf[SZ_1K];
+	size_t rmm_realm_token_len;
+
+	struct token_sign_ctx token_sign_ctx;
+
+	/* Buffer allocation info used for heap init and management */
+	struct {
+		struct buffer_alloc_ctx ctx;
+		bool ctx_initialised;
+	} alloc_info;
+};
+COMPILER_ASSERT(sizeof(struct rec_attest_data) <= GRANULE_SIZE);
+
+/*
  * This structure contains pointers to data that are allocated
  * in auxilary granules for a REC.
  */
 struct rec_aux_data {
-	uint8_t *attest_heap_buf; /* pointer to the heap buffer */
-	struct pmu_state *pmu;	  /* pointer to PMU state */
-	struct rec_simd_state rec_simd; /* REC SIMD context region */
+	/* Pointer to the heap buffer */
+	uint8_t *attest_heap_buf;
+
+	/* Pointer to PMU state */
+	struct pmu_state *pmu;
+
+	/* SIMD context region */
+	struct rec_simd_state rec_simd;
+
+	/* Pointer to attestation-related data */
+	struct rec_attest_data *attest_data;
 };
 
 struct rec {
@@ -189,18 +214,6 @@ struct rec {
 	/* Addresses of auxiliary granules */
 	struct granule *g_aux[MAX_REC_AUX_GRANULES];
 	struct rec_aux_data aux_data;
-
-	unsigned char rmm_realm_token_buf[SZ_1K];
-	size_t rmm_realm_token_len;
-
-	struct token_sign_ctx token_sign_ctx;
-
-	/* Buffer allocation info used for heap init and management */
-	struct {
-		struct buffer_alloc_ctx ctx;
-		bool ctx_initialised;
-	} alloc_info;
-
 	struct {
 		unsigned long vsesr_el2;
 		bool inject;
