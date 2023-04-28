@@ -6,6 +6,7 @@
 #include <arch_features.h>
 #include <assert.h>
 #include <feature.h>
+#include <simd.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <status.h>
@@ -40,6 +41,15 @@ static unsigned long get_feature_register_0(void)
 	/* Set number of PMU counters available */
 	feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS,
 				EXTRACT(PMCR_EL0_N, read_pmcr_el0()));
+
+	/* Set SVE fields */
+	if (is_feat_sve_present()) {
+		feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_SVE_EN,
+				     RMI_SUPPORTED);
+
+		feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_SVE_VL,
+				     simd_sve_get_max_vq());
+	}
 
 	return feat_reg0;
 }
@@ -84,6 +94,19 @@ static bool validate_feature_register_0(unsigned long value)
 	    (EXTRACT(RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS, value) !=
 	     EXTRACT(RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS, feat_reg0))) {
 		return false;
+	}
+
+	/* Validate SVE flag */
+	if ((EXTRACT(RMM_FEATURE_REGISTER_0_SVE_EN, value) == RMI_SUPPORTED)) {
+		if (!is_feat_sve_present()) {
+			return false;
+		}
+
+		/* Validate SVE_VL value */
+		if (EXTRACT(RMM_FEATURE_REGISTER_0_SVE_VL, value) >
+		    simd_sve_get_max_vq()) {
+			return false;
+		}
 	}
 
 	return true;

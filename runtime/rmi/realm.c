@@ -9,6 +9,7 @@
 #include <granule.h>
 #include <measurement.h>
 #include <realm.h>
+#include <simd.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
@@ -302,6 +303,12 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	rd->s2_ctx.vmid = (unsigned int)p.vmid;
 
 	rd->num_rec_aux = MAX_REC_AUX_GRANULES;
+
+	rd->sve_enabled = EXTRACT(RMM_FEATURE_REGISTER_0_SVE_EN, p.features_0);
+	if (rd->sve_enabled) {
+		rd->sve_vq = EXTRACT(RMM_FEATURE_REGISTER_0_SVE_VL,
+				     p.features_0);
+	}
 
 	(void)memcpy(&rd->rpv[0], &p.rpv[0], RPV_SIZE);
 

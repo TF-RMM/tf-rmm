@@ -221,6 +221,9 @@ void handle_ns_smc(unsigned long function_id,
 	unsigned long handler_id;
 	const struct smc_handler *handler = NULL;
 
+	/* Ignore SVE hint bit, until RMM supports SVE hint bit */
+	function_id &= ~MASK(SMC_SVE_HINT);
+
 	if (IS_SMC64_RMI_FID(function_id)) {
 		handler_id = SMC_RMI_HANDLER_ID(function_id);
 		if (handler_id < ARRAY_LEN(smc_handlers)) {

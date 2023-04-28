@@ -5,10 +5,10 @@
 
 #include <assert.h>
 #include <debug.h>
-#include <fpu_helpers.h>
 #include <mbedtls/sha256.h>
 #include <mbedtls/sha512.h>
 #include <measurement.h>
+#include <simd.h>
 #include <stdbool.h>
 
 #if LOG_LEVEL >= LOG_LEVEL_VERBOSE

@@ -15,9 +15,9 @@
 #include <attestation_priv.h>
 #include <attestation_token.h>
 #include <debug.h>
-#include <fpu_helpers.h>
 #include <measurement.h>
 #include <qcbor/qcbor.h>
+#include <simd.h>
 #include <t_cose/q_useful_buf.h>
 #include <t_cose/t_cose_common.h>
 #include <t_cose/t_cose_sign1_sign.h>

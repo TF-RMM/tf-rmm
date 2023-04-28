@@ -10,10 +10,10 @@
 #include <cpuid.h>
 #include <entropy.h>
 #include <errno.h>
-#include <fpu_helpers.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/hmac_drbg.h>
 #include <platform_api.h>
+#include <simd.h>
 #include <stdbool.h>
 #include <utils_def.h>
 

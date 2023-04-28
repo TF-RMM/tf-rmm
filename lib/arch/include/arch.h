@@ -535,6 +535,9 @@
 #define ID_AA64MMFR1_EL1_VMIDBits_8		UL(0)
 #define ID_AA64MMFR1_EL1_VMIDBits_16		UL(2)
 
+/* SVE Feature ID register 0 */
+#define ID_AA64ZFR0_EL1				S3_0_C0_C4_4
+
 /* HPFAR_EL2 definitions */
 #define HPFAR_EL2_FIPA_SHIFT		4
 #define HPFAR_EL2_FIPA_WIDTH		40
@@ -582,6 +585,11 @@
 #define SPSR_EL2_N_BIT			(UL(1) << 31)
 #define SPSR_EL2_PM_BIT			(UL(1) << 32)
 #define SPSR_EL2_PPEND_BIT		(UL(1) << 33)
+
+/* SVE Control Register */
+#define ZCR_EL2				S3_4_C1_C2_0
+#define ZCR_EL2_SVE_VL_SHIFT		UL(0)
+#define ZCR_EL2_SVE_VL_WIDTH		UL(4)
 
 /* VTCR definitions */
 #define VTCR_T0SZ_SHIFT		0

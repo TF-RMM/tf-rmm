@@ -8,8 +8,10 @@
 #include <buffer.h>
 #include <debug.h>
 #include <rmm_el3_ifc.h>
+#include <simd.h>
 #include <smc-rmi.h>
 #include <smc-rsi.h>
+
 
 #ifdef NDEBUG
 #define RMM_BUILD_TYPE	"release"
@@ -32,6 +34,8 @@ static void rmm_arch_init(void)
 	write_mdcr_el2(MDCR_EL2_INIT |
 			INPLACE(MDCR_EL2_HPMN,
 			EXTRACT(PMCR_EL0_N, read_pmcr_el0())));
+
+	simd_init();
 }
 
 void rmm_warmboot_main(void)
