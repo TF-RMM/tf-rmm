@@ -14,28 +14,27 @@ void handle_rsi_ipa_state_set(struct rec *rec,
 			      struct rmi_rec_exit *rec_exit,
 			      struct rsi_result *res)
 {
-	unsigned long start = rec->regs[1];
-	unsigned long size = rec->regs[2];
-	unsigned long end = start + size;
+	unsigned long base = rec->regs[1];
+	unsigned long top = base + rec->regs[2];
 	enum ripas ripas_val = (enum ripas)rec->regs[3];
 
-	if ((ripas_val > RIPAS_RAM)	    ||
-	    !GRANULE_ALIGNED(start) || !GRANULE_ALIGNED(size) ||
-	    (end <= start)	    || /* Size is zero, or range overflows */
-	    !region_in_rec_par(rec, start, end)) {
+	if ((ripas_val > RIPAS_RAM) ||
+	    !GRANULE_ALIGNED(base) || !GRANULE_ALIGNED(top) ||
+	    (top <= base)	    || /* Size is zero, or range overflows */
+	    !region_in_rec_par(rec, base, top)) {
 		res->action = UPDATE_REC_RETURN_TO_REALM;
 		res->smc_res.x[0] = RSI_ERROR_INPUT;
 		return;
 	}
 
-	rec->set_ripas.base = start;
-	rec->set_ripas.top = end;
-	rec->set_ripas.addr = start;
+	rec->set_ripas.base = base;
+	rec->set_ripas.top = top;
+	rec->set_ripas.addr = base;
 	rec->set_ripas.ripas_val = ripas_val;
 
 	rec_exit->exit_reason = RMI_EXIT_RIPAS_CHANGE;
-	rec_exit->ripas_base = start;
-	rec_exit->ripas_size = size;
+	rec_exit->ripas_base = base;
+	rec_exit->ripas_top = top;
 	rec_exit->ripas_value = (unsigned int)ripas_val;
 
 	res->action = UPDATE_REC_EXIT_TO_HOST;

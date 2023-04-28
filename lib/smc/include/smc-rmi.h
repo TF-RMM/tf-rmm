@@ -465,7 +465,7 @@ struct rmi_rec_exit {
 			/* Base address of pending RIPAS change */
 			unsigned long ripas_base;	/* 0x500 */
 			/* Size of pending RIPAS change */
-			unsigned long ripas_size;	/* 0x508 */
+			unsigned long ripas_top;	/* 0x508 */
 			/* RIPAS value of pending RIPAS change */
 			unsigned char ripas_value;	/* 0x510 */
 		   }, 0x500, 0x600);

@@ -378,7 +378,7 @@ unsigned long smc_rec_destroy(unsigned long rec_addr)
 	return RMI_SUCCESS;
 }
 
-void smc_rec_aux_count(unsigned long rd_addr, struct smc_result *ret_struct)
+void smc_rec_aux_count(unsigned long rd_addr, struct smc_result *res)
 {
 	unsigned int num_rec_aux;
 	struct granule *g_rd;
@@ -386,7 +386,7 @@ void smc_rec_aux_count(unsigned long rd_addr, struct smc_result *ret_struct)
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
-		ret_struct->x[0] = RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
@@ -395,8 +395,8 @@ void smc_rec_aux_count(unsigned long rd_addr, struct smc_result *ret_struct)
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
 
-	ret_struct->x[0] = RMI_SUCCESS;
-	ret_struct->x[1] = (unsigned long)num_rec_aux;
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = (unsigned long)num_rec_aux;
 }
 
 unsigned long smc_psci_complete(unsigned long calling_rec_addr,

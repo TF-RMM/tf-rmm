@@ -52,14 +52,14 @@ typedef unsigned long (*handler_4)(unsigned long arg0, unsigned long arg1,
 typedef unsigned long (*handler_5)(unsigned long arg0, unsigned long arg1,
 				   unsigned long arg2, unsigned long arg3,
 				   unsigned long arg4);
-typedef void (*handler_1_o)(unsigned long arg0, struct smc_result *ret);
+typedef void (*handler_1_o)(unsigned long arg0, struct smc_result *res);
 typedef void (*handler_2_o)(unsigned long arg0, unsigned long arg1,
-			    struct smc_result *ret);
+			    struct smc_result *res);
 typedef void (*handler_3_o)(unsigned long arg0, unsigned long arg1,
-			    unsigned long arg2, struct smc_result *ret);
+			    unsigned long arg2, struct smc_result *res);
 typedef void (*handler_4_o)(unsigned long arg0, unsigned long arg1,
 			    unsigned long arg2, unsigned long arg3,
-			    struct smc_result *ret);
+			    struct smc_result *res);
 
 /*
  * SMC RMI handler type encoding:
@@ -167,7 +167,7 @@ static inline bool rmi_handler_needs_fpu(unsigned long id)
 
 static void rmi_log_on_exit(unsigned long handler_id,
 			    unsigned long args[],
-			    struct smc_result *ret)
+			    struct smc_result *res)
 {
 	const struct smc_handler *handler = &smc_handlers[handler_id];
 	unsigned long function_id = SMC64_RMI_FID(handler_id);
@@ -183,11 +183,11 @@ static void rmi_log_on_exit(unsigned long handler_id,
 		 * RMM_VERSION is special because it returns the
 		 * version number, not the error code.
 		 */
-		INFO("SMC_RMM_%-21s > %lx\n", handler->fn_name, ret->x[0]);
+		INFO("SMC_RMM_%-21s > %lx\n", handler->fn_name, res->x[0]);
 		return;
 	}
 
-	rc = unpack_return_code(ret->x[0]);
+	rc = unpack_return_code(res->x[0]);
 
 	if ((handler->log_exec) ||
 	    (handler->log_error && (rc.status != RMI_SUCCESS))) {
@@ -204,7 +204,7 @@ static void rmi_log_on_exit(unsigned long handler_id,
 
 		/* Print status */
 		if (rc.status >= RMI_ERROR_COUNT) {
-			INFO(" > %lx", ret->x[0]);
+			INFO(" > %lx", res->x[0]);
 		} else {
 			INFO(" > RMI_%s", rmi_status_string[rc.status]);
 		}
@@ -225,7 +225,7 @@ static void rmi_log_on_exit(unsigned long handler_id,
 			assert(num <= MAX_NUM_OUTPUT_VALS);
 
 			for (unsigned int i = 1U; i <= num; i++) {
-				INFO(" %lx", ret->x[i]);
+				INFO(" %lx", res->x[i]);
 			}
 		}
 		INFO("\n");
@@ -239,7 +239,7 @@ void handle_ns_smc(unsigned long function_id,
 		   unsigned long arg3,
 		   unsigned long arg4,
 		   unsigned long arg5,
-		   struct smc_result *ret)
+		   struct smc_result *res)
 {
 	unsigned long handler_id;
 	const struct smc_handler *handler = NULL;
@@ -262,7 +262,7 @@ void handle_ns_smc(unsigned long function_id,
 	if ((handler == NULL) || (handler->fn_dummy == NULL)) {
 		VERBOSE("[%s] unknown function_id: %lx\n",
 			__func__, function_id);
-		ret->x[0] = SMC_UNKNOWN;
+		res->x[0] = SMC_UNKNOWN;
 		return;
 	}
 
@@ -279,40 +279,40 @@ void handle_ns_smc(unsigned long function_id,
 
 	switch (handler->type) {
 	case rmi_type_00:
-		ret->x[0] = handler->f_00();
+		res->x[0] = handler->f_00();
 		break;
 	case rmi_type_10:
-		ret->x[0] = handler->f_10(arg0);
+		res->x[0] = handler->f_10(arg0);
 		break;
 	case rmi_type_20:
-		ret->x[0] = handler->f_20(arg0, arg1);
+		res->x[0] = handler->f_20(arg0, arg1);
 		break;
 	case rmi_type_30:
-		ret->x[0] = handler->f_30(arg0, arg1, arg2);
+		res->x[0] = handler->f_30(arg0, arg1, arg2);
 		break;
 	case rmi_type_40:
-		ret->x[0] = handler->f_40(arg0, arg1, arg2, arg3);
+		res->x[0] = handler->f_40(arg0, arg1, arg2, arg3);
 		break;
 	case rmi_type_50:
-		ret->x[0] = handler->f_50(arg0, arg1, arg2, arg3, arg4);
+		res->x[0] = handler->f_50(arg0, arg1, arg2, arg3, arg4);
 		break;
 	case rmi_type_11:
-		handler->f_11(arg0, ret);
+		handler->f_11(arg0, res);
 		break;
 	case rmi_type_22:
-		handler->f_22(arg0, arg1, ret);
+		handler->f_22(arg0, arg1, res);
 		break;
 	case rmi_type_31:
-		handler->f_31(arg0, arg1, arg2, ret);
+		handler->f_31(arg0, arg1, arg2, res);
 		break;
 	case rmi_type_32:
-		handler->f_32(arg0, arg1, arg2, ret);
+		handler->f_32(arg0, arg1, arg2, res);
 		break;
 	case rmi_type_34:
-		handler->f_34(arg0, arg1, arg2, ret);
+		handler->f_34(arg0, arg1, arg2, res);
 		break;
 	case rmi_type_41:
-		handler->f_41(arg0, arg1, arg2, arg3, ret);
+		handler->f_41(arg0, arg1, arg2, arg3, res);
 		break;
 	default:
 		assert(false);
@@ -321,7 +321,7 @@ void handle_ns_smc(unsigned long function_id,
 	if (rmi_call_log_enabled) {
 		unsigned long args[] = {arg0, arg1, arg2, arg3, arg4};
 
-		rmi_log_on_exit(handler_id, args, ret);
+		rmi_log_on_exit(handler_id, args, res);
 	}
 
 	/* If the handler uses FPU, restore the saved  NS simd context. */
