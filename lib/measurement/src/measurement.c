@@ -136,7 +136,7 @@ static void measurement_extend_sha512(void *current_measurement,
 
 	ret = mbedtls_sha512_update(
 		&sha512_ctx,
-		(unsigned char *)extend_measurement_size,
+		(unsigned char *)extend_measurement,
 		extend_measurement_size);
 	assert(ret == 0);
 
