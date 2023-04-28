@@ -131,8 +131,8 @@ struct rsi_realm_config {
 #define SMC_RSI_REALM_CONFIG		SMC64_RSI_FID(U(0x6))
 
 /*
- * arg0 == IPA address of target region
- * arg1 == Size of target region in bytes
+ * arg0 == Base IPA address of target region
+ * arg1 == Top address of target region
  * arg2 == RIPAS value
  * ret0 == Status / error
  * ret1 == Top of modified IPA range

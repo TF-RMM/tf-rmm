@@ -15,7 +15,7 @@ void handle_rsi_ipa_state_set(struct rec *rec,
 			      struct rsi_result *res)
 {
 	unsigned long base = rec->regs[1];
-	unsigned long top = base + rec->regs[2];
+	unsigned long top = rec->regs[2];
 	enum ripas ripas_val = (enum ripas)rec->regs[3];
 
 	if ((ripas_val > RIPAS_RAM) ||
