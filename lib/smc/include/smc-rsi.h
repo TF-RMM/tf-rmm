@@ -18,7 +18,7 @@
  * The major version number of the RSI implementation.  Increase this whenever
  * the binary format or semantics of the SMC calls change.
  */
-#define RSI_ABI_VERSION_MAJOR		U(12)
+#define RSI_ABI_VERSION_MAJOR		U(13)
 
 /*
  * The minor version number of the RSI implementation.  Increase this when
