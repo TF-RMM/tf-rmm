@@ -23,7 +23,7 @@ arm_config_option(
     NAME RMM_NUM_PAGES_PER_STACK
     HELP "Number of pages to use per CPU stack"
     TYPE STRING
-    DEFAULT 3
+    DEFAULT 4
     ADVANCED)
 
 target_compile_definitions(rmm-runtime
