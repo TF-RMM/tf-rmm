@@ -388,8 +388,7 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	bool ret_to_rec = true;	/* Return to Realm */
 	unsigned int function_id = (unsigned int)rec->regs[0];
 
-	RSI_LOG_SET(rec->regs[1], rec->regs[2],
-		    rec->regs[3], rec->regs[4], rec->regs[5]);
+	RSI_LOG_SET(rec->regs);
 
 	/* Ignore SVE hint bit, until RMM supports SVE hint bit */
 	function_id &= ~MASK(SMC_SVE_HINT);
@@ -584,7 +583,7 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	}
 
 	/* Log RSI call */
-	RSI_LOG_EXIT(function_id, rec->regs[0], ret_to_rec);
+	RSI_LOG_EXIT(function_id, rec->regs, ret_to_rec);
 	return ret_to_rec;
 }
 
