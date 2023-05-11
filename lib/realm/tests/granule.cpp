@@ -1406,7 +1406,7 @@ ASSERT_TEST(granule, granule_refcount_dec_TC3)
 	struct granule *granule = find_granule(address);
 	unsigned long val =
 		(unsigned long)test_helpers_get_rand_in_range(10, INT_MAX - 1);
-	unsigned int lock = set_rand_non_zero_lock_value(granule);
+	set_rand_non_zero_lock_value(granule);
 
 	/******************************************************************
 	 * TEST CASE 3:
