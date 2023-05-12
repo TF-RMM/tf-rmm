@@ -23,7 +23,10 @@ endif()
 set(ENABLE_PROGRAMS OFF CACHE BOOL "Setting for mbedtls program")
 set(ENABLE_TESTING OFF CACHE BOOL "Setting for mbedtls tests")
 
-# The CFlags modifications are local in scope and only apply to MbedTLS build
+# Ensure that the CFlags modifications are local in scope and only apply to
+# MbedTLS build
+set(BACKUP_C_CLAGS "${CMAKE_C_FLAGS}")
+
 if(RMM_FPU_USE_AT_REL2)
     # Enable using floating point registers for mbed TLS
     string(REPLACE "-mgeneral-regs-only" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
@@ -42,3 +45,6 @@ endif()
 add_subdirectory("${RMM_SOURCE_DIR}/ext/mbedtls" "${CMAKE_BINARY_DIR}/ext/mbedtls" EXCLUDE_FROM_ALL)
 
 target_link_libraries(rmm-mbedtls INTERFACE mbedtls)
+
+# Restore the original CXX flags.
+set(CMAKE_C_FLAGS "${BACKUP_C_FLAGS}")
