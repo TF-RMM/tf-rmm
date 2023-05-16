@@ -388,10 +388,9 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 
 	rd->num_rec_aux = MAX_REC_AUX_GRANULES;
 
-	rd->sve_enabled = EXTRACT(RMM_FEATURE_REGISTER_0_SVE_EN, p.flags);
+	rd->sve_enabled = EXTRACT(RMI_REALM_FLAGS_SVE, p.flags);
 	if (rd->sve_enabled) {
-		rd->sve_vq = EXTRACT(RMM_FEATURE_REGISTER_0_SVE_VL,
-				     p.flags);
+		rd->sve_vq = (uint8_t)p.sve_vl;
 	}
 
 	rd->algorithm = p.hash_algo;
