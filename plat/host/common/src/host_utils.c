@@ -202,6 +202,9 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	ret = host_util_set_default_sysreg_cb("pmcr_el0",
 			INPLACE(PMCR_EL0_N, 31UL));
 
+	/* Set ISR_EL1 to 0 */
+	ret = host_util_set_default_sysreg_cb("isr_el1", 0UL);
+
 	/*
 	 * Only check the return value of the last callback setup, to detect
 	 * if we are out of callback slots.

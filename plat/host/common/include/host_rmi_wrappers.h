@@ -22,5 +22,12 @@ void host_rmi_rec_create(void *rec, void *rd, void *params_ptr,
 void host_rmi_rec_destroy(void *rec, struct smc_result *ret);
 void host_rmi_realm_activate(void *rd, struct smc_result *ret);
 void host_rmi_rec_enter(void *rec, void *run_ptr, struct smc_result *ret);
+void host_rmi_data_create(uintptr_t data, void *rd, uintptr_t ipa,
+			 uintptr_t src, struct smc_result *ret);
+void host_rmi_data_create_unknown(uintptr_t data, void *rd, uintptr_t ipa,
+			struct smc_result *ret);
+void host_rmi_rtt_init_ripas(void *rd, uintptr_t ipa, int64_t level,
+			struct smc_result *ret);
+void host_rmi_data_destroy(void *rd, uintptr_t ipa, struct smc_result *ret);
 
 #endif /* HOST_RMI_WRAPPERS_H */
