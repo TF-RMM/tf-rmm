@@ -106,3 +106,5 @@ if(NOT RMM_ARCH STREQUAL fake_host)
     set_property(TARGET rmm-runtime-lds APPEND
         PROPERTY COMPILE_DEFINITIONS "RMM_NUM_PAGES_PER_STACK=UL(${RMM_NUM_PAGES_PER_STACK})")
 endif()
+
+include (tests/CMakeLists.txt)
