@@ -17,6 +17,28 @@
 #define XLAT_TESTS_MAX_MMAPS	(20U)
 
 /*
+ * Return the minimum lookup level supported.
+ */
+#define XLAT_TEST_MIN_LVL()			\
+	((is_feat_lpa2_4k_present() == true) ?	\
+	XLAT_TABLE_LEVEL_MIN : XLAT_TABLE_LEVEL_MIN + 1)
+
+/*
+ * Return the maximum VA space size.
+ */
+#define XLAT_TEST_MAX_VA_SIZE()			\
+	((is_feat_lpa2_4k_present() == true) ?	\
+	MAX_VIRT_ADDR_SPACE_SIZE_LPA2 : MAX_VIRT_ADDR_SPACE_SIZE)
+
+/*
+ * Return the PA Mask
+ */
+#define XLAT_TEST_GET_PA_MASK()			\
+	((is_feat_lpa2_4k_present() == true) ?	\
+	XLAT_TESTS_PA_MASK_LPA2 : XLAT_TESTS_PA_MASK)
+
+
+/*
  * Helper function to initialize a xlat_ctx_tbls structure with
  * a given set of parameters.
  *
@@ -41,7 +63,7 @@ void xlat_test_helpers_init_ctx_cfg(struct xlat_ctx_cfg *ctx_cfg,
 				    uintptr_t base_va,
 				    uintptr_t max_mapped_pa,
 				    uintptr_t max_mapped_va_offset,
-				    unsigned int base_level,
+				    int base_level,
 				    xlat_addr_region_id_t region,
 				    struct xlat_mmap_region *mm,
 				    unsigned int mmaps,
@@ -87,10 +109,10 @@ uintptr_t xlat_test_helpers_get_start_va(xlat_addr_region_id_t region,
  * table.
  */
 int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,
-				 unsigned long long va,
+				 uint64_t va,
 				 uint64_t *tte,
 				 uint64_t **table_ptr,
-				 unsigned int *level,
+				 int *level,
 				 unsigned int *index);
 
 /*
@@ -113,7 +135,7 @@ int xlat_test_helpers_gen_attrs(uint64_t *attrs, uint64_t mmap_attrs);
  * This function assumes that the context is valid and properly initialized.
  */
 int xlat_test_helpers_get_attrs_for_va(struct xlat_ctx *ctx,
-					unsigned long long va,
+					uint64_t va,
 					uint64_t *attrs);
 
 /*

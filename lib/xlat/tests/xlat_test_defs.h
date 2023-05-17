@@ -28,6 +28,13 @@
 /* PA address mask */
 #define XLAT_TESTS_PA_MASK		(XLAT_TESTS_MAX_PA_SIZE - 1ULL)
 
+/* Same as above, but with FEAT_LPA2 enabled (PA size up to 52 bits) */
+#define XLAT_TESTS_MAX_PA_BITS_LPA2	(52U)
+/* Maximum PA space size */
+#define XLAT_TESTS_MAX_PA_SIZE_LPA2	(1ULL << XLAT_TESTS_MAX_PA_BITS_LPA2)
+/* PA address mask */
+#define XLAT_TESTS_PA_MASK_LPA2		(XLAT_TESTS_MAX_PA_SIZE_LPA2 - 1ULL)
+
 /* Bitmask for a low region VA */
 #define XLAT_TESTS_LOW_REGION_MASK	(~(HIGH_REGION_MASK))
 
