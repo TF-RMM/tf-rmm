@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <cpuid.h>
 #include <simd.h>
+#include <simd_private.h>
 
 /*
  * Global to store the max vq length supported by the CPU. We expect all CPUs
@@ -73,7 +74,7 @@ void simd_save_state(simd_t type, struct simd_state *simd)
 	switch (type) {
 	case SIMD_FPU:
 		assert(is_fpen_enabled());
-		fpu_save_state(&simd->t.fpu);
+		fpu_save_state((uint8_t *)&simd->t.fpu);
 		break;
 	case SIMD_SVE:
 		assert(is_feat_sve_present() == true);
@@ -112,7 +113,7 @@ void simd_restore_state(simd_t type, struct simd_state *simd)
 	case SIMD_FPU:
 		assert(is_fpen_enabled());
 		assert(simd->simd_type == SIMD_FPU);
-		fpu_restore_state(&simd->t.fpu);
+		fpu_restore_state((uint8_t *)&simd->t.fpu);
 		break;
 	case SIMD_SVE:
 		assert(is_feat_sve_present() == true);
