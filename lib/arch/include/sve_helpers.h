@@ -28,7 +28,7 @@
 					     SVE_FFR_REG_NUM))
 
 /* SVE vq architecture limit */
-#define SVE_VQ_ARCH_MAX		((1 << ZCR_EL2_SVE_VL_WIDTH) - 1)
+#define SVE_VQ_ARCH_MAX		((1 << ZCR_EL2_LEN_WIDTH) - 1)
 
 /* convert SVE VL in bytes to VQ */
 #define SVE_VL_TO_VQ(vl_bytes)	((((vl_bytes) << 3) / 128) - 1)

@@ -50,9 +50,9 @@ static void sve_config_vq(uint8_t vq)
 	u_register_t zcr_val;
 
 	zcr_val = read_zcr_el2();
-	if (EXTRACT(ZCR_EL2_SVE_VL, zcr_val) != vq) {
-		zcr_val &= ~MASK(ZCR_EL2_SVE_VL);
-		zcr_val |= INPLACE(ZCR_EL2_SVE_VL, vq);
+	if (EXTRACT(ZCR_EL2_LEN, zcr_val) != vq) {
+		zcr_val &= ~MASK(ZCR_EL2_LEN);
+		zcr_val |= INPLACE(ZCR_EL2_LEN, vq);
 		write_zcr_el2(zcr_val);
 		isb();
 	}
