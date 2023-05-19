@@ -202,11 +202,17 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 	}
 
 	/* Validate RMI_REALM_FLAGS_SVE flag */
-	if ((EXTRACT(RMI_REALM_FLAGS_SVE, p->flags) ==
-						RMI_FEATURE_TRUE) &&
-	    (EXTRACT(RMM_FEATURE_REGISTER_0_SVE_EN, feat_reg0) ==
-						RMI_FEATURE_FALSE)) {
-		return false;
+	if (EXTRACT(RMI_REALM_FLAGS_SVE, p->flags) == RMI_FEATURE_TRUE) {
+		if (EXTRACT(RMM_FEATURE_REGISTER_0_SVE_EN, feat_reg0) ==
+						      RMI_FEATURE_FALSE) {
+			return false;
+		}
+
+		/* Validate SVE_VL value */
+		if (p->sve_vl >
+			EXTRACT(RMM_FEATURE_REGISTER_0_SVE_VL, feat_reg0)) {
+			return false;
+		}
 	}
 
 	/*
