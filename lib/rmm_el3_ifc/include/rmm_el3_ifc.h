@@ -52,10 +52,6 @@
 #define RMM_EL3_IFC_GET_VERS_MINOR(_version)			\
 				((_version) & 0xFFFF)
 
-#define RMM_EL3_IFC_SUPPORTED_VERSION				\
-	((((RMM_EL3_IFC_VERS_MAJOR) & 0x7FFF) << 16) |		\
-	((RMM_EL3_IFC_VERS_MINOR) & 0xFFFF))
-
 #define RMM_EL3_IFC_MAKE_VERSION(_major, _minor)		\
 	(((((_major) & 0x7FFF) << 16) | ((_minor) & 0xFFFF)))
 
@@ -69,7 +65,23 @@
  * The Minor version value for the Boot interface supported by this
  * implementation of RMM.
  */
-#define RMM_EL3_IFC_VERS_MINOR		(U(1))
+#define RMM_EL3_IFC_VERS_MINOR		(U(2))
+
+/*
+ * Check if RMM-EL3 Interface is compatible. The Major version should match
+ * and the minor version should be >= the number expected by RMM.
+ */
+#define IS_RMM_EL3_IFC_COMPATIBLE(_version)				\
+	((RMM_EL3_IFC_GET_VERS_MAJOR(_version) == RMM_EL3_IFC_VERS_MAJOR) && \
+	 (RMM_EL3_IFC_GET_VERS_MINOR(_version) >= RMM_EL3_IFC_VERS_MINOR))
+
+
+#define RMM_EL3_MANIFEST_GET_VERS_MAJOR					\
+				RMM_EL3_IFC_GET_VERS_MAJOR
+#define RMM_EL3_MANIFEST_GET_VERS_MINOR					\
+				RMM_EL3_IFC_GET_VERS_MINOR
+#define RMM_EL3_MANIFEST_MAKE_VERSION					\
+				RMM_EL3_IFC_MAKE_VERSION
 
 /*
  * The Major version value for the Boot Manifest supported by this
@@ -83,12 +95,13 @@
  */
 #define RMM_EL3_MANIFEST_VERS_MINOR	(U(2))
 
-#define RMM_EL3_MANIFEST_GET_VERS_MAJOR					\
-				RMM_EL3_IFC_GET_VERS_MAJOR
-#define RMM_EL3_MANIFEST_GET_VERS_MINOR					\
-				RMM_EL3_IFC_GET_VERS_MINOR
-#define RMM_EL3_MANIFEST_VERSION					\
-				RMM_EL3_IFC_SUPPORTED_VERSION
+/*
+ * Check if EL3 Manifest is compatible. The Major version should match
+ * and the minor version should be >= the number expected by RMM.
+ */
+#define IS_RMM_EL3_MANIFEST_COMPATIBLE(_version)				\
+	((RMM_EL3_MANIFEST_GET_VERS_MAJOR(_version) == RMM_EL3_MANIFEST_VERS_MAJOR) && \
+	 (RMM_EL3_MANIFEST_GET_VERS_MINOR(_version) >= RMM_EL3_MANIFEST_VERS_MINOR))
 
 #ifndef __ASSEMBLER__
 /****************************************************************************

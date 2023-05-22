@@ -24,7 +24,8 @@ void rmm_main(void);
 /*
  * Define and set the Boot Interface arguments.
  */
-#define RMM_EL3_IFC_ABI_VERSION		(RMM_EL3_IFC_SUPPORTED_VERSION)
+#define RMM_EL3_IFC_ABI_VERSION		\
+	RMM_EL3_IFC_MAKE_VERSION(RMM_EL3_IFC_VERS_MAJOR, RMM_EL3_IFC_VERS_MINOR)
 #define RMM_EL3_MAX_CPUS		(MAX_CPUS)
 
 /* Maximum size of the assertion check string */

@@ -49,15 +49,11 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 	assert(shared_buf_va != 0UL);
 
 	/*
-	 * Validate that the version number is correct. Only the Major is
-	 * considered for this check.
-	 *
-	 * Version Minor will be used to implement compatibility where
-	 * feasible.
+	 * Validate that the version number is correct.
 	 *
 	 * x1: RMM-EL3 Interface version.
 	 */
-	if (RMM_EL3_IFC_GET_VERS_MAJOR(x1) != RMM_EL3_IFC_VERS_MAJOR) {
+	if (!IS_RMM_EL3_IFC_COMPATIBLE(x1)) {
 		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_VERSION_NOT_VALID);
 	}
 

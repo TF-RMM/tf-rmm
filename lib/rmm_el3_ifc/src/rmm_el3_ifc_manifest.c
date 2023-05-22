@@ -41,11 +41,10 @@ void rmm_el3_ifc_process_boot_manifest(void)
 
 	/*
 	 * Validate the Boot Manifest Version.
-	 * Only the version major is taken into account on the verification.
 	 */
-	if (RMM_EL3_MANIFEST_GET_VERS_MAJOR(local_core_manifest.version) >
-					RMM_EL3_MANIFEST_VERS_MAJOR) {
-		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED);
+	if (!IS_RMM_EL3_MANIFEST_COMPATIBLE(local_core_manifest.version)) {
+		rmm_el3_ifc_report_fail_to_el3(
+					E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED);
 	}
 
 	manifest_processed = true;
@@ -90,11 +89,20 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 	/*
 	 * Validate the Boot Manifest Version
 	 */
-	if (local_core_manifest.version < RMM_EL3_IFC_MAKE_VERSION(0, 2)) {
+	if (local_core_manifest.version <
+			RMM_EL3_MANIFEST_MAKE_VERSION(0, 2)) {
 		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
 	}
 
 	plat_dram = &local_core_manifest.plat_dram;
+
+	/*
+	 * It is possible for the `plat_dram` to be NULL, in case the
+	 * platform does not need to receive this info dynamically.
+	 */
+	if (plat_dram == NULL) {
+		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
+	}
 
 	/* Number of banks */
 	num_banks = plat_dram->num_banks;	/* number of banks */
