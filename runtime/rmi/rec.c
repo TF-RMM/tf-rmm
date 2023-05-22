@@ -32,6 +32,7 @@ static void init_rec_sysregs(struct rec *rec, unsigned long mpidr)
 	rec->sysregs.mdscr_el1 = MDSCR_EL1_TDCC_BIT;
 	rec->sysregs.vmpidr_el2 = mpidr | VMPIDR_EL2_RES1;
 	rec->sysregs.cnthctl_el2 = CNTHCTL_EL2_NO_TRAPS;
+	rec->sysregs.cptr_el2 = CPTR_EL2_VHE_INIT;
 }
 
 /*
@@ -158,20 +159,11 @@ static void rec_attestation_heap_init(struct rec *r)
 /* Initialize REC simd state */
 static void rec_simd_state_init(struct rec *r)
 {
-	struct rec_simd_state *rec_simd;
+	int __unused retval;
 
-	rec_simd = &r->aux_data.rec_simd;
-	assert(rec_simd->simd != NULL);
-
-	/*
-	 * As part of lazy save/restore, the first state will be restored from
-	 * the REC's simd_state. So the initial state is considered saved, call
-	 * simd_state_init() to set the simd type. sve_vq will be set if the REC
-	 * 'stype' is SIMD_SVE.
-	 */
-	simd_state_init(rec_simd_type(r), rec_simd->simd,
-			r->realm_info.sve_vq);
-	rec_simd->simd_allowed = false;
+	retval = simd_context_init(SIMD_OWNER_REL1, r->aux_data.simd_ctx,
+				   &r->realm_info.simd_cfg);
+	assert(retval == 0);
 }
 
 /*
@@ -204,10 +196,10 @@ static void rec_aux_granules_init(struct rec *r)
 	aux_data->attest_heap_buf = (uint8_t *)rec_aux;
 	aux_data->pmu = (struct pmu_state *)
 		((uint8_t *)aux_data->attest_heap_buf + REC_HEAP_SIZE);
-	aux_data->rec_simd.simd = (struct simd_state *)
+	aux_data->simd_ctx = (struct simd_context *)
 		((uint8_t *)aux_data->pmu + REC_PMU_SIZE);
 	aux_data->attest_data = (struct rec_attest_data *)
-		((uint8_t *)aux_data->rec_simd.simd + REC_SIMD_SIZE);
+		((uint8_t *)aux_data->simd_ctx + REC_SIMD_SIZE);
 
 	rec_attestation_heap_init(r);
 	rec_simd_state_init(r);
@@ -317,8 +309,7 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	rec->realm_info.pmu_enabled = rd->pmu_enabled;
 	rec->realm_info.pmu_num_ctrs = rd->pmu_num_ctrs;
 	rec->realm_info.algorithm = rd->algorithm;
-	rec->realm_info.sve_enabled = rd->sve_enabled;
-	rec->realm_info.sve_vq = rd->sve_vq;
+	rec->realm_info.simd_cfg = rd->simd_cfg;
 
 	measurement_rec_params_measure(rd->measurement[RIM_MEASUREMENT_SLOT],
 				       rd->algorithm,

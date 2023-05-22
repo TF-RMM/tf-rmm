@@ -7,9 +7,6 @@
 #define SIMD_H
 
 #include <arch.h>
-#include <arch_features.h>
-#include <assert.h>
-#include <stddef.h>
 
 /* Size of one FPU vector register in bytes */
 #define FPU_VEC_REG_SIZE	16U
@@ -17,9 +14,7 @@
 #define FPU_REGS_SIZE		(FPU_VEC_REG_SIZE * FPU_VEC_REG_NUM)
 
 /* These defines are required by compiler assert to check offsets */
-#define FPU_CTX_OFFSET_Q	0x0U
-#define FPU_CTX_OFFSET_FPSR	(FPU_REGS_SIZE)
-#define FPU_CTX_OFFSET_FPCR	(FPU_CTX_OFFSET_FPSR + 8U)
+#define FPU_REGS_OFFSET_Q	0x0U
 
 /*
  * Size of SVE Z, Predicate (P), First Fault predicate Register (FFR) registers
@@ -44,49 +39,125 @@
 #define SVE_VQ_ARCH_MAX		((1U << ZCR_EL2_LEN_WIDTH) - 1U)
 
 /* These defines are required by compiler assert to check offsets */
-#define SVE_STATE_OFFSET_Z	0x0U
-#define SVE_STATE_OFFSET_P	(SVE_Z_REGS_SIZE(SVE_VQ_ARCH_MAX))
-#define SVE_STATE_OFFSET_FFR	(SVE_STATE_OFFSET_P + \
+#define SVE_REGS_OFFSET_Z	0x0U
+#define SVE_REGS_OFFSET_P	(SVE_Z_REGS_SIZE(SVE_VQ_ARCH_MAX))
+#define SVE_REGS_OFFSET_FFR	(SVE_REGS_OFFSET_P + \
 				 SVE_P_REGS_SIZE(SVE_VQ_ARCH_MAX))
-#define SVE_STATE_OFFSET_ZCR_EL12	(SVE_STATE_OFFSET_FFR + \
-				 SVE_FFR_REGS_SIZE(SVE_VQ_ARCH_MAX))
-#define SVE_STATE_OFFSET_FPSR	(SVE_STATE_OFFSET_ZCR_EL12 + 8U)
-#define SVE_STATE_OFFSET_FPCR	(SVE_STATE_OFFSET_FPSR + 8U)
 
+#ifndef __ASSEMBLER__
+#include <arch_features.h>
+#include <assert.h>
+#include <stddef.h>
+
+/* Flags for SIMD type */
+#define SIMD_TFLAG_SVE		(U(1) << 0)
+
+/* Flags for SIMD status */
+#define SIMD_SFLAG_INIT_DONE	(U(1) << 0)
+#define SIMD_SFLAG_SAVED	(U(1) << 1)
+
+/*
+ * SIMD context owner.
+ * SIMD_OWNER_NWD: Context belongs to NS world
+ * SIMD_OWNER_REL1: Context belongs to Realm
+ */
 typedef enum {
-	SIMD_NONE,
-	SIMD_FPU,
-	SIMD_SVE
-} simd_t;
+	SIMD_OWNER_NWD = 1U,
+	SIMD_OWNER_REL1 = 2U,
+} simd_owner_t;
 
-struct fpu_state {
+/*
+ * The fpu_state is saved or restored across simd context switch if SIMD type
+ * is SIMD_FPU.
+ */
+struct fpu_regs {
 	uint8_t q[FPU_REGS_SIZE];
-	uint64_t fpsr;
-	uint64_t fpcr;
 };
 
-/* SVE state for architecture max supported vector length of 2048 bits */
-struct sve_state {
+/*
+ * SVE registers for architecture max supported vector length of 2048 bits.
+ * This whole sve_regs is saved or restored across simd context switch if SIMD
+ * type flags has SIMD_TFLAG_SVE set.
+ */
+struct sve_regs {
 	uint8_t z[SVE_Z_REGS_SIZE(SVE_VQ_ARCH_MAX)];
 	uint8_t p[SVE_P_REGS_SIZE(SVE_VQ_ARCH_MAX)];
 	uint8_t ffr[SVE_FFR_REGS_SIZE(SVE_VQ_ARCH_MAX)];
-	uint64_t zcr_el12;
-	/*
-	 * Include FPU status and control registers. FPU vector registers are
-	 * shared with Z regs
-	 */
-	uint64_t fpsr;
-	uint64_t fpcr;
-	/* Holds the SVE VQ for this SVE state. Not saved/restored */
-	uint8_t vq;
 };
 
-struct simd_state {
+/* SIMD configuration */
+struct simd_config {
+	/* SVE enabled flag */
+	bool sve_en;
+
+	/*
+	 * SVE vector length represented in quads. Can range from 0x0 to 0xf,
+	 * each increment adds 128 bits to the vector length.
+	 * 0x0 - 128 bits VL (arch min)
+	 * 0xf - 2048 bits VL (arch max)
+	 */
+	uint32_t sve_vq;
+};
+
+/* This structure holds the SIMD related EL2 registers */
+struct simd_el2_regs {
+	uint64_t zcr_el2;
+};
+
+struct simd_context {
+	/* Owner of this context, can be SIMD_OWNER_NWD or SIMD_OWNER_REL1 */
+	simd_owner_t owner;
+
+	/* Bitwise OR of type flags */
+	uint32_t tflags;
+
+	/* Bitwise OR of status flags */
+	uint32_t sflags;
+
+	/* EL2 trap register for this context */
+	uint64_t cptr_el2;
+
+	/*
+	 * EL2 config registers.
+	 * SIMD_OWNER_NWD: RMM intializes based on CPU supported configuration
+	 * SIMD_OWNER_REL1: RMM intializes based on Realm configuration
+	 *
+	 * These registers are written to system before save or restoring
+	 * vector registers.
+	 */
+	struct simd_el2_regs el2_regs;
+
+	/*
+	 * Other world (NS) EL2 Registers:
+	 * RMM will save and restore NS world EL2 registers since EL3 is not
+	 * saving it (only for SIMD_OWNER_NWD).
+	 */
+	struct simd_el2_regs ns_el2_regs;
+
+	/*
+	 * SIMD related control and status sysregs. These registers need to be
+	 * handled separately from the actual SIMD vector registers. Saved and
+	 * restored across context switch.
+	 */
+	struct {
+		/* FPU control and status system registers */
+		uint64_t fpsr;
+		uint64_t fpcr;
+
+		/* SVE control register (EL1) */
+		uint64_t zcr_el12;
+	} ctl_status_regs;
+
+	/*
+	 * SIMD data registers:
+	 * - CPU FPU Q registers.
+	 * - CPU SVE scalable vector registers. Currently 'sve_regs' structure
+	 *   reserves space for max supported vector length by the architecture.
+	 */
 	union {
-		struct fpu_state fpu;
-		struct sve_state sve;
-	} t;
-	simd_t simd_type;
+		struct fpu_regs fpu;
+		struct sve_regs sve;
+	} vregs;
 };
 
 /*
@@ -96,55 +167,25 @@ struct simd_state {
  * TODO: Auto generate header file simd-asm-offsets.h during build and use it
  * in assembly routines.
  */
-COMPILER_ASSERT(__builtin_offsetof(struct fpu_state, q) == FPU_CTX_OFFSET_Q);
-COMPILER_ASSERT(__builtin_offsetof(struct fpu_state, fpsr) ==
-		FPU_CTX_OFFSET_FPSR);
-COMPILER_ASSERT(__builtin_offsetof(struct fpu_state, fpcr) ==
-		FPU_CTX_OFFSET_FPCR);
+COMPILER_ASSERT(__builtin_offsetof(struct fpu_regs, q) == FPU_REGS_OFFSET_Q);
 
-COMPILER_ASSERT(__builtin_offsetof(struct sve_state, z) == SVE_STATE_OFFSET_Z);
-COMPILER_ASSERT(__builtin_offsetof(struct sve_state, p) == SVE_STATE_OFFSET_P);
-COMPILER_ASSERT(__builtin_offsetof(struct sve_state, ffr) ==
-		SVE_STATE_OFFSET_FFR);
-COMPILER_ASSERT(__builtin_offsetof(struct sve_state, zcr_el12) ==
-		SVE_STATE_OFFSET_ZCR_EL12);
-COMPILER_ASSERT(__builtin_offsetof(struct sve_state, fpsr) ==
-		SVE_STATE_OFFSET_FPSR);
-COMPILER_ASSERT(__builtin_offsetof(struct sve_state, fpcr) ==
-		SVE_STATE_OFFSET_FPCR);
+COMPILER_ASSERT(__builtin_offsetof(struct sve_regs, z) == SVE_REGS_OFFSET_Z);
+COMPILER_ASSERT(__builtin_offsetof(struct sve_regs, p) == SVE_REGS_OFFSET_P);
+COMPILER_ASSERT(__builtin_offsetof(struct sve_regs, ffr) == SVE_REGS_OFFSET_FFR);
 
-/* Initialize simd layer based on CPU support for FPU or SVE */
+/* Initialize SIMD layer based on CPU support for FPU or SVE */
 void simd_init(void);
 
-/* Return the max SVE vq discovered by RMM */
-unsigned int simd_sve_get_max_vq(void);
+/* Returns the CPU SIMD config discovered during the init time */
+int simd_get_cpu_config(struct simd_config *simd_cfg);
 
-/* Save SIMD state to memory pointed by 'simd' based on simd 'type'. */
-void simd_save_state(simd_t type, struct simd_state *simd);
+/* Initialize the SIMD context in RMM corresponding to NS world or Realm */
+int simd_context_init(simd_owner_t owner, struct simd_context *simd_ctx,
+		      const struct simd_config *simd_cfg);
 
-/* Restore SIMD state from memory pointed by 'simd' based on simd 'type'. */
-void simd_restore_state(simd_t type, struct simd_state *simd);
-
-/*
- * Initialize the simd_state before using this first time for a REC. The 'sve_vq'
- * parameter will be used to initialize SVE VQ length in case the simd type is
- * SVE or else it is ignored.
- */
-void simd_state_init(simd_t type, struct simd_state *simd, uint8_t sve_vq);
-
-/*
- * Save NS FPU or SVE state from registers to memory. This function dynamically
- * determines the SIMD type based on CPU SIMD capability.
- * TODO: Cater for SVE hint bit.
- */
-void simd_save_ns_state(void);
-
-/*
- * Restore NS FPU or SVE state from memory to registers. This function
- * dynamically determines the SIMD type based on CPU SIMD capability.
- * TODO: Cater for SVE hint bit.
- */
-void simd_restore_ns_state(void);
+/* Switch SIMD context by saving the 'ctx_in' and restoring the 'ctx_out' */
+struct simd_context *simd_context_switch(struct simd_context *ctx_in,
+					 struct simd_context *ctx_out);
 
 /*
  * Returns 'true' if the current CPU's SIMD (FPU/SVE) live state is saved in
@@ -152,46 +193,14 @@ void simd_restore_ns_state(void);
  */
 bool simd_is_state_saved(void);
 
-/* Allow FPU and/or SVE access */
-static inline void simd_enable(simd_t type)
+static inline void simd_context_save(struct simd_context *ctx)
 {
-	unsigned long cptr;
-
-	cptr = read_cptr_el2();
-	cptr &= ~(MASK(CPTR_EL2_VHE_FPEN) | MASK(CPTR_EL2_VHE_ZEN));
-
-	switch (type) {
-	case SIMD_SVE:
-		assert(is_feat_sve_present());
-
-		cptr |= INPLACE(CPTR_EL2_VHE_ZEN, CPTR_EL2_VHE_ZEN_NO_TRAP_11);
-		cptr |= INPLACE(CPTR_EL2_VHE_FPEN, CPTR_EL2_VHE_FPEN_NO_TRAP_11);
-		break;
-	case SIMD_FPU:
-		cptr |= INPLACE(CPTR_EL2_VHE_ZEN, CPTR_EL2_VHE_ZEN_TRAP_ALL_00);
-		cptr |= INPLACE(CPTR_EL2_VHE_FPEN, CPTR_EL2_VHE_FPEN_NO_TRAP_11);
-		break;
-	default:
-		assert(false);
-	}
-
-	write_cptr_el2(cptr);
-	isb();
+	(void)simd_context_switch(ctx, NULL);
 }
 
-/* Deny FPU and SVE access */
-static inline void simd_disable(void)
+static inline void simd_context_restore(struct simd_context *ctx)
 {
-	unsigned long cptr;
-
-	cptr = read_cptr_el2();
-	cptr &= ~(MASK(CPTR_EL2_VHE_FPEN) | MASK(CPTR_EL2_VHE_ZEN));
-
-	cptr |= INPLACE(CPTR_EL2_VHE_ZEN, CPTR_EL2_VHE_ZEN_TRAP_ALL_00);
-	cptr |= INPLACE(CPTR_EL2_VHE_FPEN, CPTR_EL2_VHE_FPEN_TRAP_ALL_00);
-
-	write_cptr_el2(cptr);
-	isb();
+	(void)simd_context_switch(NULL, ctx);
 }
 
 /*
@@ -200,10 +209,17 @@ static inline void simd_disable(void)
 #ifdef RMM_FPU_USE_AT_REL2
 #define SIMD_FPU_ALLOW(expression)				\
 	do {							\
+		unsigned long cptr_el2 = read_cptr_el2();	\
+								\
 		assert(simd_is_state_saved() == true);		\
-		simd_enable(SIMD_FPU);				\
+		write_cptr_el2(cptr_el2 | INPLACE(CPTR_EL2_VHE_FPEN,\
+				CPTR_EL2_VHE_FPEN_NO_TRAP_11));	\
+		isb();						\
+								\
 		expression;					\
-		simd_disable();					\
+								\
+		write_cptr_el2(cptr_el2);			\
+		isb();						\
 	} while (false)
 
 #define SIMD_IS_FPU_ALLOWED()	(simd_is_state_saved() && is_fpen_enabled())
@@ -217,5 +233,7 @@ static inline void simd_disable(void)
 #define SIMD_IS_FPU_ALLOWED() (true)
 
 #endif /* RMM_FPU_USE_AT_REL2 */
+
+#endif /* __ASSEMBLER__ */
 
 #endif /* SIMD_H */

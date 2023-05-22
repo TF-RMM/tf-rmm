@@ -278,6 +278,7 @@ DEFINE_SYSREG_RW_FUNCS(csselr_el1)
 DEFINE_SYSREG_RW_FUNCS(sctlr_el12)
 DEFINE_SYSREG_RW_FUNCS(cpacr_el12)
 DEFINE_RENAME_SYSREG_RW_FUNCS(zcr_el2, ZCR_EL2)
+DEFINE_RENAME_SYSREG_RW_FUNCS(zcr_el12, ZCR_EL12)
 DEFINE_SYSREG_RW_FUNCS(ttbr0_el12)
 DEFINE_SYSREG_RW_FUNCS(ttbr1_el12)
 DEFINE_SYSREG_RW_FUNCS(tcr_el12)
@@ -396,6 +397,9 @@ DEFINE_SYSREG_RW_FUNCS(hstr_el2)
 DEFINE_SYSREG_RW_FUNCS(mpam2_el2)
 DEFINE_SYSREG_RW_FUNCS(mpamhcr_el2)
 DEFINE_SYSREG_RW_FUNCS(pmscr_el2)
+
+DEFINE_RENAME_SYSREG_RW_FUNCS(fpcr, FPCR)
+DEFINE_RENAME_SYSREG_RW_FUNCS(fpsr, FPSR)
 
 /*******************************************************************************
  * Timer register accessor prototypes

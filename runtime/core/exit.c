@@ -18,7 +18,6 @@
 #include <rec.h>
 #include <rsi-handler.h>
 #include <rsi-logger.h>
-#include <run.h>
 #include <simd.h>
 #include <smc-rmi.h>
 #include <smc-rsi.h>
@@ -295,27 +294,37 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
  * Handle FPU or SVE exceptions.
  * Returns: true if the exception is handled.
  */
-static bool handle_simd_exception(simd_t exp_type, struct rec *rec)
+static bool handle_simd_exception(struct rec *rec, unsigned long esr)
 {
+	unsigned long esr_el2_ec = esr & MASK(ESR_EL2_EC);
+
 	/*
 	 * If the REC wants to use SVE and if SVE is not enabled for this REC
 	 * then inject undefined abort. This can happen when CPU implements
 	 * FEAT_SVE but the Realm didn't request this feature during creation.
 	 */
-	if ((exp_type == SIMD_SVE) && (rec_simd_type(rec) != SIMD_SVE)) {
+	if ((esr_el2_ec == ESR_EL2_EC_SVE) && !rec->realm_info.simd_cfg.sve_en) {
 		realm_inject_undef_abort();
 		return true;
 	}
 
-	/* FPU or SVE exception can happen only when REC hasn't used SIMD */
-	assert(rec_is_simd_allowed(rec) == false);
-
 	/*
-	 * Allow the REC to use SIMD. Save NS SIMD state and restore REC SIMD
-	 * state from memory to registers.
+	 * As REC uses lazy enablement, upon FPU/SVE exception the active SIMD
+	 * context must not be the REC's context
 	 */
-	simd_save_ns_state();
-	rec_simd_enable_restore(rec);
+	assert(rec->active_simd_ctx != rec->aux_data.simd_ctx);
+
+	/* Save the NS SIMD context and restore REC's SIMD context */
+	rec->active_simd_ctx = simd_context_switch(rec->active_simd_ctx,
+						   rec->aux_data.simd_ctx);
+
+	/* Update REC's cptr_el2 */
+	rec->sysregs.cptr_el2 |= INPLACE(CPTR_EL2_VHE_FPEN,
+					 CPTR_EL2_VHE_FPEN_NO_TRAP_11);
+	if (rec->realm_info.simd_cfg.sve_en) {
+		rec->sysregs.cptr_el2 |= INPLACE(CPTR_EL2_VHE_ZEN,
+						 CPTR_EL2_VHE_ZEN_NO_TRAP_11);
+	}
 
 	/*
 	 * Return 'true' indicating that this exception has been handled and
@@ -352,8 +361,7 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 {
 	struct rsi_result res = { 0 };
 	unsigned int function_id = (unsigned int)rec->regs[0];
-	bool restore_rec_simd_state = false;
-	bool needs_fpu;
+	bool restore_simd_ctx = false;
 	unsigned int i;
 
 	RSI_LOG_SET(rec->regs);
@@ -369,26 +377,9 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	/* Ignore SVE hint bit, until RMM supports SVE hint bit */
 	function_id &= ~SMC_SVE_HINT;
 
-	needs_fpu = rsi_handler_needs_fpu(function_id);
-	if (needs_fpu) {
-		/*
-		 * RSI handler uses FPU at REL2, so actively save REC SIMD state
-		 * if REC is using SIMD or NS SIMD state. Restore the same before
-		 * return from this function.
-		 */
-		if (rec_is_simd_allowed(rec)) {
-			rec_simd_save_disable(rec);
-			restore_rec_simd_state = true;
-		} else {
-			simd_save_ns_state();
-		}
-	} else if (rec_is_simd_allowed(rec)) {
-		/*
-		 * If the REC is allowed to access SIMD, then we will enter RMM
-		 * with SIMD traps disabled. So enable SIMD traps as RMM by
-		 * default runs with SIMD traps enabled
-		 */
-		simd_disable();
+	if (rsi_handler_needs_fpu(function_id) == true) {
+		simd_context_save(rec->active_simd_ctx);
+		restore_simd_ctx = true;
 	}
 
 	switch (function_id) {
@@ -433,14 +424,8 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		break;
 	}
 
-	if (needs_fpu) {
-		if (restore_rec_simd_state == true) {
-			rec_simd_enable_restore(rec);
-		} else {
-			simd_restore_ns_state();
-		}
-	} else if (rec_is_simd_allowed(rec)) {
-		simd_enable(rec_simd_type(rec));
+	if (restore_simd_ctx) {
+		simd_context_restore(rec->active_simd_ctx);
 	}
 
 	if (((unsigned int)res.action & FLAG_UPDATE_REC) != 0U) {
@@ -490,9 +475,8 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 	case ESR_EL2_EC_DATA_ABORT:
 		return handle_data_abort(rec, rec_exit, esr);
 	case ESR_EL2_EC_FPU:
-		return handle_simd_exception(SIMD_FPU, rec);
 	case ESR_EL2_EC_SVE:
-		return handle_simd_exception(SIMD_SVE, rec);
+		return handle_simd_exception(rec, esr);
 	default:
 		/*
 		 * TODO: Check if there are other exit reasons we could

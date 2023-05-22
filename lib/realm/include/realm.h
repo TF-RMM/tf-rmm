@@ -78,16 +78,8 @@ struct rd {
 	/* Number of PMU counters */
 	unsigned int pmu_num_ctrs;
 
-	/* SVE enabled flag */
-	bool sve_enabled;
-
-	/*
-	 * SVE vector length configured for the realm. Can range from 0x0 to 0xf,
-	 * each increment adds 128 bits to the vector length.
-	 * 0x0 - 128 bits VL
-	 * 0xf - 2048 bits VL (arch max)
-	 */
-	uint8_t sve_vq;
+	/* SIMD configuration */
+	struct simd_config simd_cfg;
 
 	/* Realm measurement */
 	unsigned char measurement[MEASUREMENT_SLOT_NR][MAX_MEASUREMENT_SIZE];

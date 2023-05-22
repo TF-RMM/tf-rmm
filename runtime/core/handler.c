@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <buffer.h>
 #include <debug.h>
+#include <run.h>
 #include <simd.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
@@ -247,6 +248,7 @@ void handle_ns_smc(unsigned long function_id,
 	unsigned long handler_id;
 	const struct smc_handler *handler = NULL;
 	bool restore_ns_simd_state = false;
+	struct simd_context *ns_simd_ctx;
 
 	/* Ignore SVE hint bit, until RMM supports SVE hint bit */
 	function_id &= ~SMC_SVE_HINT;
@@ -274,9 +276,12 @@ void handle_ns_smc(unsigned long function_id,
 	/* Current CPU's SIMD state must not be saved when entering RMM */
 	assert(simd_is_state_saved() == false);
 
+	/* Get current CPU's NS SIMD context */
+	ns_simd_ctx = get_cpu_ns_simd_context();
+
 	/* If the handler needs FPU, actively save NS simd context. */
 	if (rmi_handler_needs_fpu(function_id) == true) {
-		simd_save_ns_state();
+		simd_context_save(ns_simd_ctx);
 		restore_ns_simd_state = true;
 	}
 
@@ -327,9 +332,9 @@ void handle_ns_smc(unsigned long function_id,
 		rmi_log_on_exit(handler_id, args, res);
 	}
 
-	/* If the handler uses FPU, restore the saved  NS simd context. */
+	/* If the handler uses FPU, restore the saved NS simd context. */
 	if (restore_ns_simd_state) {
-		simd_restore_ns_state();
+		simd_context_restore(ns_simd_ctx);
 	}
 
 	/* Current CPU's SIMD state must not be saved when exiting RMM */

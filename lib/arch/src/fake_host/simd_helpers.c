@@ -3,49 +3,31 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include <simd_private.h>
+#include <simd.h>
 
-void fpu_save_state(uint8_t *regs_base)
+void fpu_save_registers(struct fpu_regs *regs)
 {
-	(void)regs_base;
+	(void)regs;
 }
 
-void fpu_restore_state(const uint8_t *regs_base)
+void fpu_restore_registers(struct fpu_regs *regs)
 {
-	(void)regs_base;
+	(void)regs;
 }
 
-uint64_t sve_rdvl(void)
+uint32_t sve_rdvl(void)
 {
-	return 0;
+	return 0U;
 }
 
-void sve_save_zcr_fpu_state(uint8_t *regs_base)
+void sve_save_vector_registers(struct sve_regs *regs, bool save_ffr)
 {
-	(void)regs_base;
+	(void)regs;
+	(void)save_ffr;
 }
 
-void sve_save_z_state(uint8_t *regs_base)
+void sve_restore_vector_registers(struct sve_regs *regs, bool restore_ffr)
 {
-	(void)regs_base;
-}
-
-void sve_save_p_ffr_state(uint8_t *regs_base)
-{
-	(void)regs_base;
-}
-
-void sve_restore_zcr_fpu_state(uint8_t *regs_base)
-{
-	(void)regs_base;
-}
-
-void sve_restore_z_state(uint8_t *regs_base)
-{
-	(void)regs_base;
-}
-
-void sve_restore_ffr_p_state(uint8_t *regs_base)
-{
-	(void)regs_base;
+	(void)regs;
+	(void)restore_ffr;
 }

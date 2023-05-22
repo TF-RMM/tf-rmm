@@ -584,10 +584,16 @@
 #define SPSR_EL2_PM_BIT			(UL(1) << 32)
 #define SPSR_EL2_PPEND_BIT		(UL(1) << 33)
 
+/* Floating point control and status register */
+#define FPCR				S3_3_C4_C4_0
+#define FPSR				S3_3_C4_C4_1
+
 /* SVE Control Register */
 #define ZCR_EL2				S3_4_C1_C2_0
 #define ZCR_EL2_LEN_SHIFT		UL(0)
 #define ZCR_EL2_LEN_WIDTH		UL(4)
+
+#define ZCR_EL12			S3_5_C1_C2_0
 
 /* VTCR definitions */
 #define VTCR_T0SZ_SHIFT		0

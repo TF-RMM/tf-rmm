@@ -10,28 +10,23 @@
 #include <simd.h>
 #include <simd_private.h>
 
-/*
- * Global to store the max vq length supported by the CPU. We expect all CPUs
- * in the system to support the same max vq length.
- */
-static int32_t g_sve_max_vq = -1;
+/* Contains CPU SIMD configuration discovered during init */
+static struct simd_config g_simd_cfg = { 0 };
+
+/* Set when SIMD init is completed during boot */
+static bool g_simd_init_done;
 
 /*
- * The default CPU simd type is set as FPU. During init time, if CPU supports
- * SVE (which encompasses FPU), this will be updated to SIMD_SVE.
+ * Per-CPU flag to track if CPU's SIMD registers are saved in memory. This
+ * allows checks to figure out whether it is OK to use SIMD registers for RMM's
+ * own purposes at R-EL2.
  */
-static simd_t g_cpu_simd_type = SIMD_FPU;
-
-/* This structure is used for storing FPU or SVE context for NS world. */
-struct ns_simd_state {
-	struct simd_state simd;
-	uint64_t ns_zcr_el2;
-	bool saved;
-} __attribute__((aligned(CACHE_WRITEBACK_GRANULE)));
-
-static struct ns_simd_state g_ns_simd[MAX_CPUS];
-
 static bool g_simd_state_saved[MAX_CPUS];
+
+#define simd_has_sve(sc)	(((sc)->tflags & SIMD_TFLAG_SVE) != 0U)
+
+#define is_ctx_init_done(sc)	(((sc)->sflags & SIMD_SFLAG_INIT_DONE) != 0U)
+#define is_ctx_saved(sc)	(((sc)->sflags & SIMD_SFLAG_SAVED) != 0U)
 
 /*
  * Returns 'true' if the current CPU's SIMD (FPU/SVE) live state is saved in
@@ -42,227 +37,313 @@ bool simd_is_state_saved(void)
 	return g_simd_state_saved[my_cpuid()];
 }
 
-/*
- * Program the ZCR_EL2.LEN field from the VQ, if current ZCR_EL2.LEN is not same
- * as the passed in VQ.
- */
-static void sve_config_vq(uint8_t vq)
+static void save_simd_ns_el2_config(struct simd_context *ctx,
+				    struct simd_el2_regs *el2_regs)
 {
-	u_register_t zcr_val;
-
-	zcr_val = read_zcr_el2();
-	if (EXTRACT(ZCR_EL2_LEN, zcr_val) != vq) {
-		zcr_val &= ~MASK(ZCR_EL2_LEN);
-		zcr_val |= INPLACE(ZCR_EL2_LEN, vq);
-		write_zcr_el2(zcr_val);
-		isb();
+	if (simd_has_sve(ctx)) {
+		el2_regs->zcr_el2 = read_zcr_el2();
 	}
 }
 
-/*
- * Save FPU or SVE state from registers to memory. The caller must disable
- * traps for the corresponding 'type'. In case of SVE state, the vq from the
- * sve state is programmed to ZCR_EL2.LEN before saving the state. As this
- * function will modify ZCR_EL2, the caller needs to save the value of this
- * register if it needs to be preserved.
- */
-void simd_save_state(simd_t type, struct simd_state *simd)
+static void restore_simd_el2_config(struct simd_context *ctx,
+				    struct simd_el2_regs *el2_regs)
 {
-	assert(simd != NULL);
-	assert(simd->simd_type == SIMD_NONE);
+	if (simd_has_sve(ctx)) {
+		if (read_zcr_el2() != el2_regs->zcr_el2) {
+			write_zcr_el2(el2_regs->zcr_el2);
+			isb();
+		}
+	}
+}
 
-	switch (type) {
-	case SIMD_FPU:
-		assert(is_fpen_enabled());
-		fpu_save_state((uint8_t *)&simd->t.fpu);
-		break;
-	case SIMD_SVE:
-		assert(is_feat_sve_present() == true);
-		assert(is_zen_enabled() && is_fpen_enabled());
+static void save_simd_context(struct simd_context *ctx)
+{
+	/*
+	 * Restore EL2 config registers of this context before saving vector
+	 * registers.
+	 */
+	restore_simd_el2_config(ctx, &ctx->el2_regs);
+
+	/* Save SVE vector registers */
+	if (simd_has_sve(ctx)) {
+		/* Saving SVE Z registers emcompasses FPU Q registers */
+		sve_save_vector_registers(&ctx->vregs.sve, true);
+	} else {
+		/* Save FPU Q registers */
+		fpu_save_registers(&ctx->vregs.fpu);
+	}
+
+	/* Save ctl_status_regs */
+	if (simd_has_sve(ctx)) {
+		ctx->ctl_status_regs.zcr_el12 = read_zcr_el12();
+	}
+	ctx->ctl_status_regs.fpsr = read_fpsr();
+	ctx->ctl_status_regs.fpcr = read_fpcr();
+}
+
+static void restore_simd_context(struct simd_context *ctx)
+{
+	/*
+	 * Restore EL2 config registers of this context before restoring vector
+	 * registers.
+	 */
+	restore_simd_el2_config(ctx, &ctx->el2_regs);
+
+	/* Restore SVE vector registers */
+	if (simd_has_sve(ctx)) {
+		/* Restoring SVE Z registers emcompasses FPU Q registers */
+		sve_restore_vector_registers(&ctx->vregs.sve, true);
+	} else {
+		/* Restore FPU Q registers */
+		fpu_restore_registers(&ctx->vregs.fpu);
+	}
+
+	/* Restore ctl_status_regs */
+	if (simd_has_sve(ctx)) {
+		write_zcr_el12(ctx->ctl_status_regs.zcr_el12);
+	}
+	write_fpsr(ctx->ctl_status_regs.fpsr);
+	write_fpcr(ctx->ctl_status_regs.fpcr);
+}
+
+/*
+ * Switches the SIMD context by saving the incoming context 'ctx_save' and
+ * restoring the outgoing context 'ctx_restore'. It is possible to just have only
+ * save or restore operation if the corresponding param is NULL. Returns the
+ * SIMD context that is restored or if nothing is restored, returns NULL.
+ */
+struct simd_context *simd_context_switch(struct simd_context *ctx_save,
+					 struct simd_context *ctx_restore)
+{
+	unsigned long rmm_cptr_el2;
+
+	assert((ctx_save != NULL) || (ctx_restore != NULL));
+
+	rmm_cptr_el2 = read_cptr_el2();
+
+	/* Save tne incoming simd context */
+	if (ctx_save != NULL) {
+		assert(is_ctx_init_done(ctx_save));
+		assert(!is_ctx_saved(ctx_save));
+		assert(!g_simd_state_saved[my_cpuid()]);
+
+		/* Disable appropriate traps */
+		if (read_cptr_el2() != ctx_save->cptr_el2) {
+			write_cptr_el2(ctx_save->cptr_el2);
+			isb();
+		}
 
 		/*
-		 * Configure zcr_el2 before saving the vector registers:
-		 *  For NS state : max_vq restricted by EL3 (g_sve_max_vq)
-		 *  For Realms   : max_vq of Realm
+		 * If incoming context belongs to NS world, then save NS world
+		 * EL2 config registers. RMM saves these registers as EL3 may
+		 * not save it as part of world switch.
 		 */
-		sve_config_vq(simd->t.sve.vq);
+		if (ctx_save->owner == SIMD_OWNER_NWD) {
+			save_simd_ns_el2_config(ctx_save,
+						&ctx_save->ns_el2_regs);
+		}
 
-		/* Save SVE vector registers Z0-Z31 */
-		sve_save_z_state((uint8_t *)&simd->t.sve.z);
-		/* Save SVE P0-P15, FFR registers */
-		sve_save_p_ffr_state((uint8_t *)&simd->t.sve.p);
-		/* Save SVE ZCR_EL12 and FPU status register */
-		sve_save_zcr_fpu_state((uint8_t *)&simd->t.sve.zcr_el12);
-		break;
-	default:
-		assert(false);
+		save_simd_context(ctx_save);
+
+		ctx_save->sflags |= SIMD_SFLAG_SAVED;
+		g_simd_state_saved[my_cpuid()] = true;
 	}
-	simd->simd_type = type;
-	g_simd_state_saved[my_cpuid()] = true;
-}
 
-/*
- * Restore FPU or SVE state from memory to registers. The caller must disable
- * traps for the corresponding 'type'. In case of SVE state, the vq from the
- * sve state is programmed to ZCR_EL2.LEN before restoring the state.
- */
-void simd_restore_state(simd_t type, struct simd_state *simd)
-{
-	assert(simd != NULL);
-	switch (type) {
-	case SIMD_FPU:
-		assert(is_fpen_enabled());
-		assert(simd->simd_type == SIMD_FPU);
-		fpu_restore_state((uint8_t *)&simd->t.fpu);
-		break;
-	case SIMD_SVE:
-		assert(is_feat_sve_present() == true);
-		assert(is_zen_enabled() && is_fpen_enabled());
-		assert(simd->simd_type == SIMD_SVE);
+	/* Restore the outgoing context */
+	if (ctx_restore != NULL) {
+		assert(is_ctx_init_done(ctx_restore));
+		assert(is_ctx_saved(ctx_restore));
+		assert(g_simd_state_saved[my_cpuid()]);
+
+		/* Disable appropriate traps */
+		if (read_cptr_el2() != ctx_restore->cptr_el2) {
+			write_cptr_el2(ctx_restore->cptr_el2);
+			isb();
+		}
+
+		restore_simd_context(ctx_restore);
 
 		/*
-		 * Before restoring vector registers, set ZCR_EL2.LEN to the
-		 * context's VQ that needs to be restored.
+		 * If outgoing context belongs to NS world, then restore NS
+		 * world EL2 config registers. RMM saves these registers as EL3
+		 * may not save it as part of world switch.
 		 */
-		sve_config_vq(simd->t.sve.vq);
+		if (ctx_restore->owner == SIMD_OWNER_NWD) {
+			restore_simd_el2_config(ctx_restore,
+						&ctx_restore->ns_el2_regs);
+		}
 
-		/* Restore SVE vector registers Z0-Z31 */
-		sve_restore_z_state((uint8_t *)&simd->t.sve.z);
-		/* Restore SVE FFR, P0-P15 registers */
-		sve_restore_ffr_p_state((uint8_t *)&simd->t.sve.p);
-		/* Restore SVE ZCR_EL12 and FPU status register */
-		sve_restore_zcr_fpu_state((uint8_t *)&simd->t.sve.zcr_el12);
-		break;
-	default:
-		assert(false);
+		ctx_restore->sflags &= ~SIMD_SFLAG_SAVED;
+		g_simd_state_saved[my_cpuid()] = false;
 	}
-	simd->simd_type = SIMD_NONE;
-	g_simd_state_saved[my_cpuid()] = false;
+
+	/* Restore traps */
+	write_cptr_el2(rmm_cptr_el2);
+	isb();
+
+	return ctx_restore;
 }
 
 /*
- * Save NS SIMD state based on CPU SIMD type. For SVE, save the current zcr_el2
- * and call simd_save_state() which will save the SVE state (Z, P, FFR) after
- * setting the zcr_el2 to max VQ
+ * Validate SIMD configurations are valid against with CPU SIMD configuration
+ * discovered during init.
  */
-void simd_save_ns_state(void)
+static int validate_simd_config(const struct simd_config *simd_cfg)
 {
-	unsigned int cpu_id = my_cpuid();
-	simd_t stype;
-
-	assert(g_ns_simd[cpu_id].saved == false);
-	stype = g_cpu_simd_type;
-
-	simd_enable(stype);
-	/*
-	 * Save the NS zcr_el2 value since EL3 doesn't bank this. Note that the
-	 * save of NS SVE context occurs with MAX_SVE_VL to prevent leakage.
-	 */
-	if (stype == SIMD_SVE) {
-		g_ns_simd[cpu_id].ns_zcr_el2 = read_zcr_el2();
+	if (simd_cfg->sve_en) {
+		if (!g_simd_cfg.sve_en ||
+		    (simd_cfg->sve_vq > g_simd_cfg.sve_vq)) {
+			return -1;
+		}
 	}
-	simd_save_state(stype, &g_ns_simd[cpu_id].simd);
-	simd_disable();
-	g_ns_simd[cpu_id].saved = true;
+
+	return 0;
 }
 
 /*
- * Restore NS SIMD state based on CPU SIMD type. For SVE, the
- * simd_restore_state() will set zcr_el2 to max VQ and restore the SVE state
- * (Z, P, FFR) registers.
+ * Verifies SIMD configuration and initializes SIMD context. Need to be only
+ * done once per context. Can be invoked after simd_init().
+ *
+ * Parameters in:
+ *	owner		- Owner of this SIMD context
+ *	simd_cfg	- SIMD configurations
+ *
+ * Parameters out:
+ *	simd_ctx	- Initializes 'simd_ctx' based on the 'simd_cfg'
+ *
+ * Returns:
+ *	0		- on success
+ *	-1		- on error
  */
-void simd_restore_ns_state(void)
+int simd_context_init(simd_owner_t owner, struct simd_context *simd_ctx,
+		      const struct simd_config *simd_cfg)
 {
-	unsigned int cpu_id = my_cpuid();
-	simd_t stype;
-
-	assert(g_ns_simd[cpu_id].saved == true);
-	stype = g_cpu_simd_type;
-
-	simd_enable(stype);
-	simd_restore_state(stype, &g_ns_simd[cpu_id].simd);
-	/*
-	 * Note that the restore SVE state for NS state happens with
-	 * MAX_SVE_VL to prevent leakage. RMM now needs to restore the NS zcr_el2
-	 * value since EL3 is not saving this.
-	 */
-	if (stype == SIMD_SVE) {
-		write_zcr_el2(g_ns_simd[cpu_id].ns_zcr_el2);
-		isb();
+	if (!g_simd_init_done || is_ctx_init_done(simd_ctx)) {
+		return -1;
 	}
-	simd_disable();
-	g_ns_simd[cpu_id].saved = false;
-}
 
-/* Return the SVE max vq discovered during init */
-unsigned int simd_sve_get_max_vq(void)
-{
-	assert(is_feat_sve_present() == true);
-	assert(g_sve_max_vq != -1);
-	return (unsigned int)g_sve_max_vq;
-}
+	if ((owner != SIMD_OWNER_REL1) && (owner != SIMD_OWNER_NWD)) {
+		return -1;
+	}
 
-/*
- * Initializes simd_state. Set the 'type' in simd state and if 'type' is
- * SVE then set the 'sve_vq' in simd state. This interface is called by REC
- */
-void simd_state_init(simd_t type, struct simd_state *simd, uint8_t sve_vq)
-{
-	assert(simd != NULL);
-	assert((type == SIMD_FPU) || (type == SIMD_SVE));
-	assert(simd->simd_type == SIMD_NONE);
+	/* Check whether SIMD configs are valid */
+	if (validate_simd_config(simd_cfg) != 0) {
+		return -1;
+	}
 
 	/*
-	 * TODO: bzero simd state. Currently the simd context is assumed to be
-	 * zeroed out but with FEAT_MEC enabled, the simd context in AUX granule
+	 * TODO: bzero SIMD context. Currently the SIMD context is assumed to be
+	 * zeroed out but with FEAT_MEC enabled, the SIMD context in AUX granule
 	 * might not be zeroed out.
 	 */
-	if (type == SIMD_SVE) {
-		assert(sve_vq <= (uint8_t)g_sve_max_vq);
-		simd->t.sve.vq = sve_vq;
+
+	simd_ctx->owner = owner;
+
+	/*
+	 * REL1 SIMD context uses lazy enablement. The Realm SIMD context is
+	 * considered to be saved as part of initialization. We need to restore
+	 * this context when enabling SIMD for Realm.
+	 */
+	if (owner == SIMD_OWNER_REL1) {
+		simd_ctx->sflags |= SIMD_SFLAG_SAVED;
+	} else {
+		simd_ctx->sflags &= ~SIMD_SFLAG_SAVED;
 	}
-	simd->simd_type = type;
+
+	/*
+	 * Construct the cptr_el2 to be used when this context needs to be
+	 * saved and used by the owner.
+	 */
+	simd_ctx->cptr_el2 = CPTR_EL2_VHE_INIT;
+	simd_ctx->cptr_el2 |= INPLACE(CPTR_EL2_VHE_FPEN,
+				      CPTR_EL2_VHE_FPEN_NO_TRAP_11);
+
+	/* Initialize SVE related fields and config registers */
+	if (simd_cfg->sve_en) {
+		simd_ctx->tflags |= SIMD_TFLAG_SVE;
+
+		simd_ctx->el2_regs.zcr_el2 = 0UL;
+		simd_ctx->el2_regs.zcr_el2 |= INPLACE(ZCR_EL2_LEN,
+						      simd_cfg->sve_vq);
+
+		simd_ctx->cptr_el2 |= INPLACE(CPTR_EL2_VHE_ZEN,
+					      CPTR_EL2_VHE_ZEN_NO_TRAP_11);
+	}
+
+	simd_ctx->sflags |= SIMD_SFLAG_INIT_DONE;
+
+	return 0;
 }
 
-/* Find the SVE max vector length restricted by EL3 */
-static void sve_init(void)
+/* Returns CPU SIMD configuration discovered during init */
+int simd_get_cpu_config(struct simd_config *simd_cfg)
 {
-	/* Check if g_sve_max_vq is initialized */
-	if (g_sve_max_vq != -1) {
-		return;
+	if (!g_simd_init_done) {
+		return -1;
 	}
+
+	assert(simd_cfg != NULL);
+	*simd_cfg = g_simd_cfg;
+
+	return 0;
+}
+
+/*
+ * Find the SVE max vector length restricted by EL3 and update the SVE specific
+ * fields of global CPU SIMD config.
+ */
+static void sve_init_once(void)
+{
+	uint32_t sve_max_vq;
+	unsigned long cptr_new, cptr_saved;
+
+	cptr_saved = read_cptr_el2();
+
+	/* Enable access to FPU and SVE */
+	cptr_new = cptr_saved
+		| INPLACE(CPTR_EL2_VHE_FPEN, CPTR_EL2_VHE_FPEN_NO_TRAP_11)
+		| INPLACE(CPTR_EL2_VHE_ZEN, CPTR_EL2_VHE_ZEN_NO_TRAP_11);
+	write_cptr_el2(cptr_new);
+	isb();
 
 	/*
 	 * Write architecture max limit for vector length to ZCR_EL2.LEN and read
 	 * back the sve vector length reported by rdvl. This will give the vector
 	 * length limit set by EL3 for its lower ELs. RMM will use this value as
 	 * max limit for EL2 and lower ELs.
+	 *
+	 * Configure ZCR.LEN to SVE_VQ_ARCH_MAX, the old zcr_el2 is not restored,
+	 * which is not a problem as NS is not running yet and the reset value
+	 * of zcr_el2 is unknown as per Arm ARM.
 	 */
-	simd_enable(SIMD_SVE);
+	write_zcr_el2(read_zcr_el2() | INPLACE(ZCR_EL2_LEN, SVE_VQ_ARCH_MAX));
+	isb();
+	sve_max_vq = SVE_VL_TO_VQ(sve_rdvl());
 
-	/*
-	 * Configure ZCR.LEN to SVE_VQ_ARCH_MAX, the old zcr_el2 is not restored
-	 * as this is called only once during cold boot.
-	 */
-	sve_config_vq(SVE_VQ_ARCH_MAX);
-	g_sve_max_vq = (int32_t)SVE_VL_TO_VQ(sve_rdvl());
-	g_cpu_simd_type = SIMD_SVE;
+	/* Restore saved cptr */
+	write_cptr_el2(cptr_saved);
+	isb();
 
-	simd_disable();
+	/* Update global CPU SIMD config */
+	g_simd_cfg.sve_en = true;
+	g_simd_cfg.sve_vq = sve_max_vq;
 }
 
 /*
  * This function initializes the SIMD layer depending on SIMD capability of the
- * CPU (FPU/SVE). If CPU supports SVE, the max VQ will be discovered and NS SIMD
- * SVE state will be initialized with the max vq
+ * CPU (FPU/SVE). If CPU supports SVE, the max VQ will be discovered. Global
+ * 'g_simd_cfg' will hold the CPU SIMD configuration discovered during init.
  */
 void simd_init(void)
 {
-	unsigned int cpu_id = my_cpuid();
+	/* Init once */
+	if (g_simd_init_done) {
+		return;
+	}
 
 	if (is_feat_sve_present()) {
-		sve_init();
-		/* Set the max vq in NS simd state */
-		g_ns_simd[cpu_id].simd.t.sve.vq = (uint8_t)g_sve_max_vq;
+		sve_init_once();
 	}
+
+	g_simd_init_done = true;
 }
