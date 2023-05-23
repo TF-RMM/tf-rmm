@@ -503,6 +503,11 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 			if (res.incomplete) {
 				if (check_pending_irq()) {
 					rec_exit->exit_reason = RMI_EXIT_IRQ;
+
+					/* Copy the result to rec prior to return to host */
+					return_result_to_realm(rec, res.smc_res);
+					advance_pc();
+
 					/* Return to NS host to handle IRQ. */
 					ret_to_rec = false;
 					break;
