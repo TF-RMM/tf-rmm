@@ -123,6 +123,13 @@ Known issues and limitations
 - The RMM config ``RMM_FPU_USE_AT_REL2`` does not work as intended and
   this config is disabled by default. This will be fixed in a future release.
 
+- When the ``RSI_ATTEST_TOKEN_CONTINUE`` call is interrupted and then resumed
+  later by Host via ``RMI_REC_ENTER``, the original SMC is replayed again
+  with the original arguments rather than returning ``RSI_INCOMPLETE`` error
+  code to Realm. The result is that the interrupted RSI call is continued
+  again till completion and then returns back to Realm with the appropriate
+  error code.
+
 .. _TF-A v2.9: https://git.trustedfirmware.org/TF-A/trusted-firmware-a.git/tag/?h=v2.9.0
 
 
