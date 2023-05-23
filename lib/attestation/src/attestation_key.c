@@ -74,7 +74,7 @@ int attest_init_realm_attestation_key(void)
 
 	struct attest_rng_context rng_ctx;
 
-	assert(IS_FPU_ALLOWED());
+	assert(SIMD_IS_FPU_ALLOWED());
 
 	attest_get_cpu_rng_context(&rng_ctx);
 

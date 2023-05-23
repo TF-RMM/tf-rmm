@@ -22,4 +22,10 @@ int run_realm(unsigned long *regs);
  */
 void rec_simd_enable_restore(struct rec *rec);
 
+/*
+ * Save the current SIMD state from registers to memory and configure CPTR_EL2
+ * register to trap FPU or SVE access for Realm.
+ */
+void rec_simd_save_disable(struct rec *rec);
+
 #endif /* RUN_H */

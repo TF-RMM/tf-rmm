@@ -30,6 +30,17 @@ struct ns_simd_state {
 
 static struct ns_simd_state g_ns_simd[MAX_CPUS];
 
+static bool g_simd_state_saved[MAX_CPUS];
+
+/*
+ * Returns 'true' if the current CPU's SIMD (FPU/SVE) live state is saved in
+ * memory else 'false'.
+ */
+bool simd_is_state_saved(void)
+{
+	return g_simd_state_saved[my_cpuid()];
+}
+
 /*
  * Program the ZCR_EL2.LEN field from the VQ, if current ZCR_EL2.LEN is not same
  * as the passed in VQ.
@@ -86,6 +97,7 @@ void simd_save_state(simd_t type, struct simd_state *simd)
 		assert(false);
 	}
 	simd->simd_type = type;
+	g_simd_state_saved[my_cpuid()] = true;
 }
 
 /*
@@ -124,6 +136,7 @@ void simd_restore_state(simd_t type, struct simd_state *simd)
 		assert(false);
 	}
 	simd->simd_type = SIMD_NONE;
+	g_simd_state_saved[my_cpuid()] = false;
 }
 
 /*
@@ -179,31 +192,6 @@ void simd_restore_ns_state(void)
 	simd_disable();
 	g_ns_simd[cpu_id].saved = false;
 }
-
-/*
- * These functions and macros will be renamed to simd_* once RMM supports
- * SIMD (FPU/SVE) at REL2
- */
-#ifdef RMM_FPU_USE_AT_REL2
-void fpu_save_my_state(void)
-{
-	/* todo */
-	assert(false);
-}
-
-void fpu_restore_my_state(void)
-{
-	assert(false);
-}
-
-bool fpu_is_my_state_saved(unsigned int cpu_id)
-{
-	return false;
-}
-#else /* !RMM_FPU_USE_AT_REL2 */
-void fpu_save_my_state(void) {}
-void fpu_restore_my_state(void) {}
-#endif /* RMM_FPU_USE_AT_REL */
 
 /* Return the SVE max vq discovered during init */
 unsigned int simd_sve_get_max_vq(void)

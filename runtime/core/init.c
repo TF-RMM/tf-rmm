@@ -89,7 +89,17 @@ void rmm_main(void)
 
 	rmm_warmboot_main();
 
+#ifdef RMM_FPU_USE_AT_REL2
+	simd_save_ns_state();
+#endif
 	if (attestation_init() != 0) {
 		WARN("Attestation init failed.\n");
 	}
+#ifdef RMM_FPU_USE_AT_REL2
+	/*
+	 * TODO: Do not save and restore NS state. Instead after
+	 * attestation_init clear FPU state.
+	 */
+	simd_restore_ns_state();
+#endif
 }

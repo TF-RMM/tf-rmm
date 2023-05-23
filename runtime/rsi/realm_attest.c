@@ -234,16 +234,6 @@ out_unmap_rd:
 	return ret;
 }
 
-void attest_realm_token_sign_continue_start(void)
-{
-	fpu_save_my_state();
-}
-
-void attest_realm_token_sign_continue_finish(void)
-{
-	fpu_restore_my_state();
-}
-
 void handle_rsi_attest_token_continue(struct rec *rec,
 				      struct attest_result *res)
 {

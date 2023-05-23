@@ -379,6 +379,17 @@ static void return_result_to_realm(struct rec *rec, struct smc_result result)
 	rec->regs[3] = result.x[3];
 }
 
+static inline bool rsi_handler_needs_fpu(unsigned int id)
+{
+#ifdef RMM_FPU_USE_AT_REL2
+	if (id == SMC_RSI_ATTEST_TOKEN_CONTINUE ||
+	    id == SMC_RSI_MEASUREMENT_EXTEND) {
+		return true;
+	}
+#endif
+	return false;
+}
+
 /*
  * Return 'true' if execution should continue in the REC, otherwise return
  * 'false' to go back to the NS caller of REC.Enter.
@@ -387,6 +398,7 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 {
 	bool ret_to_rec = true;	/* Return to Realm */
 	unsigned int function_id = (unsigned int)rec->regs[0];
+	bool restore_rec_simd_state = false;
 
 	RSI_LOG_SET(rec->regs);
 
@@ -403,12 +415,24 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		return true;
 	}
 
-	/*
-	 * If the REC is allowed to access SIMD, then we will enter RMM with
-	 * SIMD traps disabled. So enable SIMD traps as RMM by default runs with
-	 * SIMD traps enabled
-	 */
-	if (rec_is_simd_allowed(rec)) {
+	if (rsi_handler_needs_fpu(function_id) == true) {
+		/*
+		 * RSI handler uses FPU at REL2, so actively save REC SIMD state
+		 * if REC is using SIMD or NS SIMD state. Restore the same before
+		 * return from this function.
+		 */
+		if (rec_is_simd_allowed(rec)) {
+			rec_simd_save_disable(rec);
+			restore_rec_simd_state = true;
+		} else {
+			simd_save_ns_state();
+		}
+	} else if (rec_is_simd_allowed(rec)) {
+		/*
+		 * If the REC is allowed to access SIMD, then we will enter RMM
+		 * with SIMD traps disabled. So enable SIMD traps as RMM by
+		 * default runs with SIMD traps enabled
+		 */
 		simd_disable();
 	}
 
@@ -459,7 +483,6 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		break;
 	case SMC_RSI_ATTEST_TOKEN_CONTINUE: {
 		struct attest_result res;
-		attest_realm_token_sign_continue_start();
 		while (true) {
 			/*
 			 * Possible outcomes:
@@ -498,7 +521,6 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 				break;
 			}
 		}
-		attest_realm_token_sign_continue_finish();
 		break;
 	}
 	case SMC_RSI_MEASUREMENT_READ:
@@ -577,8 +599,13 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		break;
 	}
 
-	/* Re-enable SIMD access if REC is allowed to access */
-	if (rec_is_simd_allowed(rec)) {
+	if (rsi_handler_needs_fpu(function_id) == true) {
+		if (restore_rec_simd_state == true) {
+			rec_simd_enable_restore(rec);
+		} else {
+			simd_restore_ns_state();
+		}
+	} else if (rec_is_simd_allowed(rec)) {
 		simd_enable(rec_simd_type(rec));
 	}
 

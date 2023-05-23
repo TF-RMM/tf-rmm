@@ -50,9 +50,8 @@ int attestation_init(void)
 	 */
 	buffer_alloc_ctx_assign(&init_ctx);
 
-	fpu_save_my_state();
-
-	FPU_ALLOW(mbedtls_memory_buffer_alloc_init(mem_buf, sizeof(mem_buf)));
+	SIMD_FPU_ALLOW(mbedtls_memory_buffer_alloc_init(mem_buf,
+							sizeof(mem_buf)));
 
 	/*
 	 * Set the number of max operations per ECC signing iteration
@@ -61,20 +60,18 @@ int attestation_init(void)
 	 *
 	 * This adjusts the length of a single signing loop.
 	 */
-	FPU_ALLOW(mbedtls_ecp_set_max_ops(MBEDTLS_ECP_MAX_OPS));
+	SIMD_FPU_ALLOW(mbedtls_ecp_set_max_ops(MBEDTLS_ECP_MAX_OPS));
 
-	FPU_ALLOW(ret = attest_rnd_prng_init());
+	SIMD_FPU_ALLOW(ret = attest_rnd_prng_init());
 	if (ret != 0) {
 		return ret;
 	}
 
 	/* Retrieve the platform key from root world */
-	FPU_ALLOW(ret = attest_init_realm_attestation_key());
+	SIMD_FPU_ALLOW(ret = attest_init_realm_attestation_key());
 	if (ret != 0) {
 		return ret;
 	}
-
-	fpu_restore_my_state();
 
 	/* Retrieve the platform token from root world */
 	ret = attest_setup_platform_token();
@@ -98,9 +95,7 @@ int attestation_heap_ctx_init(unsigned char *buf, size_t buf_size)
 	}
 
 	/* Initialise the mbedTLS heap */
-	fpu_save_my_state();
-	FPU_ALLOW(mbedtls_memory_buffer_alloc_init(buf, buf_size));
-	fpu_restore_my_state();
+	mbedtls_memory_buffer_alloc_init(buf, buf_size);
 
 	return 0;
 }
@@ -132,9 +127,7 @@ int attestation_heap_ctx_unassign_pe(void)
 
 inline int attestation_heap_reinit_pe(unsigned char *buf, size_t buf_size)
 {
-	fpu_save_my_state();
-	FPU_ALLOW(mbedtls_memory_buffer_alloc_init(buf, buf_size));
-	fpu_restore_my_state();
+	mbedtls_memory_buffer_alloc_init(buf, buf_size);
 
 	return 0;
 }

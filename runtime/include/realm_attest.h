@@ -34,9 +34,7 @@ struct attest_result {
 unsigned long handle_rsi_read_measurement(struct rec *rec);
 unsigned long handle_rsi_extend_measurement(struct rec *rec);
 unsigned long handle_rsi_attest_token_init(struct rec *rec);
-void attest_realm_token_sign_continue_start(void);
 void handle_rsi_attest_token_continue(struct rec *rec,
 				      struct attest_result *res);
-void attest_realm_token_sign_continue_finish(void);
 
 #endif /* REALM_ATTEST_H */

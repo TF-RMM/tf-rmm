@@ -302,7 +302,7 @@ static void rec_simd_state_init(struct rec *rec)
 }
 
 /* Save the REC SIMD state to memory and disable simd access for the REC */
-static void rec_simd_save_disable(struct rec *rec)
+void rec_simd_save_disable(struct rec *rec)
 {
 	struct rec_simd_state *rec_simd;
 	simd_t stype;
