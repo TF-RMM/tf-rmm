@@ -35,18 +35,17 @@
 #define DESC_MASK		UL(0x3)
 
 /* Upper attributes on a TTE */
-#define XN			(ULL(1) << 2)
-#define UXN			(ULL(1) << 2)
-#define PXN			(ULL(1) << 1)
-#define CONT_HINT		(ULL(1) << 0)
+#define XN			(ULL(1) << 4)
+#define UXN			(ULL(1) << 4)
+#define PXN			(ULL(1) << 3)
+#define CONT_HINT		(ULL(1) << 2)
+/* Guarded Page bit */
+#define GP			(ULL(1) << 0)
 
-#define UPPER_ATTRS_SHIFT	(52U)
-#define UPPER_ATTRS_WIDTH	(3U)
+#define UPPER_ATTRS_SHIFT	(50U)
+#define UPPER_ATTRS_WIDTH	(5U)
 #define UPPER_ATTRS_MASK	MASK(UPPER_ATTRS)
 #define UPPER_ATTRS(x)		(INPLACE(UPPER_ATTRS, x) & (UPPER_ATTRS_MASK))
-
-/* Guarded Page bit */
-#define GP			(ULL(1) << 50)
 
 #define AP2_SHIFT		UL(0x7)
 #define AP2_RO			ULL(0x1)

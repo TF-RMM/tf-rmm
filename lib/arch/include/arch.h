@@ -680,6 +680,8 @@
 #define SCTLR_ELx_nTLSMD_BIT		(UL(1) << 28)
 #define SCTLR_ELx_LSMAOE_BIT		(UL(1) << 29)
 #define SCTLR_ELx_EnIA_BIT		(UL(1) << 31)
+#define SCTLR_ELx_BT0_BIT		(UL(1) << 35)
+#define SCTLR_ELx_BT1_BIT		(UL(1) << 36)
 
 #define SCTLR_EL1_FLAGS (SCTLR_ELx_SPAN_BIT | SCTLR_ELx_EIS_BIT | SCTLR_ELx_nTWE_BIT | \
 			 SCTLR_ELx_nTWI_BIT | SCTLR_ELx_EOS_BIT | SCTLR_ELx_nAA_BIT | \

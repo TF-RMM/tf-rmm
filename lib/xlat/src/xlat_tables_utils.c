@@ -88,7 +88,7 @@ static void xlat_desc_print(uint64_t desc)
 	}
 
 	/* Check Guarded Page bit */
-	if ((desc & GP) != 0ULL) {
+	if ((desc & UPPER_ATTRS(GP)) != 0ULL) {
 		VERBOSE("-GP");
 	}
 }
