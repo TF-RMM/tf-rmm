@@ -113,3 +113,41 @@ void host_rmi_rec_enter(void *rec, void *run_ptr, struct smc_result *ret)
 		0, 0, 0, 0,
 		ret);
 }
+
+void host_rmi_data_create(uintptr_t data, void *rd, uintptr_t ipa,
+			 uintptr_t src, struct smc_result *ret)
+{
+	handle_ns_smc(SMC_RMM_DATA_CREATE,
+		(uintptr_t)data,
+		(uintptr_t)rd, ipa, src,
+		0, 0,
+		ret);
+}
+
+void host_rmi_data_create_unknown(uintptr_t data, void *rd, uintptr_t ipa,
+			struct smc_result *ret)
+{
+	handle_ns_smc(SMC_RMM_DATA_CREATE_UNKNOWN,
+		(uintptr_t)data,
+		(uintptr_t)rd, ipa,
+		0, 0, 0,
+		ret);
+}
+
+void host_rmi_rtt_init_ripas(void *rd, uintptr_t ipa, int64_t level,
+			struct smc_result *ret)
+{
+	handle_ns_smc(SMC_RMM_RTT_INIT_RIPAS,
+		(uintptr_t)rd,
+		ipa, level,
+		0, 0, 0,
+		ret);
+}
+
+void host_rmi_data_destroy(void *rd, uintptr_t ipa,	struct smc_result *ret)
+{
+	handle_ns_smc(SMC_RMM_DATA_DESTROY,
+		(uintptr_t)rd, ipa,
+		0, 0, 0, 0,
+		ret);
+}

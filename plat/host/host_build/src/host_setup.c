@@ -13,14 +13,17 @@
 #include <rmm_el3_ifc.h>
 #include <smc-rmi.h>
 #include <smc-rsi.h>
+#include <stdlib.h>
 #include <string.h>
 #include <table.h>
+#include <time.h>
 
 /* Create a simple 4 level (Lvl 0 - LvL 3) RTT structure */
 #define RTT_COUNT 4
 
 #define RMM_EL3_IFC_ABI_VERSION		(RMM_EL3_IFC_SUPPORTED_VERSION)
 #define RMM_EL3_MAX_CPUS		(1U)
+#define REALM_BUFFER_IPA		0x1000
 
 #define CHECK_RMI_RESULT() \
 ({  \
@@ -54,9 +57,13 @@ static void *allocate_granule(void)
 	return (void *)granule;
 }
 
-int realm_continue(unsigned long *regs);
+static int realm_continue(unsigned long *regs);
+static int realm_continue_1(unsigned long *regs);
+static int realm_continue_2(unsigned long *regs);
 
-int realm_start(unsigned long *regs)
+uintptr_t realm_buffer;
+
+static int realm_start(unsigned long *regs)
 {
 	INFO("###########################\n");
 	INFO("# Hello World from a Realm!\n");
@@ -66,11 +73,62 @@ int realm_start(unsigned long *regs)
 	return host_util_rsi_helper(realm_continue);
 }
 
-int realm_continue(unsigned long *regs)
+static int realm_continue(unsigned long *regs)
 {
 	INFO("RSI Version is 0x%lx\n", regs[0]);
 
-	return 0;
+
+	srand((int)time(NULL));
+
+	/* Add dummy Realm Attestation RSI calls */
+	regs[0] = SMC_RSI_ATTEST_TOKEN_INIT;
+	regs[1] = REALM_BUFFER_IPA;
+	regs[2] = rand();
+	regs[3] = rand();
+	regs[4] = rand();
+	regs[5] = rand();
+	regs[6] = rand();
+	regs[7] = rand();
+	regs[8] = rand();
+	regs[9] = rand();
+
+	return host_util_rsi_helper(realm_continue_1);
+}
+
+static int realm_continue_1(unsigned long *regs)
+{
+	if (regs[0] != RSI_SUCCESS) {
+		ERROR("Realm token initialization failed 0x%lx\n", regs[0]);
+		return 0;
+	}
+
+	/* Pend an IRQ and invoke the RSI which should cause an exit to NS */
+	host_write_sysreg("isr_el1", 0x80);
+
+	/* Continue Realm Attestation RSI calls */
+	regs[0] = SMC_RSI_ATTEST_TOKEN_CONTINUE;
+	regs[1] = REALM_BUFFER_IPA;
+	return host_util_rsi_helper(realm_continue_2);
+
+}
+
+static int realm_continue_2(unsigned long *regs)
+{
+	if (regs[0] == RSI_INCOMPLETE) {
+		INFO("Realm Token Attestation creation is pre-empted by interrupt.\n");
+		/* Continue Realm Attestation RSI calls */
+		regs[0] = SMC_RSI_ATTEST_TOKEN_CONTINUE;
+		regs[1] = REALM_BUFFER_IPA;
+		return host_util_rsi_helper(realm_continue_2);
+	}
+
+	if (regs[0] != RSI_SUCCESS) {
+		ERROR("Realm Token Attestation continue failed\n");
+		return 0;
+	}
+
+	/* Simulate return back to NS due to FIQ */
+	return ARM_EXCEPTION_FIQ_LEL;
 }
 
 static int create_realm(void)
@@ -110,6 +168,16 @@ static int create_realm(void)
 		CHECK_RMI_RESULT();
 	}
 
+	realm_buffer = (uintptr_t)allocate_granule();
+	host_rmi_granule_delegate((void *)realm_buffer, &result);
+	CHECK_RMI_RESULT();
+
+	host_rmi_rtt_init_ripas(rd, REALM_BUFFER_IPA, 3, &result);
+	CHECK_RMI_RESULT();
+
+	host_rmi_data_create_unknown(realm_buffer, rd, REALM_BUFFER_IPA, &result);
+	CHECK_RMI_RESULT();
+
 	host_rmi_rec_aux_count(rd, &result);
 	CHECK_RMI_RESULT();
 	rec_aux_count = result.x[1];
@@ -138,6 +206,17 @@ static int create_realm(void)
 	host_rmi_rec_enter(rec, rec_run, &result);
 	CHECK_RMI_RESULT();
 
+	while (rec_run->exit.exit_reason == RMI_EXIT_IRQ) {
+		/* Clear the IRQ in ISR_EL1 and re-enter Realm */
+		host_write_sysreg("isr_el1", 0x0);
+		host_rmi_rec_enter(rec, rec_run, &result);
+		CHECK_RMI_RESULT();
+	}
+
+	if (rec_run->exit.exit_reason == RMI_EXIT_FIQ) {
+		INFO("Realm executed successfully and exited due to FIQ.\n");
+	}
+
 	host_rmi_rec_destroy(rec, &result);
 	CHECK_RMI_RESULT();
 
@@ -145,6 +224,11 @@ static int create_realm(void)
 		host_rmi_granule_undelegate(rec_aux_granules[i], &result);
 		CHECK_RMI_RESULT();
 	}
+
+	host_rmi_data_destroy(rd, REALM_BUFFER_IPA, &result);
+	CHECK_RMI_RESULT();
+	host_rmi_granule_undelegate((void *)realm_buffer, &result);
+	CHECK_RMI_RESULT();
 
 	for (i = RTT_COUNT-1; i >= 1; --i) {
 		host_rmi_rtt_destroy(rtts[i], rd, 0, i, &result);
