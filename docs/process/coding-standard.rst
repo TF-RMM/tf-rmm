@@ -419,15 +419,13 @@ To help with this, the following data type usage guidelines should be followed:
     to a general, memory-mapped address, an array of pointers or another
     structure that is likely to require pointer arithmetic then use
     ``uintptr_t``. This will reduce the amount of casting required in the code.
-    Avoid using ``unsigned long`` or ``unsigned long long`` for this purpose; it
-    may work but is less portable.
+    Avoid using ``unsigned long`` or ``unsigned long long`` for this purpose;
+    it may work but is less portable.
 
-  - For other pointer arguments in a function declaration, use ``void *``. This
-    includes pointers to types that are abstracted away from the known API and
-    pointers to arbitrary data. This allows the calling function to pass a
-    pointer argument to the function without any explicit casting (the cast to
-    ``void *`` is implicit). The function implementation can then do the
-    appropriate casting to a specific type.
+  - Use of ``void *`` is generally discouraged. Although it is useful to
+    represent pointers to types that are abstracted away from the callers and
+    has useful implicit cast properties, for the sake of a more uniform code
+    base, we encourage use of ``uintptr_t`` where possible.
 
   - Avoid pointer arithmetic generally (as this violates MISRA C 2012 rule
     18.4) and especially on void pointers (as this is only supported via
@@ -439,32 +437,13 @@ To help with this, the following data type usage guidelines should be followed:
 
 - Use ``size_t`` when storing the ``sizeof()`` something.
 
-- Use ``ssize_t`` when returning the ``sizeof()`` something from a function that
-  can also return an error code; the signed type allows for a negative return
-  code in case of error. This practice should be used sparingly.
+- Use ``ssize_t`` when returning the ``sizeof()`` something from a function
+  that can also return an error code; the signed type allows for a negative
+  return code in case of error. This practice should be used sparingly.
 
-- Use ``u_register_t`` when it's important to store the contents of a register
-  in its native size (64-bit in |AArch64|). This is not a
-  standard *C11* type but is widely available in libc implementations.
-  Where possible, cast the variable to a more appropriate type before
-  interpreting the data. For example, the following structure uses this type to
-  minimize the storage required for the set of registers:
-
-.. code:: c
-
-    typedef struct aapcs64_params {
-            u_register_t arg0;
-            u_register_t arg1;
-            u_register_t arg2;
-            u_register_t arg3;
-            u_register_t arg4;
-            u_register_t arg5;
-            u_register_t arg6;
-            u_register_t arg7;
-    } aapcs64_params_t;
-
-If some code wants to operate on ``arg0`` and knows that it represents a 32-bit
-unsigned integer on all systems, cast it to ``unsigned int``.
+- Use ``uint64_t`` to store the contents of an AArch64 register or
+  represent a 64-bit value. Use of ``unsigned long`` or ``u_register_t``
+  for these purposes is discouraged.
 
 These guidelines should be updated if additional types are needed.
 
