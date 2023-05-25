@@ -404,7 +404,21 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		}
 
 		activate_events(rec);
+
+		/*
+		 * Restore Realm PAuth Key.
+		 * There shouldn't be any other function call which uses PAuth
+		 * till the RMM keys are restored.
+		 */
+		pauth_restore_realm_keys(&rec->pauth);
+
 		realm_exception_code = run_realm(&rec->regs[0]);
+
+		/* Save Realm PAuth key. */
+		pauth_save_realm_keys(&rec->pauth);
+
+		/* Restore RMM PAuth key. */
+		pauth_restore_rmm_keys();
 	} while (handle_realm_exit(rec, rec_exit, realm_exception_code));
 
 	/*

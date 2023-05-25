@@ -73,7 +73,7 @@ static void psci_reset_rec(struct rec *rec, unsigned long caller_sctlr_el1)
 	rec->sysregs.sctlr_el1 = SCTLR_EL1_FLAGS;
 
 	/* Set the endianness of the target to that of the caller */
-	rec->sysregs.sctlr_el1 |= caller_sctlr_el1 & SCTLR_EL1_EE;
+	rec->sysregs.sctlr_el1 |= caller_sctlr_el1 & SCTLR_ELx_EE_BIT;
 }
 
 static unsigned long rd_map_read_rec_count(struct granule *g_rd)

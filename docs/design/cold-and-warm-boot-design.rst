@@ -49,7 +49,12 @@ The boot is divided into several phases as described below:
    The EL2&0 translation regime is enabled after suitable TLB and cache
    invalidations.
 
-4. **RMM Main phase**
+4. **PAuth enable phase**
+
+   Disable API, APK Trap, to allow PAuth instructions access from Realm without trapping.
+   Initialize APIA Keys to random 128-bit value, Enable PAuth for R-EL2.
+
+5. **RMM Main phase**
 
    Any cold boot or warm initialization of RMM components is done in this
    phase. This phase also involves invoking suitable EL3 services, like

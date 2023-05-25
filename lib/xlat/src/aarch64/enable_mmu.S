@@ -31,7 +31,7 @@
 
 		/* Set and clear required fields of SCTLR */
 		mrs	x4, sctlr_el2
-		mov_imm	x5, SCTLR_EL2_WXN | SCTLR_EL2_M
+		mov_imm	x5, SCTLR_ELx_WXN_BIT | SCTLR_ELx_M_BIT
 		orr	x4, x4, x5
 		msr	sctlr_el2, x4
 

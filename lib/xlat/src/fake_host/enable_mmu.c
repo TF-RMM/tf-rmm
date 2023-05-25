@@ -8,5 +8,5 @@
 void xlat_enable_mmu_el2(void)
 {
 	write_hcr_el2(read_hcr_el2() | HCR_RW);
-	write_sctlr_el2(SCTLR_EL2_WXN | SCTLR_EL2_M);
+	write_sctlr_el2(SCTLR_ELx_WXN_BIT | SCTLR_ELx_M_BIT);
 }

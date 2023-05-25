@@ -1241,7 +1241,7 @@ TEST(xlat_tests_G1, xlat_ctx_init_TC5)
 	 ***************************************************************/
 
 	/* Emulate the MMU enabled */
-	write_sctlr_el2(SCTLR_EL2_WXN | SCTLR_EL2_M);
+	write_sctlr_el2(SCTLR_ELx_WXN_BIT | SCTLR_ELx_M_BIT);
 
 	for (unsigned int i = 0U; i < (unsigned int)VA_REGIONS; i++) {
 		region = (xlat_addr_region_id_t)i;

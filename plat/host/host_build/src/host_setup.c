@@ -39,7 +39,7 @@
  */
 static void enable_fake_host_mmu(void)
 {
-	write_sctlr_el2(SCTLR_EL2_WXN | SCTLR_EL2_M);
+	write_sctlr_el2(SCTLR_ELx_WXN_BIT | SCTLR_ELx_M_BIT);
 }
 
 static void *allocate_granule(void)

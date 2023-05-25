@@ -174,10 +174,9 @@
 #define HCR_SWIO	(UL(1) << 1)
 #define HCR_VM		(UL(1) << 0)
 
-/* TODO verify that all the traps are enabled */
 #define HCR_FLAGS (HCR_FWB | HCR_E2H | HCR_RW | HCR_TSC | HCR_AMO | \
 	HCR_BSU_IS | HCR_IMO | HCR_FMO | HCR_PTW | HCR_SWIO | HCR_VM | \
-	HCR_TID3 | HCR_TEA)
+	HCR_TID3 | HCR_TEA | HCR_API | HCR_APK)
 
 #define HCR_EL2_INIT		(HCR_TGE | HCR_E2H | HCR_TEA)
 
@@ -640,22 +639,6 @@
 	)
 
 
-/* SCTLR definitions */
-#define SCTLR_EL1_EE		(UL(1) << 25)
-#define SCTLR_EL1_SPAN		(UL(1) << 23)
-#define SCTLR_EL1_EIS		(UL(1) << 22)
-#define SCTLR_EL1_nTWE		(UL(1) << 18)
-#define SCTLR_EL1_nTWI		(UL(1) << 16)
-#define SCTLR_EL1_EOS		(UL(1) << 11)
-#define SCTLR_EL1_nAA		(UL(1) << 6)
-#define SCTLR_EL1_CP15BEN	(UL(1) << 5)
-#define SCTLR_EL1_SA0		(UL(1) << 4)
-#define SCTLR_EL1_SA		(UL(1) << 3)
-
-#define SCTLR_EL1_FLAGS (SCTLR_EL1_SPAN | SCTLR_EL1_EIS | SCTLR_EL1_nTWE | \
-	SCTLR_EL1_nTWI | SCTLR_EL1_EOS | SCTLR_EL1_nAA | SCTLR_EL1_CP15BEN | \
-	SCTLR_EL1_SA0 | SCTLR_EL1_SA)
-
 /* PMCR_EL0 Definitions */
 #define PMCR_EL0_N_SHIFT		11
 #define PMCR_EL0_N_WIDTH		5
@@ -673,66 +656,73 @@
 #define MDSCR_EL1_TDCC_BIT	(UL(1) << 12)
 
 /* SCTLR register definitions */
-#define SCTLR_EL2_RES1		((UL(1) << 22) /* TODO: ARMv8.5-CSEH, otherwise RES1 */ | \
-				 (UL(1) << 11) /* TODO: ARMv8.5-CSEH, otherwise RES1 */)
+#define SCTLR_ELx_RES1_BIT		((UL(1) << 22)	/* TODO: ARMv8.5-CSEH, otherwise RES1 */ | \
+					 (UL(1) << 11)	/* TODO: ARMv8.5-CSEH, otherwise RES1 */)
 
-#define SCTLR_EL2_M		(UL(1) << 0)
-#define SCTLR_EL2_C		(UL(1) << 2)
-#define SCTLR_EL2_SA		(UL(1) << 3)
-#define SCTLR_EL2_SA0		(UL(1) << 4)
-#define SCTLR_EL2_SED		(UL(1) << 8)
-/* TODO: ARMv8.5-CSEH, otherwise RES1 */
-/* #define SCTLR_EL2_EOS	(UL(1) << 11) */
-#define SCTLR_EL2_I		(UL(1) << 12)
-#define SCTLR_EL2_DZE		(UL(1) << 14)
-#define SCTLR_EL2_UCT		(UL(1) << 15)
-#define SCTLR_EL2_NTWI		(UL(1) << 16)
-#define SCTLR_EL2_NTWE		(UL(1) << 18)
-#define SCTLR_EL2_WXN		(UL(1) << 19)
-#define SCTLR_EL2_TSCXT		(UL(1) << 20)
-/* TODO: ARMv8.5-CSEH, otherwise RES1 */
-/* #define SCTLR_EL2_EIS	(UL(1) << 22) */
-#define SCTLR_EL2_SPAN		(UL(1) << 23)
-#define SCTLR_EL2_UCI		(UL(1) << 26)
-#define SCTLR_EL2_NTLSMD	(UL(1) << 28)
-#define SCTLR_EL2_LSMAOE	(UL(1) << 29)
-/* HCR_EL2.E2H == 0b1 and HCR_EL2.TGE == 0b1 */
-#define SECURE_SCTLR_EL2_RES1	((UL(1) << 22) /* TODO: ARMv8.5-CSEH, otherwise RES1 */ | \
-				 (UL(1) << 11) /* TODO: ARMv8.5-CSEH, otherwise RES1 */)
+#define SCTLR_ELx_M_BIT			(UL(1) << 0)
+#define SCTLR_ELx_C_BIT			(UL(1) << 2)
+#define SCTLR_ELx_SA_BIT		(UL(1) << 3)
+#define SCTLR_ELx_SA0_BIT		(UL(1) << 4)
+#define SCTLR_ELx_CP15BEN_BIT		(UL(1) << 5)
+#define SCTLR_ELx_nAA_BIT		(UL(1) << 6)
+#define SCTLR_ELx_SED_BIT		(UL(1) << 8)
+#define SCTLR_ELx_EOS_BIT		(UL(1) << 11)
+#define SCTLR_ELx_I_BIT			(UL(1) << 12)
+#define SCTLR_ELx_DZE_BIT		(UL(1) << 14)
+#define SCTLR_ELx_UCT_BIT		(UL(1) << 15)
+#define SCTLR_ELx_nTWI_BIT		(UL(1) << 16)
+#define SCTLR_ELx_nTWE_BIT		(UL(1) << 18)
+#define SCTLR_ELx_WXN_BIT		(UL(1) << 19)
+#define SCTLR_ELx_TSCXT_BIT		(UL(1) << 20)
+#define SCTLR_ELx_EIS_BIT		(UL(1) << 22)
+#define SCTLR_ELx_SPAN_BIT		(UL(1) << 23)
+#define SCTLR_ELx_EE_BIT		(UL(1) << 25)
+#define SCTLR_ELx_UCI_BIT		(UL(1) << 26)
+#define SCTLR_ELx_nTLSMD_BIT		(UL(1) << 28)
+#define SCTLR_ELx_LSMAOE_BIT		(UL(1) << 29)
+#define SCTLR_ELx_EnIA_BIT		(UL(1) << 31)
 
-#define SCTLR_EL2_INIT		(/* SCTLR_EL2_M = 0 (MMU disabled) */  \
-				/* SCTLR_EL2_A = 0 (No alignment checks) */  \
-				 SCTLR_EL2_C   /* Data accesses are cacheable
-						* as per translation tables */ | \
-				 SCTLR_EL2_SA  /* SP aligned at EL2 */ | \
-				 SCTLR_EL2_SA0  /* SP Alignment check enable for EL0 */ \
-				/* SCTLR_EL2_CP15BEN = 0 (EL0 using AArch32:
-				 * EL0 execution of the CP15DMB, CP15DSB, and
-				 * CP15ISB instructions is UNDEFINED. */ \
-				/* SCTLR_EL2_NAA = 0 (unaligned MA fault at EL2 and EL0) */ \
-				/* SCTLR_EL2_ITD = 0 (A32 Only) */ | \
-				 SCTLR_EL2_SED /* A32 Only, RES1 for non-A32 systems */ \
-				/* SCTLR_EL2_EOS TODO: ARMv8.5-CSEH, otherwise RES1 */ | \
-				 SCTLR_EL2_I	 /* I$ is ON for EL2 and EL0 */ | \
-				 SCTLR_EL2_DZE   /* Do not trap DC ZVA */ | \
-				 SCTLR_EL2_UCT   /* Allow EL0 access to CTR_EL0 */ | \
-				 SCTLR_EL2_NTWI  /* Don't trap WFI from EL0 to EL2 */ | \
-				 SCTLR_EL2_NTWE  /* Don't trap WFE from EL0 to EL2 */ | \
-				 SCTLR_EL2_WXN   /* W implies XN */ | \
-				 SCTLR_EL2_TSCXT /* Trap EL0 accesss to SCXTNUM_EL0 */ \
-				/* SCTLR_EL2_EIS EL2 exception is context
-				 * synchronizing
-				 * TODO: ARMv8.5-CSEH, otherwise RES1 */ \
-				 /* SCTLR_EL2_SPAN = 0 (Set PSTATE.PAN = 1 on
-				 * exceptions to EL2)) */ | \
-				 SCTLR_EL2_UCI /* Allow cache maintenance
-						* instructions at EL0 */ | \
-				 SCTLR_EL2_NTLSMD /* A32/T32 only */ | \
-				 SCTLR_EL2_LSMAOE /* A32/T32 only */ | \
-				 SECURE_SCTLR_EL2_RES1)
+#define SCTLR_EL1_FLAGS (SCTLR_ELx_SPAN_BIT | SCTLR_ELx_EIS_BIT | SCTLR_ELx_nTWE_BIT | \
+			 SCTLR_ELx_nTWI_BIT | SCTLR_ELx_EOS_BIT | SCTLR_ELx_nAA_BIT | \
+			 SCTLR_ELx_CP15BEN_BIT | SCTLR_ELx_SA0_BIT | SCTLR_ELx_SA_BIT)
 
-#define SCTLR_EL2_RUNTIME	(SCTLR_EL2_INIT| \
-				 SCTLR_EL2_M   /* MMU enabled */)
+#define SCTLR_EL2_INIT		(SCTLR_ELx_C_BIT	/* Data accesses are cacheable
+							 * as per translation tables */ | \
+							/* SCTLR_EL2_M = 0 (MMU disabled) */  \
+							/* SCTLR_EL2_A = 0
+							 * (No alignment checks) */  \
+				 SCTLR_ELx_SA_BIT	/* SP aligned at EL2 */ | \
+				 SCTLR_ELx_SA0_BIT	/* SP Alignment check enable for EL0 */ \
+							/* SCTLR_EL2_CP15BEN = 0 (EL0 using AArch32:
+							 * EL0 execution of the CP15DMB, CP15DSB,
+							 * and CP15ISB instructions is
+							 * UNDEFINED. */ \
+							/* SCTLR_EL2_NAA = 0 (unaligned MA fault
+							 * at EL2 and EL0) */ \
+							/* SCTLR_EL2_ITD = 0 (A32 Only) */ | \
+				 SCTLR_ELx_SED_BIT	/* A32 Only, RES1 for non-A32 systems */ \
+							/* SCTLR_EL2_EOS TODO: ARMv8.5-CSEH,
+							 * otherwise RES1 */ | \
+				 SCTLR_ELx_I_BIT	/* I$ is ON for EL2 and EL0 */ | \
+				 SCTLR_ELx_DZE_BIT	/* Do not trap DC ZVA */ | \
+				 SCTLR_ELx_UCT_BIT	/* Allow EL0 access to CTR_EL0 */ | \
+				 SCTLR_ELx_nTWI_BIT	/* Don't trap WFI from EL0 to EL2 */ | \
+				 SCTLR_ELx_nTWE_BIT	/* Don't trap WFE from EL0 to EL2 */ | \
+				 SCTLR_ELx_WXN_BIT	/* W implies XN */ | \
+				 SCTLR_ELx_TSCXT_BIT	/* Trap EL0 accesss to SCXTNUM_EL0 */ | \
+							/* SCTLR_EL2_EIS EL2 exception is context
+							 * synchronizing
+							 */ \
+				 SCTLR_ELx_RES1_BIT	| \
+							/* SCTLR_EL2_SPAN = 0 (Set PSTATE.PAN = 1 on
+							 * exceptions to EL2)) */ \
+				 SCTLR_ELx_UCI_BIT	/* Allow cache maintenance
+							 * instructions at EL0 */ | \
+				 SCTLR_ELx_nTLSMD_BIT	/* A32/T32 only */ | \
+				 SCTLR_ELx_LSMAOE_BIT	/* A32/T32 only */)
+
+#define SCTLR_EL2_RUNTIME	(SCTLR_EL2_INIT		| \
+				 SCTLR_ELx_M_BIT	/* MMU enabled */)
 
 /* CPTR_EL2 definitions */
 #define CPTR_EL2_RES1			((UL(1) << 13) | (UL(1) << 12) | (UL(1) << 9) | 0xff)
@@ -786,6 +776,18 @@
 				 MDCR_EL2_TDA_BIT	| \
 				 MDCR_EL2_TPM_BIT	| \
 				 MDCR_EL2_TPMCR_BIT)
+
+/* Armv8.3 Pointer Authentication Registers */
+#define APIAKeyLo_EL1		S3_0_C2_C1_0
+#define APIAKeyHi_EL1		S3_0_C2_C1_1
+#define APIBKeyLo_EL1		S3_0_C2_C1_2
+#define APIBKeyHi_EL1		S3_0_C2_C1_3
+#define APDAKeyLo_EL1		S3_0_C2_C2_0
+#define APDAKeyHi_EL1		S3_0_C2_C2_1
+#define APDBKeyLo_EL1		S3_0_C2_C2_2
+#define APDBKeyHi_EL1		S3_0_C2_C2_3
+#define APGAKeyLo_EL1		S3_0_C2_C3_0
+#define APGAKeyHi_EL1		S3_0_C2_C3_1
 
 /* MPIDR definitions */
 #define MPIDR_EL1_AFF_MASK	0xFF
