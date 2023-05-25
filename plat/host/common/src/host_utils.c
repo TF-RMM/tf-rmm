@@ -214,7 +214,9 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	}
 
 	/* Initialize the boot manifest */
-	boot_manifest->version = RMM_EL3_IFC_SUPPORTED_VERSION;
+	boot_manifest->version = RMM_EL3_MANIFEST_MAKE_VERSION(
+						RMM_EL3_MANIFEST_VERS_MAJOR,
+						RMM_EL3_MANIFEST_VERS_MINOR);
 	boot_manifest->plat_data = (uintptr_t)NULL;
 }
 
