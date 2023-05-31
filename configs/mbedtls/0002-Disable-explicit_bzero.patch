@@ -1,0 +1,39 @@
+From cef6f586fafa668c0fc0ec94c88800092d6eda87 Mon Sep 17 00:00:00 2001
+From: Mate Toth-Pal <mate.toth-pal@arm.com>
+Date: Wed, 31 May 2023 16:27:32 +0200
+Subject: [PATCH 2/2] Disable explicit_bzero
+
+The RMM libc implementation doesn't provide explicit_bzero()
+implementation. However when RMM is compiled with a recent glibc for FVP
+target, then MBEDTLS_PLATFORM_HAS_EXPLICIT_BZERO gets defined in
+library/platform_util.c, and this causes a linker error as Mbed TLS
+tries to call explicit_bzero().
+
+This change disables the logic that defines
+MBEDTLS_PLATFORM_HAS_EXPLICIT_BZERO
+---
+ library/platform_util.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/library/platform_util.c b/library/platform_util.c
+index f891cd48a..69aec03be 100644
+--- a/library/platform_util.c
++++ b/library/platform_util.c
+@@ -49,12 +49,14 @@
+ #include <windows.h>
+ #endif
+
++#if 0
+ // Detect platforms known to support explicit_bzero()
+ #if defined(__GLIBC__) && (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 25)
+ #define MBEDTLS_PLATFORM_HAS_EXPLICIT_BZERO 1
+ #elif (defined(__FreeBSD__) && (__FreeBSD_version >= 1100037)) || defined(__OpenBSD__)
+ #define MBEDTLS_PLATFORM_HAS_EXPLICIT_BZERO 1
+ #endif
++#endif
+
+ #if !defined(MBEDTLS_PLATFORM_ZEROIZE_ALT)
+
+--
+2.25.1
+

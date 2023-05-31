@@ -6,6 +6,8 @@
 #ifndef ATTESTATION_PRIV_H
 #define ATTESTATION_PRIV_H
 
+#include <psa/crypto.h>
+
 /*
  * A structure holding the context for generating a pseudo-random number derived
  * from a real random seed.
@@ -24,14 +26,14 @@ struct attest_rng_context {
 void attest_get_cpu_rng_context(struct attest_rng_context *rng_ctx);
 
 /*
- * Get a pointer to the keypair for signing realm attestation token.
+ * Get a pointer the handle of the key for signing realm attestation token.
  *
  * Arguments:
- * keypair - Pointer to the keypair for signing token.
-
+ * key_handle - Pointer to the key handle for signing token.
+ *
  * Returns 0 on success, negative error code on error.
  */
-int attest_get_realm_signing_key(const void **keypair);
+int attest_get_realm_signing_key(psa_key_handle_t *key_handle);
 
 /*
  * Query the attestation private key from monitor and generate the public

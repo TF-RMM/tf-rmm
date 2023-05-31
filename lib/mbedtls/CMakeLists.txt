@@ -4,8 +4,12 @@
 #
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+find_package(Git)
 
 add_library(rmm-mbedtls INTERFACE)
+
+set(MBEDTLS_SRC_DIR "${RMM_SOURCE_DIR}/ext/mbedtls")
+
 target_include_directories(rmm-mbedtls INTERFACE ${RMM_SOURCE_DIR}/configs/mbedtls)
 target_compile_definitions(rmm-mbedtls INTERFACE MBEDTLS_CONFIG_FILE=<mbedtls_config.h>)
 
@@ -38,11 +42,41 @@ if(RMM_FPU_USE_AT_REL2)
             " -DMBEDTLS_SHA512_USE_A64_CRYPTO_ONLY=1 ")
 endif()
 
+# Patch Mbed TLS if it is not patched yet.
+# For details see commit messages in patch files.
+set(MBEDTLS_PATCH_DIR "${RMM_SOURCE_DIR}/configs/mbedtls")
+set(MBEDTLS_PATCH_FILES
+    "${MBEDTLS_PATCH_DIR}/0001-Remove-compiler-options-for-clang.patch"
+    "${MBEDTLS_PATCH_DIR}/0002-Disable-explicit_bzero.patch"
+)
+set(EXECUTE_COMMAND "${GIT_EXECUTABLE}" diff "library/CMakeLists.txt")
+execute_process(COMMAND ${EXECUTE_COMMAND}
+    WORKING_DIRECTORY ${MBEDTLS_SRC_DIR}
+    RESULT_VARIABLE DIFF_STATUS
+    OUTPUT_VARIABLE DIFF_OUTPUT
+)
+if (NOT DIFF_STATUS EQUAL 0)
+    message( FATAL_ERROR "Failed to check applied Mbed TLS patch")
+endif()
+if("${DIFF_OUTPUT}" STREQUAL "")
+    foreach (MBEDTLS_PATCH_FILE ${MBEDTLS_PATCH_FILES})
+        set(EXECUTE_COMMAND "${GIT_EXECUTABLE}" apply --verbose ${MBEDTLS_PATCH_FILE})
+        execute_process(COMMAND ${EXECUTE_COMMAND}
+            WORKING_DIRECTORY ${MBEDTLS_SRC_DIR}
+            RESULT_VARIABLE PATCH_STATUS
+            COMMAND_ECHO STDOUT
+        )
+        if (NOT PATCH_STATUS EQUAL 0)
+            message( FATAL_ERROR "Failed to apply patches at ${WORKING_DIRECTORY}" )
+        endif()
+    endforeach()
+endif()
+
 #
 # Add the mbedtls subdirectory and exclude all targets in mbedtls from
 # default `all` target
 #
-add_subdirectory("${RMM_SOURCE_DIR}/ext/mbedtls" "${CMAKE_BINARY_DIR}/ext/mbedtls" EXCLUDE_FROM_ALL)
+add_subdirectory("${MBEDTLS_SRC_DIR}" "${CMAKE_BINARY_DIR}/ext/mbedtls" EXCLUDE_FROM_ALL)
 
 target_link_libraries(rmm-mbedtls INTERFACE mbedtls)
 
