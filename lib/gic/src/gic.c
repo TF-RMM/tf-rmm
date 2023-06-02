@@ -240,6 +240,7 @@ static void read_lrs(struct gic_cpu_state *gicstate)
 	READ_ICH_LR_EL2(3);
 	READ_ICH_LR_EL2(2);
 	READ_ICH_LR_EL2(1);
+	FALLTHROUGH;
 	default:
 	READ_ICH_LR_EL2(0);
 	}
@@ -264,6 +265,7 @@ static void write_lrs(struct gic_cpu_state *gicstate)
 	WRITE_ICH_LR_EL2(3);
 	WRITE_ICH_LR_EL2(2);
 	WRITE_ICH_LR_EL2(1);
+	FALLTHROUGH;
 	default:
 	WRITE_ICH_LR_EL2(0);
 	}
@@ -276,6 +278,7 @@ static void read_aprs(struct gic_cpu_state *gicstate)
 	READ_ICH_APR_EL2(3);
 	READ_ICH_APR_EL2(2);
 	READ_ICH_APR_EL2(1);
+	FALLTHROUGH;
 	default:
 	READ_ICH_APR_EL2(0);
 	}
@@ -288,6 +291,7 @@ static void write_aprs(struct gic_cpu_state *gicstate)
 	WRITE_ICH_APR_EL2(3);
 	WRITE_ICH_APR_EL2(2);
 	WRITE_ICH_APR_EL2(1);
+	FALLTHROUGH;
 	default:
 	WRITE_ICH_APR_EL2(0);
 	}
