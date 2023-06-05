@@ -19,6 +19,7 @@ void fvp_set_dram_layout(struct ns_dram_info *plat_dram)
 
 	/* Number of banks */
 	num_banks = plat_dram->num_banks;
+	assert(num_banks <= MAX_DRAM_NUM_BANKS);
 
 	/* Pointer to dram_bank[] array */
 	bank_ptr = plat_dram->banks;
