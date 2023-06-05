@@ -49,28 +49,27 @@ set(MBEDTLS_PATCH_FILES
     "${MBEDTLS_PATCH_DIR}/0001-Remove-compiler-options-for-clang.patch"
     "${MBEDTLS_PATCH_DIR}/0002-Disable-explicit_bzero.patch"
 )
-set(EXECUTE_COMMAND "${GIT_EXECUTABLE}" diff "library/CMakeLists.txt")
-execute_process(COMMAND ${EXECUTE_COMMAND}
+
+if(NOT EXISTS ${MBEDTLS_SRC_DIR}/.git)
+    message(FATAL_ERROR "MbedTLS submodule not found")
+endif()
+
+set(REVERT_COMMAND "${GIT_EXECUTABLE}" checkout .)
+execute_process(COMMAND ${REVERT_COMMAND}
     WORKING_DIRECTORY ${MBEDTLS_SRC_DIR}
-    RESULT_VARIABLE DIFF_STATUS
-    OUTPUT_VARIABLE DIFF_OUTPUT
 )
-if (NOT DIFF_STATUS EQUAL 0)
-    message( FATAL_ERROR "Failed to check applied Mbed TLS patch")
-endif()
-if("${DIFF_OUTPUT}" STREQUAL "")
-    foreach (MBEDTLS_PATCH_FILE ${MBEDTLS_PATCH_FILES})
-        set(EXECUTE_COMMAND "${GIT_EXECUTABLE}" apply --verbose ${MBEDTLS_PATCH_FILE})
-        execute_process(COMMAND ${EXECUTE_COMMAND}
-            WORKING_DIRECTORY ${MBEDTLS_SRC_DIR}
-            RESULT_VARIABLE PATCH_STATUS
-            COMMAND_ECHO STDOUT
-        )
-        if (NOT PATCH_STATUS EQUAL 0)
-            message( FATAL_ERROR "Failed to apply patches at ${WORKING_DIRECTORY}" )
-        endif()
-    endforeach()
-endif()
+
+foreach (MBEDTLS_PATCH_FILE ${MBEDTLS_PATCH_FILES})
+    set(EXECUTE_COMMAND "${GIT_EXECUTABLE}" apply --verbose ${MBEDTLS_PATCH_FILE})
+    execute_process(COMMAND ${EXECUTE_COMMAND}
+        WORKING_DIRECTORY ${MBEDTLS_SRC_DIR}
+        RESULT_VARIABLE PATCH_STATUS
+        COMMAND_ECHO STDOUT
+    )
+    if (NOT PATCH_STATUS EQUAL 0)
+        message( FATAL_ERROR "Failed to apply patches at ${WORKING_DIRECTORY}" )
+    endif()
+endforeach()
 
 #
 # Add the mbedtls subdirectory and exclude all targets in mbedtls from
