@@ -96,14 +96,6 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 
 	plat_dram = &local_core_manifest.plat_dram;
 
-	/*
-	 * It is possible for the `plat_dram` to be NULL, in case the
-	 * platform does not need to receive this info dynamically.
-	 */
-	if (plat_dram == NULL) {
-		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
-	}
-
 	/* Number of banks */
 	num_banks = plat_dram->num_banks;	/* number of banks */
 
