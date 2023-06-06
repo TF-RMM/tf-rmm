@@ -10,10 +10,35 @@
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
+#include <sizes.h>
 #include <xlat_contexts.h>
 #include <xlat_defs_private.h>
 #include <xlat_tables.h>
 #include <xlat_tables_private.h>
+
+static uint64_t read_id_aa64mmfr0_el0_tgran4(void)
+{
+	return EXTRACT(ID_AA64MMFR0_EL1_TGRAN4, read_id_aa64mmfr0_el1());
+}
+
+/*
+ * Returns true if the provided granule size is supported, false otherwise.
+ *
+ * At the moment, only 4KB granularity is supported.
+ */
+static bool xlat_arch_is_granule_size_supported(size_t size)
+{
+	u_register_t tgranx;
+
+	if (size == SZ_4K) {
+		tgranx = read_id_aa64mmfr0_el0_tgran4();
+		/* MSB of TGRAN4 field will be '1' for unsupported feature */
+		return ((tgranx >= ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED) &&
+			(tgranx < 8ULL));
+	}
+
+	return false;
+}
 
 /*
  * Encode a Physical Address Space size for its use in TCR_ELx.
@@ -74,6 +99,11 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 
 	assert(ctx_cfg != NULL);
 	assert(ctx_tbls != NULL);
+
+	/* Only 4K Granularity is supported */
+	if (xlat_arch_is_granule_size_supported(SZ_4K) == false) {
+		return -EPERM;
+	}
 
 	if (ctx->cfg->initialized == false) {
 		return -EINVAL;

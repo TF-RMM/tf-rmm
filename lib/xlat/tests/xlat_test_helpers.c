@@ -75,9 +75,14 @@ void xlat_test_hepers_arch_init(void)
 	 */
 	host_util_zero_sysregs_and_cbs();
 
-	/* Setup id_aa64mmfr0_el1 with a PA size of 48 bits */
+	/*
+	 * Setup id_aa64mmfr0_el1 with a PA size of 48 bits
+	 * and 4K granularity support.
+	 */
 	retval = host_util_set_default_sysreg_cb("id_aa64mmfr0_el1",
-				INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5UL));
+				INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5UL) |
+				INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
+					ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED));
 
 	/* Initialize MMU registers to 0 */
 	retval = host_util_set_default_sysreg_cb("sctlr_el2", 0UL);
@@ -92,6 +97,14 @@ void xlat_test_hepers_arch_init(void)
 	host_util_set_cpuid(0U);
 
 	test_helpers_expect_assert_fail(false);
+}
+
+void xlat_test_helpers_set_parange(unsigned int parange)
+{
+	u_register_t reg = read_id_aa64mmfr0_el1() &
+					~MASK(ID_AA64MMFR0_EL1_PARANGE);
+	host_write_sysreg("id_aa64mmfr0_el1",
+			reg | INPLACE(ID_AA64MMFR0_EL1_PARANGE, parange));
 }
 
 uintptr_t xlat_test_helpers_get_start_va(xlat_addr_region_id_t region,

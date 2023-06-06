@@ -1816,9 +1816,7 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC2)
 		 */
 
 		/* Configure a random maximum PA supported */
-		host_write_sysreg("id_aa64mmfr0_el1",
-				  INPLACE(ID_AA64MMFR0_EL1_PARANGE,
-				  			parange_index));
+		xlat_test_helpers_set_parange(parange_index);
 		test_pa =
 			(1ULL << pa_range_bits_arr[parange_index]) + PAGE_SIZE;
 
@@ -2097,8 +2095,7 @@ TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC1)
 	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls) * 2U);
 
 	/* Configure a random maximum PA supported */
-	host_write_sysreg("id_aa64mmfr0_el1",
-				INPLACE(ID_AA64MMFR0_EL1_PARANGE, pa_index));
+	xlat_test_helpers_set_parange(pa_index);
 
 	for (int i = 0U; i < VA_REGIONS; i++) {
 		va_region = (xlat_addr_region_id_t)i;
@@ -2147,7 +2144,7 @@ TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC2)
 	struct xlat_mmap_region init_mmap;
 
 	/***************************************************************
-	 * TEST CASE 1:
+	 * TEST CASE 2:
 	 *
 	 * Generate a valid translation context for one of the regions
 	 * and overwrite it to test different failure conditions on
@@ -2156,6 +2153,8 @@ TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC2)
 	 *	- Call xlat_arch_setup_mmu_cfg() with the MMU enabled.
 	 *	- Call xlat_arch_setup_mmu_cfg() with an uninitialized
 	 *	  context configuration.
+	 *	- Call xlat_arch_setup_mmu_cfg() for a CPU which
+	 *	  does not have support for 4KB granularity.
 	 ***************************************************************/
 
 	/* Clean the data structures */
@@ -2200,6 +2199,21 @@ TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC2)
 
 	/* Verify that the MMU has failed to be initialized */
 	CHECK_TRUE(retval == -EINVAL);
+
+	/* Restore the context initialized flag */
+	ctx.cfg->initialized = true;
+
+	/* Force the architecture to report 4K granularity as not available */
+	host_write_sysreg("id_aa64mmfr0_el1",
+		INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5U) |
+		INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
+				ID_AA64MMFR0_EL1_TGRAN4_NOT_SUPPORTED));
+
+	/* Try to initialize MMU for the given context */
+	retval = xlat_arch_setup_mmu_cfg(&ctx);
+
+	/* Verify that the MMU has failed to be initialized */
+	CHECK_TRUE(retval == -EPERM);
 }
 
 ASSERT_TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC3)
