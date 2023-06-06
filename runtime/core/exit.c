@@ -405,16 +405,6 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	/* Ignore SVE hint bit, until RMM supports SVE hint bit */
 	function_id &= ~MASK(SMC_SVE_HINT);
 
-	/* cppcheck-suppress unsignedPositive */
-	if (!IS_SMC32_PSCI_FID(function_id) && !IS_SMC64_PSCI_FID(function_id)
-	    && !IS_SMC64_RSI_FID(function_id)
-	    && !(function_id == SMCCC_VERSION)) {
-
-		ERROR("Invalid RSI function_id = %x\n", function_id);
-		rec->regs[0] = SMC_UNKNOWN;
-		return true;
-	}
-
 	if (rsi_handler_needs_fpu(function_id) == true) {
 		/*
 		 * RSI handler uses FPU at REL2, so actively save REC SIMD state

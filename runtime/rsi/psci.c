@@ -245,7 +245,7 @@ struct psci_result psci_rsi(struct rec *rec,
 			    unsigned long arg1,
 			    unsigned long arg2)
 {
-	struct psci_result result;
+	struct psci_result result = { false };
 
 	switch (function_id) {
 	case SMC32_PSCI_VERSION:
@@ -262,7 +262,7 @@ struct psci_result psci_rsi(struct rec *rec,
 		arg0 = (unsigned int)arg0;
 		arg1 = (unsigned int)arg1;
 		arg2 = (unsigned int)arg2;
-		/* Fall through */
+		FALLTHROUGH;
 	case SMC64_PSCI_CPU_ON:
 		result = psci_cpu_on(rec, arg0, arg1, arg2);
 		break;
