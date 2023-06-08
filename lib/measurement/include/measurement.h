@@ -136,7 +136,7 @@ void measurement_extend(enum hash_algo hash_algo,
 static inline size_t measurement_get_size(
 					const enum hash_algo algorithm)
 {
-	size_t ret = 0;
+	size_t ret = 0UL;
 
 	switch (algorithm) {
 	case HASH_ALGO_SHA256:

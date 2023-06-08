@@ -14,8 +14,8 @@
 #include <string.h>
 #include <utils_def.h>
 
-#define MAX_EXTENDED_SIZE		(64U)
-
+#define MAX_EXTENDED_SIZE	(64U)
+#define	MAX_MEASUREMENT_WORDS	(MAX_MEASUREMENT_SIZE / sizeof(unsigned long))
 /*
  * Return the Realm Personalization Value.
  *
@@ -143,7 +143,7 @@ static void attest_token_continue_write_state(struct rec *rec,
 	granule_unlock(walk_res.llt);
 
 	/* Write output parameters */
-	if (attest_token_len == 0) {
+	if (attest_token_len == 0UL) {
 		res->smc_res.x[0] = RSI_ERROR_INPUT;
 	} else {
 		res->smc_res.x[0] = RSI_SUCCESS;
@@ -359,7 +359,7 @@ void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 {
 	struct rd *rd;
 	unsigned long idx;
-	size_t measurement_size;
+	unsigned int i, cnt;
 
 	assert(rec != NULL);
 
@@ -380,14 +380,23 @@ void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 	granule_lock(rec->realm_info.g_rd, GRANULE_STATE_RD);
 	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
 
-	measurement_size = measurement_get_size(rd->algorithm);
+	/* Number of 8-bytes words in measurement */
+	cnt = (unsigned int)measurement_get_size(rd->algorithm) /
+						sizeof(unsigned long);
 
-	(void)memcpy(&rec->regs[1], rd->measurement[idx], measurement_size);
+	/* Copy the part of the measurement to res->smc_res.x[] */
+	for (i = 0U; i < SMC_RESULT_REGS - 1U; i++) {
+		res->smc_res.x[i + 1U] = rd->measurement[idx][i];
+	}
 
-	/* Zero-initialize the unused area */
-	if (measurement_size < MAX_MEASUREMENT_SIZE) {
-		(void)memset((char *)(&rec->regs[1]) + measurement_size,
-			     0, MAX_MEASUREMENT_SIZE - measurement_size);
+	/* Copy the rest of the measurement to the rec->regs[] */
+	for (; i < cnt; i++) {
+		rec->regs[i + 1U] = rd->measurement[idx][i];
+	}
+
+	/* Zero-initialize unused area */
+	for (; i < MAX_MEASUREMENT_WORDS; i++) {
+		rec->regs[i + 1U] = 0UL;
 	}
 
 	buffer_unmap(rd);
