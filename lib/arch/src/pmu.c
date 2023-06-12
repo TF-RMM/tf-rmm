@@ -151,7 +151,11 @@ void pmu_update_rec_exit(struct rmi_rec_exit *rec_exit)
 {
 	assert(rec_exit != NULL);
 
-	rec_exit->pmu_ovf = read_pmovsset_el0();
-	rec_exit->pmu_intr_en = read_pmintenset_el1();
-	rec_exit->pmu_cntr_en = read_pmcntenset_el0();
+	if (((read_pmovsset_el0() & read_pmintenset_el1() &
+	     read_pmcntenset_el0()) != 0UL) &&
+	     ((read_pmcr_el0() & PMCR_EL0_E_BIT) != 0UL)) {
+		rec_exit->pmu_ovf_status = RMI_PMU_OVERFLOW_ACTIVE;
+	} else {
+		rec_exit->pmu_ovf_status = RMI_PMU_OVERFLOW_NOT_ACTIVE;
+	}
 }

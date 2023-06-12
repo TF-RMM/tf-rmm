@@ -52,9 +52,7 @@ COMPILER_ASSERT(offsetof(struct rmi_rec_exit, ripas_base) == 0x500);
 COMPILER_ASSERT(offsetof(struct rmi_rec_exit, ripas_top) == 0x508);
 COMPILER_ASSERT(offsetof(struct rmi_rec_exit, ripas_value) == 0x510);
 COMPILER_ASSERT(offsetof(struct rmi_rec_exit, imm) == 0x600);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, pmu_ovf) == 0x700);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, pmu_intr_en) == 0x708);
-COMPILER_ASSERT(offsetof(struct rmi_rec_exit, pmu_cntr_en) == 0x710);
+COMPILER_ASSERT(offsetof(struct rmi_rec_exit, pmu_ovf_status) == 0x700);
 
 COMPILER_ASSERT(sizeof(struct rmi_rec_run) <= GRANULE_SIZE);
 COMPILER_ASSERT(offsetof(struct rmi_rec_run, entry) == 0);
