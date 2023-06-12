@@ -31,7 +31,7 @@
 	mov_imm	x2, HCR_EL2_INIT
 	msr	hcr_el2, x2
 
-	mov_imm	x3, CPTR_EL2_INIT
+	mov_imm	x3, CPTR_EL2_VHE_INIT
 	msr	cptr_el2, x3
 
 	mov_imm	x4, ICC_SRE_EL2_INIT

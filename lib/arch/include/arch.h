@@ -725,31 +725,29 @@
 #define SCTLR_EL2_RUNTIME	(SCTLR_EL2_INIT		| \
 				 SCTLR_ELx_M_BIT	/* MMU enabled */)
 
-/* CPTR_EL2 definitions */
-#define CPTR_EL2_RES1			((UL(1) << 13) | (UL(1) << 12) | (UL(1) << 9) | 0xff)
-#define CPTR_EL2_TTA			(UL(1) << 28)
-#define CPTR_EL2_TAM			(UL(1) << 30)
+/* RMM sets HCR_EL2.E2H to 1. CPTR_EL2 definitions when HCR_EL2.E2H == 1 */
+#define CPTR_EL2_VHE_TTA		(UL(1) << 28)
+#define CPTR_EL2_VHE_TAM		(UL(1) << 30)
 
-#define CPTR_EL2_FPEN_SHIFT		UL(20)
-#define CPTR_EL2_FPEN_WIDTH		UL(2)
-#define CPTR_EL2_FPEN_TRAP_ALL_00	UL(0)
-#define CPTR_EL2_FPEN_TRAP_TGE_01	UL(1)
-#define CPTR_EL2_FPEN_TRAP_ALL_10	UL(2)
-#define CPTR_EL2_FPEN_NO_TRAP_11	UL(3)
+#define CPTR_EL2_VHE_FPEN_SHIFT		UL(20)
+#define CPTR_EL2_VHE_FPEN_WIDTH		UL(2)
+#define CPTR_EL2_VHE_FPEN_TRAP_ALL_00	UL(0)
+#define CPTR_EL2_VHE_FPEN_TRAP_TGE_01	UL(1)
+#define CPTR_EL2_VHE_FPEN_TRAP_ALL_10	UL(2)
+#define CPTR_EL2_VHE_FPEN_NO_TRAP_11	UL(3)
 
-#define CPTR_EL2_ZEN_SHIFT		UL(16)
-#define CPTR_EL2_ZEN_WIDTH		UL(2)
-#define CPTR_EL2_ZEN_TRAP_ALL_00	UL(0)
-#define CPTR_EL2_ZEN_NO_TRAP_11		UL(3)
+#define CPTR_EL2_VHE_ZEN_SHIFT		UL(16)
+#define CPTR_EL2_VHE_ZEN_WIDTH		UL(2)
+#define CPTR_EL2_VHE_ZEN_TRAP_ALL_00	UL(0x0)
+#define CPTR_EL2_VHE_ZEN_NO_TRAP_11	UL(0x3)
 
-				/* Trap all FPU/SVE accesses */
-#define CPTR_EL2_INIT		((CPTR_EL2_ZEN_TRAP_ALL_00 << \
-				  CPTR_EL2_ZEN_SHIFT)			| \
-				 (CPTR_EL2_FPEN_TRAP_ALL_00 << \
-				  CPTR_EL2_FPEN_SHIFT)			| \
-				 CPTR_EL2_TTA	/* trap trace access */ | \
-				 CPTR_EL2_TAM	/* trap AMU access */   | \
-				 CPTR_EL2_RES1)
+/* Trap all AMU, trace, FPU, SVE accesses */
+#define CPTR_EL2_VHE_INIT		((CPTR_EL2_VHE_ZEN_TRAP_ALL_00 << \
+					  CPTR_EL2_VHE_ZEN_SHIFT)	| \
+					 (CPTR_EL2_VHE_FPEN_TRAP_ALL_00 << \
+					  CPTR_EL2_VHE_FPEN_SHIFT)	| \
+					 CPTR_EL2_VHE_TTA		| \
+					 CPTR_EL2_VHE_TAM)
 
 /* MDCR_EL2 definitions */
 #define MDCR_EL2_HPMFZS		(UL(1) << 36)

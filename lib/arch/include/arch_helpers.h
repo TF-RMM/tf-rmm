@@ -96,14 +96,14 @@ void inv_dcache_range(uintptr_t addr, size_t size);
 /*******************************************************************************
  * FPU management
  ******************************************************************************/
-#define is_fpen_enabled() (EXTRACT(CPTR_EL2_FPEN, read_cptr_el2()) == \
-					CPTR_EL2_FPEN_NO_TRAP_11)
+#define is_fpen_enabled() (EXTRACT(CPTR_EL2_VHE_FPEN, read_cptr_el2()) == \
+					CPTR_EL2_VHE_FPEN_NO_TRAP_11)
 
 /*******************************************************************************
  * SVE management
  ******************************************************************************/
-#define is_zen_enabled() (EXTRACT(CPTR_EL2_ZEN, read_cptr_el2()) == \
-			  CPTR_EL2_ZEN_NO_TRAP_11)
+#define is_zen_enabled() (EXTRACT(CPTR_EL2_VHE_ZEN, read_cptr_el2()) == \
+			  CPTR_EL2_VHE_ZEN_NO_TRAP_11)
 
 /*******************************************************************************
  * Misc. accessor prototypes
