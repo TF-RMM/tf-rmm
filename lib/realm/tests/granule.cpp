@@ -41,7 +41,8 @@ static inline unsigned int get_last_granule_idx(void)
  * Function to get a random address within the granules range.
  * The address will be aligned to granule size.
  */
-static inline unsigned long get_rand_granule_addr(void) {
+static inline unsigned long get_rand_granule_addr(void)
+{
 	unsigned long addr;
 	int random_granule = get_rand_granule_idx();
 
@@ -71,8 +72,9 @@ static bool get_out_of_range_granule(unsigned long *addr, bool higher_range)
 		*addr += host_util_get_granule_base();
 	} else {
 		unsigned int granules_below;
-		granules_below = (unsigned int)(host_util_get_granule_base() /
-							GRANULE_SIZE);
+
+		granules_below =
+			(unsigned int)(host_util_get_granule_base() / GRANULE_SIZE);
 
 		if (granules_below == 0) {
 			return false;
@@ -94,7 +96,7 @@ static bool get_out_of_range_granule(unsigned long *addr, bool higher_range)
  *
  * The input granule pointer must be valid.
  */
-static inline unsigned int set_rand_non_zero_lock_value(struct granule * granule)
+static inline unsigned int set_rand_non_zero_lock_value(struct granule *granule)
 {
 	unsigned int lock =
 		(unsigned int)test_helpers_get_rand_in_range(1, INT_MAX);
@@ -141,10 +143,9 @@ TEST(granule, addr_to_granule_TC1)
 {
 	struct granule *granule;
 	struct granule *expected_granule;
-	unsigned int granule_indexes[3] =
-					{0U,
-					 get_rand_granule_idx(),
-					 get_last_granule_idx()};
+	unsigned int granule_indexes[3] = {0U,
+					   get_rand_granule_idx(),
+					   get_last_granule_idx()};
 	unsigned long addr;
 
 	/******************************************************************
@@ -236,10 +237,9 @@ ASSERT_TEST(granule, addr_to_granule_TC5)
 TEST(granule, granule_addr_TC1)
 {
 	struct granule *granule;
-	unsigned int granule_indexes[3] =
-					{0U,
-					 get_rand_granule_idx(),
-					 get_last_granule_idx()};
+	unsigned int granule_indexes[3] = {0U,
+					   get_rand_granule_idx(),
+					   get_last_granule_idx()};
 	unsigned long expected_address;
 	unsigned long addr;
 
@@ -407,10 +407,9 @@ TEST(granule, granule_refcount_read_acquire_TC1)
 TEST(granule, find_granule_TC1)
 {
 	struct granule *expected_granule;
-	unsigned int granule_indexes[3] =
-					{0U,
-					 get_rand_granule_idx(),
-					 get_last_granule_idx()};
+	unsigned int granule_indexes[3] = {0U,
+					   get_rand_granule_idx(),
+					   get_last_granule_idx()};
 	unsigned long address;
 	struct granule *granule;
 
@@ -424,7 +423,7 @@ TEST(granule, find_granule_TC1)
 	 ******************************************************************/
 
 	for (unsigned int i = 0U; i < 3U; i++) {
-		expected_granule = realm_test_util_granule_struct_base() + \
+		expected_granule = realm_test_util_granule_struct_base() +
 							granule_indexes[i];
 		address = (granule_indexes[i] * GRANULE_SIZE) +
 						host_util_get_granule_base();
@@ -473,8 +472,7 @@ TEST(granule, find_granule_TC3)
 	POINTERS_EQUAL(NULL, granule);
 
 	/* Try the lower boundary as well */
-	if (get_out_of_range_granule(&address, false) == true)
-	{
+	if (get_out_of_range_granule(&address, false) == true) {
 		granule = find_granule(address);
 		POINTERS_EQUAL(NULL, granule);
 	}
@@ -697,13 +695,13 @@ TEST(granule, find_lock_two_granules_TC5)
 	g1 = NULL;
 	g2 = NULL;
 
-	for(unsigned int state1 = GRANULE_STATE_NS;
-	    state1 <= GRANULE_STATE_LAST; state1++) {
+	for (unsigned int state1 = GRANULE_STATE_NS;
+	     state1 <= GRANULE_STATE_LAST; state1++) {
 
-		for(unsigned int state2 = GRANULE_STATE_NS;
-		    state2 <= GRANULE_STATE_LAST; state2++) {
-			if(state1 == GRANULE_STATE_NS &&
-			   state2 == GRANULE_STATE_NS) {
+		for (unsigned int state2 = GRANULE_STATE_NS;
+		     state2 <= GRANULE_STATE_LAST; state2++) {
+			if (state1 == GRANULE_STATE_NS &&
+			    state2 == GRANULE_STATE_NS) {
 				/*
 				 * Skip. Test case already checked as we expect
 				 * the default state to be STATE_NS.
@@ -822,9 +820,8 @@ TEST(granule, find_lock_granule_TC2)
 	 * granules in between.
 	 ***************************************************************/
 	for (unsigned int i = 0U; i < 3U; i++) {
-		for(unsigned int state = GRANULE_STATE_NS + 1U;
-		    state <= GRANULE_STATE_LAST; state++)
-		{
+		for (unsigned int state = GRANULE_STATE_NS + 1U;
+		     state <= GRANULE_STATE_LAST; state++) {
 			granule = find_lock_granule(addrs[i],
 						    (enum granule_state)state);
 			POINTERS_EQUAL(NULL, granule);
@@ -845,9 +842,8 @@ TEST(granule, find_lock_granule_TC3)
 	 ***************************************************************/
 	addr = get_rand_granule_addr();
 	addr += test_helpers_get_rand_in_range(1, GRANULE_SIZE - 1);
-	for(unsigned int state = GRANULE_STATE_NS;
-	    state <= GRANULE_STATE_LAST; state++)
-	{
+	for (unsigned int state = GRANULE_STATE_NS;
+	     state <= GRANULE_STATE_LAST; state++) {
 		granule = find_lock_granule(addr,
 					    (enum granule_state)state);
 		POINTERS_EQUAL(NULL, granule);
@@ -867,9 +863,8 @@ TEST(granule, find_lock_granule_TC4)
 	 ***************************************************************/
 	(void)get_out_of_range_granule(&addr, true);
 
-	for(unsigned int state = GRANULE_STATE_NS;
-	    state <= GRANULE_STATE_LAST; state++)
-	{
+	for (unsigned int state = GRANULE_STATE_NS;
+	     state <= GRANULE_STATE_LAST; state++) {
 		granule = find_lock_granule(addr,
 					    (enum granule_state)state);
 		POINTERS_EQUAL(NULL, granule);
@@ -926,9 +921,9 @@ TEST(granule, granule_lock_TC1)
 	 * to ensure the correctness of the granule. Therefore, skip any tests
 	 * with invalid granules.
 	 *
-	 * In addition to that, granule_lock() also expects:
-	 * 	* That the expected state belongs to enum granule_state,
-	 * 	  so it doesn't perform any checks on that either.
+	 * In addition to that, granule_lock() also expects that the expected
+	 * state belongs to enum granule_state so it doesn't perform any checks
+	 * on that either.
 	 */
 }
 
@@ -1640,12 +1635,11 @@ TEST(granule, find_lock_unused_granule_TC2)
 		/*
 		 * Start the test with a granule in the same state as at the
 		 * end of the previous test
-	 	*/
+		 */
 		granule_set_state(granule, GRANULE_STATE_RD);
 
-		for(unsigned int state = GRANULE_STATE_NS;
-		    state <= GRANULE_STATE_LAST; state++)
-		{
+		for (unsigned int state = GRANULE_STATE_NS;
+		     state <= GRANULE_STATE_LAST; state++) {
 			if (state == GRANULE_STATE_RD) {
 				/* Skip as the state is the correct one */
 				continue;
@@ -1760,7 +1754,7 @@ TEST(granule, granule_memzero_TC1)
 	 * Repeat the operation on all possible CPUs.
 	 *
 	 * NOTE: granule_memzero() will fail with SLOT_NS, so skip that
-	 * 	 testcase.
+	 *	 testcase.
 	 ***************************************************************/
 
 	for (unsigned int i = 0U; i < 3U; i++) {
