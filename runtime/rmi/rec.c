@@ -282,11 +282,11 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	rec->realm_info.s2_starting_level = realm_rtt_starting_level(rd);
 	rec->realm_info.g_rtt = rd->s2_ctx.g_rtt;
 	rec->realm_info.g_rd = g_rd;
-	rec->realm_info.sve_enabled = rd->sve_enabled;
-	rec->realm_info.sve_vq = rd->sve_vq;
-
 	rec->realm_info.pmu_enabled = rd->pmu_enabled;
 	rec->realm_info.pmu_num_ctrs = rd->pmu_num_ctrs;
+	rec->realm_info.hash_algo = rd->algorithm;
+	rec->realm_info.sve_enabled = rd->sve_enabled;
+	rec->realm_info.sve_vq = rd->sve_vq;
 
 	rec_params_measure(rd, &rec_params);
 

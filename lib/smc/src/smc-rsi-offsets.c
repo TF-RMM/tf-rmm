@@ -9,6 +9,7 @@
 
 COMPILER_ASSERT(sizeof(struct rsi_realm_config) == 0x1000);
 COMPILER_ASSERT(offsetof(struct rsi_realm_config, ipa_width) == 0);
+COMPILER_ASSERT(offsetof(struct rsi_realm_config, hash_algo) == 8);
 
 COMPILER_ASSERT(sizeof(struct rsi_host_call) == 0x100);
 COMPILER_ASSERT(offsetof(struct rsi_host_call, imm) == 0);
