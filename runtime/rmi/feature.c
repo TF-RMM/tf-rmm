@@ -64,6 +64,7 @@ void smc_read_feature_register(unsigned long index,
 		break;
 	default:
 		ret_struct->x[0] = RMI_ERROR_INPUT;
+		ret_struct->x[1] = 0UL;
 	}
 }
 
