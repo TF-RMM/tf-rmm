@@ -85,8 +85,8 @@
 #define REC_EXIT_NR_GPRS		U(31)
 
 /* RmiHashAlgorithm type */
-#define RMI_HASH_ALGO_SHA256	0
-#define RMI_HASH_ALGO_SHA512	1
+#define RMI_HASH_SHA_256	0
+#define RMI_HASH_SHA_512	1
 
 /* Maximum number of Interrupt Controller List Registers */
 #define REC_GIC_NUM_LRS			U(16)

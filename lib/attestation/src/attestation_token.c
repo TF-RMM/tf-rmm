@@ -34,10 +34,10 @@ static void attest_get_hash_algo_text(enum hash_algo  algo_id,
 	const char *sha512 = "sha-512";
 
 	switch (algo_id) {
-	case HASH_ALGO_SHA256:
+	case HASH_SHA_256:
 		*algo_text = UsefulBuf_FromSZ(sha256);
 		break;
-	case HASH_ALGO_SHA512:
+	case HASH_SHA_512:
 		*algo_text = UsefulBuf_FromSZ(sha512);
 		break;
 	default:

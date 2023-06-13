@@ -12,10 +12,10 @@
 #include <stddef.h>
 #include <utils_def.h>
 
-/* Supported algorithms */
+/* RmmHashAlgorithm type as per RMM spec */
 enum hash_algo {
-	HASH_ALGO_SHA256 = RMI_HASH_ALGO_SHA256,
-	HASH_ALGO_SHA512 = RMI_HASH_ALGO_SHA512,
+	HASH_SHA_256 = RMI_HASH_SHA_256,
+	HASH_SHA_512 = RMI_HASH_SHA_512,
 };
 
 /*
@@ -133,16 +133,15 @@ void measurement_extend(enum hash_algo hash_algo,
  * Arguments:
  *	- algorithm:	Algorithm to check.
  */
-static inline size_t measurement_get_size(
-					const enum hash_algo algorithm)
+static inline size_t measurement_get_size(const enum hash_algo algorithm)
 {
 	size_t ret = 0UL;
 
 	switch (algorithm) {
-	case HASH_ALGO_SHA256:
+	case HASH_SHA_256:
 		ret = (size_t)SHA256_SIZE;
 		break;
-	case HASH_ALGO_SHA512:
+	case HASH_SHA_512:
 		ret = (size_t)SHA512_SIZE;
 		break;
 	default:

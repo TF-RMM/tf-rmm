@@ -55,10 +55,11 @@ static size_t realm_attest_public_key_hash_len;
 static bool attest_signing_key_loaded; /* = false */
 static psa_key_handle_t attest_signing_key;
 
-/* Specify the hash algorithm to use for computing the hash of the
+/*
+ * Specify the hash algorithm to use for computing the hash of the
  * realm public key.
  */
-static enum hash_algo public_key_hash_algo_id = HASH_ALGO_SHA256;
+static enum hash_algo public_key_hash_algo_id = HASH_SHA_256;
 
 /*
  * TODO: review panic usage and try to gracefully exit on error. Also

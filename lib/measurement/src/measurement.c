@@ -20,11 +20,11 @@ static void measurement_print(unsigned char *measurement,
 	VERBOSE("Measurement ");
 
 	switch (algorithm) {
-	case HASH_ALGO_SHA256:
+	case HASH_SHA_256:
 		VERBOSE("(SHA256): 0x");
 		size = SHA256_SIZE;
 		break;
-	case HASH_ALGO_SHA512:
+	case HASH_SHA_512:
 		VERBOSE("(SHA512): 0x");
 		size = SHA512_SIZE;
 		break;
@@ -52,10 +52,9 @@ static void do_hash(enum hash_algo hash_algo,
 	assert(size <= GRANULE_SIZE);
 	assert((data != NULL) && (out != NULL));
 
-
-	if (hash_algo == HASH_ALGO_SHA256) {
+	if (hash_algo == HASH_SHA_256) {
 		psa_algorithm = PSA_ALG_SHA_256;
-	} else if (hash_algo == HASH_ALGO_SHA512) {
+	} else if (hash_algo == HASH_SHA_512) {
 		psa_algorithm = PSA_ALG_SHA_512;
 	} else {
 		assert(false);
@@ -129,10 +128,10 @@ void measurement_extend(enum hash_algo hash_algo,
 	assert(out != NULL);
 
 	switch (hash_algo) {
-	case HASH_ALGO_SHA256:
+	case HASH_SHA_256:
 		psa_algorithm = PSA_ALG_SHA_256;
 		break;
-	case HASH_ALGO_SHA512:
+	case HASH_SHA_512:
 		psa_algorithm = PSA_ALG_SHA_512;
 		break;
 	default:
