@@ -32,8 +32,10 @@ extern "C" {
 /*
  * Function to get a random granule address within the valid address range.
  */
-static inline uintptr_t get_rand_granule_addr(void) {
+static inline uintptr_t get_rand_granule_addr(void)
+{
 	uintptr_t addr;
+
 	int random_granule = test_helpers_get_rand_in_range(0,
 					test_helpers_get_nr_granules() - 1);
 
@@ -53,10 +55,11 @@ static void get_rand_granule_array(uintptr_t *arr, unsigned int count)
 		arr[i] = get_rand_granule_addr();
 		if (i > 0U) {
 			bool match;
+
 			do {
 				/* Check for duplicates so far */
 				match = false;
-				for (unsigned j = 0U; j < i; j++) {
+				for (unsigned int j = 0U; j < i; j++) {
 					if (arr[j] == arr[i]) {
 						arr[i] =
 						    get_rand_granule_addr();
@@ -64,7 +67,7 @@ static void get_rand_granule_array(uintptr_t *arr, unsigned int count)
 						break;
 					}
 				}
-			} while(match == true);
+			} while (match == true);
 		}
 	}
 
@@ -374,7 +377,7 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC8)
 	cb.buffer_unmap = test_buffer_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
-	test_granule = realm_test_util_granule_struct_base() + \
+	test_granule = realm_test_util_granule_struct_base() +
 							HOST_NR_GRANULES;
 	slot = (enum buffer_slot)test_helpers_get_rand_in_range(
 						SLOT_NS + 1U, NR_CPU_SLOTS);
@@ -419,7 +422,7 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC9)
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	(void)granule_map((struct granule*)test_granule, slot);
+	(void)granule_map((struct granule *)test_granule, slot);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -480,7 +483,7 @@ TEST(slot_buffer, ns_buffer_write_TC1)
 			ns_buffer_write(SLOT_NS, test_granule,
 					GRANULE_BLOCK_SIZE * j,
 					GRANULE_BLOCK_SIZE,
-					(void*)(granule_addrs[1] +
+					(void *)(granule_addrs[1] +
 						(GRANULE_BLOCK_SIZE * j)));
 
 			MEMCMP_EQUAL((void *)granule_addrs[1],
@@ -595,7 +598,7 @@ TEST(slot_buffer, ns_buffer_write_TC3)
 		host_util_set_cpuid(cpu[i]);
 
 		ns_buffer_write(SLOT_NS, addr_to_granule(granule_addrs[i]), 0U,
-				sizeof(long), (void*)&pattern[i]);
+				sizeof(long), (void *)&pattern[i]);
 	}
 
 	/*
@@ -917,7 +920,7 @@ TEST(slot_buffer, ns_buffer_read_TC1)
 			ns_buffer_read(SLOT_NS, test_granule,
 					GRANULE_BLOCK_SIZE * j,
 					GRANULE_BLOCK_SIZE,
-					(void*)(granule_addrs[1] +
+					(void *)(granule_addrs[1] +
 						(GRANULE_BLOCK_SIZE * j)));
 
 			MEMCMP_EQUAL((void *)granule_addrs[1],
@@ -1032,7 +1035,7 @@ TEST(slot_buffer, ns_buffer_read_TC3)
 		host_util_set_cpuid(cpu[i]);
 
 		ns_buffer_read(SLOT_NS, addr_to_granule(granule_addrs[i]), 0U,
-			       sizeof(long), (void*)&dest[i]);
+			       sizeof(long), (void *)&dest[i]);
 	}
 
 	/*

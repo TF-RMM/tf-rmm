@@ -6,6 +6,7 @@
 # (c) 2007,2008, Andy Whitcroft <apw@uk.ibm.com> (new conditions, test suite)
 # (c) 2008-2010 Andy Whitcroft <apw@canonical.com>
 # (c) 2010-2018 Joe Perches <joe@perches.com>
+# (c) 2018-2023 TF-RMM Contributors.
 #
 # This file is taken from Linux kernel 5.15.0-rc2 at SHA:
 # 4ce9f970457899defdf68e26e0502c7245002eb3
@@ -1495,9 +1496,12 @@ sub line_stats {
 }
 
 my $sanitise_quote = '';
+my $extern_c = 0;
 
 sub sanitise_line_reset {
 	my ($in_comment) = @_;
+
+	$extern_c = 0;
 
 	if ($in_comment) {
 		$sanitise_quote = '*/';
@@ -1560,6 +1564,41 @@ sub sanitise_line {
 				next;
 			} elsif ($sanitise_quote eq $c) {
 				$sanitise_quote = '';
+			}
+		}
+
+		# C header files in a C++ source file
+		# are enclosed in a 'extern "C" {}'.
+		if ($extern_c == 0 &&
+			(substr($line, $off) =~ /^( |\t)*extern( |\t)+"C"/)) {
+			$extern_c = 1;
+
+			substr($res, $off, length(substr($line, $off)),
+				"$;" x length(substr($line, $off)));
+			return $res;
+		}
+
+		if ($extern_c == 1 && $c eq '}') {
+			$extern_c = 0;
+
+			substr($res, $off, 2, "$;$;");
+			$off++;
+			next;
+		}
+
+		# On a cppunittest, any test starts either with 'TEST',
+		# 'ASSERT_TEST' or 'IGNORE_TEST'. Turn that into regular
+		# functions so they can be processed as if they where
+		# regular .c functions
+		if ($extern_c == 0 && $sanitise_quote eq '' &&
+		    substr($line, $off) =~
+				/^( |\t)*(IGNORE_|ASSERT_)?TEST *\(/) {
+			if (substr($line, $off) =~
+				/.*\(( |\t)*(\S+)(( |\t)*,( |\t)*)(\S+).*\)/) {
+				my $function_name = " void $2\_$6(void)";
+				$res = $line;
+				$res =~ s@(.*)@$function_name@;
+				return $res;
 			}
 		}
 
@@ -3593,7 +3632,7 @@ sub process {
 				my $comment = "";
 				if ($realfile =~ /\.(h|s|S)$/) {
 					$comment = '/*';
-				} elsif ($realfile =~ /\.(c|dts|dtsi)$/) {
+				} elsif ($realfile =~ /\.(c|cpp|dts|dtsi)$/) {
 					$comment = '//';
 				} elsif (($checklicenseline == 2) || $realfile =~ /\.(sh|pl|py|awk|tc|yaml)$/) {
 					$comment = '#';
@@ -3641,7 +3680,7 @@ sub process {
 		}
 
 # check we are in a valid source file if not then ignore this hunk
-		next if ($realfile !~ /\.(h|c|s|S|sh|dtsi|dts)$/);
+		next if ($realfile !~ /\.(h|c|cpp|s|S|sh|dtsi|dts)$/);
 
 # check for using SPDX-License-Identifier on the wrong line number
 		if ($realline != $checklicenseline &&
@@ -3732,7 +3771,7 @@ sub process {
 		}
 
 # check we are in a valid source file C or perl if not then ignore this hunk
-		next if ($realfile !~ /\.(h|c|pl|dtsi|dts)$/);
+		next if ($realfile !~ /\.(h|c|cpp|pl|dtsi|dts)$/);
 
 # at the beginning of a line any tabs must come first and anything
 # more than $tabsize must use tabs.
@@ -3993,7 +4032,7 @@ sub process {
 		}
 
 # check we are in a valid C source file if not then ignore this hunk
-		next if ($realfile !~ /\.(h|c)$/);
+		next if ($realfile !~ /\.(h|c|cpp)$/);
 
 # check for unusual line ending [ or (
 		if ($line =~ /^\+.*([\[\(])\s*$/) {
@@ -6924,8 +6963,8 @@ sub process {
 			}
 		}
 
-# check for new externs in .c files.
-		if ($realfile =~ /\.c$/ && defined $stat &&
+# check for new externs in .c and .cpp files.
+		if ($realfile =~ /\.(c|cpp)$/ && defined $stat &&
 		    $stat =~ /^.\s*(?:extern\s+)?$Type\s+($Ident)(\s*)\(/s)
 		{
 			my $function_name = $1;
@@ -6938,7 +6977,7 @@ sub process {
 			if ($s =~ /^\s*;/)
 			{
 				WARN("AVOID_EXTERNS",
-				     "externs should be avoided in .c files\n" .  $herecurr);
+				     "externs should be avoided in .c and .cpp files\n" .  $herecurr);
 			}
 
 			if ($paren_space =~ /\n/) {
@@ -6946,11 +6985,11 @@ sub process {
 				     "arguments for function declarations should follow identifier\n" . $herecurr);
 			}
 
-		} elsif ($realfile =~ /\.c$/ && defined $stat &&
+		} elsif ($realfile =~ /\.(c|cpp)$/ && defined $stat &&
 		    $stat =~ /^.\s*extern\s+/)
 		{
 			WARN("AVOID_EXTERNS",
-			     "externs should be avoided in .c files\n" .  $herecurr);
+			     "externs should be avoided in .c and .cpp files\n" .  $herecurr);
 		}
 
 # check for function declarations that have arguments without identifier names
