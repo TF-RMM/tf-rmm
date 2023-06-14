@@ -121,4 +121,11 @@ int xlat_test_helpers_get_attrs_for_va(struct xlat_ctx *ctx,
  */
 uint64_t *xlat_test_helpers_tbls(void);
 
+/*
+ * Setup the PA range size in ID_AA64MMFR0_EL1.
+ * This function does not make any check on the 'parange'
+ * argument
+ */
+void xlat_test_helpers_set_parange(unsigned int parange);
+
 #endif /* XLAT_TEST_HELPERS_H */

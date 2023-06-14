@@ -619,8 +619,7 @@ TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC8)
 		region = (xlat_addr_region_id_t)i;
 
 		/* Configure a random maximum PA supported */
-		host_write_sysreg("id_aa64mmfr0_el1",
-				  INPLACE(ID_AA64MMFR0_EL1_PARANGE, index));
+		xlat_test_helpers_set_parange(index);
 
 		/* Clean the data structures */
 		memset((void *)&test_cfg, 0, sizeof(struct xlat_ctx_cfg));

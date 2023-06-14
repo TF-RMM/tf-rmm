@@ -160,9 +160,12 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	/*
 	 * Initialize ID_AA64MMFR0_EL1 with a physical address
 	 * range of 48 bits (PARange bits set to 0b0101)
+	 * and 4K granularity support.
 	 */
 	ret = host_util_set_default_sysreg_cb("id_aa64mmfr0_el1",
-			INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5UL));
+				INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5UL) |
+				INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
+					ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED));
 
 	/*
 	 * Initialize ICH_VTR_EL2 with 6 preemption bits.
