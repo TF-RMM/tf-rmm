@@ -52,13 +52,11 @@ unsigned long get_feature_register_0(void)
 void smc_read_feature_register(unsigned long index,
 				struct smc_result *res)
 {
-	switch (index) {
-	case RMM_FEATURE_REGISTER_0_INDEX:
-		res->x[0] = RMI_SUCCESS;
+	res->x[0] = RMI_SUCCESS;
+
+	if (index == RMM_FEATURE_REGISTER_0_INDEX) {
 		res->x[1] = get_feature_register_0();
-		break;
-	default:
-		res->x[0] = RMI_ERROR_INPUT;
+	} else {
 		res->x[1] = 0UL;
 	}
 }
