@@ -7,7 +7,7 @@ arm_config_option(
     NAME HOST_VARIANT
     HELP "Select the variant to use for the host platform"
     TYPE STRING
-    STRINGS "host_build" "host_test"
+    STRINGS "host_build" "host_test" "host_cbmc"
     DEFAULT "host_build")
 
 arm_config_option(
