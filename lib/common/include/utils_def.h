@@ -102,6 +102,7 @@
 	(_a)[_i] = (_v);			\
 })
 
+#ifndef CBMC
 #define COMPILER_ASSERT(_condition)	\
 			extern char compiler_assert[(_condition) ? 1 : -1]
 
@@ -120,6 +121,11 @@
 #define CHECK_TYPE_IS_ARRAY(_v) \
 	COMPILER_ASSERT_ZERO(!__builtin_types_compatible_p(typeof(_v),	\
 							typeof(&((_v)[0]))))
+#else /* CBMC */
+#define COMPILER_ASSERT(_condition)	extern char disabled_compiler_assert[1]
+#define COMPILER_ASSERT_ZERO(_expr)	extern char disabled_compiler_assert[1]
+#define CHECK_TYPE_IS_ARRAY(_v)		1
+#endif /* CBMC */
 
 #define IS_POWER_OF_TWO(x)			\
 	((((x) + UL(0)) & ((x) - UL(1))) == UL(0))
