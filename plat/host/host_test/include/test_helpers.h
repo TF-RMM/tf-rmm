@@ -102,7 +102,7 @@ int test_helpers_unregister_cb(enum cb_ids id);
 /*
  * Return a random value within [min, max] range.
  */
-int test_helpers_get_rand_in_range(int min, int max);
+int test_helpers_get_rand_in_range(long min, long max);
 
 /*
  * Defines whether we expect or not an assert to fail.

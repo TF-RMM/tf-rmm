@@ -25,6 +25,14 @@
 #ifndef __ASSEMBLER__
 
 /*
+ * The define below specifies the first table level that allows block
+ * descriptors.
+ */
+#define XLAT_MIN_BLOCK_LVL()		\
+	((is_feat_lpa2_4k_present() == true) ?	\
+	XLAT_TABLE_LEVEL_MIN + 1U : XLAT_TABLE_LEVEL_MIN + 2U)
+
+/*
  * Default granularity size for a struct xlat_mmap_region.
  * Useful when no specific granularity is required.
  *
@@ -32,7 +40,8 @@
  * architectural state and granule size in order to minimize the number of page
  * tables required for the mapping.
  */
-#define REGION_DEFAULT_GRANULARITY	XLAT_BLOCK_SIZE(MIN_LVL_BLOCK_DESC)
+#define REGION_DEFAULT_GRANULARITY		\
+					XLAT_BLOCK_SIZE(XLAT_MIN_BLOCK_LVL())
 
 /*
  * Helper macro to define a struct xlat_mmap_region. This macro allows to

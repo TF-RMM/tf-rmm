@@ -81,16 +81,13 @@
 	(((virtual_addr) >> XLAT_ADDR_SHIFT(level)) & ULL(0x1FF))
 
 /*
- * In AArch64 state, the MMU may support 4KB, 16KB and 64KB page
- * granularity. For 4KB granularity (the only one supported by
- * this library), a level -1 table descriptor doesn't support
- * block translation. See section Table D8-9 of the ARMv8-A Architecture
- * Reference Manual (Issue I.a) for more information.
- *
- * The define below specifies the first table level that allows block
- * descriptors.
+ * Minimum table level supported by the architecture when FEAT_LPA2 is present.
+ * Since the library is in charge of calculating the minimum level when creating
+ * the translation tables, due to presence of checks for VA size and PA size,
+ * the library would not create a table at level -1 on a non LPA2 system.
+ * Hence there is no need to differentiate the value of this macro for non
+ * LPA2 case.
  */
-#define MIN_LVL_BLOCK_DESC	(0)
 #define XLAT_TABLE_LEVEL_MIN	(-1)
 
 /* Mask used to know if an address belongs to a high va region. */

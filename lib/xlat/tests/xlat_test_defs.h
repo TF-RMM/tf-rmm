@@ -8,6 +8,7 @@
 
 #include <utils_def.h>
 #include <xlat_defs_private.h>
+#include <xlat_tables.h>
 
 /*
  * All the definitions on this file are as per Issue G.a of the
@@ -40,11 +41,12 @@
 
 /*
  * The xlat library only supports 4KB of granularity so the lowest level
- * table descriptor that support block translation is Level 1.
- * The following macro specifies the biggest block size that can be
- * mapped by the xlat library.
+ * table descriptor that support block translation is Level 1 (or 0 if
+ * FEAT_LPA2 is supported). The following macro specifies the biggest
+ * block size that can be mapped by the xlat library.
  */
-#define XLAT_TESTS_MAX_BLOCK_SIZE	XLAT_BLOCK_SIZE(MIN_LVL_BLOCK_DESC)
+#define XLAT_TESTS_MAX_BLOCK_SIZE				\
+				XLAT_BLOCK_SIZE(XLAT_MIN_BLOCK_LVL())
 
 #define XLAT_TESTS_IS_DESC(tte, desc)				\
 	(((tte) & (DESC_MASK)) == (desc))

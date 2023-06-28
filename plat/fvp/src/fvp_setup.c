@@ -17,12 +17,6 @@
 					SZ_4K,				\
 					MT_DEVICE | MT_RW | MT_REALM)
 
-/* TBD Initialize UART for early log */
-struct xlat_mmap_region plat_regions[] = {
-	FVP_RMM_UART,
-	{0}
-};
-
 /*
  * Local platform setup for RMM.
  *
@@ -55,6 +49,12 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 {
 	int ret;
 	struct ns_dram_info *plat_dram;
+
+	/* TBD Initialize UART for early log */
+	struct xlat_mmap_region plat_regions[] = {
+		FVP_RMM_UART,
+		{0}
+	};
 
 	uart_init(RMM_UART_ADDR, FVP_UART_CLK_IN_HZ, FVP_UART_BAUDRATE);
 
