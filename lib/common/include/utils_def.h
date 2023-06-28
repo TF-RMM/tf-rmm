@@ -75,7 +75,7 @@
  * Macro checks types of array and variable/value to write
  * and reports compilation error if they mismatch.
  */
-#define	CHECK_ARRAY_TYPE(_a, _v)	\
+#define CHECK_ARRAY_TYPE(_a, _v)	\
 	_Static_assert(__builtin_types_compatible_p(typeof(_a[0]), typeof(_v)), \
 	"array type mismatch")
 
@@ -85,7 +85,7 @@
  * _i: index
  * _v: variable/value to write
  */
-#define	SAFE_ARRAY_READ(_a, _i, _v)	\
+#define SAFE_ARRAY_READ(_a, _i, _v)	\
 ({					\
 	CHECK_ARRAY_TYPE(_a, _v);	\
 	if (_i >= ARRAY_SIZE(_a)) {	\
@@ -94,7 +94,7 @@
 	_v = _a[_i];			\
 })
 
-#define	SAFE_ARRAY_WRITE(_a, _i, _v)	\
+#define SAFE_ARRAY_WRITE(_a, _i, _v)	\
 ({					\
 	CHECK_ARRAY_TYPE(_a, _v);	\
 	if (_i >= ARRAY_SIZE(_a)) {	\
@@ -226,7 +226,7 @@
 		unsigned char reserved##end[end - start]; \
 	}
 
-#define	FALLTHROUGH	__attribute__((fallthrough))
+#define FALLTHROUGH	__attribute__((fallthrough))
 
 #endif /* !(defined(__ASSEMBLER__) || defined(__LINKER__)) */
 

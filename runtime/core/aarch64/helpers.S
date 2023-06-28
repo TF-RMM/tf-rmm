@@ -27,8 +27,8 @@
  */
 
 /* Relocation codes */
-#define	R_AARCH64_NONE		0
-#define	R_AARCH64_RELATIVE	1027
+#define R_AARCH64_NONE		0
+#define R_AARCH64_RELATIVE	1027
 
 func fixup_gdt_reloc
 	/* Lower Limit for fixup */

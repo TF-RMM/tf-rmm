@@ -12,14 +12,14 @@
 #include <utils_def.h>
 
 /* RMI handler uses 29 chars for function name */
-#define	MAX_NAME_LEN	29UL
+#define MAX_NAME_LEN	29UL
 
 /* Max 10 64-bit parameters separated by space */
 #define PARAMS_STR_LEN	(10UL * sizeof("0123456789ABCDEF"))
 
-#define	MAX_STATUS_LEN	sizeof("{RSI_ERROR_INPUT}")
+#define MAX_STATUS_LEN	sizeof("{RSI_ERROR_INPUT}")
 
-#define	BUFFER_SIZE	(MAX_NAME_LEN + PARAMS_STR_LEN + \
+#define BUFFER_SIZE	(MAX_NAME_LEN + PARAMS_STR_LEN + \
 			sizeof(" > ") - 1UL + MAX_STATUS_LEN)
 
 struct rsi_handler {

@@ -13,7 +13,7 @@
  * Timer condition is met: CNTx_CTL_ISTATUS = 1
  * Timer interrupt is not masked: CNTx_CTL_IMASK = 0
  */
-#define	TIMER_ASSERTED(reg)						\
+#define TIMER_ASSERTED(reg)						\
 	(((reg) &							\
 	(CNTx_CTL_ENABLE | CNTx_CTL_ISTATUS | CNTx_CTL_IMASK)) ==	\
 	(CNTx_CTL_ENABLE | CNTx_CTL_ISTATUS))

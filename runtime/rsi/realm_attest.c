@@ -15,7 +15,7 @@
 #include <utils_def.h>
 
 #define MAX_EXTENDED_SIZE	(64U)
-#define	MAX_MEASUREMENT_WORDS	(MAX_MEASUREMENT_SIZE / sizeof(unsigned long))
+#define MAX_MEASUREMENT_WORDS	(MAX_MEASUREMENT_SIZE / sizeof(unsigned long))
 /*
  * Return the Realm Personalization Value.
  *
