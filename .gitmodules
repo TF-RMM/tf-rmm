@@ -7,7 +7,7 @@
 	url = https://github.com/laurencelundblade/QCBOR.git
 [submodule "ext/t_cose"]
 	path = ext/t_cose
-	url = https://github.com/laurencelundblade/t_cose.git
+	url = https://github.com/matetothpal/t_cose.git
 [submodule "ext/cpputest"]
 	path = ext/cpputest
 	url = https://github.com/cpputest/cpputest.git
