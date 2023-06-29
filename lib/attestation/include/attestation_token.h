@@ -15,8 +15,7 @@
 #include <measurement.h>
 #include <qcbor/qcbor.h>
 #include <t_cose/q_useful_buf.h>
-#include <t_cose/t_cose_sign_sign.h>
-#include <t_cose/t_cose_signature_sign_restart.h>
+#include <t_cose/t_cose_sign1_sign.h>
 #include <t_cose_psa_crypto.h>
 
 #define ATTEST_TOKEN_BUFFER_SIZE		GRANULE_SIZE
@@ -64,8 +63,8 @@ struct attest_token_encode_ctx {
 	QCBOREncodeContext                            cbor_enc_ctx;
 	uint32_t                                      opt_flags;
 	int32_t                                       key_select;
-	struct t_cose_sign_sign_ctx                   sign_ctx;
-	struct t_cose_signature_sign_restart          restartable_signer_ctx;
+	struct t_cose_sign1_sign_ctx                  signer_ctx;
+	struct t_cose_signature_sign_main_restart_ctx signer_restart_ctx;
 	struct t_cose_psa_crypto_context              crypto_ctx;
 };
 
