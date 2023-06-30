@@ -50,14 +50,31 @@ static inline bool is_feat_vmid16_present(void)
 }
 
 /*
- * Check if FEAT_LPA2 is implemented.
- * 4KB granule at stage 2 supports 52-bit input and output addresses:
- * ID_AA64MMFR0_EL1.TGran4_2 bits [43:40]: 0b0011
+ * Check if FEAT_LPA2 is implemented for stage 1.
+ * 4KB granule at stage 1 supports 52-bit input and output addresses:
+ * ID_AA64MMFR0_EL1.TGran4 bits [31:28]: 0b0001
  */
 static inline bool is_feat_lpa2_4k_present(void)
 {
-	return (EXTRACT(ID_AA64MMFR0_EL1_TGRAN4_2,
-		read_id_aa64mmfr0_el1()) == ID_AA64MMFR0_EL1_TGRAN4_2_LPA2);
+	return (EXTRACT(ID_AA64MMFR0_EL1_TGRAN4,
+		read_id_aa64mmfr0_el1()) == ID_AA64MMFR0_EL1_TGRAN4_LPA2);
+}
+
+/*
+ * Check if FEAT_LPA2 is implemented for stage 2.
+ * 4KB granule at stage 2 supports 52-bit input and output addresses:
+ * ID_AA64MMFR0_EL1.TGran4_2 bits [43:40]: 0b0011 ||
+ * (ID_AA64MMFR0_EL1.TGran4_2 bits [43:40]: 0b0000 &&
+ *  ID_AA64MMFR0_EL1.TGran4 bits [31:28]: 0b0001 &&
+ */
+static inline bool is_feat_lpa2_4k_2_present(void)
+{
+	u_register_t id_aa64mmfr0_el1 = read_id_aa64mmfr0_el1();
+
+	return ((EXTRACT(ID_AA64MMFR0_EL1_TGRAN4_2, id_aa64mmfr0_el1) ==
+		ID_AA64MMFR0_EL1_TGRAN4_2_LPA2) ||
+		 ((EXTRACT(ID_AA64MMFR0_EL1_TGRAN4_2, id_aa64mmfr0_el1) ==
+		ID_AA64MMFR0_EL1_TGRAN4_2_TGRAN4) && is_feat_lpa2_4k_present()));
 }
 
 /*

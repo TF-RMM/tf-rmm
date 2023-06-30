@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
+#include <limits.h>
 #include <sizes.h>
 #include <xlat_contexts.h>
 #include <xlat_defs_private.h>
@@ -42,36 +43,43 @@ static bool xlat_arch_is_granule_size_supported(size_t size)
 
 /*
  * Encode a Physical Address Space size for its use in TCR_ELx.
+ * If the PA is not supported, return ULLONG_MAX.
  */
-static unsigned long long tcr_physical_addr_size_bits(uintptr_t max_addr)
+static uint64_t tcr_physical_addr_size_bits(uintptr_t max_addr)
 {
-	if ((max_addr & ADDR_MASK_48_TO_63) != 0U) {
-		/* Physical address can't exceed 48 bits */
-		panic();
+	if ((max_addr & ADDR_MASK_52_TO_63) != 0ULL) {
+		/* Physical address can't exceed 52 bits */
+		return ULLONG_MAX;
+	}
+
+	/* 52 bits address */
+	if ((max_addr & ADDR_MASK_48_TO_51) != 0ULL) {
+		return (is_feat_lpa2_4k_present() == true) ?
+						TCR_PS_BITS_4PB : ULLONG_MAX;
 	}
 
 	/* 48 bits address */
-	if ((max_addr & ADDR_MASK_44_TO_47) != 0U) {
+	if ((max_addr & ADDR_MASK_44_TO_47) != 0ULL) {
 		return TCR_PS_BITS_256TB;
 	}
 
 	/* 44 bits address */
-	if ((max_addr & ADDR_MASK_42_TO_43) != 0U) {
+	if ((max_addr & ADDR_MASK_42_TO_43) != 0ULL) {
 		return TCR_PS_BITS_16TB;
 	}
 
 	/* 42 bits address */
-	if ((max_addr & ADDR_MASK_40_TO_41) != 0U) {
+	if ((max_addr & ADDR_MASK_40_TO_41) != 0ULL) {
 		return TCR_PS_BITS_4TB;
 	}
 
 	/* 40 bits address */
-	if ((max_addr & ADDR_MASK_36_TO_39) != 0U) {
+	if ((max_addr & ADDR_MASK_36_TO_39) != 0ULL) {
 		return TCR_PS_BITS_1TB;
 	}
 
 	/* 36 bits address */
-	if ((max_addr & ADDR_MASK_32_TO_35) != 0U) {
+	if ((max_addr & ADDR_MASK_32_TO_35) != 0ULL) {
 		return TCR_PS_BITS_64GB;
 	}
 
@@ -91,6 +99,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 	struct xlat_ctx_cfg *ctx_cfg;
 	struct xlat_ctx_tbls *ctx_tbls;
 	uint64_t t0sz, t1sz, txsz;
+	uint64_t pa_size_bits;
 
 	assert(ctx != NULL);
 
@@ -117,7 +126,6 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 	/* Set attributes in the right indices of the MAIR. */
 	mair = MAIR_ATTR_SET(ATTR_DEVICE, ATTR_DEVICE_INDEX);
 	mair |= MAIR_ATTR_SET(ATTR_IWBWA_OWBWA_NTR, ATTR_IWBWA_OWBWA_NTR_INDEX);
-	mair |= MAIR_ATTR_SET(ATTR_NON_CACHEABLE, ATTR_NON_CACHEABLE_INDEX);
 
 	va_space_size = (uintptr_t)ctx_cfg->max_va_size;
 
@@ -167,9 +175,23 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 	tcr |= TCR_EL2_TG0_4K | TCR_EL2_TG1_4K;
 
 	/*
+	 * Enable support for LPA if FEAT_LPA2 is supported
+	 * and set shareability to ISH.
+	 */
+	if (is_feat_lpa2_4k_present() == true) {
+		tcr |= TCR_EL2_DS_LPA2_EN;
+		tcr |= SET_TCR_SH(ctx->cfg->region, ISH);
+	}
+
+	/*
 	 * Set physical address size to the limit supported by the PE.
 	 */
-	tcr |= tcr_physical_addr_size_bits(xlat_arch_get_max_supported_pa());
+	pa_size_bits = tcr_physical_addr_size_bits(
+					xlat_arch_get_max_supported_pa());
+	if (pa_size_bits == ULLONG_MAX) {
+		return -ENOMEM;
+	}
+	tcr |= pa_size_bits;
 
 	write_mair_el2(mair);
 	write_tcr_el2(tcr);

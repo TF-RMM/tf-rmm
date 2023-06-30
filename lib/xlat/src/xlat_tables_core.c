@@ -82,7 +82,7 @@ static uintptr_t xlat_tables_find_start_va(struct xlat_mmap_region *mm,
  */
 static inline unsigned int  xlat_tables_va_to_index(const uintptr_t table_base_va,
 						    const uintptr_t va,
-						    const unsigned int level)
+						    const int level)
 {
 	return (unsigned int)((va - table_base_va) >> XLAT_ADDR_SHIFT(level));
 }
@@ -92,8 +92,10 @@ static inline unsigned int  xlat_tables_va_to_index(const uintptr_t table_base_v
  * specified region.
  */
 static action_t xlat_tables_map_region_action(const struct xlat_mmap_region *mm,
-			unsigned int desc_type, uintptr_t dest_pa,
-			uintptr_t table_entry_base_va, unsigned int level)
+					      unsigned int desc_type,
+					      uintptr_t dest_pa,
+					      uintptr_t table_entry_base_va,
+					      int level)
 {
 	uintptr_t mm_end_va = mm->base_va + mm->size - 1UL;
 	uintptr_t table_entry_end_va =
@@ -194,7 +196,7 @@ static action_t xlat_tables_map_region_action(const struct xlat_mmap_region *mm,
 		 * mmap region failed to detect that PA and VA must at least be
 		 * aligned to PAGE_SIZE.
 		 */
-		if (level >= 3U) {
+		if (level >= 3) {
 			ERROR("%s (%u): Expected table level below 3\n",
 				__func__, __LINE__);
 			panic();
@@ -248,7 +250,7 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 					uintptr_t table_base_va,
 					uintptr_t *const table_base,
 					unsigned int table_entries,
-					unsigned int level)
+					int level)
 {
 	uintptr_t table_idx_va;
 	unsigned int table_idx;
@@ -262,11 +264,12 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 	assert(ctx_cfg != NULL);
 	assert((level >= ctx_cfg->base_level) &&
 					(level <= XLAT_TABLE_LEVEL_MAX));
+	assert(table_entries <= XLAT_GET_TABLE_ENTRIES(level));
 
 	mm_end_va = mm->base_va + mm->size - 1U;
 
 	if ((level < ctx_cfg->base_level) || (level > XLAT_TABLE_LEVEL_MAX)) {
-		ERROR("%s (%u): Level out of boundaries (%u)\n",
+		ERROR("%s (%u): Level out of boundaries (%i)\n",
 			__func__, __LINE__, level);
 		panic();
 	}
@@ -310,7 +313,7 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 			/* FIXME: This violates misra-c2012-17.2 */
 			end_va = xlat_tables_map_region(ctx, mm, table_idx_va,
 					       subtable, XLAT_TABLE_ENTRIES,
-					       level + 1U);
+					       level + 1);
 			if (end_va !=
 				(table_idx_va + XLAT_BLOCK_SIZE(level) - 1UL)) {
 				return end_va;
@@ -319,12 +322,12 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 		} else if (action == ACTION_RECURSE_INTO_TABLE) {
 			uintptr_t end_va;
 
-			subtable = (uint64_t *)(void *)(desc & TABLE_ADDR_MASK);
+			subtable = (uint64_t *)(void *)xlat_get_oa_from_tte(desc);
 			/* Recurse to write into subtable */
 			/* FIXME: This violates misra-c2012-17.2 */
 			end_va = xlat_tables_map_region(ctx, mm, table_idx_va,
 					       subtable, XLAT_TABLE_ENTRIES,
-					       level + 1U);
+					       level + 1);
 			if (end_va !=
 				(table_idx_va + XLAT_BLOCK_SIZE(level) - 1UL)) {
 				return end_va;
@@ -353,10 +356,11 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 /*
  * Returns a block/page table descriptor for the given level and attributes.
  */
-uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, unsigned int level)
+uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, int level)
 {
 	uint64_t desc;
 	uint32_t mem_type;
+	bool lpa2_enabled = is_feat_lpa2_4k_present();
 
 	if ((MT_TYPE(attr) == MT_TRANSIENT)) {
 		/* Transient entry requested. */
@@ -365,13 +369,10 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, unsigned int level)
 	}
 
 	/* Make sure that the granularity is fine enough to map this address. */
-	if ((addr_pa & XLAT_BLOCK_MASK(level)) != 0U) {
-		ERROR("%s (%u): 0x%lx has incorrect granularity\n",
-			__func__, __LINE__, addr_pa);
-		panic();
-	}
+	assert((addr_pa & XLAT_BLOCK_MASK(level)) == 0U);
 
-	desc = addr_pa;
+	desc = set_oa_to_tte(addr_pa);
+
 	/*
 	 * There are different translation table descriptors for level 3 and the
 	 * rest.
@@ -413,7 +414,8 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, unsigned int level)
 	 */
 	mem_type = MT_TYPE(attr);
 	if (mem_type == MT_DEVICE) {
-		desc |= LOWER_ATTRS(ATTR_DEVICE_INDEX | OSH);
+		desc |= LOWER_ATTRS(ATTR_DEVICE_INDEX);
+
 		/*
 		 * Always map device memory as execute-never.
 		 * This is to avoid the possibility of a speculative instruction
@@ -441,24 +443,19 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, unsigned int level)
 		 * translation regime and the policy applied in
 		 * XLAT_GET_PXN_DESC().
 		 */
-		uint32_t shareability_type;
+
+		/* Only MT_MEMORY allowed from here on */
+		assert(mem_type == MT_MEMORY);
 
 		if (((attr & MT_RW) != 0UL) || ((attr & MT_EXECUTE_NEVER) != 0UL)) {
 			desc |= XLAT_GET_PXN_DESC();
 		}
 
-		shareability_type = MT_SHAREABILITY(attr);
-
-		/* Only MT_MEMORY allowed from here on */
-		assert(mem_type == MT_MEMORY);
-
 		desc |= LOWER_ATTRS(ATTR_IWBWA_OWBWA_NTR_INDEX);
-		if (shareability_type == MT_SHAREABILITY_NSH) {
-			desc |= LOWER_ATTRS(NSH);
-		} else if (shareability_type == MT_SHAREABILITY_OSH) {
-			desc |= LOWER_ATTRS(OSH);
-		} else {
-			desc |= LOWER_ATTRS(ISH);
+
+		if (lpa2_enabled == false) {
+			/* Configure Inner Shareability */
+			desc |= INPLACE(LOWER_ATTR_SH, ISH);
 		}
 
 		/* Check if Branch Target Identification is enabled */
@@ -489,6 +486,8 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 	/*
 	 * All tables must be zeroed/initialized before mapping any region
 	 * as they are allocated outside the .bss area.
+	 * For this initialization, ignore the level and assume that all
+	 * tables are of the same size.
 	 */
 	for (unsigned int j = 0; j < ctx_tbls->tables_num; j++) {
 		for (unsigned int i = 0U; i < XLAT_TABLE_ENTRIES; i++) {
@@ -506,7 +505,7 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 		uintptr_t end_va = xlat_tables_map_region(ctx,
 						&ctx_cfg->mmap[i], 0U,
 						ctx_tbls->tables,
-						XLAT_TABLE_ENTRIES,
+						XLAT_GET_TABLE_ENTRIES(ctx_cfg->base_level),
 						ctx_cfg->base_level);
 		if (end_va != (ctx_cfg->mmap[i].base_va +
 					ctx_cfg->mmap[i].size - 1UL)) {

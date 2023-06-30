@@ -74,7 +74,11 @@ IMPORT_SYM(uintptr_t, rmm_rw_end, RMM_RW_END);
 /* Memory mapping regions for the system runtime */
 static struct xlat_mmap_region static_regions[TOTAL_MMAP_REGIONS];
 
-/* Allocate the runtime translation tables */
+/*
+ * Allocate the runtime translation tables.
+ * Although a base table at level -1 when FEAT_LPA2 is enabled only has
+ * 16 entries, all tables are allocated a page for simplicity.
+ */
 static uint64_t static_s1tt[XLAT_TABLE_ENTRIES * PLAT_CMN_CTX_MAX_XLAT_TABLES]
 					__aligned(XLAT_TABLES_ALIGNMENT)
 					__section("xlat_static_tables");

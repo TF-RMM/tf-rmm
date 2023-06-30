@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <arch_features.h>
 #include <assert.h>
 #include <errno.h>
 #include <host_utils.h>
@@ -11,6 +12,7 @@
 #include <test_helpers.h>
 #include <xlat_contexts.h>	/* API to test */
 #include <xlat_defs.h>
+#include <xlat_defs_private.h>
 #include <xlat_tables.h>	/* API to test */
 #include <xlat_tables_private.h>
 #include <xlat_test_defs.h>
@@ -37,7 +39,7 @@ void xlat_test_helpers_init_ctx_cfg(struct xlat_ctx_cfg *ctx_cfg,
 				    uintptr_t base_va,
 				    uintptr_t max_mapped_pa,
 				    uintptr_t max_mapped_va_offset,
-				    unsigned int base_level,
+				    int base_level,
 				    xlat_addr_region_id_t region,
 				    struct xlat_mmap_region *mm,
 				    unsigned int mmaps,
@@ -76,13 +78,15 @@ void xlat_test_hepers_arch_init(void)
 	host_util_zero_sysregs_and_cbs();
 
 	/*
-	 * Setup id_aa64mmfr0_el1 with a PA size of 48 bits
-	 * and 4K granularity support.
+	 * Setup id_aa64mmfr0_el1 with a PA size of 52 bits
+	 * and 4K granularity with 52 bits support on stage 1 and 2.
 	 */
 	retval = host_util_set_default_sysreg_cb("id_aa64mmfr0_el1",
-				INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5UL) |
+				INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6UL) |
 				INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
-					ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED));
+					ID_AA64MMFR0_EL1_TGRAN4_LPA2) |
+				INPLACE(ID_AA64MMFR0_EL1_TGRAN4_2,
+					ID_AA64MMFR0_EL1_TGRAN4_2_TGRAN4));
 
 	/* Initialize MMU registers to 0 */
 	retval = host_util_set_default_sysreg_cb("sctlr_el2", 0UL);
@@ -103,6 +107,7 @@ void xlat_test_helpers_set_parange(unsigned int parange)
 {
 	u_register_t reg = read_id_aa64mmfr0_el1() &
 					~MASK(ID_AA64MMFR0_EL1_PARANGE);
+
 	host_write_sysreg("id_aa64mmfr0_el1",
 			reg | INPLACE(ID_AA64MMFR0_EL1_PARANGE, parange));
 }
@@ -128,14 +133,6 @@ uint64_t xlat_test_helpers_rand_mmap_attrs(void)
 	ret_attrs = attrs[index];
 
 	if (ret_attrs != MT_TRANSIENT) {
-		if ((ret_attrs != MT_DEVICE) && (rand() & 0x1)) {
-			/*
-			 * Randomly change shareability for MT_MEMORY types.
-			 */
-			ret_attrs &= ~(MT_SHAREABILITY_ISH);
-			ret_attrs |= MT_SHAREABILITY_OSH;
-		}
-
 		index = (unsigned int)test_helpers_get_rand_in_range(0,
 				(sizeof(pas) / sizeof(uint64_t)) - 1);
 		ret_attrs |= pas[index];
@@ -179,7 +176,7 @@ void xlat_test_helpers_rand_mmap_array(struct xlat_mmap_region *mmap,
 		mmap[i].attr = xlat_test_helpers_rand_mmap_attrs();
 		mmap[i].granularity = XLAT_TESTS_MAX_BLOCK_SIZE;
 		mmap[i].base_va = next_va_start;
-		mmap[i].base_pa = next_va_start & XLAT_TESTS_PA_MASK;
+		mmap[i].base_pa = next_va_start & XLAT_TEST_GET_PA_MASK();
 		mmap[i].size = region_size;
 
 		/*
@@ -195,10 +192,10 @@ void xlat_test_helpers_rand_mmap_array(struct xlat_mmap_region *mmap,
 }
 
 int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,
-				 unsigned long long va,
+				 uint64_t va,
 				 uint64_t *tte,
 				 uint64_t **table_ptr,
-				 unsigned int *level,
+				 int *level,
 				 unsigned int *index)
 {
 	struct xlat_ctx_cfg *cfg;
@@ -234,14 +231,13 @@ int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,
 
 	/* Base table is the first table of the array */
 	table = &tbls->tables[0U];
-	for (unsigned int i = cfg->base_level;
-					i <= XLAT_TABLE_LEVEL_MAX; i++) {
+	for (int i = cfg->base_level; i <= XLAT_TABLE_LEVEL_MAX; i++) {
 		uint64_t tte_oa;
 		unsigned int tindex =
 			(unsigned int)(va >> XLAT_ADDR_SHIFT(i)) &
-						XLAT_TABLE_ENTRIES_MASK;
+						XLAT_GET_TABLE_ENTRIES_MASK(i);
 
-		if (tindex >= XLAT_TABLE_ENTRIES) {
+		if (tindex >= XLAT_GET_TABLE_ENTRIES(i)) {
 			return -ERANGE;
 		}
 
@@ -261,7 +257,7 @@ int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,
 		}
 
 		switch (i) {
-		case 0U:
+		case -1:
 			/* Only table descriptors allowed here */
 			if (!XLAT_TESTS_IS_DESC(ctte, TABLE_DESC)) {
 				return -EINVAL;
@@ -272,13 +268,14 @@ int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,
 				return -EINVAL;
 			}
 
-			tte_oa = (EXTRACT(TABLE_ADDR, ctte) <<
-						TABLE_ADDR_SHIFT);
+			tte_oa = xlat_get_oa_from_tte(ctte);
+
 			table = (uint64_t *)tte_oa;
 			break;
 
-		case 1U:
-		case 2U:
+		case 0:
+		case 1:
+		case 2:
 			if (XLAT_TESTS_IS_DESC(ctte, BLOCK_DESC)) {
 				*tte = ctte;
 				*level = i;
@@ -290,12 +287,12 @@ int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,
 			}
 
 			/* This is a table descriptor */
-			tte_oa = (EXTRACT(TABLE_ADDR, ctte) <<
-						TABLE_ADDR_SHIFT);
+			tte_oa = xlat_get_oa_from_tte(ctte);
+
 			table = (uint64_t *)tte_oa;
 			break;
 
-		case 3U:
+		case 3:
 			/* Only page descriptors allowed here */
 			if (!XLAT_TESTS_IS_DESC(ctte, PAGE_DESC)) {
 				return -EINVAL;
@@ -319,18 +316,21 @@ int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,
 
 int xlat_test_helpers_gen_attrs(uint64_t *attrs, uint64_t mmap_attrs)
 {
-	uint64_t mem_type, sh_attr;
-	uint64_t lower_attrs, upper_attrs;
+	uint64_t mem_type, lower_attrs, upper_attrs;
+	bool lpa2_supported = is_feat_lpa2_4k_present();
 
 	/* Generate the set of descriptor attributes */
 	mem_type = EXTRACT(MT_TYPE, mmap_attrs);
 	switch (mem_type) {
 	case MT_DEVICE:
-		lower_attrs = LOWER_ATTRS(ATTR_DEVICE_INDEX | OSH);
+		lower_attrs = LOWER_ATTRS(ATTR_DEVICE_INDEX);
 		upper_attrs = XLAT_GET_PXN_DESC();
 		break;
 	case MT_MEMORY:
 		lower_attrs = LOWER_ATTRS(ATTR_IWBWA_OWBWA_NTR_INDEX);
+		if (lpa2_supported == false) {
+			lower_attrs |= INPLACE(LOWER_ATTR_SH, ISH);
+		}
 		upper_attrs = 0ULL;
 		break;
 	default:
@@ -361,30 +361,13 @@ int xlat_test_helpers_gen_attrs(uint64_t *attrs, uint64_t mmap_attrs)
 		upper_attrs |= XLAT_GET_PXN_DESC();
 	}
 
-	if (mem_type == MT_DEVICE) {
-		*attrs = upper_attrs | lower_attrs;
-		return 0;
-	}
-
-	sh_attr = MT_SHAREABILITY(mmap_attrs);
-	switch (sh_attr) {
-	case MT_SHAREABILITY_ISH:
-		lower_attrs |= LOWER_ATTRS(ISH);
-		break;
-	case MT_SHAREABILITY_OSH:
-		lower_attrs |= LOWER_ATTRS(OSH);
-		break;
-	case MT_SHAREABILITY_NSH:
-		lower_attrs |= LOWER_ATTRS(NSH);
-		break;
-	}
-
 	*attrs = upper_attrs | lower_attrs;
+
 	return 0;
 }
 
 int xlat_test_helpers_get_attrs_for_va(struct xlat_ctx *ctx,
-					unsigned long long va,
+					uint64_t va,
 					uint64_t *attrs)
 {
 	uint64_t mmap_attrs = 0ULL;
@@ -393,9 +376,9 @@ int xlat_test_helpers_get_attrs_for_va(struct xlat_ctx *ctx,
 	assert(attrs != NULL);
 
 	for (i = 0; i < ctx->cfg->mmap_regions; i++) {
-		unsigned long long mmap_min_va =
+		uint64_t mmap_min_va =
 			ctx->cfg->base_va + ctx->cfg->mmap[i].base_va;
-		unsigned long long mmap_max_va = mmap_min_va +
+		uint64_t mmap_max_va = mmap_min_va +
 					    ctx->cfg->mmap[i].size - 1ULL;
 
 		if ((va >= mmap_min_va) && (va <= mmap_max_va)) {

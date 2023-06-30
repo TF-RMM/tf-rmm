@@ -16,6 +16,7 @@ extern "C" {
 #include <utils_def.h>
 #include <xlat_contexts.h>	/* API to test */
 #include <xlat_defs.h>
+#include <xlat_defs_private.h>
 #include <xlat_tables.h>	/* API to test */
 #include <xlat_test_defs.h>
 #include <xlat_test_helpers.h>
@@ -37,15 +38,16 @@ TEST_GROUP(xlat_tests_G2) {
  * The VA returned will fit in a single table of level `level`, so that
  * there translation can start at that given level.
  */
-static unsigned long long gen_va_space_params_by_lvl(unsigned int level,
-						xlat_addr_region_id_t region,
-						size_t *va_size)
+static uint64_t gen_va_space_params_by_lvl(int level,
+					   xlat_addr_region_id_t region,
+					   size_t *va_size)
 {
+	assert(level >= XLAT_TEST_MIN_LVL());
 	assert(level <= XLAT_TABLE_LEVEL_MAX);
 	assert(va_size != NULL);
 
-	*va_size = (1ULL << (XLAT_ADDR_SHIFT(level) +
-				XLAT_TABLE_ENTRIES_SHIFT));
+	*va_size = (1ULL << XLAT_ADDR_SHIFT(level)) *
+				XLAT_GET_TABLE_ENTRIES(level);
 
 	return xlat_test_helpers_get_start_va(region, *va_size);
 }
@@ -125,6 +127,9 @@ static unsigned long long gen_va_space_params_by_lvl(unsigned int level,
  * setup to the minimum granularity needed to map a block at level 'last_lvl'.
  * The size of the mmap region is setup to the same as the granularity.
  *
+ * This function caters for the reduced number of entries on the
+ * tables at level -1.
+ *
  * This function also returns :
  *	- An array ('tbl_idxs') with the expected indexes mapping
  *	  the regions at the last level table.
@@ -132,18 +137,20 @@ static unsigned long long gen_va_space_params_by_lvl(unsigned int level,
 static int gen_mmap_array_by_level(xlat_mmap_region *mmap,
 				   unsigned int *tbl_idxs,
 				   unsigned int mmap_size,
-				   unsigned int first_lvl,
-				   unsigned int last_lvl,
+				   int first_lvl,
+				   int last_lvl,
 				   size_t *granularity,
-				   unsigned long long start_va,
+				   uint64_t start_va,
 				   bool allow_transient)
 {
 	uint64_t attrs;
-	unsigned long long mmap_start_va = start_va;
+	uint64_t mmap_start_va = start_va;
+	unsigned int max_table_entries = XLAT_GET_TABLE_ENTRIES(first_lvl);
 
 	assert(mmap_size >= 3U);
-	assert(last_lvl > 0U);
+	assert(last_lvl > XLAT_TEST_MIN_LVL());
 	assert(last_lvl <= XLAT_TABLE_LEVEL_MAX);
+	assert(first_lvl >= XLAT_TEST_MIN_LVL());
 	assert(first_lvl <= last_lvl);
 	assert(mmap != NULL);
 	assert(tbl_idxs != NULL);
@@ -153,15 +160,15 @@ static int gen_mmap_array_by_level(xlat_mmap_region *mmap,
 	tbl_idxs[0U] = 0U;
 
 	/*
-	 * Generate a mapping in a random possition of the table.
+	 * Generate a mapping in a random position of the table.
 	 * The entry after the first one will always be left intentionally
 	 * unused.
 	 */
 	tbl_idxs[1U] = test_helpers_get_rand_in_range(2,
-					(XLAT_TABLE_ENTRIES - 2));
+					(max_table_entries - 2));
 
 	/* Generate a mapping at the end of the table */
-	tbl_idxs[2U] = XLAT_TABLE_ENTRIES - 1U;
+	tbl_idxs[2U] = max_table_entries - 1U;
 
 	do {
 		attrs = xlat_test_helpers_rand_mmap_attrs();
@@ -169,10 +176,9 @@ static int gen_mmap_array_by_level(xlat_mmap_region *mmap,
 
 	*granularity = XLAT_BLOCK_SIZE(last_lvl);
 
-	for (unsigned i = 0U; i < 3U; i++) {
+	for (unsigned int i = 0U; i < 3U; i++) {
 		mmap[i].base_va = mmap_start_va;
-		if (first_lvl < last_lvl)
-		{
+		if (first_lvl < last_lvl) {
 			/*
 			 * Add an offset to the mmap region base VA so that
 			 * this region will be mapped to a TTE in the
@@ -190,7 +196,7 @@ static int gen_mmap_array_by_level(xlat_mmap_region *mmap,
 		 * for which there is a specific test). For simplicity,
 		 * create an identity mapping using the base_va for the PA.
 		 */
-		mmap[i].base_pa = mmap[i].base_va & XLAT_TESTS_PA_MASK;
+		mmap[i].base_pa = mmap[i].base_va & XLAT_TEST_GET_PA_MASK();
 		mmap[i].size = *granularity;
 		mmap[i].attr = attrs;
 		mmap[i].granularity = *granularity;
@@ -205,13 +211,13 @@ static int gen_mmap_array_by_level(xlat_mmap_region *mmap,
  * Note that this function expects a valid and initialized context.
  */
 static void validate_xlat_tables(xlat_ctx *ctx, unsigned int *expected_idxs,
-				 unsigned int expected_level)
+				 int expected_level)
 {
-	uint64_t tte, attrs, upper_attrs, lower_attrs, type;
+	uint64_t tte, tte_oa, attrs, upper_attrs, lower_attrs, type;
 	uint64_t exp_upper_attrs, exp_lower_attrs;
-	unsigned int level, index, granularity, addr_offset;
-	unsigned long long test_va, pa, pa_mask;
-	unsigned int retval;
+	unsigned int index, granularity, addr_offset;
+	uint64_t test_va, pa, pa_mask;
+	int level, retval;
 
 	assert(ctx != NULL);
 	assert(expected_idxs != NULL);
@@ -231,7 +237,7 @@ static void validate_xlat_tables(xlat_ctx *ctx, unsigned int *expected_idxs,
 
 		/* Return value */
 		CHECK_VERBOSE((retval == 0),
-			"Perform table walk for addr 0x%llx", test_va);
+			"Perform table walk for addr 0x%lx", test_va);
 
 		/* Last table level */
 		CHECK_EQUAL(expected_level, level);
@@ -246,23 +252,30 @@ static void validate_xlat_tables(xlat_ctx *ctx, unsigned int *expected_idxs,
 		/* Return value */
 		CHECK_EQUAL(0, retval);
 
-		upper_attrs = EXTRACT(UPPER_ATTRS, attrs);
-		exp_upper_attrs = EXTRACT(UPPER_ATTRS, tte);
-		lower_attrs = EXTRACT(LOWER_ATTRS, attrs);
-		exp_lower_attrs = EXTRACT(LOWER_ATTRS, tte);
+		exp_upper_attrs = EXTRACT(UPPER_ATTRS, attrs);
+		upper_attrs = EXTRACT(UPPER_ATTRS, tte);
+		exp_lower_attrs = EXTRACT(LOWER_ATTRS, attrs);
+		if (is_feat_lpa2_4k_present() == true) {
+			lower_attrs = EXTRACT(LOWER_ATTRS,
+					(tte & ~TTE_OA_BITS_50_51_MASK));
+		} else {
+			lower_attrs = EXTRACT(LOWER_ATTRS, tte);
+		}
 
 		/* Validate that the attributes are as expected */
 		CHECK_VERBOSE((exp_upper_attrs == upper_attrs),
 			"Validate Upper Attrs: Read 0x%lx - Expected 0x%lx",
-				exp_upper_attrs, upper_attrs);
+				upper_attrs, exp_upper_attrs);
 
 		CHECK_VERBOSE((exp_lower_attrs == lower_attrs),
 			"Validate Lower Attrs: Read 0x%lx - Expected 0x%lx",
-				exp_lower_attrs, lower_attrs);
+				lower_attrs, exp_lower_attrs);
 
 		/* Validate the PA */
 		pa_mask = (1ULL << XLAT_ADDR_SHIFT(level)) - 1ULL;
-		CHECK_EQUAL((tte & TABLE_ADDR_MASK), (pa & ~pa_mask));
+		tte_oa = xlat_get_oa_from_tte(tte);
+
+		CHECK_EQUAL(tte_oa, (pa & ~pa_mask));
 
 		/* Validate the descriptor type */
 		type = (level == XLAT_TABLE_LEVEL_MAX) ? PAGE_DESC :
@@ -283,7 +296,7 @@ TEST(xlat_tests_G2, xlat_ctx_init_TC6)
 	int retval;
 	struct xlat_mmap_region init_mmap[3U];
 	unsigned int tbl_idx[3U];
-	unsigned int base_lvl, end_lvl;
+	int base_lvl, end_lvl;
 
 	/**********************************************************************
 	 * TEST CASE 6:
@@ -320,7 +333,7 @@ TEST(xlat_tests_G2, xlat_ctx_init_TC6)
 		for (int i = 0U; i < VA_REGIONS; i++) {
 			va_region = (xlat_addr_region_id_t)i;
 
-			for (base_lvl = 0U;
+			for (base_lvl = XLAT_TEST_MIN_LVL();
 			     base_lvl <= end_lvl;
 			     base_lvl++) {
 
@@ -389,10 +402,10 @@ TEST(xlat_tests_G2, xlat_get_llt_from_va_TC1)
 	xlat_addr_region_id_t va_region;
 	int retval;
 	unsigned int tbl_idx[3U];
-	unsigned int base_lvl, end_lvl;
+	int base_lvl, end_lvl;
 	unsigned int mmap_idx;
 	uint64_t tte;
-	unsigned long long test_va;
+	uint64_t test_va;
 
 	/***************************************************************
 	 * TEST CASE 1:
@@ -416,9 +429,9 @@ TEST(xlat_tests_G2, xlat_get_llt_from_va_TC1)
 		end_lvl <= XLAT_TABLE_LEVEL_MAX;
 		end_lvl++) {
 
-		for (base_lvl = 0U;
-			base_lvl <= end_lvl;
-			base_lvl++) {
+		for (base_lvl = XLAT_TEST_MIN_LVL();
+		     base_lvl <= end_lvl;
+		     base_lvl++) {
 
 			/* Clean the data structures */
 			memset((void *)&ctx, 0,
@@ -498,11 +511,10 @@ TEST(xlat_tests_G2, xlat_get_llt_from_va_TC1)
 					(XLAT_BLOCK_SIZE(base_lvl) *
 							tbl_idx[mmap_idx]) : 0;
 
-
 				/* Ensure that so far the test setup is OK */
 				CHECK_TRUE(retval == 0);
 
-				VERBOSE("\nTesting VA 0x%llx", test_va);
+				VERBOSE("\nTesting VA 0x%lx", test_va);
 
 				/* Test xlat_get_llt_from_va */
 				retval = xlat_get_llt_from_va(&tbl_info, &ctx,
@@ -535,8 +547,9 @@ TEST(xlat_tests_G2, xlat_get_llt_from_va_TC2)
 	size_t va_size, granularity;
 	uint64_t start_va, test_va;
 	xlat_addr_region_id_t va_region;
-	unsigned int base_lvl, end_lvl;
+	int base_lvl, end_lvl;
 	int retval;
+	uint64_t max_va_size = XLAT_TEST_MAX_VA_SIZE();
 
 	/***************************************************************
 	 * TEST CASE 2:
@@ -550,8 +563,8 @@ TEST(xlat_tests_G2, xlat_get_llt_from_va_TC2)
 	 * The leves are arbitrary. Just to have a VA space enough
 	 * for the tests.
 	 */
-	base_lvl = 2U;
-	end_lvl = 3U;
+	base_lvl = 2;
+	end_lvl = 3;
 
 	for (int i = 0U; i < VA_REGIONS; i++) {
 		va_region = (xlat_addr_region_id_t)i;
@@ -593,7 +606,7 @@ TEST(xlat_tests_G2, xlat_get_llt_from_va_TC2)
 
 			retval = xlat_ctx_cfg_init(&cfg, va_region,
 						   &init_mmap[0U], 3U,
-						   MAX_VIRT_ADDR_SPACE_SIZE);
+						   max_va_size);
 			CHECK_TRUE(retval == 0);
 
 			retval = xlat_ctx_init(&ctx, &cfg, &tbls,
@@ -642,13 +655,14 @@ TEST(xlat_tests_G2, xlat_get_llt_from_va_TC3)
 	size_t va_size, granularity;
 	uint64_t start_va, test_va;
 	xlat_addr_region_id_t va_region;
-	unsigned int base_lvl, end_lvl;
+	int base_lvl, end_lvl;
 	int retval;
+	uint64_t max_va_size = XLAT_TEST_MAX_VA_SIZE();
 
 	/***************************************************************
 	 * TEST CASE 3:
 	 *
-	 * Test xlat_get_llt_from_va() with an unmapped VAs belonging to
+	 * Test xlat_get_llt_from_va() with an unmapped VA belonging to
 	 * the context VA space.
 	 ***************************************************************/
 
@@ -657,8 +671,8 @@ TEST(xlat_tests_G2, xlat_get_llt_from_va_TC3)
 	 * The leves are arbitrary. Just to have a VA space enough
 	 * for the tests.
 	 */
-	base_lvl = 0U;
-	end_lvl = 3U;
+	base_lvl = XLAT_TEST_MIN_LVL();
+	end_lvl = 3;
 
 	for (int i = 0U; i < VA_REGIONS; i++) {
 		va_region = (xlat_addr_region_id_t)i;
@@ -690,7 +704,7 @@ TEST(xlat_tests_G2, xlat_get_llt_from_va_TC3)
 
 		retval = xlat_ctx_cfg_init(&cfg, va_region,
 					   &init_mmap[0U], 3U,
-					   MAX_VIRT_ADDR_SPACE_SIZE);
+					   max_va_size);
 		CHECK_TRUE(retval == 0);
 
 		retval = xlat_ctx_init(&ctx, &cfg, &tbls,
@@ -721,6 +735,7 @@ void xlat_get_llt_from_va_prepare_assertion(struct xlat_ctx *ctx,
 {
 	uint64_t start_va, end_va;
 	xlat_addr_region_id_t va_region;
+	uint64_t max_va_size = XLAT_TEST_MAX_VA_SIZE();
 
 	assert(ctx != NULL);
 	assert(cfg != NULL);
@@ -736,15 +751,13 @@ void xlat_get_llt_from_va_prepare_assertion(struct xlat_ctx *ctx,
 	memset((void *)tbls, 0, sizeof(struct xlat_ctx_tbls));
 
 	/* VA space boundaries */
-	start_va = xlat_test_helpers_get_start_va(va_region,
-						MAX_VIRT_ADDR_SPACE_SIZE);
-	end_va = start_va + MAX_VIRT_ADDR_SPACE_SIZE - 1ULL;
+	start_va = xlat_test_helpers_get_start_va(va_region, max_va_size);
+	end_va = start_va + max_va_size - 1ULL;
 
 	/* Generate a random mmap area */
 	xlat_test_helpers_rand_mmap_array(init_mmap, 1U, start_va, end_va);
 
-	(void)xlat_ctx_cfg_init(cfg, va_region, init_mmap, 1U,
-				MAX_VIRT_ADDR_SPACE_SIZE);
+	(void)xlat_ctx_cfg_init(cfg, va_region, init_mmap, 1U, max_va_size);
 
 	(void)xlat_ctx_init(ctx, cfg, tbls,
 			    xlat_test_helpers_tbls(),
@@ -927,12 +940,13 @@ TEST(xlat_tests_G2, xlat_get_tte_ptr_TC1)
 	unsigned int tbl_idx[3U];
 	uint64_t start_va, test_va;
 	xlat_addr_region_id_t va_region;
-	unsigned int level, index;
+	unsigned int index;
 	uint64_t *tte_ptr, *val_tte, *table;
 	uint64_t tte;
 	size_t granularity;
-	unsigned int base_lvl, end_lvl;
-	int retval;
+	int base_lvl, end_lvl;
+	int level, retval;
+	uint64_t max_va_size =	XLAT_TEST_MAX_VA_SIZE();
 
 	/***************************************************************
 	 * TEST CASE 1:
@@ -951,10 +965,10 @@ TEST(xlat_tests_G2, xlat_get_tte_ptr_TC1)
 	 *	  at a last level table.
 	 *
 	 * The test also tests 2 negative cases :
-	 * 	1. It tries to get the TTE via xlat_get_tte() for a lower
-	 * 	   VA  than the base VA.
-	 * 	2. It tries to get the TTE for a higher VA than is mapped
-	 * 	   by the last level table.
+	 *	1. It tries to get the TTE via xlat_get_tte() for a lower
+	 *	   VA  than the base VA.
+	 *	2. It tries to get the TTE for a higher VA than is mapped
+	 *	   by the last level table.
 	 ***************************************************************/
 
 	/*
@@ -962,8 +976,8 @@ TEST(xlat_tests_G2, xlat_get_tte_ptr_TC1)
 	 * The leves are arbitrary. Just to have a VA space enough
 	 * for the tests.
 	 */
-	base_lvl = 0U;
-	end_lvl = 3U;
+	base_lvl = XLAT_TEST_MIN_LVL();
+	end_lvl = 3;
 
 	for (int i = 0U; i < VA_REGIONS; i++) {
 		va_region = (xlat_addr_region_id_t)i;
@@ -975,8 +989,7 @@ TEST(xlat_tests_G2, xlat_get_tte_ptr_TC1)
 		memset((void *)&tbl_info, 0, sizeof(struct xlat_llt_info));
 
 		/* VA space boundaries */
-		start_va = xlat_test_helpers_get_start_va(va_region,
-						MAX_VIRT_ADDR_SPACE_SIZE);
+		start_va = xlat_test_helpers_get_start_va(va_region, max_va_size);
 
 		/* Generate the mmap regions */
 		retval = gen_mmap_array_by_level(&init_mmap[0U],
@@ -989,7 +1002,7 @@ TEST(xlat_tests_G2, xlat_get_tte_ptr_TC1)
 		CHECK_TRUE(retval == 0);
 
 		retval = xlat_ctx_cfg_init(&cfg, va_region, &init_mmap[0U], 3U,
-					   MAX_VIRT_ADDR_SPACE_SIZE);
+					   max_va_size);
 
 		/* Ensure that so far the test setup is OK */
 		CHECK_TRUE(retval == 0);
@@ -1113,6 +1126,64 @@ ASSERT_TEST(xlat_tests_G2, xlat_get_tte_ptr_TC2)
 	test_helpers_fail_if_no_assert_failed();
 }
 
+ASSERT_TEST(xlat_tests_G2, xlat_get_tte_ptr_TC3)
+{
+	struct xlat_ctx ctx;
+	struct xlat_ctx_cfg cfg;
+	struct xlat_ctx_tbls tbls;
+	struct xlat_llt_info tbl_info;
+	struct xlat_mmap_region init_mmap;
+	uint64_t test_va;
+
+	/***************************************************************
+	 * TEST CASE 3:
+	 *
+	 * Try to get a tte using xlat_get_tte() in which 'level' is
+	 * below the minimum for the current architecture implementation.
+	 ***************************************************************/
+
+	xlat_get_llt_from_va_prepare_assertion(&ctx, &cfg, &tbls, &init_mmap);
+	memset((void *)&tbl_info, 0, sizeof(struct xlat_llt_info));
+
+	test_va = ctx.cfg->base_va + init_mmap.base_va;
+
+	/* Override the xlat_llt_info structure's level field */
+	tbl_info.level = XLAT_TABLE_LEVEL_MIN - 1;
+
+	test_helpers_expect_assert_fail(true);
+	(void)xlat_get_tte_ptr(&tbl_info, test_va);
+	test_helpers_fail_if_no_assert_failed();
+}
+
+ASSERT_TEST(xlat_tests_G2, xlat_get_tte_ptr_TC4)
+{
+	struct xlat_ctx ctx;
+	struct xlat_ctx_cfg cfg;
+	struct xlat_ctx_tbls tbls;
+	struct xlat_llt_info tbl_info;
+	struct xlat_mmap_region init_mmap;
+	uint64_t test_va;
+
+	/***************************************************************
+	 * TEST CASE 4:
+	 *
+	 * Try to get a tte using xlat_get_tte() in which 'level' is
+	 * above the maximum for the current architecture implementation.
+	 ***************************************************************/
+
+	xlat_get_llt_from_va_prepare_assertion(&ctx, &cfg, &tbls, &init_mmap);
+	memset((void *)&tbl_info, 0, sizeof(struct xlat_llt_info));
+
+	test_va = ctx.cfg->base_va + init_mmap.base_va;
+
+	/* Override the xlat_llt_info structure's level field */
+	tbl_info.level = XLAT_TABLE_LEVEL_MAX + 1;
+
+	test_helpers_expect_assert_fail(true);
+	(void)xlat_get_tte_ptr(&tbl_info, test_va);
+	test_helpers_fail_if_no_assert_failed();
+}
+
 TEST(xlat_tests_G2, xlat_unmap_memory_page_TC1)
 {
 	struct xlat_ctx ctx;
@@ -1125,7 +1196,7 @@ TEST(xlat_tests_G2, xlat_unmap_memory_page_TC1)
 	int retval;
 	struct xlat_mmap_region init_mmap[3U];
 	unsigned int tbl_idx[3U];
-	unsigned int base_lvl, end_lvl;
+	int base_lvl, end_lvl;
 
 	/***************************************************************
 	 * TEST CASE 1:
@@ -1147,11 +1218,11 @@ TEST(xlat_tests_G2, xlat_unmap_memory_page_TC1)
 	 * resulting tte will contain a transient invalid entry.
 	 ***************************************************************/
 
-	mmap_count = 3U;
-	base_lvl = 0U;
+	mmap_count = 3;
+	base_lvl = XLAT_TEST_MIN_LVL();
 
 	/* The first look-up level that supports blocks is L1 */
-	for (end_lvl = 1U; end_lvl <= XLAT_TABLE_LEVEL_MAX; end_lvl++) {
+	for (end_lvl = 1; end_lvl <= XLAT_TABLE_LEVEL_MAX; end_lvl++) {
 		for (int i = 0U; i < VA_REGIONS; i++) {
 			va_region = (xlat_addr_region_id_t)i;
 
@@ -1197,10 +1268,11 @@ TEST(xlat_tests_G2, xlat_unmap_memory_page_TC1)
 			 * - call xlat_unmap_memory_page() over the same VA
 			 * - verify that the TTE is now transient invalid.
 			 */
-			for (unsigned j = 0U; j < mmap_count; j++) {
+			for (unsigned int j = 0U; j < mmap_count; j++) {
 				uint64_t tte;
 				uint64_t *tbl_ptr;
-				unsigned int tte_idx, tte_lvl;
+				unsigned int tte_idx;
+				int tte_lvl;
 				struct xlat_llt_info tbl_info;
 				uint64_t offset =
 					test_helpers_get_rand_in_range(0,
@@ -1274,15 +1346,15 @@ TEST(xlat_tests_G2, xlat_unmap_memory_page_TC2)
 	uint64_t start_va, test_va;
 	size_t va_size, granularity;
 	unsigned int mmap_count;
-	unsigned int tte_idx, tte_lvl;
+	unsigned int tte_idx;
 	xlat_addr_region_id_t va_region;
-	int retval;
+	int retval, tte_lvl;
 	struct xlat_mmap_region init_mmap[3U];
 	unsigned int tbl_idx[3U];
 	struct xlat_llt_info tbl_info;
 	uint64_t tte, val_tte;
 	uint64_t *tbl_ptr;
-	unsigned int base_lvl, end_lvl;
+	int base_lvl, end_lvl;
 
 	/***************************************************************
 	 * TEST CASE 2:
@@ -1301,8 +1373,8 @@ TEST(xlat_tests_G2, xlat_unmap_memory_page_TC2)
 	 * The leves are arbitrary. Just to have a VA space enough
 	 * for the tests.
 	 */
-	base_lvl = 0U;
-	end_lvl = 3U;
+	base_lvl = XLAT_TEST_MIN_LVL();
+	end_lvl = 3;
 
 	mmap_count = 3U;
 
@@ -1489,7 +1561,7 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC1)
 	int retval;
 	struct xlat_mmap_region init_mmap[3U];
 	unsigned int tbl_idx[3U];
-	unsigned int base_lvl, end_lvl;
+	int base_lvl, end_lvl;
 
 	/***************************************************************
 	 * TEST CASE 1:
@@ -1512,11 +1584,11 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC1)
 	 * entry is valid.
 	 ***************************************************************/
 
-	mmap_count = 3U;
-	base_lvl = 0U;
+	mmap_count = 3;
+	base_lvl = XLAT_TEST_MIN_LVL();
 
 	/* The first look-up level that supports blocks is L1 */
-	for (end_lvl = 1U; end_lvl <= XLAT_TABLE_LEVEL_MAX; end_lvl++) {
+	for (end_lvl = 1; end_lvl <= XLAT_TABLE_LEVEL_MAX; end_lvl++) {
 		for (int i = 0U; i < VA_REGIONS; i++) {
 			va_region = (xlat_addr_region_id_t)i;
 
@@ -1571,10 +1643,11 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC1)
 			 *   create the mapping.
 			 * - verify that the new entry is valid.
 			 */
-			for (unsigned j = 0U; j < mmap_count; j++) {
+			for (unsigned int j = 0U; j < mmap_count; j++) {
 				uint64_t tte, val_tte, attrs, pa, type;
 				uint64_t *tbl_ptr;
-				unsigned int tte_idx, tte_lvl;
+				unsigned int tte_idx;
+				int tte_lvl;
 				struct xlat_llt_info tbl_info;
 				uint64_t offset =
 					test_helpers_get_rand_in_range(0,
@@ -1608,7 +1681,7 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC1)
 				 */
 				retval = xlat_test_helpers_gen_attrs(&val_tte,
 								     attrs);
-				pa = init_mmap[j].base_va & XLAT_TESTS_PA_MASK;
+				pa = init_mmap[j].base_va & XLAT_TEST_GET_PA_MASK();
 
 				/*
 				 * Add an arbitrary offset to PA to be passed to
@@ -1616,7 +1689,8 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC1)
 				 */
 				pa += test_helpers_get_rand_in_range(1,
 						XLAT_BLOCK_SIZE(end_lvl) - 1);
-				val_tte |= pa & XLAT_ADDR_MASK(end_lvl);
+				val_tte |= set_oa_to_tte(pa &
+						XLAT_ADDR_MASK(end_lvl));
 
 				/* The TTE will be a transient one */
 				val_tte |= (1ULL <<
@@ -1678,22 +1752,23 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC2)
 	uint64_t start_va, test_va, test_pa;
 	size_t va_size, granularity;
 	unsigned int mmap_count;
-	unsigned int tte_idx, tte_lvl;
+	unsigned int tte_idx;
 	xlat_addr_region_id_t va_region;
-	int retval;
+	int tte_lvl, retval;
 	struct xlat_mmap_region init_mmap[3U];
 	unsigned int tbl_idx[3U];
 	struct xlat_llt_info tbl_info;
 	uint64_t tte, val_tte;
 	uint64_t *tbl_ptr;
-	unsigned int base_lvl, end_lvl;
+	int base_lvl, end_lvl;
 	unsigned int pa_range_bits_arr[] = {
 		PARANGE_0000_WIDTH, PARANGE_0001_WIDTH, PARANGE_0010_WIDTH,
 		PARANGE_0011_WIDTH, PARANGE_0100_WIDTH, PARANGE_0101_WIDTH,
+		PARANGE_0110_WIDTH
 	};
 	unsigned int parange_index = test_helpers_get_rand_in_range(0,
-		sizeof(pa_range_bits_arr)/sizeof(pa_range_bits_arr[0]) - 1U);
-
+					ARRAY_SIZE(pa_range_bits_arr) - 1U);
+	uint64_t id_aa64mmfr0_el1 = read_id_aa64mmfr0_el1();
 
 	/***************************************************************
 	 * TEST CASE 2:
@@ -1715,8 +1790,8 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC2)
 	 * The leves are arbitrary. Just to have a VA space enough
 	 * for the tests.
 	 */
-	base_lvl = 0U;
-	end_lvl = 3U;
+	base_lvl = XLAT_TEST_MIN_LVL();
+	end_lvl = 3;
 
 	mmap_count = 3U;
 
@@ -1856,8 +1931,7 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC2)
 		CHECK_EQUAL(val_tte, tbl_ptr[tte_idx]);
 
 		/* Restore the maximum supported PA size for next tests */
-		host_write_sysreg("id_aa64mmfr0_el1",
-				  INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5U));
+		host_write_sysreg("id_aa64mmfr0_el1", id_aa64mmfr0_el1);
 
 		/* The rest of the tests will be based on init_mmap[2] */
 		test_va = init_mmap[2U].base_va + ctx.cfg->base_va;
@@ -1991,7 +2065,7 @@ static void validate_ttbrx_el2(struct xlat_ctx *ctx)
 						MASK(TTBRx_EL2_BADDR);
 
 	ttbrx = read_ttbr1_el2();
-	if(va_region == VA_LOW_REGION) {
+	if (va_region == VA_LOW_REGION) {
 		ttbrx = read_ttbr0_el2();
 
 		/*
@@ -2058,6 +2132,12 @@ static void validate_tcr_el2(struct xlat_ctx *low_ctx,
 	parange = EXTRACT(ID_AA64MMFR0_EL1_PARANGE, read_id_aa64mmfr0_el1());
 	exp_tcr |= INPLACE(TCR_EL2_IPS, parange);
 
+	if (is_feat_lpa2_4k_present() == true) {
+		exp_tcr |= (TCR_EL2_DS_LPA2_EN
+			    | TCR_EL2_SH0_IS
+			    | TCR_EL2_SH1_IS);
+	}
+
 	/* Validate tcr_el2*/
 	CHECK_VERBOSE((exp_tcr == tcr),
 		      "Validate TCR_EL2 against expected value: Read 0x%.16lx - Expected 0x%.16lx",
@@ -2074,12 +2154,14 @@ TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC1)
 	xlat_addr_region_id_t va_region;
 	int retval;
 	struct xlat_mmap_region init_mmap[2U];
+	unsigned int pa_index, max_pa_index;
+	bool lpa2 = is_feat_lpa2_4k_present();
 	unsigned int pa_range_bits_arr[] = {
 		PARANGE_0000_WIDTH, PARANGE_0001_WIDTH, PARANGE_0010_WIDTH,
 		PARANGE_0011_WIDTH, PARANGE_0100_WIDTH, PARANGE_0101_WIDTH,
+		PARANGE_0110_WIDTH
 	};
-	unsigned int pa_index = test_helpers_get_rand_in_range(0,
-		sizeof(pa_range_bits_arr)/sizeof(pa_range_bits_arr[0]) - 1U);
+	uint64_t max_va_size = XLAT_TEST_MAX_VA_SIZE();
 
 	/***************************************************************
 	 * TEST CASE 1:
@@ -2088,6 +2170,10 @@ TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC1)
 	 * the MMU registers based on both contexts. Verify that the
 	 * right parameters have been configured.
 	 ***************************************************************/
+
+	max_pa_index = ARRAY_SIZE(pa_range_bits_arr);
+	max_pa_index = (lpa2 == true) ? max_pa_index : max_pa_index - 1U;
+	pa_index = test_helpers_get_rand_in_range(0, max_pa_index - 1U);
 
 	/* Clean the data structures */
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx) * 2U);
@@ -2106,14 +2192,14 @@ TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC1)
 						XLAT_TABLE_ENTRIES) >> 1U];
 		/* VA space boundaries */
 		start_va = xlat_test_helpers_get_start_va(va_region,
-							MAX_VIRT_ADDR_SPACE_SIZE);
-		end_va = start_va + MAX_VIRT_ADDR_SPACE_SIZE - 1ULL;
+							  max_va_size);
+		end_va = start_va + max_va_size - 1ULL;
 
 		/* Generate only a single mmap region for each region */
 		xlat_test_helpers_rand_mmap_array(&init_mmap[i], 1U, start_va, end_va);
 
 		retval = xlat_ctx_cfg_init(&cfg[i], va_region, &init_mmap[i],
-					   1U, MAX_VIRT_ADDR_SPACE_SIZE);
+					   1U, max_va_size);
 		CHECK_TRUE(retval == 0);
 
 		retval = xlat_ctx_init(&ctx[i], &cfg[i], &tbls[i],
@@ -2142,6 +2228,7 @@ TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC2)
 	uint64_t start_va, end_va;
 	int retval;
 	struct xlat_mmap_region init_mmap;
+	uint64_t max_va_size =	XLAT_TEST_MAX_VA_SIZE();
 
 	/***************************************************************
 	 * TEST CASE 2:
@@ -2155,6 +2242,9 @@ TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC2)
 	 *	  context configuration.
 	 *	- Call xlat_arch_setup_mmu_cfg() for a CPU which
 	 *	  does not have support for 4KB granularity.
+	 *	- Call xlat_arch_setup_mmu_cfg() for a CPU which
+	 *	  does not support FEAT_LPA2 but reports a PA
+	 *	  size larger than 48 bits.
 	 ***************************************************************/
 
 	/* Clean the data structures */
@@ -2163,15 +2253,14 @@ TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC2)
 	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
 	/* VA space boundaries */
-	start_va = xlat_test_helpers_get_start_va(VA_LOW_REGION,
-						MAX_VIRT_ADDR_SPACE_SIZE);
-	end_va = start_va + MAX_VIRT_ADDR_SPACE_SIZE - 1ULL;
+	start_va = xlat_test_helpers_get_start_va(VA_LOW_REGION, max_va_size);
+	end_va = start_va + max_va_size - 1ULL;
 
 	/* Generate only a single mmap region for each region */
 	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va);
 
 	retval = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &init_mmap,
-					1U, MAX_VIRT_ADDR_SPACE_SIZE);
+					1U, max_va_size);
 	CHECK_TRUE(retval == 0);
 
 	retval = xlat_ctx_init(&ctx, &cfg, &tbls,
@@ -2214,6 +2303,24 @@ TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC2)
 
 	/* Verify that the MMU has failed to be initialized */
 	CHECK_TRUE(retval == -EPERM);
+
+	/*
+	 * Force the architecture to report 4K granularity available without
+	 * support for LPA2 but with an PA size of more than 48 bits.
+	 * Note that this scenario should never happen on the architecture
+	 * however, the library still checks for this.
+	 */
+	host_write_sysreg("id_aa64mmfr0_el1",
+		INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6U) |
+		INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
+				ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED));
+
+	/* Try to initialize MMU for the given context */
+	retval = xlat_arch_setup_mmu_cfg(&ctx);
+
+	/* Verify that the MMU has failed to be initialized */
+	CHECK_TRUE(retval == -ENOMEM);
+
 }
 
 ASSERT_TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC3)
@@ -2227,6 +2334,111 @@ ASSERT_TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC3)
 	test_helpers_expect_assert_fail(true);
 	(void)xlat_arch_setup_mmu_cfg(NULL);
 	test_helpers_fail_if_no_assert_failed();
+}
+
+ASSERT_TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC4)
+{
+	struct xlat_ctx ctx;
+	struct xlat_ctx_cfg cfg;
+	struct xlat_ctx_tbls tbls;
+	struct xlat_mmap_region init_mmap;
+
+	/***************************************************************
+	 * TEST CASE 4:
+	 *
+	 * Test xlat_arch_setup_mmu_cfg() with a context in which the
+	 * configuration is NULL.
+	 *
+	 * This test reuses xlat_get_llt_from_va_prepare_assertion()
+	 * in order to generate an initial valid context.
+	 ***************************************************************/
+
+	xlat_get_llt_from_va_prepare_assertion(&ctx, &cfg, &tbls, &init_mmap);
+
+	/* Force the context configuration to NULL */
+	ctx.cfg = NULL;
+
+	test_helpers_expect_assert_fail(true);
+	(void)xlat_arch_setup_mmu_cfg(&ctx);
+	test_helpers_fail_if_no_assert_failed();
+}
+
+ASSERT_TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC5)
+{
+	struct xlat_ctx ctx;
+	struct xlat_ctx_cfg cfg;
+	struct xlat_ctx_tbls tbls;
+	struct xlat_mmap_region init_mmap;
+
+	/***************************************************************
+	 * TEST CASE 5:
+	 *
+	 * Test xlat_arch_setup_mmu_cfg() with a context in which the
+	 * 'tbls' structure is NULL.
+	 *
+	 * This test reuses xlat_get_llt_from_va_prepare_assertion()
+	 * in order to generate an initial valid context.
+	 ***************************************************************/
+
+	xlat_get_llt_from_va_prepare_assertion(&ctx, &cfg, &tbls, &init_mmap);
+
+	/* Force the context tables structure to NULL */
+	ctx.tbls = NULL;
+
+	test_helpers_expect_assert_fail(true);
+	(void)xlat_arch_setup_mmu_cfg(&ctx);
+	test_helpers_fail_if_no_assert_failed();
+}
+
+TEST(xlat_tests_G2, xlat_get_oa_from_tte_TC1)
+{
+	uint64_t test_tte, val_addr, output_addr;
+
+	/***************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Test xlat_get_oa_from_tte() with 4K granularity and with and
+	 * without LPA2 support.
+	 ***************************************************************/
+
+	/*
+	 * Generate a random TTE to test. We are not concerned about the
+	 * validity of the TTE or about any bitfield that is not part of
+	 * the output address, as xlat_get_oa_from_tte() is expected to
+	 * just ignore those.
+	 */
+	test_tte = ~0ULL;
+
+	/* Test with FEAT_LPA2 available */
+	host_write_sysreg("id_aa64mmfr0_el1",
+				INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6UL) |
+				INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
+					ID_AA64MMFR0_EL1_TGRAN4_LPA2));
+
+	/* Generate the validation address from the test TTE */
+	val_addr = test_tte & BIT_MASK_ULL(TTE_OA_BIT_49_LPA2, OA_SHIFT);
+	val_addr |= INPLACE(OA_BITS_50_51, EXTRACT(TTE_OA_BITS_50_51, test_tte));
+
+	output_addr = xlat_get_oa_from_tte(test_tte);
+
+	CHECK_VERBOSE((val_addr == output_addr),
+		      "Test xlat_get_oa_from_tte, LPA2 supported: OA = %p - Expected = %p",
+		      (void *)output_addr, (void *)val_addr);
+
+	/* Repeat the test, by disabling support for FEAT_LPA2 this time */
+	host_write_sysreg("id_aa64mmfr0_el1",
+		INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5U) |
+		INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
+				ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED));
+
+	/* Generate the validation address */
+	val_addr = test_tte & BIT_MASK_ULL(TTE_OA_MSB, OA_SHIFT);
+
+	output_addr = xlat_get_oa_from_tte(test_tte);
+
+	CHECK_VERBOSE((val_addr == output_addr),
+		      "Test xlat_get_oa_from_tte, LPA2 not supported: OA = %p - Expected = %p",
+		      (void *)output_addr, (void *)val_addr);
 }
 
 IGNORE_TEST(xlat_tests_G2, xlat_write_tte_TC1)

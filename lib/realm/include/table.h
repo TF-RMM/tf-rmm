@@ -112,9 +112,15 @@ static inline uint64_t __tte_read(uint64_t *ttep)
 #define s1tte_read(s1ttep)	__tte_read(s1ttep)
 #define s2tte_read(s2ttep)	__tte_read(s2ttep)
 
+/*
+ * At the moment, RMM doesn't support FEAT_LPA2 for stage 2 address
+ * translation, so the maximum IPA size is 48 bits.
+ */
 static inline unsigned int max_ipa_size(void)
 {
-	return arch_feat_get_pa_width();
+	unsigned int ipa_size = arch_feat_get_pa_width();
+
+	return ipa_size > MAX_IPA_BITS ? MAX_IPA_BITS : ipa_size;
 }
 
 #endif /* TABLE_H */

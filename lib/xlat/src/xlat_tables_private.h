@@ -16,7 +16,8 @@
  * Initialize translation tables associated to the current context.
  *
  * This function assumes that the xlat_ctx_cfg field of the context has been
- * properly configured by previous calls to xlat_ctx_cfg_init().
+ * properly configured by previous calls to xlat_ctx_cfg_init() and that
+ * all the tables are of page size.
  *
  * This function returns 0 on success or an error code otherwise.
  */
@@ -52,7 +53,7 @@ void xlat_tables_print(struct xlat_ctx *ctx);
 /*
  * Returns a block/page table descriptor for the given level and attributes.
  */
-uintptr_t xlat_desc(uint64_t attr, uintptr_t addr_pa, unsigned int level);
+uintptr_t xlat_desc(uint64_t attr, uintptr_t addr_pa, int level);
 
 /*
  * Return the maximum physical address supported by the hardware.

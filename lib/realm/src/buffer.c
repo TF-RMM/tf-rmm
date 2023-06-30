@@ -49,8 +49,7 @@ COMPILER_ASSERT((RMM_SLOT_BUF_VA_SIZE) >= (1 << 16U));
  * library (it assumes that access faults are not handled) so it does not
  * need to be specified here.
  */
-#define SLOT_DESC_ATTR \
-	(MT_RW_DATA | MT_SHAREABILITY_ISH | MT_NG)
+#define SLOT_DESC_ATTR		(MT_RW_DATA | MT_NG)
 
 /*
  * The base tables for all the contexts are manually allocated as a continous
