@@ -81,10 +81,8 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 			  const struct q_useful_buf *out_buf)
 {
 	enum t_cose_err_t cose_res;
-	uint32_t t_cose_options = 0;
 	struct t_cose_key attest_key;
 	psa_key_handle_t key_handle;
-	struct q_useful_buf_c attest_key_id = NULL_Q_USEFUL_BUF_C;
 
 	assert(me != NULL);
 	assert(out_buf != NULL);
@@ -93,18 +91,10 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 	me->opt_flags  = opt_flags;
 	me->key_select = key_select;
 
-	t_cose_sign1_sign_init(&(me->signer_ctx),
-			       t_cose_options,
-			       cose_alg_id);
-
-	cose_res = t_cose_sign1_set_restart(&(me->signer_ctx),
-					    &(me->signer_restart_ctx));
-	if (cose_res != T_COSE_SUCCESS) {
-		return ATTEST_TOKEN_ERR_COSE_ERROR;
-	}
-
-	t_cose_sign1_set_crypto_context(&(me->signer_ctx),
-					&(me->crypto_ctx));
+	t_cose_signature_sign_restart_init(&me->restartable_signer_ctx, cose_alg_id);
+	t_cose_signature_sign_restart_set_crypto_context(&me->restartable_signer_ctx, &(me->crypto_ctx));
+	t_cose_sign_sign_init(&me->sign_ctx, T_COSE_OPT_MESSAGE_TYPE_SIGN1);
+	t_cose_sign_add_signer(&me->sign_ctx, t_cose_signature_sign_from_restart(&me->restartable_signer_ctx));
 
 
 	/*
@@ -112,9 +102,8 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 	 */
 	attest_get_realm_signing_key(&key_handle);
 	attest_key.key.handle = key_handle;
-	t_cose_sign1_set_signing_key(&(me->signer_ctx),
-				     attest_key,
-				     attest_key_id);
+
+	t_cose_signature_sign_restart_set_signing_key(&me->restartable_signer_ctx, attest_key);
 
 	/* Spin up the CBOR encoder */
 	QCBOREncode_Init(&(me->cbor_enc_ctx), *out_buf);
@@ -123,14 +112,12 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 	 * This will cause the cose headers to be encoded and written into
 	 * out_buf using me->cbor_enc_ctx
 	 */
-	cose_res = t_cose_sign1_encode_parameters(&(me->signer_ctx),
-						  &(me->cbor_enc_ctx));
+	cose_res = t_cose_sign_encode_start(&me->sign_ctx, &me->cbor_enc_ctx);
 
 	if (cose_res != T_COSE_SUCCESS) {
 		return ATTEST_TOKEN_ERR_COSE_ERROR;
 	}
 
-	QCBOREncode_OpenMap(&(me->cbor_enc_ctx));
 	return ATTEST_TOKEN_ERR_SUCCESS;
 }
 
@@ -149,8 +136,10 @@ attest_realm_token_sign(struct attest_token_encode_ctx *me,
 
 	/* Finish up the COSE_Sign1. This is where the signing happens */
 	SIMD_FPU_ALLOW(
-		cose_res = t_cose_sign1_encode_signature(&(me->signer_ctx),
-							 &(me->cbor_enc_ctx)));
+		cose_res = t_cose_sign_encode_finish(&me->sign_ctx,
+						     NULL_Q_USEFUL_BUF_C,
+						     me->signed_payload,
+						     &me->cbor_enc_ctx));
 
 	if (cose_res == T_COSE_ERR_SIG_IN_PROGRESS) {
 		/* Token signing has not yet finished */
@@ -271,6 +260,9 @@ int attest_realm_token_create(enum hash_algo algorithm,
 		return token_ret;
 	}
 
+	QCBOREncode_BstrWrap(&(ctx->ctx.cbor_enc_ctx));
+	QCBOREncode_OpenMap(&(ctx->ctx.cbor_enc_ctx));
+
 	/* Add challenge value, which is the only input from the caller. */
 	buf.ptr = ctx->challenge;
 	buf.len = ATTEST_CHALLENGE_SIZE;
@@ -323,6 +315,8 @@ int attest_realm_token_create(enum hash_algo algorithm,
 
 	QCBOREncode_CloseArray(&(ctx->ctx.cbor_enc_ctx));
 	QCBOREncode_CloseMap(&(ctx->ctx.cbor_enc_ctx));
+	QCBOREncode_CloseBstrWrap2(&(ctx->ctx.cbor_enc_ctx), false,
+				   &(ctx->ctx.signed_payload));
 
 	return ATTEST_TOKEN_ERR_SUCCESS;
 }
