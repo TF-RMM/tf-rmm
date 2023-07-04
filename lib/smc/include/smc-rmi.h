@@ -114,10 +114,9 @@
 #define RMI_EXIT_SERROR			U(6)
 
 /* RmiRttEntryState represents the state of an RTTE */
-#define RMI_UNASSIGNED		U(0)
-#define RMI_DESTROYED		U(1)
-#define RMI_ASSIGNED		U(2)
-#define RMI_TABLE		U(3)
+#define RMI_UNASSIGNED		UL(0)
+#define RMI_ASSIGNED		UL(1)
+#define RMI_TABLE		UL(2)
 
 /* RmiFeature enumerations */
 #define RMI_FEATURE_FALSE	UL(0)
@@ -156,10 +155,16 @@
 #define RMM_FEATURE_REGISTER_0_HASH_SHA_512_SHIFT	UL(29)
 #define RMM_FEATURE_REGISTER_0_HASH_SHA_512_WIDTH	UL(1)
 
-/* RmmRipas enumeration representing realm IPA state */
-#define RMI_EMPTY	U(0)
-#define RMI_RAM		U(1)
-#define RMI_UNDEFINED	U(2)
+/* The RmiRipas enumeration represents realm IPA state */
+
+/* Address where no Realm resources are mapped */
+#define RMI_EMPTY	UL(0)
+
+/* Address where private code or data owned by the Realm is mapped */
+#define RMI_RAM		UL(1)
+
+/* Address which is inaccessible to the Realm due to an action taken by the Host */
+#define RMI_DESTROYED	UL(2)
 
 /* RmiPmuOverflowStatus enumeration representing PMU overflow status */
 #define RMI_PMU_OVERFLOW_NOT_ACTIVE	U(0)

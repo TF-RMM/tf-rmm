@@ -18,7 +18,6 @@
  * [out]  s2_walk.pa	    The physical address of the realm granule.
  * [out]  s2_walk.rtt_level The last level reached by the table walk.
  * [out]  s2_walk.ripas_val RIPAS of s2tte.
- * [out]  s2_walk.destroyed 'true', if s2tte has HIPAS=DESTROYED.
  * [out]  s2_walk.llt	    Pointer to the last level page table which contains
  *			    the mapping of the granule. If function returns with
  *			    WALK_SUCCESS then 's2_walk.llt' must be unlocked by
@@ -71,8 +70,9 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 		s2_walk->ripas_val = RIPAS_RAM;
 		walk_status = WALK_SUCCESS;
 	} else {
-		if (s2tte_is_destroyed(s2tte)) {
-			s2_walk->ripas_val = RIPAS_UNDEFINED;
+		if (s2tte_is_unassigned_destroyed(s2tte) ||
+		    s2tte_is_assigned_destroyed(s2tte, wi.last_level)) {
+			s2_walk->ripas_val = RIPAS_DESTROYED;
 		} else if (s2tte_is_unassigned_ram(s2tte)) {
 			s2_walk->ripas_val = RIPAS_RAM;
 		} else {
@@ -105,7 +105,7 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
  *				is set in case of WALK_FAIL is returned.
  * Returns:
  *	WALK_SUCCESS:		RIPAS of IPA found
- *	WALK_FAIL:		RIPAS of IPA not found. s2tte has HIPAS=DESTROYED
+ *	WALK_FAIL:		RIPAS of IPA not found, s2tte has RIPAS=DESTROYED
  */
 enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long ipa,
 					enum ripas *ripas_ptr,
@@ -130,7 +130,8 @@ enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long ipa,
 	ll_table = granule_map(wi.g_llt, SLOT_RTT);
 	s2tte = s2tte_read(&ll_table[wi.index]);
 
-	if (s2tte_is_destroyed(s2tte)) {
+	*ripas_ptr = s2tte_get_ripas(s2tte);
+	if (*ripas_ptr == RIPAS_DESTROYED) {
 		*rtt_level = wi.last_level;
 		/*
 		 * The IPA has been destroyed by NS Host. Return data_abort back
@@ -139,7 +140,6 @@ enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long ipa,
 		 */
 		ws = WALK_FAIL;
 	} else {
-		*ripas_ptr = s2tte_get_ripas(s2tte);
 		ws = WALK_SUCCESS;
 	}
 

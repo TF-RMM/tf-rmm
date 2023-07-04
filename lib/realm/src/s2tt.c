@@ -29,11 +29,11 @@
  */
 #define S2TTE_OA_BITS			48
 
-#define DESC_TYPE_MASK			0x3UL
-#define S2TTE_L012_TABLE		0x3UL
-#define S2TTE_L012_BLOCK		0x1UL
-#define S2TTE_L3_PAGE			0x3UL
-#define S2TTE_Lx_INVALID		0x0UL
+#define DESC_TYPE_MASK			3UL
+#define S2TTE_Lx_INVALID		0UL
+#define S2TTE_L012_BLOCK		1UL
+#define S2TTE_L012_TABLE		3UL
+#define S2TTE_L3_PAGE			3UL
 
 /*
  * The following constants for the mapping attributes (S2_TTE_MEMATTR_*)
@@ -72,14 +72,14 @@
 #define S2TTE_PAGE	(S2TTE_ATTRS | S2TTE_L3_PAGE)
 #define S2TTE_BLOCK_NS	(S2TTE_NS | S2TTE_XN | S2TTE_AF | S2TTE_L012_BLOCK)
 #define S2TTE_PAGE_NS	(S2TTE_NS | S2TTE_XN | S2TTE_AF | S2TTE_L3_PAGE)
-#define S2TTE_INVALID	0
+#define S2TTE_INVALID	S2TTE_Lx_INVALID
 
 /*
  * The type of stage 2 translation table entry (s2tte) is defined by:
  * 1. Table level where it resides
  * 2. DESC_TYPE field[1:0]
- * 4. HIPAS field [5:2]
- * 4. RIPAS field [6]
+ * 4. HIPAS field [4:2]
+ * 4. RIPAS field [6:5]
  * 5. NS field [55]
  *
  * s2tte type       level DESC_TYPE[1:0] HIPAS[5:2]    RIPAS[6] NS  OA alignment
@@ -104,21 +104,20 @@
  */
 
 #define S2TTE_INVALID_HIPAS_SHIFT	2
-#define S2TTE_INVALID_HIPAS_WIDTH	4
+#define S2TTE_INVALID_HIPAS_WIDTH	3
 #define S2TTE_INVALID_HIPAS_MASK	MASK(S2TTE_INVALID_HIPAS)
 
 #define S2TTE_INVALID_HIPAS_UNASSIGNED	(INPLACE(S2TTE_INVALID_HIPAS, 0))
 #define S2TTE_INVALID_HIPAS_ASSIGNED	(INPLACE(S2TTE_INVALID_HIPAS, 1))
-#define S2TTE_INVALID_HIPAS_DESTROYED	(INPLACE(S2TTE_INVALID_HIPAS, 2))
 
-#define S2TTE_INVALID_RIPAS_SHIFT	6
-#define S2TTE_INVALID_RIPAS_WIDTH	1
+#define S2TTE_INVALID_RIPAS_SHIFT	5
+#define S2TTE_INVALID_RIPAS_WIDTH	2
 #define S2TTE_INVALID_RIPAS_MASK	MASK(S2TTE_INVALID_RIPAS)
 
 #define S2TTE_INVALID_RIPAS_EMPTY	(INPLACE(S2TTE_INVALID_RIPAS, 0))
 #define S2TTE_INVALID_RIPAS_RAM		(INPLACE(S2TTE_INVALID_RIPAS, 1))
+#define S2TTE_INVALID_RIPAS_DESTROYED	(INPLACE(S2TTE_INVALID_RIPAS, 2))
 
-#define S2TTE_INVALID_DESTROYED		S2TTE_INVALID_HIPAS_DESTROYED
 #define S2TTE_INVALID_UNPROTECTED	0x0UL
 
 #define NR_RTT_LEVELS	4
@@ -261,7 +260,7 @@ static unsigned long addr_level_mask(unsigned long addr, long level)
 	unsigned int lsb = levels * S2TTE_STRIDE + GRANULE_SHIFT;
 	unsigned int msb = S2TTE_OA_BITS - 1;
 
-	return addr & BIT_MASK_ULL(msb, lsb);
+	return (addr & BIT_MASK_ULL(msb, lsb));
 }
 
 static inline unsigned long table_entry_to_phys(unsigned long entry)
@@ -271,7 +270,7 @@ static inline unsigned long table_entry_to_phys(unsigned long entry)
 
 static inline bool entry_is_table(unsigned long entry)
 {
-	return (entry & DESC_TYPE_MASK) == S2TTE_L012_TABLE;
+	return ((entry & DESC_TYPE_MASK) == S2TTE_L012_TABLE);
 }
 
 static unsigned long __table_get_entry(struct granule *g_tbl,
@@ -388,7 +387,7 @@ out:
  */
 unsigned long s2tte_create_unassigned_empty(void)
 {
-	return S2TTE_INVALID_HIPAS_UNASSIGNED | S2TTE_INVALID_RIPAS_EMPTY;
+	return (S2TTE_INVALID_HIPAS_UNASSIGNED | S2TTE_INVALID_RIPAS_EMPTY);
 }
 
 /*
@@ -396,15 +395,26 @@ unsigned long s2tte_create_unassigned_empty(void)
  */
 unsigned long s2tte_create_unassigned_ram(void)
 {
-	return S2TTE_INVALID_HIPAS_UNASSIGNED | S2TTE_INVALID_RIPAS_RAM;
+	return (S2TTE_INVALID_HIPAS_UNASSIGNED | S2TTE_INVALID_RIPAS_RAM);
 }
 
 /*
- * Creates an invalid s2tte with HIPAS=DESTROYED.
+ * Creates an unassigned_destroyed s2tte.
  */
-unsigned long s2tte_create_destroyed(void)
+unsigned long s2tte_create_unassigned_destroyed(void)
 {
-	return S2TTE_INVALID_DESTROYED;
+	return (S2TTE_INVALID_HIPAS_UNASSIGNED | S2TTE_INVALID_RIPAS_DESTROYED);
+}
+
+/*
+ * Creates an invalid s2tte with output address @pa, HIPAS=ASSIGNED and
+ * RIPAS=DESTROYED, at level @level.
+ */
+unsigned long s2tte_create_assigned_destroyed(unsigned long pa, long level)
+{
+	assert(level >= RTT_MIN_BLOCK_LEVEL);
+	assert(addr_is_level_aligned(pa, level));
+	return (pa | S2TTE_INVALID_HIPAS_ASSIGNED | S2TTE_INVALID_RIPAS_DESTROYED);
 }
 
 /*
@@ -436,8 +446,8 @@ unsigned long s2tte_create_assigned_ram(unsigned long pa, long level)
  */
 unsigned long s2tte_create_unassigned_ns(void)
 {
-	return S2TTE_NS | S2TTE_INVALID_HIPAS_UNASSIGNED |
-			  S2TTE_INVALID_UNPROTECTED;
+	return (S2TTE_NS | S2TTE_INVALID_HIPAS_UNASSIGNED |
+		S2TTE_INVALID_UNPROTECTED);
 }
 
 /*
@@ -524,16 +534,14 @@ unsigned long s2tte_create_table(unsigned long pa, long level)
  * Returns true if s2tte has defined ripas value, namely if it is one of:
  * - unassigned_empty
  * - unassigned_ram
+ * - unassigned_destroyed
  * - assigned_empty
  * - assigned_ram
+ * - assigned_destroyed
  */
 bool s2tte_has_ripas(unsigned long s2tte, long level)
 {
-	if (s2tte_is_table(s2tte, level) || s2tte_is_destroyed(s2tte) ||
-	   ((s2tte & S2TTE_NS) != 0UL)) {
-		return false;
-	}
-	return true;
+	return (((s2tte & S2TTE_NS) == 0UL) && !s2tte_is_table(s2tte, level));
 }
 
 /*
@@ -544,10 +552,7 @@ static bool s2tte_has_hipas(unsigned long s2tte, unsigned long hipas)
 	unsigned long desc_type = s2tte & DESC_TYPE_MASK;
 	unsigned long invalid_desc_hipas = s2tte & S2TTE_INVALID_HIPAS_MASK;
 
-	if ((desc_type != S2TTE_Lx_INVALID) || (invalid_desc_hipas != hipas)) {
-		return false;
-	}
-	return true;
+	return ((desc_type == S2TTE_Lx_INVALID) && (invalid_desc_hipas == hipas));
 }
 
 /*
@@ -555,14 +560,17 @@ static bool s2tte_has_hipas(unsigned long s2tte, unsigned long hipas)
  */
 static bool s2tte_has_unassigned_ripas(unsigned long s2tte, unsigned long ripas)
 {
-	unsigned long invalid_desc_ripas;
+	return (((s2tte & S2TTE_INVALID_RIPAS_MASK) == ripas) &&
+		  s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED));
+}
 
-	if (!s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED)) {
-		return false;
-	}
-
-	invalid_desc_ripas = s2tte & S2TTE_INVALID_RIPAS_MASK;
-	return (invalid_desc_ripas == ripas);
+/*
+ * Returns true if @s2tte has HIPAS=ASSIGNED and RIPAS=@ripas.
+ */
+static bool s2tte_has_assigned_ripas(unsigned long s2tte, unsigned long ripas)
+{
+	return (((s2tte & S2TTE_INVALID_RIPAS_MASK) == ripas) &&
+		  s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_ASSIGNED));
 }
 
 /*
@@ -570,11 +578,8 @@ static bool s2tte_has_unassigned_ripas(unsigned long s2tte, unsigned long ripas)
  */
 bool s2tte_is_unassigned_empty(unsigned long s2tte)
 {
-	if (!s2tte_has_unassigned_ripas(s2tte, S2TTE_INVALID_RIPAS_EMPTY)) {
-		return false;
-	}
-
-	return ((s2tte & S2TTE_NS) == 0UL);
+	return (((s2tte & S2TTE_NS) == 0UL) &&
+		  s2tte_has_unassigned_ripas(s2tte, S2TTE_INVALID_RIPAS_EMPTY));
 }
 
 /*
@@ -590,19 +595,26 @@ bool s2tte_is_unassigned_ram(unsigned long s2tte)
  */
 bool s2tte_is_unassigned_ns(unsigned long s2tte)
 {
-	if (!s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED)) {
-		return false;
-	}
-
-	return ((s2tte & S2TTE_NS) != 0UL);
+	return (((s2tte & S2TTE_NS) != 0UL) &&
+		  s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED));
 }
 
 /*
- * Returns true if @s2tte has HIPAS=DESTROYED.
+ * Returns true if @s2tte has RIPAS=DESTROYED.
  */
-bool s2tte_is_destroyed(unsigned long s2tte)
+bool s2tte_is_unassigned_destroyed(unsigned long s2tte)
 {
-	return s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_DESTROYED);
+	return s2tte_has_unassigned_ripas(s2tte, S2TTE_INVALID_RIPAS_DESTROYED);
+}
+
+/*
+ * Returns true if @s2tte is an assigned_destroyed.
+ */
+bool s2tte_is_assigned_destroyed(unsigned long s2tte, long level)
+{
+	(void)level;
+
+	return s2tte_has_assigned_ripas(s2tte, S2TTE_INVALID_RIPAS_DESTROYED);
 }
 
 /*
@@ -612,7 +624,7 @@ bool s2tte_is_assigned_empty(unsigned long s2tte, long level)
 {
 	(void)level;
 
-	return s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_ASSIGNED);
+	return s2tte_has_assigned_ripas(s2tte, S2TTE_INVALID_RIPAS_EMPTY);
 }
 
 static bool s2tte_check(unsigned long s2tte, long level, unsigned long ns)
@@ -655,13 +667,8 @@ bool s2tte_is_assigned_ns(unsigned long s2tte, long level)
  */
 bool s2tte_is_table(unsigned long s2tte, long level)
 {
-	unsigned long desc_type = s2tte & DESC_TYPE_MASK;
-
-	if ((level < RTT_PAGE_LEVEL) && (desc_type == S2TTE_TABLE)) {
-		return true;
-	}
-
-	return false;
+	return ((level < RTT_PAGE_LEVEL) &&
+		((s2tte & DESC_TYPE_MASK) == S2TTE_L012_TABLE));
 }
 
 /*
@@ -677,18 +684,22 @@ enum ripas s2tte_get_ripas(unsigned long s2tte)
 	/*
 	 * If valid s2tte descriptor is passed, then ensure S2AP[0]
 	 * bit is 1 (S2AP is set to RW for lower EL), which corresponds
-	 * to RIPAS_RAM (bit[6]) on a valid descriptor.
+	 * to RIPAS_RAM (bits[6:5] = b01) on a valid descriptor.
 	 */
 	if (((s2tte & DESC_TYPE_MASK) != S2TTE_Lx_INVALID) &&
 	     (desc_ripas != S2TTE_INVALID_RIPAS_RAM)) {
 		assert(false);
 	}
 
-	if (desc_ripas == S2TTE_INVALID_RIPAS_EMPTY) {
+	switch (desc_ripas) {
+	case S2TTE_INVALID_RIPAS_EMPTY:
 		return RIPAS_EMPTY;
+	case S2TTE_INVALID_RIPAS_RAM:
+		return RIPAS_RAM;
+	default:
+		assert(desc_ripas == S2TTE_INVALID_RIPAS_DESTROYED);
+		return RIPAS_DESTROYED;
 	}
-
-	return RIPAS_RAM;
 }
 
 /*
@@ -742,12 +753,29 @@ void s2tt_init_unassigned_ns(unsigned long *s2tt)
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
  */
-void s2tt_init_destroyed(unsigned long *s2tt)
+void s2tt_init_unassigned_destroyed(unsigned long *s2tt)
 {
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
-		s2tt[i] = s2tte_create_destroyed();
+		s2tt[i] = s2tte_create_unassigned_destroyed();
 	}
+	dsb(ish);
+}
 
+/*
+ * Populates @s2tt with HIPAS=ASSIGNED, RIPAS=DESTROYED s2ttes that refer to a
+ * contiguous memory block starting at @pa, and mapped at level @level.
+ *
+ * The granule is populated before it is made a table,
+ * hence, don't use s2tte_write for access.
+ */
+void s2tt_init_assigned_destroyed(unsigned long *s2tt, unsigned long pa, long level)
+{
+	const unsigned long map_size = s2tte_map_size(level);
+
+	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
+		s2tt[i] = s2tte_create_assigned_destroyed(pa, level);
+		pa += map_size;
+	}
 	dsb(ish);
 }
 
@@ -759,7 +787,7 @@ unsigned long s2tte_map_size(int level)
 
 	levels = RTT_PAGE_LEVEL - level;
 	lsb = levels * S2TTE_STRIDE + GRANULE_SHIFT;
-	return 1UL << lsb;
+	return (1UL << lsb);
 }
 
 /*
@@ -830,12 +858,8 @@ bool s2tte_has_pa(unsigned long s2tte, long level)
 	/*
 	 * Block, page or table
 	 */
-	if ((desc_type != S2TTE_INVALID) ||
-	     s2tte_is_assigned_empty(s2tte, level)) {
-		return true;
-	}
-
-	return false;
+	return ((desc_type != S2TTE_INVALID) ||
+		s2tte_is_assigned_empty(s2tte, level));
 }
 
 /*
@@ -917,11 +941,11 @@ bool table_is_unassigned_ns_block(unsigned long *table)
 }
 
 /*
- * Returns true if all s2ttes in @table have HIPAS=DESTROYED.
+ * Returns true if all s2ttes in @table are unassigned_destroyed
  */
-bool table_is_destroyed_block(unsigned long *table)
+bool table_is_unassigned_destroyed_block(unsigned long *table)
 {
-	return __table_is_uniform_block(table, s2tte_is_destroyed);
+	return __table_is_uniform_block(table, s2tte_is_unassigned_destroyed);
 }
 
 typedef bool (*s2tte_type_level_checker)(unsigned long s2tte, long level);
@@ -1041,5 +1065,5 @@ unsigned long skip_non_live_entries(unsigned long addr,
 		}
 	}
 
-	return addr + (i - index) * map_size;
+	return (addr + (i - index) * map_size);
 }
