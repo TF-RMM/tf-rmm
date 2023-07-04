@@ -4,7 +4,6 @@
  */
 
 #include <attestation.h>
-#include <attestation_token.h>
 #include <debug.h>
 #include <granule.h>
 #include <measurement.h>
@@ -22,12 +21,13 @@
  *
  * Arguments:
  * rd    - The Realm descriptor.
- * claim - The structure to return the Realm Personalization Value claim
+ * claim_ptr - The start address of the Realm Personalization Value claim
+ * claim_len - The length of the Realm Personalization Value claim
  */
-static void get_rpv(struct rd *rd, struct q_useful_buf_c *claim)
+static void get_rpv(struct rd *rd, void **claim_ptr, size_t *claim_len)
 {
-	claim->ptr = (uint8_t *)&(rd->rpv[0]);
-	claim->len = RPV_SIZE;
+	*claim_ptr = (uint8_t *)&(rd->rpv[0]);
+	*claim_len = RPV_SIZE;
 }
 
 /*
@@ -63,7 +63,7 @@ static void attest_token_continue_sign_state(struct rec *rec,
 	 */
 	enum attest_token_err_t ret =
 		attest_realm_token_sign(&(rec->token_sign_ctx.ctx),
-					&(rec->rmm_realm_token));
+					&(rec->rmm_realm_token_len));
 
 	if ((ret == ATTEST_TOKEN_ERR_COSE_SIGN_IN_PROGRESS) ||
 		(ret == ATTEST_TOKEN_ERR_SUCCESS)) {
@@ -101,8 +101,7 @@ static void attest_token_continue_write_state(struct rec *rec,
 	unsigned long realm_att_token_ipa = rec->regs[1];
 	enum s2_walk_status walk_status;
 	struct s2_walk_result walk_res = { 0UL };
-	struct q_useful_buf     attest_token_buf;
-	size_t    attest_token_len;
+	size_t attest_token_len;
 
 	/*
 	 * The refcount on rd and rec will protect from any changes
@@ -140,11 +139,10 @@ static void attest_token_continue_write_state(struct rec *rec,
 	gr = find_granule(walk_res.pa);
 	realm_att_token = granule_map(gr, SLOT_RSI_CALL);
 
-	attest_token_buf.ptr = realm_att_token;
-	attest_token_buf.len = ATTEST_TOKEN_BUFFER_SIZE;
-
-	attest_token_len = attest_cca_token_create(&attest_token_buf,
-						   &rec->rmm_realm_token);
+	attest_token_len = attest_cca_token_create(realm_att_token,
+						   ATTEST_TOKEN_BUFFER_SIZE,
+						   (void *)rec->rmm_realm_token_buf,
+						   rec->rmm_realm_token_len);
 
 	/* Unmap realm granule */
 	buffer_unmap(realm_att_token);
@@ -169,9 +167,8 @@ unsigned long handle_rsi_attest_token_init(struct rec *rec)
 	struct rd *rd = NULL;
 	unsigned long ret;
 	unsigned long realm_buf_ipa = rec->regs[1];
-	struct q_useful_buf rmm_realm_token_buf = {
-		rec->rmm_realm_token_buf, sizeof(rec->rmm_realm_token_buf)};
-	struct q_useful_buf_c rpv;
+	void *rpv_ptr;
+	size_t rpv_len;
 	int att_ret;
 
 	assert(rec != NULL);
@@ -214,12 +211,14 @@ unsigned long handle_rsi_attest_token_init(struct rec *rec)
 	 */
 	save_input_parameters(rec);
 
-	get_rpv(rd, &rpv);
+	get_rpv(rd, &rpv_ptr, &rpv_len);
 	att_ret = attest_realm_token_create(rd->algorithm, rd->measurement,
 					    MEASUREMENT_SLOT_NR,
-					    &rpv,
+					    rpv_ptr,
+					    rpv_len,
 					    &rec->token_sign_ctx,
-					    &rmm_realm_token_buf);
+					    rec->rmm_realm_token_buf,
+					    sizeof(rec->rmm_realm_token_buf));
 	if (att_ret != 0) {
 		ERROR("FATAL_ERROR: Realm token creation failed,\n");
 		panic();

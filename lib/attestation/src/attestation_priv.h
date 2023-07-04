@@ -7,6 +7,7 @@
 #define ATTESTATION_PRIV_H
 
 #include <psa/crypto.h>
+#include <t_cose/q_useful_buf.h>
 
 /*
  * A structure holding the context for generating a pseudo-random number derived

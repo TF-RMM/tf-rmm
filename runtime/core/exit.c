@@ -6,7 +6,6 @@
 
 #include <arch.h>
 #include <arch_helpers.h>
-#include <attestation_token.h>
 #include <buffer.h>
 #include <esr.h>
 #include <exit.h>

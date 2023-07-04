@@ -98,8 +98,8 @@ struct token_sign_ctx {
  * Else returns one of the attest_token_err_t errors on
  * any other error.
  *
- * me					Token Creation Context.
- * completed_token		Pointer and length to completed token.
+ * me				Token Creation Context.
+ * completed_token_len		Length of the completed token.
  *
  * This completes the token after the payload has been added. When
  * this is called the signing algorithm is run and the final
@@ -107,19 +107,24 @@ struct token_sign_ctx {
  */
 enum attest_token_err_t
 attest_realm_token_sign(struct attest_token_encode_ctx *me,
-			struct q_useful_buf_c *completed_token);
+			size_t *completed_token_len);
 
 /*
  * Combine realm token and platform token to top-level cca token
  *
- * attest_token_buf  Pointer and length to the buffer where the token will be
- *                   written.
- * realm_token       Pointer and length to the realm token.
+ * attest_token_buf		Pointer to the buffer where the token will be
+ * 				written.
+ * attest_token_buf_size	Size of the buffer where the token will be
+ * 				written.
+ * realm_token_buf	Pointer to the realm token.
+ * realm_token_len	Length of the realm token.
  *
  * Return 0 in case of error, the length of the cca token otherwise.
  */
-size_t attest_cca_token_create(struct q_useful_buf         *attest_token_buf,
-			       const struct q_useful_buf_c *realm_token);
+size_t attest_cca_token_create(void *attest_token_buf,
+				size_t attest_token_buf_size,
+				const void *realm_token_buf,
+				size_t realm_token_len);
 
 /*
  * Assemble the Realm token in the buffer provided in realm_token_buf,
@@ -129,9 +134,12 @@ size_t attest_cca_token_create(struct q_useful_buf         *attest_token_buf,
  * Algorithm		- Algorithm used during measurement.
  * Measurement		- Array of buffers containing all the measurements.
  * num_measurements	- Number of measurements to add to the token.
- * rpv                  - Realm Personalization value
+ * rpv_buf              - Pointer to the Realm Personalization value
+ * rpv_len              - Length of the Realm Personalization value
  * ctx			- Token sign context, used for signing.
  * realm_token_buf	- Buffer where to assemble the attestation token.
+ * realm_token_buf_size - size of the buffer where to assemble the attestation
+ *                        token.
  *
  * Returns ATTEST_TOKEN_ERR_SUCCESS (0) on success or a negative error code
  * otherwise.
@@ -139,9 +147,10 @@ size_t attest_cca_token_create(struct q_useful_buf         *attest_token_buf,
 int attest_realm_token_create(enum hash_algo algorithm,
 			     unsigned char measurements[][MAX_MEASUREMENT_SIZE],
 			     unsigned int num_measurements,
-			     struct q_useful_buf_c *rpv,
+			     const void *rpv_buf,
+			     size_t rpv_len,
 			     struct token_sign_ctx *ctx,
-			     struct q_useful_buf *realm_token_buf);
-
+			     void *realm_token_buf,
+			     size_t realm_token_buf_size);
 
 #endif /* ATTESTATION_TOKEN_H */
