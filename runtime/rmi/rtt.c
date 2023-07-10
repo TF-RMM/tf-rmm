@@ -1185,7 +1185,6 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 	ipa_bits = realm_ipa_bits(rd);
 
 	granule_lock(g_rtt_root, GRANULE_STATE_RTT);
-	granule_unlock(g_rd);
 
 	rtt_walk_lock_unlock(g_rtt_root, sl, ipa_bits,
 				base, RTT_PAGE_LEVEL, &wi);
@@ -1234,6 +1233,7 @@ out_unmap_llt:
 	buffer_unmap(s2tt);
 	buffer_unmap(rd);
 	granule_unlock(wi.g_llt);
+	granule_unlock(g_rd);
 }
 
 static void rtt_set_ripas_range(struct realm_s2_context *s2_ctx,
