@@ -50,6 +50,7 @@ bool s2tte_has_ripas(unsigned long s2tte, long level);
 bool s2tte_has_pa(unsigned long s2tte, long level);
 
 bool s2tte_is_live(unsigned long s2tte, long level);
+bool s2tte_is_unassigned(unsigned long s2tte);
 bool s2tte_is_unassigned_empty(unsigned long s2tte);
 bool s2tte_is_unassigned_ram(unsigned long s2tte);
 bool s2tte_is_unassigned_ns(unsigned long s2tte);

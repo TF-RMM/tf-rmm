@@ -848,10 +848,10 @@ static unsigned long validate_data_create(unsigned long map_addr,
 }
 
 /*
- * Implements both Data.Create and Data.CreateUnknown
+ * Implements both RMI_DATA_CREATE and RMI_DATA_CREATE_UNKNOWN
  *
- * if @g_src == NULL, this implemented Data.CreateUnknown
- * and otherwise this implemented Data.Create.
+ * if @g_src == NULL, implements RMI_DATA_CREATE_UNKNOWN
+ * and RMI_DATA_CREATE otherwise.
  */
 static unsigned long data_create(unsigned long rd_addr,
 				 unsigned long data_addr,
@@ -903,18 +903,19 @@ static unsigned long data_create(unsigned long rd_addr,
 
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
 	s2tte = s2tte_read(&s2tt[wi.index]);
-	if (!s2tte_is_unassigned_ram(s2tte)) {
-		ret = pack_return_code(RMI_ERROR_RTT, RTT_PAGE_LEVEL);
-		goto out_unmap_ll_table;
-	}
 
 	if (g_src != NULL) {
 		bool ns_access_ok;
-		void *data = granule_map(g_data, SLOT_DELEGATED);
+		void *data;
 
+		if (!s2tte_is_unassigned_ram(s2tte)) {
+			ret = pack_return_code(RMI_ERROR_RTT, RTT_PAGE_LEVEL);
+			goto out_unmap_ll_table;
+		}
+
+		data = granule_map(g_data, SLOT_DELEGATED);
 		ns_access_ok = ns_buffer_read(SLOT_NS, g_src, 0U,
 					      GRANULE_SIZE, data);
-
 		if (!ns_access_ok) {
 			/*
 			 * Some data may be copied before the failure. Zero
@@ -926,10 +927,12 @@ static unsigned long data_create(unsigned long rd_addr,
 			goto out_unmap_ll_table;
 		}
 
-
 		data_granule_measure(rd, data, map_addr, flags);
-
 		buffer_unmap(data);
+
+	} else if (!s2tte_is_unassigned(s2tte)) {
+		ret = pack_return_code(RMI_ERROR_RTT, RTT_PAGE_LEVEL);
+		goto out_unmap_ll_table;
 	}
 
 	new_data_state = GRANULE_STATE_DATA;

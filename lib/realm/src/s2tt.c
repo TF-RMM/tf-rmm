@@ -574,6 +574,14 @@ static bool s2tte_has_assigned_ripas(unsigned long s2tte, unsigned long ripas)
 }
 
 /*
+ * Returns true if @s2tte has HIPAS=UNASSIGNED.
+ */
+bool s2tte_is_unassigned(unsigned long s2tte)
+{
+	return s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED);
+}
+
+/*
  * Returns true if @s2tte is an unassigned_empty.
  */
 bool s2tte_is_unassigned_empty(unsigned long s2tte)
