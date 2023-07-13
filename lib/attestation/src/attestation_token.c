@@ -85,7 +85,6 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 	psa_key_handle_t key_handle;
 
 	assert(me != NULL);
-	assert(out_buf != NULL);
 
 	/* Remember some of the configuration values */
 	me->opt_flags  = opt_flags;
@@ -123,7 +122,7 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 
 enum attest_token_err_t
 attest_realm_token_sign(struct attest_token_encode_ctx *me,
-			struct q_useful_buf_c *completed_token)
+			size_t *completed_token_len)
 {
 	/* The completed and signed encoded cose_sign1 */
 	struct q_useful_buf_c completed_token_ub;
@@ -132,7 +131,7 @@ attest_realm_token_sign(struct attest_token_encode_ctx *me,
 	enum t_cose_err_t cose_res;
 
 	assert(me != NULL);
-	assert(completed_token != NULL);
+	assert(completed_token_len != NULL);
 
 	/* Finish up the COSE_Sign1. This is where the signing happens */
 	SIMD_FPU_ALLOW(
@@ -163,7 +162,7 @@ attest_realm_token_sign(struct attest_token_encode_ctx *me,
 		attest_res = ATTEST_TOKEN_ERR_TOO_SMALL;
 		break;
 	case QCBOR_SUCCESS:
-		*completed_token = completed_token_ub;
+		*completed_token_len = completed_token_ub.len;
 		break;
 	default:
 		/* likely from array not closed, too many closes ... */
@@ -173,21 +172,26 @@ attest_realm_token_sign(struct attest_token_encode_ctx *me,
 	return attest_res;
 }
 
-size_t attest_cca_token_create(struct q_useful_buf         *attest_token_buf,
-			       const struct q_useful_buf_c *realm_token)
+size_t attest_cca_token_create(void *attest_token_buf,
+			       size_t attest_token_buf_size,
+			       const void *realm_token_buf,
+			       size_t realm_token_len)
 {
 	struct q_useful_buf_c   completed_token;
 	QCBOREncodeContext      cbor_enc_ctx;
 	QCBORError              qcbor_res;
-	struct q_useful_buf_c  *rmm_platform_token;
+	struct q_useful_buf_c   rmm_platform_token;
+	struct q_useful_buf     attest_token_ub = {attest_token_buf, attest_token_buf_size};
+	struct q_useful_buf_c   realm_token_ub = {realm_token_buf, realm_token_len};
 
 	__unused int            ret;
 
 	/* Get the platform token */
-	ret = attest_get_platform_token(&rmm_platform_token);
+	ret = attest_get_platform_token(&rmm_platform_token.ptr,
+					&rmm_platform_token.len);
 	assert(ret == 0);
 
-	QCBOREncode_Init(&cbor_enc_ctx, *attest_token_buf);
+	QCBOREncode_Init(&cbor_enc_ctx, attest_token_ub);
 
 	QCBOREncode_AddTag(&cbor_enc_ctx, TAG_CCA_TOKEN);
 
@@ -195,11 +199,11 @@ size_t attest_cca_token_create(struct q_useful_buf         *attest_token_buf,
 
 	QCBOREncode_AddBytesToMapN(&cbor_enc_ctx,
 				   CCA_PLAT_TOKEN,
-				   *rmm_platform_token);
+				   rmm_platform_token);
 
 	QCBOREncode_AddBytesToMapN(&cbor_enc_ctx,
 				   CCA_REALM_DELEGATED_TOKEN,
-				   *realm_token);
+				   realm_token_ub);
 	QCBOREncode_CloseMap(&cbor_enc_ctx);
 
 	qcbor_res = QCBOREncode_Finish(&cbor_enc_ctx, &completed_token);
@@ -233,13 +237,17 @@ size_t attest_cca_token_create(struct q_useful_buf         *attest_token_buf,
 int attest_realm_token_create(enum hash_algo algorithm,
 			     unsigned char measurements[][MAX_MEASUREMENT_SIZE],
 			     unsigned int num_measurements,
-			     struct q_useful_buf_c *rpv,
+			     const void *rpv_buf,
+			     size_t rpv_len,
 			     struct token_sign_ctx *ctx,
-			     struct q_useful_buf *realm_token_buf)
+			     void *realm_token_buf,
+			     size_t realm_token_buf_size)
 {
 	struct q_useful_buf_c buf;
 	size_t measurement_size;
 	enum attest_token_err_t token_ret;
+	struct q_useful_buf realm_token_ub = {realm_token_buf, realm_token_buf_size};
+	struct q_useful_buf_c rpv_ub = {rpv_buf, rpv_len};
 	int ret;
 
 	/* Can only be called in the init state */
@@ -255,7 +263,7 @@ int attest_realm_token_create(enum hash_algo algorithm,
 					      0,     /* option_flags */
 					      0,     /* key_select */
 					      T_COSE_ALGORITHM_ES384,
-					      realm_token_buf);
+					      &realm_token_ub);
 	if (token_ret != ATTEST_TOKEN_ERR_SUCCESS) {
 		return token_ret;
 	}
@@ -272,7 +280,7 @@ int attest_realm_token_create(enum hash_algo algorithm,
 
 	QCBOREncode_AddBytesToMapN(&(ctx->ctx.cbor_enc_ctx),
 				   CCA_REALM_PERSONALIZATION_VALUE,
-				   *rpv);
+				   rpv_ub);
 
 	ret = attest_get_realm_public_key(&buf);
 	if (ret != 0) {

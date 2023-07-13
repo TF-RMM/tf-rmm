@@ -190,7 +190,7 @@ struct rec {
 	struct rec_aux_data aux_data;
 
 	unsigned char rmm_realm_token_buf[SZ_1K];
-	struct q_useful_buf_c rmm_realm_token;
+	size_t rmm_realm_token_len;
 
 	struct token_sign_ctx token_sign_ctx;
 

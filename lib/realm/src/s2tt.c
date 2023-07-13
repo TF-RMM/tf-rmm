@@ -4,7 +4,6 @@
  */
 
 #include <arch_helpers.h>
-#include <attestation_token.h>
 #include <bitmap.h>
 #include <buffer.h>
 #include <gic.h>

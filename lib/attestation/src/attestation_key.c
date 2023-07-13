@@ -224,15 +224,17 @@ int attest_setup_platform_token(void)
 	return 0;
 }
 
-int attest_get_platform_token(struct q_useful_buf_c **buf)
+int attest_get_platform_token(const void **buf, size_t *len)
 {
 	assert(buf != NULL);
+	assert(len != NULL);
 
 	if (rmm_platform_token.ptr == NULL) {
 		return -EINVAL;
 	}
 
-	*buf = (struct q_useful_buf_c *)&rmm_platform_token;
+	*buf = rmm_platform_token.ptr;
+	*len = rmm_platform_token.len;
 	return 0;
 }
 
