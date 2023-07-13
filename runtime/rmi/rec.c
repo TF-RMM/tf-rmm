@@ -383,9 +383,6 @@ unsigned long smc_psci_complete(unsigned long calling_rec_addr,
 	struct rec  *calling_rec, *target_rec;
 	unsigned long ret;
 
-	assert(calling_rec_addr != 0UL);
-	assert(target_rec_addr != 0UL);
-
 	if (!GRANULE_ALIGNED(calling_rec_addr)) {
 		return RMI_ERROR_INPUT;
 	}

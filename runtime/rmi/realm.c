@@ -310,8 +310,6 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 				     p.features_0);
 	}
 
-	(void)memcpy(&rd->rpv[0], &p.rpv[0], RPV_SIZE);
-
 	rd->algorithm = p.hash_algo;
 
 	switch (p.hash_algo) {
