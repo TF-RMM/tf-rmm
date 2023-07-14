@@ -82,25 +82,29 @@
  * 4. RIPAS field [6:5]
  * 5. NS field [55]
  *
- * s2tte type       level DESC_TYPE[1:0] HIPAS[5:2]    RIPAS[6] NS  OA alignment
- * =============================================================================
- * unassigned_empty any   invalid[0]     unassigned[0] empty[0]  0   n/a
- * -----------------------------------------------------------------------------
- * unassigned_ram   any   invalid[0]     unassigned[0] ram[1]    0   n/a
- * -----------------------------------------------------------------------------
- * assigned_empty   2,3   invalid[0]     assigned[1]   empty[0]  0   to level
- * -----------------------------------------------------------------------------
- * assigned_ram     3     page[1]        n/a           n/a       0   to level
- *                  2     block[3]       n/a           n/a       0   to level
- * -----------------------------------------------------------------------------
- * destroyed        any   invalid[0]     destroyed[2]  n/a       0   n/a
- * =============================================================================
- * unassigned_ns    any   invalid[0]     unassigned[0] n/a       1   n/a
- * -----------------------------------------------------------------------------
- * assigned_ns	    3     page[1]        n/a           n/a       1   to level
- *                  2     block[3]       n/a           n/a       1   to level
- * =============================================================================
- * table            <=2   table[1]       n/a           n/a       n/a to 4K
+ * ======================================================================================
+ * s2tte type           level DESC_TYPE[1:0] HIPAS[4:2]    RIPAS[6:5]   NS  OA alignment
+ * ======================================================================================
+ * unassigned_empty     any   invalid[0]     unassigned[0] empty[0]     0   n/a
+ * --------------------------------------------------------------------------------------
+ * unassigned_ram       any   invalid[0]     unassigned[0] ram[1]       0   n/a
+ * --------------------------------------------------------------------------------------
+ * unassigned_destroyed any   invalid[0]     unassigned[0] destroyed[2] 0   n/a
+ * --------------------------------------------------------------------------------------
+ * assigned_empty       2,3   invalid[0]     assigned[1]   empty[0]     0   to level
+ * --------------------------------------------------------------------------------------
+ * assigned_ram         3     page[3]        n/a           n/a          0   to level
+ *                      2     block[1]       n/a           n/a          0   to level
+ * --------------------------------------------------------------------------------------
+ * assigned_destroyed   any   invalid[0]     assigned[1]   destroyed[2] 0   n/a
+ * ======================================================================================
+ * unassigned_ns        any   invalid[0]     unassigned[0] n/a          1   n/a
+ * --------------------------------------------------------------------------------------
+ * assigned_ns	        3     page[3]        n/a           n/a          1   to level
+ *                      2     block[1]       n/a           n/a          1   to level
+ * ======================================================================================
+ * table              <=2     table[3]       n/a           n/a          n/a to 4K
+ * ======================================================================================
  */
 
 #define S2TTE_INVALID_HIPAS_SHIFT	2
@@ -552,7 +556,7 @@ static bool s2tte_has_hipas(unsigned long s2tte, unsigned long hipas)
 	unsigned long desc_type = s2tte & DESC_TYPE_MASK;
 	unsigned long invalid_desc_hipas = s2tte & S2TTE_INVALID_HIPAS_MASK;
 
-	return ((desc_type == S2TTE_Lx_INVALID) && (invalid_desc_hipas == hipas));
+	return ((desc_type == S2TTE_INVALID) && (invalid_desc_hipas == hipas));
 }
 
 /*
@@ -694,7 +698,7 @@ enum ripas s2tte_get_ripas(unsigned long s2tte)
 	 * bit is 1 (S2AP is set to RW for lower EL), which corresponds
 	 * to RIPAS_RAM (bits[6:5] = b01) on a valid descriptor.
 	 */
-	if (((s2tte & DESC_TYPE_MASK) != S2TTE_Lx_INVALID) &&
+	if (((s2tte & DESC_TYPE_MASK) != S2TTE_INVALID) &&
 	     (desc_ripas != S2TTE_INVALID_RIPAS_RAM)) {
 		assert(false);
 	}

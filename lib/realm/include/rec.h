@@ -166,6 +166,7 @@ struct rec {
 		unsigned long top;
 		unsigned long addr;
 		enum ripas ripas_val;
+		enum ripas_change_destroyed change_destroyed;
 	} set_ripas;
 
 	/*

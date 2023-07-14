@@ -38,23 +38,39 @@
 
 #define SMC_RSI_ABI_VERSION		SMC64_RSI_FID(U(0x0))
 
-/* RSI Status code enumeration as per Section D4.3.6 of the RMM Spec */
+/*
+ * RsiCommandReturnCode enumeration
+ * representing a return code from an RSI command.
+ */
 /* Command completed successfully */
-#define RSI_SUCCESS		U(0)
+#define RSI_SUCCESS		UL(0)
 
 /* The value of a command input value caused the command to fail */
-#define RSI_ERROR_INPUT		U(1)
+#define RSI_ERROR_INPUT		UL(1)
 
 /*
  * The state of the current Realm or current REC
  * does not match the state expected by the command
  */
-#define RSI_ERROR_STATE		U(2)
+#define RSI_ERROR_STATE		UL(2)
 
 /* The operation requested by the command is not complete */
-#define RSI_INCOMPLETE		U(3)
+#define RSI_INCOMPLETE		UL(3)
 
-#define RSI_ERROR_COUNT		U(4)
+#define RSI_ERROR_COUNT		UL(4)
+
+/* RsiHashAlgorithm */
+#define RSI_HASH_SHA_256	U(0)
+#define RSI_HASH_SHA_512	U(1)
+
+/*
+ * RsiRipasChangeDestroyed:
+ * RIPAS change from DESTROYED should not be permitted
+ */
+#define RSI_NO_CHANGE_DESTROYED	U(0)
+
+/* A RIPAS change from DESTROYED should be permitted */
+#define RSI_CHANGE_DESTROYED	U(1)
 
 /*
  * Returns a measurement.
@@ -118,10 +134,6 @@
  */
 #define SET_MEMBER_RSI SET_MEMBER
 
-/* RsiHashAlgorithm type */
-#define RSI_HASH_SHA_256	U(0)
-#define RSI_HASH_SHA_512	U(1)
-
 /* RsiRealmConfig structure containing realm configuration */
 struct rsi_realm_config {
 	/* IPA width in bits */
@@ -141,6 +153,7 @@ struct rsi_realm_config {
  * arg0 == Base IPA address of target region
  * arg1 == Top address of target region
  * arg2 == RIPAS value
+ * arg3 == flags
  * ret0 == Status / error
  * ret1 == Top of modified IPA range
  */

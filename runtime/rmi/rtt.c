@@ -1078,7 +1078,8 @@ out_unmap_ll_table:
  * @(*do_tlbi) to 'true' if the TLBs have to be invalidated.
  */
 static int update_ripas(unsigned long *s2ttep, unsigned long level,
-			enum ripas ripas_val)
+			enum ripas ripas_val,
+			enum ripas_change_destroyed change_destroyed)
 {
 	unsigned long pa, s2tte = s2tte_read(s2ttep);
 	int ret = 0;
@@ -1090,9 +1091,22 @@ static int update_ripas(unsigned long *s2ttep, unsigned long level,
 	if (ripas_val == RIPAS_RAM) {
 		if (s2tte_is_unassigned_empty(s2tte)) {
 			s2tte = s2tte_create_unassigned_ram();
+		} else if (s2tte_is_unassigned_destroyed(s2tte)) {
+			if (change_destroyed == CHANGE_DESTROYED) {
+				s2tte = s2tte_create_unassigned_ram();
+			} else {
+				return -1;
+			}
 		} else if (s2tte_is_assigned_empty(s2tte, level)) {
 			pa = s2tte_pa(s2tte, level);
 			s2tte = s2tte_create_assigned_ram(pa, level);
+		} else if (s2tte_is_assigned_destroyed(s2tte, level)) {
+			if (change_destroyed == CHANGE_DESTROYED) {
+				pa = s2tte_pa(s2tte, level);
+				s2tte = s2tte_create_assigned_ram(pa, level);
+			} else {
+				return -1;
+			}
 		} else {
 			/* No action is required */
 			return 0;
@@ -1100,11 +1114,26 @@ static int update_ripas(unsigned long *s2ttep, unsigned long level,
 	} else if (ripas_val == RIPAS_EMPTY) {
 		if (s2tte_is_unassigned_ram(s2tte)) {
 			s2tte = s2tte_create_unassigned_empty();
+		} else if (s2tte_is_unassigned_destroyed(s2tte)) {
+			if (change_destroyed == CHANGE_DESTROYED) {
+				s2tte = s2tte_create_unassigned_empty();
+			} else {
+				return -1;
+			}
 		} else if (s2tte_is_assigned_ram(s2tte, level)) {
 			pa = s2tte_pa(s2tte, level);
 			s2tte = s2tte_create_assigned_empty(pa, level);
 			/* TLBI is required */
 			ret = 1;
+		} else if (s2tte_is_assigned_destroyed(s2tte, level)) {
+			if (change_destroyed == CHANGE_DESTROYED) {
+				pa = s2tte_pa(s2tte, level);
+				s2tte = s2tte_create_assigned_empty(pa, level);
+				/* TLBI is required */
+				ret = 1;
+			} else {
+				return -1;
+			}
 		} else {
 			/* No action is required */
 			return 0;
@@ -1245,15 +1274,15 @@ static void rtt_set_ripas_range(struct realm_s2_context *s2_ctx,
 				unsigned long top,
 				struct rtt_walk *wi,
 				unsigned long ripas_val,
+				enum ripas_change_destroyed change_destroyed,
 				struct smc_result *res)
 {
-	unsigned long addr;
-	unsigned int index = wi->index;
+	unsigned long index = wi->index;
 	long level = wi->last_level;
 	unsigned long map_size = s2tte_map_size(level);
 
 	/* Align to the RTT level */
-	addr = base & ~(map_size - 1UL);
+	unsigned long addr = base & ~(map_size - 1UL);
 
 	/* Make sure we don't touch a range below the requested range */
 	if (addr != base) {
@@ -1261,17 +1290,16 @@ static void rtt_set_ripas_range(struct realm_s2_context *s2_ctx,
 		return;
 	}
 
-	for (index = wi->index; index < S2TTES_PER_S2TT;
-					index++, addr += map_size) {
-		unsigned long next = addr + map_size;
+	for (index = wi->index; index < S2TTES_PER_S2TT; addr += map_size) {
 		int ret;
 
-		/* If this entry crosses the range, abort. */
-		if (next > top) {
+		/* If this entry crosses the range, break. */
+		if (addr + map_size > top) {
 			break;
 		}
 
-		ret = update_ripas(&s2tt[index], level, ripas_val);
+		ret = update_ripas(&s2tt[index++], level,
+					ripas_val, change_destroyed);
 		if (ret < 0) {
 			break;
 		}
@@ -1308,6 +1336,7 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 	unsigned long *s2tt;
 	struct realm_s2_context s2_ctx;
 	enum ripas ripas_val;
+	enum ripas_change_destroyed change_destroyed;
 	int sl;
 
 	if (!find_lock_two_granules(rd_addr,
@@ -1333,6 +1362,7 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 	}
 
 	ripas_val = rec->set_ripas.ripas_val;
+	change_destroyed = rec->set_ripas.change_destroyed;
 
 	/*
 	 * Return error in case of target region:
@@ -1370,7 +1400,9 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
 
-	rtt_set_ripas_range(&s2_ctx, s2tt, base, top, &wi, ripas_val, res);
+	rtt_set_ripas_range(&s2_ctx, s2tt, base, top, &wi,
+				ripas_val, change_destroyed, res);
+
 	if (res->x[0] == RMI_SUCCESS) {
 		rec->set_ripas.addr = res->x[1];
 	}
