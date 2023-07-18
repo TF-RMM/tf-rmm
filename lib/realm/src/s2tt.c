@@ -861,22 +861,21 @@ void s2tt_init_assigned_ns(unsigned long *s2tt, unsigned long pa, long level)
  * - assigned_empty
  * - assigned_ram
  * - assigned_ns
+ * - assigned_destroyed
  * - table
  */
 bool s2tte_has_pa(unsigned long s2tte, long level)
 {
 	unsigned long desc_type = s2tte & DESC_TYPE_MASK;
 
-	/*
-	 * Block, page or table
-	 */
-	return ((desc_type != S2TTE_INVALID) ||
-		s2tte_is_assigned_empty(s2tte, level));
+	return ((desc_type != S2TTE_INVALID) ||	/* block, page or table */
+		s2tte_is_assigned_empty(s2tte, level) ||
+		s2tte_is_assigned_destroyed(s2tte, level));
 }
 
 /*
  * Returns true if s2tte is a live RTTE entry. i.e.,
- * neither UNASSIGNED nor DESTROYED.
+ * HIPAS is ASSIGNED.
  *
  * NOTE: For now, only the RTTE with PA are live.
  * This could change with EXPORT/IMPORT support.
@@ -1028,7 +1027,7 @@ bool table_maps_assigned_ns_block(unsigned long *table, long level)
 
 /*
  * Scan the RTT @s2tt (which is @wi.level), from the entry (@wi.index) and
- * skip the non-live entries (i.e., HIPAS is either UNASSIGNED or DESTROYED).
+ * skip the non-live entries (i.e., HIPAS=UNASSIGNED).
  * In other words, the scanning stops when a live RTTE is encountered or we
  * reach the end of this RTT.
  *

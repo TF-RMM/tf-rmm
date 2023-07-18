@@ -472,6 +472,7 @@ void smc_rtt_destroy(unsigned long rd_addr,
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
 		res->x[0] = RMI_ERROR_INPUT;
+		res->x[2] = 0UL;
 		return;
 	}
 
@@ -481,6 +482,7 @@ void smc_rtt_destroy(unsigned long rd_addr,
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
 		res->x[0] = RMI_ERROR_INPUT;
+		res->x[2] = 0UL;
 		return;
 	}
 
@@ -559,6 +561,8 @@ out_unlock_table:
 out_unmap_parent_table:
 	if (skip_non_live) {
 		res->x[2] = skip_non_live_entries(map_addr, parent_s2tt, &wi);
+	} else {
+		res->x[2] = map_addr;
 	}
 	buffer_unmap(parent_s2tt);
 	granule_unlock(wi.g_llt);
