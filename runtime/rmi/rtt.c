@@ -1009,6 +1009,7 @@ void smc_data_destroy(unsigned long rd_addr,
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
 		res->x[0] = RMI_ERROR_INPUT;
+		res->x[2] = 0UL;
 		return;
 	}
 
@@ -1018,6 +1019,7 @@ void smc_data_destroy(unsigned long rd_addr,
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
 		res->x[0] = RMI_ERROR_INPUT;
+		res->x[2] = 0UL;
 		return;
 	}
 
