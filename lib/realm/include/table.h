@@ -93,6 +93,7 @@ bool table_is_unassigned_destroyed_block(unsigned long *table);
 bool table_maps_assigned_empty_block(unsigned long *table, long level);
 bool table_maps_assigned_ram_block(unsigned long *table, long level);
 bool table_maps_assigned_ns_block(unsigned long *table, long level);
+bool table_maps_assigned_destroyed_block(unsigned long *table, long level);
 
 struct rtt_walk {
 	struct granule *g_llt;

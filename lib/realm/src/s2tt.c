@@ -1026,6 +1026,15 @@ bool table_maps_assigned_ns_block(unsigned long *table, long level)
 }
 
 /*
+ * Returns true if all s2ttes are assigned_destroyed and
+ * refer to a contiguous block of granules aligned to @level - 1.
+ */
+bool table_maps_assigned_destroyed_block(unsigned long *table, long level)
+{
+	return __table_maps_block(table, level, s2tte_is_assigned_destroyed);
+}
+
+/*
  * Scan the RTT @s2tt (which is @wi.level), from the entry (@wi.index) and
  * skip the non-live entries (i.e., HIPAS=UNASSIGNED).
  * In other words, the scanning stops when a live RTTE is encountered or we

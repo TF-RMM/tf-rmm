@@ -396,13 +396,16 @@ void smc_rtt_fold(unsigned long rd_addr,
 
 		/*
 		 * The table must also refer to a contiguous block through the
-		 * same type of s2tte, either Assigned, Valid or Assigned_NS.
+		 * same type of s2tte, either Assigned or Valid.
 		 */
 		if (table_maps_assigned_empty_block(table, level)) {
 			parent_s2tte = s2tte_create_assigned_empty(block_pa,
 								   level - 1L);
 		} else if (table_maps_assigned_ram_block(table, level)) {
 			parent_s2tte = s2tte_create_assigned_ram(block_pa,
+								 level - 1L);
+		} else if (table_maps_assigned_destroyed_block(table, level)) {
+			parent_s2tte = s2tte_create_assigned_destroyed(block_pa,
 								 level - 1L);
 		/* The table contains mixed entries that cannot be folded */
 		} else {
