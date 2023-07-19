@@ -23,14 +23,8 @@ static bool validate_map_addr(unsigned long map_addr,
 			      unsigned long level,
 			      struct rd *rd)
 {
-
-	if (map_addr >= realm_ipa_size(rd)) {
-		return false;
-	}
-	if (!addr_is_level_aligned(map_addr, level)) {
-		return false;
-	}
-	return true;
+	return ((map_addr < realm_ipa_size(rd)) &&
+		addr_is_level_aligned(map_addr, level));
 }
 
 /*
@@ -639,7 +633,7 @@ static void map_unmap_ns(unsigned long rd_addr,
 	 * For UNMAP_NS, we need to map the table and look
 	 * for the end of the non-live region.
 	 */
-	if (op == MAP_NS && wi.last_level != level) {
+	if ((op == MAP_NS) && (wi.last_level != level)) {
 		res->x[0] = pack_return_code(RMI_ERROR_RTT,
 						(unsigned int)wi.last_level);
 		goto out_unlock_llt;
@@ -1199,8 +1193,13 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 	struct rtt_walk wi;
 	unsigned long s2tte, *s2tt;
 	long level;
-	unsigned int index;
+	unsigned long index;
 	int sl;
+
+	if (top <= base) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
@@ -1210,25 +1209,19 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 
 	rd = granule_map(g_rd, SLOT_RD);
 
+	if (!validate_map_addr(base, RTT_PAGE_LEVEL, rd) ||
+	    !validate_rtt_entry_cmds(top, RTT_PAGE_LEVEL, rd) ||
+	    !addr_in_par(rd, base) || !addr_in_par(rd, top - GRANULE_SIZE)) {
+		buffer_unmap(rd);
+		granule_unlock(g_rd);
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
 	if (get_rd_state_locked(rd) != REALM_STATE_NEW) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
 		res->x[0] = RMI_ERROR_REALM;
-		return;
-	}
-
-	if (!validate_map_addr(base, RTT_PAGE_LEVEL, rd) ||
-	    !validate_rtt_entry_cmds(top, RTT_PAGE_LEVEL, rd)) {
-		buffer_unmap(rd);
-		granule_unlock(g_rd);
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	if (!addr_in_par(rd, base) || !addr_in_par(rd, top)) {
-		buffer_unmap(rd);
-		granule_unlock(g_rd);
-		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
@@ -1246,8 +1239,7 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 	addr = base & ~(map_size - 1UL);
 
 	/*
-	 * If the RTTE covers a range below "base", we need to
-	 * go deeper.
+	 * If the RTTE covers a range below "base", we need to go deeper.
 	 */
 	if (addr != base) {
 		res->x[0] = pack_return_code(RMI_ERROR_RTT,
@@ -1259,6 +1251,10 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 				index++, addr += map_size) {
 		unsigned long next = addr + map_size;
 
+		/*
+		 * Break on "top_align" failure condition,
+		 * or if this entry crosses the range.
+		 */
 		if (next > top) {
 			break;
 		}
@@ -1297,7 +1293,7 @@ static void rtt_set_ripas_range(struct realm_s2_context *s2_ctx,
 				enum ripas_change_destroyed change_destroyed,
 				struct smc_result *res)
 {
-	unsigned long index = wi->index;
+	unsigned long index;
 	long level = wi->last_level;
 	unsigned long map_size = s2tte_map_size(level);
 
@@ -1360,6 +1356,11 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 	enum ripas ripas_val;
 	enum ripas_change_destroyed change_destroyed;
 	int sl;
+
+	if (top <= base) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
 
 	if (!find_lock_two_granules(rd_addr,
 				   GRANULE_STATE_RD,

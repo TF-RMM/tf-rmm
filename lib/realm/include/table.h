@@ -95,6 +95,8 @@ bool table_maps_assigned_ram_block(unsigned long *table, long level);
 bool table_maps_assigned_ns_block(unsigned long *table, long level);
 bool table_maps_assigned_destroyed_block(unsigned long *table, long level);
 
+unsigned long addr_level_mask(unsigned long addr, long level);
+
 struct rtt_walk {
 	struct granule *g_llt;
 	unsigned long index;
