@@ -159,7 +159,7 @@ static action_t xlat_tables_map_region_action(const struct xlat_mmap_region *mm,
 				 * descriptors. If not, create a table instead.
 				 */
 				if (((dest_pa & XLAT_BLOCK_MASK(level)) != 0U)
-				    || (level < MIN_LVL_BLOCK_DESC) ||
+				    || (level < XLAT_MIN_BLOCK_LVL()) ||
 				    (mm->granularity < XLAT_BLOCK_SIZE(level))) {
 					return ACTION_CREATE_NEW_TABLE;
 				} else {

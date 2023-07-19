@@ -131,18 +131,7 @@ static void xlat_test_cfg_init_setup(struct xlat_ctx_cfg *cfg,
 				       region, init_mmap, mmaps, true);
 }
 
-TEST_GROUP(xlat_tests_G1) {
-	TEST_SETUP()
-	{
-		test_helpers_init();
-		xlat_test_hepers_arch_init();
-	}
-
-	TEST_TEARDOWN()
-	{}
-};
-
-TEST(xlat_tests_G1, MAP_REGION_FULL_SPEC_TC1)
+void map_region_full_spec_tc1(void)
 {
 	/***************************************************************
 	 * TEST CASE 1:
@@ -172,7 +161,7 @@ TEST(xlat_tests_G1, MAP_REGION_FULL_SPEC_TC1)
 		     sizeof(struct xlat_mmap_region));
 }
 
-TEST(xlat_tests_G1, MAP_REGION_TC1)
+void map_region_tc1(void)
 {
 	/***************************************************************
 	 * TEST CASE 1:
@@ -206,7 +195,7 @@ TEST(xlat_tests_G1, MAP_REGION_TC1)
 		     sizeof(struct xlat_mmap_region));
 }
 
-TEST(xlat_tests_G1, MAP_REGION_FLAT_TC1)
+void map_region_flat_tc1(void)
 {
 	/***************************************************************
 	 * TEST CASE 1:
@@ -242,7 +231,7 @@ TEST(xlat_tests_G1, MAP_REGION_FLAT_TC1)
 		     sizeof(struct xlat_mmap_region));
 }
 
-TEST(xlat_tests_G1, MAP_REGION_TRANSIENT_TC1)
+void map_region_transient_tc1(void)
 {
 	/***************************************************************
 	 * TEST CASE 1:
@@ -282,7 +271,7 @@ TEST(xlat_tests_G1, MAP_REGION_TRANSIENT_TC1)
 		     sizeof(struct xlat_mmap_region));
 }
 
-TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC1)
+void xlat_ctx_cfg_init_tc1(void)
 {
 	struct xlat_ctx_cfg expected_cfg, test_cfg;
 	struct xlat_mmap_region init_mmap[XLAT_TESTS_MAX_MMAPS];
@@ -334,7 +323,7 @@ TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC1)
 	}
 }
 
-TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC2)
+void xlat_ctx_cfg_init_tc2(void)
 {
 	struct xlat_ctx_cfg foo_cfg;
 	struct xlat_mmap_region init_mmap[XLAT_TESTS_MAX_MMAPS];
@@ -369,7 +358,7 @@ TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC2)
 	}
 }
 
-TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC3)
+void xlat_ctx_cfg_init_tc3(void)
 {
 	struct xlat_ctx_cfg test_cfg;
 	xlat_addr_region_id_t region;
@@ -399,7 +388,7 @@ TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC3)
 	}
 }
 
-TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC4)
+void xlat_ctx_cfg_init_tc4(void)
 {
 	struct xlat_ctx_cfg foo_cfg, test_cfg;
 	struct xlat_mmap_region test_mmap[XLAT_TESTS_MAX_MMAPS];
@@ -438,7 +427,7 @@ TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC4)
 	}
 }
 
-TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC5)
+void xlat_ctx_cfg_init_tc5(void)
 {
 	struct xlat_ctx_cfg test_cfg;
 	struct xlat_mmap_region init_mmap[XLAT_TESTS_MAX_MMAPS];
@@ -469,7 +458,7 @@ TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC5)
 	}
 }
 
-TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC6)
+void xlat_ctx_cfg_init_tc6(void)
 {
 	struct xlat_ctx_cfg test_cfg, foo_cfg;
 	struct xlat_mmap_region init_mmap[XLAT_TESTS_MAX_MMAPS];
@@ -551,7 +540,7 @@ TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC6)
 	}
 }
 
-TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC7)
+void xlat_ctx_cfg_init_tc7(void)
 {
 	struct xlat_ctx_cfg test_cfg;
 	struct xlat_mmap_region init_mmap[XLAT_TESTS_MAX_MMAPS];
@@ -587,7 +576,7 @@ TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC7)
 	}
 }
 
-TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC8)
+void xlat_ctx_cfg_init_tc8(void)
 {
 	struct xlat_ctx_cfg test_cfg, foo_cfg;
 	struct xlat_mmap_region init_mmap[XLAT_TESTS_MAX_MMAPS];
@@ -748,7 +737,7 @@ TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC8)
 	}
 }
 
-TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC9)
+void xlat_ctx_cfg_init_tc9(void)
 {
 	struct xlat_ctx_cfg test_cfg, foo_cfg;
 	struct xlat_mmap_region init_mmap[XLAT_TESTS_MAX_MMAPS];
@@ -834,7 +823,7 @@ TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC9)
 	}
 }
 
-TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC10)
+void xlat_ctx_cfg_init_tc10(void)
 {
 	struct xlat_ctx_cfg test_cfg, foo_cfg;
 	struct xlat_mmap_region init_mmap[XLAT_TESTS_MAX_MMAPS];
@@ -881,7 +870,7 @@ TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC10)
 	}
 }
 
-TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC11)
+void xlat_ctx_cfg_init_tc11(void)
 {
 	struct xlat_ctx_cfg test_cfg, foo_cfg;
 	struct xlat_mmap_region init_mmap[XLAT_TESTS_MAX_MMAPS];
@@ -929,7 +918,7 @@ TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC11)
 	}
 }
 
-TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC12)
+void xlat_ctx_cfg_init_tc12(void)
 {
 	struct xlat_ctx_cfg test_cfg, foo_cfg;
 	struct xlat_mmap_region init_mmap[XLAT_TESTS_MAX_MMAPS];
@@ -972,7 +961,54 @@ TEST(xlat_tests_G1, xlat_ctx_cfg_init_TC12)
 	}
 }
 
-TEST(xlat_tests_G1, xlat_ctx_init_TC1)
+void xlat_ctx_cfg_init_tc13(void)
+{
+	struct xlat_ctx_cfg expected_cfg, test_cfg;
+	struct xlat_mmap_region init_mmap[XLAT_TESTS_MAX_MMAPS];
+	struct xlat_mmap_region val_mmap[XLAT_TESTS_MAX_MMAPS];
+	xlat_addr_region_id_t region;
+	int retval;
+	uint64_t max_va_size = XLAT_TEST_MAX_VA_SIZE();
+
+	/***************************************************************
+	 * TEST CASE 13:
+	 *
+	 * Running without support for FEAT_LPA2, initialize a
+	 * xlat_ctx_cfg structure with random data through
+	 * xlat_ctx_cfg_init() but forcing to use a granularity for
+	 * level -1 (only supported for FEAT_LPA2). Then verify that the
+	 * initialization fails as expected.
+	 *
+	 * Note: This test is only supported for non-LPA2 runs.
+	 ***************************************************************/
+
+	/* Ensure FEAT_LPA2 is not supported */
+	CHECK_FALSE(is_feat_lpa2_4k_present());
+
+	for (unsigned int i = 0U; i < (unsigned int)VA_REGIONS; i++) {
+		region = (xlat_addr_region_id_t)i;
+
+		/* Clean the data structures */
+		memset((void *)&test_cfg, 0, sizeof(struct xlat_ctx_cfg));
+
+		/* Initialize the test structures with the expected values */
+		xlat_test_cfg_init_setup(&expected_cfg, &init_mmap[0],
+					 &val_mmap[0], XLAT_TESTS_MAX_MMAPS,
+					 max_va_size, region);
+
+		/* Force an incorrect granularity */
+		init_mmap[0].granularity = XLAT_BLOCK_SIZE(-1);
+
+		/* Initialize the test structure */
+		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
+					   1U, max_va_size);
+
+		/* Verify the result */
+		CHECK_TRUE(retval == -EINVAL);
+	}
+}
+
+void xlat_ctx_init_tc1(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg, val_cfg;
@@ -1050,7 +1086,7 @@ TEST(xlat_tests_G1, xlat_ctx_init_TC1)
 	}
 }
 
-TEST(xlat_tests_G1, xlat_ctx_init_TC2)
+void xlat_ctx_init_tc2(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -1085,7 +1121,7 @@ TEST(xlat_tests_G1, xlat_ctx_init_TC2)
 	CHECK_TRUE(retval == -EINVAL);
 }
 
-TEST(xlat_tests_G1, xlat_ctx_init_TC3)
+void xlat_ctx_init_tc3(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -1177,7 +1213,7 @@ TEST(xlat_tests_G1, xlat_ctx_init_TC3)
 	}
 }
 
-ASSERT_TEST(xlat_tests_G1, xlat_ctx_init_TC4)
+void xlat_ctx_init_tc4(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -1233,7 +1269,7 @@ ASSERT_TEST(xlat_tests_G1, xlat_ctx_init_TC4)
 	}
 }
 
-TEST(xlat_tests_G1, xlat_ctx_init_TC5)
+void xlat_ctx_init_tc5(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;

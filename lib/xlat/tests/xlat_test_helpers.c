@@ -22,6 +22,54 @@
 static uint64_t xlat_tables[XLAT_TABLE_ENTRIES * XLAT_TESTS_MAX_TABLES]
 					__aligned(XLAT_TABLE_SIZE);
 
+/*
+ * Helper function to perform any system register initialization
+ * needed for the tests.
+ */
+static void xlat_test_helpers_arch_init(bool lpa2_en)
+{
+	unsigned int retval __unused;
+	uint64_t id_aa64mmfr0_el0 = INPLACE(ID_AA64MMFR0_EL1_TGRAN4_2,
+					    ID_AA64MMFR0_EL1_TGRAN4_2_TGRAN4);
+
+	/* Enable the platform with support for multiple PEs */
+	test_helpers_rmm_start(true);
+
+	/*
+	 * Reset the sysreg state so that we can setup
+	 * custom values for the tests
+	 */
+	host_util_zero_sysregs_and_cbs();
+
+	/* Setup id_aa64mmfr0_el1 */
+	if (lpa2_en == true) {
+		id_aa64mmfr0_el0 |= INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6UL) |
+				    INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
+					    ID_AA64MMFR0_EL1_TGRAN4_LPA2);
+	} else {
+		id_aa64mmfr0_el0 |= INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5UL) |
+				    INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
+					    ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED);
+	}
+
+	retval = host_util_set_default_sysreg_cb("id_aa64mmfr0_el1",
+						 id_aa64mmfr0_el0);
+
+	/* Initialize MMU registers to 0 */
+	retval = host_util_set_default_sysreg_cb("sctlr_el2", 0UL);
+	retval = host_util_set_default_sysreg_cb("mair_el2", 0UL);
+	retval = host_util_set_default_sysreg_cb("tcr_el2", 0UL);
+	retval = host_util_set_default_sysreg_cb("ttbr0_el2", 0UL);
+	retval = host_util_set_default_sysreg_cb("ttbr1_el2", 0UL);
+
+	assert(retval == 0);
+
+	/* Make sure current cpu id is 0 (primary processor) */
+	host_util_set_cpuid(0U);
+
+	test_helpers_expect_assert_fail(false);
+}
+
 void xlat_test_helpers_init_ctx_tbls(struct xlat_ctx_tbls *ctx_tbls,
 				     uint64_t *tbls,
 				     unsigned int tables_num,
@@ -64,43 +112,10 @@ void xlat_test_helpers_init_ctx(struct xlat_ctx *ctx,
 	ctx->tbls = tbls;
 }
 
-void xlat_test_hepers_arch_init(void)
+void xlat_test_setup(bool lpa2)
 {
-	unsigned int retval __unused;
-
-	/* Enable the platform with support for multiple PEs */
-	test_helpers_rmm_start(true);
-
-	/*
-	 * Reset the sysreg state so that we can setup
-	 * custom values for the tests
-	 */
-	host_util_zero_sysregs_and_cbs();
-
-	/*
-	 * Setup id_aa64mmfr0_el1 with a PA size of 52 bits
-	 * and 4K granularity with 52 bits support on stage 1 and 2.
-	 */
-	retval = host_util_set_default_sysreg_cb("id_aa64mmfr0_el1",
-				INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6UL) |
-				INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
-					ID_AA64MMFR0_EL1_TGRAN4_LPA2) |
-				INPLACE(ID_AA64MMFR0_EL1_TGRAN4_2,
-					ID_AA64MMFR0_EL1_TGRAN4_2_TGRAN4));
-
-	/* Initialize MMU registers to 0 */
-	retval = host_util_set_default_sysreg_cb("sctlr_el2", 0UL);
-	retval = host_util_set_default_sysreg_cb("mair_el2", 0UL);
-	retval = host_util_set_default_sysreg_cb("tcr_el2", 0UL);
-	retval = host_util_set_default_sysreg_cb("ttbr0_el2", 0UL);
-	retval = host_util_set_default_sysreg_cb("ttbr1_el2", 0UL);
-
-	assert(retval == 0);
-
-	/* Make sure current cpu id is 0 (primary processor) */
-	host_util_set_cpuid(0U);
-
-	test_helpers_expect_assert_fail(false);
+	test_helpers_init();
+	xlat_test_helpers_arch_init(lpa2);
 }
 
 void xlat_test_helpers_set_parange(unsigned int parange)

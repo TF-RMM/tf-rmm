@@ -123,7 +123,7 @@ unsigned int test_helpers_get_nr_granules(void)
 	return HOST_NR_GRANULES;
 }
 
-int test_helpers_get_rand_in_range(int min, int max)
+int test_helpers_get_rand_in_range(long min, long max)
 {
 	return (rand() % (max - min + 1)) + min;
 }

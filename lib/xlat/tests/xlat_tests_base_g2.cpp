@@ -22,17 +22,6 @@ extern "C" {
 #include <xlat_test_helpers.h>
 }
 
-TEST_GROUP(xlat_tests_G2) {
-	TEST_SETUP()
-	{
-		test_helpers_init();
-		xlat_test_hepers_arch_init();
-	}
-
-	TEST_TEARDOWN()
-	{}
-};
-
 /*
  * Generate VA space parameters given a walk start level and a region.
  * The VA returned will fit in a single table of level `level`, so that
@@ -284,7 +273,7 @@ static void validate_xlat_tables(xlat_ctx *ctx, unsigned int *expected_idxs,
 	}
 }
 
-TEST(xlat_tests_G2, xlat_ctx_init_TC6)
+void xlat_ctx_init_tc6(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -302,8 +291,9 @@ TEST(xlat_tests_G2, xlat_ctx_init_TC6)
 	 * TEST CASE 6:
 	 *
 	 * For each possible base level, create a set of mmap regions
-	 * ranging from level 1 (lowest level at which a valid walk can
-	 * finish) to XLAT_TABLE_LEVEL_MAX.
+	 * ranging from level 1 or 0 (lowest level at which a valid walk can
+	 * finish depending on whether FEAT_LPA2 is available) to
+	 * XLAT_TABLE_LEVEL_MAX.
 	 *
 	 * For each possible (va_region, base_lvl, end_lvl) triplet for a
 	 * base table there will be three mmap regions created:
@@ -328,8 +318,8 @@ TEST(xlat_tests_G2, xlat_ctx_init_TC6)
 
 	mmap_count = 3U;
 
-	/* The first level that supports blocks is L1 */
-	for (end_lvl = 1U; end_lvl <= XLAT_TABLE_LEVEL_MAX; end_lvl++) {
+	end_lvl = XLAT_MIN_BLOCK_LVL();
+	for (; end_lvl <= XLAT_TABLE_LEVEL_MAX; end_lvl++) {
 		for (int i = 0U; i < VA_REGIONS; i++) {
 			va_region = (xlat_addr_region_id_t)i;
 
@@ -389,7 +379,7 @@ TEST(xlat_tests_G2, xlat_ctx_init_TC6)
 	}
 }
 
-TEST(xlat_tests_G2, xlat_get_llt_from_va_TC1)
+void xlat_get_llt_from_va_tc1(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -411,8 +401,9 @@ TEST(xlat_tests_G2, xlat_get_llt_from_va_TC1)
 	 * TEST CASE 1:
 	 *
 	 * For each possible base level, create a set of mmap regions
-	 * ranging from level 1 (lowest level at which a valid walk can
-	 * finish) to XLAT_TABLE_LEVEL_MAX.
+	 * ranging from level 1 or 0 (lowest level at which a valid walk
+	 * can finish depending on whether FEAT_LPA2 is available) to
+	 * XLAT_TABLE_LEVEL_MAX.
 	 *
 	 * For each possible (va_region, base_lvl, end_lvl) triplet,
 	 * create 3 mappings that will correspond to a tte in the Last
@@ -425,9 +416,8 @@ TEST(xlat_tests_G2, xlat_get_llt_from_va_TC1)
 	va_region = (xlat_addr_region_id_t)test_helpers_get_rand_in_range(
 							0, VA_REGIONS - 1);
 
-	for (end_lvl = 1U;
-		end_lvl <= XLAT_TABLE_LEVEL_MAX;
-		end_lvl++) {
+	end_lvl = XLAT_MIN_BLOCK_LVL();
+	for (; end_lvl <= XLAT_TABLE_LEVEL_MAX; end_lvl++) {
 
 		for (base_lvl = XLAT_TEST_MIN_LVL();
 		     base_lvl <= end_lvl;
@@ -536,7 +526,7 @@ TEST(xlat_tests_G2, xlat_get_llt_from_va_TC1)
 	}
 }
 
-TEST(xlat_tests_G2, xlat_get_llt_from_va_TC2)
+void xlat_get_llt_from_va_tc2(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -644,7 +634,7 @@ TEST(xlat_tests_G2, xlat_get_llt_from_va_TC2)
 	}
 }
 
-TEST(xlat_tests_G2, xlat_get_llt_from_va_TC3)
+void xlat_get_llt_from_va_tc3(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -764,7 +754,7 @@ void xlat_get_llt_from_va_prepare_assertion(struct xlat_ctx *ctx,
 			    XLAT_TESTS_MAX_TABLES);
 }
 
-ASSERT_TEST(xlat_tests_G2, xlat_get_llt_from_va_TC4)
+void xlat_get_llt_from_va_tc4(void)
 {
 
 	struct xlat_ctx ctx;
@@ -790,7 +780,7 @@ ASSERT_TEST(xlat_tests_G2, xlat_get_llt_from_va_TC4)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(xlat_tests_G2, xlat_get_llt_from_va_TC5)
+void xlat_get_llt_from_va_tc5(void)
 {
 	struct xlat_llt_info tbl_info;
 
@@ -810,7 +800,7 @@ ASSERT_TEST(xlat_tests_G2, xlat_get_llt_from_va_TC5)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(xlat_tests_G2, xlat_get_llt_from_va_TC6)
+void xlat_get_llt_from_va_tc6(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -838,7 +828,7 @@ ASSERT_TEST(xlat_tests_G2, xlat_get_llt_from_va_TC6)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(xlat_tests_G2, xlat_get_llt_from_va_TC7)
+void xlat_get_llt_from_va_tc7(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -866,7 +856,7 @@ ASSERT_TEST(xlat_tests_G2, xlat_get_llt_from_va_TC7)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(xlat_tests_G2, xlat_get_llt_from_va_TC8)
+void xlat_get_llt_from_va_tc8(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -898,7 +888,7 @@ ASSERT_TEST(xlat_tests_G2, xlat_get_llt_from_va_TC8)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(xlat_tests_G2, xlat_get_llt_from_va_TC9)
+void xlat_get_llt_from_va_tc9(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -930,7 +920,7 @@ ASSERT_TEST(xlat_tests_G2, xlat_get_llt_from_va_TC9)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-TEST(xlat_tests_G2, xlat_get_tte_ptr_TC1)
+void xlat_get_tte_ptr_tc1(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -1112,7 +1102,7 @@ TEST(xlat_tests_G2, xlat_get_tte_ptr_TC1)
 	}
 }
 
-ASSERT_TEST(xlat_tests_G2, xlat_get_tte_ptr_TC2)
+void xlat_get_tte_ptr_tc2(void)
 {
 	/***************************************************************
 	 * TEST CASE 2:
@@ -1126,7 +1116,7 @@ ASSERT_TEST(xlat_tests_G2, xlat_get_tte_ptr_TC2)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(xlat_tests_G2, xlat_get_tte_ptr_TC3)
+void xlat_get_tte_ptr_tc3(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -1155,7 +1145,7 @@ ASSERT_TEST(xlat_tests_G2, xlat_get_tte_ptr_TC3)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(xlat_tests_G2, xlat_get_tte_ptr_TC4)
+void xlat_get_tte_ptr_tc4(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -1184,7 +1174,7 @@ ASSERT_TEST(xlat_tests_G2, xlat_get_tte_ptr_TC4)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-TEST(xlat_tests_G2, xlat_unmap_memory_page_TC1)
+void xlat_unmap_memory_page_tc1(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -1221,8 +1211,8 @@ TEST(xlat_tests_G2, xlat_unmap_memory_page_TC1)
 	mmap_count = 3;
 	base_lvl = XLAT_TEST_MIN_LVL();
 
-	/* The first look-up level that supports blocks is L1 */
-	for (end_lvl = 1; end_lvl <= XLAT_TABLE_LEVEL_MAX; end_lvl++) {
+	end_lvl = XLAT_MIN_BLOCK_LVL();
+	for (; end_lvl <= XLAT_TABLE_LEVEL_MAX; end_lvl++) {
 		for (int i = 0U; i < VA_REGIONS; i++) {
 			va_region = (xlat_addr_region_id_t)i;
 
@@ -1338,7 +1328,7 @@ TEST(xlat_tests_G2, xlat_unmap_memory_page_TC1)
 	}
 }
 
-TEST(xlat_tests_G2, xlat_unmap_memory_page_TC2)
+void xlat_unmap_memory_page_tc2(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -1535,7 +1525,7 @@ TEST(xlat_tests_G2, xlat_unmap_memory_page_TC2)
 	}
 }
 
-ASSERT_TEST(xlat_tests_G2, xlat_unmap_memory_page_TC3)
+void xlat_unmap_memory_page_tc3(void)
 {
 	/***************************************************************
 	 * TEST CASE 3:
@@ -1549,7 +1539,7 @@ ASSERT_TEST(xlat_tests_G2, xlat_unmap_memory_page_TC3)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC1)
+void xlat_map_memory_page_with_attrs_tc1(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -1587,8 +1577,8 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC1)
 	mmap_count = 3;
 	base_lvl = XLAT_TEST_MIN_LVL();
 
-	/* The first look-up level that supports blocks is L1 */
-	for (end_lvl = 1; end_lvl <= XLAT_TABLE_LEVEL_MAX; end_lvl++) {
+	end_lvl = XLAT_MIN_BLOCK_LVL();
+	for (; end_lvl <= XLAT_TABLE_LEVEL_MAX; end_lvl++) {
 		for (int i = 0U; i < VA_REGIONS; i++) {
 			va_region = (xlat_addr_region_id_t)i;
 
@@ -1744,7 +1734,7 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC1)
 	}
 }
 
-TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC2)
+void xlat_map_memory_page_with_attrs_tc2(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -2036,7 +2026,7 @@ TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC2)
 	}
 }
 
-ASSERT_TEST(xlat_tests_G2, xlat_map_memory_page_with_attrs_TC3)
+void xlat_map_memory_page_with_attrs_tc3(void)
 {
 	/***************************************************************
 	 * TEST CASE 3:
@@ -2144,7 +2134,7 @@ static void validate_tcr_el2(struct xlat_ctx *low_ctx,
 		      tcr, exp_tcr);
 }
 
-TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC1)
+void xlat_arch_setup_mmu_cfg_tc1(void)
 {
 	struct xlat_ctx ctx[2U];
 	struct xlat_ctx_cfg cfg[2U];
@@ -2220,7 +2210,7 @@ TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC1)
 	validate_tcr_el2(&ctx[0U], &ctx[1U]);
 }
 
-TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC2)
+void xlat_arch_setup_mmu_cfg_tc2(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -2323,7 +2313,7 @@ TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC2)
 
 }
 
-ASSERT_TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC3)
+void xlat_arch_setup_mmu_cfg_tc3(void)
 {
 	/***************************************************************
 	 * TEST CASE 3:
@@ -2336,7 +2326,7 @@ ASSERT_TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC3)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC4)
+void xlat_arch_setup_mmu_cfg_tc4(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -2363,7 +2353,7 @@ ASSERT_TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC4)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC5)
+void xlat_arch_setup_mmu_cfg_tc5(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -2390,7 +2380,7 @@ ASSERT_TEST(xlat_tests_G2, xlat_arch_setup_mmu_cfg_TC5)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-TEST(xlat_tests_G2, xlat_get_oa_from_tte_TC1)
+void xlat_get_oa_from_tte_tc1(void)
 {
 	uint64_t test_tte, val_addr, output_addr;
 
@@ -2439,43 +2429,4 @@ TEST(xlat_tests_G2, xlat_get_oa_from_tte_TC1)
 	CHECK_VERBOSE((val_addr == output_addr),
 		      "Test xlat_get_oa_from_tte, LPA2 not supported: OA = %p - Expected = %p",
 		      (void *)output_addr, (void *)val_addr);
-}
-
-IGNORE_TEST(xlat_tests_G2, xlat_write_tte_TC1)
-{
-	/*
-	 * xlat_write_tte() is implemented as an assembler function
-	 * for target AArch64 Architecture. There is a C stub for the
-	 * fake_host platform which we do not need to test.
-	 *
-	 * This test can therefore be ignored.
-	 */
-
-	TEST_EXIT;
-}
-
-IGNORE_TEST(xlat_tests_G2, xlat_read_tte_TC1)
-{
-	/*
-	 * xlat_read_tte() is implemented as an assembler function
-	 * for target AArch64 Architecture. There is a C stub for the
-	 * fake_host platform which we do not need to test.
-	 *
-	 * This test can therefore be ignored.
-	 */
-
-	TEST_EXIT;
-}
-
-IGNORE_TEST(xlat_tests_G2, xlat_enable_mmu_el2_TC1)
-{
-	/*
-	 * xlat_enable_mmu_el2() is implemented as an assembler function
-	 * for target AArch64 Architecture. There is a C stub for the
-	 * fake_host platform which we do not need to test.
-	 *
-	 * This test can therefore be ignored.
-	 */
-
-	TEST_EXIT;
 }
