@@ -29,13 +29,9 @@ static uint64_t read_id_aa64mmfr0_el0_tgran4(void)
  */
 static bool xlat_arch_is_granule_size_supported(size_t size)
 {
-	u_register_t tgranx;
-
 	if (size == SZ_4K) {
-		tgranx = read_id_aa64mmfr0_el0_tgran4();
 		/* MSB of TGRAN4 field will be '1' for unsupported feature */
-		return ((tgranx >= ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED) &&
-			(tgranx < 8ULL));
+		return (read_id_aa64mmfr0_el0_tgran4() < 8ULL);
 	}
 
 	return false;
