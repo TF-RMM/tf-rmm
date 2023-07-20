@@ -39,6 +39,7 @@ TEST_GROUP(rsi_logger_tests) {
 	{}
 };
 
+#if (RSI_LOG_LEVEL > LOG_LEVEL_NONE) && (RSI_LOG_LEVEL <= LOG_LEVEL)
 static void rsi_log_test(unsigned int id, unsigned int status)
 {
 	unsigned long args[10];
@@ -88,3 +89,8 @@ TEST(rsi_logger_tests, RSI_LOGGER_TC1)
 
 	TEST_EXIT;
 }
+#else
+IGNORE_TEST(rsi_logger_tests, RSI_LOGGER_TC1)
+{
+}
+#endif
