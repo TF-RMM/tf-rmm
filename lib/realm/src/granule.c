@@ -126,7 +126,6 @@ struct granule *find_lock_granule(unsigned long addr,
 }
 
 struct granule_set {
-	unsigned int idx;
 	unsigned long addr;
 	enum granule_state state;
 	struct granule *g;
@@ -188,10 +187,6 @@ static bool find_lock_granules(struct granule_set *granules,
 {
 	long i;
 
-	for (i = 0L; i < n; i++) {
-		granules[i].idx = i;
-	}
-
 	sort_granules(granules, n);
 
 	for (i = 0L; i < n; i++) {
@@ -235,8 +230,8 @@ bool find_lock_two_granules(
 			struct granule **g2)
 {
 	struct granule_set gs[] = {
-		{0U, addr1, expected_state1, NULL, g1},
-		{1U, addr2, expected_state2, NULL, g2}
+		{addr1, expected_state1, NULL, g1},
+		{addr2, expected_state2, NULL, g2}
 	};
 
 	assert((g1 != NULL) && (g2 != NULL));
