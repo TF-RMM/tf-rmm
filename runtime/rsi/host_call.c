@@ -20,14 +20,14 @@
  *   - Return value is RSI_SUCCESS.
  *
  * If the RTT walk succeeds then:
- *   - If @rec_exit is not NULL and @rec_entry is NULL, then copy host call
+ *   - If @rec_exit is not NULL and @rec_enter is NULL, then copy host call
  *     arguments from host call data structure (in Realm memory) to @rec_exit.
- *   - If @rec_exit is NULL and @rec_entry is not NULL, then copy host call
+ *   - If @rec_exit is NULL and @rec_enter is not NULL, then copy host call
  *     results to host call data structure (in Realm memory).
  *   - Return value is RSI_SUCCESS.
  */
 static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
-			 struct rmi_rec_entry *rec_entry,
+			 struct rmi_rec_enter *rec_enter,
 			 struct rsi_result *res)
 {
 	enum s2_walk_status walk_status;
@@ -41,8 +41,8 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 
 	assert(addr_in_rec_par(rec, ipa));
 
-	/* Only 'rec_entry' or 'rec_exit' should be set */
-	assert((rec_entry != NULL) != (rec_exit != NULL));
+	/* Only 'rec_enter' or 'rec_exit' should be set */
+	assert((rec_enter != NULL) != (rec_exit != NULL));
 
 	page_ipa = ipa & GRANULE_MASK;
 	walk_status = realm_ipa_to_pa(rec, page_ipa, &walk_result);
@@ -90,7 +90,7 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	} else {
 		/* Copy host call results to host call data structure */
 		for (i = 0U; i < RSI_HOST_CALL_NR_GPRS; i++) {
-			host_call->gprs[i] = rec_entry->gprs[i];
+			host_call->gprs[i] = rec_enter->gprs[i];
 		}
 
 		rec->regs[0] = RSI_SUCCESS;
@@ -130,7 +130,7 @@ void handle_rsi_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 }
 
 struct rsi_walk_result complete_rsi_host_call(struct rec *rec,
-					      struct rmi_rec_entry *rec_entry)
+					      struct rmi_rec_enter *rec_enter)
 {
 	struct rsi_result res = { 0UL };
 	struct rsi_walk_result walk_res = { false, 0UL };
@@ -144,7 +144,7 @@ struct rsi_walk_result complete_rsi_host_call(struct rec *rec,
 	 * the RIPAS of IPA at that time). This is a situation which can be
 	 * controlled from Realm and Realm should avoid this.
 	 */
-	do_host_call(rec, NULL, rec_entry, &res);
+	do_host_call(rec, NULL, rec_enter, &res);
 
 	if (res.action == STAGE_2_TRANSLATION_FAULT) {
 		walk_res.abort = true;

@@ -421,7 +421,7 @@ struct rmi_rec_params {
 /*
  * Structure contains data passed from the Host to the RMM on REC entry
  */
-struct rmi_rec_entry {
+struct rmi_rec_enter {
 	/* Flags */
 	SET_MEMBER_RMI(unsigned long flags, 0, 0x200);	/* Offset 0 */
 	/* General-purpose registers */
@@ -490,7 +490,7 @@ struct rmi_rec_exit {
  */
 struct rmi_rec_run {
 	/* Entry information */
-	SET_MEMBER_RMI(struct rmi_rec_entry entry, 0, 0x800);	/* Offset 0 */
+	SET_MEMBER_RMI(struct rmi_rec_enter enter, 0, 0x800);	/* Offset 0 */
 	/* Exit information */
 	SET_MEMBER_RMI(struct rmi_rec_exit exit, 0x800, 0x1000);/* 0x800 */
 };

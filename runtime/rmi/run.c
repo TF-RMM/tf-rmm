@@ -24,12 +24,12 @@ static void reset_last_run_info(struct rec *rec)
 	rec->last_run_info.esr = 0UL;
 }
 
-static bool complete_mmio_emulation(struct rec *rec, struct rmi_rec_entry *rec_entry)
+static bool complete_mmio_emulation(struct rec *rec, struct rmi_rec_enter *rec_enter)
 {
 	unsigned long esr = rec->last_run_info.esr;
 	unsigned int rt = esr_srt(esr);
 
-	if ((rec_entry->flags & REC_ENTRY_FLAG_EMUL_MMIO) == 0UL) {
+	if ((rec_enter->flags & REC_ENTRY_FLAG_EMUL_MMIO) == 0UL) {
 		return true;
 	}
 
@@ -48,7 +48,7 @@ static bool complete_mmio_emulation(struct rec *rec, struct rmi_rec_entry *rec_e
 	if (!esr_is_write(esr) && (rt != 31U)) {
 		unsigned long val;
 
-		val = rec_entry->gprs[0] & access_mask(esr);
+		val = rec_enter->gprs[0] & access_mask(esr);
 
 		if (esr_sign_extend(esr)) {
 			unsigned int bit_count = access_len(esr) * 8U;
@@ -79,13 +79,13 @@ static void complete_set_ripas(struct rec *rec)
 	}
 }
 
-static bool complete_sea_insertion(struct rec *rec, struct rmi_rec_entry *rec_entry)
+static bool complete_sea_insertion(struct rec *rec, struct rmi_rec_enter *rec_enter)
 {
 	unsigned long esr = rec->last_run_info.esr;
 	unsigned long fipa;
 	unsigned long hpfar = rec->last_run_info.hpfar;
 
-	if ((rec_entry->flags & REC_ENTRY_FLAG_INJECT_SEA) == 0UL) {
+	if ((rec_enter->flags & REC_ENTRY_FLAG_INJECT_SEA) == 0UL) {
 		return true;
 	}
 
@@ -103,7 +103,7 @@ static bool complete_sea_insertion(struct rec *rec, struct rmi_rec_entry *rec_en
 }
 
 
-static void complete_sysreg_emulation(struct rec *rec, struct rmi_rec_entry *rec_entry)
+static void complete_sysreg_emulation(struct rec *rec, struct rmi_rec_enter *rec_enter)
 {
 	unsigned long esr = rec->last_run_info.esr;
 
@@ -120,7 +120,7 @@ static void complete_sysreg_emulation(struct rec *rec, struct rmi_rec_entry *rec
 
 	/* Handle xzr */
 	if (rt != 31U) {
-		rec->regs[rt] = rec_entry->gprs[0];
+		rec->regs[rt] = rec_enter->gprs[0];
 	}
 }
 
@@ -132,7 +132,7 @@ static bool complete_host_call(struct rec *rec, struct rmi_rec_run *rec_run)
 		return true;
 	}
 
-	walk_result = complete_rsi_host_call(rec, &rec_run->entry);
+	walk_result = complete_rsi_host_call(rec, &rec_run->enter);
 
 	if (walk_result.abort) {
 		emulate_stage2_data_abort(rec, &rec_run->exit, walk_result.rtt_level);
@@ -191,7 +191,7 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	granule_unlock(g_rec);
 
 	success = ns_buffer_read(SLOT_NS, g_run, 0U,
-				 sizeof(struct rmi_rec_entry), &rec_run.entry);
+				 sizeof(struct rmi_rec_enter), &rec_run.enter);
 
 	if (!success) {
 		/*
@@ -240,24 +240,24 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	 * Check GIC state after checking other conditions but before doing
 	 * anything which may have side effects.
 	 */
-	if (!gic_validate_state(&rec_run.entry)) {
+	if (!gic_validate_state(&rec_run.enter)) {
 		ret = RMI_ERROR_REC;
 		goto out_unmap_buffers;
 	}
-	gic_copy_state_from_rec_entry(&rec->sysregs.gicstate, &rec_run.entry);
+	gic_copy_state_from_rec_entry(&rec->sysregs.gicstate, &rec_run.enter);
 
-	if (!complete_mmio_emulation(rec, &rec_run.entry)) {
+	if (!complete_mmio_emulation(rec, &rec_run.enter)) {
 		ret = RMI_ERROR_REC;
 		goto out_unmap_buffers;
 	}
 
-	if (!complete_sea_insertion(rec, &rec_run.entry)) {
+	if (!complete_sea_insertion(rec, &rec_run.enter)) {
 		ret = RMI_ERROR_REC;
 		goto out_unmap_buffers;
 	}
 
 	complete_set_ripas(rec);
-	complete_sysreg_emulation(rec, &rec_run.entry);
+	complete_sysreg_emulation(rec, &rec_run.enter);
 
 	if (!complete_host_call(rec, &rec_run)) {
 		ret = RMI_SUCCESS;
@@ -267,10 +267,10 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	reset_last_run_info(rec);
 
 	rec->sysregs.hcr_el2 = rec->common_sysregs.hcr_el2;
-	if ((rec_run.entry.flags & REC_ENTRY_FLAG_TRAP_WFI) != 0UL) {
+	if ((rec_run.enter.flags & REC_ENTRY_FLAG_TRAP_WFI) != 0UL) {
 		rec->sysregs.hcr_el2 |= HCR_TWI;
 	}
-	if ((rec_run.entry.flags & REC_ENTRY_FLAG_TRAP_WFE) != 0UL) {
+	if ((rec_run.enter.flags & REC_ENTRY_FLAG_TRAP_WFE) != 0UL) {
 		rec->sysregs.hcr_el2 |= HCR_TWE;
 	}
 

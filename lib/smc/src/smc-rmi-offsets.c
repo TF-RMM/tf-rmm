@@ -28,11 +28,11 @@ COMPILER_ASSERT(offsetof(struct rmi_rec_params, gprs) == 0x300);
 COMPILER_ASSERT(offsetof(struct rmi_rec_params, num_aux) == 0x800);
 COMPILER_ASSERT(offsetof(struct rmi_rec_params, aux) == 0x808);
 
-COMPILER_ASSERT(sizeof(struct rmi_rec_entry) == 0x800);
-COMPILER_ASSERT(offsetof(struct rmi_rec_entry, flags) == 0);
-COMPILER_ASSERT(offsetof(struct rmi_rec_entry, gprs) == 0x200);
-COMPILER_ASSERT(offsetof(struct rmi_rec_entry, gicv3_hcr) == 0x300);
-COMPILER_ASSERT(offsetof(struct rmi_rec_entry, gicv3_lrs) == 0x308);
+COMPILER_ASSERT(sizeof(struct rmi_rec_enter) == 0x800);
+COMPILER_ASSERT(offsetof(struct rmi_rec_enter, flags) == 0);
+COMPILER_ASSERT(offsetof(struct rmi_rec_enter, gprs) == 0x200);
+COMPILER_ASSERT(offsetof(struct rmi_rec_enter, gicv3_hcr) == 0x300);
+COMPILER_ASSERT(offsetof(struct rmi_rec_enter, gicv3_lrs) == 0x308);
 
 COMPILER_ASSERT(offsetof(struct rmi_rec_exit, exit_reason) == 0);
 COMPILER_ASSERT(offsetof(struct rmi_rec_exit, esr) == 0x100);
@@ -54,5 +54,5 @@ COMPILER_ASSERT(offsetof(struct rmi_rec_exit, imm) == 0x600);
 COMPILER_ASSERT(offsetof(struct rmi_rec_exit, pmu_ovf_status) == 0x700);
 
 COMPILER_ASSERT(sizeof(struct rmi_rec_run) <= GRANULE_SIZE);
-COMPILER_ASSERT(offsetof(struct rmi_rec_run, entry) == 0);
+COMPILER_ASSERT(offsetof(struct rmi_rec_run, enter) == 0);
 COMPILER_ASSERT(offsetof(struct rmi_rec_run, exit) == 0x800);
