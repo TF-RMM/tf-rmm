@@ -43,6 +43,7 @@
 	.cfi_startproc
 	.align \_align
 	\_name:
+	bti	jc
 	.endm
 
 	/*

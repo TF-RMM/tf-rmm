@@ -347,6 +347,11 @@ int xlat_test_helpers_gen_attrs(uint64_t *attrs, uint64_t mmap_attrs)
 			lower_attrs |= INPLACE(LOWER_ATTR_SH, ISH);
 		}
 		upper_attrs = 0ULL;
+		if (((mmap_attrs & MT_RW) != 0UL) || ((mmap_attrs & MT_EXECUTE_NEVER) != 0UL)) {
+			upper_attrs |= XLAT_GET_PXN_DESC();
+		} else {
+			upper_attrs |= XLAT_GET_GP_DESC();
+		}
 		break;
 	default:
 		return -EINVAL;
@@ -370,10 +375,6 @@ int xlat_test_helpers_gen_attrs(uint64_t *attrs, uint64_t mmap_attrs)
 		lower_attrs |= LOWER_ATTRS(AP_RW);
 	} else {
 		lower_attrs |= LOWER_ATTRS(AP_RO);
-	}
-
-	if (mmap_attrs & MT_EXECUTE_NEVER) {
-		upper_attrs |= XLAT_GET_PXN_DESC();
 	}
 
 	*attrs = upper_attrs | lower_attrs;
