@@ -353,8 +353,17 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	unsigned int function_id = (unsigned int)rec->regs[0];
 	bool restore_rec_simd_state = false;
 	bool needs_fpu, ret_to_rec;
+	unsigned int i;
 
 	RSI_LOG_SET(rec->regs);
+
+	/*
+	 * According to SMCCCv1.1+ if SMC call doesn't return result
+	 * in register starting from X4, it must preserve its value.
+	 */
+	for (i = 4U; i < SMC_RESULT_REGS; ++i) {
+		res.smc_res.x[i] = rec->regs[i];
+	}
 
 	/* Ignore SVE hint bit, until RMM supports SVE hint bit */
 	function_id &= ~MASK(SMC_SVE_HINT);
@@ -434,7 +443,7 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	}
 
 	if ((res.action & FLAG_UPDATE_REC) != 0) {
-		for (unsigned int i = 0U; i < SMC_RESULT_REGS; ++i) {
+		for (i = 0U; i < SMC_RESULT_REGS; ++i) {
 			rec->regs[i] = res.smc_res.x[i];
 		}
 	}
