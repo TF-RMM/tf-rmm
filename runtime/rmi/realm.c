@@ -458,18 +458,17 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	struct granule *g_rtt;
 	struct rd *rd;
 	unsigned int num_rtts;
+	int res;
 
 	/* RD should not be destroyed if refcount != 0. */
-	g_rd = find_lock_unused_granule(rd_addr, GRANULE_STATE_RD);
-	if (ptr_is_err(g_rd)) {
-		switch (ptr_status(g_rd)) {
-		case 1U:
+	res = find_lock_unused_granule(rd_addr, GRANULE_STATE_RD, &g_rd);
+	if (res != 0) {
+		switch (res) {
+		case -EINVAL:
 			return RMI_ERROR_INPUT;
-		case 2U:
-			/* RD should not be destroyed if refcount != 0 */
-			return RMI_ERROR_REALM;
 		default:
-			panic();
+			assert(res == -EBUSY);
+			return RMI_ERROR_REALM;
 		}
 	}
 
@@ -497,7 +496,7 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 
 	free_sl_rtts(g_rtt, num_rtts);
 
-	/* This implictly destroys the measurement */
+	/* This implicitly destroys the measurement */
 	granule_memzero(g_rd, SLOT_RD);
 	granule_unlock_transition(g_rd, GRANULE_STATE_DELEGATED);
 
