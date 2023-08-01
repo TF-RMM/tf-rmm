@@ -93,11 +93,12 @@ void measurement_rec_params_measure(unsigned char rim_measurement[],
 {
 	struct measurement_desc_rec measure_desc = {0};
 	struct rmi_rec_params *rec_params_measured =
-		&(rec_params_per_cpu[my_cpuid()]);
+		&rec_params_per_cpu[my_cpuid()];
 
 	(void)memset(rec_params_measured, 0, sizeof(*rec_params_measured));
 
-	/* Copy the relevant parts of the rmi_rec_params structure to be
+	/*
+	 * Copy the relevant parts of the rmi_rec_params structure to be
 	 * measured
 	 */
 	rec_params_measured->pc = rec_params->pc;
@@ -112,7 +113,7 @@ void measurement_rec_params_measure(unsigned char rim_measurement[],
 					measurement_get_size(algorithm));
 
 	/*
-	 * Hashing the REC params structure and store the result in the
+	 * Hash the REC params structure and store the result in the
 	 * measurement descriptor structure.
 	 */
 	measurement_hash_compute(algorithm,
@@ -121,7 +122,7 @@ void measurement_rec_params_measure(unsigned char rim_measurement[],
 				measure_desc.content);
 
 	/*
-	 * Hashing the measurement descriptor structure; the result is the
+	 * Hash the measurement descriptor structure; the result is the
 	 * updated RIM.
 	 */
 	measurement_hash_compute(algorithm,
