@@ -420,7 +420,8 @@ void smc_rec_aux_count(unsigned long rd_addr, struct smc_result *res)
 }
 
 unsigned long smc_psci_complete(unsigned long calling_rec_addr,
-				unsigned long target_rec_addr)
+				unsigned long target_rec_addr,
+				unsigned long status)
 {
 	struct granule *g_calling_rec, *g_target_rec;
 	struct rec  *calling_rec, *target_rec;
@@ -464,7 +465,7 @@ unsigned long smc_psci_complete(unsigned long calling_rec_addr,
 	target_rec = granule_map(g_target_rec, SLOT_REC2);
 	assert(target_rec != NULL);
 
-	ret = psci_complete_request(calling_rec, target_rec);
+	ret = psci_complete_request(calling_rec, target_rec, status);
 
 	buffer_unmap(target_rec);
 	buffer_unmap(calling_rec);

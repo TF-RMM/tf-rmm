@@ -331,11 +331,20 @@ void handle_psci(struct rec *rec,
  */
 static unsigned long complete_psci_cpu_on(struct rec *target_rec,
 					  unsigned long entry_point_address,
-					  unsigned long caller_sctlr_el1)
+					  unsigned long caller_sctlr_el1,
+					  unsigned long status)
 {
 	if ((granule_refcount_read_acquire(target_rec->g_rec) != 0UL) ||
 		target_rec->runnable) {
 		return PSCI_RETURN_ALREADY_ON;
+	}
+
+	/*
+	 * Host is permitted to deny a PSCI_CPU_ON request,
+	 * if the target CPU is not already on.
+	 */
+	if (status == PSCI_RETURN_DENIED) {
+		return PSCI_RETURN_DENIED;
 	}
 
 	psci_reset_rec(target_rec, caller_sctlr_el1);
@@ -355,9 +364,10 @@ static unsigned long complete_psci_affinity_info(struct rec *target_rec)
 }
 
 unsigned long psci_complete_request(struct rec *calling_rec,
-				    struct rec *target_rec)
+				    struct rec *target_rec, unsigned long status)
 {
-	unsigned long ret = PSCI_RETURN_NOT_SUPPORTED;
+	unsigned long ret = RMI_SUCCESS;
+	unsigned long rec_ret = PSCI_RETURN_NOT_SUPPORTED;
 	unsigned long mpidr = calling_rec->regs[1];
 
 	if (!calling_rec->psci_info.pending) {
@@ -375,23 +385,41 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 	switch (calling_rec->regs[0]) {
 	case SMC32_PSCI_CPU_ON:
 	case SMC64_PSCI_CPU_ON:
-		ret = complete_psci_cpu_on(target_rec,
-					   calling_rec->regs[2],
-					   calling_rec->sysregs.sctlr_el1);
+		if ((status != PSCI_RETURN_SUCCESS) &&
+		    (status != PSCI_RETURN_DENIED)) {
+			return RMI_ERROR_INPUT;
+		}
+
+		rec_ret = complete_psci_cpu_on(target_rec,
+						calling_rec->regs[2],
+						calling_rec->sysregs.sctlr_el1,
+						status);
+		/*
+		 * If the target CPU is already running and the Host has denied the
+		 * PSCI_CPU_ON request, then return error back to Host.
+		 */
+		if ((status == PSCI_RETURN_DENIED) &&
+		   (rec_ret == PSCI_RETURN_ALREADY_ON)) {
+			ret = RMI_ERROR_INPUT;
+		}
 		break;
 	case SMC32_PSCI_AFFINITY_INFO:
 	case SMC64_PSCI_AFFINITY_INFO:
-		ret = complete_psci_affinity_info(target_rec);
+		if (status != PSCI_RETURN_SUCCESS) {
+			return RMI_ERROR_INPUT;
+		}
+
+		rec_ret = complete_psci_affinity_info(target_rec);
 		break;
 	default:
 		assert(false);
 	}
 
-	calling_rec->regs[0] = ret;
+	calling_rec->regs[0] = rec_ret;
 	calling_rec->regs[1] = 0;
 	calling_rec->regs[2] = 0;
 	calling_rec->regs[3] = 0;
 	calling_rec->psci_info.pending = false;
 
-	return RMI_SUCCESS;
+	return ret;
 }
