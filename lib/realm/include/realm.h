@@ -181,8 +181,12 @@ static inline bool addr_is_contained(unsigned long container_base,
 				     unsigned long container_end,
 				     unsigned long address)
 {
-	assert(container_base <= (container_end - 1));
-	return address >= container_base && address <= (container_end - 1);
+	/* Sanity check the container bounds */
+	if (container_base > (container_end - 1UL)) {
+		return false;
+	}
+
+	return address >= container_base && address <= (container_end - 1UL);
 }
 
 /*
@@ -200,7 +204,11 @@ static inline bool region_is_contained(unsigned long container_base,
 				       unsigned long region_base,
 				       unsigned long region_end)
 {
-	assert(region_base <= (region_end - 1UL));
+	/* Sanity check the region bounds */
+	if (region_base > (region_end - 1UL)) {
+		return false;
+	}
+
 	return addr_is_contained(container_base, container_end, region_base) &&
 	       addr_is_contained(container_base, container_end, region_end - 1UL);
 }
