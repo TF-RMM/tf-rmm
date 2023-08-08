@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <xlat_contexts.h>
+#include <xlat_high_va.h>
 #include <xlat_tables.h>
 
 
@@ -179,8 +180,7 @@ int plat_cmn_setup(unsigned long x0, unsigned long x1,
 	/* Read supported GIC virtualization features and init GIC variables */
 	gic_get_virt_features();
 
-	/* Perform coold boot initialization of the slot buffer mechanism */
-	return slot_buf_coldboot_init();
+	return 0;
 }
 
 /*
@@ -202,8 +202,13 @@ int plat_cmn_warmboot_setup(void)
 		return ret;
 	}
 
-	/* Setup the MMU cfg for the slot buffer context (high region) */
-	slot_buf_setup_xlat();
+	/* Perform warm boot initialization of the high VA region */
+	ret = xlat_high_va_setup();
+	if (ret != 0) {
+		ERROR("%s (%u): Failed to setup high VA for CPU[%u]\n",
+			__func__, __LINE__, my_cpuid());
+		return ret;
+	}
 
 	VERBOSE("xlat tables configured for CPU[%u]\n", my_cpuid());
 	return 0;

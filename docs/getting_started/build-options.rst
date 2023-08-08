@@ -246,7 +246,7 @@ The |RMM| build system supports the following CMake build options.
    RMM_UART_ADDR		,			,0x0			,"Base addr of UART to be used for RMM logs"
    PLAT_CMN_CTX_MAX_XLAT_TABLES ,			,0			,"Maximum number of translation tables used by the runtime context"
    PLAT_CMN_EXTRA_MMAP_REGIONS	,			,0			,"Extra platform mmap regions that need to be mapped in S1 xlat tables"
-   RMM_NUM_PAGES_PER_STACK	,			,3			,"Number of pages to use per CPU stack"
+   RMM_NUM_PAGES_PER_STACK	,			,5			,"Number of pages to use per CPU stack"
    MBEDTLS_ECP_MAX_OPS		,248 -			,1000			,"Number of max operations per ECC signing iteration"
    RMM_FPU_USE_AT_REL2		,ON | OFF		,OFF(fake_host) ON(aarch64),"Enable FPU/SIMD usage in RMM."
    RMM_MAX_GRANULES		,			,0			,"Maximum number of memory granules available to the system"
