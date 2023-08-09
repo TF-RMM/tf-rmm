@@ -10,6 +10,8 @@
 
 typedef struct memory_header_s memory_header_t;
 
+#ifndef CBMC
+
 /* MbedTLS needs 8K of heap for attestation usecases */
 #define REC_HEAP_PAGES			2U
 #define REC_HEAP_SIZE			(REC_HEAP_PAGES * SZ_4K)
@@ -43,6 +45,25 @@ typedef struct memory_header_s memory_header_t;
 				 REC_SIMD_PAGES	  + \
 				 REC_ATTEST_PAGES + \
 				 RMM_CCA_TOKEN_BUFFER)
+
+#else /* CBMC */
+
+#define REC_HEAP_PAGES		2U
+#define REC_HEAP_SIZE		(REC_HEAP_PAGES * SZ_4K)
+
+#define REC_PMU_PAGES		0U
+#define REC_PMU_SIZE		(REC_PMU_PAGES * SZ_4K)
+
+#define REC_SIMD_PAGES		0U
+#define REC_SIMD_SIZE		(REC_SIMD_PAGES * SZ_4K)
+
+#define REC_ATTEST_PAGES	0U
+#define REC_ATTEST_SIZE		(REC_ATTEST_PAGES * SZ_4K)
+
+/* Number of aux granules pages per REC to be used */
+#define REC_NUM_PAGES		(1U)
+
+#endif /* CBMC */
 
 struct buffer_alloc_ctx {
 	unsigned char		*buf;

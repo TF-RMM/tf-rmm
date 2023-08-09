@@ -91,8 +91,12 @@
 /* Maximum number of Interrupt Controller List Registers */
 #define REC_GIC_NUM_LRS			U(16)
 
+#ifndef CBMC
 /* Maximum number of auxiliary granules required for a REC */
 #define MAX_REC_AUX_GRANULES		U(16)
+#else /* CBMC */
+#define MAX_REC_AUX_GRANULES		U(1)
+#endif /* CBMC */
 
 /* Whether Host has completed emulation for an Emulatable Data Abort */
 #define REC_ENTRY_FLAG_EMUL_MMIO	(UL(1) << 0)
