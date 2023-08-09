@@ -151,4 +151,59 @@ static inline size_t measurement_get_size(const enum hash_algo algorithm)
 	return ret;
 }
 
+/*
+ * Measure a data granule
+ *
+ * Arguments:
+ *	- rim_measurement:	The buffer where the RIM to be updated is found.
+ *	- algorithm:		Algorithm to use for measurement.
+ *	- data:			Content of the granule.
+ *	- ipa:			IPA of the data granule.
+ *	- flags:		Flags according to the specification.
+ */
+void measurement_data_granule_measure(unsigned char rim_measurement[],
+				      enum hash_algo algorithm,
+				      void *data,
+				      unsigned long ipa,
+				      unsigned long flags);
+
+/*
+ * Measure realm params
+ *
+ * Arguments:
+ *	- rim_measurement:	The buffer where the RIM to be updated is found.
+ *	- algorithm:		Algorithm to use for measurement.
+ *	- realm_params:		The parameters of the realm.
+ */
+void measurement_realm_params_measure(unsigned char rim_measurement[],
+				      enum hash_algo algorithm,
+				      struct rmi_realm_params *realm_params);
+
+/*
+ * Measure REC params
+ *
+ * Arguments:
+ *	- rim_measurement:	The buffer where the RIM to be updated is found.
+ *	- algorithm:		Algorithm to use for measurement.
+ *	- rec_params:		The rec params to measure.
+ */
+void measurement_rec_params_measure(unsigned char rim_measurement[],
+				    enum hash_algo algorithm,
+				    struct rmi_rec_params *rec_params);
+
+
+/*
+ * Measure a RIPAS granule
+ *
+ * Arguments:
+ *	- rim_measurement:	The buffer where the RIM to be updated is found.
+ *	- algorithm:		Algorithm to use for measurement.
+ *	- ipa:			IPA of the data granule.
+ *	- level:		Level of the RTT.
+ */
+void measurement_init_ripas_measure(unsigned char rim_measurement[],
+				    enum hash_algo algorithm,
+				    unsigned long ipa,
+				    unsigned long level);
+
 #endif /* MEASUREMENT_H */

@@ -259,28 +259,6 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 	return vmid_reserve((unsigned int)p->vmid);
 }
 
-/*
- * Update the realm measurement with the realm parameters.
- */
-static void realm_params_measure(struct rd *rd,
-				 struct rmi_realm_params *realm_params)
-{
-	/* By specification realm_params is 4KB */
-	unsigned char buffer[SZ_4K] = {0};
-	struct rmi_realm_params *realm_params_measured =
-		(struct rmi_realm_params *)&buffer[0];
-
-	realm_params_measured->algorithm = realm_params->algorithm;
-	/* TODO: Add later */
-	/* realm_params_measured->features_0 = realm_params->features_0; */
-
-	/* Measure relevant realm params this will be the init value of RIM */
-	measurement_hash_compute(rd->algorithm,
-			       buffer,
-			       sizeof(buffer),
-			       rd->measurement[RIM_MEASUREMENT_SLOT]);
-}
-
 static void free_sl_rtts(struct granule *g_rtt, unsigned int num_rtts)
 {
 	unsigned int i;
@@ -415,7 +393,9 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	rd->pmu_enabled = EXTRACT(RMI_REALM_FLAGS_PMU, p.flags) != 0UL;
 	rd->pmu_num_ctrs = p.pmu_num_ctrs;
 
-	realm_params_measure(rd, &p);
+	measurement_realm_params_measure(rd->measurement[RIM_MEASUREMENT_SLOT],
+					 rd->algorithm,
+					 &p);
 
 	init_s2_starting_level(rd);
 
