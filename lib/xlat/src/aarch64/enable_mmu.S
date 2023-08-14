@@ -42,6 +42,9 @@
 		 */
 		mov_imm	x5, RMM_CPU_STACK_END_VA
 		mov	sp, x5
+		/* Also set the exception handler stack */
+		mov_imm	x5, RMM_CPU_EH_STACK_END_VA
+		msr	sp_el0, x5
 
 		isb
 

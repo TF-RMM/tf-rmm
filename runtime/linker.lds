@@ -86,6 +86,9 @@ SECTIONS
 		rmm_stack_start = .;
 		. = . + (RMM_NUM_PAGES_PER_STACK * GRANULE_SIZE * MAX_CPUS);
 		rmm_stack_end = .;
+		rmm_eh_stack_start = .;
+		. = . + (GRANULE_SIZE * MAX_CPUS);
+		rmm_eh_stack_end = .;
 	} >RAM
 
 	rmm_end = .;

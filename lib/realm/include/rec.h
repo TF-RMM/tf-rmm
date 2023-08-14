@@ -20,6 +20,8 @@
 #include <smc-rmi.h>
 #include <utils_def.h>
 
+#define RMM_REC_SAVED_GEN_REG_COUNT	31
+
 struct granule;
 
 /*
@@ -141,7 +143,8 @@ struct rec {
 	unsigned long rec_idx;	/* which REC is this */
 	bool runnable;
 
-	unsigned long regs[31];
+	unsigned long regs[RMM_REC_SAVED_GEN_REG_COUNT];
+	unsigned long sp_el0;
 
 	/*
 	 * PAuth state of Realm.
@@ -223,6 +226,13 @@ struct rec {
 	struct simd_context *active_simd_ctx;
 };
 COMPILER_ASSERT(sizeof(struct rec) <= GRANULE_SIZE);
+/*
+ * The `sp_el0` field must immediately follow `regs` field in `struct rec`.
+ * This assumption is used by the assembly code saving and restoring realm
+ * registers.
+ */
+COMPILER_ASSERT(offsetof(struct rec, sp_el0) ==
+	(offsetof(struct rec, regs) + (sizeof(unsigned long) * RMM_REC_SAVED_GEN_REG_COUNT)));
 
 /*
  * Check that mpidr has a valid value with all fields except
