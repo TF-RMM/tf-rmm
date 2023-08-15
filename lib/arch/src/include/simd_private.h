@@ -45,4 +45,16 @@ void sve_restore_vector_registers(struct sve_regs *regs, bool restore_ffr);
 /* Clear SVE P and FFR registers */
 void sve_clear_p_ffr_registers(void);
 
+/* Returns 'true' when CPU in Streaming SVE mode, else 'false' */
+static inline bool is_sme_sm(void)
+{
+	return ((read_svcr() & SVCR_SM_BIT) != 0U);
+}
+
+/* Returns 'true' when FEAT_SME_FA64 is enabled at the current exception level */
+static inline bool sme_feat_fa64_enabled(void)
+{
+	return ((read_smcr_el2() & SMCR_EL2_FA64_BIT) != 0U);
+}
+
 #endif /* SIMD_PRIVATE_H */

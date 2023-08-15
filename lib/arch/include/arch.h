@@ -278,6 +278,7 @@
 #define ESR_EL2_EC_SMC		INPLACE(ESR_EL2_EC, UL(23))
 #define ESR_EL2_EC_SYSREG	INPLACE(ESR_EL2_EC, UL(24))
 #define ESR_EL2_EC_SVE		INPLACE(ESR_EL2_EC, UL(25))
+#define ESR_EL2_EC_SME		INPLACE(ESR_EL2_EC, UL(29))
 #define ESR_EL2_EC_INST_ABORT		INPLACE(ESR_EL2_EC, UL(32))
 #define ESR_EL2_EC_INST_ABORT_SEL	INPLACE(ESR_EL2_EC, UL(33))
 #define ESR_EL2_EC_DATA_ABORT		INPLACE(ESR_EL2_EC, UL(36))
@@ -468,6 +469,12 @@
 #define ID_AA64PFR1_EL1_MTE_SHIFT	UL(8)
 #define ID_AA64PFR1_EL1_MTE_WIDTH	UL(4)
 
+#define ID_AA64PFR1_EL1_SME_SHIFT		UL(24)
+#define ID_AA64PFR1_EL1_SME_WIDTH		UL(4)
+#define ID_AA64PFR1_EL1_SME_NOT_IMPLEMENTED	UL(0)
+#define ID_AA64PFR1_EL1_SME_IMPLEMENTED		UL(1)
+#define ID_AA64PFR1_EL1_SME2_IMPLEMENTED	UL(2)
+
 /* ID_AA64MMFR0_EL1 definitions */
 #define ID_AA64MMFR0_EL1_PARANGE_SHIFT	U(0)
 #define ID_AA64MMFR0_EL1_PARANGE_WIDTH	UL(4)
@@ -536,6 +543,9 @@
 /* SVE Feature ID register 0 */
 #define ID_AA64ZFR0_EL1				S3_0_C0_C4_4
 
+/* SME Feature ID register 0 */
+#define ID_AA64SMFR0_EL1			S3_0_C0_C4_5
+
 /* HPFAR_EL2 definitions */
 #define HPFAR_EL2_FIPA_SHIFT		4
 #define HPFAR_EL2_FIPA_WIDTH		U(40)
@@ -594,6 +604,24 @@
 #define ZCR_EL2_LEN_WIDTH		UL(4)
 
 #define ZCR_EL12			S3_5_C1_C2_0
+
+/* SME Control Register */
+#define SMCR_EL2			S3_4_C1_C2_6
+#define SMCR_EL2_LEN_SHIFT		UL(0)
+#define SMCR_EL2_LEN_WIDTH		UL(4)
+/*
+ * SMCR_EL2_RAZ_LEN is defined to find the architecturally permitted SVL. This
+ * is a combination of RAZ and LEN bit fields.
+ */
+#define SMCR_EL2_RAZ_LEN_SHIFT		UL(0)
+#define SMCR_EL2_RAZ_LEN_WIDTH		UL(9)
+#define SMCR_EL2_EZT0_BIT		(UL(1) << 30)
+#define SMCR_EL2_FA64_BIT		(UL(1) << 31)
+
+/* Streaming Vector Control register */
+#define SVCR				S3_3_C4_C2_2
+#define SVCR_SM_BIT			(UL(1) << 0)
+#define SVCR_ZA_BIT			(UL(1) << 1)
 
 /* VTCR definitions */
 #define VTCR_T0SZ_SHIFT		0
@@ -747,9 +775,16 @@
 #define CPTR_EL2_VHE_ZEN_TRAP_ALL_00	UL(0x0)
 #define CPTR_EL2_VHE_ZEN_NO_TRAP_11	UL(0x3)
 
-/* Trap all AMU, trace, FPU, SVE accesses */
+#define CPTR_EL2_VHE_SMEN_SHIFT		UL(24)
+#define CPTR_EL2_VHE_SMEN_WIDTH		UL(2)
+#define CPTR_EL2_VHE_SMEN_TRAP_ALL_00	UL(0x0)
+#define CPTR_EL2_VHE_SMEN_NO_TRAP_11	UL(0x3)
+
+/* Trap all AMU, trace, FPU, SVE, SME accesses */
 #define CPTR_EL2_VHE_INIT		((CPTR_EL2_VHE_ZEN_TRAP_ALL_00 << \
 					  CPTR_EL2_VHE_ZEN_SHIFT)	| \
+					 (CPTR_EL2_VHE_SMEN_TRAP_ALL_00 << \
+					  CPTR_EL2_VHE_SMEN_SHIFT)	| \
 					 (CPTR_EL2_VHE_FPEN_TRAP_ALL_00 << \
 					  CPTR_EL2_VHE_FPEN_SHIFT)	| \
 					 CPTR_EL2_VHE_TTA		| \
@@ -880,6 +915,7 @@
 #define ESR_EL2_SYSREG_ID_AA64PFR0_EL1	SYSREG_ESR(3, 0, 0, 4, 0)
 #define ESR_EL2_SYSREG_ID_AA64PFR1_EL1	SYSREG_ESR(3, 0, 0, 4, 1)
 #define ESR_EL2_SYSREG_ID_AA64ZFR0_EL1	SYSREG_ESR(3, 0, 0, 4, 4)
+#define ESR_EL2_SYSREG_ID_AA64SMFR0_EL1	SYSREG_ESR(3, 0, 0, 4, 5)
 
 #define ESR_EL2_SYSREG_ID_AA64DFR0_EL1	SYSREG_ESR(3, 0, 0, 5, 0)
 #define ESR_EL2_SYSREG_ID_AA64DFR1_EL1	SYSREG_ESR(3, 0, 0, 5, 1)

@@ -28,6 +28,18 @@ static inline bool is_feat_sve_present(void)
 }
 
 /*
+ * Check if SME is enabled
+ * ID_AA64PFR1_EL1.SME, bits [27:24]:
+ * 0b0000 SME architectural state and programmers' model are not implemented.
+ * 0b0001 SME architectural state and programmers' model are implemented.
+ * 0b0010 SME2 implemented. As 0b0001, plus the SME2 ZT0 register.
+ */
+static inline bool is_feat_sme_present(void)
+{
+	return (EXTRACT(ID_AA64PFR1_EL1_SME, read_id_aa64pfr1_el1()) != 0UL);
+}
+
+/*
  * Check if RNDR is available
  */
 static inline bool is_feat_rng_present(void)
