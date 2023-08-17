@@ -91,6 +91,7 @@ __unused static uint64_t slot_to_descriptor(enum buffer_slot slot)
 {
 	uint64_t *entry = xlat_get_tte_ptr(get_cached_llt_info(),
 				       slot_to_va(slot));
+	assert(entry != NULL);
 
 	return xlat_read_tte(entry);
 }
