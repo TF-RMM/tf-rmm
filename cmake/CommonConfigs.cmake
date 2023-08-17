@@ -67,7 +67,7 @@ if(NOT(GRANULE_SIZE EQUAL 4096))
 endif()
 
 target_compile_definitions(rmm-common
-    INTERFACE "GRANULE_SIZE=U(${GRANULE_SIZE})")
+    INTERFACE "GRANULE_SIZE=UL(${GRANULE_SIZE})")
 
 if (RMM_MAX_GRANULES EQUAL 0x0)
     message (FATAL_ERROR "RMM_MAX_GRANULES not configured")
