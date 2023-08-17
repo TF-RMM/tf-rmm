@@ -99,9 +99,11 @@
  *
  * Cleared fields:
  * - Memory Tagging Extension is not implemented
+ * - Scalable Matrix Extension (SME) not implemented
  */
 #define ID_AA64PFR1_EL1_CLEAR		  \
-	MASK(ID_AA64PFR1_EL1_MTE)
+	MASK(ID_AA64PFR1_EL1_MTE)	| \
+	MASK(ID_AA64PFR1_EL1_SME)
 
 /*
  * Handle ID_AA64XXX<n>_EL1 instructions
@@ -187,6 +189,13 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 		} else {
 			value = 0UL;
 		}
+		break;
+	SYSREG_CASE(SMFR0)
+		/*
+		 * SME not supported for Realms, clear all fields in SME feature
+		 * register ID_AA64SMFR0_EL1
+		 */
+		value = 0UL;
 		break;
 	default:
 		/* All other encodings are in the RES0 space */
