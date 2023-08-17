@@ -4,7 +4,6 @@
  */
 
 #include <smc-rmi.h>
-#include <smc-rsi.h>
 #include <stddef.h>
 
 COMPILER_ASSERT(sizeof(struct rmi_realm_params) == 0x1000);

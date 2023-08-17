@@ -9,7 +9,6 @@
 #include <buffer.h>
 #include <debug.h>
 #include <simd.h>
-#include <sizes.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>

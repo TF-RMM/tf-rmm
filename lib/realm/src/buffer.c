@@ -11,10 +11,7 @@
 #include <cpuid.h>
 #include <debug.h>
 #include <errno.h>
-#include <gic.h>
 #include <granule.h>
-#include <memory_alloc.h>
-#include <sizes.h>
 #include <slot_buf_arch.h>
 #include <stdbool.h>
 #include <stdint.h>
