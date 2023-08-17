@@ -309,6 +309,26 @@ static bool handle_simd_exception(struct rec *rec, unsigned long esr)
 	}
 
 	/*
+	 * This is a special case where an SVE Realm accessing certain SVE or SME
+	 * instructions will be reported as SME exception if RMM was REC entered
+	 * with PSTATE.SM=1. RMM needs to distinguish between lazy save-restore
+	 * for SVE and access to SME.
+	 * Some cases:
+	 * 1. If SVE is disabled for the realm, then RMM needs to inject UNDEF.
+	 * 2. If SVE is enabled for the realm, RMM will restore SVE SIMD context
+	 *    of the REC and will resume the Realm (this will get the CPU out of
+	 *    streaming mode). While re-trying the faulting instruction if it
+	 *    generates a SME exception, then RMM will inject undefined abort
+	 *    since SME is not supported for Realm.
+	 */
+	if ((esr_el2_ec == ESR_EL2_EC_SME) &&
+	    (!rec->realm_info.simd_cfg.sve_en ||
+	     (rec->active_simd_ctx == rec->aux_data.simd_ctx))) {
+		realm_inject_undef_abort();
+		return true;
+	}
+
+	/*
 	 * As REC uses lazy enablement, upon FPU/SVE exception the active SIMD
 	 * context must not be the REC's context
 	 */
@@ -476,6 +496,7 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 		return handle_data_abort(rec, rec_exit, esr);
 	case ESR_EL2_EC_FPU:
 	case ESR_EL2_EC_SVE:
+	case ESR_EL2_EC_SME:
 		return handle_simd_exception(rec, esr);
 	default:
 		/*
