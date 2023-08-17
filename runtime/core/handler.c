@@ -350,7 +350,7 @@ static void report_unexpected(void)
 	INFO("----\n");
 }
 
-unsigned long handle_realm_trap(unsigned long *regs)
+__dead2 unsigned long handle_realm_trap(unsigned long *regs)
 {
 	report_unexpected();
 
@@ -394,7 +394,7 @@ struct rmm_trap_element rmm_trap_list[] = {
 };
 #define RMM_TRAP_LIST_SIZE (sizeof(rmm_trap_list)/sizeof(struct rmm_trap_element))
 
-static void fatal_abort(void)
+__dead2 static void fatal_abort(void)
 {
 	report_unexpected();
 
