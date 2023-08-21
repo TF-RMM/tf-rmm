@@ -282,6 +282,8 @@ static unsigned long __table_get_entry(struct granule *g_tbl,
 	unsigned long *table, entry;
 
 	table = granule_map(g_tbl, SLOT_RTT);
+	assert(table != NULL);
+
 	entry = s2tte_read(&table[idx]);
 	buffer_unmap(table);
 

@@ -58,6 +58,8 @@ void *map_rec_aux(struct granule *rec_aux_pages[], unsigned long num_aux)
 	for (unsigned long i = 0UL; i < num_aux; i++) {
 		void *aux = granule_map(rec_aux_pages[i], SLOT_REC_AUX0 + i);
 
+		assert(aux != NULL);
+
 		if (i == 0UL) {
 			rec_aux = aux;
 		}

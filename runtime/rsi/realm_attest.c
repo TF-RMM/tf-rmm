@@ -130,6 +130,7 @@ static void attest_token_continue_write_state(struct rec *rec,
 	/* Map realm data granule to RMM address space */
 	gr = find_granule(walk_res.pa);
 	realm_att_token = granule_map(gr, SLOT_RSI_CALL);
+	assert(realm_att_token != NULL);
 
 	attest_token_len = attest_cca_token_create(realm_att_token,
 						ATTEST_TOKEN_BUFFER_SIZE,
@@ -198,6 +199,8 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	 */
 	granule_lock(rec->realm_info.g_rd, GRANULE_STATE_RD);
 	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	if (!addr_in_par(rd, realm_buf_ipa)) {
 		res->smc_res.x[0] = RSI_ERROR_INPUT;
 		goto out_unmap_rd;
@@ -318,6 +321,7 @@ void handle_rsi_measurement_extend(struct rec *rec, struct rsi_result *res)
 	assert(g_rd != NULL);
 
 	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
 
 	/*
 	 * X1:     index
@@ -379,6 +383,7 @@ void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 	 */
 	granule_lock(rec->realm_info.g_rd, GRANULE_STATE_RD);
 	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
 
 	/* Number of 8-bytes words in measurement */
 	cnt = (unsigned int)measurement_get_size(rd->algorithm) /

@@ -207,8 +207,11 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	}
 
 	rec = granule_map(g_rec, SLOT_REC);
+	assert(rec != NULL);
 
 	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	realm_state = get_rd_state_unlocked(rd);
 	buffer_unmap(rd);
 

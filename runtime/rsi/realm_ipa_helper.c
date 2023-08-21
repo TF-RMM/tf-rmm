@@ -59,6 +59,7 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 			     &wi);
 
 	ll_table = granule_map(wi.g_llt, SLOT_RTT);
+	assert(ll_table != NULL);
 
 	s2tte = s2tte_read(&ll_table[wi.index]);
 
@@ -124,6 +125,7 @@ enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long ipa,
 			     ipa, RTT_PAGE_LEVEL, &wi);
 
 	ll_table = granule_map(wi.g_llt, SLOT_RTT);
+	assert(ll_table != NULL);
 
 	s2tte = s2tte_read(&ll_table[wi.index]);
 	if (!s2tte_has_ripas(s2tte, wi.last_level)) {

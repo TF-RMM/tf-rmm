@@ -33,6 +33,8 @@ unsigned long smc_realm_activate(unsigned long rd_addr)
 	}
 
 	rd = granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	if (get_rd_state_locked(rd) == REALM_STATE_NEW) {
 		set_rd_state(rd, REALM_STATE_ACTIVE);
 		ret = RMI_SUCCESS;
@@ -150,6 +152,8 @@ static void init_s2_starting_level(struct rd *rd)
 
 	for (unsigned int rtt = 0U; rtt < rd->s2_ctx.num_root_rtts; rtt++) {
 		unsigned long *s2tt = granule_map(g_rtt, SLOT_RTT);
+
+		assert(s2tt != NULL);
 
 		for (unsigned int rtte = 0U; rtte < S2TTES_PER_S2TT; rtte++) {
 			if (addr_in_par(rd, current_ipa)) {
@@ -382,6 +386,8 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	}
 
 	rd = granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	set_rd_state(rd, REALM_STATE_NEW);
 	set_rd_rec_count(rd, 0UL);
 	rd->s2_ctx.g_rtt = find_granule(p.rtt_base);
@@ -467,6 +473,8 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	}
 
 	rd = granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	g_rtt = rd->s2_ctx.g_rtt;
 	num_rtts = rd->s2_ctx.num_root_rtts;
 

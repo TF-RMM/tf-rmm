@@ -111,6 +111,7 @@ static unsigned long rd_map_read_rec_count(struct granule *g_rd)
 {
 	unsigned long rec_count;
 	struct rd *rd = granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
 
 	rec_count = get_rd_rec_count_unlocked(rd);
 	buffer_unmap(rd);
@@ -227,6 +228,7 @@ static void system_off_reboot(struct rec *rec)
 	 */
 	granule_lock(g_rd, GRANULE_STATE_RD);
 	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
 
 	set_rd_state(rd, REALM_STATE_SYSTEM_OFF);
 
