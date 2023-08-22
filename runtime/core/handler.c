@@ -23,7 +23,7 @@
 
 #define RMI_STATUS_STRING(_id)[RMI_##_id] = #_id
 
-const char *rmi_status_string[] = {
+static const char *rmi_status_string[] = {
 	RMI_STATUS_STRING(SUCCESS),
 	RMI_STATUS_STRING(ERROR_INPUT),
 	RMI_STATUS_STRING(ERROR_REALM),
@@ -388,7 +388,7 @@ extern void *ns_write;
  */
 extern void *ns_access_ret_0;
 
-struct rmm_trap_element rmm_trap_list[] = {
+static struct rmm_trap_element rmm_trap_list[] = {
 	RMM_TRAP_HANDLER(ns_read, ns_access_ret_0),
 	RMM_TRAP_HANDLER(ns_write, ns_access_ret_0),
 };
