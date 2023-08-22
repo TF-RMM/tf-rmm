@@ -8,7 +8,6 @@
 
 #include <stddef.h>
 
-struct _memory_header;
 typedef struct memory_header_s memory_header_t;
 
 /* MbedTLS needs 8K of heap for attestation usecases */
