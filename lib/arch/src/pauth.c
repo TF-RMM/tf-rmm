@@ -11,7 +11,7 @@
 #include <pauth_pvt.h>
 
 /* APIAKey Array */
-__uint128_t g_rmm_pauth_apia[MAX_CPUS];
+static __uint128_t g_rmm_pauth_apia[MAX_CPUS];
 
 /*
  * Program APIAKey_EL1 with random key generated from
