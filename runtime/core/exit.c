@@ -26,9 +26,6 @@
 #include <sysreg_traps.h>
 #include <table.h>
 
-void save_fpu_state(struct fpu_state *fpu);
-void restore_fpu_state(struct fpu_state *fpu);
-
 static void system_abort(void)
 {
 	/*
