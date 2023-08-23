@@ -47,7 +47,7 @@ int uart_init(uintptr_t base_addr,
 	write32(div >> 6, (void *)((RMM_UART_ADDR) + UARTIBRD));
 
 	/* FBRD = Divisor & 0x3F */
-	write32(div & 0x3f, (void *)((RMM_UART_ADDR) + UARTFBRD));
+	write32(div & 0x3fU, (void *)((RMM_UART_ADDR) + UARTFBRD));
 
 	/* Enable FIFO and set word length, parity and number of stop bits */
 	write32(PL011_LINE_CONTROL, (void *)((RMM_UART_ADDR) + UARTLCR_H));
