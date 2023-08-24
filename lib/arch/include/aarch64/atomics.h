@@ -45,7 +45,7 @@ static inline unsigned long atomic_load_add_release_64(uint64_t *loc, long val)
  */
 static inline void atomic_bit_set_release_64(uint64_t *loc, int bit)
 {
-	uint64_t mask = (1UL << bit);
+	uint64_t mask = (1ULL << bit);
 
 	asm volatile(
 	"	stsetl %[mask], %[loc]\n"
@@ -60,7 +60,7 @@ static inline void atomic_bit_set_release_64(uint64_t *loc, int bit)
  */
 static inline void atomic_bit_clear_release_64(uint64_t *loc, int bit)
 {
-	uint64_t mask = (1UL << bit);
+	uint64_t mask = (1ULL << bit);
 
 	asm volatile(
 	"	stclrl %[mask], %[loc]\n"
@@ -76,7 +76,7 @@ static inline void atomic_bit_clear_release_64(uint64_t *loc, int bit)
 static inline bool atomic_test_bit_acquire_64(uint64_t *loc, int bit)
 {
 	uint64_t val;
-	uint64_t mask = (1UL << bit);
+	uint64_t mask = (1ULL << bit);
 
 	asm volatile(
 	"	ldar %[val], %[loc]\n"
@@ -96,7 +96,7 @@ static inline bool atomic_test_bit_acquire_64(uint64_t *loc, int bit)
 static inline bool atomic_bit_set_acquire_release_64(uint64_t *loc, int bit)
 {
 	uint64_t val;
-	uint64_t mask = (1UL << bit);
+	uint64_t mask = (1ULL << bit);
 
 	asm volatile(
 	"	ldsetal %[mask], %[val], %[loc]\n"
