@@ -75,7 +75,6 @@ void s2tt_init_assigned_destroyed(unsigned long *s2tt, unsigned long pa, long le
 unsigned long s2tte_pa(unsigned long s2tte, long level);
 unsigned long s2tte_pa_table(unsigned long s2tte, long level);
 bool addr_is_level_aligned(unsigned long addr, long level);
-bool addr_block_intersects_par(struct rd *rd, unsigned long addr, long level);
 unsigned long s2tte_map_size(int level);
 
 struct realm_s2_context;
