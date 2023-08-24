@@ -99,7 +99,10 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 	/*
 	 * Get the reference to `mbedtls_ecp_keypair` and set it to t_cose.
 	 */
-	attest_get_realm_signing_key(&key_handle);
+	if (attest_get_realm_signing_key(&key_handle) != 0) {
+		return ATTEST_TOKEN_ERR_SIGNING_KEY;
+	}
+
 	attest_key.key.handle = key_handle;
 
 	t_cose_signature_sign_restart_set_signing_key(&me->restartable_signer_ctx, attest_key);
@@ -180,15 +183,15 @@ size_t attest_cca_token_create(void *attest_token_buf,
 	struct q_useful_buf_c   completed_token;
 	QCBOREncodeContext      cbor_enc_ctx;
 	QCBORError              qcbor_res;
-	struct q_useful_buf_c   rmm_platform_token;
+	struct q_useful_buf_c   platform_token;
 	struct q_useful_buf     attest_token_ub = {attest_token_buf, attest_token_buf_size};
 	struct q_useful_buf_c   realm_token_ub = {realm_token_buf, realm_token_len};
 
 	__unused int            ret;
 
 	/* Get the platform token */
-	ret = attest_get_platform_token(&rmm_platform_token.ptr,
-					&rmm_platform_token.len);
+	ret = attest_get_platform_token(&platform_token.ptr,
+					&platform_token.len);
 	assert(ret == 0);
 
 	QCBOREncode_Init(&cbor_enc_ctx, attest_token_ub);
@@ -199,7 +202,7 @@ size_t attest_cca_token_create(void *attest_token_buf,
 
 	QCBOREncode_AddBytesToMapN(&cbor_enc_ctx,
 				   CCA_PLAT_TOKEN,
-				   rmm_platform_token);
+				   platform_token);
 
 	QCBOREncode_AddBytesToMapN(&cbor_enc_ctx,
 				   CCA_REALM_DELEGATED_TOKEN,
@@ -265,7 +268,7 @@ int attest_realm_token_create(enum hash_algo algorithm,
 					      T_COSE_ALGORITHM_ES384,
 					      &realm_token_ub);
 	if (token_ret != ATTEST_TOKEN_ERR_SUCCESS) {
-		return token_ret;
+		return (int)token_ret;
 	}
 
 	QCBOREncode_BstrWrap(&(ctx->ctx.cbor_enc_ctx));
@@ -326,5 +329,5 @@ int attest_realm_token_create(enum hash_algo algorithm,
 	QCBOREncode_CloseBstrWrap2(&(ctx->ctx.cbor_enc_ctx), false,
 				   &(ctx->ctx.signed_payload));
 
-	return ATTEST_TOKEN_ERR_SUCCESS;
+	return (int)ATTEST_TOKEN_ERR_SUCCESS;
 }
