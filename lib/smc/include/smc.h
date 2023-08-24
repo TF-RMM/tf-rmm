@@ -30,8 +30,13 @@
 #define SMC_MBZ_MASK		U(0xFF)
 #define SMC_MBZ_ZERO		U(0x0)
 
-/* SVE Hint bit (SMCCCv1.3), denoting the absence of SVE specific live state */
-#define SMC_SVE_HINT		(U(1) << 16)
+/*
+ * SVE Hint bit (SMCCCv1.3), denoting the absence of SVE specific live state.
+ *
+ * MISRA treats 1U as as 8-bit type variables. So use 1UL and typecast the value
+ * to 'unsigned int'
+ */
+#define SMC_SVE_HINT		((unsigned int)(1UL << 16))
 
 /* FID: Function number */
 #define SMC_FNUM_SHIFT		U(0)
