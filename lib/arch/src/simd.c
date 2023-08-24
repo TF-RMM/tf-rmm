@@ -27,6 +27,7 @@ static bool g_simd_state_saved[MAX_CPUS];
 
 #define is_ctx_init_done(sc)	(((sc)->sflags & SIMD_SFLAG_INIT_DONE) != 0U)
 #define is_ctx_saved(sc)	(((sc)->sflags & SIMD_SFLAG_SAVED) != 0U)
+#define is_ctx_sve_hint_set(sc)	(((sc)->sflags & SIMD_SFLAG_SVE_HINT) != 0U)
 
 /*
  * Returns 'true' if the current CPU's SIMD (FPU/SVE) live state is saved in
@@ -65,7 +66,7 @@ static void save_simd_context(struct simd_context *ctx)
 	restore_simd_el2_config(ctx, &ctx->el2_regs);
 
 	/* Save SVE vector registers */
-	if (simd_has_sve(ctx)) {
+	if (simd_has_sve(ctx) && !is_ctx_sve_hint_set(ctx)) {
 		/* Saving SVE Z registers emcompasses FPU Q registers */
 		sve_save_vector_registers(&ctx->vregs.sve, true);
 	} else {
@@ -90,7 +91,7 @@ static void restore_simd_context(struct simd_context *ctx)
 	restore_simd_el2_config(ctx, &ctx->el2_regs);
 
 	/* Restore SVE vector registers */
-	if (simd_has_sve(ctx)) {
+	if (simd_has_sve(ctx) && !is_ctx_sve_hint_set(ctx)) {
 		/* Restoring SVE Z registers emcompasses FPU Q registers */
 		sve_restore_vector_registers(&ctx->vregs.sve, true);
 	} else {
@@ -273,6 +274,21 @@ int simd_context_init(simd_owner_t owner, struct simd_context *simd_ctx,
 	simd_ctx->sflags |= SIMD_SFLAG_INIT_DONE;
 
 	return 0;
+}
+
+/* Set or clear SVE hint bit passed by SMCCCv1.3 to SIMD context status */
+void simd_update_smc_sve_hint(struct simd_context *ctx, bool sve_hint)
+{
+	assert(is_ctx_init_done(ctx));
+
+	if (simd_has_sve(ctx)) {
+		assert(!is_ctx_saved(ctx));
+		if (sve_hint) {
+			ctx->sflags |= SIMD_SFLAG_SVE_HINT;
+		} else {
+			ctx->sflags &= ~SIMD_SFLAG_SVE_HINT;
+		}
+	}
 }
 
 /* Returns CPU SIMD configuration discovered during init */

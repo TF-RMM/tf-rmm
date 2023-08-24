@@ -55,6 +55,7 @@
 /* Flags for SIMD status */
 #define SIMD_SFLAG_INIT_DONE	(U(1) << 0)
 #define SIMD_SFLAG_SAVED	(U(1) << 1)
+#define SIMD_SFLAG_SVE_HINT	(U(1) << 2)
 
 /*
  * SIMD context owner.
@@ -192,6 +193,9 @@ struct simd_context *simd_context_switch(struct simd_context *ctx_in,
  * memory else 'false'.
  */
 bool simd_is_state_saved(void);
+
+/* Set or clear SVE hint bit passed by SMCCCv1.3 to SIMD context status */
+void simd_update_smc_sve_hint(struct simd_context *ctx, bool sve_hint);
 
 static inline void simd_context_save(struct simd_context *ctx)
 {
