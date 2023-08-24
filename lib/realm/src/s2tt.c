@@ -464,13 +464,13 @@ unsigned long s2tte_create_unassigned_ns(void)
  * - S2AP
  * - Shareability
  */
-unsigned long s2tte_create_assigned_ns(unsigned long s2tte, long level)
+unsigned long s2tte_create_assigned_ns(unsigned long pa, long level)
 {
 	assert(level >= RTT_MIN_BLOCK_LEVEL);
 	if (level == RTT_PAGE_LEVEL) {
-		return (s2tte | S2TTE_PAGE_NS);
+		return (pa | S2TTE_PAGE_NS);
 	}
-	return (s2tte | S2TTE_BLOCK_NS);
+	return (pa | S2TTE_BLOCK_NS);
 }
 
 /*

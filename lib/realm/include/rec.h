@@ -266,7 +266,7 @@ static inline bool rec_is_simd_allowed(struct rec *rec)
 
 void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit);
 void inject_serror(struct rec *rec, unsigned long vsesr);
-void emulate_stage2_data_abort(struct rec *rec, struct rmi_rec_exit *exit,
+void emulate_stage2_data_abort(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			       unsigned long rtt_level);
 
 #endif /* __ASSEMBLER__ */

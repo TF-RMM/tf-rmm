@@ -37,12 +37,13 @@
 /*
  * Function that initiates UART for console output
  * Arguments:
- *   baseaddr - UART base address
- *   clock    - UART input clock which sets master trasmit/receive rate
- *   baud     - UART Baudrate
+ *   base_addr - UART base address
+ *   uart_clk  - UART input clock which sets master trasmit/receive rate
+ *   baud_rate - UART Baudrate
  * Returns:
  *   0 on success or -1 when invalid baseaddr/clock/baud is used
  */
-int uart_init(uintptr_t baseaddr, unsigned int clock, unsigned int baud);
+int uart_init(uintptr_t base_addr, unsigned int uart_clk,
+		unsigned int baud_rate);
 
 #endif /* PL011_H */

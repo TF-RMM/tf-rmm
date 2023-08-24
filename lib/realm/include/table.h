@@ -39,8 +39,8 @@ unsigned long s2tte_create_unassigned_ns(void);
 unsigned long s2tte_create_unassigned_destroyed(void);
 unsigned long s2tte_create_assigned_empty(unsigned long pa, long level);
 unsigned long s2tte_create_assigned_ram(unsigned long pa, long level);
-unsigned long s2tte_create_assigned_ns(unsigned long s2tte, long level);
-unsigned long s2tte_create_assigned_destroyed(unsigned long s2tte, long level);
+unsigned long s2tte_create_assigned_ns(unsigned long pa, long level);
+unsigned long s2tte_create_assigned_destroyed(unsigned long pa, long level);
 unsigned long s2tte_create_table(unsigned long pa, long level);
 
 bool host_ns_s2tte_is_valid(unsigned long s2tte, long level);
@@ -78,9 +78,10 @@ bool addr_is_level_aligned(unsigned long addr, long level);
 unsigned long s2tte_map_size(int level);
 
 struct realm_s2_context;
-void invalidate_page(const struct realm_s2_context *ctx, unsigned long addr);
-void invalidate_block(const struct realm_s2_context *ctx, unsigned long addr);
-void invalidate_pages_in_block(const struct realm_s2_context *ctx, unsigned long addr);
+void invalidate_page(const struct realm_s2_context *s2_ctx, unsigned long addr);
+void invalidate_block(const struct realm_s2_context *s2_ctx, unsigned long addr);
+void invalidate_pages_in_block(const struct realm_s2_context *s2_ctx,
+				unsigned long addr);
 
 bool table_is_unassigned_empty_block(unsigned long *table);
 bool table_is_unassigned_ram_block(unsigned long *table);
