@@ -43,7 +43,7 @@ static inline unsigned long atomic_load_add_release_64(uint64_t *loc, long val)
 /*
  * Atomically set bit @bit in value pointed to by @loc with release semantics.
  */
-static inline void atomic_bit_set_release_64(uint64_t *loc, int bit)
+static inline void atomic_bit_set_release_64(uint64_t *loc, unsigned int bit)
 {
 	uint64_t mask = (1ULL << bit);
 
@@ -58,7 +58,7 @@ static inline void atomic_bit_set_release_64(uint64_t *loc, int bit)
 /*
  * Atomically clear bit @bit in value pointed to by @loc with release semantics.
  */
-static inline void atomic_bit_clear_release_64(uint64_t *loc, int bit)
+static inline void atomic_bit_clear_release_64(uint64_t *loc, unsigned int bit)
 {
 	uint64_t mask = (1ULL << bit);
 
@@ -73,7 +73,7 @@ static inline void atomic_bit_clear_release_64(uint64_t *loc, int bit)
 /*
  * Test bit @bit in value pointed to by @loc with acquire semantics.
  */
-static inline bool atomic_test_bit_acquire_64(uint64_t *loc, int bit)
+static inline bool atomic_test_bit_acquire_64(uint64_t *loc, unsigned int bit)
 {
 	uint64_t val;
 	uint64_t mask = (1ULL << bit);
@@ -93,7 +93,7 @@ static inline bool atomic_test_bit_acquire_64(uint64_t *loc, int bit)
  * with acquire and release semantics.
  * Return True if the previous state of @bit was 1, False otherwise.
  */
-static inline bool atomic_bit_set_acquire_release_64(uint64_t *loc, int bit)
+static inline bool atomic_bit_set_acquire_release_64(uint64_t *loc, unsigned int bit)
 {
 	uint64_t val;
 	uint64_t mask = (1ULL << bit);
