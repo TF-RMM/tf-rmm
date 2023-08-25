@@ -439,19 +439,19 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		simd_enable(rec_simd_type(rec));
 	}
 
-	if ((res.action & FLAG_UPDATE_REC) != 0) {
+	if (((unsigned int)res.action & FLAG_UPDATE_REC) != 0U) {
 		for (i = 0U; i < SMC_RESULT_REGS; ++i) {
 			rec->regs[i] = res.smc_res.x[i];
 		}
 	}
 
-	if ((res.action & FLAG_STAGE_2_ABORT) != 0) {
+	if (((unsigned int)res.action & FLAG_STAGE_2_ABORT) != 0U) {
 		emulate_stage2_data_abort(rec, rec_exit, res.rtt_level);
 	} else {
 		advance_pc();
 	}
 
-	ret_to_rec = ((res.action & FLAG_EXIT_TO_HOST) == 0);
+	ret_to_rec = (((unsigned int)res.action & FLAG_EXIT_TO_HOST) == 0U);
 
 	/* Log RSI call */
 	RSI_LOG_EXIT(function_id, rec->regs, ret_to_rec);
