@@ -48,12 +48,12 @@
  *	- Bits [15:0] Minor version
  */
 #define RMM_EL3_IFC_GET_VERS_MAJOR(_version)			\
-				(((_version) >> 16) & 0x7FFF)
+				(((_version) >> 16) & 0x7FFFU)
 #define RMM_EL3_IFC_GET_VERS_MINOR(_version)			\
-				((_version) & 0xFFFF)
+				((_version) & 0xFFFFU)
 
 #define RMM_EL3_IFC_MAKE_VERSION(_major, _minor)		\
-	(((((_major) & 0x7FFF) << 16) | ((_minor) & 0xFFFF)))
+	(((((_major) & 0x7FFFU) << 16) | ((_minor) & 0xFFFFU)))
 
 /*
  * The Major version value for the Boot Interface supported by this
