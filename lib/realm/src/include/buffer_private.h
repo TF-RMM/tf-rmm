@@ -11,8 +11,8 @@
  * needs to be a power of two, so round NR_CPU_SLOTS up to the closest
  * power of two.
  */
-#define ROUNDED_NR_CPU_SLOTS (1ULL << (64ULL - \
-				       __builtin_clzll((NR_CPU_SLOTS) - 1)))
+#define ROUNDED_NR_CPU_SLOTS	\
+	(1ULL << (64U - (unsigned int)__builtin_clzll((NR_CPU_SLOTS) - 1U)))
 
 #define RMM_SLOT_BUF_VA_SIZE	((ROUNDED_NR_CPU_SLOTS) * (GRANULE_SIZE))
 
