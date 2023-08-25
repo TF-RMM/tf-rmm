@@ -228,11 +228,15 @@ void invalidate_pages_in_block(const struct realm_s2_context *s2_ctx, unsigned l
  */
 static unsigned long s2_addr_to_idx(unsigned long addr, long level)
 {
-	int levels = RTT_PAGE_LEVEL - level;
-	int lsb = levels * S2TTE_STRIDE + GRANULE_SHIFT;
+	unsigned int levels, lsb;
+
+	assert(level <= RTT_PAGE_LEVEL);
+
+	levels = RTT_PAGE_LEVEL - level;
+	lsb = levels * S2TTE_STRIDE + GRANULE_SHIFT;
 
 	addr >>= lsb;
-	addr &= (1UL << S2TTE_STRIDE) - 1;
+	addr &= (1UL << S2TTE_STRIDE) - 1UL;
 	return addr;
 }
 
@@ -249,8 +253,12 @@ static unsigned long s2_addr_to_idx(unsigned long addr, long level)
 static unsigned long s2_sl_addr_to_idx(unsigned long addr, int start_level,
 				       unsigned long ipa_bits)
 {
-	int levels = RTT_PAGE_LEVEL - start_level;
-	int lsb = levels * S2TTE_STRIDE + GRANULE_SHIFT;
+	unsigned int levels, lsb;
+
+	assert(start_level <= RTT_PAGE_LEVEL);
+
+	levels = RTT_PAGE_LEVEL - start_level;
+	lsb = levels * S2TTE_STRIDE + GRANULE_SHIFT;
 
 	addr &= (1UL << ipa_bits) - 1UL;
 	addr >>= lsb;
@@ -259,9 +267,13 @@ static unsigned long s2_sl_addr_to_idx(unsigned long addr, int start_level,
 
 static unsigned long addr_level_mask(unsigned long addr, long level)
 {
-	int levels = RTT_PAGE_LEVEL - level;
-	unsigned int lsb = levels * S2TTE_STRIDE + GRANULE_SHIFT;
-	unsigned int msb = S2TTE_OA_BITS - 1;
+	unsigned int levels, lsb, msb;
+
+	assert(level <= RTT_PAGE_LEVEL);
+
+	levels = RTT_PAGE_LEVEL - level;
+	lsb = levels * S2TTE_STRIDE + GRANULE_SHIFT;
+	msb = S2TTE_OA_BITS - 1U;
 
 	return (addr & BIT_MASK_ULL(msb, lsb));
 }
@@ -794,7 +806,7 @@ void s2tt_init_assigned_destroyed(unsigned long *s2tt, unsigned long pa, long le
 
 unsigned long s2tte_map_size(int level)
 {
-	int levels, lsb;
+	unsigned int levels, lsb;
 
 	assert(level <= RTT_PAGE_LEVEL);
 
