@@ -179,7 +179,8 @@ void slot_buf_finish_warmboot_init(void)
 void assert_cpu_slots_empty(void)
 {
 	for (unsigned int i = 0U; i < (unsigned int)NR_CPU_SLOTS; i++) {
-		assert(slot_to_descriptor(i) == TRANSIENT_DESC);
+		assert(slot_to_descriptor((enum buffer_slot)i) ==
+							TRANSIENT_DESC);
 	}
 }
 
@@ -259,8 +260,8 @@ bool ns_buffer_read(enum buffer_slot slot,
 	assert(ALIGNED(offset, 8U));
 	assert(ALIGNED(dest, 8U));
 
-	offset &= ~GRANULE_MASK;
-	assert(offset + size <= GRANULE_SIZE);
+	offset &= (unsigned int)(~GRANULE_MASK);
+	assert((offset + size) <= GRANULE_SIZE);
 
 	src = (uintptr_t)ns_granule_map(slot, ns_gr);
 	retval = memcpy_ns_read(dest, (void *)(src + offset), size);
@@ -299,8 +300,8 @@ bool ns_buffer_write(enum buffer_slot slot,
 	assert(ALIGNED(offset, 8U));
 	assert(ALIGNED(src, 8U));
 
-	offset &= ~GRANULE_MASK;
-	assert(offset + size <= GRANULE_SIZE);
+	offset &= (unsigned int)(~GRANULE_MASK);
+	assert((offset + size) <= GRANULE_SIZE);
 
 	dest = (uintptr_t)ns_granule_map(slot, ns_gr);
 	retval = memcpy_ns_write((void *)(dest + offset), src, size);
@@ -321,7 +322,7 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr)
 
 	assert(GRANULE_ALIGNED(addr));
 
-	attr |= (slot == SLOT_NS ? MT_NS : MT_REALM);
+	attr |= ((slot == SLOT_NS) ? MT_NS : MT_REALM);
 
 	if (xlat_map_memory_page_with_attrs(entry, va,
 					    (uintptr_t)addr, attr) != 0) {
