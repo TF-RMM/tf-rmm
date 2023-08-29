@@ -42,7 +42,7 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	assert(addr_in_rec_par(rec, ipa));
 
 	/* Only 'rec_entry' or 'rec_exit' should be set */
-	assert((rec_entry != NULL) ^ (rec_exit != NULL));
+	assert((rec_entry != NULL) != (rec_exit != NULL));
 
 	page_ipa = ipa & GRANULE_MASK;
 	walk_status = realm_ipa_to_pa(rec, page_ipa, &walk_result);
