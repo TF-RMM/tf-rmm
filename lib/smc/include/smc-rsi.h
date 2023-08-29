@@ -24,7 +24,7 @@
  * The minor version number of the RSI implementation.  Increase this when
  * a bug is fixed, or a feature is added without breaking binary compatibility.
  */
-#define RSI_ABI_VERSION_MINOR		0
+#define RSI_ABI_VERSION_MINOR		U(0)
 
 #define RSI_ABI_VERSION			((RSI_ABI_VERSION_MAJOR << U(16)) | \
 					 RSI_ABI_VERSION_MINOR)
