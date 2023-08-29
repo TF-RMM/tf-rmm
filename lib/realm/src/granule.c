@@ -31,7 +31,8 @@ unsigned long granule_addr(const struct granule *g)
 	assert(g != NULL);
 	assert(ALIGNED_TO_ARRAY(g, granules));
 
-	idx = g - &granules[0];
+	idx = ((unsigned long)g - (unsigned long)granules) /
+						sizeof(struct granule);
 
 	return plat_granule_idx_to_addr(idx);
 }
