@@ -859,11 +859,11 @@
 #define PMSCR_EL2_INIT		0x0
 
 #define SYSREG_ESR(op0, op1, crn, crm, op2) \
-		(((op0) << ESR_EL2_SYSREG_TRAP_OP0_SHIFT) | \
-		 ((op1) << ESR_EL2_SYSREG_TRAP_OP1_SHIFT) | \
-		 ((crn) << ESR_EL2_SYSREG_TRAP_CRN_SHIFT) | \
-		 ((crm) << ESR_EL2_SYSREG_TRAP_CRM_SHIFT) | \
-		 ((op2) << ESR_EL2_SYSREG_TRAP_OP2_SHIFT))
+		((UL(op0) << ESR_EL2_SYSREG_TRAP_OP0_SHIFT) | \
+		 (UL(op1) << ESR_EL2_SYSREG_TRAP_OP1_SHIFT) | \
+		 (UL(crn) << ESR_EL2_SYSREG_TRAP_CRN_SHIFT) | \
+		 (UL(crm) << ESR_EL2_SYSREG_TRAP_CRM_SHIFT) | \
+		 (UL(op2) << ESR_EL2_SYSREG_TRAP_OP2_SHIFT))
 
 #define ESR_EL2_SYSREG_MASK		SYSREG_ESR(3, 7, 15, 15, 7)
 
@@ -924,7 +924,7 @@
 #define ESR_EL2_SYSREG_ICC_SGI0R_EL1		SYSREG_ESR(3, 0, 12, 11, 7)
 
 #define ESR_EL2_SYSREG_DIRECTION	(UL(1) << 0)
-#define ESR_EL2_SYSREG_IS_WRITE(esr)	(!((esr) & ESR_EL2_SYSREG_DIRECTION))
+#define ESR_EL2_SYSREG_IS_WRITE(esr)	(((esr) & ESR_EL2_SYSREG_DIRECTION) == 0UL)
 
 #define ESR_IL(esr)			((esr) & MASK(ESR_EL2_IL))
 
