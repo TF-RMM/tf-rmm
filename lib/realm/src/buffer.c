@@ -335,11 +335,14 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr)
 
 void buffer_unmap_internal(void *buf)
 {
+	int ret __unused;
+
 	/*
 	 * Prevent the compiler from moving prior loads/stores to buf after the
 	 * update to the translation table. Otherwise, those could fault.
 	 */
 	COMPILER_BARRIER();
 
-	xlat_unmap_memory_page(get_cached_llt_info(), (uintptr_t)buf);
+	ret = xlat_unmap_memory_page(get_cached_llt_info(), (uintptr_t)buf);
+	assert(ret == 0);
 }

@@ -363,6 +363,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	void *rec_aux;
 	unsigned int cpuid = my_cpuid();
 	struct rec_attest_data *attest_data;
+	int ret __unused;
 
 	assert(cpuid < MAX_CPUS);
 	assert(rec->ns == NULL);
@@ -384,7 +385,8 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	 * REC is running.
 	 */
 	attest_data = rec->aux_data.attest_data;
-	attestation_heap_ctx_assign_pe(&attest_data->alloc_info.ctx);
+	ret = attestation_heap_ctx_assign_pe(&attest_data->alloc_info.ctx);
+	assert(ret == 0);
 
 	/*
 	 * Initialise the heap for attestation if necessary.
@@ -463,7 +465,8 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	rec->ns = NULL;
 
 	/* Undo the heap association */
-	attestation_heap_ctx_unassign_pe();
+	ret = attestation_heap_ctx_unassign_pe();
+	assert(ret == 0);
 
 	/* Unmap auxiliary granules */
 	unmap_rec_aux(rec_aux, rec->num_rec_aux);

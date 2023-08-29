@@ -49,7 +49,10 @@ int attestation_init(void)
 	/*
 	 * Associate the allocated heap for mbedtls with the current CPU.
 	 */
-	buffer_alloc_ctx_assign(&init_ctx);
+	ret = buffer_alloc_ctx_assign(&init_ctx);
+	if (ret != 0) {
+		return ret;
+	}
 
 	SIMD_FPU_ALLOW(mbedtls_memory_buffer_alloc_init(mem_buf,
 							sizeof(mem_buf)));
@@ -116,8 +119,7 @@ int attestation_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx)
 	/*
 	 * Associate the buffer_alloc_ctx to this CPU
 	 */
-	buffer_alloc_ctx_assign(ctx);
-	return 0;
+	return buffer_alloc_ctx_assign(ctx);
 }
 
 int attestation_heap_ctx_unassign_pe(void)

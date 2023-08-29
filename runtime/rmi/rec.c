@@ -36,23 +36,21 @@ static void rec_params_measure(struct rd *rd, struct rmi_rec_params *rec_params)
 	struct rmi_rec_params *rec_params_measured =
 		&(rec_params_per_cpu[my_cpuid()]);
 
-	memset(rec_params_measured, 0, sizeof(*rec_params_measured));
+	(void)memset(rec_params_measured, 0, sizeof(*rec_params_measured));
 
 	/* Copy the relevant parts of the rmi_rec_params structure to be
 	 * measured
 	 */
 	rec_params_measured->pc = rec_params->pc;
 	rec_params_measured->flags = rec_params->flags;
-	memcpy(rec_params_measured->gprs,
-	       rec_params->gprs,
-	       sizeof(rec_params->gprs));
+	(void)memcpy(rec_params_measured->gprs, rec_params->gprs,
+					sizeof(rec_params->gprs));
 
 	/* Initialize the measurement descriptior structure */
 	measure_desc.desc_type = MEASURE_DESC_TYPE_REC;
 	measure_desc.len = sizeof(struct measurement_desc_rec);
-	memcpy(measure_desc.rim,
-	       &rd->measurement[RIM_MEASUREMENT_SLOT],
-	       measurement_get_size(rd->algorithm));
+	(void)memcpy(measure_desc.rim, &rd->measurement[RIM_MEASUREMENT_SLOT],
+					measurement_get_size(rd->algorithm));
 
 	/*
 	 * Hashing the REC params structure and store the result in the

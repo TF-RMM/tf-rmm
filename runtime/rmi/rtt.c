@@ -827,9 +827,8 @@ static void data_granule_measure(struct rd *rd, void *data,
 	measure_desc.len = sizeof(struct measurement_desc_data);
 	measure_desc.ipa = ipa;
 	measure_desc.flags = flags;
-	memcpy(measure_desc.rim,
-	       &rd->measurement[RIM_MEASUREMENT_SLOT],
-	       measurement_get_size(rd->algorithm));
+	(void)memcpy(measure_desc.rim, &rd->measurement[RIM_MEASUREMENT_SLOT],
+					measurement_get_size(rd->algorithm));
 
 	if (flags == RMI_MEASURE_CONTENT) {
 		/*
