@@ -64,9 +64,9 @@ static void do_hash(enum hash_algo hash_algo,
 			data,
 			size,
 			out,
-			PSA_HASH_LENGTH(psa_algorithm),
+			(size_t)PSA_HASH_LENGTH(psa_algorithm),
 			&hash_size));
-	assert(hash_size == PSA_HASH_LENGTH(psa_algorithm));
+	assert(hash_size == (size_t)PSA_HASH_LENGTH(psa_algorithm));
 	assert(ret == 0);
 
 #if LOG_LEVEL >= LOG_LEVEL_VERBOSE
@@ -90,7 +90,8 @@ static void do_extend(psa_algorithm_t psa_algorithm,
 	size_t hash_size;
 	__unused psa_status_t ret;
 	psa_hash_operation_t operation = PSA_HASH_OPERATION_INIT;
-	size_t current_measurement_size = PSA_HASH_LENGTH(psa_algorithm);
+	size_t current_measurement_size =
+					(size_t)PSA_HASH_LENGTH(psa_algorithm);
 
 	ret = psa_hash_setup(&operation, psa_algorithm);
 	assert(ret == PSA_SUCCESS);
@@ -107,9 +108,9 @@ static void do_extend(psa_algorithm_t psa_algorithm,
 
 	ret = psa_hash_finish(&operation,
 			      out,
-			      PSA_HASH_LENGTH(psa_algorithm),
+			      (size_t)PSA_HASH_LENGTH(psa_algorithm),
 			      &hash_size);
-	assert(hash_size == PSA_HASH_LENGTH(psa_algorithm));
+	assert(hash_size == (size_t)PSA_HASH_LENGTH(psa_algorithm));
 	assert(ret == PSA_SUCCESS);
 }
 
