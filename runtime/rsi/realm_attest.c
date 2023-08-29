@@ -287,7 +287,8 @@ void handle_rsi_attest_token_continue(struct rec *rec,
 				rec_exit->exit_reason = RMI_EXIT_IRQ;
 				break;
 			}
-			if ((res->action & FLAG_EXIT_TO_HOST) != 0) {
+			if (((unsigned int)res->action &
+						FLAG_EXIT_TO_HOST) != 0U) {
 				break;
 			}
 		} else {
