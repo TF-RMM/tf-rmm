@@ -13,7 +13,7 @@
 
 static inline unsigned int esr_srt(unsigned long esr)
 {
-	return EXTRACT(ESR_EL2_ABORT_SRT, esr);
+	return (unsigned int)EXTRACT(ESR_EL2_ABORT_SRT, esr);
 }
 
 static inline bool esr_is_write(unsigned long esr)
@@ -33,7 +33,7 @@ static inline bool esr_sixty_four(unsigned long esr)
 
 static inline unsigned int esr_sas(unsigned long esr)
 {
-	return EXTRACT(ESR_EL2_ABORT_SAS, esr);
+	return (unsigned int)EXTRACT(ESR_EL2_ABORT_SAS, esr);
 }
 
 static inline unsigned int access_len(unsigned long esr)
