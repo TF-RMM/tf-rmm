@@ -24,7 +24,6 @@ int uart_init(uintptr_t base_addr,
 	unsigned int div;
 
 	/* Check Base address, baud rate and UART clock for sanity */
-
 	if (base_addr == 0UL) {
 		return -1;
 	}
@@ -40,8 +39,8 @@ int uart_init(uintptr_t base_addr,
 	/* Disable UART before programming */
 	write32(0U, (void *)((RMM_UART_ADDR) + UARTCR));
 
-	/* Program the baudrate */
-	div = (uart_clk * 4)/baud_rate;
+	/* Program the baud rate */
+	div = (uart_clk * 4U) / baud_rate;
 
 	/* IBRD = Divisor >> 6 */
 	write32(div >> 6, (void *)((RMM_UART_ADDR) + UARTIBRD));
