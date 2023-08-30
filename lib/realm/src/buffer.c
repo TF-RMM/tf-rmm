@@ -227,8 +227,8 @@ void buffer_unmap(void *buf)
 	buffer_arch_unmap(buf);
 }
 
-bool memcpy_ns_read(void *dest, const void *ns_src, unsigned long size);
-bool memcpy_ns_write(void *ns_dest, const void *src, unsigned long size);
+bool memcpy_ns_read(void *dest, const void *ns_src, size_t size);
+bool memcpy_ns_write(void *ns_dest, const void *src, size_t size);
 
 /*
  * Map a Non secure granule @g into the slot @slot and read data from
@@ -241,7 +241,7 @@ bool memcpy_ns_write(void *ns_dest, const void *src, unsigned long size);
 bool ns_buffer_read(enum buffer_slot slot,
 		    struct granule *ns_gr,
 		    unsigned int offset,
-		    unsigned int size,
+		    size_t size,
 		    void *dest)
 {
 	uintptr_t src;
@@ -281,7 +281,7 @@ bool ns_buffer_read(enum buffer_slot slot,
 bool ns_buffer_write(enum buffer_slot slot,
 		     struct granule *ns_gr,
 		     unsigned int offset,
-		     unsigned int size,
+		     size_t size,
 		     void *src)
 {
 	uintptr_t dest;

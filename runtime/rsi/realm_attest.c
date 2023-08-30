@@ -388,8 +388,8 @@ void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 	assert(rd != NULL);
 
 	/* Number of 8-bytes words in measurement */
-	cnt = (unsigned int)measurement_get_size(rd->algorithm) /
-						sizeof(unsigned long);
+	cnt = (unsigned int)(measurement_get_size(rd->algorithm) /
+						sizeof(unsigned long));
 
 	assert(cnt >= SMC_RESULT_REGS - 1U);
 	assert(cnt < ARRAY_LEN(rec->regs));

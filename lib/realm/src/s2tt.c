@@ -232,7 +232,7 @@ static unsigned long s2_addr_to_idx(unsigned long addr, long level)
 
 	assert(level <= RTT_PAGE_LEVEL);
 
-	levels = RTT_PAGE_LEVEL - level;
+	levels = (unsigned int)(RTT_PAGE_LEVEL - level);
 	lsb = levels * S2TTE_STRIDE + GRANULE_SHIFT;
 
 	addr >>= lsb;
@@ -257,7 +257,7 @@ static unsigned long s2_sl_addr_to_idx(unsigned long addr, int start_level,
 
 	assert(start_level <= RTT_PAGE_LEVEL);
 
-	levels = RTT_PAGE_LEVEL - start_level;
+	levels = (unsigned int)(RTT_PAGE_LEVEL - start_level);
 	lsb = levels * S2TTE_STRIDE + GRANULE_SHIFT;
 
 	addr &= (1UL << ipa_bits) - 1UL;
@@ -271,7 +271,7 @@ static unsigned long addr_level_mask(unsigned long addr, long level)
 
 	assert(level <= RTT_PAGE_LEVEL);
 
-	levels = RTT_PAGE_LEVEL - level;
+	levels = (unsigned int)(RTT_PAGE_LEVEL - level);
 	lsb = levels * S2TTE_STRIDE + GRANULE_SHIFT;
 	msb = S2TTE_OA_BITS - 1U;
 
@@ -368,7 +368,7 @@ void rtt_walk_lock_unlock(struct granule *g_root,
 	/* Handle concatenated starting level (SL) tables */
 	sl_idx = s2_sl_addr_to_idx(map_addr, start_level, ipa_bits);
 	if (sl_idx >= S2TTES_PER_S2TT) {
-		unsigned int tt_num = (sl_idx >> S2TTE_STRIDE);
+		unsigned int tt_num = (unsigned int)(sl_idx >> S2TTE_STRIDE);
 		struct granule *g_concat_root = g_root + tt_num;
 
 		granule_lock(g_concat_root, GRANULE_STATE_RTT);
@@ -392,7 +392,7 @@ void rtt_walk_lock_unlock(struct granule *g_root,
 		granule_unlock(g_tbls[i]);
 	}
 
-	last_level = level;
+	last_level = (int)level;
 out:
 	wi->last_level = last_level;
 	wi->g_llt = g_tbls[last_level];
@@ -804,13 +804,13 @@ void s2tt_init_assigned_destroyed(unsigned long *s2tt, unsigned long pa, long le
 	dsb(ish);
 }
 
-unsigned long s2tte_map_size(int level)
+unsigned long s2tte_map_size(long level)
 {
 	unsigned int levels, lsb;
 
 	assert(level <= RTT_PAGE_LEVEL);
 
-	levels = RTT_PAGE_LEVEL - level;
+	levels = (unsigned int)(RTT_PAGE_LEVEL - level);
 	lsb = levels * S2TTE_STRIDE + GRANULE_SHIFT;
 	return (1UL << lsb);
 }
@@ -1070,7 +1070,7 @@ unsigned long skip_non_live_entries(unsigned long addr,
 				    unsigned long *s2tt,
 				    const struct rtt_walk *wi)
 {
-	unsigned int i, index = wi->index;
+	unsigned int i, index = (unsigned int)wi->index;
 	long level = wi->last_level;
 	unsigned long map_size;
 

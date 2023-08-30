@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <smc-rmi.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <utils_def.h>
 
 enum buffer_slot {
@@ -45,12 +46,12 @@ void buffer_unmap(void *buf);
 bool ns_buffer_read(enum buffer_slot slot,
 		    struct granule *ns_gr,
 		    unsigned int offset,
-		    unsigned int size,
+		    size_t size,
 		    void *dest);
 bool ns_buffer_write(enum buffer_slot slot,
 		     struct granule *ns_gr,
 		     unsigned int offset,
-		     unsigned int size,
+		     size_t size,
 		     void *src);
 
 /*

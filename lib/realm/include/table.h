@@ -27,7 +27,7 @@ COMPILER_ASSERT(MIN_STARTING_LEVEL >= 0);
  * S2TTE_STRIDE: The number of bits resolved in a single level of translation
  * walk (except for the starting level which may resolve more or fewer bits).
  */
-#define S2TTE_STRIDE		(GRANULE_SHIFT - 3UL)
+#define S2TTE_STRIDE		(GRANULE_SHIFT - 3U)
 #define S2TTES_PER_S2TT		(1U << S2TTE_STRIDE)
 
 struct rd;
@@ -75,7 +75,7 @@ void s2tt_init_assigned_destroyed(unsigned long *s2tt, unsigned long pa, long le
 unsigned long s2tte_pa(unsigned long s2tte, long level);
 unsigned long s2tte_pa_table(unsigned long s2tte, long level);
 bool addr_is_level_aligned(unsigned long addr, long level);
-unsigned long s2tte_map_size(int level);
+unsigned long s2tte_map_size(long level);
 
 struct realm_s2_context;
 void invalidate_page(const struct realm_s2_context *s2_ctx, unsigned long addr);

@@ -38,6 +38,7 @@ static void system_abort(void)
 static bool fixup_aarch32_data_abort(struct rec *rec, unsigned long *esr)
 {
 	unsigned long spsr = read_spsr_el2();
+	(void)rec;
 
 	if ((spsr & SPSR_EL2_nRW_AARCH32) != 0UL) {
 		/*
@@ -121,6 +122,7 @@ static bool handle_sync_external_abort(struct rec *rec,
 {
 	unsigned long fsc = esr & MASK(ESR_EL2_ABORT_FSC);
 	unsigned long set = esr & MASK(ESR_EL2_ABORT_SET);
+	(void)rec;
 
 	if (!fsc_is_external_abort(fsc)) {
 		return false;
@@ -300,7 +302,7 @@ static bool handle_simd_exception(simd_t exp_type, struct rec *rec)
 	 * then inject undefined abort. This can happen when CPU implements
 	 * FEAT_SVE but the Realm didn't request this feature during creation.
 	 */
-	if (exp_type == SIMD_SVE && rec_simd_type(rec) != SIMD_SVE) {
+	if ((exp_type == SIMD_SVE) && (rec_simd_type(rec) != SIMD_SVE)) {
 		realm_inject_undef_abort();
 		return true;
 	}
@@ -336,6 +338,8 @@ static inline bool rsi_handler_needs_fpu(unsigned int id)
 	    (id == SMC_RSI_MEASUREMENT_EXTEND)) {
 		return true;
 	}
+#else
+	(void)id;
 #endif
 	return false;
 }
@@ -363,7 +367,7 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	}
 
 	/* Ignore SVE hint bit, until RMM supports SVE hint bit */
-	function_id &= ~MASK(SMC_SVE_HINT);
+	function_id &= ~SMC_SVE_HINT;
 
 	needs_fpu = rsi_handler_needs_fpu(function_id);
 	if (needs_fpu) {

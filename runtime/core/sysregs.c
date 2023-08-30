@@ -125,7 +125,7 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 	 * the general-purpose register used for the transfer.
 	 * Rt bits [9:5] of ISS field cannot exceed 0b11111.
 	 */
-	rt = ESR_EL2_SYSREG_ISS_RT(esr);
+	rt = (unsigned int)ESR_EL2_SYSREG_ISS_RT(esr);
 
 	/* Handle writes to XZR register */
 	if (rt == 31U) {
@@ -245,7 +245,7 @@ static const struct sysreg_handler sysreg_handlers[] = {
 static unsigned long get_sysreg_write_value(struct rec *rec, unsigned long esr)
 {
 	/* Rt bits [9:5] of ISS field cannot exceed 0b11111 */
-	unsigned int rt = ESR_EL2_SYSREG_ISS_RT(esr);
+	unsigned int rt = (unsigned int)ESR_EL2_SYSREG_ISS_RT(esr);
 
 	/* Handle reads from XZR register */
 	if (rt == 31U) {
@@ -275,7 +275,7 @@ bool handle_sysreg_access_trap(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	 * the general-purpose register used for the transfer.
 	 * Rt bits [9:5] of ISS field cannot exceed 0b11111.
 	 */
-	unsigned int rt = ESR_EL2_SYSREG_ISS_RT(esr);
+	unsigned int rt = (unsigned int)ESR_EL2_SYSREG_ISS_RT(esr);
 	unsigned int __unused op0, op1, crn, crm, op2;
 	unsigned long __unused sysreg;
 
@@ -306,11 +306,11 @@ bool handle_sysreg_access_trap(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	sysreg = esr & ESR_EL2_SYSREG_MASK;
 
 	/* Extract sytem register encoding */
-	op0 = EXTRACT(ESR_EL2_SYSREG_TRAP_OP0, sysreg);
-	op1 = EXTRACT(ESR_EL2_SYSREG_TRAP_OP1, sysreg);
-	crn = EXTRACT(ESR_EL2_SYSREG_TRAP_CRN, sysreg);
-	crm = EXTRACT(ESR_EL2_SYSREG_TRAP_CRM, sysreg);
-	op2 = EXTRACT(ESR_EL2_SYSREG_TRAP_OP2, sysreg);
+	op0 = (unsigned int)EXTRACT(ESR_EL2_SYSREG_TRAP_OP0, sysreg);
+	op1 = (unsigned int)EXTRACT(ESR_EL2_SYSREG_TRAP_OP1, sysreg);
+	crn = (unsigned int)EXTRACT(ESR_EL2_SYSREG_TRAP_CRN, sysreg);
+	crm = (unsigned int)EXTRACT(ESR_EL2_SYSREG_TRAP_CRM, sysreg);
+	op2 = (unsigned int)EXTRACT(ESR_EL2_SYSREG_TRAP_OP2, sysreg);
 
 	INFO("Unhandled %s S%u_%u_C%u_C%u_%u\n",
 		ESR_EL2_SYSREG_IS_WRITE(esr) ? "write" : "read",

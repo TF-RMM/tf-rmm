@@ -66,7 +66,7 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 	if (s2tte_is_assigned_ram(s2tte, wi.last_level)) {
 		s2_walk->llt = wi.g_llt; /* Must be unlocked by caller */
 		s2_walk->pa = s2tte_pa(s2tte, wi.last_level);
-		offset = ipa & (s2tte_map_size(wi.last_level) - 1);
+		offset = ipa & (s2tte_map_size(wi.last_level) - 1UL);
 		s2_walk->pa += offset;
 		s2_walk->ripas_val = RIPAS_RAM;
 		walk_status = WALK_SUCCESS;
@@ -88,7 +88,7 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 		walk_status = WALK_FAIL;
 	}
 
-	s2_walk->rtt_level = wi.last_level;
+	s2_walk->rtt_level = (unsigned long)wi.last_level;
 
 	buffer_unmap(ll_table);
 	return walk_status;

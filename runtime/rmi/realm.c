@@ -108,7 +108,7 @@ static bool validate_ipa_bits_and_sl(unsigned int ipa_bits, long sl)
 		return false;
 	}
 
-	return !s2_inconsistent_sl(ipa_bits, sl);
+	return !s2_inconsistent_sl(ipa_bits, (int)sl);
 }
 
 static unsigned int s2_num_root_rtts(unsigned int ipa_bits, int sl)
@@ -235,7 +235,8 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 		return false;
 	}
 
-	if (s2_num_root_rtts(p->s2sz, p->rtt_level_start) != p->rtt_num_start) {
+	if (s2_num_root_rtts(p->s2sz, (int)p->rtt_level_start) !=
+						p->rtt_num_start) {
 		return false;
 	}
 
@@ -392,7 +393,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	set_rd_rec_count(rd, 0UL);
 	rd->s2_ctx.g_rtt = find_granule(p.rtt_base);
 	rd->s2_ctx.ipa_bits = p.s2sz;
-	rd->s2_ctx.s2_starting_level = p.rtt_level_start;
+	rd->s2_ctx.s2_starting_level = (int)p.rtt_level_start;
 	rd->s2_ctx.num_root_rtts = p.rtt_num_start;
 	(void)memcpy(&rd->rpv[0], &p.rpv[0], RPV_SIZE);
 
@@ -400,7 +401,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 
 	rd->num_rec_aux = MAX_REC_AUX_GRANULES;
 
-	rd->sve_enabled = EXTRACT(RMI_REALM_FLAGS_SVE, p.flags);
+	rd->sve_enabled = EXTRACT(RMI_REALM_FLAGS_SVE, p.flags) != 0UL;
 	if (rd->sve_enabled) {
 		rd->sve_vq = (uint8_t)p.sve_vl;
 	}

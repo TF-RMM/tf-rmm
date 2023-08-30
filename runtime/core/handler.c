@@ -245,7 +245,7 @@ void handle_ns_smc(unsigned long function_id,
 	bool restore_ns_simd_state = false;
 
 	/* Ignore SVE hint bit, until RMM supports SVE hint bit */
-	function_id &= ~MASK(SMC_SVE_HINT);
+	function_id &= ~SMC_SVE_HINT;
 
 	if (IS_SMC64_RMI_FID(function_id)) {
 		handler_id = RMI_HANDLER_ID(function_id);

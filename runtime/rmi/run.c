@@ -108,7 +108,7 @@ static void complete_sysreg_emulation(struct rec *rec, struct rmi_rec_entry *rec
 	unsigned long esr = rec->last_run_info.esr;
 
 	/* Rt bits [9:5] of ISS field cannot exceed 0b11111 */
-	unsigned int rt = ESR_EL2_SYSREG_ISS_RT(esr);
+	unsigned int rt = (unsigned int)ESR_EL2_SYSREG_ISS_RT(esr);
 
 	if ((esr & MASK(ESR_EL2_EC)) != ESR_EL2_EC_SYSREG) {
 		return;
@@ -290,9 +290,10 @@ out_unmap_buffers:
 	buffer_unmap(rec);
 
 	if (ret == RMI_SUCCESS) {
-		if (!ns_buffer_write(SLOT_NS, g_run,
-				     offsetof(struct rmi_rec_run, exit),
-				     sizeof(struct rmi_rec_exit), &rec_run.exit)) {
+		if (!ns_buffer_write(
+			SLOT_NS, g_run,
+			(unsigned int)offsetof(struct rmi_rec_run, exit),
+			sizeof(struct rmi_rec_exit), &rec_run.exit)) {
 			ret = RMI_ERROR_INPUT;
 		}
 	}

@@ -100,24 +100,24 @@
 /*
  * Shifts and masks to access fields of an mmap attribute
  */
-#define MT_TYPE_SHIFT		UL(0)
-#define MT_TYPE_WIDTH		UL(4)
+#define MT_TYPE_SHIFT		U(0)
+#define MT_TYPE_WIDTH		U(4)
 #define MT_TYPE_MASK		MASK(MT_TYPE)
 #define MT_TYPE(_attr)		((_attr) & MT_TYPE_MASK)
 /* Access permissions (RO/RW) */
 #define MT_PERM_SHIFT		(MT_TYPE_SHIFT + MT_TYPE_WIDTH)
 /* Access permissions for instruction execution (EXECUTE/EXECUTE_NEVER) */
-#define MT_EXECUTE_FLAG_SHIFT	(MT_PERM_SHIFT + 1UL)
+#define MT_EXECUTE_FLAG_SHIFT	(MT_PERM_SHIFT + 1U)
 
 /* Contiguos descriptor flag */
-#define MT_CONT_SHIFT		(MT_EXECUTE_FLAG_SHIFT + 1UL)
+#define MT_CONT_SHIFT		(MT_EXECUTE_FLAG_SHIFT + 1U)
 
 /* NG Flag */
-#define MT_NG_SHIFT		(MT_CONT_SHIFT + 1UL)
+#define MT_NG_SHIFT		(MT_CONT_SHIFT + 1U)
 
 /* Physical address space (REALM/NS, as ROOT/SECURE do not apply to R-EL2) */
-#define MT_PAS_SHIFT		(MT_NG_SHIFT + 1UL)
-#define MT_PAS_WIDTH		UL(1)
+#define MT_PAS_SHIFT		(MT_NG_SHIFT + 1U)
+#define MT_PAS_WIDTH		U(1)
 #define MT_PAS_MASK		MASK(MT_PAS)
 #define MT_PAS(_attr)		((_attr) & MT_PAS_MASK)
 
