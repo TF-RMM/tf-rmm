@@ -257,7 +257,7 @@ static unsigned long s2_sl_addr_to_idx(unsigned long addr, int start_level,
 	return addr;
 }
 
-unsigned long addr_level_mask(unsigned long addr, long level)
+static unsigned long addr_level_mask(unsigned long addr, long level)
 {
 	int levels = RTT_PAGE_LEVEL - level;
 	unsigned int lsb = levels * S2TTE_STRIDE + GRANULE_SHIFT;
@@ -282,6 +282,8 @@ static unsigned long __table_get_entry(struct granule *g_tbl,
 	unsigned long *table, entry;
 
 	table = granule_map(g_tbl, SLOT_RTT);
+	assert(table != NULL);
+
 	entry = s2tte_read(&table[idx]);
 	buffer_unmap(table);
 
@@ -863,7 +865,7 @@ void s2tt_init_assigned_ns(unsigned long *s2tt, unsigned long pa, long level)
  * - assigned_destroyed
  * - table
  */
-bool s2tte_has_pa(unsigned long s2tte, long level)
+static bool s2tte_has_pa(unsigned long s2tte, long level)
 {
 	unsigned long desc_type = s2tte & DESC_TYPE_MASK;
 
@@ -879,7 +881,7 @@ bool s2tte_has_pa(unsigned long s2tte, long level)
  * NOTE: For now, only the RTTE with PA are live.
  * This could change with EXPORT/IMPORT support.
  */
-bool s2tte_is_live(unsigned long s2tte, long level)
+static bool s2tte_is_live(unsigned long s2tte, long level)
 {
 	return s2tte_has_pa(s2tte, level);
 }

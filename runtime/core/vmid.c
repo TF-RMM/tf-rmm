@@ -7,7 +7,6 @@
 #include <assert.h>
 #include <atomics.h>
 #include <sizes.h>
-#include <spinlock.h>
 #include <vmid.h>
 
 #define VMID8_COUNT		(1U << 8)

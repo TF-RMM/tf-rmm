@@ -246,7 +246,10 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	}
 
 	rec = granule_map(g_rec, SLOT_REC);
+	assert(rec != NULL);
+
 	rd = granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
 
 	if (get_rd_state_locked(rd) != REALM_STATE_NEW) {
 		ret = RMI_ERROR_REALM;
@@ -354,6 +357,7 @@ unsigned long smc_rec_destroy(unsigned long rec_addr)
 	}
 
 	rec = granule_map(g_rec, SLOT_REC);
+	assert(rec != NULL);
 
 	g_rd = rec->realm_info.g_rd;
 
@@ -391,6 +395,8 @@ void smc_rec_aux_count(unsigned long rd_addr, struct smc_result *res)
 	}
 
 	rd = granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	num_rec_aux = rd->num_rec_aux;
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
@@ -439,7 +445,10 @@ unsigned long smc_psci_complete(unsigned long calling_rec_addr,
 	}
 
 	calling_rec = granule_map(g_calling_rec, SLOT_REC);
+	assert(calling_rec != NULL);
+
 	target_rec = granule_map(g_target_rec, SLOT_REC2);
+	assert(target_rec != NULL);
 
 	ret = psci_complete_request(calling_rec, target_rec);
 

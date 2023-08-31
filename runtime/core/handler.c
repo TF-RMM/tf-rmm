@@ -9,7 +9,6 @@
 #include <buffer.h>
 #include <debug.h>
 #include <simd.h>
-#include <sizes.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
@@ -24,7 +23,7 @@
 
 #define RMI_STATUS_STRING(_id)[RMI_##_id] = #_id
 
-const char *rmi_status_string[] = {
+static const char *rmi_status_string[] = {
 	RMI_STATUS_STRING(SUCCESS),
 	RMI_STATUS_STRING(ERROR_INPUT),
 	RMI_STATUS_STRING(ERROR_REALM),
@@ -351,7 +350,7 @@ static void report_unexpected(void)
 	INFO("----\n");
 }
 
-unsigned long handle_realm_trap(unsigned long *regs)
+__dead2 unsigned long handle_realm_trap(unsigned long *regs)
 {
 	report_unexpected();
 
@@ -389,13 +388,13 @@ extern void *ns_write;
  */
 extern void *ns_access_ret_0;
 
-struct rmm_trap_element rmm_trap_list[] = {
+static struct rmm_trap_element rmm_trap_list[] = {
 	RMM_TRAP_HANDLER(ns_read, ns_access_ret_0),
 	RMM_TRAP_HANDLER(ns_write, ns_access_ret_0),
 };
 #define RMM_TRAP_LIST_SIZE (sizeof(rmm_trap_list)/sizeof(struct rmm_trap_element))
 
-static void fatal_abort(void)
+__dead2 static void fatal_abort(void)
 {
 	report_unexpected();
 

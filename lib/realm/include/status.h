@@ -42,7 +42,7 @@ static inline return_code_t make_return_code(unsigned int status,
  */
 static inline unsigned long pack_struct_return_code(return_code_t return_code)
 {
-	return (unsigned long)(return_code.status | (return_code.index << 8));
+	return ((unsigned long)(return_code.index) << 8) | return_code.status;
 }
 
 /*

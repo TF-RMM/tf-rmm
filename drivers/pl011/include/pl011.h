@@ -45,13 +45,4 @@
  */
 int uart_init(uintptr_t baseaddr, unsigned int clock, unsigned int baud);
 
-/*
- * Function that outputs a character to console
- * Arguments:
- *   ch       - Character that must be sent to console output
- * Returns:
- *   void
- */
-void uart_putc(char ch);
-
 #endif /* PL011_H */

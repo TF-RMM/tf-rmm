@@ -156,7 +156,19 @@ int attest_get_realm_signing_key(psa_key_handle_t *key_handle)
 	return 0;
 }
 
-int attest_get_realm_public_key_hash(struct q_useful_buf_c *public_key_hash)
+/*
+ * Get the hash of the realm attestation public key. The public key hash is the
+ * challenge value in the platform attestation token.
+ *
+ * Arguments:
+ * public_key_hash - Get the buffer address and size which holds
+ *                   the hash of the realm attestation public key.
+ *
+ * Returns 0 on success, negative error code on error.
+ *
+ */
+static int attest_get_realm_public_key_hash(
+					struct q_useful_buf_c *public_key_hash)
 {
 	if (!attest_signing_key_loaded) {
 		ERROR("Realm attestation key not initialized\n");

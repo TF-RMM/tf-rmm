@@ -39,7 +39,7 @@ static unsigned char mem_buf[INIT_HEAP_PAGES * SZ_4K]
 
 static bool attest_initialized;
 
-struct buffer_alloc_ctx init_ctx;
+static struct buffer_alloc_ctx init_ctx;
 
 int attestation_init(void)
 {

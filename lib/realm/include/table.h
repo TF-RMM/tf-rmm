@@ -47,9 +47,7 @@ bool host_ns_s2tte_is_valid(unsigned long s2tte, long level);
 unsigned long host_ns_s2tte(unsigned long s2tte, long level);
 
 bool s2tte_has_ripas(unsigned long s2tte, long level);
-bool s2tte_has_pa(unsigned long s2tte, long level);
 
-bool s2tte_is_live(unsigned long s2tte, long level);
 bool s2tte_is_unassigned(unsigned long s2tte);
 bool s2tte_is_unassigned_empty(unsigned long s2tte);
 bool s2tte_is_unassigned_ram(unsigned long s2tte);
@@ -94,8 +92,6 @@ bool table_maps_assigned_empty_block(unsigned long *table, long level);
 bool table_maps_assigned_ram_block(unsigned long *table, long level);
 bool table_maps_assigned_ns_block(unsigned long *table, long level);
 bool table_maps_assigned_destroyed_block(unsigned long *table, long level);
-
-unsigned long addr_level_mask(unsigned long addr, long level);
 
 struct rtt_walk {
 	struct granule *g_llt;

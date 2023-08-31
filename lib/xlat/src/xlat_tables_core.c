@@ -13,7 +13,6 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
 #include <utils_def.h>
 #include <xlat_contexts.h>
 #include "xlat_defs_private.h"

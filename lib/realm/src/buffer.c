@@ -11,10 +11,7 @@
 #include <cpuid.h>
 #include <debug.h>
 #include <errno.h>
-#include <gic.h>
 #include <granule.h>
-#include <memory_alloc.h>
-#include <sizes.h>
 #include <slot_buf_arch.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -94,6 +91,7 @@ __unused static uint64_t slot_to_descriptor(enum buffer_slot slot)
 {
 	uint64_t *entry = xlat_get_tte_ptr(get_cached_llt_info(),
 				       slot_to_va(slot));
+	assert(entry != NULL);
 
 	return xlat_read_tte(entry);
 }

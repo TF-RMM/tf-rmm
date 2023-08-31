@@ -5,7 +5,6 @@
 
 #include <arch_helpers.h>
 #include <assert.h>
-#include <debug.h>
 #include <fvp_dram.h>
 #include <rmm_el3_ifc.h>
 

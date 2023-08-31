@@ -61,7 +61,7 @@ int uart_init(uintptr_t base_addr,
 	return 0;
 }
 
-void uart_putc(char ch)
+static void uart_putc(char ch)
 {
 	uart_wait();
 	write8(ch, (void *)((RMM_UART_ADDR) + UARTDR));

@@ -12,7 +12,6 @@
 #include <errno.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/hmac_drbg.h>
-#include <platform_api.h>
 #include <psa/crypto.h>
 #include <simd.h>
 #include <stdbool.h>

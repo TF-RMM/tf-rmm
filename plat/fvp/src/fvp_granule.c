@@ -5,10 +5,9 @@
 
 #include <assert.h>
 #include <fvp_dram.h>
-#include <fvp_private.h>
 #include <utils_def.h>
 
-struct fvp_dram_layout fvp_dram;
+static struct fvp_dram_layout fvp_dram;
 
 struct fvp_dram_layout *fvp_get_dram_layout(void)
 {
