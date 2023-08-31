@@ -182,10 +182,10 @@
  * Maximum number of Interrupt Controller
  * Hyp Active Priorities Group 0/1 Registers [0..3]
  */
-#define ICH_MAX_APRS		4
+#define ICH_MAX_APRS		4U
 
 /* Maximum number of Interrupt Controller List Registers */
-#define ICH_MAX_LRS		16
+#define ICH_MAX_LRS		16U
 
 /*******************************************************************************
  * GICv3 and 3.1 definitions

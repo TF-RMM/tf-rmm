@@ -12,9 +12,9 @@
 #include <rec.h>
 #include <table.h>
 
-#define REALM_STATE_NEW		0
-#define REALM_STATE_ACTIVE	1
-#define REALM_STATE_SYSTEM_OFF	2
+#define REALM_STATE_NEW		0U
+#define REALM_STATE_ACTIVE	1U
+#define REALM_STATE_SYSTEM_OFF	2U
 
 /*
  * Stage 2 configuration of the Realm

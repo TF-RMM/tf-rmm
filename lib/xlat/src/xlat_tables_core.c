@@ -97,8 +97,8 @@ static action_t xlat_tables_map_region_action(const struct xlat_mmap_region *mm,
 					      int level)
 {
 	uintptr_t mm_end_va = mm->base_va + mm->size - 1UL;
-	uintptr_t table_entry_end_va =
-			table_entry_base_va + XLAT_BLOCK_SIZE(level) - 1UL;
+	uintptr_t table_entry_end_va = table_entry_base_va +
+					XLAT_BLOCK_SIZE(level) - 1UL;
 
 	/*
 	 * The descriptor types allowed depend on the current table level.
@@ -115,7 +115,7 @@ static action_t xlat_tables_map_region_action(const struct xlat_mmap_region *mm,
 		 * translation with this granularity in principle.
 		 */
 
-		if (level == 3U) {
+		if (level == 3) {
 			/*
 			 * Last level, only page descriptors are allowed.
 			 */
@@ -262,12 +262,13 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 
 	assert(ctx_cfg != NULL);
 	assert((level >= ctx_cfg->base_level) &&
-					(level <= XLAT_TABLE_LEVEL_MAX));
+	       (level <= XLAT_TABLE_LEVEL_MAX));
 	assert(table_entries <= XLAT_GET_TABLE_ENTRIES(level));
 
 	mm_end_va = mm->base_va + mm->size - 1U;
 
-	if ((level < ctx_cfg->base_level) || (level > XLAT_TABLE_LEVEL_MAX)) {
+	if ((level < ctx_cfg->base_level) ||
+	    (level > XLAT_TABLE_LEVEL_MAX)) {
 		ERROR("%s (%u): Level out of boundaries (%i)\n",
 			__func__, __LINE__, level);
 		panic();
@@ -313,8 +314,7 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 			end_va = xlat_tables_map_region(ctx, mm, table_idx_va,
 					       subtable, XLAT_TABLE_ENTRIES,
 					       level + 1);
-			if (end_va !=
-				(table_idx_va + XLAT_BLOCK_SIZE(level) - 1UL)) {
+			if (end_va != (table_idx_va + XLAT_BLOCK_SIZE(level) - 1UL)) {
 				return end_va;
 			}
 
@@ -327,8 +327,7 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 			end_va = xlat_tables_map_region(ctx, mm, table_idx_va,
 					       subtable, XLAT_TABLE_ENTRIES,
 					       level + 1);
-			if (end_va !=
-				(table_idx_va + XLAT_BLOCK_SIZE(level) - 1UL)) {
+			if (end_va != (table_idx_va + XLAT_BLOCK_SIZE(level) - 1UL)) {
 				return end_va;
 			}
 

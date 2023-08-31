@@ -9,8 +9,8 @@
 #include <arch_features.h>
 #include <memory.h>
 
-#define MIN_IPA_BITS		32
-#define MAX_IPA_BITS		48
+#define MIN_IPA_BITS		32U
+#define MAX_IPA_BITS		48U
 #define MAX_IPA_SIZE		(1UL << MAX_IPA_BITS)
 
 #define MIN_STARTING_LEVEL	0

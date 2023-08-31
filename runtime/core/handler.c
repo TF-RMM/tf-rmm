@@ -16,10 +16,10 @@
 #include <utils_def.h>
 
 /* Maximum number of supported arguments */
-#define MAX_NUM_ARGS		5
+#define MAX_NUM_ARGS		5U
 
 /* Maximum number of output values */
-#define MAX_NUM_OUTPUT_VALS	4
+#define MAX_NUM_OUTPUT_VALS	4U
 
 #define RMI_STATUS_STRING(_id)[RMI_##_id] = #_id
 

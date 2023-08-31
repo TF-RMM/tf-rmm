@@ -98,7 +98,7 @@ static size_t print_entry(unsigned int id, unsigned long args[],
 		break;
 	}
 
-	assert((cnt > 0) && (cnt < (int)(MAX_NAME_LEN + 1)));
+	assert((cnt > 0) && (cnt < (int)(MAX_NAME_LEN + 1U)));
 
 	(void)memset(buf + cnt, (int)' ', MAX_NAME_LEN - (size_t)cnt);
 

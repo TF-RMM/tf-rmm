@@ -997,7 +997,8 @@ unsigned long smc_data_create(unsigned long rd_addr,
 {
 	struct granule *g_src;
 
-	if (flags != RMI_NO_MEASURE_CONTENT && flags != RMI_MEASURE_CONTENT) {
+	if ((flags != RMI_NO_MEASURE_CONTENT) &&
+	    (flags != RMI_MEASURE_CONTENT)) {
 		return RMI_ERROR_INPUT;
 	}
 

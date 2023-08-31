@@ -20,7 +20,7 @@
 #define SZ_2M	(UL(2)  * SZ_1M)
 
 #ifndef __ASSEMBLER__
-#define BITS_PER_UL	((unsigned int)(8 * sizeof(unsigned long)))
+#define BITS_PER_UL	((unsigned int)(8U * sizeof(unsigned long)))
 #endif
 
 #endif /* SIZES_H */
