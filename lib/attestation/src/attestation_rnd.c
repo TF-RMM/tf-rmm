@@ -32,7 +32,7 @@ static int get_random_seed(unsigned char *output, size_t len)
 	assert(!prng_init_done);
 
 	/* Enforce `len` is a multiple of 8 and `output` is 8-byte aligned. */
-	assert((len & 0x7UL) == 0UL && ((uintptr_t)output & 0x7UL) == 0UL);
+	assert(((len & 7UL) == 0UL) && (((uintptr_t)output & 7UL) == 0UL));
 
 	random_output = (uint64_t *)output;
 	random_end = (uint64_t *)(output + len);

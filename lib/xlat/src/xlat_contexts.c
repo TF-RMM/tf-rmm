@@ -273,7 +273,7 @@ int xlat_ctx_init(struct xlat_ctx *ctx,
 		return -EINVAL;
 	}
 
-	if (tables_ptr == NULL || ntables == 0U) {
+	if ((tables_ptr == NULL) || (ntables == 0U)) {
 		return -EINVAL;
 	}
 

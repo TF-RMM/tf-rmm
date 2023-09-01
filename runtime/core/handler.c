@@ -30,6 +30,7 @@ static const char *rmi_status_string[] = {
 	RMI_STATUS_STRING(ERROR_REC),
 	RMI_STATUS_STRING(ERROR_RTT)
 };
+
 COMPILER_ASSERT(ARRAY_LEN(rmi_status_string) == RMI_ERROR_COUNT);
 
 /*
@@ -66,21 +67,21 @@ typedef void (*handler_4_o)(unsigned long arg0, unsigned long arg1,
  * [8:15] - number of output values
  */
 #define RMI_TYPE(_in, _out)	(_in | (_out << 8))
-#define rmi_type(_in, _out)	rmi_type_##_in##_out = RMI_TYPE(_in, _out)
+#define set_rmi_type(_in, _out)	rmi_type_##_in##_out = RMI_TYPE(_in, _out)
 
 enum rmi_type {
-	rmi_type(0, 0),	/* 0 arguments, 0 output values */
-	rmi_type(1, 0),	/* 1 argument,  0 output values */
-	rmi_type(2, 0),	/* 2 arguments, 0 output values */
-	rmi_type(3, 0),	/* 3 arguments, 0 output values */
-	rmi_type(4, 0),	/* 4 arguments, 0 output values */
-	rmi_type(5, 0),	/* 5 arguments, 0 output values */
-	rmi_type(1, 1), /* 1 argument,  1 output value */
-	rmi_type(2, 2), /* 2 arguments, 2 output values */
-	rmi_type(3, 1),	/* 3 arguments, 1 output value */
-	rmi_type(3, 2),	/* 3 arguments, 2 output values */
-	rmi_type(3, 4),	/* 3 arguments, 4 output values */
-	rmi_type(4, 1)	/* 4 arguments, 1 output value */
+	set_rmi_type(0, 0),	/* 0 arguments, 0 output values */
+	set_rmi_type(1, 0),	/* 1 argument,  0 output values */
+	set_rmi_type(2, 0),	/* 2 arguments, 0 output values */
+	set_rmi_type(3, 0),	/* 3 arguments, 0 output values */
+	set_rmi_type(4, 0),	/* 4 arguments, 0 output values */
+	set_rmi_type(5, 0),	/* 5 arguments, 0 output values */
+	set_rmi_type(1, 1),	/* 1 argument,  1 output value */
+	set_rmi_type(2, 2),	/* 2 arguments, 2 output values */
+	set_rmi_type(3, 1),	/* 3 arguments, 1 output value */
+	set_rmi_type(3, 2),	/* 3 arguments, 2 output values */
+	set_rmi_type(3, 4),	/* 3 arguments, 4 output values */
+	set_rmi_type(4, 1)	/* 4 arguments, 1 output value */
 };
 
 struct smc_handler {
@@ -160,6 +161,8 @@ static inline bool rmi_handler_needs_fpu(unsigned long id)
 	    id == SMC_RMM_REC_CREATE || id == SMC_RMM_RTT_INIT_RIPAS) {
 		return true;
 	}
+#else
+	(void)id;
 #endif
 	return false;
 }
@@ -240,6 +243,7 @@ void handle_ns_smc(unsigned long function_id,
 		   unsigned long arg5,
 		   struct smc_result *res)
 {
+	(void)arg5;
 	unsigned long handler_id;
 	const struct smc_handler *handler = NULL;
 	bool restore_ns_simd_state = false;
@@ -352,6 +356,8 @@ static void report_unexpected(void)
 
 __dead2 unsigned long handle_realm_trap(unsigned long *regs)
 {
+	(void)regs;
+
 	report_unexpected();
 
 	while (true) {

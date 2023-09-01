@@ -186,7 +186,7 @@ static inline bool addr_is_contained(unsigned long container_base,
 		return false;
 	}
 
-	return address >= container_base && address <= (container_end - 1UL);
+	return (address >= container_base) && (address <= (container_end - 1UL));
 }
 
 /*

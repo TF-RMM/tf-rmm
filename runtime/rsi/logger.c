@@ -59,9 +59,9 @@ static const char *rsi_status_string[] = {
 
 COMPILER_ASSERT(ARRAY_LEN(rsi_status_string) == RSI_ERROR_COUNT);
 
-static struct rsi_handler *fid_to_rsi_logger(unsigned int id)
+static const struct rsi_handler *fid_to_rsi_logger(unsigned int id)
 {
-	return (struct rsi_handler *)&rsi_logger[id - SMC_RSI_ABI_VERSION];
+	return &rsi_logger[id - SMC_RSI_ABI_VERSION];
 }
 
 static size_t print_entry(unsigned int id, unsigned long args[],
@@ -72,7 +72,7 @@ static size_t print_entry(unsigned int id, unsigned long args[],
 
 	switch (id) {
 	case SMC_RSI_ABI_VERSION ... SMC_RSI_HOST_CALL: {
-		struct rsi_handler *logger = fid_to_rsi_logger(id);
+		const struct rsi_handler *logger = fid_to_rsi_logger(id);
 
 		num = logger->num_args;
 		if (logger->fn_name != NULL) {
@@ -98,18 +98,19 @@ static size_t print_entry(unsigned int id, unsigned long args[],
 		break;
 	}
 
-	assert((cnt > 0) && (cnt < (int)(MAX_NAME_LEN + 1U)));
+	assert((cnt > 0) && ((unsigned int)cnt < (MAX_NAME_LEN + 1U)));
 
-	(void)memset(buf + cnt, (int)' ', MAX_NAME_LEN - (size_t)cnt);
+	(void)memset((void *)((uintptr_t)buf + (unsigned int)cnt), (int)' ',
+					MAX_NAME_LEN - (size_t)cnt);
 
-	buf += MAX_NAME_LEN;
+	buf = (char *)((uintptr_t)buf + MAX_NAME_LEN);
 	len -= MAX_NAME_LEN;
 
 	/* Arguments */
 	for (unsigned int i = 0U; i < num; i++) {
 		cnt = snprintf(buf, len, " %lx", args[i]);
 		assert((cnt > 0) && (cnt < (int)len));
-		buf += cnt;
+		buf = (char *)((uintptr_t)buf + (unsigned int)cnt);
 		len -= (size_t)cnt;
 	}
 
@@ -141,13 +142,13 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 
 	/* Print result when execution continues in REC */
 	if (exit_to_rec) {
-		char *buf = buffer + (sizeof(buffer) - len);
+		char *buf = (char *)((uintptr_t)buffer + sizeof(buffer) - len);
 		unsigned int num = 3U;	/* results in X1-X3 */
 		int cnt;
 
 		switch (function_id) {
 		case SMC_RSI_MEASUREMENT_READ ... SMC_RSI_HOST_CALL: {
-			struct rsi_handler *logger =
+			const struct rsi_handler *logger =
 					fid_to_rsi_logger(function_id);
 
 			/* Print status */
@@ -167,7 +168,7 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 
 		/* Print output values */
 		for (unsigned int i = 1U; i <= num; i++) {
-			buf += cnt;
+			buf = (char *)((uintptr_t)buffer + (unsigned int)cnt);
 			len -= (size_t)cnt;
 			cnt = snprintf(buf, len, " %lx", regs[i]);
 			assert((cnt > 0) && (cnt < (int)len));

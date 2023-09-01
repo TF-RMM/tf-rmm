@@ -116,12 +116,12 @@ COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, top) == 0x58);
 /*
  * Calculate the hash of data with algorithm hash_algo to the buffer `out`.
  */
-void measurement_hash_compute(enum hash_algo hash_algo,
+void measurement_hash_compute(enum hash_algo algorithm,
 			      void *data,
 			      size_t size, unsigned char *out);
 
 /* Extend a measurement with algorithm hash_algo. */
-void measurement_extend(enum hash_algo hash_algo,
+void measurement_extend(enum hash_algo algorithm,
 			void *current_measurement,
 			void *extend_measurement,
 			size_t extend_measurement_size,
