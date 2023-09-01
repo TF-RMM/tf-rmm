@@ -364,6 +364,7 @@ void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 	struct rd *rd;
 	unsigned long idx;
 	unsigned int i, cnt;
+	unsigned long *measurement_value_part;
 
 	assert(rec != NULL);
 
@@ -389,14 +390,21 @@ void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 	cnt = (unsigned int)measurement_get_size(rd->algorithm) /
 						sizeof(unsigned long);
 
+	assert(cnt >= SMC_RESULT_REGS - 1U);
+	assert(cnt < ARRAY_LEN(rec->regs));
+
 	/* Copy the part of the measurement to res->smc_res.x[] */
 	for (i = 0U; i < SMC_RESULT_REGS - 1U; i++) {
-		res->smc_res.x[i + 1U] = rd->measurement[idx][i];
+		measurement_value_part = (unsigned long *)
+			&(rd->measurement[idx][i * sizeof(unsigned long)]);
+		res->smc_res.x[i + 1U] = *measurement_value_part;
 	}
 
 	/* Copy the rest of the measurement to the rec->regs[] */
 	for (; i < cnt; i++) {
-		rec->regs[i + 1U] = rd->measurement[idx][i];
+		measurement_value_part = (unsigned long *)
+			&(rd->measurement[idx][i * sizeof(unsigned long)]);
+		rec->regs[i + 1U] = *measurement_value_part;
 	}
 
 	/* Zero-initialize unused area */
