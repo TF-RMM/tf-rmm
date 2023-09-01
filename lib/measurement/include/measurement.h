@@ -103,7 +103,7 @@ struct measurement_desc_ripas {
 	/* Base IPA at which the RIPAS change occurred */
 	SET_MEMBER(unsigned long base, 0x50, 0x58);
 	/* Top IPA at which the RIPAS change occurred */
-	SET_MEMBER(unsigned char top, 0x58, 0x100);
+	SET_MEMBER(unsigned long top, 0x58, 0x100);
 };
 COMPILER_ASSERT(sizeof(struct measurement_desc_ripas) == 0x100);
 
