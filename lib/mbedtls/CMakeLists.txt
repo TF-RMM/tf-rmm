@@ -6,6 +6,12 @@
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 find_package(Git)
 
+# The Mbed TLS library is not included in the CBMC analysis
+if(RMM_CBMC_STATIC_ANALYSIS)
+    add_library(rmm-mbedtls INTERFACE)
+    return()
+endif()
+
 add_library(rmm-mbedtls INTERFACE)
 
 set(MBEDTLS_SRC_DIR "${RMM_SOURCE_DIR}/ext/mbedtls")

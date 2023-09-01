@@ -3,6 +3,12 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
+# The QCBOR library is not included in the CBMC analysis
+if(RMM_CBMC_STATIC_ANALYSIS)
+    add_library(qcbor INTERFACE)
+    return()
+endif()
+
 #
 # Set qcbor options to not use FPU.
 #

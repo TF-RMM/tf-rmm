@@ -74,11 +74,6 @@ enum granule_state {
 	 */
 	GRANULE_STATE_NS,
 	/*
-	 * TODO: remove the next line when spec aligment is done
-	 * currently this has been renamed in alp03 and is needed for CBMC testbench
-	 */
-	GRANULE_STATE_UNDELEGATED = GRANULE_STATE_NS,
-	/*
 	 * Delegated Granule (external)
 	 *
 	 * Granule content is protected by granule::lock.

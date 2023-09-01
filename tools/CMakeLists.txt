@@ -8,3 +8,4 @@ arm_config_option(
     HELP "Enable static analysis checkers.")
 
 add_subdirectory("cppcheck")
+add_subdirectory("cbmc")

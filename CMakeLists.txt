@@ -216,3 +216,4 @@ add_custom_target(clang-tidy-patch
     -DBUILD_DIR=${CMAKE_BINARY_DIR}
     -P ${CMAKE_SOURCE_DIR}/tools/clang-tidy/clang-tidy.cmake
   )
+

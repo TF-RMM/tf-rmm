@@ -50,6 +50,7 @@ The following tools are required to obtain and build |RMM|:
    "Graphviz dot",">v2.38.0","Documentation"
    "docutils",">v2.38.0","Documentation"
    "gcovr",">=v4.2","Tools(Coverage analysis)"
+   "CBMC",">=5.84.0","Tools(CBMC analysis)"
 
 .. _getting_started_toolchain:
 
@@ -224,6 +225,19 @@ If you own a valid copy of a MISRA rules file:
 
     sudo mkdir /usr/local/share/Cppcheck/misra
     sudo cp -a <path to the misra rules file>/<file name> /usr/local/share/Cppcheck/misra/misra.rules
+
+############
+Install CBMC
+############
+
+.. note::
+
+    The installation of CBMC is an optional step. This is required only
+    if running source code analysis with CBMC.
+
+Follow the public documentation to install CBMC either from the official
+website https://www.cprover.org/cbmc/ or from the official github
+https://github.com/diffblue/cbmc
 
 ###########################
 Performing an Initial Build
