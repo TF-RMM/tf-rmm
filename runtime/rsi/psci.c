@@ -313,7 +313,7 @@ void handle_psci(struct rec *rec,
 		break;
 	}
 
-	if ((res->action & FLAG_EXIT_TO_HOST) != 0) {
+	if (((unsigned int)res->action & FLAG_EXIT_TO_HOST) != 0U) {
 		rec_exit->exit_reason = RMI_EXIT_PSCI;
 	}
 }

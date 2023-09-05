@@ -180,7 +180,8 @@ static void free_rec_aux_granules(struct granule *rec_aux[],
 
 		granule_lock(g_rec_aux, GRANULE_STATE_REC_AUX);
 		if (scrub) {
-			granule_memzero(g_rec_aux, SLOT_REC_AUX0 + i);
+			granule_memzero(g_rec_aux,
+			   (enum buffer_slot)((unsigned int)SLOT_REC_AUX0 + i));
 		}
 		granule_unlock_transition(g_rec_aux, GRANULE_STATE_DELEGATED);
 	}

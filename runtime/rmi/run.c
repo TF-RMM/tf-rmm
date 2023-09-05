@@ -34,7 +34,7 @@ static bool complete_mmio_emulation(struct rec *rec, struct rmi_rec_entry *rec_e
 	}
 
 	if (((esr & MASK(ESR_EL2_EC)) != ESR_EL2_EC_DATA_ABORT) ||
-	    !(esr & ESR_EL2_ABORT_ISV_BIT)) {
+	    ((esr & ESR_EL2_ABORT_ISV_BIT) == 0UL)) {
 		/*
 		 * MMIO emulation is requested but the REC did not exit with
 		 * an emulatable exit.
