@@ -15,17 +15,17 @@ struct rmi_rec_exit;
 /*
  * If set, update REC registers to values provided by the handler.
  */
-#define FLAG_UPDATE_REC		1
+#define FLAG_UPDATE_REC		1U
 
 /*
  * If set, exit to Host.  Otherwise, return to Realm.
  */
-#define FLAG_EXIT_TO_HOST	2
+#define FLAG_EXIT_TO_HOST	2U
 
 /*
  * If set, present emulated Stage 2 abort to Host.
  */
-#define FLAG_STAGE_2_ABORT	4
+#define FLAG_STAGE_2_ABORT	4U
 
 enum rsi_action {
 	/*

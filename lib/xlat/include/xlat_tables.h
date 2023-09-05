@@ -235,7 +235,7 @@ static inline uint64_t xlat_read_tte(uint64_t *entry)
  *
  * This function returns 0 on success or a POSIX error code otherwise.
  */
-int xlat_get_llt_from_va(struct xlat_llt_info * const retval,
+int xlat_get_llt_from_va(struct xlat_llt_info * const llt,
 			 const struct xlat_ctx * const ctx,
 			 const uintptr_t va);
 
@@ -284,7 +284,7 @@ int xlat_map_memory_page_with_attrs(const struct xlat_llt_info * const table,
  * about its type or validity. It is the caller responsibility to do any
  * necessary checks on the returned tte before using it.
  */
-uint64_t *xlat_get_tte_ptr(const struct xlat_llt_info * const table,
+uint64_t *xlat_get_tte_ptr(const struct xlat_llt_info * const llt,
 			   const uintptr_t va);
 
 /*

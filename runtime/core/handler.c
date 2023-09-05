@@ -194,7 +194,7 @@ static void rmi_log_on_exit(unsigned long handler_id,
 		INFO("SMC_RMM_%-21s", handler->fn_name);
 
 		/* Print arguments */
-		num = handler->type & 0xFF;
+		num = (unsigned int)handler->type & 0xFFU;
 		assert(num <= MAX_NUM_ARGS);
 
 		for (unsigned int i = 0U; i < num; i++) {
@@ -220,7 +220,7 @@ static void rmi_log_on_exit(unsigned long handler_id,
 		   ((function_id == SMC_RMM_RTT_DESTROY) ||
 		    (function_id == SMC_RMM_DATA_DESTROY)))) {
 			/* Print output values */
-			num = (handler->type >> 8) & 0xFF;
+			num = ((unsigned int)handler->type >> 8) & 0xFFU;
 			assert(num <= MAX_NUM_OUTPUT_VALS);
 
 			for (unsigned int i = 1U; i <= num; i++) {

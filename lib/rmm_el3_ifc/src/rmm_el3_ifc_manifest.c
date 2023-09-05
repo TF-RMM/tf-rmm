@@ -90,7 +90,7 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 	 * Validate the Boot Manifest Version
 	 */
 	if (local_core_manifest.version <
-			RMM_EL3_MANIFEST_MAKE_VERSION(0, 2)) {
+			RMM_EL3_MANIFEST_MAKE_VERSION(0U, 2U)) {
 		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
 	}
 

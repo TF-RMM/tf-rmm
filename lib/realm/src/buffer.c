@@ -74,7 +74,7 @@ uintptr_t slot_to_va(enum buffer_slot slot)
 {
 	assert(slot < NR_CPU_SLOTS);
 
-	return (uintptr_t)(SLOT_VIRT + (GRANULE_SIZE * slot));
+	return (uintptr_t)(SLOT_VIRT + (GRANULE_SIZE * (unsigned int)slot));
 }
 
 static inline struct xlat_ctx *get_slot_buf_xlat_ctx(void)
@@ -178,9 +178,7 @@ void slot_buf_finish_warmboot_init(void)
  */
 void assert_cpu_slots_empty(void)
 {
-	unsigned int i;
-
-	for (i = 0; i < NR_CPU_SLOTS; i++) {
+	for (unsigned int i = 0U; i < (unsigned int)NR_CPU_SLOTS; i++) {
 		assert(slot_to_descriptor(i) == TRANSIENT_DESC);
 	}
 }
@@ -257,9 +255,9 @@ bool ns_buffer_read(enum buffer_slot slot,
 	 * memcpy_ns_read uses a single 8-byte LDR instruction and
 	 * all parameters must be aligned accordingly.
 	 */
-	assert(ALIGNED(size, 8));
-	assert(ALIGNED(offset, 8));
-	assert(ALIGNED(dest, 8));
+	assert(ALIGNED(size, 8U));
+	assert(ALIGNED(offset, 8U));
+	assert(ALIGNED(dest, 8U));
 
 	offset &= ~GRANULE_MASK;
 	assert(offset + size <= GRANULE_SIZE);
@@ -297,9 +295,9 @@ bool ns_buffer_write(enum buffer_slot slot,
 	 * memcpy_ns_write uses a single 8-byte STR instruction and
 	 * all parameters must be aligned accordingly.
 	 */
-	assert(ALIGNED(size, 8));
-	assert(ALIGNED(offset, 8));
-	assert(ALIGNED(src, 8));
+	assert(ALIGNED(size, 8U));
+	assert(ALIGNED(offset, 8U));
+	assert(ALIGNED(src, 8U));
 
 	offset &= ~GRANULE_MASK;
 	assert(offset + size <= GRANULE_SIZE);

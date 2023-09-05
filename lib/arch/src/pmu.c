@@ -10,7 +10,7 @@
 #include <smc-rmi.h>
 
 /* Clear bits P0-P30, C and F0 */
-#define PMU_CLEAR_ALL	0x1FFFFFFFF
+#define PMU_CLEAR_ALL	0x1FFFFFFFFUL
 
 #define READ_PMEV_EL0(n) {					     \
 	case n:							     \
