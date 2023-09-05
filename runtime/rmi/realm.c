@@ -411,7 +411,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 		rd->algorithm = HASH_SHA_512;
 	}
 
-	rd->pmu_enabled = (bool)EXTRACT(RMI_REALM_FLAGS_PMU, p.flags);
+	rd->pmu_enabled = EXTRACT(RMI_REALM_FLAGS_PMU, p.flags) != 0UL;
 	rd->pmu_num_ctrs = p.pmu_num_ctrs;
 
 	realm_params_measure(rd, &p);

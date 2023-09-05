@@ -181,7 +181,7 @@ static inline void __granule_refcount_dec(struct granule *g, unsigned long val)
  */
 static inline void atomic_granule_get(struct granule *g)
 {
-	atomic_add_64(&g->refcount, 1UL);
+	atomic_add_64(&g->refcount, 1L);
 }
 
 /*

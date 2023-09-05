@@ -84,7 +84,8 @@ static inline bool is_feat_lpa2_4k_2_present(void)
  */
 static inline unsigned int read_pmu_version(void)
 {
-	return EXTRACT(ID_AA64DFR0_EL1_PMUVer, read_id_aa64dfr0_el1());
+	return (unsigned int)EXTRACT(ID_AA64DFR0_EL1_PMUVer,
+					read_id_aa64dfr0_el1());
 }
 
 unsigned int arch_feat_get_pa_width(void);

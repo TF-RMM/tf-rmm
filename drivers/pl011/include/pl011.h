@@ -9,15 +9,15 @@
 #include <stdint.h>
 
 /* PL011 Registers */
-#define UARTDR                    0x000
-#define UARTECR                   0x004
-#define UARTFR                    0x018
+#define UARTDR                    0x00U
+#define UARTECR                   0x04U
+#define UARTFR                    0x18U
 
 /* PL011 registers (out of the SBSA specification) */
-#define UARTIBRD                  0x024
-#define UARTFBRD                  0x028
-#define UARTLCR_H                 0x02C
-#define UARTCR                    0x030
+#define UARTIBRD                  0x24U
+#define UARTFBRD                  0x28U
+#define UARTLCR_H                 0x2CU
+#define UARTCR                    0x30U
 
 /* Flag reg bits */
 #define PL011_UARTFR_TXFF         (1U << 5)	/* Transmit FIFO full */
