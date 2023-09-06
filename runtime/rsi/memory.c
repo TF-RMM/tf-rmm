@@ -60,7 +60,7 @@ void handle_rsi_ipa_state_get(struct rec *rec,
 	ws = realm_ipa_get_ripas(rec, ipa, &ripas_val);
 	if (ws == WALK_SUCCESS) {
 		res->smc_res.x[0] = RSI_SUCCESS;
-		res->smc_res.x[1] = ripas_val;
+		res->smc_res.x[1] = (unsigned long)ripas_val;
 	} else {
 		res->smc_res.x[0] = RSI_ERROR_INPUT;
 	}

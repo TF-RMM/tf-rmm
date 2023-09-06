@@ -300,7 +300,7 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	 */
 	atomic_granule_get(g_rd);
 	new_rec_state = GRANULE_STATE_REC;
-	rec->runnable = rec_params.flags & REC_PARAMS_FLAG_RUNNABLE;
+	rec->runnable = (rec_params.flags & REC_PARAMS_FLAG_RUNNABLE) != 0UL;
 
 	/*
 	 * The access to rec_aux granule is not protected by the lock

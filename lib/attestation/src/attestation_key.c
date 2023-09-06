@@ -194,10 +194,10 @@ int attest_get_realm_public_key(struct q_useful_buf_c *public_key)
 
 int attest_setup_platform_token(void)
 {
-	int ret;
 	uintptr_t shared_buf;
 	size_t platform_token_len = 0;
 	struct q_useful_buf_c rmm_pub_key_hash;
+	int ret;
 
 	/*
 	 * Copy the RAK public hash value to the token buffer. This is

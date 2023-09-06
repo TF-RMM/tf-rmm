@@ -129,7 +129,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 	 * __builtin_ctzll(0) is undefined but here we are guaranteed that
 	 * va_space_size is in the range [1,UINTPTR_MAX].
 	 */
-	txsz = 64 - __builtin_ctzll(va_space_size);
+	txsz = (uint64_t)(64 - __builtin_ctzll(va_space_size));
 
 	/*
 	 * Read TCR_EL2 in order to extract t0sz and t1sz. So we can update the right

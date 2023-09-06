@@ -121,5 +121,5 @@ unsigned int rmm_el3_ifc_get_version(void)
 {
 	assert(initialized == true);
 
-	return rmm_el3_ifc_abi_version;
+	return (unsigned int)rmm_el3_ifc_abi_version;
 }

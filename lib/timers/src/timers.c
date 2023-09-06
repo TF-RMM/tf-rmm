@@ -61,7 +61,8 @@ bool check_pending_timers(struct rec *rec)
 	 */
 	while (true) {
 		unsigned long hppir = read_icc_hppir1_el1();
-		unsigned int intid = EXTRACT(ICC_HPPIR1_EL1_INTID, hppir);
+		unsigned int intid =
+			(unsigned int)EXTRACT(ICC_HPPIR1_EL1_INTID, hppir);
 
 		if (!((((rec->sysregs.cnthctl_el2 & CNTHCTL_EL2_CNTVMASK) != 0UL) &&
 			(intid == EL1_VIRT_TIMER_PPI)) ||

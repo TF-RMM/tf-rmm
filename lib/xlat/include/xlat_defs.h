@@ -33,13 +33,13 @@
 
 /* Values for number of entries in each MMU translation table */
 #define XLAT_TABLE_ENTRIES_SHIFT (XLAT_TABLE_SIZE_SHIFT - XLAT_ENTRY_SIZE_SHIFT)
-#define XLAT_TABLE_ENTRIES	(UL(1) << XLAT_TABLE_ENTRIES_SHIFT)
-#define XLAT_TABLE_ENTRIES_MASK	(XLAT_TABLE_ENTRIES - UL(1))
+#define XLAT_TABLE_ENTRIES	(U(1) << XLAT_TABLE_ENTRIES_SHIFT)
+#define XLAT_TABLE_ENTRIES_MASK	(XLAT_TABLE_ENTRIES - U(1))
 
 /* Values for number of entries in a MMU translation table at level -1 */
 #define XLAT_LM1_TABLE_ENTRIES_SHIFT	(4U)
-#define XLAT_LM1_TABLE_ENTRIES	(UL(1) << XLAT_LM1_TABLE_ENTRIES_SHIFT)
-#define XLAT_LM1_TABLE_ENTRIES_MASK	(XLAT_LM1_TABLE_ENTRIES - UL(1))
+#define XLAT_LM1_TABLE_ENTRIES		(U(1) << XLAT_LM1_TABLE_ENTRIES_SHIFT)
+#define XLAT_LM1_TABLE_ENTRIES_MASK	(XLAT_LM1_TABLE_ENTRIES - U(1))
 
 /*
  * Return the number of entries per table base on the level.

@@ -20,7 +20,7 @@
  * Validate the map_addr value passed to RMI_RTT_* and RMI_DATA_* commands.
  */
 static bool validate_map_addr(unsigned long map_addr,
-			      unsigned long level,
+			      long level,
 			      struct rd *rd)
 {
 	return ((map_addr < realm_ipa_size(rd)) &&
@@ -768,44 +768,44 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 	assert(s2tt != NULL);
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
-	res->x[1] =  wi.last_level;
+	res->x[1] = (unsigned long)wi.last_level;
 
 	if (s2tte_is_unassigned_empty(s2tte)) {
 		res->x[2] = RMI_UNASSIGNED;
 		res->x[3] = 0UL;
-		res->x[4] = RIPAS_EMPTY;
+		res->x[4] = (unsigned long)RIPAS_EMPTY;
 	} else if (s2tte_is_unassigned_ram(s2tte)) {
 		res->x[2] = RMI_UNASSIGNED;
 		res->x[3] = 0UL;
-		res->x[4] = RIPAS_RAM;
+		res->x[4] = (unsigned long)RIPAS_RAM;
 	} else if (s2tte_is_unassigned_destroyed(s2tte)) {
 		res->x[2] = RMI_UNASSIGNED;
 		res->x[3] = 0UL;
-		res->x[4] = RIPAS_DESTROYED;
+		res->x[4] = (unsigned long)RIPAS_DESTROYED;
 	} else if (s2tte_is_assigned_empty(s2tte, wi.last_level)) {
 		res->x[2] = RMI_ASSIGNED;
 		res->x[3] = s2tte_pa(s2tte, wi.last_level);
-		res->x[4] = RIPAS_EMPTY;
+		res->x[4] = (unsigned long)RIPAS_EMPTY;
 	} else if (s2tte_is_assigned_ram(s2tte, wi.last_level)) {
 		res->x[2] = RMI_ASSIGNED;
 		res->x[3] = s2tte_pa(s2tte, wi.last_level);
-		res->x[4] = RIPAS_RAM;
+		res->x[4] = (unsigned long)RIPAS_RAM;
 	} else if (s2tte_is_assigned_destroyed(s2tte, wi.last_level)) {
 		res->x[2] = RMI_ASSIGNED;
 		res->x[3] = 0UL;
-		res->x[4] = RIPAS_DESTROYED;
+		res->x[4] = (unsigned long)RIPAS_DESTROYED;
 	} else if (s2tte_is_unassigned_ns(s2tte)) {
 		res->x[2] = RMI_UNASSIGNED;
 		res->x[3] = 0UL;
-		res->x[4] = RIPAS_EMPTY;
+		res->x[4] = (unsigned long)RIPAS_EMPTY;
 	} else if (s2tte_is_assigned_ns(s2tte, wi.last_level)) {
 		res->x[2] = RMI_ASSIGNED;
 		res->x[3] = host_ns_s2tte(s2tte, wi.last_level);
-		res->x[4] = RIPAS_EMPTY;
+		res->x[4] = (unsigned long)RIPAS_EMPTY;
 	} else if (s2tte_is_table(s2tte, wi.last_level)) {
 		res->x[2] = RMI_TABLE;
 		res->x[3] = s2tte_pa_table(s2tte, wi.last_level);
-		res->x[4] = RIPAS_EMPTY;
+		res->x[4] = (unsigned long)RIPAS_EMPTY;
 	} else {
 		assert(false);
 	}
@@ -1117,7 +1117,7 @@ out_unmap_ll_table:
  * Sets:
  * @(*do_tlbi) to 'true' if the TLBs have to be invalidated.
  */
-static int update_ripas(unsigned long *s2ttep, unsigned long level,
+static int update_ripas(unsigned long *s2ttep, long level,
 			enum ripas ripas_val,
 			enum ripas_change_destroyed change_destroyed)
 {
@@ -1318,13 +1318,13 @@ static void rtt_set_ripas_range(struct realm_s2_context *s2_ctx,
 				unsigned long base,
 				unsigned long top,
 				struct rtt_walk *wi,
-				unsigned long ripas_val,
+				enum ripas ripas_val,
 				enum ripas_change_destroyed change_destroyed,
 				struct smc_result *res)
 {
 	unsigned long index;
 	long level = wi->last_level;
-	unsigned long map_size = s2tte_map_size(level);
+	unsigned long map_size = s2tte_map_size((int)level);
 
 	/* Align to the RTT level */
 	unsigned long addr = base & ~(map_size - 1UL);

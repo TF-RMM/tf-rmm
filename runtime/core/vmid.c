@@ -60,6 +60,7 @@ void vmid_free(unsigned int vmid)
 
 	/* Check the number of supported VMID values */
 	assert(vmid < vmid_count);
+
 	offset = vmid / BITS_PER_UL;
 	vmid %= BITS_PER_UL;
 
