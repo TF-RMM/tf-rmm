@@ -13,7 +13,7 @@ COMPILER_ASSERT(offsetof(struct rmi_realm_params, sve_vl) == 0x10);
 COMPILER_ASSERT(offsetof(struct rmi_realm_params, num_bps) == 0x18);
 COMPILER_ASSERT(offsetof(struct rmi_realm_params, num_wps) == 0x20);
 COMPILER_ASSERT(offsetof(struct rmi_realm_params, pmu_num_ctrs) == 0x28);
-COMPILER_ASSERT(offsetof(struct rmi_realm_params, hash_algo) == 0x30);
+COMPILER_ASSERT(offsetof(struct rmi_realm_params, algorithm) == 0x30);
 COMPILER_ASSERT(offsetof(struct rmi_realm_params, rpv) == 0x400);
 COMPILER_ASSERT(offsetof(struct rmi_realm_params, vmid) == 0x800);
 COMPILER_ASSERT(offsetof(struct rmi_realm_params, rtt_base) == 0x808);

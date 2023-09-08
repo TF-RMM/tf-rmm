@@ -218,7 +218,7 @@ void simd_state_init(simd_t type, struct simd_state *simd, uint8_t sve_vq)
 	 * might not be zeroed out.
 	 */
 	if (type == SIMD_SVE) {
-		assert(sve_vq <= g_sve_max_vq);
+		assert(sve_vq <= (uint8_t)g_sve_max_vq);
 		simd->t.sve.vq = sve_vq;
 	}
 	simd->simd_type = type;

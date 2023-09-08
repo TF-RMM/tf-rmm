@@ -40,7 +40,7 @@ static void measurement_print(unsigned char *measurement,
 }
 #endif /* LOG_LEVEL */
 
-static void do_hash(enum hash_algo hash_algo,
+static void do_hash(enum hash_algo algorithm,
 		    void *data,
 		    size_t size,
 		    unsigned char *out)
@@ -52,9 +52,9 @@ static void do_hash(enum hash_algo hash_algo,
 	assert(size <= GRANULE_SIZE);
 	assert((data != NULL) && (out != NULL));
 
-	if (hash_algo == HASH_SHA_256) {
+	if (algorithm == HASH_SHA_256) {
 		psa_algorithm = PSA_ALG_SHA_256;
-	} else if (hash_algo == HASH_SHA_512) {
+	} else if (algorithm == HASH_SHA_512) {
 		psa_algorithm = PSA_ALG_SHA_512;
 	} else {
 		assert(false);
@@ -70,16 +70,16 @@ static void do_hash(enum hash_algo hash_algo,
 	assert(ret == 0);
 
 #if LOG_LEVEL >= LOG_LEVEL_VERBOSE
-	measurement_print(out, hash_algo);
+	measurement_print(out, algorithm);
 #endif
 }
 
-void measurement_hash_compute(enum hash_algo hash_algo,
+void measurement_hash_compute(enum hash_algo algorithm,
 			      void *data,
 			      size_t size,
 			      unsigned char *out)
 {
-	do_hash(hash_algo, data, size, out);
+	do_hash(algorithm, data, size, out);
 }
 static void do_extend(psa_algorithm_t psa_algorithm,
 		      void *current_measurement,
@@ -114,7 +114,7 @@ static void do_extend(psa_algorithm_t psa_algorithm,
 	assert(ret == PSA_SUCCESS);
 }
 
-void measurement_extend(enum hash_algo hash_algo,
+void measurement_extend(enum hash_algo algorithm,
 			void *current_measurement,
 			void *extend_measurement,
 			size_t extend_measurement_size,
@@ -128,7 +128,7 @@ void measurement_extend(enum hash_algo hash_algo,
 	assert(extend_measurement != NULL);
 	assert(out != NULL);
 
-	switch (hash_algo) {
+	switch (algorithm) {
 	case HASH_SHA_256:
 		psa_algorithm = PSA_ALG_SHA_256;
 		break;
@@ -147,6 +147,6 @@ void measurement_extend(enum hash_algo hash_algo,
 			  out));
 
 #if LOG_LEVEL >= LOG_LEVEL_VERBOSE
-	measurement_print(out, hash_algo);
+	measurement_print(out, algorithm);
 #endif
 }

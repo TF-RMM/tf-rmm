@@ -175,7 +175,7 @@ void emulate_stage2_data_abort(struct rec *rec,
 {
 	unsigned long fipa = rec->regs[1];
 
-	assert(rtt_level <= RTT_PAGE_LEVEL);
+	assert(rtt_level <= (unsigned long)RTT_PAGE_LEVEL);
 
 	/*
 	 * Setup Exception Syndrom Register to emulate a real data abort

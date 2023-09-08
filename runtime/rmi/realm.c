@@ -72,7 +72,7 @@ static bool get_realm_params(struct rmi_realm_params *realm_params,
  */
 static bool s2_inconsistent_sl(unsigned int ipa_bits, int sl)
 {
-	int levels = RTT_PAGE_LEVEL - sl;
+	unsigned int levels = (unsigned int)(RTT_PAGE_LEVEL - sl);
 	unsigned int sl_min_ipa_bits, sl_max_ipa_bits;
 
 	/*
@@ -125,7 +125,7 @@ static unsigned int s2_num_root_rtts(unsigned int ipa_bits, int sl)
 		return 1U;
 	}
 
-	return (1U << (ipa_bits - sl_ipa_bits));
+	return (unsigned int)(1U << (ipa_bits - sl_ipa_bits));
 }
 
 /*
@@ -141,7 +141,7 @@ static void init_s2_starting_level(struct rd *rd)
 {
 	unsigned long current_ipa = 0U;
 	struct granule *g_rtt = rd->s2_ctx.g_rtt;
-	int levels = RTT_PAGE_LEVEL - rd->s2_ctx.s2_starting_level;
+	unsigned int levels = RTT_PAGE_LEVEL - rd->s2_ctx.s2_starting_level;
 
 	/*
 	 * The size of the IPA space that is covered by one S2TTE at
@@ -247,7 +247,7 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 	 * later.
 	 */
 
-	switch (p->hash_algo) {
+	switch (p->algorithm) {
 	case RMI_HASH_SHA_256:
 	case RMI_HASH_SHA_512:
 		break;
@@ -270,7 +270,7 @@ static void realm_params_measure(struct rd *rd,
 	struct rmi_realm_params *realm_params_measured =
 		(struct rmi_realm_params *)&buffer[0];
 
-	realm_params_measured->hash_algo = realm_params->hash_algo;
+	realm_params_measured->algorithm = realm_params->algorithm;
 	/* TODO: Add later */
 	/* realm_params_measured->features_0 = realm_params->features_0; */
 
@@ -301,7 +301,7 @@ static bool find_lock_rd_granules(unsigned long rd_addr,
 				  struct granule **p_g_rtt_base)
 {
 	struct granule *g_rd = NULL, *g_rtt_base = NULL;
-	int i = 0;
+	unsigned int i = 0U;
 
 	if (rd_addr < rtt_base_addr) {
 		g_rd = find_lock_granule(rd_addr, GRANULE_STATE_DELEGATED);
@@ -319,7 +319,7 @@ static bool find_lock_rd_granules(unsigned long rd_addr,
 			goto out_err;
 		}
 
-		if (i == 0) {
+		if (i == 0U) {
 			g_rtt_base = g_rtt;
 		}
 	}
@@ -337,7 +337,7 @@ static bool find_lock_rd_granules(unsigned long rd_addr,
 	return true;
 
 out_err:
-	for (i = i - 1; i >= 0; i--) {
+	while (i-- != 0U) {
 		granule_unlock(g_rtt_base + i);
 	}
 
@@ -406,7 +406,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 		rd->sve_vq = (uint8_t)p.sve_vl;
 	}
 
-	if (p.hash_algo == RMI_HASH_SHA_256) {
+	if (p.algorithm == RMI_HASH_SHA_256) {
 		rd->algorithm = HASH_SHA_256;
 	} else {
 		rd->algorithm = HASH_SHA_512;

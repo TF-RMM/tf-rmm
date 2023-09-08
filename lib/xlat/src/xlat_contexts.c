@@ -89,10 +89,10 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 			return -EFAULT;
 		}
 
-		if ((granularity != XLAT_BLOCK_SIZE(0U)) &&
-		    (granularity != XLAT_BLOCK_SIZE(1U)) &&
-		    (granularity != XLAT_BLOCK_SIZE(2U)) &&
-		    (granularity != XLAT_BLOCK_SIZE(3U))) {
+		if ((granularity != XLAT_BLOCK_SIZE(0)) &&
+		    (granularity != XLAT_BLOCK_SIZE(1)) &&
+		    (granularity != XLAT_BLOCK_SIZE(2)) &&
+		    (granularity != XLAT_BLOCK_SIZE(3))) {
 			return -EINVAL;
 		}
 
@@ -273,7 +273,7 @@ int xlat_ctx_init(struct xlat_ctx *ctx,
 		return -EINVAL;
 	}
 
-	if (tables_ptr == NULL || ntables == 0U) {
+	if ((tables_ptr == NULL) || (ntables == 0U)) {
 		return -EINVAL;
 	}
 

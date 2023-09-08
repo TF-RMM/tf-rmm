@@ -113,7 +113,7 @@ struct rec_attest_data {
 	unsigned char rmm_realm_token_buf[SZ_1K];
 	size_t rmm_realm_token_len;
 
-	struct token_sign_ctx token_sign_ctx;
+	struct token_sign_cntxt token_sign_ctx;
 
 	/* Buffer allocation info used for heap init and management */
 	struct {
@@ -179,7 +179,7 @@ struct rec {
 		struct granule *g_rd;
 		bool pmu_enabled;
 		unsigned int pmu_num_ctrs;
-		enum hash_algo hash_algo;
+		enum hash_algo algorithm;
 		bool sve_enabled;
 		uint8_t sve_vq;
 	} realm_info;

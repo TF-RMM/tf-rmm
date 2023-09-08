@@ -27,13 +27,13 @@
  * According to IANA hash algorithm registry:
  *   - https://www.iana.org/assignments/hash-function-text-names/hash-function-text-names.xml
  */
-static void attest_get_hash_algo_text(enum hash_algo  algo_id,
+static void attest_get_hash_algo_text(enum hash_algo algorithm,
 				      struct q_useful_buf_c *algo_text)
 {
 	const char *sha256 = "sha-256";
 	const char *sha512 = "sha-512";
 
-	switch (algo_id) {
+	switch (algorithm) {
 	case HASH_SHA_256:
 		*algo_text = UsefulBuf_FromSZ(sha256);
 		break;
@@ -242,7 +242,7 @@ int attest_realm_token_create(enum hash_algo algorithm,
 			     unsigned int num_measurements,
 			     const void *rpv_buf,
 			     size_t rpv_len,
-			     struct token_sign_ctx *ctx,
+			     struct token_sign_cntxt *ctx,
 			     void *realm_token_buf,
 			     size_t realm_token_buf_size)
 {

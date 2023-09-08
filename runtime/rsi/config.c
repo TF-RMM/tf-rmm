@@ -47,10 +47,10 @@ void handle_rsi_realm_config(struct rec *rec, struct rsi_result *res)
 
 	/* Populate config structure */
 	config->ipa_width = rec->realm_info.ipa_bits;
-	if (rec->realm_info.hash_algo == HASH_SHA_256) {
-		config->hash_algo = RSI_HASH_SHA_256;
+	if (rec->realm_info.algorithm == HASH_SHA_256) {
+		config->algorithm = RSI_HASH_SHA_256;
 	} else {
-		config->hash_algo = RSI_HASH_SHA_512;
+		config->algorithm = RSI_HASH_SHA_512;
 	}
 
 	/* Unmap Realm data granule */

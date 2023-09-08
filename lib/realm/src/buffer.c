@@ -74,7 +74,7 @@ uintptr_t slot_to_va(enum buffer_slot slot)
 {
 	assert(slot < NR_CPU_SLOTS);
 
-	return (uintptr_t)(SLOT_VIRT + (GRANULE_SIZE * (unsigned int)slot));
+	return (SLOT_VIRT + (GRANULE_SIZE * (unsigned long)slot));
 }
 
 static inline struct xlat_ctx *get_slot_buf_xlat_ctx(void)

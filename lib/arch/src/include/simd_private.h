@@ -9,7 +9,7 @@
 #include <stdint.h>
 
 /* convert SVE VL in bytes to VQ */
-#define SVE_VL_TO_VQ(vl_bytes)	((((vl_bytes) << 3) / 128) - 1)
+#define SVE_VL_TO_VQ(vl_bytes)	((((vl_bytes) << 3) / 128U) - 1U)
 
 /*
  * Save/restore FPU context to/from the `fpu_state` passed as parameter. The FPU

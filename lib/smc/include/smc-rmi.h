@@ -85,8 +85,8 @@
 #define REC_EXIT_NR_GPRS		U(31)
 
 /* RmiHashAlgorithm type */
-#define RMI_HASH_SHA_256	0
-#define RMI_HASH_SHA_512	1
+#define RMI_HASH_SHA_256		U(0)
+#define RMI_HASH_SHA_512		U(1)
 
 /* Maximum number of Interrupt Controller List Registers */
 #define REC_GIC_NUM_LRS			U(16)
@@ -184,8 +184,8 @@
 #define SMC_RMM_GRANULE_UNDELEGATE		SMC64_RMI_FID(U(0x2))
 
 /* RmiDataMeasureContent type */
-#define RMI_NO_MEASURE_CONTENT 0
-#define RMI_MEASURE_CONTENT  1
+#define RMI_NO_MEASURE_CONTENT	U(0)
+#define RMI_MEASURE_CONTENT	U(1)
 
 /*
  * arg0 == RD address
@@ -381,7 +381,7 @@ struct rmi_realm_params {
 	/* Requested number of PMU counters */
 	SET_MEMBER_RMI(unsigned int pmu_num_ctrs, 0x28, 0x30);	/* 0x28 */
 	/* Measurement algorithm */
-	SET_MEMBER_RMI(unsigned char hash_algo, 0x30, 0x400);	/* 0x30 */
+	SET_MEMBER_RMI(unsigned char algorithm, 0x30, 0x400);	/* 0x30 */
 	/* Realm Personalization Value */
 	SET_MEMBER_RMI(unsigned char rpv[RPV_SIZE], 0x400, 0x800); /* 0x400 */
 	SET_MEMBER_RMI(struct {

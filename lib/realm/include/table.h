@@ -9,8 +9,8 @@
 #include <arch_features.h>
 #include <memory.h>
 
-#define MIN_IPA_BITS		32
-#define MAX_IPA_BITS		48
+#define MIN_IPA_BITS		32U
+#define MAX_IPA_BITS		48U
 #define MAX_IPA_SIZE		(1UL << MAX_IPA_BITS)
 
 #define MIN_STARTING_LEVEL	0
@@ -29,9 +29,6 @@ COMPILER_ASSERT(MIN_STARTING_LEVEL >= 0);
  */
 #define S2TTE_STRIDE		(GRANULE_SHIFT - 3U)
 #define S2TTES_PER_S2TT		(1U << S2TTE_STRIDE)
-
-struct rd;
-enum ripas;
 
 unsigned long s2tte_create_unassigned_empty(void);
 unsigned long s2tte_create_unassigned_ram(void);
@@ -135,7 +132,7 @@ static inline unsigned int max_ipa_size(void)
 {
 	unsigned int ipa_size = arch_feat_get_pa_width();
 
-	return ipa_size > MAX_IPA_BITS ? MAX_IPA_BITS : ipa_size;
+	return (ipa_size > MAX_IPA_BITS) ? MAX_IPA_BITS : ipa_size;
 }
 
 unsigned long skip_non_live_entries(unsigned long addr,

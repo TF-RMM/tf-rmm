@@ -132,14 +132,14 @@
  * Defines member of structure and reserves space
  * for the next member with specified offset.
  */
-#define SET_MEMBER_RSI SET_MEMBER
+#define SET_MEMBER_RSI	SET_MEMBER
 
 /* RsiRealmConfig structure containing realm configuration */
 struct rsi_realm_config {
 	/* IPA width in bits */
 	SET_MEMBER_RSI(unsigned long ipa_width, 0, 8);		/* Offset 0 */
 	/* Hash algorithm */
-	SET_MEMBER_RSI(unsigned long hash_algo, 8, 0x1000);	/* Offset 8 */
+	SET_MEMBER_RSI(unsigned long algorithm, 8, 0x1000);	/* Offset 8 */
 };
 
 #endif /* __ASSEMBLER__ */

@@ -30,7 +30,7 @@
  */
 #define XLAT_MIN_BLOCK_LVL()		\
 	((is_feat_lpa2_4k_present() == true) ?	\
-	XLAT_TABLE_LEVEL_MIN + 1U : XLAT_TABLE_LEVEL_MIN + 2U)
+	XLAT_TABLE_LEVEL_MIN + 1 : XLAT_TABLE_LEVEL_MIN + 2)
 
 /*
  * Default granularity size for a struct xlat_mmap_region.

@@ -60,7 +60,7 @@ static inline void __granule_assert_unlocked_invariants(struct granule *g,
 		break;
 	case GRANULE_STATE_RTT:
 		/* Refcount cannot be greater that number of entries in an RTT */
-		assert(g->refcount <= GRANULE_SIZE / sizeof(uint64_t));
+		assert(g->refcount <= (GRANULE_SIZE / sizeof(uint64_t)));
 		break;
 	case GRANULE_STATE_REC_AUX:
 		assert(g->refcount == 0UL);
@@ -149,14 +149,14 @@ void granule_memzero_mapped(void *buf);
 /* Must be called with g->lock held */
 static inline void __granule_get(struct granule *g)
 {
-	assert(g->lock.val != 0);
+	assert(g->lock.val != 0U);
 	g->refcount++;
 }
 
 /* Must be called with g->lock held */
 static inline void __granule_put(struct granule *g)
 {
-	assert(g->lock.val != 0);
+	assert(g->lock.val != 0U);
 	assert(g->refcount > 0UL);
 	g->refcount--;
 }
@@ -164,14 +164,14 @@ static inline void __granule_put(struct granule *g)
 /* Must be called with g->lock held */
 static inline void __granule_refcount_inc(struct granule *g, unsigned long val)
 {
-	assert(g->lock.val != 0);
+	assert(g->lock.val != 0U);
 	g->refcount += val;
 }
 
 /* Must be called with g->lock held */
 static inline void __granule_refcount_dec(struct granule *g, unsigned long val)
 {
-	assert(g->lock.val != 0);
+	assert(g->lock.val != 0U);
 	assert(g->refcount >= val);
 	g->refcount -= val;
 }

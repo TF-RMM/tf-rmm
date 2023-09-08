@@ -136,21 +136,18 @@ struct granule_set {
 /*
  * Sort a set of granules by their address.
  */
-static void sort_granules(struct granule_set *granules,
-			unsigned long n)
+static void sort_granules(struct granule_set *gs, unsigned long n)
 {
-	unsigned long i;
-
-	for (i = 1UL; i < n; i++) {
-		struct granule_set temp = granules[i];
+	for (unsigned long i = 1UL; i < n; i++) {
+		struct granule_set temp = gs[i];
 		unsigned long j = i;
 
-		while ((j > 0UL) && (granules[j - 1].addr > temp.addr)) {
-			granules[j] = granules[j - 1];
+		while ((j > 0UL) && (gs[j - 1UL].addr > temp.addr)) {
+			gs[j] = gs[j - 1UL];
 			j--;
 		}
 		if (i != j) {
-			granules[j] = temp;
+			gs[j] = temp;
 		}
 	}
 }
@@ -183,35 +180,34 @@ static void sort_granules(struct granule_set *granules,
  * If the function fails, no lock is held and no *->g_ret pointers are
  * modified.
  */
-static bool find_lock_granules(struct granule_set *granules,
-				unsigned long n)
+static bool find_lock_granules(struct granule_set *gs, unsigned long n)
 {
-	long i;
+	unsigned long i;
 
-	sort_granules(granules, n);
+	sort_granules(gs, n);
 
-	for (i = 0L; i < n; i++) {
+	for (i = 0UL; i < n; i++) {
 		/* Check for duplicates */
-		if ((i > 0L) && (granules[i].addr == granules[i - 1].addr)) {
+		if ((i != 0UL) &&
+		    (gs[i].addr == gs[i - 1UL].addr)) {
 			goto out_err;
 		}
 
-		granules[i].g = find_lock_granule(granules[i].addr,
-						granules[i].state);
-		if (granules[i].g == NULL) {
+		gs[i].g = find_lock_granule(gs[i].addr, gs[i].state);
+		if (gs[i].g == NULL) {
 			goto out_err;
 		}
 	}
 
-	for (i = 0L; i < n; i++) {
-		*granules[i].g_ret = granules[i].g;
+	for (i = 0UL; i < n; i++) {
+		*gs[i].g_ret = gs[i].g;
 	}
 
 	return true;
 
 out_err:
-	for (i = i - 1; i >= 0L; i--) {
-		granule_unlock(granules[i].g);
+	while (i-- != 0UL) {
+		granule_unlock(gs[i].g);
 	}
 
 	return false;
