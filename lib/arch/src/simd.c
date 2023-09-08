@@ -97,6 +97,18 @@ static void restore_simd_context(struct simd_context *ctx)
 	} else {
 		/* Restore FPU Q registers */
 		fpu_restore_registers(&ctx->vregs.fpu);
+
+		/*
+		 * If the context has SVE and if SVE hint is set, restoring
+		 * the Q[0-31] registers will clear all the upper bits of
+		 * Z[0-31] registers. This will clear the contents of Z registers
+		 * if the previous user was using SVE. But the P and FFR
+		 * registers will hold the values from previous usage. So these
+		 * registers have to be explicitly cleared.
+		 */
+		if (simd_has_sve(ctx)) {
+			sve_clear_p_ffr_registers();
+		}
 	}
 
 	/* Restore ctl_status_regs */

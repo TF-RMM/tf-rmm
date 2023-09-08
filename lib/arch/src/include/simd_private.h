@@ -42,4 +42,7 @@ void sve_save_vector_registers(struct sve_regs *regs, bool save_ffr);
  */
 void sve_restore_vector_registers(struct sve_regs *regs, bool restore_ffr);
 
+/* Clear SVE P and FFR registers */
+void sve_clear_p_ffr_registers(void);
+
 #endif /* SIMD_PRIVATE_H */

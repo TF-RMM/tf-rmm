@@ -12,6 +12,7 @@
 .globl sve_rdvl
 .globl sve_save_vector_registers
 .globl sve_restore_vector_registers
+.globl sve_clear_p_ffr_registers
 
 /*
  * void fpu_save_registers(struct fpu_regs *regs);
@@ -267,3 +268,35 @@ func sve_restore_vector_registers
 	ret
 .arch_extension nosve
 endfunc sve_restore_vector_registers
+
+/*
+ * void sve_clear_p_ffr_registers(void)
+ *
+ * Clear SVE P and FFR registers.
+ *
+ * Returns:
+ *   none
+ */
+func sve_clear_p_ffr_registers
+.arch_extension sve
+	pfalse	p0.B
+	pfalse	p1.B
+	pfalse	p2.B
+	pfalse	p3.B
+	pfalse	p4.B
+	pfalse	p5.B
+	pfalse	p6.B
+	pfalse	p7.B
+	pfalse	p8.B
+	pfalse	p9.B
+	pfalse	p10.B
+	pfalse	p11.B
+	pfalse	p12.B
+	pfalse	p13.B
+	pfalse	p14.B
+	pfalse	p15.B
+
+	wrffr	p0.B
+	ret
+.arch_extension nosve
+endfunc sve_clear_p_ffr_registers

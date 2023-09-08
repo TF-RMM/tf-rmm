@@ -31,3 +31,7 @@ void sve_restore_vector_registers(struct sve_regs *regs, bool restore_ffr)
 	(void)regs;
 	(void)restore_ffr;
 }
+
+void sve_clear_p_ffr_registers(void)
+{
+}
