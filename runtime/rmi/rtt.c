@@ -40,7 +40,7 @@ static bool validate_rtt_structure_cmds(unsigned long map_addr,
 	if ((level < min_level) || (level > RTT_PAGE_LEVEL)) {
 		return false;
 	}
-	return validate_map_addr(map_addr, level, rd);
+	return validate_map_addr(map_addr, level - 1L, rd);
 }
 
 /*
