@@ -100,6 +100,17 @@ static inline unsigned int read_pmu_version(void)
 					read_id_aa64dfr0_el1());
 }
 
+/*
+ * Check if FEAT_HPMN0 is implemented.
+ * ID_AA64DFR0_EL1.HPMN0, bits [63:60]:
+ * 0b0001: Setting MDCR_EL2.HPMN to zero has defined behavior
+ */
+static inline bool is_feat_hpmn0_present(void)
+{
+	return (EXTRACT(ID_AA64DFR0_EL1_HPMN0,
+		read_id_aa64dfr0_el1()) == 1UL);
+}
+
 unsigned int arch_feat_get_pa_width(void);
 
 #endif /* ARCH_FEATURES_H */
