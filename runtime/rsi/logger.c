@@ -168,7 +168,7 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 
 		/* Print output values */
 		for (unsigned int i = 1U; i <= num; i++) {
-			buf = (char *)((uintptr_t)buffer + (unsigned int)cnt);
+			buf = (char *)((uintptr_t)buf + (unsigned int)cnt);
 			len -= (size_t)cnt;
 			cnt = snprintf(buf, len, " %lx", regs[i]);
 			assert((cnt > 0) && (cnt < (int)len));
