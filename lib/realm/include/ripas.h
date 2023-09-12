@@ -35,4 +35,15 @@ enum ripas_change_destroyed {
 	CHANGE_DESTROYED = RSI_CHANGE_DESTROYED
 };
 
+/*
+ * The RmmRecResponse enumeration represents whether the Host accepted
+ * or rejected a Realm request.
+ *
+ * Map RmmRecResponse to RmiResponse to simplify check operation.
+ */
+enum ripas_response {
+	ACCEPT = RMI_ACCEPT,	/* Host accepted Realm request */
+	REJECT = RMI_REJECT	/* Host rejected Realm request */
+};
+
 #endif /* RIPAS_H */

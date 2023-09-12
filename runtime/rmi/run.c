@@ -69,14 +69,25 @@ static bool complete_mmio_emulation(struct rec *rec, struct rmi_rec_enter *rec_e
 
 static void complete_set_ripas(struct rec *rec)
 {
-	if (rec->set_ripas.base != rec->set_ripas.top) {
-		/* Pending request from Realm */
-		rec->regs[0] = RSI_SUCCESS;
-		rec->regs[1] = rec->set_ripas.addr;
+	enum ripas ripas_val = rec->set_ripas.ripas_val;
 
-		rec->set_ripas.base = 0UL;
-		rec->set_ripas.top = 0UL;
+	if (rec->set_ripas.base == rec->set_ripas.top) {
+		return;
 	}
+
+	/* Pending request from Realm */
+	rec->regs[0] = RSI_SUCCESS;
+	rec->regs[1] = rec->set_ripas.addr;
+
+	if ((ripas_val == RIPAS_RAM) && (rec->set_ripas.addr != rec->set_ripas.top)
+		 && (rec->set_ripas.response == REJECT)) {
+		rec->regs[2] = RSI_REJECT;
+	} else {
+		rec->regs[2] = RSI_ACCEPT;
+	}
+
+	rec->set_ripas.base = 0UL;
+	rec->set_ripas.top = 0UL;
 }
 
 static bool complete_sea_insertion(struct rec *rec, struct rmi_rec_enter *rec_enter)
@@ -255,6 +266,10 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 		ret = RMI_ERROR_REC;
 		goto out_unmap_buffers;
 	}
+
+	rec->set_ripas.response =
+		((rec_run.enter.flags & REC_ENTRY_FLAG_RIPAS_RESPONSE) == 0UL) ?
+			RMI_ACCEPT : RMI_REJECT;
 
 	complete_set_ripas(rec);
 	complete_sysreg_emulation(rec, &rec_run.enter);

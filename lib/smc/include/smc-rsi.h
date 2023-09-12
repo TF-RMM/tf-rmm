@@ -73,6 +73,13 @@
 #define RSI_CHANGE_DESTROYED	U(1)
 
 /*
+ * RsiResponse enumeration represents whether Host accepted
+ * or rejected a Realm request
+ */
+#define RSI_ACCEPT		U(0)
+#define RSI_REJECT		U(1)
+
+/*
  * Returns a measurement.
  * arg1: Measurement index (0..4), measurement (RIM or REM) to read
  * ret0: Status / error

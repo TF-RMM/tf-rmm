@@ -159,6 +159,7 @@ struct rec {
 		unsigned long addr;
 		enum ripas ripas_val;
 		enum ripas_change_destroyed change_destroyed;
+		enum ripas_response response;
 	} set_ripas;
 
 	/*

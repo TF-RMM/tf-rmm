@@ -94,12 +94,18 @@
 /* Maximum number of auxiliary granules required for a REC */
 #define MAX_REC_AUX_GRANULES		U(16)
 
+/* Whether Host has completed emulation for an Emulatable Data Abort */
 #define REC_ENTRY_FLAG_EMUL_MMIO	(UL(1) << 0)
+
+/* Whether to inject a Synchronous External Abort into Realm */
 #define REC_ENTRY_FLAG_INJECT_SEA	(UL(1) << 1)
 
-/* Flags to specify if WFI/WFE should be trapped to host */
+/* Whether to trap WFI/WFE execution by Realm */
 #define REC_ENTRY_FLAG_TRAP_WFI		(UL(1) << 2)
 #define REC_ENTRY_FLAG_TRAP_WFE		(UL(1) << 3)
+
+/* Host response to RIPAS change request */
+#define REC_ENTRY_FLAG_RIPAS_RESPONSE	(UL(1) << 4)
 
 /*
  * RmiRecExitReason represents the reason for a REC exit.
@@ -169,6 +175,13 @@
 /* RmiPmuOverflowStatus enumeration representing PMU overflow status */
 #define RMI_PMU_OVERFLOW_NOT_ACTIVE	U(0)
 #define RMI_PMU_OVERFLOW_ACTIVE		U(1)
+
+/*
+ * RmiResponse enumeration represents whether the Host accepted
+ * or rejected a Realm request
+ */
+#define RMI_ACCEPT	UL(0)
+#define RMI_REJECT	UL(1)
 
 /* No parameters */
 #define SMC_RMM_VERSION				SMC64_RMI_FID(U(0x0))
