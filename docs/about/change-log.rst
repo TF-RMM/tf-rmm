@@ -49,7 +49,7 @@ Build/Testing improvements
   attestation initialization flow. Also a sample minimal Realm create, run and
   destroy sequence is added to showcase the RMI calls involved.
 
-- Further improvements to the the unit test framework :
+- Further improvements to the unit test framework :
 
   * Restore the sysreg state between test runs so each test gets a known
     sysreg state.

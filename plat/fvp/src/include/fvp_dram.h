@@ -6,9 +6,9 @@
 #ifndef FVP_DRAM_H
 #define FVP_DRAM_H
 
+#include <rmm_el3_ifc.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <rmm_el3_ifc.h>
 
 /* Maximum number of DRAM banks supported */
 #define MAX_DRAM_NUM_BANKS	2UL

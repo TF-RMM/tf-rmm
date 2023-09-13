@@ -17,10 +17,6 @@
 #include <utest_exit.h>
 #include <xlat_tables.h>
 
-/* Implemented in init.c and needed here */
-void rmm_warmboot_main(void);
-void rmm_main(void);
-
 /*
  * Define and set the Boot Interface arguments.
  */

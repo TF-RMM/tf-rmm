@@ -16,5 +16,4 @@ extern "C" {
 	{
 		TEST_EXIT;
 	}
-
 }
