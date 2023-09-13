@@ -70,7 +70,7 @@ static void rsi_log_test(unsigned int id, unsigned int status)
 		regs[i] = rand();
 	}
 
-	rsi_log_on_exit(id, args, regs, true);
+	rsi_log_on_exit(id, args, regs);
 }
 
 TEST(rsi_logger_tests, RSI_LOGGER_TC1)

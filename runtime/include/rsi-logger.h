@@ -20,7 +20,7 @@
 #if (RSI_LOG_LEVEL > LOG_LEVEL_NONE) && (RSI_LOG_LEVEL <= LOG_LEVEL)
 
 void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
-		     unsigned long regs[], bool exit_to_rec);
+		     unsigned long regs[]);
 
 /*
  * Store SMC RSI parameters. Takes an array of regs[] of size
@@ -33,15 +33,13 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 	}
 
 /*
- * Macro prints RSI call function name, parameters
- * and result when returning back to REC
+ * Macro prints RSI call function name, parameters and result values
  */
-# define RSI_LOG_EXIT(id, res, ret)	\
-	rsi_log_on_exit(id, rsi_log_args, res, ret)
+# define RSI_LOG_EXIT(id, res)	rsi_log_on_exit(id, rsi_log_args, res)
 
 #else
 # define RSI_LOG_SET(regs)
-# define RSI_LOG_EXIT(id, res, ret)
+# define RSI_LOG_EXIT(id, res)
 
 #endif /* (> LOG_LEVEL_NONE) && (<= LOG_LEVEL) */
 #endif /* RSI_LOGGER_H */

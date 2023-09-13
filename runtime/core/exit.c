@@ -353,7 +353,7 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	struct rsi_result res = { 0 };
 	unsigned int function_id = (unsigned int)rec->regs[0];
 	bool restore_rec_simd_state = false;
-	bool needs_fpu, ret_to_rec;
+	bool needs_fpu;
 	unsigned int i;
 
 	RSI_LOG_SET(rec->regs);
@@ -455,11 +455,10 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		advance_pc();
 	}
 
-	ret_to_rec = (((unsigned int)res.action & FLAG_EXIT_TO_HOST) == 0U);
-
 	/* Log RSI call */
-	RSI_LOG_EXIT(function_id, rec->regs, ret_to_rec);
-	return ret_to_rec;
+	RSI_LOG_EXIT(function_id, rec->regs);
+
+	return (((unsigned int)res.action & FLAG_EXIT_TO_HOST) == 0U);
 }
 
 /*
