@@ -41,6 +41,8 @@ void handle_rsi_ipa_state_set(struct rec *rec,
 	rec_exit->ripas_value = (unsigned char)ripas_val;
 
 	res->action = UPDATE_REC_EXIT_TO_HOST;
+	res->smc_res.x[0] = RSI_SUCCESS;
+	res->smc_res.x[1] = top;
 }
 
 void handle_rsi_ipa_state_get(struct rec *rec,
