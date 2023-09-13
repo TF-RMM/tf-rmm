@@ -50,7 +50,7 @@ static const struct rsi_handler rsi_logger[] = {
 
 #define RSI_STATUS_STRING(_id)[RSI_##_id] = #_id
 
-static const char *rsi_status_string[] = {
+static const char * const rsi_status_string[] = {
 	RSI_STATUS_STRING(SUCCESS),
 	RSI_STATUS_STRING(ERROR_INPUT),
 	RSI_STATUS_STRING(ERROR_STATE),

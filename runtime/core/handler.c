@@ -23,7 +23,7 @@
 
 #define RMI_STATUS_STRING(_id)[RMI_##_id] = #_id
 
-static const char *rmi_status_string[] = {
+static const char * const rmi_status_string[] = {
 	RMI_STATUS_STRING(SUCCESS),
 	RMI_STATUS_STRING(ERROR_INPUT),
 	RMI_STATUS_STRING(ERROR_REALM),
