@@ -1022,7 +1022,8 @@ void smc_data_destroy(unsigned long rd_addr,
 	rd = granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
-	if (!validate_map_addr(map_addr, RTT_PAGE_LEVEL, rd)) {
+	if (!addr_in_par(rd, map_addr) ||
+	    !validate_map_addr(map_addr, RTT_PAGE_LEVEL, rd)) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
 		res->x[0] = RMI_ERROR_INPUT;
