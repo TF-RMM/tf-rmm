@@ -41,7 +41,7 @@
 					     SVE_FFR_REG_NUM))
 
 /* SVE vq architecture limit */
-#define SVE_VQ_ARCH_MAX		((1 << ZCR_EL2_LEN_WIDTH) - 1)
+#define SVE_VQ_ARCH_MAX		((1U << ZCR_EL2_LEN_WIDTH) - 1U)
 
 /* These defines are required by compiler assert to check offsets */
 #define SVE_STATE_OFFSET_Z	0x0U

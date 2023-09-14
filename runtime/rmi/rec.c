@@ -8,6 +8,7 @@
 #include <attestation.h>
 #include <buffer.h>
 #include <cpuid.h>
+#include <debug.h>
 #include <gic.h>
 #include <granule.h>
 #include <mbedtls/memory_buffer_alloc.h>
@@ -16,6 +17,7 @@
 #include <psci.h>
 #include <realm.h>
 #include <rec.h>
+#include <run.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
@@ -34,23 +36,21 @@ static void rec_params_measure(struct rd *rd, struct rmi_rec_params *rec_params)
 	struct rmi_rec_params *rec_params_measured =
 		&(rec_params_per_cpu[my_cpuid()]);
 
-	memset(rec_params_measured, 0, sizeof(*rec_params_measured));
+	(void)memset(rec_params_measured, 0, sizeof(*rec_params_measured));
 
 	/* Copy the relevant parts of the rmi_rec_params structure to be
 	 * measured
 	 */
 	rec_params_measured->pc = rec_params->pc;
 	rec_params_measured->flags = rec_params->flags;
-	memcpy(rec_params_measured->gprs,
-	       rec_params->gprs,
-	       sizeof(rec_params->gprs));
+	(void)memcpy(rec_params_measured->gprs, rec_params->gprs,
+					sizeof(rec_params->gprs));
 
 	/* Initialize the measurement descriptior structure */
 	measure_desc.desc_type = MEASURE_DESC_TYPE_REC;
 	measure_desc.len = sizeof(struct measurement_desc_rec);
-	memcpy(measure_desc.rim,
-	       &rd->measurement[RIM_MEASUREMENT_SLOT],
-	       measurement_get_size(rd->algorithm));
+	(void)memcpy(measure_desc.rim, &rd->measurement[RIM_MEASUREMENT_SLOT],
+					measurement_get_size(rd->algorithm));
 
 	/*
 	 * Hashing the REC params structure and store the result in the
@@ -178,14 +178,15 @@ static void free_rec_aux_granules(struct granule *rec_aux[],
 
 		granule_lock(g_rec_aux, GRANULE_STATE_REC_AUX);
 		if (scrub) {
-			granule_memzero(g_rec_aux, SLOT_REC_AUX0 + i);
+			granule_memzero(g_rec_aux,
+			   (enum buffer_slot)((unsigned int)SLOT_REC_AUX0 + i));
 		}
 		granule_unlock_transition(g_rec_aux, GRANULE_STATE_DELEGATED);
 	}
 }
 
-unsigned long smc_rec_create(unsigned long rec_addr,
-			     unsigned long rd_addr,
+unsigned long smc_rec_create(unsigned long rd_addr,
+			     unsigned long rec_addr,
 			     unsigned long rec_params_addr)
 {
 	struct granule *g_rd;
@@ -200,6 +201,8 @@ unsigned long smc_rec_create(unsigned long rec_addr,
 	unsigned long ret;
 	bool ns_access_ok;
 	unsigned int num_rec_aux;
+	void *rec_aux;
+	struct rec_attest_data *attest_data;
 
 	g_rec_params = find_granule(rec_params_addr);
 	if ((g_rec_params == NULL) || (g_rec_params->state != GRANULE_STATE_NS)) {
@@ -242,7 +245,10 @@ unsigned long smc_rec_create(unsigned long rec_addr,
 	}
 
 	rec = granule_map(g_rec, SLOT_REC);
+	assert(rec != NULL);
+
 	rd = granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
 
 	if (get_rd_state_locked(rd) != REALM_STATE_NEW) {
 		ret = RMI_ERROR_REALM;
@@ -278,11 +284,11 @@ unsigned long smc_rec_create(unsigned long rec_addr,
 	rec->realm_info.s2_starting_level = realm_rtt_starting_level(rd);
 	rec->realm_info.g_rtt = rd->s2_ctx.g_rtt;
 	rec->realm_info.g_rd = g_rd;
+	rec->realm_info.pmu_enabled = rd->pmu_enabled;
+	rec->realm_info.pmu_num_ctrs = rd->pmu_num_ctrs;
+	rec->realm_info.algorithm = rd->algorithm;
 	rec->realm_info.sve_enabled = rd->sve_enabled;
 	rec->realm_info.sve_vq = rd->sve_vq;
-
-	rec->realm_info.pmu_enabled = rd->pmu_enabled;
-	rec->realm_info.pmu_num_cnts = rd->pmu_num_cnts;
 
 	rec_params_measure(rd, &rec_params);
 
@@ -294,11 +300,22 @@ unsigned long smc_rec_create(unsigned long rec_addr,
 	 */
 	atomic_granule_get(g_rd);
 	new_rec_state = GRANULE_STATE_REC;
-	rec->runnable = rec_params.flags & REC_PARAMS_FLAG_RUNNABLE;
+	rec->runnable = (rec_params.flags & REC_PARAMS_FLAG_RUNNABLE) != 0UL;
 
-	rec->alloc_info.ctx_initialised = false;
+	/*
+	 * The access to rec_aux granule is not protected by the lock
+	 * in its granule but by the lock of the parent REC granule.
+	 */
+	rec_aux = map_rec_aux(rec->g_aux, rec->num_rec_aux);
+	init_rec_aux_data(&(rec->aux_data), rec_aux, rec->num_rec_aux);
+
+	attest_data = rec->aux_data.attest_data;
+	attest_data->alloc_info.ctx_initialised = false;
+
 	/* Initialize attestation state */
-	rec->token_sign_ctx.state = ATTEST_SIGN_NOT_STARTED;
+	attest_data->token_sign_ctx.state = ATTEST_SIGN_NOT_STARTED;
+
+	unmap_rec_aux(rec_aux, rec->num_rec_aux);
 
 	set_rd_rec_count(rd, rec_idx + 1U);
 
@@ -327,10 +344,19 @@ unsigned long smc_rec_destroy(unsigned long rec_addr)
 	/* REC should not be destroyed if refcount != 0 */
 	g_rec = find_lock_unused_granule(rec_addr, GRANULE_STATE_REC);
 	if (ptr_is_err(g_rec)) {
-		return (unsigned long)ptr_status(g_rec);
+		switch (ptr_status(g_rec)) {
+		case 1U:
+			return RMI_ERROR_INPUT;
+		case 2U:
+			/* REC should not be destroyed if refcount != 0 */
+			return RMI_ERROR_REC;
+		default:
+			panic();
+		}
 	}
 
 	rec = granule_map(g_rec, SLOT_REC);
+	assert(rec != NULL);
 
 	g_rd = rec->realm_info.g_rd;
 
@@ -355,7 +381,7 @@ unsigned long smc_rec_destroy(unsigned long rec_addr)
 	return RMI_SUCCESS;
 }
 
-void smc_rec_aux_count(unsigned long rd_addr, struct smc_result *ret_struct)
+void smc_rec_aux_count(unsigned long rd_addr, struct smc_result *res)
 {
 	unsigned int num_rec_aux;
 	struct granule *g_rd;
@@ -363,17 +389,19 @@ void smc_rec_aux_count(unsigned long rd_addr, struct smc_result *ret_struct)
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
-		ret_struct->x[0] = RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
 	rd = granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	num_rec_aux = rd->num_rec_aux;
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
 
-	ret_struct->x[0] = RMI_SUCCESS;
-	ret_struct->x[1] = (unsigned long)num_rec_aux;
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = (unsigned long)num_rec_aux;
 }
 
 unsigned long smc_psci_complete(unsigned long calling_rec_addr,
@@ -416,7 +444,10 @@ unsigned long smc_psci_complete(unsigned long calling_rec_addr,
 	}
 
 	calling_rec = granule_map(g_calling_rec, SLOT_REC);
+	assert(calling_rec != NULL);
+
 	target_rec = granule_map(g_target_rec, SLOT_REC2);
+	assert(target_rec != NULL);
 
 	ret = psci_complete_request(calling_rec, target_rec);
 

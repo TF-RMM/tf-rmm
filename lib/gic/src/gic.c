@@ -71,7 +71,9 @@ void gic_get_virt_features(void)
 	unsigned long nr_pri_bits;
 
 	/* Number of implemented List registers, minus 1 */
-	gic_virt_feature.nr_lrs = EXTRACT(ICH_VTR_EL2_LIST_REGS, vtr);
+	gic_virt_feature.nr_lrs =
+			(unsigned int)EXTRACT(ICH_VTR_EL2_LIST_REGS, vtr);
+
 	assert(gic_virt_feature.nr_lrs < ICH_MAX_LRS);
 
 	/* Number of virtual preemption bits implemented */
@@ -87,8 +89,8 @@ void gic_get_virt_features(void)
 	 * Number of Interrupt Controller Hyp Active Priorities
 	 * Group 0/1 Registers [0..3], minus 1
 	 */
-	gic_virt_feature.nr_aprs = (1UL << (nr_pre_bits - 5UL)) - 1UL;
-
+	gic_virt_feature.nr_aprs =
+			(unsigned int)((1UL << (nr_pre_bits - 5UL)) - 1UL);
 	/*
 	 * Get max virtual interrupt identifier
 	 * Number of virtual interrupt identifier bits supported:

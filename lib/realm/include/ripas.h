@@ -7,15 +7,32 @@
 #define RIPAS_H
 
 #include <smc-rmi.h>
+#include <smc-rsi.h>
 
 /*
- * The RmiRipas enumeration representing realm IPA state.
+ * The RmmRipas enumeration represents realm IPA state.
  *
  * Map RmmRipas to RmiRipas to simplify code/decode operations.
  */
 enum ripas {
 	RIPAS_EMPTY = RMI_EMPTY,	/* Unused IPA for Realm */
-	RIPAS_RAM = RMI_RAM		/* IPA used for Code/Data by Realm */
+	RIPAS_RAM = RMI_RAM,		/* IPA used for Code/Data by Realm */
+	RIPAS_DESTROYED = RMI_DESTROYED	/* IPA is inaccessible to the Realm */
+};
+
+/*
+ * The RmmRipasChangeDestroyed enumeration represents whether a RIPAS change
+ * from DESTROYED should be permitted.
+ *
+ * Map RmmRipasChangeDestroyed to RsiRipasChangeDestroyed to simplify check
+ * operation.
+ */
+enum ripas_change_destroyed {
+	/* A RIPAS change from DESTROYED should not be permitted */
+	NO_CHANGE_DESTROYED = RSI_NO_CHANGE_DESTROYED,
+
+	/* A RIPAS change from DESTROYED should be permitted */
+	CHANGE_DESTROYED = RSI_CHANGE_DESTROYED
 };
 
 #endif /* RIPAS_H */

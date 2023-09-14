@@ -318,21 +318,13 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 	table_base_va = ctx_cfg->base_va;
 
 	for (int level = start_level;
-	     level <= XLAT_TABLE_LEVEL_MAX;
-	     level++) {
-		unsigned int idx;
-		uint64_t desc;
-		uint64_t desc_type;
-
-		idx = XLAT_TABLE_IDX(va_offset, level);
-
-		desc = ret_table[idx];
-		desc_type = desc & DESC_MASK;
+	     level <= XLAT_TABLE_LEVEL_MAX; level++) {
+		unsigned int idx = XLAT_TABLE_IDX(va_offset, level);
+		uint64_t desc = ret_table[idx];
+		uint64_t desc_type = desc & DESC_MASK;
 
 		if ((desc_type != TABLE_DESC) ||
-					(level == XLAT_TABLE_LEVEL_MAX)) {
-
-
+		    (level == XLAT_TABLE_LEVEL_MAX)) {
 			*out_level = level;
 			*tt_base_va = table_base_va;
 			return ret_table;
@@ -441,7 +433,7 @@ int xlat_map_memory_page_with_attrs(const struct xlat_llt_info * const table,
 	}
 
 	/* Generate the new descriptor */
-	tte = xlat_desc(attrs, (pa & XLAT_ADDR_MASK(table->level)),
+	tte = xlat_desc(attrs, pa & XLAT_ADDR_MASK(table->level),
 			table->level) | TRANSIENT_DESC;
 
 	xlat_write_tte(tte_ptr, tte);

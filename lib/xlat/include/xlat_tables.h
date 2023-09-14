@@ -30,7 +30,7 @@
  */
 #define XLAT_MIN_BLOCK_LVL()		\
 	((is_feat_lpa2_4k_present() == true) ?	\
-	XLAT_TABLE_LEVEL_MIN + 1U : XLAT_TABLE_LEVEL_MIN + 2U)
+	XLAT_TABLE_LEVEL_MIN + 1 : XLAT_TABLE_LEVEL_MIN + 2)
 
 /*
  * Default granularity size for a struct xlat_mmap_region.
@@ -100,24 +100,24 @@
 /*
  * Shifts and masks to access fields of an mmap attribute
  */
-#define MT_TYPE_SHIFT		UL(0)
-#define MT_TYPE_WIDTH		UL(4)
+#define MT_TYPE_SHIFT		U(0)
+#define MT_TYPE_WIDTH		U(4)
 #define MT_TYPE_MASK		MASK(MT_TYPE)
 #define MT_TYPE(_attr)		((_attr) & MT_TYPE_MASK)
 /* Access permissions (RO/RW) */
 #define MT_PERM_SHIFT		(MT_TYPE_SHIFT + MT_TYPE_WIDTH)
 /* Access permissions for instruction execution (EXECUTE/EXECUTE_NEVER) */
-#define MT_EXECUTE_FLAG_SHIFT	(MT_PERM_SHIFT + 1UL)
+#define MT_EXECUTE_FLAG_SHIFT	(MT_PERM_SHIFT + 1U)
 
 /* Contiguos descriptor flag */
-#define MT_CONT_SHIFT		(MT_EXECUTE_FLAG_SHIFT + 1UL)
+#define MT_CONT_SHIFT		(MT_EXECUTE_FLAG_SHIFT + 1U)
 
 /* NG Flag */
-#define MT_NG_SHIFT		(MT_CONT_SHIFT + 1UL)
+#define MT_NG_SHIFT		(MT_CONT_SHIFT + 1U)
 
 /* Physical address space (REALM/NS, as ROOT/SECURE do not apply to R-EL2) */
-#define MT_PAS_SHIFT		(MT_NG_SHIFT + 1UL)
-#define MT_PAS_WIDTH		UL(1)
+#define MT_PAS_SHIFT		(MT_NG_SHIFT + 1U)
+#define MT_PAS_WIDTH		U(1)
 #define MT_PAS_MASK		MASK(MT_PAS)
 #define MT_PAS(_attr)		((_attr) & MT_PAS_MASK)
 
@@ -235,7 +235,7 @@ static inline uint64_t xlat_read_tte(uint64_t *entry)
  *
  * This function returns 0 on success or a POSIX error code otherwise.
  */
-int xlat_get_llt_from_va(struct xlat_llt_info * const retval,
+int xlat_get_llt_from_va(struct xlat_llt_info * const llt,
 			 const struct xlat_ctx * const ctx,
 			 const uintptr_t va);
 
@@ -284,7 +284,7 @@ int xlat_map_memory_page_with_attrs(const struct xlat_llt_info * const table,
  * about its type or validity. It is the caller responsibility to do any
  * necessary checks on the returned tte before using it.
  */
-uint64_t *xlat_get_tte_ptr(const struct xlat_llt_info * const table,
+uint64_t *xlat_get_tte_ptr(const struct xlat_llt_info * const llt,
 			   const uintptr_t va);
 
 /*

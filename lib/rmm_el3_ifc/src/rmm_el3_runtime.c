@@ -43,7 +43,7 @@ void rmm_el3_ifc_release_shared_buf(void)
  * expected that only the private key is retrieved in raw format.
  */
 int rmm_el3_ifc_get_realm_attest_key(uintptr_t buf, size_t buflen,
-				     size_t *len, unsigned int crv)
+					size_t *len, unsigned int crv)
 {
 	struct smc_result smc_res;
 	unsigned long buffer_pa;
@@ -63,11 +63,12 @@ int rmm_el3_ifc_get_realm_attest_key(uintptr_t buf, size_t buflen,
 	if (smc_res.x[0] != 0UL) {
 		ERROR("Failed to get realm attestation key x0 = 0x%lx\n",
 				smc_res.x[0]);
+		return (int)smc_res.x[0];
 	}
 
 	*len = smc_res.x[1];
 
-	return smc_res.x[0];
+	return 0;
 }
 
 /*
@@ -76,7 +77,7 @@ int rmm_el3_ifc_get_realm_attest_key(uintptr_t buf, size_t buflen,
  * input for platform token computation.
  */
 int rmm_el3_ifc_get_platform_token(uintptr_t buf, size_t buflen,
-				   size_t *len, size_t hash_size)
+					size_t *len, size_t hash_size)
 {
 	struct smc_result smc_res;
 	unsigned long buffer_pa;
@@ -98,10 +99,10 @@ int rmm_el3_ifc_get_platform_token(uintptr_t buf, size_t buflen,
 	if (smc_res.x[0] != 0UL) {
 		ERROR("Failed to get platform token x0 = 0x%lx\n",
 				smc_res.x[0]);
-		return smc_res.x[0];
+		return (int)smc_res.x[0];
 	}
 
 	*len = smc_res.x[1];
 
-	return smc_res.x[0];
+	return 0;
 }

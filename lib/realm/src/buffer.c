@@ -11,10 +11,7 @@
 #include <cpuid.h>
 #include <debug.h>
 #include <errno.h>
-#include <gic.h>
 #include <granule.h>
-#include <memory_alloc.h>
-#include <sizes.h>
 #include <slot_buf_arch.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -77,7 +74,7 @@ uintptr_t slot_to_va(enum buffer_slot slot)
 {
 	assert(slot < NR_CPU_SLOTS);
 
-	return (uintptr_t)(SLOT_VIRT + (GRANULE_SIZE * slot));
+	return (SLOT_VIRT + (GRANULE_SIZE * (unsigned long)slot));
 }
 
 static inline struct xlat_ctx *get_slot_buf_xlat_ctx(void)
@@ -94,6 +91,7 @@ __unused static uint64_t slot_to_descriptor(enum buffer_slot slot)
 {
 	uint64_t *entry = xlat_get_tte_ptr(get_cached_llt_info(),
 				       slot_to_va(slot));
+	assert(entry != NULL);
 
 	return xlat_read_tte(entry);
 }
@@ -180,10 +178,9 @@ void slot_buf_finish_warmboot_init(void)
  */
 void assert_cpu_slots_empty(void)
 {
-	unsigned int i;
-
-	for (i = 0; i < NR_CPU_SLOTS; i++) {
-		assert(slot_to_descriptor(i) == TRANSIENT_DESC);
+	for (unsigned int i = 0U; i < (unsigned int)NR_CPU_SLOTS; i++) {
+		assert(slot_to_descriptor((enum buffer_slot)i) ==
+							TRANSIENT_DESC);
 	}
 }
 
@@ -230,8 +227,8 @@ void buffer_unmap(void *buf)
 	buffer_arch_unmap(buf);
 }
 
-bool memcpy_ns_read(void *dest, const void *ns_src, unsigned long size);
-bool memcpy_ns_write(void *ns_dest, const void *src, unsigned long size);
+bool memcpy_ns_read(void *dest, const void *ns_src, size_t size);
+bool memcpy_ns_write(void *ns_dest, const void *src, size_t size);
 
 /*
  * Map a Non secure granule @g into the slot @slot and read data from
@@ -244,7 +241,7 @@ bool memcpy_ns_write(void *ns_dest, const void *src, unsigned long size);
 bool ns_buffer_read(enum buffer_slot slot,
 		    struct granule *ns_gr,
 		    unsigned int offset,
-		    unsigned int size,
+		    size_t size,
 		    void *dest)
 {
 	uintptr_t src;
@@ -259,12 +256,12 @@ bool ns_buffer_read(enum buffer_slot slot,
 	 * memcpy_ns_read uses a single 8-byte LDR instruction and
 	 * all parameters must be aligned accordingly.
 	 */
-	assert(ALIGNED(size, 8));
-	assert(ALIGNED(offset, 8));
-	assert(ALIGNED(dest, 8));
+	assert(ALIGNED(size, 8U));
+	assert(ALIGNED(offset, 8U));
+	assert(ALIGNED(dest, 8U));
 
-	offset &= ~GRANULE_MASK;
-	assert(offset + size <= GRANULE_SIZE);
+	offset &= (unsigned int)(~GRANULE_MASK);
+	assert((offset + size) <= GRANULE_SIZE);
 
 	src = (uintptr_t)ns_granule_map(slot, ns_gr);
 	retval = memcpy_ns_read(dest, (void *)(src + offset), size);
@@ -284,7 +281,7 @@ bool ns_buffer_read(enum buffer_slot slot,
 bool ns_buffer_write(enum buffer_slot slot,
 		     struct granule *ns_gr,
 		     unsigned int offset,
-		     unsigned int size,
+		     size_t size,
 		     void *src)
 {
 	uintptr_t dest;
@@ -299,12 +296,12 @@ bool ns_buffer_write(enum buffer_slot slot,
 	 * memcpy_ns_write uses a single 8-byte STR instruction and
 	 * all parameters must be aligned accordingly.
 	 */
-	assert(ALIGNED(size, 8));
-	assert(ALIGNED(offset, 8));
-	assert(ALIGNED(src, 8));
+	assert(ALIGNED(size, 8U));
+	assert(ALIGNED(offset, 8U));
+	assert(ALIGNED(src, 8U));
 
-	offset &= ~GRANULE_MASK;
-	assert(offset + size <= GRANULE_SIZE);
+	offset &= (unsigned int)(~GRANULE_MASK);
+	assert((offset + size) <= GRANULE_SIZE);
 
 	dest = (uintptr_t)ns_granule_map(slot, ns_gr);
 	retval = memcpy_ns_write((void *)(dest + offset), src, size);
@@ -325,7 +322,7 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr)
 
 	assert(GRANULE_ALIGNED(addr));
 
-	attr |= (slot == SLOT_NS ? MT_NS : MT_REALM);
+	attr |= ((slot == SLOT_NS) ? MT_NS : MT_REALM);
 
 	if (xlat_map_memory_page_with_attrs(entry, va,
 					    (uintptr_t)addr, attr) != 0) {
@@ -338,11 +335,14 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr)
 
 void buffer_unmap_internal(void *buf)
 {
+	int ret __unused;
+
 	/*
 	 * Prevent the compiler from moving prior loads/stores to buf after the
 	 * update to the translation table. Otherwise, those could fault.
 	 */
 	COMPILER_BARRIER();
 
-	xlat_unmap_memory_page(get_cached_llt_info(), (uintptr_t)buf);
+	ret = xlat_unmap_memory_page(get_cached_llt_info(), (uintptr_t)buf);
+	assert(ret == 0);
 }

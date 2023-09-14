@@ -116,7 +116,7 @@ int plat_cmn_setup(unsigned long x0, unsigned long x1,
 		return -ERANGE;
 	}
 
-	if (nregions > 0U && plat_regions == NULL) {
+	if ((nregions != 0U) && (plat_regions == NULL)) {
 		return -EINVAL;
 	}
 

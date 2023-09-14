@@ -12,9 +12,9 @@
 #include <rec.h>
 #include <table.h>
 
-#define REALM_STATE_NEW		0
-#define REALM_STATE_ACTIVE	1
-#define REALM_STATE_SYSTEM_OFF	2
+#define REALM_STATE_NEW		0U
+#define REALM_STATE_ACTIVE	1U
+#define REALM_STATE_SYSTEM_OFF	2U
 
 /*
  * Stage 2 configuration of the Realm
@@ -76,7 +76,7 @@ struct rd {
 	bool pmu_enabled;
 
 	/* Number of PMU counters */
-	unsigned int pmu_num_cnts;
+	unsigned int pmu_num_ctrs;
 
 	/* SVE enabled flag */
 	bool sve_enabled;
@@ -186,7 +186,7 @@ static inline bool addr_is_contained(unsigned long container_base,
 		return false;
 	}
 
-	return address >= container_base && address <= (container_end - 1UL);
+	return (address >= container_base) && (address <= (container_end - 1UL));
 }
 
 /*
@@ -251,22 +251,14 @@ enum s2_walk_status {
 struct s2_walk_result {
 	unsigned long pa;
 	unsigned long rtt_level;
-	enum ripas ripas;
-	bool destroyed;
+	enum ripas ripas_val;
 	struct granule *llt;
 };
 
-static inline bool s2_walk_result_match_ripas(struct s2_walk_result *res,
-					      enum ripas ripas)
-{
-	return (!res->destroyed && (res->ripas == ripas));
-}
-
-enum s2_walk_status realm_ipa_to_pa(struct rd *rd,
+enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 				    unsigned long ipa,
-				    struct s2_walk_result *res);
+				    struct s2_walk_result *s2_walk);
 
 enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long ipa,
-					enum ripas *ripas_ptr,
-					unsigned long *rtt_level);
+					enum ripas *ripas_ptr);
 #endif /* REALM_H */

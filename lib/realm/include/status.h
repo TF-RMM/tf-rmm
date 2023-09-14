@@ -42,7 +42,7 @@ static inline return_code_t make_return_code(unsigned int status,
  */
 static inline unsigned long pack_struct_return_code(return_code_t return_code)
 {
-	return (unsigned long)(return_code.status | (return_code.index << 8));
+	return ((unsigned long)(return_code.index) << 8) | return_code.status;
 }
 
 /*
@@ -61,7 +61,8 @@ static inline unsigned long pack_return_code(unsigned int status, unsigned int i
  */
 static inline return_code_t unpack_return_code(unsigned long error_code)
 {
-	return make_return_code(error_code & 0xffU, error_code >> 8);
+	return make_return_code((unsigned int)error_code & 0xffU,
+				(unsigned int)error_code >> 8);
 }
 
 #define MAX_ERR 4095

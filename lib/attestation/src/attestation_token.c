@@ -27,17 +27,17 @@
  * According to IANA hash algorithm registry:
  *   - https://www.iana.org/assignments/hash-function-text-names/hash-function-text-names.xml
  */
-static void attest_get_hash_algo_text(enum hash_algo  algo_id,
+static void attest_get_hash_algo_text(enum hash_algo algorithm,
 				      struct q_useful_buf_c *algo_text)
 {
 	const char *sha256 = "sha-256";
 	const char *sha512 = "sha-512";
 
-	switch (algo_id) {
-	case HASH_ALGO_SHA256:
+	switch (algorithm) {
+	case HASH_SHA_256:
 		*algo_text = UsefulBuf_FromSZ(sha256);
 		break;
-	case HASH_ALGO_SHA512:
+	case HASH_SHA_512:
 		*algo_text = UsefulBuf_FromSZ(sha512);
 		break;
 	default:
@@ -99,7 +99,10 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 	/*
 	 * Get the reference to `mbedtls_ecp_keypair` and set it to t_cose.
 	 */
-	attest_get_realm_signing_key(&key_handle);
+	if (attest_get_realm_signing_key(&key_handle) != 0) {
+		return ATTEST_TOKEN_ERR_SIGNING_KEY;
+	}
+
 	attest_key.key.handle = key_handle;
 
 	t_cose_signature_sign_restart_set_signing_key(&me->restartable_signer_ctx, attest_key);
@@ -180,15 +183,15 @@ size_t attest_cca_token_create(void *attest_token_buf,
 	struct q_useful_buf_c   completed_token;
 	QCBOREncodeContext      cbor_enc_ctx;
 	QCBORError              qcbor_res;
-	struct q_useful_buf_c   rmm_platform_token;
+	struct q_useful_buf_c   platform_token;
 	struct q_useful_buf     attest_token_ub = {attest_token_buf, attest_token_buf_size};
 	struct q_useful_buf_c   realm_token_ub = {realm_token_buf, realm_token_len};
 
 	__unused int            ret;
 
 	/* Get the platform token */
-	ret = attest_get_platform_token(&rmm_platform_token.ptr,
-					&rmm_platform_token.len);
+	ret = attest_get_platform_token(&platform_token.ptr,
+					&platform_token.len);
 	assert(ret == 0);
 
 	QCBOREncode_Init(&cbor_enc_ctx, attest_token_ub);
@@ -199,7 +202,7 @@ size_t attest_cca_token_create(void *attest_token_buf,
 
 	QCBOREncode_AddBytesToMapN(&cbor_enc_ctx,
 				   CCA_PLAT_TOKEN,
-				   rmm_platform_token);
+				   platform_token);
 
 	QCBOREncode_AddBytesToMapN(&cbor_enc_ctx,
 				   CCA_REALM_DELEGATED_TOKEN,
@@ -239,7 +242,7 @@ int attest_realm_token_create(enum hash_algo algorithm,
 			     unsigned int num_measurements,
 			     const void *rpv_buf,
 			     size_t rpv_len,
-			     struct token_sign_ctx *ctx,
+			     struct token_sign_cntxt *ctx,
 			     void *realm_token_buf,
 			     size_t realm_token_buf_size)
 {
@@ -265,7 +268,7 @@ int attest_realm_token_create(enum hash_algo algorithm,
 					      T_COSE_ALGORITHM_ES384,
 					      &realm_token_ub);
 	if (token_ret != ATTEST_TOKEN_ERR_SUCCESS) {
-		return token_ret;
+		return (int)token_ret;
 	}
 
 	QCBOREncode_BstrWrap(&(ctx->ctx.cbor_enc_ctx));
@@ -326,5 +329,5 @@ int attest_realm_token_create(enum hash_algo algorithm,
 	QCBOREncode_CloseBstrWrap2(&(ctx->ctx.cbor_enc_ctx), false,
 				   &(ctx->ctx.signed_payload));
 
-	return ATTEST_TOKEN_ERR_SUCCESS;
+	return (int)ATTEST_TOKEN_ERR_SUCCESS;
 }

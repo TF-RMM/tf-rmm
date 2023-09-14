@@ -12,14 +12,14 @@
 #include <utils_def.h>
 
 /* RMI handler uses 29 chars for function name */
-#define	MAX_NAME_LEN	29UL
+#define MAX_NAME_LEN	29UL
 
 /* Max 10 64-bit parameters separated by space */
 #define PARAMS_STR_LEN	(10UL * sizeof("0123456789ABCDEF"))
 
-#define	MAX_STATUS_LEN	sizeof("{RSI_ERROR_INPUT}")
+#define MAX_STATUS_LEN	sizeof("{RSI_ERROR_INPUT}")
 
-#define	BUFFER_SIZE	(MAX_NAME_LEN + PARAMS_STR_LEN + \
+#define BUFFER_SIZE	(MAX_NAME_LEN + PARAMS_STR_LEN + \
 			sizeof(" > ") - 1UL + MAX_STATUS_LEN)
 
 struct rsi_handler {
@@ -43,14 +43,14 @@ static const struct rsi_handler rsi_logger[] = {
 	RSI_FUNCTION(ATTEST_TOKEN_INIT, 9U, 0U),	/* 0xC4000194 */
 	RSI_FUNCTION(ATTEST_TOKEN_CONTINUE, 1U, 1U),	/* 0xC4000195 */
 	RSI_FUNCTION(REALM_CONFIG, 1U, 0U),		/* 0xC4000196 */
-	RSI_FUNCTION(IPA_STATE_SET, 3U, 1U),		/* 0xC4000197 */
+	RSI_FUNCTION(IPA_STATE_SET, 4U, 1U),		/* 0xC4000197 */
 	RSI_FUNCTION(IPA_STATE_GET, 1U, 1U),		/* 0xC4000198 */
 	RSI_FUNCTION(HOST_CALL, 1U, 0U)			/* 0xC4000199 */
 };
 
 #define RSI_STATUS_STRING(_id)[RSI_##_id] = #_id
 
-const char *rsi_status_string[] = {
+static const char * const rsi_status_string[] = {
 	RSI_STATUS_STRING(SUCCESS),
 	RSI_STATUS_STRING(ERROR_INPUT),
 	RSI_STATUS_STRING(ERROR_STATE),
@@ -59,9 +59,9 @@ const char *rsi_status_string[] = {
 
 COMPILER_ASSERT(ARRAY_LEN(rsi_status_string) == RSI_ERROR_COUNT);
 
-static struct rsi_handler *fid_to_rsi_logger(unsigned int id)
+static const struct rsi_handler *fid_to_rsi_logger(unsigned int id)
 {
-	return (struct rsi_handler *)&rsi_logger[id - SMC_RSI_ABI_VERSION];
+	return &rsi_logger[id - SMC_RSI_ABI_VERSION];
 }
 
 static size_t print_entry(unsigned int id, unsigned long args[],
@@ -72,7 +72,7 @@ static size_t print_entry(unsigned int id, unsigned long args[],
 
 	switch (id) {
 	case SMC_RSI_ABI_VERSION ... SMC_RSI_HOST_CALL: {
-		struct rsi_handler *logger = fid_to_rsi_logger(id);
+		const struct rsi_handler *logger = fid_to_rsi_logger(id);
 
 		num = logger->num_args;
 		if (logger->fn_name != NULL) {
@@ -98,18 +98,19 @@ static size_t print_entry(unsigned int id, unsigned long args[],
 		break;
 	}
 
-	assert((cnt > 0) && (cnt < (int)(MAX_NAME_LEN + 1)));
+	assert((cnt > 0) && ((unsigned int)cnt < (MAX_NAME_LEN + 1U)));
 
-	(void)memset(buf + cnt, (int)' ', MAX_NAME_LEN - (size_t)cnt);
+	(void)memset((void *)((uintptr_t)buf + (unsigned int)cnt), (int)' ',
+					MAX_NAME_LEN - (size_t)cnt);
 
-	buf += MAX_NAME_LEN;
+	buf = (char *)((uintptr_t)buf + MAX_NAME_LEN);
 	len -= MAX_NAME_LEN;
 
 	/* Arguments */
 	for (unsigned int i = 0U; i < num; i++) {
 		cnt = snprintf(buf, len, " %lx", args[i]);
 		assert((cnt > 0) && (cnt < (int)len));
-		buf += cnt;
+		buf = (char *)((uintptr_t)buf + (unsigned int)cnt);
 		len -= (size_t)cnt;
 	}
 
@@ -134,44 +135,40 @@ static int print_code(char *buf, size_t len, unsigned long res)
 }
 
 void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
-		     unsigned long regs[], bool exit_to_rec)
+		     unsigned long regs[])
 {
 	char buffer[BUFFER_SIZE];
 	size_t len = print_entry(function_id, args, buffer, sizeof(buffer));
+	char *buf = (char *)((uintptr_t)buffer + sizeof(buffer) - len);
+	unsigned int num = 3U;	/* results in X1-X3 */
+	int cnt;
 
-	/* Print result when execution continues in REC */
-	if (exit_to_rec) {
-		char *buf = buffer + (sizeof(buffer) - len);
-		unsigned int num = 3U;	/* results in X1-X3 */
-		int cnt;
+	switch (function_id) {
+	case SMC_RSI_MEASUREMENT_READ ... SMC_RSI_HOST_CALL: {
+		const struct rsi_handler *logger =
+				fid_to_rsi_logger(function_id);
 
-		switch (function_id) {
-		case SMC_RSI_MEASUREMENT_READ ... SMC_RSI_HOST_CALL: {
-			struct rsi_handler *logger =
-					fid_to_rsi_logger(function_id);
+		/* Print status */
+		cnt = print_status(buf, len, regs[0]);
+		num = logger->num_vals;
+		break;
+	}
+	case SMC_RSI_ABI_VERSION:
+		num = 0U;
+		FALLTHROUGH;
+	default:
+		/* Print result code */
+		cnt = print_code(buf, len, regs[0]);
+	}
 
-			/* Print status */
-			cnt = print_status(buf, len, regs[0]);
-			num = logger->num_vals;
-			break;
-		}
-		case SMC_RSI_ABI_VERSION:
-			num = 0U;
-			FALLTHROUGH;
-		default:
-			/* Print result code */
-			cnt = print_code(buf, len, regs[0]);
-		}
+	assert((cnt > 0) && (cnt < (int)len));
 
+	/* Print output values */
+	for (unsigned int i = 1U; i <= num; i++) {
+		buf = (char *)((uintptr_t)buf + (unsigned int)cnt);
+		len -= (size_t)cnt;
+		cnt = snprintf(buf, len, " %lx", regs[i]);
 		assert((cnt > 0) && (cnt < (int)len));
-
-		/* Print output values */
-		for (unsigned int i = 1U; i <= num; i++) {
-			buf += cnt;
-			len -= (size_t)cnt;
-			cnt = snprintf(buf, len, " %lx", regs[i]);
-			assert((cnt > 0) && (cnt < (int)len));
-		}
 	}
 
 	rmm_log("%s\n", buffer);

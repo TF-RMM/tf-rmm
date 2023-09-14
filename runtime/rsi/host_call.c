@@ -6,7 +6,7 @@
 #include <buffer.h>
 #include <granule.h>
 #include <realm.h>
-#include <rsi-host-call.h>
+#include <rsi-handler.h>
 #include <smc-rsi.h>
 #include <status.h>
 #include <string.h>
@@ -26,43 +26,38 @@
  *     results to host call data structure (in Realm memory).
  *   - Return value is RSI_SUCCESS.
  */
-static unsigned int do_host_call(struct rec *rec,
-				 struct rmi_rec_exit *rec_exit,
-				 struct rmi_rec_entry *rec_entry,
-				 struct rsi_walk_result *rsi_walk_result)
+static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
+			 struct rmi_rec_entry *rec_entry,
+			 struct rsi_result *res)
 {
 	enum s2_walk_status walk_status;
 	struct s2_walk_result walk_result;
 	unsigned long ipa = rec->regs[1];
 	unsigned long page_ipa;
-	struct rd *rd;
 	struct granule *gr;
 	unsigned char *data;
 	struct rsi_host_call *host_call;
 	unsigned int i;
-	unsigned int ret = RSI_SUCCESS;
 
 	assert(addr_in_rec_par(rec, ipa));
 
 	/* Only 'rec_entry' or 'rec_exit' should be set */
-	assert((rec_entry != NULL) ^ (rec_exit != NULL));
-
-	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert((rec_entry != NULL) != (rec_exit != NULL));
 
 	page_ipa = ipa & GRANULE_MASK;
-	walk_status = realm_ipa_to_pa(rd, page_ipa, &walk_result);
+	walk_status = realm_ipa_to_pa(rec, page_ipa, &walk_result);
 
 	switch (walk_status) {
 	case WALK_SUCCESS:
 		break;
 	case WALK_FAIL:
-		if (s2_walk_result_match_ripas(&walk_result, RIPAS_EMPTY)) {
-			ret = RSI_ERROR_INPUT;
+		if (walk_result.ripas_val == RIPAS_EMPTY) {
+			res->smc_res.x[0] = RSI_ERROR_INPUT;
 		} else {
-			rsi_walk_result->abort = true;
-			rsi_walk_result->rtt_level = walk_result.rtt_level;
+			res->action = STAGE_2_TRANSLATION_FAULT;
+			res->rtt_level = walk_result.rtt_level;
 		}
-		goto out;
+		return;
 	case WALK_INVALID_PARAMS:
 		assert(false);
 		break;
@@ -71,6 +66,8 @@ static unsigned int do_host_call(struct rec *rec,
 	/* Map Realm data granule to RMM address space */
 	gr = find_granule(walk_result.pa);
 	data = (unsigned char *)granule_map(gr, SLOT_RSI_CALL);
+	assert(data != NULL);
+
 	host_call = (struct rsi_host_call *)(data + (ipa - page_ipa));
 
 	if (rec_exit != NULL) {
@@ -79,11 +76,24 @@ static unsigned int do_host_call(struct rec *rec,
 		for (i = 0U; i < RSI_HOST_CALL_NR_GPRS; i++) {
 			rec_exit->gprs[i] = host_call->gprs[i];
 		}
+
+		/* Record that a host call is pending */
+		rec->host_call = true;
+
+		/*
+		 * Notify the Host.
+		 * Leave REC registers unchanged,
+		 * these will be read and updated by complete_rsi_host_call.
+		 */
+		res->action = EXIT_TO_HOST;
+		rec_exit->exit_reason = RMI_EXIT_HOST_CALL;
 	} else {
 		/* Copy host call results to host call data structure */
 		for (i = 0U; i < RSI_HOST_CALL_NR_GPRS; i++) {
 			host_call->gprs[i] = rec_entry->gprs[i];
 		}
+
+		rec->regs[0] = RSI_SUCCESS;
 	}
 
 	/* Unmap Realm data granule */
@@ -91,43 +101,39 @@ static unsigned int do_host_call(struct rec *rec,
 
 	/* Unlock last level RTT */
 	granule_unlock(walk_result.llt);
-
-out:
-	buffer_unmap(rd);
-	return ret;
 }
 
-struct rsi_host_call_result handle_rsi_host_call(struct rec *rec,
-						 struct rmi_rec_exit *rec_exit)
+void handle_rsi_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
+			  struct rsi_result *res)
 {
-	struct rsi_host_call_result res = { { false, 0UL } };
 	unsigned long ipa = rec->regs[1];
 
+	res->action = UPDATE_REC_RETURN_TO_REALM;
+
 	if (!ALIGNED(ipa, sizeof(struct rsi_host_call))) {
-		res.smc_result = RSI_ERROR_INPUT;
-		return res;
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		return;
 	}
 
 	if ((ipa / GRANULE_SIZE) !=
 		((ipa + sizeof(struct rsi_host_call) - 1UL) / GRANULE_SIZE)) {
-		res.smc_result = RSI_ERROR_INPUT;
-		return res;
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		return;
 	}
 
 	if (!addr_in_rec_par(rec, ipa)) {
-		res.smc_result = RSI_ERROR_INPUT;
-		return res;
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		return;
 	}
 
-	res.smc_result = do_host_call(rec, rec_exit, NULL, &res.walk_result);
-
-	return res;
+	do_host_call(rec, rec_exit, NULL, res);
 }
 
 struct rsi_walk_result complete_rsi_host_call(struct rec *rec,
 					      struct rmi_rec_entry *rec_entry)
 {
-	struct rsi_walk_result res = { false, 0UL };
+	struct rsi_result res = { 0UL };
+	struct rsi_walk_result walk_res = { false, 0UL };
 
 	/*
 	 * Do the necessary to walk the S2 RTTs and copy args from NS Host
@@ -138,7 +144,12 @@ struct rsi_walk_result complete_rsi_host_call(struct rec *rec,
 	 * the RIPAS of IPA at that time). This is a situation which can be
 	 * controlled from Realm and Realm should avoid this.
 	 */
-	(void)do_host_call(rec, NULL, rec_entry, &res);
+	do_host_call(rec, NULL, rec_entry, &res);
 
-	return res;
+	if (res.action == STAGE_2_TRANSLATION_FAULT) {
+		walk_res.abort = true;
+		walk_res.rtt_level = res.rtt_level;
+	}
+
+	return walk_res;
 }

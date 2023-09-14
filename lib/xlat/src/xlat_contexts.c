@@ -11,7 +11,6 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
 #include <utils_def.h>
 #include <xlat_contexts.h>
 #include <xlat_defs.h>
@@ -57,8 +56,8 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 		end_va = base_va + size - 1UL;
 
 		if (region == VA_LOW_REGION) {
-			if ((base_va & HIGH_REGION_MASK) ||
-			     ((base_va + size) & HIGH_REGION_MASK)) {
+			if (((base_va & HIGH_REGION_MASK) != 0ULL) ||
+			     (((base_va + size) & HIGH_REGION_MASK) != 0ULL)) {
 				ERROR("%s (%u): Base VA and address space do not match: ",
 							__func__, __LINE__);
 				ERROR("Base va = 0x%lx, Address space = Low region\n",
@@ -90,10 +89,10 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 			return -EFAULT;
 		}
 
-		if ((granularity != XLAT_BLOCK_SIZE(0U)) &&
-		    (granularity != XLAT_BLOCK_SIZE(1U)) &&
-		    (granularity != XLAT_BLOCK_SIZE(2U)) &&
-		    (granularity != XLAT_BLOCK_SIZE(3U))) {
+		if ((granularity != XLAT_BLOCK_SIZE(0)) &&
+		    (granularity != XLAT_BLOCK_SIZE(1)) &&
+		    (granularity != XLAT_BLOCK_SIZE(2)) &&
+		    (granularity != XLAT_BLOCK_SIZE(3))) {
 			return -EINVAL;
 		}
 
@@ -274,7 +273,7 @@ int xlat_ctx_init(struct xlat_ctx *ctx,
 		return -EINVAL;
 	}
 
-	if (tables_ptr == NULL || ntables == 0U) {
+	if ((tables_ptr == NULL) || (ntables == 0U)) {
 		return -EINVAL;
 	}
 

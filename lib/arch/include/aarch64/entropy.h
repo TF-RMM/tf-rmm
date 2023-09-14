@@ -28,7 +28,7 @@ static inline bool arch_collect_entropy(uint64_t *random)
 	:
 	: "cc"
 	);
-	return (rc == 1);
+	return (rc == 1UL);
 }
 
 #endif /* ENTROPY_H */

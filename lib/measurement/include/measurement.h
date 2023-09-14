@@ -12,10 +12,10 @@
 #include <stddef.h>
 #include <utils_def.h>
 
-/* Supported algorithms */
+/* RmmHashAlgorithm type as per RMM spec */
 enum hash_algo {
-	HASH_ALGO_SHA256 = RMI_HASH_ALGO_SHA256,
-	HASH_ALGO_SHA512 = RMI_HASH_ALGO_SHA512,
+	HASH_SHA_256 = RMI_HASH_SHA_256,
+	HASH_SHA_512 = RMI_HASH_SHA_512,
 };
 
 /*
@@ -100,28 +100,28 @@ struct measurement_desc_ripas {
 	SET_MEMBER(unsigned long len, 0x8, 0x10);
 	/* Current RIM value */
 	SET_MEMBER(unsigned char rim[MAX_MEASUREMENT_SIZE], 0x10, 0x50);
-	/* IPA at which the RIPAS change occurred */
-	SET_MEMBER(unsigned long ipa, 0x50, 0x58);
-	/* RTT level at which the RIPAS change occurred */
-	SET_MEMBER(unsigned char level, 0x58, 0x100);
+	/* Base IPA at which the RIPAS change occurred */
+	SET_MEMBER(unsigned long base, 0x50, 0x58);
+	/* Top IPA at which the RIPAS change occurred */
+	SET_MEMBER(unsigned long top, 0x58, 0x100);
 };
 COMPILER_ASSERT(sizeof(struct measurement_desc_ripas) == 0x100);
 
 COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, desc_type) == 0x0);
 COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, len) == 0x8);
 COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, rim) == 0x10);
-COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, ipa) == 0x50);
-COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, level) == 0x58);
+COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, base) == 0x50);
+COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, top) == 0x58);
 
 /*
  * Calculate the hash of data with algorithm hash_algo to the buffer `out`.
  */
-void measurement_hash_compute(enum hash_algo hash_algo,
+void measurement_hash_compute(enum hash_algo algorithm,
 			      void *data,
 			      size_t size, unsigned char *out);
 
 /* Extend a measurement with algorithm hash_algo. */
-void measurement_extend(enum hash_algo hash_algo,
+void measurement_extend(enum hash_algo algorithm,
 			void *current_measurement,
 			void *extend_measurement,
 			size_t extend_measurement_size,
@@ -133,16 +133,15 @@ void measurement_extend(enum hash_algo hash_algo,
  * Arguments:
  *	- algorithm:	Algorithm to check.
  */
-static inline size_t measurement_get_size(
-					const enum hash_algo algorithm)
+static inline size_t measurement_get_size(const enum hash_algo algorithm)
 {
-	size_t ret = 0;
+	size_t ret = 0UL;
 
 	switch (algorithm) {
-	case HASH_ALGO_SHA256:
+	case HASH_SHA_256:
 		ret = (size_t)SHA256_SIZE;
 		break;
-	case HASH_ALGO_SHA512:
+	case HASH_SHA_512:
 		ret = (size_t)SHA512_SIZE;
 		break;
 	default:

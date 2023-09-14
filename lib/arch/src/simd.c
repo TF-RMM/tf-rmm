@@ -199,7 +199,7 @@ unsigned int simd_sve_get_max_vq(void)
 {
 	assert(is_feat_sve_present() == true);
 	assert(g_sve_max_vq != -1);
-	return g_sve_max_vq;
+	return (unsigned int)g_sve_max_vq;
 }
 
 /*
@@ -218,7 +218,7 @@ void simd_state_init(simd_t type, struct simd_state *simd, uint8_t sve_vq)
 	 * might not be zeroed out.
 	 */
 	if (type == SIMD_SVE) {
-		assert(sve_vq <= g_sve_max_vq);
+		assert(sve_vq <= (uint8_t)g_sve_max_vq);
 		simd->t.sve.vq = sve_vq;
 	}
 	simd->simd_type = type;
@@ -245,7 +245,7 @@ static void sve_init(void)
 	 * as this is called only once during cold boot.
 	 */
 	sve_config_vq(SVE_VQ_ARCH_MAX);
-	g_sve_max_vq = SVE_VL_TO_VQ(sve_rdvl());
+	g_sve_max_vq = (int32_t)SVE_VL_TO_VQ(sve_rdvl());
 	g_cpu_simd_type = SIMD_SVE;
 
 	simd_disable();
@@ -263,6 +263,6 @@ void simd_init(void)
 	if (is_feat_sve_present()) {
 		sve_init();
 		/* Set the max vq in NS simd state */
-		g_ns_simd[cpu_id].simd.t.sve.vq = g_sve_max_vq;
+		g_ns_simd[cpu_id].simd.t.sve.vq = (uint8_t)g_sve_max_vq;
 	}
 }

@@ -24,7 +24,6 @@ int uart_init(uintptr_t base_addr,
 	unsigned int div;
 
 	/* Check Base address, baud rate and UART clock for sanity */
-
 	if (base_addr == 0UL) {
 		return -1;
 	}
@@ -40,14 +39,14 @@ int uart_init(uintptr_t base_addr,
 	/* Disable UART before programming */
 	write32(0U, (void *)((RMM_UART_ADDR) + UARTCR));
 
-	/* Program the baudrate */
-	div = (uart_clk * 4)/baud_rate;
+	/* Program the baud rate */
+	div = (uart_clk * 4U) / baud_rate;
 
 	/* IBRD = Divisor >> 6 */
 	write32(div >> 6, (void *)((RMM_UART_ADDR) + UARTIBRD));
 
 	/* FBRD = Divisor & 0x3F */
-	write32(div & 0x3f, (void *)((RMM_UART_ADDR) + UARTFBRD));
+	write32(div & 0x3fU, (void *)((RMM_UART_ADDR) + UARTFBRD));
 
 	/* Enable FIFO and set word length, parity and number of stop bits */
 	write32(PL011_LINE_CONTROL, (void *)((RMM_UART_ADDR) + UARTLCR_H));
@@ -61,10 +60,10 @@ int uart_init(uintptr_t base_addr,
 	return 0;
 }
 
-void uart_putc(char ch)
+static void uart_putc(char ch)
 {
 	uart_wait();
-	write8(ch, (void *)((RMM_UART_ADDR) + UARTDR));
+	write8((uint8_t)ch, (void *)((RMM_UART_ADDR) + UARTDR));
 }
 
 /* Serial output - called from printf */

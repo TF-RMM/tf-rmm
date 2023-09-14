@@ -56,7 +56,12 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 		{0}
 	};
 
-	uart_init(RMM_UART_ADDR, FVP_UART_CLK_IN_HZ, FVP_UART_BAUDRATE);
+	ret = uart_init(RMM_UART_ADDR, FVP_UART_CLK_IN_HZ, FVP_UART_BAUDRATE);
+	if (ret != 0) {
+		ERROR("%s (%u): Failed to init UART (%i)\n",
+			__func__, __LINE__, ret);
+		panic();
+	}
 
 	/* Carry on with the rest of the system setup */
 	ret = plat_cmn_setup(x0, x1, x2, x3, plat_regions, 1U);

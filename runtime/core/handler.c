@@ -9,7 +9,6 @@
 #include <buffer.h>
 #include <debug.h>
 #include <simd.h>
-#include <sizes.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
@@ -17,21 +16,21 @@
 #include <utils_def.h>
 
 /* Maximum number of supported arguments */
-#define MAX_NUM_ARGS		5
+#define MAX_NUM_ARGS		5U
 
 /* Maximum number of output values */
-#define MAX_NUM_OUTPUT_VALS	4
+#define MAX_NUM_OUTPUT_VALS	4U
 
 #define RMI_STATUS_STRING(_id)[RMI_##_id] = #_id
 
-const char *rmi_status_string[] = {
+static const char * const rmi_status_string[] = {
 	RMI_STATUS_STRING(SUCCESS),
 	RMI_STATUS_STRING(ERROR_INPUT),
 	RMI_STATUS_STRING(ERROR_REALM),
 	RMI_STATUS_STRING(ERROR_REC),
-	RMI_STATUS_STRING(ERROR_RTT),
-	RMI_STATUS_STRING(ERROR_IN_USE)
+	RMI_STATUS_STRING(ERROR_RTT)
 };
+
 COMPILER_ASSERT(ARRAY_LEN(rmi_status_string) == RMI_ERROR_COUNT);
 
 /*
@@ -53,9 +52,14 @@ typedef unsigned long (*handler_4)(unsigned long arg0, unsigned long arg1,
 typedef unsigned long (*handler_5)(unsigned long arg0, unsigned long arg1,
 				   unsigned long arg2, unsigned long arg3,
 				   unsigned long arg4);
-typedef void (*handler_1_o)(unsigned long arg0, struct smc_result *ret);
+typedef void (*handler_1_o)(unsigned long arg0, struct smc_result *res);
+typedef void (*handler_2_o)(unsigned long arg0, unsigned long arg1,
+			    struct smc_result *res);
 typedef void (*handler_3_o)(unsigned long arg0, unsigned long arg1,
-			    unsigned long arg2, struct smc_result *ret);
+			    unsigned long arg2, struct smc_result *res);
+typedef void (*handler_4_o)(unsigned long arg0, unsigned long arg1,
+			    unsigned long arg2, unsigned long arg3,
+			    struct smc_result *res);
 
 /*
  * SMC RMI handler type encoding:
@@ -63,17 +67,21 @@ typedef void (*handler_3_o)(unsigned long arg0, unsigned long arg1,
  * [8:15] - number of output values
  */
 #define RMI_TYPE(_in, _out)	(_in | (_out << 8))
-#define rmi_type(_in, _out)	rmi_type_##_in##_out = RMI_TYPE(_in, _out)
+#define set_rmi_type(_in, _out)	rmi_type_##_in##_out = RMI_TYPE(_in, _out)
 
 enum rmi_type {
-	rmi_type(0, 0),	/* 0 arguments, 0 output values */
-	rmi_type(1, 0),	/* 1 argument,  0 output values */
-	rmi_type(2, 0),	/* 2 arguments, 0 output values */
-	rmi_type(3, 0),	/* 3 arguments, 0 output values */
-	rmi_type(4, 0),	/* 4 arguments, 0 output values */
-	rmi_type(5, 0),	/* 5 arguments, 0 output values */
-	rmi_type(1, 1), /* 1 argument,  1 output value */
-	rmi_type(3, 4)	/* 3 arguments, 4 output values */
+	set_rmi_type(0, 0),	/* 0 arguments, 0 output values */
+	set_rmi_type(1, 0),	/* 1 argument,  0 output values */
+	set_rmi_type(2, 0),	/* 2 arguments, 0 output values */
+	set_rmi_type(3, 0),	/* 3 arguments, 0 output values */
+	set_rmi_type(4, 0),	/* 4 arguments, 0 output values */
+	set_rmi_type(5, 0),	/* 5 arguments, 0 output values */
+	set_rmi_type(1, 1),	/* 1 argument,  1 output value */
+	set_rmi_type(2, 2),	/* 2 arguments, 2 output values */
+	set_rmi_type(3, 1),	/* 3 arguments, 1 output value */
+	set_rmi_type(3, 2),	/* 3 arguments, 2 output values */
+	set_rmi_type(3, 4),	/* 3 arguments, 4 output values */
+	set_rmi_type(4, 1)	/* 4 arguments, 1 output value */
 };
 
 struct smc_handler {
@@ -87,7 +95,11 @@ struct smc_handler {
 		handler_4	f_40;
 		handler_5	f_50;
 		handler_1_o	f_11;
+		handler_2_o	f_22;
+		handler_3_o	f_31;
+		handler_3_o	f_32;
 		handler_3_o	f_34;
+		handler_4_o	f_41;
 		void		*fn_dummy;
 	};
 	bool		log_exec;	/* print handler execution */
@@ -125,17 +137,17 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(REC_ENTER,		2, 0, smc_rec_enter,		 false, true),
 	HANDLER(DATA_CREATE,		5, 0, smc_data_create,		 false, false),
 	HANDLER(DATA_CREATE_UNKNOWN,	3, 0, smc_data_create_unknown,	 false, false),
-	HANDLER(DATA_DESTROY,		2, 0, smc_data_destroy,		 false, true),
+	HANDLER(DATA_DESTROY,		2, 2, smc_data_destroy,		 false, true),
 	HANDLER(RTT_CREATE,		4, 0, smc_rtt_create,		 false, true),
-	HANDLER(RTT_DESTROY,		4, 0, smc_rtt_destroy,		 false, true),
-	HANDLER(RTT_FOLD,		4, 0, smc_rtt_fold,		 false, true),
+	HANDLER(RTT_DESTROY,		3, 2, smc_rtt_destroy,		 false, true),
+	HANDLER(RTT_FOLD,		3, 1, smc_rtt_fold,		 false, true),
 	HANDLER(RTT_MAP_UNPROTECTED,	4, 0, smc_rtt_map_unprotected,	 false, false),
-	HANDLER(RTT_UNMAP_UNPROTECTED,	3, 0, smc_rtt_unmap_unprotected, false, false),
+	HANDLER(RTT_UNMAP_UNPROTECTED,	3, 1, smc_rtt_unmap_unprotected, false, false),
 	HANDLER(RTT_READ_ENTRY,		3, 4, smc_rtt_read_entry,	 false, true),
 	HANDLER(PSCI_COMPLETE,		2, 0, smc_psci_complete,	 true,  true),
 	HANDLER(REC_AUX_COUNT,		1, 1, smc_rec_aux_count,	 true,  true),
-	HANDLER(RTT_INIT_RIPAS,		3, 0, smc_rtt_init_ripas,	 false, true),
-	HANDLER(RTT_SET_RIPAS,		5, 0, smc_rtt_set_ripas,	 false, true)
+	HANDLER(RTT_INIT_RIPAS,		3, 1, smc_rtt_init_ripas,	 false, true),
+	HANDLER(RTT_SET_RIPAS,		4, 1, smc_rtt_set_ripas,	 false, true)
 };
 
 COMPILER_ASSERT(ARRAY_LEN(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
@@ -149,13 +161,15 @@ static inline bool rmi_handler_needs_fpu(unsigned long id)
 	    id == SMC_RMM_REC_CREATE || id == SMC_RMM_RTT_INIT_RIPAS) {
 		return true;
 	}
+#else
+	(void)id;
 #endif
 	return false;
 }
 
 static void rmi_log_on_exit(unsigned long handler_id,
 			    unsigned long args[],
-			    struct smc_result *ret)
+			    struct smc_result *res)
 {
 	const struct smc_handler *handler = &smc_handlers[handler_id];
 	unsigned long function_id = SMC64_RMI_FID(handler_id);
@@ -171,11 +185,11 @@ static void rmi_log_on_exit(unsigned long handler_id,
 		 * RMM_VERSION is special because it returns the
 		 * version number, not the error code.
 		 */
-		INFO("SMC_RMM_%-21s > %lx\n", handler->fn_name, ret->x[0]);
+		INFO("SMC_RMM_%-21s > %lx\n", handler->fn_name, res->x[0]);
 		return;
 	}
 
-	rc = unpack_return_code(ret->x[0]);
+	rc = unpack_return_code(res->x[0]);
 
 	if ((handler->log_exec) ||
 	    (handler->log_error && (rc.status != RMI_SUCCESS))) {
@@ -183,7 +197,7 @@ static void rmi_log_on_exit(unsigned long handler_id,
 		INFO("SMC_RMM_%-21s", handler->fn_name);
 
 		/* Print arguments */
-		num = handler->type & 0xFF;
+		num = (unsigned int)handler->type & 0xFFU;
 		assert(num <= MAX_NUM_ARGS);
 
 		for (unsigned int i = 0U; i < num; i++) {
@@ -192,7 +206,7 @@ static void rmi_log_on_exit(unsigned long handler_id,
 
 		/* Print status */
 		if (rc.status >= RMI_ERROR_COUNT) {
-			INFO(" > %lx", ret->x[0]);
+			INFO(" > %lx", res->x[0]);
 		} else {
 			INFO(" > RMI_%s", rmi_status_string[rc.status]);
 		}
@@ -202,13 +216,18 @@ static void rmi_log_on_exit(unsigned long handler_id,
 		     (rc.status == RMI_ERROR_REALM)) ||
 		     (rc.status == RMI_ERROR_RTT)) {
 			INFO(" %x", rc.index);
-		} else if (rc.status == RMI_SUCCESS) {
+		}
+
+		if ((rc.status == RMI_SUCCESS) ||
+		   ((rc.status == RMI_ERROR_RTT) &&
+		   ((function_id == SMC_RMM_RTT_DESTROY) ||
+		    (function_id == SMC_RMM_DATA_DESTROY)))) {
 			/* Print output values */
-			num = (handler->type >> 8) & 0xFF;
+			num = ((unsigned int)handler->type >> 8) & 0xFFU;
 			assert(num <= MAX_NUM_OUTPUT_VALS);
 
 			for (unsigned int i = 1U; i <= num; i++) {
-				INFO(" %lx", ret->x[i]);
+				INFO(" %lx", res->x[i]);
 			}
 		}
 		INFO("\n");
@@ -222,14 +241,15 @@ void handle_ns_smc(unsigned long function_id,
 		   unsigned long arg3,
 		   unsigned long arg4,
 		   unsigned long arg5,
-		   struct smc_result *ret)
+		   struct smc_result *res)
 {
+	(void)arg5;
 	unsigned long handler_id;
 	const struct smc_handler *handler = NULL;
 	bool restore_ns_simd_state = false;
 
 	/* Ignore SVE hint bit, until RMM supports SVE hint bit */
-	function_id &= ~MASK(SMC_SVE_HINT);
+	function_id &= ~SMC_SVE_HINT;
 
 	if (IS_SMC64_RMI_FID(function_id)) {
 		handler_id = RMI_HANDLER_ID(function_id);
@@ -245,7 +265,7 @@ void handle_ns_smc(unsigned long function_id,
 	if ((handler == NULL) || (handler->fn_dummy == NULL)) {
 		VERBOSE("[%s] unknown function_id: %lx\n",
 			__func__, function_id);
-		ret->x[0] = SMC_UNKNOWN;
+		res->x[0] = SMC_UNKNOWN;
 		return;
 	}
 
@@ -262,28 +282,40 @@ void handle_ns_smc(unsigned long function_id,
 
 	switch (handler->type) {
 	case rmi_type_00:
-		ret->x[0] = handler->f_00();
+		res->x[0] = handler->f_00();
 		break;
 	case rmi_type_10:
-		ret->x[0] = handler->f_10(arg0);
+		res->x[0] = handler->f_10(arg0);
 		break;
 	case rmi_type_20:
-		ret->x[0] = handler->f_20(arg0, arg1);
+		res->x[0] = handler->f_20(arg0, arg1);
 		break;
 	case rmi_type_30:
-		ret->x[0] = handler->f_30(arg0, arg1, arg2);
+		res->x[0] = handler->f_30(arg0, arg1, arg2);
 		break;
 	case rmi_type_40:
-		ret->x[0] = handler->f_40(arg0, arg1, arg2, arg3);
+		res->x[0] = handler->f_40(arg0, arg1, arg2, arg3);
 		break;
 	case rmi_type_50:
-		ret->x[0] = handler->f_50(arg0, arg1, arg2, arg3, arg4);
+		res->x[0] = handler->f_50(arg0, arg1, arg2, arg3, arg4);
 		break;
 	case rmi_type_11:
-		handler->f_11(arg0, ret);
+		handler->f_11(arg0, res);
+		break;
+	case rmi_type_22:
+		handler->f_22(arg0, arg1, res);
+		break;
+	case rmi_type_31:
+		handler->f_31(arg0, arg1, arg2, res);
+		break;
+	case rmi_type_32:
+		handler->f_32(arg0, arg1, arg2, res);
 		break;
 	case rmi_type_34:
-		handler->f_34(arg0, arg1, arg2, ret);
+		handler->f_34(arg0, arg1, arg2, res);
+		break;
+	case rmi_type_41:
+		handler->f_41(arg0, arg1, arg2, arg3, res);
 		break;
 	default:
 		assert(false);
@@ -292,7 +324,7 @@ void handle_ns_smc(unsigned long function_id,
 	if (rmi_call_log_enabled) {
 		unsigned long args[] = {arg0, arg1, arg2, arg3, arg4};
 
-		rmi_log_on_exit(handler_id, args, ret);
+		rmi_log_on_exit(handler_id, args, res);
 	}
 
 	/* If the handler uses FPU, restore the saved  NS simd context. */
@@ -322,8 +354,10 @@ static void report_unexpected(void)
 	INFO("----\n");
 }
 
-unsigned long handle_realm_trap(unsigned long *regs)
+__dead2 unsigned long handle_realm_trap(unsigned long *regs)
 {
+	(void)regs;
+
 	report_unexpected();
 
 	while (true) {
@@ -360,13 +394,13 @@ extern void *ns_write;
  */
 extern void *ns_access_ret_0;
 
-struct rmm_trap_element rmm_trap_list[] = {
+static struct rmm_trap_element rmm_trap_list[] = {
 	RMM_TRAP_HANDLER(ns_read, ns_access_ret_0),
 	RMM_TRAP_HANDLER(ns_write, ns_access_ret_0),
 };
 #define RMM_TRAP_LIST_SIZE (sizeof(rmm_trap_list)/sizeof(struct rmm_trap_element))
 
-static void fatal_abort(void)
+__dead2 static void fatal_abort(void)
 {
 	report_unexpected();
 

@@ -18,7 +18,6 @@
 #include <smc-rmi.h>
 #include <smc-rsi.h>
 #include <smc.h>
-#include <timers.h>
 
 static void reset_last_run_info(struct rec *rec)
 {
@@ -35,7 +34,7 @@ static bool complete_mmio_emulation(struct rec *rec, struct rmi_rec_entry *rec_e
 	}
 
 	if (((esr & MASK(ESR_EL2_EC)) != ESR_EL2_EC_DATA_ABORT) ||
-	    !(esr & ESR_EL2_ABORT_ISV_BIT)) {
+	    ((esr & ESR_EL2_ABORT_ISV_BIT) == 0UL)) {
 		/*
 		 * MMIO emulation is requested but the REC did not exit with
 		 * an emulatable exit.
@@ -70,13 +69,13 @@ static bool complete_mmio_emulation(struct rec *rec, struct rmi_rec_entry *rec_e
 
 static void complete_set_ripas(struct rec *rec)
 {
-	if (rec->set_ripas.start != rec->set_ripas.end) {
+	if (rec->set_ripas.base != rec->set_ripas.top) {
 		/* Pending request from Realm */
 		rec->regs[0] = RSI_SUCCESS;
 		rec->regs[1] = rec->set_ripas.addr;
 
-		rec->set_ripas.start = 0UL;
-		rec->set_ripas.end = 0UL;
+		rec->set_ripas.base = 0UL;
+		rec->set_ripas.top = 0UL;
 	}
 }
 
@@ -109,7 +108,7 @@ static void complete_sysreg_emulation(struct rec *rec, struct rmi_rec_entry *rec
 	unsigned long esr = rec->last_run_info.esr;
 
 	/* Rt bits [9:5] of ISS field cannot exceed 0b11111 */
-	unsigned int rt = ESR_EL2_SYSREG_ISS_RT(esr);
+	unsigned int rt = (unsigned int)ESR_EL2_SYSREG_ISS_RT(esr);
 
 	if ((esr & MASK(ESR_EL2_EC)) != ESR_EL2_EC_SYSREG) {
 		return;
@@ -170,7 +169,18 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	/* For a REC to be runnable, it should be unused (refcount = 0) */
 	g_rec = find_lock_unused_granule(rec_addr, GRANULE_STATE_REC);
 	if (ptr_is_err(g_rec)) {
-		return (unsigned long)ptr_status(g_rec);
+		switch (ptr_status(g_rec)) {
+		case 1U:
+			return RMI_ERROR_INPUT;
+		case 2U:
+			/*
+			 * For a REC to be runnable,
+			 * it should be not used (refcount = 0)
+			 */
+			return RMI_ERROR_REC;
+		default:
+			panic();
+		}
 	}
 
 	/*
@@ -197,8 +207,11 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	}
 
 	rec = granule_map(g_rec, SLOT_REC);
+	assert(rec != NULL);
 
 	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	realm_state = get_rd_state_unlocked(rd);
 	buffer_unmap(rd);
 
@@ -270,7 +283,6 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	ret = RMI_SUCCESS;
 
 	rec_run_loop(rec, &rec_run.exit);
-	/* Undo the heap association */
 
 	gic_copy_state_to_ns(&rec->sysregs.gicstate, &rec_run.exit);
 
@@ -278,9 +290,10 @@ out_unmap_buffers:
 	buffer_unmap(rec);
 
 	if (ret == RMI_SUCCESS) {
-		if (!ns_buffer_write(SLOT_NS, g_run,
-				     offsetof(struct rmi_rec_run, exit),
-				     sizeof(struct rmi_rec_exit), &rec_run.exit)) {
+		if (!ns_buffer_write(
+			SLOT_NS, g_run,
+			(unsigned int)offsetof(struct rmi_rec_run, exit),
+			sizeof(struct rmi_rec_exit), &rec_run.exit)) {
 			ret = RMI_ERROR_INPUT;
 		}
 	}

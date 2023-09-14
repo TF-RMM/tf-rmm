@@ -55,10 +55,11 @@ static size_t realm_attest_public_key_hash_len;
 static bool attest_signing_key_loaded; /* = false */
 static psa_key_handle_t attest_signing_key;
 
-/* Specify the hash algorithm to use for computing the hash of the
+/*
+ * Specify the hash algorithm to use for computing the hash of the
  * realm public key.
  */
-static enum hash_algo public_key_hash_algo_id = HASH_ALGO_SHA256;
+static enum hash_algo public_key_hash_algo_id = HASH_SHA_256;
 
 /*
  * TODO: review panic usage and try to gracefully exit on error. Also
@@ -155,7 +156,19 @@ int attest_get_realm_signing_key(psa_key_handle_t *key_handle)
 	return 0;
 }
 
-int attest_get_realm_public_key_hash(struct q_useful_buf_c *public_key_hash)
+/*
+ * Get the hash of the realm attestation public key. The public key hash is the
+ * challenge value in the platform attestation token.
+ *
+ * Arguments:
+ * public_key_hash - Get the buffer address and size which holds
+ *                   the hash of the realm attestation public key.
+ *
+ * Returns 0 on success, negative error code on error.
+ *
+ */
+static int attest_get_realm_public_key_hash(
+					struct q_useful_buf_c *public_key_hash)
 {
 	if (!attest_signing_key_loaded) {
 		ERROR("Realm attestation key not initialized\n");
@@ -181,10 +194,10 @@ int attest_get_realm_public_key(struct q_useful_buf_c *public_key)
 
 int attest_setup_platform_token(void)
 {
-	int ret;
 	uintptr_t shared_buf;
 	size_t platform_token_len = 0;
 	struct q_useful_buf_c rmm_pub_key_hash;
+	int ret;
 
 	/*
 	 * Copy the RAK public hash value to the token buffer. This is

@@ -13,7 +13,6 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
 #include <utils_def.h>
 #include <xlat_contexts.h>
 #include "xlat_defs_private.h"
@@ -62,7 +61,7 @@ static inline uint64_t *xlat_table_get_empty(struct xlat_ctx *ctx)
  */
 static uintptr_t xlat_tables_find_start_va(struct xlat_mmap_region *mm,
 					   const uintptr_t table_base_va,
-					   const unsigned int level)
+					   const int level)
 {
 	uintptr_t table_idx_va;
 
@@ -98,8 +97,8 @@ static action_t xlat_tables_map_region_action(const struct xlat_mmap_region *mm,
 					      int level)
 {
 	uintptr_t mm_end_va = mm->base_va + mm->size - 1UL;
-	uintptr_t table_entry_end_va =
-			table_entry_base_va + XLAT_BLOCK_SIZE(level) - 1UL;
+	uintptr_t table_entry_end_va = table_entry_base_va +
+					XLAT_BLOCK_SIZE(level) - 1UL;
 
 	/*
 	 * The descriptor types allowed depend on the current table level.
@@ -116,7 +115,7 @@ static action_t xlat_tables_map_region_action(const struct xlat_mmap_region *mm,
 		 * translation with this granularity in principle.
 		 */
 
-		if (level == 3U) {
+		if (level == 3) {
 			/*
 			 * Last level, only page descriptors are allowed.
 			 */
@@ -263,12 +262,13 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 
 	assert(ctx_cfg != NULL);
 	assert((level >= ctx_cfg->base_level) &&
-					(level <= XLAT_TABLE_LEVEL_MAX));
+	       (level <= XLAT_TABLE_LEVEL_MAX));
 	assert(table_entries <= XLAT_GET_TABLE_ENTRIES(level));
 
 	mm_end_va = mm->base_va + mm->size - 1U;
 
-	if ((level < ctx_cfg->base_level) || (level > XLAT_TABLE_LEVEL_MAX)) {
+	if ((level < ctx_cfg->base_level) ||
+	    (level > XLAT_TABLE_LEVEL_MAX)) {
 		ERROR("%s (%u): Level out of boundaries (%i)\n",
 			__func__, __LINE__, level);
 		panic();
@@ -314,8 +314,7 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 			end_va = xlat_tables_map_region(ctx, mm, table_idx_va,
 					       subtable, XLAT_TABLE_ENTRIES,
 					       level + 1);
-			if (end_va !=
-				(table_idx_va + XLAT_BLOCK_SIZE(level) - 1UL)) {
+			if (end_va != (table_idx_va + XLAT_BLOCK_SIZE(level) - 1UL)) {
 				return end_va;
 			}
 
@@ -328,8 +327,7 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 			end_va = xlat_tables_map_region(ctx, mm, table_idx_va,
 					       subtable, XLAT_TABLE_ENTRIES,
 					       level + 1);
-			if (end_va !=
-				(table_idx_va + XLAT_BLOCK_SIZE(level) - 1UL)) {
+			if (end_va != (table_idx_va + XLAT_BLOCK_SIZE(level) - 1UL)) {
 				return end_va;
 			}
 
@@ -359,7 +357,7 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, int level)
 {
 	uint64_t desc;
-	uint32_t mem_type;
+	uint64_t mem_type;
 	bool lpa2_enabled = is_feat_lpa2_4k_present();
 
 	if ((MT_TYPE(attr) == MT_TRANSIENT)) {

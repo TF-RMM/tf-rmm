@@ -5,52 +5,53 @@
 
 #include <granule.h>
 #include <realm.h>
-#include <rsi-config.h>
-#include <rsi-walk.h>
+#include <rsi-handler.h>
 #include <smc-rsi.h>
 
-struct rsi_walk_smc_result  handle_rsi_realm_config(struct rec *rec)
+void handle_rsi_realm_config(struct rec *rec, struct rsi_result *res)
 {
-	struct rsi_walk_smc_result res = { 0 };
 	unsigned long ipa = rec->regs[1];
-	struct rd *rd;
 	enum s2_walk_status walk_status;
 	struct s2_walk_result walk_res;
 	struct granule *gr;
 	struct rsi_realm_config *config;
 
+	res->action = UPDATE_REC_RETURN_TO_REALM;
+
 	if (!GRANULE_ALIGNED(ipa) || !addr_in_rec_par(rec, ipa)) {
-		res.smc_res.x[0] = RSI_ERROR_INPUT;
-		return res;
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		return;
 	}
 
-	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
-
-	walk_status = realm_ipa_to_pa(rd, ipa, &walk_res);
+	walk_status = realm_ipa_to_pa(rec, ipa, &walk_res);
 
 	if (walk_status == WALK_FAIL) {
-		if (s2_walk_result_match_ripas(&walk_res, RIPAS_EMPTY)) {
-			res.smc_res.x[0] = RSI_ERROR_INPUT;
+		if (walk_res.ripas_val == RIPAS_EMPTY) {
+			res->smc_res.x[0] = RSI_ERROR_INPUT;
 		} else {
-			/* Exit to Host */
-			res.walk_result.abort = true;
-			res.walk_result.rtt_level = walk_res.rtt_level;
+			res->action = STAGE_2_TRANSLATION_FAULT;
+			res->rtt_level = walk_res.rtt_level;
 		}
-		goto out_unmap_rd;
+		return;
 	}
 
 	if (walk_status == WALK_INVALID_PARAMS) {
-		/* Return error to Realm */
-		res.smc_res.x[0] = RSI_ERROR_INPUT;
-		goto out_unmap_rd;
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		return;
 	}
 
 	/* Map Realm data granule to RMM address space */
 	gr = find_granule(walk_res.pa);
 	config = (struct rsi_realm_config *)granule_map(gr, SLOT_RSI_CALL);
+	assert(config != NULL);
 
 	/* Populate config structure */
 	config->ipa_width = rec->realm_info.ipa_bits;
+	if (rec->realm_info.algorithm == HASH_SHA_256) {
+		config->algorithm = RSI_HASH_SHA_256;
+	} else {
+		config->algorithm = RSI_HASH_SHA_512;
+	}
 
 	/* Unmap Realm data granule */
 	buffer_unmap(config);
@@ -59,9 +60,5 @@ struct rsi_walk_smc_result  handle_rsi_realm_config(struct rec *rec)
 	granule_unlock(walk_res.llt);
 
 	/* Write output values */
-	res.smc_res.x[0] = RSI_SUCCESS;
-
-out_unmap_rd:
-	buffer_unmap(rd);
-	return res;
+	res->smc_res.x[0] = RSI_SUCCESS;
 }

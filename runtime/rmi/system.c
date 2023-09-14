@@ -3,7 +3,6 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 #include <assert.h>
-#include <debug.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 

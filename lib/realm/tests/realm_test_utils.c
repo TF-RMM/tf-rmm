@@ -33,7 +33,7 @@ uintptr_t realm_test_util_slot_to_pa(enum buffer_slot slot)
  */
 uintptr_t realm_test_util_slot_va_from_pa(uintptr_t pa)
 {
-	for (unsigned int i = 0U; i < NR_CPU_SLOTS; i++) {
+	for (unsigned int i = 0U; i < (unsigned int)NR_CPU_SLOTS; i++) {
 		if (pa == realm_test_util_slot_to_pa((enum buffer_slot)i)) {
 			/*
 			 * Found a slot returning the same address, get

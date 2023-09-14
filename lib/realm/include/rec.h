@@ -107,13 +107,38 @@ struct ns_state {
 } __attribute__((aligned(CACHE_WRITEBACK_GRANULE)));
 
 /*
+ * Data used when handling attestation requests
+ */
+struct rec_attest_data {
+	unsigned char rmm_realm_token_buf[SZ_1K];
+	size_t rmm_realm_token_len;
+
+	struct token_sign_cntxt token_sign_ctx;
+
+	/* Buffer allocation info used for heap init and management */
+	struct {
+		struct buffer_alloc_ctx ctx;
+		bool ctx_initialised;
+	} alloc_info;
+};
+COMPILER_ASSERT(sizeof(struct rec_attest_data) <= GRANULE_SIZE);
+
+/*
  * This structure contains pointers to data that are allocated
  * in auxilary granules for a REC.
  */
 struct rec_aux_data {
-	uint8_t *attest_heap_buf; /* pointer to the heap buffer */
-	struct pmu_state *pmu;	  /* pointer to PMU state */
-	struct rec_simd_state rec_simd; /* REC SIMD context region */
+	/* Pointer to the heap buffer */
+	uint8_t *attest_heap_buf;
+
+	/* Pointer to PMU state */
+	struct pmu_state *pmu;
+
+	/* SIMD context region */
+	struct rec_simd_state rec_simd;
+
+	/* Pointer to attestation-related data */
+	struct rec_attest_data *attest_data;
 };
 
 struct rec {
@@ -135,11 +160,13 @@ struct rec {
 	struct sysreg_state sysregs;
 	struct common_sysreg_state common_sysregs;
 
+	/* Populated when the REC issues a RIPAS change request */
 	struct {
-		unsigned long start;
-		unsigned long end;
+		unsigned long base;
+		unsigned long top;
 		unsigned long addr;
-		enum ripas ripas;
+		enum ripas ripas_val;
+		enum ripas_change_destroyed change_destroyed;
 	} set_ripas;
 
 	/*
@@ -151,7 +178,8 @@ struct rec {
 		struct granule *g_rtt;
 		struct granule *g_rd;
 		bool pmu_enabled;
-		unsigned int pmu_num_cnts;
+		unsigned int pmu_num_ctrs;
+		enum hash_algo algorithm;
 		bool sve_enabled;
 		uint8_t sve_vq;
 	} realm_info;
@@ -188,18 +216,6 @@ struct rec {
 	/* Addresses of auxiliary granules */
 	struct granule *g_aux[MAX_REC_AUX_GRANULES];
 	struct rec_aux_data aux_data;
-
-	unsigned char rmm_realm_token_buf[SZ_1K];
-	size_t rmm_realm_token_len;
-
-	struct token_sign_ctx token_sign_ctx;
-
-	/* Buffer allocation info used for heap init and management */
-	struct {
-		struct buffer_alloc_ctx ctx;
-		bool ctx_initialised;
-	} alloc_info;
-
 	struct {
 		unsigned long vsesr_el2;
 		bool inject;
@@ -238,9 +254,8 @@ static inline simd_t rec_simd_type(struct rec *rec)
 {
 	if (rec->realm_info.sve_enabled) {
 		return SIMD_SVE;
-	} else {
-		return SIMD_FPU;
 	}
+	return SIMD_FPU;
 }
 
 static inline bool rec_is_simd_allowed(struct rec *rec)
@@ -250,21 +265,9 @@ static inline bool rec_is_simd_allowed(struct rec *rec)
 }
 
 void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit);
-
-unsigned long smc_rec_create(unsigned long rec_addr,
-			     unsigned long rd_addr,
-			     unsigned long rec_params_addr);
-
-unsigned long smc_rec_destroy(unsigned long rec_addr);
-
-unsigned long smc_rec_enter(unsigned long rec_addr,
-			    unsigned long rec_run_addr);
-
 void inject_serror(struct rec *rec, unsigned long vsesr);
-
-void emulate_stage2_data_abort(struct rec *rec, struct rmi_rec_exit *exit,
+void emulate_stage2_data_abort(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			       unsigned long rtt_level);
 
 #endif /* __ASSEMBLER__ */
-
 #endif /* REC_H */

@@ -9,15 +9,15 @@
 #include <stdint.h>
 
 /* PL011 Registers */
-#define UARTDR                    0x000
-#define UARTECR                   0x004
-#define UARTFR                    0x018
+#define UARTDR                    0x00U
+#define UARTECR                   0x04U
+#define UARTFR                    0x18U
 
 /* PL011 registers (out of the SBSA specification) */
-#define UARTIBRD                  0x024
-#define UARTFBRD                  0x028
-#define UARTLCR_H                 0x02C
-#define UARTCR                    0x030
+#define UARTIBRD                  0x24U
+#define UARTFBRD                  0x28U
+#define UARTLCR_H                 0x2CU
+#define UARTCR                    0x30U
 
 /* Flag reg bits */
 #define PL011_UARTFR_TXFF         (1U << 5)	/* Transmit FIFO full */
@@ -37,21 +37,13 @@
 /*
  * Function that initiates UART for console output
  * Arguments:
- *   baseaddr - UART base address
- *   clock    - UART input clock which sets master trasmit/receive rate
- *   baud     - UART Baudrate
+ *   base_addr - UART base address
+ *   uart_clk  - UART input clock which sets master trasmit/receive rate
+ *   baud_rate - UART Baudrate
  * Returns:
  *   0 on success or -1 when invalid baseaddr/clock/baud is used
  */
-int uart_init(uintptr_t baseaddr, unsigned int clock, unsigned int baud);
-
-/*
- * Function that outputs a character to console
- * Arguments:
- *   ch       - Character that must be sent to console output
- * Returns:
- *   void
- */
-void uart_putc(char ch);
+int uart_init(uintptr_t base_addr, unsigned int uart_clk,
+		unsigned int baud_rate);
 
 #endif /* PL011_H */

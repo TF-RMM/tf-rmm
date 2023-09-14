@@ -7,7 +7,8 @@
 #include <assert.h>
 #include <debug.h>
 
-void __assert_func(const char *file, int line, const char *func, const char *expression)
+__dead2 void __assert_func(const char *file, int line,
+			   const char *func, const char *expression)
 {
 	ERROR("Assertion \"%s\" failed %s:%d, %s\n", expression, file, line, func);
 	while (true) {
@@ -15,7 +16,8 @@ void __assert_func(const char *file, int line, const char *func, const char *exp
 	}
 }
 
-void __assert_fail(const char *expression, const char *file, unsigned int line, const char *func)
+__dead2 void __assert_fail(const char *expression, const char *file,
+			   unsigned int line, const char *func)
 {
 	/* Ignore func as it can be NULL */
 	(void)func;
