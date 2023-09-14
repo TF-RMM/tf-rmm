@@ -709,6 +709,10 @@ unsigned long smc_rtt_map_unprotected(unsigned long rd_addr,
 	long level = (long)ulevel;
 	struct smc_result res;
 
+	if ((level < RTT_MIN_BLOCK_LEVEL) || (level > RTT_PAGE_LEVEL)) {
+		return RMI_ERROR_INPUT;
+	}
+
 	if (!host_ns_s2tte_is_valid(s2tte, level)) {
 		return RMI_ERROR_INPUT;
 	}
@@ -722,7 +726,14 @@ void smc_rtt_unmap_unprotected(unsigned long rd_addr,
 				unsigned long ulevel,
 				struct smc_result *res)
 {
-	return map_unmap_ns(rd_addr, map_addr, (long)ulevel, 0UL, UNMAP_NS, res);
+	long level = (long)ulevel;
+
+	if ((level < RTT_MIN_BLOCK_LEVEL) || (level > RTT_PAGE_LEVEL)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	map_unmap_ns(rd_addr, map_addr, level, 0UL, UNMAP_NS, res);
 }
 
 void smc_rtt_read_entry(unsigned long rd_addr,
