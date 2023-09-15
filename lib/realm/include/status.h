@@ -67,29 +67,4 @@ static inline return_code_t unpack_return_code(unsigned long error_code)
 
 #define MAX_ERR 4095
 
-/*
- * Cast a status value to a pointer.
- */
-static inline void *status_ptr(unsigned int status)
-{
-	return (void *)(-1 * (long)status);
-}
-
-/*
- * Check whether a pointer value represents an error.
- */
-static inline bool ptr_is_err(const void *ptr)
-{
-	return (unsigned long)ptr >= (unsigned long)(-MAX_ERR);
-}
-
-/*
- * Cast a pointer to a status value.
- */
-static inline unsigned int ptr_status(const void *ptr)
-{
-	assert((unsigned int)(-1 * (long)ptr) < RMI_ERROR_COUNT);
-	return (unsigned int)(-1 * (long)ptr);
-}
-
 #endif /* STATUS_H */

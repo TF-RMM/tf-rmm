@@ -1592,6 +1592,8 @@ TEST(granule, find_lock_unused_granule_TC1)
 	 ******************************************************************/
 
 	for (unsigned int i = 0U; i < 3U; i++) {
+		int ret;
+
 		/* Find and lock the granule */
 		granule = find_lock_granule(addrs[i], GRANULE_STATE_NS);
 
@@ -1599,13 +1601,10 @@ TEST(granule, find_lock_unused_granule_TC1)
 		granule->state = GRANULE_STATE_RD;
 
 		granule = NULL;
-		granule = find_lock_unused_granule(addrs[i], GRANULE_STATE_RD);
+		ret = find_lock_unused_granule(addrs[i], GRANULE_STATE_RD, &granule);
 
+		CHECK_TRUE(ret == 0);
 		CHECK_FALSE(granule == NULL);
-		CHECK_FALSE(granule ==
-			(struct granule *)status_ptr(1U));
-		CHECK_FALSE(granule ==
-			(struct granule *)status_ptr(2U));
 		CHECK_FALSE(granule->lock.val == 0UL);
 		LONGS_EQUAL(0, granule->refcount);
 	}
@@ -1630,6 +1629,8 @@ TEST(granule, find_lock_unused_granule_TC2)
 	 ***************************************************************/
 
 	for (unsigned int i = 0U; i < 3U; i++) {
+		int ret;
+
 		granule = find_granule(addrs[i]);
 
 		/*
@@ -1639,16 +1640,18 @@ TEST(granule, find_lock_unused_granule_TC2)
 		granule_set_state(granule, GRANULE_STATE_RD);
 
 		for (unsigned int state = GRANULE_STATE_NS;
-		     state <= GRANULE_STATE_LAST; state++) {
+			state <= GRANULE_STATE_LAST; state++) {
 			if (state == GRANULE_STATE_RD) {
 				/* Skip as the state is the correct one */
 				continue;
 			}
 
-			granule = find_lock_unused_granule(addrs[i],
-						   (enum granule_state)state);
+			ret = find_lock_unused_granule(addrs[i],
+						(enum granule_state)state,
+						&granule);
 
-			POINTERS_EQUAL(status_ptr(RMI_ERROR_INPUT), granule);
+			CHECK_TRUE(ret == -EINVAL);
+			CHECK_TRUE(granule == NULL);
 		}
 	}
 }
@@ -1672,6 +1675,8 @@ TEST(granule, find_lock_unused_granule_TC3)
 	 ***************************************************************/
 
 	for (unsigned int i = 0U; i < 3U; i++) {
+		int ret;
+
 		/*
 		 * Increase the refcount of the current granule to mark it
 		 * as used.
@@ -1680,9 +1685,11 @@ TEST(granule, find_lock_unused_granule_TC3)
 		granule->refcount = 10UL;
 		granule_set_state(granule, GRANULE_STATE_RD);
 
-		granule = find_lock_unused_granule(addrs[i], GRANULE_STATE_RD);
+		ret = find_lock_unused_granule(addrs[i], GRANULE_STATE_RD,
+						&granule);
 
-		POINTERS_EQUAL(status_ptr(2U), granule);
+		CHECK_TRUE(ret == -EBUSY);
+		CHECK_TRUE(granule == NULL);
 	}
 }
 
@@ -1690,6 +1697,7 @@ TEST(granule, find_lock_unused_granule_TC4)
 {
 	struct granule *granule;
 	unsigned long addr;
+	int ret;
 
 	/***************************************************************
 	 * TEST CASE 4:
@@ -1698,15 +1706,17 @@ TEST(granule, find_lock_unused_granule_TC4)
 	 ***************************************************************/
 	addr = get_rand_granule_addr();
 	addr += test_helpers_get_rand_in_range(1, GRANULE_SIZE - 1);
-	granule = find_lock_unused_granule(addr, GRANULE_STATE_NS);
+	ret = find_lock_unused_granule(addr, GRANULE_STATE_NS, &granule);
 
-	POINTERS_EQUAL(status_ptr(RMI_ERROR_INPUT), granule);
+	CHECK_TRUE(ret == -EINVAL);
+	CHECK_TRUE(granule == NULL);
 }
 
 TEST(granule, find_lock_unused_granule_TC5)
 {
 	struct granule *granule;
 	unsigned long addr;
+	int ret;
 
 	/***************************************************************
 	 * TEST CASE 5:
@@ -1715,14 +1725,18 @@ TEST(granule, find_lock_unused_granule_TC5)
 	 * valid range.
 	 ***************************************************************/
 	(void)get_out_of_range_granule(&addr, true);
-	granule = find_lock_unused_granule(addr, GRANULE_STATE_NS);
+	ret = find_lock_unused_granule(addr, GRANULE_STATE_NS, &granule);
 
-	POINTERS_EQUAL(status_ptr(RMI_ERROR_INPUT), granule);
+	CHECK_TRUE(ret == -EINVAL);
+	CHECK_TRUE(granule == NULL);
 
 	/* Try with the lower boundary as well if possible */
 	if (get_out_of_range_granule(&addr, false) == true) {
-		granule = find_lock_unused_granule(addr, GRANULE_STATE_NS);
-		POINTERS_EQUAL(status_ptr(RMI_ERROR_INPUT), granule);
+		ret = find_lock_unused_granule(addr, GRANULE_STATE_NS,
+						&granule);
+
+		CHECK_TRUE(ret == -EINVAL);
+		CHECK_TRUE(granule == NULL);
 	}
 }
 
