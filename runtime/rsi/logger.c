@@ -37,7 +37,8 @@ struct rsi_handler {
 }
 
 static const struct rsi_handler rsi_logger[] = {
-	RSI_FUNCTION(ABI_VERSION, 0U, 1U),		/* 0xC4000190 */
+	RSI_FUNCTION(ABI_VERSION, 1U, 1U),		/* 0xC4000190 */
+	RSI_FUNCTION(FEATURES, 1U, 1U),			/* 0xC4000191 */
 	RSI_FUNCTION(MEASUREMENT_READ, 1U, 8U),		/* 0xC4000192 */
 	RSI_FUNCTION(MEASUREMENT_EXTEND, 10U, 0U),	/* 0xC4000193 */
 	RSI_FUNCTION(ATTEST_TOKEN_INIT, 9U, 0U),	/* 0xC4000194 */
@@ -75,14 +76,8 @@ static size_t print_entry(unsigned int id, unsigned long args[],
 		const struct rsi_handler *logger = fid_to_rsi_logger(id);
 
 		num = logger->num_args;
-		if (logger->fn_name != NULL) {
-			cnt = snprintf(buf, MAX_NAME_LEN + 1UL,
+		cnt = snprintf(buf, MAX_NAME_LEN + 1UL,
 				"%s%s", "SMC_RSI_", logger->fn_name);
-		} else {
-			/* Handle gaps in RSI commands numbering */
-			cnt = snprintf(buf, MAX_NAME_LEN + 1UL,
-					"%s%08x", "SMC_RSI_", id);
-		}
 		break;
 	}
 	/* SMC32 PSCI calls */
@@ -144,7 +139,7 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 	int cnt;
 
 	switch (function_id) {
-	case SMC_RSI_MEASUREMENT_READ ... SMC_RSI_HOST_CALL: {
+	case SMC_RSI_ABI_VERSION ... SMC_RSI_HOST_CALL: {
 		const struct rsi_handler *logger =
 				fid_to_rsi_logger(function_id);
 
@@ -153,9 +148,6 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 		num = logger->num_vals;
 		break;
 	}
-	case SMC_RSI_ABI_VERSION:
-		num = 0U;
-		FALLTHROUGH;
 	default:
 		/* Print result code */
 		cnt = print_code(buf, len, regs[0]);

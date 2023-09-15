@@ -59,6 +59,7 @@ target_sources(rmm-runtime
 
 target_sources(rmm-runtime
     PRIVATE "rsi/config.c"
+            "rsi/feature.c"
             "rsi/host_call.c"
             "rsi/logger.c"
             "rsi/memory.c"

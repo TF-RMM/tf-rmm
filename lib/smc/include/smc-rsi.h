@@ -18,7 +18,7 @@
  * The major version number of the RSI implementation.  Increase this whenever
  * the binary format or semantics of the SMC calls change.
  */
-#define RSI_ABI_VERSION_MAJOR		UL(13)
+#define RSI_ABI_VERSION_MAJOR		UL(14)
 
 /*
  * The minor version number of the RSI implementation.  Increase this when
@@ -35,8 +35,6 @@
 #define IS_SMC64_RSI_FID(_fid)		IS_SMC64_STD_FAST_IN_RANGE(RSI, _fid)
 
 #define SMC64_RSI_FID(_offset)		SMC64_STD_FID(RSI, _offset)
-
-#define SMC_RSI_ABI_VERSION		SMC64_RSI_FID(U(0x0))
 
 /*
  * RsiCommandReturnCode enumeration
@@ -78,6 +76,22 @@
  */
 #define RSI_ACCEPT		U(0)
 #define RSI_REJECT		U(1)
+
+/*
+ * Returns RSI version.
+ * arg1: Requested interface version
+ * ret0: Status / error
+ * ret1: Implemented interface version
+ */
+#define SMC_RSI_ABI_VERSION		SMC64_RSI_FID(U(0x0))
+
+/*
+ * Returns RSI version.
+ * arg1: Feature register index
+ * ret0: Status / error
+ * ret1: Feature register value
+ */
+#define SMC_RSI_FEATURES		SMC64_RSI_FID(U(0x1))
 
 /*
  * Returns a measurement.

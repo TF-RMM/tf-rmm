@@ -71,13 +71,13 @@ static int realm_start(unsigned long *regs)
 	INFO("###########################\n");
 
 	regs[0] = SMC_RSI_ABI_VERSION;
+	regs[1] = RSI_ABI_VERSION;
 	return host_util_rsi_helper(realm_continue);
 }
 
 static int realm_continue(unsigned long *regs)
 {
-	INFO("RSI Version is 0x%lx\n", regs[0]);
-
+	INFO("RSI Version is 0x%lx\n", regs[1]);
 
 	srand((int)time(NULL));
 

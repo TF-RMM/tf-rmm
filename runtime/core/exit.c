@@ -405,12 +405,15 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		res.action = UPDATE_REC_RETURN_TO_REALM;
 		res.smc_res.x[0] = SMCCC_VERSION_NUMBER;
 		break;
-	case SMC_RSI_ABI_VERSION:
-		handle_rsi_version(&res);
-		break;
 	case SMC32_PSCI_FID_MIN ... SMC32_PSCI_FID_MAX:
 	case SMC64_PSCI_FID_MIN ... SMC64_PSCI_FID_MAX:
 		handle_psci(rec, rec_exit, &res);
+		break;
+	case SMC_RSI_ABI_VERSION:
+		handle_rsi_version(rec, &res);
+		break;
+	case SMC_RSI_FEATURES:
+		handle_rsi_features(rec, &res);
 		break;
 	case SMC_RSI_ATTEST_TOKEN_INIT:
 		handle_rsi_attest_token_init(rec, &res);
