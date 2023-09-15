@@ -246,6 +246,7 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 		return RMI_ERROR_INPUT;
 	}
 
+	/* coverity[uninit_use:SUPPRESS] */
 	num_rec_aux = (unsigned int)rec_params.num_aux;
 	if (num_rec_aux > MAX_REC_AUX_GRANULES) {
 		return RMI_ERROR_INPUT;
