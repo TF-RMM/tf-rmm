@@ -331,6 +331,7 @@ void handle_psci(struct rec *rec,
  */
 static unsigned long complete_psci_cpu_on(struct rec *target_rec,
 					  unsigned long entry_point_address,
+					  unsigned long context_id,
 					  unsigned long caller_sctlr_el1,
 					  unsigned long status)
 {
@@ -348,6 +349,7 @@ static unsigned long complete_psci_cpu_on(struct rec *target_rec,
 	}
 
 	psci_reset_rec(target_rec, caller_sctlr_el1);
+	target_rec->regs[0] = context_id;
 	target_rec->pc = entry_point_address;
 	target_rec->runnable = true;
 	return PSCI_RETURN_SUCCESS;
@@ -392,6 +394,7 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 
 		rec_ret = complete_psci_cpu_on(target_rec,
 						calling_rec->regs[2],
+						calling_rec->regs[3],
 						calling_rec->sysregs.sctlr_el1,
 						status);
 		/*
