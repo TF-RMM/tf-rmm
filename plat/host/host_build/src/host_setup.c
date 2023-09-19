@@ -145,6 +145,8 @@ static int create_realm(void)
 	struct rmi_rec_params *rec_params = allocate_granule();
 	struct rmi_rec_run *rec_run = allocate_granule();
 
+	host_rmi_version(RMI_ABI_VERSION, &result);
+	CHECK_RMI_RESULT();
 	host_rmi_granule_delegate(rd, &result);
 	CHECK_RMI_RESULT();
 	host_rmi_granule_delegate(rec, &result);

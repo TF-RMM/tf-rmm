@@ -9,7 +9,13 @@
 COMPILER_ASSERT(RMI_ABI_VERSION_MAJOR <= 0x7FFF);
 COMPILER_ASSERT(RMI_ABI_VERSION_MINOR <= 0xFFFF);
 
-unsigned long smc_version(void)
+void smc_version(unsigned long rmi_version, struct smc_result *res)
 {
-	return RMI_ABI_VERSION;
+	if (rmi_version != RMI_ABI_VERSION) {
+		res->x[0] = RMI_ERROR_INPUT;
+	} else {
+		res->x[0] = RMI_SUCCESS;
+	}
+
+	res->x[1] = RMI_ABI_VERSION;
 }

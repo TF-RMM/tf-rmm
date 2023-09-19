@@ -8,6 +8,7 @@
 
 #include <smc-rmi.h>
 
+void host_rmi_version(unsigned long rmi_verion, struct smc_result *res);
 void host_rmi_granule_delegate(void *granule_address, struct smc_result *res);
 void host_rmi_granule_undelegate(void *granule_address, struct smc_result *res);
 void host_rmi_realm_create(void *rd, void *params_ptr, struct smc_result *res);

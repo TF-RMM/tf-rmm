@@ -15,6 +15,14 @@ void handle_ns_smc(unsigned long function_id,
 		   unsigned long arg5,
 		   struct smc_result *res);
 
+void host_rmi_version(unsigned long rmi_verion, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMM_VERSION,
+		rmi_verion,
+		0, 0, 0, 0, 0,
+		res);
+}
+
 void host_rmi_granule_delegate(void *granule_address, struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMM_GRANULE_DELEGATE,
