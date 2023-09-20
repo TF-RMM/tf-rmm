@@ -10,6 +10,7 @@
 #include <buffer.h>
 #include <cpuid.h>
 #include <exit.h>
+#include <granule.h>
 #include <pmu.h>
 #include <rec.h>
 #include <run.h>
@@ -19,68 +20,6 @@
 
 static struct ns_state g_ns_data[MAX_CPUS];
 static struct pmu_state g_pmu_data[MAX_CPUS];
-
-/*
- * Initialize pointers in @aux_data
- *
- * Call with parent REC granule's lock held.
- */
-void init_rec_aux_data(struct rec_aux_data *aux_data, void *rec_aux,
-		       unsigned long num_aux)
-{
-	/*
-	 * Ensure we have enough aux granules for use by REC:
-	 * - REC_HEAP_PAGES for MbedTLS heap
-	 * - REC_PMU_PAGES for PMU state
-	 * - REC_SIMD_PAGES for SIMD state
-	 * - REC_ATTEST_PAGES for 'rec_attest_data' structure
-	 */
-	assert(num_aux >= REC_NUM_PAGES);
-
-	aux_data->attest_heap_buf = (uint8_t *)rec_aux;
-	aux_data->pmu = (struct pmu_state *)((uint8_t *)rec_aux +
-				REC_HEAP_SIZE);
-	aux_data->rec_simd.simd = (struct simd_state *)((uint8_t *)rec_aux +
-				REC_HEAP_SIZE + REC_PMU_SIZE);
-	aux_data->attest_data = (struct rec_attest_data *)((uint8_t *)rec_aux +
-				REC_HEAP_SIZE + REC_PMU_SIZE + REC_SIMD_SIZE);
-}
-
-/*
- * Map REC auxiliary Granules
- *
- * Call with parent REC granule's lock held.
- */
-void *map_rec_aux(struct granule *rec_aux_pages[], unsigned long num_aux)
-{
-	void *rec_aux = NULL;
-
-	for (unsigned long i = 0UL; i < num_aux; i++) {
-		void *aux = granule_map(rec_aux_pages[i],
-			(enum buffer_slot)((unsigned long)SLOT_REC_AUX0 + i));
-
-		assert(aux != NULL);
-
-		if (i == 0UL) {
-			rec_aux = aux;
-		}
-	}
-	return rec_aux;
-}
-
-/*
- * Unmap REC auxiliary Granules
- *
- * Call with parent REC granule's lock held.
- */
-void unmap_rec_aux(void *rec_aux, unsigned long num_aux)
-{
-	unsigned char *rec_aux_vaddr = (unsigned char *)rec_aux;
-
-	for (unsigned long i = 0UL; i < num_aux; i++) {
-		buffer_unmap(rec_aux_vaddr + i * GRANULE_SIZE);
-	}
-}
 
 static void save_sysreg_state(struct sysreg_state *sysregs)
 {
@@ -290,31 +229,6 @@ void inject_serror(struct rec *rec, unsigned long vsesr)
 	rec->serror_info.inject = true;
 }
 
-/* Initialize REC simd state once on the first REC enter */
-static void rec_simd_state_init(struct rec *rec)
-{
-	struct rec_simd_state *rec_simd;
-	simd_t stype;
-
-	rec_simd = &rec->aux_data.rec_simd;
-	assert(rec_simd->simd != NULL);
-
-	if (rec_simd->init_done == true) {
-		return;
-	}
-
-	stype = rec_simd_type(rec);
-	/*
-	 * As part of lazy save/restore, the first state will be restored from
-	 * the REC's simd_state. So the initial state is considered saved, call
-	 * simd_state_init() to set the simd type. sve_vq will be set if the REC
-	 * 'stype' is SIMD_SVE.
-	 */
-	simd_state_init(stype, rec_simd->simd, rec->realm_info.sve_vq);
-	rec_simd->simd_allowed = false;
-	rec_simd->init_done = true;
-}
-
 /* Save the REC SIMD state to memory and disable simd access for the REC */
 void rec_simd_save_disable(struct rec *rec)
 {
@@ -362,7 +276,6 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	int realm_exception_code;
 	void *rec_aux;
 	unsigned int cpuid = my_cpuid();
-	struct rec_attest_data *attest_data;
 	int ret __unused;
 
 	assert(cpuid < MAX_CPUS);
@@ -376,28 +289,14 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	rec->ns = ns_state;
 
 	/* Map auxiliary granules */
-	rec_aux = map_rec_aux(rec->g_aux, rec->num_rec_aux);
+	rec_aux = aux_granules_map(rec->g_aux, rec->num_rec_aux);
 
 	/*
-	 * The attset heap on the REC aux pages is mapped now. It is time to
-	 * associate it with the current CPU.
-	 * This heap will be used for attestation RSI calls when the
-	 * REC is running.
+	 * Associate the attest heap with the current CPU. This heap will be
+	 * used for attestation RSI calls when the REC is running.
 	 */
-	attest_data = rec->aux_data.attest_data;
-	ret = attestation_heap_ctx_assign_pe(&attest_data->alloc_info.ctx);
+	ret = attestation_heap_ctx_assign_pe(&rec->aux_data.attest_data->alloc_ctx);
 	assert(ret == 0);
-
-	/*
-	 * Initialise the heap for attestation if necessary.
-	 */
-	if (!attest_data->alloc_info.ctx_initialised) {
-		(void)attestation_heap_ctx_init(rec->aux_data.attest_heap_buf,
-						REC_HEAP_SIZE);
-		attest_data->alloc_info.ctx_initialised = true;
-	}
-
-	rec_simd_state_init(rec);
 
 	ns_state->pmu = &g_pmu_data[cpuid];
 
@@ -469,5 +368,5 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	assert(ret == 0);
 
 	/* Unmap auxiliary granules */
-	unmap_rec_aux(rec_aux, rec->num_rec_aux);
+	aux_granules_unmap(rec_aux, rec->num_rec_aux);
 }

@@ -253,3 +253,40 @@ void granule_memzero_mapped(void *buf)
 {
 	(void)memset(buf, 0, GRANULE_SIZE);
 }
+
+/*
+ * The parent REC granules lock is expected to be acquired before functions
+ * aux_granules_map() and aux_granules_unmap() are called.
+ */
+void *aux_granules_map(struct granule *rec_aux_pages[], unsigned int num_aux)
+{
+	void *rec_aux = NULL;
+
+	assert(rec_aux_pages != NULL);
+	assert(num_aux <= MAX_REC_AUX_GRANULES);
+
+	for (unsigned int i = 0U; i < num_aux; i++) {
+		void *aux = granule_map(rec_aux_pages[i],
+					(enum buffer_slot)((unsigned int)
+							   SLOT_REC_AUX0 + i));
+
+		assert(aux != NULL);
+
+		if (i == 0UL) {
+			rec_aux = aux;
+		}
+	}
+	return rec_aux;
+}
+
+void aux_granules_unmap(void *rec_aux, unsigned int num_aux)
+{
+	unsigned char *rec_aux_vaddr = (unsigned char *)rec_aux;
+
+	assert(rec_aux != NULL);
+	assert(num_aux <= MAX_REC_AUX_GRANULES);
+
+	for (unsigned int i = 0U; i < num_aux; i++) {
+		buffer_unmap(rec_aux_vaddr + (i * GRANULE_SIZE));
+	}
+}

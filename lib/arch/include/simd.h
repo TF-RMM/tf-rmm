@@ -158,18 +158,18 @@ static inline void simd_enable(simd_t type)
 	unsigned long cptr;
 
 	cptr = read_cptr_el2();
-	cptr &= ~(MASK(CPTR_EL2_FPEN) | MASK(CPTR_EL2_ZEN));
+	cptr &= ~(MASK(CPTR_EL2_VHE_FPEN) | MASK(CPTR_EL2_VHE_ZEN));
 
 	switch (type) {
 	case SIMD_SVE:
 		assert(is_feat_sve_present());
 
-		cptr |= INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_NO_TRAP_11);
-		cptr |= INPLACE(CPTR_EL2_FPEN, CPTR_EL2_FPEN_NO_TRAP_11);
+		cptr |= INPLACE(CPTR_EL2_VHE_ZEN, CPTR_EL2_VHE_ZEN_NO_TRAP_11);
+		cptr |= INPLACE(CPTR_EL2_VHE_FPEN, CPTR_EL2_VHE_FPEN_NO_TRAP_11);
 		break;
 	case SIMD_FPU:
-		cptr |= INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_TRAP_ALL_00);
-		cptr |= INPLACE(CPTR_EL2_FPEN, CPTR_EL2_FPEN_NO_TRAP_11);
+		cptr |= INPLACE(CPTR_EL2_VHE_ZEN, CPTR_EL2_VHE_ZEN_TRAP_ALL_00);
+		cptr |= INPLACE(CPTR_EL2_VHE_FPEN, CPTR_EL2_VHE_FPEN_NO_TRAP_11);
 		break;
 	default:
 		assert(false);
@@ -185,10 +185,10 @@ static inline void simd_disable(void)
 	unsigned long cptr;
 
 	cptr = read_cptr_el2();
-	cptr &= ~(MASK(CPTR_EL2_FPEN) | MASK(CPTR_EL2_ZEN));
+	cptr &= ~(MASK(CPTR_EL2_VHE_FPEN) | MASK(CPTR_EL2_VHE_ZEN));
 
-	cptr |= INPLACE(CPTR_EL2_ZEN, CPTR_EL2_ZEN_TRAP_ALL_00);
-	cptr |= INPLACE(CPTR_EL2_FPEN, CPTR_EL2_FPEN_TRAP_ALL_00);
+	cptr |= INPLACE(CPTR_EL2_VHE_ZEN, CPTR_EL2_VHE_ZEN_TRAP_ALL_00);
+	cptr |= INPLACE(CPTR_EL2_VHE_FPEN, CPTR_EL2_VHE_FPEN_TRAP_ALL_00);
 
 	write_cptr_el2(cptr);
 	isb();

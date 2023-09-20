@@ -17,7 +17,6 @@
 #include <psci.h>
 #include <realm.h>
 #include <rec.h>
-#include <run.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
@@ -185,6 +184,86 @@ static void free_rec_aux_granules(struct granule *rec_aux[],
 	}
 }
 
+/* Initialise the heap and state for attestation */
+static void rec_attestation_heap_init(struct rec *r)
+{
+	int ret __unused;
+	struct rec_attest_data *attest_data = r->aux_data.attest_data;
+
+	/* Initialize attestation state */
+	attest_data->token_sign_ctx.state = ATTEST_SIGN_NOT_STARTED;
+
+	ret = attestation_heap_ctx_assign_pe(&attest_data->alloc_ctx);
+	assert(ret == 0);
+
+	(void)attestation_heap_ctx_init(r->aux_data.attest_heap_buf,
+					REC_HEAP_SIZE);
+
+	ret = attestation_heap_ctx_unassign_pe();
+	assert(ret == 0);
+}
+
+/* Initialize REC simd state */
+static void rec_simd_state_init(struct rec *r)
+{
+	struct rec_simd_state *rec_simd;
+
+	rec_simd = &r->aux_data.rec_simd;
+	assert(rec_simd->simd != NULL);
+
+	/*
+	 * As part of lazy save/restore, the first state will be restored from
+	 * the REC's simd_state. So the initial state is considered saved, call
+	 * simd_state_init() to set the simd type. sve_vq will be set if the REC
+	 * 'stype' is SIMD_SVE.
+	 */
+	simd_state_init(rec_simd_type(r), rec_simd->simd,
+			r->realm_info.sve_vq);
+	rec_simd->simd_allowed = false;
+}
+
+/*
+ * Initializes granule pages that are used for attestation heap, PMU and SIMD.
+ * As part of initialization this function maps and unmaps the REC aux granules.
+ */
+static void rec_aux_granules_init(struct rec *r)
+{
+	void *rec_aux;
+	struct rec_aux_data *aux_data;
+
+	/* Map auxiliary granules */
+	rec_aux = aux_granules_map(r->g_aux, r->num_rec_aux);
+	assert(rec_aux != NULL);
+
+	/*
+	 * Ensure we have enough aux granules for use by REC:
+	 * - REC_HEAP_PAGES for MbedTLS heap
+	 * - REC_PMU_PAGES for PMU state
+	 * - REC_SIMD_PAGES for SIMD state
+	 * - REC_ATTEST_PAGES for 'rec_attest_data' structure
+	 */
+	assert(r->num_rec_aux >= REC_NUM_PAGES);
+
+	/*
+	 * Assign base address for attestation heap, PMU, SIMD, attestation
+	 * data
+	 */
+	aux_data = &r->aux_data;
+	aux_data->attest_heap_buf = (uint8_t *)rec_aux;
+	aux_data->pmu = (struct pmu_state *)
+		((uint8_t *)aux_data->attest_heap_buf + REC_HEAP_SIZE);
+	aux_data->rec_simd.simd = (struct simd_state *)
+		((uint8_t *)aux_data->pmu + REC_PMU_SIZE);
+	aux_data->attest_data = (struct rec_attest_data *)
+		((uint8_t *)aux_data->rec_simd.simd + REC_SIMD_SIZE);
+
+	rec_attestation_heap_init(r);
+	rec_simd_state_init(r);
+
+	/* Unmap auxiliary granules */
+	aux_granules_unmap(rec_aux, r->num_rec_aux);
+}
+
 unsigned long smc_rec_create(unsigned long rd_addr,
 			     unsigned long rec_addr,
 			     unsigned long rec_params_addr)
@@ -201,8 +280,6 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	unsigned long ret;
 	bool ns_access_ok;
 	unsigned int num_rec_aux;
-	void *rec_aux;
-	struct rec_attest_data *attest_data;
 
 	g_rec_params = find_granule(rec_params_addr);
 	if ((g_rec_params == NULL) || (g_rec_params->state != GRANULE_STATE_NS)) {
@@ -303,19 +380,10 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	rec->runnable = (rec_params.flags & REC_PARAMS_FLAG_RUNNABLE) != 0UL;
 
 	/*
-	 * The access to rec_aux granule is not protected by the lock
-	 * in its granule but by the lock of the parent REC granule.
+	 * Map REC aux granules, initialize aux data and unmap REC aux
+	 * granules.
 	 */
-	rec_aux = map_rec_aux(rec->g_aux, rec->num_rec_aux);
-	init_rec_aux_data(&(rec->aux_data), rec_aux, rec->num_rec_aux);
-
-	attest_data = rec->aux_data.attest_data;
-	attest_data->alloc_info.ctx_initialised = false;
-
-	/* Initialize attestation state */
-	attest_data->token_sign_ctx.state = ATTEST_SIGN_NOT_STARTED;
-
-	unmap_rec_aux(rec_aux, rec->num_rec_aux);
+	rec_aux_granules_init(rec);
 
 	set_rd_rec_count(rd, rec_idx + 1U);
 

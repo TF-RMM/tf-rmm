@@ -6,14 +6,7 @@
 #ifndef RUN_H
 #define RUN_H
 
-struct granule;
 struct rec;
-struct rec_aux_data;
-
-void init_rec_aux_data(struct rec_aux_data *aux_data, void *rec_aux,
-		       unsigned long num_aux);
-void *map_rec_aux(struct granule *rec_aux_pages[], unsigned long num_aux);
-void unmap_rec_aux(void *rec_aux, unsigned long num_aux);
 
 /*
  * Function to enter Realm with `regs` pointing to GP Regs to be

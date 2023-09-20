@@ -92,7 +92,6 @@ struct common_sysreg_state {
 struct rec_simd_state {
 	struct simd_state *simd; /* Pointer to SIMD context in AUX page */
 	bool simd_allowed; /* Set when REC is allowed to use SIMD */
-	bool init_done; /* flag used to check if SIMD state initialized */
 };
 
 /*
@@ -116,10 +115,7 @@ struct rec_attest_data {
 	struct token_sign_cntxt token_sign_ctx;
 
 	/* Buffer allocation info used for heap init and management */
-	struct {
-		struct buffer_alloc_ctx ctx;
-		bool ctx_initialised;
-	} alloc_info;
+	struct buffer_alloc_ctx alloc_ctx;
 };
 COMPILER_ASSERT(sizeof(struct rec_attest_data) <= GRANULE_SIZE);
 
