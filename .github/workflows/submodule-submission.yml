@@ -1,0 +1,29 @@
+name: Git Submodule Submission
+on:
+  push:
+    branches:
+      - main
+
+# The API requires write permission on the repository to submit dependencies
+permissions:
+  contents: write
+
+jobs:
+  git-submodule-action-detection:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout Repository'
+        uses: actions/checkout@v3
+
+      - name: 'Git submodule init'
+        run: git submodule init
+
+      - name: 'Git submodule update'
+        run: git submodule update
+
+      - name: Run snapshot action
+        uses: TF-RMM/git-submodule-dependency-submission@v1.0
+        with:
+            # Optional. Comma-separated list of git submodule dependencies that are
+            # only needed during develpment.
+            development-deps: cpputest
