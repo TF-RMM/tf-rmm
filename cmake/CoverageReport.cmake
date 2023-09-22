@@ -141,11 +141,4 @@ if(RMM_COVERAGE)
                             -x ${COVERAGE_OUTPUT}.xml
                             ${HTML_REPORT}
                             ${CMAKE_BINARY_DIR})
-  #
-  # Add dependency on unit test target if being invoked in a
-  # multi-target build command line.
-  #
-  if(RMM_UNITTESTS)
-    add_dependencies(run-coverage run-unittests)
-  endif()
 endif() # RMM_COVERAGE
