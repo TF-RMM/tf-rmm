@@ -115,6 +115,8 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 	unsigned int rt;
 	unsigned long idreg, value;
 
+	(void)rec_exit;
+
 	/*
 	 * We only set HCR_EL2.TID3 to trap ID registers at the moment and
 	 * that only traps reads of registers. Seeing a write here indicates a
@@ -211,6 +213,8 @@ static bool handle_icc_el1_sysreg_trap(struct rec *rec,
 				       unsigned long esr)
 {
 	__unused unsigned long sysreg = esr & ESR_EL2_SYSREG_MASK;
+
+	(void)rec;
 
 	/*
 	 * We should only have configured ICH_HCR_EL2 to trap on DIR and we
