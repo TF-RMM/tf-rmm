@@ -113,9 +113,9 @@ attest_realm_token_sign(struct attest_token_encode_ctx *me,
  * Combine realm token and platform token to top-level cca token
  *
  * attest_token_buf		Pointer to the buffer where the token will be
- * 				written.
+ *				written.
  * attest_token_buf_size	Size of the buffer where the token will be
- * 				written.
+ *				written.
  * realm_token_buf	Pointer to the realm token.
  * realm_token_len	Length of the realm token.
  *

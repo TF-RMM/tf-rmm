@@ -215,13 +215,11 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	case REALM_STATE_NEW:
 		ret = pack_return_code(RMI_ERROR_REALM, 0U);
 		goto out_unmap_buffers;
-		break;
 	case REALM_STATE_ACTIVE:
 		break;
 	case REALM_STATE_SYSTEM_OFF:
 		ret = pack_return_code(RMI_ERROR_REALM, 1U);
 		goto out_unmap_buffers;
-		break;
 	default:
 		assert(false);
 		break;

@@ -55,8 +55,8 @@ static int get_random_seed(unsigned char *output, size_t len)
  * For details see `MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG` in mbedtls/mbedtls_config.h
  */
 psa_status_t mbedtls_psa_external_get_random(
-    mbedtls_psa_external_random_context_t *context,
-    uint8_t *output, size_t output_size, size_t *output_length)
+	mbedtls_psa_external_random_context_t *context,
+	uint8_t *output, size_t output_size, size_t *output_length)
 {
 	int ret;
 	unsigned int cpu_id = my_cpuid();

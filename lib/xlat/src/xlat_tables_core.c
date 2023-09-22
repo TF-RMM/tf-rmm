@@ -125,15 +125,13 @@ static action_t xlat_tables_map_region_action(const struct xlat_mmap_region *mm,
 				 * overwrite.
 				 */
 				return ACTION_NONE;
-			} else {
-				if (desc_type != INVALID_DESC) {
-					ERROR("%s (%u): Expected invalid descriptor\n",
-						__func__, __LINE__);
-					panic();
-				}
-				return ACTION_WRITE_BLOCK_ENTRY;
 			}
-
+			if (desc_type != INVALID_DESC) {
+				ERROR("%s (%u): Expected invalid descriptor\n",
+					__func__, __LINE__);
+				panic();
+			}
+			return ACTION_WRITE_BLOCK_ENTRY;
 		} else {
 
 			/*

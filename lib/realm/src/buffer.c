@@ -227,9 +227,6 @@ void buffer_unmap(void *buf)
 	buffer_arch_unmap(buf);
 }
 
-bool memcpy_ns_read(void *dest, const void *ns_src, size_t size);
-bool memcpy_ns_write(void *ns_dest, const void *src, size_t size);
-
 /*
  * Map a Non secure granule @g into the slot @slot and read data from
  * this granule to @dest. Unmap the granule once the read is done.

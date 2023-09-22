@@ -15,6 +15,7 @@ static void measurement_print(unsigned char *measurement,
 			      const enum hash_algo algorithm)
 {
 	unsigned int size = 0U;
+
 	assert(measurement != NULL);
 
 	VERBOSE("Measurement ");
