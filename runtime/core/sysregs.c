@@ -247,7 +247,7 @@ struct sysreg_handler {
 };
 
 #define SYSREG_HANDLER(_mask, _value, _handler_fn) \
-	{ .esr_mask = (_mask), .esr_value = (_value), .fn = _handler_fn }
+	{ .esr_mask = (_mask), .esr_value = (_value), .fn = (_handler_fn) }
 
 static const struct sysreg_handler sysreg_handlers[] = {
 	SYSREG_HANDLER(ESR_EL2_SYSREG_ID_MASK, ESR_EL2_SYSREG_ID, handle_id_sysreg_trap),

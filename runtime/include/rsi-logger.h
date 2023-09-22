@@ -28,8 +28,8 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
  */
 # define RSI_LOG_SET(regs)	\
 	unsigned long rsi_log_args[] = {			\
-		regs[1], regs[2], regs[3], regs[4], regs[5],	\
-		regs[6], regs[7], regs[8], regs[9], regs[10]	\
+		(regs)[1], (regs)[2], (regs)[3], (regs)[4], (regs)[5],	\
+		(regs)[6], (regs)[7], (regs)[8], (regs)[9], (regs)[10]	\
 	}
 
 /*
