@@ -816,41 +816,6 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 	res->x[0] = RMI_SUCCESS;
 }
 
-static void data_granule_measure(struct rd *rd, void *data,
-				 unsigned long ipa,
-				 unsigned long flags)
-{
-	struct measurement_desc_data measure_desc = {0};
-
-	/* Initialize the measurement descriptior structure */
-	measure_desc.desc_type = MEASURE_DESC_TYPE_DATA;
-	measure_desc.len = sizeof(struct measurement_desc_data);
-	measure_desc.ipa = ipa;
-	measure_desc.flags = flags;
-	(void)memcpy(measure_desc.rim, &rd->measurement[RIM_MEASUREMENT_SLOT],
-					measurement_get_size(rd->algorithm));
-
-	if (flags == RMI_MEASURE_CONTENT) {
-		/*
-		 * Hashing the data granules and store the result in the
-		 * measurement descriptor structure.
-		 */
-		measurement_hash_compute(rd->algorithm,
-					data,
-					GRANULE_SIZE,
-					measure_desc.content);
-	}
-
-	/*
-	 * Hashing the measurement descriptor structure; the result is the
-	 * updated RIM.
-	 */
-	measurement_hash_compute(rd->algorithm,
-			       &measure_desc,
-			       sizeof(measure_desc),
-			       rd->measurement[RIM_MEASUREMENT_SLOT]);
-}
-
 static unsigned long validate_data_create_unknown(unsigned long map_addr,
 						  struct rd *rd)
 {
@@ -961,7 +926,12 @@ static unsigned long data_create(unsigned long rd_addr,
 			goto out_unmap_ll_table;
 		}
 
-		data_granule_measure(rd, data, map_addr, flags);
+		measurement_data_granule_measure(
+			rd->measurement[RIM_MEASUREMENT_SLOT],
+			rd->algorithm,
+			data,
+			map_addr,
+			flags);
 		buffer_unmap(data);
 
 	} else if (!s2tte_is_unassigned(s2tte)) {
@@ -1184,31 +1154,6 @@ static int update_ripas(unsigned long *s2ttep, long level,
 	return ret;
 }
 
-static void ripas_granule_measure(struct rd *rd,
-				  unsigned long base,
-				  unsigned long top)
-{
-	struct measurement_desc_ripas measure_desc = {0};
-
-	/* Initialize the measurement descriptior structure */
-	measure_desc.desc_type = MEASURE_DESC_TYPE_RIPAS;
-	measure_desc.len = sizeof(struct measurement_desc_ripas);
-	measure_desc.base = base;
-	measure_desc.top = top;
-	(void)memcpy(measure_desc.rim,
-		     &rd->measurement[RIM_MEASUREMENT_SLOT],
-		     measurement_get_size(rd->algorithm));
-
-	/*
-	 * Hashing the measurement descriptor structure; the result is the
-	 * updated RIM.
-	 */
-	measurement_hash_compute(rd->algorithm,
-				 &measure_desc,
-				 sizeof(measure_desc),
-				 rd->measurement[RIM_MEASUREMENT_SLOT]);
-}
-
 void smc_rtt_init_ripas(unsigned long rd_addr,
 			unsigned long base,
 			unsigned long top,
@@ -1296,7 +1241,10 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 		} else if (!s2tte_is_unassigned_ram(s2tte)) {
 			break;
 		}
-		ripas_granule_measure(rd, addr, next);
+		measurement_init_ripas_measure(rd->measurement[RIM_MEASUREMENT_SLOT],
+					       rd->algorithm,
+					       addr,
+					       next);
 	}
 
 	if (addr > base) {

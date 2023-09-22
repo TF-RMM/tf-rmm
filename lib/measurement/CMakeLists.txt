@@ -16,4 +16,6 @@ target_include_directories(rmm-lib-measurement
     PUBLIC "include")
 
 target_sources(rmm-lib-measurement
-    PRIVATE "src/measurement.c")
+    PRIVATE
+        "src/measurement.c"
+        "src/rim.c")
