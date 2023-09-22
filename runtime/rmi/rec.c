@@ -298,7 +298,7 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 
 	/* Copy addresses of auxiliary granules */
 	(void)memcpy(rec->g_aux, rec_aux_granules,
-			num_rec_aux * sizeof(rec->g_aux[0]));
+			num_rec_aux * sizeof(struct granule *));
 
 	rec->num_rec_aux = num_rec_aux;
 
