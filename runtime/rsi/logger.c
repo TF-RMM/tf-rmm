@@ -100,7 +100,7 @@ static size_t print_entry(unsigned int id, unsigned long args[],
 
 	assert((cnt > 0) && ((unsigned int)cnt < (MAX_NAME_LEN + 1U)));
 
-	(void)memset((void *)((uintptr_t)buf + (unsigned int)cnt), (int)' ',
+	(void)memset((void *)((uintptr_t)buf + (unsigned int)cnt), ' ',
 					MAX_NAME_LEN - (size_t)cnt);
 
 	buf = (char *)((uintptr_t)buf + MAX_NAME_LEN);
