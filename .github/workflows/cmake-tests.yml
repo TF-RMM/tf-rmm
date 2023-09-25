@@ -1,0 +1,46 @@
+name: Coverage on unitests for RMM
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  BUILD_TYPE: Debug
+  RMM_COVERAGE: ON
+  HOST_VARIANT: host_test
+  RMM_CONFIG: host_defcfg
+  COVERAGE_REPORT: coverage
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: 'Git submodule init'
+      run: git submodule init
+
+    - name: 'Git submodule update'
+      run: git submodule update
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install ninja-build gcovr
+
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DRMM_COVERAGE=${{env.RMM_COVERAGE}} -DHOST_VARIANT=${{env.HOST_VARIANT}} -DRMM_CONFIG=${{env.RMM_CONFIG}} -G "Ninja"
+
+    - name: run-unittests
+      # Build your program with the given configuration
+      run: cmake --build ${{github.workspace}}/build -- run-unittests
+
+    - name: run-coverage
+      run: cmake --build ${{github.workspace}}/build -- run-coverage
+
+    - name: Archive coverage results
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-results
+        path: ${{github.workspace}}/build/${{env.BUILD_TYPE}}/${{env.COVERAGE_REPORT}}
