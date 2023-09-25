@@ -162,7 +162,27 @@ Run checkincludes on entire codebase:
     cmake -DRMM_CONFIG=fvp_defcfg -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
     cmake --build ${RMM_BUILD_DIR} -- checkincludes-codebase
 
-14. Perform unit tests on development host:
+14. Perform a clang-tidy analysis:
+
+Run clang-tidy on commits in the current branch against BASE_COMMIT (default
+origin/master):
+
+.. code-block:: bash
+
+    cmake -DRMM_CONFIG=fvp_defcfg -DRMM_TOOLCHAIN=llvm -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
+    cmake --build ${RMM_BUILD_DIR} -- clang-tidy-patch
+
+Run clang-tidy on entire codebase:
+
+.. code-block:: bash
+
+    cmake -DRMM_CONFIG=fvp_defcfg -DRMM_TOOLCHAIN=llvm -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
+    cmake --build ${RMM_BUILD_DIR} -- clang-tidy-codebase
+
+Note that clang-tidy will work with all configurations. It will only check the
+source files that are used for the specified configuration.
+
+15. Perform unit tests on development host:
 
 Build and run unit tests on host platform. It is recommended to enable the
 Debug build of RMM.
@@ -180,7 +200,7 @@ Run unittests for a specific test group(s) (e.g. unittests whose group starts wi
     cmake --build ${RMM_BUILD_DIR} -- build -j
     ${RMM_BUILD_DIR}/Debug/rmm.elf -gxlat -v -r${NUMBER_OF_TEST_ITERATIONS}
 
-15. Generate Coverage Report.
+16. Generate Coverage Report.
 
 It is possible to generate a coverage report for a last execution of the host
 platform (whichever the variant) by using the `run-coverage` build target.
