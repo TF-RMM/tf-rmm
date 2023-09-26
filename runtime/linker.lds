@@ -5,6 +5,10 @@
 
 #include <sizes.h>
 
+#if ((RMM_NUM_PAGES_PER_STACK == 0) || (GRANULE_SIZE == 0) || (MAX_CPUS== 0))
+#error "Required config options not set for the linker script."
+#endif
+
 ENTRY(rmm_entry)
 
 MEMORY {
@@ -67,12 +71,6 @@ SECTIONS
 		rmm_rela_end = .;
 	} >RAM
 
-	.percpu ALIGN(GRANULE_SIZE) (NOLOAD) : {
-		stack_start = .;
-		. = . + (RMM_NUM_PAGES_PER_STACK * GRANULE_SIZE * MAX_CPUS);
-		stack_end = .;
-	} >RAM
-
 	.bss ALIGN(16) (NOLOAD) : {
 		bss_start = .;
 		*(.bss*)
@@ -81,9 +79,18 @@ SECTIONS
 
 	. = ALIGN(GRANULE_SIZE);
 	rmm_rw_end = .;
-	rmm_end = rmm_rw_end;
 
 	ASSERT(rmm_rw_end == ALIGN(GRANULE_SIZE), "rmm_rw_end is not page aligned")
+
+	.stack ALIGN(GRANULE_SIZE) (NOLOAD) : {
+		rmm_stack_start = .;
+		. = . + (RMM_NUM_PAGES_PER_STACK * GRANULE_SIZE * MAX_CPUS);
+		rmm_stack_end = .;
+	} >RAM
+
+	rmm_end = .;
+
+	ASSERT(rmm_end == ALIGN(GRANULE_SIZE), "rmm_end is not page aligned")
 
 	/DISCARD/ : { *(.dynstr*) }
 	/DISCARD/ : { *(.dynsym*) }

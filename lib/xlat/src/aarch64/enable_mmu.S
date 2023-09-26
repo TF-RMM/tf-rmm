@@ -7,6 +7,7 @@
 /* This file is derived from xlat_table_v2 library in TF-A project */
 
 #include <asm_macros.S>
+#include <xlat_high_va.h>
 #include <xlat_tables.h>
 
 	.global	xlat_enable_mmu_el2
@@ -34,6 +35,13 @@
 		mov_imm	x5, SCTLR_ELx_WXN_BIT | SCTLR_ELx_M_BIT
 		orr	x4, x4, x5
 		msr	sctlr_el2, x4
+
+		/*
+		 * Update SP to point to the VA of the stack bottom for this
+		 * CPU after enabling MMU
+		 */
+		mov_imm	x5, RMM_CPU_STACK_END_VA
+		mov	sp, x5
 
 		isb
 

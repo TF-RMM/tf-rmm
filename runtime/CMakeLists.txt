@@ -19,16 +19,6 @@ arm_config_option(
 target_compile_definitions(rmm-runtime
     PRIVATE "RSI_LOG_LEVEL=${RSI_LOG_LEVEL}")
 
-arm_config_option(
-    NAME RMM_NUM_PAGES_PER_STACK
-    HELP "Number of pages to use per CPU stack"
-    TYPE STRING
-    DEFAULT 5
-    ADVANCED)
-
-target_compile_definitions(rmm-runtime
-    PRIVATE "RMM_NUM_PAGES_PER_STACK=${RMM_NUM_PAGES_PER_STACK}")
-
 target_link_libraries(rmm-runtime
     PRIVATE rmm-lib
             rmm-platform)

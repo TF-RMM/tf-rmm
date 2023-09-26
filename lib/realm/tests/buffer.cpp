@@ -1303,14 +1303,6 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC10)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-TEST(slot_buffer, slot_buf_setup_xlat_TC1)
-{
-	/*
-	 * slot_buf_setup_xlat() has already been used during initialization
-	 * for all tests, so skip it.
-	 */
-}
-
 TEST(slot_buffer, slot_buf_finish_warmboot_init_TC1)
 {
 	/*

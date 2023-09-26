@@ -6,9 +6,6 @@
 #include <arch.h>
 #include <asm_macros.S>
 #include <rmm_el3_ifc.h>
-#include <xlat_tables.h>
-
-#define RMM_STACK_SIZE		(SZ_4K * RMM_NUM_PAGES_PER_STACK)
 
 .globl rmm_entry
 
@@ -55,7 +52,15 @@
 	mov	x0, x20
 	bl	rmm_el3_ifc_validate_cpuid
 
-	/* Setup stack on this CPU. X0 already contains the CPU Id */
+	/*
+	 * Setup stack on this CPU. X0 already contains the CPU Id. The stack
+	 * address set here is the physical address of the stack buffer. During
+	 * RMM boot the stack for this CPU is going to be mapped in the high VA
+	 * space of this CPU, and the SP is updated to the VA of the stack
+	 * bottom after MMU activation. After that, accessing the physical stack
+	 * address causes exception as the stack buffer is not flat-mapped in
+	 * the VA space of the CPU.
+	 */
 	bl	rmm_get_my_stack
 	mov	sp, x0
 
@@ -151,24 +156,3 @@ smc_ret:
 cold_boot_flag:
 	.dword		1
 endfunc rmm_entry
-
-/*
- * Return the stack for a given PE index in x0
- * stack-start				     stack_end
- *       o--sz---o....o--sz---o--sz---o--sz---o
- *       ^\_____/^....^\_____/^\_____/^\_____/^
- * id = (MAX_CPU-1)      2       1       0
- * Arg : x0 - CPU position
- * sz: RMM_STACK_SIZE bytes.
- */
-func rmm_get_my_stack
-#ifndef NDEBUG
-	cmp	x0, #MAX_CPUS
-	ASM_ASSERT lo
-#endif
-	adrp	x1, stack_end
-	add	x1, x1, :lo12:stack_end
-	mov	x2, #(RMM_STACK_SIZE)	/* stack size per CPU */
-	umsubl	x0, w0, w2, x1
-	ret
-endfunc rmm_get_my_stack
