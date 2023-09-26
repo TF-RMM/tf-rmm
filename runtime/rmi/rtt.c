@@ -952,7 +952,7 @@ static unsigned long data_create(unsigned long rd_addr,
 
 	new_data_state = GRANULE_STATE_DATA;
 
-	s2tte = s2tte_create_assigned_ram(data_addr, RTT_PAGE_LEVEL);
+	s2tte = s2tte_create_assigned_unchanged(s2tte, data_addr, RTT_PAGE_LEVEL);
 
 	s2tte_write(&s2tt[wi.index], s2tte);
 	__granule_get(wi.g_llt);
@@ -1062,6 +1062,10 @@ void smc_data_destroy(unsigned long rd_addr,
 	} else if (s2tte_is_assigned_empty(s2tte, RTT_PAGE_LEVEL)) {
 		data_addr = s2tte_pa(s2tte, RTT_PAGE_LEVEL);
 		s2tte = s2tte_create_unassigned_empty();
+		s2tte_write(&s2tt[wi.index], s2tte);
+	} else if (s2tte_is_assigned_destroyed(s2tte, RTT_PAGE_LEVEL)) {
+		data_addr = s2tte_pa(s2tte, RTT_PAGE_LEVEL);
+		s2tte = s2tte_create_unassigned_destroyed();
 		s2tte_write(&s2tt[wi.index], s2tte);
 	} else {
 		res->x[0] = pack_return_code(RMI_ERROR_RTT, RTT_PAGE_LEVEL);

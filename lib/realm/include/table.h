@@ -38,6 +38,9 @@ unsigned long s2tte_create_assigned_empty(unsigned long pa, long level);
 unsigned long s2tte_create_assigned_ram(unsigned long pa, long level);
 unsigned long s2tte_create_assigned_ns(unsigned long pa, long level);
 unsigned long s2tte_create_assigned_destroyed(unsigned long pa, long level);
+unsigned long s2tte_create_assigned_unchanged(unsigned long s2tte,
+					      unsigned long pa,
+					      long level);
 unsigned long s2tte_create_table(unsigned long pa, long level);
 
 bool host_ns_s2tte_is_valid(unsigned long s2tte, long level);
