@@ -12,6 +12,8 @@
 #include <smc.h>
 #include <status.h>
 #include <stddef.h>
+/* According to the C standard, the memset function used in this file is declared in string.h */
+/* coverity[unnecessary_header: SUPPRESS] */
 #include <string.h>
 #include <utils_def.h>
 

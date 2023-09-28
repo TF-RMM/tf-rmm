@@ -7,10 +7,7 @@
 #include <cpuid.h>
 #include <debug.h>
 #include <errno.h>
-#include <import_sym.h>
-#include <sizes.h>
 #include <stdint.h>
-#include <string.h>
 #include <utils_def.h>
 #include <xlat_contexts.h>
 #include <xlat_high_va.h>
