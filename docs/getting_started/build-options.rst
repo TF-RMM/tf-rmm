@@ -229,7 +229,7 @@ The |RMM| build system supports the following CMake build options.
    RMM_ARCH			,aarch64 | fake_host	,aarch64		,"Target Architecture for RMM build"
    RMM_MAX_SIZE			,			,0x0			,"Maximum size for RMM image"
    MAX_CPUS			,			,16			,"Maximum number of CPUs supported by RMM"
-   GRANULE_SIZE			,			,4096			,"Granule Size used by RMM"
+   GRANULE_SHIFT		,			,12			,"Granule Shift used by RMM"
    RMM_DOCS			,ON | OFF		,OFF			,"RMM Documentation build"
    CMAKE_BUILD_TYPE		,Debug | Release	,Release		,"CMake Build type"
    CMAKE_CONFIGURATION_TYPES	,Debug & Release	,Debug & Release	,"Multi-generator configuration types"

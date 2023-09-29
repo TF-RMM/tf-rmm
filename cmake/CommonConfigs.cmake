@@ -16,10 +16,10 @@ arm_config_option(
 # The RMM is mapped with 4K pages, and all RMM APIs use the same granularity.
 #
 arm_config_option(
-    NAME GRANULE_SIZE
-    HELP "Granule Size used by RMM"
+    NAME GRANULE_SHIFT
+    HELP "The shift value of granule size. i.e: GRANULE_SIZE == 1 << GRANULE_SHIFT"
     TYPE STRING
-    DEFAULT 4096)
+    DEFAULT 12)
 
 #
 # RMM_MAX_GRANULES. Maximum number of granules supported.
@@ -69,12 +69,12 @@ endif()
 target_compile_definitions(rmm-common
     INTERFACE "MAX_CPUS=${MAX_CPUS}U")
 
-if(NOT(GRANULE_SIZE EQUAL 4096))
-    message(FATAL_ERROR "GRANULE_SIZE is not initialized correctly")
+if(NOT(GRANULE_SHIFT EQUAL 12))
+    message(FATAL_ERROR "GRANULE_SHIFT is not initialized correctly")
 endif()
 
 target_compile_definitions(rmm-common
-    INTERFACE "GRANULE_SIZE=UL(${GRANULE_SIZE})")
+    INTERFACE "GRANULE_SHIFT=U(${GRANULE_SHIFT})")
 
 if (RMM_MAX_GRANULES EQUAL 0x0)
     message (FATAL_ERROR "RMM_MAX_GRANULES not configured")
