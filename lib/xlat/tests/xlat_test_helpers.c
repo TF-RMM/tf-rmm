@@ -130,8 +130,7 @@ void xlat_test_helpers_set_parange(unsigned int parange)
 uintptr_t xlat_test_helpers_get_start_va(xlat_addr_region_id_t region,
 					 size_t va_size)
 {
-	return (region == VA_LOW_REGION) ?
-			0ULL : (ULONG_MAX - va_size + 1UL);
+	return (region == VA_LOW_REGION) ? 0UL : (ULONG_MAX - va_size + 1UL);
 }
 
 uint64_t xlat_test_helpers_rand_mmap_attrs(void)

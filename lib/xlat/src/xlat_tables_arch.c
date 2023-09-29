@@ -39,19 +39,18 @@ static bool xlat_arch_is_granule_size_supported(size_t size)
 
 /*
  * Encode a Physical Address Space size for its use in TCR_ELx.
- * If the PA is not supported, return ULLONG_MAX.
+ * If the PA is not supported, return ULLONG_MAX (~0ULL).
  */
 static uint64_t tcr_physical_addr_size_bits(uintptr_t max_addr)
 {
 	if ((max_addr & ADDR_MASK_52_TO_63) != 0ULL) {
 		/* Physical address can't exceed 52 bits */
-		return ULLONG_MAX;
+		return ~(0ULL);
 	}
 
 	/* 52 bits address */
 	if ((max_addr & ADDR_MASK_48_TO_51) != 0ULL) {
-		return (is_feat_lpa2_4k_present() == true) ?
-						TCR_PS_BITS_4PB : ULLONG_MAX;
+		return is_feat_lpa2_4k_present() ? TCR_PS_BITS_4PB : ~(0ULL);
 	}
 
 	/* 48 bits address */
@@ -184,7 +183,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 	 */
 	pa_size_bits = tcr_physical_addr_size_bits(
 					xlat_arch_get_max_supported_pa());
-	if (pa_size_bits == ULLONG_MAX) {
+	if (pa_size_bits == ~(0ULL)) {
 		return -ENOMEM;
 	}
 	tcr |= pa_size_bits;
