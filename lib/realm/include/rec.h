@@ -75,6 +75,8 @@ struct sysreg_state {
 
 	unsigned long vmpidr_el2;	/* restored only */
 	unsigned long hcr_el2;		/* restored only */
+
+	unsigned long cptr_el2;		/* restored only */
 };
 
 /*
@@ -86,12 +88,6 @@ struct common_sysreg_state {
 	unsigned long vtcr_el2;
 	unsigned long hcr_el2;
 	unsigned long mdcr_el2;
-};
-
-/* This structure is used for storing FPU or SVE context for realm. */
-struct rec_simd_state {
-	struct simd_state *simd; /* Pointer to SIMD context in AUX page */
-	bool simd_allowed; /* Set when REC is allowed to use SIMD */
 };
 
 /*
@@ -131,7 +127,7 @@ struct rec_aux_data {
 	struct pmu_state *pmu;
 
 	/* SIMD context region */
-	struct rec_simd_state rec_simd;
+	struct simd_context *simd_ctx;
 
 	/* Pointer to attestation-related data */
 	struct rec_attest_data *attest_data;
@@ -176,8 +172,7 @@ struct rec {
 		bool pmu_enabled;
 		unsigned int pmu_num_ctrs;
 		enum hash_algo algorithm;
-		bool sve_enabled;
-		uint8_t sve_vq;
+		struct simd_config simd_cfg;
 	} realm_info;
 
 	struct {
@@ -219,6 +214,9 @@ struct rec {
 
 	/* True if host call is pending */
 	bool host_call;
+
+	/* The active SIMD context that is live in CPU registers */
+	struct simd_context *active_simd_ctx;
 };
 COMPILER_ASSERT(sizeof(struct rec) <= GRANULE_SIZE);
 
@@ -244,20 +242,6 @@ static inline unsigned long mpidr_to_rec_idx(unsigned long mpidr)
 		MPIDR_EL2_AFF(1, mpidr) +
 		MPIDR_EL2_AFF(2, mpidr) +
 		MPIDR_EL2_AFF(3, mpidr));
-}
-
-static inline simd_t rec_simd_type(struct rec *rec)
-{
-	if (rec->realm_info.sve_enabled) {
-		return SIMD_SVE;
-	}
-	return SIMD_FPU;
-}
-
-static inline bool rec_is_simd_allowed(struct rec *rec)
-{
-	assert(rec != NULL);
-	return rec->aux_data.rec_simd.simd_allowed;
 }
 
 void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit);

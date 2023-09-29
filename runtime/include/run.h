@@ -7,6 +7,7 @@
 #define RUN_H
 
 struct rec;
+struct simd_context;
 
 /*
  * Function to enter Realm with `regs` pointing to GP Regs to be
@@ -16,16 +17,10 @@ struct rec;
  */
 int run_realm(unsigned long *regs);
 
-/*
- * Configure CPTR_EL2 register to not trap FPU or SVE access for Realm and
- * restore the saved SIMD state from memory to registers.
- */
-void rec_simd_enable_restore(struct rec *rec);
+/* Initialize the NS world SIMD context for all CPUs. */
+void init_all_cpus_ns_simd_context(void);
 
-/*
- * Save the current SIMD state from registers to memory and configure CPTR_EL2
- * register to trap FPU or SVE access for Realm.
- */
-void rec_simd_save_disable(struct rec *rec);
+/* Returns current CPU's NS world SIMD context */
+struct simd_context *get_cpu_ns_simd_context(void);
 
 #endif /* RUN_H */

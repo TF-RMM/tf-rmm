@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <buffer.h>
 #include <debug.h>
+#include <run.h>
 #include <simd.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
@@ -154,7 +155,7 @@ COMPILER_ASSERT(ARRAY_LEN(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
 
 static bool rmi_call_log_enabled = true;
 
-static inline bool rmi_handler_needs_fpu(unsigned long id)
+static inline bool rmi_handler_needs_fpu(unsigned int id)
 {
 #ifdef RMM_FPU_USE_AT_REL2
 	if (id == SMC_RMM_REALM_CREATE || id == SMC_RMM_DATA_CREATE ||
@@ -167,12 +168,12 @@ static inline bool rmi_handler_needs_fpu(unsigned long id)
 	return false;
 }
 
-static void rmi_log_on_exit(unsigned long handler_id,
+static void rmi_log_on_exit(unsigned int handler_id,
 			    unsigned long args[],
 			    struct smc_result *res)
 {
 	const struct smc_handler *handler = &smc_handlers[handler_id];
-	unsigned long function_id = SMC64_RMI_FID(handler_id);
+	unsigned int function_id = SMC64_RMI_FID(handler_id);
 	return_code_t rc;
 	unsigned int num;
 
@@ -234,7 +235,7 @@ static void rmi_log_on_exit(unsigned long handler_id,
 	}
 }
 
-void handle_ns_smc(unsigned long function_id,
+void handle_ns_smc(unsigned int function_id,
 		   unsigned long arg0,
 		   unsigned long arg1,
 		   unsigned long arg2,
@@ -244,12 +245,17 @@ void handle_ns_smc(unsigned long function_id,
 		   struct smc_result *res)
 {
 	(void)arg5;
-	unsigned long handler_id;
+	unsigned int handler_id;
 	const struct smc_handler *handler = NULL;
 	bool restore_ns_simd_state = false;
+	struct simd_context *ns_simd_ctx;
+	bool sve_hint = false;
 
-	/* Ignore SVE hint bit, until RMM supports SVE hint bit */
-	function_id &= ~SMC_SVE_HINT;
+	/* Save the SVE hint bit and clear it from the function ID */
+	if ((function_id & SMC_SVE_HINT) != 0U) {
+		sve_hint = true;
+		function_id &= ~SMC_SVE_HINT;
+	}
 
 	if (IS_SMC64_RMI_FID(function_id)) {
 		handler_id = RMI_HANDLER_ID(function_id);
@@ -263,7 +269,7 @@ void handle_ns_smc(unsigned long function_id,
 	 * for not implemented 'function_id' calls in SMC RMI range.
 	 */
 	if ((handler == NULL) || (handler->fn_dummy == NULL)) {
-		VERBOSE("[%s] unknown function_id: %lx\n",
+		VERBOSE("[%s] unknown function_id: %x\n",
 			__func__, function_id);
 		res->x[0] = SMC_UNKNOWN;
 		return;
@@ -274,9 +280,15 @@ void handle_ns_smc(unsigned long function_id,
 	/* Current CPU's SIMD state must not be saved when entering RMM */
 	assert(simd_is_state_saved() == false);
 
+	/* Get current CPU's NS SIMD context */
+	ns_simd_ctx = get_cpu_ns_simd_context();
+
+	/* Set or clear SVE hint bit in the NS SIMD context */
+	simd_update_smc_sve_hint(ns_simd_ctx, sve_hint);
+
 	/* If the handler needs FPU, actively save NS simd context. */
 	if (rmi_handler_needs_fpu(function_id) == true) {
-		simd_save_ns_state();
+		simd_context_save(ns_simd_ctx);
 		restore_ns_simd_state = true;
 	}
 
@@ -327,9 +339,9 @@ void handle_ns_smc(unsigned long function_id,
 		rmi_log_on_exit(handler_id, args, res);
 	}
 
-	/* If the handler uses FPU, restore the saved  NS simd context. */
+	/* If the handler uses FPU, restore the saved NS simd context. */
 	if (restore_ns_simd_state) {
-		simd_restore_ns_state();
+		simd_context_restore(ns_simd_ctx);
 	}
 
 	/* Current CPU's SIMD state must not be saved when exiting RMM */

@@ -8,6 +8,7 @@
 #include <buffer.h>
 #include <debug.h>
 #include <rmm_el3_ifc.h>
+#include <run.h>
 #include <simd.h>
 #include <smc-rmi.h>
 #include <smc-rsi.h>
@@ -34,8 +35,6 @@ static void rmm_arch_init(void)
 	write_mdcr_el2(MDCR_EL2_INIT |
 			INPLACE(MDCR_EL2_HPMN,
 			EXTRACT(PMCR_EL0_N, read_pmcr_el0())));
-
-	simd_init();
 }
 
 void rmm_warmboot_main(void)
@@ -89,8 +88,13 @@ void rmm_main(void)
 
 	rmm_warmboot_main();
 
+	simd_init();
+
+	/* Initialize the NS SIMD context for all CPUs */
+	init_all_cpus_ns_simd_context();
+
 #ifdef RMM_FPU_USE_AT_REL2
-	simd_save_ns_state();
+	simd_context_save(get_cpu_ns_simd_context());
 #endif
 	if (attestation_init() != 0) {
 		WARN("Attestation init failed.\n");
@@ -100,6 +104,6 @@ void rmm_main(void)
 	 * TODO: Do not save and restore NS state. Instead after
 	 * attestation_init clear FPU state.
 	 */
-	simd_restore_ns_state();
+	simd_context_restore(get_cpu_ns_simd_context());
 #endif
 }

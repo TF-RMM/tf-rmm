@@ -9,6 +9,7 @@
 #include <attestation.h>
 #include <buffer.h>
 #include <cpuid.h>
+#include <debug.h>
 #include <exit.h>
 #include <granule.h>
 #include <pmu.h>
@@ -20,6 +21,10 @@
 
 static struct ns_state g_ns_data[MAX_CPUS];
 static struct pmu_state g_pmu_data[MAX_CPUS];
+
+/* NS world SIMD context */
+static struct simd_context g_ns_simd_ctx[MAX_CPUS]
+			__aligned(CACHE_WRITEBACK_GRANULE);
 
 static void save_sysreg_state(struct sysreg_state *sysregs)
 {
@@ -229,45 +234,24 @@ void inject_serror(struct rec *rec, unsigned long vsesr)
 	rec->serror_info.inject = true;
 }
 
-/* Save the REC SIMD state to memory and disable simd access for the REC */
-void rec_simd_save_disable(struct rec *rec)
+/* Initialize the NS world SIMD context for all CPUs. */
+void init_all_cpus_ns_simd_context(void)
 {
-	struct rec_simd_state *rec_simd;
-	simd_t stype;
+	int __unused retval;
+	struct simd_config simd_cfg = { 0 };
 
-	rec_simd = &rec->aux_data.rec_simd;
+	(void)simd_get_cpu_config(&simd_cfg);
 
-	assert(rec_simd->simd != NULL);
-	assert(rec_simd->simd_allowed == true);
-
-	stype = rec_simd_type(rec);
-
-	/*
-	 * As the REC has used the SIMD, no need to disable traps as it must be
-	 * already disabled as part of last restore.
-	 */
-	rec_simd->simd_allowed = false;
-	simd_save_state(stype, rec_simd->simd);
-	simd_disable();
+	for (uint32_t i = 0; i < MAX_CPUS; i++) {
+		retval = simd_context_init(SIMD_OWNER_NWD, &g_ns_simd_ctx[i],
+					   &simd_cfg);
+		assert(retval == 0);
+	}
 }
 
-/* Restore the REC SIMD state from memory and enable simd access for the REC */
-void rec_simd_enable_restore(struct rec *rec)
+struct simd_context *get_cpu_ns_simd_context(void)
 {
-	struct rec_simd_state *rec_simd;
-	simd_t stype;
-
-	assert(rec != NULL);
-	rec_simd = &rec->aux_data.rec_simd;
-
-	assert(rec_simd->simd != NULL);
-	assert(rec_simd->simd_allowed == false);
-
-	stype = rec_simd_type(rec);
-	simd_enable(stype);
-	simd_restore_state(stype, rec_simd->simd);
-	rec_simd->simd_allowed = true;
-	/* return with traps disabled to allow REC to use FPU and/or SVE */
+	return &g_ns_simd_ctx[my_cpuid()];
 }
 
 void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
@@ -303,10 +287,16 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	save_ns_state(rec);
 	restore_realm_state(rec);
 
-	/* The REC must enter run loop with SIMD access disabled */
-	assert(rec_is_simd_allowed(rec) == false);
+	/*
+	 * The run loop must be entered with active SIMD context set to current
+	 * CPU's NS SIMD context
+	 */
+	assert(rec->active_simd_ctx == NULL);
+	rec->active_simd_ctx = &g_ns_simd_ctx[cpuid];
 
 	do {
+		unsigned long rmm_cptr_el2 = read_cptr_el2();
+
 		/*
 		 * We must check the status of the arch timers in every
 		 * iteration of the loop to ensure we update the timer
@@ -319,6 +309,12 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		}
 
 		activate_events(rec);
+
+		/* Restore REC's cptr_el2 */
+		if (rmm_cptr_el2 != rec->sysregs.cptr_el2) {
+			write_cptr_el2(rec->sysregs.cptr_el2);
+			isb();
+		}
 
 		/*
 		 * Restore Realm PAuth Key.
@@ -334,19 +330,34 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 		/* Restore RMM PAuth key. */
 		pauth_restore_rmm_keys();
+
+		/* Restore RMM's cptr_el2 */
+		if (rmm_cptr_el2 != rec->sysregs.cptr_el2) {
+			write_cptr_el2(rmm_cptr_el2);
+			isb();
+		}
 	} while (handle_realm_exit(rec, rec_exit, realm_exception_code));
 
 	/*
 	 * Check if FPU/SIMD was used, and if it was, save the realm state,
-	 * restore the NS state, and reenable traps in CPTR_EL2.
+	 * restore the NS state.
 	 */
-	if (rec_is_simd_allowed(rec)) {
-		/* Save REC SIMD state to memory and disable SIMD for REC */
-		rec_simd_save_disable(rec);
-
-		/* Restore NS state based on system support for SVE or FPU */
-		simd_restore_ns_state();
+	if (rec->active_simd_ctx == rec->aux_data.simd_ctx) {
+		(void)simd_context_switch(rec->active_simd_ctx,
+					  &g_ns_simd_ctx[cpuid]);
+		/*
+		 * FPU/SVE traps must be enabled in REC's cptr_el2. This enables
+		 * traps again as it was disabled earlier.
+		 */
+		rec->sysregs.cptr_el2 &= ~(MASK(CPTR_EL2_VHE_FPEN) |
+					   MASK(CPTR_EL2_VHE_ZEN));
+		rec->sysregs.cptr_el2 |= INPLACE(CPTR_EL2_VHE_FPEN,
+						 CPTR_EL2_VHE_FPEN_TRAP_ALL_00) |
+			INPLACE(CPTR_EL2_VHE_ZEN, CPTR_EL2_VHE_ZEN_TRAP_ALL_00);
 	}
+
+	/* Clear active simd_context */
+	rec->active_simd_ctx = NULL;
 
 	report_timer_state_to_ns(rec_exit);
 

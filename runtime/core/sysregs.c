@@ -99,9 +99,11 @@
  *
  * Cleared fields:
  * - Memory Tagging Extension is not implemented
+ * - Scalable Matrix Extension (SME) not implemented
  */
 #define ID_AA64PFR1_EL1_CLEAR		  \
-	MASK(ID_AA64PFR1_EL1_MTE)
+	MASK(ID_AA64PFR1_EL1_MTE)	| \
+	MASK(ID_AA64PFR1_EL1_SME)
 
 /*
  * Handle ID_AA64XXX<n>_EL1 instructions
@@ -174,7 +176,7 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 		 * disabled for current realm.
 		 */
 		if ((EXTRACT(ID_AA64PFR0_EL1_SVE, value) != 0UL) &&
-		    (rec->realm_info.sve_enabled == (bool)false)) {
+		    (rec->realm_info.simd_cfg.sve_en == (bool)false)) {
 			value &= ~MASK(ID_AA64PFR0_EL1_SVE);
 		}
 		break;
@@ -182,11 +184,18 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 		value = SYSREG_READ_CLEAR(PFR1);
 		break;
 	SYSREG_CASE(ZFR0)
-		if (is_feat_sve_present() && rec->realm_info.sve_enabled) {
+		if (is_feat_sve_present() && rec->realm_info.simd_cfg.sve_en) {
 			value = read_id_aa64zfr0_el1();
 		} else {
 			value = 0UL;
 		}
+		break;
+	SYSREG_CASE(SMFR0)
+		/*
+		 * SME not supported for Realms, clear all fields in SME feature
+		 * register ID_AA64SMFR0_EL1
+		 */
+		value = 0UL;
 		break;
 	default:
 		/* All other encodings are in the RES0 space */
