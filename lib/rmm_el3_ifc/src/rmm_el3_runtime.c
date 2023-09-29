@@ -60,6 +60,7 @@ int rmm_el3_ifc_get_realm_attest_key(uintptr_t buf, size_t buflen,
 			      buflen,
 			      crv, 0UL, 0UL, 0UL, &smc_res);
 
+	/* coverity[uninit_use:SUPPRESS] */
 	if (smc_res.x[0] != 0UL) {
 		ERROR("Failed to get realm attestation key x0 = 0x%lx\n",
 				smc_res.x[0]);
@@ -96,6 +97,7 @@ int rmm_el3_ifc_get_platform_token(uintptr_t buf, size_t buflen,
 			      hash_size,
 			      0UL, 0UL, 0UL, &smc_res);
 
+	/* coverity[uninit_use:SUPPRESS] */
 	if (smc_res.x[0] != 0UL) {
 		ERROR("Failed to get platform token x0 = 0x%lx\n",
 				smc_res.x[0]);

@@ -165,6 +165,7 @@ attest_realm_token_sign(struct attest_token_encode_ctx *me,
 		attest_res = ATTEST_TOKEN_ERR_TOO_SMALL;
 		break;
 	case QCBOR_SUCCESS:
+		/* coverity[uninit_use:SUPPRESS] */
 		*completed_token_len = completed_token_ub.len;
 		break;
 	default:
@@ -218,6 +219,7 @@ size_t attest_cca_token_create(void *attest_token_buf,
 		/* likely from array not closed, too many closes, ... */
 		assert(false);
 	} else {
+		/* coverity[uninit_use:SUPPRESS] */
 		return completed_token.len;
 	}
 	return 0;

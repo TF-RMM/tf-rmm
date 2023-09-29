@@ -67,6 +67,8 @@ static void do_hash(enum hash_algo algorithm,
 			out,
 			(size_t)PSA_HASH_LENGTH(psa_algorithm),
 			&hash_size));
+
+	/* coverity[uninit_use:SUPPRESS] */
 	assert(hash_size == (size_t)PSA_HASH_LENGTH(psa_algorithm));
 	assert(ret == 0);
 
@@ -111,6 +113,8 @@ static void do_extend(psa_algorithm_t psa_algorithm,
 			      out,
 			      (size_t)PSA_HASH_LENGTH(psa_algorithm),
 			      &hash_size);
+
+	/* coverity[uninit_use:SUPPRESS] */
 	assert(hash_size == (size_t)PSA_HASH_LENGTH(psa_algorithm));
 	assert(ret == PSA_SUCCESS);
 }
