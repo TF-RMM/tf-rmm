@@ -21,20 +21,27 @@
  * needed for key blinding during EC signing.
  *
  * Memory requirements:
- * +------------------------+-------+ ------------------------+
+ * +------------------------+-------+-------------------------+
  * |                        |  MAX  |  Persisting allocation  |
  * +------------------------+-------+-------------------------+
- * | Public key computation |  2.4K |         0.4K            |
+ * | Public key computation |  2.9K |         0.1K            |
  * +------------------------+-------+-------------------------+
- * |      PRNG setup        |  6.1K |          3.7K           |
+ * | one SHA256 HMAC_DRBG   |       |                         |
+ * |   buffer               |  364B |         364B            |
+ * |                        |       |                         |
+ * | PRNG setup for 32 CPUs |  12K  |        11.6K            |
  * +------------------------+-------+-------------------------+
  *
- * Measured with:
+ * Measured with eg:
  *	src/lib/memory_buffer_alloc.c: mbedtls_memory_buffer_alloc_status()
+ *
+ * Reserve enough space for the temporary PRNG and per-CPU ones (see
+ * attest_rnd_prng_init()), plus a page for other allocations.
  */
-#define INIT_HEAP_PAGES		3
+#define PRNG_INIT_HEAP_SIZE	((MAX_CPUS + 1) * 364)
+#define INIT_HEAP_SIZE		(PRNG_INIT_HEAP_SIZE + SZ_4K)
 
-static unsigned char mem_buf[INIT_HEAP_PAGES * SZ_4K]
+static unsigned char mem_buf[INIT_HEAP_SIZE]
 					__aligned(sizeof(unsigned long));
 
 static bool attest_initialized;
