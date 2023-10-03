@@ -240,11 +240,11 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	 * Check GIC state after checking other conditions but before doing
 	 * anything which may have side effects.
 	 */
-	gic_copy_state_from_ns(&rec->sysregs.gicstate, &rec_run.entry);
-	if (!gic_validate_state(&rec->sysregs.gicstate)) {
+	if (!gic_validate_state(&rec_run.entry)) {
 		ret = RMI_ERROR_REC;
 		goto out_unmap_buffers;
 	}
+	gic_copy_state_from_rec_entry(&rec->sysregs.gicstate, &rec_run.entry);
 
 	if (!complete_mmio_emulation(rec, &rec_run.entry)) {
 		ret = RMI_ERROR_REC;
@@ -278,7 +278,7 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 
 	rec_run_loop(rec, &rec_run.exit);
 
-	gic_copy_state_to_ns(&rec->sysregs.gicstate, &rec_run.exit);
+	gic_copy_state_to_rec_exit(&rec->sysregs.gicstate, &rec_run.exit);
 
 out_unmap_buffers:
 	buffer_unmap(rec);
