@@ -185,12 +185,13 @@ static void rec_aux_granules_init(struct rec *r)
 	 * - REC_PMU_PAGES for PMU state
 	 * - REC_SIMD_PAGES for SIMD state
 	 * - REC_ATTEST_PAGES for 'rec_attest_data' structure
+	 * - REC_ATTEST_BUFFER_PAGES for attestation buffer
 	 */
 	assert(r->num_rec_aux >= REC_NUM_PAGES);
 
 	/*
 	 * Assign base address for attestation heap, PMU, SIMD, attestation
-	 * data
+	 * data and buffer.
 	 */
 	aux_data = &r->aux_data;
 	aux_data->attest_heap_buf = (uint8_t *)rec_aux;
@@ -200,6 +201,8 @@ static void rec_aux_granules_init(struct rec *r)
 		((uint8_t *)aux_data->pmu + REC_PMU_SIZE);
 	aux_data->attest_data = (struct rec_attest_data *)
 		((uint8_t *)aux_data->simd_ctx + REC_SIMD_SIZE);
+	aux_data->cca_token_buf = (uintptr_t)aux_data->attest_data +
+		REC_ATTEST_SIZE;
 
 	rec_attestation_heap_init(r);
 	rec_simd_state_init(r);

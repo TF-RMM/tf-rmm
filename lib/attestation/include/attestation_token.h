@@ -44,7 +44,7 @@ enum attest_token_err_t {
 enum attest_token_gen_state_t {
 	ATTEST_SIGN_NOT_STARTED,
 	ATTEST_SIGN_IN_PROGRESS,
-	ATTEST_SIGN_TOKEN_WRITE_IN_PROGRESS,
+	ATTEST_SIGN_TOKEN_WRITE_IN_PROGRESS
 };
 
 /*
@@ -84,8 +84,13 @@ struct token_sign_cntxt {
 	 */
 	enum attest_token_gen_state_t state;
 	struct attest_token_encode_ctx ctx;
-	/* Data saved in the first iteration */
-	unsigned long token_ipa;
+
+	/* Number of CCA token bytes left to copy to the Realm */
+	size_t cca_token_len;
+
+	/* Number of CCA token bytes copied to the Realm */
+	size_t copied_len;
+
 	unsigned char challenge[ATTEST_CHALLENGE_SIZE];
 };
 
