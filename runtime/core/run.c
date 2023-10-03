@@ -345,15 +345,12 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	if (rec->active_simd_ctx == rec->aux_data.simd_ctx) {
 		(void)simd_context_switch(rec->active_simd_ctx,
 					  &g_ns_simd_ctx[cpuid]);
+
 		/*
-		 * FPU/SVE traps must be enabled in REC's cptr_el2. This enables
-		 * traps again as it was disabled earlier.
+		 * As the REC SIMD context is now saved, disable all SIMD related
+		 * flags in REC's cptr.
 		 */
-		rec->sysregs.cptr_el2 &= ~(MASK(CPTR_EL2_VHE_FPEN) |
-					   MASK(CPTR_EL2_VHE_ZEN));
-		rec->sysregs.cptr_el2 |= INPLACE(CPTR_EL2_VHE_FPEN,
-						 CPTR_EL2_VHE_FPEN_TRAP_ALL_00) |
-			INPLACE(CPTR_EL2_VHE_ZEN, CPTR_EL2_VHE_ZEN_TRAP_ALL_00);
+		SIMD_DISABLE_ALL_CPTR_FLAGS(rec->sysregs.cptr_el2);
 	}
 
 	/* Clear active simd_context */
