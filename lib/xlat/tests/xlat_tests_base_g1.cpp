@@ -32,7 +32,7 @@ static void buffer_shuffle(unsigned char *buf, size_t size, unsigned int stride)
 {
 
 /* Maximum stride allowed */
-#define MAX_STRIDE	(50U)
+#define MAX_STRIDE	(128U)
 
 	unsigned int items = (unsigned int)(size / stride);
 	unsigned int index_i, index_j;
@@ -156,9 +156,8 @@ void map_region_full_spec_tc1(void)
 		validation_mmap.granularity
 	);
 
-	MEMCMP_EQUAL((void *)&validation_mmap,
-		     (void *)&test_mmap,
-		     sizeof(struct xlat_mmap_region));
+	CHECK_TRUE(XLAT_TEST_XLAT_MMAP_REGION_CMP(validation_mmap,
+						  test_mmap));
 }
 
 void map_region_tc1(void)
@@ -190,9 +189,8 @@ void map_region_tc1(void)
 		validation_mmap.attr
 	);
 
-	MEMCMP_EQUAL((void *)&validation_mmap,
-		     (void *)&test_mmap,
-		     sizeof(struct xlat_mmap_region));
+	CHECK_TRUE(XLAT_TEST_XLAT_MMAP_REGION_CMP(validation_mmap,
+						  test_mmap));
 }
 
 void map_region_flat_tc1(void)
@@ -226,9 +224,8 @@ void map_region_flat_tc1(void)
 		validation_mmap.attr
 	);
 
-	MEMCMP_EQUAL((void *)&validation_mmap,
-		     (void *)&test_mmap,
-		     sizeof(struct xlat_mmap_region));
+	CHECK_TRUE(XLAT_TEST_XLAT_MMAP_REGION_CMP(validation_mmap,
+						  test_mmap));
 }
 
 void map_region_transient_tc1(void)
@@ -266,9 +263,8 @@ void map_region_transient_tc1(void)
 		validation_mmap.granularity
 	);
 
-	MEMCMP_EQUAL((void *)&validation_mmap,
-		     (void *)&test_mmap,
-		     sizeof(struct xlat_mmap_region));
+	CHECK_TRUE(XLAT_TEST_XLAT_MMAP_REGION_CMP(validation_mmap,
+						  test_mmap));
 }
 
 void xlat_ctx_cfg_init_tc1(void)

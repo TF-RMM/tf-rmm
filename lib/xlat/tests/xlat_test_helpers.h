@@ -43,6 +43,16 @@
 
 
 /*
+ * Compare two xlat_mmap_region structures
+ */
+#define XLAT_TEST_XLAT_MMAP_REGION_CMP(_a, _b)	\
+	((_a.base_pa == _b.base_pa) &&		\
+	 (_a.base_va == _b.base_va) &&		\
+	 (_a.size == _b.size) &&		\
+	 (_a.attr == _b.attr) &&		\
+	 (_a.granularity == _b.granularity))
+
+/*
  * Helper function to initialize a xlat_ctx_tbls structure with
  * a given set of parameters.
  *
