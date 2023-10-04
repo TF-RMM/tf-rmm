@@ -107,6 +107,11 @@ TEST(xlat_tests_no_LPA2, xlat_ctx_cfg_init_TC13)
 	xlat_ctx_cfg_init_tc13();
 }
 
+ASSERT_TEST(xlat_tests_no_LPA2, xlat_ctx_cfg_init_TC14)
+{
+	xlat_ctx_cfg_init_tc14();
+}
+
 TEST(xlat_tests_no_LPA2, xlat_ctx_init_TC1)
 {
 	xlat_ctx_init_tc1();
@@ -127,7 +132,7 @@ ASSERT_TEST(xlat_tests_no_LPA2, xlat_ctx_init_TC4)
 	xlat_ctx_init_tc4();
 }
 
-TEST(xlat_tests_no_LPA2, xlat_ctx_init_TC5)
+ASSERT_TEST(xlat_tests_no_LPA2, xlat_ctx_init_TC5)
 {
 	xlat_ctx_init_tc5();
 }
@@ -255,6 +260,11 @@ ASSERT_TEST(xlat_tests_no_LPA2, xlat_arch_setup_mmu_cfg_TC4)
 ASSERT_TEST(xlat_tests_no_LPA2, xlat_arch_setup_mmu_cfg_TC5)
 {
 	xlat_arch_setup_mmu_cfg_tc5();
+}
+
+ASSERT_TEST(xlat_tests_no_LPA2, xlat_arch_setup_mmu_cfg_TC6)
+{
+	xlat_arch_setup_mmu_cfg_tc6();
 }
 
 TEST(xlat_tests_no_LPA2, xlat_get_oa_from_tte_TC1)

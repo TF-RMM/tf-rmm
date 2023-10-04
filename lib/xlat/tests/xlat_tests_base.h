@@ -24,6 +24,7 @@ void xlat_ctx_cfg_init_tc10(void);
 void xlat_ctx_cfg_init_tc11(void);
 void xlat_ctx_cfg_init_tc12(void);
 void xlat_ctx_cfg_init_tc13(void);
+void xlat_ctx_cfg_init_tc14(void);
 
 void xlat_ctx_init_tc1(void);
 void xlat_ctx_init_tc2(void);
@@ -60,6 +61,7 @@ void xlat_arch_setup_mmu_cfg_tc2(void);
 void xlat_arch_setup_mmu_cfg_tc3(void);
 void xlat_arch_setup_mmu_cfg_tc4(void);
 void xlat_arch_setup_mmu_cfg_tc5(void);
+void xlat_arch_setup_mmu_cfg_tc6(void);
 
 void xlat_get_oa_from_tte_tc1(void);
 

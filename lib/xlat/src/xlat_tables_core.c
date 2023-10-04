@@ -467,13 +467,10 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 	struct xlat_ctx_cfg *ctx_cfg;
 	struct xlat_ctx_tbls *ctx_tbls;
 
+	assert(!is_mmu_enabled());
+
 	ctx_cfg = ctx->cfg;
 	ctx_tbls = ctx->tbls;
-
-	if (is_mmu_enabled() == true) {
-		ERROR("%s (%u): MMU is already enabled\n", __func__, __LINE__);
-		return -EINVAL;
-	}
 
 	xlat_mmap_print(ctx);
 

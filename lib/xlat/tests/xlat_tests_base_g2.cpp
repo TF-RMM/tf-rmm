@@ -2225,7 +2225,6 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	 * and overwrite it to test different failure conditions on
 	 * xlat_arch_setup_mmu_cfg():
 	 *
-	 *	- Call xlat_arch_setup_mmu_cfg() with the MMU enabled.
 	 *	- Call xlat_arch_setup_mmu_cfg() with an uninitialized
 	 *	  context configuration.
 	 *	- Call xlat_arch_setup_mmu_cfg() for a CPU which
@@ -2255,18 +2254,6 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 			       xlat_test_helpers_tbls(),
 			       XLAT_TESTS_MAX_TABLES);
 	CHECK_TRUE(retval == 0);
-
-	/* Force the MMU enblement */
-	xlat_enable_mmu_el2();
-
-	/* Try to initialize MMU for the given context */
-	retval = xlat_arch_setup_mmu_cfg(&ctx);
-
-	/* Verify that the MMU has failed to be initialized */
-	CHECK_TRUE(retval == -EPERM);
-
-	/* Restore SCTLR_EL2 to disable the MMU */
-	write_sctlr_el2(0ULL);
 
 	/* Force the context to be uninitialized */
 	ctx.cfg->initialized = false;
@@ -2375,6 +2362,55 @@ void xlat_arch_setup_mmu_cfg_tc5(void)
 
 	test_helpers_expect_assert_fail(true);
 	(void)xlat_arch_setup_mmu_cfg(&ctx);
+	test_helpers_fail_if_no_assert_failed();
+}
+
+void xlat_arch_setup_mmu_cfg_tc6(void)
+{
+	struct xlat_ctx ctx;
+	struct xlat_ctx_cfg cfg;
+	struct xlat_ctx_tbls tbls;
+	uintptr_t start_va, end_va;
+	int retval;
+	struct xlat_mmap_region init_mmap;
+	uint64_t max_va_size =	XLAT_TEST_MAX_VA_SIZE();
+
+	/***************************************************************
+	 * TEST CASE 6:
+	 * Generate a valid translation context for one of the regions
+	 * and call xlat_arch_setup_mmu_cfg() with the MMU enabled.
+	 *
+	 ***************************************************************/
+
+	/* Clean the data structures */
+	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
+	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
+	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
+
+	/* VA space boundaries */
+	start_va = xlat_test_helpers_get_start_va(VA_LOW_REGION, max_va_size);
+	end_va = start_va + max_va_size - 1UL;
+
+	/* Generate only a single mmap region for each region */
+	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va);
+
+	retval = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &init_mmap,
+					1U, max_va_size);
+	CHECK_TRUE(retval == 0);
+
+	retval = xlat_ctx_init(&ctx, &cfg, &tbls,
+				xlat_test_helpers_tbls(),
+				XLAT_TESTS_MAX_TABLES);
+	CHECK_TRUE(retval == 0);
+
+	/* Force the MMU enablement */
+	xlat_enable_mmu_el2();
+
+	test_helpers_expect_assert_fail(true);
+
+	/* Try to initialize MMU for the given context */
+	retval = xlat_arch_setup_mmu_cfg(&ctx);
+
 	test_helpers_fail_if_no_assert_failed();
 }
 

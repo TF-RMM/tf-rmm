@@ -114,9 +114,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 	}
 
 	/* MMU cannot be enabled at this point */
-	if (is_mmu_enabled() == true) {
-		return -EPERM;
-	}
+	assert(!is_mmu_enabled());
 
 	/* Set attributes in the right indices of the MAIR. */
 	mair = MAIR_ATTR_SET(ATTR_DEVICE, ATTR_DEVICE_INDEX);

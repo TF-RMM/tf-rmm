@@ -16,6 +16,8 @@ void arm_set_dram_layout(struct ns_dram_info *plat_dram)
 	struct ns_dram_bank *bank_ptr;
 	struct arm_dram_layout *dram_ptr = arm_get_dram_layout();
 
+	assert(!is_mmu_enabled());
+
 	/* Number of banks */
 	num_banks = plat_dram->num_banks;
 	assert(num_banks <= MAX_DRAM_NUM_BANKS);
