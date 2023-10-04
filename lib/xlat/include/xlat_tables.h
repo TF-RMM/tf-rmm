@@ -193,6 +193,8 @@
 
 /*
  * Structure for specifying a single region of memory.
+ * Aligned on cacheline size as this data can be accessed on
+ * secondaries with MMU off.
  */
 struct xlat_mmap_region {
 	uintptr_t	base_pa;	/* Base PA for the current region. */
@@ -200,7 +202,7 @@ struct xlat_mmap_region {
 	size_t		size;		/* Size of the current region. */
 	uint64_t	attr;		/* Attrs for the current region. */
 	size_t		granularity;    /* Region granularity. */
-};
+} __aligned(CACHE_WRITEBACK_GRANULE);
 
 /*
  * Structure containing a table entry and its related information.

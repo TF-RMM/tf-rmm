@@ -36,7 +36,7 @@ void rmm_el3_ifc_process_boot_manifest(void)
 		     (void *)rmm_el3_ifc_get_shared_buf_pa(),
 		     sizeof(struct rmm_core_manifest));
 
-	flush_dcache_range((uintptr_t)&local_core_manifest,
+	inv_dcache_range((uintptr_t)&local_core_manifest,
 				sizeof(local_core_manifest));
 
 	/*
@@ -48,7 +48,7 @@ void rmm_el3_ifc_process_boot_manifest(void)
 	}
 
 	manifest_processed = true;
-	flush_dcache_range((uintptr_t)&manifest_processed, sizeof(bool));
+	inv_dcache_range((uintptr_t)&manifest_processed, sizeof(bool));
 }
 
 /* Return the raw value of the received boot manifest */

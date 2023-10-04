@@ -512,14 +512,14 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 		}
 	}
 
-	/* Flush the cache as a good measure */
-	flush_dcache_range((uintptr_t)(void *)ctx_tbls->tables,
+	/* Inv the cache as a good measure */
+	inv_dcache_range((uintptr_t)(void *)ctx_tbls->tables,
 			 sizeof(uint64_t) * (unsigned long)ctx_tbls->tables_num
 						* XLAT_TABLE_ENTRIES);
 
 	ctx_tbls->initialized = true;
 
-	flush_dcache_range((uintptr_t)(void *)ctx_tbls,
+	inv_dcache_range((uintptr_t)(void *)ctx_tbls,
 			   sizeof(struct xlat_ctx_tbls));
 
 	xlat_tables_print(ctx);
