@@ -129,7 +129,7 @@ void gic_cpu_state_init(struct gic_cpu_state *gicstate)
 		ICH_HCR_EL2_DVIM_BIT;	/* Direct-injection not supported */
 }
 
-void gic_copy_state_from_ns(struct gic_cpu_state *gicstate,
+void gic_copy_state_from_rec_entry(struct gic_cpu_state *gicstate,
 			    struct rmi_rec_entry *rec_entry)
 {
 	unsigned int i;
@@ -144,7 +144,7 @@ void gic_copy_state_from_ns(struct gic_cpu_state *gicstate,
 	gicstate->ich_hcr_el2 |= rec_entry->gicv3_hcr & ICH_HCR_EL2_NS_MASK;
 }
 
-void gic_copy_state_to_ns(struct gic_cpu_state *gicstate,
+void gic_copy_state_to_rec_exit(struct gic_cpu_state *gicstate,
 			  struct rmi_rec_exit *rec_exit)
 {
 	unsigned int i;
@@ -178,12 +178,18 @@ static bool is_valid_vintid(unsigned long intid)
 		false);
 }
 
-bool gic_validate_state(struct gic_cpu_state *gicstate)
+bool gic_validate_state(struct rmi_rec_entry *rec_entry)
 {
 	unsigned int i, j;
+	unsigned long hcr = rec_entry->gicv3_hcr;
+
+	/* Validate rec_entry.gicv3_hcr MBZ bits */
+	if ((hcr & ~ICH_HCR_EL2_NS_MASK) != 0UL) {
+		return false;
+	}
 
 	for (i = 0U; i <= gic_virt_feature.nr_lrs; i++) {
-		unsigned long lr = gicstate->ich_lr_el2[i];
+		unsigned long lr = rec_entry->gicv3_lrs[i];
 		unsigned long intid = EXTRACT(ICH_LR_VINTID, lr);
 
 		if ((lr & ICH_LR_STATE_MASK) == ICH_LR_STATE_INVALID) {
@@ -207,7 +213,7 @@ bool gic_validate_state(struct gic_cpu_state *gicstate)
 		 * specify the same vINTID.
 		 */
 		for (j = i + 1U; j <= gic_virt_feature.nr_lrs; j++) {
-			unsigned long _lr = gicstate->ich_lr_el2[j];
+			unsigned long _lr = rec_entry->gicv3_lrs[j];
 			unsigned long _intid = EXTRACT(ICH_LR_VINTID, _lr);
 
 			if ((_lr & ICH_LR_STATE_MASK) == ICH_LR_STATE_INVALID) {
