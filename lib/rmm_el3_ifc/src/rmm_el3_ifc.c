@@ -92,13 +92,13 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 
 	initialized = true;
 
-	flush_dcache_range((uintptr_t)&rmm_shared_buffer_start_pa,
+	inv_dcache_range((uintptr_t)&rmm_shared_buffer_start_pa,
 				sizeof(rmm_shared_buffer_start_pa));
-	flush_dcache_range((uintptr_t)&rmm_el3_ifc_abi_version,
+	inv_dcache_range((uintptr_t)&rmm_el3_ifc_abi_version,
 				sizeof(rmm_el3_ifc_abi_version));
-	flush_dcache_range((uintptr_t)&rmm_shared_buffer_start_va,
+	inv_dcache_range((uintptr_t)&rmm_shared_buffer_start_va,
 				sizeof(rmm_shared_buffer_start_va));
-	flush_dcache_range((uintptr_t)&initialized, sizeof(bool));
+	inv_dcache_range((uintptr_t)&initialized, sizeof(bool));
 
 	/* Process the Boot Manifest */
 	rmm_el3_ifc_process_boot_manifest();

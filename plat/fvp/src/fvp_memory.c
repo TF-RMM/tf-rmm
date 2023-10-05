@@ -44,5 +44,5 @@ void fvp_set_dram_layout(struct ns_dram_info *plat_dram)
 
 	fvp_dram->num_granules = num_granules;
 
-	flush_dcache_range((uintptr_t)fvp_dram, sizeof(struct fvp_dram_layout));
+	inv_dcache_range((uintptr_t)fvp_dram, sizeof(struct fvp_dram_layout));
 }

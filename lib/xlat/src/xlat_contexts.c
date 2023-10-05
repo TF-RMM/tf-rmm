@@ -258,7 +258,8 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 	cfg->region = region;
 	cfg->initialized = true;
 
-	flush_dcache_range((uintptr_t)cfg, sizeof(struct xlat_ctx_cfg));
+	inv_dcache_range((uintptr_t)cfg, sizeof(struct xlat_ctx_cfg));
+	inv_dcache_range((uintptr_t)mm, sizeof(struct xlat_mmap_region));
 
 	return 0;
 }
@@ -298,9 +299,9 @@ int xlat_ctx_init(struct xlat_ctx *ctx,
 	/* Add the tables to the context */
 	ctx->tbls = tbls_ctx;
 
-	flush_dcache_range((uintptr_t)ctx, sizeof(struct xlat_ctx));
-	flush_dcache_range((uintptr_t)tbls_ctx, sizeof(struct xlat_ctx_tbls));
-	flush_dcache_range((uintptr_t)cfg, sizeof(struct xlat_ctx_cfg));
+	inv_dcache_range((uintptr_t)ctx, sizeof(struct xlat_ctx));
+	inv_dcache_range((uintptr_t)tbls_ctx, sizeof(struct xlat_ctx_tbls));
+	inv_dcache_range((uintptr_t)cfg, sizeof(struct xlat_ctx_cfg));
 
 	return xlat_init_tables_ctx(ctx);
 }

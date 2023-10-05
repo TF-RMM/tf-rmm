@@ -26,6 +26,9 @@ typedef enum xlat_addr_region_id {
  * context. This allows to reuse the same xlat_ctx_cfg part of the context
  * on several PEs that share the same memory map region whilst keeping
  * private tables for each PE.
+ *
+ * Aligned on cacheline size as this data can be accessed on
+ * secondaries with MMU off.
  */
 struct xlat_ctx_tbls {
 	/* Array of translation tables. */
@@ -35,9 +38,13 @@ struct xlat_ctx_tbls {
 
 	/* Set to true when the translation tables are initialized. */
 	bool initialized;
-};
+}  __aligned(CACHE_WRITEBACK_GRANULE);
 
-/* Struct that holds the context configuration */
+/*
+ * Struct that holds the context configuration.
+ * Aligned on cacheline size as this data can be accessed on
+ * secondaries with MMU off.
+ */
 struct xlat_ctx_cfg {
 	/*
 	 * Maximum size allowed for the VA space handled by the context.
@@ -80,17 +87,20 @@ struct xlat_ctx_cfg {
 	xlat_addr_region_id_t region;
 
 	bool initialized;
-};
+} __aligned(CACHE_WRITEBACK_GRANULE);
 
 /*
  * Struct that holds the context itself, composed of
  * a pointer to the context config and a pointer to the
  * translation tables associated to it.
+ *
+ * Aligned on cacheline size as this data can be accessed on
+ * secondaries with MMU off.
  */
 struct xlat_ctx {
 	struct xlat_ctx_cfg *cfg;
 	struct xlat_ctx_tbls *tbls;
-};
+} __aligned(CACHE_WRITEBACK_GRANULE);
 
 /*
  * The translation tables are aligned to their size. For 4KB graularity, this
