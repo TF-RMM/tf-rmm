@@ -141,9 +141,23 @@ if(CHECKPATCH_RUN)
   foreach(commit IN LISTS pending_commits)
     message(STATUS "Checking commit: ${commit}")
 
+    Git_Get_Files_In_Commit("${commit}" source_files)
+
+    foreach(exclude IN LISTS glob_excludes)
+      list(FILTER source_files EXCLUDE REGEX "${exclude}")
+    endforeach()
+
+    if(NOT source_files)
+      message(STATUS "checkpatch: No files to check in this commit")
+      continue()
+    endif()
+
+    string(REPLACE ";" " " source_files "${source_files}")
+
     execute_process(
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       COMMAND ${GIT_EXECUTABLE} diff --format=email "${commit}~..${commit}"
+        -- "${source_files}"
       COMMAND ${CHECKPATCH_EXECUTABLE} -
       OUTPUT_VARIABLE checkpatch_output
       RESULT_VARIABLE checkpatch_rc
