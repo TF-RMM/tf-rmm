@@ -19,7 +19,7 @@
  * The major version number of the RMI implementation.  Increase this whenever
  * the binary format or semantics of the SMC calls change.
  */
-#define RMI_ABI_VERSION_MAJOR		UL(66)
+#define RMI_ABI_VERSION_MAJOR		UL(1)
 
 /*
  * The minor version number of the RMI implementation.  Increase this when
@@ -183,7 +183,13 @@
 #define RMI_ACCEPT	UL(0)
 #define RMI_REJECT	UL(1)
 
-/* No parameters */
+/*
+ * arg0: Requested interface version
+ *
+ * ret0: Command return status
+ * ret1: Lower implemented interface revision
+ * ret2: Higher implemented interface revision
+ */
 #define SMC_RMM_VERSION				SMC64_RMI_FID(U(0x0))
 
 /*

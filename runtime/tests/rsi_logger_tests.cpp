@@ -75,7 +75,7 @@ TEST(rsi_logger_tests, RSI_LOGGER_TC1)
 	unsigned int status, id;
 
 	for (status = LOG_SUCCESS; status <= LOG_RANDOM; status++) {
-		for (id = SMC_RSI_ABI_VERSION; id <= SMC_RSI_HOST_CALL; id++) {
+		for (id = SMC_RSI_VERSION; id <= SMC_RSI_HOST_CALL; id++) {
 			rsi_log_test(id, status);
 		}
 	}

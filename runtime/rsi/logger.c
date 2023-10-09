@@ -28,7 +28,7 @@ struct rsi_handler {
 	unsigned int num_vals;	/* number of output values */
 };
 
-#define RSI_HANDLER_ID(_id)	SMC64_FID_OFFSET_FROM_RANGE_MIN(RSI, SMC_RSI_##_id)
+#define RSI_HANDLER_ID(_id)	SMC64_FID_OFFSET_FROM_RANGE_MIN(RSI, SMC_RSI##_id)
 
 #define RSI_FUNCTION(_id, _in, _out)[RSI_HANDLER_ID(_id)] = { \
 	.fn_name = (#_id),	\
@@ -37,16 +37,16 @@ struct rsi_handler {
 }
 
 static const struct rsi_handler rsi_logger[] = {
-	RSI_FUNCTION(ABI_VERSION, 1U, 1U),		/* 0xC4000190 */
-	RSI_FUNCTION(FEATURES, 1U, 1U),			/* 0xC4000191 */
-	RSI_FUNCTION(MEASUREMENT_READ, 1U, 8U),		/* 0xC4000192 */
-	RSI_FUNCTION(MEASUREMENT_EXTEND, 10U, 0U),	/* 0xC4000193 */
-	RSI_FUNCTION(ATTEST_TOKEN_INIT, 8U, 0U),	/* 0xC4000194 */
-	RSI_FUNCTION(ATTEST_TOKEN_CONTINUE, 3U, 1U),	/* 0xC4000195 */
-	RSI_FUNCTION(REALM_CONFIG, 1U, 0U),		/* 0xC4000196 */
-	RSI_FUNCTION(IPA_STATE_SET, 4U, 2U),		/* 0xC4000197 */
-	RSI_FUNCTION(IPA_STATE_GET, 1U, 1U),		/* 0xC4000198 */
-	RSI_FUNCTION(HOST_CALL, 1U, 0U)			/* 0xC4000199 */
+	RSI_FUNCTION(_VERSION, 1U, 2U),			/* 0xC4000190 */
+	RSI_FUNCTION(_FEATURES, 1U, 1U),		/* 0xC4000191 */
+	RSI_FUNCTION(_MEASUREMENT_READ, 1U, 8U),	/* 0xC4000192 */
+	RSI_FUNCTION(_MEASUREMENT_EXTEND, 10U, 0U),	/* 0xC4000193 */
+	RSI_FUNCTION(_ATTEST_TOKEN_INIT, 8U, 0U),	/* 0xC4000194 */
+	RSI_FUNCTION(_ATTEST_TOKEN_CONTINUE, 3U, 1U),	/* 0xC4000195 */
+	RSI_FUNCTION(_REALM_CONFIG, 1U, 0U),		/* 0xC4000196 */
+	RSI_FUNCTION(_IPA_STATE_SET, 4U, 2U),		/* 0xC4000197 */
+	RSI_FUNCTION(_IPA_STATE_GET, 1U, 1U),		/* 0xC4000198 */
+	RSI_FUNCTION(_HOST_CALL, 1U, 0U)		/* 0xC4000199 */
 };
 
 #define RSI_STATUS_STRING(_id)[RSI_##_id] = #_id
@@ -62,7 +62,7 @@ COMPILER_ASSERT(ARRAY_LEN(rsi_status_string) == RSI_ERROR_COUNT);
 
 static const struct rsi_handler *fid_to_rsi_logger(unsigned int id)
 {
-	return &rsi_logger[id - SMC_RSI_ABI_VERSION];
+	return &rsi_logger[id - SMC_RSI_VERSION];
 }
 
 static size_t print_entry(unsigned int id, unsigned long args[],
@@ -72,12 +72,12 @@ static size_t print_entry(unsigned int id, unsigned long args[],
 	int cnt;
 
 	switch (id) {
-	case SMC_RSI_ABI_VERSION ... SMC_RSI_HOST_CALL: {
+	case SMC_RSI_VERSION ... SMC_RSI_HOST_CALL: {
 		const struct rsi_handler *logger = fid_to_rsi_logger(id);
 
 		num = logger->num_args;
 		cnt = snprintf(buf, MAX_NAME_LEN + 1UL,
-				"%s%s", "SMC_RSI_", logger->fn_name);
+				"%s%s", "SMC_RSI", logger->fn_name);
 		break;
 	}
 	/* SMC32 PSCI calls */
@@ -139,7 +139,7 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 	int cnt;
 
 	switch (function_id) {
-	case SMC_RSI_ABI_VERSION ... SMC_RSI_HOST_CALL: {
+	case SMC_RSI_VERSION ... SMC_RSI_HOST_CALL: {
 		const struct rsi_handler *logger =
 				fid_to_rsi_logger(function_id);
 

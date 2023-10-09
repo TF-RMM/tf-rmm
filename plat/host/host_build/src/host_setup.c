@@ -29,10 +29,11 @@
 
 #define CHECK_RMI_RESULT() \
 ({  \
-	if (result.x[0] != 0) { \
-		ERROR("RMI call failed at %s:%d. status=%lu.\n", __FILE__, __LINE__, result.x[0]); \
-		return -1; \
-	} \
+	if (result.x[0] != RMI_SUCCESS) {				\
+		ERROR("RMI call failed at %s:%d. status=%lu.\n",	\
+			__FILE__, __LINE__, result.x[0]);		\
+		return -1;						\
+	}								\
 })
 
 /*
@@ -71,14 +72,14 @@ static int realm_start(unsigned long *regs)
 	INFO("# Hello World from a Realm!\n");
 	INFO("###########################\n");
 
-	regs[0] = SMC_RSI_ABI_VERSION;
+	regs[0] = SMC_RSI_VERSION;
 	regs[1] = RSI_ABI_VERSION;
 	return host_util_rsi_helper(realm_continue);
 }
 
 static int realm_continue(unsigned long *regs)
 {
-	INFO("RSI Version is 0x%lx\n", regs[1]);
+	INFO("RSI Version is 0x%lx : 0x%lx\n", regs[1], regs[2]);
 
 	if (regs[0] != RSI_SUCCESS) {
 		ERROR("RSI_VERSION command failed 0x%lx\n", regs[0]);
@@ -160,6 +161,8 @@ static int create_realm(void)
 
 	host_rmi_version(RMI_ABI_VERSION, &result);
 	CHECK_RMI_RESULT();
+	INFO("RMI Version is 0x%lx : 0x%lx\n", result.x[1], result.x[2]);
+
 	host_rmi_granule_delegate(rd, &result);
 	CHECK_RMI_RESULT();
 	host_rmi_granule_delegate(rec, &result);

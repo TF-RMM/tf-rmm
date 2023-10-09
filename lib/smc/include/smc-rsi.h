@@ -18,7 +18,7 @@
  * The major version number of the RSI implementation.  Increase this whenever
  * the binary format or semantics of the SMC calls change.
  */
-#define RSI_ABI_VERSION_MAJOR		UL(14)
+#define RSI_ABI_VERSION_MAJOR		UL(1)
 
 /*
  * The minor version number of the RSI implementation.  Increase this when
@@ -81,9 +81,10 @@
  * Returns RSI version.
  * arg1: Requested interface version
  * ret0: Status / error
- * ret1: Implemented interface version
+ * ret1: Lower implemented interface revision
+ * ret2: Higher implemented interface revision
  */
-#define SMC_RSI_ABI_VERSION		SMC64_RSI_FID(U(0x0))
+#define SMC_RSI_VERSION			SMC64_RSI_FID(U(0x0))
 
 /*
  * Returns RSI version.

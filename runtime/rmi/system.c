@@ -18,4 +18,5 @@ void smc_version(unsigned long rmi_version, struct smc_result *res)
 	}
 
 	res->x[1] = RMI_ABI_VERSION;
+	res->x[2] = RMI_ABI_VERSION;
 }
