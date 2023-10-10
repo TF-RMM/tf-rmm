@@ -83,7 +83,7 @@ void rmm_main(void)
 		RMM_EL3_MANIFEST_GET_VERS_MINOR(manifest_version));
 
 	/* Report RMI/RSI ABI versions and build timestamp */
-	NOTICE("RMI/RSI ABI v.%u.%u/%u.%u built: %s %s\n",
+	NOTICE("RMI/RSI ABI v.%lu.%lu/%lu.%lu built: %s %s\n",
 		RMI_ABI_VERSION_MAJOR, RMI_ABI_VERSION_MINOR,
 		RSI_ABI_VERSION_MAJOR, RSI_ABI_VERSION_MINOR,
 		__DATE__, __TIME__);
