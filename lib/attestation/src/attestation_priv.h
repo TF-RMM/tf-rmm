@@ -19,14 +19,6 @@ struct attest_rng_context {
 };
 
 /*
- * Copy the rng_ctx for the current CPU to rng_ctx
- *
- * Arguments:
- * rng_ctx - Pointer to the target context structure
- */
-void attest_get_cpu_rng_context(struct attest_rng_context *rng_ctx);
-
-/*
  * Get a pointer the handle of the key for signing realm attestation token.
  *
  * Arguments:

@@ -23,6 +23,7 @@
 
 COMPILER_ASSERT(XLAT_HIGH_VA_SLOT_NUM >= NR_CPU_SLOTS);
 
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 uintptr_t slot_to_va(enum buffer_slot slot)
 {
 	assert(slot < NR_CPU_SLOTS);
@@ -30,6 +31,7 @@ uintptr_t slot_to_va(enum buffer_slot slot)
 	return (SLOT_VIRT + (GRANULE_SIZE * (unsigned long)slot));
 }
 
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 struct xlat_llt_info *get_cached_llt_info(void)
 {
 	/*
@@ -215,6 +217,7 @@ bool ns_buffer_write(enum buffer_slot slot,
  * Internal helpers
  ******************************************************************************/
 
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 void *buffer_map_internal(enum buffer_slot slot, unsigned long addr)
 {
 	/*
@@ -240,6 +243,7 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr)
 	return (void *)va;
 }
 
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 void buffer_unmap_internal(void *buf)
 {
 	int ret __unused;

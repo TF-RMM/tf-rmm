@@ -17,6 +17,7 @@ static __uint128_t g_rmm_pauth_apia[MAX_CPUS];
  * Program APIAKey_EL1 with random key generated from
  * a TRNG entropy source
  */
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 PAUTH_NONE_ATTR void pauth_init_enable_el2(void)
 {
 	uint64_t low;

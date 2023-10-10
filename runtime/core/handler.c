@@ -235,6 +235,7 @@ static void rmi_log_on_exit(unsigned int handler_id,
 	}
 }
 
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 void handle_ns_smc(unsigned int function_id,
 		   unsigned long arg0,
 		   unsigned long arg1,

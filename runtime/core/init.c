@@ -37,6 +37,7 @@ static void rmm_arch_init(void)
 			EXTRACT(PMCR_EL0_N, read_pmcr_el0())));
 }
 
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 void rmm_warmboot_main(void)
 {
 	/*
@@ -50,6 +51,7 @@ void rmm_warmboot_main(void)
 	slot_buf_finish_warmboot_init();
 }
 
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 void rmm_main(void)
 {
 	unsigned int rmm_el3_ifc_version = rmm_el3_ifc_get_version();

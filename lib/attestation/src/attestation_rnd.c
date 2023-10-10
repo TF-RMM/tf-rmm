@@ -54,6 +54,7 @@ static int get_random_seed(unsigned char *output, size_t len)
  * See declaration in ext/mbedtls/include/psa/crypto_extra.h.
  * For details see `MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG` in mbedtls/mbedtls_config.h
  */
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 psa_status_t mbedtls_psa_external_get_random(
 	mbedtls_psa_external_random_context_t *context,
 	uint8_t *output, size_t output_size, size_t *output_length)
@@ -75,16 +76,6 @@ psa_status_t mbedtls_psa_external_get_random(
 	*output_length = output_size;
 
 	return PSA_SUCCESS;
-}
-
-void attest_get_cpu_rng_context(struct attest_rng_context *rng_ctx)
-{
-	unsigned int cpu_id = my_cpuid();
-
-	assert(prng_init_done);
-
-	rng_ctx->f_rng = mbedtls_hmac_drbg_random;
-	rng_ctx->p_rng = &cpu_drbg_ctx[cpu_id];
 }
 
 int attest_rnd_prng_init(void)
