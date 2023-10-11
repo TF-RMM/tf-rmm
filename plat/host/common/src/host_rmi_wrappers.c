@@ -117,7 +117,7 @@ void host_rmi_data_create(uintptr_t data, void *rd, uintptr_t ipa,
 			 uintptr_t src, struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMM_DATA_CREATE,
-		(uintptr_t)data,
+		data,
 		(uintptr_t)rd, ipa, src,
 		0, 0,
 		res);
@@ -128,7 +128,7 @@ void host_rmi_data_create_unknown(void *rd, uintptr_t data, uintptr_t ipa,
 {
 	handle_ns_smc(SMC_RMM_DATA_CREATE_UNKNOWN,
 		(uintptr_t)rd,
-		(uintptr_t)data, ipa,
+		data, ipa,
 		0, 0, 0,
 		res);
 }

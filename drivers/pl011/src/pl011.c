@@ -67,7 +67,7 @@ static void uart_putc(char ch)
 }
 
 /* Serial output - called from printf */
-void _putchar(char ch)
+void putchar(char ch)
 {
 	if (ch == '\n') {
 		uart_putc('\r');

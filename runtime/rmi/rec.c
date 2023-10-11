@@ -195,7 +195,7 @@ static void rec_aux_granules_init(struct rec *r)
 	aux_data = &r->aux_data;
 	aux_data->attest_heap_buf = (uint8_t *)rec_aux;
 	aux_data->pmu = (struct pmu_state *)
-		((uint8_t *)aux_data->attest_heap_buf + REC_HEAP_SIZE);
+		(aux_data->attest_heap_buf + REC_HEAP_SIZE);
 	aux_data->simd_ctx = (struct simd_context *)
 		((uint8_t *)aux_data->pmu + REC_PMU_SIZE);
 	aux_data->attest_data = (struct rec_attest_data *)
@@ -298,7 +298,7 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 
 	/* Copy addresses of auxiliary granules */
 	(void)memcpy(rec->g_aux, rec_aux_granules,
-			num_rec_aux * sizeof(rec->g_aux[0]));
+			num_rec_aux * sizeof(struct granule *));
 
 	rec->num_rec_aux = num_rec_aux;
 

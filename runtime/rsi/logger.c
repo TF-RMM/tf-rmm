@@ -31,9 +31,9 @@ struct rsi_handler {
 #define RSI_HANDLER_ID(_id)	SMC64_FID_OFFSET_FROM_RANGE_MIN(RSI, SMC_RSI_##_id)
 
 #define RSI_FUNCTION(_id, _in, _out)[RSI_HANDLER_ID(_id)] = { \
-	.fn_name = #_id,	\
-	.num_args = _in,	\
-	.num_vals = _out	\
+	.fn_name = (#_id),	\
+	.num_args = (_in),	\
+	.num_vals = (_out)	\
 }
 
 static const struct rsi_handler rsi_logger[] = {
@@ -100,7 +100,7 @@ static size_t print_entry(unsigned int id, unsigned long args[],
 
 	assert((cnt > 0) && ((unsigned int)cnt < (MAX_NAME_LEN + 1U)));
 
-	(void)memset((void *)((uintptr_t)buf + (unsigned int)cnt), (int)' ',
+	(void)memset((void *)((uintptr_t)buf + (unsigned int)cnt), ' ',
 					MAX_NAME_LEN - (size_t)cnt);
 
 	buf = (char *)((uintptr_t)buf + MAX_NAME_LEN);

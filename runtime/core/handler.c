@@ -67,7 +67,7 @@ typedef void (*handler_4_o)(unsigned long arg0, unsigned long arg1,
  * [0:7]  - number of arguments
  * [8:15] - number of output values
  */
-#define RMI_TYPE(_in, _out)	(_in | (_out << 8))
+#define RMI_TYPE(_in, _out)	((_in) | ((_out) << 8))
 #define set_rmi_type(_in, _out)	rmi_type_##_in##_out = RMI_TYPE(_in, _out)
 
 enum rmi_type {
@@ -114,11 +114,11 @@ struct smc_handler {
 #define RMI_HANDLER_ID(_id)	SMC64_FID_OFFSET_FROM_RANGE_MIN(RMI, _id)
 
 #define HANDLER(_id, _in, _out, _fn, _exec, _error)[RMI_HANDLER_ID(SMC_RMM_##_id)] = { \
-	.fn_name = #_id,		\
+	.fn_name = (#_id),		\
 	.type = RMI_TYPE(_in, _out),	\
-	.f_##_in##_out = _fn,		\
-	.log_exec = _exec,		\
-	.log_error = _error		\
+	.f_##_in##_out = (_fn),		\
+	.log_exec = (_exec),		\
+	.log_error = (_error)		\
 }
 
 /*
@@ -392,8 +392,8 @@ struct rmm_trap_element {
 };
 
 #define RMM_TRAP_HANDLER(_aborted_pc, _new_pc) \
-	{ .aborted_pc = (unsigned long)(&_aborted_pc), \
-	  .new_pc = (unsigned long)(&_new_pc) }
+	{ .aborted_pc = (unsigned long)(&(_aborted_pc)), \
+	  .new_pc = (unsigned long)(&(_new_pc)) }
 
 /*
  * The registered locations of load/store instructions that access NS memory.
