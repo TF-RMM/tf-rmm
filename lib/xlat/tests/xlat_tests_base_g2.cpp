@@ -153,8 +153,8 @@ static int gen_mmap_array_by_level(xlat_mmap_region *mmap,
 	 * The entry after the first one will always be left intentionally
 	 * unused.
 	 */
-	tbl_idxs[1U] = test_helpers_get_rand_in_range(2,
-					(max_table_entries - 2));
+	tbl_idxs[1U] = (unsigned int)test_helpers_get_rand_in_range(2UL,
+							max_table_entries - 2);
 
 	/* Generate a mapping at the end of the table */
 	tbl_idxs[2U] = max_table_entries - 1U;
@@ -213,7 +213,7 @@ static void validate_xlat_tables(xlat_ctx *ctx, unsigned int *expected_idxs,
 
 	for (unsigned int i = 0U; i < ctx->cfg->mmap_regions; i++) {
 		granularity = ctx->cfg->mmap[i].granularity;
-		addr_offset = test_helpers_get_rand_in_range(0,
+		addr_offset = (unsigned int)test_helpers_get_rand_in_range(0UL,
 							granularity - 1U);
 		test_va = ctx->cfg->base_va + ctx->cfg->mmap[i].base_va +
 								addr_offset;
@@ -414,7 +414,7 @@ void xlat_get_llt_from_va_tc1(void)
 
 	mmap_count = 3U;
 	va_region = (xlat_addr_region_id_t)test_helpers_get_rand_in_range(
-							0, VA_REGIONS - 1);
+						0UL, VA_REGIONS - 1);
 
 	end_lvl = XLAT_MIN_BLOCK_LVL();
 	for (; end_lvl <= XLAT_TABLE_LEVEL_MAX; end_lvl++) {
@@ -477,7 +477,7 @@ void xlat_get_llt_from_va_tc1(void)
 				test_va = init_mmap[mmap_idx].base_va
 						+ ctx.cfg->base_va;
 				test_va +=
-					test_helpers_get_rand_in_range(0,
+					test_helpers_get_rand_in_range(0UL,
 					init_mmap[mmap_idx].size - 1);
 
 				/*
@@ -612,15 +612,15 @@ void xlat_get_llt_from_va_tc2(void)
 				 * The upper range of the address is arbitrary.
 				 */
 				test_va = (ctx.cfg->max_va_size) +
-					test_helpers_get_rand_in_range(0,
-						XLAT_BLOCK_SIZE(base_lvl) - 1);
+					test_helpers_get_rand_in_range(0UL,
+					XLAT_BLOCK_SIZE(base_lvl) - 1);
 			} else {
 				/*
 				 * VA below the VA space.
 				 * The upper range of the address is arbitrary.
 				 */
-				test_va = test_helpers_get_rand_in_range(0,
-						XLAT_BLOCK_SIZE(base_lvl) - 1);
+				test_va = test_helpers_get_rand_in_range(0UL,
+					XLAT_BLOCK_SIZE(base_lvl) - 1);
 			}
 
 			/* Test xlat_get_llt_from_va */
@@ -706,7 +706,7 @@ void xlat_get_llt_from_va_tc3(void)
 
 		test_va = ctx.cfg->base_va;
 		test_va += (init_mmap[0U].base_va + init_mmap[0U].size);
-		test_va += test_helpers_get_rand_in_range(1, PAGE_SIZE - 1);
+		test_va += test_helpers_get_rand_in_range(1UL, PAGE_SIZE - 1UL);
 
 		/* Test xlat_get_llt_from_va */
 		retval = xlat_get_llt_from_va(&tbl_info, &ctx, test_va);
@@ -732,7 +732,7 @@ void xlat_get_llt_from_va_prepare_assertion(struct xlat_ctx *ctx,
 	assert(tbls != NULL);
 	assert(init_mmap != NULL);
 
-	va_region = (xlat_addr_region_id_t)test_helpers_get_rand_in_range(0,
+	va_region = (xlat_addr_region_id_t)test_helpers_get_rand_in_range(0UL,
 							VA_REGIONS - 1U);
 
 	/* Clean the data structures */
@@ -1032,8 +1032,8 @@ void xlat_get_tte_ptr_tc1(void)
 			 * Add a random  offset to the current 'test_va'
 			 * to be used for the tests.
 			 */
-			test_va += test_helpers_get_rand_in_range(0,
-							PAGE_SIZE - 1);
+			test_va += test_helpers_get_rand_in_range(0UL,
+								PAGE_SIZE - 1);
 
 			/*
 			 * Perform a table walk to get the table containing
@@ -1068,10 +1068,9 @@ void xlat_get_tte_ptr_tc1(void)
 		CHECK_TRUE(retval == 0);
 
 		test_va = tbl_info.llt_base_va;
-		test_va -= test_helpers_get_rand_in_range(1, PAGE_SIZE - 1);
+		test_va -= test_helpers_get_rand_in_range(1UL, PAGE_SIZE - 1UL);
 
 		tte_ptr = xlat_get_tte_ptr(&tbl_info, test_va);
-
 
 		/* Validate the output */
 		CHECK_VERBOSE((tte_ptr == NULL),
@@ -1089,7 +1088,7 @@ void xlat_get_tte_ptr_tc1(void)
 		CHECK_TRUE(retval == 0);
 
 		test_va = tbl_info.llt_base_va + XLAT_BLOCK_SIZE(tbl_info.level - 1);
-		test_va += test_helpers_get_rand_in_range(1, PAGE_SIZE - 1);
+		test_va += test_helpers_get_rand_in_range(1UL, PAGE_SIZE - 1UL);
 
 		tte_ptr = xlat_get_tte_ptr(&tbl_info, test_va);
 
@@ -1265,8 +1264,8 @@ void xlat_unmap_memory_page_tc1(void)
 				int tte_lvl;
 				struct xlat_llt_info tbl_info;
 				uint64_t offset =
-					test_helpers_get_rand_in_range(0,
-						PAGE_SIZE - 1);
+					test_helpers_get_rand_in_range(0UL,
+								PAGE_SIZE - 1);
 				uint64_t test_va = init_mmap[j].base_va +
 						ctx.cfg->base_va + offset;
 
@@ -1445,7 +1444,7 @@ void xlat_unmap_memory_page_tc2(void)
 		 * below the range mapped by table we retrieved.
 		 */
 		test_va = init_mmap[0U].base_va + ctx.cfg->base_va;
-		test_va -= test_helpers_get_rand_in_range(1, PAGE_SIZE - 1);
+		test_va -= test_helpers_get_rand_in_range(1UL, PAGE_SIZE - 1UL);
 
 		/* Try to unmap the page/block containing `test_va` */
 		retval = xlat_unmap_memory_page(&tbl_info, test_va);
@@ -1466,8 +1465,7 @@ void xlat_unmap_memory_page_tc2(void)
 		 */
 		test_va = init_mmap[2U].base_va + ctx.cfg->base_va;
 		test_va += PAGE_SIZE;
-		test_va += test_helpers_get_rand_in_range(0,
-					PAGE_SIZE - 1);
+		test_va += test_helpers_get_rand_in_range(0UL, PAGE_SIZE - 1UL);
 
 		/* Try to unmap the page/block containing `test_va` */
 		retval = xlat_unmap_memory_page(&tbl_info, test_va);
@@ -1488,7 +1486,7 @@ void xlat_unmap_memory_page_tc2(void)
 		val_tte = tbl_ptr[tte_idx];
 
 		test_va = init_mmap[1U].base_va + ctx.cfg->base_va;
-		test_va += test_helpers_get_rand_in_range(0, PAGE_SIZE - 1);
+		test_va += test_helpers_get_rand_in_range(0UL, PAGE_SIZE - 1UL);
 
 		/* Try to unmap the page/block containing `test_va` */
 		retval = xlat_unmap_memory_page(&tbl_info, test_va);
@@ -1508,8 +1506,7 @@ void xlat_unmap_memory_page_tc2(void)
 		val_tte = tbl_ptr[tte_idx];
 
 		test_va = init_mmap[1U].base_va + ctx.cfg->base_va;
-		test_va += test_helpers_get_rand_in_range(0,
-					PAGE_SIZE - 1);
+		test_va += test_helpers_get_rand_in_range(0UL, PAGE_SIZE - 1UL);
 
 		/* Try to unmap the page/block containing `test_va` */
 		retval = xlat_unmap_memory_page(&tbl_info, test_va);
@@ -1640,8 +1637,8 @@ void xlat_map_memory_page_with_attrs_tc1(void)
 				int tte_lvl;
 				struct xlat_llt_info tbl_info;
 				uint64_t offset =
-					test_helpers_get_rand_in_range(0,
-						init_mmap[i].size - 1);
+					test_helpers_get_rand_in_range(0UL,
+							init_mmap[i].size - 1);
 				uint64_t test_va = init_mmap[j].base_va +
 						ctx.cfg->base_va + offset;
 
@@ -1677,7 +1674,7 @@ void xlat_map_memory_page_with_attrs_tc1(void)
 				 * Add an arbitrary offset to PA to be passed to
 				 * xlat_map_memory_page_with_attrs()
 				 */
-				pa += test_helpers_get_rand_in_range(1,
+				pa += test_helpers_get_rand_in_range(1UL,
 						XLAT_BLOCK_SIZE(end_lvl) - 1);
 				val_tte |= set_oa_to_tte(pa &
 						XLAT_ADDR_MASK(end_lvl));
@@ -1756,7 +1753,8 @@ void xlat_map_memory_page_with_attrs_tc2(void)
 		PARANGE_0011_WIDTH, PARANGE_0100_WIDTH, PARANGE_0101_WIDTH,
 		PARANGE_0110_WIDTH
 	};
-	unsigned int parange_index = test_helpers_get_rand_in_range(0,
+	unsigned int parange_index =
+			(unsigned int)test_helpers_get_rand_in_range(0UL,
 					ARRAY_SIZE(pa_range_bits_arr) - 1U);
 	uint64_t id_aa64mmfr0_el1 = read_id_aa64mmfr0_el1();
 
@@ -1845,7 +1843,8 @@ void xlat_map_memory_page_with_attrs_tc2(void)
 		 * the PA both to 0x0.
 		 */
 		test_va = init_mmap[0U].base_va + ctx.cfg->base_va;
-		test_va += test_helpers_get_rand_in_range(0, init_mmap[0U].size - 1);
+		test_va += test_helpers_get_rand_in_range(0UL,
+						init_mmap[0U].size - 1);
 
 		/* Try to map to the page/block containing `test_va` */
 		retval = xlat_map_memory_page_with_attrs(&tbl_info, test_va,
@@ -1863,8 +1862,7 @@ void xlat_map_memory_page_with_attrs_tc2(void)
 		 * address over the range mapped by table we retrieved.
 		 */
 		test_va = init_mmap[2U].base_va + ctx.cfg->base_va;
-		test_va += test_helpers_get_rand_in_range(0,
-					PAGE_SIZE - 1);
+		test_va += test_helpers_get_rand_in_range(0UL, PAGE_SIZE - 1UL);
 
 		/* Try to map to the page/block containing `test_va` */
 		retval = xlat_map_memory_page_with_attrs(&tbl_info, test_va,
@@ -1905,7 +1903,7 @@ void xlat_map_memory_page_with_attrs_tc2(void)
 		val_tte = tbl_ptr[tte_idx];
 
 		/* Get a random address to test */
-		test_va += test_helpers_get_rand_in_range(0, PAGE_SIZE - 1);
+		test_va += test_helpers_get_rand_in_range(0UL, PAGE_SIZE - 1UL);
 
 		/* Try to map the PA to the page/block containing `test_va` */
 		retval = xlat_map_memory_page_with_attrs(&tbl_info, test_va,
@@ -1963,7 +1961,7 @@ void xlat_map_memory_page_with_attrs_tc2(void)
 		 * TTE will contain a transient valid mapping.
 		 */
 		test_va = init_mmap[2U].base_va + ctx.cfg->base_va;
-		test_va += test_helpers_get_rand_in_range(0, PAGE_SIZE - 1);
+		test_va += test_helpers_get_rand_in_range(0UL, PAGE_SIZE - 1UL);
 
 		/* Try to map to the page/block containing `test_va` */
 		retval = xlat_map_memory_page_with_attrs(&tbl_info, test_va,
@@ -1986,7 +1984,7 @@ void xlat_map_memory_page_with_attrs_tc2(void)
 		val_tte = tbl_ptr[tte_idx];
 
 		test_va = init_mmap[2U].base_va + ctx.cfg->base_va;
-		test_va += test_helpers_get_rand_in_range(0, PAGE_SIZE - 1);
+		test_va += test_helpers_get_rand_in_range(0UL, PAGE_SIZE - 1UL);
 
 		/* Try to map to the page/block containing `test_va` */
 		retval = xlat_map_memory_page_with_attrs(&tbl_info, test_va,
@@ -2007,8 +2005,7 @@ void xlat_map_memory_page_with_attrs_tc2(void)
 		val_tte = 0ULL;
 
 		test_va = init_mmap[2U].base_va + ctx.cfg->base_va;
-		test_va += test_helpers_get_rand_in_range(0,
-					PAGE_SIZE - 1);
+		test_va += test_helpers_get_rand_in_range(0UL, PAGE_SIZE - 1UL);
 
 		/* Try to map to the page/block containing `test_va` */
 		retval = xlat_map_memory_page_with_attrs(&tbl_info, test_va,
@@ -2163,7 +2160,8 @@ void xlat_arch_setup_mmu_cfg_tc1(void)
 
 	max_pa_index = ARRAY_SIZE(pa_range_bits_arr);
 	max_pa_index = (lpa2 == true) ? max_pa_index : max_pa_index - 1U;
-	pa_index = test_helpers_get_rand_in_range(0, max_pa_index - 1U);
+	pa_index = (unsigned int)test_helpers_get_rand_in_range(0UL,
+							max_pa_index - 1U);
 
 	/* Clean the data structures */
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx) * 2U);

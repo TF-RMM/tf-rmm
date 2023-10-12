@@ -141,13 +141,13 @@ uint64_t xlat_test_helpers_rand_mmap_attrs(void)
 	uint64_t ret_attrs;
 	unsigned int index;
 
-	index = (unsigned int)test_helpers_get_rand_in_range(0,
+	index = (unsigned int)test_helpers_get_rand_in_range(0UL,
 				(sizeof(attrs) / sizeof(uint64_t)) - 1);
 
 	ret_attrs = attrs[index];
 
 	if (ret_attrs != MT_TRANSIENT) {
-		index = (unsigned int)test_helpers_get_rand_in_range(0,
+		index = (unsigned int)test_helpers_get_rand_in_range(0UL,
 				(sizeof(pas) / sizeof(uint64_t)) - 1);
 		ret_attrs |= pas[index];
 		ret_attrs = (rand() & 0x1) ? (ret_attrs | MT_NG) : ret_attrs;
@@ -178,13 +178,14 @@ void xlat_test_helpers_rand_mmap_array(struct xlat_mmap_region *mmap,
 	assert((min_va + (MAX_PAGES_PER_REGION * size * PAGE_SIZE)) <= max_va);
 
 	/* Randomize the base VA for the first memory region */
-	region_pages = test_helpers_get_rand_in_range(0, MAX_PAGES_PER_REGION);
+	region_pages = (unsigned int)test_helpers_get_rand_in_range(0UL,
+							MAX_PAGES_PER_REGION);
 	next_va_start += (region_pages * PAGE_SIZE);
 
 	/* Generate an ordered list of mmap regions */
 	for (unsigned int i = 0U; i < (unsigned int)size; i++) {
 		/* Pages of memory to use for the current region */
-		region_pages = test_helpers_get_rand_in_range(2,
+		region_pages = (unsigned int)test_helpers_get_rand_in_range(2UL,
 							MAX_PAGES_PER_REGION);
 		region_size = region_pages * PAGE_SIZE;
 
@@ -199,8 +200,8 @@ void xlat_test_helpers_rand_mmap_array(struct xlat_mmap_region *mmap,
 		 * end of the current region.
 		 */
 		next_va_start += region_size +
-			(test_helpers_get_rand_in_range(0, MAX_PAGES_SEPARATION) *
-				PAGE_SIZE);
+			(test_helpers_get_rand_in_range(0UL,
+					MAX_PAGES_SEPARATION) * PAGE_SIZE);
 
 		assert(next_va_start < max_va);
 	}

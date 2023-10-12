@@ -26,7 +26,7 @@ extern "C" {
 /* Function to get a random granule index in the range [1, NR_GRANULES - 2] */
 static inline unsigned int get_rand_granule_idx(void)
 {
-	return (unsigned int)test_helpers_get_rand_in_range(1,
+	return (unsigned int)test_helpers_get_rand_in_range(1UL,
 					test_helpers_get_nr_granules() - 2U);
 
 }
@@ -65,9 +65,9 @@ static bool get_out_of_range_granule(unsigned long *addr, bool higher_range)
 	}
 
 	if (higher_range == true) {
-		*addr = (unsigned long)(test_helpers_get_rand_in_range(
+		*addr = (test_helpers_get_rand_in_range(
 					test_helpers_get_nr_granules(),
-					test_helpers_get_nr_granules() + 10) *
+					(test_helpers_get_nr_granules() + 10)) *
 								GRANULE_SIZE);
 		*addr += host_util_get_granule_base();
 	} else {
@@ -83,7 +83,7 @@ static bool get_out_of_range_granule(unsigned long *addr, bool higher_range)
 		*addr = host_util_get_granule_base();
 		*addr -= (granules_below == 1U ?
 			    GRANULE_SIZE :
-			    GRANULE_SIZE * test_helpers_get_rand_in_range(1,
+			    GRANULE_SIZE * test_helpers_get_rand_in_range(1UL,
 							granules_below - 1U));
 	}
 
@@ -99,7 +99,8 @@ static bool get_out_of_range_granule(unsigned long *addr, bool higher_range)
 static inline unsigned int set_rand_non_zero_lock_value(struct granule *granule)
 {
 	unsigned int lock =
-		(unsigned int)test_helpers_get_rand_in_range(1, INT_MAX);
+		(unsigned int)test_helpers_get_rand_in_range(1UL, INT_MAX);
+
 	granule->lock.val = lock;
 	return lock;
 }
@@ -192,7 +193,8 @@ ASSERT_TEST(granule, addr_to_granule_TC3)
 	 * Verify that addr_to_granule() asserts with an unaligned address
 	 ******************************************************************/
 
-	addr += test_helpers_get_rand_in_range(1, GRANULE_SIZE - 2);
+	addr += test_helpers_get_rand_in_range(1UL, GRANULE_SIZE - 2U);
+
 	test_helpers_expect_assert_fail(true);
 	(void)addr_to_granule(addr);
 	test_helpers_fail_if_no_assert_failed();
@@ -293,7 +295,7 @@ ASSERT_TEST(granule, granule_addr_TC3)
 	 * NR_GRANULES
 	 ******************************************************************/
 
-	idx += test_helpers_get_rand_in_range(1, 10);
+	idx += (unsigned long)test_helpers_get_rand_in_range(1UL, 10UL);
 	granule = realm_test_util_granule_struct_base() + idx;
 	test_helpers_expect_assert_fail(true);
 	(void)granule_addr(granule);
@@ -330,7 +332,7 @@ ASSERT_TEST(granule, granule_addr_TC5)
 	 ******************************************************************/
 
 	granule = (uintptr_t)realm_test_util_granule_struct_base();
-	granule += test_helpers_get_rand_in_range(1,
+	granule += test_helpers_get_rand_in_range(1UL,
 					sizeof(struct granule) - 1U);
 	test_helpers_expect_assert_fail(true);
 	(void)granule_addr((struct granule *)granule);
@@ -343,7 +345,7 @@ TEST(granule, granule_refcount_read_relaxed_TC1)
 	struct granule *granule;
 	unsigned long addr = get_rand_granule_addr();
 	unsigned long val =
-		(unsigned long)test_helpers_get_rand_in_range(10, INT_MAX);
+		(unsigned long)test_helpers_get_rand_in_range(10UL, INT_MAX);
 	unsigned long read_val;
 
 	/******************************************************************
@@ -376,7 +378,7 @@ TEST(granule, granule_refcount_read_acquire_TC1)
 	struct granule *granule;
 	unsigned long addr = get_rand_granule_addr();
 	unsigned long val =
-		(unsigned long)test_helpers_get_rand_in_range(10, 10000);
+		(unsigned long)test_helpers_get_rand_in_range(10UL, 10000UL);
 	unsigned long read_val;
 
 	/******************************************************************
@@ -450,7 +452,8 @@ TEST(granule, find_granule_TC2)
 	 * Try to get a granule for an unaligned address.
 	 ***************************************************************/
 	address = get_rand_granule_addr();
-	address += test_helpers_get_rand_in_range(1, GRANULE_SIZE - 1);
+	address += test_helpers_get_rand_in_range(1UL, GRANULE_SIZE - 1U);
+
 	granule = find_granule(address);
 	POINTERS_EQUAL(NULL, granule);
 }
@@ -480,7 +483,7 @@ TEST(granule, find_granule_TC3)
 
 TEST(granule, find_lock_two_granules_TC1)
 {
-	int g1_index, g2_index;
+	unsigned long g1_index, g2_index;
 	struct granule *exp_g1, *exp_g2;
 	struct granule *g1, *g2;
 	unsigned long addr1, addr2;
@@ -495,7 +498,7 @@ TEST(granule, find_lock_two_granules_TC1)
 
 	/* Get random indexes for the granules */
 	do {
-		g1_index = test_helpers_get_rand_in_range(1,
+		g1_index = test_helpers_get_rand_in_range(1UL,
 					test_helpers_get_nr_granules() - 1);
 		g2_index = test_helpers_get_rand_in_range(1,
 					test_helpers_get_nr_granules() - 1);
@@ -580,7 +583,7 @@ TEST(granule, find_lock_two_granules_TC3)
 	g2 = NULL;
 
 	/* Get a misaligned address */
-	tmp_addr = addr2 + test_helpers_get_rand_in_range(1, GRANULE_SIZE - 1);
+	tmp_addr = addr2 + test_helpers_get_rand_in_range(1UL, GRANULE_SIZE - 1);
 
 	retval = find_lock_two_granules(tmp_addr, GRANULE_STATE_NS, &g1,
 					addr1, GRANULE_STATE_NS, &g2);
@@ -841,7 +844,7 @@ TEST(granule, find_lock_granule_TC3)
 	 * to all possible states.
 	 ***************************************************************/
 	addr = get_rand_granule_addr();
-	addr += test_helpers_get_rand_in_range(1, GRANULE_SIZE - 1);
+	addr += test_helpers_get_rand_in_range(1UL, GRANULE_SIZE - 1);
 	for (unsigned int state = GRANULE_STATE_NS;
 	     state <= GRANULE_STATE_LAST; state++) {
 		granule = find_lock_granule(addr,
@@ -943,10 +946,12 @@ ASSERT_TEST(granule, granule_lock_TC2)
 
 	granule = addr_to_granule(addr);
 	do {
-		state = test_helpers_get_rand_in_range((int)GRANULE_STATE_NS,
-					  (int)GRANULE_STATE_LAST);
-		expected = test_helpers_get_rand_in_range((int)GRANULE_STATE_NS,
-					     (int)GRANULE_STATE_LAST);
+		state = (unsigned int)test_helpers_get_rand_in_range(
+					(unsigned long)GRANULE_STATE_NS,
+					(unsigned long)GRANULE_STATE_LAST);
+		expected = (unsigned int)test_helpers_get_rand_in_range(
+					(unsigned long)GRANULE_STATE_NS,
+					(unsigned long)GRANULE_STATE_LAST);
 	} while (state == expected);
 
 	/* Ensure the granule is unlocked */
@@ -1289,7 +1294,7 @@ TEST(granule, granule_put_TC2)
 	 *
 	 * The refcount before the test starts is expected to be 0.
 	 ******************************************************************/
-	get_count = (unsigned int)test_helpers_get_rand_in_range(10, 1000);
+	get_count = (unsigned int)test_helpers_get_rand_in_range(10UL, 1000UL);
 	for (unsigned int i = 0; i < get_count; i++) {
 		__granule_get(granule);
 	}
@@ -1311,8 +1316,8 @@ TEST(granule, granule_refcount_inc_TC1)
 {
 	unsigned long address = get_rand_granule_addr();
 	struct granule *granule = find_granule(address);
-	unsigned long val =
-		(unsigned long)test_helpers_get_rand_in_range(1, INT_MAX);
+	unsigned long val = test_helpers_get_rand_in_range(1UL, INT_MAX);
+
 	unsigned int lock = set_rand_non_zero_lock_value(granule);
 
 	/******************************************************************
@@ -1339,8 +1344,8 @@ TEST(granule, granule_refcount_dec_TC1)
 {
 	unsigned long address = get_rand_granule_addr();
 	struct granule *granule = find_granule(address);
-	unsigned long val =
-		(unsigned long)test_helpers_get_rand_in_range(10, INT_MAX);
+	unsigned long val = test_helpers_get_rand_in_range(10UL, INT_MAX);
+
 	unsigned int lock = set_rand_non_zero_lock_value(granule);
 
 	/******************************************************************
@@ -1366,8 +1371,8 @@ TEST(granule, granule_refcount_dec_TC2)
 {
 	unsigned long address = get_rand_granule_addr();
 	struct granule *granule = find_granule(address);
-	unsigned long val =
-		(unsigned long)test_helpers_get_rand_in_range(10, INT_MAX);
+	unsigned long val = test_helpers_get_rand_in_range(10UL, INT_MAX);
+
 	unsigned int lock = set_rand_non_zero_lock_value(granule);
 
 	/******************************************************************
@@ -1399,8 +1404,8 @@ ASSERT_TEST(granule, granule_refcount_dec_TC3)
 {
 	unsigned long address = get_rand_granule_addr();
 	struct granule *granule = find_granule(address);
-	unsigned long val =
-		(unsigned long)test_helpers_get_rand_in_range(10, INT_MAX - 1);
+	unsigned long val = test_helpers_get_rand_in_range(10UL, INT_MAX - 1U);
+
 	set_rand_non_zero_lock_value(granule);
 
 	/******************************************************************
@@ -1480,7 +1485,7 @@ TEST(granule, atomic_granule_put_TC2)
 	 *
 	 * The refcount before the test starts is expected to be 0.
 	 ******************************************************************/
-	get_count = (unsigned int)test_helpers_get_rand_in_range(10, 1000);
+	get_count = (unsigned int)test_helpers_get_rand_in_range(10UL, 1000UL);
 	for (unsigned int i = 0; i < get_count; i++) {
 		atomic_granule_get(granule);
 	}
@@ -1536,7 +1541,7 @@ TEST(granule, atomic_granule_put_release_TC2)
 	 *
 	 * The refcount before the test starts is expected to be 0.
 	 ******************************************************************/
-	get_count = (unsigned int)test_helpers_get_rand_in_range(10, 1000);
+	get_count = (unsigned int)test_helpers_get_rand_in_range(10UL, 1000UL);
 	for (unsigned int i = 0; i < get_count; i++) {
 		atomic_granule_get(granule);
 	}
@@ -1705,7 +1710,7 @@ TEST(granule, find_lock_unused_granule_TC4)
 	 * Try to find and lock a granule for a misaligned address.
 	 ***************************************************************/
 	addr = get_rand_granule_addr();
-	addr += test_helpers_get_rand_in_range(1, GRANULE_SIZE - 1);
+	addr += test_helpers_get_rand_in_range(1UL, GRANULE_SIZE - 1);
 	ret = find_lock_unused_granule(addr, GRANULE_STATE_NS, &granule);
 
 	CHECK_TRUE(ret == -EINVAL);
@@ -1787,8 +1792,8 @@ TEST(granule, granule_memzero_TC1)
 
 				/* Initialize the granule with random data */
 				memset((void *)addrs[i],
-					test_helpers_get_rand_in_range(1, INT_MAX),
-								GRANULE_SIZE);
+					(int)test_helpers_get_rand_in_range(1UL, INT_MAX),
+					GRANULE_SIZE);
 				granule_memzero(granule, (enum buffer_slot)k);
 
 				for (unsigned int l = 0;

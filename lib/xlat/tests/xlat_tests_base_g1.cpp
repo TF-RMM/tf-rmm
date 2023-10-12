@@ -34,7 +34,7 @@ static void buffer_shuffle(unsigned char *buf, size_t size, unsigned int stride)
 /* Maximum stride allowed */
 #define MAX_STRIDE	(128U)
 
-	unsigned int items = (unsigned int)(size / stride);
+	unsigned long items = size / stride;
 	unsigned int index_i, index_j;
 	unsigned char tmp_buf[MAX_STRIDE];
 
@@ -45,10 +45,10 @@ static void buffer_shuffle(unsigned char *buf, size_t size, unsigned int stride)
 
 			/* Shuffle random indexes */
 			do {
-				index_i = test_helpers_get_rand_in_range(0,
-								items - 1);
-				index_j = test_helpers_get_rand_in_range(0,
-								items - 1);
+				index_i =
+				(unsigned int)test_helpers_get_rand_in_range(0UL, items - 1);
+				index_j =
+				(unsigned int)test_helpers_get_rand_in_range(0UL, items - 1);
 			} while (index_i == index_j);
 
 			memcpy((void *)&tmp_buf[0],
@@ -487,8 +487,8 @@ void xlat_ctx_cfg_init_tc6(void)
 		va_size = max_va_size - PAGE_SIZE;
 
 		/* Add a random offset to it to misalign */
-		test_va_size = va_size + test_helpers_get_rand_in_range(1,
-					PAGE_SIZE - 1);
+		test_va_size = va_size + test_helpers_get_rand_in_range(1UL,
+								PAGE_SIZE - 1);
 
 		/* Clean the data structures */
 		memset((void *)&test_cfg, 0, sizeof(struct xlat_ctx_cfg));
@@ -605,7 +605,7 @@ void xlat_ctx_cfg_init_tc8(void)
 
 	index = ARRAY_SIZE(pa_range_bits_arr);
 	index = (lpa2 == true) ? index : index - 1U;
-	index = test_helpers_get_rand_in_range(0, index - 1U);
+	index = (unsigned int)test_helpers_get_rand_in_range(0UL, index - 1U);
 
 	for (unsigned int i = 0U; i < (unsigned int)VA_REGIONS; i++) {
 		region = (xlat_addr_region_id_t)i;
@@ -686,8 +686,8 @@ void xlat_ctx_cfg_init_tc8(void)
 		 * Overwrite the mmap structures to make the PAs overlap for
 		 * the next test
 		 */
-		mmap_index = (unsigned int)test_helpers_get_rand_in_range(1,
-					XLAT_TESTS_MAX_MMAPS - 1);
+		mmap_index = (unsigned int)test_helpers_get_rand_in_range(1UL,
+						XLAT_TESTS_MAX_MMAPS - 1);
 		/*
 		 * The base_pa of mmap entry at 'mmap_index' is adjusted to an
 		 * offset of 'PAGE_SIZE' of previous entry
@@ -717,11 +717,11 @@ void xlat_ctx_cfg_init_tc8(void)
 		 * Overwrite the PA on one of the memory map regions to
 		 * make it misaligned.
 		 */
-		mmap_index = (unsigned int)test_helpers_get_rand_in_range(0,
-					XLAT_TESTS_MAX_MMAPS - 1);
+		mmap_index = (unsigned int)test_helpers_get_rand_in_range(0UL,
+				(unsigned long)(XLAT_TESTS_MAX_MMAPS - 1));
 		init_mmap[mmap_index].base_pa +=
-				test_helpers_get_rand_in_range(1,
-					PAGE_SIZE - 1);
+				test_helpers_get_rand_in_range(1UL,
+								PAGE_SIZE - 1);
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
@@ -775,11 +775,11 @@ void xlat_ctx_cfg_init_tc9(void)
 		 * Overwrite the VA on one of the memory map regions to
 		 * make it misaligned.
 		 */
-		mmap_index = (unsigned int)test_helpers_get_rand_in_range(0,
-					XLAT_TESTS_MAX_MMAPS - 1);
+		mmap_index = (unsigned int)test_helpers_get_rand_in_range(0UL,
+				(unsigned long)(XLAT_TESTS_MAX_MMAPS - 1));
 		init_mmap[mmap_index].base_va +=
-				test_helpers_get_rand_in_range(1,
-					PAGE_SIZE - 1);
+				test_helpers_get_rand_in_range(1UL,
+								PAGE_SIZE - 1);
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
@@ -797,8 +797,8 @@ void xlat_ctx_cfg_init_tc9(void)
 		memset((void *)&test_cfg, 0, sizeof(struct xlat_ctx_cfg));
 
 		/* Overwrite the mmap structures to make the VAs overlap */
-		mmap_index = (unsigned int)test_helpers_get_rand_in_range(1,
-					XLAT_TESTS_MAX_MMAPS - 1);
+		mmap_index = (unsigned int)test_helpers_get_rand_in_range(1UL,
+						XLAT_TESTS_MAX_MMAPS - 1);
 		/*
 		 * The base_va of mmap entry at 'mmap_index' is adjusted to an
 		 * offset of 'PAGE_SIZE' of previous entry.
@@ -851,10 +851,10 @@ void xlat_ctx_cfg_init_tc10(void)
 		 * Overwrite the size on one of the memory map regions to
 		 * make it misaligned.
 		 */
-		mmap_index = (unsigned int)test_helpers_get_rand_in_range(0,
-					XLAT_TESTS_MAX_MMAPS - 1);
-		init_mmap[mmap_index].size -= test_helpers_get_rand_in_range(1,
-					PAGE_SIZE - 1);
+		mmap_index = (unsigned int)test_helpers_get_rand_in_range(0UL,
+				(unsigned long)(XLAT_TESTS_MAX_MMAPS - 1));
+		init_mmap[mmap_index].size -= test_helpers_get_rand_in_range(1UL,
+								PAGE_SIZE - 1);
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
@@ -898,8 +898,8 @@ void xlat_ctx_cfg_init_tc11(void)
 		 * Overwrite a memory mapping region to make it a duplicate
 		 * of the previous one.
 		 */
-		mmap_index = (unsigned int)test_helpers_get_rand_in_range(1,
-					XLAT_TESTS_MAX_MMAPS - 1);
+		mmap_index = (unsigned int)test_helpers_get_rand_in_range(1UL,
+						XLAT_TESTS_MAX_MMAPS - 1);
 		memcpy((void *)&init_mmap[mmap_index],
 		       (void *)&init_mmap[mmap_index - 1U],
 		       sizeof(struct xlat_mmap_region));
@@ -1196,7 +1196,7 @@ void xlat_ctx_init_tc3(void)
 		 * Generate a random offset to test a set of
 		 * misaligned tables
 		 */
-		offset = test_helpers_get_rand_in_range(1,
+		offset = (unsigned int)test_helpers_get_rand_in_range(1UL,
 						XLAT_TABLE_ENTRIES - 1);
 
 		/* Test xlat_ctx_init() with a set of misaligned tables */
