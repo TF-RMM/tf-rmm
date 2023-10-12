@@ -37,6 +37,7 @@ static void rmm_arch_init(void)
 			EXTRACT(PMCR_EL0_N, read_pmcr_el0())));
 }
 
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 void rmm_warmboot_main(void)
 {
 	/*
@@ -50,6 +51,7 @@ void rmm_warmboot_main(void)
 	slot_buf_finish_warmboot_init();
 }
 
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 void rmm_main(void)
 {
 	unsigned int rmm_el3_ifc_version = rmm_el3_ifc_get_version();
@@ -81,7 +83,7 @@ void rmm_main(void)
 		RMM_EL3_MANIFEST_GET_VERS_MINOR(manifest_version));
 
 	/* Report RMI/RSI ABI versions and build timestamp */
-	NOTICE("RMI/RSI ABI v.%u.%u/%u.%u built: %s %s\n",
+	NOTICE("RMI/RSI ABI v.%lu.%lu/%lu.%lu built: %s %s\n",
 		RMI_ABI_VERSION_MAJOR, RMI_ABI_VERSION_MINOR,
 		RSI_ABI_VERSION_MAJOR, RSI_ABI_VERSION_MINOR,
 		__DATE__, __TIME__);

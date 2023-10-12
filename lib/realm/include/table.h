@@ -28,7 +28,7 @@ COMPILER_ASSERT(MIN_STARTING_LEVEL >= 0);
  * walk (except for the starting level which may resolve more or fewer bits).
  */
 #define S2TTE_STRIDE		(GRANULE_SHIFT - 3U)
-#define S2TTES_PER_S2TT		(1U << S2TTE_STRIDE)
+#define S2TTES_PER_S2TT		(1UL << S2TTE_STRIDE)
 
 unsigned long s2tte_create_unassigned_empty(void);
 unsigned long s2tte_create_unassigned_ram(void);

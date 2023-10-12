@@ -24,6 +24,7 @@
  * warm boot and is expected to setup architecture and platform
  * components local to a PE executing RMM.
  */
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 void plat_warmboot_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 {
 	/* Avoid MISRA C:2012-2.7 warnings */
@@ -45,6 +46,7 @@ void plat_warmboot_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
  * common for all PEs executing RMM. The translation tables should
  * be initialized by this function.
  */
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 {
 	int ret;

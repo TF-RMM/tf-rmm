@@ -9,8 +9,8 @@
 #include <sizes.h>
 #include <vmid.h>
 
-#define VMID8_COUNT		(1U << 8)
-#define VMID16_COUNT		(1U << 16)
+#define VMID8_COUNT		(1UL << 8)
+#define VMID16_COUNT		(1UL << 16)
 #define MAX_VMID_COUNT		VMID16_COUNT
 #define VMID_ARRAY_LONG_SIZE	(MAX_VMID_COUNT / BITS_PER_UL)
 
