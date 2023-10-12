@@ -109,6 +109,9 @@ static int realm_continue_1(unsigned long *regs)
 		return 0;
 	}
 
+	INFO("Upper bound of attestation token size: 0x%lx\n", regs[1]);
+	assert(regs[1] >= ATTEST_TOKEN_BUFFER_SIZE);
+
 	/* Pend an IRQ and invoke the RSI which should cause an exit to NS */
 	host_write_sysreg("isr_el1", 0x80);
 
