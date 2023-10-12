@@ -409,7 +409,7 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	case SMC64_PSCI_FID_MIN ... SMC64_PSCI_FID_MAX:
 		handle_psci(rec, rec_exit, &res);
 		break;
-	case SMC_RSI_ABI_VERSION:
+	case SMC_RSI_VERSION:
 		handle_rsi_version(rec, &res);
 		break;
 	case SMC_RSI_FEATURES:

@@ -5,7 +5,6 @@
 
 #include <cpuid.h>
 #include <measurement.h>
-#include <sizes.h>
 #include <string.h>
 
 /*

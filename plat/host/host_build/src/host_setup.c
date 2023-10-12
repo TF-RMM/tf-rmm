@@ -25,13 +25,15 @@
 	RMM_EL3_IFC_MAKE_VERSION(RMM_EL3_IFC_VERS_MAJOR, RMM_EL3_IFC_VERS_MINOR)
 #define RMM_EL3_MAX_CPUS		(1U)
 #define REALM_BUFFER_IPA		0x1000
+#define ATTEST_TOKEN_BUFFER_SIZE	0x100
 
 #define CHECK_RMI_RESULT() \
 ({  \
-	if (result.x[0] != 0) { \
-		ERROR("RMI call failed at %s:%d. status=%lu.\n", __FILE__, __LINE__, result.x[0]); \
-		return -1; \
-	} \
+	if (result.x[0] != RMI_SUCCESS) {				\
+		ERROR("RMI call failed at %s:%d. status=%lu.\n",	\
+			__FILE__, __LINE__, result.x[0]);		\
+		return -1;						\
+	}								\
 })
 
 /*
@@ -70,20 +72,25 @@ static int realm_start(unsigned long *regs)
 	INFO("# Hello World from a Realm!\n");
 	INFO("###########################\n");
 
-	regs[0] = SMC_RSI_ABI_VERSION;
+	regs[0] = SMC_RSI_VERSION;
 	regs[1] = RSI_ABI_VERSION;
 	return host_util_rsi_helper(realm_continue);
 }
 
 static int realm_continue(unsigned long *regs)
 {
-	INFO("RSI Version is 0x%lx\n", regs[1]);
+	INFO("RSI Version is 0x%lx : 0x%lx\n", regs[1], regs[2]);
+
+	if (regs[0] != RSI_SUCCESS) {
+		ERROR("RSI_VERSION command failed 0x%lx\n", regs[0]);
+		return 0;
+	}
 
 	srand((int)time(NULL));
 
 	/* Add dummy Realm Attestation RSI calls */
 	regs[0] = SMC_RSI_ATTEST_TOKEN_INIT;
-	regs[1] = REALM_BUFFER_IPA;
+	regs[1] = rand();
 	regs[2] = rand();
 	regs[3] = rand();
 	regs[4] = rand();
@@ -91,7 +98,6 @@ static int realm_continue(unsigned long *regs)
 	regs[6] = rand();
 	regs[7] = rand();
 	regs[8] = rand();
-	regs[9] = rand();
 
 	return host_util_rsi_helper(realm_continue_1);
 }
@@ -109,17 +115,25 @@ static int realm_continue_1(unsigned long *regs)
 	/* Continue Realm Attestation RSI calls */
 	regs[0] = SMC_RSI_ATTEST_TOKEN_CONTINUE;
 	regs[1] = REALM_BUFFER_IPA;
+	regs[2] = 0;
+	regs[3] = ATTEST_TOKEN_BUFFER_SIZE;
 	return host_util_rsi_helper(realm_continue_2);
-
 }
 
 static int realm_continue_2(unsigned long *regs)
 {
+	static unsigned long offset;
+
 	if (regs[0] == RSI_INCOMPLETE) {
 		INFO("Realm Token Attestation creation is pre-empted by interrupt.\n");
+
+		offset += regs[1];
+
 		/* Continue Realm Attestation RSI calls */
 		regs[0] = SMC_RSI_ATTEST_TOKEN_CONTINUE;
 		regs[1] = REALM_BUFFER_IPA;
+		regs[2] = offset;
+		regs[3] = ATTEST_TOKEN_BUFFER_SIZE;
 		return host_util_rsi_helper(realm_continue_2);
 	}
 
@@ -147,6 +161,8 @@ static int create_realm(void)
 
 	host_rmi_version(RMI_ABI_VERSION, &result);
 	CHECK_RMI_RESULT();
+	INFO("RMI Version is 0x%lx : 0x%lx\n", result.x[1], result.x[2]);
+
 	host_rmi_granule_delegate(rd, &result);
 	CHECK_RMI_RESULT();
 	host_rmi_granule_delegate(rec, &result);

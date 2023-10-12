@@ -21,4 +21,5 @@ void handle_rsi_version(struct rec *rec, struct rsi_result *res)
 	}
 
 	res->smc_res.x[1] = RSI_ABI_VERSION;
+	res->smc_res.x[2] = RSI_ABI_VERSION;
 }

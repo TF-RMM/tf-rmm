@@ -53,6 +53,15 @@ arm_config_option(
     ELSE OFF)
 
 #
+# The number of 4K pages allocated for attestation buffer.
+#
+arm_config_option(
+    NAME RMM_CCA_TOKEN_BUFFER
+    HELP "Number of pages to allocate in Aux granules for Realm CCA token"
+    TYPE STRING
+    DEFAULT 1)
+
+#
 # Introduce a pseudo-library purely for applying flags to RMM's libraries.
 # This is applied to any targets created after this point.
 #
@@ -90,6 +99,9 @@ if(RMM_FPU_USE_AT_REL2)
     target_compile_definitions(rmm-common
         INTERFACE "RMM_FPU_USE_AT_REL2=1")
 endif()
+
+target_compile_definitions(rmm-common
+    INTERFACE "RMM_CCA_TOKEN_BUFFER=U(${RMM_CCA_TOKEN_BUFFER})")
 
 #
 # Project name and version

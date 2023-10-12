@@ -78,6 +78,7 @@ enum rmi_type {
 	set_rmi_type(4, 0),	/* 4 arguments, 0 output values */
 	set_rmi_type(5, 0),	/* 5 arguments, 0 output values */
 	set_rmi_type(1, 1),	/* 1 argument,  1 output value */
+	set_rmi_type(1, 2),	/* 1 argument,  2 output values */
 	set_rmi_type(2, 2),	/* 2 arguments, 2 output values */
 	set_rmi_type(3, 1),	/* 3 arguments, 1 output value */
 	set_rmi_type(3, 2),	/* 3 arguments, 2 output values */
@@ -96,6 +97,7 @@ struct smc_handler {
 		handler_4	f_40;
 		handler_5	f_50;
 		handler_1_o	f_11;
+		handler_1_o	f_12;
 		handler_2_o	f_22;
 		handler_3_o	f_31;
 		handler_3_o	f_32;
@@ -126,7 +128,7 @@ struct smc_handler {
  * The 4th value enables the error log.
  */
 static const struct smc_handler smc_handlers[] = {
-	HANDLER(VERSION,		1, 1, smc_version,		 true,  true),
+	HANDLER(VERSION,		1, 2, smc_version,		 true,  true),
 	HANDLER(FEATURES,		1, 1, smc_read_feature_register, true,  true),
 	HANDLER(GRANULE_DELEGATE,	1, 0, smc_granule_delegate,	 false, true),
 	HANDLER(GRANULE_UNDELEGATE,	1, 0, smc_granule_undelegate,	 false, true),
@@ -305,6 +307,9 @@ void handle_ns_smc(unsigned int function_id,
 		break;
 	case rmi_type_11:
 		handler->f_11(arg0, res);
+		break;
+	case rmi_type_12:
+		handler->f_12(arg0, res);
 		break;
 	case rmi_type_22:
 		handler->f_22(arg0, arg1, res);

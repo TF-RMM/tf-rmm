@@ -31,30 +31,6 @@ static void get_rpv(struct rd *rd, void **claim_ptr, size_t *claim_len)
 }
 
 /*
- * Save the input parameters in the context for later iterations to check for
- * consistency.
- */
-static void save_input_parameters(struct rec *rec)
-{
-	struct rec_attest_data *attest_data = rec->aux_data.attest_data;
-
-	attest_data->token_sign_ctx.token_ipa = rec->regs[1];
-	(void)memcpy(attest_data->token_sign_ctx.challenge, &rec->regs[2],
-		     ATTEST_CHALLENGE_SIZE);
-}
-
-/*
- * Verify that in all the iterations the input parameters are the same
- * as in the initial call.
- */
-static bool verify_input_parameters_consistency(struct rec *rec)
-{
-	struct rec_attest_data *attest_data = rec->aux_data.attest_data;
-
-	return attest_data->token_sign_ctx.token_ipa == rec->regs[1];
-}
-
-/*
  * Function to continue with the sign operation
  */
 static void attest_token_continue_sign_state(
@@ -67,7 +43,6 @@ static void attest_token_continue_sign_state(
 	enum attest_token_err_t ret =
 		attest_realm_token_sign(&(attest_data->token_sign_ctx.ctx),
 					&(attest_data->rmm_realm_token_len));
-
 	if ((ret == ATTEST_TOKEN_ERR_COSE_SIGN_IN_PROGRESS) ||
 		(ret == ATTEST_TOKEN_ERR_SUCCESS)) {
 		/*
@@ -96,12 +71,15 @@ static void attest_token_continue_write_state(struct rec *rec,
 					      struct rsi_result *res)
 {
 	struct granule *gr;
-	uint8_t *realm_att_token;
+	uintptr_t realm_att_token;
 	unsigned long realm_att_token_ipa = rec->regs[1];
+	unsigned long offset = rec->regs[2];
+	unsigned long size = rec->regs[3];
 	enum s2_walk_status walk_status;
 	struct s2_walk_result walk_res = { 0UL };
-	size_t attest_token_len;
+	size_t attest_token_len, length;
 	struct rec_attest_data *attest_data = rec->aux_data.attest_data;
+	uintptr_t cca_token_buf = rec->aux_data.cca_token_buf;
 
 	/*
 	 * Translate realm granule IPA to PA. If returns with
@@ -127,38 +105,72 @@ static void attest_token_continue_write_state(struct rec *rec,
 		return;
 	}
 
+	if (size == 0UL) {
+		res->smc_res.x[0] = RSI_SUCCESS;
+		return;
+	}
+
 	/* Map realm data granule to RMM address space */
 	gr = find_granule(walk_res.pa);
-	realm_att_token = granule_map(gr, SLOT_RSI_CALL);
-	assert(realm_att_token != NULL);
+	realm_att_token = (uintptr_t)granule_map(gr, SLOT_RSI_CALL);
+	assert(realm_att_token != 0UL);
 
-	attest_token_len = attest_cca_token_create(realm_att_token,
-						ATTEST_TOKEN_BUFFER_SIZE,
-						&attest_data->rmm_realm_token_buf,
-						attest_data->rmm_realm_token_len);
+	if (attest_data->token_sign_ctx.copied_len == 0UL) {
+		attest_token_len = attest_cca_token_create(
+					(void *)cca_token_buf,
+					REC_ATTEST_TOKEN_BUF_SIZE,
+					&attest_data->rmm_realm_token_buf,
+					attest_data->rmm_realm_token_len);
 
+		if (attest_token_len == 0UL) {
+			res->smc_res.x[0] = RSI_ERROR_INPUT;
+
+			/* The signing has failed. Reset the state. */
+			attest_data->token_sign_ctx.state =
+						ATTEST_SIGN_NOT_STARTED;
+			goto out_unmap;
+		}
+
+		attest_data->token_sign_ctx.cca_token_len = attest_token_len;
+	} else {
+		attest_token_len = attest_data->token_sign_ctx.cca_token_len;
+	}
+
+	length = (size < attest_token_len) ? size : attest_token_len;
+
+	/* Copy attestation token */
+	(void)memcpy((void *)(realm_att_token + offset),
+		     (void *)(cca_token_buf +
+				attest_data->token_sign_ctx.copied_len),
+		     length);
+
+	attest_token_len -= length;
+
+	if (attest_token_len != 0UL) {
+		attest_data->token_sign_ctx.cca_token_len = attest_token_len;
+		attest_data->token_sign_ctx.copied_len += length;
+
+		res->smc_res.x[0] = RSI_INCOMPLETE;
+	} else {
+
+		/* The signing has succeeded. Reset the state. */
+		attest_data->token_sign_ctx.state = ATTEST_SIGN_NOT_STARTED;
+		res->smc_res.x[0] = RSI_SUCCESS;
+	}
+
+	res->smc_res.x[1] = length;
+
+out_unmap:
 	/* Unmap realm granule */
-	buffer_unmap(realm_att_token);
+	buffer_unmap((void *)realm_att_token);
 
 	/* Unlock last level page table (walk_res.g_llt) */
 	granule_unlock(walk_res.llt);
-
-	/* Write output parameters */
-	if (attest_token_len == 0UL) {
-		res->smc_res.x[0] = RSI_ERROR_INPUT;
-	} else {
-		res->smc_res.x[0] = RSI_SUCCESS;
-		res->smc_res.x[1] = attest_token_len;
-	}
-
-	/* The signing has either succeeded or failed. Reset the state. */
-	attest_data->token_sign_ctx.state = ATTEST_SIGN_NOT_STARTED;
 }
 
 void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 {
-	struct rd *rd = NULL;
-	unsigned long realm_buf_ipa;
+	struct rd *rd;
 	struct rec_attest_data *attest_data;
 	void *rpv_ptr;
 	size_t rpv_len;
@@ -166,9 +178,7 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 
 	assert(rec != NULL);
 
-	realm_buf_ipa = rec->regs[1];
 	attest_data = rec->aux_data.attest_data;
-
 	res->action = UPDATE_REC_RETURN_TO_REALM;
 
 	/*
@@ -188,11 +198,6 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 		}
 	}
 
-	if (!GRANULE_ALIGNED(realm_buf_ipa)) {
-		res->smc_res.x[0] = RSI_ERROR_INPUT;
-		return;
-	}
-
 	/*
 	 * rd lock is acquired so that measurement cannot be updated
 	 * simultaneously by another rec
@@ -201,16 +206,10 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
 	assert(rd != NULL);
 
-	if (!addr_in_par(rd, realm_buf_ipa)) {
-		res->smc_res.x[0] = RSI_ERROR_INPUT;
-		goto out_unmap_rd;
-	}
-
-	/*
-	 * Save the input parameters in the context for later iterations
-	 * to check.
-	 */
-	save_input_parameters(rec);
+	/* Save challenge value in the context */
+	(void)memcpy((void *)attest_data->token_sign_ctx.challenge,
+		     (const void *)&rec->regs[1],
+		     ATTEST_CHALLENGE_SIZE);
 
 	get_rpv(rd, &rpv_ptr, &rpv_len);
 	att_ret = attest_realm_token_create(rd->algorithm, rd->measurement,
@@ -220,17 +219,18 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 					    &attest_data->token_sign_ctx,
 					    attest_data->rmm_realm_token_buf,
 					    sizeof(attest_data->rmm_realm_token_buf));
+	buffer_unmap(rd);
+	granule_unlock(rec->realm_info.g_rd);
+
 	if (att_ret != 0) {
 		ERROR("FATAL_ERROR: Realm token creation failed\n");
 		panic();
 	}
 
+	attest_data->token_sign_ctx.copied_len = 0UL;
 	attest_data->token_sign_ctx.state = ATTEST_SIGN_IN_PROGRESS;
-	res->smc_res.x[0] = RSI_SUCCESS;
 
-out_unmap_rd:
-	buffer_unmap(rd);
-	granule_unlock(rec->realm_info.g_rd);
+	res->smc_res.x[0] = RSI_SUCCESS;
 }
 
 /*
@@ -247,6 +247,7 @@ void handle_rsi_attest_token_continue(struct rec *rec,
 				      struct rsi_result *res)
 {
 	struct rec_attest_data *attest_data;
+	unsigned long realm_buf_ipa, offset, size;
 
 	assert(rec != NULL);
 	assert(rec_exit != NULL);
@@ -254,47 +255,47 @@ void handle_rsi_attest_token_continue(struct rec *rec,
 	attest_data = rec->aux_data.attest_data;
 	res->action = UPDATE_REC_RETURN_TO_REALM;
 
-	if (!verify_input_parameters_consistency(rec)) {
+	realm_buf_ipa = rec->regs[1];
+	offset = rec->regs[2];
+	size = rec->regs[3];
+
+	if (!GRANULE_ALIGNED(realm_buf_ipa) ||
+	    (offset >= GRANULE_SIZE) ||
+	   ((offset + size) > GRANULE_SIZE) ||
+	   ((offset + size) < offset)) {
 		res->smc_res.x[0] = RSI_ERROR_INPUT;
 		return;
 	}
 
-	while (true) {
-		switch (attest_data->token_sign_ctx.state) {
-		case ATTEST_SIGN_NOT_STARTED:
-			/*
-			 * Before this call the initial attestation token call
-			 * (SMC_RSI_ATTEST_TOKEN_INIT) must have been executed
-			 * successfully.
-			 */
-			res->smc_res.x[0] = RSI_ERROR_STATE;
-			break;
-		case ATTEST_SIGN_IN_PROGRESS:
-			attest_token_continue_sign_state(attest_data, res);
-			break;
-		case ATTEST_SIGN_TOKEN_WRITE_IN_PROGRESS:
-			attest_token_continue_write_state(rec, res);
-			break;
-		default:
-			/* Any other state is considered an error */
-			panic();
-		}
+	if (!addr_in_rec_par(rec, realm_buf_ipa)) {
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		return;
+	}
 
-		if (res->smc_res.x[0] == RSI_INCOMPLETE) {
-			if (check_pending_irq()) {
-				res->action = UPDATE_REC_EXIT_TO_HOST;
-				res->smc_res.x[0] = RSI_INCOMPLETE;
-				rec_exit->exit_reason = RMI_EXIT_IRQ;
-				break;
-			}
-			if (((unsigned int)res->action &
-						FLAG_EXIT_TO_HOST) != 0U) {
-				break;
-			}
-		} else {
-			break;
+	if (attest_data->token_sign_ctx.state == ATTEST_SIGN_NOT_STARTED) {
+		/*
+		 * Before this call the initial attestation token call
+		 * (SMC_RSI_ATTEST_TOKEN_INIT) must have been executed
+		 * successfully.
+		 */
+		res->smc_res.x[0] = RSI_ERROR_STATE;
+		return;
+	}
+
+	while (attest_data->token_sign_ctx.state == ATTEST_SIGN_IN_PROGRESS) {
+		attest_token_continue_sign_state(attest_data, res);
+		if (check_pending_irq()) {
+			res->action = UPDATE_REC_EXIT_TO_HOST;
+			rec_exit->exit_reason = RMI_EXIT_IRQ;
+			return;
 		}
 	}
+
+	/* Any other state is considered an error */
+	assert(attest_data->token_sign_ctx.state ==
+					ATTEST_SIGN_TOKEN_WRITE_IN_PROGRESS);
+
+	attest_token_continue_write_state(rec, res);
 }
 
 void handle_rsi_measurement_extend(struct rec *rec, struct rsi_result *res)
@@ -391,11 +392,11 @@ void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 	cnt = (unsigned int)(measurement_get_size(rd->algorithm) /
 						sizeof(unsigned long));
 
-	assert(cnt >= SMC_RESULT_REGS - 1U);
+	assert(cnt >= (SMC_RESULT_REGS - 1U));
 	assert(cnt < ARRAY_LEN(rec->regs));
 
 	/* Copy the part of the measurement to res->smc_res.x[] */
-	for (i = 0U; i < SMC_RESULT_REGS - 1U; i++) {
+	for (i = 0U; i < (SMC_RESULT_REGS - 1U); i++) {
 		measurement_value_part = (unsigned long *)
 			&(rd->measurement[idx][i * sizeof(unsigned long)]);
 		res->smc_res.x[i + 1U] = *measurement_value_part;
