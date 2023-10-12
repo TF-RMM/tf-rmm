@@ -231,6 +231,7 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	attest_data->token_sign_ctx.state = ATTEST_SIGN_IN_PROGRESS;
 
 	res->smc_res.x[0] = RSI_SUCCESS;
+	res->smc_res.x[1] = REC_ATTEST_TOKEN_BUF_SIZE;
 }
 
 /*
