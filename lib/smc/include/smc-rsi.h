@@ -87,7 +87,7 @@
 #define SMC_RSI_VERSION			SMC64_RSI_FID(U(0x0))
 
 /*
- * Returns RSI version.
+ * Returns RSI Feature register requested by index.
  * arg1: Feature register index
  * ret0: Status / error
  * ret1: Feature register value
@@ -111,8 +111,8 @@
 
 /*
  * Extends a REM.
- * arg0:  Measurement index (1..4), measurement (REM) to extend
- * arg1:  Measurement size in bytes
+ * arg1:  Measurement index (1..4), measurement (REM) to extend
+ * arg2:  Measurement size in bytes
  * arg3:  Challenge value, bytes:  0 -  7
  * arg4:  Challenge value, bytes:  7 - 15
  * arg5:  Challenge value, bytes: 16 - 23
@@ -127,17 +127,16 @@
 
 /*
  * Initialize the operation to retrieve an attestation token.
- * arg1: The IPA of token buffer
- * arg2: Challenge value, bytes:  0 -  7
- * arg3: Challenge value, bytes:  7 - 15
- * arg4: Challenge value, bytes: 16 - 23
- * arg5: Challenge value, bytes: 24 - 31
- * arg6: Challenge value, bytes: 32 - 39
- * arg7: Challenge value, bytes: 40 - 47
- * arg8: Challenge value, bytes: 48 - 55
- * arg9: Challenge value, bytes: 56 - 63
+ * arg1: Challenge value, bytes:  0 -  7
+ * arg2: Challenge value, bytes:  7 - 15
+ * arg3: Challenge value, bytes: 16 - 23
+ * arg4: Challenge value, bytes: 24 - 31
+ * arg5: Challenge value, bytes: 32 - 39
+ * arg6: Challenge value, bytes: 40 - 47
+ * arg7: Challenge value, bytes: 48 - 55
+ * arg8: Challenge value, bytes: 56 - 63
  * ret0: Status / error
- * ret1: Size of completed token in bytes
+ * ret1: Upper bound on attestation token size in bytes
  */
 #define SMC_RSI_ATTEST_TOKEN_INIT	SMC64_RSI_FID(U(0x4))
 
@@ -167,22 +166,24 @@ struct rsi_realm_config {
 #endif /* __ASSEMBLER__ */
 
 /*
- * arg0 == struct rsi_realm_config address
+ * arg1 == IPA of the Granule to which the configuration data will be written
+ * ret0 == Status / error
  */
 #define SMC_RSI_REALM_CONFIG		SMC64_RSI_FID(U(0x6))
 
 /*
- * arg0 == Base IPA address of target region
- * arg1 == Top address of target region
- * arg2 == RIPAS value
- * arg3 == flags
+ * arg1 == Base IPA address of target region
+ * arg2 == Top address of target region
+ * arg3 == RIPAS value
+ * arg4 == flags
  * ret0 == Status / error
- * ret1 == Top of modified IPA range
+ * ret1 == Base of IPA region which was not modified by the command
+ * ret2 == RSI response
  */
 #define SMC_RSI_IPA_STATE_SET		SMC64_RSI_FID(U(0x7))
 
 /*
- * arg0 == IPA
+ * arg1 == IPA of target page
  * ret0 == Status / error
  * ret1 == RIPAS value
  */
@@ -203,7 +204,8 @@ struct rsi_host_call {
 #endif /* __ASSEMBLER__ */
 
 /*
- * arg0 == struct rsi_host_call address
+ * arg1 == IPA of the Host call data structure
+ * ret0 == Status / error
  */
 #define SMC_RSI_HOST_CALL		SMC64_RSI_FID(U(0x9))
 
