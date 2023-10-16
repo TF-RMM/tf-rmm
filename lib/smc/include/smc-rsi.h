@@ -99,7 +99,7 @@
  * arg1: Measurement index (0..4), measurement (RIM or REM) to read
  * ret0: Status / error
  * ret1: Measurement value, bytes:  0 -  7
- * ret2: Measurement value, bytes:  7 - 15
+ * ret2: Measurement value, bytes:  8 - 15
  * ret3: Measurement value, bytes: 16 - 23
  * ret4: Measurement value, bytes: 24 - 31
  * ret5: Measurement value, bytes: 32 - 39
@@ -114,7 +114,7 @@
  * arg1:  Measurement index (1..4), measurement (REM) to extend
  * arg2:  Measurement size in bytes
  * arg3:  Challenge value, bytes:  0 -  7
- * arg4:  Challenge value, bytes:  7 - 15
+ * arg4:  Challenge value, bytes:  8 - 15
  * arg5:  Challenge value, bytes: 16 - 23
  * arg6:  Challenge value, bytes: 24 - 31
  * arg7:  Challenge value, bytes: 32 - 39
@@ -128,7 +128,7 @@
 /*
  * Initialize the operation to retrieve an attestation token.
  * arg1: Challenge value, bytes:  0 -  7
- * arg2: Challenge value, bytes:  7 - 15
+ * arg2: Challenge value, bytes:  8 - 15
  * arg3: Challenge value, bytes: 16 - 23
  * arg4: Challenge value, bytes: 24 - 31
  * arg5: Challenge value, bytes: 32 - 39
@@ -142,9 +142,11 @@
 
 /*
  * Continue the operation to retrieve an attestation token.
- * arg1: The IPA of token buffer
+ * arg1: IPA of the Granule to which the token will be written
+ * arg2: Offset within Granule to start of buffer in bytes
+ * arg3: Size of buffer in bytes
  * ret0: Status / error
- * ret1: Size of completed token in bytes
+ * ret1: Number of bytes written to buffer
  */
 #define SMC_RSI_ATTEST_TOKEN_CONTINUE	SMC64_RSI_FID(U(0x5))
 
