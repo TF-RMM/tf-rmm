@@ -198,6 +198,12 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 		}
 	}
 
+	/* Clear context for signing an attestation token */
+	(void)memset(&attest_data->token_sign_ctx, 0,
+			sizeof(struct token_sign_cntxt));
+
+	attest_data->token_sign_ctx.state = ATTEST_SIGN_NOT_STARTED;
+
 	/*
 	 * rd lock is acquired so that measurement cannot be updated
 	 * simultaneously by another rec
@@ -227,7 +233,6 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 		panic();
 	}
 
-	attest_data->token_sign_ctx.copied_len = 0UL;
 	attest_data->token_sign_ctx.state = ATTEST_SIGN_IN_PROGRESS;
 
 	res->smc_res.x[0] = RSI_SUCCESS;
