@@ -30,9 +30,9 @@
 #define SVE_P_REG_NUM		U(16)
 #define SVE_FFR_REG_NUM		U(1)
 
-#define SVE_Z_REGS_SIZE(vq)	((vq + 1) * (SVE_Z_REG_MIN_SIZE * SVE_Z_REG_NUM))
-#define SVE_P_REGS_SIZE(vq)	((vq + 1) * (SVE_P_REG_MIN_SIZE * SVE_P_REG_NUM))
-#define SVE_FFR_REGS_SIZE(vq)	((vq + 1) * (SVE_FFR_REG_MIN_SIZE * \
+#define SVE_Z_REGS_SIZE(vq)	(((vq) + 1) * (SVE_Z_REG_MIN_SIZE * SVE_Z_REG_NUM))
+#define SVE_P_REGS_SIZE(vq)	(((vq) + 1) * (SVE_P_REG_MIN_SIZE * SVE_P_REG_NUM))
+#define SVE_FFR_REGS_SIZE(vq)	(((vq) + 1) * (SVE_FFR_REG_MIN_SIZE * \
 					     SVE_FFR_REG_NUM))
 
 /* SVE vq architecture limit */

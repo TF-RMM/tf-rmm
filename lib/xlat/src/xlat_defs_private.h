@@ -89,7 +89,7 @@
 #define ATTR_DEVICE			MAIR_DEV_NGNRE
 /* Normal Memory, Outer Write-Back non-transient, Inner Write-Back non-transient */
 #define ATTR_IWBWA_OWBWA_NTR		MAKE_MAIR_NORMAL_MEMORY(MAIR_NORM_WB_NTR_RWA, MAIR_NORM_WB_NTR_RWA)
-#define MAIR_ATTR_SET(attr, index)	((attr) << (index << UL(3)))
+#define MAIR_ATTR_SET(attr, index)	((attr) << ((index) << UL(3)))
 #define ATTR_INDEX_MASK			U(0x3)
 #define ATTR_INDEX_GET(attr)		(((attr) >> UL(2)) & ATTR_INDEX_MASK)
 
