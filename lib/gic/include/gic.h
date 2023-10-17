@@ -12,101 +12,82 @@
 /* The number of implemented List registers, minus one */
 #define ICH_VTR_EL2_LIST_REGS_SHIFT	UL(0)
 #define ICH_VTR_EL2_LIST_REGS_WIDTH	UL(5)
-#define ICH_VTR_EL2_LIST_REGS_MASK	MASK(ICH_VTR_EL2_LIST_REGS)
 
 /* The number of virtual interrupt identifier bits supported */
 #define ICH_VTR_EL2_ID_BITS_SHIFT	UL(23)
 #define ICH_VTR_EL2_ID_BITS_WIDTH	UL(3)
-#define ICH_VTR_EL2_ID_BITS_MASK	MASK(ICH_VTR_EL2_ID_BITS)
 
 /* The number of virtual preemption bits implemented, minus one */
 #define ICH_VTR_EL2_PRE_BITS_SHIFT	UL(26)
 #define ICH_VTR_EL2_PRE_BITS_WIDTH	UL(3)
-#define ICH_VTR_EL2_PRE_BITS_MASK	MASK(ICH_VTR_EL2_PRE_BITS)
 
 /* The number of virtual priority bits implemented, minus one */
 #define ICH_VTR_EL2_PRI_BITS_SHIFT	UL(29)
 #define ICH_VTR_EL2_PRI_BITS_WIDTH	UL(3)
-#define ICH_VTR_EL2_PRI_BITS_MASK	MASK(ICH_VTR_EL2_PRI_BITS)
 
 /* Global enable bit for the virtual CPU interface */
-#define ICH_HCR_EL2_EN_SHIFT		UL(0)
-#define ICH_HCR_EL2_EN_BIT		INPLACE(ICH_HCR_EL2_EN, UL(1))
+#define ICH_HCR_EL2_EN_BIT		(UL(1) << 0)
 
 /* Underflow Interrupt Enable */
-#define ICH_HCR_EL2_UIE_SHIFT		UL(1)
-#define ICH_HCR_EL2_UIE_BIT		INPLACE(ICH_HCR_EL2_UIE, UL(1))
+#define ICH_HCR_EL2_UIE_BIT		(UL(1) << 1)
 
 /* List Register Entry Not Present Interrupt Enable */
-#define ICH_HCR_EL2_LRENPIE_SHIFT	UL(2)
-#define ICH_HCR_EL2_LRENPIE_BIT		INPLACE(ICH_HCR_EL2_LRENPIE, UL(1))
+#define ICH_HCR_EL2_LRENPIE_BIT		(UL(1) << 2)
 
 /* No Pending Interrupt Enable */
-#define ICH_HCR_EL2_NPIE_SHIFT		UL(3)
-#define ICH_HCR_EL2_NPIE_BIT		INPLACE(ICH_HCR_EL2_NPIE, UL(1))
+#define ICH_HCR_EL2_NPIE_BIT		(UL(1) << 3)
 
 /* VM Group 0 Enabled Interrupt Enable */
-#define ICH_HCR_EL2_VGRP0EIE_SHIFT	UL(4)
-#define ICH_HCR_EL2_VGRP0EIE_BIT	INPLACE(ICH_HCR_EL2_VGRP0EIE, UL(1))
+#define ICH_HCR_EL2_VGRP0EIE_BIT	(UL(1) << 4)
 
 /* VM Group 0 Disabled Interrupt Enable */
-#define ICH_HCR_EL2_VGRP0DIE_SHIFT	UL(5)
-#define ICH_HCR_EL2_VGRP0DIE_BIT	INPLACE(ICH_HCR_EL2_VGRP0DIE, UL(1))
+#define ICH_HCR_EL2_VGRP0DIE_BIT	(UL(1) << 5)
 
 /* VM Group 1 Enabled Interrupt Enable */
-#define ICH_HCR_EL2_VGRP1EIE_SHIFT	UL(6)
-#define ICH_HCR_EL2_VGRP1EIE_BIT	INPLACE(ICH_HCR_EL2_VGRP1EIE, UL(1))
+#define ICH_HCR_EL2_VGRP1EIE_BIT	(UL(1) << 6)
 
 /* VM Group 1 Disabled Interrupt Enable */
-#define ICH_HCR_EL2_VGRP1DIE_SHIFT	UL(7)
-#define ICH_HCR_EL2_VGRP1DIE_BIT	INPLACE(ICH_HCR_EL2_VGRP1DIE, UL(1))
+#define ICH_HCR_EL2_VGRP1DIE_BIT	(UL(1) << 7)
 
 /*
  * When FEAT_GICv4p1 is implemented:
  * Controls whether deactivation of virtual SGIs
  * can increment ICH_HCR_EL2.EOIcount
  */
-#define ICH_HCR_EL2_VSGIEEOICOUNT_SHIFT	UL(8)
-#define ICH_HCR_EL2_VSGIEEOICOUNT_BIT	INPLACE(ICH_HCR_EL2_VSGIEEOICOUNT, UL(1))
+#define ICH_HCR_EL2_VSGIEEOICOUNT_BIT	(UL(1) << 8)
 
 /*
  * Trap all EL1 accesses to System registers
  * that are common to Group 0 and Group 1 to EL2
  */
-#define ICH_HCR_EL2_TC_SHIFT		UL(10)
-#define ICH_HCR_EL2_TC_BIT		INPLACE(ICH_HCR_EL2_TC, UL(1))
+#define ICH_HCR_EL2_TC_BIT		(UL(1) << 10)
 
 /*
  * Trap all EL1 accesses to ICC_* and ICV_* System registers
  * for Group 0 interrupts to EL2
  */
-#define ICH_HCR_EL2_TALL0_SHIFT		UL(11)
-#define ICH_HCR_EL2_TALL0_BIT		INPLACE(ICH_HCR_EL2_TALL0, UL(1))
+#define ICH_HCR_EL2_TALL0_BIT		(UL(1) << 11)
 
 /*
  * Trap all EL1 accesses to ICC_* and ICV_* System registers
  * for Group 1 interrupts to EL2
  */
-#define ICH_HCR_EL2_TALL1_SHIFT		UL(12)
-#define ICH_HCR_EL2_TALL1_BIT		INPLACE(ICH_HCR_EL2_TALL1, UL(1))
+#define ICH_HCR_EL2_TALL1_BIT		(UL(1) << 12)
 
 /* Trap all locally generated SEIs */
-#define ICH_HCR_EL2_TSEI_SHIFT		UL(13)
-#define ICH_HCR_EL2_TSEI_BIT		INPLACE(ICH_HCR_EL2_TSEI, UL(1))
+#define ICH_HCR_EL2_TSEI_BIT		(UL(1) << 13)
 
 /*
  * When FEAT_GICv3_TDIR is implemented:
  * Trap EL1 writes to ICC_DIR_EL1 and ICV_DIR_EL1
  */
-#define ICH_HCR_EL2_TDIR_SHIFT		UL(14)
-#define ICH_HCR_EL2_TDIR_BIT		INPLACE(ICH_HCR_EL2_TDIR, UL(1))
+#define ICH_HCR_EL2_TDIR_BIT		(UL(1) << 14)
 
 /*
  * When ICH_VTR_EL2.DVIM == 1:
  * Directly-injected Virtual Interrupt Mask
  */
-#define ICH_HCR_EL2_DVIM_SHIFT		UL(15)
-#define ICH_HCR_EL2_DVIM_BIT		INPLACE(ICH_HCR_EL2_DVIM, UL(1))
+#define ICH_HCR_EL2_DVIM_BIT		(UL(1) << 15)
 
 #define ICH_HCR_EL2_EOI_COUNT_SHIFT	UL(27)
 #define ICH_HCR_EL2_EOI_COUNT_WIDTH	UL(5)
@@ -130,8 +111,7 @@
 #define ICH_LR_PINTID_WIDTH		UL(13)
 #define ICH_LR_PINTID_MASK		MASK(ICH_LR_PINTID)
 
-#define ICH_LR_EOI_SHIFT		UL(41)
-#define ICH_LR_EOI_BIT			INPLACE(ICH_LR_EOI, UL(1))
+#define ICH_LR_EOI_BIT			(UL(1) << 41)
 
 /* The priority of this interrupt */
 #define ICH_LR_PRIORITY_SHIFT		UL(48)
@@ -139,15 +119,13 @@
 #define ICH_LR_PRIORITY_MASK		MASK(ICH_LR_PRIORITY)
 
 /* The group for this virtual interrupt */
-#define ICH_LR_GROUP_SHIFT		UL(60)
-#define ICH_LR_GROUP_BIT		INPLACE(ICH_LR_GROUP, UL(1))
+#define ICH_LR_GROUP_BIT		(UL(1) << 60)
 
 /*
  * Indicates whether this virtual interrupt
  * maps directly to a hardware interrupt
  */
-#define ICH_LR_HW_SHIFT			UL(61)
-#define ICH_LR_HW_BIT			INPLACE(ICH_LR_HW, UL(1))
+#define ICH_LR_HW_BIT			(UL(1) << 61)
 
 /*
  * The state of the interrupt:
@@ -168,7 +146,6 @@
 /*
  * A `_ns` mask defines bits that can be set/cleared by the NS hypervisor.
  */
-
 #define ICH_HCR_EL2_NS_MASK			  \
 		(ICH_HCR_EL2_UIE_BIT		| \
 		 ICH_HCR_EL2_LRENPIE_BIT	| \

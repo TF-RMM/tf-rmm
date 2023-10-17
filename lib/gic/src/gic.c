@@ -197,7 +197,7 @@ bool gic_validate_state(struct rmi_rec_entry *rec_entry)
 		}
 
 		/* The RMM Specification imposes the constraint that HW == '0' */
-		if ((EXTRACT_BIT(ICH_LR_HW, lr) != 0UL) ||
+		if (((lr & ICH_LR_HW_BIT) != 0UL) ||
 		    /* Check RES0 bits in the Priority field */
 		   ((EXTRACT(ICH_LR_PRIORITY, lr) &
 			gic_virt_feature.pri_res0_mask) != 0UL) ||
