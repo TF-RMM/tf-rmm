@@ -41,7 +41,7 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 				    struct s2_walk_result *s2_walk)
 {
 	struct granule *g_table_root;
-	struct rtt_walk wi;
+	struct s2tt_walk wi;
 	unsigned long s2tte, *ll_table, offset;
 	enum s2_walk_status walk_status;
 
@@ -51,11 +51,11 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 
 	g_table_root = rec->realm_info.g_rtt;
 	granule_lock(g_table_root, GRANULE_STATE_RTT);
-	rtt_walk_lock_unlock(g_table_root,
+	s2tt_walk_lock_unlock(g_table_root,
 			     rec->realm_info.s2_starting_level,
 			     rec->realm_info.ipa_bits,
 			     ipa,
-			     RTT_PAGE_LEVEL,
+			     S2TT_PAGE_LEVEL,
 			     &wi);
 
 	ll_table = granule_map(wi.g_llt, SLOT_RTT);
@@ -110,7 +110,7 @@ enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long ipa,
 					enum ripas *ripas_ptr)
 {
 	unsigned long s2tte, *ll_table;
-	struct rtt_walk wi;
+	struct s2tt_walk wi;
 	enum s2_walk_status ws;
 
 	assert(ripas_ptr != NULL);
@@ -119,10 +119,10 @@ enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long ipa,
 
 	granule_lock(rec->realm_info.g_rtt, GRANULE_STATE_RTT);
 
-	rtt_walk_lock_unlock(rec->realm_info.g_rtt,
+	s2tt_walk_lock_unlock(rec->realm_info.g_rtt,
 			     rec->realm_info.s2_starting_level,
 			     rec->realm_info.ipa_bits,
-			     ipa, RTT_PAGE_LEVEL, &wi);
+			     ipa, S2TT_PAGE_LEVEL, &wi);
 
 	ll_table = granule_map(wi.g_llt, SLOT_RTT);
 	assert(ll_table != NULL);

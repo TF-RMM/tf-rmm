@@ -10,7 +10,7 @@
 #include <measurement.h>
 #include <memory.h>
 #include <rec.h>
-#include <table.h>
+#include <s2tt.h>
 
 #define REALM_NEW		0U
 #define REALM_ACTIVE		1U
