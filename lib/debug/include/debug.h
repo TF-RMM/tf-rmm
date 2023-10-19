@@ -23,13 +23,12 @@
  * INFO("Info %s.\n", "message")    -> INFO:    Info message.
  * WARN("Warning %s.\n", "message") -> WARNING: Warning message.
  */
-
-#define LOG_LEVEL_NONE			U(0)
-#define LOG_LEVEL_ERROR			U(10)
-#define LOG_LEVEL_NOTICE		U(20)
-#define LOG_LEVEL_WARNING		U(30)
-#define LOG_LEVEL_INFO			U(40)
-#define LOG_LEVEL_VERBOSE		U(50)
+#define LOG_LEVEL_NONE		0
+#define LOG_LEVEL_ERROR		10
+#define LOG_LEVEL_NOTICE	20
+#define LOG_LEVEL_WARNING	30
+#define LOG_LEVEL_INFO		40
+#define LOG_LEVEL_VERBOSE	50
 
 #ifndef LOG_LEVEL
 #define LOG_LEVEL	LOG_LEVEL_VERBOSE

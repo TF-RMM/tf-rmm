@@ -1004,7 +1004,7 @@
  ******************************************************************************/
 
 #define TLBI_ADDR_SHIFT		U(12)
-#define TLBI_ADDR_MASK		U(0x0FFFFFFFFFFF)
+#define TLBI_ADDR_MASK		UL(0x0FFFFFFFFFFF)
 #define TLBI_ADDR(x)		(((x) >> TLBI_ADDR_SHIFT) & TLBI_ADDR_MASK)
 
 /* ID_AA64MMFR2_EL1 definitions */
