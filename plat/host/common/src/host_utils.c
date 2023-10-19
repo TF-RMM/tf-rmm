@@ -13,6 +13,7 @@
 #include <plat_common.h>
 #include <rmm_el3_ifc.h>
 #include <string.h>
+#include <utils_def.h>
 #include <xlat_tables.h>
 
 static struct sysreg_data sysregs[SYSREG_MAX_CBS];
@@ -24,7 +25,7 @@ static unsigned int current_cpuid;
  * Allocate memory to emulate physical memory to initialize the
  * granule library.
  */
-static unsigned char granules_buffer[HOST_MEM_SIZE] __aligned(GRANULE_SIZE);
+IF_NCBMC(static) unsigned char granules_buffer[HOST_MEM_SIZE] __aligned(GRANULE_SIZE);
 
 /*
  * Define and set the Boot Interface arguments.
