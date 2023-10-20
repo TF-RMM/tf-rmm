@@ -85,8 +85,8 @@
 #define REC_EXIT_NR_GPRS		U(31)
 
 /* RmiHashAlgorithm type */
-#define RMI_HASH_SHA_256		U(0)
-#define RMI_HASH_SHA_512		U(1)
+#define RMI_HASH_SHA_256		0U
+#define RMI_HASH_SHA_512		1U
 
 /* Maximum number of Interrupt Controller List Registers */
 #define REC_GIC_NUM_LRS			U(16)
@@ -180,8 +180,8 @@
  * RmiResponse enumeration represents whether the Host accepted
  * or rejected a Realm request
  */
-#define RMI_ACCEPT	UL(0)
-#define RMI_REJECT	UL(1)
+#define RMI_ACCEPT	0U
+#define RMI_REJECT	1U
 
 /*
  * arg0: Requested interface version
