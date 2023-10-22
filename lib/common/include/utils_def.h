@@ -27,8 +27,7 @@
 # define   L(_x)	(_x)
 # define  LL(_x)	(_x)
 #else
-# define  U_(_x)	(_x##U)
-# define   U(_x)	U_(_x)
+# define   U(_x)	(unsigned int)(_x)
 # define  UL(_x)	(_x##UL)
 # define ULL(_x)	(_x##ULL)
 # define   L(_x)	(_x##L)
