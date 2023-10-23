@@ -338,13 +338,11 @@ static bool handle_simd_exception(struct rec *rec, unsigned long esr)
 	rec->active_simd_ctx = simd_context_switch(rec->active_simd_ctx,
 						   rec->aux_data.simd_ctx);
 
-	/* Update REC's cptr_el2 */
-	rec->sysregs.cptr_el2 |= INPLACE(CPTR_EL2_VHE_FPEN,
-					 CPTR_EL2_VHE_FPEN_NO_TRAP_11);
-	if (rec->realm_info.simd_cfg.sve_en) {
-		rec->sysregs.cptr_el2 |= INPLACE(CPTR_EL2_VHE_ZEN,
-						 CPTR_EL2_VHE_ZEN_NO_TRAP_11);
-	}
+	/*
+	 * As the REC SIMD context is now restored, enable SIMD flags in REC's
+	 * cptr based on REC's SIMD configuration.
+	 */
+	SIMD_ENABLE_CPTR_FLAGS(&rec->realm_info.simd_cfg, rec->sysregs.cptr_el2);
 
 	/*
 	 * Return 'true' indicating that this exception has been handled and

@@ -336,13 +336,9 @@ int simd_context_init(simd_owner_t owner, struct simd_context *simd_ctx,
 		simd_ctx->sflags &= ~SIMD_SFLAG_SAVED;
 	}
 
-	/*
-	 * Construct the cptr_el2 to be used when this context needs to be
-	 * saved and used by the owner.
-	 */
+	/* Construct the cptr_el2 for this context */
 	simd_ctx->cptr_el2 = CPTR_EL2_VHE_INIT;
-	simd_ctx->cptr_el2 |= INPLACE(CPTR_EL2_VHE_FPEN,
-				      CPTR_EL2_VHE_FPEN_NO_TRAP_11);
+	SIMD_ENABLE_CPTR_FLAGS(simd_cfg, simd_ctx->cptr_el2);
 
 	/* Initialize SVE related fields and config registers */
 	if (simd_cfg->sve_en) {
@@ -351,18 +347,12 @@ int simd_context_init(simd_owner_t owner, struct simd_context *simd_ctx,
 		simd_ctx->el2_regs.zcr_el2 = 0UL;
 		simd_ctx->el2_regs.zcr_el2 |= INPLACE(ZCR_EL2_LEN,
 						      simd_cfg->sve_vq);
-
-		simd_ctx->cptr_el2 |= INPLACE(CPTR_EL2_VHE_ZEN,
-					      CPTR_EL2_VHE_ZEN_NO_TRAP_11);
 	}
 
 	/* Initialize SME related fields */
 	if (simd_cfg->sme_en) {
 		simd_ctx->tflags |= SIMD_TFLAG_SME;
 		simd_ctx->svcr = 0UL;
-
-		simd_ctx->cptr_el2 |= INPLACE(CPTR_EL2_VHE_SMEN,
-					      CPTR_EL2_VHE_SMEN_NO_TRAP_11);
 	}
 
 	simd_ctx->sflags |= SIMD_SFLAG_INIT_DONE;
