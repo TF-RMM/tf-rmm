@@ -223,7 +223,7 @@
 #define SET_MEMBER(member, start, end)	\
 	union {				\
 		member;			\
-		unsigned char reserved##end[(end) - (start)]; \
+		unsigned char reserved##end[((end) - (start))]; \
 	}
 
 #define FALLTHROUGH	__attribute__((fallthrough))
