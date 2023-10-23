@@ -746,7 +746,7 @@ static int _vsnprintf(out_fct_type out, char *buffer, const size_t maxlen,
 			if (_is_digit(*format)) {
 				precision = _atoi(&format);
 			} else if (*format == '*') {
-				const int prec = (int)va_arg(va, int);
+				const int prec = va_arg(va, int);
 
 				precision = prec > 0 ? (unsigned int)prec : 0U;
 				format++;
