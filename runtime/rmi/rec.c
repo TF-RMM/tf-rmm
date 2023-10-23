@@ -196,11 +196,11 @@ static void rec_aux_granules_init(struct rec *r)
 	aux_data = &r->aux_data;
 	aux_data->attest_heap_buf = (uint8_t *)rec_aux;
 	aux_data->pmu = (struct pmu_state *)
-		(aux_data->attest_heap_buf + REC_HEAP_SIZE);
+		((uintptr_t)aux_data->attest_heap_buf + REC_HEAP_SIZE);
 	aux_data->simd_ctx = (struct simd_context *)
-		((uint8_t *)aux_data->pmu + REC_PMU_SIZE);
+		((uintptr_t)aux_data->pmu + REC_PMU_SIZE);
 	aux_data->attest_data = (struct rec_attest_data *)
-		((uint8_t *)aux_data->simd_ctx + REC_SIMD_SIZE);
+		((uintptr_t)aux_data->simd_ctx + REC_SIMD_SIZE);
 	aux_data->cca_token_buf = (uintptr_t)aux_data->attest_data +
 		REC_ATTEST_SIZE;
 

@@ -10,15 +10,6 @@
 #include <t_cose/q_useful_buf.h>
 
 /*
- * A structure holding the context for generating a pseudo-random number derived
- * from a real random seed.
- */
-struct attest_rng_context {
-	int (*f_rng)(void *p_rng, unsigned char *output, size_t out_len);
-	void *p_rng;
-};
-
-/*
  * Get a pointer the handle of the key for signing realm attestation token.
  *
  * Arguments:

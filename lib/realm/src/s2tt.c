@@ -371,7 +371,8 @@ void rtt_walk_lock_unlock(struct granule *g_root,
 	sl_idx = s2_sl_addr_to_idx(map_addr, start_level, ipa_bits);
 	if (sl_idx >= S2TTES_PER_S2TT) {
 		unsigned int tt_num = (unsigned int)(sl_idx >> S2TTE_STRIDE);
-		struct granule *g_concat_root = g_root + tt_num;
+		struct granule *g_concat_root = (struct granule *)((uintptr_t)g_root +
+						(tt_num * sizeof(struct granule)));
 
 		granule_lock(g_concat_root, GRANULE_STATE_RTT);
 		granule_unlock(g_root);
