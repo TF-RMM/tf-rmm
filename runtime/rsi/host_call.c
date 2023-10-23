@@ -132,7 +132,7 @@ void handle_rsi_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 struct rsi_walk_result complete_rsi_host_call(struct rec *rec,
 					      struct rmi_rec_enter *rec_enter)
 {
-	struct rsi_result res = { 0UL };
+	struct rsi_result res = { (enum rsi_action)0U };
 	struct rsi_walk_result walk_res = { false, 0UL };
 
 	/*

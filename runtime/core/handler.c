@@ -116,11 +116,11 @@ struct smc_handler {
 #define RMI_HANDLER_ID(_id)	SMC64_FID_OFFSET_FROM_RANGE_MIN(RMI, _id)
 
 #define HANDLER(_id, _in, _out, _fn, _exec, _error)[RMI_HANDLER_ID(SMC_RMM_##_id)] = { \
-	.fn_name = (#_id),		\
-	.type = RMI_TYPE(_in, _out),	\
-	.f_##_in##_out = (_fn),		\
-	.log_exec = (_exec),		\
-	.log_error = (_error)		\
+	.fn_name = (#_id),				\
+	.type = (enum rmi_type)RMI_TYPE(_in, _out),	\
+	.f_##_in##_out = (_fn),				\
+	.log_exec = (_exec),				\
+	.log_error = (_error)				\
 }
 
 /*

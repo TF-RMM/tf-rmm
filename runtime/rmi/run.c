@@ -269,7 +269,7 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 
 	rec->set_ripas.response =
 		((rec_run.enter.flags & REC_ENTRY_FLAG_RIPAS_RESPONSE) == 0UL) ?
-			RMI_ACCEPT : RMI_REJECT;
+			ACCEPT : REJECT;
 
 	complete_set_ripas(rec);
 	complete_sysreg_emulation(rec, &rec_run.enter);
