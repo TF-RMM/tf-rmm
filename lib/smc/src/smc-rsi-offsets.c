@@ -16,4 +16,4 @@ COMPILER_ASSERT(offsetof(struct rsi_host_call, imm) == 0);
 COMPILER_ASSERT(offsetof(struct rsi_host_call, gprs[0]) == 8);
 COMPILER_ASSERT(offsetof(struct rsi_host_call,
 			 gprs[RSI_HOST_CALL_NR_GPRS - 1]) ==
-			 (8 * RSI_HOST_CALL_NR_GPRS));
+			 (8UL * RSI_HOST_CALL_NR_GPRS));
