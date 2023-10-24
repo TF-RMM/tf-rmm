@@ -19,7 +19,7 @@ static inline unsigned long bitmap_find_next_set_bit(unsigned long bitmap,
 	if (start < BITS_PER_UL) {
 		bitmap &= ~0UL << start;
 		if (bitmap != 0UL) {
-			return (unsigned long)(__builtin_ffsl(bitmap) - 1);
+			return (unsigned long)(__builtin_ffsl((long)bitmap) - 1);
 		}
 	}
 	return BITS_PER_UL;
