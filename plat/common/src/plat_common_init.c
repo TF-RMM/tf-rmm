@@ -37,17 +37,17 @@ IMPORT_SYM(uintptr_t, rmm_rw_end, RMM_RW_END);
 #define RMM_CODE		MAP_REGION_FLAT(			\
 					RMM_CODE_START,			\
 					RMM_CODE_SIZE,			\
-					MT_CODE | MT_REALM)
+					(MT_CODE | MT_REALM))
 
 #define RMM_RO			MAP_REGION_FLAT(			\
 					RMM_RO_START,			\
 					RMM_RO_SIZE,			\
-					MT_RO_DATA | MT_REALM)
+					(MT_RO_DATA | MT_REALM))
 
 #define RMM_RW			MAP_REGION_FLAT(			\
 					RMM_RW_START,			\
 					RMM_RW_SIZE,			\
-					MT_RW_DATA | MT_REALM)
+					(MT_RW_DATA | MT_REALM))
 
 /*
  * Leave an invalid page between the end of RMM memory and the beginning
@@ -64,7 +64,7 @@ IMPORT_SYM(uintptr_t, rmm_rw_end, RMM_RW_END);
 					0U,				\
 					RMM_SHARED_BUFFER_START,	\
 					0U,				\
-					MT_RW_DATA | MT_REALM)
+					(MT_RW_DATA | MT_REALM))
 
 /* Number of common memory mapping regions */
 #define COMMON_REGIONS		(4U)

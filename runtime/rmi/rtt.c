@@ -125,7 +125,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 
 	rtt_walk_lock_unlock(g_table_root, sl, ipa_bits,
 				map_addr, level - 1L, &wi);
-	if (wi.last_level != level - 1L) {
+	if (wi.last_level != (level - 1L)) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned int)wi.last_level);
 		goto out_unlock_llt;
@@ -319,7 +319,7 @@ void smc_rtt_fold(unsigned long rd_addr,
 
 	rtt_walk_lock_unlock(g_table_root, sl, ipa_bits,
 				map_addr, level - 1L, &wi);
-	if (wi.last_level != level - 1L) {
+	if (wi.last_level != (level - 1L)) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned int)wi.last_level);
 		goto out_unlock_parent_table;
@@ -516,7 +516,7 @@ void smc_rtt_destroy(unsigned long rd_addr,
 
 	parent_s2tte = s2tte_read(&parent_s2tt[wi.index]);
 
-	if ((wi.last_level != level - 1L) ||
+	if ((wi.last_level != (level - 1L)) ||
 	    !s2tte_is_table(parent_s2tte, level - 1L)) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned int)wi.last_level);

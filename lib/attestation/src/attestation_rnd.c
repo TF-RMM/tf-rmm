@@ -24,26 +24,22 @@
 static mbedtls_hmac_drbg_context cpu_drbg_ctx[MAX_CPUS];
 static bool prng_init_done;
 
-static int get_random_seed(unsigned char *output, size_t len)
+static int get_random_seed(uintptr_t output, size_t len)
 {
-	uint64_t *random_output;
-	uint64_t *random_end;
-
 	assert(!prng_init_done);
 
 	/* Enforce `len` is a multiple of 8 and `output` is 8-byte aligned. */
-	assert(((len & 7UL) == 0UL) && (((uintptr_t)output & 7UL) == 0UL));
+	assert(((len & 7UL) == 0UL) && ((output & 7UL) == 0UL));
 
-	random_output = (uint64_t *)output;
-	random_end = (uint64_t *)(output + len);
+	while (len != 0UL) {
+		bool rc = arch_collect_entropy((uint64_t *)output);
 
-	for (; random_output < random_end; ++random_output) {
-		bool rc = false;
-
-		rc = arch_collect_entropy(random_output);
 		if (!rc) {
 			return -EINVAL;
 		}
+
+		len -= sizeof(uint64_t);
+		output += sizeof(uint64_t);
 	}
 	return 0;
 }
@@ -101,7 +97,7 @@ int attest_rnd_prng_init(void)
 	 * an implementation defined TRNG backend. The timing of the TRNG could
 	 * be nondeterministic therefore access to it is kept on the minimum.
 	 */
-	rc = get_random_seed(seed, sizeof(seed));
+	rc = get_random_seed((uintptr_t)seed, sizeof(seed));
 	if (rc != 0) {
 		return -EINVAL;
 	}

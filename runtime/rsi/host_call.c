@@ -35,7 +35,7 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	unsigned long ipa = rec->regs[1];
 	unsigned long page_ipa;
 	struct granule *gr;
-	unsigned char *data;
+	uintptr_t data;
 	struct rsi_host_call *host_call;
 	unsigned int i;
 
@@ -59,16 +59,17 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		}
 		return;
 	case WALK_INVALID_PARAMS:
+	default:
 		assert(false);
 		break;
 	}
 
 	/* Map Realm data granule to RMM address space */
 	gr = find_granule(walk_result.pa);
-	data = (unsigned char *)granule_map(gr, SLOT_RSI_CALL);
-	assert(data != NULL);
+	data = (uintptr_t)granule_map(gr, SLOT_RSI_CALL);
+	assert(data != 0UL);
 
-	host_call = (struct rsi_host_call *)(data + (ipa - page_ipa));
+	host_call = (struct rsi_host_call *)(data + ipa - page_ipa);
 
 	if (rec_exit != NULL) {
 		/* Copy host call arguments to REC exit data structure */
@@ -97,7 +98,7 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	}
 
 	/* Unmap Realm data granule */
-	buffer_unmap(data);
+	buffer_unmap((void *)data);
 
 	/* Unlock last level RTT */
 	granule_unlock(walk_result.llt);
