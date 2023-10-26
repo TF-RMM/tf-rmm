@@ -130,7 +130,7 @@ endif()
 
 if(CMAKE_OBJDUMP)
     add_custom_command(
-        COMMAND "${CMAKE_OBJDUMP}" -dx "${ARTEFACT_DIR}/rmm.elf" > "${ARTEFACT_DIR}/rmm.dump"
+        COMMAND "${CMAKE_OBJDUMP}" -dxS "${ARTEFACT_DIR}/rmm.elf" > "${ARTEFACT_DIR}/rmm.dump"
         OUTPUT rmm.dump
         DEPENDS rmm.elf)
 endif()
