@@ -229,8 +229,14 @@ High VA address space.
 The per-CPU VA mapping also includes a gap at the end of the stack VA to detect
 any stack underflows. The gap has a page size.
 
-The rest of the VA space available below the stack is unused and therefore left
-unmapped. The stage 1 translation library will not allow to map anything there.
+|RMM| also uses a separate Per-CPU stack to handle exceptions and faults.
+This stack is allocated below the general one, and it allows for |RMM| to be
+able to handle a stack overflow fault. There is another page gap of unmapped
+memory between both stacks to harden security.
+
+The rest of the VA space available below the exception stack is unused and
+therefore left unmapped. The stage 1 translation library will not allow to map
+anything there.
 
 Stage 1 translation library (xlat library)
 ------------------------------------------
