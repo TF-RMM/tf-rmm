@@ -9,10 +9,10 @@
 #include "buffer.h"
 #include "granule.h"
 #include "granule_types.h"
-#include "sizes.h"
 #include "host_defs.h"
 #include "host_utils.h"
 #include "platform_api.h"
+#include "sizes.h"
 
 /*
  * The granule states and gpt state

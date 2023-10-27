@@ -3,14 +3,14 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include "tb.h"
-#include "tb_common.h"
-#include "tb_granules.h"
 
 #include "rsi-handler.h"
 #include "smc-handler.h"
 #include "smc-rsi.h"
 #include "smc.h"
+#include "tb.h"
+#include "tb_common.h"
+#include "tb_granules.h"
 
 void __init_global_state(unsigned long cmd)
 {

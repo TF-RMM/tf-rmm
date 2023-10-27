@@ -3,16 +3,22 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include "status.h"
-#include "table.h"
-#include "utils_def.h"
-#include "tb_common.h"
+#include "granule.h"
 #include "host_defs.h"
 #include "host_utils.h"
-#include "string.h"
-#include "granule.h"
-#include "tb_granules.h"
 #include "measurement.h"
+#include "status.h"
+#include "string.h"
+#include "table.h"
+#include "tb_common.h"
+#include "tb_granules.h"
+#include "utils_def.h"
+
+/*
+ * This array holds information on whether the granule that is injected in
+ * RMM's granule array is set to NS in the GPT, or not.
+ */
+static bool granule_gpt_ns_array[RMM_MAX_GRANULES];
 
 /* Declare a nondet function for registers information. */
 struct tb_regs nondet_tb_regs(void);
@@ -50,7 +56,7 @@ void __tb_lock_invariant(struct tb_lock_status *lock_status)
 
 struct tb_lock_status __tb_lock_status(void)
 {
-	struct tb_lock_status r = {NULL};
+	struct tb_lock_status r = {0UL};
 	return r;
 }
 
@@ -89,35 +95,6 @@ struct granule *pa_to_granule_metadata_ptr(uint64_t addr)
 		"internal: `_pa_to_granule_metadata_ptr`, addr is in upper range");
 
 	return &granules[idx];
-}
-
-uint64_t granule_metadata_ptr_to_pa(struct granule *g_ptr)
-{
-	return (uint64_t)granules_buffer + (g_ptr - granules) * GRANULE_SIZE;
-}
-
-void *pa_to_granule_buffer_ptr(uint64_t addr)
-{
-	__ASSERT((unsigned char *)addr - granules_buffer >= 0,
-		"internal: `_pa_to_granule_buffer_ptr`, addr is in lower range");
-	/*
-	 * NOTE: Has to do this strange computation and type cast so CBMC can
-	 * handle.
-	 */
-	return (void *)granules_buffer + ((unsigned char *)addr - granules_buffer);
-}
-
-void *granule_metadata_ptr_to_buffer_ptr(struct granule *g_ptr)
-{
-	if (!valid_granule_metadata_ptr(g_ptr)) {
-		return NULL;
-	}
-	return granules_buffer + (g_ptr - granules) * GRANULE_SIZE;
-}
-
-size_t granule_metadata_ptr_to_index(struct granule *g_ptr)
-{
-	return g_ptr - granules;
 }
 
 bool valid_granule_metadata_ptr(struct granule *p)
@@ -180,6 +157,24 @@ struct granule *inject_granule(const struct granule *granule_metadata,
 {
 	size_t index = next_index();
 
+	if (granule_metadata->state == GRANULE_STATE_NS) {
+		granule_gpt_ns_array[index] = nondet_bool();
+	} else{
+		granule_gpt_ns_array[index] = false;
+	}
 	return inject_granule_at(granule_metadata, src_page, src_size, index);
 }
 
+bool is_granule_gpt_ns(uint64_t addr)
+{
+	uint64_t idx = (addr - (uint64_t)granules_buffer)/GRANULE_SIZE;
+
+	return granule_gpt_ns_array[idx];
+}
+
+void set_granule_gpt_ns(uint64_t addr, bool gpt_ns)
+{
+	uint64_t idx = (addr - (uint64_t)granules_buffer)/GRANULE_SIZE;
+
+	granule_gpt_ns_array[idx] = gpt_ns;
+}

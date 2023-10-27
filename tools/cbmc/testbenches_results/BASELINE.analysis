@@ -1,7 +1,7 @@
 +--------------------------------------+--------------------------------------+
 |               FILENAME               |               ANALYSIS               |
 +--------------------------------------+--------------------------------------+
-|      tb_rmi_granule_delegate.c       |    9 of 363 failed (6 iterations)    |
+|      tb_rmi_granule_delegate.c       |    9 of 365 failed (5 iterations)    |
 +--------------------------------------+--------------------------------------+
-|     tb_rmi_granule_undelegate.c      |    8 of 361 failed (5 iterations)    |
+|     tb_rmi_granule_undelegate.c      |    8 of 363 failed (5 iterations)    |
 +--------------------------------------+--------------------------------------+

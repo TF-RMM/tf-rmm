@@ -106,9 +106,6 @@ bool valid_pa(uint64_t addr);
 bool valid_granule_metadata_ptr(struct granule *p);
 struct granule *pa_to_granule_metadata_ptr(uint64_t addr);
 uint64_t granule_metadata_ptr_to_pa(struct granule *g_ptr);
-void *granule_metadata_ptr_to_buffer_ptr(struct granule *g_ptr);
-size_t granule_metadata_ptr_to_index(struct granule *g_ptr);
-void *pa_to_granule_buffer_ptr(uint64_t addr);
 /* TODO change the function name */
 void init_pa_page(const void *content, size_t size);
 
@@ -130,5 +127,10 @@ struct granule *inject_granule_at(const struct granule *granule_metadata,
 struct granule *inject_granule(const struct granule *granule_metadata,
 			       const void *src_page,
 			       size_t src_size);
+
+/* Returns whether the granule with address is set to NS in the GPT, or not */
+bool is_granule_gpt_ns(uint64_t addr);
+/* Set for a granule whether it is set to NS in GPT, or not. */
+void set_granule_gpt_ns(uint64_t addr, bool gpt_ns);
 
 #endif  /* !TB_COMMON_H */
