@@ -131,14 +131,20 @@ unsigned long host_monitor_call(unsigned long id,
 			unsigned long arg5)
 {
 	/* Avoid MISRA C:2102-2.7 warnings */
-	(void)id;
-	(void)arg0;
 	(void)arg1;
 	(void)arg2;
 	(void)arg3;
 	(void)arg4;
 	(void)arg5;
-	return 0UL;
+
+	switch (id) {
+	case SMC_RMM_GTSI_DELEGATE:
+		return host_gtsi_delegate(arg0);
+	case SMC_RMM_GTSI_UNDELEGATE:
+		return host_gtsi_undelegate(arg0);
+	default:
+		return 0UL;
+	}
 }
 
 static int attest_get_platform_token(uint64_t buf_pa, uint64_t *buf_size,

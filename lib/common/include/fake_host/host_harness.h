@@ -87,4 +87,14 @@ void *host_buffer_arch_map(unsigned int slot, unsigned long addr);
  */
 void host_buffer_arch_unmap(void *buf);
 
+/*
+ * Fake host wrapper to delegate a granule using the Granule Transition Service
+ */
+unsigned long host_gtsi_delegate(unsigned long addr);
+
+/*
+ * Fake host wrapper to undelegate a granule using the Granule Transition Service
+ */
+unsigned long host_gtsi_undelegate(unsigned long addr);
+
 #endif /* HOST_HARNESS_H */
