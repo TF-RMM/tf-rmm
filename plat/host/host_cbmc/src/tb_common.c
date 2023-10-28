@@ -116,8 +116,6 @@ size_t next_index(void)
 		return -1;
 	}
 
-	REACHABLE;
-
 	return index;
 }
 

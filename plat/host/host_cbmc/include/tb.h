@@ -10,6 +10,8 @@
 #include "tb_common.h"
 #include "tb_granules.h"
 
+typedef uint64_t rmi_interface_version_t;
+
 /* Initialize the global state based on the commands */
 void __init_global_state(unsigned long cmd);
 

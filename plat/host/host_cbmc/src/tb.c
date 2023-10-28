@@ -27,6 +27,10 @@ void __init_global_state(unsigned long cmd)
 			init_granule_and_page();
 			return;
 		}
+	case SMC_RMM_VERSION: {
+			/* No state to initialize */
+			return;
+		}
 	default:
 		ASSERT(false, "tb_handle_smc fail");
 	}
@@ -41,6 +45,7 @@ void global_sanity_check(void)
 void tb_handle_smc(struct tb_regs *config)
 {
 	unsigned long result = 0;
+	struct smc_result res;
 
 	switch (config->X0) {
 	case SMC_RMM_GRANULE_DELEGATE:
@@ -48,6 +53,12 @@ void tb_handle_smc(struct tb_regs *config)
 		break;
 	case SMC_RMM_GRANULE_UNDELEGATE:
 		result = smc_granule_undelegate(config->X1);
+		break;
+	case SMC_RMM_VERSION:
+		smc_version(config->X1, &res);
+		result = res.x[0];
+		config->X1 = res.x[1];
+		config->X2 = res.x[2];
 		break;
 	default:
 		ASSERT(false, "_tb_handle_smc fail");
