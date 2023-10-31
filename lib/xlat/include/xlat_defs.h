@@ -47,7 +47,7 @@
  * and it does not make any sanity check on `_level`.
  */
 #define XLAT_GET_TABLE_ENTRIES(_level)					\
-	((_level == XLAT_TABLE_LEVEL_MIN) ?				\
+	(((_level) == XLAT_TABLE_LEVEL_MIN) ?				\
 		XLAT_LM1_TABLE_ENTRIES : XLAT_TABLE_ENTRIES)
 
 /*
@@ -56,7 +56,7 @@
  * and it does not make any sanity check on `_level`.
  */
 #define XLAT_GET_TABLE_ENTRIES_MASK(_level)				\
-	((_level == XLAT_TABLE_LEVEL_MIN) ?				\
+	(((_level) == XLAT_TABLE_LEVEL_MIN) ?				\
 		XLAT_LM1_TABLE_ENTRIES_MASK : XLAT_TABLE_ENTRIES_MASK)
 
 /* Values to convert a memory address to an index into a translation table */

@@ -33,7 +33,7 @@ typedef struct {
 static inline return_code_t make_return_code(unsigned int status,
 					     unsigned int index)
 {
-	return (return_code_t){(unsigned int)status, index};
+	return (return_code_t){status, index};
 }
 
 /*

@@ -50,7 +50,7 @@ static inline void write_ ## _name(u_register_t v)		\
 #define DEFINE_SYSOP_FUNC(_op)				\
 static inline void (_op)(void)				\
 {							\
-	(void)_op;					\
+	(void)(_op);					\
 }
 
 /* Define function for system instruction with register parameter */

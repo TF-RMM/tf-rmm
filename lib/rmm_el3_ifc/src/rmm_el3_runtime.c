@@ -47,8 +47,7 @@ int rmm_el3_ifc_get_realm_attest_key(uintptr_t buf, size_t buflen,
 {
 	struct smc_result smc_res;
 	unsigned long buffer_pa;
-	unsigned long offset =
-		(unsigned long)(buf - rmm_shared_buffer_start_va);
+	unsigned long offset = buf - rmm_shared_buffer_start_va;
 
 	assert((offset + buflen) <= rmm_el3_ifc_get_shared_buf_size());
 	assert((buf & ~PAGE_SIZE_MASK) == rmm_shared_buffer_start_va);
@@ -82,8 +81,7 @@ int rmm_el3_ifc_get_platform_token(uintptr_t buf, size_t buflen,
 {
 	struct smc_result smc_res;
 	unsigned long buffer_pa;
-	unsigned long offset =
-		(unsigned long)(buf - rmm_shared_buffer_start_va);
+	unsigned long offset = buf - rmm_shared_buffer_start_va;
 
 	assert((offset + buflen) <= rmm_el3_ifc_get_shared_buf_size());
 	assert((buf & ~PAGE_SIZE_MASK) == rmm_shared_buffer_start_va);

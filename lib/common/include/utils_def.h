@@ -68,14 +68,14 @@
 	(sizeof(a) / sizeof((a)[0]))
 
 #define ARRAY_LEN(_a)	\
-	((sizeof(_a) / sizeof(_a[0])) + CHECK_TYPE_IS_ARRAY(_a))
+	((sizeof(_a) / sizeof((_a)[0])) + CHECK_TYPE_IS_ARRAY(_a))
 
 /*
  * Macro checks types of array and variable/value to write
  * and reports compilation error if they mismatch.
  */
 #define CHECK_ARRAY_TYPE(_a, _v)	\
-	_Static_assert(__builtin_types_compatible_p(typeof(_a[0]), typeof(_v)), \
+	_Static_assert(__builtin_types_compatible_p(typeof((_a)[0]), typeof(_v)), \
 	"array type mismatch")
 
 /*
@@ -87,19 +87,19 @@
 #define SAFE_ARRAY_READ(_a, _i, _v)	\
 ({					\
 	CHECK_ARRAY_TYPE(_a, _v);	\
-	if (_i >= ARRAY_SIZE(_a)) {	\
+	if ((_i) >= ARRAY_SIZE(_a)) {	\
 		panic();		\
 	}				\
-	_v = _a[_i];			\
+	(_v) = (_a)[_i];			\
 })
 
 #define SAFE_ARRAY_WRITE(_a, _i, _v)	\
 ({					\
 	CHECK_ARRAY_TYPE(_a, _v);	\
-	if (_i >= ARRAY_SIZE(_a)) {	\
+	if ((_i) >= ARRAY_SIZE(_a)) {	\
 		panic();		\
 	}				\
-	_a[_i] = _v;			\
+	(_a)[_i] = (_v);			\
 })
 
 #define COMPILER_ASSERT(_condition)	\
@@ -119,7 +119,7 @@
 
 #define CHECK_TYPE_IS_ARRAY(_v) \
 	COMPILER_ASSERT_ZERO(!__builtin_types_compatible_p(typeof(_v),	\
-							typeof(&(_v[0]))))
+							typeof(&((_v)[0]))))
 
 #define IS_POWER_OF_TWO(x)			\
 	((((x) + UL(0)) & ((x) - UL(1))) == UL(0))
@@ -131,9 +131,9 @@
 
 #define GRANULE_ALIGNED(_addr) ALIGNED((void *)(_addr), GRANULE_SIZE)
 #define ALIGNED_TO_ARRAY(_addr, _array)		\
-			(((uintptr_t)_addr >= (uintptr_t)&_array[0]) && \
-			 ((((uintptr_t)_addr - (uintptr_t)&_array[0]) % \
-						sizeof(_array[0])) == UL(0)))
+			(((uintptr_t)(_addr) >= (uintptr_t)&(_array)[0]) && \
+			 ((((uintptr_t)(_addr) - (uintptr_t)&(_array)[0]) % \
+						sizeof((_array)[0])) == UL(0)))
 
 #define GRANULE_SIZE	(UL(1) << GRANULE_SHIFT)
 #define GRANULE_MASK	(~(GRANULE_SIZE - 1U))

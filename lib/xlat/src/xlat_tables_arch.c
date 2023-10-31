@@ -122,7 +122,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 	mair = MAIR_ATTR_SET(ATTR_DEVICE, ATTR_DEVICE_INDEX);
 	mair |= MAIR_ATTR_SET(ATTR_IWBWA_OWBWA_NTR, ATTR_IWBWA_OWBWA_NTR_INDEX);
 
-	va_space_size = (uintptr_t)ctx_cfg->max_va_size;
+	va_space_size = ctx_cfg->max_va_size;
 
 	/*
 	 * __builtin_ctzll(0) is undefined but here we are guaranteed that
@@ -148,8 +148,8 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 	}
 
 	/* Recompute the value for TCR_EL2 */
-	tcr = (uint64_t)t0sz << TCR_EL2_T0SZ_SHIFT;
-	tcr |= (uint64_t)t1sz << TCR_EL2_T1SZ_SHIFT;
+	tcr = t0sz << TCR_EL2_T0SZ_SHIFT;
+	tcr |= t1sz << TCR_EL2_T1SZ_SHIFT;
 
 	/*
 	 * Set the cacheability and shareability attributes for memory
