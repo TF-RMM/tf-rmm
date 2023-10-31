@@ -228,6 +228,7 @@ static void rmi_log_on_exit(unsigned int handler_id,
 	}
 }
 
+/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 void handle_ns_smc(unsigned int function_id,
 		   unsigned long arg0,
@@ -423,6 +424,7 @@ static bool is_el2_data_abort_gpf(unsigned long esr)
  * continue from. Other register values are preserved.
  * If no match is found, it aborts the RMM.
  */
+/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 unsigned long handle_rmm_trap(void)
 {
 	unsigned long esr = read_esr_el2();

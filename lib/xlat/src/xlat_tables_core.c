@@ -242,6 +242,7 @@ static action_t xlat_tables_map_region_action(const struct xlat_mmap_region *mm,
  *
  * NOTE: This function violates misra-c2012-17.2 due to recursivity.
  */
+/* coverity[misra_c_2012_rule_17_2_violation:SUPPRESS] */
 static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 					struct xlat_mmap_region *mm,
 					uintptr_t table_base_va,

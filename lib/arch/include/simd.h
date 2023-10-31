@@ -194,8 +194,8 @@ int simd_context_init(simd_owner_t owner, struct simd_context *simd_ctx,
 		      const struct simd_config *simd_cfg);
 
 /* Switch SIMD context by saving the 'ctx_in' and restoring the 'ctx_out' */
-struct simd_context *simd_context_switch(struct simd_context *ctx_in,
-					 struct simd_context *ctx_out);
+struct simd_context *simd_context_switch(struct simd_context *ctx_save,
+					 struct simd_context *ctx_restore);
 
 /*
  * Returns 'true' if the current CPU's SIMD (FPU/SVE) live state is saved in

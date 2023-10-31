@@ -122,10 +122,10 @@ static unsigned int s2_num_root_rtts(unsigned int ipa_bits, int sl)
 		      + S2TTE_STRIDE;	      /* Bits resolved by single SL */
 
 	if (sl_ipa_bits >= ipa_bits) {
-		return 1U;
+		return U(1);
 	}
 
-	return (1U << (ipa_bits - sl_ipa_bits));
+	return (U(1) << (ipa_bits - sl_ipa_bits));
 }
 
 /*

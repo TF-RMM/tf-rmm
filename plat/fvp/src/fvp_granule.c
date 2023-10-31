@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <fvp_dram.h>
+#include <platform_api.h>
 #include <utils_def.h>
 
 static struct fvp_dram_layout fvp_dram;

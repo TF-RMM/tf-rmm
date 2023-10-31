@@ -40,8 +40,7 @@
  * architectural state and granule size in order to minimize the number of page
  * tables required for the mapping.
  */
-#define REGION_DEFAULT_GRANULARITY		\
-					XLAT_BLOCK_SIZE(XLAT_MIN_BLOCK_LVL())
+#define REGION_DEFAULT_GRANULARITY	XLAT_BLOCK_SIZE(XLAT_MIN_BLOCK_LVL())
 
 /*
  * Helper macro to define a struct xlat_mmap_region. This macro allows to
@@ -54,7 +53,7 @@
 		.base_va = (_va),				\
 		.size = (_sz),					\
 		.attr = (_attr),				\
-		.granularity = (_gr),				\
+		.granularity = (_gr)				\
 	}
 
 /* Helper macro to define anstruct xlat_mmap_region. */

@@ -5,6 +5,7 @@
 
 #include <mmio.h>
 #include <pl011.h>
+#include <stdio.h>
 #include <utils_def.h>
 
 static inline void uart_wait(void)
@@ -68,10 +69,10 @@ static void uart_putc(char ch)
 
 /* Serial output - called from printf */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
-void putchar(char ch)
+void putchar(char character)
 {
-	if (ch == '\n') {
+	if (character == '\n') {
 		uart_putc('\r');
 	}
-	uart_putc(ch);
+	uart_putc(character);
 }

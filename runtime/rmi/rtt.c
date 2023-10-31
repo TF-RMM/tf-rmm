@@ -1251,8 +1251,7 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 		goto out_unmap_llt;
 	}
 
-	for (index = wi.index; index < S2TTES_PER_S2TT;
-				index++, addr += map_size) {
+	for (index = wi.index; index < S2TTES_PER_S2TT; index++) {
 		unsigned long next = addr + map_size;
 
 		/*
@@ -1274,6 +1273,7 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 					       rd->algorithm,
 					       addr,
 					       next);
+		addr = next;
 	}
 
 	if (addr > base) {
@@ -1314,7 +1314,7 @@ static void rtt_set_ripas_range(struct realm_s2_context *s2_ctx,
 		return;
 	}
 
-	for (index = wi->index; index < S2TTES_PER_S2TT; addr += map_size) {
+	for (index = wi->index; index < S2TTES_PER_S2TT; index++) {
 		int ret;
 
 		/*
@@ -1325,7 +1325,7 @@ static void rtt_set_ripas_range(struct realm_s2_context *s2_ctx,
 			break;
 		}
 
-		ret = update_ripas(&s2tt[index++], level,
+		ret = update_ripas(&s2tt[index], level,
 					ripas_val, change_destroyed);
 		if (ret < 0) {
 			break;
@@ -1339,6 +1339,8 @@ static void rtt_set_ripas_range(struct realm_s2_context *s2_ctx,
 				invalidate_block(s2_ctx, addr);
 			}
 		}
+
+		addr += map_size;
 	}
 
 	if (addr > base) {

@@ -6,16 +6,12 @@
 #include <assert.h>
 #include <debug.h>
 #include <rmm_el3_ifc.h>
-#include <sizes.h>
-#include <smc.h>
+#include <rmm_el3_ifc_priv.h>
 #include <spinlock.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <xlat_defs.h>
-
-/* Platform parameter */
-extern uintptr_t rmm_shared_buffer_start_va;
 
 /* Spinlock used to protect the EL3<->RMM shared area */
 static spinlock_t shared_area_lock = {0U};

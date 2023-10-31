@@ -46,7 +46,8 @@ void pmu_save_state(struct pmu_state *pmu, unsigned int num_cnts)
 	pmu->pmxevtyper_el0 = read_pmxevtyper_el0();
 
 	if (num_cnts != 0UL) {
-		switch (--num_cnts) {
+		num_cnts--;
+		switch (num_cnts) {
 		READ_PMEV_EL0(30);
 		READ_PMEV_EL0(29);
 		READ_PMEV_EL0(28);
@@ -78,8 +79,7 @@ void pmu_save_state(struct pmu_state *pmu, unsigned int num_cnts)
 		READ_PMEV_EL0(2);
 		READ_PMEV_EL0(1);
 		default:
-			pmu->pmev_regs[0].pmevcntr_el0 = read_pmevcntr0_el0();
-			pmu->pmev_regs[0].pmevtyper_el0 = read_pmevtyper0_el0();
+		READ_PMEV_EL0(0);
 		}
 	}
 }
@@ -106,7 +106,8 @@ void pmu_restore_state(struct pmu_state *pmu, unsigned int num_cnts)
 	write_pmxevtyper_el0(pmu->pmxevtyper_el0);
 
 	if (num_cnts != 0U) {
-		switch (--num_cnts) {
+		num_cnts--;
+		switch (num_cnts) {
 		WRITE_PMEV_EL0(30);
 		WRITE_PMEV_EL0(29);
 		WRITE_PMEV_EL0(28);
@@ -138,8 +139,7 @@ void pmu_restore_state(struct pmu_state *pmu, unsigned int num_cnts)
 		WRITE_PMEV_EL0(2);
 		WRITE_PMEV_EL0(1);
 		default:
-			write_pmevcntr0_el0(pmu->pmev_regs[0].pmevcntr_el0);
-			write_pmevtyper0_el0(pmu->pmev_regs[0].pmevtyper_el0);
+		WRITE_PMEV_EL0(0);
 		}
 	}
 }
