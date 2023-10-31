@@ -11,12 +11,12 @@
 typedef struct memory_header_s memory_header_t;
 
 /* MbedTLS needs 8K of heap for attestation usecases */
-#define REC_HEAP_PAGES		2U
-#define REC_HEAP_SIZE		(REC_HEAP_PAGES * SZ_4K)
+#define REC_HEAP_PAGES			2U
+#define REC_HEAP_SIZE			(REC_HEAP_PAGES * SZ_4K)
 
 /* Number of pages per REC for PMU state */
-#define REC_PMU_PAGES		1U
-#define REC_PMU_SIZE		(REC_PMU_PAGES * SZ_4K)
+#define REC_PMU_PAGES			1U
+#define REC_PMU_SIZE			(REC_PMU_PAGES * SZ_4K)
 
 /*
  * SIMD context that holds FPU/SVE registers. Space to save max arch supported
@@ -27,18 +27,22 @@ typedef struct memory_header_s memory_header_t;
  * Size of other status registers         :   32 bytes
  * Total size is ~3 Pages (rounded up to page size).
  */
-#define REC_SIMD_PAGES		3U
-#define REC_SIMD_SIZE		(REC_SIMD_PAGES * SZ_4K)
+#define REC_SIMD_PAGES			3U
+#define REC_SIMD_SIZE			(REC_SIMD_PAGES * SZ_4K)
 
 /* Number of pages per REC for 'rec_attest_data' structure */
-#define REC_ATTEST_PAGES	1U
-#define REC_ATTEST_SIZE		(REC_ATTEST_PAGES * SZ_4K)
+#define REC_ATTEST_PAGES		1U
+#define REC_ATTEST_SIZE			(REC_ATTEST_PAGES * SZ_4K)
+
+/* Number of pages per REC for attestation buffer */
+#define REC_ATTEST_TOKEN_BUF_SIZE	(RMM_CCA_TOKEN_BUFFER * SZ_4K)
 
 /* Number of pages per REC to be allocated */
 #define REC_NUM_PAGES		(REC_HEAP_PAGES	  + \
 				 REC_PMU_PAGES	  + \
 				 REC_SIMD_PAGES	  + \
-				 REC_ATTEST_PAGES)
+				 REC_ATTEST_PAGES + \
+				 RMM_CCA_TOKEN_BUFFER)
 
 struct buffer_alloc_ctx {
 	unsigned char		*buf;

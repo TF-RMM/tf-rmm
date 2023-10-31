@@ -36,7 +36,7 @@
  * MISRA treats 1U as as 8-bit type variables. So use 1UL and typecast the value
  * to 'unsigned int'
  */
-#define SMC_SVE_HINT		((unsigned int)(1UL << 16))
+#define SMC_SVE_HINT		(U(1) << 16)
 
 /* FID: Function number */
 #define SMC_FNUM_SHIFT		U(0)
@@ -162,12 +162,12 @@
 	((SMCCC_VERSION_MAJOR << U(16)) | SMCCC_VERSION_MINOR)
 
 /* SMCCC return codes */
-#define SMC_SUCCESS		UL(0)
-#define SMC_NOT_SUPPORTED	UL(-1)
-#define SMC_NOT_REQUIRED	UL(-2)
-#define SMC_INVALID_PARAMETER	UL(-3)
+#define SMC_SUCCESS		(unsigned long)(0)
+#define SMC_NOT_SUPPORTED	(unsigned long)(-1)
+#define SMC_NOT_REQUIRED	(unsigned long)(-2)
+#define SMC_INVALID_PARAMETER	(unsigned long)(-3)
 
-#define SMC_UNKNOWN		UL(-1)
+#define SMC_UNKNOWN		(unsigned long)(-1)
 
 #ifndef __ASSEMBLER__
 unsigned long monitor_call(unsigned long id,

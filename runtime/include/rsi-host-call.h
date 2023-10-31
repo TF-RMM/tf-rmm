@@ -9,9 +9,9 @@
 #include <rsi-walk.h>
 
 struct rec;
-struct rmi_rec_entry;
+struct rmi_rec_enter;
 
 struct rsi_walk_result complete_rsi_host_call(struct rec *rec,
-					      struct rmi_rec_entry *rec_entry);
+					      struct rmi_rec_enter *rec_enter);
 
 #endif /* RSI_HOST_CALL_H */

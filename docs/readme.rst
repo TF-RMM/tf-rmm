@@ -107,7 +107,7 @@ To report a bug, please file an `issue on Github`_
 -----------------
 
 .. |Realm VM| image:: ./about/diagrams/cca_software_arch.png
-.. _Realm Management Monitor (RMM) Specification: https://developer.arm.com/documentation/den0137/1-0eac2/?lang=en
+.. _Realm Management Monitor (RMM) Specification: https://developer.arm.com/documentation/den0137/1-0eac5/?lang=en
 .. _Arm CCA: https://www.arm.com/architecture/security-features/arm-confidential-compute-architecture
 .. _Arm CCA Software Stack Guide: https://developer.arm.com/documentation/den0127/0100/Overview
 .. _TF-A: https://www.trustedfirmware.org/projects/tf-a/

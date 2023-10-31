@@ -79,7 +79,7 @@ static bool s2_inconsistent_sl(unsigned int ipa_bits, int sl)
 	 * The maximum number of concatenated tables is 16,
 	 * hence we are adding 4 to the 'sl_max_ipa_bits'.
 	 */
-	sl_min_ipa_bits = levels * S2TTE_STRIDE + GRANULE_SHIFT + 1U;
+	sl_min_ipa_bits = (levels * S2TTE_STRIDE) + GRANULE_SHIFT + 1U;
 	sl_max_ipa_bits = sl_min_ipa_bits + (S2TTE_STRIDE - 1U) + 4U;
 
 	return ((ipa_bits < sl_min_ipa_bits) || (ipa_bits > sl_max_ipa_bits));
@@ -117,9 +117,9 @@ static unsigned int s2_num_root_rtts(unsigned int ipa_bits, int sl)
 	unsigned int sl_ipa_bits;
 
 	/* First calculate how many bits can be resolved without concatenation */
-	sl_ipa_bits = levels * S2TTE_STRIDE /* Bits resolved by table walk without SL */
-		      + GRANULE_SHIFT	    /* Bits directly mapped to OA */
-		      + S2TTE_STRIDE;	    /* Bits resolved by single SL */
+	sl_ipa_bits = (levels * S2TTE_STRIDE) /* Bits resolved by table walk without SL */
+		      + GRANULE_SHIFT	      /* Bits directly mapped to OA */
+		      + S2TTE_STRIDE;	      /* Bits resolved by single SL */
 
 	if (sl_ipa_bits >= ipa_bits) {
 		return 1U;
@@ -141,14 +141,14 @@ static void init_s2_starting_level(struct rd *rd)
 {
 	unsigned long current_ipa = 0U;
 	struct granule *g_rtt = rd->s2_ctx.g_rtt;
-	unsigned int levels = RTT_PAGE_LEVEL - rd->s2_ctx.s2_starting_level;
-
+	unsigned int levels = (unsigned int)(RTT_PAGE_LEVEL -
+						rd->s2_ctx.s2_starting_level);
 	/*
 	 * The size of the IPA space that is covered by one S2TTE at
 	 * the starting level.
 	 */
 	unsigned long sl_entry_map_size =
-			1UL << (levels * S2TTE_STRIDE + GRANULE_SHIFT);
+			1UL << ((levels * S2TTE_STRIDE) + GRANULE_SHIFT);
 
 	for (unsigned int rtt = 0U; rtt < rd->s2_ctx.num_root_rtts; rtt++) {
 		unsigned long *s2tt = granule_map(g_rtt, SLOT_RTT);
@@ -198,9 +198,9 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 	}
 
 	/* Validate number of breakpoints */
-	if ((p->num_bps !=
+	if ((p->num_bps >
 		EXTRACT(RMM_FEATURE_REGISTER_0_NUM_BPS, feat_reg0)) ||
-	    (p->num_wps !=
+	    (p->num_wps >
 		EXTRACT(RMM_FEATURE_REGISTER_0_NUM_WPS, feat_reg0))) {
 		return false;
 	}
@@ -225,10 +225,29 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 	 */
 
 	/* Validate number of PMU counters if PMUv3 is enabled */
-	if ((EXTRACT(RMI_REALM_FLAGS_PMU, p->flags) == RMI_FEATURE_TRUE) &&
-	    (p->pmu_num_ctrs !=
-		EXTRACT(RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS, feat_reg0))) {
-		return false;
+	if (EXTRACT(RMI_REALM_FLAGS_PMU, p->flags) == RMI_FEATURE_TRUE) {
+		unsigned long mdcr_el2_val;
+
+		if (p->pmu_num_ctrs >
+		    EXTRACT(RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS, feat_reg0)) {
+			return false;
+		}
+
+		/*
+		 * Check if number of PMU counters is 0 and
+		 * FEAT_HMPN0 is implemented
+		 */
+		if ((p->pmu_num_ctrs == 0U) && !is_feat_hpmn0_present()) {
+			return false;
+		}
+
+		/*
+		 * Set MDCR_EL2.HPMN to assign event counters into
+		 * the first range
+		 */
+		mdcr_el2_val = read_mdcr_el2() & ~MASK(MDCR_EL2_HPMN);
+		mdcr_el2_val |= INPLACE(MDCR_EL2_HPMN, p->pmu_num_ctrs);
+		write_mdcr_el2(mdcr_el2_val);
 	}
 
 	if (!validate_ipa_bits_and_sl(p->s2sz, p->rtt_level_start)) {
@@ -261,10 +280,9 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 
 static void free_sl_rtts(struct granule *g_rtt, unsigned int num_rtts)
 {
-	unsigned int i;
-
-	for (i = 0U; i < num_rtts; i++) {
-		struct granule *g = g_rtt + i;
+	for (unsigned int i = 0U; i < num_rtts; i++) {
+		struct granule *g = (struct granule *)((uintptr_t)g_rtt +
+						(i * sizeof(struct granule)));
 
 		granule_lock(g, GRANULE_STATE_RTT);
 		granule_memzero(g, SLOT_RTT);
@@ -289,7 +307,7 @@ static bool find_lock_rd_granules(unsigned long rd_addr,
 	}
 
 	for (; i < num_rtts; i++) {
-		unsigned long rtt_addr = rtt_base_addr + i * GRANULE_SIZE;
+		unsigned long rtt_addr = rtt_base_addr + (i * GRANULE_SIZE);
 		struct granule *g_rtt;
 
 		g_rtt = find_lock_granule(rtt_addr, GRANULE_STATE_DELEGATED);
@@ -316,7 +334,8 @@ static bool find_lock_rd_granules(unsigned long rd_addr,
 
 out_err:
 	while (i-- != 0U) {
-		granule_unlock(g_rtt_base + i);
+		granule_unlock((struct granule *)((uintptr_t)g_rtt_base +
+						(i * sizeof(struct granule))));
 	}
 
 	if (g_rd != NULL) {
@@ -332,7 +351,6 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	struct granule *g_rd, *g_rtt_base;
 	struct rd *rd;
 	struct rmi_realm_params p;
-	unsigned int i;
 
 	if (!get_realm_params(&p, realm_params_addr)) {
 		return RMI_ERROR_INPUT;
@@ -350,7 +368,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	 * starting level RTT address(es)
 	 */
 	if (addr_is_contained(p.rtt_base,
-			      p.rtt_base + p.rtt_num_start * GRANULE_SIZE,
+			      p.rtt_base + (p.rtt_num_start * GRANULE_SIZE),
 			      rd_addr)) {
 
 		/* Free reserved VMID before returning */
@@ -404,8 +422,10 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 
 	granule_unlock_transition(g_rd, GRANULE_STATE_RD);
 
-	for (i = 0U; i < p.rtt_num_start; i++) {
-		granule_unlock_transition(g_rtt_base + i, GRANULE_STATE_RTT);
+	for (unsigned int i = 0U; i < p.rtt_num_start; i++) {
+		granule_unlock_transition(
+			(struct granule *)((uintptr_t)g_rtt_base +
+			(i * sizeof(struct granule))), GRANULE_STATE_RTT);
 	}
 
 	return RMI_SUCCESS;
@@ -415,11 +435,10 @@ static unsigned long total_root_rtt_refcount(struct granule *g_rtt,
 					     unsigned int num_rtts)
 {
 	unsigned long refcount = 0UL;
-	unsigned int i;
 
-	for (i = 0U; i < num_rtts; i++) {
-		struct granule *g = g_rtt + i;
-
+	for (unsigned int i = 0U; i < num_rtts; i++) {
+		struct granule *g = (struct granule *)((uintptr_t)g_rtt +
+					(i * sizeof(struct granule)));
 	       /*
 		* Lock starting from the RTT root.
 		* Enforcing locking order RD->RTT is enough to ensure

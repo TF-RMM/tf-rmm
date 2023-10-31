@@ -289,6 +289,6 @@ void aux_granules_unmap(void *rec_aux, unsigned int num_aux)
 	assert(num_aux <= MAX_REC_AUX_GRANULES);
 
 	for (unsigned int i = 0U; i < num_aux; i++) {
-		buffer_unmap(rec_aux_vaddr + (i * GRANULE_SIZE));
+		buffer_unmap((void *)((uintptr_t)rec_aux_vaddr + (i * GRANULE_SIZE)));
 	}
 }

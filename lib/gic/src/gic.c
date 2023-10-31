@@ -130,18 +130,18 @@ void gic_cpu_state_init(struct gic_cpu_state *gicstate)
 }
 
 void gic_copy_state_from_rec_entry(struct gic_cpu_state *gicstate,
-			    struct rmi_rec_entry *rec_entry)
+			    struct rmi_rec_enter *rec_enter)
 {
 	unsigned int i;
 
 	/* Copy List Registers */
 	for (i = 0U; i <= gic_virt_feature.nr_lrs; i++) {
-		gicstate->ich_lr_el2[i] = rec_entry->gicv3_lrs[i];
+		gicstate->ich_lr_el2[i] = rec_enter->gicv3_lrs[i];
 	}
 
 	/* Get bits from NS hypervisor */
 	gicstate->ich_hcr_el2 &= ~ICH_HCR_EL2_NS_MASK;
-	gicstate->ich_hcr_el2 |= rec_entry->gicv3_hcr & ICH_HCR_EL2_NS_MASK;
+	gicstate->ich_hcr_el2 |= rec_enter->gicv3_hcr & ICH_HCR_EL2_NS_MASK;
 }
 
 void gic_copy_state_to_rec_exit(struct gic_cpu_state *gicstate,
@@ -178,10 +178,10 @@ static bool is_valid_vintid(unsigned long intid)
 		false);
 }
 
-bool gic_validate_state(struct rmi_rec_entry *rec_entry)
+bool gic_validate_state(struct rmi_rec_enter *rec_enter)
 {
 	unsigned int i, j;
-	unsigned long hcr = rec_entry->gicv3_hcr;
+	unsigned long hcr = rec_enter->gicv3_hcr;
 
 	/* Validate rec_entry.gicv3_hcr MBZ bits */
 	if ((hcr & ~ICH_HCR_EL2_NS_MASK) != 0UL) {
@@ -189,7 +189,7 @@ bool gic_validate_state(struct rmi_rec_entry *rec_entry)
 	}
 
 	for (i = 0U; i <= gic_virt_feature.nr_lrs; i++) {
-		unsigned long lr = rec_entry->gicv3_lrs[i];
+		unsigned long lr = rec_enter->gicv3_lrs[i];
 		unsigned long intid = EXTRACT(ICH_LR_VINTID, lr);
 
 		if ((lr & ICH_LR_STATE_MASK) == ICH_LR_STATE_INVALID) {
@@ -213,7 +213,7 @@ bool gic_validate_state(struct rmi_rec_entry *rec_entry)
 		 * specify the same vINTID.
 		 */
 		for (j = i + 1U; j <= gic_virt_feature.nr_lrs; j++) {
-			unsigned long _lr = rec_entry->gicv3_lrs[j];
+			unsigned long _lr = rec_enter->gicv3_lrs[j];
 			unsigned long _intid = EXTRACT(ICH_LR_VINTID, _lr);
 
 			if ((_lr & ICH_LR_STATE_MASK) == ICH_LR_STATE_INVALID) {

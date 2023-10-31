@@ -5,7 +5,6 @@
 
 #include <cpuid.h>
 #include <measurement.h>
-#include <sizes.h>
 #include <string.h>
 
 /*
@@ -54,14 +53,31 @@ void measurement_realm_params_measure(unsigned char rim_measurement[],
 				      enum hash_algo algorithm,
 				      struct rmi_realm_params *realm_params)
 {
-	/* By specification realm_params is 4KB */
-	unsigned char buffer[SZ_4K] = {0};
-	struct rmi_realm_params *realm_params_measured =
-		(struct rmi_realm_params *)&buffer[0];
+	/*
+	 * Allocate a zero-filled RmiRealmParams data structure
+	 * to hold the measured Realm parameters.
+	 */
+	unsigned char buffer[sizeof(struct rmi_realm_params)] = {0};
+	struct rmi_realm_params *rim_params = (struct rmi_realm_params *)buffer;
 
-	realm_params_measured->algorithm = realm_params->algorithm;
-	/* TODO: Add later */
-	/* realm_params_measured->features_0 = realm_params->features_0; */
+	/*
+	 * Copy the following attributes into the measured Realm
+	 * parameters data structure:
+	 * - flags
+	 * - s2sz
+	 * - sve_vl
+	 * - num_bps
+	 * - num_wps
+	 * - pmu_num_ctrs
+	 * - hash_algo
+	 */
+	rim_params->flags = realm_params->flags;
+	rim_params->s2sz = realm_params->s2sz;
+	rim_params->sve_vl = realm_params->sve_vl;
+	rim_params->num_bps = realm_params->num_bps;
+	rim_params->num_wps = realm_params->num_wps;
+	rim_params->pmu_num_ctrs = realm_params->pmu_num_ctrs;
+	rim_params->algorithm = realm_params->algorithm;
 
 	/* Measure relevant realm params this will be the init value of RIM */
 	measurement_hash_compute(algorithm,
@@ -76,11 +92,12 @@ void measurement_rec_params_measure(unsigned char rim_measurement[],
 {
 	struct measurement_desc_rec measure_desc = {0};
 	struct rmi_rec_params *rec_params_measured =
-		&(rec_params_per_cpu[my_cpuid()]);
+		&rec_params_per_cpu[my_cpuid()];
 
 	(void)memset(rec_params_measured, 0, sizeof(*rec_params_measured));
 
-	/* Copy the relevant parts of the rmi_rec_params structure to be
+	/*
+	 * Copy the relevant parts of the rmi_rec_params structure to be
 	 * measured
 	 */
 	rec_params_measured->pc = rec_params->pc;
@@ -95,7 +112,7 @@ void measurement_rec_params_measure(unsigned char rim_measurement[],
 					measurement_get_size(algorithm));
 
 	/*
-	 * Hashing the REC params structure and store the result in the
+	 * Hash the REC params structure and store the result in the
 	 * measurement descriptor structure.
 	 */
 	measurement_hash_compute(algorithm,
@@ -104,7 +121,7 @@ void measurement_rec_params_measure(unsigned char rim_measurement[],
 				measure_desc.content);
 
 	/*
-	 * Hashing the measurement descriptor structure; the result is the
+	 * Hash the measurement descriptor structure; the result is the
 	 * updated RIM.
 	 */
 	measurement_hash_compute(algorithm,

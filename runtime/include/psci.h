@@ -76,16 +76,16 @@
 #define SMC32_PSCI_MEM_PROTECT_CHECK_RANGE	SMC32_PSCI_FID(0x14U)
 #define SMC64_PSCI_MEM_PROTECT_CHECK_RANGE	SMC64_PSCI_FID(0x14U)
 
-#define PSCI_RETURN_SUCCESS		UL(0)
-#define PSCI_RETURN_NOT_SUPPORTED	UL(-1)
-#define PSCI_RETURN_INVALID_PARAMS	UL(-2)
-#define PSCI_RETURN_DENIED		UL(-3)
-#define PSCI_RETURN_ALREADY_ON		UL(-4)
-#define PSCI_RETURN_ON_PENDING		UL(-5)
-#define PSCI_RETURN_INTERNAL_FAILURE	UL(-6)
-#define PSCI_RETURN_NOT_PRESENT		UL(-7)
-#define PSCI_RETURN_DISABLED		UL(-8)
-#define PSCI_RETURN_INVALID_ADDRESS	UL(-9)
+#define PSCI_RETURN_SUCCESS		(unsigned long)(0)
+#define PSCI_RETURN_NOT_SUPPORTED	(unsigned long)(-1)
+#define PSCI_RETURN_INVALID_PARAMS	(unsigned long)(-2)
+#define PSCI_RETURN_DENIED		(unsigned long)(-3)
+#define PSCI_RETURN_ALREADY_ON		(unsigned long)(-4)
+#define PSCI_RETURN_ON_PENDING		(unsigned long)(-5)
+#define PSCI_RETURN_INTERNAL_FAILURE	(unsigned long)(-6)
+#define PSCI_RETURN_NOT_PRESENT		(unsigned long)(-7)
+#define PSCI_RETURN_DISABLED		(unsigned long)(-8)
+#define PSCI_RETURN_INVALID_ADDRESS	(unsigned long)(-9)
 
 #define PSCI_AFFINITY_INFO_ON		UL(0)
 #define PSCI_AFFINITY_INFO_OFF		UL(1)
@@ -98,6 +98,6 @@
 struct rec;
 
 unsigned long psci_complete_request(struct rec *calling_rec,
-				    struct rec *target_rec);
+				    struct rec *target_rec, unsigned long status);
 
 #endif /* PSCI_H */

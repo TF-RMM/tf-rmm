@@ -78,6 +78,7 @@ enum rmi_type {
 	set_rmi_type(4, 0),	/* 4 arguments, 0 output values */
 	set_rmi_type(5, 0),	/* 5 arguments, 0 output values */
 	set_rmi_type(1, 1),	/* 1 argument,  1 output value */
+	set_rmi_type(1, 2),	/* 1 argument,  2 output values */
 	set_rmi_type(2, 2),	/* 2 arguments, 2 output values */
 	set_rmi_type(3, 1),	/* 3 arguments, 1 output value */
 	set_rmi_type(3, 2),	/* 3 arguments, 2 output values */
@@ -96,6 +97,7 @@ struct smc_handler {
 		handler_4	f_40;
 		handler_5	f_50;
 		handler_1_o	f_11;
+		handler_1_o	f_12;
 		handler_2_o	f_22;
 		handler_3_o	f_31;
 		handler_3_o	f_32;
@@ -114,11 +116,11 @@ struct smc_handler {
 #define RMI_HANDLER_ID(_id)	SMC64_FID_OFFSET_FROM_RANGE_MIN(RMI, _id)
 
 #define HANDLER(_id, _in, _out, _fn, _exec, _error)[RMI_HANDLER_ID(SMC_RMM_##_id)] = { \
-	.fn_name = (#_id),		\
-	.type = RMI_TYPE(_in, _out),	\
-	.f_##_in##_out = (_fn),		\
-	.log_exec = (_exec),		\
-	.log_error = (_error)		\
+	.fn_name = (#_id),				\
+	.type = (enum rmi_type)RMI_TYPE(_in, _out),	\
+	.f_##_in##_out = (_fn),				\
+	.log_exec = (_exec),				\
+	.log_error = (_error)				\
 }
 
 /*
@@ -126,7 +128,7 @@ struct smc_handler {
  * The 4th value enables the error log.
  */
 static const struct smc_handler smc_handlers[] = {
-	HANDLER(VERSION,		0, 0, smc_version,		 true,  true),
+	HANDLER(VERSION,		1, 2, smc_version,		 true,  true),
 	HANDLER(FEATURES,		1, 1, smc_read_feature_register, true,  true),
 	HANDLER(GRANULE_DELEGATE,	1, 0, smc_granule_delegate,	 false, true),
 	HANDLER(GRANULE_UNDELEGATE,	1, 0, smc_granule_undelegate,	 false, true),
@@ -145,7 +147,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RTT_MAP_UNPROTECTED,	4, 0, smc_rtt_map_unprotected,	 false, false),
 	HANDLER(RTT_UNMAP_UNPROTECTED,	3, 1, smc_rtt_unmap_unprotected, false, false),
 	HANDLER(RTT_READ_ENTRY,		3, 4, smc_rtt_read_entry,	 false, true),
-	HANDLER(PSCI_COMPLETE,		2, 0, smc_psci_complete,	 true,  true),
+	HANDLER(PSCI_COMPLETE,		3, 0, smc_psci_complete,	 true,  true),
 	HANDLER(REC_AUX_COUNT,		1, 1, smc_rec_aux_count,	 true,  true),
 	HANDLER(RTT_INIT_RIPAS,		3, 1, smc_rtt_init_ripas,	 false, true),
 	HANDLER(RTT_SET_RIPAS,		4, 1, smc_rtt_set_ripas,	 false, true)
@@ -178,15 +180,6 @@ static void rmi_log_on_exit(unsigned int handler_id,
 	unsigned int num;
 
 	if (!handler->log_exec && !handler->log_error) {
-		return;
-	}
-
-	if (function_id == SMC_RMM_VERSION) {
-		/*
-		 * RMM_VERSION is special because it returns the
-		 * version number, not the error code.
-		 */
-		INFO("SMC_RMM_%-21s > %lx\n", handler->fn_name, res->x[0]);
 		return;
 	}
 
@@ -314,6 +307,9 @@ void handle_ns_smc(unsigned int function_id,
 		break;
 	case rmi_type_11:
 		handler->f_11(arg0, res);
+		break;
+	case rmi_type_12:
+		handler->f_12(arg0, res);
 		break;
 	case rmi_type_22:
 		handler->f_22(arg0, arg1, res);

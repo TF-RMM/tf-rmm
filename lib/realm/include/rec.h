@@ -131,6 +131,9 @@ struct rec_aux_data {
 
 	/* Pointer to attestation-related data */
 	struct rec_attest_data *attest_data;
+
+	/* Address of the attestation token buffer */
+	uintptr_t cca_token_buf;
 };
 
 struct rec {
@@ -159,6 +162,7 @@ struct rec {
 		unsigned long addr;
 		enum ripas ripas_val;
 		enum ripas_change_destroyed change_destroyed;
+		enum ripas_response response;
 	} set_ripas;
 
 	/*

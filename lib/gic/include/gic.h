@@ -205,16 +205,17 @@ struct gic_cpu_state {
 	unsigned long ich_misr_el2;		/* RecRun out */
 };
 
-struct rmi_rec_entry;
+struct rmi_rec_enter;
 struct rmi_rec_exit;
 
 void gic_get_virt_features(void);
 void gic_cpu_state_init(struct gic_cpu_state *gicstate);
+
 void gic_copy_state_from_rec_entry(struct gic_cpu_state *gicstate,
-			    struct rmi_rec_entry *rec_entry);
+			  struct rmi_rec_enter *rec_enter);
 void gic_copy_state_to_rec_exit(struct gic_cpu_state *gicstate,
 			  struct rmi_rec_exit *rec_exit);
-bool gic_validate_state(struct rmi_rec_entry *rec_entry);
+bool gic_validate_state(struct rmi_rec_enter *rec_enter);
 void gic_restore_state(struct gic_cpu_state *gicstate);
 void gic_save_state(struct gic_cpu_state *gicstate);
 

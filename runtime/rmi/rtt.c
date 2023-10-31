@@ -125,7 +125,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 
 	rtt_walk_lock_unlock(g_table_root, sl, ipa_bits,
 				map_addr, level - 1L, &wi);
-	if (wi.last_level != level - 1L) {
+	if (wi.last_level != (level - 1L)) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned int)wi.last_level);
 		goto out_unlock_llt;
@@ -319,7 +319,7 @@ void smc_rtt_fold(unsigned long rd_addr,
 
 	rtt_walk_lock_unlock(g_table_root, sl, ipa_bits,
 				map_addr, level - 1L, &wi);
-	if (wi.last_level != level - 1L) {
+	if (wi.last_level != (level - 1L)) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned int)wi.last_level);
 		goto out_unlock_parent_table;
@@ -516,7 +516,7 @@ void smc_rtt_destroy(unsigned long rd_addr,
 
 	parent_s2tte = s2tte_read(&parent_s2tt[wi.index]);
 
-	if ((wi.last_level != level - 1L) ||
+	if ((wi.last_level != (level - 1L)) ||
 	    !s2tte_is_table(parent_s2tte, level - 1L)) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned int)wi.last_level);
@@ -917,17 +917,15 @@ static unsigned long data_create(unsigned long rd_addr,
 	assert(s2tt != NULL);
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
+	if (!s2tte_is_unassigned(s2tte)) {
+		ret = pack_return_code(RMI_ERROR_RTT, RTT_PAGE_LEVEL);
+		goto out_unmap_ll_table;
+	}
 
 	if (g_src != NULL) {
 		bool ns_access_ok;
-		void *data;
+		void *data = granule_map(g_data, SLOT_DELEGATED);
 
-		if (!s2tte_is_unassigned_ram(s2tte)) {
-			ret = pack_return_code(RMI_ERROR_RTT, RTT_PAGE_LEVEL);
-			goto out_unmap_ll_table;
-		}
-
-		data = granule_map(g_data, SLOT_DELEGATED);
 		assert(data != NULL);
 
 		ns_access_ok = ns_buffer_read(SLOT_NS, g_src, 0U,
@@ -951,14 +949,13 @@ static unsigned long data_create(unsigned long rd_addr,
 			flags);
 		buffer_unmap(data);
 
-	} else if (!s2tte_is_unassigned(s2tte)) {
-		ret = pack_return_code(RMI_ERROR_RTT, RTT_PAGE_LEVEL);
-		goto out_unmap_ll_table;
+		s2tte = s2tte_create_assigned_ram(data_addr, RTT_PAGE_LEVEL);
+	} else {
+		s2tte = s2tte_create_assigned_unchanged(s2tte, data_addr,
+							RTT_PAGE_LEVEL);
 	}
 
 	new_data_state = GRANULE_STATE_DATA;
-
-	s2tte = s2tte_create_assigned_unchanged(s2tte, data_addr, RTT_PAGE_LEVEL);
 
 	s2tte_write(&s2tt[wi.index], s2tte);
 	__granule_get(wi.g_llt);

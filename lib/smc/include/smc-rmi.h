@@ -19,7 +19,7 @@
  * The major version number of the RMI implementation.  Increase this whenever
  * the binary format or semantics of the SMC calls change.
  */
-#define RMI_ABI_VERSION_MAJOR		UL(66)
+#define RMI_ABI_VERSION_MAJOR		UL(1)
 
 /*
  * The minor version number of the RMI implementation.  Increase this when
@@ -85,8 +85,8 @@
 #define REC_EXIT_NR_GPRS		U(31)
 
 /* RmiHashAlgorithm type */
-#define RMI_HASH_SHA_256		U(0)
-#define RMI_HASH_SHA_512		U(1)
+#define RMI_HASH_SHA_256		0U
+#define RMI_HASH_SHA_512		1U
 
 /* Maximum number of Interrupt Controller List Registers */
 #define REC_GIC_NUM_LRS			U(16)
@@ -94,12 +94,18 @@
 /* Maximum number of auxiliary granules required for a REC */
 #define MAX_REC_AUX_GRANULES		U(16)
 
+/* Whether Host has completed emulation for an Emulatable Data Abort */
 #define REC_ENTRY_FLAG_EMUL_MMIO	(UL(1) << 0)
+
+/* Whether to inject a Synchronous External Abort into Realm */
 #define REC_ENTRY_FLAG_INJECT_SEA	(UL(1) << 1)
 
-/* Flags to specify if WFI/WFE should be trapped to host */
+/* Whether to trap WFI/WFE execution by Realm */
 #define REC_ENTRY_FLAG_TRAP_WFI		(UL(1) << 2)
 #define REC_ENTRY_FLAG_TRAP_WFE		(UL(1) << 3)
+
+/* Host response to RIPAS change request */
+#define REC_ENTRY_FLAG_RIPAS_RESPONSE	(UL(1) << 4)
 
 /*
  * RmiRecExitReason represents the reason for a REC exit.
@@ -170,7 +176,20 @@
 #define RMI_PMU_OVERFLOW_NOT_ACTIVE	U(0)
 #define RMI_PMU_OVERFLOW_ACTIVE		U(1)
 
-/* No parameters */
+/*
+ * RmiResponse enumeration represents whether the Host accepted
+ * or rejected a Realm request
+ */
+#define RMI_ACCEPT	0U
+#define RMI_REJECT	1U
+
+/*
+ * arg0: Requested interface version
+ *
+ * ret0: Command return status
+ * ret1: Lower implemented interface revision
+ * ret2: Higher implemented interface revision
+ */
 #define SMC_RMM_VERSION				SMC64_RMI_FID(U(0x0))
 
 /*
@@ -421,7 +440,7 @@ struct rmi_rec_params {
 /*
  * Structure contains data passed from the Host to the RMM on REC entry
  */
-struct rmi_rec_entry {
+struct rmi_rec_enter {
 	/* Flags */
 	SET_MEMBER_RMI(unsigned long flags, 0, 0x200);	/* Offset 0 */
 	/* General-purpose registers */
@@ -490,7 +509,7 @@ struct rmi_rec_exit {
  */
 struct rmi_rec_run {
 	/* Entry information */
-	SET_MEMBER_RMI(struct rmi_rec_entry entry, 0, 0x800);	/* Offset 0 */
+	SET_MEMBER_RMI(struct rmi_rec_enter enter, 0, 0x800);	/* Offset 0 */
 	/* Exit information */
 	SET_MEMBER_RMI(struct rmi_rec_exit exit, 0x800, 0x1000);/* 0x800 */
 };

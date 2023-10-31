@@ -8,7 +8,8 @@
 
 #include <smc.h>
 
-unsigned long smc_version(void);
+void smc_version(unsigned long rmi_version,
+				struct smc_result *res);
 
 void smc_read_feature_register(unsigned long index,
 				struct smc_result *res);
@@ -81,7 +82,8 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 			struct smc_result *res);
 
 unsigned long smc_psci_complete(unsigned long calling_rec_addr,
-				unsigned long target_rec_addr);
+				unsigned long target_rec_addr,
+				unsigned long status);
 
 void smc_rtt_init_ripas(unsigned long rd_addr,
 			unsigned long base,

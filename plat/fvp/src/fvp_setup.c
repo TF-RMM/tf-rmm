@@ -15,7 +15,7 @@
 #define FVP_RMM_UART		MAP_REGION_FLAT(			\
 					RMM_UART_ADDR,			\
 					SZ_4K,				\
-					MT_DEVICE | MT_RW | MT_REALM)
+					(MT_DEVICE | MT_RW | MT_REALM))
 
 /*
  * Local platform setup for RMM.

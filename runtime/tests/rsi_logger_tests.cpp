@@ -54,13 +54,10 @@ static void rsi_log_test(unsigned int id, unsigned int status)
 	/* Fill output values */
 	switch (status) {
 	case LOG_SUCCESS:
-		regs[0] = (id == SMC_RSI_ABI_VERSION) ?
-				RSI_ABI_VERSION : RSI_SUCCESS;
+		regs[0] = RSI_SUCCESS;
 		break;
 	case LOG_ERROR:
-		regs[0] = (id == SMC_RSI_ABI_VERSION) ?
-				RSI_ABI_VERSION :
-				test_helpers_get_rand_in_range(RSI_ERROR_INPUT, RSI_INCOMPLETE);
+		regs[0] = test_helpers_get_rand_in_range(RSI_ERROR_INPUT, RSI_INCOMPLETE);
 		break;
 	default:
 		regs[0]	= rand();
@@ -78,7 +75,7 @@ TEST(rsi_logger_tests, RSI_LOGGER_TC1)
 	unsigned int status, id;
 
 	for (status = LOG_SUCCESS; status <= LOG_RANDOM; status++) {
-		for (id = SMC_RSI_ABI_VERSION; id <= SMC_RSI_HOST_CALL; id++) {
+		for (id = SMC_RSI_VERSION; id <= SMC_RSI_HOST_CALL; id++) {
 			rsi_log_test(id, status);
 		}
 	}
