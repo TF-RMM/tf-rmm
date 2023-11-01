@@ -38,7 +38,7 @@
  * Reserve enough space for the temporary PRNG and per-CPU ones (see
  * attest_rnd_prng_init()), plus a page for other allocations.
  */
-#define PRNG_INIT_HEAP_SIZE	((MAX_CPUS + 1) * 364)
+#define PRNG_INIT_HEAP_SIZE	((MAX_CPUS + 1UL) * 364UL)
 #define INIT_HEAP_SIZE		(PRNG_INIT_HEAP_SIZE + SZ_4K)
 
 static unsigned char mem_buf[INIT_HEAP_SIZE]

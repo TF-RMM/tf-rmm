@@ -39,6 +39,8 @@ static inline unsigned long granule_refcount_read_acquire(struct granule *g)
 static inline void __granule_assert_unlocked_invariants(struct granule *g,
 							enum granule_state state)
 {
+	(void)g;
+
 	switch (state) {
 	case GRANULE_STATE_NS:
 		assert(granule_refcount_read_relaxed(g) == 0UL);

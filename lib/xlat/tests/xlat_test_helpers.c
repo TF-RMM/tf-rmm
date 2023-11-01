@@ -166,6 +166,7 @@ void xlat_test_helpers_rand_mmap_array(struct xlat_mmap_region *mmap,
 
 /* Maximum separation (in pages) between regions */
 #define MAX_PAGES_SEPARATION	(10U)
+	(void)max_va;
 
 	unsigned int region_pages;
 	size_t region_size;

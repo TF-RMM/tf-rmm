@@ -178,11 +178,14 @@ struct simd_context {
  * TODO: Auto generate header file simd-asm-offsets.h during build and use it
  * in assembly routines.
  */
-COMPILER_ASSERT(__builtin_offsetof(struct fpu_regs, q) == FPU_REGS_OFFSET_Q);
-
-COMPILER_ASSERT(__builtin_offsetof(struct sve_regs, z) == SVE_REGS_OFFSET_Z);
-COMPILER_ASSERT(__builtin_offsetof(struct sve_regs, p) == SVE_REGS_OFFSET_P);
-COMPILER_ASSERT(__builtin_offsetof(struct sve_regs, ffr) == SVE_REGS_OFFSET_FFR);
+COMPILER_ASSERT(__builtin_offsetof(struct fpu_regs, q) ==
+	(size_t)FPU_REGS_OFFSET_Q);
+COMPILER_ASSERT(__builtin_offsetof(struct sve_regs, z) ==
+	(size_t)SVE_REGS_OFFSET_Z);
+COMPILER_ASSERT(__builtin_offsetof(struct sve_regs, p) ==
+	(size_t)SVE_REGS_OFFSET_P);
+COMPILER_ASSERT(__builtin_offsetof(struct sve_regs, ffr) ==
+	(size_t)SVE_REGS_OFFSET_FFR);
 
 /* Initialize SIMD layer based on CPU support for FPU or SVE */
 void simd_init(void);
