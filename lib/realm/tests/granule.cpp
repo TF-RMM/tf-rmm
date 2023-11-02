@@ -1106,6 +1106,9 @@ TEST(granule, granule_set_get_state_TC1)
 			 * find_lock_granule()
 			 */
 			CHECK_EQUAL(1, granule->lock.val);
+
+			/* Unlock the granule */
+			granule_unlock(granule);
 		}
 	}
 
@@ -1589,29 +1592,45 @@ TEST(granule, find_lock_unused_granule_TC1)
 	/******************************************************************
 	 * TEST CASE 1:
 	 *
-	 * Find and lock a granule and verify that it is on
-	 * the right state (granules should be in GRANULE_STATE_DELEGATED)
-	 * by default, as well as refcount and lock status.
+	 * Perform a series of tests on find_lock_unused_granule()
+	 *	- Test with an unused granule on find_lock_unused_granule()
+	 *	  ensuring that the state matches.
+	 *	- Test with an used granule (refcount > 0) in the same
+	 *	  state as used on find_lock_unused_granule().
 	 * Test the first and the last valid granules as well as random
 	 * granules in between.
 	 ******************************************************************/
 
 	for (unsigned int i = 0U; i < 3U; i++) {
 		int ret;
+		struct granule *exp_granule;
 
-		/* Find and lock the granule */
-		granule = find_lock_granule(addrs[i], GRANULE_STATE_NS);
+		/* Find the granule and set it to the expected state */
+		granule = find_granule(addrs[i]);
+		granule_set_state(granule, GRANULE_STATE_RD);
 
-		/* Change status to avoid assertions on invariants checks */
-		granule->state = GRANULE_STATE_RD;
-
+		exp_granule = granule;
 		granule = NULL;
 		ret = find_lock_unused_granule(addrs[i], GRANULE_STATE_RD, &granule);
 
 		CHECK_TRUE(ret == 0);
-		CHECK_FALSE(granule == NULL);
+		CHECK_TRUE(exp_granule == granule);
 		CHECK_FALSE(granule->lock.val == 0UL);
-		LONGS_EQUAL(0, granule->refcount);
+		UNSIGNED_LONGS_EQUAL(0UL, granule->refcount);
+
+		/* Repeat the test, this time, 'refcount' is != 0 */
+		granule->refcount = 1UL;
+		granule->lock.val = 0UL;
+		ret = find_lock_unused_granule(addrs[i], GRANULE_STATE_RD, &granule);
+
+		/*
+		 * from the previous test exp_granule points to the
+		 * test granule.
+		 */
+		CHECK_TRUE(ret == -EBUSY);
+		CHECK_TRUE(granule == NULL);
+		CHECK_TRUE(exp_granule->lock.val == 0UL);
+		UNSIGNED_LONGS_EQUAL(1UL, exp_granule->refcount);
 	}
 }
 
