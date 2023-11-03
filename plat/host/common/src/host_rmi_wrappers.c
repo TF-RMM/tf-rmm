@@ -6,7 +6,7 @@
 #include <host_rmi_wrappers.h>
 
 /* Declaring SMC handler */
-void handle_ns_smc(unsigned long function_id,
+void handle_ns_smc(unsigned int function_id,
 		   unsigned long arg0,
 		   unsigned long arg1,
 		   unsigned long arg2,

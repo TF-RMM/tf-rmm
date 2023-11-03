@@ -102,6 +102,7 @@
 	(_a)[_i] = (_v);			\
 })
 
+#ifndef CBMC
 #define COMPILER_ASSERT(_condition)	\
 			extern char compiler_assert[(_condition) ? 1 : -1]
 
@@ -120,6 +121,11 @@
 #define CHECK_TYPE_IS_ARRAY(_v) \
 	COMPILER_ASSERT_ZERO(!__builtin_types_compatible_p(typeof(_v),	\
 							typeof(&((_v)[0]))))
+#else /* CBMC */
+#define COMPILER_ASSERT(_condition)	extern char disabled_compiler_assert[1]
+#define COMPILER_ASSERT_ZERO(_expr)	extern char disabled_compiler_assert[1]
+#define CHECK_TYPE_IS_ARRAY(_v)		1
+#endif /* CBMC */
 
 #define IS_POWER_OF_TWO(x)			\
 	((((x) + UL(0)) & ((x) - UL(1))) == UL(0))
@@ -227,6 +233,18 @@
 	}
 
 #define FALLTHROUGH	__attribute__((fallthrough))
+
+/*
+ * Helper macros for making code parts to be conditionally compiled, depending
+ * on the current build being a CBMC build or not.
+ */
+#ifdef CBMC
+#define IF_NCBMC(x)
+#define IF_CBMC(x)	x
+#else /* CBMC */
+#define IF_NCBMC(x)	x
+#define IF_CBMC(x)
+#endif /* CBMC */
 
 #endif /* !(defined(__ASSEMBLER__) || defined(__LINKER__)) */
 

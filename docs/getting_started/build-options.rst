@@ -234,6 +234,16 @@ The above commands will automatically generate the HTML coverage report in folde
 `build/Debug/coverage` within the build directory. The HTML generation can be
 disabled by setting `RMM_HTML_COV_REPORT=OFF`.
 
+17. Run CBMC analysis:
+
+Run ``COVERAGE``, ``ANALYSIS`` and ``ASSERT`` targets for CBMC. The results
+are generated in ``${RMM_BUILD_DIR}/tools/cbmc/cbmc_coverage_results``.
+
+.. code-block:: bash
+
+    cmake -DRMM_CONFIG=host_defcfg -DHOST_VARIANT=host_cbmc -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
+    cmake --build ${RMM_BUILD_DIR} -- cbmc-coverage cbmc-analysis cbmc-assert
+
 .. _build_options_table:
 
 ###################
@@ -271,7 +281,8 @@ The |RMM| build system supports the following CMake build options.
    MBEDTLS_ECP_MAX_OPS		,248 -			,1000			,"Number of max operations per ECC signing iteration"
    RMM_FPU_USE_AT_REL2		,ON | OFF		,OFF(fake_host) ON(aarch64),"Enable FPU/SIMD usage in RMM."
    RMM_MAX_GRANULES		,			,0			,"Maximum number of memory granules available to the system"
-   HOST_VARIANT			,host_build | host_test	,host_build		,"Variant to build for the host platform. Only available when RMM_PLATFORM=host"
+   HOST_VARIANT			,host_build | host_test | host_cbmc	,host_build	,"Variant to build for the host platform. Only available when RMM_PLATFORM=host"
+   HOST_MEM_SIZE		,			,0x40000000		,"Host memory size that will be used as physical granules"
    RMM_COVERAGE 		,ON | OFF		,OFF			,"Enable coverage analysis"
    RMM_HTML_COV_REPORT		,ON | OFF		,ON			,"Enable HTML output report for coverage analysis"
 

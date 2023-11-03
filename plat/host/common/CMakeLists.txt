@@ -17,3 +17,6 @@ target_sources(rmm-host-common
 
 target_include_directories(rmm-host-common
     PUBLIC "include")
+
+target_compile_definitions(rmm-host-common
+    PUBLIC "HOST_MEM_SIZE=UL(${HOST_MEM_SIZE})")
