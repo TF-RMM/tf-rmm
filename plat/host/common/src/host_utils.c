@@ -154,14 +154,14 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	 * Initialize ID_AA64DFR0_EL1 with PMUVer field to PMUv3p7.
 	 * (ID_AA64DFR0_EL1.PMUVer, bits [11:8] set to 7)
 	 */
-	ret = host_util_set_default_sysreg_cb("id_aa64dfr0_el1",
+	(void)host_util_set_default_sysreg_cb("id_aa64dfr0_el1",
 			INPLACE(ID_AA64DFR0_EL1_PMUVer, 7UL));
 
 	/*
 	 * Setup id_aa64mmfr0_el1 with a PA size of 48 bits
 	 * and 4K granularity with LPA2 support for stages 1 and 2.
 	 */
-	ret = host_util_set_default_sysreg_cb("id_aa64mmfr0_el1",
+	(void)host_util_set_default_sysreg_cb("id_aa64mmfr0_el1",
 				INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5UL) |
 				INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
 					ID_AA64MMFR0_EL1_TGRAN4_LPA2) |
@@ -172,38 +172,38 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	 * Initialize ICH_VTR_EL2 with 6 preemption bits.
 	 * (PREbits is equal number of preemption bits minus one)
 	 */
-	ret = host_util_set_default_sysreg_cb("ich_vtr_el2",
+	(void)host_util_set_default_sysreg_cb("ich_vtr_el2",
 			INPLACE(ICH_VTR_EL2_PRE_BITS, 5UL));
 
 	/* SCTLR_EL2 is reset to zero */
-	ret = host_util_set_default_sysreg_cb("sctlr_el2", 0UL);
+	(void)host_util_set_default_sysreg_cb("sctlr_el2", 0UL);
 
 	/* HCR_EL2 is reset to zero */
-	ret = host_util_set_default_sysreg_cb("hcr_el2", 0UL);
+	(void)host_util_set_default_sysreg_cb("hcr_el2", 0UL);
 
 	/* TPIDR_EL2 is reset to zero */
-	ret = host_util_set_default_sysreg_cb("tpidr_el2", 0UL);
+	(void)host_util_set_default_sysreg_cb("tpidr_el2", 0UL);
 
 	/* ID_AA64ISAR0.RNDR is reset to 1 */
-	ret = host_util_set_default_sysreg_cb("id_aa64isar0_el1",
+	(void)host_util_set_default_sysreg_cb("id_aa64isar0_el1",
 				INPLACE(ID_AA64ISAR0_EL1_RNDR, 1UL));
 
 	/*
 	 * Add callback to elr_el2 so that the realm entry point can be accessed
 	 * by host_run_realm
 	 */
-	ret = host_util_set_default_sysreg_cb("elr_el2", 0UL);
+	(void)host_util_set_default_sysreg_cb("elr_el2", 0UL);
 
 	/*
 	 * Add callback to esr_el2 so that the realm exceptions can be handled.
 	 */
-	ret = host_util_set_default_sysreg_cb("esr_el2", 0UL);
+	(void)host_util_set_default_sysreg_cb("esr_el2", 0UL);
 
 	/*
 	 * Set number of event counters implemented to 31.
 	 * (PMCR_EL0.N, bits [15:11] set to 31)
 	 */
-	ret = host_util_set_default_sysreg_cb("pmcr_el0",
+	(void)host_util_set_default_sysreg_cb("pmcr_el0",
 			INPLACE(PMCR_EL0_N, 31UL));
 
 	/* Set ISR_EL1 to 0 */
