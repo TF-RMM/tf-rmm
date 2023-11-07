@@ -19,6 +19,12 @@ find_program(CHECKPATCH_EXECUTABLE "checkpatch.pl"
   DOC "Path to checkpatch.pl"
   )
 
+find_program(COMMITMSGCHECK_EXECUTABLE "checkcommitmsg.py"
+  PATHS ${CMAKE_SOURCE_DIR}
+  PATH_SUFFIXES tools/checkpatch
+  DOC "Path to checkcommitmsg.py"
+)
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/tools/common")
 include(GitUtils)
 
@@ -38,6 +44,8 @@ list(APPEND glob_excludes "^cscope.")
 
 set(total_errors "0")
 set(total_warnings "0")
+set(commitmsg_total_errors "0")
+set(commitmsg_total_warnings "0")
 
 # Check if pre-reqs met
 if(PERL_NOT_FOUND OR NOT EXISTS ${CHECKPATCH_EXECUTABLE})
@@ -58,6 +66,24 @@ function(checkpatch_get_stats stats_arg errors_ret warnings_ret)
 
   set(${errors_ret} ${errors} PARENT_SCOPE)
   set(${warnings_ret} ${warnings} PARENT_SCOPE)
+endfunction()
+
+#
+# checkcommitmsg_get_stats: Parse and returns number of errors and warnings
+#
+function(checkcommitmsg_get_stats stats_arg errors_ret)
+  string(FIND "${stats_arg}" "total:" idx REVERSE)
+  if(NOT ${idx} EQUAL -1)
+    string(LENGTH "${stats_arg}" len)
+    string(SUBSTRING "${stats_arg}" ${idx} ${len} last_line)
+
+    string(REPLACE " " ";" last_line_list ${last_line})
+    list(GET last_line_list 1 errors)
+  else()
+    set(errors 1)
+  endif()
+
+  set(${errors_ret} ${errors} PARENT_SCOPE)
 endfunction()
 
 #
@@ -173,7 +199,55 @@ if(CHECKPATCH_RUN)
       MATH(EXPR total_errors "${total_errors}+${errors}")
       MATH(EXPR total_warnings "${total_warnings}+${warnings}")
     endif()
+
+    #
+    # Check if commit was a merge. If so, we do not check the commit message.
+    #
+    set(merge_sha "")
+
+    execute_process(
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      COMMAND ${GIT_EXECUTABLE} rev-list -1 --merges "${commit}~..${commit}"
+      OUTPUT_VARIABLE merge_sha
+      )
+
+    if(${merge_sha})
+      continue()
+    endif()
+
+    message(STATUS "Checking commit message")
+
+    #
+    # Get commit message text
+    #
+    execute_process(
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      COMMAND ${GIT_EXECUTABLE} log --format=%B -n 1 "${commit}"
+      OUTPUT_VARIABLE commit_message
+      )
+
+    execute_process(
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      COMMAND ${COMMITMSGCHECK_EXECUTABLE}
+        --project-root=${CMAKE_SOURCE_DIR}
+        "${commit_message}"
+      OUTPUT_VARIABLE checkcommitmsg_output
+      RESULT_VARIABLE checkcommitmsg_rc
+      )
+
+    if(checkcommitmsg_output)
+      message(${checkcommitmsg_output})
+    endif()
+
+    if(${checkcommitmsg_rc})
+      checkcommitmsg_get_stats("${checkcommitmsg_output}"
+        commitmsg_errors)
+      MATH(EXPR commitmsg_total_errors
+        "${commitmsg_total_errors} + ${commitmsg_errors}")
+    endif()
   endforeach()
 
   print_stats_and_exit("checkpatch" ${total_errors}, ${total_warnings})
+  print_stats_and_exit("check commit message"
+    ${commitmsg_total_errors}, ${commitmsg_total_warnings})
 endif()
