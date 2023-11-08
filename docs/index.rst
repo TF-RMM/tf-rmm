@@ -42,6 +42,13 @@ Realm Management Monitor Documentation
             </a>
             <p>Security.</p>
         </li>
+        <li class="grid-item">
+            <a href="resources/index.html">
+               <img alt="" src="_static/images/rmm-documentation.png"/>
+               <h2>Resources</h2>
+            </a>
+            <p>Resources.</p>
+        </li>
     </ul>
 
 .. toctree::
@@ -54,4 +61,5 @@ Realm Management Monitor Documentation
    process/index
    design/index
    security/index
+   resources/index
    glossary
