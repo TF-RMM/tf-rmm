@@ -114,8 +114,7 @@ def check_title(title, project_root):
         if scope not in valid_scopes:
             print("WARNING: Scope should match the directory where the patch applies")
     else:
-        print("ERROR: Subject must contain a scope")
-        errors += 1
+        print("WARNING: Consider adding a scope to the subject")
 
     description = title_parts[1].lstrip()
     if not description:
