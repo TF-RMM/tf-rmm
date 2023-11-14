@@ -366,7 +366,15 @@
 #define SMC_RMM_RTT_SET_RIPAS			SMC64_RMI_FID(U(0x19))
 
 /* Size of Realm Personalization Value */
+#ifndef CBMC
 #define RPV_SIZE		64
+#else
+/*
+ * Small RPV size so that `struct rd` fits in the reduced sized granule defined
+ * for CBMC
+ */
+#define RPV_SIZE		1
+#endif
 
 /* RmiRealmFlags format */
 #define RMI_REALM_FLAGS_LPA2_SHIFT	UL(0)

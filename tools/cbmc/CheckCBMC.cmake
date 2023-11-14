@@ -54,26 +54,26 @@ set(MAX_UNWIND_FLAGS "")
 # Set up cbmc command line
 #
 set(cbmc_unwinds_list
+  "--unwindset;find_lock_granules.3:${MAX_ROOT_RTT}"
   "--unwindset;find_lock_rd_granules.0:${MAX_RTT_UNWIND}"
   "--unwindset;find_lock_rd_granules.1:${MAX_RTT_UNWIND}"
-  "--unwindset;smc_realm_create.0:${MAX_RTT_UNWIND}"
-  "--unwindset;total_root_rtt_refcount.0:${MAX_RTT_UNWIND}"
-  "--unwindset;free_sl_rtts.0:${MAX_RTT_UNWIND}"
-  "--unwindset;rtt_walk_lock_unlock.0:${MAX_RTT_UNWIND}"
-  "--unwindset;RttWalk.0:${MAX_RTT_UNWIND}"
-  "--unwindset;init_walk_path.0:${MAX_RTT_UNWIND}"
-  "--unwindset;smc_rec_create.0:${MAX_AUX_REC}"
   "--unwindset;free_rec_aux_granules.0:${MAX_AUX_REC}"
-  "--unwindset;find_lock_granules.3:${MAX_ROOT_RTT}"
-  "--unwindset;RealmIsLive.0:${MAX_ROOT_RTT}"
-  "--unwindset;init_rtt_root_page.0:${MAX_ROOT_RTT}"
-  "--unwindset;init_rec.0:${MAX_AUX_REC}"
-  "--unwindset;RealmIsLive.2:${MAX_ROOT_RTT}"
+  "--unwindset;free_sl_rtts.0:${MAX_RTT_UNWIND}"
   "--unwindset;init_realm_descriptor_page.0:${MAX_ROOT_RTT}"
+  "--unwindset;init_realm_descriptor_page.1:${MAX_ROOT_RTT}"
   "--unwindset;init_rec.0:${MAX_AUX_REC}"
+  "--unwindset;init_rtt_root_page.0:${MAX_ROOT_RTT}"
+  "--unwindset;init_walk_path.0:${MAX_RTT_UNWIND}"
   "--unwindset;lock_order_invariable.0:21"
   "--unwindset;lock_order_invariable.1:11"
   "--unwindset;lock_order_invariable.2:"
+  "--unwindset;RealmIsLive.0:${MAX_ROOT_RTT}"
+  "--unwindset;RealmIsLive.2:${MAX_ROOT_RTT}"
+  "--unwindset;rtt_walk_lock_unlock.0:${MAX_RTT_UNWIND}"
+  "--unwindset;RttWalk.0:${MAX_RTT_UNWIND}"
+  "--unwindset;smc_realm_create.0:${MAX_RTT_UNWIND}"
+  "--unwindset;smc_rec_create.0:${MAX_AUX_REC}"
+  "--unwindset;total_root_rtt_refcount.0:${MAX_RTT_UNWIND}"
 )
 
 set(cbmc_defines_list

@@ -41,11 +41,15 @@ enum hash_algo {
 #define MEASURE_DESC_TYPE_REC		0x1
 #define MEASURE_DESC_TYPE_RIPAS		0x2
 
+#ifndef CBMC
 /*
  * Size in bytes of the largest measurement type that can be supported.
  * This macro needs to be updated accordingly if new algorithms are supported.
  */
 #define MAX_MEASUREMENT_SIZE		SHA512_SIZE
+#else
+#define MAX_MEASUREMENT_SIZE		sizeof(uint64_t)
+#endif
 
 /* RmmMeasurementDescriptorData type as per RMM spec */
 struct measurement_desc_data {

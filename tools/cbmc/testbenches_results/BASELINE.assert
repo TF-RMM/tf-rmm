@@ -1,11 +1,13 @@
 +--------------------------------------+--------------------------------------+
 |               FILENAME               |                ASSERT                |
 +--------------------------------------+--------------------------------------+
-|          tb_rmi_features.c           |     0 of 35 failed (1 iterations)    |
+|          tb_rmi_features.c           |     0 of 68 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+
-|      tb_rmi_granule_delegate.c       |     0 of 42 failed (1 iterations)    |
+|      tb_rmi_granule_delegate.c       |     0 of 75 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+
-|     tb_rmi_granule_undelegate.c      |     0 of 42 failed (1 iterations)    |
+|     tb_rmi_granule_undelegate.c      |     0 of 75 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+
-|           tb_rmi_version.c           |     0 of 33 failed (1 iterations)    |
+|       tb_rmi_realm_activate.c        |     0 of 76 failed (1 iterations)    |
++--------------------------------------+--------------------------------------+
+|           tb_rmi_version.c           |     0 of 66 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+

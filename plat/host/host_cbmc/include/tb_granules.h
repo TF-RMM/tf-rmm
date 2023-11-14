@@ -39,7 +39,12 @@ struct SPEC_granule {
 	enum granule_state state;
 };
 
+/*
+ * CBMC needs access to the below data structures which are not otherwise
+ * visible outside their respective files.
+ */
 extern unsigned char granules_buffer[HOST_MEM_SIZE];
+extern struct granule granules[RMM_MAX_GRANULES];
 
 /*
  * Declare nondet_* functions.
