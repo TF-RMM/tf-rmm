@@ -8,6 +8,13 @@ include("${SOURCE_DIR}/tools/cbmc/SummaryHelpers.cmake")
 find_program(RMM_CBMC_PATH "cbmc"
     DOC "Path to cbmc.")
 
+find_package(Python3 REQUIRED)
+find_program(CHECK_CBMC_SUMMARY_EXECUTABLE "compare_summary.py"
+  PATHS ${CMAKE_SOURCE_DIR}
+  PATH_SUFFIXES tools/cbmc
+  DOC "Path to compare_summary.py"
+  )
+
 #
 # Configure and execute CBMC
 #
@@ -193,3 +200,21 @@ foreach(testbench_file ${TESTBENCH_FILES})
 
 endforeach()
 message(STATUS "Result in ${RMM_TESTBENCH_RESULT_DIR}")
+
+execute_process(
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  COMMAND ${CHECK_CBMC_SUMMARY_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tools/cbmc/testbenches_results/BASELINE.${CBMC_RESULT_FILE_SUFFIX}
+    ${RMM_TESTBENCH_RESULT_DIR}/${SUMMARY_FILE}
+  OUTPUT_VARIABLE CHECK_SUMMARY_OUTPUT
+  ERROR_VARIABLE CHECK_SUMMARY_ERROR
+  RESULT_VARIABLE CHECK_SUMMARY_RC
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+
+if (NOT ${CHECK_SUMMARY_RC} EQUAL "0")
+  message(WARNING
+    "cbmc-${CBMC_RESULT_FILE_SUFFIX}: FAILED\n${CHECK_SUMMARY_ERROR}")
+else()
+  message(STATUS "cbmc-${CBMC_RESULT_FILE_SUFFIX}: PASSED")
+endif()
