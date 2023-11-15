@@ -313,7 +313,6 @@ void handle_rsi_measurement_extend(struct rec *rec, struct rsi_result *res)
 	size_t size;
 	void *extend_measurement;
 	unsigned char *current_measurement;
-	int __unused meas_ret;
 
 	assert(rec != NULL);
 

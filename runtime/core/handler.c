@@ -363,17 +363,6 @@ static void report_unexpected(void)
 	INFO("----\n");
 }
 
-__dead2 unsigned long handle_realm_trap(unsigned long *regs)
-{
-	(void)regs;
-
-	report_unexpected();
-
-	while (true) {
-		wfe();
-	}
-}
-
 /*
  * Identifies an abort that the RMM may recover from.
  */

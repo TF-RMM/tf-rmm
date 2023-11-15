@@ -16,7 +16,7 @@
 /*************************************
  * SMC codes for the EL3-RMM interface
  *************************************/
-					/* 0x1B0 - 0x1B3 */
+					/* 0x1B0 - 0x1B1 */
 #define SMC_RMM_GTSI_DELEGATE		SMC64_STD_FID(RMM_EL3, U(0))
 #define SMC_RMM_GTSI_UNDELEGATE		SMC64_STD_FID(RMM_EL3, U(1))
 

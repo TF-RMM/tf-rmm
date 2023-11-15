@@ -878,7 +878,6 @@ static unsigned long data_create(unsigned long rd_addr,
 	enum granule_state new_data_state = GRANULE_STATE_DELEGATED;
 	unsigned long ipa_bits;
 	unsigned long ret;
-	int __unused meas_ret;
 	int sl;
 
 	if (!find_lock_two_granules(data_addr,
