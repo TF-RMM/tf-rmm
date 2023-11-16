@@ -71,7 +71,7 @@ static void init_common_sysregs(struct rec *rec, struct rd *rd)
 	unsigned long mdcr_el2_val = read_mdcr_el2();
 
 	/* Set non-zero values only */
-	rec->common_sysregs.hcr_el2 = HCR_FLAGS;
+	rec->common_sysregs.hcr_el2 = HCR_REALM_FLAGS;
 	rec->common_sysregs.vtcr_el2 =  realm_vtcr(rd);
 	rec->common_sysregs.vttbr_el2 = (granule_addr(rd->s2_ctx.g_rtt) &
 					MASK(TTBRx_EL2_BADDR)) |
