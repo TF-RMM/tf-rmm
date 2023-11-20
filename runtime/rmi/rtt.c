@@ -565,7 +565,18 @@ void smc_rtt_destroy(unsigned long rd_addr,
 	 * Break before make. Note that this may cause spurious S2 aborts.
 	 */
 	s2tte_write(&parent_s2tt[wi.index], 0UL);
-	invalidate_block(&s2_ctx, map_addr);
+
+	if (in_par) {
+		/* For protected IPA, all S2TTEs in the RTT will be invalid */
+		invalidate_block(&s2_ctx, map_addr);
+	} else {
+		/*
+		 * For unprotected IPA, invalidate the TLB for the entire range
+		 * mapped by the RTT as it may have valid NS mappings.
+		 */
+		invalidate_pages_in_block(&s2_ctx, map_addr);
+	}
+
 	s2tte_write(&parent_s2tt[wi.index], parent_s2tte);
 
 	granule_memzero_mapped(table);
