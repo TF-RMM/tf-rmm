@@ -282,9 +282,9 @@ For further details, see:
 
 _______________________________________________________________________________
 
-.. |full va space| image:: ./diagrams/full_va_space_diagram.png
+.. |full va space| image:: ./diagrams/full_va_space_diagram.drawio.png
    :height: 500
-.. |high va region| image:: ./diagrams/high_va_memory_map.png
+.. |high va region| image:: ./diagrams/high_va_memory_map.drawio.png
    :height: 600
 .. _Realm Management Monitor (RMM) Specification: https://developer.arm.com/documentation/den0137/1-0eac5/?lang=en
 .. _`RMM-EL3 communications interface`: https://trustedfirmware-a.readthedocs.io/en/latest/components/rmm-el3-comms-spec.html
