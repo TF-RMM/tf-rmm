@@ -33,4 +33,22 @@ You can find additional definitions in the `Arm Glossary`_.
    PAS
       Physical Address Space
 
+   GPF
+      Granule Protection Fault
+
+   IPA
+      Intermediate Physical Address
+
+   PA
+      Physical Address
+
+   RTT
+      Realm Translation Table
+
+   TTE
+      Translation Table Entry
+
+   VHE
+      Virtualization Host Extensions
+
 .. _`Arm Glossary`: https://developer.arm.com/support/arm-glossary
