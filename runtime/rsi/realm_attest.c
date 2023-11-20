@@ -105,9 +105,10 @@ static void attest_token_continue_write_state(struct rec *rec,
 		return;
 	}
 
+	/* If size of buffer is 0, then return early. */
 	if (size == 0UL) {
-		res->smc_res.x[0] = RSI_SUCCESS;
-		return;
+		res->smc_res.x[0] = RSI_INCOMPLETE;
+		goto out_unlock;
 	}
 
 	/* Map realm data granule to RMM address space */
@@ -163,7 +164,7 @@ static void attest_token_continue_write_state(struct rec *rec,
 out_unmap:
 	/* Unmap realm granule */
 	buffer_unmap((void *)realm_att_token);
-
+out_unlock:
 	/* Unlock last level page table (walk_res.g_llt) */
 	granule_unlock(walk_res.llt);
 }
