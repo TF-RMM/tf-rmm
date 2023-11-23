@@ -63,6 +63,9 @@ struct rd {
 	/* Reference count */
 	unsigned long rec_count;
 
+	/* Realm measurement 8 bytes aligned */
+	unsigned char measurement[MEASUREMENT_SLOT_NR][MAX_MEASUREMENT_SIZE];
+
 	/* Stage 2 configuration of the Realm */
 	struct realm_s2_context s2_ctx;
 
@@ -81,12 +84,10 @@ struct rd {
 	/* SIMD configuration */
 	struct simd_config simd_cfg;
 
-	/* Realm measurement */
-	unsigned char measurement[MEASUREMENT_SLOT_NR][MAX_MEASUREMENT_SIZE];
-
 	/* Realm Personalization Value */
 	unsigned char rpv[RPV_SIZE];
 };
+COMPILER_ASSERT((offsetof(struct rd, measurement) & 7) == 0);
 COMPILER_ASSERT(sizeof(struct rd) <= GRANULE_SIZE);
 
 /*

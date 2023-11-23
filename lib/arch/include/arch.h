@@ -694,6 +694,7 @@
 					 (UL(1) << 11)	/* TODO: ARMv8.5-CSEH, otherwise RES1 */)
 
 #define SCTLR_ELx_M_BIT			(UL(1) << 0)
+#define SCTLR_ELx_A_BIT			(UL(1) << 1)
 #define SCTLR_ELx_C_BIT			(UL(1) << 2)
 #define SCTLR_ELx_SA_BIT		(UL(1) << 3)
 #define SCTLR_ELx_SA0_BIT		(UL(1) << 4)
@@ -722,7 +723,7 @@
 			 SCTLR_ELx_nTWI_BIT | SCTLR_ELx_EOS_BIT | SCTLR_ELx_nAA_BIT | \
 			 SCTLR_ELx_CP15BEN_BIT | SCTLR_ELx_SA0_BIT | SCTLR_ELx_SA_BIT)
 
-#define SCTLR_EL2_INIT		(SCTLR_ELx_C_BIT	/* Data accesses are cacheable
+#define SCTLR_EL2_BITS		(SCTLR_ELx_C_BIT	/* Data accesses are cacheable
 							 * as per translation tables */ | \
 							/* SCTLR_EL2_M = 0 (MMU disabled) */  \
 							/* SCTLR_EL2_A = 0
@@ -756,6 +757,13 @@
 							 * instructions at EL0 */ | \
 				 SCTLR_ELx_nTLSMD_BIT	/* A32/T32 only */ | \
 				 SCTLR_ELx_LSMAOE_BIT	/* A32/T32 only */)
+
+#ifdef RMM_FPU_USE_AT_REL2
+#define SCTLR_EL2_INIT		SCTLR_EL2_BITS
+#else
+#define SCTLR_EL2_INIT		(SCTLR_EL2_BITS		| \
+				 SCTLR_ELx_A_BIT	/* Alignment fault check enable */)
+#endif
 
 #define SCTLR_EL2_RUNTIME	(SCTLR_EL2_INIT		| \
 				 SCTLR_ELx_M_BIT	/* MMU enabled */)
