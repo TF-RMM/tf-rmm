@@ -77,6 +77,9 @@ static inline void __granule_assert_unlocked_invariants(struct granule *g,
 /* Must be called with g->lock held */
 static inline enum granule_state granule_get_state(struct granule *g)
 {
+	assert(g != NULL);
+
+	/* NOLINTNEXTLINE(clang-analyzer-core.NullDereference) */
 	return g->state;
 }
 
@@ -84,6 +87,9 @@ static inline enum granule_state granule_get_state(struct granule *g)
 static inline void granule_set_state(struct granule *g,
 				     enum granule_state state)
 {
+	assert(g != NULL);
+
+	/* NOLINTNEXTLINE(clang-analyzer-core.NullDereference) */
 	g->state = state;
 }
 

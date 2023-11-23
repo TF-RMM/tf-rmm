@@ -14,19 +14,26 @@ Checks: '-*,
     -bugprone-reserved-identifier,
     -bugprone-easily-swappable-parameters,
     -bugprone-branch-clone,
-    misc-redundant-expression,
-    misc-unused-parameters,
-    google-readability-casting'
+    google-readability-casting,
+    clang-analyzer-*,
+    -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+    cert-*,
+    -cert-dcl37-c,
+    -cert-dcl51-cpp,
+    -cert-msc30-c,
+    -cert-msc50-cpp,
+    -cert-msc32-c,
+    -cert-msc51-cpp,
+    misc-*,
+    -misc-no-recursion,
+    performance-*,
+    -performance-no-int-to-ptr'
 
 #
 # The WarningsAsErrors field specifies which checks will have their warnings
 # promoted to errors. These checks are specified in the same way as above.
 #
-WarningsAsErrors: '-*,
-    bugprone-narrowing-conversions,
-    bugprone-implicit-widening-of-multiplication-result,
-    bugprone-infinite-loop,
-    bugprone-too-small-loop-variable'
+WarningsAsErrors: '*'
 
 #
 # The HeaderFilterRegex field specifies which header files clang-tidy will

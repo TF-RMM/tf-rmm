@@ -51,7 +51,7 @@ static inline uint64_t *xlat_table_get_empty(struct xlat_ctx *ctx)
 {
 	assert(ctx->tbls->next_table < ctx->tbls->tables_num);
 
-	return &ctx->tbls->tables[XLAT_TABLE_ENTRIES *
+	return &ctx->tbls->tables[(size_t)XLAT_TABLE_ENTRIES *
 					ctx->tbls->next_table++];
 }
 

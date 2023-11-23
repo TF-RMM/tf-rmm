@@ -108,7 +108,7 @@ int xlat_high_va_setup(void)
 	ret = xlat_ctx_init(&high_va_xlat_ctx[cpuid],
 				&high_va_xlat_ctx_cfgs[cpuid],
 				&high_va_tbls[cpuid],
-				&high_va_tts[XLAT_TABLE_ENTRIES * cpuid], 1U);
+				&high_va_tts[(size_t)XLAT_TABLE_ENTRIES * cpuid], 1U);
 
 	if (!((ret == 0) || (ret == -EALREADY))) {
 		return ret;

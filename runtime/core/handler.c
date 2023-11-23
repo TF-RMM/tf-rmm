@@ -88,7 +88,6 @@ enum rmi_type {
 
 struct smc_handler {
 	const char	*fn_name;
-	enum rmi_type	type;
 	union {
 		handler_0	f_00;
 		handler_1	f_10;
@@ -105,6 +104,7 @@ struct smc_handler {
 		handler_4_o	f_41;
 		void		*fn_dummy;
 	};
+	enum rmi_type	type;
 	bool		log_exec;	/* print handler execution */
 	bool		log_error;	/* print in case of error status */
 };
