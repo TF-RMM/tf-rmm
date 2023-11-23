@@ -6,6 +6,7 @@
 #include <arch_helpers.h>
 #include <rec.h>
 #include <smc-rmi.h>
+#include <timers.h>
 
 /*
  * Check that timer output is asserted:

@@ -12,6 +12,7 @@
 #include <memory_alloc.h>
 #include <rec.h>
 #include <smc-rmi.h>
+#include <sysreg_traps.h>
 
 #define SYSREG_CASE(reg) \
 	case ESR_EL2_SYSREG_##ID_AA64##reg##_EL1:

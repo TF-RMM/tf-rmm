@@ -260,17 +260,5 @@ void xlat_arch_tlbi_va_sync(void)
  */
 uint64_t xlat_arch_get_pas(uint64_t attr)
 {
-	uint64_t pas = MT_PAS(attr);
-
-	switch (pas) {
-	case MT_REALM:
-		return 0U;
-	case MT_NS:
-		return LOWER_ATTRS(NS);
-	default:
-		panic();
-	}
-
-	/* Avoid -Werror=return-type. Should never reach here. */
-	return 0U;
+	return (MT_PAS(attr) == MT_REALM) ? 0UL : LOWER_ATTRS(NS);
 }

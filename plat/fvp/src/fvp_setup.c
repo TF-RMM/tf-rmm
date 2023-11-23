@@ -8,6 +8,7 @@
 #include <fvp_private.h>
 #include <pl011.h>
 #include <plat_common.h>
+#include <platform_api.h>
 #include <rmm_el3_ifc.h>
 #include <sizes.h>
 #include <xlat_tables.h>

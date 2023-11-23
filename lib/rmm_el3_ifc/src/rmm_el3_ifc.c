@@ -16,7 +16,7 @@
 static uintptr_t rmm_shared_buffer_start_pa;
 static unsigned long rmm_el3_ifc_abi_version;
 
-/* Platform paramters */
+/* Platform parameters */
 uintptr_t rmm_shared_buffer_start_va;
 
 /* Internal status */

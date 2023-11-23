@@ -69,7 +69,7 @@ int attest_init_realm_attestation_key(void)
 {
 	psa_status_t ret;
 	uintptr_t buf;
-	size_t attest_key_size = 0UL;
+	size_t attest_key_size;
 	psa_key_attributes_t key_attributes = psa_key_attributes_init();
 
 	assert(SIMD_IS_FPU_ALLOWED());
@@ -103,6 +103,7 @@ int attest_init_realm_attestation_key(void)
 	psa_set_key_type(&key_attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
 
 	/* Import private key to mbed-crypto */
+	/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
 	ret = psa_import_key(&key_attributes,
 			     (const uint8_t *)buf,
 			     attest_key_size,
@@ -195,7 +196,7 @@ int attest_get_realm_public_key(struct q_useful_buf_c *public_key)
 int attest_setup_platform_token(void)
 {
 	uintptr_t shared_buf;
-	size_t platform_token_len = 0;
+	size_t platform_token_len;
 	struct q_useful_buf_c rmm_pub_key_hash;
 	int ret;
 
@@ -215,17 +216,20 @@ int attest_setup_platform_token(void)
 	(void)memcpy((void *)shared_buf, rmm_pub_key_hash.ptr,
 					 rmm_pub_key_hash.len);
 
-	ret = rmm_el3_ifc_get_platform_token(shared_buf,
-					     rmm_el3_ifc_get_shared_buf_size(),
-					     &platform_token_len,
-					     PSA_HASH_LENGTH(PSA_ALG_SHA_256));
+	ret = rmm_el3_ifc_get_platform_token(
+			shared_buf,
+			rmm_el3_ifc_get_shared_buf_size(),
+			&platform_token_len,
+			/* coverity[misra_c_2012_rule_14_3_violation:SUPPRESS] */
+			PSA_HASH_LENGTH(PSA_ALG_SHA_256));
 
 	if (ret != 0) {
 		rmm_el3_ifc_release_shared_buf();
 		return -EINVAL;
 	}
 
-	(void)memcpy(rmm_platform_token_buf,
+	/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
+	(void)memcpy((void *)rmm_platform_token_buf,
 		     (void *)shared_buf,
 		     platform_token_len);
 

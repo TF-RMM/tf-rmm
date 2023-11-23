@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <rmm_el3_ifc.h>
+#include <rmm_el3_ifc_priv.h>
 #include <smc.h>
 #include <stdint.h>
 #include <string.h>
@@ -60,6 +61,7 @@ unsigned int rmm_el3_ifc_get_manifest_version(void)
 }
 
 /* Return a pointer to the platform manifest */
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 uintptr_t rmm_el3_ifc_get_plat_manifest_pa(void)
 {
 	assert((manifest_processed == (bool)true) &&

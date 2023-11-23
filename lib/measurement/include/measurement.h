@@ -198,12 +198,12 @@ void measurement_rec_params_measure(unsigned char rim_measurement[],
  * Arguments:
  *	- rim_measurement:	The buffer where the RIM to be updated is found.
  *	- algorithm:		Algorithm to use for measurement.
- *	- ipa:			IPA of the data granule.
- *	- level:		Level of the RTT.
+ *	- base:			Base of target IPA region.
+ *	- top:			Top of target IPA region.
  */
 void measurement_init_ripas_measure(unsigned char rim_measurement[],
 				    enum hash_algo algorithm,
-				    unsigned long ipa,
-				    unsigned long level);
+				    unsigned long base,
+				    unsigned long top);
 
 #endif /* MEASUREMENT_H */

@@ -22,4 +22,7 @@
  */
 void rmm_el3_ifc_process_boot_manifest(void);
 
+/* Platform parameter */
+extern uintptr_t rmm_shared_buffer_start_va;
+
 #endif /* RMM_EL3_IFC_PRIV_H */

@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <gic.h>
 #include <plat_cmn_arch.h>
+#include <plat_common.h>
 #include <rmm_el3_ifc.h>
 #include <sizes.h>
 #include <stdint.h>

@@ -14,7 +14,7 @@ void fvp_set_dram_layout(struct ns_dram_info *plat_dram)
 {
 	uint64_t num_banks, num_granules = 0UL;
 	struct ns_dram_bank *bank_ptr;
-	struct fvp_dram_layout *fvp_dram = fvp_get_dram_layout();
+	struct fvp_dram_layout *dram_ptr = fvp_get_dram_layout();
 
 	/* Number of banks */
 	num_banks = plat_dram->num_banks;
@@ -30,19 +30,19 @@ void fvp_set_dram_layout(struct ns_dram_info *plat_dram)
 
 		if (i == 1UL) {
 			/* Start granule index in bank 1 */
-			fvp_dram->idx_bank_1 = num_granules;
+			dram_ptr->idx_bank_1 = num_granules;
 		}
 
 		/* Total number of granules */
 		num_granules += (size / GRANULE_SIZE);
 
-		fvp_dram->fvp_bank[i].start_addr = start;
-		fvp_dram->fvp_bank[i].end_addr = end;
+		dram_ptr->fvp_bank[i].start_addr = start;
+		dram_ptr->fvp_bank[i].end_addr = end;
 
 		bank_ptr++;
 	}
 
-	fvp_dram->num_granules = num_granules;
+	dram_ptr->num_granules = num_granules;
 
-	inv_dcache_range((uintptr_t)fvp_dram, sizeof(struct fvp_dram_layout));
+	inv_dcache_range((uintptr_t)dram_ptr, sizeof(struct fvp_dram_layout));
 }
