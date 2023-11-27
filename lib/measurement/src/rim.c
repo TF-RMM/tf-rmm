@@ -3,14 +3,8 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include <cpuid.h>
 #include <measurement.h>
 #include <string.h>
-
-/*
- * Allocate a dummy rec_params for copying relevant parameters for measurement
- */
-static struct rmi_rec_params rec_params_per_cpu[MAX_CPUS];
 
 void measurement_data_granule_measure(unsigned char rim_measurement[],
 				      enum hash_algo algorithm,
@@ -57,12 +51,11 @@ void measurement_realm_params_measure(unsigned char rim_measurement[],
 	 * Allocate a zero-filled RmiRealmParams data structure
 	 * to hold the measured Realm parameters.
 	 */
-	unsigned char buffer[sizeof(struct rmi_realm_params)] = {0};
-	struct rmi_realm_params *rim_params = (struct rmi_realm_params *)buffer;
+	struct rmi_realm_params rim_params = {0};
 
 	/*
-	 * Copy the following attributes into the measured Realm
-	 * parameters data structure:
+	 * The following attributes are used for calculation of the
+	 * initial RIM value of the Realm:
 	 * - flags
 	 * - s2sz
 	 * - sve_vl
@@ -71,18 +64,18 @@ void measurement_realm_params_measure(unsigned char rim_measurement[],
 	 * - pmu_num_ctrs
 	 * - hash_algo
 	 */
-	rim_params->flags = realm_params->flags;
-	rim_params->s2sz = realm_params->s2sz;
-	rim_params->sve_vl = realm_params->sve_vl;
-	rim_params->num_bps = realm_params->num_bps;
-	rim_params->num_wps = realm_params->num_wps;
-	rim_params->pmu_num_ctrs = realm_params->pmu_num_ctrs;
-	rim_params->algorithm = realm_params->algorithm;
+	rim_params.flags = realm_params->flags;
+	rim_params.s2sz = realm_params->s2sz;
+	rim_params.sve_vl = realm_params->sve_vl;
+	rim_params.num_bps = realm_params->num_bps;
+	rim_params.num_wps = realm_params->num_wps;
+	rim_params.pmu_num_ctrs = realm_params->pmu_num_ctrs;
+	rim_params.algorithm = realm_params->algorithm;
 
 	/* Measure relevant realm params this will be the init value of RIM */
 	measurement_hash_compute(algorithm,
-			       buffer,
-			       sizeof(buffer),
+			       &rim_params,
+			       sizeof(struct rmi_realm_params),
 			       rim_measurement);
 }
 
@@ -91,18 +84,18 @@ void measurement_rec_params_measure(unsigned char rim_measurement[],
 				    struct rmi_rec_params *rec_params)
 {
 	struct measurement_desc_rec measure_desc = {0};
-	struct rmi_rec_params *rec_params_measured =
-		&rec_params_per_cpu[my_cpuid()];
-
-	(void)memset(rec_params_measured, 0, sizeof(*rec_params_measured));
+	struct rmi_rec_params rec_params_measured = {0};
 
 	/*
-	 * Copy the relevant parts of the rmi_rec_params structure to be
-	 * measured
+	 * Copy the following attributes of the RmiRecParams data
+	 * structure into the measured REC parameters data structure:
+	 * - gprs
+	 * - pc
+	 * - flags
 	 */
-	rec_params_measured->pc = rec_params->pc;
-	rec_params_measured->flags = rec_params->flags;
-	(void)memcpy(rec_params_measured->gprs, rec_params->gprs,
+	rec_params_measured.flags = rec_params->flags;
+	rec_params_measured.pc = rec_params->pc;
+	(void)memcpy(&rec_params_measured.gprs, rec_params->gprs,
 					sizeof(rec_params->gprs));
 
 	/* Initialize the measurement descriptior structure */
@@ -110,23 +103,21 @@ void measurement_rec_params_measure(unsigned char rim_measurement[],
 	measure_desc.len = sizeof(struct measurement_desc_rec);
 	(void)memcpy(measure_desc.rim, rim_measurement,
 					measurement_get_size(algorithm));
-
 	/*
 	 * Hash the REC params structure and store the result in the
 	 * measurement descriptor structure.
 	 */
 	measurement_hash_compute(algorithm,
-				rec_params_measured,
-				sizeof(*rec_params_measured),
+				&rec_params_measured,
+				sizeof(struct rmi_rec_params),
 				measure_desc.content);
-
 	/*
 	 * Hash the measurement descriptor structure; the result is the
 	 * updated RIM.
 	 */
 	measurement_hash_compute(algorithm,
 			       &measure_desc,
-			       sizeof(measure_desc),
+			       sizeof(struct measurement_desc_rec),
 			       rim_measurement);
 }
 

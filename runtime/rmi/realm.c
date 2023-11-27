@@ -402,12 +402,11 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	rd->pmu_enabled = EXTRACT(RMI_REALM_FLAGS_PMU, p.flags) != 0UL;
 	rd->pmu_num_ctrs = p.pmu_num_ctrs;
 
+	init_s2_starting_level(rd);
+
 	measurement_realm_params_measure(rd->measurement[RIM_MEASUREMENT_SLOT],
 					 rd->algorithm,
 					 &p);
-
-	init_s2_starting_level(rd);
-
 	buffer_unmap(rd);
 
 	granule_unlock_transition(g_rd, GRANULE_STATE_RD);

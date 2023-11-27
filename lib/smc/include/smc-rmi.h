@@ -421,7 +421,7 @@ struct rmi_realm_params {
 
 /*
  * The REC attribute parameters are shared by the Host via
- * MI_REC_CREATE::params_ptr. The values can be observed or modified
+ * RMI_REC_CREATE::params_ptr. The values can be observed or modified
  * either by the Host or by the Realm which owns the REC.
  */
 struct rmi_rec_params {
