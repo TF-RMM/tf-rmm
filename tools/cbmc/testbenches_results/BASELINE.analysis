@@ -1,11 +1,11 @@
 +--------------------------------------+--------------------------------------+
 |               FILENAME               |               ANALYSIS               |
 +--------------------------------------+--------------------------------------+
-|          tb_rmi_features.c           |    0 of 457 failed (1 iterations)    |
+|          tb_rmi_features.c           |    0 of 796 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+
-|      tb_rmi_granule_delegate.c       |    9 of 504 failed (6 iterations)    |
+|      tb_rmi_granule_delegate.c       |    0 of 844 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+
-|     tb_rmi_granule_undelegate.c      |    8 of 502 failed (5 iterations)    |
+|     tb_rmi_granule_undelegate.c      |    0 of 842 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+
-|           tb_rmi_version.c           |    0 of 455 failed (1 iterations)    |
+|           tb_rmi_version.c           |    0 of 794 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+

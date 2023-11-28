@@ -27,11 +27,11 @@
 #define RMM_GRANULE_SIZE GRANULE_SIZE
 
 enum granule_gpt {
-	GPT_AAP,
+	GPT_SECURE,
 	GPT_NS,
 	GPT_REALM,
 	GPT_ROOT,
-	GPT_SECURE
+	GPT_AAP
 };
 
 struct SPEC_granule {

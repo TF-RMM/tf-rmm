@@ -128,9 +128,9 @@ struct granule *inject_granule(const struct granule *granule_metadata,
 			       const void *src_page,
 			       size_t src_size);
 
-/* Returns whether the granule with address is set to NS in the GPT, or not */
-bool is_granule_gpt_ns(uint64_t addr);
-/* Set for a granule whether it is set to NS in GPT, or not. */
-void set_granule_gpt_ns(uint64_t addr, bool gpt_ns);
+/* Returns the status of the granule in the GPT. */
+enum granule_gpt get_granule_gpt(uint64_t addr);
+/* Set the status of the granule in GPT. */
+void set_granule_gpt(uint64_t addr, enum granule_gpt granule_gpt);
 
 #endif  /* !TB_COMMON_H */
