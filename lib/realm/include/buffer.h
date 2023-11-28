@@ -39,7 +39,7 @@ enum buffer_slot {
 
 struct granule;
 
-void assert_cpu_slots_empty(void);
+bool check_cpu_slots_empty(void);
 void *granule_map(struct granule *g, enum buffer_slot slot);
 void buffer_unmap(void *buf);
 
@@ -48,6 +48,7 @@ bool ns_buffer_read(enum buffer_slot slot,
 		    unsigned int offset,
 		    size_t size,
 		    void *dest);
+
 bool ns_buffer_write(enum buffer_slot slot,
 		     struct granule *ns_gr,
 		     unsigned int offset,

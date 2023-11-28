@@ -82,12 +82,15 @@ void slot_buf_finish_warmboot_init(void)
  * Buffer slots are intended to be transient, and should not be live at
  * entry/exit of the RMM.
  */
-void assert_cpu_slots_empty(void)
+bool check_cpu_slots_empty(void)
 {
 	for (unsigned int i = 0U; i < (unsigned int)NR_CPU_SLOTS; i++) {
-		assert(slot_to_descriptor((enum buffer_slot)i) ==
-							TRANSIENT_DESC);
+		if (slot_to_descriptor((enum buffer_slot)i) !=
+						TRANSIENT_DESC) {
+			return false;
+		}
 	}
+	return true;
 }
 
 static inline bool is_ns_slot(enum buffer_slot slot)

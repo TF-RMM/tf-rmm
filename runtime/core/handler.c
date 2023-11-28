@@ -155,13 +155,11 @@ static const struct smc_handler smc_handlers[] = {
 
 COMPILER_ASSERT(ARRAY_LEN(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
 
-static bool rmi_call_log_enabled = true;
-
 static inline bool rmi_handler_needs_fpu(unsigned int id)
 {
 #ifdef RMM_FPU_USE_AT_REL2
-	if (id == SMC_RMM_REALM_CREATE || id == SMC_RMM_DATA_CREATE ||
-	    id == SMC_RMM_REC_CREATE || id == SMC_RMM_RTT_INIT_RIPAS) {
+	if ((id == SMC_RMM_REALM_CREATE) || (id == SMC_RMM_DATA_CREATE) ||
+	    (id == SMC_RMM_REC_CREATE) || (id == SMC_RMM_RTT_INIT_RIPAS)) {
 		return true;
 	}
 #else
@@ -245,6 +243,7 @@ void handle_ns_smc(unsigned int function_id,
 	bool restore_ns_simd_state = false;
 	struct simd_context *ns_simd_ctx;
 	bool sve_hint = false;
+	unsigned long args[] __unused = {arg0, arg1, arg2, arg3, arg4};
 
 	/* Save the SVE hint bit and clear it from the function ID */
 	if ((function_id & SMC_SVE_HINT) != 0U) {
@@ -270,7 +269,7 @@ void handle_ns_smc(unsigned int function_id,
 		return;
 	}
 
-	assert_cpu_slots_empty();
+	assert(check_cpu_slots_empty());
 
 	/* Current CPU's SIMD state must not be saved when entering RMM */
 	assert(simd_is_state_saved() == false);
@@ -331,11 +330,7 @@ void handle_ns_smc(unsigned int function_id,
 		assert(false);
 	}
 
-	if (rmi_call_log_enabled) {
-		unsigned long args[] = {arg0, arg1, arg2, arg3, arg4};
-
-		rmi_log_on_exit(handler_id, args, res);
-	}
+	rmi_log_on_exit(handler_id, args, res);
 
 	/* If the handler uses FPU, restore the saved NS simd context. */
 	if (restore_ns_simd_state) {
@@ -344,24 +339,18 @@ void handle_ns_smc(unsigned int function_id,
 
 	/* Current CPU's SIMD state must not be saved when exiting RMM */
 	assert(simd_is_state_saved() == false);
-
-	assert_cpu_slots_empty();
+	assert(check_cpu_slots_empty());
 }
 
 static void report_unexpected(void)
 {
-	unsigned long spsr = read_spsr_el2();
-	unsigned long esr = read_esr_el2();
-	unsigned long elr = read_elr_el2();
-	unsigned long far = read_far_el2();
-
-	INFO("----\n");
-	INFO("Unexpected exception:\n");
-	INFO("SPSR_EL2: 0x%016lx\n", spsr);
-	INFO("ESR_EL2:  0x%016lx\n", esr);
-	INFO("ELR_EL2:  0x%016lx\n", elr);
-	INFO("FAR_EL2:  0x%016lx\n", far);
-	INFO("----\n");
+	ERROR("----\n");
+	ERROR("Unexpected exception:\n");
+	ERROR("SPSR_EL2: 0x%016lx\n", read_spsr_el2());
+	ERROR("ESR_EL2:  0x%016lx\n", read_esr_el2());
+	ERROR("ELR_EL2:  0x%016lx\n", read_elr_el2());
+	ERROR("FAR_EL2:  0x%016lx\n", read_far_el2());
+	ERROR("----\n");
 }
 
 /*
