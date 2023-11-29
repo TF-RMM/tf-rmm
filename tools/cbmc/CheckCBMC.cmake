@@ -7,6 +7,10 @@ include(FetchContent)
 include("${SOURCE_DIR}/tools/cbmc/SummaryHelpers.cmake")
 find_program(RMM_CBMC_PATH "cbmc"
     DOC "Path to cbmc.")
+find_program(RMM_GOTO_CC_PATH "goto-cc"
+    DOC "Path to goto-cc.")
+find_program(RMM_CBMC_VIEWER_PATH "cbmc-viewer"
+    DOC "Path to cbmc-viewer.")
 
 find_package(Python3 REQUIRED)
 find_program(CHECK_CBMC_SUMMARY_EXECUTABLE "compare_summary.py"
@@ -22,22 +26,15 @@ if(NOT (EXISTS "${RMM_CBMC_PATH}"))
   message(FATAL_ERROR "cbmc executable not found. (${RMM_CBMC_PATH})")
 endif()
 
-if("${RMM_CBMC_CONFIGURATION}" STREQUAL "COVERAGE")
-  set(CBMC_RESULT_FILE_SUFFIX "coverage")
-  set(CBMC_SUMMARY_HEADER "COVERAGE")
-  set(CBMC_SUMMARY_PATTERN "covered")
-elseif("${RMM_CBMC_CONFIGURATION}" STREQUAL "ASSERT")
-  set(CBMC_RESULT_FILE_SUFFIX "assert")
-  set(CBMC_SUMMARY_HEADER "ASSERT")
-  set(CBMC_SUMMARY_PATTERN "failed")
-elseif("${RMM_CBMC_CONFIGURATION}" STREQUAL "ANALYSIS")
-  set(CBMC_RESULT_FILE_SUFFIX "analysis")
-  set(CBMC_SUMMARY_HEADER "ANALYSIS")
-  set(CBMC_SUMMARY_PATTERN "failed")
-else()
-  message(FATAL_ERROR "Invalid RMM_CBMC_CONFIGURATION '${RMM_CBMC_CONFIGURATION}'")
-endif()
+string(TOLOWER "${RMM_CBMC_CONFIGURATION}" CBMC_RESULT_FILE_SUFFIX)
 
+if(RMM_CBMC_VIEWER_OUTPUT)
+  set(CBMC_OUT_FILE_ENDING "xml")
+  set(CBMC_UI_OPTION "--xml-ui")
+else()
+  set(CBMC_OUT_FILE_ENDING "output")
+  set(CBMC_UI_OPTION "")
+endif()
 
 set(RMM_TESTBENCH_RESULT_DIR "${BINARY_DIR}/cbmc_${CBMC_RESULT_FILE_SUFFIX}_results")
 set(SUMMARY_FILE "SUMMARY.${CBMC_RESULT_FILE_SUFFIX}")
@@ -111,7 +108,6 @@ set(cbmc_analysis_flags_list
   "--memory-leak-check")
 
 set(cbmc_flags_list
-  "--c11"
   "--timestamp;wall"
   "--verbosity;9"
   # Optimisation flags:
@@ -148,55 +144,131 @@ separate_arguments(RMM_IMP_INCS)
 # Execute CBMC on the testbench files
 #
 rmm_cbmc_write_summary_header(${RMM_CBMC_SUMMARY_FIELD_WIDTH}
-  ${RMM_TESTBENCH_RESULT_DIR} ${SUMMARY_FILE} ${CBMC_SUMMARY_HEADER})
+  ${RMM_TESTBENCH_RESULT_DIR} ${SUMMARY_FILE} ${RMM_CBMC_CONFIGURATION})
+
+function(rmm_cbmc_gen_file_names
+  testbench_file_path
+  filename_prefix
+  out_file_ending
+  cmd_file_var_name
+  out_file_var_name
+  err_file_var_name)
+  get_filename_component(testbench_file_name "${testbench_file_path}" NAME)
+  get_filename_component(parent "${testbench_file_path}" DIRECTORY)
+  set("${cmd_file_var_name}" "${parent}/${filename_prefix}_${testbench_file_name}.cmd" PARENT_SCOPE)
+  set("${out_file_var_name}" "${parent}/${filename_prefix}_${testbench_file_name}.${out_file_ending}" PARENT_SCOPE)
+  set("${err_file_var_name}" "${parent}/${filename_prefix}_${testbench_file_name}.error" PARENT_SCOPE)
+endfunction()
+
+function(normalise_cmd cmd_str out_var_name)
+  # replace the ; with space
+  string (REPLACE ";" " " cmd_str "${cmd_str}")
+  set("${out_var_name}" "${cmd_str}" PARENT_SCOPE)
+endfunction()
 
 foreach(testbench_file ${TESTBENCH_FILES})
 
   string(REPLACE ${TESTBENCH_DIR}/ "" testbench_filename ${testbench_file})
   string(REGEX REPLACE "\\.[^\\.]*$" "" entry_point "${testbench_filename}")
 
-  set(cmd
-    ${RMM_CBMC_PATH}
-    ${cbmc_flags_list}
-    "--function;${entry_point}"
-    ${RMM_IMP_INCS}
-    ${cbmc_unwinds_list}
-    ${cbmc_defines_list}
-    ${RMM_IMP_SRCS}
-    ${testbench_file})
+  set(RMM_GOTO_PROG_NAME "${RMM_TESTBENCH_RESULT_DIR}/rmm_${entry_point}.goto")
 
   # Set the names of output files
-  string(REPLACE ${TESTBENCH_DIR} ${RMM_TESTBENCH_RESULT_DIR} output_file ${testbench_file})
-  set(error_file ${output_file})
-  set(cmd_file ${output_file})
-  string(APPEND output_file ".${CBMC_RESULT_FILE_SUFFIX}" ".output")
-  string(APPEND error_file ".${CBMC_RESULT_FILE_SUFFIX}" ".error")
-  string(APPEND cmd_file ".${CBMC_RESULT_FILE_SUFFIX}" ".cmd")
+  string(REPLACE ${TESTBENCH_DIR} ${RMM_TESTBENCH_RESULT_DIR} OUT_FILE_NAME_PREFIX "${testbench_file}")
+  rmm_cbmc_gen_file_names(${OUT_FILE_NAME_PREFIX} "cbmc" "${CBMC_OUT_FILE_ENDING}"
+    cbmc_cmd_file cbmc_output_file cbmc_error_file)
+  rmm_cbmc_gen_file_names(${OUT_FILE_NAME_PREFIX} "cbmc_prop" "xml"
+    cbmc_prop_cmd_file cbmc_prop_output_file cbmc_prop_error_file)
+  rmm_cbmc_gen_file_names(${OUT_FILE_NAME_PREFIX} "goto_cc" "output"
+    goto_cc_cmd_file goto_cc_output_file goto_cc_error_file)
+  rmm_cbmc_gen_file_names(${OUT_FILE_NAME_PREFIX} "cbmc_viewer" "output"
+    cbmc_viewer_cmd_file cbmc_viewer_output_file cbmc_viewer_error_file)
+  set(CBMC_VIEWER_REPORT_DIR "${RMM_TESTBENCH_RESULT_DIR}/report_${entry_point}")
 
-  # remove the absolute path making it relative
-  string (REPLACE "${SOURCE_DIR}/" "" cmd "${cmd}")
-  # replace the ; with space
-  string (REPLACE ";" " " CMD_STR "${cmd}")
-  # add double quotes
-  string (REPLACE "\"" "\\\"" CMD_STR "${CMD_STR}")
-  # escape parentheses
-  string (REPLACE "(" "\"(" CMD_STR "${CMD_STR}")
-  string (REPLACE ")" ")\"" CMD_STR "${CMD_STR}")
-  file(WRITE ${cmd_file} "${CMD_STR}")
+  set(goto_cc_cmd
+    ${RMM_GOTO_CC_PATH}
+    ${cbmc_compiler_options}
+    ${cbmc_defines_list}
+    "--function;${entry_point}"
+    "-o;${RMM_GOTO_PROG_NAME}"
+    ${RMM_IMP_INCS}
+    ${RMM_IMP_SRCS}
+    ${testbench_file}
+  )
+
+  set(cbmc_cmd
+    ${RMM_CBMC_PATH}
+    ${CBMC_UI_OPTION}
+    ${cbmc_flags_list}
+    ${cbmc_unwinds_list}
+    ${RMM_GOTO_PROG_NAME})
+
+  set(cbmc_prop_cmd
+    ${RMM_CBMC_PATH}
+    ${cbmc_flags_list}
+    "--xml-ui"
+    "--show-properties"
+    ${RMM_GOTO_PROG_NAME})
+
+  set(cbmc_viewer_cmd
+    "${RMM_CBMC_VIEWER_PATH}"
+    "--goto;${RMM_GOTO_PROG_NAME}"
+    "--result;${cbmc_output_file}"
+    "--property;${cbmc_prop_output_file}"
+    "--srcdir;${CMAKE_SOURCE_DIR}"
+    "--reportdir;${CBMC_VIEWER_REPORT_DIR}")
+
+  # remove the absolute path making it relative (shorten the command line)
+  string (REPLACE "${SOURCE_DIR}/" "" goto_cc_cmd "${goto_cc_cmd}")
+
+  normalise_cmd("${goto_cc_cmd}" GOTO_CC_CMD_STR)
+  normalise_cmd("${cbmc_cmd}" CBMC_CMD_STR)
+
+  file(WRITE ${goto_cc_cmd_file} "${GOTO_CC_CMD_STR}")
+  file(WRITE ${cbmc_cmd_file} "${CBMC_CMD_STR}")
 
   execute_process(COMMAND ${CMAKE_COMMAND} -E echo_append "CBMC: ${testbench_file}... ")
   execute_process(
-      COMMAND ${cmd}
+      COMMAND ${goto_cc_cmd}
       RESULT_VARIABLE res_var
-      OUTPUT_FILE ${output_file}
-      ERROR_FILE ${error_file}
-      )
+      OUTPUT_FILE ${goto_cc_output_file}
+      ERROR_FILE ${goto_cc_error_file})
+  if (NOT ${res_var} EQUAL "0")
+    message(FATAL_ERROR "Compiling testbench with goto-cc failed. For details see: ${goto_cc_error_file}")
+  endif()
+
+  execute_process(
+      COMMAND ${cbmc_cmd}
+      RESULT_VARIABLE res_var
+      OUTPUT_FILE ${cbmc_output_file}
+      ERROR_FILE ${cbmc_error_file})
+
+  if(RMM_CBMC_VIEWER_OUTPUT)
+    normalise_cmd("${cbmc_prop_cmd}" CBMC_PROP_CMD_STR)
+    file(WRITE ${cbmc_prop_cmd_file} "${CBMC_PROP_CMD_STR}")
+    execute_process(
+      COMMAND ${cbmc_prop_cmd}
+      RESULT_VARIABLE res_var
+      OUTPUT_FILE ${cbmc_prop_output_file}
+      ERROR_FILE ${cbmc_prop_error_file})
+
+    normalise_cmd("${cbmc_viewer_cmd}" CBMC_VIEWER_CMD_STR)
+    file(WRITE ${cbmc_viewer_cmd_file} "${CBMC_VIEWER_CMD_STR}")
+    execute_process(
+      COMMAND ${cbmc_viewer_cmd}
+      RESULT_VARIABLE res_var
+      OUTPUT_FILE ${cbmc_viewer_output_file}
+      ERROR_FILE ${cbmc_viewer_error_file})
+    if (NOT ${res_var} EQUAL "0")
+      message(FATAL_ERROR "Failed to run cbmc-viewer. For details see: ${goto_cc_error_file}")
+    endif()
+  endif()
 
   execute_process(COMMAND ${CMAKE_COMMAND} -E echo "DONE")
 
-  rmm_cbmc_append_summary("${testbench_filename}" "${output_file}"
-    ${RMM_CBMC_SUMMARY_FIELD_WIDTH} ${RMM_TESTBENCH_RESULT_DIR} ${SUMMARY_FILE}
-    ${CBMC_SUMMARY_PATTERN})
+  rmm_cbmc_append_summary("${testbench_filename}" "${cbmc_output_file}"
+    "${CBMC_RESULT_FILE_SUFFIX}-${CBMC_OUT_FILE_ENDING}"
+    ${RMM_CBMC_SUMMARY_FIELD_WIDTH} ${RMM_TESTBENCH_RESULT_DIR} ${SUMMARY_FILE})
 
 endforeach()
 message(STATUS "Result in ${RMM_TESTBENCH_RESULT_DIR}")
