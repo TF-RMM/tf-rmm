@@ -18,3 +18,6 @@ preprocessorErrorDirective
 
 // Ignore unusedLabel which triggers false positives for COMPILER_ASSERT_ZERO
 unusedLabel
+
+// Ignore errors in ext folder
+*:ext/

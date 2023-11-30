@@ -102,17 +102,17 @@ Build using LLVM toolchain
 
 .. code-block:: bash
 
-    cmake -DRMM_CONFIG=fvp_defcfg -DRMM_STATIC_ANALYSIS_CPPCHECK=ON -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
+    cmake -DRMM_CONFIG=fvp_defcfg -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
     cmake --build ${RMM_BUILD_DIR} -- cppcheck
     cat ${BUILD_DIR}/tools/cppcheck/cppcheck.xml
 
-9. Perform a Cppcheck static analysis with CERT_C/MISRA/THREAD SAFETY (example with MISRA):
+9. Perform a Cppcheck static analysis with MISRA:
 
 .. code-block:: bash
 
-    cmake -DRMM_CONFIG=fvp_defcfg -DRMM_STATIC_ANALYSIS_CPPCHECK=ON -DRMM_STATIC_ANALYSIS_CPPCHECK_CHECKER_MISRA=ON -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
-    cmake --build ${RMM_BUILD_DIR} -- cppcheck
-    cat ${BUILD_DIR}/tools/cppcheck/cppcheck.xml
+    cmake -DRMM_CONFIG=fvp_defcfg -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
+    cmake --build ${RMM_BUILD_DIR} -- cppcheck-misra
+    cat ${BUILD_DIR}/tools/cppcheck/cppcheck_misra.xml
 
 10. Perform a checkpatch analysis:
 
@@ -270,10 +270,6 @@ The |RMM| build system supports the following CMake build options.
    RMM_TOOLCHAIN		,gnu | llvm		,			,"Toolchain name"
    LOG_LEVEL			,			,40			,"Log level to apply for RMM (0 - 50)"
    RMM_STATIC_ANALYSIS		,			,			,"Enable static analysis checkers"
-   RMM_STATIC_ANALYSIS_CPPCHECK				,ON | OFF	,ON	,"Enable Cppcheck static analysis"
-   RMM_STATIC_ANALYSIS_CPPCHECK_CHECKER_CERT_C		,ON | OFF	,ON	,"Enable Cppcheck's SEI CERT C checker"
-   RMM_STATIC_ANALYSIS_CPPCHECK_CHECKER_MISRA		,ON | OFF	,ON	,"Enable Cppcheck's MISRA C:2012 checker"
-   RMM_STATIC_ANALYSIS_CPPCHECK_CHECKER_THREAD_SAFETY	,ON | OFF	,ON	,"Enable Cppcheck's thread safety checker"
    RMM_UART_ADDR		,			,0x0			,"Base addr of UART to be used for RMM logs"
    PLAT_CMN_CTX_MAX_XLAT_TABLES ,			,0			,"Maximum number of translation tables used by the runtime context"
    PLAT_CMN_EXTRA_MMAP_REGIONS	,			,0			,"Extra platform mmap regions that need to be mapped in S1 xlat tables"
