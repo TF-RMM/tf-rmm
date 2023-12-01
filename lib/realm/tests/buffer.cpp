@@ -36,8 +36,8 @@ static inline uintptr_t get_rand_granule_addr(void)
 {
 	uintptr_t addr;
 
-	int random_granule = test_helpers_get_rand_in_range(0,
-					test_helpers_get_nr_granules() - 1);
+	unsigned long random_granule = test_helpers_get_rand_in_range(0UL,
+				test_helpers_get_nr_granules() - 1);
 
 	addr = (uintptr_t)(random_granule * GRANULE_SIZE)
 					+ host_util_get_granule_base();
@@ -285,7 +285,8 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC5)
 
 	granule_addr = get_rand_granule_addr();
 	test_granule = addr_to_granule(granule_addr);
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0, MAX_CPUS - 1);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								(MAX_CPUS - 1));
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -314,8 +315,10 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC6)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	slot = (enum buffer_slot)test_helpers_get_rand_in_range(
-						SLOT_NS + 1U, NR_CPU_SLOTS);
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0, MAX_CPUS - 1);
+						(unsigned long)(SLOT_NS + 1U),
+						(unsigned long)NR_CPU_SLOTS);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+						(unsigned long)(MAX_CPUS - 1));
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -347,8 +350,10 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC7)
 
 	test_granule = realm_test_util_granule_struct_base() - 1U;
 	slot = (enum buffer_slot)test_helpers_get_rand_in_range(
-						SLOT_NS + 1U, NR_CPU_SLOTS);
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0, MAX_CPUS - 1);
+						(unsigned long)(SLOT_NS + 1U),
+						(unsigned long)NR_CPU_SLOTS);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+						(unsigned long)(MAX_CPUS - 1));
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -380,8 +385,10 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC8)
 	test_granule = realm_test_util_granule_struct_base() +
 							HOST_NR_GRANULES;
 	slot = (enum buffer_slot)test_helpers_get_rand_in_range(
-						SLOT_NS + 1U, NR_CPU_SLOTS);
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0, MAX_CPUS - 1);
+						(unsigned long)(SLOT_NS + 1U),
+						(unsigned long)NR_CPU_SLOTS);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -413,12 +420,14 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC9)
 
 	granule_addr = get_rand_granule_addr();
 	test_granule = (uintptr_t)addr_to_granule(granule_addr);
-	test_granule += test_helpers_get_rand_in_range(1,
+	test_granule += test_helpers_get_rand_in_range(1UL,
 						sizeof(struct granule) - 1);
 
 	slot = (enum buffer_slot)test_helpers_get_rand_in_range(
-						SLOT_NS + 1U, NR_CPU_SLOTS);
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0, MAX_CPUS - 1);
+						(unsigned long)(SLOT_NS + 1U),
+						(unsigned long)NR_CPU_SLOTS);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -583,8 +592,10 @@ TEST(slot_buffer, ns_buffer_write_TC3)
 
 	/* Get two random CPUs where to run the tests. */
 	do {
-		cpu[0] = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
-		cpu[1] = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+		cpu[0] = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1U);
+		cpu[1] = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1U);
 	} while (cpu[0] == cpu[1]);
 
 	/* Get two different patterns of data to copy. */
@@ -641,9 +652,11 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC4)
 
 	/* Get a random slot. Secure slots are after SLOT_NS */
 	slot = (enum buffer_slot)test_helpers_get_rand_in_range(
-						SLOT_NS + 1U, NR_CPU_SLOTS);
+						(unsigned long)(SLOT_NS + 1U),
+						(unsigned long)NR_CPU_SLOTS);
 
-	cpuid = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+					(unsigned long)(MAX_CPUS - 1U));
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -674,7 +687,8 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC5)
 
 	granule_addr = get_rand_granule_addr();
 
-	cpuid = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1U);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -705,7 +719,8 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC6)
 
 	granule_addr = get_rand_granule_addr();
 
-	cpuid = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1U);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -739,9 +754,10 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC7)
 	get_rand_granule_array(granule_addrs, 2U);
 
 	/* Get a random size between 1 and 7 bytes */
-	size = (size_t)test_helpers_get_rand_in_range(1, 7);
+	size = (size_t)test_helpers_get_rand_in_range(1UL, 7UL);
 
-	cpuid = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1U);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -775,9 +791,10 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC8)
 	get_rand_granule_array(granule_addrs, 2U);
 
 	/* Get a random offset between 1 and 7 */
-	offset = test_helpers_get_rand_in_range(1, 7);
+	offset = (unsigned int)test_helpers_get_rand_in_range(1UL, 7UL);
 
-	cpuid = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1U);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -814,9 +831,11 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC9)
 	 * test_helpers_get_rand_in_range() will never return an address for
 	 * the last granule, so we are safe increasing the address.
 	 */
-	granule_addrs[1] += test_helpers_get_rand_in_range(1, 7);
+	granule_addrs[1] += (unsigned int)test_helpers_get_rand_in_range(1UL,
+									 7UL);
 
-	cpuid = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1U);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -857,7 +876,8 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC10)
 	offset = GRANULE_SIZE >> 1U;
 	size = (size_t)GRANULE_SIZE;
 
-	cpuid = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1U);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -1022,8 +1042,10 @@ TEST(slot_buffer, ns_buffer_read_TC3)
 
 	/* Get two random CPUs where to run the tests. */
 	do {
-		cpu[0] = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
-		cpu[1] = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+		cpu[0] = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1U);
+		cpu[1] = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1U);
 	} while (cpu[0] == cpu[1]);
 
 	/* Store random data at the beginning of each granule */
@@ -1078,9 +1100,11 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC4)
 
 	/* Get a random slot. Secure slots are after SLOT_NS */
 	slot = (enum buffer_slot)test_helpers_get_rand_in_range(
-						SLOT_NS + 1U, NR_CPU_SLOTS);
+						(unsigned long)(SLOT_NS + 1U),
+						(unsigned long)NR_CPU_SLOTS);
 
-	cpuid = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1U);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -1111,7 +1135,8 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC5)
 
 	granule_addr = get_rand_granule_addr();
 
-	cpuid = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1U);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -1142,7 +1167,8 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC6)
 
 	granule_addr = get_rand_granule_addr();
 
-	cpuid = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+					(unsigned long)(MAX_CPUS - 1U));
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -1176,9 +1202,10 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC7)
 	get_rand_granule_array(granule_addrs, 2U);
 
 	/* Get a random size between 1 and 7 bytes */
-	size = (size_t)test_helpers_get_rand_in_range(1, 7);
+	size = (size_t)test_helpers_get_rand_in_range(1UL, 7UL);
 
-	cpuid = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1U);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -1212,9 +1239,10 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC8)
 	get_rand_granule_array(granule_addrs, 2U);
 
 	/* Get a random offset between 1 and 7 */
-	offset = test_helpers_get_rand_in_range(1, 7);
+	offset = (unsigned int)test_helpers_get_rand_in_range(1UL, 7UL);
 
-	cpuid = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+					(unsigned long)(MAX_CPUS - 1U));
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -1251,9 +1279,10 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC9)
 	 * test_helpers_get_rand_in_range() will never return an address for
 	 * the last granule, so we are safe increasing the address.
 	 */
-	granule_addrs[1] += test_helpers_get_rand_in_range(1, 7);
+	granule_addrs[1] += test_helpers_get_rand_in_range(1UL, 7UL);
 
-	cpuid = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+								MAX_CPUS - 1U);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
@@ -1294,7 +1323,8 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC10)
 	offset = GRANULE_SIZE >> 1U;
 	size = (size_t)GRANULE_SIZE;
 
-	cpuid = test_helpers_get_rand_in_range(0, MAX_CPUS - 1U);
+	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
+					(unsigned long)(MAX_CPUS - 1U));
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);

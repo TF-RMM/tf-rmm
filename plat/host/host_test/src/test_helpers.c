@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <host_defs.h>
 #include <host_utils.h>
+#include <limits.h>
 #include <platform_api.h>
 #include <rmm_el3_ifc.h>
 #include <stdlib.h>
@@ -119,9 +120,16 @@ unsigned int test_helpers_get_nr_granules(void)
 	return HOST_NR_GRANULES;
 }
 
-int test_helpers_get_rand_in_range(long min, long max)
+unsigned long test_helpers_get_rand_in_range(unsigned long min,
+					     unsigned long max)
 {
-	return (rand() % (max - min + 1)) + min;
+	unsigned long retval = ((unsigned long)rand() << 32) | rand();
+
+	if ((max - min) == ULONG_MAX) {
+		return retval;
+	}
+
+	return (retval %  (max - min + 1)) + min;
 }
 
 int test_helpers_register_cb(union test_harness_cbs cb, enum cb_ids id)
