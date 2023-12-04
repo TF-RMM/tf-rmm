@@ -3,16 +3,16 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include "tb_granules.h"
-#include "tb_common.h"
 #include "buffer.h"
 #include "granule.h"
 #include "granule_types.h"
-#include "sizes.h"
 #include "host_defs.h"
 #include "host_utils.h"
 #include "platform_api.h"
+#include "sizes.h"
 #include "string.h"
+#include "tb_common.h"
+#include "tb_granules.h"
 
 extern struct granule granules[RMM_MAX_GRANULES];
 
@@ -98,6 +98,12 @@ struct SPEC_granule Granule(uint64_t addr)
 
 	switch (result->state) {
 	case GRANULE_STATE_NS:
+		if (is_granule_gpt_ns(addr)) {
+			spec_granule.gpt = GPT_NS;
+		} else {
+			spec_granule.gpt = GPT_SECURE;
+		}
+		break;
 	case GRANULE_STATE_RTT:
 		spec_granule.gpt = GPT_NS;
 		break;

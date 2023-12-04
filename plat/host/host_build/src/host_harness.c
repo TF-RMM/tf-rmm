@@ -17,3 +17,13 @@ void host_buffer_arch_unmap(void *buf)
 {
 	(void)buf;
 }
+
+unsigned long host_gtsi_delegate(unsigned long addr)
+{
+	return 0;
+}
+
+unsigned long host_gtsi_undelegate(unsigned long addr)
+{
+	return 0;
+}

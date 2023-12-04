@@ -15,7 +15,12 @@ target_link_libraries(rmm-plat-host_cbmc
     PUBLIC rmm-host-common)
 
 target_sources(rmm-plat-host_cbmc
-    PRIVATE "src/host_harness.c")
+    PRIVATE
+        "src/host_harness.c"
+        "src/tb_common.c"
+        "src/tb_granules.c"
+        "src/tb.c"
+        )
 
 target_include_directories(rmm-plat-host_cbmc
     PUBLIC "include")
