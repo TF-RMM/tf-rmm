@@ -14,11 +14,8 @@
 #include "tb_granules.h"
 #include "utils_def.h"
 
-/*
- * This array holds information on whether the granule that is injected in
- * RMM's granule array is set to NS in the GPT, or not.
- */
-static bool granule_gpt_ns_array[RMM_MAX_GRANULES];
+/* This array holds information on the injected granule's status in the GPT. */
+static enum granule_gpt granule_gpt_array[RMM_MAX_GRANULES];
 
 /* Declare a nondet function for registers information. */
 struct tb_regs nondet_tb_regs(void);
@@ -156,23 +153,25 @@ struct granule *inject_granule(const struct granule *granule_metadata,
 	size_t index = next_index();
 
 	if (granule_metadata->state == GRANULE_STATE_NS) {
-		granule_gpt_ns_array[index] = nondet_bool();
-	} else{
-		granule_gpt_ns_array[index] = false;
+		/* initialise the granules as either secure or non-secure */
+		granule_gpt_array[index] = nondet_bool() ? GPT_SECURE : GPT_NS;
+	} else {
+		granule_gpt_array[index] = GPT_REALM;
 	}
+
 	return inject_granule_at(granule_metadata, src_page, src_size, index);
 }
 
-bool is_granule_gpt_ns(uint64_t addr)
+enum granule_gpt get_granule_gpt(uint64_t addr)
 {
 	uint64_t idx = (addr - (uint64_t)granules_buffer)/GRANULE_SIZE;
 
-	return granule_gpt_ns_array[idx];
+	return granule_gpt_array[idx];
 }
 
-void set_granule_gpt_ns(uint64_t addr, bool gpt_ns)
+void set_granule_gpt(uint64_t addr, enum granule_gpt granule_gpt)
 {
 	uint64_t idx = (addr - (uint64_t)granules_buffer)/GRANULE_SIZE;
 
-	granule_gpt_ns_array[idx] = gpt_ns;
+	granule_gpt_array[idx] = granule_gpt;
 }

@@ -58,6 +58,7 @@ struct granule init_granule(void)
 {
 	struct granule rst = nondet_struct_granule();
 
+	__CPROVER_assume(__CPROVER_enum_is_in_range(rst.state));
 	__CPROVER_assume(valid_granule(rst));
 	return rst;
 }
@@ -87,7 +88,10 @@ bool PaIsDelegable(uint64_t addr)
 struct SPEC_granule Granule(uint64_t addr)
 {
 	if (!valid_pa(addr)) {
-		return nondet_struct_SPEC_granule();
+		struct SPEC_granule nd_granule = nondet_struct_SPEC_granule();
+		__CPROVER_assume(__CPROVER_enum_is_in_range(nd_granule.state));
+		__CPROVER_assume(__CPROVER_enum_is_in_range(nd_granule.gpt));
+		return nd_granule;
 	}
 
 	struct granule *result = pa_to_granule_metadata_ptr(addr);
@@ -98,11 +102,7 @@ struct SPEC_granule Granule(uint64_t addr)
 
 	switch (result->state) {
 	case GRANULE_STATE_NS:
-		if (is_granule_gpt_ns(addr)) {
-			spec_granule.gpt = GPT_NS;
-		} else {
-			spec_granule.gpt = GPT_SECURE;
-		}
+		spec_granule.gpt = get_granule_gpt(addr);
 		break;
 	case GRANULE_STATE_RTT:
 		spec_granule.gpt = GPT_NS;
