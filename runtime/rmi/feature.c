@@ -39,6 +39,10 @@ unsigned long get_feature_register_0(void)
 	feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS,
 				EXTRACT(PMCR_EL0_N, read_pmcr_el0()));
 
+	/* The architecture requires at least two breakpoints and watchpoints */
+	feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_NUM_BPS, 2U);
+	feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_NUM_WPS, 2U);
+
 	/* Get CPU simd configuration and set SVE fields if SVE is present */
 	(void)simd_get_cpu_config(&simd_cfg);
 	if (simd_cfg.sve_en) {
