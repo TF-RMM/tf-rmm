@@ -52,8 +52,9 @@ Length
   This will not be enforced, any function being longer should trigger a
   discussion during the review process.
 
-- A line must be <= 80 characters, except for string literals as it would make
-  any search for it more difficult.
+- The recommended maximum line length is 80 characters, except for string literals
+  as it would make any search for it more difficult. A maximum length of 100
+  characters is enforced by the coding guidelines static check.
 
 - A variable should not be longer than 31 characters.
 
@@ -66,7 +67,7 @@ Length
 +==============+===================================+
 |   function   |     24 lines (not enforced)       |
 +--------------+-----------------------------------+
-|     line     |          80 characters            |
+|     line     |          100 characters           |
 +--------------+-----------------------------------+
 |  identifier  |          31 characters            |
 +--------------+-----------------------------------+
