@@ -22,17 +22,17 @@
  * Z register.
  */
 #define SVE_Z_REG_MIN_SIZE	U(16)
-#define SVE_P_REG_MIN_SIZE	(SVE_Z_REG_MIN_SIZE / 8)
-#define SVE_FFR_REG_MIN_SIZE	(SVE_Z_REG_MIN_SIZE / 8)
+#define SVE_P_REG_MIN_SIZE	(SVE_Z_REG_MIN_SIZE / 8U)
+#define SVE_FFR_REG_MIN_SIZE	(SVE_Z_REG_MIN_SIZE / 8U)
 
 /* Number of Z, P, FFR registers */
 #define SVE_Z_REG_NUM		U(32)
 #define SVE_P_REG_NUM		U(16)
 #define SVE_FFR_REG_NUM		U(1)
 
-#define SVE_Z_REGS_SIZE(vq)	(((vq) + 1) * (SVE_Z_REG_MIN_SIZE * SVE_Z_REG_NUM))
-#define SVE_P_REGS_SIZE(vq)	(((vq) + 1) * (SVE_P_REG_MIN_SIZE * SVE_P_REG_NUM))
-#define SVE_FFR_REGS_SIZE(vq)	(((vq) + 1) * (SVE_FFR_REG_MIN_SIZE * \
+#define SVE_Z_REGS_SIZE(vq)	(((vq) + 1U) * (SVE_Z_REG_MIN_SIZE * SVE_Z_REG_NUM))
+#define SVE_P_REGS_SIZE(vq)	(((vq) + 1U) * (SVE_P_REG_MIN_SIZE * SVE_P_REG_NUM))
+#define SVE_FFR_REGS_SIZE(vq)	(((vq) + 1U) * (SVE_FFR_REG_MIN_SIZE * \
 					     SVE_FFR_REG_NUM))
 
 /* SVE vq architecture limit */
@@ -178,10 +178,10 @@ struct simd_context {
  * TODO: Auto generate header file simd-asm-offsets.h during build and use it
  * in assembly routines.
  */
-COMPILER_ASSERT(offsetof(struct fpu_regs, q) == (size_t)FPU_REGS_OFFSET_Q);
-COMPILER_ASSERT(offsetof(struct sve_regs, z) == (size_t)SVE_REGS_OFFSET_Z);
-COMPILER_ASSERT(offsetof(struct sve_regs, p) == (size_t)SVE_REGS_OFFSET_P);
-COMPILER_ASSERT(offsetof(struct sve_regs, ffr) == (size_t)SVE_REGS_OFFSET_FFR);
+COMPILER_ASSERT((U(offsetof(struct fpu_regs, q))) == FPU_REGS_OFFSET_Q);
+COMPILER_ASSERT((U(offsetof(struct sve_regs, z))) == SVE_REGS_OFFSET_Z);
+COMPILER_ASSERT((U(offsetof(struct sve_regs, p))) == SVE_REGS_OFFSET_P);
+COMPILER_ASSERT((U(offsetof(struct sve_regs, ffr))) == SVE_REGS_OFFSET_FFR);
 
 /* Initialize SIMD layer based on CPU support for FPU or SVE */
 void simd_init(void);

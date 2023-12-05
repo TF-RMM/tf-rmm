@@ -21,7 +21,7 @@
 #include <xlat_high_va.h>
 #include <xlat_tables.h>
 
-COMPILER_ASSERT(XLAT_HIGH_VA_SLOT_NUM >= NR_CPU_SLOTS);
+COMPILER_ASSERT(XLAT_HIGH_VA_SLOT_NUM >= U(NR_CPU_SLOTS));
 
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 uintptr_t slot_to_va(enum buffer_slot slot)
@@ -86,7 +86,7 @@ bool check_cpu_slots_empty(void)
 {
 	for (unsigned int i = 0U; i < (unsigned int)NR_CPU_SLOTS; i++) {
 		if (slot_to_descriptor((enum buffer_slot)i) !=
-						TRANSIENT_DESC) {
+				       TRANSIENT_DESC) {
 			return false;
 		}
 	}

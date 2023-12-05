@@ -189,9 +189,9 @@ struct rmm_core_manifest {
 	struct ns_dram_info plat_dram;	/* Platform DRAM data */
 };
 
-COMPILER_ASSERT(offsetof(struct rmm_core_manifest, version) == 0);
-COMPILER_ASSERT(offsetof(struct rmm_core_manifest, plat_data) == 8);
-COMPILER_ASSERT(offsetof(struct rmm_core_manifest, plat_dram) == 16);
+COMPILER_ASSERT(U(offsetof(struct rmm_core_manifest, version)) == 0U);
+COMPILER_ASSERT(U(offsetof(struct rmm_core_manifest, plat_data)) == 8U);
+COMPILER_ASSERT(U(offsetof(struct rmm_core_manifest, plat_dram)) == 16U);
 
 /*
  * Accessors to the Boot Manifest data

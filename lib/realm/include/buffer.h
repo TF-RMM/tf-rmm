@@ -31,7 +31,7 @@ enum buffer_slot {
 				 * If the max aux granules is 0, no slots will
 				 * be reserved.
 				 */
-	SLOT_RTT = SLOT_REC_AUX0 + MAX_REC_AUX_GRANULES,
+	SLOT_RTT = U(SLOT_REC_AUX0) + MAX_REC_AUX_GRANULES,
 	SLOT_RTT2,		/* Some commands access two RTT granules at a time*/
 	SLOT_RSI_CALL,
 	NR_CPU_SLOTS

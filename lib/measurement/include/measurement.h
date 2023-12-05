@@ -65,14 +65,14 @@ struct measurement_desc_data {
 	 */
 	SET_MEMBER(unsigned char content[MAX_MEASUREMENT_SIZE], 0x60, 0x100);
 };
-COMPILER_ASSERT(sizeof(struct measurement_desc_data) == 0x100);
+COMPILER_ASSERT(sizeof(struct measurement_desc_data) == 0x100UL);
 
-COMPILER_ASSERT(offsetof(struct measurement_desc_data, desc_type) == 0x0);
-COMPILER_ASSERT(offsetof(struct measurement_desc_data, len) == 0x8);
-COMPILER_ASSERT(offsetof(struct measurement_desc_data, rim) == 0x10);
-COMPILER_ASSERT(offsetof(struct measurement_desc_data, ipa) == 0x50);
-COMPILER_ASSERT(offsetof(struct measurement_desc_data, flags) == 0x58);
-COMPILER_ASSERT(offsetof(struct measurement_desc_data, content) == 0x60);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_data, desc_type)) == 0x0U);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_data, len)) == 0x8U);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_data, rim)) == 0x10U);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_data, ipa)) == 0x50U);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_data, flags)) == 0x58U);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_data, content)) == 0x60U);
 
 /* RmmMeasurementDescriptorRec type as per RMM spec */
 struct measurement_desc_rec {
@@ -85,12 +85,12 @@ struct measurement_desc_rec {
 	/* Hash of 4KB page which contains REC parameters data structure */
 	SET_MEMBER(unsigned char content[MAX_MEASUREMENT_SIZE], 0x50, 0x100);
 };
-COMPILER_ASSERT(sizeof(struct measurement_desc_rec) == 0x100);
+COMPILER_ASSERT(sizeof(struct measurement_desc_rec) == 0x100UL);
 
-COMPILER_ASSERT(offsetof(struct measurement_desc_rec, desc_type) ==  0x0);
-COMPILER_ASSERT(offsetof(struct measurement_desc_rec, len) ==  0x8);
-COMPILER_ASSERT(offsetof(struct measurement_desc_rec, rim) ==  0x10);
-COMPILER_ASSERT(offsetof(struct measurement_desc_rec, content) ==  0x50);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_rec, desc_type)) == 0x0U);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_rec, len)) == 0x8U);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_rec, rim)) == 0x10U);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_rec, content)) == 0x50U);
 
 /* RmmMeasurementDescriptorRipas type as per RMM spec */
 struct measurement_desc_ripas {
@@ -105,13 +105,13 @@ struct measurement_desc_ripas {
 	/* Top IPA at which the RIPAS change occurred */
 	SET_MEMBER(unsigned long top, 0x58, 0x100);
 };
-COMPILER_ASSERT(sizeof(struct measurement_desc_ripas) == 0x100);
+COMPILER_ASSERT(sizeof(struct measurement_desc_ripas) == 0x100UL);
 
-COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, desc_type) == 0x0);
-COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, len) == 0x8);
-COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, rim) == 0x10);
-COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, base) == 0x50);
-COMPILER_ASSERT(offsetof(struct measurement_desc_ripas, top) == 0x58);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_ripas, desc_type)) == 0x0U);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_ripas, len)) == 0x8U);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_ripas, rim)) == 0x10U);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_ripas, base)) == 0x50U);
+COMPILER_ASSERT(U(offsetof(struct measurement_desc_ripas, top)) == 0x58U);
 
 /*
  * Calculate the hash of data with algorithm hash_algo to the buffer `out`.

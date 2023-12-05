@@ -86,7 +86,7 @@
  * attributes field as a flag to know if a tte corresponds to a transient
  * address or not.
  */
-#define TRANSIENT_FLAG_SHIFT	U(55)
+#define TRANSIENT_FLAG_SHIFT	UL(55)
 #define TRANSIENT_FLAG_WIDTH	U(1)
 
 /*

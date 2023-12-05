@@ -7,13 +7,13 @@
 #include <stddef.h>
 #include <utils_def.h>
 
-COMPILER_ASSERT(sizeof(struct rsi_realm_config) == 0x1000);
-COMPILER_ASSERT(offsetof(struct rsi_realm_config, ipa_width) == 0);
-COMPILER_ASSERT(offsetof(struct rsi_realm_config, algorithm) == 8);
+COMPILER_ASSERT(sizeof(struct rsi_realm_config) == 0x1000UL);
+COMPILER_ASSERT(U(offsetof(struct rsi_realm_config, ipa_width)) == 0U);
+COMPILER_ASSERT(U(offsetof(struct rsi_realm_config, algorithm)) == 8U);
 
-COMPILER_ASSERT(sizeof(struct rsi_host_call) == 0x100);
-COMPILER_ASSERT(offsetof(struct rsi_host_call, imm) == 0);
-COMPILER_ASSERT(offsetof(struct rsi_host_call, gprs[0]) == 8);
-COMPILER_ASSERT(offsetof(struct rsi_host_call,
-			 gprs[RSI_HOST_CALL_NR_GPRS - 1]) ==
-			 (8UL * RSI_HOST_CALL_NR_GPRS));
+COMPILER_ASSERT(sizeof(struct rsi_host_call) == 0x100UL);
+COMPILER_ASSERT(U(offsetof(struct rsi_host_call, imm)) == 0U);
+COMPILER_ASSERT(U(offsetof(struct rsi_host_call, gprs[0U])) == 8U);
+COMPILER_ASSERT(U(offsetof(struct rsi_host_call,
+			 gprs[RSI_HOST_CALL_NR_GPRS - 1U])) ==
+			 U(8U * RSI_HOST_CALL_NR_GPRS));
