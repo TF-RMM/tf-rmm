@@ -69,6 +69,10 @@ el2_serror_lel:
 ENDPROC(el2_serror_lel)
 
 el2_sync_cel:
+
+	/* Switch to exception handler stack */
+	msr	spsel, #0
+
 	stp	x0, x1, [sp, #-16]!
 	stp	x2, x3, [sp, #-16]!
 	stp	x4, x5, [sp, #-16]!
@@ -100,6 +104,9 @@ el2_sync_cel:
 	ldp	x4, x5, [sp], #16
 	ldp	x2, x3, [sp], #16
 	ldp	x0, x1, [sp], #16
+
+	/* Switch back to normal stack */
+	msr	spsel, #1
 
 	eret
 	sb

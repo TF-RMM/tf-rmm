@@ -10,3 +10,8 @@ uintptr_t rmm_get_my_stack(unsigned long cpuid)
 	(void)cpuid;
 	return 0x10000UL;
 }
+
+uintptr_t rmm_get_my_eh_stack(unsigned long cpuid)
+{
+	return 0x20000UL;
+}

@@ -15,12 +15,18 @@
 /* Calculate the slot buffer's virtual address */
 #define SLOT_VIRT		(((UL(~0)) - (XLAT_HIGH_VA_SLOT_NUM * GRANULE_SIZE)) + 1U)
 
-#define RMM_CPU_STACK_SIZE	(RMM_NUM_PAGES_PER_STACK * PAGE_SIZE)
+#define RMM_CPU_STACK_SIZE		(RMM_NUM_PAGES_PER_STACK * PAGE_SIZE)
+#define RMM_CPU_EH_STACK_SIZE		PAGE_SIZE
+
 /* Leave some pages of gap above the stack top */
-#define GAP_PAGE_COUNT		(U(1))
-#define CPU_STACK_GAP		(GAP_PAGE_COUNT * PAGE_SIZE)
-#define RMM_CPU_STACK_END_VA	(SLOT_VIRT - CPU_STACK_GAP)
-#define CPU_STACK_VIRT		(RMM_CPU_STACK_END_VA - RMM_CPU_STACK_SIZE)
+#define GAP_PAGE_COUNT			(U(1))
+#define CPU_STACK_GAP			(GAP_PAGE_COUNT * PAGE_SIZE)
+#define RMM_CPU_STACK_END_VA		(SLOT_VIRT - CPU_STACK_GAP)
+#define CPU_STACK_VIRT			(RMM_CPU_STACK_END_VA - RMM_CPU_STACK_SIZE)
+
+/* Exception stack defines */
+#define RMM_CPU_EH_STACK_END_VA		(CPU_STACK_VIRT - CPU_STACK_GAP)
+#define CPU_EH_STACK_VIRT		(RMM_CPU_EH_STACK_END_VA - RMM_CPU_EH_STACK_SIZE)
 
 /* TTE attribute for per CPU private VA (nG) Data mapping) */
 #define XLAT_NG_DATA_ATTR	(MT_RW_DATA | MT_NG)
@@ -40,7 +46,14 @@ struct xlat_ctx *xlat_get_high_va_xlat_ctx(void);
  */
 int xlat_high_va_setup(void);
 
+/* Return the physical address of the stack used by the exception handler for a given PE index */
+/* The function is defined in assembly, so suppressing misra error: */
+/* coverity[misra_c_2012_rule_8_6_violation:SUPPRESS] */
+uintptr_t rmm_get_my_eh_stack(unsigned long cpuid);
+
 /* Return the stack physical address for a given PE index */
+/* The function is defined in assembly, so suppressing misra error: */
+/* coverity[misra_c_2012_rule_8_6_violation:SUPPRESS] */
 uintptr_t rmm_get_my_stack(unsigned long cpuid);
 
 #endif /* !(defined(__ASSEMBLER__) || defined(__LINKER__)) */
