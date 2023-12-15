@@ -178,12 +178,10 @@ if(CHECKPATCH_RUN)
       continue()
     endif()
 
-    string(REPLACE ";" " " source_files "${source_files}")
-
     execute_process(
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       COMMAND ${GIT_EXECUTABLE} diff --format=email "${commit}~..${commit}"
-        -- "${source_files}"
+        -- ${source_files}
       COMMAND ${CHECKPATCH_EXECUTABLE} -
       OUTPUT_VARIABLE checkpatch_output
       RESULT_VARIABLE checkpatch_rc
