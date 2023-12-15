@@ -12,8 +12,9 @@
 #include "tb_realm.h"
 #include "tb_rtt.h"
 
-#define VMID8_COUNT		(U(1) << 8)
-#define VMID16_COUNT		(U(1) << 16)
+#define VMID8_COUNT			(U(1) << 8)
+#define VMID16_COUNT			(U(1) << 16)
+#define MAX_ROOT_RTT_CBMC		2
 
 bool VmidIsFree(uint16_t vmid)
 {
@@ -81,7 +82,7 @@ bool valid_s2tt_context(struct s2tt_context value)
 		/* TODO focus on standard size of root rtt for now */
 		&& value.num_root_rtts >= 1
 		/* && value.num_root_rtts <= 16 */
-		&& value.num_root_rtts <= 2
+		&& value.num_root_rtts <= MAX_ROOT_RTT_CBMC
 		&& valid_granule_metadata_ptr(value.g_rtt)
 		&& value.g_rtt->state == GRANULE_STATE_RTT
 		/* TODO: what is the ranges here */
@@ -148,3 +149,71 @@ struct granule *init_realm_descriptor_page(void)
 
 	return rd_granule;
 }
+
+/* TODO if the implementation is correct? */
+bool RealmIsLive(uint64_t rd_addr)
+{
+	/*
+	 * TODO either update or remove
+	 * From 1.0 eac5 spec:
+	 * D PCKRN:  A Realm is live if any of the following is true:
+	 *     - The number of RECs owned by the Realm is not zero
+	 *     - A starting level RTT of the Realm is live
+	 *
+	 * I VKKPJ:
+	 *   If a Realm owns a non-zero number of Data Granules,
+	 *   this implies that it has a starting level RTT which is live,
+	 *   and therefore that the Realm itself is live.
+	 */
+
+	/* TODO find a better way to assert the rd_addr. */
+	if (!valid_pa(rd_addr)) {
+		return nondet_bool();
+	}
+
+	struct granule *g_rd = pa_to_granule_metadata_ptr(rd_addr);
+
+	__ASSERT(g_rd, "internal: `_RealmIsLive`, rd is not null");
+
+	if (g_rd->refcount != 0) {
+		return true;
+	}
+
+	struct rd *rd = pa_to_granule_buffer_ptr(rd_addr);
+
+	__ASSERT(rd, "internal: `_RealmIsLive`, rd is not null");
+
+	/* Check the refcount for all root rtts */
+	for (size_t i = 0;
+	    i < rd->s2_ctx.num_root_rtts && i < MAX_ROOT_RTT_CBMC;
+	    ++i) {
+		if (rd->s2_ctx.g_rtt[i].refcount != 0) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/*
+ * Returns TRUE if the state of all of the starting-level RTT Granules is equal
+ * to state.
+ */
+bool RttsStateEqual(uint64_t rtt_base, uint64_t rtt_num_start, uint64_t state)
+{
+	if (!valid_pa(rtt_base)) {
+		return nondet_bool();
+	}
+
+	struct granule *g_rtt = pa_to_granule_metadata_ptr(rtt_base);
+
+	__ASSERT(g_rtt, "internal: `_RttsStateEqual`, rtt_base is not null");
+
+	for (int i = 0; i < rtt_num_start && i < MAX_ROOT_RTT_CBMC; i++) {
+		if ((g_rtt + i)->state != state) {
+			return false;
+		}
+	}
+	return true;
+}
+
