@@ -80,6 +80,13 @@ static void init_common_sysregs(struct rec *rec, struct rd *rd)
 	/* Control trapping of accesses to PMU registers */
 	if (rd->pmu_enabled) {
 		mdcr_el2_val &= ~(MDCR_EL2_TPM_BIT | MDCR_EL2_TPMCR_BIT);
+
+		/*
+		 * Set MDCR_EL2.HPMN to assign event counters into
+		 * the first range
+		 */
+		mdcr_el2_val &= ~MASK(MDCR_EL2_HPMN);
+		mdcr_el2_val |= INPLACE(MDCR_EL2_HPMN, rd->pmu_num_ctrs);
 	} else {
 		mdcr_el2_val |= (MDCR_EL2_TPM_BIT | MDCR_EL2_TPMCR_BIT);
 	}

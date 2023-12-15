@@ -226,8 +226,6 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 
 	/* Validate number of PMU counters if PMUv3 is enabled */
 	if (EXTRACT(RMI_REALM_FLAGS_PMU, p->flags) == RMI_FEATURE_TRUE) {
-		unsigned long mdcr_el2_val;
-
 		if (p->pmu_num_ctrs >
 		    EXTRACT(RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS, feat_reg0)) {
 			return false;
@@ -240,14 +238,6 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 		if ((p->pmu_num_ctrs == 0U) && !is_feat_hpmn0_present()) {
 			return false;
 		}
-
-		/*
-		 * Set MDCR_EL2.HPMN to assign event counters into
-		 * the first range
-		 */
-		mdcr_el2_val = read_mdcr_el2() & ~MASK(MDCR_EL2_HPMN);
-		mdcr_el2_val |= INPLACE(MDCR_EL2_HPMN, p->pmu_num_ctrs);
-		write_mdcr_el2(mdcr_el2_val);
 	}
 
 	if (!validate_ipa_bits_and_sl(p->s2sz, p->rtt_level_start)) {
