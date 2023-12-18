@@ -88,7 +88,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 	long level = (long)ulevel;
 	unsigned long ipa_bits;
 	unsigned long ret;
-	struct realm_s2_context s2_ctx;
+	struct s2tt_context s2_ctx;
 	int sl;
 
 	if (!find_lock_two_granules(rtt_addr,
@@ -291,7 +291,7 @@ void smc_rtt_fold(unsigned long rd_addr,
 	long level = (long)ulevel;
 	unsigned long ipa_bits, rtt_addr;
 	unsigned long ret;
-	struct realm_s2_context s2_ctx;
+	struct s2tt_context s2_ctx;
 	int sl;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
@@ -478,7 +478,7 @@ void smc_rtt_destroy(unsigned long rd_addr,
 	long level = (long)ulevel;
 	unsigned long ipa_bits, rtt_addr;
 	unsigned long ret;
-	struct realm_s2_context s2_ctx;
+	struct s2tt_context s2_ctx;
 	int sl;
 	bool in_par, skip_non_live = false;
 
@@ -621,7 +621,7 @@ static void map_unmap_ns(unsigned long rd_addr,
 	unsigned long *s2tt, s2tte;
 	struct s2tt_walk wi;
 	unsigned long ipa_bits;
-	struct realm_s2_context s2_ctx;
+	struct s2tt_context s2_ctx;
 	int sl;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
@@ -1023,7 +1023,7 @@ void smc_data_destroy(unsigned long rd_addr,
 	unsigned long data_addr, s2tte, *s2tt;
 	struct rd *rd;
 	unsigned long ipa_bits;
-	struct realm_s2_context s2_ctx;
+	struct s2tt_context s2_ctx;
 	int sl;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
@@ -1292,7 +1292,7 @@ out_unmap_llt:
 	granule_unlock(g_rd);
 }
 
-static void rtt_set_ripas_range(struct realm_s2_context *s2_ctx,
+static void rtt_set_ripas_range(struct s2tt_context *s2_ctx,
 				unsigned long *s2tt,
 				unsigned long base,
 				unsigned long top,
@@ -1365,7 +1365,7 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 	unsigned long ipa_bits;
 	struct s2tt_walk wi;
 	unsigned long *s2tt;
-	struct realm_s2_context s2_ctx;
+	struct s2tt_context s2_ctx;
 	enum ripas ripas_val;
 	enum ripas_change_destroyed change_destroyed;
 	int sl;

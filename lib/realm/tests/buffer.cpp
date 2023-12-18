@@ -348,7 +348,7 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC7)
 	cb.buffer_unmap = test_buffer_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
-	test_granule = realm_test_util_granule_struct_base() - 1U;
+	test_granule = test_helpers_granule_struct_base() - 1U;
 	slot = (enum buffer_slot)test_helpers_get_rand_in_range(
 						(unsigned long)(SLOT_NS + 1U),
 						(unsigned long)NR_CPU_SLOTS);
@@ -382,7 +382,7 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC8)
 	cb.buffer_unmap = test_buffer_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
-	test_granule = realm_test_util_granule_struct_base() +
+	test_granule = test_helpers_granule_struct_base() +
 							HOST_NR_GRANULES;
 	slot = (enum buffer_slot)test_helpers_get_rand_in_range(
 						(unsigned long)(SLOT_NS + 1U),

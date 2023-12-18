@@ -23,25 +23,28 @@ target_link_libraries(rmm-lib-realm
     PRIVATE rmm-lib-arch
             rmm-lib-common
             rmm-lib-debug
-            rmm-lib-gic
-            rmm-lib-xlat
-            rmm-lib-allocator
-            rmm-lib-attestation
-            rmm-platform)
+            rmm-lib-xlat)
+
+# Needed to link with the platform callbacks for buffer map/unmap
+if(RMM_ARCH STREQUAL fake_host)
+    target_link_libraries(rmm-lib-realm
+        PRIVATE rmm-platform)
+endif()
 
 target_link_libraries(rmm-lib-realm
-    PUBLIC rmm-lib-measurement
+    PUBLIC rmm-lib-attestation
+           rmm-lib-gic
+           rmm-lib-measurement
+           rmm-lib-s2tt
            rmm-lib-smc)
 
 target_include_directories(rmm-lib-realm
     PUBLIC "include"
     PRIVATE "src/include/${RMM_ARCH}"
-    PRIVATE "src/include"
-    PRIVATE "src")
+    PRIVATE "src/include")
 
 target_sources(rmm-lib-realm
     PRIVATE "src/buffer.c"
-            "src/granule.c"
-            "src/s2tt.c")
+            "src/granule.c")
 
 include (tests/CMakeLists.txt)

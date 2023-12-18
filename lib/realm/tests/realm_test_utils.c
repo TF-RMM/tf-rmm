@@ -48,11 +48,3 @@ uintptr_t realm_test_util_slot_va_from_pa(uintptr_t pa)
 	return (uintptr_t)NULL;
 }
 
-/*
- * Function to return the base pointer to granule structure.
- * This function relies on addr_to_granule().
- */
-struct granule *realm_test_util_granule_struct_base(void)
-{
-	return addr_to_granule(host_util_get_granule_base());
-}

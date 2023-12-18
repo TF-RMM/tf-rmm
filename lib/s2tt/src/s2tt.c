@@ -5,18 +5,12 @@
 
 #include <arch_helpers.h>
 #include <bitmap.h>
-#include <buffer.h>
-#include <gic.h>
 #include <granule.h>
-#include <memory_alloc.h>
-#include <realm.h>
 #include <ripas.h>
 #include <s2tt.h>
 #include <s2tt_pvt_defs.h>
 #include <smc.h>
-#include <status.h>
 #include <stddef.h>
-#include <string.h>
 
 /* TODO: Fix this when introducing LPA2 support */
 COMPILER_ASSERT(S2TT_MIN_STARTING_LEVEL >= 0);
@@ -24,7 +18,7 @@ COMPILER_ASSERT(S2TT_MIN_STARTING_LEVEL >= 0);
 /*
  * Invalidates S2 TLB entries from [ipa, ipa + size] region tagged with `vmid`.
  */
-static void stage2_tlbi_ipa(const struct realm_s2_context *s2_ctx,
+static void stage2_tlbi_ipa(const struct s2tt_context *s2_ctx,
 			    unsigned long ipa,
 			    unsigned long size)
 {
@@ -87,7 +81,7 @@ static void stage2_tlbi_ipa(const struct realm_s2_context *s2_ctx,
  * Call this function after:
  * 1.  A L3 page desc has been removed.
  */
-void s2tt_invalidate_page(const struct realm_s2_context *s2_ctx, unsigned long addr)
+void s2tt_invalidate_page(const struct s2tt_context *s2_ctx, unsigned long addr)
 {
 	stage2_tlbi_ipa(s2_ctx, addr, GRANULE_SIZE);
 }
@@ -99,7 +93,7 @@ void s2tt_invalidate_page(const struct realm_s2_context *s2_ctx, unsigned long a
  * 2a. A L2 table desc has been removed, where
  * 2b. All S2TTEs in L3 table that the L2 table desc was pointed to were invalid.
  */
-void s2tt_invalidate_block(const struct realm_s2_context *s2_ctx, unsigned long addr)
+void s2tt_invalidate_block(const struct s2tt_context *s2_ctx, unsigned long addr)
 {
 	stage2_tlbi_ipa(s2_ctx, addr, GRANULE_SIZE);
 }
@@ -110,7 +104,8 @@ void s2tt_invalidate_block(const struct realm_s2_context *s2_ctx, unsigned long 
  * 1a. A L2 table desc has been removed, where
  * 1b. Some S2TTEs in the table that the L2 table desc was pointed to were valid.
  */
-void s2tt_invalidate_pages_in_block(const struct realm_s2_context *s2_ctx, unsigned long addr)
+void s2tt_invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
+				    unsigned long addr)
 {
 	stage2_tlbi_ipa(s2_ctx, addr, BLOCK_L2_SIZE);
 }

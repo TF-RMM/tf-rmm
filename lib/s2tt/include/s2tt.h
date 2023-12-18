@@ -7,7 +7,32 @@
 #define S2TT_H
 
 #include <arch_features.h>
+#include <granule_types.h>
 #include <memory.h>
+
+/*
+ * Stage 2 configuration of the Realm
+ */
+struct s2tt_context {
+	/* Number of IPA bits */
+	unsigned int ipa_bits;
+
+	/* Starting level of the stage 2 translation */
+	int s2_starting_level;
+
+	/* Number of concatenated starting level rtts */
+	unsigned int num_root_rtts;
+
+	/* First level RTT, pointed to by Realm TTBR */
+	struct granule *g_rtt;
+
+	/* Virtual Machine Identifier */
+	unsigned int vmid;
+
+	/*
+	 * TODO: we will need other translation regime state, e.g. TCR, MAIR(?).
+	 */
+};
 
 #define S2TT_MIN_IPA_BITS		32U
 #define S2TT_MAX_IPA_BITS		48U
@@ -111,10 +136,9 @@ void s2tt_init_assigned_ns(unsigned long *s2tt, unsigned long attrs,
 			   unsigned long pa, long level);
 void s2tt_init_assigned_destroyed(unsigned long *s2tt, unsigned long pa, long level);
 
-struct realm_s2_context;
-void s2tt_invalidate_page(const struct realm_s2_context *s2_ctx, unsigned long addr);
-void s2tt_invalidate_block(const struct realm_s2_context *s2_ctx, unsigned long addr);
-void s2tt_invalidate_pages_in_block(const struct realm_s2_context *s2_ctx,
+void s2tt_invalidate_page(const struct s2tt_context *s2_ctx, unsigned long addr);
+void s2tt_invalidate_block(const struct s2tt_context *s2_ctx, unsigned long addr);
+void s2tt_invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
 				    unsigned long addr);
 
 bool s2tt_is_unassigned_empty_block(unsigned long *table);
