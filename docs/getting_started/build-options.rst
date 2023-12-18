@@ -281,6 +281,7 @@ The |RMM| build system supports the following CMake build options.
    HOST_MEM_SIZE		,			,0x40000000		,"Host memory size that will be used as physical granules"
    RMM_COVERAGE 		,ON | OFF		,OFF			,"Enable coverage analysis"
    RMM_HTML_COV_REPORT		,ON | OFF		,ON			,"Enable HTML output report for coverage analysis"
+   RMM_CBMC_VIEWER_OUTPUT	,ON | OFF		,OFF			,"Generate report of CBMC results using the tool cbmc-viewer"
 
 .. _llvm_build:
 
