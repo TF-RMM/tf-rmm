@@ -53,6 +53,12 @@ each build.
 
 For an example build command please refer to :ref:`RMM Build Examples`
 
+The CMake system by default runs CBMC on all the testbenches. This can take a
+long time, and it can be convenient to run a single testcase at once. This can
+be achieved using the option ``-DRMM_CBMC_SINGLE_TESTBENCH="testbench_name"``.
+The list of possible ``testbench_name``s can be listed by using the option
+``-DRMM_CBMC_SINGLE_TESTBENCH="help"``.
+
 The CMake system provides different modes in which CBMC can be called, along
 with their respective build targets.
 

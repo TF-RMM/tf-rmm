@@ -132,7 +132,8 @@ else()
   message(FATAL_ERROR "Invalid RMM_CBMC_CONFIGURATION '${RMM_CBMC_CONFIGURATION}'")
 endif()
 
-file(GLOB_RECURSE TESTBENCH_FILES "${TESTBENCH_DIR}/*.c")
+# Convert the space separated strings to a CMake list
+string(REPLACE " " ";" TESTBENCH_FILES "${TESTBENCH_FILES}")
 
 #
 # Create semi-colon separated list from white-space seperated ones.
@@ -273,10 +274,12 @@ foreach(testbench_file ${TESTBENCH_FILES})
 endforeach()
 message(STATUS "Result in ${RMM_TESTBENCH_RESULT_DIR}")
 
+list(TRANSFORM TESTBENCH_FILES REPLACE "${TESTBENCH_DIR}/" "" OUTPUT_VARIABLE TESTBENCH_FILENAMES)
 execute_process(
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   COMMAND ${CHECK_CBMC_SUMMARY_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tools/cbmc/testbenches_results/BASELINE.${CBMC_RESULT_FILE_SUFFIX}
+    --testbench-files "${TESTBENCH_FILENAMES}"
     ${RMM_TESTBENCH_RESULT_DIR}/${SUMMARY_FILE}
   OUTPUT_VARIABLE CHECK_SUMMARY_OUTPUT
   ERROR_VARIABLE CHECK_SUMMARY_ERROR

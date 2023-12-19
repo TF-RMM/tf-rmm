@@ -16,6 +16,7 @@ have the same format and semantics
 
 import argparse
 import logging
+import ntpath
 import re
 import sys
 
@@ -158,12 +159,20 @@ def compare_assert_summary(testbench_name, baseline_results, current_results):
     # The number of asserts in the code can change frequently, so don't do a check on it.
 
 
-def compare_summary_lists(baseline_list, actual_list, comparator):
+def compare_summary_lists(baseline_list, actual_list, comparator, testbench_list):
     """
     Compare two summary lists.
 
-    List items are expected to be in the format of a tuple:
-    (testbench name, first integer value, second integer value)
+    Arguments:
+    baseline_list -- List of testbench baseline results
+    actual_list -- List of testbench actual results
+    comparator -- A function that can compare 2 testbench result items
+    testbench_list -- A list of testbenches to be considered. If None, all
+                      testbenches are considered
+
+    baseline_list and  actual_list items are expected to be in the format of a
+    tuple: (testbench name, first integer value, second integer value)
+
     """
     # TODO: check for duplicated lines
     baseline = {summary[0]: summary[1:] for summary in baseline_list}
@@ -173,6 +182,10 @@ def compare_summary_lists(baseline_list, actual_list, comparator):
     # coverage/assert change remains unnoticed due to an update of the baseline
     # that was triggered by a tetsbench addition/deletion.
     actual_extra = {}
+
+    if testbench_list is not None:
+        baseline = {k: v for k, v in baseline.items() if k in testbench_list}
+        actual_list = [e for e in actual_list if e[0] in testbench_list]
 
     for summary in actual_list:
         testbench_name = summary[0]
@@ -191,7 +204,7 @@ def compare_summary_lists(baseline_list, actual_list, comparator):
         )
 
 
-def compare_summary_files(baseline_filename, actual_filename):
+def compare_summary_files(baseline_filename, actual_filename, testbench_list):
     """
     Compare two summary files.
     """
@@ -213,7 +226,7 @@ def compare_summary_files(baseline_filename, actual_filename):
         raise ParseException(f"Unknown summary type {base_type}")
 
     compare_summary_lists(
-        base_summary_list, actual_summary_list, comparators[base_type]
+        base_summary_list, actual_summary_list, comparators[base_type], testbench_list
     )
 
 
@@ -223,10 +236,9 @@ def main():
     """
     parser = argparse.ArgumentParser(description="compare CBMC summary siles")
     parser.add_argument(
-        "-v", "--verbosity",
+        "--testbench-files",
         type=str,
-        choices='',
-        help="The path of the baseline summary file.",
+        help="A semicolon (;) separated list of files to check in the summaries.",
     )
     parser.add_argument(
         "baseline",
@@ -238,8 +250,13 @@ def main():
     )
     args = parser.parse_args()
 
+    if args.testbench_files:
+        testbench_list = [ntpath.basename(p) for p in args.testbench_files.split(";")]
+    else:
+        testbench_list = None
+
     try:
-        compare_summary_files(args.baseline, args.actual)
+        compare_summary_files(args.baseline, args.actual, testbench_list)
     except ParseException as exc:
         logging.error("Failed to compare summaries:")
         logging.error(f"{str(exc)}")
