@@ -392,12 +392,10 @@ void buffer_alloc_ctx_unassign(void)
 	ctx_per_cpu[cpuid] = NULL;
 }
 
+/* NOTE: This function is not currently expected to be called. */
 void mbedtls_memory_buffer_set_verify(int verify)
 {
 	struct buffer_alloc_ctx *heap = get_heap_ctx();
-
-	/* this seems to be dead code */
-	assert(false);
 
 	assert(heap);
 	heap->verify = verify;
