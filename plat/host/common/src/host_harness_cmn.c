@@ -5,6 +5,7 @@
 
 #include <arch.h>
 #include <arch_helpers.h>
+#include <assert.h>
 #include <debug.h>
 #include <errno.h>
 #include <host_utils.h>
@@ -217,6 +218,13 @@ int host_run_realm(unsigned long *regs)
 
 void host_spinlock_acquire(spinlock_t *l)
 {
+	/*
+	 * The fake_host architecture is single threaded and we do not expect
+	 * the lock to be already acquired in properly implemented locking
+	 * sequence.
+	 */
+	assert(l->val == 0);
+
 	l->val = 1;
 }
 
