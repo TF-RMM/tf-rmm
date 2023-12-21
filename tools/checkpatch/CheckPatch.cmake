@@ -44,13 +44,24 @@ list(APPEND glob_excludes "^cscope.")
 
 set(total_errors "0")
 set(total_warnings "0")
-set(commitmsg_total_errors "0")
-set(commitmsg_total_warnings "0")
 
 # Check if pre-reqs met
 if(PERL_NOT_FOUND OR NOT EXISTS ${CHECKPATCH_EXECUTABLE})
   message(FATAL_ERROR "required dependencies not found")
 endif()
+
+#
+# print_output_without_total: Remove the "total:" line from an output and print
+# the new output.
+#
+function(print_output_without_total output)
+  string(FIND "${output}" "\ntotal:" idx REVERSE)
+  string(SUBSTRING "${output}" 0 ${idx} output_without_total)
+
+  if(output_without_total)
+    message(${output_without_total})
+  endif()
+endfunction()
 
 #
 # checkpatch_get_stats: Parse and returns number of errors and warnings
@@ -66,24 +77,6 @@ function(checkpatch_get_stats stats_arg errors_ret warnings_ret)
 
   set(${errors_ret} ${errors} PARENT_SCOPE)
   set(${warnings_ret} ${warnings} PARENT_SCOPE)
-endfunction()
-
-#
-# checkcommitmsg_get_stats: Parse and returns number of errors and warnings
-#
-function(checkcommitmsg_get_stats stats_arg errors_ret)
-  string(FIND "${stats_arg}" "total:" idx REVERSE)
-  if(NOT ${idx} EQUAL -1)
-    string(LENGTH "${stats_arg}" len)
-    string(SUBSTRING "${stats_arg}" ${idx} ${len} last_line)
-
-    string(REPLACE " " ";" last_line_list ${last_line})
-    list(GET last_line_list 1 errors)
-  else()
-    set(errors 1)
-  endif()
-
-  set(${errors_ret} ${errors} PARENT_SCOPE)
 endfunction()
 
 #
@@ -187,8 +180,12 @@ if(CHECKPATCH_RUN)
       RESULT_VARIABLE checkpatch_rc
       )
 
+    #
+    # Remove the "total:" line from the output as we will print the total errors
+    # and warnings for the commit series later.
+    #
     if(checkpatch_output)
-      message(${checkpatch_output})
+      print_output_without_total(${checkpatch_output})
     endif()
 
     # checkpatch.pl failed for this commit. Collect no.of errors and warnings
@@ -213,8 +210,6 @@ if(CHECKPATCH_RUN)
       continue()
     endif()
 
-    message(STATUS "Checking commit message")
-
     #
     # Get commit message text
     #
@@ -234,18 +229,14 @@ if(CHECKPATCH_RUN)
       )
 
     if(checkcommitmsg_output)
-      message(${checkcommitmsg_output})
+      print_output_without_total(${checkcommitmsg_output})
     endif()
 
-    if(${checkcommitmsg_rc})
-      checkcommitmsg_get_stats("${checkcommitmsg_output}"
-        commitmsg_errors)
-      MATH(EXPR commitmsg_total_errors
-        "${commitmsg_total_errors} + ${commitmsg_errors}")
-    endif()
+    checkpatch_get_stats("${checkcommitmsg_output}"
+      commitmsg_errors commitmsg_warnings)
+    MATH(EXPR total_errors "${total_errors} + ${commitmsg_errors}")
+    MATH(EXPR total_warnings "${total_warnings} + ${commitmsg_warnings}")
   endforeach()
 
   print_stats_and_exit("checkpatch" ${total_errors}, ${total_warnings})
-  print_stats_and_exit("check commit message"
-    ${commitmsg_total_errors}, ${commitmsg_total_warnings})
 endif()
