@@ -39,11 +39,13 @@ def print_valid_types():
     print()
 
 #
-# Print total number of errors and exit with error code
+# Print total number of errors and warnings, and exit with error code.
 #
-def print_error_and_exit(total_errors):
+def print_stats_and_exit(total_errors, total_warnings):
+    print("\ntotal: " + str(total_errors) + " errors, " +
+          str(total_warnings) + " warnings")
+
     if total_errors:
-        print("total: " + str(total_errors) + " errors")
         sys.exit(1)
     else:
         sys.exit(0)
@@ -68,27 +70,28 @@ def get_valid_dirs(project_root):
 
 def check_title(title, project_root):
     errors = 0
+    warnings = 0
 
     if not title:
-        print("ERROR: Title cannot be empty")
+        print("Commit message: ERROR: Title cannot be empty")
         errors += 1
-        return errors
+        return errors, warnings
 
     if len(title) > 72:
-        print("ERROR: Title must be 72 characters or less")
+        print("Commit message: ERROR: Title must be 72 characters or less")
         errors += 1
 
     title_parts = title.split(": ", 1)
 
     if len(title_parts) < 2:
-        print("ERROR: Title should be of the form:\n\ttype(scope): description\n")
+        print("Commit message: ERROR: Title should be of the form:\n\ttype(scope): description\n")
         errors += 1
-        return errors
+        return errors, warnings
 
     title_type_scope = title_parts[0]
 
     if not title_type_scope.islower():
-        print("ERROR: Subject type must be lowercase")
+        print("Commit message: ERROR: Subject type must be lowercase")
         errors += 1
 
     #
@@ -105,26 +108,29 @@ def check_title(title, project_root):
         title_type = title_type_scope[:scope_begin_index]
 
     if not title_type in VALID_TYPES:
-        print("ERROR: Subject type must be one of the following:")
+        print("Commit message: ERROR: Subject type must be one of the following:")
         print_valid_types()
         errors += 1
 
     if scope:
         valid_scopes = get_valid_dirs(project_root)
         if scope not in valid_scopes:
-            print("WARNING: Scope should match the directory where the patch applies")
+            print("Commit message: WARNING: Scope should match the directory where the patch applies")
+            warnings += 1
     else:
-        print("WARNING: Consider adding a scope to the subject")
+        print("Commit message: WARNING: Consider adding a scope to the subject")
+        warnings += 1
 
     description = title_parts[1].lstrip()
     if not description:
-        print("ERROR: Title description cannot be empty")
+        print("Commit message: ERROR: Title description cannot be empty")
         errors += 1
 
-    return errors
+    return errors, warnings
 
 def check_body(lines):
     errors = 0
+    warnings = 0
 
     nonempty_lines = [l for l in lines if l != ""]
 
@@ -132,19 +138,20 @@ def check_body(lines):
     # Check if commit message body is empty
     #
     if (not lines or not nonempty_lines):
-        print("WARNING: Consider adding a commit message body")
-        return errors
+        print("Commit message: WARNING: Consider adding a commit message body")
+        warnings += 1
+        return errors, warnings
 
     #
     # Verify that at least one empty line separates the title from the body and
     # the body from the trailer
     #
     if lines[0] != "":
-        print("ERROR: Empty line required between title and body")
+        print("Commit message: ERROR: Empty line required between title and body")
         errors += 1
 
     if lines[-1] != "":
-        print("ERROR: Empty line required between body and trailer")
+        print("Commit message: ERROR: Empty line required between body and trailer")
         errors += 1
 
     #
@@ -152,11 +159,11 @@ def check_body(lines):
     #
     for line in nonempty_lines:
         if len(line) > 72:
-            print("ERROR: Width of commit message body must be 72 characters or less")
+            print("Commit message: ERROR: Width of commit message body must be 72 characters or less")
             errors += 1
-            return errors
+            return errors, warnings
 
-    return errors
+    return errors, warnings
 
 #
 # Check that the trailer contains both a Signed-off-by and Change-Id.
@@ -168,6 +175,7 @@ def check_trailer(trailer_lines):
     num_change_id = 0
 
     errors = 0
+    warnings = 0
 
     for line in trailer_lines:
         signed_off_by_match = re.search("^Signed-off-by: .* <.*>$", line)
@@ -180,14 +188,14 @@ def check_trailer(trailer_lines):
             num_change_id += 1
 
     if not has_signed_off_by:
-        print("ERROR: Trailer must contain Signed-off-by")
+        print("Commit message: ERROR: Trailer must contain Signed-off-by")
         errors += 1
 
     if (not has_change_id or num_change_id > 1):
-        print("ERROR: Trailer must contain exactly one Change-Id")
+        print("Commit message: ERROR: Trailer must contain exactly one Change-Id")
         errors += 1
 
-    return errors
+    return errors, warnings
 
 #
 # Verify if the "trailer" discovered by find_trailer() is actually a trailer. It
@@ -233,6 +241,7 @@ def remove_trailing_newlines(message_lines):
 
 def check_commit_msg(message, project_root):
     total_errors = 0
+    total_warnings = 0
 
     #
     # Convert message into a list of its lines, and remove trailing empty lines
@@ -242,7 +251,7 @@ def check_commit_msg(message, project_root):
     remove_trailing_newlines(message_lines)
 
     if not message_lines:
-        print("ERROR: Commit message cannot be empty")
+        print("Commit message: ERROR: Commit message cannot be empty")
         total_errors += 1
 
     trailer_start_idx = find_trailer(message_lines)
@@ -253,7 +262,7 @@ def check_commit_msg(message, project_root):
         trailer = message_lines[trailer_start_idx:]
 
         if trailer_start_idx == 0:
-            print("ERROR: Commit message must have at least a title")
+            print("Commit message: ERROR: Commit message must have at least a title")
             total_errors += 1
 
             title = ""
@@ -265,19 +274,25 @@ def check_commit_msg(message, project_root):
             title = message_lines[0]
             body = message_lines[1:trailer_start_idx]
     else:
-        print("ERROR: Commit message must contain a trailer with Signed-off-by and Change-Id")
+        print("Commit message: ERROR: Commit message must contain a trailer with Signed-off-by and Change-Id")
         total_errors += 1
 
         title = message_lines[0]
         body = message_lines[1:]
 
-    total_errors += check_title(title, project_root)
-    total_errors += check_body(body)
+    title_errors, title_warnings = check_title(title, project_root)
+    body_errors, body_warnings = check_body(body)
+
+    total_errors += title_errors + body_errors
+    total_warnings += title_warnings + body_warnings
 
     if msg_has_trailer:
-        total_errors += check_trailer(trailer)
+        trailer_errors, trailer_warnings = check_trailer(trailer)
 
-    return total_errors
+        total_errors += trailer_errors
+        total_warnings += trailer_warnings
+
+    return total_errors, total_warnings
 
 def main():
     parser = ArgumentParser(description='Check commit messages')
@@ -286,8 +301,9 @@ def main():
 
     args = parser.parse_args()
 
-    total_errors = check_commit_msg(args.message, args.project_root)
-    print_error_and_exit(total_errors)
+    total_errors, total_warnings = check_commit_msg(args.message,
+                                                    args.project_root)
+    print_stats_and_exit(total_errors, total_warnings)
 
 if __name__ == '__main__':
     main()
