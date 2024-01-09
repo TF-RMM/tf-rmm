@@ -19,7 +19,7 @@ Spaces (PAS):
 -  Root
 
 |RMM| code and |RMM| data are in Realm PAS memory, loaded and allocated to
-Realm PAS at boot time by the EL3 Firware. This is a static carveout and it
+Realm PAS at boot time by the EL3 Firmware. This is a static carveout and it
 is never changed during the lifetime of the system.
 
 The size of the |RMM| data is fixed at build time. The majority of this is the
@@ -60,8 +60,8 @@ listed below:
 -  RTT: Realm Stage 2 translation tables
 
 As part of RMI SMC handling, the state of the granule can be a pre-condition
-and undergo transtion to a new state. For more details on the various granule
-states and their transtions, please refer to the
+and undergo transition to a new state. For more details on the various granule
+states and their transitions, please refer to the
 `Realm Management Monitor (RMM) Specification`_.
 
 For further details, see:
@@ -96,8 +96,8 @@ The 2 VA ranges are used for 2 different purposes in RMM as described below.
 Stage 1 Low VA range
 ^^^^^^^^^^^^^^^^^^^^
 
-The Low VA range is used to create static mappings which are shared accross all
-the CPUs. It encompases the RMM executable binary memory and the EL3 Shared
+The Low VA range is used to create static mappings which are shared across all
+the CPUs. It encompasses the RMM executable binary memory and the EL3 Shared
 memory region.
 
 The RMM Executable binary memory consists of code, RO data and RW data. Note
@@ -204,7 +204,7 @@ map and unmap operation.
 
 As an alternative to using dynamic mappings as required for the RMI command,
 the approach of maintaining static mappings for all physical memory was
-considered, but rejected on thegrounds that this could permit arbitrary
+considered, but rejected on the grounds that this could permit arbitrary
 memory access for an attacker who is able to subvert |RMM| execution.
 
 The xlat lib APIs are used by the `slot-buffer` to create dynamic mappings.
@@ -269,7 +269,7 @@ that define the boundaries of the different sections and creates static
 memory mappings that are then used to initialize an ``xlat_ctx`` structure
 for the low VA region. The RMM binary sections are flat-mapped and are shared
 across all the CPUs on the system. In addition, as |RMM| is compiled as a
-Position Independed Executable (PIE) at address 0x0, the Global Offset
+Position Independent Executable (PIE) at address 0x0, the Global Offset
 Table (GOT) and other relocations in the binary are fixed up with the right
 offsets as part of boot. This allows RMM to be run at any physical address as
 a PIE regardless of the compile time address.
