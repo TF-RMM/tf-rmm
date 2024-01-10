@@ -11,6 +11,8 @@ find_program(RMM_GOTO_CC_PATH "goto-cc"
     DOC "Path to goto-cc.")
 find_program(RMM_CBMC_VIEWER_PATH "cbmc-viewer"
     DOC "Path to cbmc-viewer.")
+find_program(RMM_GCC_PATH "gcc"
+    DOC "Path to gcc.")
 
 find_package(Python3 REQUIRED)
 find_program(CHECK_CBMC_SUMMARY_EXECUTABLE "compare_summary.py"
@@ -34,6 +36,15 @@ if(RMM_CBMC_VIEWER_OUTPUT)
 else()
   set(CBMC_OUT_FILE_ENDING "output")
   set(CBMC_UI_OPTION "")
+endif()
+
+if(${RMM_CBMC_CONFIGURATION} STREQUAL "GCC")
+  set(COMPILED_FILE_PREFIX "gcc")
+  set(RMM_CBMC_COMPILER_PATH "${RMM_GCC_PATH}")
+  list(APPEND RMM_IMP_SRCS "${TESTBENCH_DIR}/../gcc/gcc_defs.c")
+else()
+  set(COMPILED_FILE_PREFIX "goto_cc")
+  set(RMM_CBMC_COMPILER_PATH "${RMM_GOTO_CC_PATH}")
 endif()
 
 set(RMM_TESTBENCH_RESULT_DIR "${BINARY_DIR}/cbmc_${CBMC_RESULT_FILE_SUFFIX}_results")
@@ -129,6 +140,14 @@ elseif("${RMM_CBMC_CONFIGURATION}" STREQUAL "ANALYSIS")
   list(APPEND cbmc_flags_list
     "--unwinding-assertions"
     "${cbmc_analysis_flags_list}")
+elseif("${RMM_CBMC_CONFIGURATION}" STREQUAL "GCC")
+  list(APPEND cbmc_compiler_options
+    "-Wall"
+    "-Werror"
+    "-Wno-unused-function"
+    "-Wno-main" # Do not warning on the non-standard signature of main
+    "-Wno-error=unused-variable" # Some of the testbenches contain unused variables
+    "-include;${TESTBENCH_DIR}/../gcc/gcc_defs.h")
 else()
   message(FATAL_ERROR "Invalid RMM_CBMC_CONFIGURATION '${RMM_CBMC_CONFIGURATION}'")
 endif()
@@ -181,17 +200,23 @@ foreach(testbench_file ${TESTBENCH_FILES})
     cbmc_cmd_file cbmc_output_file cbmc_error_file)
   rmm_cbmc_gen_file_names(${OUT_FILE_NAME_PREFIX} "cbmc_prop" "xml"
     cbmc_prop_cmd_file cbmc_prop_output_file cbmc_prop_error_file)
-  rmm_cbmc_gen_file_names(${OUT_FILE_NAME_PREFIX} "goto_cc" "output"
-    goto_cc_cmd_file goto_cc_output_file goto_cc_error_file)
+  rmm_cbmc_gen_file_names(${OUT_FILE_NAME_PREFIX} "${COMPILED_FILE_PREFIX}" "output"
+    compile_cmd_file compile_output_file compile_error_file)
   rmm_cbmc_gen_file_names(${OUT_FILE_NAME_PREFIX} "cbmc_viewer" "output"
     cbmc_viewer_cmd_file cbmc_viewer_output_file cbmc_viewer_error_file)
   set(CBMC_VIEWER_REPORT_DIR "${RMM_TESTBENCH_RESULT_DIR}/report_${entry_point}")
 
-  set(goto_cc_cmd
-    ${RMM_GOTO_CC_PATH}
+  if(${RMM_CBMC_CONFIGURATION} STREQUAL "GCC")
+    set(CBMC_ENTRY_POINT "-D${entry_point}=main")
+  else()
+    set(CBMC_ENTRY_POINT "--function;${entry_point}")
+  endif()
+
+  set(compile_cmd
+    ${RMM_CBMC_COMPILER_PATH}
     ${cbmc_compiler_options}
     ${cbmc_defines_list}
-    "--function;${entry_point}"
+    ${CBMC_ENTRY_POINT}
     "-o;${RMM_GOTO_PROG_NAME}"
     ${RMM_IMP_INCS}
     ${RMM_IMP_SRCS}
@@ -221,76 +246,83 @@ foreach(testbench_file ${TESTBENCH_FILES})
     "--reportdir;${CBMC_VIEWER_REPORT_DIR}")
 
   # remove the absolute path making it relative (shorten the command line)
-  string (REPLACE "${SOURCE_DIR}/" "" goto_cc_cmd "${goto_cc_cmd}")
+  string (REPLACE "${SOURCE_DIR}/" "" compile_cmd "${compile_cmd}")
 
-  normalise_cmd("${goto_cc_cmd}" GOTO_CC_CMD_STR)
+  normalise_cmd("${compile_cmd}" COMPILE_CMD_STR)
   normalise_cmd("${cbmc_cmd}" CBMC_CMD_STR)
 
-  file(WRITE ${goto_cc_cmd_file} "${GOTO_CC_CMD_STR}")
+  file(WRITE ${compile_cmd_file} "${COMPILE_CMD_STR}")
   file(WRITE ${cbmc_cmd_file} "${CBMC_CMD_STR}")
 
   execute_process(COMMAND ${CMAKE_COMMAND} -E echo_append "CBMC: ${testbench_file}... ")
   execute_process(
-      COMMAND ${goto_cc_cmd}
+      COMMAND ${compile_cmd}
       RESULT_VARIABLE res_var
-      OUTPUT_FILE ${goto_cc_output_file}
-      ERROR_FILE ${goto_cc_error_file})
+      OUTPUT_FILE ${compile_output_file}
+      ERROR_FILE ${compile_error_file})
   if (NOT ${res_var} EQUAL "0")
-    message(FATAL_ERROR "Compiling testbench with goto-cc failed. For details see: ${goto_cc_error_file}")
+    message(FATAL_ERROR "Compiling testbench with ${RMM_CBMC_COMPILER_PATH} failed. For details see: ${compile_error_file}")
   endif()
 
-  execute_process(
-      COMMAND ${cbmc_cmd}
-      RESULT_VARIABLE res_var
-      OUTPUT_FILE ${cbmc_output_file}
-      ERROR_FILE ${cbmc_error_file})
-
-  if(RMM_CBMC_VIEWER_OUTPUT)
-    normalise_cmd("${cbmc_prop_cmd}" CBMC_PROP_CMD_STR)
-    file(WRITE ${cbmc_prop_cmd_file} "${CBMC_PROP_CMD_STR}")
+  # Only run CBMC if not using compiler-only mode:
+  if(NOT ${RMM_CBMC_CONFIGURATION} STREQUAL "GCC")
     execute_process(
-      COMMAND ${cbmc_prop_cmd}
-      RESULT_VARIABLE res_var
-      OUTPUT_FILE ${cbmc_prop_output_file}
-      ERROR_FILE ${cbmc_prop_error_file})
+        COMMAND ${cbmc_cmd}
+        RESULT_VARIABLE res_var
+        OUTPUT_FILE ${cbmc_output_file}
+        ERROR_FILE ${cbmc_error_file})
 
-    normalise_cmd("${cbmc_viewer_cmd}" CBMC_VIEWER_CMD_STR)
-    file(WRITE ${cbmc_viewer_cmd_file} "${CBMC_VIEWER_CMD_STR}")
-    execute_process(
-      COMMAND ${cbmc_viewer_cmd}
-      RESULT_VARIABLE res_var
-      OUTPUT_FILE ${cbmc_viewer_output_file}
-      ERROR_FILE ${cbmc_viewer_error_file})
-    if (NOT ${res_var} EQUAL "0")
-      message(FATAL_ERROR "Failed to run cbmc-viewer. For details see: ${goto_cc_error_file}")
+    if(RMM_CBMC_VIEWER_OUTPUT)
+      normalise_cmd("${cbmc_prop_cmd}" CBMC_PROP_CMD_STR)
+      file(WRITE ${cbmc_prop_cmd_file} "${CBMC_PROP_CMD_STR}")
+      execute_process(
+        COMMAND ${cbmc_prop_cmd}
+        RESULT_VARIABLE res_var
+        OUTPUT_FILE ${cbmc_prop_output_file}
+        ERROR_FILE ${cbmc_prop_error_file})
+
+      normalise_cmd("${cbmc_viewer_cmd}" CBMC_VIEWER_CMD_STR)
+      file(WRITE ${cbmc_viewer_cmd_file} "${CBMC_VIEWER_CMD_STR}")
+      execute_process(
+        COMMAND ${cbmc_viewer_cmd}
+        RESULT_VARIABLE res_var
+        OUTPUT_FILE ${cbmc_viewer_output_file}
+        ERROR_FILE ${cbmc_viewer_error_file})
+      if (NOT ${res_var} EQUAL "0")
+        message(FATAL_ERROR "Failed to run cbmc-viewer. For details see: ${cbmc_viewer_error_file}")
+      endif()
     endif()
+
+    rmm_cbmc_append_summary("${testbench_filename}" "${cbmc_output_file}"
+      "${CBMC_RESULT_FILE_SUFFIX}-${CBMC_OUT_FILE_ENDING}"
+      ${RMM_CBMC_SUMMARY_FIELD_WIDTH} ${RMM_TESTBENCH_RESULT_DIR} ${SUMMARY_FILE})
+
   endif()
 
   execute_process(COMMAND ${CMAKE_COMMAND} -E echo "DONE")
 
-  rmm_cbmc_append_summary("${testbench_filename}" "${cbmc_output_file}"
-    "${CBMC_RESULT_FILE_SUFFIX}-${CBMC_OUT_FILE_ENDING}"
-    ${RMM_CBMC_SUMMARY_FIELD_WIDTH} ${RMM_TESTBENCH_RESULT_DIR} ${SUMMARY_FILE})
-
 endforeach()
 message(STATUS "Result in ${RMM_TESTBENCH_RESULT_DIR}")
 
-list(TRANSFORM TESTBENCH_FILES REPLACE "${TESTBENCH_DIR}/" "" OUTPUT_VARIABLE TESTBENCH_FILENAMES)
-execute_process(
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  COMMAND ${CHECK_CBMC_SUMMARY_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tools/cbmc/testbenches_results/BASELINE.${CBMC_RESULT_FILE_SUFFIX}
-    --testbench-files "${TESTBENCH_FILENAMES}"
-    ${RMM_TESTBENCH_RESULT_DIR}/${SUMMARY_FILE}
-  OUTPUT_VARIABLE CHECK_SUMMARY_OUTPUT
-  ERROR_VARIABLE CHECK_SUMMARY_ERROR
-  RESULT_VARIABLE CHECK_SUMMARY_RC
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
+# Only run CBMC if not using compiler-only mode:
+if(NOT ${RMM_CBMC_CONFIGURATION} STREQUAL "GCC")
+  list(TRANSFORM TESTBENCH_FILES REPLACE "${TESTBENCH_DIR}/" "" OUTPUT_VARIABLE TESTBENCH_FILENAMES)
+  execute_process(
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMAND ${CHECK_CBMC_SUMMARY_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tools/cbmc/testbenches_results/BASELINE.${CBMC_RESULT_FILE_SUFFIX}
+      --testbench-files "${TESTBENCH_FILENAMES}"
+      ${RMM_TESTBENCH_RESULT_DIR}/${SUMMARY_FILE}
+    OUTPUT_VARIABLE CHECK_SUMMARY_OUTPUT
+    ERROR_VARIABLE CHECK_SUMMARY_ERROR
+    RESULT_VARIABLE CHECK_SUMMARY_RC
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
 
-if (NOT ${CHECK_SUMMARY_RC} EQUAL "0")
-  message(WARNING
-    "cbmc-${CBMC_RESULT_FILE_SUFFIX}: FAILED\n${CHECK_SUMMARY_ERROR}")
-else()
-  message(STATUS "cbmc-${CBMC_RESULT_FILE_SUFFIX}: PASSED")
+  if (NOT ${CHECK_SUMMARY_RC} EQUAL "0")
+    message(WARNING
+      "cbmc-${CBMC_RESULT_FILE_SUFFIX}: FAILED\n${CHECK_SUMMARY_ERROR}")
+  else()
+    message(STATUS "cbmc-${CBMC_RESULT_FILE_SUFFIX}: PASSED")
+  endif()
 endif()

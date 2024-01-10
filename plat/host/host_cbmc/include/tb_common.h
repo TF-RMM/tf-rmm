@@ -6,6 +6,7 @@
 #ifndef TB_COMMON_H
 #define TB_COMMON_H
 
+#include "granule.h"
 #include "host_defs.h"
 #include "stdbool.h"
 #include "stdint.h"

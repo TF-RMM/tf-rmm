@@ -3,6 +3,8 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#ifndef CBMC
+
 #include <arch_helpers.h>
 #include <assert.h>
 #include <buffer.h>
@@ -214,3 +216,5 @@ int plat_cmn_warmboot_setup(void)
 	VERBOSE("xlat tables configured for CPU[%u]\n", my_cpuid());
 	return 0;
 }
+
+#endif /* CBMC */

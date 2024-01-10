@@ -187,15 +187,7 @@ COMPILER_ASSERT((U(offsetof(struct sve_regs, ffr))) == SVE_REGS_OFFSET_FFR);
 void simd_init(void);
 
 /* Returns the CPU SIMD config discovered during the init time */
-#ifndef CBMC
 int simd_get_cpu_config(struct simd_config *simd_cfg);
-#else /* CBMC */
-static inline int simd_get_cpu_config(struct simd_config *simd_cfg)
-{
-	memset(simd_cfg, 0, sizeof(*simd_cfg));
-	return 0;
-}
-#endif /* CBMC */
 
 /* Initialize the SIMD context in RMM corresponding to NS world or Realm */
 int simd_context_init(simd_owner_t owner, struct simd_context *simd_ctx,

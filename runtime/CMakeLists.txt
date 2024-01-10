@@ -26,48 +26,6 @@ target_link_libraries(rmm-runtime
 target_include_directories(rmm-runtime
     PRIVATE "include")
 
-if(NOT RMM_ARCH STREQUAL fake_host)
-    target_sources(rmm-runtime
-        PRIVATE "core/aarch64/entry.S"
-                "core/aarch64/head.S"
-                "core/aarch64/helpers.S"
-                "core/aarch64/ns_access.S"
-                "core/aarch64/run-asm.S"
-                "core/aarch64/vectors.S")
-else()
-    target_sources(rmm-runtime
-        PRIVATE "core/fake_host/runtime_core_stub.c")
-endif()
-
-target_sources(rmm-runtime
-    PRIVATE "core/exit.c"
-            "core/handler.c"
-            "core/init.c"
-            "core/inject_exp.c"
-            "core/run.c"
-            "core/sysregs.c"
-            "core/vmid.c")
-
-target_sources(rmm-runtime
-    PRIVATE "rmi/feature.c"
-            "rmi/granule.c"
-            "rmi/realm.c"
-            "rmi/rec.c"
-            "rmi/rtt.c"
-            "rmi/run.c"
-            "rmi/system.c")
-
-target_sources(rmm-runtime
-    PRIVATE "rsi/config.c"
-            "rsi/feature.c"
-            "rsi/host_call.c"
-            "rsi/logger.c"
-            "rsi/memory.c"
-            "rsi/psci.c"
-            "rsi/realm_ipa_helper.c"
-            "rsi/realm_attest.c"
-            "rsi/system.c")
-
 arm_config_option(
     NAME RMM_MAX_SIZE
     HELP "Maximum size for RMM image"
@@ -97,5 +55,65 @@ if(NOT RMM_ARCH STREQUAL fake_host)
     set_property(TARGET rmm-runtime-lds APPEND
         PROPERTY COMPILE_DEFINITIONS "RMM_NUM_PAGES_PER_STACK=UL(${RMM_NUM_PAGES_PER_STACK})")
 endif()
+
+if(NOT RMM_ARCH STREQUAL fake_host)
+    target_sources(rmm-runtime
+        PRIVATE "core/aarch64/entry.S"
+                "core/aarch64/head.S"
+                "core/aarch64/helpers.S"
+                "core/aarch64/ns_access.S"
+                "core/aarch64/run-asm.S"
+                "core/aarch64/vectors.S")
+else()
+    target_sources(rmm-runtime
+        PRIVATE "core/fake_host/runtime_core_stub.c")
+endif()
+
+target_sources(rmm-runtime
+    PRIVATE "core/exit.c"
+            "core/handler.c"
+            "core/init.c"
+            "core/inject_exp.c"
+            "core/sysregs.c"
+            "core/vmid.c")
+
+target_sources(rmm-runtime
+    PRIVATE "rmi/feature.c"
+            "rmi/granule.c"
+            "rmi/realm.c"
+            "rmi/rec.c"
+            "rmi/rtt.c"
+            "rmi/run.c"
+            "rmi/system.c")
+
+
+if(HOST_VARIANT STREQUAL "host_cbmc")
+    target_sources(rmm-runtime
+        PRIVATE "core/fake_host/cbmc_run.c"
+                "rsi/fake_host/cbmc_config.c"
+                "rsi/fake_host/cbmc_feature.c"
+                "rsi/fake_host/cbmc_host_call.c"
+                "rsi/fake_host/cbmc_memory.c"
+                "rsi/fake_host/cbmc_psci.c"
+                "rsi/fake_host/cbmc_realm_attest.c"
+                "rsi/fake_host/cbmc_system.c")
+    # In case of 'host_cbmc' variant no further source files are added to
+    # the build.
+    return()
+endif()
+
+target_sources(rmm-runtime
+    PRIVATE "core/run.c")
+
+target_sources(rmm-runtime
+    PRIVATE "rsi/config.c"
+            "rsi/feature.c"
+            "rsi/host_call.c"
+            "rsi/logger.c"
+            "rsi/memory.c"
+            "rsi/psci.c"
+            "rsi/realm_ipa_helper.c"
+            "rsi/realm_attest.c"
+            "rsi/system.c")
 
 include (tests/CMakeLists.txt)

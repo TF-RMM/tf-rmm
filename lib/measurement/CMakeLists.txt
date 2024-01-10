@@ -16,6 +16,14 @@ target_include_directories(rmm-lib-measurement
     PUBLIC "include"
     PRIVATE "src")
 
+if(HOST_VARIANT STREQUAL "host_cbmc")
+    target_sources(rmm-lib-measurement
+       PRIVATE "src/fake_host/cbmc_rim.c")
+    # In case of 'host_cbmc' variant no further source files are added to
+    # the build.
+    return()
+endif()
+
 target_sources(rmm-lib-measurement
     PRIVATE
         "src/measurement.c"

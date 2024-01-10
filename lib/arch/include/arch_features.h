@@ -111,13 +111,6 @@ static inline bool is_feat_hpmn0_present(void)
 		read_id_aa64dfr0_el1()) == 1UL);
 }
 
-#ifndef CBMC
 unsigned int arch_feat_get_pa_width(void);
-#else /* CBMC */
-static inline unsigned int arch_feat_get_pa_width(void)
-{
-	return 32U;
-}
-#endif /* CBMC */
 
 #endif /* ARCH_FEATURES_H */
