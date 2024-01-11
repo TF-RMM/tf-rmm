@@ -6,6 +6,7 @@
 #include "granule.h"
 #include "realm.h"
 #include "ripas.h"
+#include "smc-rmi.h"
 #include "tb_common.h"
 #include "tb_granules.h"
 #include "tb_measurement.h"
@@ -97,7 +98,7 @@ bool valid_rd(struct rd value)
 	return valid_realm_state(value.state)
 		&& valid_s2tt_context(value.s2_ctx)
 		&& valid_hash_algo(value.algorithm)
-		&& value.num_rec_aux <= MAX_REC_AUX_GRANULES;
+		&& value.num_rec_aux == MAX_REC_AUX_GRANULES;
 }
 
 struct rd init_rd(void)
@@ -217,3 +218,7 @@ bool RttsStateEqual(uint64_t rtt_base, uint64_t rtt_num_start, uint64_t state)
 	return true;
 }
 
+uint64_t RecAuxCount(uint64_t rd_addr)
+{
+	return MAX_REC_AUX_GRANULES;
+}
