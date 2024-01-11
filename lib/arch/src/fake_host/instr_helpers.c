@@ -11,6 +11,8 @@
  ******************************************************************************/
 void dczva(uint64_t addr)
 {
+#ifndef CBMC
 	(void)memset((void *)addr, 0,
 		1U << (EXTRACT(DCZID_EL0_BS, read_dczid_el0()) + 2U));
+#endif /* CBMC */
 }

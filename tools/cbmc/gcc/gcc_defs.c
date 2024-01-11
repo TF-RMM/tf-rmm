@@ -8,6 +8,7 @@
 #include <tb_granules.h>
 #include <tb_common.h>
 #include <tb_realm.h>
+#include <tb_rec.h>
 
 struct simd_context *simd_context_switch(struct simd_context *ctx_in,
 					 struct simd_context *ctx_out)
@@ -81,4 +82,15 @@ struct rd nondet_struct_rd(void) {
 struct simd_config nondet_simd_config(void) {
 	struct simd_config s = {0};
 	return s;
+}
+
+struct rmm_rec nondet_struct_rmm_rec(void) {
+	struct rmm_rec r = {0};
+	return r;
+}
+
+struct rec nondet_rec(void)
+{
+	struct rec r = {0};
+	return r;
 }
