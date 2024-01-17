@@ -59,7 +59,7 @@ function(print_output_without_total output)
   string(SUBSTRING "${output}" 0 ${idx} output_without_total)
 
   if(output_without_total)
-    message(${output_without_total})
+    message("${output_without_total}")
   endif()
 endfunction()
 
@@ -185,7 +185,7 @@ if(CHECKPATCH_RUN)
     # and warnings for the commit series later.
     #
     if(checkpatch_output)
-      print_output_without_total(${checkpatch_output})
+      print_output_without_total("${checkpatch_output}")
     endif()
 
     # checkpatch.pl failed for this commit. Collect no.of errors and warnings
@@ -229,7 +229,7 @@ if(CHECKPATCH_RUN)
       )
 
     if(checkcommitmsg_output)
-      print_output_without_total(${checkcommitmsg_output})
+      print_output_without_total("${checkcommitmsg_output}")
     endif()
 
     checkpatch_get_stats("${checkcommitmsg_output}"
