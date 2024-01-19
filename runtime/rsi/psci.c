@@ -231,7 +231,7 @@ static void system_off_reboot(struct rec *rec)
 	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
 	assert(rd != NULL);
 
-	set_rd_state(rd, REALM_STATE_SYSTEM_OFF);
+	set_rd_state(rd, REALM_SYSTEM_OFF);
 
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
