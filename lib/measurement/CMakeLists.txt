@@ -13,7 +13,8 @@ target_link_libraries(rmm-lib-measurement
             rmm-lib-debug)
 
 target_include_directories(rmm-lib-measurement
-    PUBLIC "include")
+    PUBLIC "include"
+    PRIVATE "src")
 
 target_sources(rmm-lib-measurement
     PRIVATE

@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <measurement_descs.h>
 #include <measurement.h>
 #include <string.h>
 
