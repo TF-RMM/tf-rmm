@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <atomics.h>
 #include <sizes.h>
+#include <utils_def.h>
 #include <vmid.h>
 
 #define VMID8_COUNT		(U(1) << 8)
@@ -17,7 +18,7 @@
 /*
  * The bitmap for the reserved/used VMID values.
  */
-static unsigned long vmids[VMID_ARRAY_LONG_SIZE];
+IF_NCBMC(static) unsigned long vmids[VMID_ARRAY_LONG_SIZE];
 
 /*
  * Marks the VMID value to be in use. It returns:

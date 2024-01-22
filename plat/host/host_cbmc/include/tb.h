@@ -9,6 +9,7 @@
 #include "smc-rmi.h"
 #include "tb_common.h"
 #include "tb_granules.h"
+#include "tb_realm.h"
 
 typedef uint64_t rmi_interface_version_t;
 

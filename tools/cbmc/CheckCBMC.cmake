@@ -54,26 +54,26 @@ set(MAX_UNWIND_FLAGS "")
 # Set up cbmc command line
 #
 set(cbmc_unwinds_list
+  "--unwindset;find_lock_granules.3:${MAX_ROOT_RTT}"
   "--unwindset;find_lock_rd_granules.0:${MAX_RTT_UNWIND}"
   "--unwindset;find_lock_rd_granules.1:${MAX_RTT_UNWIND}"
-  "--unwindset;smc_realm_create.0:${MAX_RTT_UNWIND}"
-  "--unwindset;total_root_rtt_refcount.0:${MAX_RTT_UNWIND}"
-  "--unwindset;free_sl_rtts.0:${MAX_RTT_UNWIND}"
-  "--unwindset;rtt_walk_lock_unlock.0:${MAX_RTT_UNWIND}"
-  "--unwindset;RttWalk.0:${MAX_RTT_UNWIND}"
-  "--unwindset;init_walk_path.0:${MAX_RTT_UNWIND}"
-  "--unwindset;smc_rec_create.0:${MAX_AUX_REC}"
   "--unwindset;free_rec_aux_granules.0:${MAX_AUX_REC}"
-  "--unwindset;find_lock_granules.3:${MAX_ROOT_RTT}"
-  "--unwindset;RealmIsLive.0:${MAX_ROOT_RTT}"
-  "--unwindset;init_rtt_root_page.0:${MAX_ROOT_RTT}"
-  "--unwindset;init_rec.0:${MAX_AUX_REC}"
-  "--unwindset;RealmIsLive.2:${MAX_ROOT_RTT}"
+  "--unwindset;free_sl_rtts.0:${MAX_RTT_UNWIND}"
   "--unwindset;init_realm_descriptor_page.0:${MAX_ROOT_RTT}"
+  "--unwindset;init_realm_descriptor_page.1:${MAX_ROOT_RTT}"
   "--unwindset;init_rec.0:${MAX_AUX_REC}"
+  "--unwindset;init_rtt_root_page.0:${MAX_ROOT_RTT}"
+  "--unwindset;init_walk_path.0:${MAX_RTT_UNWIND}"
   "--unwindset;lock_order_invariable.0:21"
   "--unwindset;lock_order_invariable.1:11"
   "--unwindset;lock_order_invariable.2:"
+  "--unwindset;RealmIsLive.0:${MAX_ROOT_RTT}"
+  "--unwindset;RealmIsLive.2:${MAX_ROOT_RTT}"
+  "--unwindset;rtt_walk_lock_unlock.0:${MAX_RTT_UNWIND}"
+  "--unwindset;RttWalk.0:${MAX_RTT_UNWIND}"
+  "--unwindset;smc_realm_create.0:${MAX_RTT_UNWIND}"
+  "--unwindset;smc_rec_create.0:${MAX_AUX_REC}"
+  "--unwindset;total_root_rtt_refcount.0:${MAX_RTT_UNWIND}"
 )
 
 set(cbmc_defines_list
@@ -132,7 +132,8 @@ else()
   message(FATAL_ERROR "Invalid RMM_CBMC_CONFIGURATION '${RMM_CBMC_CONFIGURATION}'")
 endif()
 
-file(GLOB_RECURSE TESTBENCH_FILES "${TESTBENCH_DIR}/*.c")
+# Convert the space separated strings to a CMake list
+string(REPLACE " " ";" TESTBENCH_FILES "${TESTBENCH_FILES}")
 
 #
 # Create semi-colon separated list from white-space seperated ones.
@@ -273,10 +274,12 @@ foreach(testbench_file ${TESTBENCH_FILES})
 endforeach()
 message(STATUS "Result in ${RMM_TESTBENCH_RESULT_DIR}")
 
+list(TRANSFORM TESTBENCH_FILES REPLACE "${TESTBENCH_DIR}/" "" OUTPUT_VARIABLE TESTBENCH_FILENAMES)
 execute_process(
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   COMMAND ${CHECK_CBMC_SUMMARY_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tools/cbmc/testbenches_results/BASELINE.${CBMC_RESULT_FILE_SUFFIX}
+    --testbench-files "${TESTBENCH_FILENAMES}"
     ${RMM_TESTBENCH_RESULT_DIR}/${SUMMARY_FILE}
   OUTPUT_VARIABLE CHECK_SUMMARY_OUTPUT
   ERROR_VARIABLE CHECK_SUMMARY_ERROR

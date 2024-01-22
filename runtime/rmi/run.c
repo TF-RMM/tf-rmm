@@ -223,12 +223,12 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	buffer_unmap(rd);
 
 	switch (realm_state) {
-	case REALM_STATE_NEW:
+	case REALM_NEW:
 		ret = pack_return_code(RMI_ERROR_REALM, 0U);
 		goto out_unmap_buffers;
-	case REALM_STATE_ACTIVE:
+	case REALM_ACTIVE:
 		break;
-	case REALM_STATE_SYSTEM_OFF:
+	case REALM_SYSTEM_OFF:
 		ret = pack_return_code(RMI_ERROR_REALM, 1U);
 		goto out_unmap_buffers;
 	default:

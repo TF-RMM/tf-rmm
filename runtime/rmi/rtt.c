@@ -861,7 +861,7 @@ static unsigned long validate_data_create_unknown(unsigned long map_addr,
 static unsigned long validate_data_create(unsigned long map_addr,
 					  struct rd *rd)
 {
-	if (get_rd_state_locked(rd) != REALM_STATE_NEW) {
+	if (get_rd_state_locked(rd) != REALM_NEW) {
 		return RMI_ERROR_REALM;
 	}
 
@@ -1220,7 +1220,7 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 		return;
 	}
 
-	if (get_rd_state_locked(rd) != REALM_STATE_NEW) {
+	if (get_rd_state_locked(rd) != REALM_NEW) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
 		res->x[0] = RMI_ERROR_REALM;

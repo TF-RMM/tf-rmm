@@ -282,7 +282,7 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	rd = granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
-	if (get_rd_state_locked(rd) != REALM_STATE_NEW) {
+	if (get_rd_state_locked(rd) != REALM_NEW) {
 		ret = RMI_ERROR_REALM;
 		goto out_unmap;
 	}

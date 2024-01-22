@@ -94,6 +94,28 @@ struct granule *pa_to_granule_metadata_ptr(uint64_t addr)
 	return &granules[idx];
 }
 
+uint64_t granule_metadata_ptr_to_pa(struct granule *g_ptr)
+{
+	return (uint64_t)granules_buffer + (g_ptr - granules) * GRANULE_SIZE;
+}
+
+void *pa_to_granule_buffer_ptr(uint64_t addr)
+{
+	__ASSERT((unsigned char *)addr - granules_buffer >= 0,
+		"internal: `_pa_to_granule_buffer_ptr`, addr is in lower range");
+	/*
+	 * CBMC has difficulty doing an integer->object mapping, when the
+	 * integer is the address of the expected object, and the integer is not
+	 * derived from a pointer.
+	 * So instead of simply returning addr we need to tell CBMC that the
+	 * object we are looking for is in the `granules_buffer` array, at an
+	 * offset. To calculate the offset we can use `addr`, and the address of
+	 * `granules_buffer`.
+	 * For details see https://github.com/diffblue/cbmc/issues/8103
+	 */
+	return (void *)granules_buffer + ((unsigned char *)addr - granules_buffer);
+}
+
 bool valid_granule_metadata_ptr(struct granule *p)
 {
 	return p >= granules
@@ -140,6 +162,13 @@ struct granule *inject_granule_at(const struct granule *granule_metadata,
 {
 	size_t offset = index * GRANULE_SIZE;
 
+	if (granule_metadata->state == GRANULE_STATE_NS) {
+		/* initialise the granules as either secure or non-secure */
+		granule_gpt_array[index] = nondet_bool() ? GPT_SECURE : GPT_NS;
+	} else {
+		granule_gpt_array[index] = GPT_REALM;
+	}
+
 	granules[index] = *granule_metadata;
 	(void)memcpy(granules_buffer + offset, src_page, src_size);
 	used_granules_buffer[index] = true;
@@ -151,13 +180,6 @@ struct granule *inject_granule(const struct granule *granule_metadata,
 			       size_t src_size)
 {
 	size_t index = next_index();
-
-	if (granule_metadata->state == GRANULE_STATE_NS) {
-		/* initialise the granules as either secure or non-secure */
-		granule_gpt_array[index] = nondet_bool() ? GPT_SECURE : GPT_NS;
-	} else {
-		granule_gpt_array[index] = GPT_REALM;
-	}
 
 	return inject_granule_at(granule_metadata, src_page, src_size, index);
 }

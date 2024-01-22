@@ -35,8 +35,8 @@ unsigned long smc_realm_activate(unsigned long rd_addr)
 	rd = granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
-	if (get_rd_state_locked(rd) == REALM_STATE_NEW) {
-		set_rd_state(rd, REALM_STATE_ACTIVE);
+	if (get_rd_state_locked(rd) == REALM_NEW) {
+		set_rd_state(rd, REALM_ACTIVE);
 		ret = RMI_SUCCESS;
 	} else {
 		ret = RMI_ERROR_REALM;
@@ -376,7 +376,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	rd = granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
-	set_rd_state(rd, REALM_STATE_NEW);
+	set_rd_state(rd, REALM_NEW);
 	set_rd_rec_count(rd, 0UL);
 	rd->s2_ctx.g_rtt = find_granule(p.rtt_base);
 	rd->s2_ctx.ipa_bits = p.s2sz;

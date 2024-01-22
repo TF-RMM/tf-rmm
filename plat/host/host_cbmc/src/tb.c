@@ -11,6 +11,7 @@
 #include "tb.h"
 #include "tb_common.h"
 #include "tb_granules.h"
+#include "tb_realm.h"
 
 void __init_global_state(unsigned long cmd)
 {
@@ -24,6 +25,10 @@ void __init_global_state(unsigned long cmd)
 			init_granule_and_page();
 			return;
 		}
+	case SMC_RMM_REALM_ACTIVATE:{
+			init_realm_descriptor_page();
+			return;
+	}
 	case SMC_RMM_FEATURES:
 	case SMC_RMM_VERSION: {
 			/* No state to initialize */
@@ -51,6 +56,9 @@ void tb_handle_smc(struct tb_regs *config)
 		break;
 	case SMC_RMM_GRANULE_UNDELEGATE:
 		result = smc_granule_undelegate(config->X1);
+		break;
+	case SMC_RMM_REALM_ACTIVATE:
+		result = smc_realm_activate(config->X1);
 		break;
 	case SMC_RMM_VERSION:
 		smc_version(config->X1, &res);

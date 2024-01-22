@@ -19,6 +19,9 @@ target_sources(rmm-plat-host_cbmc
         "src/host_harness.c"
         "src/tb_common.c"
         "src/tb_granules.c"
+        "src/tb_measurement.c"
+        "src/tb_realm.c"
+        "src/tb_rtt.c"
         "src/tb.c"
         )
 

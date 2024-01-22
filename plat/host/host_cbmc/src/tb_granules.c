@@ -14,8 +14,6 @@
 #include "tb_common.h"
 #include "tb_granules.h"
 
-extern struct granule granules[RMM_MAX_GRANULES];
-
 /* Chooses an arbitrary granule state. */
 bool valid_granule_state(enum granule_state value)
 {

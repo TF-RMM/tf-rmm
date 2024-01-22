@@ -282,6 +282,7 @@ The |RMM| build system supports the following CMake build options.
    RMM_COVERAGE 		,ON | OFF		,OFF			,"Enable coverage analysis"
    RMM_HTML_COV_REPORT		,ON | OFF		,ON			,"Enable HTML output report for coverage analysis"
    RMM_CBMC_VIEWER_OUTPUT	,ON | OFF		,OFF			,"Generate report of CBMC results using the tool cbmc-viewer"
+   RMM_CBMC_SINGLE_TESTBENCH	,			,OFF			,"Run CBMC on a single testbench instead on all of them"
 
 .. _llvm_build:
 
