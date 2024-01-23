@@ -4,6 +4,10 @@
 .. image:: https://scan.coverity.com/projects/28411/badge.svg
    :target: https://scan.coverity.com/projects/tf-rmm-tf-rmm
 
+.. image:: https://readthedocs.org/projects/tf-rmm/badge/?version=latest
+    :target: https://tf-rmm.readthedocs.io/en/latest/?badge=latest
+        :alt: Documentation Status
+
 #################
 Readme for TF-RMM
 #################
