@@ -89,6 +89,7 @@ set(cbmc_defines_list
   "-DNAME=\"RMM\""
   "-DVERSION=\"CBMC\""
   "-DCOMMIT_INFO=\"CBMC\""
+  "-DRMM_NUM_PAGES_PER_STACK=1"
 )
 
 # CBMC flags for memory safety analysis and undefined behaviour analysis.

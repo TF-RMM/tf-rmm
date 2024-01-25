@@ -28,8 +28,14 @@ static inline void write_ ## _name(u_register_t v)		\
 	__asm__ volatile ("msr " #_reg_name ", %0" : : "r" (v));\
 }
 
-#define SYSREG_WRITE_CONST(reg_name, v)				\
-	__asm__ volatile ("msr " #reg_name ", %0" : : "i" (v))
+#define SYSREG_WRITE_CONST(_reg_name, v)			\
+	__asm__ volatile ("msr " #_reg_name ", %0" : : "i" (v))
+
+/**********************************************************************
+ * Macro to read general purpose register
+ *********************************************************************/
+#define READ_REGISTER(v, _reg_name)				\
+	__asm__ volatile ("mov %0, " #_reg_name : "=r" (v) :)
 
 /**********************************************************************
  * Macros to create inline functions for system instructions

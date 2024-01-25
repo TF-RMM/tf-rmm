@@ -1056,4 +1056,8 @@
 #define VBAR_LEL_AA64_OFFSET		0x400
 #define VBAR_LEL_AA32_OFFSET		0x600
 
+/* Stack Pointer selection */
+#define MODE_SP_EL0			UL(0)
+#define MODE_SP_ELX			UL(1)
+
 #endif /* ARCH_H */

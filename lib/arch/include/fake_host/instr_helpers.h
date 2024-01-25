@@ -30,7 +30,7 @@
 #define DEFINE_SYSREG_READ_FUNC_(_name, _reg_name)		\
 static inline u_register_t read_ ## _name(void)			\
 {								\
-	return host_read_sysreg(#_name);					\
+	return host_read_sysreg(#_name);			\
 }
 
 #define DEFINE_SYSREG_WRITE_FUNC_(_name, _reg_name)		\
@@ -39,8 +39,14 @@ static inline void write_ ## _name(u_register_t v)		\
 	host_write_sysreg(#_name, v);				\
 }
 
-#define SYSREG_WRITE_CONST(reg_name, v)				\
-		host_write_sysreg(#reg_name, v)
+#define SYSREG_WRITE_CONST(_reg_name, v)			\
+		host_write_sysreg(#_reg_name, v)
+
+/**********************************************************************
+ * Macro to read general purpose register
+ *********************************************************************/
+#define READ_REGISTER(v, _reg_name)				\
+	v = host_read_sysreg(#_reg_name)
 
 /**********************************************************************
  * Macros to create inline functions for system instructions

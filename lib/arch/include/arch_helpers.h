@@ -114,7 +114,6 @@ void inv_dcache_range(uintptr_t addr, size_t size);
 /*******************************************************************************
  * Misc. accessor prototypes
  ******************************************************************************/
-
 #define write_daifclr(val) SYSREG_WRITE_CONST(daifclr, val)
 #define write_daifset(val) SYSREG_WRITE_CONST(daifset, val)
 
@@ -122,6 +121,16 @@ DEFINE_SYSOP_FUNC(wfi)
 DEFINE_SYSOP_FUNC(wfe)
 DEFINE_SYSOP_FUNC(sev)
 DEFINE_SYSOP_FUNC(isb)
+
+/*******************************************************************************
+ * Stack Pointer Select
+ ******************************************************************************/
+#define write_spsel(val) SYSREG_WRITE_CONST(spsel, val)
+
+/*******************************************************************************
+ * Read Stack Pointer
+ ******************************************************************************/
+#define read_sp(var) READ_REGISTER(var, sp)
 
 static inline void enable_irq(void)
 {
