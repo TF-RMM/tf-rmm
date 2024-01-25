@@ -184,7 +184,7 @@ static inline bool region_is_contained(unsigned long container_base,
 
 static inline unsigned long rec_ipa_size(struct rec *rec)
 {
-	return (1UL << rec->realm_info.ipa_bits);
+	return (1UL << rec->realm_info.s2_ctx.ipa_bits);
 }
 
 static inline unsigned long rec_par_size(struct rec *rec)

@@ -26,7 +26,7 @@ static bool validate_map_addr(unsigned long map_addr,
 			      struct rd *rd)
 {
 	return ((map_addr < realm_ipa_size(rd)) &&
-		s2tte_is_addr_lvl_aligned(map_addr, level));
+		s2tte_is_addr_lvl_aligned(&(rd->s2_ctx), map_addr, level));
 }
 
 /*
@@ -82,14 +82,11 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 	struct granule *g_rd;
 	struct granule *g_tbl;
 	struct rd *rd;
-	struct granule *g_table_root;
 	struct s2tt_walk wi;
 	unsigned long *s2tt, *parent_s2tt, parent_s2tte;
 	long level = (long)ulevel;
-	unsigned long ipa_bits;
 	unsigned long ret;
 	struct s2tt_context s2_ctx;
-	int sl;
 
 	if (!find_lock_two_granules(rtt_addr,
 				    GRANULE_STATE_DELEGATED,
@@ -110,23 +107,19 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		return RMI_ERROR_INPUT;
 	}
 
-	g_table_root = rd->s2_ctx.g_rtt;
-	sl = realm_rtt_starting_level(rd);
-	ipa_bits = realm_ipa_bits(rd);
 	s2_ctx = rd->s2_ctx;
 	buffer_unmap(rd);
 
 	/*
 	 * Lock the RTT root. Enforcing locking order RD->RTT is enough to
-	 * ensure deadlock free locking guarentee.
+	 * ensure deadlock free locking guarantee.
 	 */
-	granule_lock(g_table_root, GRANULE_STATE_RTT);
+	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
 
 	/* Unlock RD after locking RTT Root */
 	granule_unlock(g_rd);
 
-	s2tt_walk_lock_unlock(g_table_root, sl, ipa_bits,
-				map_addr, level - 1L, &wi);
+	s2tt_walk_lock_unlock(&s2_ctx, map_addr, level - 1L, &wi);
 	if (wi.last_level != (level - 1L)) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned int)wi.last_level);
@@ -140,8 +133,8 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 	s2tt = granule_map(g_tbl, SLOT_DELEGATED);
 	assert(s2tt != NULL);
 
-	if (s2tte_is_unassigned_empty(parent_s2tte)) {
-		s2tt_init_unassigned_empty(s2tt);
+	if (s2tte_is_unassigned_empty(&s2_ctx, parent_s2tte)) {
+		s2tt_init_unassigned_empty(&s2_ctx, s2tt);
 
 		/*
 		 * Increase the refcount of the parent, the granule was
@@ -151,19 +144,20 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 */
 		__granule_get(wi.g_llt);
 
-	} else if (s2tte_is_unassigned_ram(parent_s2tte)) {
-		s2tt_init_unassigned_ram(s2tt);
+	} else if (s2tte_is_unassigned_ram(&s2_ctx, parent_s2tte)) {
+		s2tt_init_unassigned_ram(&s2_ctx, s2tt);
 		__granule_get(wi.g_llt);
 
-	} else if (s2tte_is_unassigned_ns(parent_s2tte)) {
-		s2tt_init_unassigned_ns(s2tt);
+	} else if (s2tte_is_unassigned_ns(&s2_ctx, parent_s2tte)) {
+		s2tt_init_unassigned_ns(&s2_ctx, s2tt);
 		__granule_get(wi.g_llt);
 
-	} else if (s2tte_is_unassigned_destroyed(parent_s2tte)) {
-		s2tt_init_unassigned_destroyed(s2tt);
+	} else if (s2tte_is_unassigned_destroyed(&s2_ctx, parent_s2tte)) {
+		s2tt_init_unassigned_destroyed(&s2_ctx, s2tt);
 		__granule_get(wi.g_llt);
 
-	} else if (s2tte_is_assigned_destroyed(parent_s2tte, level - 1L)) {
+	} else if (s2tte_is_assigned_destroyed(&s2_ctx, parent_s2tte,
+					       level - 1L)) {
 		unsigned long block_pa;
 
 		/*
@@ -172,9 +166,9 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 */
 		assert(level > S2TT_MIN_BLOCK_LEVEL);
 
-		block_pa = s2tte_pa(parent_s2tte, level - 1L);
+		block_pa = s2tte_pa(&s2_ctx, parent_s2tte, level - 1L);
 
-		s2tt_init_assigned_destroyed(s2tt, block_pa, level);
+		s2tt_init_assigned_destroyed(&s2_ctx, s2tt, block_pa, level);
 
 		/*
 		 * Increase the refcount to mark the granule as in-use. refcount
@@ -182,7 +176,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 */
 		__granule_refcount_inc(g_tbl, S2TTES_PER_S2TT);
 
-	} else if (s2tte_is_assigned_empty(parent_s2tte, level - 1L)) {
+	} else if (s2tte_is_assigned_empty(&s2_ctx, parent_s2tte, level - 1L)) {
 		unsigned long block_pa;
 
 		/*
@@ -191,9 +185,9 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 */
 		assert(level > S2TT_MIN_BLOCK_LEVEL);
 
-		block_pa = s2tte_pa(parent_s2tte, level - 1L);
+		block_pa = s2tte_pa(&s2_ctx, parent_s2tte, level - 1L);
 
-		s2tt_init_assigned_empty(s2tt, block_pa, level);
+		s2tt_init_assigned_empty(&s2_ctx, s2tt, block_pa, level);
 
 		/*
 		 * Increase the refcount to mark the granule as in-use. refcount
@@ -201,7 +195,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 */
 		__granule_refcount_inc(g_tbl, S2TTES_PER_S2TT);
 
-	} else if (s2tte_is_assigned_ram(parent_s2tte, level - 1L)) {
+	} else if (s2tte_is_assigned_ram(&s2_ctx, parent_s2tte, level - 1L)) {
 		unsigned long block_pa;
 
 		/*
@@ -216,9 +210,9 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		s2tte_write(&parent_s2tt[wi.index], 0UL);
 		s2tt_invalidate_block(&s2_ctx, map_addr);
 
-		block_pa = s2tte_pa(parent_s2tte, level - 1L);
+		block_pa = s2tte_pa(&s2_ctx, parent_s2tte, level - 1L);
 
-		s2tt_init_assigned_ram(s2tt, block_pa, level);
+		s2tt_init_assigned_ram(&s2_ctx, s2tt, block_pa, level);
 
 		/*
 		 * Increase the refcount to mark the granule as in-use. refcount
@@ -226,7 +220,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 */
 		__granule_refcount_inc(g_tbl, S2TTES_PER_S2TT);
 
-	} else if (s2tte_is_assigned_ns(parent_s2tte, level - 1L)) {
+	} else if (s2tte_is_assigned_ns(&s2_ctx, parent_s2tte, level - 1L)) {
 		unsigned long block_pa;
 
 		/*
@@ -241,9 +235,10 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		s2tte_write(&parent_s2tt[wi.index], 0UL);
 		s2tt_invalidate_block(&s2_ctx, map_addr);
 
-		block_pa = s2tte_pa(parent_s2tte, level - 1L);
+		block_pa = s2tte_pa(&s2_ctx, parent_s2tte, level - 1L);
 
-		s2tt_init_assigned_ns(s2tt, parent_s2tte, block_pa, level);
+		s2tt_init_assigned_ns(&s2_ctx, s2tt, parent_s2tte,
+				      block_pa, level);
 
 		/*
 		 * Increment the refcount on the parent for the new RTT we are
@@ -252,7 +247,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 */
 		__granule_get(wi.g_llt);
 
-	} else if (s2tte_is_table(parent_s2tte, level - 1L)) {
+	} else if (s2tte_is_table(&s2_ctx, parent_s2tte, level - 1L)) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned int)(level - 1L));
 		goto out_unmap_table;
@@ -265,7 +260,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 
 	granule_set_state(g_tbl, GRANULE_STATE_RTT);
 
-	parent_s2tte = s2tte_create_table(rtt_addr, level - 1L);
+	parent_s2tte = s2tte_create_table(&s2_ctx, rtt_addr, level - 1L);
 	s2tte_write(&parent_s2tt[wi.index], parent_s2tte);
 
 out_unmap_table:
@@ -285,14 +280,12 @@ void smc_rtt_fold(unsigned long rd_addr,
 	struct granule *g_rd;
 	struct granule *g_tbl;
 	struct rd *rd;
-	struct granule *g_table_root;
 	struct s2tt_walk wi;
 	unsigned long *table, *parent_s2tt, parent_s2tte;
 	long level = (long)ulevel;
-	unsigned long ipa_bits, rtt_addr;
+	unsigned long rtt_addr;
 	unsigned long ret;
 	struct s2tt_context s2_ctx;
-	int sl;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
@@ -310,16 +303,12 @@ void smc_rtt_fold(unsigned long rd_addr,
 		return;
 	}
 
-	g_table_root = rd->s2_ctx.g_rtt;
-	sl = realm_rtt_starting_level(rd);
-	ipa_bits = realm_ipa_bits(rd);
 	s2_ctx = rd->s2_ctx;
 	buffer_unmap(rd);
-	granule_lock(g_table_root, GRANULE_STATE_RTT);
+	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
 	granule_unlock(g_rd);
 
-	s2tt_walk_lock_unlock(g_table_root, sl, ipa_bits,
-				map_addr, level - 1L, &wi);
+	s2tt_walk_lock_unlock(&s2_ctx, map_addr, level - 1L, &wi);
 	if (wi.last_level != (level - 1L)) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned int)wi.last_level);
@@ -330,13 +319,13 @@ void smc_rtt_fold(unsigned long rd_addr,
 	assert(parent_s2tt != NULL);
 
 	parent_s2tte = s2tte_read(&parent_s2tt[wi.index]);
-	if (!s2tte_is_table(parent_s2tte, level - 1L)) {
+	if (!s2tte_is_table(&s2_ctx, parent_s2tte, level - 1L)) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned int)(level - 1L));
 		goto out_unmap_parent_table;
 	}
 
-	rtt_addr = s2tte_pa(parent_s2tte, level - 1L);
+	rtt_addr = s2tte_pa(&s2_ctx, parent_s2tte, level - 1L);
 	g_tbl = find_lock_granule(rtt_addr, GRANULE_STATE_RTT);
 
 	/*
@@ -353,15 +342,15 @@ void smc_rtt_fold(unsigned long rd_addr,
 	 * the host makes a guess whether a memory region can be folded.
 	 */
 	if (g_tbl->refcount == 0UL) {
-		if (s2tt_is_unassigned_destroyed_block(table)) {
-			parent_s2tte = s2tte_create_unassigned_destroyed();
-		} else if (s2tt_is_unassigned_empty_block(table)) {
-			parent_s2tte = s2tte_create_unassigned_empty();
-		} else if (s2tt_is_unassigned_ram_block(table)) {
-			parent_s2tte = s2tte_create_unassigned_ram();
-		} else if (s2tt_is_unassigned_ns_block(table)) {
-			parent_s2tte = s2tte_create_unassigned_ns();
-		} else if (s2tt_maps_assigned_ns_block(table, level)) {
+		if (s2tt_is_unassigned_destroyed_block(&s2_ctx, table)) {
+			parent_s2tte = s2tte_create_unassigned_destroyed(&s2_ctx);
+		} else if (s2tt_is_unassigned_empty_block(&s2_ctx, table)) {
+			parent_s2tte = s2tte_create_unassigned_empty(&s2_ctx);
+		} else if (s2tt_is_unassigned_ram_block(&s2_ctx, table)) {
+			parent_s2tte = s2tte_create_unassigned_ram(&s2_ctx);
+		} else if (s2tt_is_unassigned_ns_block(&s2_ctx, table)) {
+			parent_s2tte = s2tte_create_unassigned_ns(&s2_ctx);
+		} else if (s2tt_maps_assigned_ns_block(&s2_ctx, table, level)) {
 			unsigned long s2tte = s2tte_read(&table[0]);
 
 			/*
@@ -371,7 +360,7 @@ void smc_rtt_fold(unsigned long rd_addr,
 			 * directly as it also has the NS attributes to be used
 			 * for the parent block entry.
 			 */
-			parent_s2tte = s2tte_create_assigned_ns(s2tte, level - 1L);
+			parent_s2tte = s2tte_create_assigned_ns(&s2_ctx, s2tte, level - 1L);
 		} else {
 			/*
 			 * The table holds a mixture of destroyed and
@@ -402,20 +391,23 @@ void smc_rtt_fold(unsigned long rd_addr,
 		}
 
 		s2tte = s2tte_read(&table[0]);
-		block_pa = s2tte_pa(s2tte, level);
+		block_pa = s2tte_pa(&s2_ctx, s2tte, level);
 
 		/*
 		 * The table must also refer to a contiguous block through the
 		 * same type of s2tte, either Assigned or Valid.
 		 */
-		if (s2tt_maps_assigned_empty_block(table, level)) {
-			parent_s2tte = s2tte_create_assigned_empty(
+		if (s2tt_maps_assigned_empty_block(&s2_ctx, table, level)) {
+			parent_s2tte = s2tte_create_assigned_empty(&s2_ctx,
 					block_pa, level - 1L);
-		} else if (s2tt_maps_assigned_ram_block(table, level)) {
-			parent_s2tte = s2tte_create_assigned_ram(block_pa,
+		} else if (s2tt_maps_assigned_ram_block(&s2_ctx,
+							table, level)) {
+			parent_s2tte = s2tte_create_assigned_ram(&s2_ctx,
+								 block_pa,
 								 level - 1L);
-		} else if (s2tt_maps_assigned_destroyed_block(table, level)) {
-			parent_s2tte = s2tte_create_assigned_destroyed(
+		} else if (s2tt_maps_assigned_destroyed_block(&s2_ctx,
+							      table, level)) {
+			parent_s2tte = s2tte_create_assigned_destroyed(&s2_ctx,
 						block_pa, level - 1L);
 		/* The table contains mixed entries that cannot be folded */
 		} else {
@@ -442,8 +434,8 @@ void smc_rtt_fold(unsigned long rd_addr,
 	 */
 	s2tte_write(&parent_s2tt[wi.index], 0UL);
 
-	if (s2tte_is_assigned_ram(parent_s2tte, level - 1L) ||
-	    s2tte_is_assigned_ns(parent_s2tte, level - 1L)) {
+	if (s2tte_is_assigned_ram(&s2_ctx, parent_s2tte, level - 1L) ||
+	    s2tte_is_assigned_ns(&s2_ctx, parent_s2tte, level - 1L)) {
 		s2tt_invalidate_pages_in_block(&s2_ctx, map_addr);
 	} else {
 		s2tt_invalidate_block(&s2_ctx, map_addr);
@@ -472,14 +464,12 @@ void smc_rtt_destroy(unsigned long rd_addr,
 	struct granule *g_rd;
 	struct granule *g_tbl;
 	struct rd *rd;
-	struct granule *g_table_root;
 	struct s2tt_walk wi;
 	unsigned long *table, *parent_s2tt, parent_s2tte;
 	long level = (long)ulevel;
-	unsigned long ipa_bits, rtt_addr;
+	unsigned long  rtt_addr;
 	unsigned long ret;
 	struct s2tt_context s2_ctx;
-	int sl;
 	bool in_par, skip_non_live = false;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
@@ -500,17 +490,13 @@ void smc_rtt_destroy(unsigned long rd_addr,
 		return;
 	}
 
-	g_table_root = rd->s2_ctx.g_rtt;
-	sl = realm_rtt_starting_level(rd);
-	ipa_bits = realm_ipa_bits(rd);
 	s2_ctx = rd->s2_ctx;
 	in_par = addr_in_par(rd, map_addr);
 	buffer_unmap(rd);
-	granule_lock(g_table_root, GRANULE_STATE_RTT);
+	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
 	granule_unlock(g_rd);
 
-	s2tt_walk_lock_unlock(g_table_root, sl, ipa_bits,
-				map_addr, level - 1L, &wi);
+	s2tt_walk_lock_unlock(&s2_ctx, map_addr, level - 1L, &wi);
 
 	parent_s2tt = granule_map(wi.g_llt, SLOT_RTT);
 	assert(parent_s2tt != NULL);
@@ -518,14 +504,14 @@ void smc_rtt_destroy(unsigned long rd_addr,
 	parent_s2tte = s2tte_read(&parent_s2tt[wi.index]);
 
 	if ((wi.last_level != (level - 1L)) ||
-	    !s2tte_is_table(parent_s2tte, level - 1L)) {
+	    !s2tte_is_table(&s2_ctx, parent_s2tte, level - 1L)) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned int)wi.last_level);
 		skip_non_live = true;
 		goto out_unmap_parent_table;
 	}
 
-	rtt_addr = s2tte_pa(parent_s2tte, level - 1L);
+	rtt_addr = s2tte_pa(&s2_ctx, parent_s2tte, level - 1L);
 
 	/*
 	 * Lock the RTT granule. The 'rtt_addr' is verified, thus can be treated
@@ -555,9 +541,9 @@ void smc_rtt_destroy(unsigned long rd_addr,
 	assert(table != NULL);
 
 	if (in_par) {
-		parent_s2tte = s2tte_create_unassigned_destroyed();
+		parent_s2tte = s2tte_create_unassigned_destroyed(&s2_ctx);
 	} else {
-		parent_s2tte = s2tte_create_unassigned_ns();
+		parent_s2tte = s2tte_create_unassigned_ns(&s2_ctx);
 	}
 
 	__granule_put(wi.g_llt);
@@ -588,7 +574,8 @@ out_unlock_table:
 	granule_unlock(g_tbl);
 out_unmap_parent_table:
 	if (skip_non_live) {
-		res->x[2] = s2tt_skip_non_live_entries(map_addr, parent_s2tt, &wi);
+		res->x[2] = s2tt_skip_non_live_entries(&s2_ctx, map_addr,
+						       parent_s2tt, &wi);
 	} else {
 		res->x[2] = map_addr;
 	}
@@ -609,20 +596,17 @@ enum map_unmap_ns_op {
  * to a protected granule is prohibited even within the realm.
  */
 static void map_unmap_ns(unsigned long rd_addr,
-			 unsigned long map_addr,
-			 long level,
-			 unsigned long host_s2tte,
-			 enum map_unmap_ns_op op,
-			 struct smc_result *res)
+			  unsigned long map_addr,
+			  long level,
+			  unsigned long host_s2tte,
+			  enum map_unmap_ns_op op,
+			  struct smc_result *res)
 {
 	struct granule *g_rd;
 	struct rd *rd;
-	struct granule *g_table_root;
 	unsigned long *s2tt, s2tte;
 	struct s2tt_walk wi;
-	unsigned long ipa_bits;
 	struct s2tt_context s2_ctx;
-	int sl;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
@@ -633,16 +617,24 @@ static void map_unmap_ns(unsigned long rd_addr,
 	rd = granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
+	s2_ctx = rd->s2_ctx;
+
+	if (op == MAP_NS) {
+		if (!host_ns_s2tte_is_valid(&s2_ctx, host_s2tte, level)) {
+			buffer_unmap(rd);
+			granule_unlock(g_rd);
+			res->x[0] = RMI_ERROR_INPUT;
+			return;
+		}
+	}
+
+
 	if (!validate_rtt_map_cmds(map_addr, level, rd)) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
-
-	g_table_root = rd->s2_ctx.g_rtt;
-	sl = realm_rtt_starting_level(rd);
-	ipa_bits = realm_ipa_bits(rd);
 
 	/* Check if map_addr is outside PAR */
 	if (addr_in_par(rd, map_addr)) {
@@ -652,14 +644,11 @@ static void map_unmap_ns(unsigned long rd_addr,
 		return;
 	}
 
-	s2_ctx = rd->s2_ctx;
 	buffer_unmap(rd);
-
-	granule_lock(g_table_root, GRANULE_STATE_RTT);
+	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
 	granule_unlock(g_rd);
 
-	s2tt_walk_lock_unlock(g_table_root, sl, ipa_bits,
-				map_addr, level, &wi);
+	s2tt_walk_lock_unlock(&s2_ctx, map_addr, level, &wi);
 
 	/*
 	 * For UNMAP_NS, we need to map the table and look
@@ -677,13 +666,13 @@ static void map_unmap_ns(unsigned long rd_addr,
 	s2tte = s2tte_read(&s2tt[wi.index]);
 
 	if (op == MAP_NS) {
-		if (!s2tte_is_unassigned_ns(s2tte)) {
+		if (!s2tte_is_unassigned_ns(&s2_ctx, s2tte)) {
 			res->x[0] = pack_return_code(RMI_ERROR_RTT,
 						(unsigned int)level);
 			goto out_unmap_table;
 		}
 
-		s2tte = s2tte_create_assigned_ns(host_s2tte, level);
+		s2tte = s2tte_create_assigned_ns(&s2_ctx, host_s2tte, level);
 		s2tte_write(&s2tt[wi.index], s2tte);
 
 	} else if (op == UNMAP_NS) {
@@ -691,7 +680,8 @@ static void map_unmap_ns(unsigned long rd_addr,
 		 * The following check also verifies that map_addr is outside
 		 * PAR, as valid_NS s2tte may only cover outside PAR IPA range.
 		 */
-		bool assigned_ns = s2tte_is_assigned_ns(s2tte, wi.last_level);
+		bool assigned_ns = s2tte_is_assigned_ns(&s2_ctx, s2tte,
+							wi.last_level);
 
 		if ((wi.last_level != level) || !assigned_ns) {
 			res->x[0] = pack_return_code(RMI_ERROR_RTT,
@@ -699,7 +689,7 @@ static void map_unmap_ns(unsigned long rd_addr,
 			goto out_unmap_table;
 		}
 
-		s2tte = s2tte_create_unassigned_ns();
+		s2tte = s2tte_create_unassigned_ns(&s2_ctx);
 		s2tte_write(&s2tt[wi.index], s2tte);
 		if (level == S2TT_PAGE_LEVEL) {
 			s2tt_invalidate_page(&s2_ctx, map_addr);
@@ -712,7 +702,8 @@ static void map_unmap_ns(unsigned long rd_addr,
 
 out_unmap_table:
 	if (op == UNMAP_NS) {
-		res->x[1] = s2tt_skip_non_live_entries(map_addr, s2tt, &wi);
+		res->x[1] = s2tt_skip_non_live_entries(&s2_ctx, map_addr,
+						       s2tt, &wi);
 	}
 	buffer_unmap(s2tt);
 out_unlock_llt:
@@ -725,17 +716,14 @@ unsigned long smc_rtt_map_unprotected(unsigned long rd_addr,
 				      unsigned long s2tte)
 {
 	long level = (long)ulevel;
-	struct smc_result res;
+	struct smc_result res = {0UL};
 
 	if ((level < S2TT_MIN_BLOCK_LEVEL) || (level > S2TT_PAGE_LEVEL)) {
 		return RMI_ERROR_INPUT;
 	}
 
-	if (!host_ns_s2tte_is_valid(s2tte, level)) {
-		return RMI_ERROR_INPUT;
-	}
-
 	map_unmap_ns(rd_addr, map_addr, level, s2tte, MAP_NS, &res);
+
 	return res.x[0];
 }
 
@@ -759,13 +747,12 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 			unsigned long ulevel,
 			struct smc_result *res)
 {
-	struct granule *g_rd, *g_rtt_root;
+	struct granule *g_rd;
 	struct rd *rd;
 	struct s2tt_walk wi;
 	unsigned long *s2tt, s2tte;
-	unsigned long ipa_bits;
 	long level = (long)ulevel;
-	int sl;
+	struct s2tt_context s2_ctx;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
@@ -783,57 +770,54 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 		return;
 	}
 
-	g_rtt_root = rd->s2_ctx.g_rtt;
-	sl = realm_rtt_starting_level(rd);
-	ipa_bits = realm_ipa_bits(rd);
+	s2_ctx = rd->s2_ctx;
 	buffer_unmap(rd);
 
-	granule_lock(g_rtt_root, GRANULE_STATE_RTT);
+	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
 	granule_unlock(g_rd);
 
-	s2tt_walk_lock_unlock(g_rtt_root, sl, ipa_bits,
-				map_addr, level, &wi);
+	s2tt_walk_lock_unlock(&s2_ctx, map_addr, level, &wi);
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
 	assert(s2tt != NULL);
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
 	res->x[1] = (unsigned long)wi.last_level;
 
-	if (s2tte_is_unassigned_empty(s2tte)) {
+	if (s2tte_is_unassigned_empty(&s2_ctx, s2tte)) {
 		res->x[2] = RMI_UNASSIGNED;
 		res->x[3] = 0UL;
 		res->x[4] = (unsigned long)RIPAS_EMPTY;
-	} else if (s2tte_is_unassigned_ram(s2tte)) {
+	} else if (s2tte_is_unassigned_ram(&s2_ctx, s2tte)) {
 		res->x[2] = RMI_UNASSIGNED;
 		res->x[3] = 0UL;
 		res->x[4] = (unsigned long)RIPAS_RAM;
-	} else if (s2tte_is_unassigned_destroyed(s2tte)) {
+	} else if (s2tte_is_unassigned_destroyed(&s2_ctx, s2tte)) {
 		res->x[2] = RMI_UNASSIGNED;
 		res->x[3] = 0UL;
 		res->x[4] = (unsigned long)RIPAS_DESTROYED;
-	} else if (s2tte_is_assigned_empty(s2tte, wi.last_level)) {
+	} else if (s2tte_is_assigned_empty(&s2_ctx, s2tte, wi.last_level)) {
 		res->x[2] = RMI_ASSIGNED;
-		res->x[3] = s2tte_pa(s2tte, wi.last_level);
+		res->x[3] = s2tte_pa(&s2_ctx, s2tte, wi.last_level);
 		res->x[4] = (unsigned long)RIPAS_EMPTY;
-	} else if (s2tte_is_assigned_ram(s2tte, wi.last_level)) {
+	} else if (s2tte_is_assigned_ram(&s2_ctx, s2tte, wi.last_level)) {
 		res->x[2] = RMI_ASSIGNED;
-		res->x[3] = s2tte_pa(s2tte, wi.last_level);
+		res->x[3] = s2tte_pa(&s2_ctx, s2tte, wi.last_level);
 		res->x[4] = (unsigned long)RIPAS_RAM;
-	} else if (s2tte_is_assigned_destroyed(s2tte, wi.last_level)) {
+	} else if (s2tte_is_assigned_destroyed(&s2_ctx, s2tte, wi.last_level)) {
 		res->x[2] = RMI_ASSIGNED;
 		res->x[3] = 0UL;
 		res->x[4] = (unsigned long)RIPAS_DESTROYED;
-	} else if (s2tte_is_unassigned_ns(s2tte)) {
+	} else if (s2tte_is_unassigned_ns(&s2_ctx, s2tte)) {
 		res->x[2] = RMI_UNASSIGNED;
 		res->x[3] = 0UL;
 		res->x[4] = (unsigned long)RIPAS_EMPTY;
-	} else if (s2tte_is_assigned_ns(s2tte, wi.last_level)) {
+	} else if (s2tte_is_assigned_ns(&s2_ctx, s2tte, wi.last_level)) {
 		res->x[2] = RMI_ASSIGNED;
-		res->x[3] = host_ns_s2tte(s2tte, wi.last_level);
+		res->x[3] = host_ns_s2tte(&s2_ctx, s2tte, wi.last_level);
 		res->x[4] = (unsigned long)RIPAS_EMPTY;
-	} else if (s2tte_is_table(s2tte, wi.last_level)) {
+	} else if (s2tte_is_table(&s2_ctx, s2tte, wi.last_level)) {
 		res->x[2] = RMI_TABLE;
-		res->x[3] = s2tte_pa(s2tte, wi.last_level);
+		res->x[3] = s2tte_pa(&s2_ctx, s2tte, wi.last_level);
 		res->x[4] = (unsigned long)RIPAS_EMPTY;
 	} else {
 		assert(false);
@@ -883,14 +867,12 @@ static unsigned long data_create(unsigned long rd_addr,
 {
 	struct granule *g_data;
 	struct granule *g_rd;
-	struct granule *g_table_root;
 	struct rd *rd;
 	struct s2tt_walk wi;
+	struct s2tt_context *s2_ctx;
 	unsigned long s2tte, *s2tt;
 	enum granule_state new_data_state = GRANULE_STATE_DELEGATED;
-	unsigned long ipa_bits;
 	unsigned long ret;
-	int sl;
 
 	if (!find_lock_two_granules(data_addr,
 				    GRANULE_STATE_DELEGATED,
@@ -912,12 +894,10 @@ static unsigned long data_create(unsigned long rd_addr,
 		goto out_unmap_rd;
 	}
 
-	g_table_root = rd->s2_ctx.g_rtt;
-	sl = realm_rtt_starting_level(rd);
-	ipa_bits = realm_ipa_bits(rd);
-	granule_lock(g_table_root, GRANULE_STATE_RTT);
-	s2tt_walk_lock_unlock(g_table_root, sl, ipa_bits,
-			     map_addr, S2TT_PAGE_LEVEL, &wi);
+	s2_ctx = &(rd->s2_ctx);
+	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
+
+	s2tt_walk_lock_unlock(s2_ctx, map_addr, S2TT_PAGE_LEVEL, &wi);
 	if (wi.last_level != S2TT_PAGE_LEVEL) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned int)wi.last_level);
@@ -928,7 +908,7 @@ static unsigned long data_create(unsigned long rd_addr,
 	assert(s2tt != NULL);
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
-	if (!s2tte_is_unassigned(s2tte)) {
+	if (!s2tte_is_unassigned(s2_ctx, s2tte)) {
 		ret = pack_return_code(RMI_ERROR_RTT, S2TT_PAGE_LEVEL);
 		goto out_unmap_ll_table;
 	}
@@ -960,9 +940,11 @@ static unsigned long data_create(unsigned long rd_addr,
 			flags);
 		buffer_unmap(data);
 
-		s2tte = s2tte_create_assigned_ram(data_addr, S2TT_PAGE_LEVEL);
+		s2tte = s2tte_create_assigned_ram(s2_ctx, data_addr,
+						  S2TT_PAGE_LEVEL);
 	} else {
-		s2tte = s2tte_create_assigned_unchanged(s2tte, data_addr,
+		s2tte = s2tte_create_assigned_unchanged(s2_ctx, s2tte,
+							data_addr,
 							S2TT_PAGE_LEVEL);
 	}
 
@@ -1018,13 +1000,10 @@ void smc_data_destroy(unsigned long rd_addr,
 {
 	struct granule *g_data;
 	struct granule *g_rd;
-	struct granule *g_table_root;
 	struct s2tt_walk wi;
 	unsigned long data_addr, s2tte, *s2tt;
 	struct rd *rd;
-	unsigned long ipa_bits;
 	struct s2tt_context s2_ctx;
-	int sl;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
@@ -1045,18 +1024,13 @@ void smc_data_destroy(unsigned long rd_addr,
 		return;
 	}
 
-	g_table_root = rd->s2_ctx.g_rtt;
-	sl = realm_rtt_starting_level(rd);
-	ipa_bits = realm_ipa_bits(rd);
 	s2_ctx = rd->s2_ctx;
 	buffer_unmap(rd);
 
-	granule_lock(g_table_root, GRANULE_STATE_RTT);
+	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
 	granule_unlock(g_rd);
 
-	s2tt_walk_lock_unlock(g_table_root, sl, ipa_bits,
-				map_addr, S2TT_PAGE_LEVEL, &wi);
-
+	s2tt_walk_lock_unlock(&s2_ctx, map_addr, S2TT_PAGE_LEVEL, &wi);
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
 	assert(s2tt != NULL);
 
@@ -1068,18 +1042,19 @@ void smc_data_destroy(unsigned long rd_addr,
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
 
-	if (s2tte_is_assigned_ram(s2tte, S2TT_PAGE_LEVEL)) {
-		data_addr = s2tte_pa(s2tte, S2TT_PAGE_LEVEL);
-		s2tte = s2tte_create_unassigned_destroyed();
+	if (s2tte_is_assigned_ram(&s2_ctx, s2tte, S2TT_PAGE_LEVEL)) {
+		data_addr = s2tte_pa(&s2_ctx, s2tte, S2TT_PAGE_LEVEL);
+		s2tte = s2tte_create_unassigned_destroyed(&s2_ctx);
 		s2tte_write(&s2tt[wi.index], s2tte);
 		s2tt_invalidate_page(&s2_ctx, map_addr);
-	} else if (s2tte_is_assigned_empty(s2tte, S2TT_PAGE_LEVEL)) {
-		data_addr = s2tte_pa(s2tte, S2TT_PAGE_LEVEL);
-		s2tte = s2tte_create_unassigned_empty();
+	} else if (s2tte_is_assigned_empty(&s2_ctx, s2tte, S2TT_PAGE_LEVEL)) {
+		data_addr = s2tte_pa(&s2_ctx, s2tte, S2TT_PAGE_LEVEL);
+		s2tte = s2tte_create_unassigned_empty(&s2_ctx);
 		s2tte_write(&s2tt[wi.index], s2tte);
-	} else if (s2tte_is_assigned_destroyed(s2tte, S2TT_PAGE_LEVEL)) {
-		data_addr = s2tte_pa(s2tte, S2TT_PAGE_LEVEL);
-		s2tte = s2tte_create_unassigned_destroyed();
+	} else if (s2tte_is_assigned_destroyed(&s2_ctx, s2tte,
+					       S2TT_PAGE_LEVEL)) {
+		data_addr = s2tte_pa(&s2_ctx, s2tte, S2TT_PAGE_LEVEL);
+		s2tte = s2tte_create_unassigned_destroyed(&s2_ctx);
 		s2tte_write(&s2tt[wi.index], s2tte);
 	} else {
 		res->x[0] = pack_return_code(RMI_ERROR_RTT, S2TT_PAGE_LEVEL);
@@ -1102,7 +1077,7 @@ void smc_data_destroy(unsigned long rd_addr,
 	res->x[0] = RMI_SUCCESS;
 	res->x[1] = data_addr;
 out_unmap_ll_table:
-	res->x[2] = s2tt_skip_non_live_entries(map_addr, s2tt, &wi);
+	res->x[2] = s2tt_skip_non_live_entries(&s2_ctx, map_addr, s2tt, &wi);
 	buffer_unmap(s2tt);
 	granule_unlock(wi.g_llt);
 }
@@ -1118,33 +1093,37 @@ out_unmap_ll_table:
  * Sets:
  * @(*do_tlbi) to 'true' if the TLBs have to be invalidated.
  */
-static int update_ripas(unsigned long *s2ttep, long level,
+static int update_ripas(const struct s2tt_context *s2_ctx,
+			unsigned long *s2ttep, long level,
 			enum ripas ripas_val,
 			enum ripas_change_destroyed change_destroyed)
 {
 	unsigned long pa, s2tte = s2tte_read(s2ttep);
 	int ret = 0;
 
-	if (!s2tte_has_ripas(s2tte, level)) {
+	assert(s2_ctx != NULL);
+
+	if (!s2tte_has_ripas(s2_ctx, s2tte, level)) {
 		return -EPERM;
 	}
 
 	if (ripas_val == RIPAS_RAM) {
-		if (s2tte_is_unassigned_empty(s2tte)) {
-			s2tte = s2tte_create_unassigned_ram();
-		} else if (s2tte_is_unassigned_destroyed(s2tte)) {
+		if (s2tte_is_unassigned_empty(s2_ctx, s2tte)) {
+			s2tte = s2tte_create_unassigned_ram(s2_ctx);
+		} else if (s2tte_is_unassigned_destroyed(s2_ctx, s2tte)) {
 			if (change_destroyed == CHANGE_DESTROYED) {
-				s2tte = s2tte_create_unassigned_ram();
+				s2tte = s2tte_create_unassigned_ram(s2_ctx);
 			} else {
 				return -EINVAL;
 			}
-		} else if (s2tte_is_assigned_empty(s2tte, level)) {
-			pa = s2tte_pa(s2tte, level);
-			s2tte = s2tte_create_assigned_ram(pa, level);
-		} else if (s2tte_is_assigned_destroyed(s2tte, level)) {
+		} else if (s2tte_is_assigned_empty(s2_ctx, s2tte, level)) {
+			pa = s2tte_pa(s2_ctx, s2tte, level);
+			s2tte = s2tte_create_assigned_ram(s2_ctx, pa, level);
+		} else if (s2tte_is_assigned_destroyed(s2_ctx, s2tte, level)) {
 			if (change_destroyed == CHANGE_DESTROYED) {
-				pa = s2tte_pa(s2tte, level);
-				s2tte = s2tte_create_assigned_ram(pa, level);
+				pa = s2tte_pa(s2_ctx, s2tte, level);
+				s2tte = s2tte_create_assigned_ram(s2_ctx, pa,
+								  level);
 			} else {
 				return -EINVAL;
 			}
@@ -1153,23 +1132,24 @@ static int update_ripas(unsigned long *s2ttep, long level,
 			return 0;
 		}
 	} else if (ripas_val == RIPAS_EMPTY) {
-		if (s2tte_is_unassigned_ram(s2tte)) {
-			s2tte = s2tte_create_unassigned_empty();
-		} else if (s2tte_is_unassigned_destroyed(s2tte)) {
+		if (s2tte_is_unassigned_ram(s2_ctx, s2tte)) {
+			s2tte = s2tte_create_unassigned_empty(s2_ctx);
+		} else if (s2tte_is_unassigned_destroyed(s2_ctx, s2tte)) {
 			if (change_destroyed == CHANGE_DESTROYED) {
-				s2tte = s2tte_create_unassigned_empty();
+				s2tte = s2tte_create_unassigned_empty(s2_ctx);
 			} else {
 				return -EINVAL;
 			}
-		} else if (s2tte_is_assigned_ram(s2tte, level)) {
-			pa = s2tte_pa(s2tte, level);
-			s2tte = s2tte_create_assigned_empty(pa, level);
+		} else if (s2tte_is_assigned_ram(s2_ctx, s2tte, level)) {
+			pa = s2tte_pa(s2_ctx, s2tte, level);
+			s2tte = s2tte_create_assigned_empty(s2_ctx, pa, level);
 			/* TLBI is required */
 			ret = 1;
-		} else if (s2tte_is_assigned_destroyed(s2tte, level)) {
+		} else if (s2tte_is_assigned_destroyed(s2_ctx, s2tte, level)) {
 			if (change_destroyed == CHANGE_DESTROYED) {
-				pa = s2tte_pa(s2tte, level);
-				s2tte = s2tte_create_assigned_empty(pa, level);
+				pa = s2tte_pa(s2_ctx, s2tte, level);
+				s2tte = s2tte_create_assigned_empty(s2_ctx,
+								    pa, level);
 				/* TLBI is required */
 				ret = 1;
 			} else {
@@ -1189,14 +1169,14 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 			unsigned long top,
 			struct smc_result *res)
 {
-	struct granule *g_rd, *g_rtt_root;
+	struct granule *g_rd;
 	struct rd *rd;
-	unsigned long ipa_bits, addr, map_size;
+	unsigned long addr, map_size;
 	struct s2tt_walk wi;
+	struct s2tt_context *s2_ctx;
 	unsigned long s2tte, *s2tt;
 	long level;
 	unsigned long index;
-	int sl;
 
 	if (top <= base) {
 		res->x[0] = RMI_ERROR_INPUT;
@@ -1228,14 +1208,10 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 		return;
 	}
 
-	g_rtt_root = rd->s2_ctx.g_rtt;
-	sl = realm_rtt_starting_level(rd);
-	ipa_bits = realm_ipa_bits(rd);
+	s2_ctx = &(rd->s2_ctx);
+	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
 
-	granule_lock(g_rtt_root, GRANULE_STATE_RTT);
-
-	s2tt_walk_lock_unlock(g_rtt_root, sl, ipa_bits,
-				base, S2TT_PAGE_LEVEL, &wi);
+	s2tt_walk_lock_unlock(s2_ctx, base, S2TT_PAGE_LEVEL, &wi);
 	level = wi.last_level;
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
 	assert(s2tt != NULL);
@@ -1264,10 +1240,10 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 		}
 
 		s2tte = s2tte_read(&s2tt[index]);
-		if (s2tte_is_unassigned_empty(s2tte)) {
-			s2tte = s2tte_create_unassigned_ram();
+		if (s2tte_is_unassigned_empty(s2_ctx, s2tte)) {
+			s2tte = s2tte_create_unassigned_ram(s2_ctx);
 			s2tte_write(&s2tt[index], s2tte);
-		} else if (!s2tte_is_unassigned_ram(s2tte)) {
+		} else if (!s2tte_is_unassigned_ram(s2_ctx, s2tte)) {
 			break;
 		}
 		measurement_init_ripas_measure(rd->measurement[RIM_MEASUREMENT_SLOT],
@@ -1326,7 +1302,7 @@ static void rtt_set_ripas_range(struct s2tt_context *s2_ctx,
 			break;
 		}
 
-		ret = update_ripas(&s2tt[index], level,
+		ret = update_ripas(s2_ctx, &s2tt[index], level,
 					ripas_val, change_destroyed);
 		if (ret < 0) {
 			break;
@@ -1359,16 +1335,14 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 		       unsigned long top,
 		       struct smc_result *res)
 {
-	struct granule *g_rd, *g_rec, *g_rtt_root;
+	struct granule *g_rd, *g_rec;
 	struct rec *rec;
 	struct rd *rd;
-	unsigned long ipa_bits;
 	struct s2tt_walk wi;
 	unsigned long *s2tt;
-	struct s2tt_context s2_ctx;
+	struct s2tt_context *s2_ctx;
 	enum ripas ripas_val;
 	enum ripas_change_destroyed change_destroyed;
-	int sl;
 
 	if (top <= base) {
 		res->x[0] = RMI_ERROR_INPUT;
@@ -1420,16 +1394,11 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 	 */
 	assert(validate_map_addr(base, S2TT_PAGE_LEVEL, rd));
 
-	g_rtt_root = rd->s2_ctx.g_rtt;
-	sl = realm_rtt_starting_level(rd);
-	ipa_bits = realm_ipa_bits(rd);
-	s2_ctx = rd->s2_ctx;
-
-	granule_lock(g_rtt_root, GRANULE_STATE_RTT);
+	s2_ctx = &(rd->s2_ctx);
+	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
 
 	/* Walk to the deepest level possible */
-	s2tt_walk_lock_unlock(g_rtt_root, sl, ipa_bits,
-			     base, S2TT_PAGE_LEVEL, &wi);
+	s2tt_walk_lock_unlock(s2_ctx, base, S2TT_PAGE_LEVEL, &wi);
 
 	/*
 	 * Base has to be aligned to the level at which
@@ -1444,7 +1413,7 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 	s2tt = granule_map(wi.g_llt, SLOT_RTT);
 	assert(s2tt != NULL);
 
-	rtt_set_ripas_range(&s2_ctx, s2tt, base, top, &wi,
+	rtt_set_ripas_range(s2_ctx, s2tt, base, top, &wi,
 				ripas_val, change_destroyed, res);
 
 	if (res->x[0] == RMI_SUCCESS) {

@@ -76,7 +76,7 @@ static inline uint64_t __tte_read(uint64_t *ttep)
 {
 	return SCA_READ64(ttep);
 }
-#define s2tte_read(s2ttep)	__tte_read(s2ttep)
+#define s2tte_read(s2ttep)		__tte_read(s2ttep)
 
 /***************************************************************************
  * Helpers for Stage 2 Translation Table Entries (S2TTE).
@@ -85,71 +85,111 @@ static inline uint64_t __tte_read(uint64_t *ttep)
 	(1ULL << (unsigned int)(((S2TT_PAGE_LEVEL - (level)) *		\
 				(int)S2TTE_STRIDE) + (int)GRANULE_SHIFT))
 
-bool s2tte_has_ripas(unsigned long s2tte, long level);
+bool s2tte_has_ripas(const struct s2tt_context *s2_ctx,
+		     unsigned long s2tte, long level);
 
-unsigned long s2tte_create_unassigned_empty(void);
-unsigned long s2tte_create_unassigned_ram(void);
-unsigned long s2tte_create_unassigned_ns(void);
-unsigned long s2tte_create_unassigned_destroyed(void);
+unsigned long s2tte_create_unassigned_empty(const struct s2tt_context *s2_ctx);
+unsigned long s2tte_create_unassigned_ram(const struct s2tt_context *s2_ctx);
+unsigned long s2tte_create_unassigned_ns(const struct s2tt_context *s2_ctx);
+unsigned long s2tte_create_unassigned_destroyed(const struct s2tt_context *s2_ctx);
 
-unsigned long s2tte_create_assigned_empty(unsigned long pa, long level);
-unsigned long s2tte_create_assigned_ram(unsigned long pa, long level);
-unsigned long s2tte_create_assigned_ns(unsigned long s2tte, long level);
-unsigned long s2tte_create_assigned_destroyed(unsigned long pa, long level);
-unsigned long s2tte_create_assigned_unchanged(unsigned long s2tte,
+unsigned long s2tte_create_assigned_empty(const struct s2tt_context *s2_ctx,
+					  unsigned long pa, long level);
+unsigned long s2tte_create_assigned_ram(const struct s2tt_context *s2_ctx,
+					unsigned long pa, long level);
+unsigned long s2tte_create_assigned_ns(const struct s2tt_context *s2_ctx,
+				       unsigned long s2tte, long level);
+unsigned long s2tte_create_assigned_destroyed(const struct s2tt_context *s2_ctx,
+					      unsigned long pa, long level);
+unsigned long s2tte_create_assigned_unchanged(const struct s2tt_context *s2_ctx,
+					      unsigned long s2tte,
 					      unsigned long pa,
 					      long level);
-unsigned long s2tte_create_table(unsigned long pa, long level);
+unsigned long s2tte_create_table(const struct s2tt_context *s2_ctx,
+				 unsigned long pa, long level);
 
-bool host_ns_s2tte_is_valid(unsigned long s2tte, long level);
-unsigned long host_ns_s2tte(unsigned long s2tte, long level);
+bool host_ns_s2tte_is_valid(const struct s2tt_context *s2_ctx,
+			    unsigned long s2tte, long level);
+unsigned long host_ns_s2tte(const struct s2tt_context *s2_ctx,
+			    unsigned long s2tte, long level);
 
-bool s2tte_is_unassigned(unsigned long s2tte);
-bool s2tte_is_unassigned_empty(unsigned long s2tte);
-bool s2tte_is_unassigned_ram(unsigned long s2tte);
-bool s2tte_is_unassigned_ns(unsigned long s2tte);
-bool s2tte_is_unassigned_destroyed(unsigned long s2tte);
-bool s2tte_is_table(unsigned long s2tte, long level);
+bool s2tte_is_unassigned(const struct s2tt_context *s2_ctx,
+			 unsigned long s2tte);
+bool s2tte_is_unassigned_empty(const struct s2tt_context *s2_ctx,
+			       unsigned long s2tte);
+bool s2tte_is_unassigned_ram(const struct s2tt_context *s2_ctx,
+			     unsigned long s2tte);
+bool s2tte_is_unassigned_ns(const struct s2tt_context *s2_ctx,
+			    unsigned long s2tte);
+bool s2tte_is_unassigned_destroyed(const struct s2tt_context *s2_ctx,
+				   unsigned long s2tte);
 
-bool s2tte_is_assigned_empty(unsigned long s2tte, long level);
-bool s2tte_is_assigned_ram(unsigned long s2tte, long level);
-bool s2tte_is_assigned_ns(unsigned long s2tte, long level);
-bool s2tte_is_assigned_destroyed(unsigned long s2tte, long level);
+bool s2tte_is_assigned_empty(const struct s2tt_context *s2_ctx,
+			     unsigned long s2tte, long level);
+bool s2tte_is_assigned_ram(const struct s2tt_context *s2_ctx,
+			   unsigned long s2tte, long level);
+bool s2tte_is_assigned_ns(const struct s2tt_context *s2_ctx,
+			  unsigned long s2tte, long level);
+bool s2tte_is_table(const struct s2tt_context *s2_ctx,
+		    unsigned long s2tte, long level);
+bool s2tte_is_assigned_destroyed(const struct s2tt_context *s2_ctx,
+				 unsigned long s2tte, long level);
 
-unsigned long s2tte_pa(unsigned long s2tte, long level);
-bool s2tte_is_addr_lvl_aligned(unsigned long addr, long level);
+unsigned long s2tte_pa(const struct s2tt_context *s2_ctx,
+		       unsigned long s2tte, long level);
+bool s2tte_is_addr_lvl_aligned(const struct s2tt_context *s2_ctx,
+			       unsigned long addr, long level);
 
-enum ripas s2tte_get_ripas(unsigned long s2tte);
+enum ripas s2tte_get_ripas(const struct s2tt_context *s2_ctx,
+			   unsigned long s2tte);
 
 /***************************************************************************
  * Helpers for Stage 2 Translation Tables  (S2TT).
  **************************************************************************/
 
-void s2tt_init_unassigned_empty(unsigned long *s2tt);
-void s2tt_init_unassigned_ram(unsigned long *s2tt);
-void s2tt_init_unassigned_ns(unsigned long *s2tt);
-void s2tt_init_unassigned_destroyed(unsigned long *s2tt);
+void s2tt_init_unassigned_empty(const struct s2tt_context *s2_ctx,
+				unsigned long *s2tt);
+void s2tt_init_unassigned_ram(const struct s2tt_context *s2_ctx,
+			      unsigned long *s2tt);
+void s2tt_init_unassigned_ns(const struct s2tt_context *s2_ctx,
+			     unsigned long *s2tt);
+void s2tt_init_unassigned_destroyed(const struct s2tt_context *s2_ctx,
+				    unsigned long *s2tt);
 
-void s2tt_init_assigned_empty(unsigned long *s2tt, unsigned long pa, long level);
-void s2tt_init_assigned_ram(unsigned long *s2tt, unsigned long pa, long level);
-void s2tt_init_assigned_ns(unsigned long *s2tt, unsigned long attrs,
+void s2tt_init_assigned_empty(const struct s2tt_context *s2_ctx,
+			      unsigned long *s2tt, unsigned long pa,
+			      long level);
+void s2tt_init_assigned_ram(const struct s2tt_context *s2_ctx,
+			    unsigned long *s2tt, unsigned long pa, long level);
+void s2tt_init_assigned_ns(const struct s2tt_context *s2_ctx,
+			   unsigned long *s2tt, unsigned long attrs,
 			   unsigned long pa, long level);
-void s2tt_init_assigned_destroyed(unsigned long *s2tt, unsigned long pa, long level);
+void s2tt_init_assigned_destroyed(const struct s2tt_context *s2_ctx,
+				  unsigned long *s2tt, unsigned long pa,
+				  long level);
 
 void s2tt_invalidate_page(const struct s2tt_context *s2_ctx, unsigned long addr);
 void s2tt_invalidate_block(const struct s2tt_context *s2_ctx, unsigned long addr);
 void s2tt_invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
 				    unsigned long addr);
 
-bool s2tt_is_unassigned_empty_block(unsigned long *table);
-bool s2tt_is_unassigned_ram_block(unsigned long *table);
-bool s2tt_is_unassigned_ns_block(unsigned long *table);
-bool s2tt_is_unassigned_destroyed_block(unsigned long *table);
+bool s2tt_is_unassigned_empty_block(const struct s2tt_context *s2_ctx,
+				    unsigned long *table);
+bool s2tt_is_unassigned_ram_block(const struct s2tt_context *s2_ctx,
+				  unsigned long *table);
+bool s2tt_is_unassigned_ns_block(const struct s2tt_context *s2_ctx,
+				 unsigned long *table);
+bool s2tt_is_unassigned_destroyed_block(const struct s2tt_context *s2_ctx,
+					unsigned long *table);
 
-bool s2tt_maps_assigned_empty_block(unsigned long *table, long level);
-bool s2tt_maps_assigned_ram_block(unsigned long *table, long level);
-bool s2tt_maps_assigned_ns_block(unsigned long *table, long level);
-bool s2tt_maps_assigned_destroyed_block(unsigned long *table, long level);
+bool s2tt_maps_assigned_empty_block(const struct s2tt_context *s2_ctx,
+				    unsigned long *table, long level);
+bool s2tt_maps_assigned_ram_block(const struct s2tt_context *s2_ctx,
+				  unsigned long *table, long level);
+bool s2tt_maps_assigned_ns_block(const struct s2tt_context *s2_ctx,
+				 unsigned long *table, long level);
+bool s2tt_maps_assigned_destroyed_block(const struct s2tt_context *s2_ctx,
+					unsigned long *table, long level);
 
 struct s2tt_walk {
 	struct granule *g_llt;
@@ -157,14 +197,13 @@ struct s2tt_walk {
 	long last_level;
 };
 
-void s2tt_walk_lock_unlock(struct granule *g_root,
-			  int start_level,
-			  unsigned long ipa_bits,
-			  unsigned long map_addr,
-			  long level,
-			  struct s2tt_walk *wi);
+void s2tt_walk_lock_unlock(const struct s2tt_context *s2_ctx,
+			   unsigned long map_addr,
+			   long level,
+			   struct s2tt_walk *wi);
 
-unsigned long s2tt_skip_non_live_entries(unsigned long addr,
+unsigned long s2tt_skip_non_live_entries(const struct s2tt_context *s2_ctx,
+					 unsigned long addr,
 					 unsigned long *table,
 					 const struct s2tt_walk *wi);
 

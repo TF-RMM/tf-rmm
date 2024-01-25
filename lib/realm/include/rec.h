@@ -15,6 +15,7 @@
 #include <pauth.h>
 #include <pmu.h>
 #include <ripas.h>
+#include <s2tt.h>
 #include <simd.h>
 #include <sizes.h>
 #include <smc-rmi.h>
@@ -172,14 +173,12 @@ struct rec {
 	 * Common values across all RECs in a Realm.
 	 */
 	struct {
-		unsigned long ipa_bits;
-		int s2_starting_level;
-		struct granule *g_rtt;
 		struct granule *g_rd;
 		bool pmu_enabled;
 		unsigned int pmu_num_ctrs;
 		enum hash_algo algorithm;
 		struct simd_config simd_cfg;
+		struct s2tt_context s2_ctx;
 	} realm_info;
 
 	struct {
