@@ -505,8 +505,8 @@ order to implement the mitigations.
 |                        |      speculation.                                 |
 +------------------------+---------------------------------------------------+
 | Mitigations            | | 1) Yes.                                         |
-| implemented?           | | 2) No.                                          |
-|                        | |    ``FEAT_DIT`` should be enabled for RMM.      |
+| implemented?           | | 2) Yes.                                         |
+|                        | |    ``FEAT_DIT`` is enabled for RMM.             |
 |                        | | 3) Yes.                                         |
 |                        | |    RMM relies on MbedTLS library to use         |
 |                        |      algorithms which are data independent when   |
@@ -520,7 +520,6 @@ order to implement the mitigations.
 |                        |   RMM implements all mititagions provided by the  |
 |                        | | Architecture.                                   |
 |                        |                                                   |
-|                        | | Enable ``FEAT_DIT`` on RMM.                     |
 +------------------------+---------------------------------------------------+
 
 +------------------------+---------------------------------------------------+

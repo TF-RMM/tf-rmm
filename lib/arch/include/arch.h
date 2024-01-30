@@ -65,6 +65,10 @@
 /* RNDR definition */
 #define RNDR			S3_3_C2_C4_0
 
+/* Data Independent Timing Registers */
+#define DIT			S3_3_C4_C2_5
+#define DIT_BIT			(UL(1) << 24)
+
 /* CLIDR definitions */
 #define LOC_SHIFT		U(24)
 #define CTYPE_SHIFT(n)		U(3 * ((n) - 1))
