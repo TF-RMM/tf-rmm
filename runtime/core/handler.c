@@ -7,6 +7,7 @@
 #include <arch_helpers.h>
 #include <assert.h>
 #include <buffer.h>
+#include <cpuid.h>
 #include <debug.h>
 #include <run.h>
 #include <simd.h>
@@ -15,6 +16,7 @@
 #include <smc.h>
 #include <status.h>
 #include <utils_def.h>
+#include <xlat_high_va.h>
 
 /* Maximum number of supported arguments */
 #define MAX_NUM_ARGS		5U
@@ -342,17 +344,6 @@ void handle_ns_smc(unsigned int function_id,
 	assert(check_cpu_slots_empty());
 }
 
-static void report_unexpected(void)
-{
-	ERROR("----\n");
-	ERROR("Unexpected exception:\n");
-	ERROR("SPSR_EL2: 0x%016lx\n", read_spsr_el2());
-	ERROR("ESR_EL2:  0x%016lx\n", read_esr_el2());
-	ERROR("ELR_EL2:  0x%016lx\n", read_elr_el2());
-	ERROR("FAR_EL2:  0x%016lx\n", read_far_el2());
-	ERROR("----\n");
-}
-
 /*
  * Identifies an abort that the RMM may recover from.
  */
@@ -388,13 +379,52 @@ static struct rmm_trap_element rmm_trap_list[] = {
 };
 #define RMM_TRAP_LIST_SIZE (sizeof(rmm_trap_list)/sizeof(struct rmm_trap_element))
 
-__dead2 static void fatal_abort(void)
-{
-	report_unexpected();
+/* Crash dump registers X0 - X29 */
+#define DUMP_REGS	30U
 
-	while (true) {
-		wfe();
+typedef struct {
+	uint64_t x[DUMP_REGS];
+	uint64_t lr;
+} dump_regs_t;
+
+__dead2 static void fatal_abort(dump_regs_t *regs)
+{
+	__unused uint64_t sp_el2;
+	__unused uint64_t sp_el0 = (uint64_t)regs + sizeof(dump_regs_t);
+	__unused uint64_t lr = regs->lr;
+
+	ERROR("Unexpected exception on CPU #%u:\n", my_cpuid());
+
+	for (unsigned int i = 0U; i < DUMP_REGS; i += 2U) {
+		INFO("X%u:\t\t0x%016lx   X%u:\t\t0x%016lx\n",
+			i, regs->x[i], i + 1U, regs->x[i + 1U]);
 	}
+
+	/* Demangle return address */
+	xpaci(lr);
+
+	/* Switch SPSEL to read SP_EL2 register */
+	write_spsel(MODE_SP_ELX);
+	read_sp(sp_el2);
+	write_spsel(MODE_SP_EL0);
+
+	INFO("LR:\t\t0x%016lx\n", lr);
+	INFO("SP_EL0:\t\t0x%016lx\n", sp_el0);
+	INFO("SP_EL2:\t\t0x%016lx%c (0x%016lx-0x%016lx)\n", sp_el2,
+		((sp_el2 < CPU_STACK_VIRT) ||
+		 (sp_el2 >= RMM_CPU_STACK_END_VA)) ? '*' : ' ',
+		CPU_STACK_VIRT, (RMM_CPU_STACK_END_VA - 1UL));
+	INFO("ESR_EL2:\t0x%016lx\n", read_esr_el2());
+	INFO("ELR_EL2:\t0x%016lx\n", read_elr_el2());
+	INFO("FAR_EL2:\t0x%016lx\n", read_far_el2());
+	INFO("SPSR_EL2:\t0x%016lx\n", read_spsr_el2());
+	INFO("HCR_EL2:\t0x%016lx   E2H = %c\n", read_hcr_el2(),
+		((read_hcr_el2() & HCR_E2H) == 0UL) ? '0' : '1');
+	INFO("CPTR_EL2:\t0x%016lx\n", read_cptr_el2());
+	INFO("MDCR_EL2:\t0x%016lx\n", read_mdcr_el2());
+	INFO("SCTLR_EL2:\t0x%016lx\n", read_sctlr_el2());
+
+	panic();
 }
 
 static bool is_el2_data_abort_gpf(unsigned long esr)
@@ -414,7 +444,7 @@ static bool is_el2_data_abort_gpf(unsigned long esr)
  * If no match is found, it aborts the RMM.
  */
 /* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
-unsigned long handle_rmm_trap(void)
+unsigned long handle_rmm_trap(dump_regs_t *regs)
 {
 	unsigned long esr = read_esr_el2();
 	unsigned long elr = read_elr_el2();
@@ -423,7 +453,7 @@ unsigned long handle_rmm_trap(void)
 	 * Only the GPF data aborts are recoverable.
 	 */
 	if (!is_el2_data_abort_gpf(esr)) {
-		fatal_abort();
+		fatal_abort(regs);
 	}
 
 	for (unsigned int i = 0U; i < RMM_TRAP_LIST_SIZE; i++) {
@@ -432,6 +462,6 @@ unsigned long handle_rmm_trap(void)
 		}
 	}
 
-	fatal_abort();
+	fatal_abort(regs);
 	return 0UL;
 }
