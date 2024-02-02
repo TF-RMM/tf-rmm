@@ -15,12 +15,16 @@
 
 unsigned long get_feature_register_0(void)
 {
-	/* TODO: Announce FEAT_LPA2 through feat_reg0 when supported for S2TTE */
-
 	/* Set S2SZ field */
-	unsigned long s2sz = s2tt_max_ipa_size();
+	unsigned long s2sz = arch_feat_get_pa_width();
 	unsigned long feat_reg0 = INPLACE(RMM_FEATURE_REGISTER_0_S2SZ, s2sz);
 	struct simd_config simd_cfg = { 0 };
+
+	/* Set LPA2 field */
+	if (is_feat_lpa2_4k_2_present() == true) {
+		feat_reg0 |=
+			INPLACE(RMM_FEATURE_REGISTER_0_LPA2, RMI_FEATURE_TRUE);
+	}
 
 	/* Set support for SHA256 and SHA512 hash algorithms */
 	feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_HASH_SHA_256,

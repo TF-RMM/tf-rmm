@@ -74,9 +74,24 @@
 
 /*
  * The maximum number of bits supported by the RMM for a stage 2 translation
- * output address (including stage 2 table entries).
+ * output address (including stage 2 table entries) with FEAT_LPA2 is 52 bits.
  */
-#define S2TTE_OA_BITS			48U
+#define S2TTE_OA_BITS			48UL
+#define S2TTE_OA_BITS_LPA2		52UL
+
+/*
+ * When FEAT_LPA2 is enabled, the 2 MSB bits of the OA is not contiguous
+ * to the rest of the address in the TTE.
+ */
+#define LPA2_OA_51_50_SHIFT		50U
+#define LPA2_OA_51_50_WIDTH		2U
+
+#define LPA2_OA_49_48_SHIFT		48U
+#define LPA2_OA_49_48_WIDTH		2U
+
+/* Where the 2 MSB bits of the OA are stored in the TTE */
+#define LPA2_S2TTE_51_50_SHIFT		8U
+#define LPA2_S2TTE_51_50_WIDTH		(LPA2_OA_51_50_WIDTH)
 
 /*
  * The following constants for the mapping attributes (S2_TTE_MEMATTR_*)
@@ -99,18 +114,18 @@
 #define S2TTE_SH_IS			(3UL << S2TTE_SH_SHIFT)	/* Inner Shareable */
 
 /*
- * We set HCR_EL2.FWB So we set bit[4] to 1 and bits[3:2] to 2 and force
- * everyting to be Normal Write-Back
+ * When FEAT_LPA2 is enabled, Shareability attributes are stored in VTCR_EL2
+ * and they are not part of the S2TTE.
  */
-#define S2TTE_MEMATTR_FWB_NORMAL_WB	((1UL << 4) | (2UL << 2))
-
-#define S2TTE_ATTRS	(S2TTE_MEMATTR_FWB_NORMAL_WB | S2TTE_AP_RW |	\
-			S2TTE_SH_IS | S2TTE_AF)
+#define S2TTE_ATTRS_LPA2	(S2TTE_MEMATTR_FWB_NORMAL_WB | S2TTE_AP_RW | \
+				 S2TTE_AF)
+#define S2TTE_ATTRS_LPA2_MASK	(S2TTE_MEMATTR_MASK | S2TTE_AP_MASK | S2TTE_AF)
+#define S2TTE_ATTRS		(S2TTE_ATTRS_LPA2 | S2TTE_SH_IS)
+#define S2TTE_ATTRS_MASK	(S2TTE_ATTRS_LPA2_MASK | S2TTE_SH_MASK)
 
 /* NS attributes controlled by the host */
-#define S2TTE_NS_ATTR_HOST_MASK						\
-			(S2TTE_MEMATTR_MASK | S2TTE_AP_MASK |		\
-			 S2TTE_SH_MASK)
+#define S2TTE_NS_ATTR_LPA2_MASK (S2TTE_MEMATTR_MASK | S2TTE_AP_MASK)
+#define S2TTE_NS_ATTR_MASK (S2TTE_NS_ATTR_LPA2_MASK | S2TTE_SH_MASK)
 
 /*
  * Additional NS attributes set by RMM.
@@ -118,16 +133,22 @@
  */
 #define S2TTE_NS_ATTR_RMM	(S2TTE_AF | S2TTE_NS | S2TTE_XN)
 
-#define S2TTE_TABLE	S2TTE_L012_TABLE
-#define S2TTE_BLOCK	(S2TTE_ATTRS | S2TTE_L012_BLOCK)
-#define S2TTE_PAGE	(S2TTE_ATTRS | S2TTE_L3_PAGE)
-#define S2TTE_BLOCK_NS	((S2TTE_NS_ATTR_RMM) | S2TTE_L012_BLOCK)
-#define S2TTE_PAGE_NS	((S2TTE_NS_ATTR_RMM) | S2TTE_L3_PAGE)
-#define S2TTE_INVALID	S2TTE_Lx_INVALID
+/* Descriptor templates */
+#define S2TTE_TABLE		S2TTE_L012_TABLE
+#define S2TTE_BLOCK		(S2TTE_ATTRS | S2TTE_L012_BLOCK)
+#define S2TTE_BLOCK_LPA2	(S2TTE_ATTRS_LPA2 | S2TTE_L012_BLOCK)
+#define S2TTE_PAGE		(S2TTE_ATTRS | S2TTE_L3_PAGE)
+#define S2TTE_PAGE_LPA2		(S2TTE_ATTRS_LPA2 | S2TTE_L3_PAGE)
+#define S2TTE_BLOCK_NS		((S2TTE_NS_ATTR_RMM) | S2TTE_L012_BLOCK)
+#define S2TTE_PAGE_NS		((S2TTE_NS_ATTR_RMM) | S2TTE_L3_PAGE)
+#define S2TTE_INVALID		S2TTE_Lx_INVALID
 
 /* Maximum number of concatenated tables for the start level */
 #define S2TTE_MAX_CONCAT_TABLES		(16U)
 
-#define NR_RTT_LEVELS	4
+#define NR_RTT_LEVELS		(S2TT_PAGE_LEVEL -		\
+					S2TT_MIN_STARTING_LEVEL + 1U)
+#define NR_RTT_LEVELS_LPA2	(S2TT_PAGE_LEVEL -		\
+					S2TT_MIN_STARTING_LEVEL_LPA2 + 1U)
 
 #endif /* S2TT_PVT_DEFS */

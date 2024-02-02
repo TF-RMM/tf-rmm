@@ -9,6 +9,7 @@
 #include <arch_features.h>
 #include <granule_types.h>
 #include <memory.h>
+#include <stdbool.h>
 
 /*
  * Stage 2 configuration of the Realm
@@ -29,6 +30,9 @@ struct s2tt_context {
 	/* Virtual Machine Identifier */
 	unsigned int vmid;
 
+	/* If FEAT_LPA2 is enabled */
+	bool enable_lpa2;
+
 	/*
 	 * TODO: we will need other translation regime state, e.g. TCR, MAIR(?).
 	 */
@@ -37,9 +41,13 @@ struct s2tt_context {
 #define S2TT_MIN_IPA_BITS		32U
 #define S2TT_MAX_IPA_BITS		48U
 
-#define S2TT_MIN_STARTING_LEVEL		0
-#define S2TT_PAGE_LEVEL			3
-#define S2TT_MIN_BLOCK_LEVEL		2
+#define S2TT_MAX_IPA_BITS_LPA2		52U
+#define S2TT_MAX_IPA_SIZE_LPA2		(1UL << S2TT_MAX_IPA_BITS_LPA2)
+
+#define S2TT_MIN_STARTING_LEVEL		(0)
+#define S2TT_MIN_STARTING_LEVEL_LPA2	(-1)
+#define S2TT_PAGE_LEVEL			(3)
+#define S2TT_MIN_BLOCK_LEVEL		(2)
 
 /*
  * S2TTE_STRIDE: The number of bits resolved in a single level of translation
@@ -49,15 +57,13 @@ struct s2tt_context {
 #define S2TTES_PER_S2TT		(1UL << S2TTE_STRIDE)
 
 /*
- * At the moment, RMM doesn't support FEAT_LPA2 for stage 2 address
- * translation, so the maximum IPA size is 48 bits.
+ * S2TTE_STRIDE_LM1: The number of bits resolved at Level -1 when FEAT_LPA2
+ * is enabled. This value is equal to
+ * MAX_IPA_BITS_LPA2 - ((4 * S2TTE_STRIDE) + GRANULE_SHIFT)
+ * as Level -1 only has 4 bits for the index (bits [51:48]).
  */
-static inline unsigned int s2tt_max_ipa_size(void)
-{
-	unsigned int ipa_size = arch_feat_get_pa_width();
-
-	return (ipa_size > S2TT_MAX_IPA_BITS) ? S2TT_MAX_IPA_BITS : ipa_size;
-}
+#define S2TTE_STRIDE_LM1	(4U)
+#define S2TTES_PER_S2TT_LM1	(1UL << S2TTE_STRIDE_LM1)
 
 /*
  * The MMU is a separate observer, and requires that translation table updates
