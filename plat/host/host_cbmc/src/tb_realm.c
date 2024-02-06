@@ -72,7 +72,7 @@ bool valid_realm_state(uint64_t value)
 }
 
 /* Detail of the valid state */
-bool valid_realm_s2_context(struct realm_s2_context value)
+bool valid_s2tt_context(struct s2tt_context value)
 {
 	unsigned int vmid_count = is_feat_vmid16_present() ? VMID16_COUNT : VMID8_COUNT;
 
@@ -94,7 +94,7 @@ bool valid_realm_s2_context(struct realm_s2_context value)
 bool valid_rd(struct rd value)
 {
 	return valid_realm_state(value.state)
-		&& valid_realm_s2_context(value.s2_ctx)
+		&& valid_s2tt_context(value.s2_ctx)
 		&& valid_hash_algo(value.algorithm)
 		&& value.num_rec_aux <= MAX_REC_AUX_GRANULES;
 }

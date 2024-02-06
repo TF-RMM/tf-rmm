@@ -11,11 +11,11 @@
 #include <host_utils.h>
 #include <platform_api.h>
 #include <rmm_el3_ifc.h>
+#include <s2tt.h>
 #include <smc-rmi.h>
 #include <smc-rsi.h>
 #include <stdlib.h>
 #include <string.h>
-#include <table.h>
 #include <time.h>
 
 /* Create a simple 4 level (Lvl 0 - LvL 3) RTT structure */

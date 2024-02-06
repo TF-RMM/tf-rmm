@@ -15,7 +15,6 @@
 #include <slot_buf_arch.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <table.h>
 #include <utils_def.h>
 #include <xlat_contexts.h>
 #include <xlat_high_va.h>

@@ -10,13 +10,13 @@
 #include <granule.h>
 #include <measurement.h>
 #include <realm.h>
+#include <s2tt.h>
 #include <simd.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
 #include <stddef.h>
 #include <string.h>
-#include <table.h>
 #include <vmid.h>
 
 #define RMM_FEATURE_MIN_IPA_SIZE	PARANGE_0000_WIDTH
@@ -72,7 +72,7 @@ static bool get_realm_params(struct rmi_realm_params *realm_params,
  */
 static bool s2_inconsistent_sl(unsigned int ipa_bits, int sl)
 {
-	unsigned int levels = (unsigned int)(RTT_PAGE_LEVEL - sl);
+	unsigned int levels = (unsigned int)(S2TT_PAGE_LEVEL - sl);
 	unsigned int sl_min_ipa_bits, sl_max_ipa_bits;
 
 	/*
@@ -87,11 +87,11 @@ static bool s2_inconsistent_sl(unsigned int ipa_bits, int sl)
 
 static bool validate_ipa_bits_and_sl(unsigned int ipa_bits, long sl)
 {
-	if ((ipa_bits < MIN_IPA_BITS) || (ipa_bits > MAX_IPA_BITS)) {
+	if ((ipa_bits < S2TT_MIN_IPA_BITS) || (ipa_bits > S2TT_MAX_IPA_BITS)) {
 		return false;
 	}
 
-	if ((sl < MIN_STARTING_LEVEL) || (sl > RTT_PAGE_LEVEL)) {
+	if ((sl < S2TT_MIN_STARTING_LEVEL) || (sl > S2TT_PAGE_LEVEL)) {
 		return false;
 	}
 
@@ -104,7 +104,7 @@ static bool validate_ipa_bits_and_sl(unsigned int ipa_bits, long sl)
 	 * of the hardware platform, other misconfigurations between IPA size
 	 * and SL is checked in s2_inconsistent_sl.
 	 */
-	if ((sl == 0L) && (max_ipa_size() < 44U)) {
+	if ((sl == 0L) && (s2tt_max_ipa_size() < 44U)) {
 		return false;
 	}
 
@@ -113,7 +113,7 @@ static bool validate_ipa_bits_and_sl(unsigned int ipa_bits, long sl)
 
 static unsigned int s2_num_root_rtts(unsigned int ipa_bits, int sl)
 {
-	unsigned int levels = (unsigned int)(RTT_PAGE_LEVEL - sl);
+	unsigned int levels = (unsigned int)(S2TT_PAGE_LEVEL - sl);
 	unsigned int sl_ipa_bits;
 
 	/* First calculate how many bits can be resolved without concatenation */
@@ -141,7 +141,7 @@ static void init_s2_starting_level(struct rd *rd)
 {
 	unsigned long current_ipa = 0U;
 	struct granule *g_rtt = rd->s2_ctx.g_rtt;
-	unsigned int levels = (unsigned int)(RTT_PAGE_LEVEL -
+	unsigned int levels = (unsigned int)(S2TT_PAGE_LEVEL -
 						rd->s2_ctx.s2_starting_level);
 	/*
 	 * The size of the IPA space that is covered by one S2TTE at

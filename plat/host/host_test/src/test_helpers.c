@@ -6,6 +6,7 @@
 #include <arch_helpers.h>
 #include <debug.h>
 #include <errno.h>
+#include <granule.h>
 #include <host_defs.h>
 #include <host_utils.h>
 #include <limits.h>
@@ -239,6 +240,11 @@ void test_helpers_init(void)
 		random_seed = (int)time(NULL);
 		srand(random_seed);
 	}
+}
+
+struct granule *test_helpers_granule_struct_base(void)
+{
+	return addr_to_granule(host_util_get_granule_base());
 }
 
 /******************************************************************

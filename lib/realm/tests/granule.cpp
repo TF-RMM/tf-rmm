@@ -127,7 +127,7 @@ TEST_GROUP(granule) {
 		 * Clean RMM's internal struct granule array
 		 * for a clean state for the next tests.
 		 */
-		memset((void *)realm_test_util_granule_struct_base(), 0,
+		memset((void *)test_helpers_granule_struct_base(), 0,
 			sizeof(struct granule) *
 					test_helpers_get_nr_granules());
 
@@ -159,7 +159,7 @@ TEST(granule, addr_to_granule_TC1)
 
 	for (unsigned int i = 0U; i < 3; i++) {
 		/* Calculate the expected granule address */
-		expected_granule = realm_test_util_granule_struct_base() +
+		expected_granule = test_helpers_granule_struct_base() +
 							granule_indexes[i];
 		/* Calculated the expected PA for the granule */
 		addr = (granule_indexes[i] * GRANULE_SIZE) +
@@ -254,7 +254,7 @@ TEST(granule, granule_addr_TC1)
 	 * granules in between.
 	 ******************************************************************/
 	for (unsigned int i = 0U; i < 3U; i++) {
-		granule = realm_test_util_granule_struct_base() +
+		granule = test_helpers_granule_struct_base() +
 							granule_indexes[i];
 		expected_address = (granule_indexes[i] * GRANULE_SIZE) +
 						host_util_get_granule_base();
@@ -296,7 +296,7 @@ ASSERT_TEST(granule, granule_addr_TC3)
 	 ******************************************************************/
 
 	idx += (unsigned long)test_helpers_get_rand_in_range(1UL, 10UL);
-	granule = realm_test_util_granule_struct_base() + idx;
+	granule = test_helpers_granule_struct_base() + idx;
 	test_helpers_expect_assert_fail(true);
 	(void)granule_addr(granule);
 	test_helpers_fail_if_no_assert_failed();
@@ -313,7 +313,7 @@ ASSERT_TEST(granule, granule_addr_TC4)
 	 * granule[0];
 	 ******************************************************************/
 
-	granule = realm_test_util_granule_struct_base() - 1U;
+	granule = test_helpers_granule_struct_base() - 1U;
 	test_helpers_expect_assert_fail(true);
 	(void)granule_addr(granule);
 	test_helpers_fail_if_no_assert_failed();
@@ -331,7 +331,7 @@ ASSERT_TEST(granule, granule_addr_TC5)
 	 * not properly aligned.
 	 ******************************************************************/
 
-	granule = (uintptr_t)realm_test_util_granule_struct_base();
+	granule = (uintptr_t)test_helpers_granule_struct_base();
 	granule += test_helpers_get_rand_in_range(1UL,
 					sizeof(struct granule) - 1U);
 	test_helpers_expect_assert_fail(true);
@@ -425,7 +425,7 @@ TEST(granule, find_granule_TC1)
 	 ******************************************************************/
 
 	for (unsigned int i = 0U; i < 3U; i++) {
-		expected_granule = realm_test_util_granule_struct_base() +
+		expected_granule = test_helpers_granule_struct_base() +
 							granule_indexes[i];
 		address = (granule_indexes[i] * GRANULE_SIZE) +
 						host_util_get_granule_base();
@@ -505,8 +505,8 @@ TEST(granule, find_lock_two_granules_TC1)
 	} while (g1_index == g2_index);
 
 	/* Get the expected address for the granules */
-	exp_g1 = realm_test_util_granule_struct_base() + g1_index;
-	exp_g2 = realm_test_util_granule_struct_base() + g2_index;
+	exp_g1 = test_helpers_granule_struct_base() + g1_index;
+	exp_g2 = test_helpers_granule_struct_base() + g2_index;
 
 	/* Get the expected PA for the corresponding granules */
 	addr1 = (g1_index * GRANULE_SIZE) + host_util_get_granule_base();

@@ -190,4 +190,9 @@ unsigned int test_helpers_get_nr_granules(void);
  */
 void test_helpers_init(void);
 
+/*
+ * Return a pointer to the first available granule structure
+ */
+struct granule *test_helpers_granule_struct_base(void);
+
 #endif

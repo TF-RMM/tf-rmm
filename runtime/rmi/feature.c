@@ -6,11 +6,11 @@
 #include <arch_features.h>
 #include <assert.h>
 #include <feature.h>
+#include <s2tt.h>
 #include <simd.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <status.h>
-#include <table.h>
 #include <utils_def.h>
 
 unsigned long get_feature_register_0(void)
@@ -18,7 +18,7 @@ unsigned long get_feature_register_0(void)
 	/* TODO: Announce FEAT_LPA2 through feat_reg0 when supported for S2TTE */
 
 	/* Set S2SZ field */
-	unsigned long s2sz = max_ipa_size();
+	unsigned long s2sz = s2tt_max_ipa_size();
 	unsigned long feat_reg0 = INPLACE(RMM_FEATURE_REGISTER_0_S2SZ, s2sz);
 	struct simd_config simd_cfg = { 0 };
 
