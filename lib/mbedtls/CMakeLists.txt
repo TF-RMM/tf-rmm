@@ -41,7 +41,7 @@ if(RMM_FPU_USE_AT_REL2)
     # Enable using floating point registers for mbed TLS
     string(REPLACE "-mgeneral-regs-only" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
     # Enable using crypto and sha instructions
-    string(REGEX REPLACE "(march=[^\\ ]*)" "\\1+sha3+crypto" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
+    string(REGEX REPLACE "(march=[^\\ ]*)" "\\1+sha3+crypto+nosve" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
     # Enable using SHA256 and SHA512 instructions in MbedTLS
     string(APPEND CMAKE_C_FLAGS
             " -DMBEDTLS_SHA256_USE_A64_CRYPTO_ONLY=1 "
