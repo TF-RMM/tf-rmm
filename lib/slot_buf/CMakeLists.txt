@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
-add_library(rmm-lib-realm)
+add_library(rmm-lib-slot_buf)
 
 arm_config_option(
     NAME VIRT_ADDR_SPACE_WIDTH
@@ -16,35 +16,35 @@ if(VIRT_ADDR_SPACE_WIDTH EQUAL 0x0)
     message(FATAL_ERROR "VIRT_ADDR_SPACE_WIDTH is not initialized")
 endif()
 
-target_compile_definitions(rmm-lib-realm
+target_compile_definitions(rmm-lib-slot_buf
     PUBLIC "VIRT_ADDR_SPACE_SIZE=(1ULL << ULL(${VIRT_ADDR_SPACE_WIDTH}))")
 
-target_link_libraries(rmm-lib-realm
+target_link_libraries(rmm-lib-slot_buf
     PRIVATE rmm-lib-arch
             rmm-lib-common
             rmm-lib-debug
             rmm-lib-xlat)
 
-# Needed to link with the platform callbacks for buffer map/unmap
-if(RMM_ARCH STREQUAL fake_host)
-    target_link_libraries(rmm-lib-realm
-        PRIVATE rmm-platform)
-endif()
-
-target_link_libraries(rmm-lib-realm
-    PUBLIC rmm-lib-attestation
-           rmm-lib-gic
-           rmm-lib-measurement
-           rmm-lib-s2tt
+target_link_libraries(rmm-lib-slot_buf
+    PUBLIC rmm-lib-granule
            rmm-lib-smc)
 
-target_include_directories(rmm-lib-realm
+target_include_directories(rmm-lib-slot_buf
     PUBLIC "include"
-    PRIVATE "src/include/${RMM_ARCH}"
-    PRIVATE "src/include")
+    PRIVATE "src/include"
+            "src/include/${RMM_ARCH}")
 
-target_sources(rmm-lib-realm
-    PRIVATE "src/buffer.c"
-            "src/granule.c")
+if(RMM_ARCH STREQUAL fake_host)
+    # Needed to access the platform callbacks.
+    target_link_libraries(rmm-lib-slot_buf
+        PRIVATE rmm-platform)
+else()
+    target_sources(rmm-lib-slot_buf
+        PRIVATE "src/aarch64/ns_access.S")
+endif()
+
+target_sources(rmm-lib-slot_buf
+    PRIVATE "src/buffer.c")
 
 include (tests/CMakeLists.txt)
+

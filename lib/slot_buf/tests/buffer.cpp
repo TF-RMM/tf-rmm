@@ -9,12 +9,12 @@
 extern "C" {
 #include <buffer.h>	/* Interface to exercise */
 #include <buffer_private.h>
+#include <buffer_test_helpers.h>
 #include <cpuid.h>
 #include <granule.h>
 #include <host_defs.h>
 #include <host_harness.h>
 #include <host_utils.h>
-#include <realm_test_utils.h>
 #include <stdlib.h>
 #include <string.h>
 #include <test_harness.h>
@@ -28,6 +28,13 @@ extern "C" {
  */
 #define GRANULE_BLOCK_SIZE		(GRANULE_SIZE >> 2U)
 #define GRANULE_BLOCKS			(GRANULE_SIZE/GRANULE_BLOCK_SIZE)
+
+/* Function to get a random granule index in the range [1, NR_GRANULES - 2] */
+static inline unsigned int get_rand_granule_idx(void)
+{
+	return (unsigned int)test_helpers_get_rand_in_range(1UL,
+					test_helpers_get_nr_granules() - 2U);
+}
 
 /*
  * Function to get a random granule address within the valid address range.
@@ -104,7 +111,7 @@ TEST_GROUP(slot_buffer) {
 	}
 };
 
-TEST(slot_buffer, granule_map_buffer_unmap_TC1)
+TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC1)
 {
 	uintptr_t slot_va, expected_va, granule_addr;
 	struct granule *test_granule;
@@ -118,9 +125,9 @@ TEST(slot_buffer, granule_map_buffer_unmap_TC1)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_aarch64_vmsa;
+	cb.buffer_map = buffer_test_cb_map_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_aarch64_vmsa;
+	cb.buffer_unmap = buffer_test_cb_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	granule_addr = get_rand_granule_addr();
@@ -130,14 +137,14 @@ TEST(slot_buffer, granule_map_buffer_unmap_TC1)
 		host_util_set_cpuid(i);
 		for (unsigned int j = 0U; j < NR_CPU_SLOTS; j++) {
 			if (j == SLOT_NS) {
-				/* Not supported. granule_map() would assert */
+				/* Not supported. buffer_granule_map() would assert */
 				continue;
 			}
-			slot_va = (uintptr_t)granule_map(test_granule,
+			slot_va = (uintptr_t)buffer_granule_map(test_granule,
 							 (enum buffer_slot)j);
 			expected_va = slot_to_va((enum buffer_slot)j);
 
-			/* Test the return value from granule_map() */
+			/* Test the return value from buffer_granule_map() */
 			POINTERS_EQUAL(slot_va, expected_va);
 
 			/*
@@ -146,24 +153,24 @@ TEST(slot_buffer, granule_map_buffer_unmap_TC1)
 			 * aarch64 VMSA.
 			 */
 			POINTERS_EQUAL(expected_va,
-				realm_test_util_slot_va_from_pa(granule_addr));
+				buffer_test_helpers_slot_va_from_pa(granule_addr));
 
 			/* Unmap the buffer */
 			buffer_unmap((void *)slot_va);
 
 			/*
-			 * realm_test_util_slot_va_from_pa() return NULL
+			 * buffer_test_helpers_slot_va_from_pa() return NULL
 			 * if the address passed to it is not mapped to any
 			 * slot buffer.
 			 */
 			POINTERS_EQUAL(NULL,
-				realm_test_util_slot_va_from_pa(granule_addr));
+				buffer_test_helpers_slot_va_from_pa(granule_addr));
 
 		} /* For each slot type */
 	} /* For each CPU */
 }
 
-TEST(slot_buffer, granule_map_buffer_unmap_TC2)
+TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC2)
 {
 	uintptr_t mapped_pa;
 	struct granule *test_granule;
@@ -180,15 +187,15 @@ TEST(slot_buffer, granule_map_buffer_unmap_TC2)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_aarch64_vmsa;
+	cb.buffer_map = buffer_test_cb_map_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_aarch64_vmsa;
+	cb.buffer_unmap = buffer_test_cb_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	get_rand_granule_array(granules_per_cpu, MAX_CPUS);
 	for (unsigned int i = 0U; i < NR_CPU_SLOTS; i++) {
 		if (i == SLOT_NS) {
-			/* Not supported. granule_map() would assert */
+			/* Not supported. buffer_granule_map() would assert */
 			continue;
 		}
 
@@ -196,7 +203,7 @@ TEST(slot_buffer, granule_map_buffer_unmap_TC2)
 		for (unsigned int j = 0U; j < MAX_CPUS; j++) {
 			host_util_set_cpuid(j);
 			test_granule = addr_to_granule(granules_per_cpu[j]);
-			slot_va[j] = granule_map(test_granule,
+			slot_va[j] = buffer_granule_map(test_granule,
 						 (enum buffer_slot)i);
 		}
 
@@ -209,7 +216,7 @@ TEST(slot_buffer, granule_map_buffer_unmap_TC2)
 			 * Get the PA mapped to the slot 'i' for CPU 'j'
 			 */
 			host_util_set_cpuid(j);
-			mapped_pa = realm_test_util_slot_to_pa(
+			mapped_pa = buffer_test_helpers_slot_to_pa(
 						(enum buffer_slot)i);
 
 			/*
@@ -237,7 +244,7 @@ TEST(slot_buffer, granule_map_buffer_unmap_TC2)
 	} /* NR_CPU_SLOTS */
 };
 
-TEST(slot_buffer, granule_map_buffer_unmap_TC3)
+TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC3)
 {
 	/******************************************************************
 	 * TEST CASE 3:
@@ -250,7 +257,7 @@ TEST(slot_buffer, granule_map_buffer_unmap_TC3)
 	TEST_EXIT;
 }
 
-TEST(slot_buffer, granule_map_buffer_unmap_TC4)
+TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC4)
 {
 	/******************************************************************
 	 * TEST CASE 4:
@@ -263,7 +270,7 @@ TEST(slot_buffer, granule_map_buffer_unmap_TC4)
 	TEST_EXIT;
 }
 
-ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC5)
+ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC5)
 {
 	uintptr_t granule_addr;
 	struct granule *test_granule;
@@ -278,9 +285,9 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC5)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_aarch64_vmsa;
+	cb.buffer_map = buffer_test_cb_map_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_aarch64_vmsa;
+	cb.buffer_unmap = buffer_test_cb_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	granule_addr = get_rand_granule_addr();
@@ -290,11 +297,11 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC5)
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	(void)granule_map(test_granule, SLOT_NS);
+	(void)buffer_granule_map(test_granule, SLOT_NS);
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC6)
+ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC6)
 {
 	union test_harness_cbs cb;
 	unsigned int cpuid;
@@ -309,9 +316,9 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC6)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_aarch64_vmsa;
+	cb.buffer_map = buffer_test_cb_map_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_aarch64_vmsa;
+	cb.buffer_unmap = buffer_test_cb_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	slot = (enum buffer_slot)test_helpers_get_rand_in_range(
@@ -322,11 +329,11 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC6)
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	(void)granule_map((struct granule *)NULL, slot);
+	(void)buffer_granule_map((struct granule *)NULL, slot);
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC7)
+ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC7)
 {
 	union test_harness_cbs cb;
 	unsigned int cpuid;
@@ -343,9 +350,9 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC7)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_aarch64_vmsa;
+	cb.buffer_map = buffer_test_cb_map_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_aarch64_vmsa;
+	cb.buffer_unmap = buffer_test_cb_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	test_granule = test_helpers_granule_struct_base() - 1U;
@@ -357,11 +364,11 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC7)
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	(void)granule_map(test_granule, slot);
+	(void)buffer_granule_map(test_granule, slot);
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC8)
+ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC8)
 {
 	union test_harness_cbs cb;
 	unsigned int cpuid;
@@ -377,9 +384,9 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC8)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_aarch64_vmsa;
+	cb.buffer_map = buffer_test_cb_map_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_aarch64_vmsa;
+	cb.buffer_unmap = buffer_test_cb_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	test_granule = test_helpers_granule_struct_base() +
@@ -392,11 +399,11 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC8)
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	(void)granule_map(test_granule, slot);
+	(void)buffer_granule_map(test_granule, slot);
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC9)
+ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC9)
 {
 	uintptr_t granule_addr;
 	uintptr_t test_granule;
@@ -413,9 +420,9 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC9)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_aarch64_vmsa;
+	cb.buffer_map = buffer_test_cb_map_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_aarch64_vmsa;
+	cb.buffer_unmap = buffer_test_cb_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	granule_addr = get_rand_granule_addr();
@@ -431,7 +438,7 @@ ASSERT_TEST(slot_buffer, granule_map_buffer_unmap_TC9)
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	(void)granule_map((struct granule *)test_granule, slot);
+	(void)buffer_granule_map((struct granule *)test_granule, slot);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -452,9 +459,9 @@ TEST(slot_buffer, ns_buffer_write_TC1)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/*
@@ -527,9 +534,9 @@ TEST(slot_buffer, ns_buffer_write_TC2)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/*
@@ -582,9 +589,9 @@ TEST(slot_buffer, ns_buffer_write_TC3)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/* Get two random granules, one for each CPU to test. */
@@ -642,9 +649,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC4)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/* Get two random granules, one for destination and one for source. */
@@ -680,9 +687,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC5)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	granule_addr = get_rand_granule_addr();
@@ -712,9 +719,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC6)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	granule_addr = get_rand_granule_addr();
@@ -745,9 +752,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC7)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/* Get two random granules, one for destination and one for source. */
@@ -782,9 +789,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC8)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/* Get two random granules, one for destination and one for source. */
@@ -818,9 +825,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC9)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/* Get two random granules, one for destination and one for source. */
@@ -861,9 +868,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC10)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/* Get two random granules, one for destination and one for source. */
@@ -901,9 +908,9 @@ TEST(slot_buffer, ns_buffer_read_TC1)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/*
@@ -976,9 +983,9 @@ TEST(slot_buffer, ns_buffer_read_TC2)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/*
@@ -1032,9 +1039,9 @@ TEST(slot_buffer, ns_buffer_read_TC3)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/* Get a random granule for each CPU to use. */
@@ -1090,9 +1097,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC4)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/* Get two random granules, one for destination and one for source. */
@@ -1128,9 +1135,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC5)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	granule_addr = get_rand_granule_addr();
@@ -1160,9 +1167,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC6)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	granule_addr = get_rand_granule_addr();
@@ -1193,9 +1200,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC7)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/* Get two random granules, one for destination and one for source. */
@@ -1230,9 +1237,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC8)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/* Get two random granules, one for destination and one for source. */
@@ -1266,9 +1273,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC9)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/* Get two random granules, one for destination and one for source. */
@@ -1308,9 +1315,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC10)
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
+	cb.buffer_map = buffer_test_cb_map_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	/* Get two random granules, one for destination and one for source. */
@@ -1333,7 +1340,82 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC10)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-TEST(slot_buffer, slot_buf_finish_warmboot_init_TC1)
+TEST(slot_buffer, buffer_granule_memzero_TC1)
+{
+	unsigned long addrs[3] = {host_util_get_granule_base(),
+				  (get_rand_granule_idx() * GRANULE_SIZE) +
+					host_util_get_granule_base(),
+				  ((test_helpers_get_nr_granules() - 1) *
+								GRANULE_SIZE) +
+					host_util_get_granule_base()};
+	struct granule *granule;
+	int *val;
+	union test_harness_cbs cb;
+
+	/* Register harness callbacks to use by this test */
+	cb.buffer_map = buffer_test_cb_map_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+
+	/***************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map a granule to every possible slot type and memzero
+	 * it. Verify then that the whole slot buffer is all 0.
+	 * Test the first and the last valid granules as well as random
+	 * granules in between.
+	 * Repeat the operation on all possible CPUs.
+	 *
+	 * NOTE: buffer_granule_memzero() will fail with SLOT_NS, so skip that
+	 *	 testcase.
+	 ***************************************************************/
+
+	for (unsigned int i = 0U; i < 3U; i++) {
+		granule = addr_to_granule(addrs[i]);
+		val = (int *)addrs[i];
+
+		for (unsigned int j = 0U; j < MAX_CPUS; j++) {
+			/* Configure the cpu id */
+			host_util_set_cpuid(j);
+
+			for (unsigned int k = 0; k < NR_CPU_SLOTS; k++) {
+				if (k == SLOT_NS) {
+					/* Not supported by buffer_granule_memzero */
+					continue;
+				}
+
+				/* Initialize the granule with random data */
+				memset((void *)addrs[i],
+					(int)test_helpers_get_rand_in_range(1UL, INT_MAX),
+					GRANULE_SIZE);
+				buffer_granule_memzero(granule, (enum buffer_slot)k);
+
+				for (unsigned int l = 0;
+				     l < (GRANULE_SIZE / sizeof(int)); l++) {
+					if (*(val + l) != 0) {
+						FAIL_TEST("Memory not properly zeroed");
+					}
+				} /* GRANULE_SIZE */
+			} /* NR_CPU_SLOTS */
+		} /* MAX_CPUS */
+	} /* Number of granules to test */
+}
+
+ASSERT_TEST(slot_buffer, buffer_granule_memzero_TC2)
+{
+	/***************************************************************
+	 * TEST CASE 2:
+	 *
+	 * Verify that buffer_granule_memzero() asserts if granule is NULL
+	 ***************************************************************/
+
+	test_helpers_expect_assert_fail(true);
+	buffer_granule_memzero(NULL, SLOT_DELEGATED);
+	test_helpers_fail_if_no_assert_failed();
+}
+
+IGNORE_TEST(slot_buffer, slot_buf_finish_warmboot_init_TC1)
 {
 	/*
 	 * slot_buf_finish_warmboot_init() has already been used during

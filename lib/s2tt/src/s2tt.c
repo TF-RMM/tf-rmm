@@ -6,6 +6,7 @@
 #include <arch_helpers.h>
 #include <assert.h>
 #include <bitmap.h>
+#include <buffer.h>
 #include <granule.h>
 #include <ripas.h>
 #include <s2tt.h>
@@ -238,7 +239,7 @@ static unsigned long table_get_entry(const struct s2tt_context *s2_ctx,
 
 	(void)s2_ctx;
 
-	table = granule_map(g_tbl, SLOT_RTT);
+	table = buffer_granule_map(g_tbl, SLOT_RTT);
 	assert(table != NULL);
 
 	entry = s2tte_read(&table[idx]);

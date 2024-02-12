@@ -163,7 +163,7 @@ static void free_rec_aux_granules(struct granule *rec_aux[],
 
 		granule_lock(g_rec_aux, GRANULE_STATE_REC_AUX);
 		if (scrub) {
-			granule_memzero(g_rec_aux,
+			buffer_granule_memzero(g_rec_aux,
 			   (enum buffer_slot)((unsigned int)SLOT_REC_AUX0 + i));
 		}
 		granule_unlock_transition(g_rec_aux, GRANULE_STATE_DELEGATED);
@@ -209,7 +209,7 @@ static void rec_aux_granules_init(struct rec *r)
 	struct rec_aux_data *aux_data;
 
 	/* Map auxiliary granules */
-	rec_aux = aux_granules_map(r->g_aux, r->num_rec_aux);
+	rec_aux = buffer_aux_granules_map(r->g_aux, r->num_rec_aux);
 	assert(rec_aux != NULL);
 
 	/*
@@ -241,7 +241,7 @@ static void rec_aux_granules_init(struct rec *r)
 	rec_simd_state_init(r);
 
 	/* Unmap auxiliary granules */
-	aux_granules_unmap(rec_aux, r->num_rec_aux);
+	buffer_aux_unmap(rec_aux, r->num_rec_aux);
 }
 
 unsigned long smc_rec_create(unsigned long rd_addr,
@@ -302,10 +302,10 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 		goto out_free_aux;
 	}
 
-	rec = granule_map(g_rec, SLOT_REC);
+	rec = buffer_granule_map(g_rec, SLOT_REC);
 	assert(rec != NULL);
 
-	rd = granule_map(g_rd, SLOT_RD);
+	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
 	if (get_rd_state_locked(rd) != REALM_NEW) {
@@ -404,7 +404,7 @@ unsigned long smc_rec_destroy(unsigned long rec_addr)
 		}
 	}
 
-	rec = granule_map(g_rec, SLOT_REC);
+	rec = buffer_granule_map(g_rec, SLOT_REC);
 	assert(rec != NULL);
 
 	g_rd = rec->realm_info.g_rd;
@@ -442,7 +442,7 @@ void smc_rec_aux_count(unsigned long rd_addr, struct smc_result *res)
 		return;
 	}
 
-	rd = granule_map(g_rd, SLOT_RD);
+	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
 	num_rec_aux = rd->num_rec_aux;
@@ -493,10 +493,10 @@ unsigned long smc_psci_complete(unsigned long calling_rec_addr,
 		goto out_unlock;
 	}
 
-	calling_rec = granule_map(g_calling_rec, SLOT_REC);
+	calling_rec = buffer_granule_map(g_calling_rec, SLOT_REC);
 	assert(calling_rec != NULL);
 
-	target_rec = granule_map(g_target_rec, SLOT_REC2);
+	target_rec = buffer_granule_map(g_target_rec, SLOT_REC2);
 	assert(target_rec != NULL);
 
 	ret = psci_complete_request(calling_rec, target_rec, status);

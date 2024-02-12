@@ -113,7 +113,7 @@ struct ns_state {
 	unsigned long sp_el0;
 	unsigned long icc_sre_el2;
 	struct pmu_state *pmu;
-} __attribute__((aligned(CACHE_WRITEBACK_GRANULE)));
+} __aligned(CACHE_WRITEBACK_GRANULE);
 
 /*
  * Data used when handling attestation requests

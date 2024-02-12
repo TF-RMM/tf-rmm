@@ -6,9 +6,8 @@
 #ifndef BUFFER_H
 #define BUFFER_H
 
-#include <assert.h>
+#include <granule.h>
 #include <smc-rmi.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <utils_def.h>
 
@@ -37,10 +36,8 @@ enum buffer_slot {
 	NR_CPU_SLOTS
 };
 
-struct granule;
-
 bool check_cpu_slots_empty(void);
-void *granule_map(struct granule *g, enum buffer_slot slot);
+void *buffer_granule_map(struct granule *g, enum buffer_slot slot);
 void buffer_unmap(void *buf);
 
 bool ns_buffer_read(enum buffer_slot slot,
@@ -61,6 +58,22 @@ bool ns_buffer_write(enum buffer_slot slot,
  * warmboot path.
  */
 void slot_buf_finish_warmboot_init(void);
+
+/*
+ * Maps the `num_aux` SLOT_REC_AUX granules.
+ */
+void *buffer_aux_granules_map(struct granule *g_rec_aux[], unsigned int num_aux);
+
+/*
+ * Unmaps the `num_aux` SLOT_REC_AUX buffers starting with the one
+ * passed at the beginning of `rec_aux`.
+ */
+void buffer_aux_unmap(void *rec_aux, unsigned int num_aux);
+
+/*
+ * Map the granule 'g' to 'slot', zeroes its content and unmaps it.
+ */
+void buffer_granule_memzero(struct granule *g, enum buffer_slot slot);
 
 /******************************************************************************
  * Internal APIs not meant to be invoked by generic RMM code.
