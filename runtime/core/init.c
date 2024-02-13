@@ -13,7 +13,6 @@
 #include <smc-rmi.h>
 #include <smc-rsi.h>
 
-
 #ifdef NDEBUG
 #define RMM_BUILD_TYPE	"release"
 #else

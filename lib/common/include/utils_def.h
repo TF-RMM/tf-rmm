@@ -63,6 +63,9 @@
 #define round_down(value, boundary)		\
 	((value) & ~round_boundary(value, boundary))
 
+/* Size of a 'm_' member of 's_' structure */
+#define SIZE_OF(s_, m_)		sizeof(((struct s_ *)NULL)->m_)
+
 /* Compute the number of elements in the given array */
 #define ARRAY_SIZE(a)	\
 	(sizeof(a) / sizeof((a)[0]))

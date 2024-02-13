@@ -12,7 +12,7 @@
 /*
  * Atomically adds @val to the 64-bit value stored at memory location @loc.
  */
-static inline void atomic_add_64(uint64_t *loc, long val)
+static inline void atomic_add_64(uint64_t *loc, uint64_t val)
 {
 	*loc = *loc + val;
 }
@@ -22,9 +22,30 @@ static inline void atomic_add_64(uint64_t *loc, long val)
  * Stores to memory with release semantics.
  * Returns the old value.
  */
-static inline unsigned long atomic_load_add_release_64(uint64_t *loc, long val)
+static inline uint64_t atomic_load_add_release_64(uint64_t *loc, uint64_t val)
 {
-	unsigned long old_val = *loc;
+	uint64_t old_val = *loc;
+
+	*loc = *loc + val;
+	return old_val;
+}
+
+/*
+ * Atomically adds @val to the 16-bit value stored at memory location @loc.
+ */
+static inline void atomic_add_16(uint16_t *loc, uint16_t val)
+{
+	*loc = *loc + val;
+}
+
+/*
+ * Atomically adds @val to the 16-bit value stored at memory location @loc.
+ * Stores to memory with release semantics.
+ * Returns the old value.
+ */
+static inline uint16_t atomic_load_add_release_16(uint16_t *loc, uint16_t val)
+{
+	uint16_t old_val = *loc;
 
 	*loc = *loc + val;
 	return old_val;
@@ -69,7 +90,7 @@ static inline bool atomic_test_bit_acquire_64(uint64_t *loc, unsigned int bit)
 static inline bool atomic_bit_set_acquire_release_64(uint64_t *loc, unsigned int bit)
 {
 	uint64_t mask = (1UL << bit);
-	unsigned long old_val = *loc & mask;
+	uint16_t old_val = *loc & mask;
 
 	*loc |= mask;
 	return (old_val != 0UL);

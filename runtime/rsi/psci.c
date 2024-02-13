@@ -335,7 +335,7 @@ static unsigned long complete_psci_cpu_on(struct rec *target_rec,
 					  unsigned long caller_sctlr_el1,
 					  unsigned long status)
 {
-	if ((granule_refcount_read_acquire(target_rec->g_rec) != 0UL) ||
+	if ((granule_refcount_read_acquire(target_rec->g_rec) != 0U) ||
 		target_rec->runnable) {
 		return PSCI_RETURN_ALREADY_ON;
 	}
@@ -357,7 +357,7 @@ static unsigned long complete_psci_cpu_on(struct rec *target_rec,
 
 static unsigned long complete_psci_affinity_info(struct rec *target_rec)
 {
-	if ((granule_refcount_read_acquire(target_rec->g_rec) != 0UL) ||
+	if ((granule_refcount_read_acquire(target_rec->g_rec) != 0U) ||
 		target_rec->runnable) {
 		return PSCI_AFFINITY_INFO_ON;
 	}

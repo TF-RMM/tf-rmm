@@ -36,7 +36,7 @@ enum granule_gpt {
 
 struct SPEC_granule {
 	enum granule_gpt gpt;
-	enum granule_state state;
+	unsigned char state;
 };
 
 /*

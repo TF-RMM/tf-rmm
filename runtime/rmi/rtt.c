@@ -174,7 +174,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 * Increase the refcount to mark the granule as in-use. refcount
 		 * is incremented by S2TTES_PER_S2TT (ref RTT unfolding).
 		 */
-		__granule_refcount_inc(g_tbl, S2TTES_PER_S2TT);
+		__granule_refcount_inc(g_tbl, (unsigned short)S2TTES_PER_S2TT);
 
 	} else if (s2tte_is_assigned_empty(&s2_ctx, parent_s2tte, level - 1L)) {
 		unsigned long block_pa;
@@ -193,7 +193,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 * Increase the refcount to mark the granule as in-use. refcount
 		 * is incremented by S2TTES_PER_S2TT (ref RTT unfolding).
 		 */
-		__granule_refcount_inc(g_tbl, S2TTES_PER_S2TT);
+		__granule_refcount_inc(g_tbl, (unsigned short)S2TTES_PER_S2TT);
 
 	} else if (s2tte_is_assigned_ram(&s2_ctx, parent_s2tte, level - 1L)) {
 		unsigned long block_pa;
@@ -218,7 +218,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 * Increase the refcount to mark the granule as in-use. refcount
 		 * is incremented by S2TTES_PER_S2TT (ref RTT unfolding).
 		 */
-		__granule_refcount_inc(g_tbl, S2TTES_PER_S2TT);
+		__granule_refcount_inc(g_tbl, (unsigned short)S2TTES_PER_S2TT);
 
 	} else if (s2tte_is_assigned_ns(&s2_ctx, parent_s2tte, level - 1L)) {
 		unsigned long block_pa;
@@ -371,7 +371,7 @@ void smc_rtt_fold(unsigned long rd_addr,
 			goto out_unmap_table;
 		}
 		__granule_put(wi.g_llt);
-	} else if (g_tbl->refcount == S2TTES_PER_S2TT) {
+	} else if (g_tbl->refcount == (unsigned short)S2TTES_PER_S2TT) {
 
 		unsigned long s2tte, block_pa;
 
@@ -416,7 +416,7 @@ void smc_rtt_fold(unsigned long rd_addr,
 			goto out_unmap_table;
 		}
 
-		__granule_refcount_dec(g_tbl, S2TTES_PER_S2TT);
+		__granule_refcount_dec(g_tbl, (unsigned short)S2TTES_PER_S2TT);
 	} else {
 		/*
 		 * The table holds a mixture of different types of s2ttes.
@@ -871,7 +871,7 @@ static unsigned long data_create(unsigned long rd_addr,
 	struct s2tt_walk wi;
 	struct s2tt_context *s2_ctx;
 	unsigned long s2tte, *s2tt;
-	enum granule_state new_data_state = GRANULE_STATE_DELEGATED;
+	unsigned char new_data_state = GRANULE_STATE_DELEGATED;
 	unsigned long ret;
 
 	if (!find_lock_two_granules(data_addr,
@@ -1365,7 +1365,7 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 		return;
 	}
 
-	if (granule_refcount_read_acquire(g_rec) != 0UL) {
+	if (granule_refcount_read_acquire(g_rec) != 0U) {
 		res->x[0] = RMI_ERROR_REC;
 		goto out_unlock_rec_rd;
 	}

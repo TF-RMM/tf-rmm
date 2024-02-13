@@ -256,7 +256,7 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	struct rd *rd;
 	struct rmi_rec_params rec_params;
 	unsigned long rec_idx;
-	enum granule_state new_rec_state = GRANULE_STATE_DELEGATED;
+	unsigned char new_rec_state = GRANULE_STATE_DELEGATED;
 	unsigned long ret;
 	bool ns_access_ok;
 	unsigned int num_rec_aux;
@@ -484,7 +484,7 @@ unsigned long smc_psci_complete(unsigned long calling_rec_addr,
 	 * members of REC structure (such as rec->running) only if the counter
 	 * is zero.
 	 */
-	if (granule_refcount_read_acquire(g_calling_rec) != 0UL) {
+	if (granule_refcount_read_acquire(g_calling_rec) != 0U) {
 		/*
 		 * The `calling` REC is running on another PE and therefore it
 		 * may not have a pending PSCI request.

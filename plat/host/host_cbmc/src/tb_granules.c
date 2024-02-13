@@ -15,7 +15,7 @@
 #include "tb_granules.h"
 
 /* Chooses an arbitrary granule state. */
-bool valid_granule_state(enum granule_state value)
+bool valid_granule_state(unsigned char value)
 {
 	return value == GRANULE_STATE_NS
 			|| value == GRANULE_STATE_DELEGATED
@@ -56,7 +56,8 @@ struct granule init_granule(void)
 {
 	struct granule rst = nondet_struct_granule();
 
-	__CPROVER_assume(__CPROVER_enum_is_in_range(rst.state));
+	__CPROVER_assume((rst.state >= GRANULE_STATE_NS) &&
+			 (rst.state <= GRANULE_STATE_LAST));
 	__CPROVER_assume(valid_granule(rst));
 	return rst;
 }
@@ -87,7 +88,8 @@ struct SPEC_granule Granule(uint64_t addr)
 {
 	if (!valid_pa(addr)) {
 		struct SPEC_granule nd_granule = nondet_struct_SPEC_granule();
-		__CPROVER_assume(__CPROVER_enum_is_in_range(nd_granule.state));
+		__CPROVER_assume((nd_granule.state >= GRANULE_STATE_NS) &&
+				 (nd_granule.state <= GRANULE_STATE_LAST));
 		__CPROVER_assume(__CPROVER_enum_is_in_range(nd_granule.gpt));
 		return nd_granule;
 	}
