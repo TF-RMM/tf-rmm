@@ -141,6 +141,7 @@ static void init_s2_starting_level(struct rd *rd)
 {
 	unsigned long current_ipa = 0U;
 	struct granule *g_rtt = rd->s2_ctx.g_rtt;
+	unsigned int num_root_rtts;
 	unsigned int levels = (unsigned int)(S2TT_PAGE_LEVEL -
 						rd->s2_ctx.s2_starting_level);
 	/*
@@ -150,16 +151,19 @@ static void init_s2_starting_level(struct rd *rd)
 	unsigned long sl_entry_map_size =
 			1UL << ((levels * S2TTE_STRIDE) + GRANULE_SHIFT);
 
-	for (unsigned int rtt = 0U; rtt < rd->s2_ctx.num_root_rtts; rtt++) {
+	num_root_rtts = rd->s2_ctx.num_root_rtts;
+	for (unsigned int rtt = 0U; rtt < num_root_rtts; rtt++) {
 		unsigned long *s2tt = granule_map(g_rtt, SLOT_RTT);
 
 		assert(s2tt != NULL);
 
 		for (unsigned int rtte = 0U; rtte < S2TTES_PER_S2TT; rtte++) {
 			if (addr_in_par(rd, current_ipa)) {
-				s2tt[rtte] = s2tte_create_unassigned_empty();
+				s2tt[rtte] = s2tte_create_unassigned_empty(
+								&(rd->s2_ctx));
 			} else {
-				s2tt[rtte] = s2tte_create_unassigned_ns();
+				s2tt[rtte] = s2tte_create_unassigned_ns(
+								&(rd->s2_ctx));
 			}
 
 			current_ipa += sl_entry_map_size;

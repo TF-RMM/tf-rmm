@@ -40,41 +40,38 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 				    unsigned long ipa,
 				    struct s2_walk_result *s2_walk)
 {
-	struct granule *g_table_root;
 	struct s2tt_walk wi;
 	unsigned long s2tte, *ll_table, offset;
 	enum s2_walk_status walk_status;
+	struct s2tt_context *s2_ctx;
 
 	if (!GRANULE_ALIGNED(ipa) || !addr_in_rec_par(rec, ipa)) {
 		return WALK_INVALID_PARAMS;
 	}
 
-	g_table_root = rec->realm_info.g_rtt;
-	granule_lock(g_table_root, GRANULE_STATE_RTT);
-	s2tt_walk_lock_unlock(g_table_root,
-			     rec->realm_info.s2_starting_level,
-			     rec->realm_info.ipa_bits,
-			     ipa,
-			     S2TT_PAGE_LEVEL,
-			     &wi);
+	s2_ctx = &(rec->realm_info.s2_ctx);
+	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
+
+	s2tt_walk_lock_unlock(s2_ctx, ipa, S2TT_PAGE_LEVEL, &wi);
 
 	ll_table = granule_map(wi.g_llt, SLOT_RTT);
 	assert(ll_table != NULL);
 
 	s2tte = s2tte_read(&ll_table[wi.index]);
 
-	if (s2tte_is_assigned_ram(s2tte, wi.last_level)) {
+	if (s2tte_is_assigned_ram(s2_ctx, s2tte, wi.last_level)) {
 		s2_walk->llt = wi.g_llt; /* Must be unlocked by caller */
-		s2_walk->pa = s2tte_pa(s2tte, wi.last_level);
+		s2_walk->pa = s2tte_pa(s2_ctx, s2tte, wi.last_level);
 		offset = ipa & (s2tte_map_size(wi.last_level) - 1UL);
 		s2_walk->pa += offset;
 		s2_walk->ripas_val = RIPAS_RAM;
 		walk_status = WALK_SUCCESS;
 	} else {
-		if (s2tte_is_unassigned_destroyed(s2tte) ||
-		    s2tte_is_assigned_destroyed(s2tte, wi.last_level)) {
+		if (s2tte_is_unassigned_destroyed(s2_ctx, s2tte) ||
+		    s2tte_is_assigned_destroyed(s2_ctx,
+						s2tte, wi.last_level)) {
 			s2_walk->ripas_val = RIPAS_DESTROYED;
-		} else if (s2tte_is_unassigned_ram(s2tte)) {
+		} else if (s2tte_is_unassigned_ram(s2_ctx, s2tte)) {
 			s2_walk->ripas_val = RIPAS_RAM;
 		} else {
 			/*
@@ -112,29 +109,28 @@ enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long ipa,
 	unsigned long s2tte, *ll_table;
 	struct s2tt_walk wi;
 	enum s2_walk_status ws;
+	struct s2tt_context *s2_ctx;
 
 	assert(ripas_ptr != NULL);
 	assert(GRANULE_ALIGNED(ipa));
 	assert(addr_in_rec_par(rec, ipa));
 
-	granule_lock(rec->realm_info.g_rtt, GRANULE_STATE_RTT);
+	s2_ctx = &(rec->realm_info.s2_ctx);
+	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
 
-	s2tt_walk_lock_unlock(rec->realm_info.g_rtt,
-			     rec->realm_info.s2_starting_level,
-			     rec->realm_info.ipa_bits,
-			     ipa, S2TT_PAGE_LEVEL, &wi);
+	s2tt_walk_lock_unlock(s2_ctx, ipa, S2TT_PAGE_LEVEL, &wi);
 
 	ll_table = granule_map(wi.g_llt, SLOT_RTT);
 	assert(ll_table != NULL);
 
 	s2tte = s2tte_read(&ll_table[wi.index]);
-	if (!s2tte_has_ripas(s2tte, wi.last_level)) {
+	if (!s2tte_has_ripas(s2_ctx, s2tte, wi.last_level)) {
 		ws = WALK_FAIL;
 		goto out_unmap_unlock;
 	}
 
-	*ripas_ptr = s2tte_is_assigned_ram(s2tte, wi.last_level) ?
-			RIPAS_RAM : s2tte_get_ripas(s2tte);
+	*ripas_ptr = s2tte_is_assigned_ram(s2_ctx, s2tte, wi.last_level) ?
+			RIPAS_RAM : s2tte_get_ripas(s2_ctx, s2tte);
 	ws = WALK_SUCCESS;
 
 out_unmap_unlock:

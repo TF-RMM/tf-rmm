@@ -312,9 +312,7 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 
 	rec->num_rec_aux = num_rec_aux;
 
-	rec->realm_info.ipa_bits = realm_ipa_bits(rd);
-	rec->realm_info.s2_starting_level = realm_rtt_starting_level(rd);
-	rec->realm_info.g_rtt = rd->s2_ctx.g_rtt;
+	rec->realm_info.s2_ctx = rd->s2_ctx;
 	rec->realm_info.g_rd = g_rd;
 	rec->realm_info.pmu_enabled = rd->pmu_enabled;
 	rec->realm_info.pmu_num_ctrs = rd->pmu_num_ctrs;
