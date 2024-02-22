@@ -210,9 +210,10 @@ static bool handle_data_abort(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	 * The memory access that crosses a page boundary may cause two aborts
 	 * with `hpfar_el2` values referring to two consecutive pages.
 	 *
-	 * Insert the SEA and return to the Realm if the granule's RIPAS is EMPTY.
+	 * Insert the SEA and return to the Realm if IPA is outside realm IPA space or
+	 * the granule's RIPAS is EMPTY.
 	 */
-	if (ipa_is_empty(fipa, rec)) {
+	if ((fipa >= rec_ipa_size(rec)) || ipa_is_empty(fipa, rec)) {
 		inject_sync_idabort(ESR_EL2_ABORT_FSC_SEA);
 		return true;
 	}
@@ -260,10 +261,12 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 
 	/*
 	 * Insert the SEA and return to the Realm if:
+	 * - IPA is outside realm IPA space
 	 * - The instruction abort is at an Unprotected IPA, or
 	 * - The granule's RIPAS is EMPTY
 	 */
-	if (!access_in_rec_par(rec, fipa) || ipa_is_empty(fipa, rec)) {
+	if ((fipa >= rec_ipa_size(rec)) ||
+			!access_in_rec_par(rec, fipa) || ipa_is_empty(fipa, rec)) {
 		inject_sync_idabort(ESR_EL2_ABORT_FSC_SEA);
 		return true;
 	}
