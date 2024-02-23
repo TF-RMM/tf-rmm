@@ -49,10 +49,12 @@ static inline unsigned long pack_struct_return_code(return_code_t return_code)
  * Pack a return code into a binary format, suitable for storing in a register
  * on exit from the RMM.
  */
-static inline unsigned long pack_return_code(unsigned int status, unsigned int index)
+static inline unsigned long pack_return_code(unsigned int status,
+					     unsigned char index)
 {
+	assert(status < RMI_ERROR_COUNT);
+
 	/* The width of @status and @index is 8 bits */
-	assert((status < RMI_ERROR_COUNT) && (index <= 0xffU));
 	return pack_struct_return_code(make_return_code(status, index));
 }
 

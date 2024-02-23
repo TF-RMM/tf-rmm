@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <arch_features.h>
 #include <debug.h>
 #include <fvp_dram.h>
 #include <fvp_private.h>
@@ -66,12 +67,28 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 		panic();
 	}
 
+	/*
+	 * FVP platform implementation does not support asymmetric LPA2
+	 * support for different translation stages.
+	 */
+	if (is_feat_lpa2_4k_present() != is_feat_lpa2_4k_2_present()) {
+		ERROR("%s (%u): %s %s\n", __func__, __LINE__,
+		      "FEAT_LPA2 must be supported either on both",
+		      "translation stages or on none of them.");
+		/*
+		 * FIXME: Should we add an error code for platform
+		 *	  errors? such as E_RMM_BOOT_PLATFORM_ERROR.
+		 */
+		/* Return with a generic error code */
+		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_UNKNOWN_ERROR);
+	}
+
 	/* Carry on with the rest of the system setup */
 	ret = plat_cmn_setup(x0, x1, x2, x3, plat_regions, 1U);
 	if (ret != 0) {
 		ERROR("%s (%u): Failed to setup the platform (%i)\n",
 			__func__, __LINE__, ret);
-		panic();
+		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_UNKNOWN_ERROR);
 	}
 
 	/*

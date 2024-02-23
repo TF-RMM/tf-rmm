@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <arch_features.h>
 #include <assert.h>
 #include <buffer.h>
 #include <debug.h>
@@ -65,33 +66,61 @@ static bool get_realm_params(struct rmi_realm_params *realm_params,
 	return ns_access_ok;
 }
 
+static bool is_lpa2_requested(struct rmi_realm_params *p)
+{
+	return (EXTRACT(RMI_REALM_FLAGS_LPA2, p->flags) == RMI_FEATURE_TRUE);
+}
+
 /*
  * See the library pseudocode
  * aarch64/translation/vmsa_faults/AArch64.S2InconsistentSL on which this is
  * modeled.
  */
-static bool s2_inconsistent_sl(unsigned int ipa_bits, int sl)
+static bool s2_inconsistent_sl(unsigned int ipa_bits, int sl, bool lpa2)
 {
 	unsigned int levels = (unsigned int)(S2TT_PAGE_LEVEL - sl);
 	unsigned int sl_min_ipa_bits, sl_max_ipa_bits;
 
+	sl_min_ipa_bits = (levels * S2TTE_STRIDE) + GRANULE_SHIFT + 1U;
+
+	/*
+	 * The stride for level -1 is only four bits, and we cannot have
+	 * concatenated tables at this level, so adjust sl_max_ipa_bits
+	 * accordingly.
+	 */
+	if ((sl == S2TT_MIN_STARTING_LEVEL_LPA2) && (lpa2 == true)) {
+		sl_max_ipa_bits = sl_min_ipa_bits + (S2TTE_STRIDE_LM1 - 1U);
+	} else {
+		sl_max_ipa_bits = sl_min_ipa_bits + (S2TTE_STRIDE - 1U);
+	}
+
 	/*
 	 * The maximum number of concatenated tables is 16,
-	 * hence we are adding 4 to the 'sl_max_ipa_bits'.
+	 * hence we are adding 4 to the 'sl_max_ipa_bits' for sl > 0 or
+	 * sl == 0 when FEAT_LPA2 is enabled.
 	 */
-	sl_min_ipa_bits = (levels * S2TTE_STRIDE) + GRANULE_SHIFT + 1U;
-	sl_max_ipa_bits = sl_min_ipa_bits + (S2TTE_STRIDE - 1U) + 4U;
+	if ((sl > 0) || ((sl == 0) && (lpa2 == true))) {
+		sl_max_ipa_bits += 4U;
+	}
 
 	return ((ipa_bits < sl_min_ipa_bits) || (ipa_bits > sl_max_ipa_bits));
 }
 
-static bool validate_ipa_bits_and_sl(unsigned int ipa_bits, long sl)
+static bool validate_ipa_bits_and_sl(unsigned int ipa_bits, long sl, bool lpa2)
 {
-	if ((ipa_bits < S2TT_MIN_IPA_BITS) || (ipa_bits > S2TT_MAX_IPA_BITS)) {
+	long min_starting_level;
+	unsigned int max_ipa_bits;
+
+	max_ipa_bits = (lpa2 == true) ?
+				S2TT_MAX_IPA_BITS_LPA2 : S2TT_MAX_IPA_BITS;
+	min_starting_level = (lpa2 == true) ?
+				S2TT_MIN_STARTING_LEVEL_LPA2 : S2TT_MIN_STARTING_LEVEL;
+
+	if ((ipa_bits < S2TT_MIN_IPA_BITS) || (ipa_bits > max_ipa_bits)) {
 		return false;
 	}
 
-	if ((sl < S2TT_MIN_STARTING_LEVEL) || (sl > S2TT_PAGE_LEVEL)) {
+	if ((sl < min_starting_level) || (sl > S2TT_PAGE_LEVEL)) {
 		return false;
 	}
 
@@ -104,13 +133,19 @@ static bool validate_ipa_bits_and_sl(unsigned int ipa_bits, long sl)
 	 * of the hardware platform, other misconfigurations between IPA size
 	 * and SL is checked in s2_inconsistent_sl.
 	 */
-	if ((sl == 0L) && (s2tt_max_ipa_size() < 44U)) {
+	if ((sl == 0L) && (arch_feat_get_pa_width() < 44U)) {
 		return false;
 	}
 
-	return !s2_inconsistent_sl(ipa_bits, (int)sl);
+	return !s2_inconsistent_sl(ipa_bits, (int)sl, lpa2);
 }
 
+/*
+ * Calculate the number of s2 root translation tables needed given the
+ * starting level and the IPA size in bits. This function assumes that
+ * the 'sl' and 'ipa_bits' are consistent with each other and 'ipa_bits'
+ * is within architectural boundaries.
+ */
 static unsigned int s2_num_root_rtts(unsigned int ipa_bits, int sl)
 {
 	unsigned int levels = (unsigned int)(S2TT_PAGE_LEVEL - sl);
@@ -121,7 +156,13 @@ static unsigned int s2_num_root_rtts(unsigned int ipa_bits, int sl)
 		      + GRANULE_SHIFT	      /* Bits directly mapped to OA */
 		      + S2TTE_STRIDE;	      /* Bits resolved by single SL */
 
-	if (sl_ipa_bits >= ipa_bits) {
+	/*
+	 * If 'sl' were < 0, sl_ipa_bits would already be at least >= than
+	 * 'ipa_bits' as the latter is assumed to be within boundary limits.
+	 * This will make the check below pass and return 1U as the number of
+	 * s2 root tables, which is the only valid value for a start level < 0.
+	 */
+	if ((sl_ipa_bits >= ipa_bits)) {
 		return U(1);
 	}
 
@@ -142,6 +183,9 @@ static void init_s2_starting_level(struct rd *rd)
 	unsigned long current_ipa = 0U;
 	struct granule *g_rtt = rd->s2_ctx.g_rtt;
 	unsigned int num_root_rtts;
+	unsigned int s2ttes_per_s2tt = (unsigned int)(
+		(rd->s2_ctx.s2_starting_level == S2TT_MIN_STARTING_LEVEL_LPA2) ?
+			S2TTES_PER_S2TT_LM1 : S2TTES_PER_S2TT);
 	unsigned int levels = (unsigned int)(S2TT_PAGE_LEVEL -
 						rd->s2_ctx.s2_starting_level);
 	/*
@@ -157,7 +201,7 @@ static void init_s2_starting_level(struct rd *rd)
 
 		assert(s2tt != NULL);
 
-		for (unsigned int rtte = 0U; rtte < S2TTES_PER_S2TT; rtte++) {
+		for (unsigned int rtte = 0U; rtte < s2ttes_per_s2tt; rtte++) {
 			if (addr_in_par(rd, current_ipa)) {
 				s2tt[rtte] = s2tte_create_unassigned_empty(
 								&(rd->s2_ctx));
@@ -189,7 +233,7 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 	unsigned long feat_reg0 = get_feature_register_0();
 
 	/* Validate LPA2 flag */
-	if ((EXTRACT(RMI_REALM_FLAGS_LPA2, p->flags) == RMI_FEATURE_TRUE) &&
+	if (is_lpa2_requested(p)  &&
 	    (EXTRACT(RMM_FEATURE_REGISTER_0_LPA2, feat_reg0) ==
 							RMI_FEATURE_FALSE)) {
 		return false;
@@ -244,7 +288,8 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 		}
 	}
 
-	if (!validate_ipa_bits_and_sl(p->s2sz, p->rtt_level_start)) {
+	if (!validate_ipa_bits_and_sl(p->s2sz, p->rtt_level_start,
+						is_lpa2_requested(p))) {
 		return false;
 	}
 
@@ -386,6 +431,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	rd->s2_ctx.ipa_bits = p.s2sz;
 	rd->s2_ctx.s2_starting_level = (int)p.rtt_level_start;
 	rd->s2_ctx.num_root_rtts = p.rtt_num_start;
+	rd->s2_ctx.enable_lpa2 = is_lpa2_requested(&p);
 	(void)memcpy(&rd->rpv[0], &p.rpv[0], RPV_SIZE);
 
 	rd->s2_ctx.vmid = (unsigned int)p.vmid;
