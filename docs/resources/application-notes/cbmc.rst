@@ -102,6 +102,19 @@ command.
     For all the modes the summary files are committed in the source tree as
     baseline in ``tools/cbmc/testbenches_results/BASELINE.${MODE}``.
 
+Build The CBMC testbench with GCC
+---------------------------------
+
+In the RMM CMake system there is an option to build the CBMC testbench with GCC
+compiler. The resulting binary doesn't have any particular value, however during
+the compilation GCC may flag errors that can cause CBMC work unexpectedly. For
+example functions that are defined in a file that is linked during the CBMC
+build, however not declared, due to a missing include. In this case CBMC seems
+to be silently ignoring the function body. This error is quite difficult to find
+using only CBMC output.
+
+To use this mode the target ``cbmc-gcc`` must be passed to the build command.
+
 cbmc-viewer
 ===========
 

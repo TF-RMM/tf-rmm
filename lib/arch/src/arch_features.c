@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <utils_def.h>
 
+#ifndef CBMC
 /*
  * Return the PA width supported by the current system.
  */
@@ -32,3 +33,5 @@ unsigned int arch_feat_get_pa_width(void)
 
 	return pa_range_bits_arr[pa_range];
 }
+
+#endif

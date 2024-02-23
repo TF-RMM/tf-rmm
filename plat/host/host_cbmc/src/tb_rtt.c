@@ -19,7 +19,6 @@ struct granule *init_rtt_root_page(unsigned int num_root_rtts)
 
 	/* The first root rtt granule is granules[index]. */
 	size_t index = next_index();
-	struct granule *before = &granules[index];
 
 	for (size_t i = index; i < index + num_root_rtts && i < index + 16; ++i) {
 		__CPROVER_assume(unused_index(i));
@@ -30,7 +29,7 @@ struct granule *init_rtt_root_page(unsigned int num_root_rtts)
 		__CPROVER_assume(g.refcount < (GRANULE_SIZE / sizeof(uint64_t)));
 
 		char rtt_content[GRANULE_SIZE] = { 0 };
-		struct granule *after = inject_granule_at(&g, rtt_content, sizeof(rtt_content), i);
+		inject_granule_at(&g, rtt_content, sizeof(rtt_content), i);
 	}
 	return &granules[index];
 }

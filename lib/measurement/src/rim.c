@@ -3,8 +3,8 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include <measurement_descs.h>
 #include <measurement.h>
+#include <measurement_descs.h>
 #include <string.h>
 
 void measurement_data_granule_measure(unsigned char rim_measurement[],

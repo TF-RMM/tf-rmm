@@ -59,15 +59,8 @@ if("${RMM_CBMC_STATIC_ANALYSIS}")
   # Filter source files that are not analysed by CBMC
   set(src_filters
     "lib/allocator/src"
-    "lib/arch/src"
-    "lib/attestation/src"
-    "lib/measurement/src"
-    "lib/rmm_el3_ifc/src"
     "lib/timers/src"
-    "lib/xlat/src"
     "plat/common/src"
-    "runtime/rsi"
-    "runtime/core/run.c"
     )
 
   foreach(filter ${src_filters})
@@ -109,6 +102,19 @@ if("${RMM_CBMC_STATIC_ANALYSIS}")
   COMMAND ${CMAKE_COMMAND}
     -DRMM_CBMC_CONFIGURATION=ASSERT
     -DRMM_CBMC_VIEWER_OUTPUT=${RMM_CBMC_VIEWER_OUTPUT}
+    -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
+    -DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+    -DTESTBENCH_DIR="${TESTBENCH_DIR}"
+    -DTESTBENCH_FILES="${TESTBENCH_FILES}"
+    -DRMM_IMP_SRCS="${rmm_implementation_srcs}"
+    -DRMM_IMP_INCS="${rmm_implementation_includes}"
+    -P ${CMAKE_SOURCE_DIR}/tools/cbmc/CheckCBMC.cmake
+  )
+
+  add_custom_target(cbmc-gcc
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+  COMMAND ${CMAKE_COMMAND}
+    -DRMM_CBMC_CONFIGURATION=GCC
     -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
     -DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
     -DTESTBENCH_DIR="${TESTBENCH_DIR}"
