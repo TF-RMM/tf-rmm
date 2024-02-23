@@ -15,9 +15,13 @@ u_register_t host_read_sysreg(char *reg_name);
 void host_write_sysreg(char *reg_name, u_register_t v);
 
 struct spinlock_s;
+struct byte_spinlock_s;
+
 /* Fake host harness to lock and release spin lock */
 void host_spinlock_acquire(struct spinlock_s *l);
 void host_spinlock_release(struct spinlock_s *l);
+void host_byte_spinlock_acquire(struct byte_spinlock_s *l);
+void host_byte_spinlock_release(struct byte_spinlock_s *l);
 
 /*
  * Fake host Wrapper to copy data from NS into Realm memory. The function

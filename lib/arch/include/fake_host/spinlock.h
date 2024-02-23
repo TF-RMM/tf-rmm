@@ -22,4 +22,18 @@ static inline void spinlock_release(spinlock_t *l)
 	host_spinlock_release(l);
 }
 
+typedef struct byte_spinlock_s {
+	unsigned char val;
+} byte_spinlock_t;
+
+static inline void byte_spinlock_acquire(byte_spinlock_t *l)
+{
+	host_byte_spinlock_acquire(l);
+}
+
+static inline void byte_spinlock_release(byte_spinlock_t *l)
+{
+	host_byte_spinlock_release(l);
+}
+
 #endif /* SPINLOCK_H */

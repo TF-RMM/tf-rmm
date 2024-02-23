@@ -71,4 +71,40 @@ static inline uint64_t __sca_read64_acquire(uint64_t *ptr)
 }
 #define SCA_READ64_ACQUIRE(_p) ((typeof(*(_p)))__sca_read64_acquire((void *)(_p)))
 
+/* Single-Copy Atomic 16-bit read */
+static inline uint16_t __sca_read16(uint16_t *ptr)
+{
+	uint16_t val;
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)ptr;
+
+	asm volatile(
+	"	ldrh	%w[val], %[ptr]\n"
+	: [val] "=r" (val)
+	: [ptr] "m" (*ptr)
+	);
+
+	return val;
+}
+#define SCA_READ16(_p) ((typeof(*(_p)))__sca_read16((void *)(_p)))
+
+/* Single-Copy Atomic 16-bit read with ACQUIRE memory ordering semantics */
+static inline uint16_t __sca_read16_acquire(uint16_t *ptr)
+{
+	uint16_t val;
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)ptr;
+
+	asm volatile(
+	"	ldarh	%w[val], %[ptr]\n"
+	: [val] "=r" (val)
+	: [ptr] "Q" (*ptr)
+	);
+
+	return val;
+}
+#define SCA_READ16_ACQUIRE(_p) ((typeof(*(_p)))__sca_read16_acquire((void *)(_p)))
+
 #endif /* MEMORY_H */
