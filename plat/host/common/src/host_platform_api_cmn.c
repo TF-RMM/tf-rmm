@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <debug.h>
+#include <host_console.h>
 #include <host_defs.h>
 #include <host_utils.h>
 #include <plat_common.h>
@@ -46,6 +47,8 @@ void plat_warmboot_setup(uint64_t x0, uint64_t x1,
 void plat_setup(uint64_t x0, uint64_t x1,
 		uint64_t x2, uint64_t x3)
 {
+	(void)host_csl_init();
+
 	/* Carry on with the rest of the system setup */
 	if (plat_cmn_setup(x0, x1, x2, x3, NULL, 0) != 0) {
 		panic();
