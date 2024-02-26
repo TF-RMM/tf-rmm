@@ -752,9 +752,9 @@ static bool s2tte_check(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 
 	desc_type = s2tte & S2TT_DESC_TYPE_MASK;
 
-	/* Only pages at L3 and valid blocks at L2 allowed */
+	/* Only pages at L3 and valid blocks at L2 and L1 allowed */
 	if (((level == S2TT_PAGE_LEVEL) && (desc_type == S2TTE_L3_PAGE)) ||
-	    ((level == S2TT_MIN_BLOCK_LEVEL) && (desc_type == S2TTE_L012_BLOCK))) {
+	    ((level >= S2TT_MIN_BLOCK_LEVEL) && (desc_type == S2TTE_L012_BLOCK))) {
 		return true;
 	}
 
