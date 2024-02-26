@@ -30,7 +30,7 @@
  */
 
 /*
- * fine this globally (e.g. gcc -DPRINTF_INCLUDE_CONFIG_H ...) to include the
+ * Define this globally (e.g. gcc -DPRINTF_INCLUDE_CONFIG_H ...) to include the
  * printf_config.h header file
  * default: undefined
  */
@@ -160,13 +160,20 @@ static inline void _out_null(char character, void *buffer, size_t idx,
 }
 
 
+/*
+ * Declare the console_putc() in console driver. This is done this way
+ * to avoid cyclic dependency with console.h.
+ */
+extern int console_putc(int c);
+
 /* internal putchar wrapper */
 static inline void _out_char(char character, void *buffer, size_t idx,
 			     size_t maxlen)
 {
 	(void)buffer; (void)idx; (void)maxlen;
-	if (character) {
-		putchar(character);
+
+	if (character != '\0') {
+		(void)console_putc((int)character);
 	}
 }
 
@@ -176,7 +183,8 @@ static inline void _out_fct(char character, void *buffer, size_t idx,
 			    size_t maxlen)
 {
 	(void)idx; (void)maxlen;
-	if (character) {
+
+	if (character != '\0') {
 		/* buffer is the output fct pointer */
 		((out_fct_wrap_type *)buffer)->fct(character,
 						  ((out_fct_wrap_type *)buffer)->arg);

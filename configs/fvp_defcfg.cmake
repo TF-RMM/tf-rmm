@@ -20,12 +20,6 @@ arm_config_option_override(NAME VIRT_ADDR_SPACE_WIDTH DEFAULT 38)
 arm_config_option_override(NAME RMM_MAX_SIZE DEFAULT 0x01800000)
 
 #
-# UART Base address. This must be dynamically discovered in future.
-# Use UART3 on the FVP for RMM.
-#
-arm_config_option_override(NAME RMM_UART_ADDR DEFAULT 0x1c0c0000)
-
-#
 # Extra memory regions needed by this platform
 #
 arm_config_option_override(NAME PLAT_CMN_EXTRA_MMAP_REGIONS DEFAULT 1)

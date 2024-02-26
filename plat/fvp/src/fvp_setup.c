@@ -14,10 +14,13 @@
 #include <sizes.h>
 #include <xlat_tables.h>
 
-#define FVP_RMM_UART		MAP_REGION_FLAT(			\
-					RMM_UART_ADDR,			\
-					SZ_4K,				\
-					(MT_DEVICE | MT_RW | MT_REALM))
+/* FVP UART Base address. */
+#define FVP_UART_ADDR	UL(0x1c0c0000)
+
+#define FVP_RMM_UART	MAP_REGION_FLAT(			\
+				FVP_UART_ADDR,			\
+				SZ_4K,				\
+				(MT_DEVICE | MT_RW | MT_REALM))
 
 /*
  * Local platform setup for RMM.
@@ -60,7 +63,7 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 		{0}
 	};
 
-	ret = uart_init(RMM_UART_ADDR, FVP_UART_CLK_IN_HZ, FVP_UART_BAUDRATE);
+	ret = pl011_init(FVP_UART_ADDR, FVP_UART_CLK_IN_HZ, FVP_UART_BAUDRATE);
 	if (ret != 0) {
 		ERROR("%s (%u): Failed to init UART (%i)\n",
 			__func__, __LINE__, ret);
