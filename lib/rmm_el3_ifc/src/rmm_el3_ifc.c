@@ -44,9 +44,12 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 		     unsigned long x3, uintptr_t shared_buf_va)
 {
 	assert(is_mmu_enabled() == false);
-	assert(initialized == false);
 	assert((shared_buf_va & PAGE_SIZE_MASK) == 0UL);
 	assert(shared_buf_va != 0UL);
+
+	if (initialized == true) {
+		return 0;
+	}
 
 	/*
 	 * Validate that the version number is correct.

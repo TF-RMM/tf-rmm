@@ -72,7 +72,7 @@ uintptr_t rmm_el3_ifc_get_plat_manifest_pa(void)
 }
 
 /*
- * Validate DRAM data passed in plat_dram pointer.
+ * Return validated DRAM data passed in plat_dram pointer.
  * Return a pointer to the platform DRAM info structure setup by EL3 Firmware
  * or NULL in case of an error.
  */
@@ -169,5 +169,55 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 	}
 
 	*plat_dram_info = plat_dram;
+	return E_RMM_BOOT_SUCCESS;
+}
+
+/*
+ * Return validated Console list passed in plat_console pointer
+ * from the Boot manifest v0.3 onwards.
+ */
+int rmm_el3_ifc_get_console_list_pa(struct console_list **plat_console_list)
+{
+	uint64_t num_consoles, checksum;
+	struct console_list *csl_list;
+	struct console_info *console_ptr;
+
+	assert((manifest_processed == (bool)true) &&
+		(is_mmu_enabled() == (bool)false));
+
+	*plat_console_list = NULL;
+
+	/*
+	 * Validate the Boot Manifest Version
+	 */
+	if (local_core_manifest.version <
+			RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(3))) {
+		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
+	}
+
+	csl_list = &local_core_manifest.plat_console;
+
+	/* Number of consoles */
+	num_consoles = csl_list->num_consoles;
+
+	/* Pointer to the consoles array */
+	console_ptr = csl_list->consoles;
+
+	/* Calculate the checksum of the console_list structure */
+	checksum = num_consoles + (uint64_t)console_ptr + csl_list->checksum;
+
+	for (unsigned long i = 0UL; i < num_consoles; i++) {
+		checksum += (uint64_t)console_ptr->base + console_ptr->baud_rate +
+			console_ptr->clk_in_hz + console_ptr->map_pages;
+		console_ptr++;
+	}
+
+	/* Verify the checksum is 0 */
+	if (checksum != 0UL) {
+		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
+	}
+
+	*plat_console_list = csl_list;
+
 	return E_RMM_BOOT_SUCCESS;
 }

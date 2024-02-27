@@ -93,7 +93,7 @@
  * The Minor version value for the Boot Manifest supported by this
  * implementation of RMM.
  */
-#define RMM_EL3_MANIFEST_VERS_MINOR	(U(2))
+#define RMM_EL3_MANIFEST_VERS_MINOR	(U(3))
 
 /*
  * Check if EL3 Manifest is compatible. The Major version should match
@@ -165,8 +165,24 @@ uintptr_t rmm_el3_ifc_get_shared_buf_locked(void);
 void rmm_el3_ifc_release_shared_buf(void);
 
 /*****************************************************************************
- * Boot Manifest functions and structures.
+ * Boot Manifest functions and structures (v0.3)
  ****************************************************************************/
+
+/* Console info structure */
+struct console_info {
+	uintptr_t base;			/* Console base address */
+	uint64_t map_pages;		/* Num of pages to be mapped in RMM for the console MMIO */
+	char name[8];			/* Name of console */
+	uint64_t clk_in_hz;		/* UART clock (in Hz) for the console */
+	uint64_t baud_rate;		/* Baud rate */
+	uint64_t flags;			/* Additional flags RES0 */
+};
+
+struct console_list {
+	uint64_t num_consoles;		/* Number of consoles */
+	struct console_info *consoles;	/* Pointer to console_info[] */
+	uint64_t checksum;		/* Checksum of console_info data */
+};
 
 /* NS DRAM bank structure */
 struct ns_dram_bank {
@@ -181,17 +197,19 @@ struct ns_dram_info {
 	uint64_t checksum;		/* Checksum of ns_dram_info data */
 };
 
-/* Boot manifest core structure as per v0.2 */
+/* Boot manifest core structure as per v0.3 */
 struct rmm_core_manifest {
 	uint32_t version;		/* Manifest version */
 	uint32_t padding;		/* RES0 */
 	uintptr_t plat_data;		/* Manifest platform data */
-	struct ns_dram_info plat_dram;	/* Platform DRAM data */
+	struct ns_dram_info plat_dram;	/* Platform DRAM data (from v0.2) */
+	struct console_list plat_console; /* Platform console list (from 0.3) */
 };
 
 COMPILER_ASSERT(U(offsetof(struct rmm_core_manifest, version)) == 0U);
 COMPILER_ASSERT(U(offsetof(struct rmm_core_manifest, plat_data)) == 8U);
 COMPILER_ASSERT(U(offsetof(struct rmm_core_manifest, plat_dram)) == 16U);
+COMPILER_ASSERT(U(offsetof(struct rmm_core_manifest, plat_console)) == 40U);
 
 /*
  * Accessors to the Boot Manifest data
@@ -210,25 +228,44 @@ unsigned int rmm_el3_ifc_get_manifest_version(void);
 uintptr_t rmm_el3_ifc_get_plat_manifest_pa(void);
 
 /*
- * Validate DRAM data passed in plat_dram pointer
+ * Return validated DRAM data passed in plat_dram pointer
  * from the Boot manifest v0.2 onwards.
  *
  * Args:
  *	- max_num_banks:	Maximum number of platform's DRAM banks
  *				supported.
- *	- plat_dram:		The address to return pointer to the platform
+ *	- plat_dram_info:	Return physical address to the platform
  *				DRAM info structure setup by EL3 Firmware,
- *				or NULL in case of DRAM data structure errors.
+ *				or NULL in case of error.
  *
  * Return:
  *	- E_RMM_BOOT_SUCCESS			    Success.
  *	- E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED Version reported by the
  *						    Boot manifest is not
  *						    supported by this API.
- *	- E_RMM_BOOT_MANIFEST_DATA_ERROR	    Error parsing DRAM data.
+ *	- E_RMM_BOOT_MANIFEST_DATA_ERROR	    Error parsing data.
  */
 int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 					   struct ns_dram_info **plat_dram_info);
+
+
+/*
+ * Return validated Console list passed in plat_console pointer
+ * from the Boot manifest v0.3 onwards.
+ *
+ * Args:
+ *	- plat_console_list:	Return physical address to platform console
+				list structure setup by EL3 Firmware,
+ *				or NULL in case of error.
+ *
+ * Return:
+ *	- E_RMM_BOOT_SUCCESS			    Success.
+ *	- E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED Version reported by the
+ *						    Boot manifest is not
+ *						    supported by this API.
+ *	- E_RMM_BOOT_MANIFEST_DATA_ERROR	    Error parsing data.
+ */
+int rmm_el3_ifc_get_console_list_pa(struct console_list **plat_console_list);
 
 /****************************************************************************
  * RMM-EL3 Runtime APIs
