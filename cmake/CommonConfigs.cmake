@@ -48,9 +48,7 @@ arm_config_option(
     NAME RMM_FPU_USE_AT_REL2
     HELP "Enable Advanced SIMD support in RMM"
     TYPE BOOL
-    DEFAULT ON
-    DEPENDS (RMM_ARCH STREQUAL aarch64)
-    ELSE OFF)
+    DEFAULT OFF)
 
 #
 # The number of 4K pages allocated for attestation buffer.
