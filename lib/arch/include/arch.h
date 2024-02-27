@@ -556,6 +556,9 @@
 /* SME Feature ID register 0 */
 #define ID_AA64SMFR0_EL1			S3_0_C0_C4_5
 
+/* PAR_EL1 definitions */
+#define PAR_EL1_F_BIT			(UL(1) << 0)
+
 /* HPFAR_EL2 definitions */
 #define HPFAR_EL2_FIPA_SHIFT		4
 #define HPFAR_EL2_FIPA_WIDTH		U(40)
