@@ -30,8 +30,13 @@
 #define LOG_LEVEL_INFO		40
 #define LOG_LEVEL_VERBOSE	50
 
+/* If the LOG_LEVEL is not defined through the build */
 #ifndef LOG_LEVEL
-#define LOG_LEVEL	LOG_LEVEL_VERBOSE
+  #ifdef NDEBUG /* Release */
+    #define LOG_LEVEL	LOG_LEVEL_NOTICE
+  #else /* Debug */
+    #define LOG_LEVEL	LOG_LEVEL_INFO
+  #endif
 #endif
 
 #ifndef __ASSEMBLER__

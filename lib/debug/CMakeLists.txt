@@ -6,19 +6,21 @@
 add_library(rmm-lib-debug INTERFACE)
 
 #
-# Set default log level of 20 for Release build and
-# 40 for Debug build.
+# Default log level is 20 for Release build and
+# 40 for Debug build. Modify this config to change
+# LOG_LEVEL.
 #
 arm_config_option(
     NAME LOG_LEVEL
     HELP "Log level to apply for RMM (0 - 50)"
     TYPE STRING
-    DEFAULT 20
-    DEPENDS ${CMAKE_BUILD_TYPE} STREQUAL "Release"
-    ELSE 40)
+    DEFAULT UNSET)
 
-target_compile_definitions(rmm-lib-debug
-    INTERFACE "LOG_LEVEL=${LOG_LEVEL}")
+
+if(NOT LOG_LEVEL STREQUAL UNSET)
+    target_compile_definitions(rmm-lib-debug
+      INTERFACE "LOG_LEVEL=${LOG_LEVEL}")
+endif()
 
 target_include_directories(rmm-lib-debug
     INTERFACE "include")
