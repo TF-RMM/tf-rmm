@@ -268,7 +268,7 @@ The |RMM| build system supports the following CMake build options.
    MbedTLS_BUILD_TYPE		,Debug | Release	,Release		,"MbedTLS build type"
    RMM_PLATFORM			,fvp | host		,			,"Platform to build"
    RMM_TOOLCHAIN		,gnu | llvm		,			,"Toolchain name"
-   LOG_LEVEL			,			,40			,"Log level to apply for RMM (0 - 50)"
+   LOG_LEVEL			,0 - 50			,40(Debug) 20(Release)	,"Log level to apply for RMM (0 - 50)."
    RMM_STATIC_ANALYSIS		,			,			,"Enable static analysis checkers"
    RMM_UART_ADDR		,			,0x0			,"Base addr of UART to be used for RMM logs"
    PLAT_CMN_CTX_MAX_XLAT_TABLES ,			,0			,"Maximum number of translation tables used by the runtime context"
