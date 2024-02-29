@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
-add_library(rmm-lib-debug INTERFACE)
+add_library(rmm-lib-debug)
 
 #
 # Default log level is 20 for Release build and
@@ -16,11 +16,16 @@ arm_config_option(
     TYPE STRING
     DEFAULT UNSET)
 
+target_link_libraries(rmm-lib-debug
+    PRIVATE rmm-lib-arch)
+
+target_sources(rmm-lib-debug
+    PRIVATE "src/backtrace.c")
 
 if(NOT LOG_LEVEL STREQUAL UNSET)
     target_compile_definitions(rmm-lib-debug
-      INTERFACE "LOG_LEVEL=${LOG_LEVEL}")
+      PRIVATE "LOG_LEVEL=${LOG_LEVEL}")
 endif()
 
 target_include_directories(rmm-lib-debug
-    INTERFACE "include")
+    PUBLIC "include")

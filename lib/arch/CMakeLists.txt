@@ -6,8 +6,8 @@
 add_library(rmm-lib-arch)
 
 target_link_libraries(rmm-lib-arch
-    PRIVATE rmm-lib-common
-            rmm-lib-smc)
+    PUBLIC rmm-lib-common
+    PRIVATE rmm-lib-smc)
 
 target_include_directories(rmm-lib-arch
     PUBLIC  "include"
