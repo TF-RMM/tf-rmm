@@ -517,7 +517,6 @@ unsigned long s2tte_create_assigned_ns(const struct s2tt_context *s2_ctx,
 
 	assert(level >= S2TT_MIN_BLOCK_LEVEL);
 	assert(level <= S2TT_PAGE_LEVEL);
-	assert((s2tte & S2TTE_NS_ATTR_RMM) == 0UL);
 
 	if (level == S2TT_PAGE_LEVEL) {
 		return (new_s2tte | S2TTE_PAGE_NS);
