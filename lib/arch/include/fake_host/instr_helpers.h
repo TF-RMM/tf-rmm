@@ -82,4 +82,13 @@ static inline void (_op ## _type)(uint64_t v)		\
 #define dsb(scope)
 #define dmb(scope)
 
+/*
+ * These additional defines allow Arch-specific implementations different
+ * from the common template.
+ */
+
+/* DC ZVA, Data Cache Zero by VA instruction */
+#define DEFINE_SYSOP_DCZVA
+void dczva(uint64_t addr);
+
 #endif /* INSTR_HELPERS_H */

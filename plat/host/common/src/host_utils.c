@@ -208,6 +208,13 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	(void)host_util_set_default_sysreg_cb("pmcr_el0",
 			INPLACE(PMCR_EL0_N, 31UL));
 
+	/*
+	 * Set DCZID_EL0 register with DZP = 0 and
+	 * BS = 0b1001 with the maximum supported block size 2KB.
+	 */
+	(void)host_util_set_default_sysreg_cb("dczid_el0",
+			INPLACE(DCZID_EL0_BS, 9UL));
+
 	/* Set ISR_EL1 to 0 */
 	ret = host_util_set_default_sysreg_cb("isr_el1", 0UL);
 

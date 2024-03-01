@@ -154,6 +154,7 @@
 #define HCR_TLOR	(UL(1) << 35)
 #define HCR_E2H		(UL(1) << 34)
 #define HCR_RW		(UL(1) << 31)
+#define HCR_TDZ		(UL(1) << 28)
 #define HCR_TGE		(UL(1) << 27)
 #define HCR_TSW		(UL(1) << 22)
 #define HCR_TACR	(UL(1) << 21)
@@ -706,6 +707,11 @@
 #define PMCR_EL0_INIT			(PMCR_EL0_LC_BIT | PMCR_EL0_DP_BIT)
 #define PMCR_EL0_INIT_RESET		(PMCR_EL0_INIT | PMCR_EL0_C_BIT | \
 					 PMCR_EL0_P_BIT)
+
+/* DCZID_EL0 Definitions */
+#define DCZID_EL0_BS_SHIFT		0
+#define DCZID_EL0_BS_WIDTH		U(4)
+#define DCZID_EL0_DZP_BIT		(UL(1) << 4)
 
 /* MDSCR_EL1 Definitions */
 #define MDSCR_EL1_TDCC_BIT	(UL(1) << 12)
