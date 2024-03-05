@@ -22,3 +22,7 @@ foreach(language IN ITEMS ASM C CXX)
 endforeach()
 
 string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-Wl,--gc-sections -g ")
+
+# 'march=" option is not applicable for fake_host
+function(detect_and_set_march)
+endfunction()
