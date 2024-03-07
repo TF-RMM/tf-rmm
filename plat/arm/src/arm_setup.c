@@ -112,7 +112,7 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 	 * to the platform DRAM info structure
 	 */
 	ret = rmm_el3_ifc_get_dram_data_validated_pa(
-					MAX_DRAM_NUM_BANKS,
+					PLAT_ARM_MAX_DRAM_BANKS,
 					&plat_dram);
 	if (ret != E_RMM_BOOT_SUCCESS) {
 		ERROR("DRAM data error\n");
