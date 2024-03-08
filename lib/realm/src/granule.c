@@ -277,6 +277,8 @@ void granule_memzero_mapped(void *buf)
 		dczva(addr);
 		addr += block_size;
 	}
+
+	dsb(ish);
 }
 
 /*
