@@ -63,6 +63,11 @@ if(RMM_STATIC_ANALYSIS_CPPCHECK)
 endif()
 
 #
+# Set march compiler option
+#
+detect_and_set_march()
+
+#
 # Include the platform makefile
 #
 include("cmake/Platforms.cmake")
