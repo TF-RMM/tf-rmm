@@ -74,4 +74,12 @@ static inline void (_op ## _type)(uint64_t v)		\
 #define dsb(scope) asm volatile("dsb " #scope : : : "memory")
 #define dmb(scope) asm volatile("dmb " #scope : : : "memory")
 
+/*
+ * These additional defines allow Arch-specific implementations different
+ * from the common template.
+ */
+
+/* DC ZVA, Data Cache Zero by VA instruction */
+#define DEFINE_SYSOP_DCZVA	DEFINE_SYSOP_TYPE_PARAM_FUNC(dc, zva)
+
 #endif /* INSTR_HELPERS_H */

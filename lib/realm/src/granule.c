@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <arch_helpers.h>
 #include <assert.h>
 #include <buffer.h>
 #include <debug.h>
@@ -247,13 +248,35 @@ void granule_memzero(struct granule *g, enum buffer_slot slot)
 	buf = granule_map(g, slot);
 	assert(buf != NULL);
 
-	(void)memset(buf, 0, GRANULE_SIZE);
+	granule_memzero_mapped(buf);
 	buffer_unmap(buf);
 }
 
 void granule_memzero_mapped(void *buf)
 {
-	(void)memset(buf, 0, GRANULE_SIZE);
+	unsigned long dczid_el0 = read_dczid_el0();
+	uintptr_t addr = (uintptr_t)buf;
+	unsigned int log2_size;
+	unsigned int block_size;
+	unsigned int cnt;
+
+	/* Check that use of DC ZVA instructions is permitted */
+	assert((dczid_el0 & DCZID_EL0_DZP_BIT) == 0UL);
+
+	/*
+	 * Log2 of the block size in words.
+	 * The maximum size supported is 2KB, indicated by value 0b1001.
+	 */
+	log2_size = (unsigned int)EXTRACT(DCZID_EL0_BS, dczid_el0) + 2U;
+	block_size = U(1) << log2_size;
+
+	/* Number of iterations */
+	cnt = U(1) << (GRANULE_SHIFT - log2_size);
+
+	for (unsigned int i = 0U; i < cnt; i++) {
+		dczva(addr);
+		addr += block_size;
+	}
 }
 
 /*

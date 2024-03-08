@@ -927,7 +927,7 @@ static unsigned long data_create(unsigned long rd_addr,
 			 * Some data may be copied before the failure. Zero
 			 * g_data granule as it will remain in delegated state.
 			 */
-			(void)memset(data, 0, GRANULE_SIZE);
+			granule_memzero_mapped(data);
 			buffer_unmap(data);
 			ret = RMI_ERROR_INPUT;
 			goto out_unmap_ll_table;
