@@ -32,12 +32,8 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 				 uintptr_t ctx_base_va, size_t va_size,
 				 xlat_addr_region_id_t region)
 {
-	uintptr_t base_pa;
-	uintptr_t base_va;
-	size_t size;
-	size_t granularity;
-	uintptr_t end_pa, mm_end_pa;
-	uintptr_t end_va, previous_end_va;
+	uintptr_t mm_end_pa;
+	uintptr_t previous_end_va;
 
 	if (mm == NULL) {
 		return -EINVAL;
@@ -48,6 +44,13 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 	}
 
 	for (unsigned int i = 0U; i < mm_regions; i++) {
+		uintptr_t base_va;
+		uintptr_t base_pa;
+		uintptr_t end_pa;
+		uintptr_t end_va;
+		size_t size;
+		size_t granularity;
+
 		size = mm[i].size;
 		granularity = mm[i].granularity;
 		base_pa = mm[i].base_pa;
@@ -159,7 +162,6 @@ static int add_mmap_to_ctx_cfg(struct xlat_ctx_cfg *cfg,
 				size_t va_size)
 {
 	int ret;
-	uintptr_t end_pa;
 
 	if (region == VA_LOW_REGION) {
 		/*
@@ -199,6 +201,8 @@ static int add_mmap_to_ctx_cfg(struct xlat_ctx_cfg *cfg,
 	/* Adjust the cfg parameters which depend from the mmap regions */
 	cfg->max_mapped_pa = 0ULL;
 	for (unsigned int i = 0U; i < mm_regions; i++) {
+		uintptr_t end_pa;
+
 		end_pa = mm[i].base_pa + mm[i].size - 1ULL;
 		if (end_pa > cfg->max_mapped_pa) {
 			cfg->max_mapped_pa = end_pa;

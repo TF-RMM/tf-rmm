@@ -28,10 +28,10 @@
 # define  LL(_x)	(_x)
 #else
 # define   U(_x)	(unsigned int)(_x)
-# define  UL(_x)	(_x##UL)
-# define ULL(_x)	(_x##ULL)
-# define   L(_x)	(_x##L)
-# define  LL(_x)	(_x##LL)
+# define  UL(_x)	(unsigned long)(_x)
+# define ULL(_x)	(unsigned long long)(_x)
+# define   L(_x)	(long)(_x)
+# define  LL(_x)	(long long)(_x)
 #endif /* __ASSEMBLER__ */
 
 /* Short forms for commonly used attributes */
@@ -64,7 +64,8 @@
 	((value) & ~round_boundary(value, boundary))
 
 /* Size of a 'm_' member of 's_' structure */
-#define SIZE_OF(s_, m_)		sizeof(((struct s_ *)NULL)->m_)
+/* cppcheck-suppress [misra-c2012-20.7] */
+#define SIZE_OF(s_, m_)		(sizeof(((struct s_ *)NULL)->m_))
 
 /* Compute the number of elements in the given array */
 #define ARRAY_SIZE(a)	\
@@ -229,6 +230,7 @@
  * Defines member of structure and reserves space
  * for the next member with specified offset.
  */
+/* cppcheck-suppress [misra-c2012-20.7] */
 #define SET_MEMBER(member, start, end)	\
 	union {				\
 		member;			\

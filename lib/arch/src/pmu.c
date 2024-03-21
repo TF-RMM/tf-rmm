@@ -13,13 +13,13 @@
 #define PMU_CLEAR_ALL	0x1FFFFFFFFUL
 
 #define READ_PMEV_EL0(n) {					     \
-	case n:							     \
+	case (n):							     \
 	pmu->pmev_regs[n].pmevcntr_el0 = read_pmevcntr##n##_el0();   \
 	pmu->pmev_regs[n].pmevtyper_el0 = read_pmevtyper##n##_el0(); \
 }
 
 #define WRITE_PMEV_EL0(n) {					   \
-	case n:							   \
+	case (n):							   \
 	write_pmevcntr##n##_el0(pmu->pmev_regs[n].pmevcntr_el0);   \
 	write_pmevtyper##n##_el0(pmu->pmev_regs[n].pmevtyper_el0); \
 }

@@ -69,7 +69,7 @@ typedef void (*handler_4_o)(unsigned long arg0, unsigned long arg1,
  * [0:7]  - number of arguments
  * [8:15] - number of output values
  */
-#define RMI_TYPE(_in, _out)	((_in) | ((_out) << 8))
+#define RMI_TYPE(_in, _out)	(U(_in) | (U(_out) << 8U))
 #define set_rmi_type(_in, _out)	rmi_type_##_in##_out = RMI_TYPE(_in, _out)
 
 enum rmi_type {
@@ -177,7 +177,6 @@ static void rmi_log_on_exit(unsigned int handler_id,
 	const struct smc_handler *handler = &smc_handlers[handler_id];
 	unsigned int function_id = SMC64_RMI_FID(handler_id);
 	return_code_t rc;
-	unsigned int num;
 
 	if (!handler->log_exec && !handler->log_error) {
 		return;
@@ -187,6 +186,8 @@ static void rmi_log_on_exit(unsigned int handler_id,
 
 	if ((handler->log_exec) ||
 	    (handler->log_error && (rc.status != RMI_SUCCESS))) {
+		unsigned int num;
+
 		/* Print function name */
 		INFO("SMC_RMM_%-21s", handler->fn_name);
 

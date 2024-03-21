@@ -41,7 +41,7 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 				    struct s2_walk_result *s2_walk)
 {
 	struct s2tt_walk wi;
-	unsigned long s2tte, *ll_table, offset;
+	unsigned long s2tte, *ll_table;
 	enum s2_walk_status walk_status;
 	struct s2tt_context *s2_ctx;
 
@@ -60,6 +60,8 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 	s2tte = s2tte_read(&ll_table[wi.index]);
 
 	if (s2tte_is_assigned_ram(s2_ctx, s2tte, wi.last_level)) {
+		unsigned long offset;
+
 		s2_walk->llt = wi.g_llt; /* Must be unlocked by caller */
 		s2_walk->pa = s2tte_pa(s2_ctx, s2tte, wi.last_level);
 		offset = ipa & (s2tte_map_size(wi.last_level) - 1UL);

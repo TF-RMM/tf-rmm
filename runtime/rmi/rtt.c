@@ -726,8 +726,9 @@ unsigned long smc_rtt_map_unprotected(unsigned long rd_addr,
 				      unsigned long s2tte)
 {
 	long level = (long)ulevel;
-	struct smc_result res = {0UL};
+	struct smc_result res;
 
+	(void)memset(&res, 0, sizeof(struct smc_result));
 	if ((level < S2TT_MIN_BLOCK_LEVEL) || (level > S2TT_PAGE_LEVEL)) {
 		return RMI_ERROR_INPUT;
 	}

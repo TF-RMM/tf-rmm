@@ -264,7 +264,7 @@ static inline void simd_context_restore(struct simd_context *ctx)
 				CPTR_EL2_VHE_FPEN_NO_TRAP_11));	\
 		isb();						\
 								\
-		expression;					\
+		(expression);					\
 								\
 		write_cptr_el2(cptr_el2);			\
 		isb();						\
@@ -275,7 +275,7 @@ static inline void simd_context_restore(struct simd_context *ctx)
 #else /* !RMM_FPU_USE_AT_REL2 */
 #define SIMD_FPU_ALLOW(expression)				\
 	do {							\
-		expression;					\
+		(expression);					\
 	} while (false)
 
 #define SIMD_IS_FPU_ALLOWED() (true)
