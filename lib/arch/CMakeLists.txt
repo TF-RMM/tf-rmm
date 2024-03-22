@@ -12,6 +12,9 @@ target_link_libraries(rmm-lib-arch
 target_include_directories(rmm-lib-arch
     PUBLIC  "include"
             "include/${RMM_ARCH}"
+            # The CMAKE_INCLUDE_PATH is included here for Yocto builds.  the
+            # Yocto recipe will define this variable as part of the build.
+            ${CMAKE_INCLUDE_PATH}
     PRIVATE "src/${RMM_ARCH}"
             "src/include")
 
