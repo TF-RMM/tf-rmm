@@ -162,3 +162,42 @@ TEST(simd, simd_init_TC3)
 	CHECK_TRUE(simd_cfg.sme_en);
 	BYTES_EQUAL(saved_cptr, read_cptr_el2());
 }
+
+TEST(simd, simd_get_cpu_config_TC1)
+{
+	int ret;
+
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Call simd_get_cpu_config() when simd_init() has not yet been
+	 * called. Expect the function to exit early with exit code -1.
+	 ******************************************************************/
+
+	ret = simd_get_cpu_config(NULL);
+
+	CHECK_TRUE(ret == -1);
+}
+
+ASSERT_TEST(simd, simd_get_cpu_config_TC2)
+{
+	/******************************************************************
+	 * TEST CASE 2:
+	 *
+	 * Call simd_get_cpu_config() with NULL. Expect assertion to fail.
+	 ******************************************************************/
+
+	simd_test_helpers_setup_id_regs(false, false);
+
+	/*
+	 * Must call simd_init() first to allow simd_get_cpu_config() to run
+	 * without exiting early.
+	 */
+	simd_init();
+
+	test_helpers_expect_assert_fail(true);
+
+	(void)simd_get_cpu_config(NULL);
+
+	test_helpers_fail_if_no_assert_failed();
+}
