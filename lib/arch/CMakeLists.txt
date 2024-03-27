@@ -39,3 +39,5 @@ else()
         PRIVATE "src/fake_host/cache_wrappers.c"
                 "src/fake_host/simd_helpers.c")
 endif()
+
+include (tests/CMakeLists.txt)

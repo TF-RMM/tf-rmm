@@ -9,6 +9,7 @@
 #include <cpuid.h>
 #include <simd.h>
 #include <simd_private.h>
+#include <string.h>
 
 /* Contains CPU SIMD configuration discovered during init */
 static struct simd_config g_simd_cfg = { 0 };
@@ -41,6 +42,16 @@ static bool g_simd_state_saved[MAX_CPUS];
 #define is_sve_mode_normal(sc)		(simd_has_sve(sc) &&		\
 					 !is_ctx_sve_hint_set(sc) &&	\
 					 !is_sve_mode_streaming(sc))
+
+void simd_reset(void)
+{
+	g_simd_init_done = false;
+	(void)memset(&g_simd_cfg, 0, sizeof(struct simd_config));
+
+	for (unsigned int i = 0U; i < MAX_CPUS; i++) {
+		g_simd_state_saved[i] = false;
+	}
+}
 
 /*
  * Returns 'true' if the current CPU's SIMD (FPU/SVE) live state is saved in
