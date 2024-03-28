@@ -201,3 +201,193 @@ ASSERT_TEST(simd, simd_get_cpu_config_TC2)
 
 	test_helpers_fail_if_no_assert_failed();
 }
+
+TEST(simd, simd_context_init_TC1)
+{
+	int ret;
+	struct simd_context test_simd_ctx;
+	struct simd_config test_simd_cfg = { 0 };
+
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Call simd_context_init() before simd_init() is called. Expect
+	 * the function to exit early with exit code -1.
+	 ******************************************************************/
+
+	(void)memset(&test_simd_ctx, 0, sizeof(struct simd_context));
+
+	ret = simd_context_init(SIMD_OWNER_NWD, &test_simd_ctx, &test_simd_cfg);
+
+	CHECK_TRUE(ret == -1);
+}
+
+TEST(simd, simd_context_init_TC2)
+{
+	int ret;
+	struct simd_config test_simd_cfg = { 0 };
+	struct simd_context test_simd_ctx;
+
+	/******************************************************************
+	 * TEST CASE 2:
+	 *
+	 * Call simd_context_init() twice with the same context. Expect the
+	 * second call to exit early with exit code -1.
+	 ******************************************************************/
+
+	(void)memset(&test_simd_ctx, 0, sizeof(struct simd_context));
+	simd_test_helpers_setup_id_regs(false, false);
+
+	/*
+	 * Must call simd_init() first to allow simd_context_init() to run
+	 * without exiting early.
+	 */
+	simd_init();
+
+	ret = simd_context_init(SIMD_OWNER_NWD, &test_simd_ctx, &test_simd_cfg);
+
+	CHECK_TRUE(ret == 0);
+
+	ret = simd_context_init(SIMD_OWNER_NWD, &test_simd_ctx, &test_simd_cfg);
+
+	CHECK_TRUE(ret == -1);
+}
+
+TEST(simd, simd_context_init_TC3)
+{
+	int ret;
+	struct simd_config test_simd_cfg = { 0 };
+	struct simd_context test_simd_ctx;
+
+	/******************************************************************
+	 * TEST CASE 3:
+	 *
+	 * Call simd_context_init() with an invalid simd_cfg (try enabling
+	 * SVE in simd_cfg but SVE is not present in CPU). Expect the
+	 * function to exit early with exit code -1.
+	 ******************************************************************/
+
+	(void)memset(&test_simd_ctx, 0, sizeof(struct simd_context));
+	simd_test_helpers_setup_id_regs(false, false);
+
+	/*
+	 * Initialise the CPU SIMD config with SVE disabled.
+	 */
+	simd_init();
+
+	test_simd_cfg.sve_en = true;
+
+	ret = simd_context_init(SIMD_OWNER_NWD, &test_simd_ctx, &test_simd_cfg);
+
+	CHECK_TRUE(ret == -1);
+}
+
+TEST(simd, simd_context_init_TC4)
+{
+	int ret1, ret2;
+	struct simd_config test_simd_cfg = { 0 };
+	struct simd_context test_simd_ctx;
+	struct simd_config cpu_simd_cfg;
+	union simd_cbs cb;
+
+	/******************************************************************
+	 * TEST CASE 4:
+	 *
+	 * Call simd_context_init() with an invalid simd_cfg (try enabling
+	 * SVE VQ in simd_cfg higher than SVE VQ of CPU). Expect the
+	 * function to exit early with exit code -1.
+	 ******************************************************************/
+
+	sve_vq = (SVE_VQ_ARCH_MAX - 1U) * 128U;
+	cb.sve_rdvl = sve_rdvl_cb;
+
+	(void)memset(&test_simd_ctx, 0, sizeof(struct simd_context));
+	simd_test_helpers_setup_id_regs(true, false);
+	simd_test_register_callback(SVE_RDVL, cb);
+
+	/*
+	 * Initialise the CPU SIMD config with SVE enabled.
+	 */
+	simd_init();
+
+	ret1 = simd_get_cpu_config(&cpu_simd_cfg);
+
+	CHECK_TRUE(ret1 == 0);
+
+	/*
+	 * Create a SIMD config that has SVE VQ larger than CPU SIMD config's
+	 * SVE VQ.
+	 */
+	test_simd_cfg.sve_en = true;
+	test_simd_cfg.sve_vq = cpu_simd_cfg.sve_vq + 1U;
+
+	ret2 = simd_context_init(SIMD_OWNER_NWD, &test_simd_ctx, &test_simd_cfg);
+
+	CHECK_TRUE(ret2 == -1);
+}
+
+TEST(simd, simd_context_init_TC5)
+{
+	int ret;
+	struct simd_config test_simd_cfg = { 0 };
+	struct simd_context test_simd_ctx;
+	union simd_cbs cb;
+
+	/******************************************************************
+	 * TEST CASE 5:
+	 *
+	 * Call simd_context_init() with an invalid simd_cfg (try enabling
+	 * SME in simd_cfg but SME is not present in CPU). Expect the
+	 * function to exit early with exit code -1.
+	 ******************************************************************/
+
+	sve_vq = SVE_VQ_ARCH_MAX * 128U;
+	cb.sve_rdvl = sve_rdvl_cb;
+
+	(void)memset(&test_simd_ctx, 0, sizeof(struct simd_context));
+	simd_test_helpers_setup_id_regs(true, false);
+	simd_test_register_callback(SVE_RDVL, cb);
+
+	/*
+	 * Initialise the CPU SIMD config with SVE enabled and SME disabled.
+	 */
+	simd_init();
+
+	/*
+	 * Create a SIMD config that has SME enabled.
+	 */
+	test_simd_cfg.sme_en = true;
+
+	ret = simd_context_init(SIMD_OWNER_NWD, &test_simd_ctx, &test_simd_cfg);
+
+	CHECK_TRUE(ret == -1);
+}
+
+TEST(simd, simd_context_init_TC6)
+{
+	int ret;
+	struct simd_config test_simd_cfg = { 0 };
+	struct simd_context test_simd_ctx;
+
+	/******************************************************************
+	 * TEST CASE 6:
+	 *
+	 * Call simd_context_init() with an invalid owner. Expect the
+	 * function to exit early with exit code -1.
+	 ******************************************************************/
+
+	(void)memset(&test_simd_ctx, 0, sizeof(struct simd_context));
+	simd_test_helpers_setup_id_regs(false, false);
+
+	simd_init();
+
+	test_simd_ctx.sflags &= ~SIMD_SFLAG_INIT_DONE;
+
+	/* Generate a random integer greater than 2. */
+	int invalid_owner = rand() % (INT_MAX - 2) + 3;
+
+	ret = simd_context_init((simd_owner_t)invalid_owner, &test_simd_ctx,
+				&test_simd_cfg);
+
+	CHECK_TRUE(ret == -1);
+}
