@@ -43,6 +43,7 @@ static bool g_simd_state_saved[MAX_CPUS];
 					 !is_ctx_sve_hint_set(sc) &&	\
 					 !is_sve_mode_streaming(sc))
 
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 void simd_reset(void)
 {
 	g_simd_init_done = false;

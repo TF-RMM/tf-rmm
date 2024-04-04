@@ -367,6 +367,7 @@ void s2tt_walk_lock_unlock(const struct s2tt_context *s2_ctx,
 	last_level = (int)level;
 out:
 	wi->last_level = last_level;
+	/* coverity[deref_overflow:SUPPRESS] */
 	wi->g_llt = g_tbls[last_level + 1];
 	wi->index = s2_addr_to_idx(map_addr, last_level);
 }
