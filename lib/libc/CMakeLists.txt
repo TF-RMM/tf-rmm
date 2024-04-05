@@ -28,7 +28,8 @@ if(NOT RMM_ARCH STREQUAL fake_host)
             "src/strcmp.c"
             "src/strlcpy.c"
             "src/strncmp.c"
-            "src/strnlen.c")
+            "src/strnlen.c"
+            "src/strchr.c")
 
     target_sources(rmm-lib-libc
         PRIVATE
