@@ -49,7 +49,6 @@ else()
         EXCLUDE_FROM_ALL)
 endif()
 
-# Include targets mbedcrypto
 add_library(rmm-mbedtls INTERFACE)
 target_include_directories(rmm-mbedtls INTERFACE
     "${RMM_SOURCE_DIR}/configs/mbedtls"
@@ -57,9 +56,17 @@ target_include_directories(rmm-mbedtls INTERFACE
 target_compile_definitions(rmm-mbedtls INTERFACE
     "-DMBEDTLS_CONFIG_FILE=<rmm_mbedtls_config.h>")
 
-target_include_directories(mbedcrypto PUBLIC
-    "${RMM_SOURCE_DIR}/configs/mbedtls"
-    "${MBEDTLS_SRC_DIR}/include")
-target_compile_definitions(mbedcrypto PUBLIC
-    "-DMBEDTLS_CONFIG_FILE=<rmm_mbedtls_config.h>")
-target_link_libraries(rmm-mbedtls INTERFACE mbedcrypto)
+# Include targets mbedcrypto, mbedx509
+set(MBEDTLS_LIBS mbedcrypto)
+if(RMM_CCA_DA)
+    list(APPEND MBEDTLS_LIBS mbedx509)
+endif()
+
+foreach(MBEDTLS_LIB IN ITEMS ${MBEDTLS_LIBS})
+    target_include_directories(${MBEDTLS_LIB} PUBLIC
+        "${RMM_SOURCE_DIR}/configs/mbedtls"
+        "${MBEDTLS_SRC_DIR}/include")
+    target_compile_definitions(${MBEDTLS_LIB} PUBLIC
+        "-DMBEDTLS_CONFIG_FILE=<rmm_mbedtls_config.h>")
+    target_link_libraries(rmm-mbedtls INTERFACE ${MBEDTLS_LIB})
+endforeach()

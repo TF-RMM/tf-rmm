@@ -10,3 +10,4 @@ out
 *~
 *.patch
 *.swp
+ext/libspdm

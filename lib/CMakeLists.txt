@@ -39,3 +39,8 @@ add_subdirectory("s2tt")
 add_subdirectory("slot_buf")
 add_subdirectory("t_cose")
 add_subdirectory("xlat")
+
+if(RMM_CCA_DA)
+    target_link_libraries(rmm-lib INTERFACE rmm-lib-spdm_requester)
+    add_subdirectory("spdm_requester")
+endif()
