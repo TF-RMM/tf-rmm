@@ -325,6 +325,12 @@ void s2tt_walk_lock_unlock(const struct s2tt_context *s2_ctx,
 	assert(map_addr < (1UL << ipa_bits));
 	assert(wi != NULL);
 
+	if (s2_ctx->enable_lpa2 == true) {
+		assert(ipa_bits <= S2TTE_OA_BITS_LPA2);
+	} else {
+		assert(ipa_bits <= S2TTE_OA_BITS);
+	}
+
 	g_root = s2_ctx->g_rtt;
 
 	/* Handle concatenated starting level (SL) tables */
@@ -333,7 +339,7 @@ void s2tt_walk_lock_unlock(const struct s2tt_context *s2_ctx,
 		unsigned int tt_num = (unsigned int)(sl_idx >> S2TTE_STRIDE);
 		struct granule *g_concat_root;
 
-		assert(tt_num < S2TTE_MAX_CONCAT_TABLES);
+		assert(tt_num < s2_ctx->num_root_rtts);
 
 		g_concat_root = (struct granule *)((uintptr_t)g_root +
 					(tt_num * sizeof(struct granule)));
@@ -410,8 +416,7 @@ unsigned long s2tte_create_unassigned_ns(const struct s2tt_context *s2_ctx)
 {
 	(void)s2_ctx;
 
-	return (S2TTE_NS | S2TTE_INVALID_HIPAS_UNASSIGNED |
-		S2TTE_INVALID_UNPROTECTED);
+	return (S2TTE_NS | S2TTE_INVALID_HIPAS_UNASSIGNED);
 }
 
 /*
@@ -424,9 +429,10 @@ static unsigned long s2tte_create_assigned(const struct s2tt_context *s2_ctx,
 {
 	assert(level >= S2TT_MIN_BLOCK_LEVEL);
 	assert(level <= S2TT_PAGE_LEVEL);
-	assert(s2tte_ripas <= S2TTE_INVALID_RIPAS_DESTROYED);
-	assert(s2tte_is_addr_lvl_aligned(s2_ctx, pa, level));
+	assert(EXTRACT(S2TTE_INVALID_RIPAS, s2tte_ripas)
+		<= EXTRACT(S2TTE_INVALID_RIPAS, S2TTE_INVALID_RIPAS_DESTROYED));
 	assert(s2_ctx != NULL);
+	assert(s2tte_is_addr_lvl_aligned(s2_ctx, pa, level));
 
 	unsigned long tte = pa_to_s2tte(pa, s2_ctx->enable_lpa2);
 	unsigned long s2tte_page, s2tte_block;
@@ -757,8 +763,11 @@ static bool s2tte_check(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 	desc_type = s2tte & S2TT_DESC_TYPE_MASK;
 
 	/* Only pages at L3 and valid blocks at L2 and L1 allowed */
-	if (((level == S2TT_PAGE_LEVEL) && (desc_type == S2TTE_L3_PAGE)) ||
-	    ((level >= S2TT_MIN_BLOCK_LEVEL) && (desc_type == S2TTE_L012_BLOCK))) {
+	if (level == S2TT_PAGE_LEVEL) {
+		return (desc_type == S2TTE_L3_PAGE);
+	}
+
+	if ((level >= S2TT_MIN_BLOCK_LEVEL) && (desc_type == S2TTE_L012_BLOCK)) {
 		return true;
 	}
 
@@ -1153,6 +1162,14 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 	unsigned long s2tte = s2tte_read(&table[0]);
 	unsigned long s2tt_ns_attrs;
 	unsigned int i;
+
+	if (s2_ctx->enable_lpa2 == true) {
+		assert(level >= S2TT_MIN_STARTING_LEVEL_LPA2);
+	} else {
+		assert(level >= S2TT_MIN_STARTING_LEVEL);
+	}
+
+	assert(level <= S2TT_PAGE_LEVEL);
 
 	if (!s2tte_is_x(s2_ctx, s2tte, level)) {
 		return false;
