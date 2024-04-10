@@ -20,3 +20,4 @@ target_include_directories(rmm-lib-s2tt
 target_sources(rmm-lib-s2tt
     PRIVATE "src/s2tt.c")
 
+include (tests/CMakeLists.txt)
