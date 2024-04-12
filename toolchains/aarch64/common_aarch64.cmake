@@ -8,6 +8,7 @@ include(CheckCCompilerFlag)
 
 include(${CMAKE_CURRENT_LIST_DIR}/../common.cmake)
 
+set(CMAKE_SYSTEM_NAME "Generic")
 set(CMAKE_SYSTEM_PROCESSOR aarch64)
 
 foreach(language IN ITEMS ASM C)

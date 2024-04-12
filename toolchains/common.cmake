@@ -5,7 +5,6 @@
 
 include_guard()
 
-set(CMAKE_SYSTEM_NAME "Generic")
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
@@ -22,7 +21,3 @@ foreach(language IN ITEMS ASM C CXX)
 endforeach()
 
 string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-Wl,--gc-sections -g ")
-
-# 'march=" option is not applicable for fake_host
-function(detect_and_set_march)
-endfunction()
