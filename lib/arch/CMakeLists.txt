@@ -44,3 +44,5 @@ else()
                 "src/fake_host/instr_helpers.c"
                 "src/fake_host/simd_helpers.c")
 endif()
+
+include (tests/CMakeLists.txt)

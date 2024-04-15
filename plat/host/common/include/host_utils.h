@@ -14,7 +14,7 @@
  **********************************************************************/
 
 /* Maximum number of sysregs for which we can install callbacks */
-#define SYSREG_MAX_CBS		(15U)
+#define SYSREG_MAX_CBS		(30U)
 
 /* Maximum size allowed for a sysreg name */
 #define MAX_SYSREG_NAME_LEN	(25U)

@@ -57,4 +57,17 @@ static inline bool sme_feat_fa64_enabled(void)
 	return ((read_smcr_el2() & SMCR_EL2_FA64_BIT) != 0U);
 }
 
+/******************************************************************
+ * Private APIs for unit tests
+ *****************************************************************/
+
+/*
+ * Resets the values of the static global variables g_simd_cfg, g_simd_init_done
+ * and g_simd_state_saved[].
+ *
+ * NOTE: This should only be called during unit tests, to provide a clean state
+ * for each test.
+ */
+void simd_reset(void);
+
 #endif /* SIMD_PRIVATE_H */
