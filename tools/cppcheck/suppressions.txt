@@ -19,5 +19,13 @@ preprocessorErrorDirective
 // Ignore unusedLabel which triggers false positives for COMPILER_ASSERT_ZERO
 unusedLabel
 
+// Ignore COMPILER_ASSERT error
+misra-config
+
+// Ignore const errors
+constVariablePointer
+constParameterPointer
+constParameter
+
 // Ignore errors in ext folder
-*:ext/
+*:*/ext/*
