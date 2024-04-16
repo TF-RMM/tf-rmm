@@ -521,3 +521,114 @@ ASSERT_TEST(simd, simd_context_save_TC4)
 	simd_context_save(&test_simd_ctx);
 	test_helpers_fail_if_no_assert_failed();
 }
+
+ASSERT_TEST(simd, simd_context_restore_TC1)
+{
+	struct simd_context test_simd_ctx;
+
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Call simd_context_restore() with an uninitialised context.
+	 * Expect an assertion to fail.
+	 ******************************************************************/
+
+	(void)memset(&test_simd_ctx, 0, sizeof(struct simd_context));
+	simd_test_helpers_setup_id_regs(false, false);
+	simd_init();
+
+	test_helpers_expect_assert_fail(true);
+	simd_context_restore(&test_simd_ctx);
+	test_helpers_fail_if_no_assert_failed();
+}
+
+ASSERT_TEST(simd, simd_context_restore_TC2)
+{
+	struct simd_context test_simd_ctx;
+	struct simd_config test_simd_cfg = { 0 };
+	int ret;
+
+	/******************************************************************
+	 * TEST CASE 2:
+	 *
+	 * Call simd_context_restore() with a context that has not been
+	 * previously saved. Expect an assertion to fail.
+	 ******************************************************************/
+
+	(void)memset(&test_simd_ctx, 0, sizeof(struct simd_context));
+	simd_test_helpers_setup_id_regs(false, false);
+	simd_init();
+
+	ret = simd_context_init(SIMD_OWNER_NWD, &test_simd_ctx, &test_simd_cfg);
+
+	CHECK_TRUE(ret == 0);
+
+	test_helpers_expect_assert_fail(true);
+	simd_context_restore(&test_simd_ctx);
+	test_helpers_fail_if_no_assert_failed();
+}
+
+ASSERT_TEST(simd, simd_context_restore_TC3)
+{
+	struct simd_context test_simd_ctx;
+	struct simd_config test_simd_cfg = { 0 };
+	int ret;
+
+	/******************************************************************
+	 * TEST CASE 3:
+	 *
+	 * Call simd_context_restore() when the CPU still has unsaved live
+	 * SIMD state. Expect an assertion to fail.
+	 ******************************************************************/
+
+	(void)memset(&test_simd_ctx, 0, sizeof(struct simd_context));
+	simd_test_helpers_setup_id_regs(false, false);
+	simd_init();
+
+	/*
+	 * Initialise a test SIMD context with Realm as owner. Since Realm's
+	 * SIMD state is assumed to be saved as part of initialisation, this
+	 * allows us to pass the assertion that Test Case 2 fails.
+	 */
+	ret = simd_context_init(SIMD_OWNER_REL1, &test_simd_ctx, &test_simd_cfg);
+
+	CHECK_TRUE(ret == 0);
+
+	test_helpers_expect_assert_fail(true);
+	simd_context_restore(&test_simd_ctx);
+	test_helpers_fail_if_no_assert_failed();
+}
+
+ASSERT_TEST(simd, simd_context_restore_TC4)
+{
+	struct simd_context test_simd_ctx;
+	struct simd_config test_simd_cfg = { 0 };
+	int ret;
+
+	/******************************************************************
+	 * TEST CASE 4:
+	 *
+	 * Call simd_context_restore() on the same context twice. Expect
+	 * an assertion to fail on the second call.
+	 ******************************************************************/
+
+	(void)memset(&test_simd_ctx, 0, sizeof(struct simd_context));
+	simd_test_helpers_setup_id_regs(false, false);
+	simd_init();
+
+	ret = simd_context_init(SIMD_OWNER_NWD, &test_simd_ctx, &test_simd_cfg);
+	CHECK_TRUE(ret == 0);
+
+	/*
+	 * Restore the context for the first time. However, a context save must
+	 * be performed first so that the CPU doesn't have unsaved live SIMD
+	 * state.
+	 */
+	simd_context_save(&test_simd_ctx);
+	simd_context_restore(&test_simd_ctx);
+
+	/* Restore the context for the second time. */
+	test_helpers_expect_assert_fail(true);
+	simd_context_restore(&test_simd_ctx);
+	test_helpers_fail_if_no_assert_failed();
+}
