@@ -24,7 +24,7 @@
 static mbedtls_hmac_drbg_context cpu_drbg_ctx[MAX_CPUS];
 static bool prng_init_done;
 
-static int get_random_seed(uintptr_t output, size_t len)
+static void get_random_seed(uintptr_t output, size_t len)
 {
 	assert(!prng_init_done);
 
@@ -32,16 +32,13 @@ static int get_random_seed(uintptr_t output, size_t len)
 	assert(((len & 7UL) == 0UL) && ((output & 7UL) == 0UL));
 
 	while (len != 0UL) {
-		bool rc = arch_collect_entropy((uint64_t *)output);
-
-		if (!rc) {
-			return -EINVAL;
+		while (!arch_collect_entropy((uint64_t *)output)) {
 		}
 
 		len -= sizeof(uint64_t);
 		output += sizeof(uint64_t);
 	}
-	return 0;
+	return;
 }
 
 /*
@@ -97,10 +94,7 @@ int attest_rnd_prng_init(void)
 	 * an implementation defined TRNG backend. The timing of the TRNG could
 	 * be nondeterministic therefore access to it is kept on the minimum.
 	 */
-	rc = get_random_seed((uintptr_t)seed, sizeof(seed));
-	if (rc != 0) {
-		return -EINVAL;
-	}
+	get_random_seed((uintptr_t)seed, sizeof(seed));
 
 	md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
 	mbedtls_hmac_drbg_init(&drbg_ctx);
