@@ -47,7 +47,7 @@ struct s2tt_context {
 #define S2TT_MIN_STARTING_LEVEL		(0)
 #define S2TT_MIN_STARTING_LEVEL_LPA2	(-1)
 #define S2TT_PAGE_LEVEL			(3)
-#define S2TT_MIN_BLOCK_LEVEL		(2)
+#define S2TT_MIN_BLOCK_LEVEL		(1)
 
 /*
  * S2TTE_STRIDE: The number of bits resolved in a single level of translation

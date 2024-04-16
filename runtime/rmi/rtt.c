@@ -351,6 +351,16 @@ void smc_rtt_fold(unsigned long rd_addr,
 		} else if (s2tt_is_unassigned_ns_block(&s2_ctx, table)) {
 			parent_s2tte = s2tte_create_unassigned_ns(&s2_ctx);
 		} else if (s2tt_maps_assigned_ns_block(&s2_ctx, table, level)) {
+
+			/*
+			 * The RMM specification does not allow creating block entries less than
+			 * S2TT_MIN_BLOCK_LEVEL for ASSIGNED_NS state.
+			 */
+			if (level <= S2TT_MIN_BLOCK_LEVEL) {
+				ret = pack_return_code(RMI_ERROR_RTT,
+						(unsigned char)wi.last_level);
+				goto out_unmap_table;
+			}
 			unsigned long s2tte = s2tte_read(&table[0]);
 
 			/*
