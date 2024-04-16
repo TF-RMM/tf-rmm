@@ -24,7 +24,7 @@ target_sources(rmm-lib-debug
 
 if(NOT LOG_LEVEL STREQUAL UNSET)
     target_compile_definitions(rmm-lib-debug
-      PRIVATE "LOG_LEVEL=${LOG_LEVEL}")
+      PUBLIC "LOG_LEVEL=${LOG_LEVEL}")
 endif()
 
 target_include_directories(rmm-lib-debug
