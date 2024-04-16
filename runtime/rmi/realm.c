@@ -372,9 +372,9 @@ static bool find_lock_rd_granules(unsigned long rd_addr,
 	return true;
 
 out_err:
-	while (i-- != 0U) {
+	while (i != 0U) {
 		granule_unlock((struct granule *)((uintptr_t)g_rtt_base +
-						(i * sizeof(struct granule))));
+						(--i * sizeof(struct granule))));
 	}
 
 	if (g_rd != NULL) {
