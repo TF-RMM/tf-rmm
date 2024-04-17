@@ -163,6 +163,9 @@ static void __unused unwind_stack(struct frame_record *fr)
  */
 void backtrace(uintptr_t frame_pointer)
 {
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)frame_pointer;
+
 #if !defined(NDEBUG) && (LOG_LEVEL >= LOG_LEVEL_INFO)
 	unwind_stack((struct frame_record *)frame_pointer);
 #endif

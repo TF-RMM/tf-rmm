@@ -18,6 +18,9 @@ static inline bool arch_collect_entropy(uint64_t *random)
 	unsigned long rc;
 	uint64_t val;
 
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)random;
+
 	asm volatile(
 	"	mrs  %[val], " __XSTRING(RNDR) "\n"
 	"	str  %[val], %[random_ptr]\n"

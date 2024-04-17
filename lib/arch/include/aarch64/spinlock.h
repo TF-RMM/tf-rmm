@@ -19,6 +19,9 @@ static inline void spinlock_acquire(spinlock_t *l)
 {
 	unsigned int tmp;
 
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)l;
+
 	asm volatile(
 	"	sevl\n"
 	"	prfm	pstl1keep, %[lock]\n"
@@ -37,6 +40,9 @@ static inline void spinlock_acquire(spinlock_t *l)
 
 static inline void spinlock_release(spinlock_t *l)
 {
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)l;
+
 	asm volatile(
 	"	stlr	wzr, %[lock]\n"
 	: [lock] "+Q" (l->val)
@@ -53,6 +59,9 @@ typedef struct {
 static inline void byte_spinlock_acquire(byte_spinlock_t *l)
 {
 	unsigned int tmp;
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)l;
 
 	asm volatile(
 	"	sevl\n"
@@ -72,6 +81,9 @@ static inline void byte_spinlock_acquire(byte_spinlock_t *l)
 
 static inline void byte_spinlock_release(byte_spinlock_t *l)
 {
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)l;
+
 	asm volatile(
 	"	stlrb	wzr, %[lock]\n"
 	: [lock] "+Q" (l->val)

@@ -27,6 +27,10 @@ static inline void __sca_write64(uint64_t *ptr, uint64_t val)
 /* Single-Copy Atomic 64-bit write with RELEASE memory ordering semantics*/
 static inline void __sca_write64_release(uint64_t *ptr, uint64_t val)
 {
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)ptr;
+	(void)val;
+
 	asm volatile(
 	"	stlr %[val], %[ptr]\n"
 	: [ptr] "=Q" (*ptr)
