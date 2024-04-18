@@ -14,6 +14,10 @@
  */
 static inline void atomic_add_64(uint64_t *loc, uint64_t val)
 {
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)loc;
+	(void)val;
+
 	asm volatile(
 	"	stadd %[val], %[loc]\n"
 	: [loc] "+Q" (*loc)
@@ -30,6 +34,10 @@ static inline uint64_t atomic_load_add_release_64(uint64_t *loc, uint64_t val)
 {
 	uint64_t old_val;
 
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)loc;
+	(void)val;
+
 	asm volatile(
 	"	ldaddl %[val], %[old_val], %[loc]\n"
 	: [loc] "+Q" (*loc),
@@ -45,6 +53,10 @@ static inline uint64_t atomic_load_add_release_64(uint64_t *loc, uint64_t val)
  */
 static inline void atomic_add_16(uint16_t *loc, uint16_t val)
 {
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)loc;
+	(void)val;
+
 	asm volatile(
 	"	staddh %w[val], %[loc]\n"
 	: [loc] "+Q" (*loc)
@@ -60,6 +72,10 @@ static inline void atomic_add_16(uint16_t *loc, uint16_t val)
 static inline uint16_t atomic_load_add_release_16(uint16_t *loc, uint16_t val)
 {
 	uint16_t old_val;
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)loc;
+	(void)val;
 
 	asm volatile(
 	"	ldaddlh %w[val], %w[old_val], %[loc]\n"
@@ -78,6 +94,10 @@ static inline void atomic_bit_set_release_64(uint64_t *loc, unsigned int bit)
 {
 	uint64_t mask = (1ULL << bit);
 
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)loc;
+	(void)bit;
+
 	asm volatile(
 	"	stsetl %[mask], %[loc]\n"
 	: [loc] "+Q" (*loc)
@@ -92,6 +112,10 @@ static inline void atomic_bit_set_release_64(uint64_t *loc, unsigned int bit)
 static inline void atomic_bit_clear_release_64(uint64_t *loc, unsigned int bit)
 {
 	uint64_t mask = (1ULL << bit);
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)loc;
+	(void)bit;
 
 	asm volatile(
 	"	stclrl %[mask], %[loc]\n"
@@ -108,6 +132,10 @@ static inline bool atomic_test_bit_acquire_64(uint64_t *loc, unsigned int bit)
 {
 	uint64_t val;
 	uint64_t mask = (1ULL << bit);
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)loc;
+	(void)bit;
 
 	asm volatile(
 	"	ldar %[val], %[loc]\n"
@@ -128,6 +156,10 @@ static inline bool atomic_bit_set_acquire_release_64(uint64_t *loc, unsigned int
 {
 	uint64_t val;
 	uint64_t mask = (1ULL << bit);
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)loc;
+	(void)bit;
 
 	asm volatile(
 	"	ldsetal %[mask], %[val], %[loc]\n"

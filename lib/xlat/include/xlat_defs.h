@@ -149,13 +149,13 @@
  * valid.
  */
 #define GET_XLAT_TABLE_LEVEL_BASE(_virt_addr_space_sz)			\
-	(((_virt_addr_space_sz) > (ULL(1) << LM1_XLAT_ADDRESS_SHIFT))	\
+	(((_virt_addr_space_sz) > (UL(1) << LM1_XLAT_ADDRESS_SHIFT))	\
 	? -1								\
-	: (((_virt_addr_space_sz) > (ULL(1) << L0_XLAT_ADDRESS_SHIFT))	\
+	: (((_virt_addr_space_sz) > (UL(1) << L0_XLAT_ADDRESS_SHIFT))	\
 	? 0								\
-	: (((_virt_addr_space_sz) > (ULL(1) << L1_XLAT_ADDRESS_SHIFT))	\
+	: (((_virt_addr_space_sz) > (UL(1) << L1_XLAT_ADDRESS_SHIFT))	\
 	? 1								\
-	: (((_virt_addr_space_sz) > (ULL(1) << L2_XLAT_ADDRESS_SHIFT))	\
+	: (((_virt_addr_space_sz) > (UL(1) << L2_XLAT_ADDRESS_SHIFT))	\
 	? 2 : 3))))
 
 #endif /* XLAT_DEFS_H */

@@ -63,7 +63,7 @@ struct rd {
 	/* Realm Personalization Value */
 	unsigned char rpv[RPV_SIZE];
 };
-COMPILER_ASSERT((offsetof(struct rd, measurement) & 7) == 0);
+COMPILER_ASSERT((U(offsetof(struct rd, measurement)) & 7U) == 0U);
 COMPILER_ASSERT(sizeof(struct rd) <= GRANULE_SIZE);
 
 /*

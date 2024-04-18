@@ -7,8 +7,8 @@
 #include <rsi-handler.h>
 #include <smc-rsi.h>
 
-COMPILER_ASSERT(RSI_ABI_VERSION_MAJOR <= 0x7FFF);
-COMPILER_ASSERT(RSI_ABI_VERSION_MINOR <= 0xFFFF);
+COMPILER_ASSERT(RSI_ABI_VERSION_MAJOR <= UL(0x7FFF));
+COMPILER_ASSERT(RSI_ABI_VERSION_MINOR <= UL(0xFFFF));
 
 void handle_rsi_version(struct rec *rec, struct rsi_result *res)
 {

@@ -13,7 +13,8 @@
 
 #define XLAT_HIGH_VA_SLOT_NUM	(U(25))
 /* Calculate the slot buffer's virtual address */
-#define SLOT_VIRT		(((UL(~0)) - (XLAT_HIGH_VA_SLOT_NUM * GRANULE_SIZE)) + 1U)
+#define SLOT_VIRT		(((UL(0xFFFFFFFFFFFFFFFF)) - \
+				(XLAT_HIGH_VA_SLOT_NUM * GRANULE_SIZE)) + 1U)
 
 #define RMM_CPU_STACK_SIZE		(RMM_NUM_PAGES_PER_STACK * PAGE_SIZE)
 #define RMM_CPU_EH_STACK_SIZE		PAGE_SIZE

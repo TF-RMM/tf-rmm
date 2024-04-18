@@ -237,12 +237,13 @@ void inject_serror(struct rec *rec, unsigned long vsesr)
 /* Initialize the NS world SIMD context for all CPUs. */
 void init_all_cpus_ns_simd_context(void)
 {
-	int __unused retval;
 	struct simd_config simd_cfg = { 0 };
 
 	(void)simd_get_cpu_config(&simd_cfg);
 
 	for (uint32_t i = 0; i < MAX_CPUS; i++) {
+		int __unused retval;
+
 		retval = simd_context_init(SIMD_OWNER_NWD, &g_ns_simd_ctx[i],
 					   &simd_cfg);
 		assert(retval == 0);
