@@ -1146,6 +1146,7 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 	unsigned long base_pa, ns_attr_host_mask;
 	unsigned long map_size = s2tte_map_size(level);
 	unsigned long s2tte = s2tte_read(&table[0]);
+	unsigned long s2tt_ns_attrs;
 	unsigned int i;
 
 	if (!s2tte_is_x(s2_ctx, s2tte, level)) {
@@ -1159,6 +1160,7 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 
 	ns_attr_host_mask = (s2_ctx->enable_lpa2 == true) ?
 		S2TTE_NS_ATTR_LPA2_MASK : S2TTE_NS_ATTR_MASK;
+	s2tt_ns_attrs  = s2tte & ns_attr_host_mask;
 
 	for (i = 1U; i < S2TTES_PER_S2TT; i++) {
 		unsigned long expected_pa = base_pa + (i * map_size);
@@ -1181,7 +1183,7 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 			 * We match all the attributes in the S2TTE
 			 * except for the AF bit.
 			 */
-			if ((s2tte & ns_attr_host_mask) != ns_attrs) {
+			if (s2tt_ns_attrs != ns_attrs) {
 				return false;
 			}
 		}
