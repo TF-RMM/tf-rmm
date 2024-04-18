@@ -27,9 +27,29 @@ static void increment_times_called(enum simd_cb_ids id)
 	helpers_times_called[id]++;
 }
 
-void fpu_save_regs_cb(struct fpu_regs *regs)
+static void reset_times_called(void)
+{
+	(void)memset(&helpers_times_called, 0, sizeof(helpers_times_called));
+}
+
+static void fpu_save_regs_cb(struct fpu_regs *regs)
 {
 	increment_times_called(FPU_SAVE_REGS);
+}
+
+static void sve_save_regs_cb(struct sve_regs *regs, bool save_ffr)
+{
+	increment_times_called(SVE_SAVE_REGS);
+}
+
+static void fpu_restore_regs_cb(struct fpu_regs *regs)
+{
+	increment_times_called(FPU_RESTORE_REGS);
+}
+
+static void sve_restore_regs_cb(struct sve_regs *regs, bool restore_ffr)
+{
+	increment_times_called(SVE_RESTORE_REGS);
 }
 
 static uint32_t sve_rdvl_cb(void)
@@ -631,4 +651,124 @@ ASSERT_TEST(simd, simd_context_restore_TC4)
 	test_helpers_expect_assert_fail(true);
 	simd_context_restore(&test_simd_ctx);
 	test_helpers_fail_if_no_assert_failed();
+}
+
+TEST(simd, simd_context_switch_TC1)
+{
+	struct simd_context simd_ctx_nwd;
+	struct simd_context simd_ctx_rl;
+	struct simd_config test_simd_cfg = { 0 };
+	union simd_cbs cb_save;
+	union simd_cbs cb_restore;
+	int ret1, ret2;
+
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Initialise two FPU contexts, one with NWD owner and one with
+	 * Realm owner. Call simd_context_switch() to save the NS context
+	 * and restore the Realm context. Then, call simd_context_switch()
+	 * again to do the opposite. Verify that the correct helper
+	 * routines are called.
+	 ******************************************************************/
+
+	reset_times_called();
+	(void)memset(&simd_ctx_nwd, 0, sizeof(struct simd_context));
+	(void)memset(&simd_ctx_rl, 0, sizeof(struct simd_context));
+	simd_test_helpers_setup_id_regs(false, false);
+
+	simd_init();
+
+	/* Initialise two FPU contexts */
+	ret1 = simd_context_init(SIMD_OWNER_NWD, &simd_ctx_nwd, &test_simd_cfg);
+	ret2 = simd_context_init(SIMD_OWNER_REL1, &simd_ctx_rl, &test_simd_cfg);
+
+	CHECK_TRUE(ret1 == 0);
+	CHECK_TRUE(ret2 == 0);
+
+	/* Set callbacks for the save and restore helper routines */
+
+	cb_save.fpu_save_restore_regs = fpu_save_regs_cb;
+	cb_restore.fpu_save_restore_regs = fpu_restore_regs_cb;
+
+	simd_test_register_callback(FPU_SAVE_REGS, cb_save);
+	simd_test_register_callback(FPU_RESTORE_REGS, cb_restore);
+
+	/*
+	 * Call simd_context_switch() to do the NS FPU -> RL FPU switch.
+	 */
+	(void)simd_context_switch(&simd_ctx_nwd, &simd_ctx_rl);
+
+	CHECK_TRUE(helpers_times_called[FPU_SAVE_REGS] == 1U);
+	CHECK_TRUE(helpers_times_called[FPU_RESTORE_REGS] == 1U);
+
+	/*
+	 * Do the RL FPU -> NS FPU switch.
+	 */
+	(void)simd_context_switch(&simd_ctx_rl, &simd_ctx_nwd);
+
+	CHECK_TRUE(helpers_times_called[FPU_SAVE_REGS] == 2U);
+	CHECK_TRUE(helpers_times_called[FPU_RESTORE_REGS] == 2U);
+}
+
+TEST(simd, simd_context_switch_TC2)
+{
+	struct simd_context simd_ctx_nwd;
+	struct simd_context simd_ctx_rl;
+	struct simd_config test_simd_cfg = { 0 };
+	union simd_cbs cb_save;
+	union simd_cbs cb_restore;
+	int ret1, ret2;
+
+	/******************************************************************
+	 * TEST CASE 2:
+	 *
+	 * Initialise an FPU context with NWD owner and an SVE context
+	 * with Realm owner. Call simd_context_switch() to save the NWD
+	 * FPU context and restore the Realm SVE context. Then, call
+	 * simd_context_switch() again to do the opposite. Verify that the
+	 * correct helper routines are called.
+	 ******************************************************************/
+
+	reset_times_called();
+	(void)memset(&simd_ctx_nwd, 0, sizeof(struct simd_context));
+	(void)memset(&simd_ctx_rl, 0, sizeof(struct simd_context));
+	simd_test_helpers_setup_id_regs(true, false);
+
+	simd_init();
+
+	/* Initialise NS FPU ctx */
+	ret1 = simd_context_init(SIMD_OWNER_NWD, &simd_ctx_nwd, &test_simd_cfg);
+
+	/* Initialise RL SVE ctx */
+	test_simd_cfg.sve_en = true;
+
+	ret2 = simd_context_init(SIMD_OWNER_REL1, &simd_ctx_rl, &test_simd_cfg);
+
+	CHECK_TRUE(ret1 == 0);
+	CHECK_TRUE(ret2 == 0);
+
+	/* Do the NS FPU -> RL SVE switch */
+	cb_save.fpu_save_restore_regs = fpu_save_regs_cb;
+	cb_restore.sve_save_restore_regs = sve_restore_regs_cb;
+
+	simd_test_register_callback(FPU_SAVE_REGS, cb_save);
+	simd_test_register_callback(SVE_RESTORE_REGS, cb_restore);
+
+	(void)simd_context_switch(&simd_ctx_nwd, &simd_ctx_rl);
+
+	CHECK_TRUE(helpers_times_called[FPU_SAVE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[SVE_RESTORE_REGS] == 1);
+
+	/* Do the RL SVE -> NS FPU switch */
+	cb_save.sve_save_restore_regs = sve_save_regs_cb;
+	cb_restore.fpu_save_restore_regs = fpu_restore_regs_cb;
+
+	simd_test_register_callback(SVE_SAVE_REGS, cb_save);
+	simd_test_register_callback(FPU_RESTORE_REGS, cb_restore);
+
+	(void)simd_context_switch(&simd_ctx_rl, &simd_ctx_nwd);
+
+	CHECK_TRUE(helpers_times_called[SVE_SAVE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[FPU_RESTORE_REGS] == 1);
 }
