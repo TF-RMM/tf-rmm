@@ -64,6 +64,16 @@
 /* Memory buffer allocator option */
 #define MBEDTLS_MEMORY_ALIGN_MULTIPLE	8
 
+/*
+ * Enable acceleration of the SHA-256, SHA-224, SHA-512 and SHA-384
+ * cryptographic hash algorithms with the ARMv8 cryptographic extensions, which
+ * must be available at runtime or else an illegal instruction fault will occur.
+ */
+#ifdef RMM_FPU_USE_AT_REL2
+#define MBEDTLS_SHA256_USE_A64_CRYPTO_ONLY
+#define MBEDTLS_SHA512_USE_A64_CRYPTO_ONLY
+#endif
+
 /* This is needed for size_t used below */
 #include <stddef.h>
 
