@@ -6,6 +6,9 @@
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 find_package(Git)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/tools/common")
+include(GitUtils)
+
 # The Mbed TLS library is not included in the CBMC analysis
 if(RMM_CBMC_STATIC_ANALYSIS)
     add_library(rmm-mbedtls INTERFACE)
@@ -53,29 +56,8 @@ endif()
 set(MBEDTLS_PATCH_DIR "${RMM_SOURCE_DIR}/configs/mbedtls")
 set(MBEDTLS_PATCH_FILES
     "${MBEDTLS_PATCH_DIR}/0001-Remove-compiler-options-for-clang.patch"
-    "${MBEDTLS_PATCH_DIR}/0002-Disable-explicit_bzero.patch"
-)
-
-if(NOT EXISTS ${MBEDTLS_SRC_DIR}/.git)
-    message(FATAL_ERROR "MbedTLS submodule not found")
-endif()
-
-set(REVERT_COMMAND "${GIT_EXECUTABLE}" checkout .)
-execute_process(COMMAND ${REVERT_COMMAND}
-    WORKING_DIRECTORY ${MBEDTLS_SRC_DIR}
-)
-
-foreach (MBEDTLS_PATCH_FILE ${MBEDTLS_PATCH_FILES})
-    set(EXECUTE_COMMAND "${GIT_EXECUTABLE}" apply --verbose ${MBEDTLS_PATCH_FILE})
-    execute_process(COMMAND ${EXECUTE_COMMAND}
-        WORKING_DIRECTORY ${MBEDTLS_SRC_DIR}
-        RESULT_VARIABLE PATCH_STATUS
-        COMMAND_ECHO STDOUT
-    )
-    if (NOT PATCH_STATUS EQUAL 0)
-        message( FATAL_ERROR "Failed to apply patches at ${WORKING_DIRECTORY}" )
-    endif()
-endforeach()
+    "${MBEDTLS_PATCH_DIR}/0002-Disable-explicit_bzero.patch")
+Git_Apply_Patches(${MBEDTLS_SRC_DIR} "${MBEDTLS_PATCH_FILES}")
 
 #
 # Add the mbedtls subdirectory and exclude all targets in mbedtls from
