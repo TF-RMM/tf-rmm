@@ -18,7 +18,8 @@ static void simd_test_helpers_setup_sysregs(void)
 	(void)host_util_set_default_sysreg_cb("cptr_el2", 0UL);
 	(void)host_util_set_default_sysreg_cb("id_aa64pfr0_el1", 0UL);
 	(void)host_util_set_default_sysreg_cb("id_aa64pfr1_el1", 0UL);
-	ret = host_util_set_default_sysreg_cb("zcr_el2", 0UL);
+	(void)host_util_set_default_sysreg_cb("zcr_el2", 0UL);
+	ret = host_util_set_default_sysreg_cb("svcr", 0UL);
 
 	assert(ret == 0);
 }
