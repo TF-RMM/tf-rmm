@@ -54,12 +54,16 @@ struct rmi_realm_params_buffer {
 };
 
 bool VmidIsFree(uint16_t vmid);
+bool RealmIsLive(uint64_t rd_addr);
+bool RttsStateEqual(uint64_t base, uint64_t number_start, uint64_t state);
 struct rmm_realm Realm(uint64_t rd);
 
 struct rd nondet_struct_rd(void);
 struct rmm_realm nondet_struct_rmm_realm(void);
 
 struct granule *init_realm_descriptor_page(void);
+
+uint64_t RecAuxCount(uint64_t rd_addr);
 
 #endif /* TB_REALM_H */
 
