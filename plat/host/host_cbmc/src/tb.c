@@ -30,7 +30,13 @@ void __init_global_state(unsigned long cmd)
 	case SMC_RMM_REC_AUX_COUNT: {
 			init_realm_descriptor_page();
 			return;
-	}
+		}
+	case SMC_RMM_REC_DESTROY: {
+			struct granule *g_rd = init_realm_descriptor_page();
+
+			init_rec_page(g_rd);
+			return;
+		}
 	case SMC_RMM_FEATURES:
 	case SMC_RMM_VERSION: {
 			/* No state to initialize */
@@ -69,6 +75,9 @@ void tb_handle_smc(struct tb_regs *config)
 		smc_rec_aux_count(config->X1, &res);
 		result = res.x[0];
 		config->X1 = res.x[1];
+		break;
+	case SMC_RMM_REC_DESTROY:
+		result = smc_rec_destroy(config->X1);
 		break;
 	case SMC_RMM_VERSION:
 		smc_version(config->X1, &res);

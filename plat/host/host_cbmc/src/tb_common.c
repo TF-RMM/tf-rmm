@@ -94,6 +94,14 @@ struct granule *pa_to_granule_metadata_ptr(uint64_t addr)
 	return &granules[idx];
 }
 
+void *granule_metadata_ptr_to_buffer_ptr(struct granule *g_ptr)
+{
+	if (!valid_granule_metadata_ptr(g_ptr)) {
+		return NULL;
+	}
+	return granules_buffer + (g_ptr - granules) * GRANULE_SIZE;
+}
+
 uint64_t granule_metadata_ptr_to_pa(struct granule *g_ptr)
 {
 	return (uint64_t)granules_buffer + (g_ptr - granules) * GRANULE_SIZE;

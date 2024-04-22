@@ -106,6 +106,7 @@ struct tb_lock_status __tb_lock_status(void);
 bool valid_pa(uint64_t addr);
 bool valid_granule_metadata_ptr(struct granule *p);
 struct granule *pa_to_granule_metadata_ptr(uint64_t addr);
+void *granule_metadata_ptr_to_buffer_ptr(struct granule *g_ptr);
 uint64_t granule_metadata_ptr_to_pa(struct granule *g_ptr);
 void *pa_to_granule_buffer_ptr(uint64_t addr);
 

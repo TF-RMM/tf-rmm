@@ -21,14 +21,25 @@
 #include <smc-rmi.h>
 #include <utils_def.h>
 
+#ifndef CBMC
 #define RMM_REC_SAVED_GEN_REG_COUNT	31
+#define STRUCT_TYPE	                struct
+#else /* CBMC */
+#define RMM_REC_SAVED_GEN_REG_COUNT	SMC_RESULT_REGS
+/*
+ * Some of the structures inside 'struct rec' don't influence the outcome of
+ * the CBMC tests, so for CBMC build make these a union to get smaller 'rec'
+ * structure.
+ */
+#define STRUCT_TYPE	                union
+#endif /* CBMC */
 
 struct granule;
 
 /*
  * System registers whose contents are specific to a REC.
  */
-struct sysreg_state {
+STRUCT_TYPE sysreg_state {
 	unsigned long sp_el0;
 	unsigned long sp_el1;
 	unsigned long elr_el1;
@@ -86,7 +97,7 @@ struct sysreg_state {
  * System registers whose contents are
  * common across all RECs in a Realm.
  */
-struct common_sysreg_state {
+STRUCT_TYPE common_sysreg_state {
 	unsigned long vttbr_el2;
 	unsigned long vtcr_el2;
 	unsigned long hcr_el2;
@@ -98,7 +109,7 @@ struct common_sysreg_state {
  * when allocated as an array for N CPUs.
  */
 struct ns_state {
-	struct sysreg_state sysregs;
+	STRUCT_TYPE sysreg_state sysregs;
 	unsigned long sp_el0;
 	unsigned long icc_sre_el2;
 	struct pmu_state *pmu;
@@ -147,17 +158,19 @@ struct rec {
 	unsigned long regs[RMM_REC_SAVED_GEN_REG_COUNT];
 	unsigned long sp_el0;
 
+#ifndef CBMC
 	/*
 	 * PAuth state of Realm.
 	 * Note that we do not need to save NS state as EL3 will save this as part of world switch.
 	 */
 	struct pauth_state pauth;
+#endif /* CBMC*/
 
 	unsigned long pc;
 	unsigned long pstate;
 
-	struct sysreg_state sysregs;
-	struct common_sysreg_state common_sysregs;
+	STRUCT_TYPE sysreg_state sysregs;
+	STRUCT_TYPE common_sysreg_state common_sysregs;
 
 	/* Populated when the REC issues a RIPAS change request */
 	struct {
@@ -181,7 +194,7 @@ struct rec {
 		struct s2tt_context s2_ctx;
 	} realm_info;
 
-	struct {
+	STRUCT_TYPE {
 		/*
 		 * The contents of the *_EL2 system registers at the last time
 		 * the REC exited to the host due to a synchronous exception.
