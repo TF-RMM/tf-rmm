@@ -10,7 +10,7 @@
 #include <stdio.h>
 
 /* Serial output - called from console driver */
-static int host_csl_putc(int c, struct console *csl)
+static int host_csl_putc(int c, const struct console *csl)
 {
 	assert(csl != NULL);
 	return putchar(c);

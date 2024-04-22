@@ -113,6 +113,8 @@ static bool validate_ipa_bits_and_sl(unsigned int ipa_bits, long sl, bool lpa2)
 
 	max_ipa_bits = (lpa2 == true) ?
 				S2TT_MAX_IPA_BITS_LPA2 : S2TT_MAX_IPA_BITS;
+
+	/* cppcheck-suppress misra-c2012-10.6 */
 	min_starting_level = (lpa2 == true) ?
 				S2TT_MIN_STARTING_LEVEL_LPA2 : S2TT_MIN_STARTING_LEVEL;
 
@@ -193,7 +195,7 @@ static void init_s2_starting_level(struct rd *rd)
 	 * the starting level.
 	 */
 	unsigned long sl_entry_map_size =
-			1UL << ((levels * S2TTE_STRIDE) + GRANULE_SHIFT);
+			(UL(1)) << U(U(levels * S2TTE_STRIDE) + U(GRANULE_SHIFT));
 
 	num_root_rtts = rd->s2_ctx.num_root_rtts;
 	for (unsigned int rtt = 0U; rtt < num_root_rtts; rtt++) {

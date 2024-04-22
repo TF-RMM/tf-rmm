@@ -55,7 +55,7 @@ static void writechar(uintptr_t base, int ch)
 
 /* Serial output - called from console driver */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
-static int pl011_putc(int c, struct console *csl)
+static int pl011_putc(int c, const struct console *csl)
 {
 	assert(csl != NULL);
 
