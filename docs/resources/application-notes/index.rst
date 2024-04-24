@@ -8,3 +8,4 @@ Application Notes
     :caption: Contents
 
     cbmc
+    cppcheck
