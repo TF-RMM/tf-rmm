@@ -22,7 +22,7 @@
 #include <utils_def.h>
 
 #ifndef CBMC
-#define RMM_REC_SAVED_GEN_REG_COUNT	31
+#define RMM_REC_SAVED_GEN_REG_COUNT	U(31)
 #define STRUCT_TYPE	                struct
 #else /* CBMC */
 #define RMM_REC_SAVED_GEN_REG_COUNT	SMC_RESULT_REGS

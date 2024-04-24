@@ -309,7 +309,7 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 				TABLE_DESC | (uintptr_t)(void *)subtable;
 
 			/* Recurse to write into subtable */
-			/* FIXME: This violates misra-c2012-17.2 */
+			/* cppcheck-suppress misra-c2012-17.2 */
 			end_va = xlat_tables_map_region(ctx, mm, table_idx_va,
 					       subtable, XLAT_TABLE_ENTRIES,
 					       level + 1);
@@ -322,7 +322,7 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 
 			subtable = (uint64_t *)(void *)xlat_get_oa_from_tte(desc);
 			/* Recurse to write into subtable */
-			/* FIXME: This violates misra-c2012-17.2 */
+			/* cppcheck-suppress misra-c2012-17.2 */
 			end_va = xlat_tables_map_region(ctx, mm, table_idx_va,
 					       subtable, XLAT_TABLE_ENTRIES,
 					       level + 1);

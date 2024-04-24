@@ -131,6 +131,7 @@ static int print_code(char *buf, size_t len, unsigned long res)
 	return snprintf(buf, len, " > %lx", res);
 }
 
+/* cppcheck-suppress misra-c2012-8.4 */
 void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 		     unsigned long regs[])
 {

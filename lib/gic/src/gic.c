@@ -99,7 +99,7 @@ void gic_get_virt_features(void)
 	 */
 	gic_virt_feature.max_vintid =
 				(EXTRACT(ICH_VTR_EL2_ID_BITS, vtr) == 0UL) ?
-				((1UL << 16U) - 1UL) : ((1UL << 24U) - 1UL);
+				((UL(1) << 16U) - 1UL) : ((UL(1) << 24U) - 1UL);
 
 	/* Number of virtual priority bits implemented */
 	nr_pri_bits = EXTRACT(ICH_VTR_EL2_PRI_BITS, vtr) + 1UL;

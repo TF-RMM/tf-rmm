@@ -598,11 +598,13 @@ unsigned long host_ns_s2tte(const struct s2tt_context *s2_ctx,
 unsigned long s2tte_create_table(const struct s2tt_context *s2_ctx,
 				 unsigned long pa, long level)
 {
-	__unused int min_starting_level;
+	__unused long min_starting_level;
 
 	(void)level;
 
 	assert(s2_ctx != NULL);
+
+	/* cppcheck-suppress misra-c2012-10.6 */
 	min_starting_level = (s2_ctx->enable_lpa2 == true) ?
 			S2TT_MIN_STARTING_LEVEL_LPA2 : S2TT_MIN_STARTING_LEVEL;
 
@@ -1033,6 +1035,7 @@ unsigned long s2tte_pa(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 
 	assert(s2_ctx != NULL);
 
+	/* cppcheck-suppress misra-c2012-10.6 */
 	min_starting_level = (s2_ctx->enable_lpa2 == true) ?
 		S2TT_MIN_STARTING_LEVEL_LPA2 : S2TT_MIN_STARTING_LEVEL;
 	assert(level >= min_starting_level);
@@ -1055,6 +1058,7 @@ bool s2tte_is_addr_lvl_aligned(const struct s2tt_context *s2_ctx,
 {
 	assert(s2_ctx != NULL);
 
+	/* cppcheck-suppress misra-c2012-10.6 */
 	__unused long min_starting_level = (s2_ctx->enable_lpa2 == true) ?
 		S2TT_MIN_STARTING_LEVEL_LPA2 : S2TT_MIN_STARTING_LEVEL;
 	unsigned long levels = (unsigned long)(S2TT_PAGE_LEVEL - level);
@@ -1273,6 +1277,8 @@ unsigned long s2tt_skip_non_live_entries(const struct s2tt_context *s2_ctx,
 	unsigned long i, index = wi->index;
 	long level = wi->last_level;
 	unsigned long map_size;
+
+	/* cppcheck-suppress misra-c2012-10.6 */
 	__unused long min_starting_level = (s2_ctx->enable_lpa2 == true) ?
 			S2TT_MIN_STARTING_LEVEL_LPA2 : S2TT_MIN_STARTING_LEVEL;
 

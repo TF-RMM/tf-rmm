@@ -70,7 +70,7 @@ struct buffer_alloc_ctx {
 	size_t			len;
 	memory_header_t		*first;
 	memory_header_t		*first_free;
-	int			verify;
+	unsigned int		verify;
 };
 
 struct memory_header_s {

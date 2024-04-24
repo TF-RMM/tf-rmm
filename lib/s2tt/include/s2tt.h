@@ -38,11 +38,11 @@ struct s2tt_context {
 	 */
 };
 
-#define S2TT_MIN_IPA_BITS		32U
-#define S2TT_MAX_IPA_BITS		48U
+#define S2TT_MIN_IPA_BITS		U(32)
+#define S2TT_MAX_IPA_BITS		U(48)
 
-#define S2TT_MAX_IPA_BITS_LPA2		52U
-#define S2TT_MAX_IPA_SIZE_LPA2		(1UL << S2TT_MAX_IPA_BITS_LPA2)
+#define S2TT_MAX_IPA_BITS_LPA2		U(52)
+#define S2TT_MAX_IPA_SIZE_LPA2		(UL(1) << S2TT_MAX_IPA_BITS_LPA2)
 
 #define S2TT_MIN_STARTING_LEVEL		(0)
 #define S2TT_MIN_STARTING_LEVEL_LPA2	(-1)
@@ -53,7 +53,7 @@ struct s2tt_context {
  * S2TTE_STRIDE: The number of bits resolved in a single level of translation
  * walk (except for the starting level which may resolve more or fewer bits).
  */
-#define S2TTE_STRIDE		(GRANULE_SHIFT - 3U)
+#define S2TTE_STRIDE		(U(GRANULE_SHIFT) - 3U)
 #define S2TTES_PER_S2TT		(1UL << S2TTE_STRIDE)
 
 /*

@@ -52,7 +52,7 @@ static bool complete_mmio_emulation(struct rec *rec, struct rmi_rec_enter *rec_e
 
 		if (esr_sign_extend(esr)) {
 			unsigned int bit_count = access_len(esr) * 8U;
-			unsigned long mask = 1UL << (bit_count - 1U);
+			unsigned long mask = (UL(1)) << U(bit_count - 1U);
 
 			val = (val ^ mask) - mask;
 			if (!esr_sixty_four(esr)) {

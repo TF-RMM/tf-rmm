@@ -27,5 +27,8 @@ constVariablePointer
 constParameterPointer
 constParameter
 
+// Ignore cppcheck checkersReport error
+checkersReport
+
 // Ignore errors in ext folder
 *:*/ext/*

@@ -141,7 +141,7 @@ static void *buffer_alloc_calloc_with_heap(struct buffer_alloc_ctx *heap,
 {
 	struct memory_header_s *new;
 	struct memory_header_s *cur = heap->first_free;
-	unsigned char *p;
+	uintptr_t p;
 	void *ret;
 	size_t original_len;
 	size_t len;
@@ -159,9 +159,9 @@ static void *buffer_alloc_calloc_with_heap(struct buffer_alloc_ctx *heap,
 		return NULL;
 	}
 
-	if ((len % MBEDTLS_MEMORY_ALIGN_MULTIPLE) != 0) {
-		len -= len % MBEDTLS_MEMORY_ALIGN_MULTIPLE;
-		len += MBEDTLS_MEMORY_ALIGN_MULTIPLE;
+	if ((len % U(MBEDTLS_MEMORY_ALIGN_MULTIPLE)) != 0U) {
+		len -= len % U(MBEDTLS_MEMORY_ALIGN_MULTIPLE);
+		len += U(MBEDTLS_MEMORY_ALIGN_MULTIPLE);
 	}
 
 	/* Find block that fits */
@@ -182,7 +182,7 @@ static void *buffer_alloc_calloc_with_heap(struct buffer_alloc_ctx *heap,
 
 	/* Found location, split block if > memory_header + 4 room left */
 	if ((cur->size - len) <
-	    (sizeof(struct memory_header_s) + MBEDTLS_MEMORY_ALIGN_MULTIPLE)) {
+	   (sizeof(struct memory_header_s) + U(MBEDTLS_MEMORY_ALIGN_MULTIPLE))) {
 		cur->alloc = 1UL;
 
 		/* Remove from free_list */
@@ -199,17 +199,18 @@ static void *buffer_alloc_calloc_with_heap(struct buffer_alloc_ctx *heap,
 		cur->prev_free = NULL;
 		cur->next_free = NULL;
 
-		if ((heap->verify & MBEDTLS_MEMORY_VERIFY_ALLOC) != 0) {
+		/* cppcheck-suppress misra-c2012-10.1 */
+		if ((heap->verify & U(MBEDTLS_MEMORY_VERIFY_ALLOC)) != 0U) {
 			assert(verify_chain(heap) == 0);
 		}
 
-		ret = (unsigned char *) cur + sizeof(struct memory_header_s);
+		ret = (void *)((uintptr_t)cur + sizeof(struct memory_header_s));
 		(void)memset(ret, 0, original_len);
 
 		return ret;
 	}
 
-	p = ((unsigned char *) cur) + sizeof(struct memory_header_s) + len;
+	p = ((uintptr_t)cur) + sizeof(struct memory_header_s) + len;
 	new = (struct memory_header_s *) p;
 
 	new->size = cur->size - len - sizeof(struct memory_header_s);
@@ -242,11 +243,12 @@ static void *buffer_alloc_calloc_with_heap(struct buffer_alloc_ctx *heap,
 	cur->prev_free = NULL;
 	cur->next_free = NULL;
 
-	if ((heap->verify & MBEDTLS_MEMORY_VERIFY_ALLOC) != 0) {
+	/* cppcheck-suppress misra-c2012-10.1 */
+	if ((heap->verify & U(MBEDTLS_MEMORY_VERIFY_ALLOC)) != 0U) {
 		assert(verify_chain(heap) == 0);
 	}
 
-	ret = (unsigned char *) cur + sizeof(struct memory_header_s);
+	ret = (void *)((uintptr_t)cur + sizeof(struct memory_header_s));
 	(void)memset(ret, 0, original_len);
 
 	return ret;
@@ -265,13 +267,13 @@ static void buffer_alloc_free_with_heap(struct buffer_alloc_ctx *heap,
 {
 	struct memory_header_s *hdr;
 	struct memory_header_s *old = NULL;
-	unsigned char *p = (unsigned char *) ptr;
+	uintptr_t p = (uintptr_t)ptr;
 
 	if ((ptr == NULL) || (heap->buf == NULL) || (heap->first == NULL)) {
 		return;
 	}
 
-	if ((p < heap->buf) || (p >= (heap->buf + heap->len))) {
+	if ((p < (uintptr_t)heap->buf) || (p >= ((uintptr_t)heap->buf + heap->len))) {
 		assert(0);
 	}
 
@@ -280,7 +282,7 @@ static void buffer_alloc_free_with_heap(struct buffer_alloc_ctx *heap,
 
 	assert(verify_header(hdr) == 0);
 
-	if (hdr->alloc != 1) {
+	if (hdr->alloc != 1U) {
 		assert(0);
 	}
 
@@ -349,7 +351,8 @@ static void buffer_alloc_free_with_heap(struct buffer_alloc_ctx *heap,
 		heap->first_free = hdr;
 	}
 
-	if ((heap->verify & MBEDTLS_MEMORY_VERIFY_FREE) != 0) {
+	/* cppcheck-suppress misra-c2012-10.1 */
+	if ((heap->verify & U(MBEDTLS_MEMORY_VERIFY_FREE)) != 0U) {
 		assert(verify_chain(heap));
 	}
 }
@@ -413,6 +416,8 @@ int mbedtls_memory_buffer_alloc_verify(void)
 
 void mbedtls_memory_buffer_alloc_init(unsigned char *buf, size_t len)
 {
+	uintptr_t p = (uintptr_t)buf;
+
 	/* The heap structure is obtained from the REC
 	 * while the buffer is passed in the init function.
 	 * This way the interface can remain the same.
@@ -424,14 +429,15 @@ void mbedtls_memory_buffer_alloc_init(unsigned char *buf, size_t len)
 	(void)memset(heap, 0, sizeof(struct buffer_alloc_ctx));
 
 	if (len < sizeof(struct memory_header_s) +
-	    MBEDTLS_MEMORY_ALIGN_MULTIPLE) {
+	    U(MBEDTLS_MEMORY_ALIGN_MULTIPLE)) {
 		return;
-	} else if (((size_t)buf % MBEDTLS_MEMORY_ALIGN_MULTIPLE) != 0U) {
+	} else if (((size_t)buf % U(MBEDTLS_MEMORY_ALIGN_MULTIPLE)) != 0U) {
 		/* Adjust len first since buf is used in the computation */
-		len -= MBEDTLS_MEMORY_ALIGN_MULTIPLE
-			- ((size_t)buf % MBEDTLS_MEMORY_ALIGN_MULTIPLE);
-		buf += MBEDTLS_MEMORY_ALIGN_MULTIPLE
-			- ((size_t)buf % MBEDTLS_MEMORY_ALIGN_MULTIPLE);
+		len -= U(MBEDTLS_MEMORY_ALIGN_MULTIPLE)
+			- ((size_t)buf % U(MBEDTLS_MEMORY_ALIGN_MULTIPLE));
+		p += U(MBEDTLS_MEMORY_ALIGN_MULTIPLE)
+			- ((size_t)buf % U(MBEDTLS_MEMORY_ALIGN_MULTIPLE));
+		buf = (unsigned char *)p;
 	}
 
 	(void)memset(buf, 0, len);

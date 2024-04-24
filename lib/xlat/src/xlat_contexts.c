@@ -258,6 +258,8 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 	}
 
 	cfg->max_va_size = va_size;
+
+	/* cppcheck-suppress misra-c2012-10.6 */
 	cfg->base_level = (GET_XLAT_TABLE_LEVEL_BASE(va_size));
 	cfg->region = region;
 	cfg->initialized = true;
