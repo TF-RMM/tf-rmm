@@ -10,6 +10,7 @@ target_link_libraries(rmm-lib
               rmm-lib-arch
               rmm-lib-attestation
               rmm-lib-common
+              rmm-lib-console
               rmm-lib-debug
               rmm-lib-gic
               rmm-lib-measurement
@@ -25,6 +26,7 @@ add_subdirectory("allocator")
 add_subdirectory("arch")
 add_subdirectory("attestation")
 add_subdirectory("common")
+add_subdirectory("console")
 add_subdirectory("debug")
 add_subdirectory("gic")
 add_subdirectory("mbedtls")

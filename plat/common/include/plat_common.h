@@ -9,9 +9,9 @@
 /* Forward declaration */
 struct xlat_mmap_region;
 
-int plat_cmn_setup(unsigned long x0, unsigned long x1,
-		   unsigned long x2, unsigned long x3,
-		   struct xlat_mmap_region *plat_regions,
+int plat_cmn_init_el3_ifc(unsigned long x0, unsigned long x1,
+		   unsigned long x2, unsigned long x3);
+int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
 		   unsigned int nregions);
 int plat_cmn_warmboot_setup(void);
 

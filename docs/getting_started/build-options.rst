@@ -270,7 +270,6 @@ The |RMM| build system supports the following CMake build options.
    RMM_TOOLCHAIN		,gnu | llvm		,			,"Toolchain name"
    LOG_LEVEL			,0 - 50			,40(Debug) 20(Release)	,"Log level to apply for RMM (0 - 50)."
    RMM_STATIC_ANALYSIS		,			,			,"Enable static analysis checkers"
-   RMM_UART_ADDR		,			,0x0			,"Base addr of UART to be used for RMM logs"
    PLAT_CMN_CTX_MAX_XLAT_TABLES ,			,0			,"Maximum number of translation tables used by the runtime context"
    PLAT_CMN_EXTRA_MMAP_REGIONS	,			,0			,"Extra platform mmap regions that need to be mapped in S1 xlat tables"
    RMM_NUM_PAGES_PER_STACK	,			,5			,"Number of pages to use per CPU stack"

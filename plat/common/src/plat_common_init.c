@@ -69,6 +69,12 @@ IMPORT_SYM(uintptr_t, rmm_rw_end, RMM_RW_END);
 					0U,				\
 					(MT_RW_DATA | MT_REALM))
 
+/* RMM supports only a single console */
+#define RMM_CSL			MAP_REGION_FLAT(			\
+					0,				\
+					0,				\
+					(MT_DEVICE | MT_RW | MT_REALM))
+
 /* Number of common memory mapping regions */
 #define COMMON_REGIONS		(4U)
 
@@ -92,6 +98,13 @@ static struct xlat_ctx_tbls runtime_tbls;
 static struct xlat_ctx_cfg runtime_xlat_ctx_cfg;
 static struct xlat_ctx runtime_xlat_ctx;
 
+int plat_cmn_init_el3_ifc(unsigned long x0, unsigned long x1,
+			   unsigned long x2, unsigned long x3)
+{
+	/* Initialize the RMM <-> EL3 interface */
+	return rmm_el3_ifc_init(x0, x1, x2, x3, get_shared_buf_va(x3));
+}
+
 /*
  * Platform common cold boot setup for RMM.
  *
@@ -100,9 +113,7 @@ static struct xlat_ctx runtime_xlat_ctx;
  * common for all PEs executing RMM. The rmm_el3_ifc, the xlat tables
  * and GIC driver are initialized by this function.
  */
-int plat_cmn_setup(unsigned long x0, unsigned long x1,
-		   unsigned long x2, unsigned long x3,
-		   struct xlat_mmap_region *plat_regions,
+int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
 		   unsigned int nregions)
 {
 	int ret;
@@ -124,21 +135,13 @@ int plat_cmn_setup(unsigned long x0, unsigned long x1,
 		return -EINVAL;
 	}
 
-	/* Initialize the RMM <-> EL3 interface */
-	ret = rmm_el3_ifc_init(x0, x1, x2, x3, get_shared_buf_va(x3));
-	if (ret != 0) {
-		ERROR("%s (%u): Failed to initialize the RMM EL3 Interface\n",
-		      __func__, __LINE__);
-		return ret;
-	}
-
 	/* Setup the parameters of the shared area */
 	regions[3].base_pa = get_shared_buf_pa();
 	regions[3].size = rmm_el3_ifc_get_shared_buf_size();
 
 	plat_offset = COMMON_REGIONS;
 	cmn_offset = 0U;
-	if (nregions > 0U) {
+	if (nregions != 0U) {
 		/*
 		 * Combine the common memory regions with the platform ones
 		 * in an array where they are sorted as per VA.

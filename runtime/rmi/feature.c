@@ -20,8 +20,8 @@ unsigned long get_feature_register_0(void)
 	unsigned long feat_reg0 = INPLACE(RMM_FEATURE_REGISTER_0_S2SZ, s2sz);
 	struct simd_config simd_cfg = { 0 };
 
-	/* Set LPA2 field */
-	if (is_feat_lpa2_4k_2_present() == true) {
+	/* Set LPA2 field. RMM needs both Stage 1 and Stage 2 to support LPA2 */
+	if ((is_feat_lpa2_4k_2_present() && is_feat_lpa2_4k_present()) == true) {
 		feat_reg0 |=
 			INPLACE(RMM_FEATURE_REGISTER_0_LPA2, RMI_FEATURE_TRUE);
 	}

@@ -8,7 +8,7 @@ add_library(rmm-lib-realm)
 arm_config_option(
     NAME VIRT_ADDR_SPACE_WIDTH
     HELP "Size in bits of the virtual address space."
-    DEFAULT 0x0
+    DEFAULT 38
     TYPE STRING
     ADVANCED)
 
