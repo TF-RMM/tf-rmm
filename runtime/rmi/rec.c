@@ -19,7 +19,6 @@
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
-#include <spinlock.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
@@ -262,7 +261,8 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	unsigned int num_rec_aux;
 
 	g_rec_params = find_granule(rec_params_addr);
-	if ((g_rec_params == NULL) || (g_rec_params->state != GRANULE_STATE_NS)) {
+	if ((g_rec_params == NULL) ||
+		(granule_unlocked_state(g_rec_params) != GRANULE_STATE_NS)) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -304,6 +304,15 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 				&g_rd)) {
 		ret = RMI_ERROR_INPUT;
 		goto out_free_aux;
+	}
+
+	/*
+	 * Check if the maximum supported number of granules
+	 * was already reached
+	 */
+	if (granule_refcount_read(g_rd) == REFCOUNT_MAX) {
+		ret = RMI_ERROR_REALM;
+		goto out_unlock;
 	}
 
 	rec = buffer_granule_map(g_rec, SLOT_REC);
@@ -358,9 +367,7 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 
 	/*
 	 * RD has a lock-free access from RMI_REC_DESTROY, hence increment
-	 * refcount atomically. Also, since the granule is only used for
-	 * refcount update, only an atomic operation will suffice and
-	 * release/acquire semantics are not required.
+	 * refcount atomically.
 	 */
 	atomic_granule_get(g_rd);
 	new_rec_state = GRANULE_STATE_REC;
@@ -379,6 +386,7 @@ out_unmap:
 	buffer_unmap(rd);
 	buffer_unmap(rec);
 
+out_unlock:
 	granule_unlock(g_rd);
 	granule_unlock_transition(g_rec, new_rec_state);
 
@@ -425,11 +433,11 @@ unsigned long smc_rec_destroy(unsigned long rec_addr)
 	 * Decrement refcount. The refcount should be balanced before
 	 * RMI_REC_DESTROY returns, and until this occurs a transient
 	 * over-estimate of the refcount (in-between the unlock and decreasing
-	 * the refcount) is legitimate. Also, since the granule is only used for
-	 * refcount update, only an atomic operation will suffice and
-	 * release/acquire semantics are not required.
+	 * the refcount) is legitimate.
+	 * We use release semantic here to match acquire semantic for refcount
+	 * in RMI_REALM_DESTROY.
 	 */
-	atomic_granule_put(g_rd);
+	atomic_granule_put_release(g_rd);
 
 	return RMI_SUCCESS;
 }

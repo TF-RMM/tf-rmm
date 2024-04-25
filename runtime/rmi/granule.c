@@ -11,11 +11,6 @@
 #include <smc-rmi.h>
 #include <smc.h>
 
-COMPILER_ASSERT(sizeof(struct granule) == (
-		SIZE_OF(granule, lock) +
-		SIZE_OF(granule, state) +
-		SIZE_OF(granule, refcount)));
-
 unsigned long smc_granule_delegate(unsigned long addr)
 {
 	struct granule *g;

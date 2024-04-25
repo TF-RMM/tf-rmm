@@ -14,7 +14,7 @@
  */
 static inline void atomic_add_64(uint64_t *loc, uint64_t val)
 {
-	*loc = *loc + val;
+	*loc += val;
 }
 
 /*
@@ -26,7 +26,7 @@ static inline uint64_t atomic_load_add_release_64(uint64_t *loc, uint64_t val)
 {
 	uint64_t old_val = *loc;
 
-	*loc = *loc + val;
+	*loc += val;
 	return old_val;
 }
 
@@ -35,7 +35,19 @@ static inline uint64_t atomic_load_add_release_64(uint64_t *loc, uint64_t val)
  */
 static inline void atomic_add_16(uint16_t *loc, uint16_t val)
 {
-	*loc = *loc + val;
+	*loc += val;
+}
+
+/*
+ * Atomically adds @val to the 16-bit value stored at memory location @loc.
+ * Returns the old value.
+ */
+static inline uint16_t atomic_load_add_16(uint16_t *loc, uint16_t val)
+{
+	uint16_t old_val = *loc;
+
+	*loc += val;
+	return old_val;
 }
 
 /*
@@ -47,7 +59,7 @@ static inline uint16_t atomic_load_add_release_16(uint16_t *loc, uint16_t val)
 {
 	uint16_t old_val = *loc;
 
-	*loc = *loc + val;
+	*loc += val;
 	return old_val;
 }
 
@@ -58,7 +70,7 @@ static inline void atomic_bit_set_release_64(uint64_t *loc, unsigned int bit)
 {
 	uint64_t mask = (1UL << bit);
 
-	*loc = *loc | mask;
+	*loc |= mask;
 }
 
 /*
@@ -68,7 +80,7 @@ static inline void atomic_bit_clear_release_64(uint64_t *loc, unsigned int bit)
 {
 	uint64_t mask = ~((uint64_t)(1UL << bit));
 
-	*loc = *loc & mask;
+	*loc &= mask;
 }
 
 /*
@@ -94,6 +106,19 @@ static inline bool atomic_bit_set_acquire_release_64(uint64_t *loc, unsigned int
 
 	*loc |= mask;
 	return (old_val != 0UL);
+}
+
+/*
+ * Atomically performs exclusive-OR with @val on the 16-bit value stored at memory
+ * location @loc and stores the result back to memory.
+ * Returns the old value.
+ */
+static inline uint16_t atomic_eor_16(uint16_t *loc, uint16_t val)
+{
+	uint16_t old_val = *loc;
+
+	*loc ^= val;
+	return old_val;
 }
 
 #endif /* ATOMICS_H */

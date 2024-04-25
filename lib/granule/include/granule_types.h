@@ -6,7 +6,7 @@
 #ifndef GRANULE_TYPES_H
 #define GRANULE_TYPES_H
 
-#include <spinlock.h>
+#include <utils_def.h>
 
 /*
  * Locking Order
@@ -185,31 +185,44 @@
 #define GRANULE_STATE_RTT		6U
 #define GRANULE_STATE_LAST		GRANULE_STATE_RTT
 
+/*
+ * Granule descriptor bit fields:
+ *
+ * @bit_lock protects the struct granule itself. Take this lock whenever
+ * inspecting or modifying any other fields in this descriptor.
+ * [15]:	bit_lock
+ *
+ * @state is the state of the granule.
+ * [14:10]:	state
+ *
+ * @refcount counts RMM and realm references to this granule with the
+ * following rules:
+ *  - The @state of the granule cannot be modified when @refcount
+ *    is non-zero.
+ *  - When a granule is mapped into the RMM, either the granule lock
+ *    must be held or a reference must be held.
+ *  - The content of the granule itself can be modified when
+ *    @refcount is non-zero without holding @lock.  However, specific
+ *    types of granules may impose further restrictions on concurrent
+ *    access.
+ * [9:0]:	refcount
+ */
+
 struct granule {
-	/*
-	 * @lock protects the struct granule itself. Take this lock whenever
-	 * inspecting or modifying any other fields in this struct.
-	 */
-	byte_spinlock_t lock;
-
-	/*
-	 * @state is the state of the granule.
-	 */
-	unsigned char state;
-
-	/*
-	 * @refcount counts RMM and realm references to this granule with the
-	 * following rules:
-	 *  - The @state of the granule cannot be modified when @refcount
-	 *    is non-zero.
-	 *  - When a granule is mapped into the RMM, either the granule lock
-	 *    must be held or a reference must be held.
-	 *  - The content of the granule itself can be modified when
-	 *    @refcount is non-zero without holding @lock.  However, specific
-	 *    types of granules may impose further restrictions on concurrent
-	 *    access.
-	 */
-	unsigned short refcount;
+	uint16_t	descriptor;
 };
+
+/* Granule descriptor fields definitions */
+#define GRN_LOCK_SHIFT		U(15)
+#define GRN_LOCK_BIT		(U(1) << GRN_LOCK_SHIFT)
+
+#define GRN_STATE_SHIFT		U(10)
+#define GRN_STATE_WIDTH		U(5)
+
+#define GRN_REFCOUNT_SHIFT	U(0)
+#define GRN_REFCOUNT_WIDTH	U(10)
+
+#define STATE_MASK		(unsigned short)MASK(GRN_STATE)
+#define REFCOUNT_MASK		(unsigned short)MASK(GRN_REFCOUNT)
 
 #endif /* GRANULE_TYPES_H */

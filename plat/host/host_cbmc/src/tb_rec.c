@@ -15,7 +15,7 @@ static struct granule *init_aux_page(void)
 	unsigned long aux_content = 0;
 	struct granule g = init_granule();
 
-	__CPROVER_assume(g.state == GRANULE_STATE_REC_AUX);
+	__CPROVER_assume(granule_unlocked_state(&g) == GRANULE_STATE_REC_AUX);
 	struct granule *g_aux = inject_granule(&g, &aux_content, sizeof(aux_content));
 
 	return g_aux;
@@ -25,13 +25,13 @@ struct granule *init_rec_page(struct granule *g_rd)
 {
 	struct granule g = init_granule();
 
-	__CPROVER_assume(g.state == GRANULE_STATE_REC);
+	__CPROVER_assume(granule_unlocked_state(&g) == GRANULE_STATE_REC);
 	struct rec rec = nondet_rec();
 
 	rec.realm_info.g_rd = g_rd;
 
 	/* It must be a valid g_rd */
-	__CPROVER_assert(g_rd->state == GRANULE_STATE_RD,
+	__CPROVER_assert(granule_unlocked_state(g_rd) == GRANULE_STATE_RD,
 		"internal, `_init_rec_page` valid `g_rd`.");
 	struct rd *realm = granule_metadata_ptr_to_buffer_ptr(g_rd);
 
@@ -66,7 +66,7 @@ struct rmm_rec Rec(uint64_t addr)
 		/* TODO .attest_state = */
 		.owner = granule_metadata_ptr_to_pa(rec_ptr->realm_info.g_rd),
 		.flags.runnable = rec_ptr->runnable,
-		.state = rec_ptr->g_rec->refcount == 0 ? REC_READY:REC_RUNNING,
+		.state = granule_refcount_read(rec_ptr->g_rec) == 0 ? REC_READY:REC_RUNNING,
 		.ripas_addr = rec_ptr->set_ripas.addr,
 		.ripas_top = rec_ptr->set_ripas.top,
 		.ripas_value = rec_ptr->set_ripas.ripas_val,
@@ -83,12 +83,13 @@ struct rmm_rec Rec(uint64_t addr)
 bool AuxStateEqual(struct granule **aux, uint64_t num_aux, unsigned char state)
 {
 	struct granule *g_rec_aux = aux[0];
-	unsigned char aux_state = g_rec_aux->state;
+	unsigned char aux_state = granule_unlocked_state(g_rec_aux);
 
 	__CPROVER_assert(num_aux >= 0 && num_aux <= MAX_REC_AUX_GRANULES,
 		"internal: _AuxStateEqual range check.");
 	for (int i = 0; i < num_aux && i < MAX_REC_AUX_GRANULES; ++i) {
-		if (!PaIsDelegable(granule_metadata_ptr_to_pa(aux[i])) || aux[i]->state != state) {
+		if (!PaIsDelegable(granule_metadata_ptr_to_pa(aux[i])) ||
+					granule_unlocked_state(aux[i]) != state) {
 			return false;
 		}
 	}

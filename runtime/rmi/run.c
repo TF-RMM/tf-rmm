@@ -185,7 +185,8 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	(void)memset(&rec_run.exit, 0, sizeof(struct rmi_rec_exit));
 
 	g_run = find_granule(rec_run_addr);
-	if ((g_run == NULL) || (g_run->state != GRANULE_STATE_NS)) {
+	if ((g_run == NULL) ||
+		(granule_unlocked_state(g_run) != GRANULE_STATE_NS)) {
 		return RMI_ERROR_INPUT;
 	}
 

@@ -112,9 +112,8 @@ struct granule *find_granule(unsigned long addr)
 struct granule *find_lock_granule(unsigned long addr,
 				  unsigned char expected_state)
 {
-	struct granule *g;
+	struct granule *g = find_granule(addr);
 
-	g = find_granule(addr);
 	if (g == NULL) {
 		return NULL;
 	}
