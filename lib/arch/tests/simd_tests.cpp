@@ -52,6 +52,11 @@ static void sve_restore_regs_cb(struct sve_regs *regs, bool restore_ffr)
 	increment_times_called(SVE_RESTORE_REGS);
 }
 
+static void sve_clear_p_ffr_regs_cb(void)
+{
+	increment_times_called(SVE_CLEAR_P_FFR_REGS);
+}
+
 static uint32_t sve_rdvl_cb(void)
 {
 	return sve_vq;
@@ -1179,4 +1184,249 @@ TEST(simd, simd_context_switch_TC8)
 
 	CHECK_TRUE(helpers_times_called[SVE_SAVE_REGS] == 2);
 	CHECK_TRUE(helpers_times_called[SVE_RESTORE_REGS] == 2);
+}
+
+TEST(simd, simd_context_switch_TC9)
+{
+	struct simd_context simd_ctx_nwd;
+	struct simd_context simd_ctx_rl;
+	struct simd_config test_simd_cfg = { 0 };
+	union simd_cbs cb_fpu_save;
+	union simd_cbs cb_fpu_restore;
+	union simd_cbs cb_sve_save;
+	union simd_cbs cb_sve_restore;
+	union simd_cbs cb_sve_clear_p_ffr;
+	int ret;
+
+	/******************************************************************
+	 * TEST CASE 9:
+	 *
+	 * Initialise an SVE context with NS owner, with SVE hint bit
+	 * enabled, and an FPU context with Realm owner. Call
+	 * simd_context_switch() to save the NS SVE context and restore
+	 * the Realm FPU context. Then, call simd_context_switch() again to
+	 * do the opposite. Verify that the correct helper routines are
+	 * called.
+	 ******************************************************************/
+
+	reset_times_called();
+	(void)memset(&simd_ctx_nwd, 0, sizeof(struct simd_context));
+	(void)memset(&simd_ctx_rl, 0, sizeof(struct simd_context));
+	simd_test_helpers_setup_id_regs(true, false);
+
+	simd_init();
+
+	/* Initialise RL FPU ctx */
+	ret = simd_context_init(SIMD_OWNER_REL1, &simd_ctx_rl, &test_simd_cfg);
+
+	CHECK_TRUE(ret == 0);
+
+	/* Initialise NS SVE ctx with the CPU SIMD config */
+	ret = simd_get_cpu_config(&test_simd_cfg);
+
+	CHECK_TRUE(ret == 0);
+
+	ret = simd_context_init(SIMD_OWNER_NWD, &simd_ctx_nwd, &test_simd_cfg);
+
+	CHECK_TRUE(ret == 0);
+
+	/*
+	 * Set SVE hint bit for NS SVE ctx. This denotes that there is no live
+	 * SVE-specific live state in NS world.
+	 */
+	simd_update_smc_sve_hint(&simd_ctx_nwd, true);
+
+	/* Set callbacks for relevant helper routines */
+	cb_fpu_save.fpu_save_restore_regs = fpu_save_regs_cb;
+	cb_fpu_restore.fpu_save_restore_regs = fpu_restore_regs_cb;
+	cb_sve_save.sve_save_restore_regs = sve_save_regs_cb;
+	cb_sve_restore.sve_save_restore_regs = sve_restore_regs_cb;
+	cb_sve_clear_p_ffr.sve_clear_regs = sve_clear_p_ffr_regs_cb;
+
+	simd_test_register_callback(FPU_SAVE_REGS, cb_fpu_save);
+	simd_test_register_callback(FPU_RESTORE_REGS, cb_fpu_restore);
+	simd_test_register_callback(SVE_SAVE_REGS, cb_sve_save);
+	simd_test_register_callback(SVE_RESTORE_REGS, cb_sve_restore);
+	simd_test_register_callback(SVE_CLEAR_P_FFR_REGS, cb_sve_clear_p_ffr);
+
+	/*
+	 * Do the NS SVE -> RL FPU switch. Since SVE hint bit is set, expect the
+	 * FPU Q registers to be saved, as opposed to the SVE Z registers.
+	 */
+	(void)simd_context_switch(&simd_ctx_nwd, &simd_ctx_rl);
+
+	CHECK_TRUE(helpers_times_called[FPU_SAVE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[FPU_RESTORE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[SVE_SAVE_REGS] == 0);
+
+	reset_times_called();
+
+	/*
+	 * Do the RL FPU -> NS SVE switch. Since SVE hint bit is set, expect the
+	 * FPU Q registers to be restored, as opposed to the SVE Z registers. In
+	 * addition, expect the sve_clear_p_ffr_registers() helper routine to be
+	 * called. The P and FFR registers hold values from previous usage, so
+	 * they should be explicitly cleared.
+	 */
+	(void)simd_context_switch(&simd_ctx_rl, &simd_ctx_nwd);
+
+	CHECK_TRUE(helpers_times_called[FPU_SAVE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[FPU_RESTORE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[SVE_CLEAR_P_FFR_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[SVE_RESTORE_REGS == 0]);
+}
+
+TEST(simd, simd_context_switch_TC10)
+{
+	struct simd_context simd_ctx_nwd;
+	struct simd_context simd_ctx_rl;
+	struct simd_config test_simd_cfg = { 0 };
+	union simd_cbs cb_fpu_save;
+	union simd_cbs cb_fpu_restore;
+	union simd_cbs cb_sve_save;
+	union simd_cbs cb_sve_restore;
+	union simd_cbs cb_sve_clear_p_ffr;
+	int ret1, ret2;
+
+	/******************************************************************
+	 * TEST CASE 10:
+	 *
+	 * Initialise two SVE contexts, one with NS owner and one with
+	 * Realm owner. Enable SVE hint bit for NS SVE context. Call
+	 * simd_context_switch() to save the NS context and restore the
+	 * Realm context. Then, call simd_context_switch() again to do the
+	 * opposite. Verify that the correct helper routines are called.
+	 ******************************************************************/
+
+	reset_times_called();
+	(void)memset(&simd_ctx_nwd, 0, sizeof(struct simd_context));
+	(void)memset(&simd_ctx_rl, 0, sizeof(struct simd_context));
+	simd_test_helpers_setup_id_regs(true, false);
+
+	simd_init();
+
+	ret1 = simd_get_cpu_config(&test_simd_cfg);
+
+	CHECK_TRUE(ret1 == 0);
+
+	/* Initialise NS and RL SVE contexts with the CPU SIMD config */
+	ret1 = simd_context_init(SIMD_OWNER_REL1, &simd_ctx_rl, &test_simd_cfg);
+	ret2 = simd_context_init(SIMD_OWNER_NWD, &simd_ctx_nwd, &test_simd_cfg);
+
+	CHECK_TRUE(ret1 == 0);
+	CHECK_TRUE(ret2 == 0);
+
+	/*
+	 * Set SVE hint bit for NS SVE ctx. This denotes that there is no live
+	 * SVE-specific live state in NS world.
+	 */
+	simd_update_smc_sve_hint(&simd_ctx_nwd, true);
+
+	/* Set callbacks for relevant helper routines */
+	cb_fpu_save.fpu_save_restore_regs = fpu_save_regs_cb;
+	cb_fpu_restore.fpu_save_restore_regs = fpu_restore_regs_cb;
+	cb_sve_save.sve_save_restore_regs = sve_save_regs_cb;
+	cb_sve_restore.sve_save_restore_regs = sve_restore_regs_cb;
+	cb_sve_clear_p_ffr.sve_clear_regs = sve_clear_p_ffr_regs_cb;
+
+	simd_test_register_callback(FPU_SAVE_REGS, cb_fpu_save);
+	simd_test_register_callback(FPU_RESTORE_REGS, cb_fpu_restore);
+	simd_test_register_callback(SVE_SAVE_REGS, cb_sve_save);
+	simd_test_register_callback(SVE_RESTORE_REGS, cb_sve_restore);
+	simd_test_register_callback(SVE_CLEAR_P_FFR_REGS, cb_sve_clear_p_ffr);
+
+	/*
+	 * Do the NS SVE -> RL SVE switch. Since SVE hint bit is set, expect the
+	 * FPU Q registers to be saved, as opposed to the SVE Z registers.
+	 */
+	(void)simd_context_switch(&simd_ctx_nwd, &simd_ctx_rl);
+
+	CHECK_TRUE(helpers_times_called[FPU_SAVE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[SVE_RESTORE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[SVE_SAVE_REGS] == 0);
+
+	reset_times_called();
+
+	/*
+	 * Do the RL SVE -> NS SVE switch. Since SVE hint bit is set, expect the
+	 * FPU Q registers to be restored, as opposed to the SVE Z registers. In
+	 * addition, expect the sve_clear_p_ffr_registers() helper routine to be
+	 * called. The P and FFR registers hold values from previous usage, so
+	 * they should be explicitly cleared.
+	 */
+	(void)simd_context_switch(&simd_ctx_rl, &simd_ctx_nwd);
+
+	CHECK_TRUE(helpers_times_called[SVE_SAVE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[FPU_RESTORE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[SVE_CLEAR_P_FFR_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[SVE_RESTORE_REGS] == 0);
+}
+
+TEST(simd, simd_update_smc_sve_hint_TC1)
+{
+	struct simd_context simd_ctx_nwd;
+	struct simd_context simd_ctx_rl;
+	struct simd_config test_simd_cfg = { 0 };
+	union simd_cbs cb_save;
+	union simd_cbs cb_restore;
+	union simd_cbs cb_sve_clear_p_ffr;
+	int ret1, ret2;
+
+	/******************************************************************
+	 * TEST CASE 11:
+	 *
+	 * Initialise two FPU contexts, one with NS owner and one with
+	 * Realm owner. Try to enable SVE hint bit for NS FPU context.
+	 * Verify that the SVE hint bit is not set by checking that context
+	 * switching between these two contexts proceeds in the same way as
+	 * in simd_context_switch_TC1.
+	 ******************************************************************/
+
+	reset_times_called();
+	(void)memset(&simd_ctx_nwd, 0, sizeof(struct simd_context));
+	(void)memset(&simd_ctx_rl, 0, sizeof(struct simd_context));
+	simd_test_helpers_setup_id_regs(true, false);
+
+	simd_init();
+
+	/* Initialise NS and RL FPU contexts */
+	ret1 = simd_context_init(SIMD_OWNER_REL1, &simd_ctx_rl, &test_simd_cfg);
+	ret2 = simd_context_init(SIMD_OWNER_NWD, &simd_ctx_nwd, &test_simd_cfg);
+
+	CHECK_TRUE(ret1 == 0);
+	CHECK_TRUE(ret2 == 0);
+
+	/*
+	 * Set SVE hint bit for NS FPU ctx. We expect nothing to happen, since
+	 * NS SIMD ctx does not have SVE.
+	 */
+	simd_update_smc_sve_hint(&simd_ctx_nwd, true);
+
+	/*
+	 * Check that the resulting context switches proceed as expected, and
+	 * that the sve_clear_p_ffr_registers() helper routine isn't called when
+	 * the NS ctx is restored.
+	 */
+	cb_save.fpu_save_restore_regs = fpu_save_regs_cb;
+	cb_restore.fpu_save_restore_regs = fpu_restore_regs_cb;
+	cb_sve_clear_p_ffr.sve_clear_regs = sve_clear_p_ffr_regs_cb;
+
+	simd_test_register_callback(FPU_SAVE_REGS, cb_save);
+	simd_test_register_callback(FPU_RESTORE_REGS, cb_restore);
+	simd_test_register_callback(SVE_CLEAR_P_FFR_REGS, cb_sve_clear_p_ffr);
+
+	/* Do the NS FPU -> RL FPU switch. */
+	(void)simd_context_switch(&simd_ctx_nwd, &simd_ctx_rl);
+
+	CHECK_TRUE(helpers_times_called[FPU_SAVE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[FPU_RESTORE_REGS] == 1);
+
+	reset_times_called();
+
+	/* Do the RL FPU -> NS FPU switch. */
+	(void)simd_context_switch(&simd_ctx_rl, &simd_ctx_nwd);
+
+	CHECK_TRUE(helpers_times_called[FPU_SAVE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[FPU_RESTORE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[SVE_CLEAR_P_FFR_REGS] == 0);
 }
