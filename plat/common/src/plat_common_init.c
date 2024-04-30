@@ -160,7 +160,7 @@ int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
 
 	ret = xlat_ctx_cfg_init(&runtime_xlat_ctx_cfg, VA_LOW_REGION,
 				&static_regions[0], nregions + COMMON_REGIONS,
-				VIRT_ADDR_SPACE_SIZE);
+				PLAT_CMN_VIRT_ADDR_SPACE_SIZE);
 
 	if (ret != 0) {
 		ERROR("%s (%u): %s (%i)\n",
