@@ -33,11 +33,28 @@ arm_config_option(
     DEFAULT 0
     TYPE STRING)
 
+#
+# Default Stage 1 virtual address space width for a given platform.
+#
+arm_config_option(
+    NAME PLAT_CMN_VIRT_ADDR_SPACE_WIDTH
+    HELP "Size in bits of the virtual address space."
+    DEFAULT 38
+    TYPE STRING
+    ADVANCED)
+
+if(PLAT_CMN_VIRT_ADDR_SPACE_WIDTH EQUAL 0x0)
+    message(FATAL_ERROR "PLAT_CMN_VIRT_ADDR_SPACE_WIDTH is not initialized")
+endif()
+
 target_compile_definitions(rmm-plat-common
     PRIVATE "PLAT_CMN_CTX_MAX_XLAT_TABLES=U(${PLAT_CMN_CTX_MAX_XLAT_TABLES})")
 
 target_compile_definitions(rmm-plat-common
     PRIVATE "PLAT_CMN_EXTRA_MMAP_REGIONS=U(${PLAT_CMN_EXTRA_MMAP_REGIONS})")
+
+target_compile_definitions(rmm-plat-common
+    PRIVATE "PLAT_CMN_VIRT_ADDR_SPACE_SIZE=(1ULL << ULL(${PLAT_CMN_VIRT_ADDR_SPACE_WIDTH}))")
 
 target_include_directories(rmm-plat-common
     PUBLIC "include"
