@@ -4,6 +4,7 @@
  */
 
 #include <arch.h>
+#include <buffer.h>
 #include <debug.h>
 #include <esr.h>
 #include <gic.h>
@@ -213,10 +214,10 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 		return RMI_ERROR_INPUT;
 	}
 
-	rec = granule_map(g_rec, SLOT_REC);
+	rec = buffer_granule_map(g_rec, SLOT_REC);
 	assert(rec != NULL);
 
-	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
 	assert(rd != NULL);
 
 	realm_state = get_rd_state_unlocked(rd);

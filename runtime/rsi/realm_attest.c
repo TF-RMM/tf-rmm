@@ -4,6 +4,7 @@
  */
 
 #include <attestation.h>
+#include <buffer.h>
 #include <debug.h>
 #include <granule.h>
 #include <measurement.h>
@@ -113,7 +114,7 @@ static void attest_token_continue_write_state(struct rec *rec,
 
 	/* Map realm data granule to RMM address space */
 	gr = find_granule(walk_res.pa);
-	realm_att_token = (uintptr_t)granule_map(gr, SLOT_RSI_CALL);
+	realm_att_token = (uintptr_t)buffer_granule_map(gr, SLOT_RSI_CALL);
 	assert(realm_att_token != 0UL);
 
 	if (attest_data->token_sign_ctx.copied_len == 0UL) {
@@ -210,7 +211,7 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	 * simultaneously by another rec
 	 */
 	granule_lock(rec->realm_info.g_rd, GRANULE_STATE_RD);
-	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
 	assert(rd != NULL);
 
 	/* Save challenge value in the context */
@@ -328,7 +329,7 @@ void handle_rsi_measurement_extend(struct rec *rec, struct rsi_result *res)
 
 	assert(g_rd != NULL);
 
-	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
 	assert(rd != NULL);
 
 	/*
@@ -391,7 +392,7 @@ void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 	 * simultaneously by another rec
 	 */
 	granule_lock(rec->realm_info.g_rd, GRANULE_STATE_RD);
-	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
 	assert(rd != NULL);
 
 	/* Number of 8-bytes words in measurement */

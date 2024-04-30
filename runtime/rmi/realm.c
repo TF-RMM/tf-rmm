@@ -33,7 +33,7 @@ unsigned long smc_realm_activate(unsigned long rd_addr)
 		return RMI_ERROR_INPUT;
 	}
 
-	rd = granule_map(g_rd, SLOT_RD);
+	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
 	if (get_rd_state_locked(rd) == REALM_NEW) {
@@ -199,7 +199,7 @@ static void init_s2_starting_level(struct rd *rd)
 
 	num_root_rtts = rd->s2_ctx.num_root_rtts;
 	for (unsigned int rtt = 0U; rtt < num_root_rtts; rtt++) {
-		unsigned long *s2tt = granule_map(g_rtt, SLOT_RTT);
+		unsigned long *s2tt = buffer_granule_map(g_rtt, SLOT_RTT);
 
 		assert(s2tt != NULL);
 
@@ -326,7 +326,7 @@ static void free_sl_rtts(struct granule *g_rtt, unsigned int num_rtts)
 						(i * sizeof(struct granule)));
 
 		granule_lock(g, GRANULE_STATE_RTT);
-		granule_memzero(g, SLOT_RTT);
+		buffer_granule_memzero(g, SLOT_RTT);
 		granule_unlock_transition(g, GRANULE_STATE_DELEGATED);
 	}
 }
@@ -424,7 +424,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 		return RMI_ERROR_INPUT;
 	}
 
-	rd = granule_map(g_rd, SLOT_RD);
+	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
 	set_rd_state(rd, REALM_NEW);
@@ -513,7 +513,7 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 		}
 	}
 
-	rd = granule_map(g_rd, SLOT_RD);
+	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
 	g_rtt = rd->s2_ctx.g_rtt;
@@ -538,7 +538,7 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	free_sl_rtts(g_rtt, num_rtts);
 
 	/* This implicitly destroys the measurement */
-	granule_memzero(g_rd, SLOT_RD);
+	buffer_granule_memzero(g_rd, SLOT_RD);
 	granule_unlock_transition(g_rd, GRANULE_STATE_DELEGATED);
 
 	return RMI_SUCCESS;

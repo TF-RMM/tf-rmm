@@ -8,7 +8,6 @@
 
 #include <assert.h>
 #include <smc-rmi.h>
-#include <stdbool.h>
 
 /*
  * Logical representation of return code returned by RMM commands.

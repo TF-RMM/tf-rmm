@@ -18,6 +18,10 @@ target_include_directories(rmm-lib-arch
     PRIVATE "src/${RMM_ARCH}"
             "src/include")
 
+# Include files needed for aarch64, fake_host and cbmc builds
+target_sources(rmm-lib-arch
+        PRIVATE "src/vmid.c")
+
 if(HOST_VARIANT STREQUAL "host_cbmc")
   target_sources(rmm-lib-arch
         PRIVATE "src/fake_host/cbmc_arch_features.c"

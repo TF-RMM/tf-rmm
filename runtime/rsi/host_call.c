@@ -67,7 +67,7 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 
 	/* Map Realm data granule to RMM address space */
 	gr = find_granule(walk_result.pa);
-	data = (uintptr_t)granule_map(gr, SLOT_RSI_CALL);
+	data = (uintptr_t)buffer_granule_map(gr, SLOT_RSI_CALL);
 	assert(data != 0UL);
 
 	host_call = (struct rsi_host_call *)(data + ipa - page_ipa);

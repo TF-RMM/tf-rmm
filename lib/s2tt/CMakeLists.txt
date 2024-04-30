@@ -9,7 +9,9 @@ target_link_libraries(rmm-lib-s2tt
     PRIVATE rmm-lib-arch
             rmm-lib-common
             rmm-lib-debug
-            rmm-lib-realm)
+            rmm-lib-slot_buf
+            rmm-lib-smc
+    PUBLIC  rmm-lib-granule)
 
 target_include_directories(rmm-lib-s2tt
     PUBLIC "include"

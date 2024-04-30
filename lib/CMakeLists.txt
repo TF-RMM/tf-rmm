@@ -13,12 +13,12 @@ target_link_libraries(rmm-lib
               rmm-lib-console
               rmm-lib-debug
               rmm-lib-gic
+              rmm-lib-granule
               rmm-lib-measurement
-              rmm-lib-realm
               rmm-lib-rmm_el3_ifc
               rmm-lib-smc
               rmm-lib-s2tt
-              rmm-lib-timers
+              rmm-lib-slot_buf
               rmm-lib-xlat
               t_cose)
 
@@ -29,13 +29,13 @@ add_subdirectory("common")
 add_subdirectory("console")
 add_subdirectory("debug")
 add_subdirectory("gic")
+add_subdirectory("granule")
 add_subdirectory("mbedtls")
 add_subdirectory("measurement")
 add_subdirectory("qcbor")
-add_subdirectory("realm")
 add_subdirectory("rmm_el3_ifc")
 add_subdirectory("smc")
 add_subdirectory("s2tt")
+add_subdirectory("slot_buf")
 add_subdirectory("t_cose")
-add_subdirectory("timers")
 add_subdirectory("xlat")

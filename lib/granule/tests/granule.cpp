@@ -8,12 +8,10 @@
 
 extern "C" {
 #include <buffer.h>
-#include <buffer_private.h>
 #include <cpuid.h>
 #include <granule.h>	/* Interface to exercise */
 #include <host_harness.h>
 #include <host_utils.h>
-#include <realm_test_utils.h>
 #include <status.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1753,87 +1751,4 @@ TEST(granule, find_lock_unused_granule_TC5)
 		CHECK_TRUE(ret == -EINVAL);
 		CHECK_TRUE(granule == NULL);
 	}
-}
-
-TEST(granule, granule_memzero_TC1)
-{
-	unsigned long addrs[3] = {host_util_get_granule_base(),
-				  (get_rand_granule_idx() * GRANULE_SIZE) +
-					host_util_get_granule_base(),
-				  ((test_helpers_get_nr_granules() - 1) *
-								GRANULE_SIZE) +
-					host_util_get_granule_base()};
-	struct granule *granule;
-	int *val;
-	union test_harness_cbs cb;
-
-	/* Register harness callbacks to use by this test */
-	cb.buffer_map = test_buffer_map_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = test_buffer_unmap_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
-
-	/***************************************************************
-	 * TEST CASE 1:
-	 *
-	 * Map a granule to every possible slot type and memzero
-	 * it. Verify then that the whole slot buffer is all 0.
-	 * Test the first and the last valid granules as well as random
-	 * granules in between.
-	 * Repeat the operation on all possible CPUs.
-	 *
-	 * NOTE: granule_memzero() will fail with SLOT_NS, so skip that
-	 *	 testcase.
-	 ***************************************************************/
-
-	for (unsigned int i = 0U; i < 3U; i++) {
-		granule = addr_to_granule(addrs[i]);
-		val = (int *)addrs[i];
-
-		for (unsigned int j = 0U; j < MAX_CPUS; j++) {
-			/* Configure the cpu id */
-			host_util_set_cpuid(j);
-
-			for (unsigned int k = 0; k < NR_CPU_SLOTS; k++) {
-				if (k == SLOT_NS) {
-					/* Not supported by granule_memzero */
-					continue;
-				}
-
-				/* Initialize the granule with random data */
-				memset((void *)addrs[i],
-					(int)test_helpers_get_rand_in_range(1UL, INT_MAX),
-					GRANULE_SIZE);
-				granule_memzero(granule, (enum buffer_slot)k);
-
-				for (unsigned int l = 0;
-				     l < (GRANULE_SIZE / sizeof(int)); l++) {
-					if (*(val + l) != 0) {
-						FAIL_TEST("Memory not properly zeroed");
-					}
-				} /* GRANULE_SIZE */
-			} /* NR_CPU_SLOTS */
-		} /* MAX_CPUS */
-	} /* Number of granules to test */
-}
-
-ASSERT_TEST(granule, granule_memzero_TC2)
-{
-	/***************************************************************
-	 * TEST CASE 2:
-	 *
-	 * Verify that granule_memzero() asserts if granule is NULL
-	 ***************************************************************/
-
-	test_helpers_expect_assert_fail(true);
-	granule_memzero(NULL, SLOT_DELEGATED);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-TEST(granule, granule_memzero_mapped_TC1)
-{
-	/*
-	 * Current implementation for granule_memzero_mapped()
-	 * is a wrapper for memset, so skip this test for now.
-	 */
 }

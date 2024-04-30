@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <buffer.h>
 #include <granule.h>
 #include <psci.h>
 #include <realm.h>
@@ -110,7 +111,7 @@ static void psci_reset_rec(struct rec *rec, unsigned long caller_sctlr_el1)
 static unsigned long rd_map_read_rec_count(struct granule *g_rd)
 {
 	unsigned long rec_count;
-	struct rd *rd = granule_map(g_rd, SLOT_RD);
+	struct rd *rd = buffer_granule_map(g_rd, SLOT_RD);
 
 	assert(rd != NULL);
 
@@ -228,7 +229,7 @@ static void system_off_reboot(struct rec *rec)
 	 * the rd lock here before we set the Realm's new state.
 	 */
 	granule_lock(g_rd, GRANULE_STATE_RD);
-	rd = granule_map(rec->realm_info.g_rd, SLOT_RD);
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
 	assert(rd != NULL);
 
 	set_rd_state(rd, REALM_SYSTEM_OFF);

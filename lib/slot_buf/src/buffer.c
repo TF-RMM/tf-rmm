@@ -15,6 +15,8 @@
 #include <slot_buf_arch.h>
 #include <stdbool.h>
 #include <stdint.h>
+/* coverity[unnecessary_header: SUPPRESS] */
+#include <string.h>
 #include <utils_def.h>
 #include <xlat_contexts.h>
 #include <xlat_high_va.h>
@@ -102,7 +104,7 @@ static inline bool is_realm_slot(enum buffer_slot slot)
 	return (slot != SLOT_NS) && (slot < NR_CPU_SLOTS);
 }
 
-static void *ns_granule_map(enum buffer_slot slot, struct granule *granule)
+static void *ns_buffer_granule_map(enum buffer_slot slot, struct granule *granule)
 {
 	unsigned long addr = granule_addr(granule);
 
@@ -121,7 +123,7 @@ static inline void ns_buffer_unmap(void *buf)
  *
  * The caller must either hold @g::lock or hold a reference.
  */
-void *granule_map(struct granule *g, enum buffer_slot slot)
+void *buffer_granule_map(struct granule *g, enum buffer_slot slot)
 {
 	unsigned long addr = granule_addr(g);
 
@@ -168,7 +170,7 @@ bool ns_buffer_read(enum buffer_slot slot,
 	offset &= (unsigned int)(~GRANULE_MASK);
 	assert((offset + size) <= GRANULE_SIZE);
 
-	src = (uintptr_t)ns_granule_map(slot, ns_gr);
+	src = (uintptr_t)ns_buffer_granule_map(slot, ns_gr);
 	retval = memcpy_ns_read(dest, (void *)(src + offset), size);
 	ns_buffer_unmap((void *)src);
 
@@ -208,11 +210,62 @@ bool ns_buffer_write(enum buffer_slot slot,
 	offset &= (unsigned int)(~GRANULE_MASK);
 	assert((offset + size) <= GRANULE_SIZE);
 
-	dest = (uintptr_t)ns_granule_map(slot, ns_gr);
+	dest = (uintptr_t)ns_buffer_granule_map(slot, ns_gr);
 	retval = memcpy_ns_write((void *)(dest + offset), src, size);
 	ns_buffer_unmap((void *)dest);
 
 	return retval;
+}
+
+/*
+ * The parent REC granules lock is expected to be acquired before functions
+ * buffer_aux_granules_map() and buffer_aux_unmap() are called.
+ */
+void *buffer_aux_granules_map(struct granule *g_rec_aux[], unsigned int num_aux)
+{
+	void *rec_aux = NULL;
+
+	assert(g_rec_aux != NULL);
+	assert(num_aux <= MAX_REC_AUX_GRANULES);
+
+	for (unsigned int i = 0U; i < num_aux; i++) {
+		void *aux = buffer_granule_map(g_rec_aux[i],
+					(enum buffer_slot)((unsigned int)
+							   SLOT_REC_AUX0 + i));
+
+		assert(aux != NULL);
+
+		if (i == 0UL) {
+			rec_aux = aux;
+		}
+	}
+	return rec_aux;
+}
+
+void buffer_aux_unmap(void *rec_aux, unsigned int num_aux)
+{
+	unsigned char *rec_aux_vaddr = (unsigned char *)rec_aux;
+
+	assert(rec_aux != NULL);
+	assert(num_aux <= MAX_REC_AUX_GRANULES);
+
+	for (unsigned int i = 0U; i < num_aux; i++) {
+		buffer_unmap((void *)((uintptr_t)rec_aux_vaddr +
+							(i * GRANULE_SIZE)));
+	}
+}
+
+void buffer_granule_memzero(struct granule *g, enum buffer_slot slot)
+{
+	unsigned long *buf;
+
+	assert(g != NULL);
+
+	buf = buffer_granule_map(g, slot);
+	assert(buf != NULL);
+
+	(void)memset(buf, 0, GRANULE_SIZE);
+	buffer_unmap(buf);
 }
 
 /******************************************************************************

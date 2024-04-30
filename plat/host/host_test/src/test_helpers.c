@@ -4,6 +4,7 @@
  */
 
 #include <arch_helpers.h>
+#include <buffer.h>
 #include <debug.h>
 #include <errno.h>
 #include <granule.h>

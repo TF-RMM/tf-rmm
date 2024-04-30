@@ -8,12 +8,12 @@
 
 #include <assert.h>
 #include <atomics.h>
-#include <buffer.h>
 #include <errno.h>
 #include <granule_types.h>
 #include <memory.h>
 #include <spinlock.h>
-#include <status.h>
+#include <stdbool.h>
+#include <utils_def.h>
 
 static inline unsigned short granule_refcount_read_relaxed(struct granule *g)
 {
@@ -150,12 +150,7 @@ bool find_lock_two_granules(unsigned long addr1,
 			    unsigned char expected_state2,
 			    struct granule **g2);
 
-void granule_memzero(struct granule *g, enum buffer_slot slot);
-
 void granule_memzero_mapped(void *buf);
-
-void *aux_granules_map(struct granule *rec_aux_pages[], unsigned int num_aux);
-void aux_granules_unmap(void *rec_aux, unsigned int num_aux);
 
 /* Must be called with g->lock held */
 static inline void __granule_get(struct granule *g)
