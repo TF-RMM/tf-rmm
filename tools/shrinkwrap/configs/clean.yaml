@@ -1,0 +1,21 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Currently, Shrinkwrap has the limitation that it needs to have a non-null path
+  for all repositories in order to be able to clean a given configuration, even
+  if such path is incorrect and/or not needed for the cleaning process.
+
+  rmm.yaml provides a null path for ``RMM_SRC`` btvar, but the clean command
+  does not accept any btvar. Hence, Shrinkwrap clean will fail when invoked for
+  the rmm-tftf.yaml config. This overlay is therefore meant to be used to
+  overwrite the RMM sourcedir path with a dummy path so shrinkwrap clean will
+  pass.
+
+build:
+  rmm:
+    sourcedir: /dev/null

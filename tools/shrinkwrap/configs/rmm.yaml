@@ -1,0 +1,55 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Overlay to build TF-RMM with standard build settings.
+  In order to use this overlay, the RMM_SRC btvar must be defined containing
+  the absolute path for the local TF-RMM repository.
+
+  The overlay allows to overwrite the default log level for TF-RMM, by
+  using ``RMM_LOG_LEVEL`` btvar as well as to define the SHA/Branch of TF-A
+  to be used for the particular instance of RMM to build through the
+  ``TFA_REVISION`` btvar. It also allows to define the host platform through
+  the ``RMM_CONFIG`` btvar.
+
+layers:
+  - rmm-base.yaml
+  - arch/v9.2.yaml
+
+buildex:
+  btvars:
+    # Determines where the TF-RMM source root directory is
+    RMM_SRC:
+      type: path
+      value: null
+
+    # Determines the RMM Log level
+    RMM_LOG_LEVEL:
+      type: string
+      value: '40'
+
+    # Determines the RMM Configuration (a.k.a. platform) to build
+    RMM_CONFIG:
+      type: string
+      value: 'fvp_defcfg'
+
+    # Determines the branch or SHA to pull for TF-A which is suitable
+    # for the current RMM
+    TFA_REVISION:
+      type: string
+      value: master
+
+build:
+  rmm:
+    sourcedir: ${btvar:RMM_SRC}
+    params:
+       -DLOG_LEVEL: ${btvar:RMM_LOG_LEVEL}
+       -DRMM_CONFIG: ${btvar:RMM_CONFIG}
+
+  tfa:
+    repo:
+      revision: ${btvar:TFA_REVISION}
