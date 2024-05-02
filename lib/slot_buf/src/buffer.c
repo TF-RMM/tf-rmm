@@ -264,7 +264,7 @@ void buffer_granule_memzero(struct granule *g, enum buffer_slot slot)
 	buf = buffer_granule_map(g, slot);
 	assert(buf != NULL);
 
-	(void)memset(buf, 0, GRANULE_SIZE);
+	granule_memzero_mapped(buf);
 	buffer_unmap(buf);
 }
 
