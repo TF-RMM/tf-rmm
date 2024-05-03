@@ -20,7 +20,7 @@
 #include <string.h>
 #include <vmid.h>
 
-#define RMM_FEATURE_MIN_IPA_SIZE	PARANGE_0000_WIDTH
+#define RMI_FEATURE_MIN_IPA_SIZE	PARANGE_0000_WIDTH
 
 unsigned long smc_realm_activate(unsigned long rd_addr)
 {
@@ -237,35 +237,35 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 
 	/* Validate LPA2 flag */
 	if (is_lpa2_requested(p)  &&
-	    (EXTRACT(RMM_FEATURE_REGISTER_0_LPA2, feat_reg0) ==
+	    (EXTRACT(RMI_FEATURE_REGISTER_0_LPA2, feat_reg0) ==
 							RMI_FEATURE_FALSE)) {
 		return false;
 	}
 
 	/* Validate S2SZ field */
-	if ((p->s2sz < RMM_FEATURE_MIN_IPA_SIZE) ||
-	    (p->s2sz > EXTRACT(RMM_FEATURE_REGISTER_0_S2SZ, feat_reg0))) {
+	if ((p->s2sz < RMI_FEATURE_MIN_IPA_SIZE) ||
+	    (p->s2sz > EXTRACT(RMI_FEATURE_REGISTER_0_S2SZ, feat_reg0))) {
 		return false;
 	}
 
 	/* Validate number of breakpoints */
 	if ((p->num_bps >
-		EXTRACT(RMM_FEATURE_REGISTER_0_NUM_BPS, feat_reg0)) ||
+		EXTRACT(RMI_FEATURE_REGISTER_0_NUM_BPS, feat_reg0)) ||
 	    (p->num_wps >
-		EXTRACT(RMM_FEATURE_REGISTER_0_NUM_WPS, feat_reg0))) {
+		EXTRACT(RMI_FEATURE_REGISTER_0_NUM_WPS, feat_reg0))) {
 		return false;
 	}
 
 	/* Validate RMI_REALM_FLAGS_SVE flag */
 	if (EXTRACT(RMI_REALM_FLAGS_SVE, p->flags) == RMI_FEATURE_TRUE) {
-		if (EXTRACT(RMM_FEATURE_REGISTER_0_SVE_EN, feat_reg0) ==
+		if (EXTRACT(RMI_FEATURE_REGISTER_0_SVE_EN, feat_reg0) ==
 						      RMI_FEATURE_FALSE) {
 			return false;
 		}
 
 		/* Validate SVE_VL value */
 		if (p->sve_vl >
-			EXTRACT(RMM_FEATURE_REGISTER_0_SVE_VL, feat_reg0)) {
+			EXTRACT(RMI_FEATURE_REGISTER_0_SVE_VL, feat_reg0)) {
 			return false;
 		}
 	}
@@ -278,7 +278,7 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 	/* Validate number of PMU counters if PMUv3 is enabled */
 	if (EXTRACT(RMI_REALM_FLAGS_PMU, p->flags) == RMI_FEATURE_TRUE) {
 		if (p->pmu_num_ctrs >
-		    EXTRACT(RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS, feat_reg0)) {
+		    EXTRACT(RMI_FEATURE_REGISTER_0_PMU_NUM_CTRS, feat_reg0)) {
 			return false;
 		}
 

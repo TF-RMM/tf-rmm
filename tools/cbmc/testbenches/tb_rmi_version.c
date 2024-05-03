@@ -18,7 +18,7 @@ bool tb_rmi_version(
 
 	struct tb_regs __tb_regs = __tb_arb_regs();
 
-	__tb_regs.X0 = SMC_RMM_VERSION;
+	__tb_regs.X0 = SMC_RMI_VERSION;
 	__tb_regs.X1 = (uint64_t)req;
 
 	/*

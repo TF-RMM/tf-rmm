@@ -117,7 +117,7 @@ struct smc_handler {
  */
 #define RMI_HANDLER_ID(_id)	SMC64_FID_OFFSET_FROM_RANGE_MIN(RMI, _id)
 
-#define HANDLER(_id, _in, _out, _fn, _exec, _error)[RMI_HANDLER_ID(SMC_RMM_##_id)] = { \
+#define HANDLER(_id, _in, _out, _fn, _exec, _error)[RMI_HANDLER_ID(SMC_RMI_##_id)] = { \
 	.fn_name = (#_id),				\
 	.type = (enum rmi_type)RMI_TYPE(_in, _out),	\
 	.f_##_in##_out = (_fn),				\
@@ -160,8 +160,8 @@ COMPILER_ASSERT(ARRAY_LEN(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
 static inline bool rmi_handler_needs_fpu(unsigned int id)
 {
 #ifdef RMM_FPU_USE_AT_REL2
-	if ((id == SMC_RMM_REALM_CREATE) || (id == SMC_RMM_DATA_CREATE) ||
-	    (id == SMC_RMM_REC_CREATE) || (id == SMC_RMM_RTT_INIT_RIPAS)) {
+	if ((id == SMC_RMI_REALM_CREATE) || (id == SMC_RMI_DATA_CREATE) ||
+	    (id == SMC_RMI_REC_CREATE) || (id == SMC_RMI_RTT_INIT_RIPAS)) {
 		return true;
 	}
 #else
@@ -189,7 +189,7 @@ static void rmi_log_on_exit(unsigned int handler_id,
 		unsigned int num;
 
 		/* Print function name */
-		INFO("SMC_RMM_%-21s", handler->fn_name);
+		INFO("SMC_RMI_%-21s", handler->fn_name);
 
 		/* Print arguments */
 		num = (unsigned int)handler->type & 0xFFU;
@@ -207,7 +207,7 @@ static void rmi_log_on_exit(unsigned int handler_id,
 		}
 
 		/* Check for index */
-		if (((function_id == SMC_RMM_REC_ENTER) &&
+		if (((function_id == SMC_RMI_REC_ENTER) &&
 		     (rc.status == RMI_ERROR_REALM)) ||
 		     (rc.status == RMI_ERROR_RTT)) {
 			INFO(" %x", rc.index);
@@ -215,8 +215,8 @@ static void rmi_log_on_exit(unsigned int handler_id,
 
 		if ((rc.status == RMI_SUCCESS) ||
 		   ((rc.status == RMI_ERROR_RTT) &&
-		   ((function_id == SMC_RMM_RTT_DESTROY) ||
-		    (function_id == SMC_RMM_DATA_DESTROY)))) {
+		   ((function_id == SMC_RMI_RTT_DESTROY) ||
+		    (function_id == SMC_RMI_DATA_DESTROY)))) {
 			/* Print output values */
 			num = ((unsigned int)handler->type >> 8) & 0xFFU;
 			assert(num <= MAX_NUM_OUTPUT_VALS);

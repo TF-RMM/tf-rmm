@@ -18,7 +18,7 @@ bool tb_rmi_realm_activate(
 
 	struct tb_regs __tb_regs = __tb_arb_regs();
 
-	__tb_regs.X0 = SMC_RMM_REALM_ACTIVATE;
+	__tb_regs.X0 = SMC_RMI_REALM_ACTIVATE;
 	__tb_regs.X1 = (uint64_t)rd;
 
 	/*

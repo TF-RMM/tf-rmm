@@ -18,7 +18,7 @@ bool tb_rmi_features(
 
 	struct tb_regs __tb_regs = __tb_arb_regs();
 
-	__tb_regs.X0 = SMC_RMM_FEATURES;
+	__tb_regs.X0 = SMC_RMI_FEATURES;
 	__tb_regs.X1 = (uint64_t)index;
 
 	/*
