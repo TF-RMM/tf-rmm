@@ -26,6 +26,8 @@
  * - GRANULE_STATE_DELEGATED
  * - GRANULE_STATE_RD
  * - GRANULE_STATE_REC
+ * - GRANULE_STATE_PDEV
+ * - GRANULE_STATE_VDEV
  *
  * Otherwise a granule state is considered `internal`.
  *
@@ -34,6 +36,8 @@
  * - GRANULE_STATE_RTT
  * - GRANULE_STATE_DATA
  * - GRANULE_STATE_REC_AUX
+ * - GRANULE_STATE_PDEV_AUX
+ * - GRANULE_STATE_VDEV_AUX
  *
  * The following locking rules must be followed in all cases:
  *
@@ -51,6 +55,7 @@
  *    1. `RTT`
  *    2. `DATA`
  *    3. `REC_AUX`
+ *    4. `PDEV_AUX`
  *
  * 5. Granules in the same `internal` state must be locked in the order defined
  *    below for that specific state.
@@ -183,7 +188,30 @@
  *   - Assigned s2tte.
  */
 #define GRANULE_STATE_RTT		6U
-#define GRANULE_STATE_LAST		GRANULE_STATE_RTT
+
+/*
+ * PDEV - Physical device (external)
+ *
+ * Granule content is protected by granule::lock.
+ *
+ * A reference is held on this granule:
+ * - For each associated VDEV granule.
+ *
+ * The PDEV may only be destroyed when the following objects have a reference
+ * count of zero.
+ */
+#define GRANULE_STATE_PDEV		7U
+
+/* PDEV_AUX - Physical device auxiliary granule (internal) */
+#define GRANULE_STATE_PDEV_AUX		8U
+
+/* VDEV - Virtual device (external) */
+#define GRANULE_STATE_VDEV		9U
+
+/* VDEV - Virtual device auxiliary granule (internal) */
+#define GRANULE_STATE_VDEV_AUX		10U
+
+#define GRANULE_STATE_LAST		GRANULE_STATE_VDEV_AUX
 
 /*
  * Granule descriptor bit fields:
