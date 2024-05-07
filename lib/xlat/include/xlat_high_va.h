@@ -10,8 +10,8 @@
 #include <xlat_tables.h>
 
 /* The per CPU High VA space is used for Slot buffer and per-CPU stack mapping */
+#define XLAT_HIGH_VA_SLOT_NUM	(U(108))
 
-#define XLAT_HIGH_VA_SLOT_NUM	(U(42))
 /* Calculate the slot buffer's virtual address */
 #define SLOT_VIRT		(((UL(0xFFFFFFFFFFFFFFFF)) - \
 				(XLAT_HIGH_VA_SLOT_NUM * GRANULE_SIZE)) + 1U)

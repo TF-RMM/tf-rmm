@@ -32,7 +32,11 @@ enum buffer_slot {
 				 */
 	SLOT_RTT = U(SLOT_REC_AUX0) + MAX_REC_AUX_GRANULES,
 	SLOT_RTT2,		/* Some commands access two RTT granules at a time*/
-	SLOT_RSI_CALL,
+	SLOT_PDEV,		/* Slot for Physical device object */
+	SLOT_PDEV_AUX0,		/* Slots for PDEV auxiliary granules */
+	SLOT_VDEV = U(SLOT_PDEV_AUX0) + PDEV_PARAM_AUX_GRANULES_MAX,
+	SLOT_VDEV_AUX0,		/* Slots for VDEV auxiliary granules */
+	SLOT_RSI_CALL = U(SLOT_VDEV_AUX0) + VDEV_PARAM_AUX_GRANULES_MAX,
 	SLOT_EL3_TOKEN_SIGN_REC,	/* Slot for target REC during EL3 sign flow */
 	SLOT_EL3_TOKEN_SIGN_AUX0,	/* Slots for AUX granules on target REC for EL3 sign flow */
 	NR_CPU_SLOTS = U(SLOT_EL3_TOKEN_SIGN_AUX0) + MAX_REC_AUX_GRANULES
