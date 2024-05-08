@@ -188,7 +188,7 @@ static unsigned long rtt_create(unsigned long rd_addr,
 		return RMI_ERROR_INPUT;
 	}
 
-	rd = buffer_granule_map(g_rd, SLOT_RD);
+	rd = map_rd_and_init_realm_mecid_s1(g_rd);
 	assert(rd != NULL);
 
 	if (!validate_rtt_structure_cmds(map_addr, level, rd)) {
@@ -550,7 +550,7 @@ static void rtt_fold(unsigned long rd_addr,
 		return;
 	}
 
-	rd = buffer_granule_map(g_rd, SLOT_RD);
+	rd = map_rd_and_init_realm_mecid_s1(g_rd);
 	assert(rd != NULL);
 
 	in_par = addr_in_par(rd, map_addr);
@@ -768,6 +768,7 @@ static void rtt_fold(unsigned long rd_addr,
 	}
 
 	s2tte_write(&parent_s2tt[wi.index], parent_s2tte);
+
 	buffer_unmap(table);
 	granule_unlock_transition_to_delegated(g_tbl);
 	goto out_unmap_parent_table;
@@ -829,7 +830,7 @@ static void rtt_destroy(unsigned long rd_addr,
 		return;
 	}
 
-	rd = buffer_granule_map(g_rd, SLOT_RD);
+	rd = map_rd_and_init_realm_mecid_s1(g_rd);
 	assert(rd != NULL);
 
 	in_par = addr_in_par(rd, map_addr);
@@ -1019,7 +1020,7 @@ static void map_unmap_ns(unsigned long rd_addr,
 		return;
 	}
 
-	rd = buffer_granule_map(g_rd, SLOT_RD);
+	rd = map_rd_and_init_realm_mecid_s1(g_rd);
 	assert(rd != NULL);
 
 	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
@@ -1168,7 +1169,7 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 		return;
 	}
 
-	rd = buffer_granule_map(g_rd, SLOT_RD);
+	rd = map_rd_and_init_realm_mecid_s1(g_rd);
 	assert(rd != NULL);
 
 	if (!validate_rtt_entry_cmds(map_addr, level, rd)) {
@@ -1303,7 +1304,7 @@ static unsigned long data_create(unsigned long rd_addr,
 		return RMI_ERROR_INPUT;
 	}
 
-	rd = buffer_granule_map(g_rd, SLOT_RD);
+	rd = map_rd_and_init_realm_mecid_s1(g_rd);
 	assert(rd != NULL);
 
 	ret = (g_src != NULL) ?
@@ -1449,7 +1450,7 @@ void smc_data_destroy(unsigned long rd_addr,
 		return;
 	}
 
-	rd = buffer_granule_map(g_rd, SLOT_RD);
+	rd = map_rd_and_init_realm_mecid_s1(g_rd);
 	assert(rd != NULL);
 
 	if (!addr_in_par(rd, map_addr) ||
@@ -1658,7 +1659,7 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 		return;
 	}
 
-	rd = buffer_granule_map(g_rd, SLOT_RD);
+	rd = map_rd_and_init_realm_mecid_s1(g_rd);
 	assert(rd != NULL);
 
 	if (!validate_map_addr(base, S2TT_PAGE_LEVEL, rd) ||
@@ -1934,7 +1935,7 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 		goto out_unmap_rec;
 	}
 
-	rd = buffer_granule_map(g_rd, SLOT_RD);
+	rd = map_rd_and_init_realm_mecid_s1(g_rd);
 	assert(rd != NULL);
 
 	/*
@@ -2034,7 +2035,7 @@ unsigned long smc_dev_mem_map(unsigned long rd_addr,
 		return RMI_ERROR_INPUT;
 	}
 
-	rd = buffer_granule_map(g_rd, SLOT_RD);
+	rd = map_rd_and_init_realm_mecid_s1(g_rd);
 	assert(rd != NULL);
 
 	if (!addr_in_par(rd, map_addr) ||
@@ -2118,7 +2119,7 @@ void smc_dev_mem_unmap(unsigned long rd_addr,
 		return;
 	}
 
-	rd = buffer_granule_map(g_rd, SLOT_RD);
+	rd = map_rd_and_init_realm_mecid_s1(g_rd);
 	assert(rd != NULL);
 
 	if (!addr_in_par(rd, map_addr) ||

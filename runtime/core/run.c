@@ -11,6 +11,7 @@
 #include <debug.h>
 #include <exit.h>
 #include <granule.h>
+#include <mec.h>
 #include <pmu.h>
 #include <realm.h>
 #include <rec.h>
@@ -230,6 +231,8 @@ static void restore_realm_stage2(struct rec *rec)
 {
 	assert(rec_active_plane(rec)->sysregs != NULL);
 
+	/* Program vmec prior to Stage 2 programming */
+	mec_init_realm_mecid_s2(rec->realm_info.mecid);
 	write_vtcr_el2(rec->common_sysregs.vtcr_el2);
 	write_vttbr_el2(rec_active_plane(rec)->sysregs->vttbr_el2);
 

@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <atomics.h>
 #include <measurement.h>
+#include <mec.h>
 #include <memory.h>
 #include <planes.h>
 #include <rec.h>
@@ -96,6 +97,9 @@ struct rd {
 	 * can be modified or not.
 	 */
 	unsigned long overlay_index_lock;
+
+	/* Memory Encryption Key ID for Realm's DATA and RTT granules */
+	unsigned int mecid;
 };
 COMPILER_ASSERT((U(offsetof(struct rd, measurement)) & 7U) == 0U);
 COMPILER_ASSERT(sizeof(struct rd) <= GRANULE_SIZE);
@@ -300,6 +304,29 @@ static inline bool addr_in_par(struct rd *rd, unsigned long addr)
 static inline void set_perm_immutable(struct rd *rd, unsigned long perm_index)
 {
 	atomic_bit_set_release_64(&rd->overlay_index_lock, (unsigned int)perm_index);
+}
+
+/*
+ * Map the Realm Descriptor and also initialize the Realm MECID for
+ * Stage 1 of RMM.
+ *
+ * This function is intended to be used by all RMI handlers—except
+ * RMI_REALM_CREATE and the RSI handlers—whenever the Realm Descriptor
+ * needs to be mapped. It also conveniently programs the Realm MECID
+ * for Stage 1 (S1). Assertions in buffer_map_internal() ensure that
+ * mapping cannot occur without the correct MECID register
+ * configuration. The MECID reset takes place later in handler.c,
+ * when the RMI handler returns
+ */
+static inline struct rd *map_rd_and_init_realm_mecid_s1(struct granule *g_rd)
+{
+	assert(g_rd != NULL);
+
+	struct rd *rd = buffer_granule_map(g_rd, SLOT_RD);
+
+	assert(rd != NULL);
+	mec_init_realm_mecid_s1(rd->mecid);
+	return rd;
 }
 
 enum s2_walk_status {

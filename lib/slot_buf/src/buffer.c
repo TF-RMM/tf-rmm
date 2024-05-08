@@ -12,6 +12,7 @@
 #include <debug.h>
 #include <errno.h>
 #include <granule.h>
+#include <mec.h>
 #include <slot_buf_arch.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -99,9 +100,16 @@ static inline bool is_ns_slot(enum buffer_slot slot)
 	return slot == SLOT_NS;
 }
 
-static inline bool is_realm_slot(enum buffer_slot slot)
+/* Whether the Slot maps to Realm PAS */
+static inline bool is_realm_pas_slot(enum buffer_slot slot)
 {
 	return (slot != SLOT_NS) && (slot < NR_CPU_SLOTS);
+}
+
+/* Whether the Slot correspnds to one that is mapped using Realm MECID */
+static inline bool is_realm_mecid_slot(enum buffer_slot slot)
+{
+	return ((slot == SLOT_REALM) || (slot == SLOT_RTT) || (slot == SLOT_RTT2));
 }
 
 static void *ns_buffer_granule_map(enum buffer_slot slot, struct granule *granule)
@@ -127,7 +135,7 @@ void *buffer_granule_map(struct granule *g, enum buffer_slot slot)
 {
 	unsigned long addr = granule_addr(g);
 
-	assert(is_realm_slot(slot));
+	assert(is_realm_pas_slot(slot));
 
 	return buffer_arch_map(slot, addr);
 }
@@ -485,8 +493,8 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr)
 	 * MECID. Realm MECID will be programmed in MECID_A1_EL2. The rest
 	 * of granules are accessed via RMM MECID programmed in MECID_P1_EL2.
 	 */
-	if (is_feat_mec_present() && ((slot == SLOT_RTT) || (slot == SLOT_RTT2)
-			|| (slot == SLOT_REALM))) {
+	if (is_feat_mec_present() && is_realm_mecid_slot(slot)) {
+		assert(mec_is_realm_mecid_s1_init() == true);
 		attr |= MT_AP_AMEC;
 	}
 

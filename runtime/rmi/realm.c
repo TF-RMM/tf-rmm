@@ -10,7 +10,6 @@
 #include <feature.h>
 #include <granule.h>
 #include <measurement.h>
-#include <mec.h>
 #include <realm.h>
 #include <s2tt.h>
 #include <s2tt_ap.h>
@@ -37,7 +36,7 @@ unsigned long smc_realm_activate(unsigned long rd_addr)
 		return RMI_ERROR_INPUT;
 	}
 
-	rd = buffer_granule_map(g_rd, SLOT_RD);
+	rd = map_rd_and_init_realm_mecid_s1(g_rd);
 	assert(rd != NULL);
 
 	if (get_rd_state_locked(rd) == REALM_NEW) {
@@ -629,6 +628,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	set_rd_state(rd, REALM_NEW);
 	set_rd_rec_count(rd, 0UL);
 
+	rd->mecid = (unsigned int)p.mecid;
 	rd->rtt_tree_pp = rtt_tree_pp;
 	rd->num_aux_planes = p.num_aux_planes;
 	rd->rtt_s2ap_encoding = (EXTRACT(RMI_REALM_FLAGS1_S2AP_ENC, p.flags1) != 0UL);
@@ -742,7 +742,7 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 		}
 	}
 
-	rd = buffer_granule_map(g_rd, SLOT_RD);
+	rd = map_rd_and_init_realm_mecid_s1(g_rd);
 	assert(rd != NULL);
 
 	num_rtts = plane_to_s2_context(rd, PLANE_0_ID)->num_root_rtts;

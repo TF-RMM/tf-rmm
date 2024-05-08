@@ -337,7 +337,13 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	rec = buffer_granule_map(g_rec, SLOT_REC);
 	assert(rec != NULL);
 
-	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	/*
+	 * Realm is entered with Realm MECID programmed in S1 of RMM.
+	 * This mitigates the need to program Realm MECID when RMM is
+	 * re-entered as part of RSI calls and when RMM needs to access
+	 * Realm memory.
+	 */
+	rd = map_rd_and_init_realm_mecid_s1(rec->realm_info.g_rd);
 	assert(rd != NULL);
 
 	realm_state = get_rd_state_unlocked(rd);
