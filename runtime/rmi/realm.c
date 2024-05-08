@@ -11,6 +11,7 @@
 #include <granule.h>
 #include <measurement.h>
 #include <realm.h>
+#include <rmm_el3_ifc.h>
 #include <s2tt.h>
 #include <s2tt_ap.h>
 #include <simd.h>
@@ -727,7 +728,7 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	struct granule *g_rd;
 	struct granule *g_rtt;
 	struct rd *rd;
-	unsigned int num_rtts;
+	unsigned int num_rtts, mecid;
 	int res;
 
 	/* RD should not be destroyed if refcount != 0. */
@@ -746,6 +747,7 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	assert(rd != NULL);
 
 	num_rtts = plane_to_s2_context(rd, PLANE_0_ID)->num_root_rtts;
+	mecid = rd->mecid;
 
 	/* Check that root tables from all RTT trees don't hold any references */
 	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {
@@ -778,12 +780,6 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 		vmid_free(rd->s2_ctx[i].vmid);
 	}
 
-	/*
-	 * Free the Realm MEC ID. The AMEC and VMEC registers will be
-	 * reset by the caller of this function. Note that there are no
-	 * active S1 nor S2 mappings using the Realm MECID at this point.
-	 */
-	mecid_free(rd->mecid);
 	buffer_unmap(rd);
 
 	/*
@@ -791,6 +787,20 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	 * the granule is reclaimed for another Realm or by NS Host.
 	 */
 	granule_unlock_transition_to_delegated(g_rd);
+
+	/*
+	 * Tweak the key associated with the MEC ID and Free it. The Realm
+	 * MECID registers will be reset by the caller of this function.
+	 * Note that there are no active S1 nor S2 mappings using the
+	 * Realm MECID and DCCIPoE is completed at this point.
+	 * For the shared MECID, the key associated remains unchanged in
+	 * order to preserve the encryption contexts in other Realms using
+	 * the shared MECID.
+	 */
+	if (!mec_is_shared(mecid)) {
+		(void)rmm_el3_ifc_mecid_update((unsigned short)mecid);
+	}
+	mecid_free(mecid);
 
 	return RMI_SUCCESS;
 }

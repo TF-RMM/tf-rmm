@@ -146,6 +146,26 @@ int mec_set_shared(unsigned int mecid)
 }
 
 /*
+ * Helper to query whether a MECID is shared or not.
+ */
+bool mec_is_shared(unsigned int mecid)
+{
+	bool ret = false;
+
+	mecid = INTERNAL_MECID(mecid);
+	assert(IS_MEC_VALID(mecid));
+
+	spinlock_acquire(&mec_state.shared_mecid_spinlock);
+	if ((mec_state.shared_mec != MECID_INVALID) &&
+		(mecid == mec_state.shared_mec)) {
+		ret = true;
+	}
+	spinlock_release(&mec_state.shared_mecid_spinlock);
+
+	return ret;
+}
+
+/*
  * Helper to set a Shared MECID as Private. If there are no Realms
  * using the Shared MECID and if the MECID was Shared, then
  * release the MECID reservation.

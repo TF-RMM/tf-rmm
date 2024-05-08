@@ -35,6 +35,7 @@ void mec_init_mmu(void);
 unsigned int mecid_max(void);
 int mec_set_private(unsigned int mecid);
 int mec_set_shared(unsigned int mecid);
+bool mec_is_shared(unsigned int mecid);
 bool mecid_reserve(unsigned int mecid);
 void mecid_free(unsigned int mecid);
 
