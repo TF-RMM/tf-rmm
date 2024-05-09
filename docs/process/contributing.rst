@@ -48,8 +48,16 @@ Making Changes
 
 -  Follow the :ref:`Coding Standard`.
 
-   - Use the static checks as shown in :ref:`build_options_examples` to perform
-     checks like checkpatch, checkspdx, header files include order etc.
+-  Use the static checks as shown in :ref:`build_options_examples` to perform
+   checks like checkpatch, checkspdx, header files include order, clang-tidy,
+   cppcheck etc. A sample static analysis command line is given below, assuming
+   the tools have been setup as per instruction in :ref:`getting_started`.
+
+   .. code-block:: bash
+
+      cd $rmm_root
+      cmake -DRMM_CONFIG=fvp_defcfg -S . -B build -DRMM_TOOLCHAIN=llvm -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      cmake --build build -- checkpatch checkspdx-patch checkincludes-patch clang-tidy-patch cppcheck-misra
 
 -  Where appropriate, please update the documentation.
 
@@ -63,9 +71,6 @@ Making Changes
 
 -  Please test your changes and add suitable tests in the available test
    frameworks for any new functionality.
-
--  Ensure that all CI automated tests pass. Failures should be fixed. They
-   might block a patch, depending on how critical they are.
 
 Submitting Changes
 ==================

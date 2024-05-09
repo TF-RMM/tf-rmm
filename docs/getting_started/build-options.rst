@@ -100,19 +100,25 @@ Build using LLVM toolchain
 
 8. Perform a Cppcheck static analysis:
 
+Refer to :ref:`Cppcheck Application Note` for details on installing and running cppcheck
+static analysis.
+
 .. code-block:: bash
 
     cmake -DRMM_CONFIG=fvp_defcfg -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
     cmake --build ${RMM_BUILD_DIR} -- cppcheck
-    cat ${BUILD_DIR}/tools/cppcheck/cppcheck.xml
+    cat ${RMM_BUILD_DIR}/tools/cppcheck/cppcheck.xml
 
 9. Perform a Cppcheck static analysis with MISRA:
+
+Refer to :ref:`Cppcheck Application Note` for details on installing and running cppcheck
+static analysis.
 
 .. code-block:: bash
 
     cmake -DRMM_CONFIG=fvp_defcfg -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
     cmake --build ${RMM_BUILD_DIR} -- cppcheck-misra
-    cat ${BUILD_DIR}/tools/cppcheck/cppcheck_misra.xml
+    cat ${RMM_BUILD_DIR}/tools/cppcheck/cppcheck_misra.xml
 
 10. Perform a checkpatch analysis:
 
@@ -243,6 +249,8 @@ are generated in ``${RMM_BUILD_DIR}/tools/cbmc/cbmc_coverage_results``.
 
     cmake -DRMM_CONFIG=host_defcfg -DHOST_VARIANT=host_cbmc -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
     cmake --build ${RMM_BUILD_DIR} -- cbmc-coverage cbmc-analysis cbmc-assert
+
+Refer to :ref:`CBMC` Application Note for details on installing and running CBMC.
 
 .. _build_options_table:
 
