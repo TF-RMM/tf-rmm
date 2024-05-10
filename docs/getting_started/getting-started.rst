@@ -1,6 +1,8 @@
 .. SPDX-License-Identifier: BSD-3-Clause
 .. SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 
+.. _getting_started:
+
 #############
 Prerequisite
 #############
@@ -28,11 +30,11 @@ We recommend at least Ubuntu 20.04 LTS (x64) for build environment. The
 arm64/AArch64 Ubuntu and other Linux distributions should also work fine,
 provided that the necessary tools and libraries can be installed.
 
+.. _tool_dependencies:
+
 ##########################
 Tool & Dependency overview
 ##########################
-
-.. _tool_dependencies:
 
 The following tools are required to obtain and build |RMM|:
 
@@ -53,7 +55,7 @@ The following tools are required to obtain and build |RMM|:
    "docutils",">v2.38.0","Documentation"
    "gcovr",">=v4.2","Tools(Coverage analysis)"
    "CBMC",">=5.84.0","Tools(CBMC analysis)"
-   "CPPcheck",">=2.13.4","Tools(CPPcheck)"
+   "Cppcheck",">=2.13.4","Tools(Cppcheck)"
 
 .. _getting_started_toolchain:
 
@@ -159,7 +161,7 @@ Install coverage tools analysis dependencies
 
 On Ubuntu, ``gcovr`` tool can be installed in two different ways:
 
-Using the pagckage manager:
+Using the package manager:
 
 .. code-block:: bash
 
@@ -209,6 +211,9 @@ repo:
 You can read more about Git hooks in the *githooks* page of the `Git hooks
 documentation`_.
 
+General contribution guidelines for contributors can be found in
+:ref:`Contributor's Guide`.
+
 #################################
 Install Cppcheck and dependencies
 #################################
@@ -218,7 +223,7 @@ Install Cppcheck and dependencies
     The installation of Cppcheck is an optional step. This is required only
     if using the Cppcheck static analysis.
 
-The recommended version of Cppcheck is indicated :ref:`above<tool_dependencies>`.
+The recommended version of Cppcheck is indicated in :ref:`tool_dependencies`.
 See :ref:`Cppcheck Application Note` for installation steps and details
 on how to use it within RMM build system.
 
@@ -234,6 +239,23 @@ Install CBMC
 Follow the public documentation to install CBMC either from the official
 website https://www.cprover.org/cbmc/ or from the official github
 https://github.com/diffblue/cbmc
+
+Refer to :ref:`CBMC` Application Notes for details on installation and
+running CBMC analysis on TF-RMM sources.
+
+##################
+Install Clang-tidy
+##################
+
+Clang-tidy is included in LLVM release package. It can also be installed via
+package manager :
+
+.. code-block:: bash
+
+    sudo apt-get install clang-tidy
+
+Note that the ``RMM_TOOLCHAIN`` needs to be set to `llvm` to run clang-tidy
+build targets from RMM build system.
 
 ###########################
 Performing an Initial Build

@@ -11,7 +11,7 @@ C 2012. Please refer to `Cppcheck Project Page`_ for details on Cppcheck.
 
 Cppcheck can be run standalone or along with MISRA addon from within the RMM
 build system. TF-RMM aims to have 0 outstanding errors with the recommended
-Cppcheck version mentioned :ref:`here<tool_dependencies>`.
+Cppcheck version mentioned in :ref:`tool_dependencies`.
 
 Installing Cppcheck
 ===================
@@ -22,8 +22,9 @@ version.
 
 For building from source, please refer to `Cppcheck GitHub`_ for downloading
 recommended version and build guidelines. Once Cppcheck is built, add both
-Cppcheck bin folder and Cppcheck-htmlreport folder to PATH. The latter
+Cppcheck binary folder and Cppcheck-htmlreport folder to PATH. The latter
 is used to convert Cppcheck XML output into user friendly html report.
+Asssuming that `build` is the output folder for Cppcheck build:
 
 .. code-block:: bash
 
@@ -120,9 +121,9 @@ suppression format can be used as shown in example below:
 
 .. code-block:: C
 
-    /* cppcheck-suppress-begin uninitvar*/
+    /* cppcheck-suppress-begin uninitvar */
     block_of_code;
-    /* cppcheck-suppress-end uninitvar*/
+    /* cppcheck-suppress-end uninitvar */
 
 .. _Cppcheck Project Page: https://cppcheck.sourceforge.io/
 .. _Cppcheck GitHub: https://github.com/danmar/cppcheck
