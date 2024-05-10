@@ -294,7 +294,7 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 }
 
 /*
- * Handle FPU or SVE exceptions.
+ * Handle FPU or SVE or SME exceptions.
  * Returns: true if the exception is handled.
  */
 static bool handle_simd_exception(struct rec *rec, unsigned long esr)
@@ -332,8 +332,8 @@ static bool handle_simd_exception(struct rec *rec, unsigned long esr)
 	}
 
 	/*
-	 * As REC uses lazy enablement, upon FPU/SVE exception the active SIMD
-	 * context must not be the REC's context
+	 * As REC uses lazy enablement, upon FPU/SVE/SME exception the active
+	 * SIMD context must not be the REC's context
 	 */
 	assert(rec->active_simd_ctx != rec->aux_data.simd_ctx);
 
