@@ -81,18 +81,18 @@ different licenses are listed in the table below. This table is used by the
 
 .. list-table:: **List of files with different license**
 
-      * - File
-	- License
-      * - lib/libc/src/printf.c
-	- MIT
-      * - lib/libc/include/stdio.h
-	- MIT
-      * - lib/libc/src/strlcpy.c
-	- ISC
-      * - lib/libc/src/strnlen.c
-	- BSD-2-Clause
-      * - lib/allocator/src/memory_alloc.c
-	- Apache-2.0
+   * - File
+     - License
+   * - lib/libc/src/printf.c
+     - MIT
+   * - lib/libc/include/stdio.h
+     - MIT
+   * - lib/libc/src/strlcpy.c
+     - ISC
+   * - lib/libc/src/strnlen.c
+     - BSD-2-Clause
+   * - lib/allocator/src/memory_alloc.c
+     - Apache-2.0
 
 
 ************
