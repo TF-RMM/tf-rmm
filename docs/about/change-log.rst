@@ -6,6 +6,194 @@ Change-log and Release notes
 ############################
 
 ******
+v0.5.0
+******
+
+The following sections have the details on the release. This release has been
+verified with `TF-A v2.11`_ release.
+
+============================
+New features in this release
+============================
+
+- Enabled FEAT_DIT for RMM execution.
+
+- Added support for FEAT_LPA2 to S2TT component.
+
+  *  This enables creating Realms with LPA2 support.
+
+- Introduced the dynamic console framework for RMM.
+
+  *  This framework allows EL3 to dynamically describe the console for use by
+     RMM and configure the console during boot.
+
+- Introduced the ``arm`` platform layer.
+
+  *  The common ``arm`` platform is added which can be used
+     by any compatible SoC. This allows reuse of code across multiple
+     SoCs and possibly a single binary across them.
+  *  Both FVP and QEMU are migrated to this common ``arm`` platform layer and
+     only requires platform specific defconfig file to configure RMM.
+
+======================================
+Bug fixes/improvements in this release
+======================================
+
+- Improvements to Exception handling in RMM.
+
+  *  Separated Exception Stack for RMM exceptions.
+  *  Added crashlog of register values for R-EL2 exceptions.
+  *  Added backtrace to exception handler.
+
+- Improvements to S2TT component in RMM.
+
+  *  Several optimizations to S2TT component are done.
+  *  MISRA errors are fixed.
+  *  The component is moved to its own folder in `lib`.
+  *  All S2TT APIs now accept `realm_s2_context` as an argument.
+  *  Issue related to the NS attributes not being checked during FOLD is fixed.
+
+- Reduced the memory required for `struct granule`.
+
+  *  The data structure is optimized such that it is 4 bytes in size
+     compared to the previous 16 bytes.
+
+- Use DC ZVA for granule zeroing instead of memset().
+
+- Allow RTT FOLD to level 1 as mandated by RMM specification.
+
+- Additional clang-tidy checks are enabled for the project.
+
+  *  The clang-tidy configuration can be found in ``.clang-tidy`` file at the
+     the root of the source tree.
+  *  The errors flagged by the static analysis are corrected and the project
+     expects 0 errors for clang-tidy checks.
+
+- Enabled alignment fault check in RMM.
+
+  *  Enabled Alignment fault check in SCTLR_EL2 register when
+     RMM_FPU_USE_AT_REL2=OFF. Associated fixes for some data structures
+     are also done as part of this work.
+
+- Fixed MISRA C 2012 violations detected by Coverity scan.
+
+- Fix to report accurate breakpoint and watchpoint numbers via RMI_FEATURES.
+
+- Fix to properly initialize MDCR_EL2.HPMN for each REC.
+
+- Fix to inject SEA for Realm access outside IPA space.
+
+- Allocate parameters for RIM extension on stack rather than global data.
+
+- Fixed spinlock_acquire() implementation on the fake_host architecture.
+
+- Fix to add +nosve compiler option to prevent compiler from generating SVE
+  instructions.
+
+- Fix to use -march=armv9.2 option to build RMM depending on compiler support.
+
+- Fixed build issue for Yocto by adding system includes to the CMAKE search
+  path.
+
+- Fix to retry RDNR instruction if it fails during attestation initialization.
+
+- Refactored lib/realm component. This component is split now into 2 new
+  libraries: `lib/granule` and `lib/slot_buf`.
+
+- Fix to make RMI_INJECT_SEA flag mutually exclusive to RMI EMUL_MMIO flag
+  during RMI_REC_ENTER.
+
+==================================
+Build/Testing/Tooling improvements
+==================================
+
+- Extended CBMC analysis to more RMI commands:
+
+  *  Added CBMC testbench and analysis for the following RMI APIs:
+     RMI_VERSION, RMI_FEATURES, RMI_REALM_ACTIVATE, RMI_REALM_DESTROY,
+     RMI_REC_AUX_COUNT, RMI_REC_DESTROY.
+  *  Increased CBMC coverage for RMI_DELEGATE and RMI_UNDELEGATE APIs.
+  *  Integrated cbmc-viewer tool to CBMC analysis.
+  *  Added option to build with GCC.
+  *  Added tooling to detect CBMC result differences. Added a script that
+     compares the CBMC results to the baseline summary and this helps to
+     detect additional CBMC failures from baseline results.
+  *  An application note is added to the documentation to describe
+     the CBMC integration with the project.
+
+- Improvements to unit-tests in RMM.
+
+  *  Added unit testing framework and unit tests to SIMD layer in RMM.
+
+- Improvements to Cppcheck static analysis.
+
+  *  The Cppcheck was already integrated into the build system and more work
+     was done to bring it inline with other static checks in the project.
+  *  Fixed violations detected by Cppcheck MISRA addon.
+  *  An application note is added to describe the Cppcheck integration.
+
+- Changes to logging for Release build.
+
+  *  The default Release build LOG_LEVEL is reduced to 20 (LOG_LEVEL_NOTICE).
+
+- Fixed the broken CMAKE Ninja Generator Multi-config build.
+
+=========
+Platforms
+=========
+
+- Added base support for RD-Fremont platform.
+
+  *  RD-Fremont also use the ``arm`` platform layer and only needs a
+     defconfig file to configure RMM appropriately.
+
+============================
+Known issues and limitations
+============================
+
+- Some capabilities as mentioned in `RMM v1.0 EAC5 specification`_ are
+  restricted or absent in TF-RMM as listed below:
+
+  * The support for Self-hosted debug in Realms is not implemented (`issue#23`_).
+  * Although the RMM allows CCA attestation token sizes of larger than 4KB,
+    there is a limitation on the size of the Platform attestation token part.
+    On the RMM-EL3 interface, there is only a shared buffer of 4KB that is
+    currently shared on the FVP. This needs to be enhanced so that larger
+    platform token sizes can be tested (`issue#24`_).
+
+- The attest_init_realm_attestation_key() does not always reset the RMM to the correct
+  state on encountering an error (`issue#25`_).
+
+=================
+Upcoming features
+=================
+
+- Prototype new features as described in `RMM v1.1 Alpha specification`_.
+
+  *  Realm Device Assignment - A feature which allows devices to be assigned to Realms,
+     attested and granted permission to access Realm owned memory.
+  *  Planes - A feature which allows a Realm to be divided into multiple
+     mutually isolated execution environments, called Planes.
+
+- Add unit-tests for Stage 2 MMU code (s2tt).
+
+- Continue to Enhance CBMC analysis to more RMI commands.
+
+- Fuzz testing for RMM utilizing the `fake_host` architecture.
+
+- Integrate more static analyzers into RMM build system.
+
+- Implement support for Self-hosted debug in realms.
+
+- Support FEAT_MEC in RMM.
+
+.. _TF-A v2.11: https://git.trustedfirmware.org/TF-A/trusted-firmware-a/+/refs/tags/v2.11.0
+.. _RMM v1.1 Alpha specification: https://developer.arm.com/-/cdn-downloads/PDF/Architectures/DEN0137_1.1-alp5_rmm-arch_external.pdf?__token__=st=1714479850~exp=2029839850~hmac=cca7b8c22f7b94e6c929d53176ac57c51487558b73fb27e5c181f4cc7231a83b
+.. _issue#23: https://github.com/TF-RMM/tf-rmm/issues/23
+.. _issue#24: https://github.com/TF-RMM/tf-rmm/issues/24
+.. _issue#25: https://github.com/TF-RMM/tf-rmm/issues/25
+
+******
 v0.4.0
 ******
 
