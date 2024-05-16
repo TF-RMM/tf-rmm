@@ -34,6 +34,16 @@ static bool complete_mmio_emulation(struct rec *rec, struct rmi_rec_enter *rec_e
 		return true;
 	}
 
+	/*
+	 * If INJECT_SEA is set, we will only reach here if the condition
+	 * for that flag is satisfied and has an effect on the Realm viz to
+	 * Inject Data Abort at Unprotected IPA. Hence we skip EMUL_MMIO
+	 * if the INJECT_SEA flag is set.
+	 */
+	if ((rec_enter->flags & REC_ENTRY_FLAG_INJECT_SEA) != 0UL) {
+		return true;
+	}
+
 	if (((esr & MASK(ESR_EL2_EC)) != ESR_EL2_EC_DATA_ABORT) ||
 	    ((esr & ESR_EL2_ABORT_ISV_BIT) == 0UL)) {
 		/*
@@ -258,12 +268,19 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	}
 	gic_copy_state_from_rec_entry(&rec->sysregs.gicstate, &rec_run.enter);
 
-	if (!complete_mmio_emulation(rec, &rec_run.enter)) {
+	/*
+	 * Note that the order of checking SEA insertion needs to be prior
+	 * to checking mmio emulation as the conditions for the former flag
+	 * having an effect (Data Abort at Unprotected IPA) are a superset
+	 * of those for RMI_EMULATED_MMIO (Data Abort at Unprotected IPA and
+	 * access was an emulatable read).
+	 */
+	if (!complete_sea_insertion(rec, &rec_run.enter)) {
 		ret = RMI_ERROR_REC;
 		goto out_unmap_buffers;
 	}
 
-	if (!complete_sea_insertion(rec, &rec_run.enter)) {
+	if (!complete_mmio_emulation(rec, &rec_run.enter)) {
 		ret = RMI_ERROR_REC;
 		goto out_unmap_buffers;
 	}
