@@ -7,4 +7,4 @@ Security Handling
 The generic security incident process can be found at
 `TrustedFirmware.org security incident process`_.
 
-.. _TrustedFirmware.org security incident process: https://developer.trustedfirmware.org/w/collaboration/security_center/
+.. _TrustedFirmware.org security incident process: https://trusted-firmware-docs.readthedocs.io/en/latest/security_center/index.html
