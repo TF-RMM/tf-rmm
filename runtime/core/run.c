@@ -271,7 +271,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	rec->ns = ns_state;
 
 	/* Map auxiliary granules */
-	rec_aux = buffer_aux_granules_map(rec->g_aux, rec->num_rec_aux);
+	rec_aux = buffer_rec_aux_granules_map(rec->g_aux, rec->num_rec_aux);
 
 	/*
 	 * Associate the attest heap with the current CPU. This heap will be
@@ -366,5 +366,5 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 
 	/* Unmap auxiliary granules */
-	buffer_aux_unmap(rec_aux, rec->num_rec_aux);
+	buffer_rec_aux_unmap(rec_aux, rec->num_rec_aux);
 }

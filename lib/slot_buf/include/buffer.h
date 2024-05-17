@@ -68,19 +68,21 @@ void slot_buf_finish_warmboot_init(void);
 /*
  * Maps the `num_aux` SLOT_REC_AUX granules.
  */
-void *buffer_aux_granules_map(struct granule *g_rec_aux[], unsigned int num_aux);
+void *buffer_rec_aux_granules_map(struct granule *g_rec_aux[],
+				  unsigned int num_aux);
 
 /*
  * Maps the `num_aux` granules in REC to SLOT_EL3_TOKEN_SIGN_AUX0.
  */
-void *buffer_aux_granules_map_el3_token_sign_slot(struct granule *g_rec_aux[],
+void *buffer_rec_aux_granules_map_el3_token_sign_slot(
+					      struct granule *g_rec_aux[],
 						   unsigned int num_aux);
 
 /*
  * Unmaps the `num_aux` SLOT_REC_AUX or SLOT_EL3_TOKEN_SIGN_AUX0 buffers starting
  * with the one passed at the beginning of `rec_aux`.
  */
-void buffer_aux_unmap(void *rec_aux, unsigned int num_aux);
+void buffer_rec_aux_unmap(void *rec_aux, unsigned int num_aux);
 
 /*
  * Map the granule 'g' to 'slot', zeroes its content and unmaps it.
