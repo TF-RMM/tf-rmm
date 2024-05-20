@@ -40,4 +40,4 @@ Maintainers
 .. _arugan02: https://github.com/arugan02
 .. _Máté Tóth-Pál: https://github.com/matetothpal
 
-.. _Project Maintenance Process: https://developer.trustedfirmware.org/w/collaboration/project-maintenance-process/
+.. _Project Maintenance Process: https://trusted-firmware-docs.readthedocs.io/en/latest/generic_processes/project_maintenance_process.html
