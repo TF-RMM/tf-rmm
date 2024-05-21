@@ -456,6 +456,10 @@ TEST(simd, simd_context_save_TC1)
 
 	simd_init();
 
+	/* Initialise NS ctx. */
+	ret = simd_get_cpu_config(&test_simd_cfg);
+	CHECK_TRUE(ret == 0);
+
 	ret = simd_context_init(SIMD_OWNER_NWD, &test_simd_ctx, &test_simd_cfg);
 
 	CHECK_TRUE(ret == 0);
@@ -534,6 +538,10 @@ ASSERT_TEST(simd, simd_context_save_TC4)
 	simd_test_helpers_setup_id_regs(false, false);
 	simd_init();
 
+	/* Initialise NS ctx. */
+	ret = simd_get_cpu_config(&test_simd_cfg);
+	CHECK_TRUE(ret == 0);
+
 	ret = simd_context_init(SIMD_OWNER_NWD, &test_simd_ctx, &test_simd_cfg);
 
 	CHECK_TRUE(ret == 0);
@@ -583,6 +591,10 @@ ASSERT_TEST(simd, simd_context_restore_TC2)
 	(void)memset(&test_simd_ctx, 0, sizeof(struct simd_context));
 	simd_test_helpers_setup_id_regs(false, false);
 	simd_init();
+
+	/* Initialise NS ctx. */
+	ret = simd_get_cpu_config(&test_simd_cfg);
+	CHECK_TRUE(ret == 0);
 
 	ret = simd_context_init(SIMD_OWNER_NWD, &test_simd_ctx, &test_simd_cfg);
 
@@ -641,6 +653,10 @@ ASSERT_TEST(simd, simd_context_restore_TC4)
 	simd_test_helpers_setup_id_regs(false, false);
 	simd_init();
 
+	/* Initialise NS ctx. */
+	ret = simd_get_cpu_config(&test_simd_cfg);
+	CHECK_TRUE(ret == 0);
+
 	ret = simd_context_init(SIMD_OWNER_NWD, &test_simd_ctx, &test_simd_cfg);
 	CHECK_TRUE(ret == 0);
 
@@ -684,11 +700,15 @@ TEST(simd, simd_context_switch_TC1)
 
 	simd_init();
 
-	/* Initialise two FPU contexts */
-	ret1 = simd_context_init(SIMD_OWNER_NWD, &simd_ctx_nwd, &test_simd_cfg);
-	ret2 = simd_context_init(SIMD_OWNER_REL1, &simd_ctx_rl, &test_simd_cfg);
-
+	/* Initialise NS ctx. */
+	ret1 = simd_get_cpu_config(&test_simd_cfg);
 	CHECK_TRUE(ret1 == 0);
+
+	ret1 = simd_context_init(SIMD_OWNER_NWD, &simd_ctx_nwd, &test_simd_cfg);
+	CHECK_TRUE(ret1 == 0);
+
+	/* Initialise RL FPU contexts */
+	ret2 = simd_context_init(SIMD_OWNER_REL1, &simd_ctx_rl, &test_simd_cfg);
 	CHECK_TRUE(ret2 == 0);
 
 	/* Set callbacks for the save and restore helper routines */
@@ -723,72 +743,10 @@ TEST(simd, simd_context_switch_TC2)
 	struct simd_config test_simd_cfg = { 0 };
 	union simd_cbs cb_save;
 	union simd_cbs cb_restore;
-	int ret1, ret2;
-
-	/******************************************************************
-	 * TEST CASE 2:
-	 *
-	 * Initialise an FPU context with NWD owner and an SVE context
-	 * with Realm owner. Call simd_context_switch() to save the NWD
-	 * FPU context and restore the Realm SVE context. Then, call
-	 * simd_context_switch() again to do the opposite. Verify that the
-	 * correct helper routines are called.
-	 ******************************************************************/
-
-	reset_times_called();
-	(void)memset(&simd_ctx_nwd, 0, sizeof(struct simd_context));
-	(void)memset(&simd_ctx_rl, 0, sizeof(struct simd_context));
-	simd_test_helpers_setup_id_regs(true, false);
-
-	simd_init();
-
-	/* Initialise NS FPU ctx */
-	ret1 = simd_context_init(SIMD_OWNER_NWD, &simd_ctx_nwd, &test_simd_cfg);
-
-	/* Initialise RL SVE ctx */
-	test_simd_cfg.sve_en = true;
-
-	ret2 = simd_context_init(SIMD_OWNER_REL1, &simd_ctx_rl, &test_simd_cfg);
-
-	CHECK_TRUE(ret1 == 0);
-	CHECK_TRUE(ret2 == 0);
-
-	/* Do the NS FPU -> RL SVE switch */
-	cb_save.fpu_save_restore_regs = fpu_save_regs_cb;
-	cb_restore.sve_save_restore_regs = sve_restore_regs_cb;
-
-	simd_test_register_callback(FPU_SAVE_REGS, cb_save);
-	simd_test_register_callback(SVE_RESTORE_REGS, cb_restore);
-
-	(void)simd_context_switch(&simd_ctx_nwd, &simd_ctx_rl);
-
-	CHECK_TRUE(helpers_times_called[FPU_SAVE_REGS] == 1);
-	CHECK_TRUE(helpers_times_called[SVE_RESTORE_REGS] == 1);
-
-	/* Do the RL SVE -> NS FPU switch */
-	cb_save.sve_save_restore_regs = sve_save_regs_cb;
-	cb_restore.fpu_save_restore_regs = fpu_restore_regs_cb;
-
-	simd_test_register_callback(SVE_SAVE_REGS, cb_save);
-	simd_test_register_callback(FPU_RESTORE_REGS, cb_restore);
-
-	(void)simd_context_switch(&simd_ctx_rl, &simd_ctx_nwd);
-
-	CHECK_TRUE(helpers_times_called[SVE_SAVE_REGS] == 1);
-	CHECK_TRUE(helpers_times_called[FPU_RESTORE_REGS] == 1);
-}
-
-TEST(simd, simd_context_switch_TC3)
-{
-	struct simd_context simd_ctx_nwd;
-	struct simd_context simd_ctx_rl;
-	struct simd_config test_simd_cfg = { 0 };
-	union simd_cbs cb_save;
-	union simd_cbs cb_restore;
 	int ret;
 
 	/******************************************************************
-	 * TEST CASE 3:
+	 * TEST CASE 2:
 	 *
 	 * Initialise an SVE context with NS owner and an FPU context with
 	 * Realm owner. Call simd_context_switch() to save the NS SVE
@@ -849,7 +807,7 @@ TEST(simd, simd_context_switch_TC3)
 	CHECK_TRUE(helpers_times_called[SVE_RESTORE_REGS] == 1);
 }
 
-TEST(simd, simd_context_switch_TC4)
+TEST(simd, simd_context_switch_TC3)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
@@ -859,7 +817,7 @@ TEST(simd, simd_context_switch_TC4)
 	int ret1, ret2;
 
 	/******************************************************************
-	 * TEST CASE 4:
+	 * TEST CASE 3:
 	 *
 	 * Initialise two SVE contexts, one with NS owner and one with
 	 * Realm owner. Call simd_context_switch() to save the NS context
@@ -909,7 +867,7 @@ TEST(simd, simd_context_switch_TC4)
 	CHECK_TRUE(helpers_times_called[SVE_RESTORE_REGS] == 2U);
 }
 
-TEST(simd, simd_context_switch_TC5)
+TEST(simd, simd_context_switch_TC4)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
@@ -919,7 +877,7 @@ TEST(simd, simd_context_switch_TC5)
 	int ret;
 
 	/******************************************************************
-	 * TEST CASE 5:
+	 * TEST CASE 4:
 	 *
 	 * Initialise an SME context (SVE disabled, SVE streaming mode
 	 * disabled) with NS owner and an FPU context with Realm owner.
@@ -973,7 +931,7 @@ TEST(simd, simd_context_switch_TC5)
 	CHECK_TRUE(helpers_times_called[FPU_RESTORE_REGS] == 2);
 }
 
-TEST(simd, simd_context_switch_TC6)
+TEST(simd, simd_context_switch_TC5)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
@@ -983,7 +941,7 @@ TEST(simd, simd_context_switch_TC6)
 	int ret;
 
 	/******************************************************************
-	 * TEST CASE 6:
+	 * TEST CASE 5:
 	 *
 	 * Initialise an SME context (SVE enabled, SVE streaming mode
 	 * enabled) with NS owner and an FPU context with Realm owner.
@@ -1046,7 +1004,7 @@ TEST(simd, simd_context_switch_TC6)
 	CHECK_TRUE(helpers_times_called[SVE_RESTORE_REGS] == 1);
 }
 
-TEST(simd, simd_context_switch_TC7)
+TEST(simd, simd_context_switch_TC6)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
@@ -1056,11 +1014,13 @@ TEST(simd, simd_context_switch_TC7)
 	int ret1, ret2;
 
 	/******************************************************************
-	 * TEST CASE 7:
+	 * TEST CASE 6:
 	 *
-	 * Initialise an SME context (SVE disabled, SVE streaming mode
-	 * disabled) with NS owner and an SVE context with Realm owner.
-	 * Call simd_context_switch() to save the NS SME context and
+	 * Test setup
+	 * NS world : SVE + SME. PSTATE.SM=0
+	 * Realm    : SVE
+	 *
+	 * Call simd_context_switch() to save the NS SVE context and
 	 * restore the Realm SVE context. Then, call simd_context_switch()
 	 * again to do the opposite. Verify that the correct helper
 	 * routines are called.
@@ -1077,49 +1037,35 @@ TEST(simd, simd_context_switch_TC7)
 	test_simd_cfg.sve_en = true;
 
 	ret1 = simd_context_init(SIMD_OWNER_REL1, &simd_ctx_rl, &test_simd_cfg);
+	CHECK_TRUE(ret1 == 0);
 
-	/*
-	 * Initialise NS SME ctx. Note that we cannot use the CPU SIMD config,
-	 * as the NS SIMD ctx has SVE disabled.
-	 */
-	test_simd_cfg.sve_en = false;
-	test_simd_cfg.sme_en = true;
+	/* Initialise NS SME ctx. */
+	ret1 = simd_get_cpu_config(&test_simd_cfg);
+	CHECK_TRUE(ret1 == 0);
 
 	ret2 = simd_context_init(SIMD_OWNER_NWD, &simd_ctx_nwd, &test_simd_cfg);
-
-	CHECK_TRUE(ret1 == 0);
 	CHECK_TRUE(ret2 == 0);
+	write_svcr(read_svcr() & ~SVCR_SM_BIT);
 
-	/* Do the NS SME -> RL SVE switch.
-	 *
-	 * Since SVE is disabled and SVE streaming mode is disabled, expect the
-	 * FPU registers to be saved when the NS SME context is saved.
-	 */
-	cb_save.fpu_save_restore_regs = fpu_save_regs_cb;
+	cb_save.sve_save_restore_regs = sve_save_regs_cb;
 	cb_restore.sve_save_restore_regs = sve_restore_regs_cb;
-
-	simd_test_register_callback(FPU_SAVE_REGS, cb_save);
+	simd_test_register_callback(SVE_SAVE_REGS, cb_save);
 	simd_test_register_callback(SVE_RESTORE_REGS, cb_restore);
 
+	/* Do the NS SME -> RL SVE switch. */
 	(void)simd_context_switch(&simd_ctx_nwd, &simd_ctx_rl);
 
-	CHECK_TRUE(helpers_times_called[FPU_SAVE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[SVE_SAVE_REGS] == 1);
 	CHECK_TRUE(helpers_times_called[SVE_RESTORE_REGS] == 1);
 
 	/* Do the RL SVE -> NS SME switch */
-	cb_save.sve_save_restore_regs = sve_save_regs_cb;
-	cb_restore.fpu_save_restore_regs = fpu_restore_regs_cb;
-
-	simd_test_register_callback(SVE_SAVE_REGS, cb_save);
-	simd_test_register_callback(FPU_RESTORE_REGS, cb_restore);
-
 	(void)simd_context_switch(&simd_ctx_rl, &simd_ctx_nwd);
 
-	CHECK_TRUE(helpers_times_called[SVE_SAVE_REGS] == 1);
-	CHECK_TRUE(helpers_times_called[FPU_RESTORE_REGS] == 1);
+	CHECK_TRUE(helpers_times_called[SVE_SAVE_REGS] == 2);
+	CHECK_TRUE(helpers_times_called[SVE_RESTORE_REGS] == 2);
 }
 
-TEST(simd, simd_context_switch_TC8)
+TEST(simd, simd_context_switch_TC7)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
@@ -1129,7 +1075,7 @@ TEST(simd, simd_context_switch_TC8)
 	int ret;
 
 	/******************************************************************
-	 * TEST CASE 8:
+	 * TEST CASE 7:
 	 *
 	 * Initialise an SME context (SVE enabled, SVE streaming mode
 	 * enabled) with NS owner and an SVE context with Realm owner.
@@ -1186,7 +1132,7 @@ TEST(simd, simd_context_switch_TC8)
 	CHECK_TRUE(helpers_times_called[SVE_RESTORE_REGS] == 2);
 }
 
-TEST(simd, simd_context_switch_TC9)
+TEST(simd, simd_context_switch_TC8)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
@@ -1199,7 +1145,7 @@ TEST(simd, simd_context_switch_TC9)
 	int ret;
 
 	/******************************************************************
-	 * TEST CASE 9:
+	 * TEST CASE 8:
 	 *
 	 * Initialise an SVE context with NS owner, with SVE hint bit
 	 * enabled, and an FPU context with Realm owner. Call
@@ -1276,7 +1222,7 @@ TEST(simd, simd_context_switch_TC9)
 	CHECK_TRUE(helpers_times_called[SVE_RESTORE_REGS == 0]);
 }
 
-TEST(simd, simd_context_switch_TC10)
+TEST(simd, simd_context_switch_TC9)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
@@ -1289,7 +1235,7 @@ TEST(simd, simd_context_switch_TC10)
 	int ret1, ret2;
 
 	/******************************************************************
-	 * TEST CASE 10:
+	 * TEST CASE 9:
 	 *
 	 * Initialise two SVE contexts, one with NS owner and one with
 	 * Realm owner. Enable SVE hint bit for NS SVE context. Call
@@ -1373,7 +1319,7 @@ TEST(simd, simd_update_smc_sve_hint_TC1)
 	int ret1, ret2;
 
 	/******************************************************************
-	 * TEST CASE 11:
+	 * TEST CASE 1:
 	 *
 	 * Initialise two FPU contexts, one with NS owner and one with
 	 * Realm owner. Try to enable SVE hint bit for NS FPU context.
@@ -1385,15 +1331,18 @@ TEST(simd, simd_update_smc_sve_hint_TC1)
 	reset_times_called();
 	(void)memset(&simd_ctx_nwd, 0, sizeof(struct simd_context));
 	(void)memset(&simd_ctx_rl, 0, sizeof(struct simd_context));
-	simd_test_helpers_setup_id_regs(true, false);
+	simd_test_helpers_setup_id_regs(false, false);
 
 	simd_init();
 
 	/* Initialise NS and RL FPU contexts */
 	ret1 = simd_context_init(SIMD_OWNER_REL1, &simd_ctx_rl, &test_simd_cfg);
-	ret2 = simd_context_init(SIMD_OWNER_NWD, &simd_ctx_nwd, &test_simd_cfg);
-
 	CHECK_TRUE(ret1 == 0);
+
+	/* Initialise NS ctx. */
+	ret1 = simd_get_cpu_config(&test_simd_cfg);
+	CHECK_TRUE(ret1 == 0);
+	ret2 = simd_context_init(SIMD_OWNER_NWD, &simd_ctx_nwd, &test_simd_cfg);
 	CHECK_TRUE(ret2 == 0);
 
 	/*
