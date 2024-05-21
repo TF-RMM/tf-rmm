@@ -70,11 +70,30 @@ set(SOURCE_DIRS
 #
 # Below are the list of os_stub libraries in libspdm that LIBSPDM_CORE_LIBS
 # depends on.
+# TODO: memlib and debuglib should be reimplemented for aarch64.
 #
 set(SOURCE_DIRS
     ${SOURCE_DIRS}
     ${LIBSPDM_DIR}/os_stub/cryptlib_mbedtls
-    ${LIBSPDM_DIR}/os_stub/memlib)
+    ${LIBSPDM_DIR}/os_stub/memlib
+    ${LIBSPDM_DIR}/os_stub/debuglib)
+
+# For aarch64 build include aarch64_stub libraries that provides
+# libspdm_get_random_number_64, libspdm_sleep else include libspdm's os_stub
+# libraries.
+if(RMM_ARCH STREQUAL aarch64)
+    set(SOURCE_DIRS
+        ${SOURCE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}/aarch64_stub/spdm_malloclib
+        ${CMAKE_CURRENT_SOURCE_DIR}/aarch64_stub/spdm_rnglib
+        ${CMAKE_CURRENT_SOURCE_DIR}/aarch64_stub/spdm_timelib)
+else()
+    set(SOURCE_DIRS
+        ${SOURCE_DIRS}
+        ${LIBSPDM_DIR}/os_stub/malloclib
+        ${LIBSPDM_DIR}/os_stub/rnglib
+        ${LIBSPDM_DIR}/os_stub/platform_lib)
+endif()
 
 # Add all source directories
 foreach(SOURCE_DIR IN LISTS SOURCE_DIRS)
