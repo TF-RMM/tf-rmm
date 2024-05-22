@@ -372,6 +372,14 @@ emit an error like this:
    10 | COMPILER_ASSERT(MY_STRUCT_SIZE == sizeof(struct my_struct));
       | ^~~~~~~~~~~~~~~
 
+.. note::
+
+    For CBMC analysis some of the compile assertions are not valid (for example
+    due to the missing padding from certain structures, or due to smaller
+    ``GRANULE_SIZE``). In this case the macro ``COMPILER_ASSERT_NO_CBMC`` should
+    be used which behaves as ``COMPILER_ASSERT`` for regular builds, and always
+    passes for CBMC build.
+
 Data types, structures and typedefs
 -----------------------------------
 

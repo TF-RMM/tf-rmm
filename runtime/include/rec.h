@@ -25,6 +25,7 @@
 #define RMM_REC_SAVED_GEN_REG_COUNT	U(31)
 #define STRUCT_TYPE			struct
 #define REG_TYPE			unsigned long
+#define RMM_REALM_TOKEN_BUF_SIZE	SZ_1K
 #else /* CBMC */
 /*
  * struct rec must fit in a single granule. CBMC has a smaller GRANULE_SIZE
@@ -44,6 +45,7 @@
 #define STRUCT_TYPE	                union
 /* Reserve a single byte per saved register instead of 8. */
 #define REG_TYPE			unsigned char
+#define RMM_REALM_TOKEN_BUF_SIZE	4U
 #endif /* CBMC */
 
 struct granule;
@@ -131,7 +133,7 @@ struct ns_state {
  * Data used when handling attestation requests
  */
 struct rec_attest_data {
-	unsigned char rmm_realm_token_buf[SZ_1K];
+	unsigned char rmm_realm_token_buf[RMM_REALM_TOKEN_BUF_SIZE];
 	size_t rmm_realm_token_len;
 
 	struct token_sign_cntxt token_sign_ctx;
@@ -256,7 +258,7 @@ COMPILER_ASSERT(sizeof(struct rec) <= GRANULE_SIZE);
  * registers.
  */
 COMPILER_ASSERT(U(offsetof(struct rec, sp_el0)) ==
-	(U(offsetof(struct rec, regs)) + U(sizeof(unsigned long) * RMM_REC_SAVED_GEN_REG_COUNT)));
+	(U(offsetof(struct rec, regs)) + U(sizeof(REG_TYPE) * RMM_REC_SAVED_GEN_REG_COUNT)));
 
 /*
  * Check that mpidr has a valid value with all fields except
