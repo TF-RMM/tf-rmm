@@ -206,10 +206,10 @@ struct rmm_core_manifest {
 	struct console_list plat_console; /* Platform console list (from 0.3) */
 };
 
-COMPILER_ASSERT(U(offsetof(struct rmm_core_manifest, version)) == 0U);
-COMPILER_ASSERT(U(offsetof(struct rmm_core_manifest, plat_data)) == 8U);
-COMPILER_ASSERT(U(offsetof(struct rmm_core_manifest, plat_dram)) == 16U);
-COMPILER_ASSERT(U(offsetof(struct rmm_core_manifest, plat_console)) == 40U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, version)) == 0U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_data)) == 8U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_dram)) == 16U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_console)) == 40U);
 
 /*
  * Accessors to the Boot Manifest data

@@ -28,12 +28,6 @@ struct granule *init_rec_page(struct granule *g_rd)
 	__CPROVER_assume(g.state == GRANULE_STATE_REC);
 	struct rec rec = nondet_rec();
 
-	/*
-	 * This assert is necessary because the COMPILER_ASSERT in realm.h is
-	 * disabled for CBMC.
-	 */
-	__CPROVER_assert(sizeof(struct rec) <= GRANULE_SIZE, "check rec size");
-
 	rec.realm_info.g_rd = g_rd;
 
 	/* It must be a valid g_rd */

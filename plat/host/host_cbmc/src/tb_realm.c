@@ -140,12 +140,6 @@ struct granule *init_realm_descriptor_page(void)
 	__CPROVER_assume(g.state == GRANULE_STATE_RD);
 	struct rd rd = init_rd();
 
-	/*
-	 * This assert is necessary because the COMPILER_ASSERT in realm.h is
-	 * disabled for CBMC.
-	 */
-	__CPROVER_assert(sizeof(struct rd) <= GRANULE_SIZE, "check rd size");
-
 	struct granule *rd_granule = inject_granule(&g, &rd, sizeof(rd));
 
 	return rd_granule;
