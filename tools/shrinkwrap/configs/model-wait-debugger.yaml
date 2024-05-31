@@ -1,0 +1,17 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Configures the FVP model to listen for Iris connections on port 7100
+  and makes it wait until a debugger is connected before starting the
+  execution.
+
+run:
+  params:
+    -I :
+    -A :
+    -p :

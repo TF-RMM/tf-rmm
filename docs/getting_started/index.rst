@@ -10,3 +10,4 @@ Getting Started Guides
 
     getting-started
     build-options
+    building-with-shrinkwrap

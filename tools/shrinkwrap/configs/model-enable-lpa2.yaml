@@ -1,0 +1,20 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Overlay to enable FEAT_LPA2 on FVP at run time. This overlay also
+  sets the PA_SIZE to 52 bits for all the clusters.
+
+run:
+  params:
+    -C cluster0.has_52bit_address_with_4k: 2
+    -C cluster0.has_large_va: 2
+    -C cluster0.PA_SIZE: 52
+
+    -C cluster1.has_52bit_address_with_4k: 2
+    -C cluster1.has_large_va: 2
+    -C cluster1.PA_SIZE: 52

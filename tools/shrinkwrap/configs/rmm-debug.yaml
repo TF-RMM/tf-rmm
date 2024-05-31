@@ -1,0 +1,13 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Overlay to build images in Debug mode
+
+layers:
+  - debug/rmm.yaml
+  - debug/tfa.yaml

@@ -5,3 +5,5 @@
 .. |RD| replace:: :term:`RD`
 .. |PAR| replace:: :term:`PAR`
 .. |PAS| replace:: :term:`PAS`
+.. |TFTF| replace:: :term:`TFTF`
+.. |FVP| replace:: :term:`FVP`
