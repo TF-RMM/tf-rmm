@@ -38,6 +38,9 @@ static bool g_simd_state_saved[MAX_CPUS];
  * Check whether SVE is being used in normal (non-streaming) mode by the
  * context. The SVE hint bit is not set which implies that the full normal SVE
  * register context is in use.
+ *
+ * If the context has SME then CPU must not be in Streaming SVE mode, so an
+ * explicit check !is_sve_mode_streaming() is done.
  */
 #define is_sve_mode_normal(sc)		(simd_has_sve(sc) &&		\
 					 !is_ctx_sve_hint_set(sc) &&	\
@@ -221,11 +224,12 @@ struct simd_context *simd_context_switch(struct simd_context *ctx_save,
 		assert(!is_ctx_saved(ctx_save));
 		assert(!g_simd_state_saved[my_cpuid()]);
 
-		/* Disable appropriate traps */
-		if (read_cptr_el2() != ctx_save->cptr_el2) {
-			write_cptr_el2(ctx_save->cptr_el2);
-			isb();
-		}
+		/*
+		 * Disable appropriate traps. RMM core must run with SIMD traps
+		 * enabled.
+		 */
+		write_cptr_el2(ctx_save->cptr_el2);
+		isb();
 
 		/*
 		 * If incoming context belongs to NS world, then save NS world
@@ -485,14 +489,13 @@ static void sme_init_once(void)
 	write_cptr_el2(cptr_saved);
 	isb();
 
-	/* Update global system simd config */
+	/* Update global CPU SIMD config */
 	g_simd_cfg.sme_en = true;
 }
 
 /*
  * This function initializes the SIMD layer depending on SIMD capability of the
- * CPU (FPU/SVE). If CPU supports SVE, the max VQ will be discovered. Global
- * 'g_simd_cfg' will hold the CPU SIMD configuration discovered during init.
+ * CPU (FEAT_SVE/FEAT_SME).
  */
 void simd_init(void)
 {
