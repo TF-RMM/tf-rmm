@@ -55,11 +55,11 @@ target_include_directories(rmm-mbedtls INTERFACE
     "${RMM_SOURCE_DIR}/configs/mbedtls"
     "${MBEDTLS_SRC_DIR}/include")
 target_compile_definitions(rmm-mbedtls INTERFACE
-    "-DMBEDTLS_CONFIG_FILE=<mbedtls_config.h>")
+    "-DMBEDTLS_CONFIG_FILE=<rmm_mbedtls_config.h>")
 
 target_include_directories(mbedcrypto PUBLIC
     "${RMM_SOURCE_DIR}/configs/mbedtls"
     "${MBEDTLS_SRC_DIR}/include")
 target_compile_definitions(mbedcrypto PUBLIC
-    "-DMBEDTLS_CONFIG_FILE=<mbedtls_config.h>")
+    "-DMBEDTLS_CONFIG_FILE=<rmm_mbedtls_config.h>")
 target_link_libraries(rmm-mbedtls INTERFACE mbedcrypto)
