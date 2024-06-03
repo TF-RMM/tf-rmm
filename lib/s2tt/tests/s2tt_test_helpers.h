@@ -7,6 +7,7 @@
 #define S2TT_TEST_HELPERS_H
 
 #include <arch_helpers.h>
+#include <granule_types.h>
 #include <utils_def.h>
 
 /* Macros to specify LPA2 status */
@@ -63,20 +64,20 @@ unsigned long s2tt_test_helpers_s2tte_to_pa(unsigned long s2tte, long level);
 unsigned long s2tt_test_helpers_pa_to_s2tte(unsigned long pa, long level);
 
 /* Get the PA mask for a given level */
-unsigned long s2tt_test_helpers_oa_mask(long level);
+unsigned long s2tt_test_helpers_lvl_mask(long level);
 
 /* Get the S2TTE PA mask */
 unsigned long s2tt_test_helpers_s2tte_oa_mask(void);
 
 /*
- * Generates an address aligned @level
+ * Generates an IPA aligned @level
  * Params:
  *	- level: Level for which the address will be generated. This will
  *		 define the minimum value for the address.
  *	- aligned: If 'true' the address will be aligned to 'level'. If 'false'
  *		   the address might or might not be aligned.
  */
-unsigned long s2tt_test_helpers_gen_pa(long level, bool aligned);
+unsigned long s2tt_test_helpers_gen_addr(long level, bool aligned);
 
 /* Retrieve the attributes for a given tte */
 unsigned long s2tt_test_helpers_s2tte_to_attrs(unsigned long tte, bool ns);
@@ -129,5 +130,22 @@ unsigned long s2tt_test_create_assigned(const struct s2tt_context *s2tt_ctx,
 /* Helper to create an unassigned S2TTE as per the passed parameters */
 unsigned long s2tt_test_create_unassigned(const struct s2tt_context *s2tt_ctx,
 					  unsigned long ripas);
+
+/* Helper to modify the state of a granule without making any pre-checks */
+static inline void s2tt_test_granule_set_state(struct granule *g,
+					       unsigned int state)
+{
+	g->descriptor = (g->descriptor & ~STATE_MASK) | INPLACE(GRN_STATE, state);
+}
+
+/*
+ * Helper to modify the locked state of a granule without making any pre-checks
+ */
+static inline void s2tt_test_granule_set_lock(struct granule *g,
+					      bool locked)
+{
+	g->descriptor = (locked) ?
+		(g->descriptor | GRN_LOCK_BIT) : (g->descriptor & ~GRN_LOCK_BIT);
+}
 
 #endif /* XLAT_TEST_HELPERS_H */
