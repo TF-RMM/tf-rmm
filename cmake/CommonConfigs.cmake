@@ -93,7 +93,7 @@ target_compile_definitions(rmm-common
 target_compile_definitions(rmm-common
     INTERFACE "RMM_NUM_PAGES_PER_STACK=UL(${RMM_NUM_PAGES_PER_STACK})")
 
-if(RMM_FPU_USE_AT_REL2)
+if(RMM_FPU_USE_AT_REL2 AND RMM_ARCH STREQUAL aarch64)
     target_compile_definitions(rmm-common
         INTERFACE "RMM_FPU_USE_AT_REL2=1")
 endif()

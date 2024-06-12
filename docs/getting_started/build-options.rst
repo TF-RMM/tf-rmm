@@ -273,7 +273,6 @@ The |RMM| build system supports the following CMake build options.
    CMAKE_BUILD_TYPE		,Debug | Release	,Release		,"CMake Build type"
    CMAKE_CONFIGURATION_TYPES	,Debug & Release	,Debug & Release	,"Multi-generator configuration types"
    CMAKE_DEFAULT_BUILD_TYPE	,Debug | Release	,Release		,"Default multi-generator configuration type"
-   MbedTLS_BUILD_TYPE		,Debug | Release	,Release		,"MbedTLS build type"
    RMM_PLATFORM			,fvp | host		,			,"Platform to build"
    RMM_TOOLCHAIN		,gnu | llvm		,			,"Toolchain name"
    LOG_LEVEL			,0 - 50			,40(Debug) 20(Release)	,"Log level to apply for RMM (0 - 50)."

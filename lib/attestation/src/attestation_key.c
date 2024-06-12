@@ -14,17 +14,7 @@
 #include <simd.h>
 #include <sizes.h>
 
-#define ECC_P384_PUBLIC_KEY_SIZE	PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(384)
-
-/*
- * The size of X and Y coordinate in 2 parameter style EC public key. Format is
- * as defined in [COSE (RFC 8152)] (https://tools.ietf.org/html/rfc8152) and
- * [SEC 1: Elliptic Curve Cryptography](http://www.secg.org/sec1-v2.pdf).
- *
- * This size is well-known and documented in public standards.
- */
-#define ECC_P384_COORD_SIZE	PSA_BITS_TO_BYTES(384)
-#define BIT_SIZE_OF_P384	(384U)
+#define ECC_P384_PUBLIC_KEY_SIZE	PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(384U)
 
 /* ECC Curve type define for querying attestation key from monitor */
 #define ATTEST_KEY_CURVE_ECC_SECP384R1	0

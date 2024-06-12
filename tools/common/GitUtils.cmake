@@ -123,3 +123,47 @@ function(Git_Get_Files_In_Commit CommitId_In FileList_Out)
 
   set(${FileList_Out} ${source_files} PARENT_SCOPE)
 endfunction()
+
+#
+# Apply patches in @Git_Repo
+#
+# Args In:
+# @Git_Repo:            Git repository
+# @Patch_Files_List:    List of .patch files to apply
+#
+function(Git_Apply_Patches Git_Repo Patch_Files_List)
+  # use EXISTS as inside submodule .git file contains path to Git repository
+  if(GIT_NOT_FOUND OR NOT EXISTS "${Git_Repo}/.git")
+    message(FATAL_ERROR "${Git_Repo} not a git repository")
+    return()
+  endif()
+
+  # todo: Remove 'checkout' and 'clean' commands.
+  # These commands does a force reset and removes untracked files. If an user
+  # has some work in progress changes in 'Git_Repo', then Git_Apply_Patches will
+  # force delete the changes.
+  execute_process(
+    WORKING_DIRECTORY ${Git_Repo}
+    # removes changes that are not staged
+    COMMAND ${GIT_EXECUTABLE} checkout .
+    )
+  execute_process(
+    WORKING_DIRECTORY ${Git_Repo}
+    # removes changes that are not tracked
+    COMMAND ${GIT_EXECUTABLE} clean -f
+    )
+
+  # todo: For applying patches use -am option, this retains commit history.
+  foreach(PATCH_FILE IN LISTS Patch_Files_List)
+    execute_process(
+      WORKING_DIRECTORY ${Git_Repo}
+      COMMAND ${GIT_EXECUTABLE} apply --verbose ${PATCH_FILE}
+      RESULT_VARIABLE PATCH_STATUS
+      COMMAND_ECHO STDOUT
+      )
+
+    if(NOT PATCH_STATUS EQUAL 0)
+      message(FATAL_ERROR "Failed to apply patch ${PATCH_FILE} at ${Git_Repo}")
+    endif()
+  endforeach()
+endfunction()
