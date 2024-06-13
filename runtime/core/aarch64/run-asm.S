@@ -112,4 +112,5 @@ func realm_exit
 	add	sp, sp, #(16 * 6)
 
 	ret
+	sb
 endfunc realm_exit
