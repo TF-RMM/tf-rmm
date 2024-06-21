@@ -93,6 +93,21 @@
 
 2:
 	/*
+	 * RMM starts with MMU disabled (and hence with data cacheability disabled).
+	 * EL3 loads RMM with caches enabled, so while it can ensure cache lines are
+	 * clean, it cannot ensure that cache lines for RMM memory locations are not
+	 * allocated in cache.
+	 * During init, RMM writes to BSS and various parts of RMM as part of PIE
+	 * fixup with data cacheability disabled, hence cache lines containing stale
+	 * data must be invalidated, so that upon turning on MMU (and hence enabling
+	 * cacheability), we read updated values.
+	 */
+	adrp	x0, rmm_base
+	adrp	x2, rmm_end
+	sub	x1, x2, x0
+	bl	inv_dcache_range
+
+	/*
 	 * Update cold boot flag to indicate cold boot is done
 	 */
 	adr	x2, \_is_cold_boot_flag
