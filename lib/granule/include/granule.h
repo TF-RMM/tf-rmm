@@ -9,24 +9,56 @@
 #include <assert.h>
 #include <atomics.h>
 #include <errno.h>
-#include <granule_types.h>
+#include <granule_lock.h>
 #include <memory.h>
-#include <spinlock.h>
 #include <stdbool.h>
 #include <utils_def.h>
 
-static inline unsigned short granule_refcount_read_relaxed(struct granule *g)
+/* Maximum number of entries in an RTT */
+#define RTT_REFCOUNT_MAX	(unsigned short)	\
+					(GRANULE_SIZE / sizeof(uint64_t))
+
+/* Maximum value defined by the 'refcount' field width in granule descriptor */
+#define REFCOUNT_MAX		(unsigned short)	\
+					((U(1) << GRN_REFCOUNT_WIDTH) - U(1))
+
+/* RTT_REFCOUNT_MAX can't exceed REFCOUNT_MAX */
+COMPILER_ASSERT(RTT_REFCOUNT_MAX <= REFCOUNT_MAX);
+
+/* Granule descriptor fields access macros */
+#define LOCKED(g)	\
+	((SCA_READ16(&(g)->descriptor) & GRN_LOCK_BIT) != 0U)
+
+#define REFCOUNT(g)	\
+	(SCA_READ16(&(g)->descriptor) &	REFCOUNT_MASK)
+
+#define STATE(g)	\
+	(unsigned char)EXTRACT(GRN_STATE, SCA_READ16(&(g)->descriptor))
+
+/*
+ * Return refcount value using atomic read.
+ */
+static inline unsigned short granule_refcount_read(struct granule *g)
 {
-	return __sca_read16(&g->refcount);
+	assert(g != NULL);
+	return REFCOUNT(g);
 }
 
+/*
+ * Return refcount value using atomic read with acquire semantics.
+ *
+ * Must be called with granule lock held.
+ */
 static inline unsigned short granule_refcount_read_acquire(struct granule *g)
 {
-	return __sca_read16_acquire(&g->refcount);
+	assert((g != NULL) && LOCKED(g));
+	return SCA_READ16_ACQUIRE(&g->descriptor) & REFCOUNT_MASK;
 }
 
 /*
  * Sanity-check unlocked granule invariants.
+ * This check is performed just after acquiring the lock and/or just before
+ * releasing the lock.
  *
  * These invariants must hold for any granule which is unlocked.
  *
@@ -39,34 +71,33 @@ static inline unsigned short granule_refcount_read_acquire(struct granule *g)
 static inline void __granule_assert_unlocked_invariants(struct granule *g,
 							unsigned char state)
 {
-	(void)g;
-
 	switch (state) {
 	case GRANULE_STATE_NS:
-		assert(granule_refcount_read_relaxed(g) == 0U);
+		assert(REFCOUNT(g) == 0U);
 		break;
 	case GRANULE_STATE_DELEGATED:
-		assert(g->refcount == 0U);
+		assert(REFCOUNT(g) == 0U);
 		break;
 	case GRANULE_STATE_RD:
 		/*
-		 * refcount is used to check if RD and associated granules can
+		 * Refcount is used to check if RD and associated granules can
 		 * be freed because they're no longer referenced by any other
-		 * object. Can be any non-negative number.
+		 * object. Can be any non-negative number less than REFCOUNT_MAX
+		 * value.
 		 */
 		break;
 	case GRANULE_STATE_REC:
-		assert(granule_refcount_read_relaxed(g) <= 1U);
+		assert(REFCOUNT(g) <= 1U);
 		break;
 	case GRANULE_STATE_DATA:
-		assert(g->refcount == 0U);
+		assert(REFCOUNT(g) == 0U);
 		break;
 	case GRANULE_STATE_RTT:
 		/* Refcount cannot be greater that number of entries in an RTT */
-		assert(g->refcount <= (unsigned short)(GRANULE_SIZE / sizeof(uint64_t)));
+		assert(REFCOUNT(g) <= RTT_REFCOUNT_MAX);
 		break;
 	case GRANULE_STATE_REC_AUX:
-		assert(g->refcount == 0U);
+		assert(REFCOUNT(g) == 0U);
 		break;
 	default:
 		/* Unknown granule type */
@@ -74,36 +105,60 @@ static inline void __granule_assert_unlocked_invariants(struct granule *g,
 	}
 }
 
-/* Must be called with g->lock held */
-static inline unsigned char granule_get_state(struct granule *g)
+/*
+ * Return the state of unlocked granule.
+ * This function should be used only for NS granules where RMM performs NS
+ * specific operations on the granule.
+ */
+static inline unsigned char granule_unlocked_state(struct granule *g)
 {
 	assert(g != NULL);
 
 	/* NOLINTNEXTLINE(clang-analyzer-core.NullDereference) */
-	return g->state;
+	return STATE(g);
 }
 
-/* Must be called with g->lock held */
-static inline void granule_set_state(struct granule *g, unsigned char state)
+/* Must be called with granule lock held */
+static inline unsigned char granule_get_state(struct granule *g)
 {
-	assert(g != NULL);
+	assert((g != NULL) && LOCKED(g));
 
 	/* NOLINTNEXTLINE(clang-analyzer-core.NullDereference) */
-	g->state = state;
+	return STATE(g);
+}
+
+/* Must be called with granule lock held */
+static inline void granule_set_state(struct granule *g, unsigned char state)
+{
+	unsigned short val;
+
+	assert((g != NULL) && LOCKED(g));
+
+	/* NOLINTNEXTLINE(clang-analyzer-core.NullDereference) */
+	val = g->descriptor & STATE_MASK;
+
+	/* cppcheck-suppress misra-c2012-10.3 */
+	val ^= (unsigned short)state << GRN_STATE_SHIFT;
+
+	/*
+	 * Atomically EOR val while keeping the bits for refcount and
+	 * bitlock as 0 which would preserve their values in memory.
+	 */
+	(void)atomic_eor_16(&g->descriptor, val);
 }
 
 /*
- * Acquire the spinlock and then check expected state
+ * Acquire the bitlock and then check expected state
  * Fails if unexpected locking sequence detected.
  * Also asserts if invariant conditions are met.
  */
 static inline bool granule_lock_on_state_match(struct granule *g,
 						unsigned char expected_state)
 {
-	byte_spinlock_acquire(&g->lock);
+	granule_bitlock_acquire(g);
 
 	if (granule_get_state(g) != expected_state) {
-		byte_spinlock_release(&g->lock);
+		granule_bitlock_release(g);
 		return false;
 	}
 
@@ -126,12 +181,12 @@ static inline void granule_lock(struct granule *g,
 static inline void granule_unlock(struct granule *g)
 {
 	__granule_assert_unlocked_invariants(g, granule_get_state(g));
-	byte_spinlock_release(&g->lock);
+	granule_bitlock_release(g);
 }
 
 /* Transtion state to @new_state and unlock the granule */
 static inline void granule_unlock_transition(struct granule *g,
-						unsigned char new_state)
+					     unsigned char new_state)
 {
 	granule_set_state(g, new_state);
 	granule_unlock(g);
@@ -152,50 +207,62 @@ bool find_lock_two_granules(unsigned long addr1,
 
 void granule_memzero_mapped(void *buf);
 
-/* Must be called with g->lock held */
-static inline void __granule_get(struct granule *g)
-{
-	assert(g->lock.val != 0U);
-	g->refcount++;
-}
+/*
+ * Refcount field occupies LSB bits of the granule descriptor,
+ * and functions which modify its value can operate directly on
+ * the whole 16-bit word without masking, provided that the result
+ * doesn't exceed REFCOUNT_MAX or set to negative number.
+ */
 
-/* Must be called with g->lock held */
-static inline void __granule_put(struct granule *g)
+/*
+ * Atomically increments the reference counter of the granule by @val.
+ *
+ * Must be called with granule lock held.
+ */
+static inline void granule_refcount_inc(struct granule *g, unsigned short val)
 {
-	assert(g->lock.val != 0U);
-	assert(g->refcount != 0U);
-	g->refcount--;
-}
+	uint16_t old_refcount __unused;
 
-/* Must be called with g->lock held */
-static inline void __granule_refcount_inc(struct granule *g, unsigned short val)
-{
-	assert(g->lock.val != 0U);
-	g->refcount += val;
-}
-
-/* Must be called with g->lock held */
-static inline void __granule_refcount_dec(struct granule *g, unsigned short val)
-{
-	assert(g->lock.val != 0U);
-	assert(g->refcount >= val);
-	g->refcount -= val;
+	assert((g != NULL) && LOCKED(g));
+	old_refcount = atomic_load_add_16(&g->descriptor, val) & REFCOUNT_MASK;
+	assert((old_refcount + val) <= REFCOUNT_MAX);
 }
 
 /*
  * Atomically increments the reference counter of the granule.
+ *
+ * Must be called with granule lock held.
  */
 static inline void atomic_granule_get(struct granule *g)
 {
-	atomic_add_16(&g->refcount, 1);
+	granule_refcount_inc(g, 1U);
+}
+
+/*
+ * Atomically increments the reference counter of the granule by @val.
+ *
+ * Must be called with granule lock held.
+ */
+static inline void granule_refcount_dec(struct granule *g, unsigned short val)
+{
+	uint16_t old_refcount __unused;
+
+	assert((g != NULL) && LOCKED(g));
+
+	/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
+	old_refcount = atomic_load_add_16(&g->descriptor, (uint16_t)(-val)) &
+							REFCOUNT_MASK;
+	assert(old_refcount >= val);
 }
 
 /*
  * Atomically decrements the reference counter of the granule.
+ *
+ * Must be called with granule lock held.
  */
 static inline void atomic_granule_put(struct granule *g)
 {
-	atomic_add_16(&g->refcount, (uint16_t)(-1));
+	granule_refcount_dec(g, 1U);
 }
 
 /*
@@ -204,9 +271,11 @@ static inline void atomic_granule_put(struct granule *g)
  */
 static inline void atomic_granule_put_release(struct granule *g)
 {
-	unsigned short old_refcount __unused;
+	uint16_t old_refcount __unused;
 
-	old_refcount = atomic_load_add_release_16(&g->refcount, (uint16_t)(-1));
+	assert(g != NULL);
+	old_refcount = atomic_load_add_release_16(&g->descriptor,
+						(uint16_t)(-1)) & REFCOUNT_MASK;
 	assert(old_refcount != 0U);
 }
 
@@ -245,6 +314,18 @@ static inline int find_lock_unused_granule(unsigned long addr,
 	}
 
 	return 0;
+}
+
+/*
+ * Returns 'true' if granule is locked, 'false' otherwise
+ *
+ * This function is only meant to be used for verification and testing,
+ * and this functionlaity is not required for RMM operations.
+ */
+static inline bool is_granule_locked(struct granule *g)
+{
+	assert(g != NULL);
+	return LOCKED(g);
 }
 
 #endif /* GRANULE_H */

@@ -170,7 +170,8 @@ struct granule *inject_granule_at(const struct granule *granule_metadata,
 {
 	size_t offset = index * GRANULE_SIZE;
 
-	if (granule_metadata->state == GRANULE_STATE_NS) {
+	if (granule_unlocked_state((struct granule *)granule_metadata) ==
+							GRANULE_STATE_NS) {
 		/* initialise the granules as either secure or non-secure */
 		granule_gpt_array[index] = nondet_bool() ? GPT_SECURE : GPT_NS;
 	} else {

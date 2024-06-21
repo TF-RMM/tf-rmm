@@ -15,7 +15,7 @@
 #include "tb_granules.h"
 
 /* Chooses an arbitrary granule state. */
-bool valid_granule_state(unsigned char value)
+bool valid_granule_unlocked_state(unsigned char value)
 {
 	return value == GRANULE_STATE_NS
 			|| value == GRANULE_STATE_DELEGATED
@@ -29,23 +29,24 @@ bool valid_granule_state(unsigned char value)
 /* Ref to `__granule_assert_unlocked_invariants` function in `granule.h`. */
 bool valid_granule(struct granule value)
 {
-	if (value.lock.val != 0) {
+	if (is_granule_locked(&value)) {
 		return false;
 	}
 
-	switch (value.state) {
+	switch (granule_unlocked_state(&value)) {
 	case GRANULE_STATE_NS:
 	case GRANULE_STATE_DELEGATED:
 	case GRANULE_STATE_DATA:
-	case GRANULE_STATE_REC_AUX: return value.refcount == 0;
+	case GRANULE_STATE_REC_AUX:
+		return granule_refcount_read(&value) == 0;
 	/*
 	 * refcount is used to check if RD and associated granules can
 	 * be freed because they're no longer referenced by any other
 	 * object. Can be any non-negative number.
 	 */
-	case GRANULE_STATE_REC: return value.refcount <= 1;
-	case GRANULE_STATE_RTT: return value.refcount >= 0 &&
-		value.refcount <= GRANULE_SIZE / sizeof(uint64_t);
+	case GRANULE_STATE_REC: return granule_refcount_read(&value) <= 1;
+	case GRANULE_STATE_RTT: return granule_refcount_read(&value) >= 0 &&
+		granule_refcount_read(&value) <= REFCOUNT_MAX;
 	case GRANULE_STATE_RD: return true;
 	default: return false;
 	}
@@ -56,8 +57,8 @@ struct granule init_granule(void)
 {
 	struct granule rst = nondet_struct_granule();
 
-	__CPROVER_assume((rst.state >= GRANULE_STATE_NS) &&
-			 (rst.state <= GRANULE_STATE_LAST));
+	__CPROVER_assume((granule_unlocked_state(&rst) >= GRANULE_STATE_NS) &&
+			 (granule_unlocked_state(&rst) <= GRANULE_STATE_LAST));
 	__CPROVER_assume(valid_granule(rst));
 	return rst;
 }
@@ -98,9 +99,9 @@ struct SPEC_granule Granule(uint64_t addr)
 
 	struct SPEC_granule spec_granule;
 
-	spec_granule.state = result->state;
+	spec_granule.state = granule_unlocked_state(result);
 
-	switch (result->state) {
+	switch (granule_unlocked_state(result)) {
 	case GRANULE_STATE_NS:
 		spec_granule.gpt = get_granule_gpt(addr);
 		break;

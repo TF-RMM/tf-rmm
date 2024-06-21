@@ -138,24 +138,24 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		s2tt_init_unassigned_empty(&s2_ctx, s2tt);
 
 		/*
-		 * Increase the refcount of the parent, the granule was
-		 * locked while table walking and hand-over-hand locking.
-		 * Atomicity and acquire/release semantics not required because
-		 * the table is accessed always locked.
+		 * Atomically increase the refcount of the parent, the granule
+		 * was locked while table walking and hand-over-hand locking.
+		 * Acquire/release semantics not required because the table is
+		 * accessed always locked.
 		 */
-		__granule_get(wi.g_llt);
+		atomic_granule_get(wi.g_llt);
 
 	} else if (s2tte_is_unassigned_ram(&s2_ctx, parent_s2tte)) {
 		s2tt_init_unassigned_ram(&s2_ctx, s2tt);
-		__granule_get(wi.g_llt);
+		atomic_granule_get(wi.g_llt);
 
 	} else if (s2tte_is_unassigned_ns(&s2_ctx, parent_s2tte)) {
 		s2tt_init_unassigned_ns(&s2_ctx, s2tt);
-		__granule_get(wi.g_llt);
+		atomic_granule_get(wi.g_llt);
 
 	} else if (s2tte_is_unassigned_destroyed(&s2_ctx, parent_s2tte)) {
 		s2tt_init_unassigned_destroyed(&s2_ctx, s2tt);
-		__granule_get(wi.g_llt);
+		atomic_granule_get(wi.g_llt);
 
 	} else if (s2tte_is_assigned_destroyed(&s2_ctx, parent_s2tte,
 					       level - 1L)) {
@@ -175,7 +175,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 * Increase the refcount to mark the granule as in-use. refcount
 		 * is incremented by S2TTES_PER_S2TT (ref RTT unfolding).
 		 */
-		__granule_refcount_inc(g_tbl, (unsigned short)S2TTES_PER_S2TT);
+		granule_refcount_inc(g_tbl, (unsigned short)S2TTES_PER_S2TT);
 
 	} else if (s2tte_is_assigned_empty(&s2_ctx, parent_s2tte, level - 1L)) {
 		unsigned long block_pa;
@@ -194,7 +194,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 * Increase the refcount to mark the granule as in-use. refcount
 		 * is incremented by S2TTES_PER_S2TT (ref RTT unfolding).
 		 */
-		__granule_refcount_inc(g_tbl, (unsigned short)S2TTES_PER_S2TT);
+		granule_refcount_inc(g_tbl, (unsigned short)S2TTES_PER_S2TT);
 
 	} else if (s2tte_is_assigned_ram(&s2_ctx, parent_s2tte, level - 1L)) {
 		unsigned long block_pa;
@@ -219,7 +219,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 * Increase the refcount to mark the granule as in-use. refcount
 		 * is incremented by S2TTES_PER_S2TT (ref RTT unfolding).
 		 */
-		__granule_refcount_inc(g_tbl, (unsigned short)S2TTES_PER_S2TT);
+		granule_refcount_inc(g_tbl, (unsigned short)S2TTES_PER_S2TT);
 
 	} else if (s2tte_is_assigned_ns(&s2_ctx, parent_s2tte, level - 1L)) {
 		unsigned long block_pa;
@@ -246,7 +246,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 * about to add. The NS block entry doesn't have a refcount
 		 * on the parent RTT.
 		 */
-		__granule_get(wi.g_llt);
+		atomic_granule_get(wi.g_llt);
 
 	} else if (s2tte_is_table(&s2_ctx, parent_s2tte, level - 1L)) {
 		ret = pack_return_code(RMI_ERROR_RTT,
@@ -342,7 +342,7 @@ void smc_rtt_fold(unsigned long rd_addr,
 	 * We first check the table's ref. counter to speed up the case when
 	 * the host makes a guess whether a memory region can be folded.
 	 */
-	if (g_tbl->refcount == 0UL) {
+	if (granule_refcount_read(g_tbl) == 0U) {
 		if (s2tt_is_unassigned_destroyed_block(&s2_ctx, table)) {
 			parent_s2tte = s2tte_create_unassigned_destroyed(&s2_ctx);
 		} else if (s2tt_is_unassigned_empty_block(&s2_ctx, table)) {
@@ -381,8 +381,9 @@ void smc_rtt_fold(unsigned long rd_addr,
 						(unsigned char)level);
 			goto out_unmap_table;
 		}
-		__granule_put(wi.g_llt);
-	} else if (g_tbl->refcount == (unsigned short)S2TTES_PER_S2TT) {
+		atomic_granule_put(wi.g_llt);
+	} else if (granule_refcount_read(g_tbl) ==
+					(unsigned short)S2TTES_PER_S2TT) {
 
 		unsigned long s2tte, block_pa;
 
@@ -427,7 +428,7 @@ void smc_rtt_fold(unsigned long rd_addr,
 			goto out_unmap_table;
 		}
 
-		__granule_refcount_dec(g_tbl, (unsigned short)S2TTES_PER_S2TT);
+		granule_refcount_dec(g_tbl, (unsigned short)S2TTES_PER_S2TT);
 	} else {
 		/*
 		 * The table holds a mixture of different types of s2ttes.
@@ -539,7 +540,7 @@ void smc_rtt_destroy(unsigned long rd_addr,
 	 * Read the refcount value. RTT granule is always accessed locked, thus
 	 * the refcount can be accessed without atomic operations.
 	 */
-	if (g_tbl->refcount != 0UL) {
+	if (granule_refcount_read(g_tbl) != 0U) {
 		ret = pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
 		goto out_unlock_table;
 	}
@@ -557,7 +558,7 @@ void smc_rtt_destroy(unsigned long rd_addr,
 		parent_s2tte = s2tte_create_unassigned_ns(&s2_ctx);
 	}
 
-	__granule_put(wi.g_llt);
+	atomic_granule_put(wi.g_llt);
 
 	/*
 	 * Break before make. Note that this may cause spurious S2 aborts.
@@ -964,7 +965,7 @@ static unsigned long data_create(unsigned long rd_addr,
 	new_data_state = GRANULE_STATE_DATA;
 
 	s2tte_write(&s2tt[wi.index], s2tte);
-	__granule_get(wi.g_llt);
+	atomic_granule_get(wi.g_llt);
 
 	ret = RMI_SUCCESS;
 
@@ -993,7 +994,8 @@ unsigned long smc_data_create(unsigned long rd_addr,
 	}
 
 	g_src = find_granule(src_addr);
-	if ((g_src == NULL) || (g_src->state != GRANULE_STATE_NS)) {
+	if ((g_src == NULL) ||
+		(granule_unlocked_state(g_src) != GRANULE_STATE_NS)) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -1075,7 +1077,7 @@ void smc_data_destroy(unsigned long rd_addr,
 		goto out_unmap_ll_table;
 	}
 
-	__granule_put(wi.g_llt);
+	atomic_granule_put(wi.g_llt);
 
 	/*
 	 * Lock the data granule and check expected state. Correct locking order

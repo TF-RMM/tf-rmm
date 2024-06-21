@@ -11,7 +11,8 @@ target_link_libraries(rmm-lib-granule
     PRIVATE rmm-lib-debug)
 
 target_include_directories(rmm-lib-granule
-    PUBLIC "include")
+    PUBLIC "include"
+           "include/${RMM_ARCH}")
 
 target_sources(rmm-lib-granule
     PRIVATE "src/granule.c")
