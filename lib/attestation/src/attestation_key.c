@@ -222,6 +222,12 @@ int attest_setup_platform_token(void)
 		return -EINVAL;
 	}
 
+	/*
+	 * Make sure the token length does not exceed the size of the
+	 * token buffer
+	 */
+	assert(platform_token_len <= sizeof(rmm_platform_token_buf));
+
 	/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
 	(void)memcpy((void *)rmm_platform_token_buf,
 		     (void *)shared_buf,
