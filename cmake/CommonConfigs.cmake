@@ -59,6 +59,12 @@ arm_config_option(
     TYPE STRING
     DEFAULT 1)
 
+arm_config_option(
+    NAME RMM_CCA_DA
+    HELP "Enable Device Assignment support in RMM (experimental)"
+    TYPE BOOL
+    DEFAULT OFF)
+
 #
 # Introduce a pseudo-library purely for applying flags to RMM's libraries.
 # This is applied to any targets created after this point.
@@ -125,5 +131,11 @@ endif()
 
 target_compile_definitions(rmm-common
     INTERFACE "COMMIT_INFO=\"${COMMIT_INFO}\"")
+
+if(RMM_CCA_DA)
+    message(WARNING "DA is an experimental feature")
+    target_compile_definitions(rmm-common
+        INTERFACE "RMM_CCA_DA=1")
+endif()
 
 link_libraries(rmm-common)

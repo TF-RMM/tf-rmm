@@ -1,0 +1,58 @@
+From dc3ce817bb479bdf1317c68e5496b93dbbbcb310 Mon Sep 17 00:00:00 2001
+From: Arunachalam Ganapathy <arunachalam.ganapathy@arm.com>
+Date: Wed, 3 Apr 2024 14:13:44 +0100
+Subject: [PATCH] cryptlib_mbedtls: use external Mbed TLS
+
+Do not include mbedtls headers files from libspdm fork of Mbed TLS.
+This change is RMM specific, for building cryptlib_mbedtls library
+from RMM.
+
+crt_wrapper_host.c: duplicate symbols
+Rename mbedtls_platform_zeroize as it conflicts with RMM MbedTLS
+
+Signed-off-by: Arunachalam Ganapathy <arunachalam.ganapathy@arm.com>
+---
+ os_stub/cryptlib_mbedtls/CMakeLists.txt              | 9 ---------
+ os_stub/cryptlib_mbedtls/sys_call/crt_wrapper_host.c | 2 +-
+ 2 files changed, 1 insertion(+), 10 deletions(-)
+
+diff --git a/os_stub/cryptlib_mbedtls/CMakeLists.txt b/os_stub/cryptlib_mbedtls/CMakeLists.txt
+index fc87e2cf54..0e8e2248d2 100644
+--- a/os_stub/cryptlib_mbedtls/CMakeLists.txt
++++ b/os_stub/cryptlib_mbedtls/CMakeLists.txt
+@@ -9,10 +9,6 @@ INCLUDE_DIRECTORIES(${LIBSPDM_DIR}/include
+                     ${LIBSPDM_DIR}/os_stub/include
+                     ${LIBSPDM_DIR}/os_stub
+                     ${LIBSPDM_DIR}/os_stub/cryptlib_mbedtls
+-                    ${LIBSPDM_DIR}/os_stub/mbedtlslib/include
+-                    ${LIBSPDM_DIR}/os_stub/mbedtlslib/include/mbedtls
+-                    ${LIBSPDM_DIR}/os_stub/mbedtlslib/mbedtls/include
+-                    ${LIBSPDM_DIR}/os_stub/mbedtlslib/mbedtls/include/mbedtls
+ )
+ 
+ SET(src_cryptlib_mbedtls
+@@ -48,8 +44,3 @@ if(CMAKE_SYSTEM_NAME MATCHES "Windows")
+         TARGET_COMPILE_OPTIONS(cryptlib_mbedtls PRIVATE /wd4090 /wd4200)
+     endif()
+ endif()
+-
+-if(MBEDTLS_CONFIG_FILE)
+-else()
+-    TARGET_COMPILE_DEFINITIONS(cryptlib_mbedtls PRIVATE -DMBEDTLS_CONFIG_FILE=<libspdm_mbedtls_config.h>)
+-endif()
+diff --git a/os_stub/cryptlib_mbedtls/sys_call/crt_wrapper_host.c b/os_stub/cryptlib_mbedtls/sys_call/crt_wrapper_host.c
+index 9ce520c7c5..72decdba7d 100644
+--- a/os_stub/cryptlib_mbedtls/sys_call/crt_wrapper_host.c
++++ b/os_stub/cryptlib_mbedtls/sys_call/crt_wrapper_host.c
+@@ -25,7 +25,7 @@ int my_snprintf(char *str, size_t size, const char *format, ...)
+     return 0;
+ }
+ 
+-void mbedtls_platform_zeroize(void *buf, size_t len)
++void my_mbedtls_platform_zeroize(void *buf, size_t len)
+ {
+     libspdm_zero_mem(buf, len);
+ }
+-- 
+2.39.2
+

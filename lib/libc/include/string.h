@@ -18,5 +18,6 @@ size_t strlen(const char *s);
 size_t strlcpy(char *dst, const char *src, size_t dsize);
 int strncmp(const char *s1, const char *s2, size_t n);
 size_t strnlen(const char *s, size_t maxlen);
+char *strchr(const char *s, int c);
 
 #endif
