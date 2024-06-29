@@ -291,6 +291,7 @@ The |RMM| build system supports the following CMake build options.
    RMM_CBMC_VIEWER_OUTPUT	,ON | OFF		,OFF			,"Generate report of CBMC results using the tool cbmc-viewer"
    RMM_CBMC_SINGLE_TESTBENCH	,			,OFF			,"Run CBMC on a single testbench instead on all of them"
    RMM_CCA_DA			,ON | OFF		,OFF			,"Enable Device Assignment support in RMM (experimental)"
+   ATTEST_PLAT_TOKEN_SIZE	,       		,0x1000			,"Maximum size in bytes expected for the Attestation platform token"
 
 .. _llvm_build:
 

@@ -22,7 +22,7 @@
 /*
  * The platform token which will be needed during attestation.
  */
-static unsigned char rmm_platform_token_buf[SZ_4K];
+static unsigned char rmm_platform_token_buf[ATTEST_PLAT_TOKEN_SIZE];
 static struct q_useful_buf rmm_platform_token;
 
 /*
@@ -226,6 +226,7 @@ int attest_setup_platform_token(void)
 	 * Make sure the token length does not exceed the size of the
 	 * token buffer
 	 */
+	/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
 	assert(platform_token_len <= sizeof(rmm_platform_token_buf));
 
 	/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
