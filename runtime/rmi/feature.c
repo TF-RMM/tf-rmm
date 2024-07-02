@@ -93,6 +93,12 @@ unsigned long get_feature_register_0(void)
 	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_MAX_RECS_ORDER,
 				GRN_REFCOUNT_WIDTH);
 
+#ifdef RMM_V1_1
+	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_DA_EN, RMI_FEATURE_TRUE);
+#else
+	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_DA_EN, RMI_FEATURE_FALSE);
+#endif
+
 	return feat_reg0;
 }
 
