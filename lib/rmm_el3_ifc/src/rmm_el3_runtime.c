@@ -4,6 +4,7 @@
  */
 
 #include <assert.h>
+#include <bitmap.h>
 #include <debug.h>
 #include <errno.h>
 #include <rmm_el3_ifc.h>
@@ -12,7 +13,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <xlat_defs.h>
 
 #define MEC_REFRESH_MECID_SHIFT		U(32)
 #define MEC_REFRESH_MECID_WIDTH		UL(16)
@@ -73,7 +73,7 @@ static unsigned long get_buffer_pa(uintptr_t buf, size_t buflen)
 	(void)buflen;
 
 	assert((offset + buflen) <= rmm_el3_ifc_get_shared_buf_size());
-	assert((buf & ~PAGE_SIZE_MASK) == rmm_shared_buffer_start_va);
+	assert((buf & GRANULE_MASK) == rmm_shared_buffer_start_va);
 
 	buffer_pa = (unsigned long)rmm_el3_ifc_get_shared_buf_pa() + offset;
 
@@ -298,4 +298,43 @@ unsigned long rmm_el3_ifc_mec_refresh(unsigned short mecid,
 
 	return monitor_call(SMC_RMM_MEC_REFRESH, x1,
 				0UL, 0UL, 0UL, 0UL, 0UL);
+}
+
+/* cppcheck-suppress misra-c2012-8.7 */
+int rmm_el3_ifc_reserve_memory(size_t size, unsigned int flags,
+			       unsigned long alignment, uintptr_t *address)
+{
+	struct smc_args smc_args;
+	struct smc_result smc_res;
+	uint64_t flags_align;
+	int ret;
+
+	if (alignment < 1UL) {
+		return -EINVAL;
+	}
+
+	/* alignment needs to be a power of 2 */
+	flags_align = bitmap_find_next_set_bit(alignment, 0);
+	assert((1UL << flags_align) == alignment);
+
+	/* The flags and the alignment go into the second argument. */
+	flags_align = INPLACE(RESERVE_MEM_ALIGN, flags_align) |
+		      INPLACE(RESERVE_MEM_FLAGS, flags);
+
+	smc_args = SMC_ARGS_2(size, flags_align);
+	monitor_call_with_arg_res(SMC_RMM_RESERVE_MEMORY,
+			      &smc_args, &smc_res);
+
+	/* coverity[uninit_use:SUPPRESS] */
+	ret = (int)smc_res.x[0];
+	if (ret < 0) {
+		ERROR("Failed to reserve memory: %d\n", ret);
+		return ret;
+	}
+
+	INFO("Reserve mem: %lu pages at PA: 0x%lx (alignment 0x%lx)\n",
+			(unsigned long)(size / GRANULE_SIZE), smc_res.x[1], alignment);
+
+	*address = smc_res.x[1];
+	return 0;
 }

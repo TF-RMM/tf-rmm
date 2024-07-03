@@ -10,7 +10,6 @@
 #include <rmm_el3_ifc_priv.h>
 #include <smc.h>
 #include <stdint.h>
-#include <xlat_defs.h>
 
 /* Boot Interface arguments */
 static uintptr_t rmm_shared_buffer_start_pa;
@@ -44,7 +43,7 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 		     unsigned long x3, uintptr_t shared_buf_va)
 {
 	assert(is_mmu_enabled() == false);
-	assert((shared_buf_va & PAGE_SIZE_MASK) == 0UL);
+	assert(GRANULE_ALIGNED(shared_buf_va));
 	assert(shared_buf_va != 0UL);
 
 	if (initialized == true) {
@@ -85,7 +84,7 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 	 *
 	 * x3: Pointer to the start of the EL3-RMM shared buffer.
 	 */
-	if ((x3 == 0UL) || ((x3 & PAGE_SIZE_MASK) != 0UL)) {
+	if ((x3 == 0UL) || (!GRANULE_ALIGNED(x3))) {
 		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_INVALID_SHARED_BUFFER);
 	}
 
