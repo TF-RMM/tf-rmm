@@ -813,19 +813,21 @@ bool s2tte_is_table(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 enum ripas s2tte_get_ripas(const struct s2tt_context *s2_ctx, unsigned long s2tte)
 {
 	unsigned long desc_ripas = s2tte & S2TTE_INVALID_RIPAS_MASK;
+	unsigned long desc_type = s2tte & S2TT_DESC_TYPE_MASK;
 
 	(void)s2_ctx;
 
 	/*
-	 * If valid s2tte descriptor is passed, then ensure S2AP[0]
-	 * bit is 1 (S2AP is set to RW for lower EL), which corresponds
-	 * to RIPAS_RAM (bits[6:5] = b01) on a valid descriptor.
+	 * If a valid S2TTE descriptor is passed, the RIPAS corresponds to
+	 * RIPAS_RAM.
 	 */
-	assert(((s2tte & S2TT_DESC_TYPE_MASK) == S2TTE_INVALID) ||
-	       (desc_ripas == S2TTE_INVALID_RIPAS_RAM));
+	if (desc_type != S2TTE_INVALID) {
+		assert((desc_type == S2TTE_L012_BLOCK) ||
+			(desc_type == S2TTE_L3_PAGE));
+		return RIPAS_RAM;
+	}
 
-	assert(EXTRACT(S2TTE_INVALID_HIPAS, s2tte) <=
-	       EXTRACT(S2TTE_INVALID_HIPAS, S2TTE_INVALID_HIPAS_ASSIGNED));
+	assert(EXTRACT(S2TTE_INVALID_HIPAS, s2tte) <= RMI_ASSIGNED);
 
 	desc_ripas = desc_ripas >> S2TTE_INVALID_RIPAS_SHIFT;
 
