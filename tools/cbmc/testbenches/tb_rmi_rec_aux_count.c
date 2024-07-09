@@ -18,7 +18,7 @@ bool tb_rmi_rec_aux_count(
 
 	struct tb_regs __tb_regs = __tb_arb_regs();
 
-	__tb_regs.X0 = SMC_RMM_REC_AUX_COUNT;
+	__tb_regs.X0 = SMC_RMI_REC_AUX_COUNT;
 	__tb_regs.X1 = (uint64_t)rd;
 
 	/*

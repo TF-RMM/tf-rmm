@@ -18,7 +18,7 @@ bool tb_rmi_rec_destroy(
 
 	struct tb_regs __tb_regs = __tb_arb_regs();
 
-	__tb_regs.X0 = SMC_RMM_REC_DESTROY;
+	__tb_regs.X0 = SMC_RMI_REC_DESTROY;
 	__tb_regs.X1 = (uint64_t)rec;
 
 	/*
