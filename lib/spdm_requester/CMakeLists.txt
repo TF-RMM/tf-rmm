@@ -18,22 +18,21 @@ endif()
 # because adding libspdm as a submodule causes recursive clone to fetch all
 # dependency projects by libspdm.
 #
-# LIBSPDM_SHA points to v3.3.0 + mbedtls 3.6.0
-#
 set(LIBSPDM_URL "https://github.com/DMTF/libspdm.git")
-set(LIBSPDM_SHA "e5eb4484705fb3fb5cd25e773477c456096bd837")
+set(LIBSPDM_TAG "3.4.0")
 set(LIBSPDM_SRC "${RMM_SOURCE_DIR}/ext/libspdm")
 
 FetchContent_Declare(libspdm
     GIT_REPOSITORY	${LIBSPDM_URL}
-    GIT_TAG		${LIBSPDM_SHA}
+    GIT_TAG		${LIBSPDM_TAG}
     SOURCE_DIR		${LIBSPDM_SRC}
     GIT_SUBMODULES	""
+    GIT_SHALLOW		1
     GIT_PROGRESS	1)
 
 FetchContent_GetProperties(libspdm)
 if(NOT libspdm_POPULATED)
-    message("Fetching: ${LIBSPDM_URL} SHA: ${LIBSPDM_SHA}")
+    message("Fetching: ${LIBSPDM_URL} TAG: ${LIBSPDM_TAG}")
     FetchContent_Populate(libspdm)
     message("libspdm SRC: ${LIBSPDM_SRC}")
 endif()
