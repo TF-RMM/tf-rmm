@@ -238,53 +238,6 @@ static bool handle_icc_el1_sysreg_trap(struct rec *rec,
 	return false;
 }
 
-/*
- * Handles traps from EL1 related to Data Cache maintainence by set/way.
- *
- * Returns:
- *	true  : DC sysreg access by set/way trap handled
- *	false : DC trap not handled as encoding range did not match set/way
- */
-static bool handle_dc_sw_sysreg_trap(struct rec *rec,
-				     struct rmi_rec_exit *rec_exit,
-				     unsigned long esr)
-{
-	unsigned long dc_encoding = esr & ESR_EL2_SYSREG_MASK;
-
-	(void)rec;
-	(void)rec_exit;
-
-	/*
-	 * Ignore data cache clean and invalidation operation by set/way from
-	 * Realms. Sysreg encodings DC_ISW, DC_CSW and DC_CISW.
-	 *
-	 * FEAT_MTE2 related data cache maintainence operations by set/way
-	 * targetting MTE tags or cache are also ignored. Sysreg encodings
-	 * DC_IGSW, DC_IGDSW, DC_CGSW, DC_CGDSW, DC_CIGSW and DC_CIGDSW.
-	 */
-	if ((dc_encoding == ESR_EL2_SYSREG_DC_ISW) ||
-	    (dc_encoding == ESR_EL2_SYSREG_DC_CSW) ||
-	    (dc_encoding == ESR_EL2_SYSREG_DC_CISW) ||
-	    (dc_encoding == ESR_EL2_SYSREG_DC_IGSW) ||
-	    (dc_encoding == ESR_EL2_SYSREG_DC_IGDSW) ||
-	    (dc_encoding == ESR_EL2_SYSREG_DC_CGSW) ||
-	    (dc_encoding == ESR_EL2_SYSREG_DC_CGDSW) ||
-	    (dc_encoding == ESR_EL2_SYSREG_DC_CIGSW) ||
-	    (dc_encoding == ESR_EL2_SYSREG_DC_CIGDSW)) {
-		return true;
-	}
-
-	/*
-	 * We could trap Branch record buffer instructions or any other IMPDEF
-	 * instructions in this encoding space. For now return to Host with
-	 * SYNC exception syndrome.
-	 */
-	rec_exit->exit_reason = RMI_EXIT_SYNC;
-	rec_exit->esr = esr;
-
-	return false;
-}
-
 typedef bool (*sysreg_handler_fn)(struct rec *rec, struct rmi_rec_exit *rec_exit,
 				  unsigned long esr);
 
@@ -303,9 +256,7 @@ static const struct sysreg_handler sysreg_handlers[] = {
 	SYSREG_HANDLER(ESR_EL2_SYSREG_ICC_EL1_MASK, ESR_EL2_SYSREG_ICC_EL1,
 		       handle_icc_el1_sysreg_trap),
 	SYSREG_HANDLER(ESR_EL2_SYSREG_MASK, ESR_EL2_SYSREG_ICC_PMR_EL1,
-		       handle_icc_el1_sysreg_trap),
-	SYSREG_HANDLER(ESR_EL2_SYSREG_DC_MASK, ESR_EL2_SYSREG_DC_SW,
-		       handle_dc_sw_sysreg_trap)
+		       handle_icc_el1_sysreg_trap)
 };
 
 static unsigned long get_sysreg_write_value(struct rec *rec, unsigned long esr)
