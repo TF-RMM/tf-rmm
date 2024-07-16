@@ -6,6 +6,7 @@
 #include <CppUTest/CommandLineTestRunner.h>
 #include <CppUTest/TestHarness.h>
 #include <s2tt_tests_base_g1.h>
+#include <s2tt_tests_base_g2.h>
 
 extern "C" {
 #include <test_helpers.h>
@@ -491,3 +492,369 @@ ASSERT_TEST(s2tt_lpa2, s2tte_pa_tc5)
 {
 	s2tte_pa_tc5();
 }
+
+TEST(s2tt_lpa2, s2tte_is_addr_lvl_aligned_tc1)
+{
+	s2tte_is_addr_lvl_aligned_tc1();
+}
+
+TEST(s2tt_lpa2, s2tte_is_addr_lvl_aligned_tc2)
+{
+	s2tte_is_addr_lvl_aligned_tc2();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_is_addr_lvl_aligned_tc3)
+{
+	s2tte_is_addr_lvl_aligned_tc3();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_is_addr_lvl_aligned_tc4)
+{
+	s2tte_is_addr_lvl_aligned_tc4();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_is_addr_lvl_aligned_tc5)
+{
+	s2tte_is_addr_lvl_aligned_tc5();
+}
+
+TEST(s2tt_lpa2, s2tte_map_size_tc1)
+{
+	s2tte_map_size_tc1();
+}
+
+TEST(s2tt_lpa2, s2tt_invalidate_page_tc1)
+{
+	s2tt_invalidate_page_tc1();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_invalidate_page_tc2)
+{
+	s2tt_invalidate_page_tc2();
+}
+
+TEST(s2tt_lpa2, s2tt_invalidate_block_tc1)
+{
+	s2tt_invalidate_block_tc1();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_invalidate_block_tc2)
+{
+	s2tt_invalidate_block_tc2();
+}
+
+TEST(s2tt_lpa2, s2tt_invalidate_pages_in_block_tc1)
+{
+	s2tt_invalidate_pages_in_block_tc1();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_invalidate_pages_in_block_tc2)
+{
+	s2tt_invalidate_pages_in_block_tc2();
+}
+
+TEST(s2tt_lpa2, s2tt_is_unassigned_empty_block_tc1)
+{
+	s2tt_is_unassigned_empty_block_tc1();
+}
+
+TEST(s2tt_lpa2, s2tt_is_unassigned_empty_block_tc2)
+{
+	s2tt_is_unassigned_empty_block_tc2();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_is_unassigned_empty_block_tc3)
+{
+	s2tt_is_unassigned_empty_block_tc3();
+}
+
+TEST(s2tt_lpa2, s2tt_is_unassigned_ram_block_tc1)
+{
+	s2tt_is_unassigned_ram_block_tc1();
+}
+
+TEST(s2tt_lpa2, s2tt_is_unassigned_ram_block_tc2)
+{
+	s2tt_is_unassigned_ram_block_tc2();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_is_unassigned_ram_block_tc3)
+{
+	s2tt_is_unassigned_ram_block_tc3();
+}
+
+TEST(s2tt_lpa2, s2tt_is_unassigned_ns_block_tc1)
+{
+	s2tt_is_unassigned_ns_block_tc1();
+}
+
+TEST(s2tt_lpa2, s2tt_is_unassigned_ns_block_tc2)
+{
+	s2tt_is_unassigned_ns_block_tc2();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_is_unassigned_ns_block_tc3)
+{
+	s2tt_is_unassigned_ns_block_tc3();
+}
+
+TEST(s2tt_lpa2, s2tt_is_unassigned_destroyed_block_tc1)
+{
+	s2tt_is_unassigned_destroyed_block_tc1();
+}
+
+TEST(s2tt_lpa2, s2tt_is_unassigned_destroyed_block_tc2)
+{
+	s2tt_is_unassigned_destroyed_block_tc2();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_is_unassigned_destroyed_block_tc3)
+{
+	s2tt_is_unassigned_destroyed_block_tc3();
+}
+
+TEST(s2tt_lpa2, s2tt_maps_assigned_empty_block_tc1)
+{
+	s2tt_maps_assigned_empty_block_tc1();
+}
+
+TEST(s2tt_lpa2, s2tt_maps_assigned_empty_block_tc2)
+{
+	s2tt_maps_assigned_empty_block_tc2();
+}
+
+TEST(s2tt_lpa2, s2tt_maps_assigned_empty_block_tc3)
+{
+	s2tt_maps_assigned_empty_block_tc3();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_empty_block_tc4)
+{
+	s2tt_maps_assigned_empty_block_tc4();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_empty_block_tc5)
+{
+	s2tt_maps_assigned_empty_block_tc5();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_empty_block_tc6)
+{
+	s2tt_maps_assigned_empty_block_tc6();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_empty_block_tc7)
+{
+	s2tt_maps_assigned_empty_block_tc7();
+}
+
+TEST(s2tt_lpa2, s2tt_maps_assigned_ram_block_tc1)
+{
+	s2tt_maps_assigned_ram_block_tc1();
+}
+
+TEST(s2tt_lpa2, s2tt_maps_assigned_ram_block_tc2)
+{
+	s2tt_maps_assigned_ram_block_tc2();
+}
+
+TEST(s2tt_lpa2, s2tt_maps_assigned_ram_block_tc3)
+{
+	s2tt_maps_assigned_ram_block_tc3();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_ram_block_tc4)
+{
+	s2tt_maps_assigned_ram_block_tc4();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_ram_block_tc5)
+{
+	s2tt_maps_assigned_ram_block_tc5();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_ram_block_tc6)
+{
+	s2tt_maps_assigned_ram_block_tc6();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_ram_block_tc7)
+{
+	s2tt_maps_assigned_ram_block_tc7();
+}
+
+TEST(s2tt_lpa2, s2tt_maps_assigned_ns_block_tc1)
+{
+	s2tt_maps_assigned_ns_block_tc1();
+}
+
+TEST(s2tt_lpa2, s2tt_maps_assigned_ns_block_tc2)
+{
+	s2tt_maps_assigned_ns_block_tc2();
+}
+
+TEST(s2tt_lpa2, s2tt_maps_assigned_ns_block_tc3)
+{
+	s2tt_maps_assigned_ns_block_tc3();
+}
+
+TEST(s2tt_lpa2, s2tt_maps_assigned_ns_block_tc4)
+{
+	s2tt_maps_assigned_ns_block_tc4();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_ns_block_tc5)
+{
+	s2tt_maps_assigned_ns_block_tc5();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_ns_block_tc6)
+{
+	s2tt_maps_assigned_ns_block_tc6();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_ns_block_tc7)
+{
+	s2tt_maps_assigned_ns_block_tc7();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_ns_block_tc8)
+{
+	s2tt_maps_assigned_ns_block_tc8();
+}
+
+TEST(s2tt_lpa2, s2tt_maps_assigned_destroyed_block_tc1)
+{
+	s2tt_maps_assigned_destroyed_block_tc1();
+}
+
+TEST(s2tt_lpa2, s2tt_maps_assigned_destroyed_block_tc2)
+{
+	s2tt_maps_assigned_destroyed_block_tc2();
+}
+
+TEST(s2tt_lpa2, s2tt_maps_assigned_destroyed_block_tc3)
+{
+	s2tt_maps_assigned_destroyed_block_tc3();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_destroyed_block_tc4)
+{
+	s2tt_maps_assigned_destroyed_block_tc4();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_destroyed_block_tc5)
+{
+	s2tt_maps_assigned_destroyed_block_tc5();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_destroyed_block_tc6)
+{
+	s2tt_maps_assigned_destroyed_block_tc6();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_maps_assigned_destroyed_block_tc7)
+{
+	s2tt_maps_assigned_destroyed_block_tc7();
+}
+
+TEST(s2tt_lpa2, s2tt_skip_non_live_entries_tc1)
+{
+	s2tt_skip_non_live_entries_tc1();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_skip_non_live_entries_tc2)
+{
+	s2tt_skip_non_live_entries_tc2();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_skip_non_live_entries_tc3)
+{
+	s2tt_skip_non_live_entries_tc3();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_skip_non_live_entries_tc4)
+{
+	s2tt_skip_non_live_entries_tc4();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_skip_non_live_entries_tc5)
+{
+	s2tt_skip_non_live_entries_tc5();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_skip_non_live_entries_tc6)
+{
+	s2tt_skip_non_live_entries_tc6();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_skip_non_live_entries_tc7)
+{
+	s2tt_skip_non_live_entries_tc7();
+}
+
+TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc1)
+{
+	s2tt_walk_lock_unlock_tc1();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc2)
+{
+	s2tt_walk_lock_unlock_tc2();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc3)
+{
+	s2tt_walk_lock_unlock_tc3();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc4)
+{
+	s2tt_walk_lock_unlock_tc4();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc5)
+{
+	s2tt_walk_lock_unlock_tc5();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc6)
+{
+	s2tt_walk_lock_unlock_tc6();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc7)
+{
+	s2tt_walk_lock_unlock_tc7();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc8)
+{
+	s2tt_walk_lock_unlock_tc8();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc9)
+{
+	s2tt_walk_lock_unlock_tc9();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc10)
+{
+	s2tt_walk_lock_unlock_tc10();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc11)
+{
+	s2tt_walk_lock_unlock_tc11();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc12)
+{
+	s2tt_walk_lock_unlock_tc12();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc13)
+{
+	s2tt_walk_lock_unlock_tc13();
+}
+

@@ -107,7 +107,7 @@ void s2tte_create_assigned_destroyed_tc1(void)
 	for (long i = s2tt_test_helpers_min_block_lvl();
 	     i <= S2TT_TEST_HELPERS_MAX_LVL; i++) {
 
-		unsigned long pa = s2tt_test_helpers_gen_pa(i, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(i, true);
 		unsigned long tte;
 		s2tt_context s2tt_ctx = { 0UL };
 
@@ -153,7 +153,7 @@ void s2tte_create_assigned_destroyed_tc2(void)
 	long level = (long)test_helpers_get_rand_in_range(
 			(unsigned long)s2tt_test_helpers_min_block_lvl(),
 			(unsigned long)S2TT_TEST_HELPERS_MAX_LVL);
-	unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 	struct s2tt_context s2tt_ctx = { 0UL };
 
 	pa += test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
@@ -254,7 +254,7 @@ void s2tte_create_assigned_empty_tc1(void)
 	for (long i = s2tt_test_helpers_min_block_lvl();
 	     i <= S2TT_TEST_HELPERS_MAX_LVL; i++) {
 
-		unsigned long pa = s2tt_test_helpers_gen_pa(i, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(i, true);
 		unsigned long tte;
 		s2tt_context s2tt_ctx = { 0UL };
 
@@ -300,7 +300,7 @@ void s2tte_create_assigned_empty_tc2(void)
 	long level = (long)test_helpers_get_rand_in_range(
 			(unsigned long)s2tt_test_helpers_min_block_lvl(),
 			(unsigned long)S2TT_TEST_HELPERS_MAX_LVL);
-	unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 	struct s2tt_context s2tt_ctx = { 0UL };
 
 	pa += test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
@@ -409,7 +409,7 @@ void s2tte_create_assigned_ram_tc1(void)
 	/* Test for each possible level */
 	for (long i = s2tt_test_helpers_min_block_lvl();
 	     i <= S2TT_TEST_HELPERS_MAX_LVL; i++) {
-		unsigned long pa = s2tt_test_helpers_gen_pa(i, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(i, true);
 		unsigned long tte =
 			s2tte_create_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
 						  pa, i);
@@ -444,7 +444,7 @@ void s2tte_create_assigned_ram_tc2(void)
 	long level = (long)test_helpers_get_rand_in_range(
 			(unsigned long)s2tt_test_helpers_min_block_lvl(),
 			(unsigned long)S2TT_TEST_HELPERS_MAX_LVL);
-	unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 
 	struct s2tt_context s2tt_ctx = { 0UL };
 
@@ -545,7 +545,7 @@ void s2tte_create_assigned_ns_tc1(void)
 	/* Test for each possible level */
 	for (long i = s2tt_test_helpers_min_block_lvl();
 	     i <= S2TT_TEST_HELPERS_MAX_LVL; i++) {
-		unsigned long pa = s2tt_test_helpers_gen_pa(i, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(i, true);
 		unsigned long host_attrs = s2tt_test_helpers_gen_ns_attrs(true,
 									  false);
 		unsigned long attrs = s2tt_test_helpers_gen_ns_attrs(false,
@@ -650,7 +650,7 @@ void s2tte_create_assigned_unchanged_tc1(void)
 		for (unsigned long ripas = RIPAS_EMPTY;
 		     ripas < S2TT_TEST_RIPAS_INVALID;
 		     ripas++) {
-			unsigned long pa = s2tt_test_helpers_gen_pa(level,
+			unsigned long pa = s2tt_test_helpers_gen_addr(level,
 								    true);
 			unsigned long tte = s2tte_create_assigned_unchanged(
 				(const struct s2tt_context *)&s2tt_ctx,
@@ -710,7 +710,7 @@ void s2tte_create_assigned_unchanged_tc2(void)
 	unsigned long ripas = test_helpers_get_rand_in_range(
 					RIPAS_EMPTY,
 					RIPAS_DESTROYED);
-	unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 	struct s2tt_context s2tt_ctx = { 0UL };
 
 	/*
@@ -859,7 +859,7 @@ void s2tte_create_table_tc1(void)
 
 	for (long level = s2tt_test_helpers_min_table_lvl();
 	     level < S2TT_TEST_HELPERS_MAX_LVL; level++) {
-		unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 		unsigned long tte = s2tte_create_table(
 				(const struct s2tt_context *)&s2tt_ctx,
 				pa, level);
@@ -891,7 +891,7 @@ void s2tte_create_table_tc2(void)
 	long level = (long)test_helpers_get_rand_in_range(
 			(unsigned long)s2tt_test_helpers_min_block_lvl(),
 			(unsigned long)S2TT_TEST_HELPERS_MAX_LVL);
-	unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 	struct s2tt_context s2tt_ctx = { 0UL };
 
 	/*
@@ -968,7 +968,7 @@ void s2tte_create_table_tc5(void)
 	 ***************************************************************/
 
 	long level = s2tt_test_helpers_min_table_lvl();
-	unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_table((const struct s2tt_context *)NULL,
@@ -997,7 +997,7 @@ void host_ns_s2tte_is_valid_tc1(void)
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 
-		unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 		unsigned long host_attrs =
 				s2tt_test_helpers_gen_ns_attrs(true, false);
 		unsigned long tte = s2tt_test_helpers_pa_to_s2tte(pa, level) |
@@ -1034,7 +1034,7 @@ void host_ns_s2tte_is_valid_tc2(void)
 		/* Generate a NS S2TTE with a set of invalid host attrs */
 		unsigned long host_attrs =
 				s2tt_test_helpers_gen_ns_attrs(true, true);
-		unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 		unsigned long tte = s2tt_test_helpers_pa_to_s2tte(pa, level) |
 								host_attrs;
 
@@ -1135,7 +1135,7 @@ void host_ns_s2tte_is_valid_tc5(void)
 	 ***************************************************************/
 
 	long level = s2tt_test_helpers_min_block_lvl();
-	unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 	unsigned long host_attrs = s2tt_test_helpers_gen_ns_attrs(true, false);
 	unsigned long tte = s2tt_test_helpers_pa_to_s2tte(pa, level) | host_attrs;
 
@@ -1167,7 +1167,7 @@ void host_ns_s2tte_tc1(void)
 	/* Test for each possible level */
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
-		unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 		unsigned long host_attrs = s2tt_test_helpers_gen_ns_attrs(true,
 									  false);
 		unsigned long val_tte = s2tte_create_assigned_ns(
@@ -1277,7 +1277,7 @@ void host_ns_s2tte_tc4(void)
 
 	/* Test for each possible level */
 	long level = s2tt_test_helpers_min_block_lvl();
-	unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 	unsigned long host_attrs = s2tt_test_helpers_gen_ns_attrs(true, false);
 
 	/* s2tte_create_assigned_ns() can receive a NULL s2tt_context pointer */
@@ -1317,7 +1317,7 @@ void s2tte_has_ripas_tc1(void)
 		for (unsigned int i = 0U; i < ARRAY_SIZE(ripas); i++) {
 
 			unsigned long tte;
-			unsigned long pa = s2tt_test_helpers_gen_pa(level,
+			unsigned long pa = s2tt_test_helpers_gen_addr(level,
 								    true);
 
 			/* Validate with an assigned S2TTE */
@@ -1367,7 +1367,7 @@ void s2tte_has_ripas_tc2(void)
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 
-		unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 		unsigned long host_attr = s2tt_test_helpers_gen_ns_attrs(true,
 									false);
 		tte = s2tte_create_assigned_ns((const struct s2tt_context *)&s2tt_ctx,
@@ -1601,7 +1601,7 @@ void s2tte_is_assigned_empty_tc1(void)
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 		unsigned int idx;
-		unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 		unsigned long inv_tte, tte =
 			s2tte_create_assigned_empty(
 					(const struct s2tt_context *)&s2tt_ctx,
@@ -1655,7 +1655,7 @@ void s2tte_is_assigned_ns_tc1(void)
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 		unsigned int idx;
-		unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 		unsigned long inv_tte, tte =
 				s2tt_test_helpers_gen_ns_attrs(true, false);
 
@@ -1743,7 +1743,7 @@ void s2tte_is_assigned_ram_tc1(void)
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 		unsigned int idx;
-		unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 		unsigned long inv_tte, tte =
 			s2tte_create_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
 						  pa, level);
@@ -1826,7 +1826,7 @@ void s2tte_is_assigned_destroyed_tc1(void)
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 		unsigned int idx;
-		unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 		unsigned long inv_tte, tte =
 			s2tte_create_assigned_destroyed(
 					(const struct s2tt_context *)&s2tt_ctx,
@@ -1881,7 +1881,7 @@ void s2tte_is_table_tc1(void)
 
 		if (level <= S2TT_TEST_HELPERS_MAX_TABLE_LVL) {
 			/* Validate s2tt_is_table with a valid table TTE */
-			pa = s2tt_test_helpers_gen_pa(level, true);
+			pa = s2tt_test_helpers_gen_addr(level, true);
 			tte = s2tte_create_table(
 					(const struct s2tt_context *)&s2tt_ctx,
 					pa, level);
@@ -1946,7 +1946,7 @@ void s2tte_get_ripas_tc1(void)
 		/* HIPAS = ASSIGNED */
 		for (long level = s2tt_test_helpers_min_block_lvl();
 		     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
-			pa = s2tt_test_helpers_gen_pa(level, true);
+			pa = s2tt_test_helpers_gen_addr(level, true);
 			tte = s2tt_test_create_assigned(
 				(const struct s2tt_context *)&s2tt_ctx,
 					pa, level, ripas[i]);
@@ -2184,7 +2184,7 @@ void s2tt_init_assigned_empty_tc1(void)
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 
 		unsigned long s2tt[S2TTES_PER_S2TT] = {0};
-		unsigned long pa = s2tt_test_helpers_gen_pa(level - 1L, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
 
 		/* Generate the table */
 		s2tt_init_assigned_empty((const struct s2tt_context *)&s2tt_ctx,
@@ -2292,7 +2292,7 @@ void s2tt_init_assigned_empty_tc5(void)
 	long level =
 		test_helpers_get_rand_in_range(s2tt_test_helpers_min_block_lvl(),
 					       S2TT_TEST_HELPERS_MAX_LVL);
-	unsigned long pa = s2tt_test_helpers_gen_pa(level, true) +
+	unsigned long pa = s2tt_test_helpers_gen_addr(level, true) +
 		test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
 	struct s2tt_context s2tt_ctx = { 0UL };
 
@@ -2347,7 +2347,7 @@ void s2tt_init_assigned_ram_tc1(void)
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 
 		unsigned long s2tt[S2TTES_PER_S2TT] = {0};
-		unsigned long pa = s2tt_test_helpers_gen_pa(level - 1L, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
 
 		/* Generate the table */
 		s2tt_init_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
@@ -2455,7 +2455,7 @@ void s2tt_init_assigned_ram_tc5(void)
 	long level =
 		test_helpers_get_rand_in_range(s2tt_test_helpers_min_block_lvl(),
 					       S2TT_TEST_HELPERS_MAX_LVL);
-	unsigned long pa = s2tt_test_helpers_gen_pa(level, true) +
+	unsigned long pa = s2tt_test_helpers_gen_addr(level, true) +
 		test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
 	struct s2tt_context s2tt_ctx = { 0UL };
 
@@ -2511,7 +2511,7 @@ void s2tt_init_assigned_ns_tc1(void)
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 
 		unsigned long s2tt[S2TTES_PER_S2TT] = { 0UL };
-		unsigned long pa = s2tt_test_helpers_gen_pa(level - 1L, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
 
 		/*
 		 * s2tt_init_assigned_ns() does not verify that the
@@ -2530,7 +2530,7 @@ void s2tt_init_assigned_ns_tc1(void)
 		unsigned long parent_s2tte = attrs |
 			s2tt_test_helpers_gen_ns_attrs(false, false) |
 			s2tt_test_helpers_pa_to_s2tte(
-					s2tt_test_helpers_gen_pa(level, true),
+					s2tt_test_helpers_gen_addr(level, true),
 					level);
 
 		/*
@@ -2638,7 +2638,7 @@ void s2tt_init_assigned_ns_tc5(void)
 	long level =
 		test_helpers_get_rand_in_range(s2tt_test_helpers_min_block_lvl(),
 					       S2TT_TEST_HELPERS_MAX_LVL);
-	unsigned long pa = s2tt_test_helpers_gen_pa(level, true) +
+	unsigned long pa = s2tt_test_helpers_gen_addr(level, true) +
 		test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
 
 	test_helpers_expect_assert_fail(true);
@@ -2667,7 +2667,7 @@ void s2tt_init_assigned_destroyed_tc1(void)
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 
 		unsigned long s2tt[S2TTES_PER_S2TT] = {0};
-		unsigned long pa = s2tt_test_helpers_gen_pa(level - 1L, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
 
 		/* Generate the table */
 		s2tt_init_assigned_destroyed(
@@ -2778,7 +2778,7 @@ void s2tt_init_assigned_destroyed_tc5(void)
 	long level =
 		test_helpers_get_rand_in_range(s2tt_test_helpers_min_block_lvl(),
 					       S2TT_TEST_HELPERS_MAX_LVL);
-	unsigned long pa = s2tt_test_helpers_gen_pa(level, true) +
+	unsigned long pa = s2tt_test_helpers_gen_addr(level, true) +
 		test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
 	struct s2tt_context s2tt_ctx = { 0UL };
 
@@ -2836,7 +2836,7 @@ void s2tte_pa_tc1(void)
 	for (long level = s2tt_test_helpers_min_table_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 		unsigned long tte;
-		unsigned long pa = s2tt_test_helpers_gen_pa(level, true);
+		unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 
 		if (level < s2tt_test_helpers_min_block_lvl()) {
 			tte = s2tte_create_table(
