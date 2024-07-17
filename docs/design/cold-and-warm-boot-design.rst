@@ -35,6 +35,27 @@ The boot is divided into several phases as described below:
    is zero initialized which completes the C runtime initialization
    for cold boot.
 
+   During this phase, and the Platform initialization phase, the RMM starts
+   with MMU disabled (and hence with data cacheability disabled). However,
+   EL3 may have cacheability enabled. The following guidelines apply to the
+   RMM, when RMM has cacheability disabled, but EL3 has cacheability enabled:
+
+   - RMM must perform invalidation on all its memory on entry on primary core,
+     prior to enabling MMU as part of cold boot.
+
+   - Any function in RMM which is invoked prior to MMU enable needs to perform
+     CMOs on any data modified which is not part of the C runtime stack in the
+     RMM. During cold boot, the primary CPU is allowed to modify global data
+     with MMU disabled. During warm boot, the secondary CPUs are only allowed
+     to modify per-cpu data with MMU disabled and reads to global data must be
+     restricted to ones which have had appropriate CMOs done by the primary.
+
+   - Runtime EL3 firmware (BL31) should not map any part of RMM except the
+     shared buffer used for comms between RMM and EL3. RMM to perform required
+     CMOs on the shared buffer when communicating with EL3 prior to enabling
+     MMU. The only exception is the Boot Manifest which needs to be flushed by
+     EL3 before RMM cold boot entry.
+
 2. **Platform initialization phase**
 
    The boot args are restored to their original registers and plat_setup()
