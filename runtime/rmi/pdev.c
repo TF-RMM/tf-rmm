@@ -277,3 +277,51 @@ out_restore_pdev_aux_granule_state:
 
 	return smc_rc;
 }
+
+/*
+ * smc_pdev_get_state
+ *
+ * Get state of a PDEV.
+ *
+ * pdev_ptr	- PA of the PDEV
+ * res		- SMC result
+ */
+void smc_pdev_get_state(unsigned long pdev_ptr, struct smc_result *res)
+{
+	struct granule *g_pdev;
+	struct pdev *pd;
+
+	if (!is_rmi_feat_da_enabled()) {
+		res->x[0] = SMC_NOT_SUPPORTED;
+		return;
+	}
+
+	if (!GRANULE_ALIGNED(pdev_ptr)) {
+		goto out_err_input;
+	}
+
+	/* Lock pdev granule and map it */
+	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_PDEV);
+	if (g_pdev == NULL) {
+		goto out_err_input;
+	}
+
+	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
+	if (pd == NULL) {
+		granule_unlock(g_pdev);
+		goto out_err_input;
+	}
+
+	assert(pd->g_pdev == g_pdev);
+	assert(pd->rmi_state <= RMI_PDEV_STATE_ERROR);
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = pd->rmi_state;
+
+	buffer_unmap(pd);
+	granule_unlock(g_pdev);
+
+	return;
+
+out_err_input:
+	res->x[0] = RMI_ERROR_INPUT;
+}
