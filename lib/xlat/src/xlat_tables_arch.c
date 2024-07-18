@@ -225,11 +225,13 @@ void xlat_arch_tlbi_va(uintptr_t va)
 {
 	/*
 	 * Ensure the translation table write has drained into memory before
-	 * invalidating the TLB entry.
+	 * invalidating the TLB entry. Note that the barrier is scoped to
+	 * the local core (non-shareable) and the TLBI is local (not
+	 * broadcast), and is expected to be used only for per core mapping.
 	 */
-	dsb(ishst);
+	dsb(nshst);
 
-	tlbivae2is(TLBI_ADDR(va));
+	tlbivae2(TLBI_ADDR(va));
 }
 
 void xlat_arch_tlbi_va_sync(void)
@@ -243,8 +245,10 @@ void xlat_arch_tlbi_va_sync(void)
 	 * entries will be observed by any observer of the system
 	 * domain. See section D4.8.2 of the ARMv8 (issue k), paragraph
 	 * "Ordering and completion of TLB maintenance instructions".
+	 * Note that the barrier is scoped to the local core (non-shareable)
+	 * and this is expected to be used only for per core mapping.
 	 */
-	dsb(ish);
+	dsb(nsh);
 
 	/*
 	 * The effects of a completed TLB maintenance instruction are

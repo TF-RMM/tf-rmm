@@ -381,7 +381,7 @@ int xlat_unmap_memory_page(struct xlat_llt_info * const table,
 		return -EFAULT;
 	}
 
-	xlat_write_tte(tte, TRANSIENT_DESC);
+	xlat_write_tte_release(tte, TRANSIENT_DESC);
 
 	/* Invalidate any cached copy of this mapping in the TLBs. */
 	xlat_arch_tlbi_va(va);
@@ -439,7 +439,7 @@ int xlat_map_memory_page_with_attrs(const struct xlat_llt_info * const table,
 	xlat_write_tte(tte_ptr, tte);
 
 	/* Ensure the translation table write has drained into memory */
-	dsb(ishst);
+	dsb(nshst);
 	isb();
 
 	return 0;
