@@ -404,7 +404,6 @@ static uint64_t app_service_read_from_ns_buf(struct app_data_cfg *app_data,
 	return 0;
 }
 
-
 static app_service_func service_functions[APP_SERVICE_COUNT] = {
 	[APP_SERVICE_PRINT] = app_service_print,
 	[APP_SERVICE_RANDOM] = app_service_get_random,

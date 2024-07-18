@@ -9,6 +9,7 @@
 #include <app_fw_structures.h>
 #include <arch.h>
 #include <arch_features.h>
+#include <dev_assign_structs.h>
 #include <granule.h>
 #include <sizes.h>
 #include <smc-rmi.h>
@@ -85,6 +86,13 @@ struct pdev {
 	 * Realm as part of RDEV_GET_INFO call
 	 */
 	uint8_t rmi_hash_algo;
+
+	/*
+	 * Digest of device certificate. This digest is calculated when RMM
+	 * fetches device certificate. The content of the certificate is cached
+	 * by NS host.
+	 */
+	struct dev_obj_digest cert_digest;
 
 	/* Device communiction state */
 	unsigned int dev_comm_state;

@@ -15,6 +15,8 @@
 #define DEV_ASSIGN_STATUS_ERROR		(-1)
 #define DEV_ASSIGN_STATUS_COMM_BLOCKED	(1)
 
+#define DEV_OBJ_DIGEST_MAX		U(64)
+
 /*
  * App function for initialization. This needs to be invoked for every
  * new instance of the app. App uses heap available via tpidrro_el0.
@@ -27,6 +29,16 @@
  *         DEV_ASSIGN_STATUS_ERROR if error on initialization.
  */
 #define DEVICE_ASSIGN_APP_FUNC_ID_INIT			1
+
+/*
+ * RMM maintains digest of device object if its cached by NS host. This device
+ * object could be device certificate or device measurement or device interface
+ * report
+ */
+struct dev_obj_digest {
+	uint8_t value[DEV_OBJ_DIGEST_MAX];
+	size_t len;
+};
 
 struct dev_assign_params {
 	/* RMI device handle */
@@ -47,6 +59,16 @@ struct dev_assign_params {
 /* Shared structure on the app heap for SPDM comms */
 struct dev_assign_spdm_shared {
 	uint8_t sendrecv_buf[GRANULE_SIZE];
+};
+
+/*
+ * The structure that dev_assign_dev_communicate can use to get data from app
+ * shared memory on return
+ */
+struct dev_comm_exit_shared {
+	struct rmi_dev_comm_exit rmi_dev_comm_exit;
+
+	struct dev_obj_digest cached_digest;
 };
 
 /*

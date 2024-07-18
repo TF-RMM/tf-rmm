@@ -34,6 +34,8 @@ int dev_assign_app_init(struct app_data_cfg *app_data, uintptr_t granule_pas[],
  * app_data - Pointer to app_data_cfg. This is opaque to caller
  * comm_enter_args - Entry arguments to app
  * comm_exit_args - Exit arguments from app
+ * comm_digest_ptr - Pointer to the location where the calculated digest is to
+ *                   be copied. Should be NULL if no digest is expected.
  * dev_cmd - Valid device communicate cmds.
  *
  * Note that when this function indicates that the app is yeilded
@@ -46,6 +48,7 @@ int dev_assign_app_init(struct app_data_cfg *app_data, uintptr_t granule_pas[],
 int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 	struct rmi_dev_comm_enter *comm_enter_args,
 	struct rmi_dev_comm_exit *comm_exit_args,
+	struct dev_obj_digest *comm_digest_ptr,
 	int dev_cmd);
 
 /*

@@ -26,6 +26,7 @@ set(LIBSPDM_PATCH_DIR "${RMM_SOURCE_DIR}/configs/libspdm")
 set(LIBSPDM_PATCH_FILES
     "${LIBSPDM_PATCH_DIR}/0001-cryptlib_mbedtls-use-external-Mbed-TLS.patch"
     "${LIBSPDM_PATCH_DIR}/0002-fix-libspdm_hmac_new-return-and-LIBSPDM_STATUS_CONST.patch"
+    "${LIBSPDM_PATCH_DIR}/0003-get_certificate-do-not-store-cert_chain-content.patch"
     )
 Git_Apply_Patches(${LIBSPDM_DIR} "${LIBSPDM_PATCH_FILES}")
 

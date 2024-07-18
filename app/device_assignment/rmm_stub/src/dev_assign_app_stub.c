@@ -50,11 +50,12 @@ int dev_assign_app_init(struct app_data_cfg *app_data, uintptr_t granule_pas[],
 int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 			struct rmi_dev_comm_enter *comm_enter_args,
 			struct rmi_dev_comm_exit *comm_exit_args,
+			struct dev_obj_digest *comm_digest_ptr,
 			int dev_cmd)
 {
 	int rc;
 	struct rmi_dev_comm_enter *shared;
-	struct rmi_dev_comm_exit *shared_ret;
+	struct dev_comm_exit_shared *shared_ret;
 
 	assert((dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_RESUME) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT) ||
@@ -76,7 +77,19 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 	}
 
 	shared_ret = app_data->el2_shared_page;
-	*comm_exit_args = *shared_ret;
+
+	*comm_exit_args = shared_ret->rmi_dev_comm_exit;
+
+	if (shared_ret->cached_digest.len != 0U) {
+		if (comm_digest_ptr == NULL) {
+			app_unmap_shared_page(app_data);
+			return DEV_ASSIGN_STATUS_ERROR;
+		}
+		(void)memcpy(comm_digest_ptr->value, shared_ret->cached_digest.value,
+			     shared_ret->cached_digest.len);
+		comm_digest_ptr->len = shared_ret->cached_digest.len;
+	}
+
 	app_unmap_shared_page(app_data);
 
 	return rc;

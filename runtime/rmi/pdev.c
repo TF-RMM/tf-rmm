@@ -423,20 +423,27 @@ static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_a
 		struct rmi_dev_comm_exit *exit_args)
 {
 	int rc;
+	struct dev_obj_digest *comm_digest_ptr;
+
+	if (pd->rmi_state == RMI_PDEV_STATE_NEW) {
+		comm_digest_ptr = &pd->cert_digest;
+	} else {
+		comm_digest_ptr = NULL;
+	}
 
 	if (pd->dev_comm_state == DEV_COMM_ACTIVE) {
 		return dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
+			exit_args, comm_digest_ptr, DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
 	}
 
 	switch (pd->rmi_state) {
 	case RMI_PDEV_STATE_NEW:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT);
+			exit_args, comm_digest_ptr, DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT);
 		break;
 	case RMI_PDEV_STATE_STOPPING:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION);
+			exit_args, comm_digest_ptr, DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION);
 		break;
 	default:
 		assert(false);

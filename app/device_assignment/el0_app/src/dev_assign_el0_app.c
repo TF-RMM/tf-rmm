@@ -5,12 +5,29 @@
 
 #include <app_common.h>
 #include <debug.h>
+#include <dev_assign_helper.h>
 #include <dev_assign_private.h>
 #include <el0_app_helpers.h>
+#include <library/spdm_crypt_lib.h>
 #include <mbedtls/memory_buffer_alloc.h>
 #include <psa/crypto.h>
 #include <psa/crypto_struct.h>
+#include <smc-rmi.h>
 #include <string.h>
+
+static void copy_back_exit_args_to_shared(struct dev_assign_info *info)
+{
+	struct dev_comm_exit_shared *shared = (struct dev_comm_exit_shared *)info->shared_buf;
+
+	shared->rmi_dev_comm_exit = info->exit_args;
+	shared->cached_digest.len = info->cached_digest.len;
+
+	if (info->cached_digest.len != 0U) {
+		(void)memcpy(shared->cached_digest.value, info->cached_digest.value,
+			     info->cached_digest.len);
+		info->cached_digest.len = 0;
+	}
+}
 
 static libspdm_return_t spdm_send_message(void *spdm_context,
 					      size_t request_size,
@@ -63,7 +80,7 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 	info->exit_args.req_len = request_size;
 
 	/* Copy back the exit args to shared buf */
-	*(struct rmi_dev_comm_exit *)info->shared_buf = info->exit_args;
+	copy_back_exit_args_to_shared(info);
 
 	el0_app_yield();
 
@@ -141,6 +158,143 @@ spdm_transport_encode_message(void *spdm_context, const uint32_t *session_id,
 	return LIBSPDM_STATUS_SUCCESS;
 }
 
+/*
+ * Set cache flags in DevCommExit and compute digest of cached data.
+ */
+static int dev_assign_dev_comm_set_cache(struct dev_assign_info *info, const void *cache_buf,
+				  size_t cache_offset, size_t cache_len,
+				  uint8_t cache_type, uint8_t hash_op_flags)
+{
+	uint8_t *hash_src;
+	const size_t digest_size = DEV_OBJ_DIGEST_MAX;
+	int rc;
+
+	assert(info->cached_digest.len == 0U);
+
+	hash_src = (uint8_t *)((unsigned long)cache_buf + cache_offset);
+	rc = dev_assign_hash_extend(info->psa_hash_algo, &info->psa_hash_op,
+				 hash_op_flags, hash_src, cache_len,
+				 info->cached_digest.value, digest_size,
+				 &info->cached_digest.len);
+	if (rc != 0) {
+		return -1;
+	}
+
+	info->exit_args.flags |= RMI_DEV_COMM_EXIT_FLAGS_CACHE_RSP_BIT;
+	info->exit_args.cache_rsp_offset = cache_offset;
+	info->exit_args.cache_rsp_len = cache_len;
+	if (cache_type == CACHE_TYPE_CERT) {
+		info->exit_args.cache_obj_id = (unsigned char)RMI_DEV_COMM_OBJECT_CERTIFICATE;
+	}
+
+	return 0;
+}
+
+static psa_algorithm_t spdm_to_psa_hash_algo(uint32_t spdm_hash_algo)
+{
+	if (spdm_hash_algo ==
+	    (uint32_t)SPDM_ALGORITHMS_BASE_HASH_ALGO_TPM_ALG_SHA_256) {
+		return PSA_ALG_SHA_256;
+	} else if (spdm_hash_algo ==
+		   (uint32_t)SPDM_ALGORITHMS_BASE_HASH_ALGO_TPM_ALG_SHA_384) {
+		return PSA_ALG_SHA_384;
+	}
+
+	return PSA_ALG_NONE;
+}
+
+/* Cache spdm certificate response */
+static int cma_spdm_cache_certificate(struct dev_assign_info *info,
+				      spdm_certificate_response_t *cert_rsp)
+{
+	size_t cache_offset, cache_len;
+	uint8_t hash_op_flags = 0;
+	uint8_t *hash_src;
+	int rc;
+
+	/* Start of certificate chain */
+	if (info->spdm_cert_chain_len == 0U) {
+		libspdm_return_t status;
+		libspdm_data_parameter_t param;
+		size_t cert_chain_offset;
+		uint32_t spdm_hash_algo = 0U;
+		size_t data_sz;
+		psa_algorithm_t spdm_cert_chain_algo;
+
+		(void)memset(&param, 0, sizeof(libspdm_data_parameter_t));
+		param.location = LIBSPDM_DATA_LOCATION_CONNECTION;
+		data_sz = sizeof(uint32_t);
+		status = libspdm_get_data(info->libspdm_ctx,
+					  LIBSPDM_DATA_BASE_HASH_ALGO,
+					  &param, &spdm_hash_algo,
+					  &data_sz);
+		if (status != LIBSPDM_STATUS_SUCCESS) {
+			return -1;
+		}
+
+		spdm_cert_chain_algo = spdm_to_psa_hash_algo(spdm_hash_algo);
+		if (spdm_cert_chain_algo == PSA_ALG_NONE) {
+			return -1;
+		}
+
+		/* Set SPDM cert_chain hash algo */
+		info->spdm_cert_chain_algo = spdm_cert_chain_algo;
+		hash_op_flags = HASH_OP_FLAG_SETUP;
+		info->spdm_cert_chain_hash_op = psa_hash_operation_init();
+		info->psa_hash_op = psa_hash_operation_init();
+
+		/*
+		 * For the start of the certificate chain ignore the hash of
+		 * root certificate included in the response buffer.
+		 */
+		cert_chain_offset = sizeof(spdm_cert_chain_t) +
+			libspdm_get_hash_size(spdm_hash_algo);
+		cache_offset = sizeof(spdm_certificate_response_t) +
+			cert_chain_offset;
+		if (cert_chain_offset > cert_rsp->portion_length) {
+			return -1;
+		}
+		cache_len = cert_rsp->portion_length - cert_chain_offset;
+	} else {
+		cache_offset = sizeof(spdm_certificate_response_t);
+		cache_len = cert_rsp->portion_length;
+	}
+
+	hash_op_flags |= HASH_OP_FLAG_UPDATE;
+	if (cert_rsp->remainder_length == 0U) {
+		hash_op_flags |= HASH_OP_FLAG_FINISH;
+	}
+
+	/*
+	 * Compute the hash for the entire spdm_certificate_response. This hash
+	 * will be later used to set it in SPDM connection. It need to be set
+	 * instead of letting libspdm calculate it, because the whole
+	 * certificate chain is not stored in RMM memory.
+	 */
+	hash_src = (uint8_t *)((unsigned long)cert_rsp +
+			       sizeof(spdm_certificate_response_t));
+	rc = dev_assign_hash_extend(info->spdm_cert_chain_algo,
+				 &info->spdm_cert_chain_hash_op, hash_op_flags,
+				 hash_src, cert_rsp->portion_length,
+				 info->spdm_cert_chain_digest,
+				 sizeof(info->spdm_cert_chain_digest),
+				 &info->spdm_cert_chain_digest_length);
+	if (rc != 0) {
+		return -1;
+	}
+
+	/*
+	 * As certificate is received (in parts or whole) invoke cache callback
+	 * to let NS Host to cache device certificate.
+	 */
+	rc = dev_assign_dev_comm_set_cache(info, cert_rsp, cache_offset,
+				  cache_len, (uint8_t)CACHE_TYPE_CERT, hash_op_flags);
+
+	info->spdm_cert_chain_len += cert_rsp->portion_length;
+
+	return rc;
+}
+
 static libspdm_return_t
 spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 				  bool *is_app_message, bool is_request_message,
@@ -148,13 +302,52 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 				  void *transport_message,
 				  size_t *message_size, void **message)
 {
+
+	struct dev_assign_info *info;
+	spdm_message_header_t *spdm_hdr;
+
 	(void)spdm_context;
 	(void)is_app_message;
 	(void)is_request_message;
+	info = spdm_to_dev_assign_info(spdm_context);
 
 	*session_id = NULL;
 	*message_size = transport_message_size;
 	*message = transport_message;
+
+	if (transport_message_size < sizeof(spdm_message_header_t)) {
+		return LIBSPDM_STATUS_RECEIVE_FAIL;
+	}
+	spdm_hdr = (spdm_message_header_t *)*message;
+
+	/*
+	 * Cache device objects like certificate, interface_report, measurements
+	 * once the message is decrypted.
+	 */
+	if (spdm_hdr->request_response_code == (uint8_t)SPDM_CERTIFICATE) {
+		int rc;
+		spdm_certificate_response_t *cert_rsp;
+
+		if (transport_message_size < sizeof(spdm_certificate_response_t)) {
+			return LIBSPDM_STATUS_RECEIVE_FAIL;
+		}
+		cert_rsp = (spdm_certificate_response_t *)spdm_hdr;
+
+		/* Make sure portion length is in bounds of the message size. */
+		if (cert_rsp->portion_length  >
+			(transport_message_size - sizeof(spdm_certificate_response_t))) {
+			return LIBSPDM_STATUS_RECEIVE_FAIL;
+		}
+
+		rc = cma_spdm_cache_certificate(info, cert_rsp);
+		if (rc != 0) {
+			/* cppcheck-suppress misra-c2012-12.2 */
+			/* cppcheck-suppress misra-c2012-10.1 */
+			/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
+			/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
+			return LIBSPDM_STATUS_RECEIVE_FAIL;
+		}
+	}
 
 	return LIBSPDM_STATUS_SUCCESS;
 }
@@ -201,6 +394,30 @@ static void spdm_release_receiver_buffer(void *spdm_context,
 	info = spdm_to_dev_assign_info(spdm_context);
 	assert(info->send_recv_buffer == msg_buf_ptr);
 	/* Nothing to do */
+}
+
+static bool cma_spdm_verify_cert_chain(void *spdm_context, uint8_t slot_id,
+				       size_t cert_chain_size,
+				       const void *cert_chain,
+				       const void **trust_anchor,
+				       size_t *trust_anchor_size)
+{
+	(void)spdm_context;
+	(void)slot_id;
+	(void)cert_chain_size;
+	(void)cert_chain;
+	(void)trust_anchor;
+	(void)trust_anchor_size;
+	assert(cert_chain == NULL);
+
+	/*
+	 * The certificate is not stored by RMM, so this function is
+	 * intentionally left empty.
+	 *
+	 * Certificate verification is the responsibility of the realm the
+	 * device is assigned to.
+	 */
+	return true;
 }
 
 void dev_assign_unset_pubkey(struct dev_assign_info *info)
@@ -336,6 +553,7 @@ static int dev_assign_init(uintptr_t el0_heap, size_t heap_size, struct dev_assi
 			PRIV_LIBSPDM_SCRATCH_BUF_SIZE);
 	info->libspdm_ctx = (void *)((uintptr_t)info->mbedtls_heap_buf +
 			PRIV_LIBSPDM_MBEDTLS_HEAP_SIZE);
+	info->cached_digest.len = 0U;
 
 	assert((uintptr_t)spdm_to_dev_assign_info(info->libspdm_ctx) == (uintptr_t)info);
 
@@ -357,6 +575,7 @@ static int dev_assign_init(uintptr_t el0_heap, size_t heap_size, struct dev_assi
 		info->rp_id = params->rp_id;
 		info->ide_sid = params->ide_sid;
 	}
+	info->spdm_cert_chain_digest_length = 0;
 
 	info->psa_hash_algo = rmi_to_psa_hash_algo(params->rmi_hash_algo);
 
@@ -495,6 +714,13 @@ static int dev_assign_init(uintptr_t el0_heap, size_t heap_size, struct dev_assi
 				  &parameter, &data16, sizeof(data16));
 	assert(status == LIBSPDM_STATUS_SUCCESS);
 
+	/*
+	 * RMM does not maintain full certificate chain. Register function
+	 * handler to skip certificate verification.
+	 */
+	libspdm_register_verify_spdm_cert_chain_func(spdm_ctx,
+						     cma_spdm_verify_cert_chain);
+
 	/* Assign the shared_buf. This serves as a marker that init is done. */
 	info->shared_buf = (void *)params;
 
@@ -535,7 +761,7 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 	}
 
 	/* Copy back the exit args to shared buf */
-	*(struct rmi_dev_comm_exit *)shared_buf = info->exit_args;
+	copy_back_exit_args_to_shared(info);
 	return ret;
 }
 

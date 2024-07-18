@@ -225,6 +225,8 @@
 				PRIV_LIBSPDM_MBEDTLS_HEAP_SIZE +	\
 				PRIV_LIBSPDM_CONTEXT_SIZE))
 
+#define CACHE_TYPE_CERT			U(0x1)
+
 struct dev_assign_info {
 	/* RMI device handle */
 	void *dev_handle;
@@ -259,11 +261,24 @@ struct dev_assign_info {
 	/* ID of the SPDM session started by libspdm_start_session */
 	uint32_t session_id;
 
+	/* Temporarily store the calculated digest that needs to be cached */
+	struct dev_obj_digest cached_digest;
+
+	/* spdm_cert_chain digest details */
+	psa_hash_operation_t spdm_cert_chain_hash_op;
+	psa_algorithm_t spdm_cert_chain_algo;
+	uint8_t spdm_cert_chain_digest[64];
+	size_t spdm_cert_chain_digest_length;
+	size_t spdm_cert_chain_len;
+
 	/*
-	 * The PSA equivalent of the 'rmi_hash_algo'. This value is used by PSA
-	 * crypto calls to calculate hash of cached device objects.
+	 * The PSA equivalent of the 'rmi_hash_algo'. Tnis value is used by PSA
+	 * crypto calls to caclulate hash of cached device objects.
 	 */
 	psa_algorithm_t psa_hash_algo;
+
+	/* State of the hash operation for object referred by 'digest'*/
+	psa_hash_operation_t psa_hash_op;
 
 	void *send_recv_buffer;
 	void *scratch_buffer;

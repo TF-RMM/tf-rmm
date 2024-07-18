@@ -45,9 +45,35 @@ static int process_spdm_init_connection(void *spdm_context)
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }
 
+static void init_connection_cleanup(struct dev_assign_info *info, bool scrub_cert_chain_hash)
+{
+	libspdm_data_parameter_t parameter;
+
+	info->spdm_cert_chain_algo = PSA_ALG_NONE;
+	info->spdm_cert_chain_len = 0U;
+
+	if (scrub_cert_chain_hash) {
+		/* Clean up the CERT_CHAIN_HASH in the context */
+		(void)memset(&info->spdm_cert_chain_digest, 0,
+			     info->spdm_cert_chain_digest_length);
+
+		/* Clean up the CERT_CHAIN_HASH in the connection */
+		(void)memset(&parameter, 0, sizeof(parameter));
+		parameter.location = LIBSPDM_DATA_LOCATION_CONNECTION;
+		parameter.additional_data[0] = info->cert_slot_id;
+		(void)libspdm_set_data(info->libspdm_ctx,
+				       LIBSPDM_DATA_PEER_USED_CERT_CHAIN_HASH,
+				       &parameter, &info->spdm_cert_chain_digest,
+				       info->spdm_cert_chain_digest_length);
+		info->spdm_cert_chain_digest_length = 0;
+	}
+}
+
 /* dev_assign_cmd_init_connection_main */
 int dev_assign_cmd_init_connection_main(struct dev_assign_info *info)
 {
+	size_t cert_chain_size;
+	libspdm_data_parameter_t parameter;
 	void *spdm_context = info->libspdm_ctx;
 	libspdm_return_t status;
 
@@ -73,6 +99,45 @@ int dev_assign_cmd_init_connection_main(struct dev_assign_info *info)
 		return DEV_ASSIGN_STATUS_ERROR;
 	}
 
+	/*
+	 * Get device certificate. The certificate is not kept in RMM instead
+	 * RMM retrieves the certificates in parts and asks the NS Host to
+	 * cache the certificate during retrieval. Due to this the buffer
+	 * allocated to cache the certificate chain is not known to RMM. So set
+	 * cert_chain_size to the max value limited by SPDM spec which is 64kb.
+	 */
+	cert_chain_size = SPDM_MAX_CERTIFICATE_CHAIN_SIZE;
+	status = libspdm_get_certificate(spdm_context,
+					 NULL, /* session_id */
+					 info->cert_slot_id,
+					 &cert_chain_size,
+					 NULL /* cert_chain */);
+	if (status != LIBSPDM_STATUS_SUCCESS) {
+		init_connection_cleanup(info, false);
+		return DEV_ASSIGN_STATUS_ERROR;
+	}
+
+	/*
+	 * Set libspdm data LIBSPDM_DATA_PEER_USED_CERT_CHAIN_HASH.
+	 * As part of the certificate retrieval, RMM calculates the
+	 * spdm_cert_chain digest based on the SPDM negotiated hash algorithm.
+	 * This should be completed at this point and update the same to libspdm
+	 * context.
+	 */
+	assert(info->spdm_cert_chain_digest_length != 0U);
+	(void)memset(&parameter, 0, sizeof(parameter));
+	parameter.location = LIBSPDM_DATA_LOCATION_CONNECTION;
+	parameter.additional_data[0] = info->cert_slot_id;
+	status = libspdm_set_data(spdm_context,
+				  LIBSPDM_DATA_PEER_USED_CERT_CHAIN_HASH,
+				  &parameter, &info->spdm_cert_chain_digest,
+				  info->spdm_cert_chain_digest_length);
+
+	if (status != LIBSPDM_STATUS_SUCCESS) {
+		init_connection_cleanup(info, false);
+		return DEV_ASSIGN_STATUS_ERROR;
+	}
+
 	return (int)LIBSPDM_STATUS_SUCCESS;
 }
 
@@ -87,6 +152,9 @@ int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info)
 	 * terminated.
 	 */
 	dev_assign_unset_pubkey(info);
+
+	/* Clean up the cma spdm connection state */
+	init_connection_cleanup(info, true);
 
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }
