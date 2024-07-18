@@ -10,11 +10,6 @@ arm_config_option(
     STRINGS "host_build" "host_test" "host_cbmc"
     DEFAULT "host_build")
 
-arm_config_option(
-    NAME HOST_MEM_SIZE
-    HELP "Host memory size that will be used as physical granules"
-    DEFAULT "0x40000000")
-
 if(HOST_VARIANT STREQUAL host_test)
     # Disable CppUtest self tests
     set(TESTS "OFF" CACHE STRING "Compile and run CppUTest tests")
@@ -24,5 +19,8 @@ if(HOST_VARIANT STREQUAL host_test)
 endif()
 
 add_subdirectory("../common" ${RMM_BINARY_DIR}/plat/common)
-add_subdirectory("common")
+
+# Add the the HOST_VARIANT directory before common, so that it has the option
+# to override HOST_MEM_SIZE
 add_subdirectory("${HOST_VARIANT}")
+add_subdirectory("common")

@@ -3,6 +3,11 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
+arm_config_option(
+    NAME HOST_MEM_SIZE
+    HELP "Host memory size that will be used as physical granules"
+    DEFAULT "0x40000000")
+
 add_library(rmm-host-common)
 
 target_link_libraries(rmm-host-common
