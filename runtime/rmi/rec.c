@@ -5,7 +5,6 @@
 
 #include <arch.h>
 #include <arch_features.h>
-#include <attestation.h>
 #include <buffer.h>
 #include <debug.h>
 #include <gic.h>
@@ -169,25 +168,6 @@ static void free_rec_aux_granules(struct granule *rec_aux[],
 	}
 }
 
-/* Initialise the heap and state for attestation */
-static void rec_attestation_heap_init(struct rec *r)
-{
-	int ret __unused;
-	struct rec_attest_data *attest_data = r->aux_data.attest_data;
-
-	/* Initialize attestation state */
-	attest_data->token_sign_ctx.state = ATTEST_SIGN_NOT_STARTED;
-
-	ret = attestation_heap_ctx_assign_pe(&attest_data->alloc_ctx);
-	assert(ret == 0);
-
-	(void)attestation_heap_ctx_init(r->aux_data.attest_heap_buf,
-					REC_HEAP_SIZE);
-
-	ret = attestation_heap_ctx_unassign_pe();
-	assert(ret == 0);
-}
-
 /* Initialize REC simd state */
 static void rec_simd_state_init(struct rec *r)
 {
@@ -236,7 +216,6 @@ static void rec_aux_granules_init(struct rec *r)
 	aux_data->cca_token_buf = (uintptr_t)aux_data->attest_data +
 		REC_ATTEST_SIZE;
 
-	rec_attestation_heap_init(r);
 	rec_simd_state_init(r);
 
 	/* Unmap auxiliary granules */

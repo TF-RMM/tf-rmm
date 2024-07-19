@@ -66,18 +66,4 @@ int attestation_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx);
  */
 int attestation_heap_ctx_unassign_pe(void);
 
-/*
- * Reinit the heap on this CPU used for attestation operations.
- *
- * Arguments:
- * buf		- Buffer to use as heap.
- * buf_size	- Size of the buffer to use as heap.
- *
- * Returns 0 on success, negative error code otherwise.
- *
- * Note: This function assumes that a the allocator has a
- * buffer_alloc_ctx assigned to it.
- */
-int attestation_heap_reinit_pe(unsigned char *buf, size_t buf_size);
-
 #endif /* ATTESTATION_H */

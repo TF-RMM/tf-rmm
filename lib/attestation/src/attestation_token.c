@@ -124,7 +124,7 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 }
 
 enum attest_token_err_t
-attest_realm_token_sign(struct attest_token_encode_ctx *me,
+attest_realm_token_sign(struct token_sign_cntxt *me,
 			size_t *completed_token_len)
 {
 	/* The completed and signed encoded cose_sign1 */
@@ -136,12 +136,16 @@ attest_realm_token_sign(struct attest_token_encode_ctx *me,
 	assert(me != NULL);
 	assert(completed_token_len != NULL);
 
+	if (me->state != ATTEST_TOKEN_SIGN) {
+		return ATTEST_TOKEN_ERR_INVALID_STATE;
+	}
+
 	/* Finish up the COSE_Sign1. This is where the signing happens */
 	SIMD_FPU_ALLOW(
-		cose_res = t_cose_sign_encode_finish(&me->sign_ctx,
+		cose_res = t_cose_sign_encode_finish(&me->ctx.sign_ctx,
 						     NULL_Q_USEFUL_BUF_C,
-						     me->signed_payload,
-						     &me->cbor_enc_ctx));
+						     me->ctx.signed_payload,
+						     &me->ctx.cbor_enc_ctx));
 
 	if (cose_res == T_COSE_ERR_SIG_IN_PROGRESS) {
 		/* Token signing has not yet finished */
@@ -157,7 +161,7 @@ attest_realm_token_sign(struct attest_token_encode_ctx *me,
 	 * Finally close off the CBOR formatting and get the pointer and length
 	 * of the resulting COSE_Sign1
 	 */
-	qcbor_res = QCBOREncode_Finish(&(me->cbor_enc_ctx),
+	qcbor_res = QCBOREncode_Finish(&me->ctx.cbor_enc_ctx,
 				       &completed_token_ub);
 
 	switch (qcbor_res) {
@@ -167,6 +171,8 @@ attest_realm_token_sign(struct attest_token_encode_ctx *me,
 	case QCBOR_SUCCESS:
 		/* coverity[uninit_use:SUPPRESS] */
 		*completed_token_len = completed_token_ub.len;
+		/* This was the last signing cycle. Transition to next state */
+		me->state = ATTEST_TOKEN_CREATE;
 		break;
 	default:
 		/* likely from array not closed, too many closes ... */
@@ -176,7 +182,8 @@ attest_realm_token_sign(struct attest_token_encode_ctx *me,
 	return attest_res;
 }
 
-size_t attest_cca_token_create(void *attest_token_buf,
+size_t attest_cca_token_create(struct token_sign_cntxt *me,
+			       void *attest_token_buf,
 			       size_t attest_token_buf_size,
 			       const void *realm_token_buf,
 			       size_t realm_token_len)
@@ -187,8 +194,13 @@ size_t attest_cca_token_create(void *attest_token_buf,
 	struct q_useful_buf_c   platform_token;
 	struct q_useful_buf     attest_token_ub = {attest_token_buf, attest_token_buf_size};
 	struct q_useful_buf_c   realm_token_ub = {realm_token_buf, realm_token_len};
+	size_t ret_len = 0;
 
 	__unused int            ret;
+
+	if (me->state != ATTEST_TOKEN_CREATE) {
+		return 0;
+	}
 
 	/* Get the platform token */
 	ret = attest_get_platform_token(&platform_token.ptr,
@@ -214,15 +226,17 @@ size_t attest_cca_token_create(void *attest_token_buf,
 
 	if (qcbor_res == QCBOR_ERR_BUFFER_TOO_SMALL) {
 		ERROR("CCA output token buffer too small\n");
-		return 0;
 	} else if (qcbor_res != QCBOR_SUCCESS) {
 		/* likely from array not closed, too many closes, ... */
-		assert(false);
+		ERROR("QCBOREncode error for CCA output token\n");
 	} else {
 		/* coverity[uninit_use:SUPPRESS] */
-		return completed_token.len;
+		ret_len = completed_token.len;
 	}
-	return 0;
+
+	/* Transition back to NOT_STARTED */
+	me->state = ATTEST_TOKEN_NOT_STARTED;
+	return ret_len;
 }
 
 /*
@@ -250,13 +264,15 @@ int attest_realm_token_create(enum hash_algo algorithm,
 {
 	struct q_useful_buf_c buf;
 	size_t measurement_size;
-	enum attest_token_err_t token_ret;
+	enum attest_token_err_t token_ret = ATTEST_TOKEN_ERR_INVALID_STATE;
 	struct q_useful_buf realm_token_ub = {realm_token_buf, realm_token_buf_size};
 	struct q_useful_buf_c rpv_ub = {rpv_buf, rpv_len};
 	int ret;
 
 	/* Can only be called in the init state */
-	assert(ctx->state == ATTEST_SIGN_NOT_STARTED);
+	if (ctx->state != ATTEST_TOKEN_INIT) {
+		return (int)token_ret;
+	}
 
 	assert(num_measurements == MEASUREMENT_SLOT_NR);
 
@@ -331,5 +347,26 @@ int attest_realm_token_create(enum hash_algo algorithm,
 	QCBOREncode_CloseBstrWrap2(&(ctx->ctx.cbor_enc_ctx), false,
 				   &(ctx->ctx.signed_payload));
 
+	/* Transition to ATTEST_CCA_TOKEN_SIGN state */
+	ctx->state = ATTEST_TOKEN_SIGN;
 	return 0;
+}
+
+int attest_token_ctx_init(struct token_sign_cntxt *token_ctx,
+			unsigned char *heap_buf,
+			unsigned int heap_buf_len)
+{
+	int ret = 0;
+
+	if (token_ctx->state != ATTEST_TOKEN_INIT) {
+		ret = attestation_heap_ctx_init(heap_buf,
+						heap_buf_len);
+
+		/* Clear context for signing an attestation token */
+		(void)memset(token_ctx, 0, sizeof(struct token_sign_cntxt));
+
+		token_ctx->state = ATTEST_TOKEN_INIT;
+	}
+
+	return ret;
 }

@@ -138,10 +138,3 @@ int attestation_heap_ctx_unassign_pe(void)
 	buffer_alloc_ctx_unassign();
 	return 0;
 }
-
-inline int attestation_heap_reinit_pe(unsigned char *buf, size_t buf_size)
-{
-	mbedtls_memory_buffer_alloc_init(buf, buf_size);
-
-	return 0;
-}
