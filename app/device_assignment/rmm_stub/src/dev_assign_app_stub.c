@@ -114,3 +114,17 @@ int dev_assign_abort_app_operation(struct app_data_cfg *app_data)
 
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }
+
+int dev_assign_set_public_key(struct app_data_cfg *app_data,
+			      struct rmi_public_key_params *pubkey_params)
+{
+	int rc;
+
+	app_map_shared_page(app_data);
+	(void)memcpy(app_data->el2_shared_page, (void *)pubkey_params,
+		     sizeof(*pubkey_params));
+	rc = (int)app_run(app_data, DEVICE_ASSIGN_APP_FUNC_SET_PUBLIC_KEY,
+				pubkey_params->algo, 0, 0, 0);
+	app_unmap_shared_page(app_data);
+	return rc;
+}

@@ -341,10 +341,6 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 
 		rc = cma_spdm_cache_certificate(info, cert_rsp);
 		if (rc != 0) {
-			/* cppcheck-suppress misra-c2012-12.2 */
-			/* cppcheck-suppress misra-c2012-10.1 */
-			/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
-			/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}
 	}
@@ -422,12 +418,132 @@ static bool cma_spdm_verify_cert_chain(void *spdm_context, uint8_t slot_id,
 
 void dev_assign_unset_pubkey(struct dev_assign_info *info)
 {
+	libspdm_data_parameter_t parameter;
+	void *data_ptr;
+
 	if ((info->key_sig_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P256) ||
 	    (info->key_sig_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P384)) {
 		mbedtls_ecdh_free(&info->pk_ctx.ecdh);
 	} else {
 		mbedtls_rsa_free(&info->pk_ctx.rsa);
 	}
+
+	/* Set LIBSPDM_DATA_PEER_USED_CERT_CHAIN_PUBLIC_KEY in spdm connection */
+	(void)memset(&parameter, 0, sizeof(parameter));
+	parameter.location = LIBSPDM_DATA_LOCATION_CONNECTION;
+	parameter.additional_data[0] = info->cert_slot_id;
+	data_ptr = NULL;
+	(void)libspdm_set_data(info->libspdm_ctx,
+			       LIBSPDM_DATA_PEER_USED_CERT_CHAIN_PUBLIC_KEY,
+			       &parameter, (void *)&data_ptr, sizeof(data_ptr));
+}
+
+/*
+ * Set public key context in libspdm connection
+ */
+static int dev_assign_set_pubkey(uintptr_t heap,
+				     unsigned long key_sig_algo)
+{
+	libspdm_data_parameter_t parameter;
+	libspdm_return_t status;
+	struct dev_assign_info *info;
+	void *data_ptr;
+	int rc;
+
+	info = heap_start_to_dev_assign_info(heap);
+
+	struct rmi_public_key_params *params =
+		(struct rmi_public_key_params *)get_shared_mem_start();
+
+	if ((key_sig_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P256) ||
+	    (key_sig_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P384)) {
+		mbedtls_ecdh_context *ecdh;
+		mbedtls_ecp_keypair kp;
+		mbedtls_ecp_group grp;
+		mbedtls_ecp_point pt;
+
+		ecdh = &info->pk_ctx.ecdh;
+
+		mbedtls_ecdh_init(ecdh);
+		mbedtls_ecp_keypair_init(&kp);
+		mbedtls_ecp_group_init(&grp);
+		mbedtls_ecp_point_init(&pt);
+
+		/* todo: call keypair/group/point_free upon mbedtls_error */
+		if (key_sig_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P256) {
+			VERBOSE("PDEV_SET_PUBKEY called with ECDSAP256 Algo\n");
+			rc = mbedtls_ecp_group_load(&grp,
+						    MBEDTLS_ECP_DP_SECP256R1);
+		} else {
+			VERBOSE("PDEV_SET_PUBKEY called with ECDSAP384 Algo\n");
+			rc = mbedtls_ecp_group_load(&grp,
+						    MBEDTLS_ECP_DP_SECP384R1);
+		}
+		if (rc != 0) {
+			goto end_ecdsa;
+		}
+
+		rc = mbedtls_ecp_point_read_binary(&grp, &pt, params->key, params->key_len);
+		if (rc != 0) {
+			goto end_ecdsa;
+		}
+
+		/*
+		 * grp.id will be populated as part of read_binary, ignore
+		 * coverity uninitialized value
+		 */
+		/* coverity[uninit_use_in_call:SUPPRESS] */
+		rc = mbedtls_ecp_set_public_key(grp.id, &kp, &pt);
+		if (rc != 0) {
+			goto end_ecdsa;
+		}
+
+		rc = mbedtls_ecdh_get_params(ecdh, &kp, MBEDTLS_ECDH_OURS);
+		if (rc != 0) {
+			goto end_ecdsa;
+		}
+
+end_ecdsa:
+		mbedtls_ecp_keypair_free(&kp);
+		mbedtls_ecp_group_free(&grp);
+		mbedtls_ecp_point_free(&pt);
+		if (rc != 0) {
+			mbedtls_ecdh_free(ecdh);
+			return DEV_ASSIGN_STATUS_ERROR;
+		}
+	} else if (key_sig_algo == RMI_SIGNATURE_ALGORITHM_RSASSA_3072) {
+		mbedtls_rsa_context *ctx = &info->pk_ctx.rsa;
+
+		mbedtls_rsa_init(ctx);
+
+		/* Public exponent of RSA3072 key is held in metadata */
+		rc = mbedtls_rsa_import_raw(ctx, params->key, params->key_len, NULL, 0, NULL, 0,
+					    NULL, 0, params->metadata, params->metadata_len);
+		if (rc != 0) {
+			mbedtls_rsa_free(ctx);
+			return DEV_ASSIGN_STATUS_ERROR;
+		}
+	} else {
+		ERROR("PDEV_SET_PUBKEY: Invalid Signature algorithm: %lu\n", key_sig_algo);
+		return DEV_ASSIGN_STATUS_ERROR;
+	}
+
+	info->key_sig_algo = (uint32_t)key_sig_algo;
+
+	/* Set LIBSPDM_DATA_PEER_USED_CERT_CHAIN_PUBLIC_KEY in spdm connection */
+	(void)memset(&parameter, 0, sizeof(parameter));
+	parameter.location = LIBSPDM_DATA_LOCATION_CONNECTION;
+	parameter.additional_data[0] = info->cert_slot_id;
+	data_ptr = (void *)&info->pk_ctx;
+	status = libspdm_set_data(info->libspdm_ctx,
+				  LIBSPDM_DATA_PEER_USED_CERT_CHAIN_PUBLIC_KEY,
+				  &parameter, (void *)&data_ptr, sizeof(data_ptr));
+	if (status != LIBSPDM_STATUS_SUCCESS) {
+		dev_assign_unset_pubkey(info);
+		return DEV_ASSIGN_STATUS_ERROR;
+	}
+
+	return DEV_ASSIGN_STATUS_SUCCESS;
 }
 
 /*
@@ -790,6 +906,8 @@ unsigned long el0_app_entry_func(
 	case DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT:
 	case DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION:
 		return dev_assign_communicate_cmd_cmn(func_id, heap);
+	case DEVICE_ASSIGN_APP_FUNC_SET_PUBLIC_KEY:
+		return (unsigned long)dev_assign_set_pubkey(heap, arg_0);
 	case DEVICE_ASSIGN_APP_FUNC_ID_DEINIT:
 		return (unsigned long)dev_assign_deinit(heap);
 	default:

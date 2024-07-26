@@ -116,6 +116,9 @@ unsigned long smc_pdev_communicate(unsigned long pdev_ptr,
 
 void smc_pdev_get_state(unsigned long pdev_ptr, struct smc_result *res);
 
+unsigned long smc_pdev_set_pubkey(unsigned long pdev_ptr,
+				  unsigned long pubkey_params_ptr);
+
 unsigned long smc_pdev_abort(unsigned long pdev_ptr);
 
 unsigned long smc_pdev_stop(unsigned long pdev_ptr);

@@ -110,6 +110,16 @@ struct dev_comm_exit_shared {
 #define DEVICE_ASSIGN_APP_FUNC_ID_RESUME		10
 
 /*
+ * App function to store a public key in the app's keystore.
+ *
+ * Shared app buf == `struct rmi_public_key_params`
+ *
+ * ret0 == DEV_ASSIGN_STATUS_SUCCESS if the public key is successfully set.
+ *         DEV_ASSIGN_STATUS_ERROR if error occurred during key loading.
+ */
+#define DEVICE_ASSIGN_APP_FUNC_SET_PUBLIC_KEY		3
+
+/*
  * App function ID to de-initialise. App uses heap available via
  * tpidrro_el0.
  *

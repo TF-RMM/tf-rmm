@@ -634,6 +634,136 @@ out_err_input:
 	res->x[0] = RMI_ERROR_INPUT;
 }
 
+static unsigned long get_expected_key_size(unsigned long rmi_key_algo)
+{
+	switch (rmi_key_algo) {
+	case RMI_SIGNATURE_ALGORITHM_ECDSA_P256:
+		return 32;
+	case RMI_SIGNATURE_ALGORITHM_ECDSA_P384:
+		return 48;
+	case RMI_SIGNATURE_ALGORITHM_RSASSA_3072:
+		return 384;
+	default:
+		return 0;
+	}
+}
+
+static bool public_key_sig_algo_valid(unsigned long rmi_key_algo)
+{
+	return (rmi_key_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P256) ||
+	       (rmi_key_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P384) ||
+	       (rmi_key_algo == RMI_SIGNATURE_ALGORITHM_RSASSA_3072);
+}
+
+/*
+ * Provide public key associated with a PDEV.
+ *
+ * pdev_ptr		- PA of the PDEV
+ * pubkey_params_ptr	- PA of the pubkey parameters
+ */
+unsigned long smc_pdev_set_pubkey(unsigned long pdev_ptr,
+				  unsigned long pubkey_params_ptr)
+{
+	struct granule *g_pdev;
+	struct granule *g_pubkey_params;
+	void *aux_mapped_addr;
+	bool ns_access_ok;
+	struct pdev *pd;
+	struct rmi_public_key_params pubkey_params;
+	unsigned long dev_assign_public_key_sig_algo;
+	unsigned long dev_assign_public_key_expected_size;
+	unsigned long smc_rc;
+	int rc;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(pdev_ptr) || !GRANULE_ALIGNED(pubkey_params_ptr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Map and copy public key parameter */
+	g_pubkey_params = find_granule(pubkey_params_ptr);
+	if ((g_pubkey_params == NULL) ||
+	    (granule_unlocked_state(g_pubkey_params) != GRANULE_STATE_NS)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	ns_access_ok = ns_buffer_read(SLOT_NS, g_pubkey_params, 0U,
+				      sizeof(struct rmi_public_key_params),
+				      &pubkey_params);
+	if (!ns_access_ok) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/*
+	 * Check key_len and metadata_len with max value.
+	 */
+	/* coverity[uninit_use:SUPPRESS] */
+	if ((pubkey_params.key_len > PUBKEY_PARAM_KEY_LEN_MAX) ||
+	    (pubkey_params.metadata_len > PUBKEY_PARAM_METADATA_LEN_MAX)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* coverity[uninit_use:SUPPRESS] */
+	dev_assign_public_key_sig_algo = pubkey_params.algo;
+	if (!public_key_sig_algo_valid(dev_assign_public_key_sig_algo)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/*
+	 * Validate 'key_len' against expected key length based on algorithm
+	 */
+	dev_assign_public_key_expected_size = get_expected_key_size(dev_assign_public_key_sig_algo);
+	assert(dev_assign_public_key_expected_size != 0U);
+	if (pubkey_params.key_len != dev_assign_public_key_expected_size) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Lock pdev granule and map it */
+	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_PDEV);
+	if (g_pdev == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
+	if (pd == NULL) {
+		granule_unlock(g_pdev);
+		return RMI_ERROR_INPUT;
+	}
+
+	assert(pd->g_pdev == g_pdev);
+
+	if (pd->rmi_state != RMI_PDEV_STATE_NEEDS_KEY) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_pdev_buf_unmap;
+	}
+
+	/* Map PDEV aux granules */
+	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
+	assert(aux_mapped_addr != NULL);
+
+	rc = dev_assign_set_public_key(&pd->da_app_data, &pubkey_params);
+	if (rc == DEV_ASSIGN_STATUS_SUCCESS) {
+		pd->dev_comm_state = DEV_COMM_PENDING;
+		pd->rmi_state = RMI_PDEV_STATE_HAS_KEY;
+		smc_rc = RMI_SUCCESS;
+	} else {
+		smc_rc = RMI_ERROR_DEVICE;
+	}
+
+	/* Unmap all PDEV aux granules */
+	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_aux);
+
+out_pdev_buf_unmap:
+	buffer_unmap(pd);
+
+	granule_unlock(g_pdev);
+
+	return smc_rc;
+}
+
 /*
  * Stop the PDEV. This sets the PDEV state to STOPPING, and a PDEV communicate
  * call can do device specific cleanup like terminating a secure session.

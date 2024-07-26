@@ -65,4 +65,16 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
  */
 int dev_assign_abort_app_operation(struct app_data_cfg *app_data);
 
+/*
+ * Sets public key of the device.
+ * Arguments:
+ * app_data - Pointer to app_data_cfg. This is opaque to caller
+ * pubkey_params - Public key parameters as received from the NS host
+ *
+ * Returns DEV_ASSIGN_STATUS_SUCCESS if setting the public was successful
+ *         DEV_ASSIGN_STATUS_ERROR otherwise.
+ */
+int dev_assign_set_public_key(struct app_data_cfg *app_data,
+			      struct rmi_public_key_params *pubkey_params);
+
 #endif /* DEV_ASSIGN_APP_H */

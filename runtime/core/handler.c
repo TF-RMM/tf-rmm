@@ -168,7 +168,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PDEV_GET_STATE,		1, 1, smc_pdev_get_state,	 true, true),
 	HANDLER(PDEV_IDE_RESET,		0, 0, NULL,			 true, true),
 	HANDLER(PDEV_NOTIFY,		0, 0, NULL,			 true, true),
-	HANDLER(PDEV_SET_PUBKEY,	4, 0, NULL,			 true, true),
+	HANDLER(PDEV_SET_PUBKEY,	2, 0, smc_pdev_set_pubkey,	 true, true),
 	HANDLER(PDEV_STOP,		1, 0, smc_pdev_stop,		 true, true),
 	HANDLER(RTT_AUX_CREATE,		0, 0, NULL,			 true, true),
 	HANDLER(RTT_AUX_DESTROY,	0, 0, NULL,			 true, true),
