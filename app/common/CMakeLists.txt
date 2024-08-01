@@ -3,6 +3,7 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
+add_subdirectory("el0_app")
 add_subdirectory("framework")
 add_subdirectory("rmm_svc")
 
