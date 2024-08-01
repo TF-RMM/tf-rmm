@@ -395,9 +395,16 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, int level)
 	}
 
 	/*
-	 * Mark this area as non-executable for unpriviledged exception levels.
+	 * Mark this area as non-executable for unprivileged exception levels,
+	 * if not marked otherwise.
 	 */
-	desc |= XLAT_GET_UXN_DESC();
+	if ((attr & MT_EXEC_UNPRIV) == 0UL) {
+		desc |= XLAT_GET_UXN_DESC();
+	}
+
+	if ((attr & MT_AP_UNPRIV) != 0UL) {
+		desc |= XLAT_GET_AP_ACCESS_UNPRIV_DESC();
+	}
 
 	/*
 	 * Deduce shareability domain and executability of the memory region

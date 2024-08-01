@@ -120,6 +120,12 @@
 #define MT_PAS_MASK		MASK(MT_PAS)
 #define MT_PAS(_attr)		((_attr) & MT_PAS_MASK)
 
+/* Privilege access control flag. */
+#define MT_ACCESS_UNPRIV_SHIFT	(MT_PAS_SHIFT + MT_PAS_WIDTH)
+
+/* Access permissions for instruction execution in Unprivileged EL */
+#define MT_EXEC_UNPRIV_FLAG_SHIFT	(MT_ACCESS_UNPRIV_SHIFT + 1U)
+
 /* All other bits are reserved */
 
 /*
@@ -159,6 +165,12 @@
 #define MT_CODE			(MT_MEMORY | MT_RO | MT_EXECUTE)
 #define MT_RO_DATA		(MT_MEMORY | MT_RO | MT_EXECUTE_NEVER)
 #define MT_RW_DATA		(MT_MEMORY | MT_RW | MT_EXECUTE_NEVER)
+
+/* Access permissions for data access */
+#define MT_AP_UNPRIV		(INPLACE(MT_ACCESS_UNPRIV, 1UL))
+
+/* Access permissions for unprivileged code execution */
+#define MT_EXEC_UNPRIV		(INPLACE(MT_EXEC_UNPRIV_FLAG, 1UL))
 
 /*
  * Public macros related to the TTEs
