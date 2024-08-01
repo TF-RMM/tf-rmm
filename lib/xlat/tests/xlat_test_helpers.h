@@ -95,7 +95,7 @@ void xlat_test_helpers_init_ctx(struct xlat_ctx *ctx,
 				struct xlat_ctx_tbls *tbls);
 
 /* Helper function to return a random set of attributes for a mmap region */
-uint64_t xlat_test_helpers_rand_mmap_attrs(void);
+uint64_t xlat_test_helpers_rand_mmap_attrs(bool allow_transient);
 
 /*
  * Generate a random array of xlat_mmap_region
@@ -103,7 +103,8 @@ uint64_t xlat_test_helpers_rand_mmap_attrs(void);
  */
 void xlat_test_helpers_rand_mmap_array(struct xlat_mmap_region *mmap,
 					size_t size, uintptr_t min_va,
-					uintptr_t max_va);
+					uintptr_t max_va,
+					bool allow_transient);
 
 /* Return the base VA according to the region */
 uintptr_t xlat_test_helpers_get_start_va(xlat_addr_region_id_t region,

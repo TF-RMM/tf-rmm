@@ -160,7 +160,7 @@ static int gen_mmap_array_by_level(xlat_mmap_region *mmap,
 	tbl_idxs[2U] = max_table_entries - 1U;
 
 	do {
-		attrs = xlat_test_helpers_rand_mmap_attrs();
+		attrs = xlat_test_helpers_rand_mmap_attrs(true);
 	} while ((attrs == MT_TRANSIENT) && (allow_transient == false));
 
 	*granularity = XLAT_BLOCK_SIZE(last_lvl);
@@ -745,7 +745,7 @@ void xlat_get_llt_from_va_prepare_assertion(struct xlat_ctx *ctx,
 	end_va = start_va + max_va_size - 1ULL;
 
 	/* Generate a random mmap area */
-	xlat_test_helpers_rand_mmap_array(init_mmap, 1U, start_va, end_va);
+	xlat_test_helpers_rand_mmap_array(init_mmap, 1U, start_va, end_va, true);
 
 	(void)xlat_ctx_cfg_init(cfg, va_region, init_mmap, 1U, max_va_size);
 
@@ -1659,7 +1659,7 @@ void xlat_map_memory_page_with_attrs_tc1(void)
 
 				/* Generate a random set of attributes.	*/
 				do {
-					attrs = xlat_test_helpers_rand_mmap_attrs();
+					attrs = xlat_test_helpers_rand_mmap_attrs(true);
 				} while (attrs == MT_TRANSIENT);
 
 				/*
@@ -2185,7 +2185,7 @@ void xlat_arch_setup_mmu_cfg_tc1(void)
 		end_va = start_va + max_va_size - 1ULL;
 
 		/* Generate only a single mmap region for each region */
-		xlat_test_helpers_rand_mmap_array(&init_mmap[i], 1U, start_va, end_va);
+		xlat_test_helpers_rand_mmap_array(&init_mmap[i], 1U, start_va, end_va, true);
 
 		retval = xlat_ctx_cfg_init(&cfg[i], va_region, &init_mmap[i],
 					   1U, max_va_size);
@@ -2249,7 +2249,7 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	end_va = start_va + max_va_size - 1ULL;
 
 	/* Generate only a single mmap region for each region */
-	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va);
+	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va, true);
 
 	retval = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &init_mmap,
 					1U, max_va_size);
@@ -2404,7 +2404,7 @@ void xlat_arch_setup_mmu_cfg_tc6(void)
 	end_va = start_va + max_va_size - 1UL;
 
 	/* Generate only a single mmap region for each region */
-	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va);
+	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va, true);
 
 	retval = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &init_mmap,
 					1U, max_va_size);

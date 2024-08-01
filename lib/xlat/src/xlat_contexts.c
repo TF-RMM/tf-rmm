@@ -135,8 +135,19 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 				return -EPERM;
 			}
 
+			/*
+			 * PA shouldn't be sanity checked in case of Transient
+			 * regions as their PA is invalid at the time of
+			 * creation.
+			 */
+			if (MT_TYPE(mm[i].attr) == MT_TRANSIENT) {
+				continue;
+			}
 			/* No overlaps with PAs of previous regions */
 			for (unsigned int j = 0; j < i; j++) {
+				if (MT_TYPE(mm[j].attr) == MT_TRANSIENT) {
+					continue;
+				}
 				mm_end_pa = mm[j].base_pa + mm[j].size - 1UL;
 
 				if ((end_pa >= mm[j].base_pa) &&

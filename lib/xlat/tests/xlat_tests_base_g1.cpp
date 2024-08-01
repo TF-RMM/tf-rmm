@@ -76,7 +76,8 @@ static void xlat_test_cfg_init_setup(struct xlat_ctx_cfg *cfg,
 				     struct xlat_mmap_region *val_mmap,
 				     unsigned int mmaps,
 				     size_t va_size,
-				     xlat_addr_region_id_t region)
+				     xlat_addr_region_id_t region,
+				     bool allow_transient)
 {
 	uintptr_t start_va, end_va;
 	uintptr_t max_mapped_va_offset, max_mapped_pa;
@@ -96,7 +97,7 @@ static void xlat_test_cfg_init_setup(struct xlat_ctx_cfg *cfg,
 	 * by xlat_ctx_cfg_init().
 	 */
 	xlat_test_helpers_rand_mmap_array(&val_mmap[0], mmaps,
-					  start_va, end_va);
+					  start_va, end_va, allow_transient);
 
 	/*
 	 * Copy the validation memory regions array into the init one, so the
@@ -293,7 +294,7 @@ void xlat_ctx_cfg_init_tc1(void)
 		/* Initialize the test structures with the expected values */
 		xlat_test_cfg_init_setup(&expected_cfg, &init_mmap[0],
 					 &val_mmap[0], XLAT_TESTS_MAX_MMAPS,
-					 max_va_size, region);
+					 max_va_size, region, true);
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
@@ -342,7 +343,7 @@ void xlat_ctx_cfg_init_tc2(void)
 		xlat_test_cfg_init_setup(&foo_cfg, &init_mmap[0], &val_mmap[0],
 					 XLAT_TESTS_MAX_MMAPS,
 					 max_va_size,
-					 region);
+					 region, true);
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(NULL, region, &init_mmap[0],
@@ -411,7 +412,7 @@ void xlat_ctx_cfg_init_tc4(void)
 		/* Initialize the test structures with the expected values */
 		xlat_test_cfg_init_setup(&foo_cfg, &init_mmap[0], &test_mmap[0],
 				XLAT_TESTS_MAX_MMAPS, max_va_size,
-				mmap_region);
+				mmap_region, true);
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, cfg_region,
@@ -496,7 +497,7 @@ void xlat_ctx_cfg_init_tc6(void)
 		/* Initialize the test structures with the expected values */
 		xlat_test_cfg_init_setup(&foo_cfg, &init_mmap[0], &val_mmap[0],
 					XLAT_TESTS_MAX_MMAPS,
-					va_size, region);
+					va_size, region, true);
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
@@ -560,7 +561,7 @@ void xlat_ctx_cfg_init_tc7(void)
 		 */
 		xlat_test_cfg_init_setup(&test_cfg, &init_mmap[0], &val_mmap[0],
 					XLAT_TESTS_MAX_MMAPS,
-					max_va_size, region);
+					max_va_size, region, true);
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
@@ -619,7 +620,7 @@ void xlat_ctx_cfg_init_tc8(void)
 		/* Initialize the test structures with the expected values */
 		xlat_test_cfg_init_setup(&foo_cfg, &init_mmap[0], &val_mmap[0],
 					XLAT_TESTS_MAX_MMAPS,
-					max_va_size, region);
+					max_va_size, region, false);
 
 		/*
 		 * Create a backup copy of the current mmap regions.
@@ -762,7 +763,7 @@ void xlat_ctx_cfg_init_tc9(void)
 		/* Initialize the test structures with the expected values */
 		xlat_test_cfg_init_setup(&foo_cfg, &init_mmap[0], &val_mmap[0],
 					XLAT_TESTS_MAX_MMAPS,
-					max_va_size, region);
+					max_va_size, region, true);
 
 		/*
 		 * Craeate a backup copy of the current mmap regions.
@@ -845,7 +846,7 @@ void xlat_ctx_cfg_init_tc10(void)
 		/* Initialize the test structures with the expected values */
 		xlat_test_cfg_init_setup(&foo_cfg, &init_mmap[0], &val_mmap[0],
 					XLAT_TESTS_MAX_MMAPS,
-					max_va_size, region);
+					max_va_size, region, true);
 
 		/*
 		 * Overwrite the size on one of the memory map regions to
@@ -892,7 +893,7 @@ void xlat_ctx_cfg_init_tc11(void)
 		/* Initialize the test structures with the expected values */
 		xlat_test_cfg_init_setup(&foo_cfg, &init_mmap[0], &val_mmap[0],
 					XLAT_TESTS_MAX_MMAPS,
-					max_va_size, region);
+					max_va_size, region, true);
 
 		/*
 		 * Overwrite a memory mapping region to make it a duplicate
@@ -939,7 +940,7 @@ void xlat_ctx_cfg_init_tc12(void)
 		/* Initialize the test structures with the expected values */
 		xlat_test_cfg_init_setup(&foo_cfg, &init_mmap[0], &val_mmap[0],
 					XLAT_TESTS_MAX_MMAPS,
-					max_va_size, region);
+					max_va_size, region, true);
 
 		/* Randomly shuffle the memory mapping areas */
 		buffer_shuffle((unsigned char *)&init_mmap[0],
@@ -990,7 +991,7 @@ void xlat_ctx_cfg_init_tc13(void)
 		/* Initialize the test structures with the expected values */
 		xlat_test_cfg_init_setup(&expected_cfg, &init_mmap[0],
 					 &val_mmap[0], XLAT_TESTS_MAX_MMAPS,
-					 max_va_size, region);
+					 max_va_size, region, true);
 
 		/* Force an incorrect granularity */
 		init_mmap[0].granularity = XLAT_BLOCK_SIZE(-1);
@@ -1040,7 +1041,7 @@ void xlat_ctx_init_tc1(void)
 		end_va = start_va + max_va_size - 1ULL;
 
 		xlat_test_helpers_rand_mmap_array(&init_mmap[0],
-				XLAT_TESTS_MAX_MMAPS, start_va, end_va);
+				XLAT_TESTS_MAX_MMAPS, start_va, end_va, true);
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&cfg, region, &init_mmap[0],
@@ -1153,7 +1154,7 @@ void xlat_ctx_init_tc3(void)
 		end_va = start_va + max_va_size - 1ULL;
 
 		xlat_test_helpers_rand_mmap_array(&init_mmap[0],
-				XLAT_TESTS_MAX_MMAPS, start_va, end_va);
+				XLAT_TESTS_MAX_MMAPS, start_va, end_va, true);
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&cfg, region, &init_mmap[0],
@@ -1247,7 +1248,7 @@ void xlat_ctx_init_tc4(void)
 		end_va = start_va + max_va_size - 1ULL;
 
 		xlat_test_helpers_rand_mmap_array(&init_mmap[0],
-				XLAT_TESTS_MAX_MMAPS, start_va, end_va);
+				XLAT_TESTS_MAX_MMAPS, start_va, end_va, true);
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&cfg, region, &init_mmap[0],
