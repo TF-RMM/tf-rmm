@@ -199,14 +199,18 @@ int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
 int plat_cmn_warmboot_setup(void)
 {
 	int ret;
+	struct xlat_mmu_cfg mmu_config;
+
 
 	/* Setup the MMU cfg for the low region (runtime context) */
-	ret = xlat_arch_setup_mmu_cfg(&runtime_xlat_ctx);
+	ret = xlat_arch_setup_mmu_cfg(&runtime_xlat_ctx, &mmu_config);
 	if (ret != 0) {
 		ERROR("%s (%u): Failed to setup xlat tables for CPU[%u]\n",
 			__func__, __LINE__, my_cpuid());
 		return ret;
 	}
+
+	xlat_arch_write_mmu_cfg(&mmu_config);
 
 	/* Perform warm boot initialization of the high VA region */
 	ret = xlat_high_va_setup();

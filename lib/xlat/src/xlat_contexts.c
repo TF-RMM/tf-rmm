@@ -226,8 +226,6 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 	size_t max_va_size = (is_feat_lpa2_4k_present() == true) ?
 		MAX_VIRT_ADDR_SPACE_SIZE_LPA2 : MAX_VIRT_ADDR_SPACE_SIZE;
 
-	assert(!is_mmu_enabled());
-
 	if (cfg == NULL) {
 		return -EINVAL;
 	}
@@ -266,8 +264,10 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 	cfg->region = region;
 	cfg->initialized = true;
 
-	inv_dcache_range((uintptr_t)cfg, sizeof(struct xlat_ctx_cfg));
-	inv_dcache_range((uintptr_t)mm, sizeof(struct xlat_mmap_region));
+	if (!is_mmu_enabled()) {
+		inv_dcache_range((uintptr_t)cfg, sizeof(struct xlat_ctx_cfg));
+		inv_dcache_range((uintptr_t)mm, sizeof(struct xlat_mmap_region));
+	}
 
 	return 0;
 }
@@ -278,8 +278,6 @@ int xlat_ctx_init(struct xlat_ctx *ctx,
 		  uint64_t *tables_ptr,
 		  unsigned int ntables)
 {
-	assert(!is_mmu_enabled());
-
 	if ((ctx == NULL) || (tbls_ctx == NULL) || (cfg == NULL)) {
 		return -EINVAL;
 	}
@@ -309,9 +307,10 @@ int xlat_ctx_init(struct xlat_ctx *ctx,
 	/* Add the tables to the context */
 	ctx->tbls = tbls_ctx;
 
-	inv_dcache_range((uintptr_t)ctx, sizeof(struct xlat_ctx));
-	inv_dcache_range((uintptr_t)tbls_ctx, sizeof(struct xlat_ctx_tbls));
-	inv_dcache_range((uintptr_t)cfg, sizeof(struct xlat_ctx_cfg));
-
+	if (!is_mmu_enabled()) {
+		inv_dcache_range((uintptr_t)ctx, sizeof(struct xlat_ctx));
+		inv_dcache_range((uintptr_t)tbls_ctx, sizeof(struct xlat_ctx_tbls));
+		inv_dcache_range((uintptr_t)cfg, sizeof(struct xlat_ctx_cfg));
+	}
 	return xlat_init_tables_ctx(ctx);
 }

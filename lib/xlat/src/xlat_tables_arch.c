@@ -81,22 +81,68 @@ static uint64_t tcr_physical_addr_size_bits(uintptr_t max_addr)
 	return TCR_PS_BITS_4GB;
 }
 
+void xlat_arch_write_mmu_cfg(struct xlat_mmu_cfg *mmu_cfg)
+{
+	uint64_t tcr;
+	uint64_t t0sz, t1sz;
+
+	/* MMU cannot be enabled at this point */
+	assert(!is_mmu_enabled());
+
+	/*
+	 * Read TCR_EL2 in order to extract t0sz and t1sz. So we can update the right
+	 * field depending on which context we are configuring and leave the other one
+	 * untouched.
+	 * It will not be a problem if TCR_EL2 was previoulsy configured, as the new
+	 * value of it will be the same with the only difference of the txsz field we
+	 * want to update.
+	 */
+	tcr = read_tcr_el2();
+	if (mmu_cfg->region == VA_LOW_REGION) {
+		t0sz = mmu_cfg->txsz;
+		t1sz = EXTRACT(TCR_EL2_T1SZ, tcr);
+	} else {
+		t0sz = EXTRACT(TCR_EL2_T0SZ, tcr);
+		t1sz = mmu_cfg->txsz;
+	}
+
+	tcr = mmu_cfg->tcr;
+	/*
+	 * Update the TCR_EL2 value with the memory region's sizes.
+	 * It is not necessary to clear t?sz fields in tcr as they are cleared
+	 * by the xlat_arch_setup_mmu_cfg and expected to be the same across
+	 * calls to xlat_arch_write_mmu_cfg.
+	 */
+	tcr |= (t0sz << TCR_EL2_T0SZ_SHIFT);
+	tcr |= (t1sz << TCR_EL2_T1SZ_SHIFT);
+
+	write_mair_el2(mmu_cfg->mair);
+	write_tcr_el2(tcr);
+
+	if (mmu_cfg->region == VA_LOW_REGION) {
+		write_ttbr0_el2(mmu_cfg->ttbrx);
+	} else {
+		write_ttbr1_el2(mmu_cfg->ttbrx);
+	}
+}
+
 /*
  * Configure MMU registers. This function assumes that all the contexts use the
  * same limits for VA and PA spaces.
  */
-int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
+int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx, struct xlat_mmu_cfg *mmu_config)
 {
 	uint64_t mair;
-	uint64_t tcr;
+	uint64_t tcr = 0;
 	uint64_t ttbrx;
 	uintptr_t va_space_size;
 	struct xlat_ctx_cfg *ctx_cfg;
 	struct xlat_ctx_tbls *ctx_tbls;
-	uint64_t t0sz, t1sz, txsz;
+	uint64_t txsz;
 	uint64_t pa_size_bits;
 
 	assert(ctx != NULL);
+	assert(mmu_config != NULL);
 
 	ctx_cfg = ctx->cfg;
 	ctx_tbls = ctx->tbls;
@@ -113,9 +159,6 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 		return -EINVAL;
 	}
 
-	/* MMU cannot be enabled at this point */
-	assert(!is_mmu_enabled());
-
 	/* Set attributes in the right indices of the MAIR. */
 	mair = MAIR_ATTR_SET(ATTR_DEVICE, ATTR_DEVICE_INDEX);
 	mair |= MAIR_ATTR_SET(ATTR_IWBWA_OWBWA_NTR, ATTR_IWBWA_OWBWA_NTR_INDEX);
@@ -127,27 +170,6 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 	 * va_space_size is in the range [1,UINTPTR_MAX].
 	 */
 	txsz = (uint64_t)(64 - __builtin_ctzll(va_space_size));
-
-	/*
-	 * Read TCR_EL2 in order to extract t0sz and t1sz. So we can update the right
-	 * field depending on which context we are configuring and leave the other one
-	 * untouched.
-	 * It will not be a problem if TCR_EL2 was previoulsy configured, as the new
-	 * value of it will be the same with the only difference of the txsz field we
-	 * want to update.
-	 */
-	tcr = read_tcr_el2();
-	if (ctx_cfg->region == VA_LOW_REGION) {
-		t0sz = txsz;
-		t1sz = EXTRACT(TCR_EL2_T1SZ, tcr);
-	} else {
-		t0sz = EXTRACT(TCR_EL2_T0SZ, tcr);
-		t1sz = txsz;
-	}
-
-	/* Recompute the value for TCR_EL2 */
-	tcr = t0sz << TCR_EL2_T0SZ_SHIFT;
-	tcr |= t1sz << TCR_EL2_T1SZ_SHIFT;
 
 	/*
 	 * Set the cacheability and shareability attributes for memory
@@ -182,12 +204,9 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 	pa_size_bits = tcr_physical_addr_size_bits(
 					xlat_arch_get_max_supported_pa());
 	if (pa_size_bits == ~(0ULL)) {
-		return -ENOMEM;
+		return -EPERM;
 	}
 	tcr |= pa_size_bits;
-
-	write_mair_el2(mair);
-	write_tcr_el2(tcr);
 
 	/*
 	 * Set TTBR bits as well and enable CnP bit so as to share page
@@ -205,11 +224,11 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx)
 		ttbrx |= TTBR_CNP_BIT;
 	}
 
-	if (ctx_cfg->region == VA_LOW_REGION) {
-		write_ttbr0_el2(ttbrx);
-	} else {
-		write_ttbr1_el2(ttbrx);
-	}
+	mmu_config->region = ctx_cfg->region;
+	mmu_config->mair = mair;
+	mmu_config->tcr = tcr;
+	mmu_config->txsz = txsz;
+	mmu_config->ttbrx = ttbrx;
 
 	return 0;
 }

@@ -107,6 +107,7 @@ int xlat_high_va_setup(void)
 	static uint64_t high_va_tts[XLAT_TABLE_ENTRIES * MAX_CPUS] __aligned(XLAT_TABLES_ALIGNMENT);
 
 	unsigned int cpuid = my_cpuid();
+	struct xlat_mmu_cfg mmu_config;
 	int ret;
 
 	/* Set handler stack PA for this CPU */
@@ -140,5 +141,11 @@ int xlat_high_va_setup(void)
 	}
 
 	/* Configure MMU registers */
-	return xlat_arch_setup_mmu_cfg(&high_va_xlat_ctx[cpuid]);
+	ret = xlat_arch_setup_mmu_cfg(&high_va_xlat_ctx[cpuid], &mmu_config);
+
+	if (ret == 0) {
+		xlat_arch_write_mmu_cfg(&mmu_config);
+	}
+
+	return ret;
 }
