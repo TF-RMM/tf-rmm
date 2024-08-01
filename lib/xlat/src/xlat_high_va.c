@@ -14,7 +14,6 @@
 #include <xlat_tables.h>
 
 #define RMM_SLOT_BUF_SIZE	((XLAT_HIGH_VA_SLOT_NUM) * (GRANULE_SIZE))
-#define HIGH_VA_SIZE		(XLAT_TABLE_ENTRIES * PAGE_SIZE)
 
 /*
  * This mapping is used for the exception handler stack when a synchronous
@@ -122,7 +121,7 @@ int xlat_high_va_setup(void)
 	ret = xlat_ctx_cfg_init(&high_va_xlat_ctx_cfgs[cpuid], VA_HIGH_REGION,
 				 &mm_regions_array[cpuid][0U],
 				 MMAP_REGION_COUNT,
-				 HIGH_VA_SIZE);
+				 XLAT_HIGH_VA_SIZE);
 	if (!((ret == 0) || (ret == -EALREADY))) {
 		return ret;
 	}
