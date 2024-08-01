@@ -9,7 +9,7 @@
 #ifndef XLAT_CONTEXTS_H
 #define XLAT_CONTEXTS_H
 
-#ifndef __ASSEMBLER__
+#if !(defined(__ASSEMBLER__) || defined(__LINKER__))
 
 #include <stdbool.h>
 #include <xlat_defs.h>

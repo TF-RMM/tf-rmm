@@ -9,7 +9,7 @@
 #ifndef XLAT_TABLES_H
 #define XLAT_TABLES_H
 
-#ifndef __ASSEMBLER__
+#if !(defined(__ASSEMBLER__) || defined(__LINKER__))
 
 #include <arch_features.h>
 #include <limits.h>
@@ -22,7 +22,7 @@
 #include <xlat_contexts.h>
 #include <xlat_defs.h>
 
-#ifndef __ASSEMBLER__
+#if !(defined(__ASSEMBLER__) || defined(__LINKER__))
 
 /*
  * The define below specifies the first table level that allows block
