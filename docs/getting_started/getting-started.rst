@@ -56,6 +56,7 @@ The following tools are required to obtain and build |RMM|:
    "gcovr",">=v4.2","Tools(Coverage analysis)"
    "CBMC",">=5.84.0","Tools(CBMC analysis)"
    "Cppcheck",">=2.14.0","Tools(Cppcheck)"
+   "pyelftools","==0.31","Firmware (EL0 app)"
 
 .. _getting_started_toolchain:
 
@@ -136,10 +137,23 @@ required packages with the following commands:
 Install python dependencies
 ###########################
 
+RMM's ``requirements.txt`` file declares additional Python dependencies.
+Install them with ``pip3``:
+
+.. code-block:: bash
+
+    pip3 install --upgrade pip
+    cd <rmm source folder>
+    pip3 install -r requirements.txt
+
+#############################################
+Install python dependencies for Documentation
+#############################################
+
 .. note::
 
-    The installation of Python dependencies is an optional step. This is required only
-    if building documentation.
+    The installation of Python dependencies for documentation is an optional
+    step. This is required only if building documentation.
 
 RMM's ``docs/requirements.txt`` file declares additional Python dependencies.
 Install them with ``pip3``:
