@@ -107,6 +107,7 @@ link_libraries(rmm-lib-libc)
 # Recurse into the various component subdirectories
 #
 add_subdirectory("lib")
+add_subdirectory("app")
 add_subdirectory("runtime")
 
 if(RMM_DOCS)
@@ -114,15 +115,23 @@ if(RMM_DOCS)
 endif()
 
 #
-# Copy 'rmm-runtime' executable to 'build/$<CONFIG>/rmm.elf'.
+# Copy 'rmm-runtime' executable to 'build/$<CONFIG>/rmm_core.elf'.
 #
 
 set(ARTEFACT_DIR "${CMAKE_BINARY_DIR}/$<CONFIG>")
 add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E make_directory "${ARTEFACT_DIR}"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-runtime>" "${ARTEFACT_DIR}/rmm.elf"
-    OUTPUT rmm.elf
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-runtime>" "${ARTEFACT_DIR}/rmm_core.elf"
+    OUTPUT rmm_core.elf
     DEPENDS rmm-runtime)
+
+#
+# Create rmm.elf as a copy of rmm_core.elf to keep CI working
+#
+add_custom_command(
+    COMMAND "${CMAKE_COMMAND}" -E copy ${ARTEFACT_DIR}/rmm_core.elf ${ARTEFACT_DIR}/rmm.elf
+    OUTPUT rmm.elf
+    DEPENDS rmm_core.elf)
 
 #
 # Create the flat binary using whatever tool comes with the toolchain.
@@ -130,9 +139,9 @@ add_custom_command(
 
 if(CMAKE_OBJCOPY)
     add_custom_command(
-        COMMAND "${CMAKE_OBJCOPY}" -O binary "${ARTEFACT_DIR}/rmm.elf" "${ARTEFACT_DIR}/rmm.img"
-        OUTPUT rmm.img
-        DEPENDS rmm.elf)
+        COMMAND "${CMAKE_OBJCOPY}" -O binary "${ARTEFACT_DIR}/rmm_core.elf" "${ARTEFACT_DIR}/rmm_core.img"
+        OUTPUT rmm_core.img
+        DEPENDS rmm_core.elf)
 endif()
 
 #
@@ -141,21 +150,36 @@ endif()
 
 if(CMAKE_OBJDUMP)
     add_custom_command(
-        COMMAND "${CMAKE_OBJDUMP}" -dxS "${ARTEFACT_DIR}/rmm.elf" > "${ARTEFACT_DIR}/rmm.dump"
-        OUTPUT rmm.dump
-        DEPENDS rmm.elf)
+        COMMAND "${CMAKE_OBJDUMP}" -dxS "${ARTEFACT_DIR}/rmm_core.elf" > "${ARTEFACT_DIR}/rmm_core.dump"
+        OUTPUT rmm_core.dump
+        DEPENDS rmm_core.elf)
 endif()
 
 #
-# Copy 'rmm-runtime.map' to 'build/$<CONFIG>/rmm.map'
+# Copy 'rmm-runtime.map' to 'build/$<CONFIG>/rmm_core.map'
 #
 
 add_custom_command(
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-runtime>.map" "${ARTEFACT_DIR}/rmm.map"
-    OUTPUT rmm.map
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-runtime>.map" "${ARTEFACT_DIR}/rmm_core.map"
+    OUTPUT rmm_core.map
     DEPENDS rmm-runtime)
 
-add_custom_target(rmm ALL DEPENDS rmm.img rmm.dump rmm.elf rmm.map)
+if(NOT RMM_ARCH STREQUAL fake_host)
+    set(RMM_IMG "rmm.img")
+    find_program(BUNDLE_APP_RMM "bundle_app_rmm.py"
+        PATHS ${CMAKE_SOURCE_DIR}
+        PATH_SUFFIXES app
+        DOC "bundle_app_rmm.py")
+
+    set(BUNDLE_COMMAND_OUTPUT "${ARTEFACT_DIR}/bundle_app_out.txt")
+    add_custom_command(
+        # TODO: Call ${BUNDLE_APP_RMM} instead of copy if an app is added.
+        COMMAND "${CMAKE_COMMAND}" -E copy ${ARTEFACT_DIR}/rmm_core.img ${ARTEFACT_DIR}/${RMM_IMG} 2> ${BUNDLE_COMMAND_OUTPUT}
+        OUTPUT ${RMM_IMG}
+        DEPENDS rmm_core.img)
+endif()
+
+add_custom_target(rmm ALL DEPENDS rmm_core.img rmm_core.dump rmm_core.elf rmm.elf rmm_core.map ${RMM_IMG})
 
 #
 # Set up additional tooling.

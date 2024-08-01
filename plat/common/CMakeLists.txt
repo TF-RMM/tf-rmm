@@ -9,7 +9,8 @@
 add_library(rmm-plat-common)
 
 target_link_libraries(rmm-plat-common
-    PRIVATE rmm-lib)
+    PRIVATE rmm-lib
+            rmm-el2-stub)
 
 #
 # PLAT_CMN_CTX_MAX_XLAT_TABLES is allowed to be 0, and in case when there are

@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <app_header.h>
 #include <arch_features.h>
 #include <attestation.h>
 #include <buffer.h>
@@ -106,6 +107,8 @@ void rmm_main(void)
 	NOTICE("RSI ABI revision v%lu.%lu\n",
 	       RSI_ABI_VERSION_GET_MAJOR(rsi_revision),
 	       RSI_ABI_VERSION_GET_MINOR(rsi_revision));
+
+	app_info_setup();
 
 	rmm_warmboot_main();
 

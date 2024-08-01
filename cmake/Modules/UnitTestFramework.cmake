@@ -68,7 +68,7 @@ if(RMM_UNITTESTS)
     add_custom_target(run-unittests
         WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
         COMMAND ctest "${CMAKE_CTEST_ARGUMENTS}" -C "$<CONFIG>"
-        DEPENDS rmm.elf rmm.map
+        DEPENDS rmm_core.elf rmm_core.map
     )
 endif()
 
@@ -115,7 +115,7 @@ function(rmm_build_unittest)
             # Run all tests at once
             add_test(NAME "${arg_NAME}"
                     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-                    COMMAND ${CMAKE_BINARY_DIR}/$<CONFIG>/rmm.elf
+                    COMMAND ${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_core.elf
                             -g${arg_NAME}
                             -r${arg_ITERATIONS})
         else()
@@ -124,7 +124,7 @@ function(rmm_build_unittest)
             foreach(TEST IN LISTS arg_RUN_ISOLATED_TESTS)
                 add_test(NAME "${arg_NAME}::${TEST}"
                          WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-                         COMMAND ${CMAKE_BINARY_DIR}/$<CONFIG>/rmm.elf
+                         COMMAND ${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_core.elf
                                  -sg${arg_NAME}
                                  -sn${TEST})
             endforeach()
