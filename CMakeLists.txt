@@ -173,10 +173,9 @@ if(NOT RMM_ARCH STREQUAL fake_host)
 
     set(BUNDLE_COMMAND_OUTPUT "${ARTEFACT_DIR}/bundle_app_out.txt")
     add_custom_command(
-        # TODO: Call ${BUNDLE_APP_RMM} instead of copy if an app is added.
-        COMMAND "${CMAKE_COMMAND}" -E copy ${ARTEFACT_DIR}/rmm_core.img ${ARTEFACT_DIR}/${RMM_IMG} 2> ${BUNDLE_COMMAND_OUTPUT}
+        COMMAND "${BUNDLE_APP_RMM}" --out-bin ${ARTEFACT_DIR}/${RMM_IMG} --rmm-bin ${ARTEFACT_DIR}/rmm_core.img ${EL0_APP_BIN_LIST} 2> ${BUNDLE_COMMAND_OUTPUT}
         OUTPUT ${RMM_IMG}
-        DEPENDS rmm_core.img)
+        DEPENDS rmm_core.img rmm-random-app-bin)
 endif()
 
 add_custom_target(rmm ALL DEPENDS rmm_core.img rmm_core.dump rmm_core.elf rmm.elf rmm_core.map ${RMM_IMG})
