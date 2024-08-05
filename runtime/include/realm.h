@@ -228,6 +228,7 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 				    unsigned long ipa,
 				    struct s2_walk_result *s2_walk);
 
-enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long ipa,
+enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long start,
+					unsigned long end, unsigned long *top,
 					enum ripas *ripas_ptr);
 #endif /* REALM_H */

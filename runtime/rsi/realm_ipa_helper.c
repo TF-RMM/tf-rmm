@@ -98,46 +98,75 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
  *
  * Parameters:
  *	[in]  @rec:		Pointer to the rec
- *	[in]  @ipa:		IPA for which RIPAS is queried.
- *	[out] @ripas_ptr:	RIPAS value returned for the IPA. This is set in
- *				case of WALK_SUCCESS is returned.
+ *	[in]  @start:		IPA range start for which RIPAS is queried.
+ *	[in]  @end:		IPA range end (excluding) for which RIPAS is queried.
+ *	[out] @top:		IPA of the top address of the range completed.
+ *	[out] @ripas_ptr:	RIPAS value returned for the range (start, top).
+ *				Set in case of WALK_SUCCESS is returned.
  * Returns:
- *	WALK_SUCCESS:		RIPAS of IPA found
- *	WALK_FAIL:		RIPAS of IPA not found
+ *	WALK_SUCCESS:		RIPAS of IPA [start, top) range found
+ *	WALK_FAIL:		RIPAS of IPA start not found
  */
-enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long ipa,
+enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long start,
+					unsigned long end, unsigned long *top,
 					enum ripas *ripas_ptr)
 {
-	unsigned long s2tte, *ll_table;
+	unsigned long *ll_table;
+	unsigned long addr, map_size, index;
 	struct s2tt_walk wi;
 	enum s2_walk_status ws;
+	enum ripas res = RIPAS_EMPTY;
 	struct s2tt_context *s2_ctx;
 
-	assert(ripas_ptr != NULL);
-	assert(GRANULE_ALIGNED(ipa));
-	assert(addr_in_rec_par(rec, ipa));
+	assert(GRANULE_ALIGNED(start) && GRANULE_ALIGNED(end));
+	assert(addr_in_rec_par(rec, start) && addr_in_rec_par(rec, end - 1UL));
+	assert((top != NULL) && (ripas_ptr != NULL));
 
 	s2_ctx = &(rec->realm_info.s2_ctx);
 	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
 
-	s2tt_walk_lock_unlock(s2_ctx, ipa, S2TT_PAGE_LEVEL, &wi);
+	s2tt_walk_lock_unlock(s2_ctx, start, S2TT_PAGE_LEVEL, &wi);
 
 	ll_table = buffer_granule_map(wi.g_llt, SLOT_RTT);
 	assert(ll_table != NULL);
 
-	s2tte = s2tte_read(&ll_table[wi.index]);
-	if (!s2tte_has_ripas(s2_ctx, s2tte, wi.last_level)) {
-		ws = WALK_FAIL;
-		goto out_unmap_unlock;
+	map_size = s2tte_map_size((int)wi.last_level);
+	start &= ~(map_size - 1UL);
+	addr = start;
+
+	for (index = wi.index; index < S2TTES_PER_S2TT; index++) {
+		enum ripas tmp;
+		unsigned long s2tte = s2tte_read(&ll_table[index]);
+
+		if (!s2tte_has_ripas(s2_ctx, s2tte, wi.last_level)) {
+			break;
+		}
+		tmp = s2tte_is_assigned_ram(s2_ctx, s2tte, wi.last_level) ?
+			RIPAS_RAM : s2tte_get_ripas(s2_ctx, s2tte);
+		/*
+		 * Cache the result of the first entry and compare the rest
+		 * with the first and break if there is a mismatch.
+		 */
+		if (addr == start) {
+			res = tmp;
+		} else if (tmp != res) {
+			break;
+		}
+		addr += map_size;
+		if (addr >= end) {
+			break;
+		}
 	}
 
-	*ripas_ptr = s2tte_is_assigned_ram(s2_ctx, s2tte, wi.last_level) ?
-			RIPAS_RAM : s2tte_get_ripas(s2_ctx, s2tte);
-	ws = WALK_SUCCESS;
+	if (addr != start) {
+		ws = WALK_SUCCESS;
+		*ripas_ptr = res;
+		*top = addr;
+	} else {
+		ws = WALK_FAIL;
+	}
 
-out_unmap_unlock:
 	buffer_unmap(ll_table);
 	granule_unlock(wi.g_llt);
-
 	return ws;
 }

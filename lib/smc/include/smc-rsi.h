@@ -201,9 +201,11 @@ struct rsi_realm_config {
 #define SMC_RSI_IPA_STATE_SET		SMC64_RSI_FID(U(0x7))
 
 /*
- * arg1 == IPA of target page
+ * arg1 == Base of target IPA region
+ * arg2 == End of target IPA region
  * ret0 == Status / error
- * ret1 == RIPAS value
+ * ret1 == Top of IPA region which has the reported RIPAS value
+ * ret2 == RIPAS value
  */
 #define SMC_RSI_IPA_STATE_GET		SMC64_RSI_FID(U(0x8))
 
