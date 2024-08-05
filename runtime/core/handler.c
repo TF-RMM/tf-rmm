@@ -215,8 +215,9 @@ static void rmi_log_on_exit(unsigned int handler_id,
 
 		if ((rc.status == RMI_SUCCESS) ||
 		   ((rc.status == RMI_ERROR_RTT) &&
-		   ((function_id == SMC_RMI_RTT_DESTROY) ||
-		    (function_id == SMC_RMI_DATA_DESTROY)))) {
+		   ((function_id == SMC_RMI_RTT_DESTROY)  ||
+		    (function_id == SMC_RMI_DATA_DESTROY) ||
+		    (function_id == SMC_RMI_RTT_UNMAP_UNPROTECTED)))) {
 			/* Print output values */
 			num = ((unsigned int)handler->type >> 8) & 0xFFU;
 			assert(num <= MAX_NUM_OUTPUT_VALS);
