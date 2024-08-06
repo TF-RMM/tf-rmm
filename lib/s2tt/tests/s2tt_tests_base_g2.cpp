@@ -2722,54 +2722,6 @@ void s2tt_walk_lock_unlock_tc6(void)
 	/***************************************************************
 	 * TEST CASE 6:
 	 *
-	 * Test s2tt_walk_lock_unlock() with a start level below the
-	 * minimum permitted.
-	 ***************************************************************/
-
-	long sl = s2tt_test_helpers_min_table_lvl();
-	long end_level = S2TT_TEST_HELPERS_MAX_LVL;
-	unsigned long pa;
-	unsigned long tt_walk_idx[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
-	unsigned long tt_walk[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
-	struct s2tt_walk wi;
-	struct granule *val_tt_granule;
-	struct s2tt_context s2tt_ctx;
-
-	/* Total number of granules, included the concatenated ones */
-	unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
-				(end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U);
-
-	/*
-	 * Granules to hold the translation tables,
-	 * including concatenated ones.
-	 */
-	struct granule *g_tables[granules];
-
-	/* Generate an s2tt context to be used for the test */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
-
-	pa = 0UL; /* Valid on any level */
-	populate_s2tts(&s2tt_ctx, pa, &tt_walk_idx[0U], &tt_walk[0U],
-		       end_level, &g_tables[0U], &val_tt_granule);
-
-	/* Finish the creation of the s2tt_context */
-	s2tt_ctx.ipa_bits = arch_feat_get_pa_width();
-	s2tt_ctx.s2_starting_level = sl - 1L;
-	s2tt_ctx.g_rtt = g_tables[sl + 1U];
-	s2tt_ctx.num_root_rtts = 1U;
-
-	/* The call should cause an assertion failure */
-	test_helpers_expect_assert_fail(true);
-	s2tt_walk_lock_unlock((const struct s2tt_context *)&s2tt_ctx,
-			      pa, end_level, &wi);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-void s2tt_walk_lock_unlock_tc7(void)
-{
-	/***************************************************************
-	 * TEST CASE 7:
-	 *
 	 * Test s2tt_walk_lock_unlock() with a start level above the
 	 * maximum permitted.
 	 ***************************************************************/
@@ -2813,10 +2765,10 @@ void s2tt_walk_lock_unlock_tc7(void)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-void s2tt_walk_lock_unlock_tc8(void)
+void s2tt_walk_lock_unlock_tc7(void)
 {
 	/***************************************************************
-	 * TEST CASE 8:
+	 * TEST CASE 7:
 	 *
 	 * Test s2tt_walk_lock_unlock() with a walk end level below the
 	 * start level.
@@ -2861,10 +2813,10 @@ void s2tt_walk_lock_unlock_tc8(void)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-void s2tt_walk_lock_unlock_tc9(void)
+void s2tt_walk_lock_unlock_tc8(void)
 {
 	/***************************************************************
-	 * TEST CASE 9:
+	 * TEST CASE 8:
 	 *
 	 * Test s2tt_walk_lock_unlock() with an end walk level above the
 	 * maximum permitted.
@@ -2909,10 +2861,10 @@ void s2tt_walk_lock_unlock_tc9(void)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-void s2tt_walk_lock_unlock_tc10(void)
+void s2tt_walk_lock_unlock_tc9(void)
 {
 	/***************************************************************
-	 * TEST CASE 10:
+	 * TEST CASE 9:
 	 *
 	 * Test s2tt_walk_lock_unlock() with a PA above the maximum
 	 * supported IPA size.
@@ -2961,10 +2913,10 @@ void s2tt_walk_lock_unlock_tc10(void)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-void s2tt_walk_lock_unlock_tc11(void)
+void s2tt_walk_lock_unlock_tc10(void)
 {
 	/***************************************************************
-	 * TEST CASE 11:
+	 * TEST CASE 10:
 	 *
 	 * Test s2tt_walk_lock_unlock() with an invalid max ipa size.
 	 ***************************************************************/
@@ -3009,10 +2961,10 @@ void s2tt_walk_lock_unlock_tc11(void)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-void s2tt_walk_lock_unlock_tc12(void)
+void s2tt_walk_lock_unlock_tc11(void)
 {
 	/***************************************************************
-	 * TEST CASE 12:
+	 * TEST CASE 11:
 	 *
 	 * Test s2tt_walk_lock_unlock() with a combination of first
 	 * look-up level and root tables in which the number of
@@ -3078,10 +3030,10 @@ void s2tt_walk_lock_unlock_tc12(void)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-void s2tt_walk_lock_unlock_tc13(void)
+void s2tt_walk_lock_unlock_tc12(void)
 {
 	/***************************************************************
-	 * TEST CASE 13:
+	 * TEST CASE 12:
 	 *
 	 * Test s2tt_walk_lock_unlock() with a null s2tt_context.
 	 ***************************************************************/
