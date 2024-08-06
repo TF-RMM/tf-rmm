@@ -60,6 +60,17 @@ unsigned long get_feature_register_0(void)
 	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_GICV3_NUM_LRS,
 				gic_vgic_get_num_lrs());
 
+	/*
+	 * Set the order of the maximum number of RECs which
+	 * can be created per Realm.
+	 * It is set to the width of 'refcount' field of the granule descriptor.
+	 *
+	 * The maximum number of RECs is computed as follows:
+	 * MAX_RECS = (2 ^ GRN_REFCOUNT_WIDTH) - 1.
+	 */
+	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_MAX_RECS_ORDER,
+				GRN_REFCOUNT_WIDTH);
+
 	return feat_reg0;
 }
 
