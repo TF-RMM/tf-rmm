@@ -7,6 +7,7 @@ add_library(rmm-app-common-el0_app)
 
 target_link_libraries(rmm-app-common-el0_app
   PRIVATE
+  rmm-lib-console
   rmm-lib-common
   rmm-lib-debug
 )

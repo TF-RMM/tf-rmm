@@ -15,9 +15,23 @@
  * section.
  */
 func el0_app_entry
+	mov	x20, x0
+	mov	x21, x1
+	mov	x22, x2
+	mov	x23, x3
+	mov	x24, x4
+	mov	x25, lr
+	bl init_console
+	mov	x0, x20
+	mov	x1, x21
+	mov	x2, x22
+	mov	x3, x23
+	mov	x4, x24
+	mov	lr, x25
+app_loop:
 	bl el0_app_entry_func
 	svc APP_EXIT_CALL
-	b el0_app_entry
+	b app_loop
 endfunc el0_app_entry
 
 func el0_app_service_call
