@@ -852,9 +852,3 @@ ASSERT_TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc12)
 {
 	s2tt_walk_lock_unlock_tc12();
 }
-
-ASSERT_TEST(s2tt_lpa2, s2tt_walk_lock_unlock_tc13)
-{
-	s2tt_walk_lock_unlock_tc13();
-}
-

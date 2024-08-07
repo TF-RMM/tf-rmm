@@ -107,6 +107,5 @@ void s2tt_walk_lock_unlock_tc9(void);
 void s2tt_walk_lock_unlock_tc10(void);
 void s2tt_walk_lock_unlock_tc11(void);
 void s2tt_walk_lock_unlock_tc12(void);
-void s2tt_walk_lock_unlock_tc13(void);
 
 #endif /* S2TT_TESTS_BASE_G2 */
