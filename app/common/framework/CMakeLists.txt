@@ -11,7 +11,10 @@ target_link_libraries(rmm-app-cmn-fw
         rmm-lib-debug
         rmm-lib-console
         rmm-lib-slot_buf
-        rmm-el2-stub
+        rmm-el2-stub)
+
+target_link_libraries(rmm-app-cmn-fw
+    PUBLIC
         rmm-lib-xlat)
 
 target_include_directories(rmm-app-cmn-fw
