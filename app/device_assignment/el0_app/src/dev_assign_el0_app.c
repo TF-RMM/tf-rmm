@@ -698,6 +698,7 @@ static int dev_assign_init(uintptr_t el0_heap, size_t heap_size, struct dev_assi
 	}
 	info->spdm_cert_chain_digest_length = 0;
 	info->pk_ctx.initialised = false;
+	info->session_id = 0U;
 
 	info->psa_hash_algo = rmi_to_psa_hash_algo(params->rmi_hash_algo);
 
@@ -869,6 +870,9 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 	case DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT:
 		ret = (unsigned long)dev_assign_cmd_init_connection_main(info);
 		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION:
+		ret = (unsigned long)dev_assign_cmd_start_session_main(info);
+		break;
 	case DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION:
 		ret = (unsigned long)dev_assign_cmd_stop_connection_main(info);
 		break;
@@ -910,6 +914,7 @@ unsigned long el0_app_entry_func(
 			(struct dev_assign_params *)shared);
 	}
 	case DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT:
+	case DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION:
 	case DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION:
 		return dev_assign_communicate_cmd_cmn(func_id, heap);
 	case DEVICE_ASSIGN_APP_FUNC_SET_PUBLIC_KEY:

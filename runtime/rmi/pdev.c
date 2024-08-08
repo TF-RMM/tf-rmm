@@ -441,6 +441,10 @@ static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_a
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
 			exit_args, comm_digest_ptr, DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT);
 		break;
+	case RMI_PDEV_STATE_HAS_KEY:
+		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+			exit_args, comm_digest_ptr, DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION);
+		break;
 	case RMI_PDEV_STATE_STOPPING:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
 			exit_args, comm_digest_ptr, DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION);
@@ -566,6 +570,8 @@ unsigned long smc_pdev_communicate(unsigned long pdev_ptr,
 	case DEV_COMM_IDLE:
 		if (pd->rmi_state == RMI_PDEV_STATE_NEW) {
 			pd->rmi_state = RMI_PDEV_STATE_NEEDS_KEY;
+		} else if (pd->rmi_state == RMI_PDEV_STATE_HAS_KEY) {
+			pd->rmi_state = RMI_PDEV_STATE_READY;
 		} else if (pd->rmi_state == RMI_PDEV_STATE_STOPPING) {
 			pd->rmi_state = RMI_PDEV_STATE_STOPPED;
 		} else {

@@ -128,6 +128,14 @@ struct dev_comm_exit_shared {
 #define DEVICE_ASSIGN_APP_FUNC_ID_DEINIT		4
 
 /*
+ * App function ID to start a libspdm session
+ *
+ * ret0 == DEV_ASSIGN_STATUS_SUCCESS if the session is started successfully.
+ *         DEV_ASSIGN_STATUS_ERROR if libspdm returned error.
+ */
+#define DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION	11
+
+/*
  * App function ID to stop the libspdm session that is associated with this app
  * instance.
  *

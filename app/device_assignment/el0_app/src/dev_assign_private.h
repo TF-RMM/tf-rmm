@@ -292,6 +292,7 @@ struct dev_assign_info {
 };
 
 int dev_assign_cmd_init_connection_main(struct dev_assign_info *info);
+int dev_assign_cmd_start_session_main(struct dev_assign_info *info);
 int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info);
 
 void dev_assign_unset_pubkey(struct dev_assign_info *info);

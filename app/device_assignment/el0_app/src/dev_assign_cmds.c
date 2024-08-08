@@ -141,9 +141,70 @@ int dev_assign_cmd_init_connection_main(struct dev_assign_info *info)
 	return (int)LIBSPDM_STATUS_SUCCESS;
 }
 
+/* dev_assign_cmd_start_session_main */
+int dev_assign_cmd_start_session_main(struct dev_assign_info *info)
+{
+	uint32_t session_id = 0U;
+	libspdm_return_t status;
+
+	/*
+	 * Call libspdm_challenge() as it helps to validate spdm_cert_chain_hash
+	 * and public key before key_exchange call. Useful for debugging.
+	 */
+#if LOG_LEVEL >= LOG_LEVEL_VERBOSE
+	status = libspdm_challenge(info->libspdm_ctx, NULL, 0,
+			SPDM_CHALLENGE_REQUEST_NO_MEASUREMENT_SUMMARY_HASH,
+				NULL, NULL);
+	VERBOSE("libspdm_challenge: 0x%x\n", status);
+	if (status != LIBSPDM_STATUS_SUCCESS) {
+		return DEV_ASSIGN_STATUS_ERROR;
+	}
+#endif
+
+	/*
+	 * Start SPDM session. Set session policy to 0, this terminates the
+	 * session upon device firmware or configuration update.
+	 */
+	status = libspdm_start_session(info->libspdm_ctx,
+				       false, /* use_psk */
+				       NULL, /* psk_hint */
+				       0, /* psk_hint size */
+	       SPDM_REQUEST_NO_MEASUREMENT_SUMMARY_HASH, /* meas hash type */
+				       info->cert_slot_id, /* slot id */
+				       0, /* session policy */
+				       &session_id,
+				       NULL, /* hbeat period */
+				       NULL /* measurement_hash */);
+	if (status == LIBSPDM_STATUS_SUCCESS) {
+		info->session_id = session_id;
+		VERBOSE("SPDM secure session id: 0x%x\n", info->session_id);
+		return DEV_ASSIGN_STATUS_SUCCESS;
+	}
+
+	return DEV_ASSIGN_STATUS_ERROR;
+}
+
 /* dev_assign_cmd_stop_connection_main */
 int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info)
 {
+	int rc = DEV_ASSIGN_STATUS_SUCCESS;
+
+	if (info->session_id != 0U) {
+		/* Terminate the connection. This closes the secure session */
+		libspdm_return_t status = libspdm_stop_session(info->libspdm_ctx,
+							       info->session_id,
+							       0 /* end_session_attributes */);
+
+		if (status != LIBSPDM_STATUS_SUCCESS) {
+			ERROR("SPDM_END_SESSION failed: 0x%x\n", status);
+			rc = DEV_ASSIGN_STATUS_ERROR;
+			/*assert(false);*/
+		} else {
+			INFO("SPDM_END_SESSION completed: 0x%x\n", status);
+			info->session_id = 0U;
+		}
+	}
+
 	/* Send GET_VERSION, this resets the SPDM connection */
 	(void)libspdm_init_connection(info->libspdm_ctx, true);
 
@@ -156,5 +217,5 @@ int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info)
 	/* Clean up the cma spdm connection state */
 	init_connection_cleanup(info, true);
 
-	return DEV_ASSIGN_STATUS_SUCCESS;
+	return rc;
 }
