@@ -248,10 +248,13 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 		return false;
 	}
 
-	/* Validate number of breakpoints */
-	if ((p->num_bps >
+	/*
+	 * Validate number of breakpoints and watchpoins.
+	 * The values 0 are reserved.
+	 */
+	if ((p->num_bps == 0U) || (p->num_bps >
 		EXTRACT(RMI_FEATURE_REGISTER_0_NUM_BPS, feat_reg0)) ||
-	    (p->num_wps >
+		(p->num_wps == 0U) || (p->num_wps >
 		EXTRACT(RMI_FEATURE_REGISTER_0_NUM_WPS, feat_reg0))) {
 		return false;
 	}

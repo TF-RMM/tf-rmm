@@ -35,14 +35,8 @@
  * ID_AA64DFR0_EL1:
  *
  * Cleared fields:
- * - Debug architecture version:
- *   set in ID_AA64DFR0_EL1_SET
  * - Trace unit System registers not implemented
- * - Number of breakpoints:
- *   set in ID_AA64DFR0_EL1_SET
  * - PMU Snapshot extension not implemented
- * - Number of watchpoints:
- *   set in ID_AA64DFR0_EL1_SET
  * - Synchronous-exception-based event profiling not implemented
  * - Number of breakpoints that are context-aware
  * - Statistical Profiling Extension not implemented
@@ -52,11 +46,8 @@
  * - Trace Buffer External Mode not implemented
  */
 #define ID_AA64DFR0_EL1_CLEAR			  \
-	MASK(ID_AA64DFR0_EL1_DebugVer)		| \
 	MASK(ID_AA64DFR0_EL1_TraceVer)		| \
-	MASK(ID_AA64DFR0_EL1_BRPs)		| \
 	MASK(ID_AA64DFR0_EL1_PMSS)		| \
-	MASK(ID_AA64DFR0_EL1_WRPs)		| \
 	MASK(ID_AA64DFR0_EL1_SEBEP)		| \
 	MASK(ID_AA64DFR0_EL1_CTX_CMPS)		| \
 	MASK(ID_AA64DFR0_EL1_PMSVer)		| \
@@ -64,17 +55,6 @@
 	MASK(ID_AA64DFR0_EL1_TraceBuffer)	| \
 	MASK(ID_AA64DFR0_EL1_BRBE)		| \
 	MASK(ID_AA64DFR0_EL1_ExtTrcBuff)
-
-/*
- * Set fields:
- * - Armv8 debug architecture
- * - Number of breakpoints: 2
- * - Number of watchpoints: 2
- */
-#define ID_AA64DFR0_EL1_SET						  \
-	INPLACE(ID_AA64DFR0_EL1_DebugVer, ID_AA64DFR0_EL1_Debugv8)	| \
-	INPLACE(ID_AA64DFR0_EL1_BRPs, 1UL)				| \
-	INPLACE(ID_AA64DFR0_EL1_WRPs, 1UL)
 
 /*
  * ID_AA64DFR1_EL1:
@@ -147,7 +127,7 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 		value = SYSREG_READ(AFR1);
 		break;
 	SYSREG_CASE(DFR0)
-		value = SYSREG_READ_CLEAR_SET(DFR0);
+		value = SYSREG_READ_CLEAR(DFR0);
 		break;
 	SYSREG_CASE(DFR1)
 		value = SYSREG_READ_CLEAR(DFR1);
