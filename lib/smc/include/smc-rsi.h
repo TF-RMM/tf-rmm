@@ -55,7 +55,10 @@
 /* The operation requested by the command is not complete */
 #define RSI_INCOMPLETE		UL(3)
 
-#define RSI_ERROR_COUNT		UL(4)
+/* The operation requested by the command failed for an unknown reason */
+#define RSI_ERROR_UNKNOWN	UL(4)
+
+#define RSI_ERROR_COUNT		UL(5)
 
 /* RsiHashAlgorithm */
 #define RSI_HASH_SHA_256	U(0)
