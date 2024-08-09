@@ -19,7 +19,7 @@ psa_status_t mbedtls_psa_external_get_random(
 	uint8_t *output, size_t output_size, size_t *output_length)
 {
 	(void)context;
-	struct app_data_cfg *rnd_app_data = get_rmm_random_application();
+	struct app_data_cfg *rnd_app_data = random_app_get_data_cfg();
 	int ret = random_app_prng_get_random(rnd_app_data, output, output_size);
 	if (ret != 0) {
 		return PSA_ERROR_HARDWARE_FAILURE;
@@ -32,6 +32,6 @@ psa_status_t mbedtls_psa_external_get_random(
 int attest_rnd_prng_init(void)
 {
 	/* TODO: this function shouldn't panic!!*/
-	init_rmm_random_applications();
+	random_app_init_per_cpu_prng();
 	return 0;
 }

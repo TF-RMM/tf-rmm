@@ -36,6 +36,7 @@ target_link_libraries(rmm-lib-attestation
     rmm-lib-debug
     rmm-lib-common
     rmm-lib-libc
+    rmm-app-random-stub
     rmm-lib-rmm_el3_ifc
     rmm-lib-smc
     rmm-mbedtls

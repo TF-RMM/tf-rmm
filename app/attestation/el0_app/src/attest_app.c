@@ -3,17 +3,17 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include <app_common.h>
-#include <arch.h>
-#include <arch_features.h>
-#include <assert.h>
-#include <attest_measurement.h>
-#include <errno.h>
-#include <mbedtls/memory_buffer_alloc.h>
-#include <psa/crypto.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+ #include <app_common.h>
+ #include <arch.h>
+ #include <arch_features.h>
+ #include <assert.h>
+ #include <attest_measurement.h>
+ #include <errno.h>
+ #include <mbedtls/memory_buffer_alloc.h>
+ #include <psa/crypto.h>
+ #include <stdbool.h>
+ #include <stddef.h>
+ #include <stdint.h>
 
 /*
  * The heap buffer size used by the Mbed TLS allocator is calculated so that
@@ -48,13 +48,6 @@ COMPILER_ASSERT(sizeof(struct attest_heap_t) == (HEAP_PAGE_COUNT * GRANULE_SIZE)
 /* Make sure that the buffer used by the allocator is aligned */
 COMPILER_ASSERT((UL(offsetof(struct attest_heap_t, mbedtls_heap_buf)) % sizeof(unsigned long)) == 0U);
 
-static unsigned long app_init(void)
-{
-	mbedtls_memory_buffer_alloc_init(heap->mem_buf, sizeof(heap->mem_buf));
-	attest_init_done = true;
-	return 0UL;
-}
-
 /* coverity[misra_c_2012_rule_5_8_violation:SUPPRESS] */
 unsigned long el0_app_entry_func(
 	unsigned long func_id,
@@ -69,8 +62,6 @@ unsigned long el0_app_entry_func(
 	(void)arg_3;
 
 	switch (func_id) {
-	case ATTESTATION_APP_FUNC_ID_INIT:
-		return app_init();
 	case ATTESTATION_APP_FUNC_ID_DO_HASH:
 		return app_do_hash((enum hash_algo)arg_0, arg_1, (uint8_t *)shared);
 	case ATTESTATION_APP_FUNC_ID_EXTEND_MEASUREMENT:

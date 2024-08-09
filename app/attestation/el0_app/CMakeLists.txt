@@ -54,7 +54,8 @@ target_link_libraries(rmm-app-attestation-elf
         rmm-lib-common
         rmm-lib-console
         rmm-lib-debug
-        rmm-app-attestation-mbedtls)
+        rmm-app-attestation-mbedtls
+        rmm-lib-xlat)
 
 add_custom_command(
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-app-attestation-elf>" "${CMAKE_CURRENT_BINARY_DIR}/rmm_app_attestation.elf"

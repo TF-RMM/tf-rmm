@@ -3,14 +3,14 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include <app_common.h>
-#include <assert.h>
-#include <attest_app.h>
-#include <attest_defs.h>
-#include <cpuid.h>
-#include <debug.h>
-#include <errno.h>
-#include <simd.h>
+ #include <app_common.h>
+ #include <assert.h>
+ #include <attest_app.h>
+ #include <attest_defs.h>
+ #include <cpuid.h>
+ #include <debug.h>
+ #include <errno.h>
+ #include <simd.h>
 
 /*
  * The number of pages that is allocated in the .bss for each per-cpu attest app
@@ -30,29 +30,15 @@ static unsigned char rmm_attest_app_pages
 static struct app_data_cfg rmm_attest_app_datas[MAX_CPUS] __aligned(GRANULE_SIZE) = {0};
 static bool attest_app_init_done[MAX_CPUS];
 
-static unsigned long init_attest_app(struct app_data_cfg *app_data)
-{
-	assert(SIMD_IS_FPU_ALLOWED());
-
-	return app_run(app_data, ATTESTATION_APP_FUNC_ID_INIT, 0, 0, 0, 0);
-}
-
 int attest_app_init(
 	struct app_data_cfg *app_data,
 	uintptr_t granule_pas[],
 	size_t granule_pa_count)
 {
-	int ret = 0;
-
-	ret = init_app_data(app_data,
+	return app_init_data(app_data,
 				ATTESTATION_APP_ID,
 				granule_pas,
 				granule_pa_count);
-	if (ret != 0) {
-		return ret;
-	}
-
-	return init_attest_app(app_data);
 }
 
 /* Forward declare function to prevent static checker warning */

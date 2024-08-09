@@ -7,15 +7,10 @@
 #define MEASUREMENT_H
 
 #include <assert.h>
+#include <attest_app.h>
 #include <smc-rmi.h>
 #include <stdbool.h>
 #include <stddef.h>
-
-/* RmmHashAlgorithm type as per RMM spec */
-enum hash_algo {
-	HASH_SHA_256 = RMI_HASH_SHA_256,
-	HASH_SHA_512 = RMI_HASH_SHA_512,
-};
 
 /*
  * Types of measurement headers as specified in RMM Spec. section C1.1.2
@@ -30,25 +25,9 @@ enum hash_algo {
 /* Maximum number of measurements */
 #define MEASUREMENT_SLOT_NR		(5U)
 
-/* Size in bytes of the SHA256 measurement */
-#define SHA256_SIZE			(32U)
-
-/* Size in bytes of the SHA512 measurement */
-#define SHA512_SIZE			(64U)
-
 #define MEASURE_DESC_TYPE_DATA		0x0
 #define MEASURE_DESC_TYPE_REC		0x1
 #define MEASURE_DESC_TYPE_RIPAS		0x2
-
-#ifndef CBMC
-/*
- * Size in bytes of the largest measurement type that can be supported.
- * This macro needs to be updated accordingly if new algorithms are supported.
- */
-#define MAX_MEASUREMENT_SIZE		SHA512_SIZE
-#else
-#define MAX_MEASUREMENT_SIZE		sizeof(uint64_t)
-#endif
 
 /*
  * Calculate the hash of data with algorithm hash_algo to the buffer `out`.
@@ -58,7 +37,8 @@ void measurement_hash_compute(enum hash_algo algorithm,
 			      size_t size, unsigned char *out);
 
 /* Extend a measurement with algorithm hash_algo. */
-void measurement_extend(enum hash_algo algorithm,
+void measurement_extend(void *app_data_cfg,
+			enum hash_algo algorithm,
 			void *current_measurement,
 			void *extend_measurement,
 			size_t extend_measurement_size,

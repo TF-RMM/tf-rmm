@@ -425,7 +425,8 @@ void handle_rsi_measurement_extend(struct rec *rec, struct rsi_result *res)
 	extend_measurement = &rec->regs[3];
 	current_measurement = rd->measurement[index];
 
-	measurement_extend(rd->algorithm,
+	measurement_extend(rec->aux_data.attest_app_data,
+			   rd->algorithm,
 			   current_measurement,
 			   extend_measurement,
 			   size,

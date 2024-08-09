@@ -9,6 +9,7 @@
 #ifndef __ASSEMBLER__
 
 #include <arch.h>
+#include <attest_app.h>
 #include <attestation_token.h>
 #include <gic.h>
 #include <memory_alloc.h>
@@ -217,6 +218,8 @@ struct rec_aux_data {
 
 	/* Address of the attestation token buffer */
 	uintptr_t cca_token_buf;
+
+	struct app_data_cfg *attest_app_data;
 };
 
 struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in logical order */

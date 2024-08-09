@@ -9,7 +9,6 @@
 #include <utils_def.h>
 #include <stddef.h>
 
-#define ATTESTATION_APP_FUNC_ID_INIT			10
 #define ATTESTATION_APP_FUNC_ID_DO_HASH			33
 #define ATTESTATION_APP_FUNC_ID_EXTEND_MEASUREMENT	93
 

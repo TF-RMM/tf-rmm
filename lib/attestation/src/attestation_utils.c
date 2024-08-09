@@ -4,6 +4,7 @@
  */
 
 #include <assert.h>
+#include <attest_app.h>
 #include <attestation.h>
 #include <attestation_priv.h>
 #include <debug.h>
@@ -72,6 +73,8 @@ int attestation_init(void)
 	if (ret != 0) {
 		goto attest_init_fail;
 	}
+
+	init_rmm_app_helpers_applications();
 
 	SIMD_FPU_ALLOW(psa_status = psa_crypto_init());
 	if (psa_status != PSA_SUCCESS) {

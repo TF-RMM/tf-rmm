@@ -7,10 +7,10 @@ add_library(rmm-lib-measurement)
 
 target_link_libraries(rmm-lib-measurement
     PUBLIC rmm-lib-smc
+            rmm-app-attestation-stub
     PRIVATE rmm-lib-arch
             rmm-lib-common
-            rmm-lib-debug
-            rmm-mbedtls)
+            rmm-lib-debug)
 
 target_include_directories(rmm-lib-measurement
     PUBLIC "include"
