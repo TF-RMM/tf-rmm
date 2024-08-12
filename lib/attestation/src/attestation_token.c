@@ -182,11 +182,13 @@ attest_realm_token_sign(struct token_sign_cntxt *me,
 	return attest_res;
 }
 
-size_t attest_cca_token_create(struct token_sign_cntxt *me,
-			       void *attest_token_buf,
-			       size_t attest_token_buf_size,
-			       const void *realm_token_buf,
-			       size_t realm_token_len)
+enum attest_token_err_t
+attest_cca_token_create(struct token_sign_cntxt *me,
+		       void *attest_token_buf,
+		       size_t attest_token_buf_size,
+		       const void *realm_token_buf,
+		       size_t realm_token_len,
+		       size_t *cca_token_len)
 {
 	struct q_useful_buf_c   completed_token;
 	QCBOREncodeContext      cbor_enc_ctx;
@@ -194,18 +196,19 @@ size_t attest_cca_token_create(struct token_sign_cntxt *me,
 	struct q_useful_buf_c   platform_token;
 	struct q_useful_buf     attest_token_ub = {attest_token_buf, attest_token_buf_size};
 	struct q_useful_buf_c   realm_token_ub = {realm_token_buf, realm_token_len};
-	size_t ret_len = 0;
-
-	__unused int            ret;
+	int ret;
 
 	if (me->state != ATTEST_TOKEN_CREATE) {
-		return 0;
+		return ATTEST_TOKEN_ERR_INVALID_STATE;
 	}
 
 	/* Get the platform token */
 	ret = attest_get_platform_token(&platform_token.ptr,
 					&platform_token.len);
-	assert(ret == 0);
+	if (ret != 0) {
+		ERROR("Platform token is not ready for retrieval\n");
+		return ATTEST_TOKEN_ERR_CCA_TOKEN_CREATE;
+	}
 
 	QCBOREncode_Init(&cbor_enc_ctx, attest_token_ub);
 
@@ -226,17 +229,19 @@ size_t attest_cca_token_create(struct token_sign_cntxt *me,
 
 	if (qcbor_res == QCBOR_ERR_BUFFER_TOO_SMALL) {
 		ERROR("CCA output token buffer too small\n");
+		return ATTEST_TOKEN_ERR_CCA_TOKEN_CREATE;
 	} else if (qcbor_res != QCBOR_SUCCESS) {
 		/* likely from array not closed, too many closes, ... */
-		ERROR("QCBOREncode error for CCA output token\n");
-	} else {
-		/* coverity[uninit_use:SUPPRESS] */
-		ret_len = completed_token.len;
+		ERROR("CBOR Encode finish failed with error 0x%x\n", qcbor_res);
+		return ATTEST_TOKEN_ERR_CCA_TOKEN_CREATE;
 	}
 
 	/* Transition back to NOT_STARTED */
 	me->state = ATTEST_TOKEN_NOT_STARTED;
-	return ret_len;
+
+	/* coverity[uninit_use:SUPPRESS] */
+	*cca_token_len = completed_token.len;
+	return ATTEST_TOKEN_ERR_SUCCESS;
 }
 
 /*
