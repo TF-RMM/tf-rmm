@@ -55,7 +55,7 @@ The following tools are required to obtain and build |RMM|:
    "docutils",">v2.38.0","Documentation"
    "gcovr",">=v4.2","Tools(Coverage analysis)"
    "CBMC",">=5.84.0","Tools(CBMC analysis)"
-   "Cppcheck",">=2.13.4","Tools(Cppcheck)"
+   "Cppcheck",">=2.14.0","Tools(Cppcheck)"
 
 .. _getting_started_toolchain:
 
