@@ -1,0 +1,36 @@
+From 481e93363d72d23ece740f00223c95071088bda5 Mon Sep 17 00:00:00 2001
+From: Arunachalam Ganapathy <arunachalam.ganapathy@arm.com>
+Date: Tue, 30 Jul 2024 16:04:21 +0100
+Subject: [PATCH 5/5] get_measurements: do not store measurement record
+
+Add support for NULL measurement_record argument to libspdm_try_get_measurement
+
+Signed-off-by: Arunachalam Ganapathy <arunachalam.ganapathy@arm.com>
+---
+ .../spdm_requester_lib/libspdm_req_get_measurements.c  | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/library/spdm_requester_lib/libspdm_req_get_measurements.c b/library/spdm_requester_lib/libspdm_req_get_measurements.c
+index 93117d0c..e78bc10b 100644
+--- a/library/spdm_requester_lib/libspdm_req_get_measurements.c
++++ b/library/spdm_requester_lib/libspdm_req_get_measurements.c
+@@ -694,10 +694,12 @@ static libspdm_return_t libspdm_try_get_measurement(libspdm_context_t *spdm_cont
+         }
+ 
+         *measurement_record_length = measurement_record_data_length;
+-        libspdm_copy_mem(measurement_record,
+-                         measurement_record_data_length,
+-                         measurement_record_data,
+-                         measurement_record_data_length);
++	if (measurement_record != NULL) {
++	    libspdm_copy_mem(measurement_record,
++			     measurement_record_data_length,
++			     measurement_record_data,
++			     measurement_record_data_length);
++	}
+     }
+ 
+     status = LIBSPDM_STATUS_SUCCESS;
+-- 
+2.39.5
+

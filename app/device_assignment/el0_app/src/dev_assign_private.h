@@ -226,6 +226,7 @@
 				PRIV_LIBSPDM_CONTEXT_SIZE))
 
 #define CACHE_TYPE_CERT			U(0x1)
+#define CACHE_TYPE_MEAS			U(0x2)
 
 struct dev_assign_info {
 	/* RMI device handle */
@@ -266,7 +267,12 @@ struct dev_assign_info {
 	/* Whether the last request sent was encrypted or not. */
 	bool is_msg_sspdm;
 
-	/* Temporarily store the calculated digest that needs to be cached */
+	/*
+	 * A temporary stash of cached_digest for certificate,
+	 * device_measurements, or interface report. Once the complete digest is
+	 * computed, the info->cached_digest.len will become non-zero and it
+	 * will be copied to the right destination in PDEV or VDEV structs.
+	 */
 	struct dev_obj_digest cached_digest;
 
 	/* spdm_cert_chain digest details */
@@ -295,6 +301,7 @@ struct dev_assign_info {
 
 int dev_assign_cmd_init_connection_main(struct dev_assign_info *info);
 int dev_assign_cmd_start_session_main(struct dev_assign_info *info);
+int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info);
 int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info);
 
 void dev_assign_unset_pubkey(struct dev_assign_info *info);

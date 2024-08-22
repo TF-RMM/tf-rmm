@@ -300,6 +300,8 @@ static int dev_assign_dev_comm_set_cache(struct dev_assign_info *info, void *cac
 	info->exit_args.cache_rsp_len = cache_len;
 	if (cache_type == CACHE_TYPE_CERT) {
 		info->exit_args.cache_obj_id = (unsigned char)RMI_DEV_COMM_OBJECT_CERTIFICATE;
+	} else if (cache_type == CACHE_TYPE_MEAS) {
+		info->exit_args.cache_obj_id = (unsigned char)RMI_DEV_COMM_OBJECT_MEASUREMENTS;
 	}
 
 	return 0;
@@ -410,6 +412,38 @@ static int cma_spdm_cache_certificate(struct dev_assign_info *info,
 	return rc;
 }
 
+/* Process device measurements response */
+static int dev_assign_cache_measurements(struct dev_assign_info *info,
+					 spdm_measurements_response_t *meas_rsp)
+{
+	size_t cache_offset, cache_len;
+	uint8_t hash_op_flags;
+	int rc;
+
+	/*
+	 * Measurement length is a three byte wide integer represented as a 3
+	 * bytes array, index 0 being the least significant byte. Reconstruct
+	 * the value cache_len.
+	 */
+	/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
+	cache_len = ((size_t)meas_rsp->measurement_record_length[0]) |
+		    ((size_t)meas_rsp->measurement_record_length[1] << 8U) |
+		    ((size_t)meas_rsp->measurement_record_length[2] << 16U);
+	if (cache_len > (size_t)LIBSPDM_MAX_MEASUREMENT_RECORD_SIZE) {
+		return -1;
+	}
+
+	cache_offset = sizeof(spdm_measurements_response_t);
+	hash_op_flags = (HASH_OP_FLAG_SETUP | HASH_OP_FLAG_UPDATE |
+			 HASH_OP_FLAG_FINISH);
+	info->psa_hash_op = psa_hash_operation_init();
+
+	rc = dev_assign_dev_comm_set_cache(info, meas_rsp, cache_offset,
+				  cache_len, (uint8_t)CACHE_TYPE_MEAS, hash_op_flags);
+
+	return rc;
+}
+
 static libspdm_return_t
 spdm_transport_decode_secured_message(struct dev_assign_info *info,
 				      void *spdm_context, uint32_t **session_id,
@@ -476,6 +510,7 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 {
 	struct dev_assign_info *info;
 	spdm_message_header_t *spdm_hdr;
+	int rc;
 
 	(void)is_app_message;
 	info = spdm_to_dev_assign_info(spdm_context);
@@ -509,7 +544,6 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 	 * once the message is decrypted.
 	 */
 	if (spdm_hdr->request_response_code == (uint8_t)SPDM_CERTIFICATE) {
-		int rc;
 		spdm_certificate_response_t *cert_rsp;
 
 		if (transport_message_size < sizeof(spdm_certificate_response_t)) {
@@ -524,6 +558,15 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 		}
 
 		rc = cma_spdm_cache_certificate(info, cert_rsp);
+		if (rc != 0) {
+			return LIBSPDM_STATUS_RECEIVE_FAIL;
+		}
+	} else if (spdm_hdr->request_response_code ==
+		   (uint8_t)SPDM_MEASUREMENTS) {
+		spdm_measurements_response_t *meas_rsp;
+
+		meas_rsp = (spdm_measurements_response_t *)spdm_hdr;
+		rc = dev_assign_cache_measurements(info, meas_rsp);
 		if (rc != 0) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}
@@ -1060,6 +1103,9 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 	case DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION:
 		ret = dev_assign_cmd_stop_connection_main(info);
 		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS:
+		ret = dev_assign_cmd_get_measurements_main(info);
+		break;
 	default:
 		assert(false);
 		return INT_TO_ULONG(DEV_ASSIGN_STATUS_ERROR);
@@ -1100,6 +1146,7 @@ unsigned long el0_app_entry_func(
 	case DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT:
 	case DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION:
 	case DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION:
+	case DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS:
 		return dev_assign_communicate_cmd_cmn(func_id, heap);
 	case DEVICE_ASSIGN_APP_FUNC_SET_PUBLIC_KEY:
 		return (unsigned long)dev_assign_set_pubkey(heap, arg_0);

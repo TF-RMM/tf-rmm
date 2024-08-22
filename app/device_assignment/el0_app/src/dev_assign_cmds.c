@@ -184,6 +184,44 @@ int dev_assign_cmd_start_session_main(struct dev_assign_info *info)
 	return DEV_ASSIGN_STATUS_ERROR;
 }
 
+/* dev_assign_cmd_get_measurements_main */
+int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
+{
+	libspdm_return_t status;
+	uint8_t number_of_blocks;
+	uint32_t meas_length;
+
+	/*
+	 * RMM does not store measurement response in CMA SPDM context, instead
+	 * the content is cached by NS host and a digest is computed by RMM.
+	 * Limit the max meas_length to be 4096 bytes, this can be removed once
+	 * CHUNK support is enabled.
+	 */
+	meas_length = LIBSPDM_MAX_MEASUREMENT_RECORD_SIZE;
+
+	/*
+	 * Request all measurements. The output values of meas_length and number
+	 * of blocks and the actual measurement records are ignored as RMM does
+	 * not have a copy of the measurements. As part of get_measurements
+	 * callback RMM inform the Host to cache measurements.
+	 */
+	status = libspdm_get_measurement(info->libspdm_ctx,
+					 &info->session_id, /* session_id */
+					 0, /* request_attribute */
+					 0xFF, /* get all measurements */
+					 info->cert_slot_id, /* slot id */
+					 NULL, /* content_changed */
+					 &number_of_blocks,
+					 &meas_length,
+					 NULL /* measurement_record */);
+
+	if (status != LIBSPDM_STATUS_SUCCESS) {
+		return DEV_ASSIGN_STATUS_ERROR;
+	}
+
+	return DEV_ASSIGN_STATUS_SUCCESS;
+}
+
 /* dev_assign_cmd_stop_connection_main */
 int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info)
 {

@@ -72,6 +72,27 @@ struct dev_comm_exit_shared {
 };
 
 /*
+ * Get measurements operation related parameters passed when command is
+ * RDEV_GET_MEASUREMENTS
+ */
+struct dev_meas_params {
+	/* Get all measurements */
+	bool all;
+
+	/* Get signed measurement */
+	bool sign;
+
+	/* Get measurement in a raw bitstream */
+	bool raw;
+
+	/* Bitmap of measurement indices to get when 'all=false' */
+	unsigned char indices[32];
+
+	/* nonce value used in get measurement, when 'sign=true' */
+	unsigned char nonce[32];
+};
+
+/*
  * App functions for device communication. App uses heap available via tpidrro_el0.
  * The function execution can yield and return back to RMM. In this case
  * the return would be via APP_YIELD_CALL svc. Callers need to check
@@ -134,6 +155,15 @@ struct dev_comm_exit_shared {
  *         DEV_ASSIGN_STATUS_ERROR if libspdm returned error.
  */
 #define DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION	11
+
+/*
+ * App function ID to get measurements from the device
+ *
+ * ret0 == DEV_ASSIGN_STATUS_SUCCESS if the mesurements were retrieved
+ *         successfully.
+ *         DEV_ASSIGN_STATUS_ERROR if libspdm returned error.
+ */
+#define DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS	12
 
 /*
  * App function ID to stop the libspdm session that is associated with this app

@@ -61,7 +61,8 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 	assert((dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_RESUME) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION) ||
-		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION));
+		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION) ||
+		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS));
 
 	app_map_shared_page(app_data);
 	assert(app_data->el2_shared_page != NULL);
