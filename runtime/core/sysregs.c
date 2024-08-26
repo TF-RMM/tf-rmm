@@ -9,7 +9,6 @@
 #include <arch_helpers.h>
 #include <debug.h>
 #include <esr.h>
-#include <memory_alloc.h>
 #include <rec.h>
 #include <smc-rmi.h>
 #include <sysreg_traps.h>
