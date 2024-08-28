@@ -32,40 +32,6 @@ static void get_rpv(struct rd *rd, void **claim_ptr, size_t *claim_len)
 }
 
 /*
- * Function to continue with the sign operation
- */
-static void attest_token_continue_sign_state(
-					struct rec_attest_data *attest_data,
-					struct rsi_result *res)
-{
-	/*
-	 * Sign and finish creating the token.
-	 */
-	enum attest_token_err_t ret =
-		attest_realm_token_sign(&(attest_data->token_sign_ctx.ctx),
-					&(attest_data->rmm_realm_token_len));
-	if ((ret == ATTEST_TOKEN_ERR_COSE_SIGN_IN_PROGRESS) ||
-		(ret == ATTEST_TOKEN_ERR_SUCCESS)) {
-		/*
-		 * Return to RSI handler function after each iteration
-		 * to check is there anything else to do (pending IRQ)
-		 * or next signing iteration can be executed.
-		 */
-		res->smc_res.x[0] = RSI_INCOMPLETE;
-
-		/* If this was the last signing cycle */
-		if (ret == ATTEST_TOKEN_ERR_SUCCESS) {
-			attest_data->token_sign_ctx.state =
-				ATTEST_SIGN_TOKEN_WRITE_IN_PROGRESS;
-		}
-	} else {
-		/* Accessible only in case of failure during token signing */
-		ERROR("FATAL_ERROR: Realm token creation failed\n");
-		panic();
-	}
-}
-
-/*
  * Function to continue with the token write operation
  */
 static void attest_token_continue_write_state(struct rec *rec,
@@ -119,6 +85,7 @@ static void attest_token_continue_write_state(struct rec *rec,
 
 	if (attest_data->token_sign_ctx.copied_len == 0UL) {
 		attest_token_len = attest_cca_token_create(
+					&attest_data->token_sign_ctx,
 					(void *)cca_token_buf,
 					REC_ATTEST_TOKEN_BUF_SIZE,
 					&attest_data->rmm_realm_token_buf,
@@ -126,10 +93,6 @@ static void attest_token_continue_write_state(struct rec *rec,
 
 		if (attest_token_len == 0UL) {
 			res->smc_res.x[0] = RSI_ERROR_INPUT;
-
-			/* The signing has failed. Reset the state. */
-			attest_data->token_sign_ctx.state =
-						ATTEST_SIGN_NOT_STARTED;
 			goto out_unmap;
 		}
 
@@ -154,9 +117,6 @@ static void attest_token_continue_write_state(struct rec *rec,
 
 		res->smc_res.x[0] = RSI_INCOMPLETE;
 	} else {
-
-		/* The signing has succeeded. Reset the state. */
-		attest_data->token_sign_ctx.state = ATTEST_SIGN_NOT_STARTED;
 		res->smc_res.x[0] = RSI_SUCCESS;
 	}
 
@@ -186,25 +146,17 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	/*
 	 * Calling RSI_ATTESTATION_TOKEN_INIT any time aborts any ongoing
 	 * operation.
-	 * TODO: This can be moved to attestation lib
 	 */
-	if (attest_data->token_sign_ctx.state != ATTEST_SIGN_NOT_STARTED) {
-		int restart;
-
-		attest_data->token_sign_ctx.state = ATTEST_SIGN_NOT_STARTED;
-		restart = attestation_heap_reinit_pe(rec->aux_data.attest_heap_buf,
-							REC_HEAP_SIZE);
-		if (restart != 0) {
-			/* There is no provision for this failure so panic */
-			panic();
-		}
+	att_ret = attest_token_ctx_init(&attest_data->token_sign_ctx,
+				rec->aux_data.attest_heap_buf,
+				REC_HEAP_SIZE);
+	if (att_ret != 0) {
+		/* There is no provision for this failure so panic */
+		panic();
 	}
 
-	/* Clear context for signing an attestation token */
-	(void)memset(&attest_data->token_sign_ctx, 0,
-			sizeof(struct token_sign_cntxt));
-
-	attest_data->token_sign_ctx.state = ATTEST_SIGN_NOT_STARTED;
+	/* Initialize the final token len */
+	attest_data->rmm_realm_token_len = 0;
 
 	/*
 	 * rd lock is acquired so that measurement cannot be updated
@@ -234,8 +186,6 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 		ERROR("FATAL_ERROR: Realm token creation failed\n");
 		panic();
 	}
-
-	attest_data->token_sign_ctx.state = ATTEST_SIGN_IN_PROGRESS;
 
 	res->smc_res.x[0] = RSI_SUCCESS;
 	res->smc_res.x[1] = REC_ATTEST_TOKEN_BUF_SIZE;
@@ -280,28 +230,41 @@ void handle_rsi_attest_token_continue(struct rec *rec,
 		return;
 	}
 
-	if (attest_data->token_sign_ctx.state == ATTEST_SIGN_NOT_STARTED) {
-		/*
-		 * Before this call the initial attestation token call
-		 * (SMC_RSI_ATTEST_TOKEN_INIT) must have been executed
-		 * successfully.
-		 */
-		res->smc_res.x[0] = RSI_ERROR_STATE;
-		return;
-	}
+	/* Sign the token */
+	while (attest_data->rmm_realm_token_len == 0U) {
+		enum attest_token_err_t ret;
 
-	while (attest_data->token_sign_ctx.state == ATTEST_SIGN_IN_PROGRESS) {
-		attest_token_continue_sign_state(attest_data, res);
+		ret = attest_realm_token_sign(&(attest_data->token_sign_ctx),
+					&(attest_data->rmm_realm_token_len));
+
+		if (ret == ATTEST_TOKEN_ERR_INVALID_STATE) {
+			/*
+			 * Before this call the initial attestation token call
+			 * (SMC_RSI_ATTEST_TOKEN_INIT) must have been executed
+			 * successfully.
+			 */
+			res->smc_res.x[0] = RSI_ERROR_STATE;
+			return;
+		} else if ((ret != ATTEST_TOKEN_ERR_COSE_SIGN_IN_PROGRESS) &&
+			(ret != ATTEST_TOKEN_ERR_SUCCESS)) {
+			/* Accessible only in case of failure during token signing */
+			ERROR("FATAL_ERROR: Realm token sign failed\n");
+			panic();
+		}
+
+		res->smc_res.x[0] = RSI_INCOMPLETE;
+
+		/*
+		 * Return to RSI handler function after each iteration
+		 * to check is there anything else to do (pending IRQ)
+		 * or next signing iteration can be executed.
+		 */
 		if (check_pending_irq()) {
 			res->action = UPDATE_REC_EXIT_TO_HOST;
 			rec_exit->exit_reason = RMI_EXIT_IRQ;
 			return;
 		}
 	}
-
-	/* Any other state is considered an error */
-	assert(attest_data->token_sign_ctx.state ==
-					ATTEST_SIGN_TOKEN_WRITE_IN_PROGRESS);
 
 	attest_token_continue_write_state(rec, res);
 }

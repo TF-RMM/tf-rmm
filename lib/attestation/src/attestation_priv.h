@@ -31,8 +31,7 @@ int attest_get_realm_signing_key(psa_key_handle_t *key_handle);
 int attest_init_realm_attestation_key(void);
 
 /*
- * Get the realm attestation public key hash. The public key hash is the
- * challenge value in the platform attestation token.
+ * Get the realm attestation public key.
  *
  * Arguments:
  * public_key - Get the buffer address and size which holds the realm
