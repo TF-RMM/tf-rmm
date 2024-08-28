@@ -44,6 +44,11 @@ static bool complete_mmio_emulation(struct rec *rec, struct rmi_rec_enter *rec_e
 		return true;
 	}
 
+	/*
+	 * The ISV bit is cleared as part of REC exit if the original data
+	 * abort was not meant to be emulatable, i.e the address is either
+	 * in PAR or is an AArch32 abort.
+	 */
 	if (((esr & MASK(ESR_EL2_EC)) != ESR_EL2_EC_DATA_ABORT) ||
 	    ((esr & ESR_EL2_ABORT_ISV_BIT) == 0UL)) {
 		/*
