@@ -13,7 +13,7 @@ void dev_assign_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
 
 void dev_assign_app_get_bss(uintptr_t *bss_pa, size_t *bss_size)
 {
-	static char dev_assign_app_bss[GRANULE_SIZE] __aligned(GRANULE_SIZE);
+	static char dev_assign_app_bss[GRANULE_SIZE * 3U] __aligned(GRANULE_SIZE);
 	*bss_pa = (uintptr_t)dev_assign_app_bss;
 	*bss_size = sizeof(dev_assign_app_bss);
 }

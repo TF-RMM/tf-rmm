@@ -263,6 +263,8 @@ struct dev_assign_info {
 
 	/* ID of the SPDM session started by libspdm_start_session */
 	uint32_t session_id;
+	/* Whether the last request sent was encrypted or not. */
+	bool is_msg_sspdm;
 
 	/* Temporarily store the calculated digest that needs to be cached */
 	struct dev_obj_digest cached_digest;
