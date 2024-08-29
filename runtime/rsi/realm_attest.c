@@ -118,6 +118,8 @@ static void attest_token_continue_write_state(struct rec *rec,
 		res->smc_res.x[0] = RSI_INCOMPLETE;
 	} else {
 		res->smc_res.x[0] = RSI_SUCCESS;
+		/* Token creation is complete, reset realm token length */
+		attest_data->rmm_realm_token_len = 0;
 	}
 
 	res->smc_res.x[1] = length;
