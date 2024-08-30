@@ -258,6 +258,8 @@ int attest_realm_token_create(enum hash_algo algorithm,
 			     unsigned int num_measurements,
 			     const void *rpv_buf,
 			     size_t rpv_len,
+			     const void *challenge_buf,
+			     size_t challenge_len,
 			     struct token_sign_cntxt *ctx,
 			     void *realm_token_buf,
 			     size_t realm_token_buf_size)
@@ -293,8 +295,8 @@ int attest_realm_token_create(enum hash_algo algorithm,
 	QCBOREncode_OpenMap(&(ctx->ctx.cbor_enc_ctx));
 
 	/* Add challenge value, which is the only input from the caller. */
-	buf.ptr = ctx->challenge;
-	buf.len = ATTEST_CHALLENGE_SIZE;
+	buf.ptr = challenge_buf;
+	buf.len = challenge_len;
 	QCBOREncode_AddBytesToMapN(&(ctx->ctx.cbor_enc_ctx),
 				   CCA_REALM_CHALLENGE,
 				   buf);

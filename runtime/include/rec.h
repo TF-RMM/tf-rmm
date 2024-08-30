@@ -136,6 +136,12 @@ struct rec_attest_data {
 	unsigned char rmm_realm_token_buf[RMM_REALM_TOKEN_BUF_SIZE];
 	size_t rmm_realm_token_len;
 
+	/* Number of CCA token bytes copied to the Realm */
+	size_t rmm_cca_token_copied_len;
+
+	/* Number of CCA token bytes left to copy to the Realm */
+	size_t rmm_cca_token_len;
+
 	struct token_sign_cntxt token_sign_ctx;
 
 	/* Buffer allocation info used for heap init and management */

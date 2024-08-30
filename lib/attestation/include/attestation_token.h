@@ -96,14 +96,6 @@ struct token_sign_cntxt {
 	 */
 	enum attest_token_gen_state_t state;
 	struct attest_token_encode_ctx ctx;
-
-	/* Number of CCA token bytes left to copy to the Realm */
-	size_t cca_token_len;
-
-	/* Number of CCA token bytes copied to the Realm */
-	size_t copied_len;
-
-	unsigned char challenge[ATTEST_CHALLENGE_SIZE];
 };
 
 #else /* CBMC */
@@ -194,6 +186,8 @@ int attest_realm_token_create(enum hash_algo algorithm,
 			     unsigned int num_measurements,
 			     const void *rpv_buf,
 			     size_t rpv_len,
+			     const void *challenge_buf,
+			     size_t challenge_len,
 			     struct token_sign_cntxt *ctx,
 			     void *realm_token_buf,
 			     size_t realm_token_buf_size);

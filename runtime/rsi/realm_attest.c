@@ -83,7 +83,7 @@ static void attest_token_continue_write_state(struct rec *rec,
 	realm_att_token = (uintptr_t)buffer_granule_map(gr, SLOT_RSI_CALL);
 	assert(realm_att_token != 0UL);
 
-	if (attest_data->token_sign_ctx.copied_len == 0UL) {
+	if (attest_data->rmm_cca_token_copied_len == 0UL) {
 		attest_token_len = attest_cca_token_create(
 					&attest_data->token_sign_ctx,
 					(void *)cca_token_buf,
@@ -96,9 +96,9 @@ static void attest_token_continue_write_state(struct rec *rec,
 			goto out_unmap;
 		}
 
-		attest_data->token_sign_ctx.cca_token_len = attest_token_len;
+		attest_data->rmm_cca_token_len = attest_token_len;
 	} else {
-		attest_token_len = attest_data->token_sign_ctx.cca_token_len;
+		attest_token_len = attest_data->rmm_cca_token_len;
 	}
 
 	length = (size < attest_token_len) ? size : attest_token_len;
@@ -106,14 +106,14 @@ static void attest_token_continue_write_state(struct rec *rec,
 	/* Copy attestation token */
 	(void)memcpy((void *)(realm_att_token + offset),
 		     (void *)(cca_token_buf +
-				attest_data->token_sign_ctx.copied_len),
+				attest_data->rmm_cca_token_copied_len),
 		     length);
 
 	attest_token_len -= length;
 
 	if (attest_token_len != 0UL) {
-		attest_data->token_sign_ctx.cca_token_len = attest_token_len;
-		attest_data->token_sign_ctx.copied_len += length;
+		attest_data->rmm_cca_token_len = attest_token_len;
+		attest_data->rmm_cca_token_copied_len += length;
 
 		res->smc_res.x[0] = RSI_INCOMPLETE;
 	} else {
@@ -155,8 +155,10 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 		panic();
 	}
 
-	/* Initialize the final token len */
+	/* Initialize length fields in attestation data */
 	attest_data->rmm_realm_token_len = 0;
+	attest_data->rmm_cca_token_copied_len = 0;
+	attest_data->rmm_cca_token_len = 0;
 
 	/*
 	 * rd lock is acquired so that measurement cannot be updated
@@ -166,16 +168,13 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
 	assert(rd != NULL);
 
-	/* Save challenge value in the context */
-	(void)memcpy((void *)attest_data->token_sign_ctx.challenge,
-		     (const void *)&rec->regs[1],
-		     ATTEST_CHALLENGE_SIZE);
-
 	get_rpv(rd, &rpv_ptr, &rpv_len);
 	att_ret = attest_realm_token_create(rd->algorithm, rd->measurement,
 					    MEASUREMENT_SLOT_NR,
 					    rpv_ptr,
 					    rpv_len,
+					    (const void *)&rec->regs[1],
+					    ATTEST_CHALLENGE_SIZE,
 					    &attest_data->token_sign_ctx,
 					    attest_data->rmm_realm_token_buf,
 					    sizeof(attest_data->rmm_realm_token_buf));
