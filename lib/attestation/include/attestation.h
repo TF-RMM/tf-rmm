@@ -16,19 +16,6 @@ struct buffer_alloc_ctx;
 int attestation_init(void);
 
 /*
- * Return the platform token that was previously retrieved from the monitor.
- *
- * Arguments:
- * buf - pointer to a buffer where the address of the platform token will
- *       be returned.
- * len - pointer to an unsigned integer where the length of the platform token
- *       will be returned.
- *
- * Returns 0 on success, and a negative error code otherwise.
- */
-int attest_get_platform_token(const void **buf, size_t *len);
-
-/*
  * Initialize the heap buffer to be used with the given buffer_alloc_ctx.
  * This is done when a REC is created.
  *

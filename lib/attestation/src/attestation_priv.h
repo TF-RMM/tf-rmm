@@ -50,6 +50,19 @@ int attest_get_realm_public_key(struct q_useful_buf_c *public_key);
 int attest_setup_platform_token(void);
 
 /*
+ * Return the platform token that was previously retrieved from the monitor.
+ *
+ * Arguments:
+ * buf - pointer to a buffer where the address of the platform token will
+ *       be returned.
+ * len - pointer to an unsigned integer where the length of the platform token
+ *       will be returned.
+ *
+ * Returns 0 on success, and a negative error code otherwise.
+ */
+int attest_get_platform_token(const void **buf, size_t *len);
+
+/*
  * Get the hash algorithm to use for computing the hash of the realm public key.
  */
 enum hash_algo attest_get_realm_public_key_hash_algo_id(void);
