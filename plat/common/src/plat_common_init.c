@@ -24,12 +24,25 @@
 #include <xlat_tables.h>
 
 
-IMPORT_SYM(uintptr_t, rmm_text_start, RMM_CODE_START);
-IMPORT_SYM(uintptr_t, rmm_text_end, RMM_CODE_END);
-IMPORT_SYM(uintptr_t, rmm_ro_start, RMM_RO_START);
-IMPORT_SYM(uintptr_t, rmm_ro_end, RMM_RO_END);
-IMPORT_SYM(uintptr_t, rmm_rw_start, RMM_RW_START);
-IMPORT_SYM(uintptr_t, rmm_rw_end, RMM_RW_END);
+IMPORT_SYM(uintptr_t, rmm_text_start, RMM_CODE_START); /* NOLINT */
+IMPORT_SYM(uintptr_t, rmm_text_end, RMM_CODE_END); /* NOLINT */
+IMPORT_SYM(uintptr_t, rmm_ro_start, RMM_RO_START); /* NOLINT */
+IMPORT_SYM(uintptr_t, rmm_ro_end, RMM_RO_END); /* NOLINT */
+IMPORT_SYM(uintptr_t, rmm_rw_start, RMM_RW_START); /* NOLINT */
+IMPORT_SYM(uintptr_t, rmm_rw_end, RMM_RW_END); /* NOLINT */
+
+enum map_regions {
+#if APP_COUNT != 0
+	MAP_REGION_APP,
+#endif
+	MAP_REGION_CODE,
+	MAP_REGION_RO,
+	MAP_REGION_RW,
+	MAP_REGION_SHARED,
+	NR_MAP_REGIONS
+};
+/* MISRA insists on an unsigned type for the number of regions. */
+#define COMMON_REGIONS	((unsigned int)NR_MAP_REGIONS)
 
 /*
  * Memory map REGIONS used for the RMM runtime (static mappings)
@@ -85,21 +98,9 @@ IMPORT_SYM(uintptr_t, rmm_rw_end, RMM_RW_END);
 
 /* RMM supports only a single console */
 #define RMM_CSL			MAP_REGION_FLAT(			\
-					0,				\
-					0,				\
+					0U,				\
+					0U,				\
 					(MT_DEVICE | MT_RW | MT_REALM))
-
-
-#if APP_COUNT == 0
-/* Number of common memory mapping regions */
-#define COMMON_REGIONS		(4U)
-#define REGION_RMM_SHARED_IDX	3
-#else
-/* Number of common memory mapping regions */
-#define COMMON_REGIONS		(5U)
-#define REGION_RMM_APP_IDX	0
-#define REGION_RMM_SHARED_IDX	4
-#endif
 
 /* Total number of memory mapping regions */
 #define TOTAL_MMAP_REGIONS	(COMMON_REGIONS + PLAT_CMN_EXTRA_MMAP_REGIONS)
@@ -148,12 +149,12 @@ int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
 	/* Common regions sorted by ascending VA */
 	struct xlat_mmap_region regions[COMMON_REGIONS] = {
 #if APP_COUNT != 0
-		RMM_APP,
+		[MAP_REGION_APP] = RMM_APP,
 #endif
-		RMM_CODE,
-		RMM_RO,
-		RMM_RW,
-		RMM_SHARED
+		[MAP_REGION_CODE] = RMM_CODE,
+		[MAP_REGION_RO] = RMM_RO,
+		[MAP_REGION_RW] = RMM_RW,
+		[MAP_REGION_SHARED] = RMM_SHARED,
 	};
 
 	if (nregions > PLAT_CMN_EXTRA_MMAP_REGIONS) {
@@ -166,14 +167,14 @@ int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
 
 #if APP_COUNT != 0
 	/* setup the parameters for the application binary data */
-	regions[REGION_RMM_APP_IDX].base_pa = rmm_img_start;
-	regions[REGION_RMM_APP_IDX].base_va = rmm_img_start;
-	regions[REGION_RMM_APP_IDX].size = RMM_CODE_START - rmm_img_start;
+	regions[MAP_REGION_APP].base_pa = rmm_img_start;
+	regions[MAP_REGION_APP].base_va = rmm_img_start;
+	regions[MAP_REGION_APP].size = RMM_CODE_START - rmm_img_start;
 #endif
 
 	/* Setup the parameters of the shared area */
-	regions[REGION_RMM_SHARED_IDX].base_pa = get_shared_buf_pa();
-	regions[REGION_RMM_SHARED_IDX].size = rmm_el3_ifc_get_shared_buf_size();
+	regions[MAP_REGION_SHARED].base_pa = get_shared_buf_pa();
+	regions[MAP_REGION_SHARED].size = rmm_el3_ifc_get_shared_buf_size();
 
 	plat_offset = COMMON_REGIONS;
 	cmn_offset = 0U;
