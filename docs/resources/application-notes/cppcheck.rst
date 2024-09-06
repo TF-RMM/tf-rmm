@@ -71,6 +71,13 @@ To invoke the Cppcheck static analysis with MISRA addon, run the
 
 This will generate `cppcheck_misra.xml` in `build/tools/cppcheck` folder.
 
+If the above generated xml contains error tags detected by Cppcheck and
+if the installed version of Cppcheck matches or exceeds the recommended
+version mentioned in :ref:`tool_dependencies`, the build fails and prints
+the error count. However, if the installed version is less than the
+recommended version, a warning is generated and the output is not parsed
+for errors.
+
 Generating the Cppcheck HTML report
 ===================================
 
