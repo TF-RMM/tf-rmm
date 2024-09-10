@@ -655,6 +655,9 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	case SMC_RSI_RDEV_GET_INSTANCE_ID:
 		handle_rsi_rdev_get_instance_id(rec, rec_exit, &res);
 		break;
+	case SMC_RSI_RDEV_GET_INFO:
+		handle_rsi_rdev_get_info(rec, &res);
+		break;
 	default:
 		res.action = UPDATE_REC_RETURN_TO_REALM;
 		res.smc_res.x[0] = SMC_UNKNOWN;
