@@ -267,27 +267,54 @@ COMPILER_ASSERT(U(offsetof(struct rec, sp_el0)) ==
 	(U(offsetof(struct rec, regs)) + U(sizeof(REG_TYPE) * RMM_REC_SAVED_GEN_REG_COUNT)));
 
 /*
- * Check that mpidr has a valid value with all fields except
- * Aff3[39:32]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0] set to 0.
+ * Check that mpidr of RmiRecMpidr type has a valid value with all fields except
+ * Aff3[31:24]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0] set to 0.
  */
-static inline bool mpidr_is_valid(unsigned long mpidr)
+static inline bool rec_mpidr_is_valid(unsigned long rec_mpidr)
 {
-	return (mpidr & ~(MASK(MPIDR_EL2_AFF0) |
-			  MASK(MPIDR_EL2_AFF1) |
-			  MASK(MPIDR_EL2_AFF2) |
-			  MASK(MPIDR_EL2_AFF3))) == 0ULL;
+	return (rec_mpidr & ~(MASK(RMI_MPIDR_AFF0) |
+			  MASK(RMI_MPIDR_AFF1) |
+			  MASK(RMI_MPIDR_AFF2) |
+			  MASK(RMI_MPIDR_AFF3))) == 0ULL;
 }
 
 /*
- * Calculate REC index from mpidr value.
- * index = Aff3[39:32]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0]
+ * Calculate REC index from mpidr of RmiRecMpidr type value.
+ * index = Aff3[31:24]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0]
+ */
+static inline unsigned long rec_mpidr_to_idx(unsigned long rec_mpidr)
+{
+	return (RMI_MPIDR_AFF(0, rec_mpidr) |
+		RMI_MPIDR_AFF(1, rec_mpidr) |
+		RMI_MPIDR_AFF(2, rec_mpidr) |
+		RMI_MPIDR_AFF(3, rec_mpidr));
+}
+
+/*
+ * Calculate REC index from mpidr of MPIDR_EL1 register type
+ * Aff3[39:32]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0]
  */
 static inline unsigned long mpidr_to_rec_idx(unsigned long mpidr)
 {
-	return (MPIDR_EL2_AFF(0, mpidr) +
-		MPIDR_EL2_AFF(1, mpidr) +
-		MPIDR_EL2_AFF(2, mpidr) +
-		MPIDR_EL2_AFF(3, mpidr));
+	return (MPIDR_EL1_AFF(0, mpidr) |
+		MPIDR_EL1_AFF(1, mpidr) |
+		MPIDR_EL1_AFF(2, mpidr) |
+		MPIDR_EL1_AFF(3, mpidr));
+}
+
+/*
+ * Convert mpidr of RmiRecMpidr type
+ * Aff3[31:24]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0]
+ * to MPIDR_EL1 register type value
+ * Aff3[39:32]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0].
+ */
+static inline unsigned long rec_mpidr_to_mpidr(unsigned long rec_mpidr)
+{
+	return (rec_mpidr & (MASK(RMI_MPIDR_AFF0)	|
+			 MASK(RMI_MPIDR_AFF1)	|
+			 MASK(RMI_MPIDR_AFF2)))	|
+		((rec_mpidr & MASK(RMI_MPIDR_AFF3)) <<
+			(MPIDR_EL1_AFF3_SHIFT - RMI_MPIDR_AFF3_SHIFT));
 }
 
 void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit);
