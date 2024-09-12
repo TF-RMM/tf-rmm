@@ -872,58 +872,80 @@
 #define APGAKeyLo_EL1		S3_0_C2_C3_0
 #define APGAKeyHi_EL1		S3_0_C2_C3_1
 
-/* MPIDR definitions */
-#define MPIDR_EL1_AFF_MASK	0xFF
-#define MPIDR_EL1_AFF0_SHIFT	0
-#define MPIDR_EL1_AFF1_SHIFT	8
-#define MPIDR_EL1_AFF2_SHIFT	16
-#define MPIDR_EL1_AFF3_SHIFT	32
-#define MPIDR_EL1_MT_MASK	(UL(1) << 24)
-#define MPIDR_EL1_AFFINITY_BITS	8
+/*
+ * MPIDR_EL1 definitions
+ * 'MPIDR_EL1_AFF<n>_VAL_SHIFT' constants specify the right shift
+ * for affinity field <n> that gives the field's actual value.
+ */
 
-#define MPIDR_EL1_AFF0		INPLACE(MPIDR_EL1_AFF0, MPIDR_EL1_AFF_MASK)
-#define MPIDR_EL1_AFF1		INPLACE(MPIDR_EL1_AFF1, MPIDR_EL1_AFF_MASK)
-#define MPIDR_EL1_AFF2		INPLACE(MPIDR_EL1_AFF2, MPIDR_EL1_AFF_MASK)
-#define MPIDR_EL1_AFF3		INPLACE(MPIDR_EL1_AFF3, MPIDR_EL1_AFF_MASK)
+/* Aff0[3:0] - Affinity level 0
+ * For compatibility with GICv3 only Aff0[3:0] field is used,
+ * and Aff0[7:4] of MPIDR_EL1 value is RES0 to match RmiRecMpidr.
+ */
+#define MPIDR_EL1_AFF0_SHIFT		U(0)
+#define MPIDR_EL1_AFF0_WIDTH		U(4)
+#define MPIDR_EL1_AFF0_VAL_SHIFT	U(0)
+
+/* Aff1[15:8] - Affinity level 1 */
+#define MPIDR_EL1_AFF1_SHIFT		U(8)
+#define MPIDR_EL1_AFF1_WIDTH		U(8)
+#define MPIDR_EL1_AFF1_VAL_SHIFT	U(4)
+
+/* Aff2[23:16] - Affinity level 2 */
+#define MPIDR_EL1_AFF2_SHIFT		U(16)
+#define MPIDR_EL1_AFF2_WIDTH		U(8)
+#define MPIDR_EL1_AFF2_VAL_SHIFT	U(4)
+
+/* Aff3[39:32] - Affinity level 3 */
+#define MPIDR_EL1_AFF3_SHIFT		U(32)
+#define MPIDR_EL1_AFF3_WIDTH		U(8)
+#define MPIDR_EL1_AFF3_VAL_SHIFT	U(12)
+
+/*
+ * Extract the value of MPIDR_EL1.Aff<n> register field shifted right
+ * so it can be evaluated directly.
+ */
+#define MPIDR_EL1_AFF(n, reg)	\
+	(((reg) & MASK(MPIDR_EL1_AFF##n)) >> MPIDR_EL1_AFF##n##_VAL_SHIFT)
 
 /*
  * RmiRecMpidr type definitions.
  *
- * 'MPIDR_EL2_AFF<n>_VAL_SHIFT' constants specify the right shift
+ * 'RMI_MPIDR_AFF<n>_VAL_SHIFT' constants specify the right shift
  * for affinity field <n> that gives the field's actual value.
  *
  * Aff0[3:0] - Affinity level 0
  * For compatibility with GICv3 only Aff0[3:0] field is used,
  * and Aff0[7:4] of a REC MPIDR value is RES0.
  */
-#define MPIDR_EL2_AFF0_SHIFT			0
-#define MPIDR_EL2_AFF0_WIDTH			U(4)
-#define MPIDR_EL2_AFF0_VAL_SHIFT		0
+#define RMI_MPIDR_AFF0_SHIFT		U(0)
+#define RMI_MPIDR_AFF0_WIDTH		U(4)
+#define RMI_MPIDR_AFF0_VAL_SHIFT	U(0)
 
 /* Aff1[15:8] - Affinity level 1 */
-#define MPIDR_EL2_AFF1_SHIFT			8
-#define MPIDR_EL2_AFF1_WIDTH			U(8)
-#define MPIDR_EL2_AFF1_VAL_SHIFT		4
+#define RMI_MPIDR_AFF1_SHIFT		U(8)
+#define RMI_MPIDR_AFF1_WIDTH		U(8)
+#define RMI_MPIDR_AFF1_VAL_SHIFT	U(4)
 
 /* Aff2[23:16] - Affinity level 2 */
-#define MPIDR_EL2_AFF2_SHIFT			16
-#define MPIDR_EL2_AFF2_WIDTH			U(8)
-#define MPIDR_EL2_AFF2_VAL_SHIFT		4
+#define RMI_MPIDR_AFF2_SHIFT		U(16)
+#define RMI_MPIDR_AFF2_WIDTH		U(8)
+#define RMI_MPIDR_AFF2_VAL_SHIFT	U(4)
 
-/* Aff3[39:32] - Affinity level 3 */
-#define MPIDR_EL2_AFF3_SHIFT			32
-#define MPIDR_EL2_AFF3_WIDTH			U(8)
-#define MPIDR_EL2_AFF3_VAL_SHIFT		12
+/* Aff3[31:24] - Affinity level 3 */
+#define RMI_MPIDR_AFF3_SHIFT		U(24)
+#define RMI_MPIDR_AFF3_WIDTH		U(8)
+#define RMI_MPIDR_AFF3_VAL_SHIFT	U(4)
 
 /*
- * Extract the value of Aff<n> register field shifted right
+ * Extract the value of RmiRecMpidr.Aff<n> field shifted right
  * so it can be evaluated directly.
  */
-#define MPIDR_EL2_AFF(n, reg)	\
-	(((reg) & MASK(MPIDR_EL2_AFF##n)) >> MPIDR_EL2_AFF##n##_VAL_SHIFT)
+#define RMI_MPIDR_AFF(n, val)	\
+	(((val) & MASK(RMI_MPIDR_AFF##n)) >> RMI_MPIDR_AFF##n##_VAL_SHIFT)
 
-/* VMPIDR_EL2 bit [31] = RES1 */
-#define VMPIDR_EL2_RES1				(UL(1) << 31)
+/* VMPIDR bit [31] = RES1 */
+#define VMPIDR_EL2_RES1		(UL(1) << 31)
 
 /* ICC_SRE_EL2 defintions */
 #define ICC_SRE_EL2_ENABLE	(UL(1) << 3)	/* Enable lower EL access to ICC_SRE_EL1 */

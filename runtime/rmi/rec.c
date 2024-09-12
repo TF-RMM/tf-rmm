@@ -22,7 +22,7 @@
 #include <stddef.h>
 #include <string.h>
 
-static void init_rec_sysregs(struct rec *rec, unsigned long mpidr)
+static void init_rec_sysregs(struct rec *rec, unsigned long rec_mpidr)
 {
 	/* Set non-zero values only */
 	rec->sysregs.pmcr_el0 = rec->realm_info.pmu_enabled ?
@@ -30,7 +30,7 @@ static void init_rec_sysregs(struct rec *rec, unsigned long mpidr)
 
 	rec->sysregs.sctlr_el1 = SCTLR_EL1_FLAGS;
 	rec->sysregs.mdscr_el1 = MDSCR_EL1_TDCC_BIT;
-	rec->sysregs.vmpidr_el2 = mpidr | VMPIDR_EL2_RES1;
+	rec->sysregs.vmpidr_el2 = rec_mpidr_to_mpidr(rec_mpidr) | VMPIDR_EL2_RES1;
 	rec->sysregs.cnthctl_el2 = CNTHCTL_EL2_NO_TRAPS;
 	rec->sysregs.cptr_el2 = CPTR_EL2_VHE_INIT;
 }
@@ -306,8 +306,8 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	}
 
 	rec_idx = get_rd_rec_count_locked(rd);
-	if (!mpidr_is_valid(rec_params.mpidr) ||
-	   (rec_idx != mpidr_to_rec_idx(rec_params.mpidr))) {
+	if (!rec_mpidr_is_valid(rec_params.mpidr) ||
+	   (rec_idx != rec_mpidr_to_idx(rec_params.mpidr))) {
 		ret = RMI_ERROR_INPUT;
 		goto out_unmap;
 	}
