@@ -563,6 +563,8 @@ bool host_ns_s2tte_is_valid(const struct s2tt_context *s2_ctx,
 	 * Test that all fields that are not controlled by the host are zero
 	 * and that the output address is correctly aligned. Note that
 	 * the host is permitted to map any physical address outside PAR.
+	 * Note that this also checks for the case when FEAT_LPA2 is disabled
+	 * for the Realm, then the PA in `s2tte` must be <= 48 bits wide.
 	 */
 	if ((s2tte & ~mask) != 0UL) {
 		return false;

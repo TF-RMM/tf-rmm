@@ -40,8 +40,10 @@ struct s2tt_context {
 
 #define S2TT_MIN_IPA_BITS		U(32)
 #define S2TT_MAX_IPA_BITS		U(48)
+#define S2TT_MAX_PA_BITS		U(48)
 
 #define S2TT_MAX_IPA_BITS_LPA2		U(52)
+#define S2TT_MAX_PA_BITS_LPA2		U(52)
 #define S2TT_MAX_IPA_SIZE_LPA2		(UL(1) << S2TT_MAX_IPA_BITS_LPA2)
 
 #define S2TT_MIN_STARTING_LEVEL		(0)
