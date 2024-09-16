@@ -112,6 +112,18 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 	buffer_unmap(rd);
 
 	/*
+	 * If LPA2 is disabled for the realm, then `rtt_addr` must not be
+	 * more than 48 bits wide.
+	 */
+	if (!s2_ctx.enable_lpa2) {
+		if ((rtt_addr >= (UL(1) << S2TT_MAX_PA_BITS))) {
+			granule_unlock(g_rd);
+			granule_unlock(g_tbl);
+			return RMI_ERROR_INPUT;
+		}
+	}
+
+	/*
 	 * Lock the RTT root. Enforcing locking order RD->RTT is enough to
 	 * ensure deadlock free locking guarantee.
 	 */
@@ -908,6 +920,18 @@ static unsigned long data_create(unsigned long rd_addr,
 	}
 
 	s2_ctx = &(rd->s2_ctx);
+
+	/*
+	 * If LPA2 is disabled for the realm, then `data_addr` must not be
+	 * more than 48 bits wide.
+	 */
+	if (!s2_ctx->enable_lpa2) {
+		if ((data_addr >= (UL(1) << S2TT_MAX_PA_BITS))) {
+			ret = RMI_ERROR_INPUT;
+			goto out_unmap_rd;
+		}
+	}
+
 	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
 
 	s2tt_walk_lock_unlock(s2_ctx, map_addr, S2TT_PAGE_LEVEL, &wi);
