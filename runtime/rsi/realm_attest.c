@@ -47,6 +47,7 @@ static void attest_token_continue_write_state(struct rec *rec,
 	size_t attest_token_len, length;
 	struct rec_attest_data *attest_data = rec->aux_data.attest_data;
 	uintptr_t cca_token_buf = rec->aux_data.cca_token_buf;
+	enum attest_token_err_t ret;
 
 	/*
 	 * Translate realm granule IPA to PA. If returns with
@@ -84,14 +85,15 @@ static void attest_token_continue_write_state(struct rec *rec,
 	assert(realm_att_token != 0UL);
 
 	if (attest_data->rmm_cca_token_copied_len == 0UL) {
-		attest_token_len = attest_cca_token_create(
-					&attest_data->token_sign_ctx,
-					(void *)cca_token_buf,
-					REC_ATTEST_TOKEN_BUF_SIZE,
-					&attest_data->rmm_realm_token_buf,
-					attest_data->rmm_realm_token_len);
+		ret = attest_cca_token_create(
+				&attest_data->token_sign_ctx,
+				(void *)cca_token_buf,
+				REC_ATTEST_TOKEN_BUF_SIZE,
+				&attest_data->rmm_realm_token_buf,
+				attest_data->rmm_realm_token_len,
+				&attest_token_len);
 
-		if (attest_token_len == 0UL) {
+		if (ret != ATTEST_TOKEN_ERR_SUCCESS) {
 			res->smc_res.x[0] = RSI_ERROR_INPUT;
 			goto out_unmap;
 		}
