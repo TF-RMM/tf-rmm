@@ -155,8 +155,9 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 				rec->aux_data.attest_heap_buf,
 				REC_HEAP_SIZE);
 	if (att_ret != 0) {
-		/* There is no provision for this failure so panic */
-		panic();
+		ERROR("Failed to initialize attestation token context.\n");
+		res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
+		return;
 	}
 
 	/* Initialize length fields in attestation data */
@@ -186,8 +187,9 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	granule_unlock(rec->realm_info.g_rd);
 
 	if (att_ret != 0) {
-		ERROR("FATAL_ERROR: Realm token creation failed\n");
-		panic();
+		ERROR("Realm token creation failed.\n");
+		res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
+		return;
 	}
 
 	res->smc_res.x[0] = RSI_SUCCESS;
@@ -251,8 +253,9 @@ void handle_rsi_attest_token_continue(struct rec *rec,
 		} else if ((ret != ATTEST_TOKEN_ERR_COSE_SIGN_IN_PROGRESS) &&
 			(ret != ATTEST_TOKEN_ERR_SUCCESS)) {
 			/* Accessible only in case of failure during token signing */
-			ERROR("FATAL_ERROR: Realm token sign failed\n");
-			panic();
+			ERROR("Realm token signing failed.\n");
+			res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
+			return;
 		}
 
 		res->smc_res.x[0] = RSI_INCOMPLETE;
