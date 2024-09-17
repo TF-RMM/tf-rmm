@@ -16,6 +16,15 @@
 /*************************************
  * SMC codes for the EL3-RMM interface
  *************************************/
+
+#define E_RMM_OK			 (0)
+#define E_RMM_UNK			(-1)
+#define E_RMM_BAD_ADDR			(-2)
+#define E_RMM_BAD_PAS			(-3)
+#define E_RMM_NOMEM			(-4)
+#define E_RMM_INVAL                     (-5)
+#define E_RMM_AGAIN			(-6)
+
 					/* 0x1B0 - 0x1B1 */
 #define SMC_RMM_GTSI_DELEGATE		SMC64_STD_FID(RMM_EL3, U(0))
 #define SMC_RMM_GTSI_UNDELEGATE		SMC64_STD_FID(RMM_EL3, U(1))
@@ -65,7 +74,7 @@
  * The Minor version value for the Boot interface supported by this
  * implementation of RMM.
  */
-#define RMM_EL3_IFC_VERS_MINOR		(U(2))
+#define RMM_EL3_IFC_VERS_MINOR		(U(3))
 
 /*
  * Check if RMM-EL3 Interface is compatible. The Major version should match
@@ -293,23 +302,45 @@ int rmm_el3_ifc_get_realm_attest_key(uintptr_t buf, size_t buflen,
 /*
  * Get the platform token from the EL3 firmware and pass the public hash
  * value to it.
- * The caller of this API should have filled the public key hash at `buf`
- * and the length of the key hash must be stored in hash_size.
+ * If the whole token does not fit in the buffer, a piece of the token will be
+ * returned in the buffer, and this function will have to be called
+ * sequentially in order to obtain the full token. Output variable
+ * remaining_len will indicate how much of the token remains to be retrieved.
  *
  * Args:
- *	- buf:		Pointer to the buffer used to get the platform token
- *			from EL3. This must belong to the RMM-EL3 shared memory
- *			and must be locked before use.
- *	- buflen	Maximum size for the Platform Token.
- *	- len:		Pointer where the size of the retrieved platform token
- *			will be stored.
- *	- hash_size:	Size of the SHA digest used for the token generation.
+ *	- buf:			Pointer to the buffer used to get the platform
+ *				token from EL3. This must belong to the
+ *				RMM-EL3 shared memory and must be locked
+ *				before use.
+ *	- buflen		Buffer size.
+ *	- token_hunk_len:	Return the size of the retrieved token hunk.
+ *	- hash_size:		Size of the SHA digest used for the token
+ *				generation.
+ *				If hash_size contains a valid size (> 0), the
+ *				buffer will contain the first part of the token
+ *				after returning. Further calls to this API need
+ *				to have hash_size set to 0 to retrieve rest of
+ *				the platform token.
+ *	- remaining_len:	Return the number of bytes of the token that are
+ *				pending transfer.
  *
  * Return:
- *	- 0 On success or a negative error code otherwise.
+ *	- E_RMM_OK		if part (or entirety) of the token has been
+ *				received successfully.
+ *	- E_RMM_INVAL		An error in input arguments. This could also be
+ *				due to the fact that the token has been
+ *				retrieved fully in a prior call and the
+ *				arguments should correspond to token generation
+ *				phase.
+ *	- E_RMM_AGAIN		EL3 is busy and the platform token cannot be
+ *				retrieved at this time. At least one further
+ *				call will be needed in order to retrieve the
+ *				token.
  */
 int rmm_el3_ifc_get_platform_token(uintptr_t buf, size_t buflen,
-					size_t *len, size_t hash_size);
+					size_t hash_size,
+					size_t *token_hunk_len,
+					size_t *remaining_len);
 
 static inline unsigned long rmm_el3_ifc_gtsi_delegate(unsigned long addr)
 {

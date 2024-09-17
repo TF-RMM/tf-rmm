@@ -14,6 +14,7 @@
 #include <string.h>
 
 #define ATTEST_KEY_CURVE_ECC_SECP384R1	0
+#define ATTEST_PLAT_TOKEN_HUNK_LEN	100
 
 /* Hardcoded platform token value */
 static uint8_t platform_token[] = {
@@ -102,6 +103,7 @@ static uint8_t platform_token[] = {
 	0xC1, 0x26, 0x96, 0x53, 0xA3, 0x60, 0x3F, 0x6C,
 	0x75, 0x96, 0x90, 0x6A, 0xF9, 0x4E, 0xDA, 0x30
 };
+static uint64_t platform_token_offset;
 
 static uint8_t sample_attest_priv_key[] = {
 	0x20, 0x11, 0xC7, 0xF0, 0x3C, 0xEE, 0x43, 0x25, 0x17, 0x6E,
@@ -148,20 +150,47 @@ unsigned long host_monitor_call(unsigned long id,
 	}
 }
 
-static int attest_get_platform_token(uint64_t buf_pa, uint64_t *buf_size,
-				     uint64_t c_size)
+static int attest_get_platform_token(uint64_t buf_pa, uint64_t buf_size,
+				     uint64_t c_size, uint64_t *token_hunk_size,
+				     uint64_t *remaining_len)
 {
-	(void)c_size; /* The challenge is ignored */
+	uint64_t platform_token_size = sizeof(platform_token);
+	uint64_t local_hunk_len;
+	uint64_t local_remaining_len;
 
-	if (*buf_size < sizeof(platform_token)) {
-		ERROR("Failed to get platform token: Buffer is too small.\n");
-		return -ENOMEM;
+	if (c_size != 0) {
+		platform_token_offset = 0;
+	} else if (platform_token_offset == 0) {
+		/* c_size should not be zero if platform_token_offset is 0 */
+		return E_RMM_INVAL;
 	}
 
-	(void)memcpy((void *)buf_pa, (void *)platform_token, sizeof(platform_token));
-	*buf_size = sizeof(platform_token);
+	local_hunk_len = ATTEST_PLAT_TOKEN_HUNK_LEN;
+	if (local_hunk_len > buf_size) {
+		local_hunk_len = buf_size;
+	}
 
-	return 0;
+	local_remaining_len = platform_token_size - platform_token_offset;
+	/*
+	 * If the buffer is enough to fit the remaining bytes of the token,
+	 * return only the remaining bytes of the token.
+	 */
+	if (local_hunk_len >= local_remaining_len) {
+		local_hunk_len = local_remaining_len;
+	}
+
+	(void)memcpy((void *)buf_pa,
+		(void *)platform_token + platform_token_offset,
+		local_hunk_len);
+
+	/* Update offset and remaining bytes according to hunk size */
+	platform_token_offset += local_hunk_len;
+	local_remaining_len -= local_hunk_len;
+
+	*token_hunk_size = local_hunk_len;
+	*remaining_len = local_remaining_len;
+
+	return E_RMM_OK;
 }
 
 static int attest_get_signing_key(uint64_t buf_pa, uint64_t *buf_size,
@@ -196,11 +225,15 @@ void host_monitor_call_with_res(unsigned long id,
 	(void)arg3;
 	(void)arg4;
 	(void)arg5;
+	unsigned long token_hunk_size = 0;
+	unsigned long remaining_len = 0;
 
 	switch (id) {
 	case SMC_RMM_GET_PLAT_TOKEN:
-		res->x[0] = attest_get_platform_token(arg0, &arg1, arg2);
-		res->x[1] = arg1;
+		res->x[0] = attest_get_platform_token(arg0, arg1,
+				arg2, &token_hunk_size, &remaining_len);
+		res->x[1] = token_hunk_size;
+		res->x[2] = remaining_len;
 		break;
 	case SMC_RMM_GET_REALM_ATTEST_KEY:
 		res->x[0] = attest_get_signing_key(arg0, &arg1, arg2);
