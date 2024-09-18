@@ -325,7 +325,8 @@ void handle_rsi_measurement_extend(struct rec *rec, struct rsi_result *res)
 			   current_measurement,
 			   extend_measurement,
 			   size,
-			   current_measurement);
+			   current_measurement,
+			   MAX_MEASUREMENT_SIZE);
 
 	res->smc_res.x[0] = RSI_SUCCESS;
 
