@@ -17,7 +17,7 @@
 /* Max 10 64-bit parameters separated by space */
 #define PARAMS_STR_LEN	(10UL * sizeof("0123456789ABCDEF"))
 
-#define MAX_STATUS_LEN	sizeof("{RSI_ERROR_INPUT}")
+#define MAX_STATUS_LEN	sizeof("RSI_ERROR_UNKNOWN")
 
 #define BUFFER_SIZE	(MAX_NAME_LEN + PARAMS_STR_LEN + \
 			sizeof(" > ") - 1UL + MAX_STATUS_LEN)
@@ -57,7 +57,8 @@ static const char * const rsi_status_string[] = {
 	RSI_STATUS_STRING(SUCCESS),
 	RSI_STATUS_STRING(ERROR_INPUT),
 	RSI_STATUS_STRING(ERROR_STATE),
-	RSI_STATUS_STRING(INCOMPLETE)
+	RSI_STATUS_STRING(INCOMPLETE),
+	RSI_STATUS_STRING(ERROR_UNKNOWN)
 };
 
 COMPILER_ASSERT(ARRAY_LEN(rsi_status_string) == RSI_ERROR_COUNT);
