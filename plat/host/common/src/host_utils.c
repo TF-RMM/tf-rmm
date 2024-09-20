@@ -153,10 +153,16 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 
 	/*
 	 * Initialize ID_AA64DFR0_EL1 with PMUVer field to PMUv3p7.
-	 * (ID_AA64DFR0_EL1.PMUVer, bits [11:8] set to 7)
+	 * (ID_AA64DFR0_EL1.PMUVer, bits [11:8] set to 7).
+	 * Also setup minimum allowed by architecture number of watchpoints
+	 * (ID_AA64DFR0_EL1.WRPs, bits [15:12] set to 1)
+	 * and breakpoints.
+	 * (ID_AA64DFR0_EL1.BRPs, bits [23:20] set to 1)
 	 */
 	(void)host_util_set_default_sysreg_cb("id_aa64dfr0_el1",
-			INPLACE(ID_AA64DFR0_EL1_PMUVer, 7UL));
+			INPLACE(ID_AA64DFR0_EL1_PMUVer, 7UL) |
+			INPLACE(ID_AA64DFR0_EL1_WRPs, 1UL) |
+			INPLACE(ID_AA64DFR0_EL1_BRPs, 1UL));
 
 	/*
 	 * Initialize ID_AA64MMFR0_EL1 with a physical address

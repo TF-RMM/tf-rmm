@@ -198,6 +198,8 @@ static int create_realm(void)
 	realm_params->s2sz = arch_feat_get_pa_width();
 	realm_params->rtt_num_start = 1;
 	realm_params->rtt_base = (uintptr_t)rtts[0];
+	realm_params->num_bps = 1;
+	realm_params->num_wps = 1;
 
 	host_rmi_realm_create(rd, realm_params, &result);
 	CHECK_RMI_RESULT();
