@@ -80,7 +80,7 @@ int attest_init_realm_attestation_key(void)
 	psa_key_attributes_t key_attributes = psa_key_attributes_init();
 	struct t_cose_key attest_key;
 	enum t_cose_err_t cose_res;
-	struct q_useful_buf_c cose_key;
+	struct q_useful_buf_c cose_key = {0};
 	struct q_useful_buf cose_key_buf = { realm_attest_public_key,
 				      sizeof(realm_attest_public_key) };
 
@@ -147,6 +147,7 @@ int attest_init_realm_attestation_key(void)
 		return -EINVAL;
 	}
 
+	assert(cose_key.len != 0UL);
 	realm_attest_public_key_len = cose_key.len;
 
 	/* Compute the hash of the RMM public attestation key */
