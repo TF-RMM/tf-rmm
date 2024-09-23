@@ -20,7 +20,6 @@
 #include <timers.h>
 
 static struct ns_state g_ns_data[MAX_CPUS];
-static struct pmu_state g_pmu_data[MAX_CPUS];
 
 /* NS world SIMD context */
 static struct simd_context g_ns_simd_ctx[MAX_CPUS]
@@ -190,7 +189,7 @@ static void save_ns_state(struct rec *rec)
 
 	if (rec->realm_info.pmu_enabled) {
 		/* Save PMU context */
-		pmu_save_state(ns_state->pmu, rec->realm_info.pmu_num_ctrs);
+		pmu_save_state(&ns_state->pmu, rec->realm_info.pmu_num_ctrs);
 	}
 }
 
@@ -211,7 +210,7 @@ static void restore_ns_state(struct rec *rec)
 
 	if (rec->realm_info.pmu_enabled) {
 		/* Restore PMU state */
-		pmu_restore_state(ns_state->pmu,
+		pmu_restore_state(&ns_state->pmu,
 				  rec->realm_info.pmu_num_ctrs);
 	}
 }
@@ -268,9 +267,6 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 	ns_state = &g_ns_data[cpuid];
 
-	/* Ensure PMU context is cleared */
-	assert(ns_state->pmu == NULL);
-
 	rec->ns = ns_state;
 
 	/* Map auxiliary granules */
@@ -282,8 +278,6 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	 */
 	ret = attestation_heap_ctx_assign_pe(&rec->aux_data.attest_data->alloc_ctx);
 	assert(ret == 0);
-
-	ns_state->pmu = &g_pmu_data[cpuid];
 
 	save_ns_state(rec);
 	restore_realm_state(rec);
@@ -361,11 +355,6 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 	save_realm_state(rec, rec_exit);
 	restore_ns_state(rec);
-
-	/*
-	 * Clear PMU context while exiting
-	 */
-	ns_state->pmu = NULL;
 
 	/*
 	 * Clear NS pointer since that struct is local to this function.
