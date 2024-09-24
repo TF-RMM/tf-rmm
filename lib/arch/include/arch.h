@@ -676,7 +676,13 @@
 
 #define VTCR_PS_SHIFT		16
 #define VTCR_PS_WIDTH		U(3)
+#define VTCR_PS_32		INPLACE(VTCR_PS, UL(0))
+#define VTCR_PS_36		INPLACE(VTCR_PS, UL(1))
 #define VTCR_PS_40		INPLACE(VTCR_PS, UL(2))
+#define VTCR_PS_42		INPLACE(VTCR_PS, UL(3))
+#define VTCR_PS_44		INPLACE(VTCR_PS, UL(4))
+#define VTCR_PS_48		INPLACE(VTCR_PS, UL(5))
+#define VTCR_PS_52		INPLACE(VTCR_PS, UL(6))
 
 #define VTCR_VS			(UL(1) << 19)
 #define VTCR_NSA		(UL(1) << 30)
@@ -687,7 +693,6 @@
 	VTCR_ORGN0_WBRAWA | /* PTW outer cache attr. is WB RAWA*/ \
 	VTCR_SH0_IS       | /* PTW shareability attr. is Outer Sharable*/\
 	VTCR_TG0_4K       | /* 4K granule size in non-secure PT*/ \
-	VTCR_PS_40        | /* size(PA) = 40 */   \
 	/* VS = 0              size(VMID) = 8 */ \
 	/* NSW = 0             non-secure s2 is made of secure pages*/ \
 	VTCR_NSA           | /* non-secure IPA maps to non-secure PA */ \
