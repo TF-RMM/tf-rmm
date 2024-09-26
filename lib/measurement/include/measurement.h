@@ -62,7 +62,8 @@ void measurement_extend(enum hash_algo algorithm,
 			void *current_measurement,
 			void *extend_measurement,
 			size_t extend_measurement_size,
-			unsigned char *out);
+			unsigned char *out,
+			size_t out_size);
 
 /*
  * Return the hash size in bytes for the selected measurement algorithm.

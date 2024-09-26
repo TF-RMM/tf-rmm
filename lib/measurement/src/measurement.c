@@ -88,7 +88,8 @@ static void do_extend(psa_algorithm_t psa_algorithm,
 		      void *current_measurement,
 		      void *extend_measurement,
 		      size_t extend_measurement_size,
-		      unsigned char *out)
+		      unsigned char *out,
+		      size_t out_size)
 {
 	size_t hash_size;
 	__unused psa_status_t ret;
@@ -111,7 +112,7 @@ static void do_extend(psa_algorithm_t psa_algorithm,
 
 	ret = psa_hash_finish(&operation,
 			      out,
-			      (size_t)PSA_HASH_LENGTH(psa_algorithm),
+			      out_size,
 			      &hash_size);
 
 	/* coverity[uninit_use:SUPPRESS] */
@@ -123,7 +124,8 @@ void measurement_extend(enum hash_algo algorithm,
 			void *current_measurement,
 			void *extend_measurement,
 			size_t extend_measurement_size,
-			unsigned char *out)
+			unsigned char *out,
+			size_t out_size)
 {
 	psa_algorithm_t psa_algorithm = PSA_ALG_NONE;
 
@@ -149,7 +151,8 @@ void measurement_extend(enum hash_algo algorithm,
 			  current_measurement,
 			  extend_measurement,
 			  extend_measurement_size,
-			  out));
+			  out,
+			  out_size));
 
 #if LOG_LEVEL >= LOG_LEVEL_VERBOSE
 	measurement_print(out, algorithm);
