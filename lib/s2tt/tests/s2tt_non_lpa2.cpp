@@ -213,6 +213,11 @@ ASSERT_TEST(s2tt_non_lpa2, host_ns_s2tte_is_valid_tc5)
 	host_ns_s2tte_is_valid_tc5();
 }
 
+TEST(s2tt_non_lpa2, host_ns_s2tte_is_valid_tc6)
+{
+	host_ns_s2tte_is_valid_tc6();
+}
+
 TEST(s2tt_non_lpa2, host_ns_s2tte_tc1)
 {
 	host_ns_s2tte_tc1();

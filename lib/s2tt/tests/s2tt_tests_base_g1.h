@@ -71,6 +71,7 @@ void host_ns_s2tte_is_valid_tc2(void);
 void host_ns_s2tte_is_valid_tc3(void);
 void host_ns_s2tte_is_valid_tc4(void);
 void host_ns_s2tte_is_valid_tc5(void);
+void host_ns_s2tte_is_valid_tc6(void);
 
 /* s2tte_has_ripas() */
 void s2tte_has_ripas_tc1(void);

@@ -1145,6 +1145,37 @@ void host_ns_s2tte_is_valid_tc5(void)
 	test_helpers_fail_if_no_assert_failed();
 }
 
+void host_ns_s2tte_is_valid_tc6(void)
+{
+	/***************************************************************
+	 * TEST CASE 6:
+	 *
+	 * Test host_ns_s2tte_is_valid() with invalid PA >= 48 bits
+	 * when LPA2 is disabled
+	 **************************************************************/
+
+	struct s2tt_context s2tt_ctx = { 0UL };
+	unsigned long host_attrs;
+	unsigned long tte;
+	long level = s2tt_test_helpers_min_block_lvl();
+	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
+
+	if (is_feat_lpa2_4k_2_present() == false) {
+		CHECK_TRUE(true);
+		return;
+	}
+
+	pa = pa | (1UL << S2TT_MAX_PA_BITS);
+	host_attrs =
+		s2tt_test_helpers_gen_ns_attrs(true, false);
+	tte = s2tt_test_helpers_pa_to_s2tte(pa, level) |
+		host_attrs;
+
+	CHECK_TRUE(s2tt_test_helpers_s2tte_to_pa(tte, level) >= (1UL << S2TT_MAX_PA_BITS));
+	CHECK_FALSE(host_ns_s2tte_is_valid((const struct s2tt_context *)&s2tt_ctx,
+				tte, level));
+}
+
 void host_ns_s2tte_tc1(void)
 {
 	/***************************************************************
