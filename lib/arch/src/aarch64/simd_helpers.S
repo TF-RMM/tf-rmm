@@ -27,6 +27,7 @@
  *   none
  */
 func fpu_save_registers
+.arch_extension fp
 	/* Save the SIMD/FPU register bank to memory. */
 	stp	q0, q1, [x0], #32
 	stp	q2, q3, [x0], #32
@@ -46,6 +47,7 @@ func fpu_save_registers
 	stp	q30, q31, [x0], #32
 
 	ret
+.arch_extension nofp
 endfunc fpu_save_registers
 
 /*
@@ -61,6 +63,7 @@ endfunc fpu_save_registers
  *   none
  */
 func fpu_restore_registers
+.arch_extension fp
 	ldp	q0, q1, [x0], #32
 	ldp	q2, q3, [x0], #32
 	ldp	q4, q5, [x0], #32
@@ -79,6 +82,7 @@ func fpu_restore_registers
 	ldp	q30, q31, [x0], #32
 
 	ret
+.arch_extension nofp
 endfunc fpu_restore_registers
 
 /*
