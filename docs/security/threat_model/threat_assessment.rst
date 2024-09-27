@@ -506,7 +506,8 @@ order to implement the mitigations.
 +------------------------+---------------------------------------------------+
 | Mitigations            | | 1) Yes.                                         |
 | implemented?           | | 2) Yes.                                         |
-|                        | |    ``FEAT_DIT`` is enabled for RMM.             |
+|                        | |    ``FEAT_DIT`` is enabled for RMM only during  |
+|                        | |    signing phase of attestation.                |
 |                        | | 3) Yes.                                         |
 |                        | |    RMM relies on MbedTLS library to use         |
 |                        |      algorithms which are data independent when   |

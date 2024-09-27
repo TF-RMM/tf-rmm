@@ -87,9 +87,8 @@ func realm_exit
 	mov_imm	x2, RMM_CPU_EH_STACK_END_VA
 	msr	sp_el0, x2
 
-	/* Enable DIT on return from Realm EL1/0 */
-	mov	x2, #DIT_BIT
-	msr	DIT, x2
+	/* Disable DIT on return from Realm EL1/0 */
+	msr	DIT, xzr
 
 	/* x0 and x1 as stored by el2_vectors */
 	ldp	x2, x3,	  [sp]

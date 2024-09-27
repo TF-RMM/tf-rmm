@@ -22,9 +22,8 @@
 	mov	x22, x2
 	mov	x23, x3
 
-	/* Enable DIT */
-	mov	x1, #DIT_BIT
-	msr	DIT, x1
+	/* Disable DIT */
+	msr	DIT, xzr
 
 	mov_imm	x1, SCTLR_EL2_INIT
 	msr	sctlr_el2, x1
