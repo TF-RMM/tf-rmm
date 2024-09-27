@@ -47,11 +47,33 @@ static const unsigned long sl0_val[] = {
 	VTCR_SL0_4K_L3
 };
 
+static unsigned long realm_vtcr_ps(unsigned int parange)
+{
+	switch (parange) {
+	case PARANGE_0001_WIDTH:
+		return VTCR_PS_36;
+	case PARANGE_0010_WIDTH:
+		return VTCR_PS_40;
+	case PARANGE_0011_WIDTH:
+		return VTCR_PS_42;
+	case PARANGE_0100_WIDTH:
+		return VTCR_PS_44;
+	case PARANGE_0101_WIDTH:
+		return VTCR_PS_48;
+	case PARANGE_0110_WIDTH:
+		return VTCR_PS_52;
+	case PARANGE_0000_WIDTH:
+	default:
+		return VTCR_PS_32;
+	}
+}
+
 static unsigned long realm_vtcr(struct rd *rd)
 {
 	unsigned long t0sz, sl0;
 	unsigned long vtcr = is_feat_vmid16_present() ?
 				(VTCR_FLAGS | VTCR_VS) : VTCR_FLAGS;
+	unsigned int parange = arch_feat_get_pa_width();
 	int s2_starting_level = realm_rtt_starting_level(rd);
 	bool lpa2 = rd->s2_ctx.enable_lpa2;
 
@@ -70,6 +92,7 @@ static unsigned long realm_vtcr(struct rd *rd)
 
 	vtcr |= t0sz;
 	vtcr |= sl0;
+	vtcr |= realm_vtcr_ps(parange);
 
 	if (lpa2 == true) {
 		if (s2_starting_level == -1) {
