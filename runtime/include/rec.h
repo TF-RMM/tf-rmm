@@ -126,7 +126,7 @@ struct ns_state {
 	STRUCT_TYPE sysreg_state sysregs;
 	unsigned long sp_el0;
 	unsigned long icc_sre_el2;
-	struct pmu_state *pmu;
+	struct pmu_state pmu;
 } __aligned(CACHE_WRITEBACK_GRANULE);
 
 /*
