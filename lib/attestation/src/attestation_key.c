@@ -30,8 +30,9 @@
  *       -3 => bstr, ; y-coordinate
  *    }
  */
-#define MAX_REALM_PUBLIC_KEY_SIZE	PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(384U) + \
-					32 /* kty and crv + encoding */
+/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
+#define MAX_REALM_PUBLIC_KEY_SIZE	(PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(384U) + \
+					 32U) /* kty and crv + encoding */
 
 /* ECC Curve type define for querying attestation key from monitor */
 #define ATTEST_KEY_CURVE_ECC_SECP384R1	0
@@ -46,6 +47,7 @@ static struct q_useful_buf rmm_platform_token;
  * The public key is kept loaded as it is both not required to be secret (and
  * hence can be kept in attestation memory) and immutable.
  */
+/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
 static uint8_t realm_attest_public_key[MAX_REALM_PUBLIC_KEY_SIZE];
 static size_t realm_attest_public_key_len;
 
@@ -53,6 +55,7 @@ static size_t realm_attest_public_key_len;
  * The hash of the realm attestation public key is included in the Platform
  * attestation token as the challenge claim.
  */
+/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
 static uint8_t realm_attest_public_key_hash[PSA_HASH_LENGTH(PSA_ALG_SHA_256)];
 static size_t realm_attest_public_key_hash_len;
 
@@ -222,6 +225,7 @@ int attest_setup_platform_token(void)
 	size_t token_hunk_len = 0UL, remaining_len = 0UL;
 	struct q_useful_buf_c rmm_pub_key_hash;
 	/* coverity[misra_c_2012_rule_14_3_violation:SUPPRESS] */
+	/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
 	uint64_t hash_length = PSA_HASH_LENGTH(PSA_ALG_SHA_256);
 	uint64_t offset = 0;
 	int ret;

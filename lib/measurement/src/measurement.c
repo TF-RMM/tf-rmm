@@ -61,6 +61,7 @@ static void do_hash(enum hash_algo algorithm,
 		assert(false);
 	}
 
+	/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
 	SIMD_FPU_ALLOW(ret = psa_hash_compute(psa_algorithm,
 			data,
 			size,
@@ -69,6 +70,7 @@ static void do_hash(enum hash_algo algorithm,
 			&hash_size));
 
 	/* coverity[uninit_use:SUPPRESS] */
+	/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
 	assert(hash_size == (size_t)PSA_HASH_LENGTH(psa_algorithm));
 	assert(ret == 0);
 
@@ -94,8 +96,8 @@ static void do_extend(psa_algorithm_t psa_algorithm,
 	size_t hash_size;
 	__unused psa_status_t ret;
 	psa_hash_operation_t operation = PSA_HASH_OPERATION_INIT;
-	size_t current_measurement_size =
-					(size_t)PSA_HASH_LENGTH(psa_algorithm);
+	/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
+	size_t current_measurement_size = (size_t)PSA_HASH_LENGTH(psa_algorithm);
 
 	ret = psa_hash_setup(&operation, psa_algorithm);
 	assert(ret == PSA_SUCCESS);
@@ -116,6 +118,7 @@ static void do_extend(psa_algorithm_t psa_algorithm,
 			      &hash_size);
 
 	/* coverity[uninit_use:SUPPRESS] */
+	/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
 	assert(hash_size == (size_t)PSA_HASH_LENGTH(psa_algorithm));
 	assert(ret == PSA_SUCCESS);
 }
