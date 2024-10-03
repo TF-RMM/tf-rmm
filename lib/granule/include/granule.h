@@ -82,8 +82,8 @@ static inline void __granule_assert_unlocked_invariants(struct granule *g,
 		/*
 		 * Refcount is used to check if RD and associated granules can
 		 * be freed because they're no longer referenced by any other
-		 * object. Can be any non-negative number less than REFCOUNT_MAX
-		 * value.
+		 * object. Refcount number is always less or equal to
+		 * REFCOUNT_MAX value.
 		 */
 		break;
 	case GRANULE_STATE_REC:
@@ -93,7 +93,7 @@ static inline void __granule_assert_unlocked_invariants(struct granule *g,
 		assert(REFCOUNT(g) == 0U);
 		break;
 	case GRANULE_STATE_RTT:
-		/* Refcount cannot be greater that number of entries in an RTT */
+		/* Refcount cannot be greater than number of entries in an RTT */
 		assert(REFCOUNT(g) <= RTT_REFCOUNT_MAX);
 		break;
 	case GRANULE_STATE_REC_AUX:

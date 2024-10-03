@@ -61,8 +61,8 @@
 #define RSI_ERROR_COUNT		UL(5)
 
 /* RsiHashAlgorithm */
-#define RSI_HASH_SHA_256	U(0)
-#define RSI_HASH_SHA_512	U(1)
+#define RSI_HASH_SHA_256	0U
+#define RSI_HASH_SHA_512	1U
 
 /*
  * RsiRipasChangeDestroyed:
@@ -160,12 +160,25 @@
  */
 #define SET_MEMBER_RSI	SET_MEMBER
 
+/* Size of Realm Personalization Value */
+#ifndef CBMC
+#define RSI_RPV_SIZE		64
+#else
+/*
+ * Small RPV size so that RsiRealmConfig structure
+ * fits in the reduced sized granule defined for CBMC
+ */
+#define RSI_RPV_SIZE		1
+#endif
+
 /* RsiRealmConfig structure containing realm configuration */
 struct rsi_realm_config {
 	/* IPA width in bits */
 	SET_MEMBER_RSI(unsigned long ipa_width, 0, 8);		/* Offset 0 */
 	/* Hash algorithm */
-	SET_MEMBER_RSI(unsigned long algorithm, 8, 0x1000);	/* Offset 8 */
+	SET_MEMBER_RSI(unsigned char algorithm, 8, 0x200);	/* Offset 8 */
+	/* Realm Personalization Value */
+	SET_MEMBER_RSI(unsigned char rpv[RSI_RPV_SIZE], 0x200, 0x1000); /* Offset 0x200 */
 };
 
 #endif /* __ASSEMBLER__ */
@@ -188,9 +201,11 @@ struct rsi_realm_config {
 #define SMC_RSI_IPA_STATE_SET		SMC64_RSI_FID(U(0x7))
 
 /*
- * arg1 == IPA of target page
+ * arg1 == Base of target IPA region
+ * arg2 == End of target IPA region
  * ret0 == Status / error
- * ret1 == RIPAS value
+ * ret1 == Top of IPA region which has the reported RIPAS value
+ * ret2 == RIPAS value
  */
 #define SMC_RSI_IPA_STATE_GET		SMC64_RSI_FID(U(0x8))
 

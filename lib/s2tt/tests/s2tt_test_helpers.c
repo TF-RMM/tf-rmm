@@ -155,11 +155,11 @@ unsigned long s2tt_test_helpers_s2tte_to_attrs(unsigned long tte, bool ns)
 {
 	unsigned long attrs_mask;
 
-	if (ns == true) {
-		attrs_mask = S2TTE_NS_ATTR_RMM | S2TT_DESC_TYPE_MASK;
-		attrs_mask |= (is_feat_lpa2_4k_2_present() == true) ?
-			S2TTE_NS_ATTR_LPA2_MASK :
-			S2TTE_NS_ATTR_MASK;
+	if (ns) {
+		attrs_mask = S2TTE_NS_ATTR_RMM | S2TT_DESC_TYPE_MASK | S2TTE_NS_ATTR_MASK;
+		if (!is_feat_lpa2_4k_2_present()) {
+			attrs_mask |= S2TTE_SH_MASK;
+		}
 	} else {
 		attrs_mask = ((is_feat_lpa2_4k_2_present() == true) ?
 			S2TTE_ATTRS_LPA2_MASK :
@@ -180,19 +180,11 @@ unsigned long s2tt_test_helpers_gen_ns_attrs(bool host, bool reserved)
 			bool inv_attrs;
 
 			attrs = test_helpers_get_rand_in_range(0UL, ULONG_MAX);
-
-			attrs &= (is_feat_lpa2_4k_2_present() == true) ?
-				S2TTE_NS_ATTR_LPA2_MASK :
-				S2TTE_NS_ATTR_MASK;
+			attrs &= S2TTE_NS_ATTR_MASK;
 
 			/* Find out if we are done or not */
 			inv_attrs = ((attrs & S2TTE_MEMATTR_MASK) ==
 						S2TTE_MEMATTR_FWB_RESERVED);
-
-			if (is_feat_lpa2_4k_2_present() == false) {
-				inv_attrs |= ((attrs & S2TTE_SH_MASK) !=
-						S2TTE_SH_IS);
-			}
 			done = (reserved == inv_attrs);
 		} while (!done);
 	} else {

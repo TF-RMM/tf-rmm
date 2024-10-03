@@ -7,13 +7,13 @@
 +--------------------------------------+--------------------------------------+
 |     tb_rmi_granule_undelegate.c      |    0 of 908 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+
-|       tb_rmi_realm_activate.c        |    11 of 974 failed (7 iterations)   |
+|       tb_rmi_realm_activate.c        |    11 of 974 failed (4 iterations)   |
 +--------------------------------------+--------------------------------------+
-|        tb_rmi_realm_destroy.c        |   13 of 1016 failed (9 iterations)   |
+|        tb_rmi_realm_destroy.c        |   13 of 1016 failed (8 iterations)   |
 +--------------------------------------+--------------------------------------+
 |        tb_rmi_rec_aux_count.c        |    3 of 906 failed (2 iterations)    |
 +--------------------------------------+--------------------------------------+
-|         tb_rmi_rec_destroy.c         |   27 of 1025 failed (15 iterations)  |
+|         tb_rmi_rec_destroy.c         |   27 of 1025 failed (13 iterations)  |
 +--------------------------------------+--------------------------------------+
 |           tb_rmi_version.c           |    0 of 892 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+

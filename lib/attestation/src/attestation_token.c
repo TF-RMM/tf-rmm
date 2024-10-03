@@ -330,6 +330,10 @@ int attest_realm_token_create(enum hash_algo algorithm,
 				  CCA_REALM_PUB_KEY_HASH_ALGO_ID,
 				  buf);
 
+	QCBOREncode_AddTextToMapN(&(ctx->ctx.cbor_enc_ctx),
+				  CCA_REALM_PROFILE,
+				  UsefulBuf_FromSZ(CCA_REALM_PROFILE_STR));
+
 	measurement_size = measurement_get_size(algorithm);
 	assert(measurement_size <= MAX_MEASUREMENT_SIZE);
 

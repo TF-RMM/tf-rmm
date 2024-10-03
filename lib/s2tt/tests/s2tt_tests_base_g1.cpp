@@ -550,18 +550,25 @@ void s2tte_create_assigned_ns_tc1(void)
 									  false);
 		unsigned long attrs = s2tt_test_helpers_gen_ns_attrs(false,
 								     false);
+		struct s2tt_context s2tt_ctx = { 0UL };
+
 		/*
-		 * s2tte_create_assigned_ns() does not make use of the
-		 * s2tt_context structure even though it receives it, so
-		 * it is safe to just pass a NULL pointer.
+		 * Initialize an s2tt_context structure for the test.
+		 * Only 'enable_lpa2' is used by the API, so the rest of fields
+		 * can be left untouched.
 		 */
+		s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
 		unsigned long tte = s2tte_create_assigned_ns(
-				(const struct s2tt_context *)NULL,
+				(const struct s2tt_context *)&s2tt_ctx,
 				s2tt_test_helpers_pa_to_s2tte(pa, i) |
 								host_attrs, i);
 
 		attrs |= (i == S2TT_TEST_HELPERS_MAX_LVL) ?
 				S2TT_TEST_PAGE_DESC : S2TT_TEST_BLOCK_DESC;
+
+		if (!s2tt_test_helpers_lpa2_enabled()) {
+			attrs |= S2TTE_SH_IS;
+		}
 
 		/* Validate the address */
 		UNSIGNED_LONGS_EQUAL(s2tt_test_helpers_s2tte_to_pa(tte, i), pa);
@@ -570,12 +577,11 @@ void s2tte_create_assigned_ns_tc1(void)
 		UNSIGNED_LONGS_EQUAL(s2tt_test_helpers_s2tte_to_attrs(tte, true),
 							(attrs | host_attrs));
 
+
 		/* The rest of the fields must be all 0 */
 		UNSIGNED_LONGS_EQUAL((tte & ~(s2tt_test_helpers_s2tte_oa_mask() |
-			S2TTE_NS_ATTR_RMM | S2TT_DESC_TYPE_MASK |
-			((is_feat_lpa2_4k_2_present() == true) ?
-			 S2TTE_NS_ATTR_LPA2_MASK :
-			 S2TTE_NS_ATTR_MASK))), 0UL);
+			S2TTE_NS_ATTR_RMM | S2TT_DESC_TYPE_MASK | S2TTE_NS_ATTR_MASK |
+			(is_feat_lpa2_4k_2_present() ? 0UL : S2TTE_SH_MASK))), 0UL);
 	}
 }
 
@@ -1311,9 +1317,17 @@ void host_ns_s2tte_tc4(void)
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 	unsigned long host_attrs = s2tt_test_helpers_gen_ns_attrs(true, false);
 
-	/* s2tte_create_assigned_ns() can receive a NULL s2tt_context pointer */
+	struct s2tt_context s2tt_ctx = { 0UL };
+
+	/*
+	 * Initialize an s2tt_context structure for the test.
+	 * Only 'enable_lpa2' is used by the API, so the rest of fields
+	 * can be left untouched.
+	 */
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+
 	unsigned long val_tte = s2tte_create_assigned_ns(
-				(const struct s2tt_context *)NULL,
+				(const struct s2tt_context *)&s2tt_ctx,
 				s2tt_test_helpers_pa_to_s2tte(pa, level) |
 							host_attrs, level);
 	test_helpers_expect_assert_fail(true);

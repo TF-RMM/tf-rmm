@@ -209,6 +209,7 @@ struct rmi_rec_enter;
 struct rmi_rec_exit;
 
 void gic_get_virt_features(void);
+unsigned int gic_vgic_get_num_lrs(void);
 void gic_cpu_state_init(struct gic_cpu_state *gicstate);
 
 void gic_copy_state_from_rec_entry(struct gic_cpu_state *gicstate,

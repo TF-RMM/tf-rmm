@@ -1,19 +1,19 @@
 +--------------------------------------+--------------------------------------+
 |               FILENAME               |                ASSERT                |
 +--------------------------------------+--------------------------------------+
-|          tb_rmi_features.c           |     0 of 68 failed (1 iterations)    |
+|          tb_rmi_features.c           |     0 of 85 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+
-|      tb_rmi_granule_delegate.c       |     0 of 75 failed (1 iterations)    |
+|      tb_rmi_granule_delegate.c       |     0 of 92 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+
-|     tb_rmi_granule_undelegate.c      |     0 of 75 failed (1 iterations)    |
+|     tb_rmi_granule_undelegate.c      |     0 of 92 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+
-|       tb_rmi_realm_activate.c        |     0 of 77 failed (1 iterations)    |
+|       tb_rmi_realm_activate.c        |     0 of 94 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+
-|        tb_rmi_realm_destroy.c        |     0 of 84 failed (1 iterations)    |
+|        tb_rmi_realm_destroy.c        |    1 of 102 failed (2 iterations)    |
 +--------------------------------------+--------------------------------------+
-|        tb_rmi_rec_aux_count.c        |     0 of 76 failed (1 iterations)    |
+|        tb_rmi_rec_aux_count.c        |     0 of 91 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+
-|         tb_rmi_rec_destroy.c         |     0 of 83 failed (1 iterations)    |
+|         tb_rmi_rec_destroy.c         |     3 of 97 failed (4 iterations)    |
 +--------------------------------------+--------------------------------------+
-|           tb_rmi_version.c           |     0 of 66 failed (1 iterations)    |
+|           tb_rmi_version.c           |     0 of 83 failed (1 iterations)    |
 +--------------------------------------+--------------------------------------+

@@ -9,6 +9,8 @@
 #include <rsi-handler.h>
 #include <smc-rsi.h>
 
+COMPILER_ASSERT(RSI_RPV_SIZE == RPV_SIZE);
+
 void handle_rsi_realm_config(struct rec *rec, struct rsi_result *res)
 {
 	unsigned long ipa = rec->regs[1];
@@ -16,6 +18,7 @@ void handle_rsi_realm_config(struct rec *rec, struct rsi_result *res)
 	struct s2_walk_result walk_res;
 	struct granule *gr;
 	struct rsi_realm_config *config;
+	struct rd *rd;
 
 	res->action = UPDATE_REC_RETURN_TO_REALM;
 
@@ -53,6 +56,16 @@ void handle_rsi_realm_config(struct rec *rec, struct rsi_result *res)
 	} else {
 		config->algorithm = RSI_HASH_SHA_512;
 	}
+
+	/* Map rd granule */
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	/* Populate Realm Personalization Value */
+	(void)memcpy(config->rpv, rd->rpv, RSI_RPV_SIZE);
+
+	/* Unmap rd granule */
+	buffer_unmap(rd);
 
 	/* Unmap Realm data granule */
 	buffer_unmap(config);
