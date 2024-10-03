@@ -13,6 +13,13 @@ add_library(t_cose)
 
 set(T_COSE_SOURCE_DIR "${RMM_SOURCE_DIR}/ext/t_cose")
 
+# Patch t_cose
+set(T_COSE_PATCH_DIR "${RMM_SOURCE_DIR}/configs/t_cose")
+set(T_COSE_PATCH_FILES
+    "${T_COSE_PATCH_DIR}/0001-Add-t_cose_key_encode-API.patch")
+
+Git_Apply_Patches(${T_COSE_SOURCE_DIR} "${T_COSE_PATCH_FILES}")
+
 #TODO: Eliminate warning suppression once the t_cose submodule is updated to
 #      a released version.
 target_compile_options(t_cose
@@ -54,4 +61,5 @@ target_sources(t_cose
         "${T_COSE_SOURCE_DIR}/src/t_cose_sign_sign.c"
         "${T_COSE_SOURCE_DIR}/src/t_cose_signature_sign_restart.c"
         "${T_COSE_SOURCE_DIR}/src/t_cose_util.c"
+        "${T_COSE_SOURCE_DIR}/src/t_cose_key.c"
 )

@@ -3,9 +3,6 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/tools/common")
-include(GitUtils)
-
 # The Mbed TLS library is not included in the CBMC analysis
 if(RMM_CBMC_STATIC_ANALYSIS)
     add_library(rmm-mbedtls INTERFACE)

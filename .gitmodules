@@ -8,6 +8,7 @@
 [submodule "ext/t_cose"]
 	path = ext/t_cose
 	url = https://github.com/laurencelundblade/t_cose.git
+	ignore = dirty
 [submodule "ext/cpputest"]
 	path = ext/cpputest
 	url = https://github.com/cpputest/cpputest.git

@@ -36,6 +36,21 @@
 	}								\
 })
 
+static void print_buf(const unsigned char *buf, size_t size)
+{
+	size_t i;
+
+	assert(buf != NULL);
+
+	for (i = 0; i < size; ++i) {
+		if ((i & 0xF) == 0) {
+			VERBOSE("\n");
+		}
+		VERBOSE(" %02x", buf[i]);
+	}
+	VERBOSE("\n\n");
+}
+
 /*
  * Function to emulate the MMU enablement for the fake_host architecture.
  */
@@ -65,6 +80,7 @@ static int realm_continue_1(unsigned long *regs);
 static int realm_continue_2(unsigned long *regs);
 
 uintptr_t realm_buffer;
+static size_t token_size;
 
 static int realm_start(unsigned long *regs)
 {
@@ -145,6 +161,8 @@ static int realm_continue_2(unsigned long *regs)
 		return 0;
 	}
 
+	token_size = offset + regs[1];
+
 	/* Simulate return back to NS due to FIQ */
 	return ARM_EXCEPTION_FIQ_LEL;
 }
@@ -180,6 +198,8 @@ static int create_realm(void)
 	realm_params->s2sz = arch_feat_get_pa_width();
 	realm_params->rtt_num_start = 1;
 	realm_params->rtt_base = (uintptr_t)rtts[0];
+	realm_params->num_bps = 1;
+	realm_params->num_wps = 1;
 
 	host_rmi_realm_create(rd, realm_params, &result);
 	CHECK_RMI_RESULT();
@@ -240,6 +260,9 @@ static int create_realm(void)
 	if (rec_run->exit.exit_reason == RMI_EXIT_FIQ) {
 		INFO("Realm executed successfully and exited due to FIQ.\n");
 	}
+
+	VERBOSE("Print attestation token (size: %ld):\n", token_size);
+	print_buf((void *)realm_buffer, token_size);
 
 	host_rmi_rec_destroy(rec, &result);
 	CHECK_RMI_RESULT();

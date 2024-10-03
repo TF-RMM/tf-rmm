@@ -122,8 +122,7 @@
 #define S2TTE_ATTRS_MASK	(S2TTE_ATTRS_LPA2_MASK | S2TTE_SH_MASK)
 
 /* NS attributes controlled by the host */
-#define S2TTE_NS_ATTR_LPA2_MASK (S2TTE_MEMATTR_MASK | S2TTE_AP_MASK)
-#define S2TTE_NS_ATTR_MASK (S2TTE_NS_ATTR_LPA2_MASK | S2TTE_SH_MASK)
+#define S2TTE_NS_ATTR_MASK	(S2TTE_MEMATTR_MASK | S2TTE_AP_MASK)
 
 /*
  * Additional NS attributes set by RMM.

@@ -1148,8 +1148,6 @@ void s2tt_maps_assigned_ns_block_tc2(void)
 		unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
 		unsigned long new_attrs, attrs =
 			s2tt_test_helpers_gen_ns_attrs(true, false);
-		unsigned long ns_mask = (s2tt_ctx.enable_lpa2 == true) ?
-			S2TTE_NS_ATTR_LPA2_MASK : S2TTE_NS_ATTR_MASK;
 
 		/* Generate the table */
 		s2tt_init_assigned_ns((const struct s2tt_context *)&s2tt_ctx,
@@ -1157,12 +1155,12 @@ void s2tt_maps_assigned_ns_block_tc2(void)
 
 		/* Generate the offending set of NS attrs */
 		do {
-			new_attrs = test_helpers_get_rand_in_range(0UL, ULONG_MAX);
-			new_attrs &= ns_mask;
-		} while (new_attrs == (s2tt[0U] & ns_mask));
+			new_attrs = test_helpers_get_rand_in_range(0UL, ULONG_MAX)
+					& S2TTE_NS_ATTR_MASK;
+		} while (new_attrs == (s2tt[0U] & S2TTE_NS_ATTR_MASK));
 
 		/* Alter the NS attributes on a random TTE */
-		s2tt[index] &= ~ns_mask;
+		s2tt[index] &= ~S2TTE_NS_ATTR_MASK;
 		s2tt[index] |= new_attrs;
 
 		CHECK_FALSE(s2tt_maps_assigned_ns_block(

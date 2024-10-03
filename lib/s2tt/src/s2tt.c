@@ -508,23 +508,26 @@ unsigned long s2tte_create_assigned_unchanged(const struct s2tt_context *s2_ctx,
  * - The physical address
  * - MemAttr
  * - S2AP
- * - Shareability (when FEAT_LPA2 is disabled)
  */
 unsigned long s2tte_create_assigned_ns(const struct s2tt_context *s2_ctx,
 				       unsigned long s2tte, long level)
 {
+	assert(s2_ctx != NULL);
+
 	/*
-	 * We just mask out the DESC_TYPE below. The Shareability bits
-	 * without FEAT_LPA2 are at the same position as OA bits [51:50]
-	 * with FEAT_LPA2 enabled, so we don't need to cater for that
-	 * separately.
+	 * We just mask out the DESC_TYPE below. We assume rest of the
+	 * bits have been setup properly by the caller.
 	 */
 	unsigned long new_s2tte = s2tte & ~S2TT_DESC_TYPE_MASK;
-
-	(void)s2_ctx;
+	bool lpa2 = s2_ctx->enable_lpa2;
 
 	assert(level >= S2TT_MIN_BLOCK_LEVEL);
 	assert(level <= S2TT_PAGE_LEVEL);
+
+	/* The Shareability bits need to be added if FEAT_LPA2 is not enabled */
+	if (!lpa2) {
+		new_s2tte |= S2TTE_SH_IS;
+	}
 
 	if (level == S2TT_PAGE_LEVEL) {
 		return (new_s2tte | S2TTE_PAGE_NS);
@@ -538,7 +541,6 @@ unsigned long s2tte_create_assigned_ns(const struct s2tt_context *s2_ctx,
 bool host_ns_s2tte_is_valid(const struct s2tt_context *s2_ctx,
 			    unsigned long s2tte, long level)
 {
-
 	bool lpa2;
 	unsigned long mask;
 
@@ -547,17 +549,7 @@ bool host_ns_s2tte_is_valid(const struct s2tt_context *s2_ctx,
 
 	lpa2 = s2_ctx->enable_lpa2;
 
-	mask = s2tte_lvl_mask(level, lpa2);
-	if (lpa2 == true) {
-		mask |= S2TTE_NS_ATTR_LPA2_MASK;
-	} else {
-		mask |= S2TTE_NS_ATTR_MASK;
-
-		/* Only SH_IS is allowed */
-		if ((s2tte & S2TTE_SH_MASK) != S2TTE_SH_IS) {
-			return false;
-		}
-	}
+	mask = s2tte_lvl_mask(level, lpa2) | S2TTE_NS_ATTR_MASK;
 
 	/*
 	 * Test that all fields that are not controlled by the host are zero
@@ -591,10 +583,8 @@ unsigned long host_ns_s2tte(const struct s2tt_context *s2_ctx,
 {
 	assert(s2_ctx != NULL);
 
-	unsigned long mask = s2tte_lvl_mask(level, s2_ctx->enable_lpa2);
-
-	mask |= (s2_ctx->enable_lpa2 == true) ? S2TTE_NS_ATTR_LPA2_MASK :
-					     S2TTE_NS_ATTR_MASK;
+	unsigned long mask = s2tte_lvl_mask(level, s2_ctx->enable_lpa2)
+				| S2TTE_NS_ATTR_MASK;
 
 	assert(level >= S2TT_MIN_BLOCK_LEVEL);
 
@@ -1011,14 +1001,12 @@ void s2tt_init_assigned_ns(const struct s2tt_context *s2_ctx,
 	assert(s2tte_is_addr_lvl_aligned(s2_ctx, pa, level));
 
 	const unsigned long map_size = s2tte_map_size(level);
-	unsigned long ns_attr_host_mask = (s2_ctx->enable_lpa2 == true) ?
-		S2TTE_NS_ATTR_LPA2_MASK : S2TTE_NS_ATTR_MASK;
+
+	attrs &= S2TTE_NS_ATTR_MASK;
 
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
-		unsigned long s2tte = attrs & ns_attr_host_mask;
-
 		s2tt[i] = s2tte_create_assigned_ns(s2_ctx,
-				s2tte | pa_to_s2tte(pa, s2_ctx->enable_lpa2),
+				attrs | pa_to_s2tte(pa, s2_ctx->enable_lpa2),
 				level);
 		pa += map_size;
 	}
@@ -1161,7 +1149,7 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 	assert(table != NULL);
 	assert(s2_ctx != NULL);
 
-	unsigned long base_pa, ns_attr_host_mask;
+	unsigned long base_pa;
 	unsigned long map_size = s2tte_map_size(level);
 	unsigned long s2tte = s2tte_read(&table[0]);
 	unsigned long s2tt_ns_attrs;
@@ -1184,9 +1172,7 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 		return false;
 	}
 
-	ns_attr_host_mask = (s2_ctx->enable_lpa2 == true) ?
-		S2TTE_NS_ATTR_LPA2_MASK : S2TTE_NS_ATTR_MASK;
-	s2tt_ns_attrs  = s2tte & ns_attr_host_mask;
+	s2tt_ns_attrs = s2tte & S2TTE_NS_ATTR_MASK;
 
 	for (i = 1U; i < S2TTES_PER_S2TT; i++) {
 		unsigned long expected_pa = base_pa + (i * map_size);
@@ -1203,7 +1189,7 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 
 		if (check_ns_attrs) {
 			unsigned long ns_attrs =
-					s2tte & ns_attr_host_mask;
+					s2tte & S2TTE_NS_ATTR_MASK;
 
 			/*
 			 * We match all the attributes in the S2TTE

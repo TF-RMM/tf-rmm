@@ -13,8 +13,26 @@
 #include <rmm_el3_ifc.h>
 #include <simd.h>
 #include <sizes.h>
+#include <t_cose/q_useful_buf.h>
+#include <t_cose/t_cose_common.h>
+#include <t_cose/t_cose_sign1_sign.h>
 
-#define ECC_P384_PUBLIC_KEY_SIZE	PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(384U)
+/*
+ * COSE_Key object:       RFC 8152, Section 7
+ * Key Object Parameters: RFC 8152, Section 13
+ *
+ * The t_cose lib encodes the EC2 public key as:
+ *
+ *    COSE_Key = {
+ *        1 => int,  ; kty
+ *       -1 => int,  ; crv
+ *       -2 => bstr, ; x-coordinate
+ *       -3 => bstr, ; y-coordinate
+ *    }
+ */
+/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
+#define MAX_REALM_PUBLIC_KEY_SIZE	(PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(384U) + \
+					 32U) /* kty and crv + encoding */
 
 /* ECC Curve type define for querying attestation key from monitor */
 #define ATTEST_KEY_CURVE_ECC_SECP384R1	0
@@ -29,13 +47,15 @@ static struct q_useful_buf rmm_platform_token;
  * The public key is kept loaded as it is both not required to be secret (and
  * hence can be kept in attestation memory) and immutable.
  */
-static uint8_t realm_attest_public_key[ECC_P384_PUBLIC_KEY_SIZE];
+/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
+static uint8_t realm_attest_public_key[MAX_REALM_PUBLIC_KEY_SIZE];
 static size_t realm_attest_public_key_len;
 
 /*
  * The hash of the realm attestation public key is included in the Platform
  * attestation token as the challenge claim.
  */
+/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
 static uint8_t realm_attest_public_key_hash[PSA_HASH_LENGTH(PSA_ALG_SHA_256)];
 static size_t realm_attest_public_key_hash_len;
 
@@ -61,6 +81,11 @@ int attest_init_realm_attestation_key(void)
 	uintptr_t buf;
 	size_t attest_key_size;
 	psa_key_attributes_t key_attributes = psa_key_attributes_init();
+	struct t_cose_key attest_key;
+	enum t_cose_err_t cose_res;
+	struct q_useful_buf_c cose_key = {0};
+	struct q_useful_buf cose_key_buf = { realm_attest_public_key,
+				      sizeof(realm_attest_public_key) };
 
 	assert(SIMD_IS_FPU_ALLOWED());
 
@@ -110,17 +135,23 @@ int attest_init_realm_attestation_key(void)
 		return -EINVAL;
 	}
 
-	/* Get the RMM public attestation key */
-	ret = psa_export_public_key(attest_signing_key,
-				    realm_attest_public_key,
-				    sizeof(realm_attest_public_key),
-				    &realm_attest_public_key_len);
-	if (ret != PSA_SUCCESS) {
-		ERROR("psa_export_public_key has failed\n");
+	/*
+	 * Get the RMM public attestation key and encode it to a
+	 * CBOR serialized COSE_Key object: RFC 8152, Section 7.
+	 */
+	attest_key.key.handle = attest_signing_key;
+	cose_res = t_cose_key_encode(attest_key,
+				     cose_key_buf,
+				     &cose_key);
+	if (cose_res != T_COSE_SUCCESS) {
+		ERROR("t_cose_key_encode has failed\n");
 		psa_reset_key_attributes(&key_attributes);
 		(void) psa_destroy_key(attest_signing_key);
 		return -EINVAL;
 	}
+
+	assert(cose_key.len != 0UL);
+	realm_attest_public_key_len = cose_key.len;
 
 	/* Compute the hash of the RMM public attestation key */
 	ret = psa_hash_compute(PSA_ALG_SHA_256,
@@ -194,6 +225,7 @@ int attest_setup_platform_token(void)
 	size_t token_hunk_len = 0UL, remaining_len = 0UL;
 	struct q_useful_buf_c rmm_pub_key_hash;
 	/* coverity[misra_c_2012_rule_14_3_violation:SUPPRESS] */
+	/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
 	uint64_t hash_length = PSA_HASH_LENGTH(PSA_ALG_SHA_256);
 	uint64_t offset = 0;
 	int ret;

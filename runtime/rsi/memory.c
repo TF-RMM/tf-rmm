@@ -48,21 +48,26 @@ void handle_rsi_ipa_state_set(struct rec *rec,
 void handle_rsi_ipa_state_get(struct rec *rec,
 			      struct rsi_result *res)
 {
-	unsigned long ipa = rec->regs[1];
+	unsigned long start = rec->regs[1];
+	unsigned long end = rec->regs[2];
+	unsigned long top = start;
 	enum s2_walk_status ws;
 	enum ripas ripas_val = RIPAS_EMPTY;
 
 	res->action = UPDATE_REC_RETURN_TO_REALM;
 
-	if (!GRANULE_ALIGNED(ipa) || !addr_in_rec_par(rec, ipa)) {
+	if (!GRANULE_ALIGNED(start) || !addr_in_rec_par(rec, start) ||
+	    !GRANULE_ALIGNED(end) || !addr_in_rec_par(rec, end - 1UL) ||
+	    (start >= end)) {
 		res->smc_res.x[0] = RSI_ERROR_INPUT;
 		return;
 	}
 
-	ws = realm_ipa_get_ripas(rec, ipa, &ripas_val);
+	ws = realm_ipa_get_ripas(rec, start, end, &top, &ripas_val);
 	if (ws == WALK_SUCCESS) {
 		res->smc_res.x[0] = RSI_SUCCESS;
-		res->smc_res.x[1] = (unsigned long)ripas_val;
+		res->smc_res.x[1] = (top > end) ? end : top;
+		res->smc_res.x[2] = (unsigned long)ripas_val;
 	} else {
 		res->smc_res.x[0] = RSI_ERROR_INPUT;
 	}

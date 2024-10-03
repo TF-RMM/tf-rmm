@@ -457,10 +457,11 @@
 
 /* Debug architecture version */
 #define ID_AA64DFR0_EL1_Debugv8			UL(6)
-#define ID_AA64DFR0_EL1_DebugVHE		UL(7)
+#define ID_AA64DFR0_EL1_Debugv8p1		UL(7)
 #define ID_AA64DFR0_EL1_Debugv8p2		UL(8)
 #define ID_AA64DFR0_EL1_Debugv8p4		UL(9)
 #define ID_AA64DFR0_EL1_Debugv8p8		UL(10)
+#define ID_AA64DFR0_EL1_Debugv8p9		UL(11)
 
 /* ID_AA64DFR1_EL1 definitions */
 #define ID_AA64DFR1_EL1_EBEP_SHIFT		UL(48)
@@ -468,6 +469,12 @@
 
 #define ID_AA64DFR1_EL1_ICNTR_SHIFT		UL(36)
 #define ID_AA64DFR1_EL1_ICNTR_WIDTH		UL(4)
+
+#define ID_AA64DFR1_EL1_WRPs_SHIFT		UL(16)
+#define ID_AA64DFR1_EL1_WRPs_WIDTH		UL(8)
+
+#define ID_AA64DFR1_EL1_BRPs_SHIFT		UL(8)
+#define ID_AA64DFR1_EL1_BRPs_WIDTH		UL(8)
 
 /* ID_AA64PFR0_EL1 definitions */
 #define ID_AA64PFR0_EL1_SVE_SHIFT	UL(32)

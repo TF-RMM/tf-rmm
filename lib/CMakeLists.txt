@@ -3,6 +3,9 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/tools/common")
+include(GitUtils)
+
 add_library(rmm-lib INTERFACE)
 
 target_link_libraries(rmm-lib
