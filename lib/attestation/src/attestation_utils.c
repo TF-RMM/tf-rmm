@@ -95,6 +95,14 @@ int attestation_init(void)
 		goto attest_init_fail;
 	}
 
+#if ATTEST_EL3_TOKEN_SIGN
+	/* Initialize the EL3 queue */
+	if (el3_token_sign_queue_init() != 0) {
+		WARN("EL3 queue init failed.\n");
+		ret = -ENOTSUP;
+		goto attest_init_fail;
+	}
+#endif
 	attest_initialized = true;
 
 attest_init_fail :

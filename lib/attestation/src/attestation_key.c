@@ -34,9 +34,6 @@
 #define MAX_REALM_PUBLIC_KEY_SIZE	(PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(384U) + \
 					 32U) /* kty and crv + encoding */
 
-/* ECC Curve type define for querying attestation key from monitor */
-#define ATTEST_KEY_CURVE_ECC_SECP384R1	0
-
 /*
  * The platform token which will be needed during attestation.
  */
@@ -61,9 +58,11 @@ static size_t realm_attest_public_key_hash_len;
 
 /*
  * The key handle for the sign operation
+ * When ATTEST_EL3_TOKEN_SIGN is set, RMM will only have the public key.
+ * Else the flag indicates that the Private key is initialized.
  */
-static bool attest_signing_key_loaded; /* = false */
-static psa_key_handle_t attest_signing_key;
+static bool attest_key_loaded; /* = false */
+static psa_key_handle_t imported_key;
 
 /*
  * Specify the hash algorithm to use for computing the hash of the
@@ -82,9 +81,9 @@ int attest_init_realm_attestation_key(void)
 	size_t attest_key_size;
 	psa_key_attributes_t key_attributes = psa_key_attributes_init();
 	struct t_cose_key attest_key;
-	enum t_cose_err_t cose_res;
-	struct q_useful_buf_c cose_key = {0};
-	struct q_useful_buf cose_key_buf = { realm_attest_public_key,
+	enum t_cose_err_t cose_res __unused;
+	struct q_useful_buf_c cose_key __unused = {0};
+	struct q_useful_buf cose_key_buf __unused  = { realm_attest_public_key,
 				      sizeof(realm_attest_public_key) };
 
 	assert(SIMD_IS_FPU_ALLOWED());
@@ -94,7 +93,7 @@ int attest_init_realm_attestation_key(void)
 	 * boot phase only once. Then the same key is used in the entire power
 	 * cycle to sign the realm attestation tokens.
 	 */
-	if (attest_signing_key_loaded) {
+	if (attest_key_loaded) {
 		ERROR("Realm attestation key already loaded.\n");
 		return -EINVAL;
 	}
@@ -103,6 +102,34 @@ int attest_init_realm_attestation_key(void)
 	 * Get the realm attestation key. The key is retrieved in raw format.
 	 */
 	buf = rmm_el3_ifc_get_shared_buf_locked();
+
+#if ATTEST_EL3_TOKEN_SIGN
+	(void)key_attributes;
+	/* When EL3 service is used for attestation, EL3 returns public key in raw format */
+	if (rmm_el3_ifc_get_realm_attest_pub_key_from_el3(buf,
+			rmm_el3_ifc_get_shared_buf_size(),
+			&attest_key_size,
+			ATTEST_KEY_CURVE_ECC_SECP384R1) != 0) {
+		rmm_el3_ifc_release_shared_buf();
+		return -EINVAL;
+	}
+
+	/* Get the RMM public attestation key */
+	/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
+	(void)memcpy((void *)realm_attest_public_key, (const void *)buf, attest_key_size);
+	realm_attest_public_key_len = attest_key_size;
+
+	/* Setup the key policy for public key */
+	psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_SIGN_HASH);
+	psa_set_key_algorithm(&key_attributes, PSA_ALG_ECDSA(PSA_ALG_SHA_384));
+	psa_set_key_type(&key_attributes, PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_FAMILY_SECP_R1));
+
+	/* Import public key to mbed-crypto */
+	ret = psa_import_key(&key_attributes,
+			     (const uint8_t *)buf,
+			     attest_key_size,
+			     &imported_key);
+#else
 
 	if (rmm_el3_ifc_get_realm_attest_key(buf,
 				rmm_el3_ifc_get_shared_buf_size(),
@@ -122,11 +149,11 @@ int attest_init_realm_attestation_key(void)
 	ret = psa_import_key(&key_attributes,
 			     (const uint8_t *)buf,
 			     attest_key_size,
-			     &attest_signing_key);
+			     &imported_key);
 
 	/* Clear the private key from the buffer */
 	(void)memset((uint8_t *)buf, 0, attest_key_size);
-
+#endif
 	rmm_el3_ifc_release_shared_buf();
 
 	if (ret != PSA_SUCCESS) {
@@ -139,14 +166,14 @@ int attest_init_realm_attestation_key(void)
 	 * Get the RMM public attestation key and encode it to a
 	 * CBOR serialized COSE_Key object: RFC 8152, Section 7.
 	 */
-	attest_key.key.handle = attest_signing_key;
+	attest_key.key.handle = imported_key;
 	cose_res = t_cose_key_encode(attest_key,
 				     cose_key_buf,
 				     &cose_key);
 	if (cose_res != T_COSE_SUCCESS) {
 		ERROR("t_cose_key_encode has failed\n");
 		psa_reset_key_attributes(&key_attributes);
-		(void) psa_destroy_key(attest_signing_key);
+		(void) psa_destroy_key(imported_key);
 		return -EINVAL;
 	}
 
@@ -163,23 +190,28 @@ int attest_init_realm_attestation_key(void)
 	if (ret != PSA_SUCCESS) {
 		ERROR("psa_hash_compute has failed\n");
 		psa_reset_key_attributes(&key_attributes);
-		(void) psa_destroy_key(attest_signing_key);
+		(void) psa_destroy_key(imported_key);
 		return -EINVAL;
 	}
 
-	attest_signing_key_loaded = true;
+	attest_key_loaded = true;
 	return 0;
 }
 
 int attest_get_realm_signing_key(psa_key_handle_t *key_handle)
 {
-	if (!attest_signing_key_loaded) {
+#if ATTEST_EL3_TOKEN_SIGN
+	/* Trying to get signing key for EL3 token sign flow is invalid .*/
+	return -EINVAL;
+#else
+	if (!attest_key_loaded) {
 		ERROR("Realm attestation key not initialized\n");
 		return -EINVAL;
 	}
 
-	*key_handle = attest_signing_key;
+	*key_handle = imported_key;
 	return 0;
+#endif
 }
 
 /*
@@ -196,7 +228,7 @@ int attest_get_realm_signing_key(psa_key_handle_t *key_handle)
 static int attest_get_realm_public_key_hash(
 					struct q_useful_buf_c *public_key_hash)
 {
-	if (!attest_signing_key_loaded) {
+	if (!attest_key_loaded) {
 		ERROR("Realm attestation key not initialized\n");
 		return -EINVAL;
 	}
@@ -208,7 +240,7 @@ static int attest_get_realm_public_key_hash(
 
 int attest_get_realm_public_key(struct q_useful_buf_c *public_key)
 {
-	if (!attest_signing_key_loaded) {
+	if (!attest_key_loaded) {
 		ERROR("Realm attestation key not initialized\n");
 		return -EINVAL;
 	}
