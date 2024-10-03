@@ -65,6 +65,13 @@ arm_config_option(
     TYPE BOOL
     DEFAULT OFF)
 
+arm_config_option(
+    NAME ATTEST_EL3_TOKEN_SIGN
+    HELP "Use EL3 service to sign realm attestation token."
+    TYPE BOOL
+    DEFAULT OFF
+    ADVANCED)
+
 #
 # Introduce a pseudo-library purely for applying flags to RMM's libraries.
 # This is applied to any targets created after this point.

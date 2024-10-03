@@ -293,6 +293,7 @@ The |RMM| build system supports the following CMake build options.
    RMM_CCA_DA			,ON | OFF		,OFF			,"Enable Device Assignment support in RMM (experimental)"
    ATTEST_PLAT_TOKEN_SIZE	,			,0x1000			,"Maximum size in bytes expected for the Attestation platform token"
    PLAT_ARM_MAX_DRAM_BANKS	,			,2			,"Maximum number of DRAM banks allowed in Arm platform layer"
+   ATTEST_EL3_TOKEN_SIGN	,ON|OFF			,OFF			,"Use EL3 service to sign realm attestation token."
 
 .. _llvm_build:
 
