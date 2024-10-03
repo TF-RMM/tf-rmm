@@ -19,6 +19,18 @@ static inline void atomic_add_64(uint64_t *loc, uint64_t val)
 
 /*
  * Atomically adds @val to the 64-bit value stored at memory location @loc.
+ * Returns the old value.
+ */
+static inline uint64_t atomic_load_add_64(uint64_t *loc, uint64_t val)
+{
+	uint64_t old_val = *loc;
+
+	*loc += val;
+	return old_val;
+}
+
+/*
+ * Atomically adds @val to the 64-bit value stored at memory location @loc.
  * Stores to memory with release semantics.
  * Returns the old value.
  */
