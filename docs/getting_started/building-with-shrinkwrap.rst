@@ -93,7 +93,7 @@ To run the demonstrator, use the following command:
 
     .. code-block:: shell
 
-       shrinkwrap run cca-3world.yaml -rtvar=ROOTFS=${SHRINKWRAP_PACKAGE}/cca-3world/rootfs.ext2
+       shrinkwrap run cca-3world.yaml --rtvar=ROOTFS=${SHRINKWRAP_PACKAGE}/cca-3world/rootfs.ext2
 
 Testing RMM with TFTF
 _____________________
