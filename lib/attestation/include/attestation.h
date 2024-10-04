@@ -36,10 +36,8 @@ int attestation_heap_ctx_init(unsigned char *buf, size_t buf_size);
  *
  * Arguments:
  * ctx - pointer to buffer_alloc_ctx
- *
- * Returns 0 on success, negative error code on error.
  */
-int attestation_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx);
+void attestation_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx);
 
 
 /*
@@ -48,9 +46,7 @@ int attestation_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx);
  *
  * Arguments:
  * ctx - pointer to buffer_alloc_ctx
- *
- * Returns 0 on success, negative error code on error.
  */
-int attestation_heap_ctx_unassign_pe(void);
+void attestation_heap_ctx_unassign_pe(void);
 
 #endif /* ATTESTATION_H */

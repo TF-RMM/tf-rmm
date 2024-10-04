@@ -363,21 +363,25 @@ int attest_realm_token_create(enum hash_algo algorithm,
 	return 0;
 }
 
+/* This function will only succeed if attestation_init() has succeeded. */
 int attest_token_ctx_init(struct token_sign_cntxt *token_ctx,
 			unsigned char *heap_buf,
 			unsigned int heap_buf_len)
 {
-	int ret = 0;
-
 	if (token_ctx->state != ATTEST_TOKEN_INIT) {
-		ret = attestation_heap_ctx_init(heap_buf,
-						heap_buf_len);
+		int ret;
 
 		/* Clear context for signing an attestation token */
 		(void)memset(token_ctx, 0, sizeof(struct token_sign_cntxt));
 
+		ret = attestation_heap_ctx_init(heap_buf,
+						heap_buf_len);
+		if (ret != 0) {
+			return (int)ATTEST_TOKEN_ERR_INVALID_STATE;
+		}
+
 		token_ctx->state = ATTEST_TOKEN_INIT;
 	}
 
-	return ret;
+	return (int)ATTEST_TOKEN_ERR_SUCCESS;
 }

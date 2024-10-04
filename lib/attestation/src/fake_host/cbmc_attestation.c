@@ -24,16 +24,14 @@ int attestation_heap_ctx_init(unsigned char *buf, size_t buf_size)
 	return 0;
 }
 
-int attestation_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx)
+void attestation_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx)
 {
 	ASSERT(false, "attestation_heap_ctx_assign_pe");
-	return 0;
 }
 
-int attestation_heap_ctx_unassign_pe(void)
+void attestation_heap_ctx_unassign_pe(void)
 {
 	ASSERT(false, "attestation_heap_ctx_unassign_pe");
-	return 0;
 }
 
 #endif /* CBMC */
