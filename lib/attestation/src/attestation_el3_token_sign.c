@@ -10,7 +10,6 @@
 #include <cpuid.h>
 #include <debug.h>
 #include <errno.h>
-#include <memory.h>
 #include <rmm_el3_ifc.h>
 #include <spinlock.h>
 #include <stdbool.h>
@@ -34,9 +33,11 @@ static int el3_token_sign_queue_try_enqueue(struct t_cose_el3_token_sign_ctx *ct
 	int ret = 0;
 	struct el3_token_sign_request *req;
 
-	if ((!ctx_locked) || (!ticket) ||
+	if ((ctx_locked == NULL) || (ticket == NULL) ||
 		(ctx_locked->state.hash_len > sizeof(req->hash_buf)) ||
 		(ctx_locked->state.sign_alg_id != PSA_ALG_ECDSA(PSA_ALG_SHA_384)) ||
+		/* coverity[misra_c_2012_rule_14_3_violation:SUPPRESS] */
+		/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
 		(ctx_locked->state.hash_len != PSA_HASH_LENGTH(PSA_ALG_SHA_384))) {
 		return -EINVAL;
 	}
@@ -103,7 +104,7 @@ int attest_el3_token_sign_pull_response_from_el3(uintptr_t *cookie)
 	int ret = 0;
 	struct el3_token_sign_response *el3_resp = &token_sign_response[my_cpuid()];
 
-	assert(cookie);
+	assert(cookie != NULL);
 
 	shared_buf = rmm_el3_ifc_get_shared_buf_locked();
 	ret = rmm_el3_ifc_pull_el3_token_sign_response(
@@ -141,7 +142,7 @@ int attest_el3_token_write_response_to_ctx(struct token_sign_cntxt *sign_ctx,
 {
 	struct el3_token_sign_response *el3_resp = &token_sign_response[my_cpuid()];
 
-	assert(sign_ctx);
+	assert(sign_ctx != NULL);
 
 	if ((uint64_t)cookie != el3_resp->cookie) {
 		VERBOSE("Response for REC granule %lx not found\n",

@@ -145,13 +145,13 @@ int attest_init_realm_attestation_key(void)
 	psa_set_key_type(&key_attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
 
 	/* Import private key to mbed-crypto */
-	/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
 	ret = psa_import_key(&key_attributes,
 			     (const uint8_t *)buf,
 			     attest_key_size,
 			     &imported_key);
 
 	/* Clear the private key from the buffer */
+	/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
 	(void)memset((uint8_t *)buf, 0, attest_key_size);
 #endif
 	rmm_el3_ifc_release_shared_buf();
@@ -201,6 +201,8 @@ int attest_init_realm_attestation_key(void)
 int attest_get_realm_signing_key(psa_key_handle_t *key_handle)
 {
 #if ATTEST_EL3_TOKEN_SIGN
+	(void)key_handle;
+
 	/* Trying to get signing key for EL3 token sign flow is invalid .*/
 	return -EINVAL;
 #else

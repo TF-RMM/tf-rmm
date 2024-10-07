@@ -228,7 +228,7 @@ static __unused int write_response_to_rec(struct rec *curr_rec,
 
 		rec_granule = find_lock_granule(
 				resp_granule, GRANULE_STATE_REC);
-		if (!rec_granule) {
+		if (rec_granule == NULL) {
 			/*
 			 * REC must have been destroyed, drop the response.
 			 */

@@ -18,6 +18,7 @@
 static spinlock_t shared_area_lock = {0U};
 
 /* Helper to detect whether EL3_TOKEN_SIGN is supported by EL3 */
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 bool rmm_el3_ifc_el3_token_sign_supported(void)
 {
 	static uint64_t feat_reg;
@@ -97,6 +98,7 @@ static int rmm_el3_ifc_get_realm_attest_key_internal(uintptr_t buf,
  * Get the realm attestation key to sign the realm attestation token. It is
  * expected that only the private key is retrieved in raw format.
  */
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 int rmm_el3_ifc_get_realm_attest_key(uintptr_t buf, size_t buflen, size_t *len,
 				     unsigned int crv)
 {
@@ -237,6 +239,7 @@ int rmm_el3_ifc_get_realm_attest_pub_key_from_el3(uintptr_t buf, size_t buflen,
  * Access the feature register. This is supported for interface version 0.4 and
  * later.
  */
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 int rmm_el3_ifc_get_feat_register(unsigned int feat_reg_idx, uint64_t *feat_reg)
 {
 	struct smc_result smc_res;

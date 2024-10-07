@@ -59,6 +59,7 @@ void t_cose_crypto_el3_ctx_init(struct t_cose_el3_token_sign_ctx *el3_ctx,
 /*
  * See documentation in t_cose_crypto.h
  */
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 enum t_cose_err_t t_cose_crypto_el3_token_sign_restart(
 	bool started, int32_t cose_algorithm_id, struct t_cose_key signing_key,
 	void *crypto_context, struct q_useful_buf_c hash_to_sign,
@@ -78,7 +79,7 @@ enum t_cose_err_t t_cose_crypto_el3_token_sign_restart(
 		goto done;
 	}
 
-	if (!crypto_context) {
+	if (crypto_context == NULL) {
 		return_value = T_COSE_ERR_FAIL;
 		goto done;
 	}
@@ -144,6 +145,7 @@ done:
 	return return_value;
 }
 
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 enum t_cose_err_t t_cose_crypto_el3_token_sign(int32_t cose_algorithm_id,
 					 struct t_cose_key signing_key,
 					 void *crypto_context,
