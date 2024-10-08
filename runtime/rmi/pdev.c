@@ -434,6 +434,10 @@ static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_a
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
 			exit_args, DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT);
 		break;
+	case RMI_PDEV_STATE_STOPPING:
+		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+			exit_args, DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION);
+		break;
 	default:
 		assert(false);
 		rc = -1;
@@ -546,11 +550,17 @@ unsigned long smc_pdev_communicate(unsigned long pdev_ptr,
 	 */
 	switch (pd->dev_comm_state) {
 	case DEV_COMM_ERROR:
-		pd->rmi_state = RMI_PDEV_STATE_ERROR;
+		if (pd->rmi_state == RMI_PDEV_STATE_STOPPING) {
+			pd->rmi_state = RMI_PDEV_STATE_STOPPED;
+		} else {
+			pd->rmi_state = RMI_PDEV_STATE_ERROR;
+		}
 		break;
 	case DEV_COMM_IDLE:
 		if (pd->rmi_state == RMI_PDEV_STATE_NEW) {
 			pd->rmi_state = RMI_PDEV_STATE_NEEDS_KEY;
+		} else if (pd->rmi_state == RMI_PDEV_STATE_STOPPING) {
+			pd->rmi_state = RMI_PDEV_STATE_STOPPED;
 		} else {
 			pd->rmi_state = RMI_PDEV_STATE_ERROR;
 		}
@@ -615,6 +625,62 @@ void smc_pdev_get_state(unsigned long pdev_ptr, struct smc_result *res)
 
 out_err_input:
 	res->x[0] = RMI_ERROR_INPUT;
+}
+
+/*
+ * Stop the PDEV. This sets the PDEV state to STOPPING, and a PDEV communicate
+ * call can do device specific cleanup like terminating a secure session.
+ *
+ * pdev_ptr	- PA of the PDEV
+ */
+unsigned long smc_pdev_stop(unsigned long pdev_ptr)
+{
+	struct granule *g_pdev;
+	unsigned long smc_rc;
+	struct pdev *pd;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(pdev_ptr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Lock pdev granule and map it */
+	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_PDEV);
+	if (g_pdev == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
+	if (pd == NULL) {
+		granule_unlock(g_pdev);
+		return RMI_ERROR_INPUT;
+	}
+
+	if ((pd->rmi_state == RMI_PDEV_STATE_COMMUNICATING) ||
+	    (pd->rmi_state == RMI_PDEV_STATE_STOPPING) ||
+	    (pd->rmi_state == RMI_PDEV_STATE_STOPPED)) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_pdev_buf_unmap;
+	}
+
+	if (pd->num_vdevs != 0U) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_pdev_buf_unmap;
+	}
+
+	pd->rmi_state = RMI_PDEV_STATE_STOPPING;
+	pd->dev_comm_state = DEV_COMM_PENDING;
+	smc_rc = RMI_SUCCESS;
+
+out_pdev_buf_unmap:
+	buffer_unmap(pd);
+
+	granule_unlock(g_pdev);
+
+	return smc_rc;
 }
 
 /*

@@ -45,7 +45,7 @@ static int process_spdm_init_connection(void *spdm_context)
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }
 
-/* dsm_cmd_init_connection_main */
+/* dev_assign_cmd_init_connection_main */
 int dev_assign_cmd_init_connection_main(struct dev_assign_info *info)
 {
 	void *spdm_context = info->libspdm_ctx;
@@ -74,4 +74,19 @@ int dev_assign_cmd_init_connection_main(struct dev_assign_info *info)
 	}
 
 	return (int)LIBSPDM_STATUS_SUCCESS;
+}
+
+/* dev_assign_cmd_stop_connection_main */
+int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info)
+{
+	/* Send GET_VERSION, this resets the SPDM connection */
+	(void)libspdm_init_connection(info->libspdm_ctx, true);
+
+	/*
+	 * Unset public key context in libspdm connection once the connection is
+	 * terminated.
+	 */
+	dev_assign_unset_pubkey(info);
+
+	return DEV_ASSIGN_STATUS_SUCCESS;
 }

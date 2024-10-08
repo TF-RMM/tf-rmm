@@ -203,6 +203,16 @@ static void spdm_release_receiver_buffer(void *spdm_context,
 	/* Nothing to do */
 }
 
+void dev_assign_unset_pubkey(struct dev_assign_info *info)
+{
+	if ((info->key_sig_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P256) ||
+	    (info->key_sig_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P384)) {
+		mbedtls_ecdh_free(&info->pk_ctx.ecdh);
+	} else {
+		mbedtls_rsa_free(&info->pk_ctx.rsa);
+	}
+}
+
 /*
  * Returns the min heap size. This include libspdm context, libspdm secured
  * message context, libspdm scratch space, libspdm send recv buffer and
@@ -511,6 +521,9 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 	case DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT:
 		ret = (unsigned long)dev_assign_cmd_init_connection_main(info);
 		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION:
+		ret = (unsigned long)dev_assign_cmd_stop_connection_main(info);
+		break;
 	default:
 		assert(false);
 		return (unsigned long)DEV_ASSIGN_STATUS_ERROR;
@@ -549,6 +562,7 @@ unsigned long el0_app_entry_func(
 			(struct dev_assign_params *)shared);
 	}
 	case DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT:
+	case DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION:
 		return dev_assign_communicate_cmd_cmn(func_id, heap);
 	case DEVICE_ASSIGN_APP_FUNC_ID_DEINIT:
 		return (unsigned long)dev_assign_deinit(heap);

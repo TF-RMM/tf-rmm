@@ -95,4 +95,13 @@ struct dev_assign_spdm_shared {
  */
 #define DEVICE_ASSIGN_APP_FUNC_ID_DEINIT		4
 
+/*
+ * App function ID to stop the libspdm session that is associated with this app
+ * instance.
+ *
+ * ret0 == DEV_ASSIGN_STATUS_SUCCESS if the session is stopped successfully.
+ *         DEV_ASSIGN_STATUS_ERROR if libspdm returned error.
+ */
+#define DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION	0x80
+
 #endif /* DEV_ASSIGN_STRUCTS_H */

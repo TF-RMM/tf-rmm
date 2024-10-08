@@ -57,7 +57,8 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 	struct rmi_dev_comm_exit *shared_ret;
 
 	assert((dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_RESUME) ||
-		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT));
+		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT) ||
+		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION));
 
 	app_map_shared_page(app_data);
 	shared = app_data->el2_shared_page;
