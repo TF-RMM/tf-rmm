@@ -17,7 +17,7 @@
 /*
  * Memory buffer for the allocator during key initialization.
  *
- * Used to compute the public key and setup a PRNG object per CPU. PRNGs are
+ * Used to compute the public key and set up a PRNG object per CPU. PRNGs are
  * needed for key blinding during EC signing.
  *
  * Memory requirements:
@@ -53,6 +53,9 @@ int attestation_init(void)
 {
 	int ret;
 	psa_status_t psa_status;
+
+	/* Enable Data Independent Timing feature */
+	write_dit(DIT_BIT);
 
 	/*
 	 * Associate the allocated heap for mbedtls with the current CPU.
@@ -105,6 +108,9 @@ int attestation_init(void)
 	}
 #endif
 	attest_initialized = true;
+
+	/* Disable Data Independent Timing feature */
+	write_dit(0x0);
 
 attest_init_fail :
 	buffer_alloc_ctx_unassign();
