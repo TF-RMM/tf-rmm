@@ -48,4 +48,18 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 	struct rmi_dev_comm_exit *comm_exit_args,
 	int dev_cmd);
 
+/*
+ * Aborts the current communication with the device.
+ * Arguments:
+ * app_data - Pointer to app_data_cfg. This is opaque to caller
+ *
+ * This command updates the status field of the struct rmi_dev_comm_enter
+ * is going to be read by spdm_send_message. The value is set to error, and the
+ * app is resumed, which causes the app to abort the operation and return with
+ * error.
+ *
+ * Returns DEV_ASSIGN_STATUS_SUCCESS.
+ */
+int dev_assign_abort_app_operation(struct app_data_cfg *app_data);
+
 #endif /* DEV_ASSIGN_APP_H */

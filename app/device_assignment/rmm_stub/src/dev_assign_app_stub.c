@@ -80,3 +80,23 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 
 	return rc;
 }
+
+int dev_assign_abort_app_operation(struct app_data_cfg *app_data)
+{
+	unsigned long rc __unused;
+	struct rmi_dev_comm_enter *shared;
+
+	/*
+	 * The app copies the enter_args from the shared page. So set the status
+	 * on the shared page to error, which will result app return
+	 * immediately, unwinding its stack, and returning error.
+	 */
+	app_map_shared_page(app_data);
+	shared = app_data->el2_shared_page;
+	shared->status = (unsigned char)RMI_DEV_COMM_ENTER_STATUS_ERROR;
+	rc = app_resume(app_data);
+	assert(rc == (unsigned long)DEV_ASSIGN_STATUS_ERROR);
+	app_unmap_shared_page(app_data);
+
+	return DEV_ASSIGN_STATUS_SUCCESS;
+}

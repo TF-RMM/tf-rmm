@@ -618,6 +618,93 @@ out_err_input:
 }
 
 /*
+ * Abort device communication associated with a PDEV.
+ *
+ * pdev_ptr	- PA of the PDEV
+ */
+unsigned long smc_pdev_abort(unsigned long pdev_ptr)
+{
+	int rc __unused;
+	struct granule *g_pdev;
+	void *aux_mapped_addr;
+	unsigned long smc_rc;
+	struct pdev *pd;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(pdev_ptr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Lock pdev granule and map it */
+	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_PDEV);
+	if (g_pdev == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
+	if (pd == NULL) {
+		granule_unlock(g_pdev);
+		return RMI_ERROR_INPUT;
+	}
+
+	if ((pd->rmi_state != RMI_PDEV_STATE_NEW) &&
+	    (pd->rmi_state != RMI_PDEV_STATE_HAS_KEY) &&
+	    (pd->rmi_state != RMI_PDEV_STATE_COMMUNICATING)) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_pdev_buf_unmap;
+	}
+
+	/*
+	 * If there is no active device communication, then mapping aux
+	 * granules and cancelling an existing communication is not required.
+	 */
+	if (pd->dev_comm_state != DEV_COMM_ACTIVE) {
+		goto pdev_reset_state;
+	}
+
+	/* Map PDEV aux granules */
+	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
+	assert(aux_mapped_addr != NULL);
+
+	/*
+	 * This will resume the blocked CMA SPDM command and the recv callback
+	 * handler will return error and abort the command.
+	 */
+	rc = dev_assign_abort_app_operation(&pd->da_app_data);
+	assert(rc == 0);
+
+	/* Unmap all PDEV aux granules */
+	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_aux);
+
+pdev_reset_state:
+	/*
+	 * As the device communication is aborted, if the PDEV is in
+	 * communicating state then set the state to READY state.
+	 *
+	 * For other PDEV states, transition the comm_state to PENDING
+	 * indicating RMM has device request which is ready to be sent to the
+	 * device.
+	 */
+	if (pd->rmi_state == RMI_PDEV_STATE_COMMUNICATING) {
+		pd->rmi_state = RMI_PDEV_STATE_READY;
+		pd->dev_comm_state = DEV_COMM_IDLE;
+	} else {
+		pd->dev_comm_state = DEV_COMM_PENDING;
+	}
+	smc_rc = RMI_SUCCESS;
+
+out_pdev_buf_unmap:
+	buffer_unmap(pd);
+
+	granule_unlock(g_pdev);
+
+	return smc_rc;
+}
+
+/*
  * Destroy a PDEV. Host can reclaim PDEV resources when the PDEV state is STOPPED
  * using RMI PDEV_DESTROY.
  *
