@@ -49,4 +49,12 @@ struct dev_assign_spdm_shared {
 	uint8_t sendrecv_buf[GRANULE_SIZE];
 };
 
+/*
+ * App function ID to de-initialise. App uses heap available via
+ * tpidrro_el0.
+ *
+ * ret0 == DEV_ASSIGN_STATUS_SUCCESS
+ */
+#define DEVICE_ASSIGN_APP_FUNC_ID_DEINIT		4
+
 #endif /* DEV_ASSIGN_STRUCTS_H */

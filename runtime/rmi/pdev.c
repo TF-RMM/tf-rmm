@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <app.h>
 #include <arch.h>
 #include <arch_features.h>
 #include <buffer.h>
@@ -324,4 +325,70 @@ void smc_pdev_get_state(unsigned long pdev_ptr, struct smc_result *res)
 
 out_err_input:
 	res->x[0] = RMI_ERROR_INPUT;
+}
+
+/*
+ * Destroy a PDEV. Host can reclaim PDEV resources when the PDEV state is STOPPED
+ * using RMI PDEV_DESTROY.
+ *
+ * pdev_ptr	- PA of the PDEV
+ */
+unsigned long smc_pdev_destroy(unsigned long pdev_ptr)
+{
+	int rc __unused;
+	struct granule *g_pdev;
+	void *aux_mapped_addr;
+	struct pdev *pd;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(pdev_ptr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Lock pdev granule and map it */
+	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_PDEV);
+	if (g_pdev == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
+	if (pd == NULL) {
+		granule_unlock(g_pdev);
+		return RMI_ERROR_INPUT;
+	}
+
+	if (pd->rmi_state != RMI_PDEV_STATE_STOPPED) {
+		buffer_unmap(pd);
+		granule_unlock(g_pdev);
+		return RMI_ERROR_DEVICE;
+	}
+
+	/* Map PDEV aux granules and map PDEV heap */
+	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
+	assert(aux_mapped_addr != NULL);
+
+	/* Deinit the DSM context state */
+	rc = (int)app_run(&pd->da_app_data, DEVICE_ASSIGN_APP_FUNC_ID_DEINIT,
+				0, 0, 0, 0);
+	assert(rc == DEV_ASSIGN_STATUS_SUCCESS);
+
+	/* Unmap all PDEV aux granules and heap */
+	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_aux);
+
+	/*
+	 * Scrub PDEV AUX granules and move its state from PDEV_AUX to
+	 * delegated.
+	 */
+	pdev_restore_aux_granules_state(pd->g_aux, pd->num_aux, true);
+
+	/* Move the PDEV granule from PDEV to delegated state */
+	granule_memzero_mapped(pd);
+	buffer_unmap(pd);
+
+	granule_unlock_transition(g_pdev, GRANULE_STATE_DELEGATED);
+
+	return RMI_SUCCESS;
 }

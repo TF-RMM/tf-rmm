@@ -159,6 +159,28 @@ void *mbedtls_app_get_heap(void)
 }
 
 /*
+ * Clear all assigned buffers address that are used by CMA SPDM and call
+ * libspdm_deinit_context to freeup the memory of contexts within the SPDM
+ * context.
+ */
+static int dev_assign_deinit(uintptr_t heap)
+{
+	void *spdm_ctx;
+	struct dev_assign_info *info;
+
+	info = heap_start_to_dev_assign_info(heap);
+
+	info->send_recv_buffer = NULL;
+	info->scratch_buffer = NULL;
+	info->mbedtls_heap_buf = NULL;
+
+	/* Connection state related cleanup is handled by connection_deinit */
+	spdm_ctx = info->libspdm_ctx;
+	libspdm_deinit_context(spdm_ctx);
+	return DEV_ASSIGN_STATUS_SUCCESS;
+}
+
+/*
  * Assigns buffers to various objects as mentioned in the below mapping starting
  * from start of EL0 heap. Note that send_recv_buffer must be first and
  * libspdm_context must be just before struct dsm as this is assumed in
@@ -403,6 +425,8 @@ unsigned long el0_app_entry_func(
 		return (unsigned long)dev_assign_init(heap, arg_0,
 			(struct dev_assign_params *)shared);
 	}
+	case DEVICE_ASSIGN_APP_FUNC_ID_DEINIT:
+		return (unsigned long)dev_assign_deinit(heap);
 	default:
 		assert(false);
 		return (unsigned long)DEV_ASSIGN_STATUS_ERROR;
