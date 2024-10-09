@@ -69,6 +69,9 @@
 #define DIT			S3_3_C4_C2_5
 #define DIT_BIT			(UL(1) << 24)
 
+/* SCTLR2_EL12 register */
+#define SCTLR2_EL12		S3_5_C1_C0_3
+
 /* CLIDR definitions */
 #define LOC_SHIFT		U(24)
 #define CTYPE_SHIFT(n)		U(3 * ((n) - 1))
@@ -184,6 +187,14 @@
 				HCR_TEA | HCR_API | HCR_APK)
 
 #define HCR_EL2_INIT		(HCR_TGE | HCR_E2H | HCR_TEA)
+
+/* HCRX_EL2 Register */
+#define HCRX_EL2	S3_4_C1_C2_2
+
+/* HCRX_EL2 definitions */
+#define HCRX_SCTLR2EN	(UL(1) << 15)
+
+#define HCRX_INIT	(UL(0))
 
 #define MAIR_ELx_ATTR0_SHIFT	0
 #define MAIR_ELx_ATTR0_WIDTH	U(8)
@@ -492,6 +503,9 @@
 #define ID_AA64PFR1_EL1_SME_NOT_IMPLEMENTED	UL(0)
 #define ID_AA64PFR1_EL1_SME_IMPLEMENTED		UL(1)
 #define ID_AA64PFR1_EL1_SME2_IMPLEMENTED	UL(2)
+
+#define ID_AA64PFR1_EL1_DF2_SHIFT		UL(56)
+#define ID_AA64PFR1_EL1_DF2_WIDTH		UL(4)
 
 /* ID_AA64MMFR0_EL1 definitions */
 #define ID_AA64MMFR0_EL1_PARANGE_SHIFT	U(0)
@@ -807,6 +821,13 @@
 #define SCTLR_EL2_RUNTIME	(SCTLR_EL2_INIT		| \
 				 SCTLR_ELx_M_BIT	/* MMU enabled */)
 
+/* SCTLR2_ELx Register definitions */
+#define SCTLR2_ELx_NMEA_BIT		(UL(1) << 2)
+#define SCTLR2_ELx_EnADERR_BIT		(UL(1) << 3)
+#define SCTLR2_ELx_EnANERR_BIT		(UL(1) << 4)
+#define SCTLR2_ELx_EASE_BIT		(UL(1) << 5)
+#define SCTLR2_ELx_EnIDCP128_BIT	(UL(1) << 6)
+
 /* RMM sets HCR_EL2.E2H to 1. CPTR_EL2 definitions when HCR_EL2.E2H == 1 */
 #define CPTR_EL2_VHE_TTA		(UL(1) << 28)
 #define CPTR_EL2_VHE_TAM		(UL(1) << 30)
@@ -1084,6 +1105,11 @@
 #define ID_AA64MMFR2_EL1_CNP_SHIFT	UL(0)
 #define ID_AA64MMFR2_EL1_CNP_WIDTH	UL(4)
 
+/* ID_AA64MMFR3_EL1_definitions */
+#define ID_AA64MMFR3			S3_0_C0_C7_3
+#define ID_AA64MMFR3_EL1_SCTLRX_SHIFT	UL(4)
+#define ID_AA64MMFR3_EL1_SCTLRX_WIDTH	UL(4)
+
 /* Custom defined values to indicate the vector offset to exception handlers */
 #define ARM_EXCEPTION_SYNC_LEL		0
 #define ARM_EXCEPTION_IRQ_LEL		1
@@ -1094,6 +1120,9 @@
 #define VBAR_CEL_SP_ELx_OFFSET		0x200
 #define VBAR_LEL_AA64_OFFSET		0x400
 #define VBAR_LEL_AA32_OFFSET		0x600
+
+/* SError vector offset from Sync exception vector */
+#define VBAR_SERROR_OFFSET		UL(0x180)
 
 /* Stack Pointer selection */
 #define MODE_SP_EL0			UL(0)

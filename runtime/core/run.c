@@ -36,6 +36,7 @@ static void save_sysreg_state(struct sysreg_state *sysregs)
 	sysregs->tpidr_el0 = read_tpidr_el0();
 	sysregs->csselr_el1 = read_csselr_el1();
 	sysregs->sctlr_el1 = read_sctlr_el12();
+	sysregs->sctlr2_el1 = read_sctlr2_el12_if_present();
 	sysregs->actlr_el1 = read_actlr_el1();
 	sysregs->cpacr_el1 = read_cpacr_el12();
 	sysregs->ttbr0_el1 = read_ttbr0_el12();
@@ -97,6 +98,7 @@ static void restore_sysreg_state(struct sysreg_state *sysregs)
 	write_tpidr_el0(sysregs->tpidr_el0);
 	write_csselr_el1(sysregs->csselr_el1);
 	write_sctlr_el12(sysregs->sctlr_el1);
+	write_sctlr2_el12_if_present(sysregs->sctlr2_el1);
 	write_actlr_el1(sysregs->actlr_el1);
 	write_cpacr_el12(sysregs->cpacr_el1);
 	write_ttbr0_el12(sysregs->ttbr0_el1);
