@@ -260,7 +260,6 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	int realm_exception_code;
 	void *rec_aux;
 	unsigned int cpuid = my_cpuid();
-	int ret __unused;
 
 	assert(cpuid < MAX_CPUS);
 	assert(rec->ns == NULL);
@@ -276,8 +275,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	 * Associate the attest heap with the current CPU. This heap will be
 	 * used for attestation RSI calls when the REC is running.
 	 */
-	ret = attestation_heap_ctx_assign_pe(&rec->aux_data.attest_data->alloc_ctx);
-	assert(ret == 0);
+	attestation_heap_ctx_assign_pe(&rec->aux_data.attest_data->alloc_ctx);
 
 	save_ns_state(rec);
 	restore_realm_state(rec);
@@ -362,8 +360,8 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	rec->ns = NULL;
 
 	/* Undo the heap association */
-	ret = attestation_heap_ctx_unassign_pe();
-	assert(ret == 0);
+	attestation_heap_ctx_unassign_pe();
+
 
 	/* Unmap auxiliary granules */
 	buffer_aux_unmap(rec_aux, rec->num_rec_aux);

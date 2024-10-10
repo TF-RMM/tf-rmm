@@ -147,6 +147,11 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	attest_data = rec->aux_data.attest_data;
 	res->action = UPDATE_REC_RETURN_TO_REALM;
 
+	/* Initialize length fields in attestation data */
+	attest_data->rmm_realm_token_len = 0;
+	attest_data->rmm_cca_token_copied_len = 0;
+	attest_data->rmm_cca_token_len = 0;
+
 	/*
 	 * Calling RSI_ATTESTATION_TOKEN_INIT any time aborts any ongoing
 	 * operation.
@@ -159,11 +164,6 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 		res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
 		return;
 	}
-
-	/* Initialize length fields in attestation data */
-	attest_data->rmm_realm_token_len = 0;
-	attest_data->rmm_cca_token_copied_len = 0;
-	attest_data->rmm_cca_token_len = 0;
 
 	/*
 	 * rd lock is acquired so that measurement cannot be updated

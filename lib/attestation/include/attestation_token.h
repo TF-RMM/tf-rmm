@@ -213,7 +213,9 @@ int attest_realm_token_create(enum hash_algo algorithm,
  * heap_buf		- Buffer to use as heap.
  * heap_buf_len		- Size of the buffer to use as heap.
  *
- * Returns 0 on success, negative error code on error.
+ * Return code:
+ *	ATTEST_TOKEN_ERR_SUCCESS (0)	- Success.
+ *	ATTEST_TOKEN_ERR_INVALID_STATE	- Failed possibly due to invalid state.
  */
 int attest_token_ctx_init(struct token_sign_cntxt *token_ctx,
 			   unsigned char *heap_buf,

@@ -66,12 +66,13 @@ int attestation_init(void)
 
 	SIMD_FPU_ALLOW(ret = attest_rnd_prng_init());
 	if (ret != 0) {
-		return ret;
+		goto attest_init_fail;
 	}
 
 	SIMD_FPU_ALLOW(psa_status = psa_crypto_init());
 	if (psa_status != PSA_SUCCESS) {
-		return -EINVAL;
+		ret = -EINVAL;
+		goto attest_init_fail;
 	}
 
 	/*
@@ -85,20 +86,20 @@ int attestation_init(void)
 	/* Retrieve the platform key from root world */
 	SIMD_FPU_ALLOW(ret = attest_init_realm_attestation_key());
 	if (ret != 0) {
-		return ret;
+		goto attest_init_fail;
 	}
 
 	/* Retrieve the platform token from root world */
 	ret = attest_setup_platform_token();
 	if (ret != 0) {
-		return ret;
+		goto attest_init_fail;
 	}
-
-	buffer_alloc_ctx_unassign();
 
 	attest_initialized = true;
 
-	return 0;
+attest_init_fail :
+	buffer_alloc_ctx_unassign();
+	return ret;
 }
 
 int attestation_heap_ctx_init(unsigned char *buf, size_t buf_size)
@@ -106,6 +107,7 @@ int attestation_heap_ctx_init(unsigned char *buf, size_t buf_size)
 	assert(buf != NULL);
 
 	if (attest_initialized == false) {
+		ERROR("Attestation init failed.\n");
 		return -EINVAL;
 	}
 
@@ -115,26 +117,17 @@ int attestation_heap_ctx_init(unsigned char *buf, size_t buf_size)
 	return 0;
 }
 
-int attestation_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx)
+void attestation_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx)
 {
+	int ret __unused;
 	assert(ctx != NULL);
 
-	if (attest_initialized == false) {
-		return -EINVAL;
-	}
-
-	/*
-	 * Associate the buffer_alloc_ctx to this CPU
-	 */
-	return buffer_alloc_ctx_assign(ctx);
+	/* Associate the buffer_alloc_ctx to this CPU */
+	ret = buffer_alloc_ctx_assign(ctx);
+	assert(ret == 0);
 }
 
-int attestation_heap_ctx_unassign_pe(void)
+void attestation_heap_ctx_unassign_pe(void)
 {
-	if (attest_initialized == false) {
-		return -EINVAL;
-	}
-
 	buffer_alloc_ctx_unassign();
-	return 0;
 }
