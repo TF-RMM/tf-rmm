@@ -79,7 +79,7 @@ void xlat_test_helpers_init_ctx_tbls(struct xlat_ctx_tbls *ctx_tbls,
 	ctx_tbls->tables = tbls;
 	ctx_tbls->tables_num = tables_num;
 	ctx_tbls->next_table = next_table;
-	ctx_tbls->initialized = initialized;
+	ctx_tbls->init = initialized;
 }
 
 void xlat_test_helpers_init_ctx_cfg(struct xlat_ctx_cfg *ctx_cfg,
@@ -101,7 +101,7 @@ void xlat_test_helpers_init_ctx_cfg(struct xlat_ctx_cfg *ctx_cfg,
 	ctx_cfg->max_mapped_va_offset = max_mapped_va_offset;
 	ctx_cfg->base_level = base_level;
 	ctx_cfg->region = region;
-	ctx_cfg->initialized = initialized;
+	ctx_cfg->init = initialized;
 }
 
 void xlat_test_helpers_init_ctx(struct xlat_ctx *ctx,
@@ -235,11 +235,11 @@ int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,
 	cfg = ctx->cfg;
 	tbls = ctx->tbls;
 
-	if (tbls->initialized == false) {
+	if (!tbls->init) {
 		return -EINVAL;
 	}
 
-	if (cfg->initialized == false) {
+	if (!cfg->init) {
 		return -EINVAL;
 	}
 

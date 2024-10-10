@@ -881,7 +881,7 @@ void xlat_get_llt_from_va_tc8(void)
 	test_va = ctx.cfg->base_va + init_mmap.base_va;
 
 	/* Mark the cfg structure as not initialized */
-	cfg.initialized = false;
+	cfg.init = false;
 
 	test_helpers_expect_assert_fail(true);
 	(void)xlat_get_llt_from_va(&tbl_info, &ctx, test_va);
@@ -913,7 +913,7 @@ void xlat_get_llt_from_va_tc9(void)
 	test_va = ctx.cfg->base_va + init_mmap.base_va;
 
 	/* Mark the tbls structure as not initialized */
-	tbls.initialized = false;
+	tbls.init = false;
 
 	test_helpers_expect_assert_fail(true);
 	(void)xlat_get_llt_from_va(&tbl_info, &ctx, test_va);
@@ -2261,7 +2261,7 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	CHECK_TRUE(retval == 0);
 
 	/* Force the context to be uninitialized */
-	ctx.cfg->initialized = false;
+	ctx.cfg->init = false;
 
 	/* Try to initialize MMU for the given context */
 	retval = xlat_arch_setup_mmu_cfg(&ctx, &mmu_config);
@@ -2270,7 +2270,7 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	CHECK_TRUE(retval == -EINVAL);
 
 	/* Restore the context initialized flag */
-	ctx.cfg->initialized = true;
+	ctx.cfg->init = true;
 
 	/* Force the architecture to report 4K granularity as not available */
 	host_write_sysreg("id_aa64mmfr0_el1",

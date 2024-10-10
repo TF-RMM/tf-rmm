@@ -65,6 +65,7 @@ int attest_get_platform_token(const void **buf, size_t *len);
 /*
  * Get the hash algorithm to use for computing the hash of the realm public key.
  */
+/* coverity[misra_c_2012_rule_2_4_violation:SUPRESS] */
 enum hash_algo attest_get_realm_public_key_hash_algo_id(void);
 
 /*

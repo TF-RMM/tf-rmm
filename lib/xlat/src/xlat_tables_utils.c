@@ -467,8 +467,8 @@ int xlat_get_llt_from_va(struct xlat_llt_info * const llt,
 	assert(ctx->cfg != NULL);
 	assert(ctx->tbls != NULL);
 	assert(llt != NULL);
-	assert(ctx->tbls->initialized == true);
-	assert(ctx->cfg->initialized == true);
+	assert(ctx->tbls->init);
+	assert(ctx->cfg->init);
 
 	table = find_xlat_last_table(va, ctx, &level, &tt_base_va);
 

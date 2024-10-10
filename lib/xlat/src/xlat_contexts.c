@@ -258,7 +258,7 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 		return -EINVAL;
 	}
 
-	if (cfg->initialized == true) {
+	if (cfg->init) {
 		return -EALREADY;
 	}
 
@@ -273,7 +273,7 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 	/* cppcheck-suppress misra-c2012-10.6 */
 	cfg->base_level = (GET_XLAT_TABLE_LEVEL_BASE(va_size));
 	cfg->region = region;
-	cfg->initialized = true;
+	cfg->init = true;
 
 	if (!is_mmu_enabled()) {
 		inv_dcache_range((uintptr_t)cfg, sizeof(struct xlat_ctx_cfg));
@@ -301,11 +301,11 @@ int xlat_ctx_init(struct xlat_ctx *ctx,
 		return -EINVAL;
 	}
 
-	if (tbls_ctx->initialized == true) {
+	if (tbls_ctx->init) {
 		return -EALREADY;
 	}
 
-	if (cfg->initialized == false) {
+	if (!cfg->init) {
 		return -EINVAL;
 	}
 

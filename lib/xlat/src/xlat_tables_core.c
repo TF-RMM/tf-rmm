@@ -518,10 +518,11 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 	/* Inv the cache as a good measure */
 	if (!is_mmu_enabled()) {
 		inv_dcache_range((uintptr_t)(void *)ctx_tbls->tables,
-				 sizeof(uint64_t) * (unsigned long)ctx_tbls->tables_num
+				sizeof(uint64_t) * (unsigned long)ctx_tbls->tables_num
 							* XLAT_TABLE_ENTRIES);
 	}
-	ctx_tbls->initialized = true;
+
+	ctx_tbls->init = true;
 
 	if (!is_mmu_enabled()) {
 		inv_dcache_range((uintptr_t)(void *)ctx_tbls,
