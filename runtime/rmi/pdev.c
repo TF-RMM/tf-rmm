@@ -72,6 +72,48 @@ static int validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
 	return 0;
 }
 
+static unsigned long pdev_get_aux_count_from_flags(unsigned long pdev_flags)
+{
+	unsigned long aux_count;
+
+	(void)pdev_flags;
+
+	/*
+	 * The current implementation requires that RMI_PDEV_SPDM_TRUE
+	 * is set in the flags.
+	 */
+	assert(EXTRACT(RMI_PDEV_FLAGS_SPDM, pdev_flags) == RMI_PDEV_SPDM_TRUE);
+
+	/*
+	 * Currently, the number of pages required to instantiate an app is
+	 * hardcoded in the app header. In this implementation, aux_count
+	 * does not depend on the flags set in pdev_flags. The worst case
+	 * (i.e., the most granules) is assumed.
+	 */
+	aux_count = app_get_required_granule_count(RMM_DEV_ASSIGN_APP_ID);
+	assert(aux_count <= PDEV_PARAM_AUX_GRANULES_MAX);
+
+	return aux_count;
+}
+
+/*
+ * smc_pdev_aux_count
+ *
+ * Get number of auxiliary Granules required for a PDEV.
+ *
+ * flags	- PDEV flags
+ * res		- SMC result
+ */
+void smc_pdev_aux_count(unsigned long flags, struct smc_result *res)
+{
+	if (is_rmi_feat_da_enabled()) {
+		res->x[0] = RMI_SUCCESS;
+		res->x[1] = pdev_get_aux_count_from_flags(flags);
+	} else {
+		res->x[0] = SMC_NOT_SUPPORTED;
+	}
+}
+
 /*
  * smc_pdev_create
  *
@@ -86,6 +128,7 @@ unsigned long smc_pdev_create(unsigned long pdev_ptr,
 	struct pdev *pd;
 	struct rmi_pdev_params pdev_params; /* this consumes 4k of stack */
 	struct granule *pdev_aux_granules[PDEV_PARAM_AUX_GRANULES_MAX];
+	unsigned long num_aux_req;
 	bool ns_access_ok;
 	void *aux_mapped_addr;
 	struct dev_assign_params dparams;
@@ -131,10 +174,19 @@ unsigned long smc_pdev_create(unsigned long pdev_ptr,
 		return RMI_ERROR_NOT_SUPPORTED;
 	}
 
-	/* Validate PDEV parameters that are not specific to a device class. */
+	/* Validate PDEV parameters num_aux */
+	num_aux_req = pdev_get_aux_count_from_flags(pdev_params.flags);
 	/* coverity[uninit_use:SUPPRESS] */
-	if ((pdev_params.num_aux > PDEV_PARAM_AUX_GRANULES_MAX) ||
-	    (pdev_params.ncoh_num_addr_range > PDEV_PARAM_NCOH_ADDR_RANGE_MAX)) {
+	if ((pdev_params.num_aux == 0U) ||
+	    (pdev_params.num_aux != num_aux_req)) {
+		ERROR("ERROR: PDEV need %ld aux granules, host allocated %ld.\n",
+		      num_aux_req, pdev_params.num_aux);
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Validate PDEV parameters ncoh_num_addr_range. */
+	/* coverity[uninit_use:SUPPRESS] */
+	if (pdev_params.ncoh_num_addr_range > PDEV_PARAM_NCOH_ADDR_RANGE_MAX) {
 		return RMI_ERROR_INPUT;
 	}
 

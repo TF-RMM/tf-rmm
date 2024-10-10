@@ -75,3 +75,9 @@ int32_t mbedtls_psa_external_get_random(
 
 	return 0;
 }
+
+size_t app_get_required_granule_count(unsigned long app_id)
+{
+	(void)app_id;
+	return 0U;
+}

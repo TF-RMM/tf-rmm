@@ -139,7 +139,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(DATA_CREATE,		5, 0, smc_data_create,		 false, false),
 	HANDLER(DATA_CREATE_UNKNOWN,	3, 0, smc_data_create_unknown,	 false, false),
 	HANDLER(DATA_DESTROY,		2, 2, smc_data_destroy,		 false, true),
-	HANDLER(PDEV_AUX_COUNT,		0, 0, NULL,			 true, true),
+	HANDLER(PDEV_AUX_COUNT,		1, 1, smc_pdev_aux_count,	 true, true),
 	HANDLER(REALM_ACTIVATE,		1, 0, smc_realm_activate,	 true,  true),
 	HANDLER(REALM_CREATE,		2, 0, smc_realm_create,		 true,  true),
 	HANDLER(REALM_DESTROY,		1, 0, smc_realm_destroy,	 true,  true),
