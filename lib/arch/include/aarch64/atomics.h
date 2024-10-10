@@ -87,6 +87,28 @@ static inline uint16_t atomic_load_add_16(uint16_t *loc, uint16_t val)
 }
 
 /*
+ * Atomically adds @val to the 64-bit value stored at memory location @loc.
+ * Returns the old value.
+ */
+static inline uint64_t atomic_load_add_64(uint64_t *loc, uint64_t val)
+{
+	uint64_t old_val;
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)loc;
+	(void)val;
+
+	asm volatile(
+	"	ldadd %[val], %[old_val], %[loc]\n"
+	: [loc] "+Q" (*loc),
+	  [old_val] "=r" (old_val)
+	: [val] "r" (val)
+	: "memory");
+
+	return old_val;
+}
+
+/*
  * Atomically adds @val to the 16-bit value stored at memory location @loc.
  * Stores to memory with release semantics.
  * Returns the old value.
