@@ -34,7 +34,7 @@ static const char * const rmi_status_string[] = {
 	RMI_STATUS_STRING(ERROR_RTT)
 };
 
-COMPILER_ASSERT(ARRAY_LEN(rmi_status_string) == RMI_ERROR_COUNT);
+COMPILER_ASSERT(ARRAY_SIZE(rmi_status_string) == RMI_ERROR_COUNT);
 
 /*
  * At this level (in handle_ns_smc) we distinguish the RMI calls only on:
@@ -155,7 +155,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RTT_SET_RIPAS,		4, 1, smc_rtt_set_ripas,	 false, true)
 };
 
-COMPILER_ASSERT(ARRAY_LEN(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
+COMPILER_ASSERT(ARRAY_SIZE(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
 
 static inline bool rmi_handler_needs_fpu(unsigned int id)
 {
@@ -259,7 +259,7 @@ void handle_ns_smc(unsigned int function_id,
 	if (IS_SMC64_RMI_FID(function_id)) {
 		handler_id = RMI_HANDLER_ID(function_id);
 		/* cppcheck-suppress misra-c2012-17.3 */
-		if (handler_id < ARRAY_LEN(smc_handlers)) {
+		if (handler_id < ARRAY_SIZE(smc_handlers)) {
 			handler = &smc_handlers[handler_id];
 		}
 	}

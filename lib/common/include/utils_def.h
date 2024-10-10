@@ -68,10 +68,7 @@
 #define SIZE_OF(s_, m_)		(sizeof(((struct s_ *)NULL)->m_))
 
 /* Compute the number of elements in the given array */
-#define ARRAY_SIZE(a)	\
-	(sizeof(a) / sizeof((a)[0]))
-
-#define ARRAY_LEN(_a)	\
+#define ARRAY_SIZE(_a)	\
 	((sizeof(_a) / sizeof((_a)[0])) + CHECK_TYPE_IS_ARRAY(_a))
 
 /*
@@ -118,12 +115,17 @@
  * subtracting the size of the same struct, this should always return 0 as a
  * value and can be included in other expressions.
  */
-#define COMPILER_ASSERT_ZERO(_expr) (sizeof(struct { char: (-!(_expr)); }) \
-				- sizeof(struct { char: 0; }))
+#define COMPILER_ASSERT_ZERO(_expr) (sizeof(struct { unsigned char: (-!(_expr)); }) \
+				- sizeof(struct { unsigned char: 0; }))
 
+#ifndef __cplusplus
 #define CHECK_TYPE_IS_ARRAY(_v) \
 	COMPILER_ASSERT_ZERO(!__builtin_types_compatible_p(typeof(_v),	\
 							typeof(&((_v)[0]))))
+#else
+#define CHECK_TYPE_IS_ARRAY(_v)		0U
+#endif
+
 #ifdef CBMC
 #define COMPILER_ASSERT_NO_CBMC(_condition)	COMPILER_ASSERT(0 == 0)
 #else /* CBMC */

@@ -281,7 +281,7 @@ bool handle_sysreg_access_trap(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	assert(ESR_IL(esr) != 0UL);
 
 	/* cppcheck-suppress misra-c2012-14.2 */
-	for (unsigned int i = 0U; i < ARRAY_LEN(sysreg_handlers); i++) {
+	for (unsigned int i = 0U; i < ARRAY_SIZE(sysreg_handlers); i++) {
 		const struct sysreg_handler *handler = &sysreg_handlers[i];
 
 		if ((esr & handler->esr_mask) == handler->esr_value) {
