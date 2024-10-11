@@ -370,7 +370,7 @@ void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 						sizeof(unsigned long));
 
 	assert(cnt >= (SMC_RESULT_REGS - 1U));
-	assert(cnt < ARRAY_LEN(rec->regs));
+	assert(cnt < ARRAY_SIZE(rec->regs));
 
 	/* Copy the part of the measurement to res->smc_res.x[] */
 	for (i = 0U; i < (SMC_RESULT_REGS - 1U); i++) {

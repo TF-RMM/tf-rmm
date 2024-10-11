@@ -61,7 +61,7 @@ static const char * const rsi_status_string[] = {
 	RSI_STATUS_STRING(ERROR_UNKNOWN)
 };
 
-COMPILER_ASSERT(ARRAY_LEN(rsi_status_string) == RSI_ERROR_COUNT);
+COMPILER_ASSERT(ARRAY_SIZE(rsi_status_string) == RSI_ERROR_COUNT);
 
 static const struct rsi_handler *fid_to_rsi_logger(unsigned int id)
 {
