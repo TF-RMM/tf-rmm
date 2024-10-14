@@ -158,7 +158,8 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	 */
 	att_ret = attest_token_ctx_init(&attest_data->token_sign_ctx,
 				rec->aux_data.attest_heap_buf,
-				REC_HEAP_SIZE);
+				REC_HEAP_SIZE,
+				granule_addr(rec->g_rec));
 	if (att_ret != 0) {
 		ERROR("Failed to initialize attestation token context.\n");
 		res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
@@ -203,6 +204,72 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 static bool check_pending_irq(void)
 {
 	return (read_isr_el1() != 0UL);
+}
+
+static __unused int write_response_to_rec(struct rec *curr_rec,
+				uintptr_t resp_granule)
+{
+	struct granule *rec_granule = NULL;
+	struct rec *rec = NULL;
+	void *rec_aux = NULL;
+	struct token_sign_cntxt *ctx = NULL;
+	struct rec_attest_data *attest_data = NULL;
+	bool unmap_unlock_needed = false;
+	int ret = 0;
+
+	/*
+	 * Check if the granule is the same as the current REC. If it is, the current
+	 * code path is guaranteed to have a reference on the REC and the REC
+	 * cannot be deleted. It also means that the REC is mapped at the usual
+	 * SLOT_REC, so we can avoid locking and mapping the REC and the AUX
+	 * granules.
+	 */
+	if (resp_granule != granule_addr(curr_rec->g_rec)) {
+
+		rec_granule = find_lock_granule(
+				resp_granule, GRANULE_STATE_REC);
+		if (rec_granule == NULL) {
+			/*
+			 * REC must have been destroyed, drop the response.
+			 */
+			VERBOSE("REC granule %lx not found\n", resp_granule);
+			return 0;
+		}
+
+		rec = buffer_granule_map(rec_granule, SLOT_EL3_TOKEN_SIGN_REC);
+		assert(rec != NULL);
+
+		/*
+		 * Map auxiliary granules. Note that the aux granules are mapped at a
+		 * different high VA than during realm creation since this function
+		 * may be executing with another rec mapped at the same high VA.
+		 * Any accesses to aux granules via initialized pointers such as
+		 * attest_data, need to be recaluclated at the new high VA.
+		 */
+		rec_aux = buffer_aux_granules_map_el3_token_sign_slot(rec->g_aux,
+								rec->num_rec_aux);
+		assert(rec_aux != NULL);
+
+		unmap_unlock_needed = true;
+		attest_data = (struct rec_attest_data *)((uintptr_t)rec_aux + REC_HEAP_SIZE +
+			      REC_PMU_SIZE + REC_SIMD_SIZE);
+	} else {
+		rec = curr_rec;
+		attest_data = rec->aux_data.attest_data;
+	}
+	ctx = &attest_data->token_sign_ctx;
+
+	if (attest_el3_token_write_response_to_ctx(ctx, resp_granule) != 0) {
+		ret = -EPERM;
+	}
+
+	if (unmap_unlock_needed) {
+		buffer_aux_unmap(rec_aux, rec->num_rec_aux);
+		buffer_unmap(rec);
+		granule_unlock(rec_granule);
+	}
+
+	return ret;
 }
 
 void handle_rsi_attest_token_continue(struct rec *rec,
@@ -270,6 +337,38 @@ void handle_rsi_attest_token_continue(struct rec *rec,
 			rec_exit->exit_reason = RMI_EXIT_IRQ;
 			return;
 		}
+
+#if ATTEST_EL3_TOKEN_SIGN
+		/*
+		 * Pull response from EL3, find the corresponding rec granule
+		 * and attestation context, and have the attestation library
+		 * write the response to the context.
+		 */
+		uintptr_t granule = 0UL;
+		int el3_token_sign_ret;
+
+		el3_token_sign_ret = attest_el3_token_sign_pull_response_from_el3(&granule);
+		if (el3_token_sign_ret == -EAGAIN) {
+			continue;
+		}
+
+		if (el3_token_sign_ret != 0) {
+			ERROR("Failed to pull response from EL3: %d\n", el3_token_sign_ret);
+			res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
+			return;
+		}
+
+		el3_token_sign_ret = write_response_to_rec(rec, granule);
+		if (el3_token_sign_ret != 0) {
+			ERROR("Failed to write response to REC: %d\n", el3_token_sign_ret);
+			res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
+			return;
+		}
+#endif
+		/*
+		 * If there are no interrupts pending, then continue to pull
+		 * requests from EL3 until this RECs request is done.
+		 */
 	}
 
 	attest_token_continue_write_state(rec, res);

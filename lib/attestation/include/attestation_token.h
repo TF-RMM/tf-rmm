@@ -22,6 +22,7 @@
 #include <t_cose/q_useful_buf.h>
 #include <t_cose/t_cose_sign_sign.h>
 #include <t_cose/t_cose_signature_sign_restart.h>
+#include <t_cose_el3_token_sign.h>
 #include <t_cose_psa_crypto.h>
 #endif /* CBMC */
 
@@ -83,7 +84,11 @@ struct attest_token_encode_ctx {
 	struct q_useful_buf_c                         signed_payload;
 	struct t_cose_sign_sign_ctx                   sign_ctx;
 	struct t_cose_signature_sign_restart          restartable_signer_ctx;
+#if ATTEST_EL3_TOKEN_SIGN
+	struct t_cose_el3_token_sign_ctx              crypto_ctx;
+#else
 	struct t_cose_psa_crypto_context              crypto_ctx;
+#endif
 };
 
 #define ATTEST_CHALLENGE_SIZE			(64)
@@ -200,8 +205,6 @@ int attest_realm_token_create(enum hash_algo algorithm,
 			     void *realm_token_buf,
 			     size_t realm_token_buf_size);
 
-
-
 /*
  * Initialize the token sign context and also the heap buffer used for the crypto.
  * It is assumed that the heap alloc context has already been assigned to this
@@ -212,6 +215,7 @@ int attest_realm_token_create(enum hash_algo algorithm,
  * token_ctx		- Token sign context.
  * heap_buf		- Buffer to use as heap.
  * heap_buf_len		- Size of the buffer to use as heap.
+ * cookie		- Unique cookie to associate with the context (ex rec granule PA)
  *
  * Return code:
  *	ATTEST_TOKEN_ERR_SUCCESS (0)	- Success.
@@ -219,6 +223,41 @@ int attest_realm_token_create(enum hash_algo algorithm,
  */
 int attest_token_ctx_init(struct token_sign_cntxt *token_ctx,
 			   unsigned char *heap_buf,
-			   unsigned int heap_buf_len);
+			   unsigned int heap_buf_len,
+			   uintptr_t cookie);
+
+/*
+ * Pull the response from EL3 into the per cpu response buffer. The function
+ * returns the cookie associated with the response. The response could correspond
+ * to current REC or another REC which had requested the EL3 service.
+ *
+ * Arguments:
+ * cookie		- Pointer to storage of cookie to return the value from
+ *			  response.
+ *
+ * Return code:
+ * 	0		- Success
+ * 	-EAGAIN		- Response not ready. Call this API again.
+ * 	-ENOTSUP	- Other error including EL3_TOKEN_SIGN not supported in
+ *			  EL3 firmware.
+ */
+int attest_el3_token_sign_pull_response_from_el3(uintptr_t *cookie);
+
+/*
+ * Write the response from EL3 to the context. The response is written only if the context
+ * is valid and the response is for the right request. If the function returns an error
+ * the caller must treat it as a fatal error. The cookie is checked against the per cpu
+ * response buffer to ensure that the response is for the right request.
+ * The caller must ensure that the REC granule lock is held so that it cannot be deleted
+ * while the response is being written.
+ *
+ * Arguments:
+ * ctx			- Pointer to token_sign_cntxt
+ * cookie		- Pointer to storage of cookie to return the value from
+ *			  response.
+ *
+ * Returns 0 on success or a negative error code otherwise.
+ */
+int attest_el3_token_write_response_to_ctx(struct token_sign_cntxt *sign_ctx, uintptr_t cookie);
 
 #endif /* ATTESTATION_TOKEN_H */

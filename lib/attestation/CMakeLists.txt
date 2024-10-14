@@ -65,3 +65,9 @@ target_sources(rmm-lib-attestation
         "src/attestation_rnd.c"
         "src/attestation_token.c"
         "src/attestation_utils.c")
+
+if (ATTEST_EL3_TOKEN_SIGN)
+    target_sources(rmm-lib-attestation
+        PRIVATE
+        "src/attestation_el3_token_sign.c")
+endif()

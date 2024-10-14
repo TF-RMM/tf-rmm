@@ -9,11 +9,14 @@
 #include <debug.h>
 #include <errno.h>
 #include <host_utils.h>
+#ifndef CBMC
+#include <psa/crypto.h>
+#endif
 #include <rmm_el3_ifc.h>
 #include <spinlock.h>
 #include <string.h>
 
-#define ATTEST_KEY_CURVE_ECC_SECP384R1	0
+#ifndef CBMC
 #define ATTEST_PLAT_TOKEN_HUNK_LEN	100
 
 /*
@@ -222,6 +225,25 @@ static uint8_t sample_attest_priv_key[] = {
 	0xEB, 0x1A, 0x41, 0x85, 0xBD, 0x11, 0x7F, 0x68
 };
 
+static struct el3_token_sign_request el3_req = { 0 };
+static bool el3_req_valid;
+
+static uint8_t sample_attest_pub_key[] = {
+	0x04, 0x76, 0xf9, 0x88, 0x09, 0x1b, 0xe5, 0x85, 0xed, 0x41,
+	0x80, 0x1a, 0xec, 0xfa, 0xb8, 0x58, 0x54, 0x8c, 0x63, 0x05,
+	0x7e, 0x16, 0xb0, 0xe6, 0x76, 0x12, 0x0b, 0xbd, 0x0d, 0x2f,
+	0x9c, 0x29, 0xe0, 0x56, 0xc5, 0xd4, 0x1a, 0x01, 0x30, 0xeb,
+	0x9c, 0x21, 0x51, 0x78, 0x99, 0xdc, 0x23, 0x14, 0x6b, 0x28,
+	0xe1, 0xb0, 0x62, 0xbd, 0x3e, 0xa4, 0xb3, 0x15, 0xfd, 0x21,
+	0x9f, 0x1c, 0xbb, 0x52, 0x8c, 0xb6, 0xe7, 0x4c, 0xa4, 0x9b,
+	0xe1, 0x67, 0x73, 0x73, 0x4f, 0x61, 0xa1, 0xca, 0x61, 0x03,
+	0x1b, 0x2b, 0xbf, 0x3d, 0x91, 0x8f, 0x2f, 0x94, 0xff, 0xc4,
+	0x22, 0x8e, 0x50, 0x91, 0x95, 0x44, 0xae
+};
+
+static psa_key_handle_t signing_key;
+#endif
+
 bool host_memcpy_ns_read(void *dest, const void *ns_src, unsigned long size)
 {
 	(void)memcpy(dest, ns_src, size);
@@ -257,6 +279,127 @@ unsigned long host_monitor_call(unsigned long id,
 	default:
 		return 0UL;
 	}
+}
+
+#ifndef CBMC
+static int el3_token_sign_push_req(uint64_t buf_pa, uint64_t buf_size)
+{
+	if (el3_req_valid) {
+		return E_RMM_AGAIN;
+	}
+
+	if (buf_size < sizeof(struct el3_token_sign_request)) {
+		return E_RMM_INVAL;
+	}
+
+	(void)memcpy(&el3_req, (void *)buf_pa,
+		sizeof(struct el3_token_sign_request));
+
+	if (el3_req.hash_alg_id != EL3_TOKEN_SIGN_HASH_ALG_SHA384 ||
+	    el3_req.sign_alg_id != ATTEST_KEY_CURVE_ECC_SECP384R1) {
+		return E_RMM_INVAL;
+	}
+
+	el3_req_valid = true;
+
+	return 0;
+}
+
+static void init_signing_key(void)
+{
+	psa_key_attributes_t key_attributes = psa_key_attributes_init();
+	psa_status_t status __unused;
+
+	static int init_done;
+
+	if (init_done) {
+		return;
+	}
+
+	/* Setup the key policy for private key */
+	psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_SIGN_HASH);
+	psa_set_key_algorithm(&key_attributes, PSA_ALG_ECDSA(PSA_ALG_SHA_384));
+	psa_set_key_type(&key_attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
+
+	/* Import private key to mbed-crypto */
+	/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
+	status = psa_import_key(&key_attributes,
+			     sample_attest_priv_key,
+			     sizeof(sample_attest_priv_key),
+			     &signing_key);
+	assert(status == PSA_SUCCESS);
+	init_done = 1;
+}
+
+
+static int el3_token_sign_pull_resp(uint64_t buf_pa, uint64_t *buf_size)
+{
+	struct el3_token_sign_response *resp =
+		(struct el3_token_sign_response *)buf_pa;
+	size_t hash_size;
+	psa_algorithm_t psa_alg_id;
+	psa_status_t status __unused;
+	size_t signature_len;
+
+	init_signing_key();
+
+	if (el3_req_valid == false) {
+		return E_RMM_AGAIN;
+	}
+
+	if ((*buf_size == 0) ||
+	    (*buf_size < sizeof(struct el3_token_sign_response))) {
+		return E_RMM_INVAL;
+	}
+
+	if (el3_req.hash_alg_id == EL3_TOKEN_SIGN_HASH_ALG_SHA384) {
+		hash_size = 48;
+	} else {
+		return E_RMM_INVAL;
+	}
+
+	if (el3_req.sign_alg_id == ATTEST_KEY_CURVE_ECC_SECP384R1) {
+		psa_alg_id = PSA_ALG_ECDSA(PSA_ALG_SHA_384);
+	} else {
+		return E_RMM_INVAL;
+	}
+
+	status = psa_sign_hash(signing_key,
+			       psa_alg_id,
+			       el3_req.hash_buf,
+			       hash_size,
+			       resp->signature_buf,
+			       EL3_TOKEN_RESPONSE_MAX_SIG_LEN,
+			       &signature_len);
+	assert(status == PSA_SUCCESS);
+
+	resp->sig_len = signature_len;
+	resp->cookie = el3_req.cookie;
+	resp->req_ticket = el3_req.req_ticket;
+
+	*buf_size = sizeof(struct el3_token_sign_response);
+
+	el3_req_valid = false;
+
+	return 0;
+}
+
+static int el3_token_sign_get_rak_pub(uintptr_t buf, size_t *len,
+					 unsigned int type)
+{
+	if (*len == 0) {
+		return E_RMM_INVAL;
+	}
+
+	if (type != ATTEST_KEY_CURVE_ECC_SECP384R1) {
+		ERROR("Invalid ECC curve specified\n");
+		return E_RMM_INVAL;
+	}
+
+	*len = sizeof(sample_attest_pub_key);
+	(void)memcpy((void *)buf, sample_attest_pub_key, *len);
+
+	return 0;
 }
 
 static int attest_get_platform_token(uint64_t buf_pa, uint64_t buf_size,
@@ -321,6 +464,19 @@ static int attest_get_signing_key(uint64_t buf_pa, uint64_t *buf_size,
 	return 0;
 }
 
+static int rmm_el3_get_features(uint64_t feat_reg_idx, uint64_t *feat_reg)
+{
+	*feat_reg = 0;
+	if (feat_reg_idx != RMM_EL3_IFC_FEAT_REG_0_IDX) {
+		return -EINVAL;
+	}
+
+	*feat_reg |= MASK(RMM_EL3_IFC_FEAT_REG_0_EL3_TOKEN_SIGN);
+
+	return 0;
+}
+#endif
+
 void host_monitor_call_with_res(unsigned long id,
 			unsigned long arg0,
 			unsigned long arg1,
@@ -330,6 +486,7 @@ void host_monitor_call_with_res(unsigned long id,
 			unsigned long arg5,
 			struct smc_result *res)
 {
+#ifndef CBMC
 	/* Avoid MISRA C:2102-2.7 warnings */
 	(void)arg3;
 	(void)arg4;
@@ -348,9 +505,37 @@ void host_monitor_call_with_res(unsigned long id,
 		res->x[0] = attest_get_signing_key(arg0, &arg1, arg2);
 		res->x[1] = arg1;
 		break;
+	case SMC_RMM_EL3_FEATURES:
+		res->x[0] = rmm_el3_get_features(arg0, &arg1);
+		res->x[1] = arg1;
+		break;
+	case SMC_RMM_EL3_TOKEN_SIGN:
+	{
+		switch (arg0) {
+		case SMC_RMM_EL3_TOKEN_SIGN_PUSH_REQ_OP:
+			res->x[0] = el3_token_sign_push_req(arg1,
+								arg2);
+			break;
+		case SMC_RMM_EL3_TOKEN_SIGN_PULL_RESP_OP:
+			res->x[0] = el3_token_sign_pull_resp(arg1,
+								&arg2);
+			res->x[1] = arg2;
+			break;
+		case SMC_RMM_EL3_TOKEN_SIGN_GET_RAK_PUB_OP:
+			res->x[0] = el3_token_sign_get_rak_pub(arg1,
+								&arg2,
+								arg3);
+			res->x[1] = arg2;
+			break;
+		default:
+			res->x[0] = -EINVAL;
+			break;
+		}
+	}
 	default:
 		VERBOSE("Unimplemented monitor call id %lx\n", id);
 	}
+#endif
 }
 
 int host_run_realm(unsigned long *regs)
