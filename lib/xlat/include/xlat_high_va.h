@@ -32,6 +32,8 @@
 /* TTE attribute for per CPU private VA (nG) Data mapping) */
 #define XLAT_NG_DATA_ATTR	(MT_RW_DATA | MT_NG)
 
+#define XLAT_HIGH_VA_SIZE	(XLAT_TABLE_ENTRIES * PAGE_SIZE)
+
 #if !(defined(__ASSEMBLER__) || defined(__LINKER__))
 
 /* Return a pointer to the High VA xlat context for the current CPU */

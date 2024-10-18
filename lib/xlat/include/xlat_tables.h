@@ -9,7 +9,7 @@
 #ifndef XLAT_TABLES_H
 #define XLAT_TABLES_H
 
-#ifndef __ASSEMBLER__
+#if !(defined(__ASSEMBLER__) || defined(__LINKER__))
 
 #include <arch_features.h>
 #include <limits.h>
@@ -22,7 +22,7 @@
 #include <xlat_contexts.h>
 #include <xlat_defs.h>
 
-#ifndef __ASSEMBLER__
+#if !(defined(__ASSEMBLER__) || defined(__LINKER__))
 
 /*
  * The define below specifies the first table level that allows block
@@ -120,6 +120,12 @@
 #define MT_PAS_MASK		MASK(MT_PAS)
 #define MT_PAS(_attr)		((_attr) & MT_PAS_MASK)
 
+/* Privilege access control flag. */
+#define MT_ACCESS_UNPRIV_SHIFT	(MT_PAS_SHIFT + MT_PAS_WIDTH)
+
+/* Access permissions for instruction execution in Unprivileged EL */
+#define MT_EXEC_UNPRIV_FLAG_SHIFT	(MT_ACCESS_UNPRIV_SHIFT + 1U)
+
 /* All other bits are reserved */
 
 /*
@@ -159,6 +165,12 @@
 #define MT_CODE			(MT_MEMORY | MT_RO | MT_EXECUTE)
 #define MT_RO_DATA		(MT_MEMORY | MT_RO | MT_EXECUTE_NEVER)
 #define MT_RW_DATA		(MT_MEMORY | MT_RW | MT_EXECUTE_NEVER)
+
+/* Access permissions for data access */
+#define MT_AP_UNPRIV		(INPLACE(MT_ACCESS_UNPRIV, 1UL))
+
+/* Access permissions for unprivileged code execution */
+#define MT_EXEC_UNPRIV		(INPLACE(MT_EXEC_UNPRIV_FLAG, 1UL))
 
 /*
  * Public macros related to the TTEs
@@ -210,6 +222,15 @@ struct xlat_llt_info {
 	uint64_t *table;	/* Pointer to the translation table. */
 	uintptr_t llt_base_va;	/* Base VA that is applicable to this llt. */
 	int level;		/* Table level of the current entry. */
+};
+
+/* Structure holding the values of MMU registers. */
+struct xlat_mmu_cfg {
+	xlat_addr_region_id_t region;
+	unsigned long mair;
+	unsigned long tcr;
+	uint64_t txsz;
+	unsigned long ttbrx;
 };
 
 /******************************************************************************
@@ -300,18 +321,24 @@ uint64_t *xlat_get_tte_ptr(const struct xlat_llt_info * const llt,
 			   const uintptr_t va);
 
 /*
- * Set up the MMU configuration registers for the specified platform parameters.
+ * Setup the MMU config for the specified xlat_ctx.
  *
- * This function must be called for each context as it configures the
- * appropriate TTBRx register depending on it.
+ * This function must be called for each context as it sets up the MMU config
+ * appropriately.
  *
- * This function also assumes that the contexts for high and low VA halfs share
- * the same virtual address space as well as the same physical address space,
- * so it is safe to call it for each context initialization.
+ * Note that MMU needs to be configured for both Low and High VA.
  *
- * Returns 0 on success or a negative error code otherwise.
+ * Returns 0 on success or one of the following error codes:
+ *  -EINVAL if there is an error in input arguments.
+ *  -EPERM if the hardware config detected does not match expectation.
  */
-int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx);
+int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx, struct xlat_mmu_cfg *mmu_config);
+
+/*
+ * This function will write the MMU config to the MMU registers based
+ * on whether Low VA or High VA region is being configured.
+ */
+void xlat_arch_write_mmu_cfg(struct xlat_mmu_cfg *mmu_cfg);
 
 /* MMU control */
 void xlat_enable_mmu_el2(void);

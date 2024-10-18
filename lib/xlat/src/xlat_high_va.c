@@ -14,7 +14,6 @@
 #include <xlat_tables.h>
 
 #define RMM_SLOT_BUF_SIZE	((XLAT_HIGH_VA_SLOT_NUM) * (GRANULE_SIZE))
-#define HIGH_VA_SIZE		(XLAT_TABLE_ENTRIES * PAGE_SIZE)
 
 /*
  * This mapping is used for the exception handler stack when a synchronous
@@ -107,6 +106,7 @@ int xlat_high_va_setup(void)
 	static uint64_t high_va_tts[XLAT_TABLE_ENTRIES * MAX_CPUS] __aligned(XLAT_TABLES_ALIGNMENT);
 
 	unsigned int cpuid = my_cpuid();
+	struct xlat_mmu_cfg mmu_config;
 	int ret;
 
 	/* Set handler stack PA for this CPU */
@@ -121,7 +121,7 @@ int xlat_high_va_setup(void)
 	ret = xlat_ctx_cfg_init(&high_va_xlat_ctx_cfgs[cpuid], VA_HIGH_REGION,
 				 &mm_regions_array[cpuid][0U],
 				 MMAP_REGION_COUNT,
-				 HIGH_VA_SIZE);
+				 XLAT_HIGH_VA_SIZE);
 	if (!((ret == 0) || (ret == -EALREADY))) {
 		return ret;
 	}
@@ -140,5 +140,11 @@ int xlat_high_va_setup(void)
 	}
 
 	/* Configure MMU registers */
-	return xlat_arch_setup_mmu_cfg(&high_va_xlat_ctx[cpuid]);
+	ret = xlat_arch_setup_mmu_cfg(&high_va_xlat_ctx[cpuid], &mmu_config);
+
+	if (ret == 0) {
+		xlat_arch_write_mmu_cfg(&mmu_config);
+	}
+
+	return ret;
 }

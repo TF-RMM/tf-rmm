@@ -160,7 +160,7 @@ static int gen_mmap_array_by_level(xlat_mmap_region *mmap,
 	tbl_idxs[2U] = max_table_entries - 1U;
 
 	do {
-		attrs = xlat_test_helpers_rand_mmap_attrs();
+		attrs = xlat_test_helpers_rand_mmap_attrs(true);
 	} while ((attrs == MT_TRANSIENT) && (allow_transient == false));
 
 	*granularity = XLAT_BLOCK_SIZE(last_lvl);
@@ -273,7 +273,7 @@ static void validate_xlat_tables(xlat_ctx *ctx, unsigned int *expected_idxs,
 	}
 }
 
-void xlat_ctx_init_tc6(void)
+void xlat_ctx_init_tc5(void)
 {
 	struct xlat_ctx ctx;
 	struct xlat_ctx_cfg cfg;
@@ -288,7 +288,7 @@ void xlat_ctx_init_tc6(void)
 	int base_lvl, end_lvl;
 
 	/**********************************************************************
-	 * TEST CASE 6:
+	 * TEST CASE 5:
 	 *
 	 * For each possible base level, create a set of mmap regions
 	 * ranging from level 1 or 0 (lowest level at which a valid walk can
@@ -745,7 +745,7 @@ void xlat_get_llt_from_va_prepare_assertion(struct xlat_ctx *ctx,
 	end_va = start_va + max_va_size - 1ULL;
 
 	/* Generate a random mmap area */
-	xlat_test_helpers_rand_mmap_array(init_mmap, 1U, start_va, end_va);
+	xlat_test_helpers_rand_mmap_array(init_mmap, 1U, start_va, end_va, true);
 
 	(void)xlat_ctx_cfg_init(cfg, va_region, init_mmap, 1U, max_va_size);
 
@@ -1659,7 +1659,7 @@ void xlat_map_memory_page_with_attrs_tc1(void)
 
 				/* Generate a random set of attributes.	*/
 				do {
-					attrs = xlat_test_helpers_rand_mmap_attrs();
+					attrs = xlat_test_helpers_rand_mmap_attrs(true);
 				} while (attrs == MT_TRANSIENT);
 
 				/*
@@ -2149,6 +2149,7 @@ void xlat_arch_setup_mmu_cfg_tc1(void)
 		PARANGE_0110_WIDTH
 	};
 	uint64_t max_va_size = XLAT_TEST_MAX_VA_SIZE();
+	struct xlat_mmu_cfg mmu_config;
 
 	/***************************************************************
 	 * TEST CASE 1:
@@ -2184,7 +2185,7 @@ void xlat_arch_setup_mmu_cfg_tc1(void)
 		end_va = start_va + max_va_size - 1ULL;
 
 		/* Generate only a single mmap region for each region */
-		xlat_test_helpers_rand_mmap_array(&init_mmap[i], 1U, start_va, end_va);
+		xlat_test_helpers_rand_mmap_array(&init_mmap[i], 1U, start_va, end_va, true);
 
 		retval = xlat_ctx_cfg_init(&cfg[i], va_region, &init_mmap[i],
 					   1U, max_va_size);
@@ -2195,10 +2196,13 @@ void xlat_arch_setup_mmu_cfg_tc1(void)
 		CHECK_TRUE(retval == 0);
 
 		/* Initialize MMU for the given context */
-		retval = xlat_arch_setup_mmu_cfg(&ctx[i]);
+		retval = xlat_arch_setup_mmu_cfg(&ctx[i], &mmu_config);
 
 		/* Verify that the MMU has been configured */
 		CHECK_TRUE(retval == 0);
+
+		/* Write the MMU config for the given context */
+		xlat_arch_write_mmu_cfg(&mmu_config);
 
 		/* Validate TTBR_EL2 for each context */
 		validate_ttbrx_el2(&ctx[i]);
@@ -2217,6 +2221,7 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	int retval;
 	struct xlat_mmap_region init_mmap;
 	uint64_t max_va_size =	XLAT_TEST_MAX_VA_SIZE();
+	struct xlat_mmu_cfg mmu_config;
 
 	/***************************************************************
 	 * TEST CASE 2:
@@ -2244,7 +2249,7 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	end_va = start_va + max_va_size - 1ULL;
 
 	/* Generate only a single mmap region for each region */
-	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va);
+	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va, true);
 
 	retval = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &init_mmap,
 					1U, max_va_size);
@@ -2259,7 +2264,7 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	ctx.cfg->initialized = false;
 
 	/* Try to initialize MMU for the given context */
-	retval = xlat_arch_setup_mmu_cfg(&ctx);
+	retval = xlat_arch_setup_mmu_cfg(&ctx, &mmu_config);
 
 	/* Verify that the MMU has failed to be initialized */
 	CHECK_TRUE(retval == -EINVAL);
@@ -2274,7 +2279,7 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 				ID_AA64MMFR0_EL1_TGRAN4_NOT_SUPPORTED));
 
 	/* Try to initialize MMU for the given context */
-	retval = xlat_arch_setup_mmu_cfg(&ctx);
+	retval = xlat_arch_setup_mmu_cfg(&ctx, &mmu_config);
 
 	/* Verify that the MMU has failed to be initialized */
 	CHECK_TRUE(retval == -EPERM);
@@ -2291,10 +2296,10 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 				ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED));
 
 	/* Try to initialize MMU for the given context */
-	retval = xlat_arch_setup_mmu_cfg(&ctx);
+	retval = xlat_arch_setup_mmu_cfg(&ctx, &mmu_config);
 
 	/* Verify that the MMU has failed to be initialized */
-	CHECK_TRUE(retval == -ENOMEM);
+	CHECK_TRUE(retval == -EPERM);
 
 }
 
@@ -2306,8 +2311,10 @@ void xlat_arch_setup_mmu_cfg_tc3(void)
 	 * Test xlat_arch_setup_mmu_cfg() with a NULL context.
 	 ***************************************************************/
 
+	struct xlat_mmu_cfg mmu_config;
+
 	test_helpers_expect_assert_fail(true);
-	(void)xlat_arch_setup_mmu_cfg(NULL);
+	(void)xlat_arch_setup_mmu_cfg(NULL, &mmu_config);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2328,13 +2335,15 @@ void xlat_arch_setup_mmu_cfg_tc4(void)
 	 * in order to generate an initial valid context.
 	 ***************************************************************/
 
+	struct xlat_mmu_cfg mmu_config;
+
 	xlat_get_llt_from_va_prepare_assertion(&ctx, &cfg, &tbls, &init_mmap);
 
 	/* Force the context configuration to NULL */
 	ctx.cfg = NULL;
 
 	test_helpers_expect_assert_fail(true);
-	(void)xlat_arch_setup_mmu_cfg(&ctx);
+	(void)xlat_arch_setup_mmu_cfg(&ctx, &mmu_config);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2355,13 +2364,15 @@ void xlat_arch_setup_mmu_cfg_tc5(void)
 	 * in order to generate an initial valid context.
 	 ***************************************************************/
 
+	struct xlat_mmu_cfg mmu_config;
+
 	xlat_get_llt_from_va_prepare_assertion(&ctx, &cfg, &tbls, &init_mmap);
 
 	/* Force the context tables structure to NULL */
 	ctx.tbls = NULL;
 
 	test_helpers_expect_assert_fail(true);
-	(void)xlat_arch_setup_mmu_cfg(&ctx);
+	(void)xlat_arch_setup_mmu_cfg(&ctx, &mmu_config);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2374,6 +2385,7 @@ void xlat_arch_setup_mmu_cfg_tc6(void)
 	int retval;
 	struct xlat_mmap_region init_mmap;
 	uint64_t max_va_size =	XLAT_TEST_MAX_VA_SIZE();
+	struct xlat_mmu_cfg mmu_config;
 
 	/***************************************************************
 	 * TEST CASE 6:
@@ -2392,7 +2404,7 @@ void xlat_arch_setup_mmu_cfg_tc6(void)
 	end_va = start_va + max_va_size - 1UL;
 
 	/* Generate only a single mmap region for each region */
-	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va);
+	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va, true);
 
 	retval = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &init_mmap,
 					1U, max_va_size);
@@ -2408,9 +2420,28 @@ void xlat_arch_setup_mmu_cfg_tc6(void)
 
 	test_helpers_expect_assert_fail(true);
 
-	/* Try to initialize MMU for the given context */
-	retval = xlat_arch_setup_mmu_cfg(&ctx);
+	/* Initialize MMU config for the given context */
+	retval = xlat_arch_setup_mmu_cfg(&ctx, &mmu_config);
+	CHECK_TRUE(retval == 0);
 
+	/* Try to write the MMU config for the given context */
+	xlat_arch_write_mmu_cfg(&mmu_config);
+
+	test_helpers_fail_if_no_assert_failed();
+}
+
+void xlat_arch_setup_mmu_cfg_tc7(void)
+{
+	/***************************************************************
+	 * TEST CASE 7:
+	 *
+	 * Test xlat_arch_setup_mmu_cfg() with a NULL config.
+	 ***************************************************************/
+
+	struct xlat_ctx ctx;
+
+	test_helpers_expect_assert_fail(true);
+	(void)xlat_arch_setup_mmu_cfg(&ctx, NULL);
 	test_helpers_fail_if_no_assert_failed();
 }
 

@@ -10,7 +10,6 @@
 #include <gic.h>
 #include <granule.h>
 #include <inject_exp.h>
-#include <memory_alloc.h>
 #include <psci.h>
 #include <realm.h>
 #include <rec.h>

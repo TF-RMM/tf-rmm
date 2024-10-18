@@ -133,16 +133,21 @@ uintptr_t xlat_test_helpers_get_start_va(xlat_addr_region_id_t region,
 	return (region == VA_LOW_REGION) ? 0UL : (ULONG_MAX - va_size + 1UL);
 }
 
-uint64_t xlat_test_helpers_rand_mmap_attrs(void)
+uint64_t xlat_test_helpers_rand_mmap_attrs(bool allow_transient)
 {
 	const uint64_t attrs[] = {MT_CODE, MT_RO_DATA,
 				  MT_RW_DATA, MT_DEVICE, MT_TRANSIENT};
 	const uint64_t pas[] = {MT_REALM, MT_NS};
 	uint64_t ret_attrs;
 	unsigned int index;
+	size_t allowed_attrs_count = sizeof(attrs);
+
+	if (!allow_transient) {
+		allowed_attrs_count -= 1;
+	}
 
 	index = (unsigned int)test_helpers_get_rand_in_range(0UL,
-				(sizeof(attrs) / sizeof(uint64_t)) - 1);
+				(allowed_attrs_count / sizeof(uint64_t)) - 1);
 
 	ret_attrs = attrs[index];
 
@@ -158,7 +163,8 @@ uint64_t xlat_test_helpers_rand_mmap_attrs(void)
 
 void xlat_test_helpers_rand_mmap_array(struct xlat_mmap_region *mmap,
 					size_t size, uintptr_t min_va,
-					uintptr_t max_va)
+					uintptr_t max_va,
+					bool allow_transient)
 {
 
 /* Maximum number of pages allowed per region */
@@ -189,7 +195,7 @@ void xlat_test_helpers_rand_mmap_array(struct xlat_mmap_region *mmap,
 							MAX_PAGES_PER_REGION);
 		region_size = region_pages * PAGE_SIZE;
 
-		mmap[i].attr = xlat_test_helpers_rand_mmap_attrs();
+		mmap[i].attr = xlat_test_helpers_rand_mmap_attrs(allow_transient);
 		mmap[i].granularity = XLAT_TESTS_MAX_BLOCK_SIZE;
 		mmap[i].base_va = next_va_start;
 		mmap[i].base_pa = next_va_start & XLAT_TEST_GET_PA_MASK();

@@ -61,7 +61,7 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, int level);
 uintptr_t xlat_arch_get_max_supported_pa(void);
 
 /*
- * Return the unpriviledged execute-never mask that will prevent instruction
+ * Return the unprivileged execute-never mask that will prevent instruction
  * fetch by EL0 at the EL2&0 translation regime.
  */
 #define XLAT_GET_UXN_DESC() (UPPER_ATTRS(UXN))
@@ -81,6 +81,11 @@ uintptr_t xlat_arch_get_max_supported_pa(void);
  * Return the NG flag for a page or block descriptor
  */
 #define XLAT_GET_NG_HINT() (LOWER_ATTRS(NG_HINT))
+
+/*
+ * Return the AP access unprivileged for a page or block descriptor
+ */
+#define XLAT_GET_AP_ACCESS_UNPRIV_DESC() (LOWER_ATTRS(AP_ACCESS_UNPRIVILEGED))
 
 /*
  * Initialize an existing xlat_ctx_tbls structure with the given parameters

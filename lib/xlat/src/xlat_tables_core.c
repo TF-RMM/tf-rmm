@@ -395,9 +395,16 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, int level)
 	}
 
 	/*
-	 * Mark this area as non-executable for unpriviledged exception levels.
+	 * Mark this area as non-executable for unprivileged exception levels,
+	 * if not marked otherwise.
 	 */
-	desc |= XLAT_GET_UXN_DESC();
+	if ((attr & MT_EXEC_UNPRIV) == 0UL) {
+		desc |= XLAT_GET_UXN_DESC();
+	}
+
+	if ((attr & MT_AP_UNPRIV) != 0UL) {
+		desc |= XLAT_GET_AP_ACCESS_UNPRIV_DESC();
+	}
 
 	/*
 	 * Deduce shareability domain and executability of the memory region
@@ -467,8 +474,6 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 	struct xlat_ctx_cfg *ctx_cfg;
 	struct xlat_ctx_tbls *ctx_tbls;
 
-	assert(!is_mmu_enabled());
-
 	ctx_cfg = ctx->cfg;
 	ctx_tbls = ctx->tbls;
 
@@ -511,15 +516,17 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 	}
 
 	/* Inv the cache as a good measure */
-	inv_dcache_range((uintptr_t)(void *)ctx_tbls->tables,
-			 sizeof(uint64_t) * (unsigned long)ctx_tbls->tables_num
-						* XLAT_TABLE_ENTRIES);
-
+	if (!is_mmu_enabled()) {
+		inv_dcache_range((uintptr_t)(void *)ctx_tbls->tables,
+				 sizeof(uint64_t) * (unsigned long)ctx_tbls->tables_num
+							* XLAT_TABLE_ENTRIES);
+	}
 	ctx_tbls->initialized = true;
 
-	inv_dcache_range((uintptr_t)(void *)ctx_tbls,
-			   sizeof(struct xlat_ctx_tbls));
-
+	if (!is_mmu_enabled()) {
+		inv_dcache_range((uintptr_t)(void *)ctx_tbls,
+				   sizeof(struct xlat_ctx_tbls));
+	}
 	xlat_tables_print(ctx);
 
 	return 0;

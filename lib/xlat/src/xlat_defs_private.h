@@ -50,6 +50,8 @@
 #define AP2_SHIFT		UL(0x7)
 #define AP2_RO			ULL(0x1)
 #define AP2_RW			ULL(0x0)
+#define AP1_ACCESS_UNPRIVILEGED		ULL(0x1)
+#define AP1_NO_ACCESS_UNPRIVILEGED	ULL(0x0)
 
 #define AP1_SHIFT		UL(0x6)
 
