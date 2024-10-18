@@ -26,12 +26,22 @@ unsigned int arch_feat_get_pa_width(void)
 		PARANGE_0110_WIDTH
 	};
 
-	u_register_t pa_range = EXTRACT(ID_AA64MMFR0_EL1_PARANGE,
+	unsigned long pa_range = EXTRACT(ID_AA64MMFR0_EL1_PARANGE,
 					read_id_aa64mmfr0_el1());
 
-	assert(pa_range < ARRAY_SIZE(pa_range_bits_arr));
+	/*
+	 * If a valid encoding is not found in the ID reg, default to a
+	 * sensible value. This can happen if RMM is running on a version of
+	 * Architecture which is not supported yet. If LPA2 is present,
+	 * default to 52 bit PA range else to 48 bit PA range. Assume
+	 * both Stage 1 and Stage 2 have identical LPA2 support.
+	 */
+	/* cppcheck-suppress [misra-c2012-17.3] */
+	if (pa_range >= ARRAY_SIZE(pa_range_bits_arr)) {
+		return (is_feat_lpa2_4k_present() ?
+			PARANGE_0110_WIDTH : PARANGE_0101_WIDTH);
+	}
 
 	return pa_range_bits_arr[pa_range];
 }
-
 #endif
