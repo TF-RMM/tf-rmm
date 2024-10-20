@@ -110,7 +110,8 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 }
 
 /*
- * Get a pointer to the PA of the start of the RMM<->EL3 shared area.
+ * Get a pointer to the Physical Address of the
+ * start of the RMM<->EL3 shared area.
  */
 uintptr_t rmm_el3_ifc_get_shared_buf_pa(void)
 {
