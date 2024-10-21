@@ -16,10 +16,6 @@ description: >-
   ``TFA_REVISION`` btvar. It also allows to define the host platform through
   the ``RMM_CONFIG`` btvar.
 
-layers:
-  - rmm-base.yaml
-  - arch/v9.2.yaml
-
 buildex:
   btvars:
     # Determines where the TF-RMM source root directory is
