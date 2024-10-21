@@ -49,19 +49,19 @@ static const unsigned long sl0_val[] = {
 static unsigned long realm_vtcr_ps(unsigned int parange)
 {
 	switch (parange) {
-	case PARANGE_0001_WIDTH:
+	case PARANGE_WIDTH_36BITS:
 		return VTCR_PS_36;
-	case PARANGE_0010_WIDTH:
+	case PARANGE_WIDTH_40BITS:
 		return VTCR_PS_40;
-	case PARANGE_0011_WIDTH:
+	case PARANGE_WIDTH_42BITS:
 		return VTCR_PS_42;
-	case PARANGE_0100_WIDTH:
+	case PARANGE_WIDTH_44BITS:
 		return VTCR_PS_44;
-	case PARANGE_0101_WIDTH:
+	case PARANGE_WIDTH_48BITS:
 		return VTCR_PS_48;
-	case PARANGE_0110_WIDTH:
+	case PARANGE_WIDTH_52BITS:
 		return VTCR_PS_52;
-	case PARANGE_0000_WIDTH:
+	case PARANGE_WIDTH_32BITS:
 	default:
 		return VTCR_PS_32;
 	}

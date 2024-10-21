@@ -1748,10 +1748,14 @@ void xlat_map_memory_page_with_attrs_tc2(void)
 	uint64_t tte, val_tte;
 	uint64_t *tbl_ptr;
 	int base_lvl, end_lvl;
-	unsigned int pa_range_bits_arr[] = {
-		PARANGE_0000_WIDTH, PARANGE_0001_WIDTH, PARANGE_0010_WIDTH,
-		PARANGE_0011_WIDTH, PARANGE_0100_WIDTH, PARANGE_0101_WIDTH,
-		PARANGE_0110_WIDTH
+	const unsigned int pa_range_bits_arr[] = {
+		[0x0] = PARANGE_WIDTH_32BITS,
+		[0x1] = PARANGE_WIDTH_36BITS,
+		[0x2] = PARANGE_WIDTH_40BITS,
+		[0x3] = PARANGE_WIDTH_42BITS,
+		[0x4] = PARANGE_WIDTH_44BITS,
+		[0x5] = PARANGE_WIDTH_48BITS,
+		[0x6] = PARANGE_WIDTH_52BITS
 	};
 	unsigned int parange_index =
 			(unsigned int)test_helpers_get_rand_in_range(0UL,
@@ -2143,10 +2147,14 @@ void xlat_arch_setup_mmu_cfg_tc1(void)
 	struct xlat_mmap_region init_mmap[2U];
 	unsigned int pa_index, max_pa_index;
 	bool lpa2 = is_feat_lpa2_4k_present();
-	unsigned int pa_range_bits_arr[] = {
-		PARANGE_0000_WIDTH, PARANGE_0001_WIDTH, PARANGE_0010_WIDTH,
-		PARANGE_0011_WIDTH, PARANGE_0100_WIDTH, PARANGE_0101_WIDTH,
-		PARANGE_0110_WIDTH
+	const unsigned int pa_range_bits_arr[] = {
+		[0x0] = PARANGE_WIDTH_32BITS,
+		[0x1] = PARANGE_WIDTH_36BITS,
+		[0x2] = PARANGE_WIDTH_40BITS,
+		[0x3] = PARANGE_WIDTH_42BITS,
+		[0x4] = PARANGE_WIDTH_44BITS,
+		[0x5] = PARANGE_WIDTH_48BITS,
+		[0x6] = PARANGE_WIDTH_52BITS
 	};
 	uint64_t max_va_size = XLAT_TEST_MAX_VA_SIZE();
 	struct xlat_mmu_cfg mmu_config;
