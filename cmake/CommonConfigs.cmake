@@ -60,8 +60,8 @@ arm_config_option(
     DEFAULT 1)
 
 arm_config_option(
-    NAME RMM_CCA_DA
-    HELP "Enable Device Assignment support in RMM (experimental)"
+    NAME RMM_V1_1
+    HELP "Enable v1.1 features in RMM (experimental)"
     TYPE BOOL
     DEFAULT OFF)
 
@@ -139,10 +139,10 @@ endif()
 target_compile_definitions(rmm-common
     INTERFACE "COMMIT_INFO=\"${COMMIT_INFO}\"")
 
-if(RMM_CCA_DA)
-    message(WARNING "DA is an experimental feature")
+if(RMM_V1_1)
+    message(WARNING "RMM v1.1 features are experimental")
     target_compile_definitions(rmm-common
-        INTERFACE "RMM_CCA_DA=1")
+        INTERFACE "RMM_V1_1=1")
 endif()
 
 link_libraries(rmm-common)

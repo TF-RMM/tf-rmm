@@ -55,7 +55,7 @@ target_compile_definitions(rmm-mbedtls INTERFACE
 
 # Include targets mbedcrypto, mbedx509
 set(MBEDTLS_LIBS mbedcrypto)
-if(RMM_CCA_DA)
+if(RMM_V1_1)
     list(APPEND MBEDTLS_LIBS mbedx509)
 endif()
 

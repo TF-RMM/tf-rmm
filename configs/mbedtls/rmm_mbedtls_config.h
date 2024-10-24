@@ -95,8 +95,11 @@
 #define MBEDTLS_SHA512_USE_A64_CRYPTO_ONLY
 #endif
 
-/* Configs required by SPDM requester used by RMM_CCA_DA */
-#ifdef RMM_CCA_DA
+/*
+ * Configs required by SPDM requester used by Device Assignment feature in
+ * RMM v1.1
+ */
+#ifdef RMM_V1_1
 #define MBEDTLS_OID_C
 #define MBEDTLS_RSA_C
 #define MBEDTLS_PKCS1_V15
@@ -127,7 +130,7 @@
 #define MBEDTLS_ECP_DP_SECP256R1_ENABLED
 #define MBEDTLS_ECP_DP_SECP384R1_ENABLED
 #define MBEDTLS_ECP_DP_SECP521R1_ENABLED
-#endif /* RMM_CCA_DA */
+#endif /* RMM_V1_1 */
 
 /*
  * Declare memory allocation primitives to be used by MbedTLS
