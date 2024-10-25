@@ -117,6 +117,8 @@ int rmm_el3_ifc_get_platform_token(uintptr_t buf, size_t buflen,
 					size_t *remaining_len)
 {
 	struct smc_result smc_res;
+	unsigned long rmm_el3_ifc_version = rmm_el3_ifc_get_version();
+
 	/* Get the available space on the buffer after the offset */
 
 	monitor_call_with_res(SMC_RMM_GET_PLAT_TOKEN,
@@ -133,7 +135,13 @@ int rmm_el3_ifc_get_platform_token(uintptr_t buf, size_t buflen,
 	}
 
 	*token_hunk_len = smc_res.x[1];
-	*remaining_len = smc_res.x[2];
+
+	if ((RMM_EL3_IFC_GET_VERS_MAJOR(rmm_el3_ifc_version) == 0U) &&
+		(RMM_EL3_IFC_GET_VERS_MINOR(rmm_el3_ifc_version) < 3U)) {
+		*remaining_len = 0;
+	} else {
+		*remaining_len = smc_res.x[2];
+	}
 
 	return (int)smc_res.x[0];
 }
