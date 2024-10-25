@@ -830,7 +830,7 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 		res->x[4] = (unsigned long)RIPAS_RAM;
 	} else if (s2tte_is_assigned_destroyed(&s2_ctx, s2tte, wi.last_level)) {
 		res->x[2] = RMI_ASSIGNED;
-		res->x[3] = 0UL;
+		res->x[3] = s2tte_pa(&s2_ctx, s2tte, wi.last_level);
 		res->x[4] = (unsigned long)RIPAS_DESTROYED;
 	} else if (s2tte_is_unassigned_ns(&s2_ctx, s2tte)) {
 		res->x[2] = RMI_UNASSIGNED;
