@@ -36,10 +36,11 @@
  *	src/lib/memory_buffer_alloc.c: mbedtls_memory_buffer_alloc_status()
  *
  * Reserve enough space for the temporary PRNG and per-CPU ones (see
- * attest_rnd_prng_init()), plus a page for other allocations.
+ * attest_rnd_prng_init()), plus more space for other allocations.
  */
 #define PRNG_INIT_HEAP_SIZE	((MAX_CPUS + 1UL) * 364UL)
-#define INIT_HEAP_SIZE		(PRNG_INIT_HEAP_SIZE + SZ_4K)
+#define MISC_PER_CPU		(SZ_4K / 16U)
+#define INIT_HEAP_SIZE		(PRNG_INIT_HEAP_SIZE + (MISC_PER_CPU * MAX_CPUS))
 
 static unsigned char mem_buf[INIT_HEAP_SIZE]
 					__aligned(sizeof(unsigned long));
