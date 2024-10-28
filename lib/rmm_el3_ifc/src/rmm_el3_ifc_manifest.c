@@ -89,38 +89,43 @@ static uint64_t checksum_calc(uint64_t *buffer, size_t size)
 }
 
 /*
- * Return validated DRAM data passed in plat_dram pointer.
- * Return a pointer to the platform DRAM info structure setup by EL3 Firmware
- * or NULL in case of an error.
+ * Return validated memory data passed in plat_memory pointer.
+ * If the function returns E_RMM_BOOT_SUCCESS, then it either returns a pointer
+ * to the platform memory info structure setup by EL3 Firmware in *memory_info
+ * or NULL if the number of memory banks specified by EL3 is 0 and the pointer
+ * to memory_bank[] array is NULL. In case of any other error, NULL is returned
+ * in *memory_info.
  */
-int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
-					   struct ns_dram_info **plat_dram_info)
+static int get_memory_data_validated_pa(unsigned long max_num_banks,
+					struct memory_info **memory_info,
+					struct memory_info *plat_memory,
+					unsigned int max_granules)
 {
 	uint64_t num_banks, checksum, num_granules = 0UL;
 	uintptr_t end = 0UL;
-	struct ns_dram_info *plat_dram;
-	struct ns_dram_bank *bank_ptr;
+	struct memory_bank *bank_ptr;
 
-	assert((manifest_processed == (bool)true) &&
-		(is_mmu_enabled() == (bool)false));
+	assert((memory_info != NULL) && (plat_memory != NULL));
+	assert(manifest_processed && !is_mmu_enabled());
 
-	*plat_dram_info = NULL;
-
-	/*
-	 * Validate the Boot Manifest Version
-	 */
-	if (local_core_manifest.version <
-			RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(2))) {
-		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
-	}
-
-	plat_dram = &local_core_manifest.plat_dram;
+	/* Set pointer to the platform memory info structure to NULL */
+	*memory_info = NULL;
 
 	/* Number of banks */
-	num_banks = plat_dram->num_banks;	/* number of banks */
+	num_banks = plat_memory->num_banks;
 
-	/* Pointer to ns_dram_bank[] array */
-	bank_ptr = plat_dram->banks;
+	/* Pointer to memory_bank[] array */
+	bank_ptr = plat_memory->banks;
+
+	/*
+	 * Return *memory_info set to NULL if number of banks is 0 and all other
+	 * fields are valid. This is expected only for device address ranges.
+	 */
+	if ((num_banks == 0UL) && (bank_ptr == NULL) &&
+	    (plat_memory->checksum == 0UL)) {
+		VERBOSE(" None\n");
+		return E_RMM_BOOT_SUCCESS;
+	}
 
 	/* Validate number of banks and pointer to banks[] */
 	if ((num_banks == 0UL) || (num_banks > max_num_banks) ||
@@ -128,8 +133,8 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
 	}
 
-	/* Calculate checksum of ns_dram_info structure */
-	checksum = num_banks + (uint64_t)bank_ptr + plat_dram->checksum;
+	/* Calculate checksum of memory_info structure */
+	checksum = num_banks + (uint64_t)bank_ptr + plat_memory->checksum;
 
 	for (unsigned long i = 0UL; i < num_banks; i++) {
 		uint64_t size = bank_ptr->size;
@@ -165,14 +170,14 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 		/* Total number of granules */
 		num_granules += (size / GRANULE_SIZE);
 
-		VERBOSE("DRAM%lu: 0x%lx-0x%lx\n", i, start, end);
+		VERBOSE(" 0x%lx-0x%lx\n", start, end);
 
 		bank_ptr++;
 	}
 
 	/* Update checksum */
-	checksum += checksum_calc((uint64_t *)plat_dram->banks,
-					sizeof(struct ns_dram_bank) * num_banks);
+	checksum += checksum_calc((uint64_t *)plat_memory->banks,
+					sizeof(struct memory_bank) * num_banks);
 
 	/* Checksum must be 0 */
 	if (checksum != 0UL) {
@@ -180,14 +185,93 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 	}
 
 	/* Check for the maximum number of granules supported */
-	if (num_granules > RMM_MAX_GRANULES) {
+	if (num_granules > max_granules) {
 		ERROR("Number of granules %lu exceeds maximum of %u\n",
-			num_granules, RMM_MAX_GRANULES);
+			num_granules, max_granules);
 		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
 	}
 
-	*plat_dram_info = plat_dram;
+	*memory_info = plat_memory;
 	return E_RMM_BOOT_SUCCESS;
+}
+
+/*
+ * Return validated DRAM data passed in plat_dram pointer.
+ * Return a pointer to the platform DRAM info structure setup by EL3 Firmware
+ * or NULL in case of an error.
+ */
+int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
+					   struct memory_info **plat_dram_info)
+{
+	int ret;
+
+	assert(plat_dram_info != NULL);
+
+	/*
+	 * Validate the Boot Manifest Version
+	 */
+	if (local_core_manifest.version <
+		RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(2))) {
+		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
+	}
+
+	VERBOSE("DRAM:\n");
+
+	ret = get_memory_data_validated_pa(max_num_banks, plat_dram_info,
+					   &local_core_manifest.plat_dram,
+					   RMM_MAX_GRANULES);
+	if (ret != E_RMM_BOOT_SUCCESS) {
+		return ret;
+	}
+
+	/* No DRAM data */
+	if (*plat_dram_info == NULL) {
+		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
+	}
+
+	return E_RMM_BOOT_SUCCESS;
+}
+
+/*
+ * Return validated device address ranges data passed in plat_dev_range_info
+ * pointer type.
+ * In case of E_RMM_BOOT_SUCCESS, return a pointer to the platform device
+ * address ranges info structure setup by EL3 Firmware or NULL if the number
+ * of memory banks specified by EL3 is 0 and the pointer to memory_bank[] array
+ * is NULL. In case of any other error, return NULL in *plat_dev_range_info.
+ */
+int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
+					   struct memory_info **plat_dev_range_info,
+					   enum range_type type)
+{
+	struct memory_info *plat_memory;
+	unsigned int max_granules;
+
+	/*
+	 * Validate the Boot Manifest Version
+	 */
+	if (local_core_manifest.version <
+		RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(4))) {
+		*plat_dev_range_info = NULL;
+		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
+	}
+
+	assert(type < DEV_RANGE_MAX);
+
+	VERBOSE("Device %scoherent address range:\n",
+		(type == DEV_RANGE_COHERENT) ? "" : "non-");
+
+	if (type == DEV_RANGE_COHERENT) {
+		plat_memory = &local_core_manifest.plat_coh_region;
+		max_granules = RMM_MAX_COH_GRANULES;
+	} else {
+		plat_memory = &local_core_manifest.plat_ncoh_region;
+		max_granules = RMM_MAX_NCOH_GRANULES;
+	}
+
+	return get_memory_data_validated_pa(max_num_banks, plat_dev_range_info,
+					    plat_memory,
+					    max_granules);
 }
 
 /*

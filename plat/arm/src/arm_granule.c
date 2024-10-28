@@ -3,21 +3,33 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include <arm_dram.h>
+#include <arm_memory.h>
 #include <assert.h>
 #include <platform_api.h>
 #include <utils_def.h>
 
-static struct arm_dram_layout arm_dram;
+static struct arm_memory_layout arm_dram;
+static struct arm_memory_layout arm_dev_ncoh;
+static struct arm_memory_layout arm_dev_coh;
 
-struct arm_dram_layout *arm_get_dram_layout(void)
+struct arm_memory_layout *arm_get_dram_layout(void)
 {
 	return &arm_dram;
 }
 
+struct arm_memory_layout *arm_get_dev_ncoh_layout(void)
+{
+	return &arm_dev_ncoh;
+}
+
+struct arm_memory_layout *arm_get_dev_coh_layout(void)
+{
+	return &arm_dev_coh;
+}
+
 unsigned long plat_granule_addr_to_idx(unsigned long addr)
 {
-	const struct arm_dram_layout *dram = &arm_dram;
+	const struct arm_memory_layout *dram = &arm_dram;
 	unsigned long r, l = 0UL;
 
 	if (!GRANULE_ALIGNED(addr)) {
@@ -25,7 +37,7 @@ unsigned long plat_granule_addr_to_idx(unsigned long addr)
 	}
 
 	assert(dram->num_banks > 0UL);
-	assert(dram->num_banks <= PLAT_ARM_MAX_DRAM_BANKS);
+	assert(dram->num_banks <= PLAT_ARM_MAX_MEM_BANKS);
 	r = dram->num_banks - 1UL;
 
 	/*
@@ -35,11 +47,11 @@ unsigned long plat_granule_addr_to_idx(unsigned long addr)
 	 * granule index.
 	 */
 	while (l <= r) {
-		const struct arm_dram_bank *bank;
+		const struct arm_memory_bank *bank;
 		unsigned long i;
 
 		i = l + ((r - l) / 2UL);
-		assert(i < PLAT_ARM_MAX_DRAM_BANKS);
+		assert(i < PLAT_ARM_MAX_MEM_BANKS);
 
 		bank = &dram->bank[i];
 
@@ -60,7 +72,7 @@ unsigned long plat_granule_addr_to_idx(unsigned long addr)
 
 unsigned long plat_granule_idx_to_addr(unsigned long idx)
 {
-	const struct arm_dram_layout *dram = &arm_dram;
+	const struct arm_memory_layout *dram = &arm_dram;
 	unsigned long r, l = 0UL, addr = 0UL;
 
 	assert(dram->num_banks > 0UL);
@@ -74,12 +86,12 @@ unsigned long plat_granule_idx_to_addr(unsigned long idx)
 	 * and then check whether the given index falls within it.
 	 */
 	while (l <= r) {
-		const struct arm_dram_bank *bank;
+		const struct arm_memory_bank *bank;
 		unsigned long i;
 		unsigned long idx_start, idx_end;
 
 		i = l + ((r - l) / 2UL);
-		assert(i < PLAT_ARM_MAX_DRAM_BANKS);
+		assert(i < PLAT_ARM_MAX_MEM_BANKS);
 
 		bank = &dram->bank[i];
 
