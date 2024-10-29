@@ -73,11 +73,11 @@ static unsigned long get_buffer_pa(uintptr_t buf, size_t buflen)
 static int rmm_el3_ifc_get_realm_attest_key_internal(uintptr_t buf,
 						     size_t buflen, size_t *len,
 						     unsigned int crv,
-						     unsigned long id)
+						     unsigned long smc_fid)
 {
 	struct smc_result smc_res;
 
-	monitor_call_with_res(id,
+	monitor_call_with_res(smc_fid,
 			      get_buffer_pa(buf, buflen),
 			      buflen,
 			      crv, 0UL, 0UL, 0UL, &smc_res);
@@ -91,7 +91,7 @@ static int rmm_el3_ifc_get_realm_attest_key_internal(uintptr_t buf,
 
 	*len = smc_res.x[1];
 
-	return 0;
+	return E_RMM_OK;
 }
 
 /*
@@ -147,7 +147,7 @@ int rmm_el3_ifc_get_platform_token(uintptr_t buf, size_t buflen,
 }
 
 /*
- * Push an attestation request to EL3.
+ * Push an attestation signing request to EL3.
  * The caller must have already populated the request in the shared buffer.
  * The push operation may fail if EL3 does not have enough queue space or if
  * the EL3 is not ready to accept the request.
@@ -176,7 +176,7 @@ int rmm_el3_ifc_push_el3_token_sign_request(
 		return (int)smc_res.x[0];
 	}
 
-	return 0;
+	return E_RMM_OK;
 }
 
 /*
@@ -207,7 +207,7 @@ int rmm_el3_ifc_pull_el3_token_sign_response(
 		return (int)smc_res.x[0];
 	}
 
-	return 0;
+	return E_RMM_OK;
 }
 
 /*
@@ -233,14 +233,14 @@ int rmm_el3_ifc_get_realm_attest_pub_key_from_el3(uintptr_t buf, size_t buflen,
 
 	/* coverity[uninit_use:SUPPRESS] */
 	if (smc_res.x[0] != 0UL) {
-		ERROR("Failed to get realm attestation key x0 = 0x%lx\n",
+		ERROR("Failed to get realm attestation public key x0 = 0x%lx\n",
 		      smc_res.x[0]);
 		return (int)smc_res.x[0];
 	}
 
 	*len = smc_res.x[1];
 
-	return 0;
+	return E_RMM_OK;
 }
 
 /*
@@ -273,5 +273,5 @@ int rmm_el3_ifc_get_feat_register(unsigned int feat_reg_idx, uint64_t *feat_reg)
 
 	*feat_reg = smc_res.x[1];
 
-	return 0;
+	return E_RMM_OK;
 }
