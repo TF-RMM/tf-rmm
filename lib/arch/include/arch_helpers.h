@@ -422,6 +422,8 @@ DEFINE_RENAME_SYSREG_RW_FUNCS(fpsr, FPSR)
 
 DEFINE_SYSREG_READ_FUNC(dczid_el0)
 
+DEFINE_RENAME_SYSREG_RW_FUNCS(dit, DIT)
+
 /*******************************************************************************
  * Timer register accessor prototypes
  ******************************************************************************/

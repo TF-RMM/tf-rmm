@@ -506,7 +506,9 @@ order to implement the mitigations.
 +------------------------+---------------------------------------------------+
 | Mitigations            | | 1) Yes.                                         |
 | implemented?           | | 2) Yes.                                         |
-|                        | |    ``FEAT_DIT`` is enabled for RMM.             |
+|                        | |    ``FEAT_DIT`` is enabled for RMM during       |
+|                        |      attestation initialization and token signing |
+|                        |      phase.                                       |
 |                        | | 3) Yes.                                         |
 |                        | |    RMM relies on MbedTLS library to use         |
 |                        |      algorithms which are data independent when   |
@@ -517,7 +519,7 @@ order to implement the mitigations.
 |                        | |    memory is mapped into RMM.                   |
 +------------------------+---------------------------------------------------+
 | Pending actions?       | | Review speculation vulnerabilities and ensure   |
-|                        |   RMM implements all mititagions provided by the  |
+|                        |   RMM implements all mitigations provided by the  |
 |                        | | Architecture.                                   |
 |                        |                                                   |
 +------------------------+---------------------------------------------------+
@@ -615,7 +617,7 @@ order to implement the mitigations.
 | implemented?           | | 2) Yes.                                         |
 |                        | |    The slot-buffer mechanism in RMM is used to  |
 |                        |      map metadata only when needed and it is      |
-|                        | |    unmmaped when the access is not required.    |
+|                        | |    unmapped when the access is not required.    |
 +------------------------+---------------------------------------------------+
 | Pending actions?       | None                                              |
 +------------------------+---------------------------------------------------+

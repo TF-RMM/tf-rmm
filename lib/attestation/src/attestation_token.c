@@ -140,12 +140,18 @@ attest_realm_token_sign(struct token_sign_cntxt *me,
 		return ATTEST_TOKEN_ERR_INVALID_STATE;
 	}
 
+	/* Enable Data Independent Timing feature */
+	write_dit(DIT_BIT);
+
 	/* Finish up the COSE_Sign1. This is where the signing happens */
 	SIMD_FPU_ALLOW(
 		cose_res = t_cose_sign_encode_finish(&me->ctx.sign_ctx,
 						     NULL_Q_USEFUL_BUF_C,
 						     me->ctx.signed_payload,
 						     &me->ctx.cbor_enc_ctx));
+
+	/* Disable Data Independent Timing feature */
+	write_dit(0x0);
 
 	if (cose_res == T_COSE_ERR_SIG_IN_PROGRESS) {
 		/* Token signing has not yet finished */
@@ -248,7 +254,7 @@ attest_cca_token_create(struct token_sign_cntxt *me,
  * Assemble the Realm Attestation Token in the buffer provided in
  * realm_token_buf, except the signature.
  *
- * As per section A7.2.3.1 of RMM specfication, Realm Attestation token is
+ * As per section A7.2.3.1 of RMM specification, Realm Attestation token is
  * composed of:
  *	- Realm Challenge
  *	- Realm Personalization Value
