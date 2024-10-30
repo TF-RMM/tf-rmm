@@ -7,12 +7,8 @@
 #include <assert.h>
 #include <debug.h>
 #include <granule.h>
-#include <mmio.h>
 #include <platform_api.h>
 #include <stddef.h>
-/* According to the C standard, the memset function used in this file is declared in string.h */
-/* coverity[unnecessary_header: SUPPRESS] */
-#include <string.h>
 #include <utils_def.h>
 
 IF_NCBMC(static) struct granule granules[RMM_MAX_GRANULES]

@@ -18,6 +18,7 @@
 #include <smc-rmi.h>
 #include <smc-rsi.h>
 #include <smc.h>
+#include <string.h>
 
 static void reset_last_run_info(struct rec *rec)
 {

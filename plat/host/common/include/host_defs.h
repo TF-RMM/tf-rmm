@@ -8,7 +8,10 @@
 
 #include <utils_def.h>
 
-/* Total number of granules on the current platform */
-#define HOST_NR_GRANULES		(HOST_MEM_SIZE/GRANULE_SIZE)
+/* Total number of DRAM granules on the current platform */
+#define HOST_NR_GRANULES		(HOST_DRAM_SIZE/GRANULE_SIZE)
+
+/* Total number of non-coherent device granules on the current platform */
+#define HOST_NR_NCOH_GRANULES		(HOST_NCOH_DEV_SIZE/GRANULE_SIZE)
 
 #endif /* HOST_DEFS_H */

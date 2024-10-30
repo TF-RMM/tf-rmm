@@ -242,7 +242,7 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
  */
 int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
 					   struct memory_info **plat_dev_range_info,
-					   enum range_type type)
+					   enum dev_type type)
 {
 	struct memory_info *plat_memory;
 	unsigned int max_granules;

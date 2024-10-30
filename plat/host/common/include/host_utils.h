@@ -138,6 +138,11 @@ void host_util_zero_sysregs_and_cbs(void);
 unsigned long host_util_get_granule_base(void);
 
 /*
+ * Return the configured address for the dev granule base.
+ */
+unsigned long host_util_get_dev_granule_base(void);
+
+/*
  * Set the current CPU emulated by the platform.
  */
 void host_util_set_cpuid(unsigned int cpuid);

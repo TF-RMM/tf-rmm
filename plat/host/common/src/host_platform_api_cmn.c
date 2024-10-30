@@ -65,7 +65,7 @@ void plat_setup(uint64_t x0, uint64_t x1,
 unsigned long plat_granule_addr_to_idx(unsigned long addr)
 {
 	if (!(GRANULE_ALIGNED(addr) &&
-		(addr < (host_util_get_granule_base() + HOST_MEM_SIZE)) &&
+		(addr < (host_util_get_granule_base() + HOST_DRAM_SIZE)) &&
 		(addr >= host_util_get_granule_base()))) {
 		return UINT64_MAX;
 	}
@@ -77,4 +77,26 @@ unsigned long plat_granule_idx_to_addr(unsigned long idx)
 {
 	assert(idx < HOST_NR_GRANULES);
 	return host_util_get_granule_base() + (idx * GRANULE_SIZE);
+}
+
+unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_type *type)
+{
+	if (!(GRANULE_ALIGNED(addr) &&
+		(addr < (host_util_get_dev_granule_base() + HOST_NCOH_DEV_SIZE)) &&
+		(addr >= host_util_get_dev_granule_base()))) {
+		return UINT64_MAX;
+	}
+
+	*type = DEV_RANGE_NON_COHERENT;
+	return (addr - host_util_get_dev_granule_base()) / GRANULE_SIZE;
+}
+
+unsigned long plat_dev_granule_idx_to_addr(unsigned long idx, enum dev_type type)
+{
+	(void)type;
+
+	/* No coherent device memory */
+	assert(type == DEV_RANGE_NON_COHERENT);
+	assert(idx < HOST_NR_NCOH_GRANULES);
+	return host_util_get_dev_granule_base() + (idx * GRANULE_SIZE);
 }

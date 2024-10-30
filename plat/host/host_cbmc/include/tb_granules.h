@@ -43,7 +43,7 @@ struct SPEC_granule {
  * CBMC needs access to the below data structures which are not otherwise
  * visible outside their respective files.
  */
-extern unsigned char granules_buffer[HOST_MEM_SIZE];
+extern unsigned char host_dram_buffer[HOST_DRAM_SIZE];
 extern struct granule granules[RMM_MAX_GRANULES];
 
 /*

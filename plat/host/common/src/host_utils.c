@@ -25,7 +25,10 @@ static unsigned int current_cpuid;
  * Allocate memory to emulate physical memory to initialize the
  * granule library.
  */
-IF_NCBMC(static) unsigned char granules_buffer[HOST_MEM_SIZE] __aligned(GRANULE_SIZE);
+IF_NCBMC(static) unsigned char host_dram_buffer[HOST_DRAM_SIZE]
+							__aligned(GRANULE_SIZE);
+IF_NCBMC(static) unsigned char host_dev_ncoh_buffer[HOST_NCOH_DEV_SIZE]
+							__aligned(GRANULE_SIZE);
 
 /*
  * Define and set the Boot Interface arguments.
@@ -132,7 +135,12 @@ int host_util_set_default_sysreg_cb(char *name, u_register_t init)
 
 unsigned long host_util_get_granule_base(void)
 {
-	return (unsigned long)granules_buffer;
+	return (unsigned long)host_dram_buffer;
+}
+
+unsigned long host_util_get_dev_granule_base(void)
+{
+	return (unsigned long)host_dev_ncoh_buffer;
 }
 
 void host_util_set_cpuid(unsigned int cpuid)

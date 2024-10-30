@@ -27,23 +27,22 @@ struct arm_memory_layout *arm_get_dev_coh_layout(void)
 	return &arm_dev_coh;
 }
 
-unsigned long plat_granule_addr_to_idx(unsigned long addr)
+static unsigned long granule_addr_to_idx(unsigned long addr,
+					 struct arm_memory_layout *memory_ptr)
 {
-	const struct arm_memory_layout *dram = &arm_dram;
 	unsigned long r, l = 0UL;
 
-	if (!GRANULE_ALIGNED(addr)) {
+	if (!GRANULE_ALIGNED(addr) || (memory_ptr->num_banks == 0UL)) {
 		return UINT64_MAX;
 	}
 
-	assert(dram->num_banks > 0UL);
-	assert(dram->num_banks <= PLAT_ARM_MAX_MEM_BANKS);
-	r = dram->num_banks - 1UL;
+	assert(memory_ptr->num_banks <= PLAT_ARM_MAX_MEM_BANKS);
+	r = memory_ptr->num_banks - 1UL;
 
 	/*
 	 * Use a binary search rather than a linear one to locate the bank which
 	 * the address falls within, then use the start_gran_idx (which is a
-	 * cumulative idx from previous dram banks) to calculate the required
+	 * cumulative idx from previous memory banks) to calculate the required
 	 * granule index.
 	 */
 	while (l <= r) {
@@ -53,7 +52,7 @@ unsigned long plat_granule_addr_to_idx(unsigned long addr)
 		i = l + ((r - l) / 2UL);
 		assert(i < PLAT_ARM_MAX_MEM_BANKS);
 
-		bank = &dram->bank[i];
+		bank = &memory_ptr->bank[i];
 
 		if (addr < bank->base) {
 			if (i == 0UL) {
@@ -70,19 +69,52 @@ unsigned long plat_granule_addr_to_idx(unsigned long addr)
 	return UINT64_MAX;
 }
 
-unsigned long plat_granule_idx_to_addr(unsigned long idx)
+unsigned long plat_granule_addr_to_idx(unsigned long addr)
 {
-	const struct arm_memory_layout *dram = &arm_dram;
+	return granule_addr_to_idx(addr, &arm_dram);
+}
+
+unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_type *type)
+{
+	unsigned long ret;
+
+	assert(type != NULL);
+
+	/* Check non-coherent device granules */
+	if (arm_dev_ncoh.num_granules != 0UL) {
+		ret = granule_addr_to_idx(addr, &arm_dev_ncoh);
+		if (ret != UINT64_MAX) {
+			*type = DEV_RANGE_NON_COHERENT;
+			return ret;
+		}
+	}
+
+	/* Check coherent device granules */
+	if (arm_dev_coh.num_granules != 0UL) {
+		ret = granule_addr_to_idx(addr, &arm_dev_coh);
+		if (ret != UINT64_MAX) {
+			*type = DEV_RANGE_COHERENT;
+			return ret;
+		}
+	}
+
+	*type = DEV_RANGE_MAX;
+	return UINT64_MAX;
+}
+
+static unsigned long granule_idx_to_addr(unsigned long idx,
+					 struct arm_memory_layout *memory_ptr)
+{
 	unsigned long r, l = 0UL, addr = 0UL;
 
-	assert(dram->num_banks > 0UL);
-	assert(idx < dram->num_granules);
+	assert(memory_ptr->num_banks != 0UL);
+	assert(idx < memory_ptr->num_granules);
 
-	r = dram->num_banks - 1UL;
+	r = memory_ptr->num_banks - 1UL;
 
 	/*
 	 * Calculate the start and end granule index of each bank using the
-	 * start_gran_idx (which is a cumulative idx from previous dram banks)
+	 * start_gran_idx (which is a cumulative idx from previous memory banks)
 	 * and then check whether the given index falls within it.
 	 */
 	while (l <= r) {
@@ -93,7 +125,7 @@ unsigned long plat_granule_idx_to_addr(unsigned long idx)
 		i = l + ((r - l) / 2UL);
 		assert(i < PLAT_ARM_MAX_MEM_BANKS);
 
-		bank = &dram->bank[i];
+		bank = &memory_ptr->bank[i];
 
 		idx_start = bank->start_gran_idx;
 		idx_end = idx_start + (bank->size >> GRANULE_SHIFT) - 1UL;
@@ -112,3 +144,19 @@ unsigned long plat_granule_idx_to_addr(unsigned long idx)
 	assert(l <= r);
 	return addr;
 }
+
+unsigned long plat_granule_idx_to_addr(unsigned long idx)
+{
+	return granule_idx_to_addr(idx, &arm_dram);
+}
+
+unsigned long plat_dev_granule_idx_to_addr(unsigned long idx, enum dev_type type)
+{
+	(void)type;
+
+	/* No coherent device memory */
+	assert(type == DEV_RANGE_NON_COHERENT);
+
+	return granule_idx_to_addr(idx, &arm_dev_ncoh);
+}
+

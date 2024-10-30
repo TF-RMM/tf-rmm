@@ -528,6 +528,8 @@ classified into two categories:
 	- GRANULE_STATE_DELEGATED
 	- GRANULE_STATE_RD
 	- GRANULE_STATE_REC
+	- DEV_GRANULE_STATE_NS
+	- DEV_GRANULE_STATE_DELEGATED
 
 #. **Internal**: A granule state belongs to the `internal` class iff it is not
    an `external`. These are objects which are referenced from another
@@ -537,6 +539,7 @@ classified into two categories:
 
 	- GRANULE_STATE_RTT
 	- GRANULE_STATE_DATA
+	- DEV_GRANULE_STATE_MAPPED
 
 We now state the locking guidelines for |RMM| as:
 

@@ -28,6 +28,8 @@
  * - GRANULE_STATE_REC
  * - GRANULE_STATE_PDEV
  * - GRANULE_STATE_VDEV
+ * - DEV_GRANULE_STATE_NS
+ * - DEV_GRANULE_STATE_DELEGATED
  *
  * Otherwise a granule state is considered `internal`.
  *
@@ -38,6 +40,7 @@
  * - GRANULE_STATE_REC_AUX
  * - GRANULE_STATE_PDEV_AUX
  * - GRANULE_STATE_VDEV_AUX
+ * - DEV_GRANULE_STATE_MAPPED
  *
  * The following locking rules must be followed in all cases:
  *
@@ -54,8 +57,9 @@
  * 4. Granules in an `internal` state must be locked in order of state:
  *    1. `RTT`
  *    2. `DATA`
- *    3. `REC_AUX`
- *    4. `PDEV_AUX`
+ *    3. `DEV_MAPPED`
+ *    4. `REC_AUX`
+ *    5. `PDEV_AUX`
  *
  * 5. Granules in the same `internal` state must be locked in the order defined
  *    below for that specific state.
@@ -235,7 +239,6 @@
  *    access.
  * [9:0]:	refcount
  */
-
 struct granule {
 	uint16_t	descriptor;
 };
@@ -252,5 +255,71 @@ struct granule {
 
 #define STATE_MASK		(unsigned short)MASK(GRN_STATE)
 #define REFCOUNT_MASK		(unsigned short)MASK(GRN_REFCOUNT)
+
+/*
+ * Non-Secure dev_granule (external)
+ *
+ * Dev Granule content is not protected by dev_granule::lock, as it is always
+ * subject to reads and writes from the NS world.
+ */
+#define DEV_GRANULE_STATE_NS		0U
+
+/*
+ * Delegated Granule (external)
+ *
+ * Granule content is protected by granule::lock.
+ *
+ * No references are held on this granule type.
+ */
+#define DEV_GRANULE_STATE_DELEGATED	1U
+
+/*
+ * Mapped Dev Granule (internal)
+ *
+ * Dev Granule is assigned to an IPA in a Realm.
+ *
+ * Granule content is not protected by dev_granule::lock, as it is always
+ * subject to reads and writes from within a Realm.
+ *
+ * A granule in this state is always referenced from exactly one entry
+ * in an RTT granule which must be locked before locking this granule.
+ * Only a single Dev granule can be locked at a time.
+ * The complete internal locking order for MAPPED dev. granules is:
+ *
+ * RD -> RTT -> RTT -> ... -> DEV MAPPED
+ * No references are held on this granule type.
+ */
+#define DEV_GRANULE_STATE_MAPPED	2U
+
+struct dev_granule {
+	uint8_t		descriptor;
+};
+
+/*
+ * Device granule descriptor bit fields:
+ *
+ * @bit_lock protects the struct dev_granule itself. Take this lock whenever
+ * inspecting or modifying any other fields in this descriptor.
+ * [7]:		bit_lock
+ *
+ * [6]:		reserved
+ *
+ * @state is the state of the device granule.
+ * [5:3]:	state
+ *
+ * @refcount counts RMM and realm references to this device granule.
+ * [2:0]:	refcount
+ */
+#define DEV_GRN_LOCK_SHIFT	U(7)
+#define DEV_GRN_LOCK_BIT	(U(1) << DEV_GRN_LOCK_SHIFT)
+
+#define DEV_GRN_STATE_SHIFT	U(3)
+#define DEV_GRN_STATE_WIDTH	U(3)
+
+#define DEV_GRN_REFCOUNT_SHIFT	U(0)
+#define DEV_GRN_REFCOUNT_WIDTH	U(3)
+
+#define DEV_STATE_MASK		(unsigned char)MASK(DEV_GRN_STATE)
+#define DEV_REFCOUNT_MASK	(unsigned char)MASK(DEV_GRN_REFCOUNT)
 
 #endif /* GRANULE_TYPES_H */

@@ -15,6 +15,7 @@ target_include_directories(rmm-lib-granule
            "include/${RMM_ARCH}")
 
 target_sources(rmm-lib-granule
-    PRIVATE "src/granule.c")
+    PRIVATE "src/dev_granule.c"
+            "src/granule.c")
 
 include (tests/CMakeLists.txt)

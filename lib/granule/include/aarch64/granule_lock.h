@@ -45,4 +45,41 @@ static inline void granule_bitlock_release(struct granule *g)
 	);
 }
 
+static inline void dev_granule_bitlock_acquire(struct dev_granule *g)
+{
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)g;
+	uint32_t tmp;
+	uint32_t mask = DEV_GRN_LOCK_BIT;
+
+	asm volatile(
+	"1:	ldsetab	%w[mask], %w[tmp], %[lock]\n"
+	"	tbz	%w[tmp], #%c[bit], 2f\n"
+	"	ldxrb	%w[tmp], %[lock]\n"
+	"	tbz	%w[tmp], #%c[bit], 1b\n"
+	"	wfe\n"
+	"	b	1b\n"
+	"2:\n"
+	: [lock] "+Q" (g->descriptor),
+	  [tmp] "=&r" (tmp)
+	: [mask] "r" (mask),
+	  [bit] "i" (DEV_GRN_LOCK_SHIFT)
+	: "memory"
+	);
+}
+
+static inline void dev_granule_bitlock_release(struct dev_granule *g)
+{
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)g;
+	uint32_t mask = DEV_GRN_LOCK_BIT;
+
+	asm volatile(
+	"	stclrlb	%w[mask], %[lock]\n"
+	: [lock] "+Q" (g->descriptor)
+	: [mask] "r" (mask)
+	: "memory"
+	);
+}
+
 #endif /* GRANULE_LOCK_H */

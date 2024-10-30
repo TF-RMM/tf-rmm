@@ -115,7 +115,7 @@ void init_pa_page(const void *content, size_t size);
 
 
 /*
- * Return an unused continuous index to both `granules` and `granules_buffer`
+ * Return an unused continuous index to both `granules` and `host_dram_buffer`
  * arrays.
  */
 size_t next_index(void);

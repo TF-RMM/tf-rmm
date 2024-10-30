@@ -21,6 +21,6 @@ endif()
 add_subdirectory("../common" ${RMM_BINARY_DIR}/plat/common)
 
 # Add the HOST_VARIANT directory before common, so that it has the option
-# to override HOST_MEM_SIZE
+# to override HOST_DRAM_SIZE
 add_subdirectory("${HOST_VARIANT}")
 add_subdirectory("common")
