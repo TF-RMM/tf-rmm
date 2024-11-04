@@ -158,8 +158,6 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(REC_AUX_COUNT,		1, 1, smc_rec_aux_count,	 true,  true),
 	HANDLER(RTT_INIT_RIPAS,		3, 1, smc_rtt_init_ripas,	 false, true),
 	HANDLER(RTT_SET_RIPAS,		4, 1, smc_rtt_set_ripas,	 false, true),
-	HANDLER(GRANULE_DEV_DELEGATE,	0, 0, NULL,			 true, true),
-	HANDLER(GRANULE_DEV_UNDELEGATE,	0, 0, NULL,			 true, true),
 	HANDLER(DEV_MAP,		0, 0, NULL,			 true, true),
 	HANDLER(DEV_UNMAP,		0, 0, NULL,			 true, true),
 	HANDLER(PDEV_ABORT,		0, 0, NULL,			 true, true),

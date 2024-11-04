@@ -15,6 +15,18 @@ IF_NCBMC(static) struct granule granules[RMM_MAX_GRANULES]
 			IF_NCBMC(__section("granules_memory"));
 
 /*
+ * Takes a granule index, and returns a pointer to the struct granule.
+ *
+ * This is purely a lookup, and provides no guarantees about the attributes of
+ * the granule (i.e. whether it is locked, its state or its reference count).
+ */
+static struct granule *granule_from_idx(unsigned long idx)
+{
+	assert(idx < RMM_MAX_GRANULES);
+	return &granules[idx];
+}
+
+/*
  * Takes a valid pointer to a struct granule, and returns the granule physical
  * address.
  *
@@ -32,18 +44,6 @@ unsigned long granule_addr(const struct granule *g)
 						sizeof(struct granule);
 
 	return plat_granule_idx_to_addr(idx);
-}
-
-/*
- * Takes a granule index, and returns a pointer to the struct granule.
- *
- * This is purely a lookup, and provides no guarantees about the attributes of
- * the granule (i.e. whether it is locked, its state or its reference count).
- */
-static struct granule *granule_from_idx(unsigned long idx)
-{
-	assert(idx < RMM_MAX_GRANULES);
-	return &granules[idx];
 }
 
 /*
@@ -86,7 +86,6 @@ struct granule *find_granule(unsigned long addr)
 	}
 
 	idx = plat_granule_addr_to_idx(addr);
-
 	if (idx >= RMM_MAX_GRANULES) {
 		return NULL;
 	}

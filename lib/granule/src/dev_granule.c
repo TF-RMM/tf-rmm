@@ -93,7 +93,6 @@ struct dev_granule *find_dev_granule(unsigned long addr, enum dev_type *type)
 	}
 
 	idx = plat_dev_granule_addr_to_idx(addr, type);
-
 	if (idx == UINT64_MAX) {
 		return NULL;
 	}
@@ -107,7 +106,7 @@ struct dev_granule *find_dev_granule(unsigned long addr, enum dev_type *type)
  * set device granule type.
  *
  * Returns:
- *	A valid dev-granule pointer if @addr is a valid dev_granule physical address
+ *	A valid dev_granule pointer if @addr is a valid dev_granule physical address
  *	and device granule type in address passed in @type.
  *	NULL if any of:
  *	- @addr is not aligned to the size of a granule.
