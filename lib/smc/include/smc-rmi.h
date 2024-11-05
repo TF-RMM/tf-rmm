@@ -15,27 +15,9 @@
  * serviced by the RMM.
  */
 
-/*
- * The major version number of the RMI implementation.  Increase this whenever
- * the binary format or semantics of the SMC calls change.
- */
-#define RMI_ABI_VERSION_MAJOR		UL(1)
-
-/*
- * The minor version number of the RMI implementation.  Increase this when
- * a bug is fixed, or a feature is added without breaking binary compatibility.
- */
-#ifdef RMM_V1_1
-#define RMI_ABI_VERSION_MINOR		UL(1)
-#else
-#define RMI_ABI_VERSION_MINOR		UL(0)
-#endif
-
-#define RMI_ABI_VERSION			((RMI_ABI_VERSION_MAJOR << U(16)) | \
-					  RMI_ABI_VERSION_MINOR)
-
-#define RMI_ABI_VERSION_GET_MAJOR(_version) ((_version) >> U(16))
-#define RMI_ABI_VERSION_GET_MINOR(_version) ((_version) & U(0xFFFF))
+#define MAKE_RMI_REVISION(_major, _minor)	(((_major) << UL(16)) | (_minor))
+#define RMI_ABI_VERSION_GET_MAJOR(_version)	((_version) >> UL(16))
+#define RMI_ABI_VERSION_GET_MINOR(_version)	((_version) & UL(0xFFFF))
 
 #define SMC64_RMI_FID(_offset)		SMC64_STD_FID(RMI, _offset)
 
@@ -1093,6 +1075,9 @@ struct rmi_vdev_params {
 	SET_MEMBER_RMI(unsigned long aux[VDEV_PARAM_AUX_GRANULES_MAX], 0x100,
 		       0x1000);
 };
+
+/* Returns the higher supported RMI ABI revision */
+unsigned long rmi_get_highest_supported_version(void);
 #endif /* __ASSEMBLER__ */
 
 #endif /* SMC_RMI_H */

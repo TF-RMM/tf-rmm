@@ -14,27 +14,9 @@
  * serviced by the RMM.
  */
 
-/*
- * The major version number of the RSI implementation.  Increase this whenever
- * the binary format or semantics of the SMC calls change.
- */
-#define RSI_ABI_VERSION_MAJOR		UL(1)
-
-/*
- * The minor version number of the RSI implementation.  Increase this when
- * a bug is fixed, or a feature is added without breaking binary compatibility.
- */
-#ifdef RMM_V1_1
-#define RSI_ABI_VERSION_MINOR		UL(1)
-#else
-#define RSI_ABI_VERSION_MINOR		UL(0)
-#endif
-
-#define RSI_ABI_VERSION			((RSI_ABI_VERSION_MAJOR << U(16)) | \
-					  RSI_ABI_VERSION_MINOR)
-
-#define RSI_ABI_VERSION_GET_MAJOR(_version) ((_version) >> U(16))
-#define RSI_ABI_VERSION_GET_MINOR(_version) ((_version) & U(0xFFFF))
+#define MAKE_RSI_REVISION(_major, _minor)	(((_major) << UL(16)) | (_minor))
+#define RSI_ABI_VERSION_GET_MAJOR(_version)	((_version) >> UL(16))
+#define RSI_ABI_VERSION_GET_MINOR(_version)	((_version) & UL(0xFFFF))
 
 #define IS_SMC64_RSI_FID(_fid)		IS_SMC64_STD_FAST_IN_RANGE(RSI, _fid)
 
@@ -430,6 +412,9 @@ struct rsi_device_measurements_params {
 	/* RsiBoolean[256]: Measurement parameters */
 	SET_MEMBER_RSI(unsigned char meas_params[32], 0x20, 0x40);
 };
+
+/* Returns the higher supported RSI ABI revision */
+unsigned long rsi_get_highest_supported_version(void);
 #endif /* __ASSEMBLER__ */
 
 #endif /* SMC_RSI_H */
