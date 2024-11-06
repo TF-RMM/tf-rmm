@@ -25,6 +25,8 @@
 
 static void rmm_arch_init(void)
 {
+	unsigned long hcrx_el2_init = HCRX_INIT;
+
 	MPAM(write_mpam2_el2(MPAM2_EL2_INIT));
 	MPAM(write_mpamhcr_el2(MPAMHCR_EL2_INIT));
 	SPE(write_pmscr_el2(PMSCR_EL2_INIT));
@@ -34,6 +36,13 @@ static void rmm_arch_init(void)
 	write_mdcr_el2(MDCR_EL2_INIT |
 			INPLACE(MDCR_EL2_HPMN,
 			EXTRACT(PMCR_EL0_N, read_pmcr_el0())));
+
+	/* Enable EL1 access to sctlr2_el1 if the register is present */
+	if (is_feat_sctlr2x_present()) {
+		hcrx_el2_init |= HCRX_SCTLR2EN;
+	}
+
+	write_hcrx_el2(hcrx_el2_init);
 }
 
 /* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */

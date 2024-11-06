@@ -9,6 +9,38 @@
 #include <arch_helpers.h>
 #include <stdbool.h>
 
+#define DEFINE_CONDITIONAL_SYSREG_READ_FUNC_(_name, _cond_name,		\
+					     _cond_checker, _default)	\
+static inline u_register_t read_ ## _name ## _ ## _cond_name(void)	\
+{									\
+	if (_cond_checker() == true) {					\
+		return read_ ## _name();				\
+	}								\
+	return _default;						\
+}
+
+#define DEFINE_CONDITIONAL_SYSREG_WRITE_FUNC_(_name, _cond_name,	\
+					      _cond_checker)		\
+static inline void write_ ## _name ## _ ## _cond_name(u_register_t v)	\
+{									\
+	if (_cond_checker() == true) {					\
+		write_ ## _name(v);					\
+	}								\
+}
+
+/* Define conditional read function for system register */
+#define DEFINE_CONDITIONAL_SYSREG_READ_FUNC(_name, _cond_name,		\
+					    _cond_checker, _default)	\
+	DEFINE_CONDITIONAL_SYSREG_READ_FUNC_(_name, _cond_name,		\
+					     _cond_checker, _default)
+
+/* Define conditional read & write functions for system register */
+#define DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(_name, _cond_name,		\
+					   _cond_checker, _default)	\
+	DEFINE_CONDITIONAL_SYSREG_READ_FUNC_(_name, _cond_name,		\
+					     _cond_checker, _default)	\
+	DEFINE_CONDITIONAL_SYSREG_WRITE_FUNC_(_name, _cond_name, _cond_checker)
+
 static inline bool is_armv8_4_ttst_present(void)
 {
 	return (EXTRACT(ID_AA64MMFR2_EL1_ST,
@@ -110,6 +142,35 @@ static inline bool is_feat_hpmn0_present(void)
 	return (EXTRACT(ID_AA64DFR0_EL1_HPMN0,
 		read_id_aa64dfr0_el1()) == 1UL);
 }
+
+/*
+ * Check if FEAT_DoubleFault2 is implemented.
+ * ID_AA64PFR1_EL1.DF2, bits [59:56]:
+ * 0b0000: FEAT_DoubleFault2 is not implemented
+ * 0b0001: FEAT_DoubleFault2 is implemented
+ * All other values: Reserved
+ */
+static inline bool is_feat_double_fault2_present(void)
+{
+	return (EXTRACT(ID_AA64PFR1_EL1_DF2,
+		read_id_aa64pfr1_el1()) == 1UL);
+}
+
+/*
+ * Check if FEAT_SCTLR2X is implemented.
+ * ID_AA64MMFR3_EL1.SCTLRX, bits [7:4]:
+ * 0b0000: FEAT_SCTLR2X is not implemented.
+ * 0b0001: FEAT_SCTLR2X is implemented.
+ * All other values: Reserved.
+ */
+static inline bool is_feat_sctlr2x_present(void)
+{
+	return (EXTRACT(ID_AA64MMFR3_EL1_SCTLRX,
+		read_id_aa64mmfr3_el1()) == 1UL);
+}
+
+DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(sctlr2_el12, if_present,		\
+				   is_feat_sctlr2x_present, 0UL)
 
 unsigned int arch_feat_get_pa_width(void);
 

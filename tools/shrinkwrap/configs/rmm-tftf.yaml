@@ -107,6 +107,10 @@ run:
     -C bp.secureflashloader.fname: ${artifact:BL1}
     -C bp.flashloader0.fname: ${artifact:FIP}
 
+    # Enable FEAT_DoubleFault2
+    -C cluster0.has_ras_armv89_double_fault: 2
+    -C cluster1.has_ras_armv89_double_fault: 2
+
     # Cache modelling settings
     -C cache_state_modelled: ${rtvar:CACHE_MODEL_ENABLED}
 

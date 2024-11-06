@@ -15,8 +15,11 @@
  *
  * @vbar The base address of the vector table in the Realm.
  * @spsr The Saved Program Status Register at EL2.
+ * @apply_sea_ease_offset Flag indicating whether we need to apply an offset
+ *			  to the vector entry to execute SERROR vector.
  */
-static unsigned long calc_vector_entry(unsigned long vbar, unsigned long spsr)
+static unsigned long calc_vector_entry(unsigned long vbar, unsigned long spsr,
+				       bool apply_sea_ease_offset)
 {
 	unsigned long offset;
 
@@ -29,10 +32,15 @@ static unsigned long calc_vector_entry(unsigned long vbar, unsigned long spsr)
 			offset = VBAR_LEL_AA64_OFFSET;
 		} else {
 			offset = VBAR_LEL_AA32_OFFSET;
+			return vbar + offset;
 		}
 	} else {
 		assert(false);
 		offset = 0UL;
+	}
+
+	if (apply_sea_ease_offset) {
+		offset += VBAR_SERROR_OFFSET;
 	}
 
 	return vbar + offset;
@@ -121,7 +129,10 @@ void inject_sync_idabort(unsigned long fsc)
 	unsigned long vbar_el2 = read_vbar_el12();
 
 	unsigned long esr_el1 = calc_esr_idabort(esr_el2, spsr_el2, fsc);
-	unsigned long pc = calc_vector_entry(vbar_el2, spsr_el2);
+	bool sctlr2_ease_bit = ((read_sctlr2_el12_if_present() &
+				 SCTLR2_ELx_EASE_BIT) != 0UL);
+	unsigned long pc = calc_vector_entry(vbar_el2, spsr_el2,
+					     sctlr2_ease_bit);
 	unsigned long pstate = calc_pstate();
 
 	write_far_el12(far_el2);
@@ -138,12 +149,16 @@ void inject_sync_idabort(unsigned long fsc)
  */
 void inject_sync_idabort_rec(struct rec *rec, unsigned long fsc)
 {
+	bool sctlr2_ease_bit = ((rec->sysregs.sctlr2_el1 &
+				 SCTLR2_ELx_EASE_BIT) != 0UL);
+
 	rec->sysregs.far_el1 = rec->last_run_info.far;
 	rec->sysregs.elr_el1 = rec->pc;
 	rec->sysregs.spsr_el1 = rec->pstate;
 	rec->sysregs.esr_el1 = calc_esr_idabort(rec->last_run_info.esr,
 						rec->pstate, fsc);
-	rec->pc = calc_vector_entry(rec->sysregs.vbar_el1, rec->pstate);
+	rec->pc = calc_vector_entry(rec->sysregs.vbar_el1, rec->pstate,
+				    sctlr2_ease_bit);
 	rec->pstate = calc_pstate();
 }
 
@@ -157,7 +172,7 @@ void realm_inject_undef_abort(void)
 	unsigned long spsr = read_spsr_el2();
 	unsigned long vbar = read_vbar_el12();
 
-	unsigned long pc = calc_vector_entry(vbar, spsr);
+	unsigned long pc = calc_vector_entry(vbar, spsr, false);
 	unsigned long pstate = calc_pstate();
 
 	write_elr_el12(elr);
