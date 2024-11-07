@@ -221,7 +221,7 @@ int attest_realm_token_create(enum hash_algo algorithm,
  *	ATTEST_TOKEN_ERR_SUCCESS (0)	- Success.
  *	ATTEST_TOKEN_ERR_INVALID_STATE	- Failed possibly due to invalid state.
  */
-int attest_token_ctx_init(struct token_sign_cntxt *token_ctx,
+enum attest_token_err_t attest_token_ctx_init(struct token_sign_cntxt *token_ctx,
 			   unsigned char *heap_buf,
 			   unsigned int heap_buf_len,
 			   uintptr_t cookie);

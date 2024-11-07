@@ -158,7 +158,7 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 		 * disabled for current realm.
 		 */
 		if ((EXTRACT(ID_AA64PFR0_EL1_SVE, value) != 0UL) &&
-		    (rec->realm_info.simd_cfg.sve_en == (bool)false)) {
+		    (rec->realm_info.simd_cfg.sve_en == false)) {
 			value &= ~MASK(ID_AA64PFR0_EL1_SVE);
 		}
 		break;

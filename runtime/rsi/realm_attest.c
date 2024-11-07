@@ -140,6 +140,7 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	struct rec_attest_data *attest_data;
 	void *rpv_ptr;
 	size_t rpv_len;
+	enum attest_token_err_t ret;
 	int att_ret;
 
 	assert(rec != NULL);
@@ -156,11 +157,11 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	 * Calling RSI_ATTESTATION_TOKEN_INIT any time aborts any ongoing
 	 * operation.
 	 */
-	att_ret = attest_token_ctx_init(&attest_data->token_sign_ctx,
+	ret = attest_token_ctx_init(&attest_data->token_sign_ctx,
 				rec->aux_data.attest_heap_buf,
 				REC_HEAP_SIZE,
 				granule_addr(rec->g_rec));
-	if (att_ret != 0) {
+	if (ret != ATTEST_TOKEN_ERR_SUCCESS) {
 		ERROR("Failed to initialize attestation token context.\n");
 		res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
 		return;

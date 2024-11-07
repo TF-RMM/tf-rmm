@@ -33,7 +33,7 @@
 /*
  * SVE Hint bit (SMCCCv1.3), denoting the absence of SVE specific live state.
  *
- * MISRA treats 1U as as 8-bit type variables. So use 1UL and typecast the value
+ * MISRA treats 1U as 8-bit type variables. So use 1UL and typecast the value
  * to 'unsigned int'
  */
 #define SMC_SVE_HINT		(U(1) << 16)
