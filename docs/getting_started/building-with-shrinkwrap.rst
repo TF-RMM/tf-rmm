@@ -37,7 +37,7 @@ Also, from now on, it is assumed that your current directory (pointed by
 ``${PWD}``) is the root of your |RMM| development repository.
 
 In order to use the configs defined in |RMM|, it is essential to configure
-the ``${SHRINKWRAP_CONFIG}`` environment variable to point to 
+the ``${SHRINKWRAP_CONFIG}`` environment variable to point to
 ``${PWD}/tools/shrinkwrap/configs`` directory so the tool can locate the
 config yaml files.
 

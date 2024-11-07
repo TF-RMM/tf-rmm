@@ -38,7 +38,6 @@ static void get_random_seed(uintptr_t output, size_t len)
 		len -= sizeof(uint64_t);
 		output += sizeof(uint64_t);
 	}
-	return;
 }
 
 /*

@@ -112,7 +112,7 @@ int attestation_init(void)
 	/* Disable Data Independent Timing feature */
 	write_dit(0x0);
 
-attest_init_fail :
+attest_init_fail:
 	buffer_alloc_ctx_unassign();
 	return ret;
 }
