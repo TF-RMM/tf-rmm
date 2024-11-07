@@ -370,7 +370,7 @@ int attest_realm_token_create(enum hash_algo algorithm,
 }
 
 /* This function will only succeed if attestation_init() has succeeded. */
-int attest_token_ctx_init(struct token_sign_cntxt *token_ctx,
+enum attest_token_err_t attest_token_ctx_init(struct token_sign_cntxt *token_ctx,
 			unsigned char *heap_buf,
 			unsigned int heap_buf_len,
 			uintptr_t cookie)
@@ -386,7 +386,7 @@ int attest_token_ctx_init(struct token_sign_cntxt *token_ctx,
 		ret = attestation_heap_ctx_init(heap_buf,
 						heap_buf_len);
 		if (ret != 0) {
-			return (int)ATTEST_TOKEN_ERR_INVALID_STATE;
+			return ATTEST_TOKEN_ERR_INVALID_STATE;
 		}
 
 #if ATTEST_EL3_TOKEN_SIGN
@@ -395,5 +395,5 @@ int attest_token_ctx_init(struct token_sign_cntxt *token_ctx,
 		token_ctx->state = ATTEST_TOKEN_INIT;
 	}
 
-	return (int)ATTEST_TOKEN_ERR_SUCCESS;
+	return ATTEST_TOKEN_ERR_SUCCESS;
 }

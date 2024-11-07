@@ -347,8 +347,7 @@ static int el3_token_sign_pull_resp(uint64_t buf_pa, uint64_t *buf_size)
 		return E_RMM_AGAIN;
 	}
 
-	if ((*buf_size == 0) ||
-	    (*buf_size < sizeof(struct el3_token_sign_response))) {
+	if (*buf_size < sizeof(struct el3_token_sign_response)) {
 		return E_RMM_INVAL;
 	}
 
