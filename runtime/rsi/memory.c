@@ -8,7 +8,6 @@
 #include <ripas.h>
 #include <rsi-handler.h>
 #include <smc-rsi.h>
-#include <status.h>
 
 void handle_rsi_ipa_state_set(struct rec *rec,
 			      struct rmi_rec_exit *rec_exit,

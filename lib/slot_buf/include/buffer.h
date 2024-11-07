@@ -32,7 +32,11 @@ enum buffer_slot {
 				 */
 	SLOT_RTT = U(SLOT_REC_AUX0) + MAX_REC_AUX_GRANULES,
 	SLOT_RTT2,		/* Some commands access two RTT granules at a time*/
-	SLOT_RSI_CALL,
+	SLOT_PDEV,		/* Slot for Physical device object */
+	SLOT_PDEV_AUX0,		/* Slots for PDEV auxiliary granules */
+	SLOT_VDEV = U(SLOT_PDEV_AUX0) + PDEV_PARAM_AUX_GRANULES_MAX,
+	SLOT_VDEV_AUX0,		/* Slots for VDEV auxiliary granules */
+	SLOT_RSI_CALL = U(SLOT_VDEV_AUX0) + VDEV_PARAM_AUX_GRANULES_MAX,
 	SLOT_EL3_TOKEN_SIGN_REC,	/* Slot for target REC during EL3 sign flow */
 	SLOT_EL3_TOKEN_SIGN_AUX0,	/* Slots for AUX granules on target REC for EL3 sign flow */
 	NR_CPU_SLOTS = U(SLOT_EL3_TOKEN_SIGN_AUX0) + MAX_REC_AUX_GRANULES
@@ -64,19 +68,21 @@ void slot_buf_finish_warmboot_init(void);
 /*
  * Maps the `num_aux` SLOT_REC_AUX granules.
  */
-void *buffer_aux_granules_map(struct granule *g_rec_aux[], unsigned int num_aux);
+void *buffer_rec_aux_granules_map(struct granule *g_rec_aux[],
+				  unsigned int num_aux);
 
 /*
  * Maps the `num_aux` granules in REC to SLOT_EL3_TOKEN_SIGN_AUX0.
  */
-void *buffer_aux_granules_map_el3_token_sign_slot(struct granule *g_rec_aux[],
+void *buffer_rec_aux_granules_map_el3_token_sign_slot(
+					      struct granule *g_rec_aux[],
 						   unsigned int num_aux);
 
 /*
  * Unmaps the `num_aux` SLOT_REC_AUX or SLOT_EL3_TOKEN_SIGN_AUX0 buffers starting
  * with the one passed at the beginning of `rec_aux`.
  */
-void buffer_aux_unmap(void *rec_aux, unsigned int num_aux);
+void buffer_rec_aux_unmap(void *rec_aux, unsigned int num_aux);
 
 /*
  * Map the granule 'g' to 'slot', zeroes its content and unmaps it.
@@ -100,5 +106,15 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr);
  * Unmaps the slot buffer corresponding to the VA passed via `buf` argument.
  */
 void buffer_unmap_internal(void *buf);
+
+/*
+ * Maps the `num_aux` granules at 'g_pdev_aux' to buffer slot starting
+ * SLOT_PDEV_AUX0.
+ */
+void *buffer_pdev_aux_granules_map(struct granule *g_pdev_aux[],
+				   unsigned int num_aux);
+
+/* Unmaps the `num_aux` granules from slot starting SLOT_PDEV_AUX0 */
+void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux);
 
 #endif /* BUFFER_H */

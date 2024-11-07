@@ -210,7 +210,7 @@ static void rec_aux_granules_init(struct rec *r)
 	struct rec_aux_data *aux_data;
 
 	/* Map auxiliary granules */
-	rec_aux = buffer_aux_granules_map(r->g_aux, r->num_rec_aux);
+	rec_aux = buffer_rec_aux_granules_map(r->g_aux, r->num_rec_aux);
 	assert(rec_aux != NULL);
 
 	/*
@@ -241,7 +241,7 @@ static void rec_aux_granules_init(struct rec *r)
 	rec_simd_state_init(r);
 
 	/* Unmap auxiliary granules */
-	buffer_aux_unmap(rec_aux, r->num_rec_aux);
+	buffer_rec_aux_unmap(rec_aux, r->num_rec_aux);
 }
 
 unsigned long smc_rec_create(unsigned long rd_addr,

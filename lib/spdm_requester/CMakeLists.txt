@@ -47,6 +47,7 @@ set(MBEDTLS_SRC_DIR "${RMM_SOURCE_DIR}/ext/mbedtls")
 set(LIBSPDM_PATCH_DIR "${RMM_SOURCE_DIR}/configs/libspdm")
 set(LIBSPDM_PATCH_FILES
     "${LIBSPDM_PATCH_DIR}/0001-cryptlib_mbedtls-use-external-Mbed-TLS.patch"
+    "${LIBSPDM_PATCH_DIR}/0002-fix-libspdm_hmac_new-return-and-LIBSPDM_STATUS_SUCCE.patch"
     )
 Git_Apply_Patches(${LIBSPDM_DIR} "${LIBSPDM_PATCH_FILES}")
 
@@ -66,14 +67,41 @@ set(SOURCE_DIRS
     ${LIBSPDM_DIR}/library/spdm_requester_lib
     ${LIBSPDM_DIR}/library/spdm_secured_message_lib)
 
+# Manually create dependencies for libspdm libraries
+target_link_libraries(spdm_requester_lib PRIVATE spdm_common_lib spdm_crypt_lib)
+target_link_libraries(spdm_secured_message_lib PRIVATE spdm_crypt_lib)
+target_link_libraries(spdm_common_lib PRIVATE spdm_crypt_lib)
+
 #
 # Below are the list of os_stub libraries in libspdm that LIBSPDM_CORE_LIBS
 # depends on.
+# TODO: memlib and debuglib should be reimplemented for aarch64.
 #
 set(SOURCE_DIRS
     ${SOURCE_DIRS}
     ${LIBSPDM_DIR}/os_stub/cryptlib_mbedtls
-    ${LIBSPDM_DIR}/os_stub/memlib)
+    ${LIBSPDM_DIR}/os_stub/memlib
+    ${LIBSPDM_DIR}/os_stub/debuglib)
+
+# Manually create dependencies for cryptlib_mbedtls library
+target_link_libraries(cryptlib_mbedtls PRIVATE rmm-mbedtls)
+
+# For aarch64 build include aarch64_stub libraries that provides
+# libspdm_get_random_number_64, libspdm_sleep else include libspdm's os_stub
+# libraries.
+if(RMM_ARCH STREQUAL aarch64)
+    set(SOURCE_DIRS
+        ${SOURCE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}/aarch64_stub/spdm_malloclib
+        ${CMAKE_CURRENT_SOURCE_DIR}/aarch64_stub/spdm_rnglib
+        ${CMAKE_CURRENT_SOURCE_DIR}/aarch64_stub/spdm_timelib)
+else()
+    set(SOURCE_DIRS
+        ${SOURCE_DIRS}
+        ${LIBSPDM_DIR}/os_stub/malloclib
+        ${LIBSPDM_DIR}/os_stub/rnglib
+        ${LIBSPDM_DIR}/os_stub/platform_lib)
+endif()
 
 # Add all source directories
 foreach(SOURCE_DIR IN LISTS SOURCE_DIRS)

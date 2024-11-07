@@ -31,10 +31,13 @@ static const char * const rmi_status_string[] = {
 	RMI_STATUS_STRING(ERROR_INPUT),
 	RMI_STATUS_STRING(ERROR_REALM),
 	RMI_STATUS_STRING(ERROR_REC),
-	RMI_STATUS_STRING(ERROR_RTT)
+	RMI_STATUS_STRING(ERROR_RTT),
+	RMI_STATUS_STRING(ERROR_DEVICE),
+	RMI_STATUS_STRING(ERROR_NOT_SUPPORTED),
+	RMI_STATUS_STRING(ERROR_RTT_AUX)
 };
 
-COMPILER_ASSERT(ARRAY_SIZE(rmi_status_string) == RMI_ERROR_COUNT);
+COMPILER_ASSERT(ARRAY_SIZE(rmi_status_string) == RMI_ERROR_COUNT_MAX);
 
 /*
  * At this level (in handle_ns_smc) we distinguish the RMI calls only on:
@@ -131,28 +134,60 @@ struct smc_handler {
  */
 static const struct smc_handler smc_handlers[] = {
 	HANDLER(VERSION,		1, 2, smc_version,		 true,  true),
-	HANDLER(FEATURES,		1, 1, smc_read_feature_register, true,  true),
 	HANDLER(GRANULE_DELEGATE,	1, 0, smc_granule_delegate,	 false, true),
 	HANDLER(GRANULE_UNDELEGATE,	1, 0, smc_granule_undelegate,	 false, true),
-	HANDLER(REALM_CREATE,		2, 0, smc_realm_create,		 true,  true),
-	HANDLER(REALM_DESTROY,		1, 0, smc_realm_destroy,	 true,  true),
-	HANDLER(REALM_ACTIVATE,		1, 0, smc_realm_activate,	 true,  true),
-	HANDLER(REC_CREATE,		3, 0, smc_rec_create,		 true,  true),
-	HANDLER(REC_DESTROY,		1, 0, smc_rec_destroy,		 true,  true),
-	HANDLER(REC_ENTER,		2, 0, smc_rec_enter,		 false, true),
 	HANDLER(DATA_CREATE,		5, 0, smc_data_create,		 false, false),
 	HANDLER(DATA_CREATE_UNKNOWN,	3, 0, smc_data_create_unknown,	 false, false),
 	HANDLER(DATA_DESTROY,		2, 2, smc_data_destroy,		 false, true),
+	HANDLER(PDEV_AUX_COUNT,		0, 0, NULL,			 true, true),
+	HANDLER(REALM_ACTIVATE,		1, 0, smc_realm_activate,	 true,  true),
+	HANDLER(REALM_CREATE,		2, 0, smc_realm_create,		 true,  true),
+	HANDLER(REALM_DESTROY,		1, 0, smc_realm_destroy,	 true,  true),
+	HANDLER(REC_CREATE,		3, 0, smc_rec_create,		 true,  true),
+	HANDLER(REC_DESTROY,		1, 0, smc_rec_destroy,		 true,  true),
+	HANDLER(REC_ENTER,		2, 0, smc_rec_enter,		 false, true),
 	HANDLER(RTT_CREATE,		4, 0, smc_rtt_create,		 false, true),
 	HANDLER(RTT_DESTROY,		3, 2, smc_rtt_destroy,		 false, true),
-	HANDLER(RTT_FOLD,		3, 1, smc_rtt_fold,		 false, false),
 	HANDLER(RTT_MAP_UNPROTECTED,	4, 0, smc_rtt_map_unprotected,	 false, false),
-	HANDLER(RTT_UNMAP_UNPROTECTED,	3, 1, smc_rtt_unmap_unprotected, false, false),
+	HANDLER(VDEV_AUX_COUNT,		0, 0, NULL,			 true, true),
 	HANDLER(RTT_READ_ENTRY,		3, 4, smc_rtt_read_entry,	 false, true),
+	HANDLER(RTT_UNMAP_UNPROTECTED,	3, 1, smc_rtt_unmap_unprotected, false, false),
 	HANDLER(PSCI_COMPLETE,		3, 0, smc_psci_complete,	 true,  true),
+	HANDLER(FEATURES,		1, 1, smc_read_feature_register, true,  true),
+	HANDLER(RTT_FOLD,		3, 1, smc_rtt_fold,		 false, false),
 	HANDLER(REC_AUX_COUNT,		1, 1, smc_rec_aux_count,	 true,  true),
 	HANDLER(RTT_INIT_RIPAS,		3, 1, smc_rtt_init_ripas,	 false, true),
-	HANDLER(RTT_SET_RIPAS,		4, 1, smc_rtt_set_ripas,	 false, true)
+	HANDLER(RTT_SET_RIPAS,		4, 1, smc_rtt_set_ripas,	 false, true),
+	HANDLER(GRANULE_DEV_DELEGATE,	0, 0, NULL,			 true, true),
+	HANDLER(GRANULE_DEV_UNDELEGATE,	0, 0, NULL,			 true, true),
+	HANDLER(DEV_MAP,		0, 0, NULL,			 true, true),
+	HANDLER(DEV_UNMAP,		0, 0, NULL,			 true, true),
+	HANDLER(PDEV_ABORT,		0, 0, NULL,			 true, true),
+	HANDLER(PDEV_COMMUNICATE,	2, 0, NULL,			 true, true),
+	HANDLER(PDEV_CREATE,		2, 0, NULL,			 true, true),
+	HANDLER(PDEV_DESTROY,		0, 0, NULL,			 true, true),
+	HANDLER(PDEV_GET_STATE,		1, 1, NULL,			 true, true),
+	HANDLER(PDEV_IDE_RESET,		0, 0, NULL,			 true, true),
+	HANDLER(PDEV_NOTIFY,		0, 0, NULL,			 true, true),
+	HANDLER(PDEV_SET_PUBKEY,	4, 0, NULL,			 true, true),
+	HANDLER(PDEV_STOP,		0, 0, NULL,			 true, true),
+	HANDLER(RTT_AUX_CREATE,		0, 0, NULL,			 true, true),
+	HANDLER(RTT_AUX_DESTROY,	0, 0, NULL,			 true, true),
+	HANDLER(RTT_AUX_FOLD,		0, 0, NULL,			 true, true),
+	HANDLER(RTT_AUX_MAP_PROTECTED,	0, 0, NULL,			 true, true),
+	HANDLER(RTT_AUX_MAP_UNPROTECTED, 0, 0, NULL,			 true, true),
+	HANDLER(RTT_AUX_UNMAP_PROTECTED, 0, 0, NULL,			 true, true),
+	HANDLER(RTT_AUX_UNMAP_UNPROTECTED, 0, 0, NULL,			 true, true),
+	HANDLER(VDEV_ABORT,		0, 0, NULL,			 true, true),
+	HANDLER(VDEV_COMMUNICATE,	0, 0, NULL,			 true, true),
+	HANDLER(VDEV_CREATE,		0, 0, NULL,			 true, true),
+	HANDLER(VDEV_DESTROY,		0, 0, NULL,			 true, true),
+	HANDLER(VDEV_GET_STATE,		0, 0, NULL,			 true, true),
+	HANDLER(VDEV_STOP,		0, 0, NULL,			 true, true),
+	HANDLER(RTT_SET_S2AP,		0, 0, NULL,			 true, true),
+	HANDLER(MEC_SET_SHARED,		0, 0, NULL,			 true, true),
+	HANDLER(MEC_SET_PRIVATE,	0, 0, NULL,			 true, true),
+	HANDLER(VDEV_COMPLETE,		0, 0, NULL,			 true, true)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
@@ -200,7 +235,7 @@ static void rmi_log_on_exit(unsigned int handler_id,
 		}
 
 		/* Print status */
-		if (rc.status >= RMI_ERROR_COUNT) {
+		if (rc.status >= RMI_ERROR_COUNT_MAX) {
 			INFO(" > %lx", res->x[0]);
 		} else {
 			INFO(" > RMI_%s", rmi_status_string[rc.status]);

@@ -43,7 +43,8 @@ add_subdirectory("slot_buf")
 add_subdirectory("t_cose")
 add_subdirectory("xlat")
 
-if(RMM_CCA_DA)
+# Device Assignment feature in RMM v1.1 needs rmm-lib-spdm_requester
+if(RMM_V1_1)
     target_link_libraries(rmm-lib INTERFACE rmm-lib-spdm_requester)
     add_subdirectory("spdm_requester")
 endif()

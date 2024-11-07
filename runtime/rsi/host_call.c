@@ -9,7 +9,6 @@
 #include <rsi-handler.h>
 #include <rsi-host-call.h>
 #include <smc-rsi.h>
-#include <status.h>
 #include <string.h>
 
 /*
