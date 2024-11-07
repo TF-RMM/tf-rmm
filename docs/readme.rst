@@ -73,7 +73,7 @@ The `TF-RMM`_ project requires to be linked with certain other 3rd party
 projects and they are to be cloned from their repositories into ``ext`` folder
 before building. The projects are `MbedTLS`_, `t_cose`_, `QCBOR`_,
 `CppUTest`_ and `libspdm`_. `libspdm`_ repository is fetched during config phase
-when RMM_CCA_DA build option is enabled.
+when RMM_V1_1 build option is enabled.
 
 The project also contains files which are imported from other projects
 into the source tree and may have a different license. Such files with

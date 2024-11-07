@@ -1,0 +1,101 @@
+From e9e88a3a7fbebeb0710a78b37f795fb628f8aa56 Mon Sep 17 00:00:00 2001
+From: Arunachalam Ganapathy <arunachalam.ganapathy@arm.com>
+Date: Mon, 7 Oct 2024 16:09:26 +0100
+Subject: [PATCH] fix: libspdm_hmac_new return and LIBSPDM_STATUS_SUCCESS macro
+
+1. Fix return value of libspdm_hmac_new.
+
+2. use const for LIBSPDM_STATUS_SUCCESS
+   Using LIBSPDM_STATUS_CONSTRUCT macro for LIBSPDM_STATUS_SUCCESS
+   causes lot of misra errors due to left shift operation on value 0.
+   So do not use macro to construct LIBSPDM_STATUS_SUCCESS value.
+
+Signed-off-by: Arunachalam Ganapathy <arunachalam.ganapathy@arm.com>
+---
+ include/library/spdm_return_status.h        |  3 +--
+ library/spdm_crypt_lib/libspdm_crypt_hmac.c | 16 ++++++++--------
+ 2 files changed, 9 insertions(+), 10 deletions(-)
+
+diff --git a/include/library/spdm_return_status.h b/include/library/spdm_return_status.h
+index 708c16d917..ad739d23d1 100644
+--- a/include/library/spdm_return_status.h
++++ b/include/library/spdm_return_status.h
+@@ -55,8 +55,7 @@ typedef uint32_t libspdm_return_t;
+     ((libspdm_return_t)(((severity) << 28) | ((source) << 16) | (code)))
+ 
+ /* Success status is always 0x00000000. */
+-#define LIBSPDM_STATUS_SUCCESS \
+-    LIBSPDM_STATUS_CONSTRUCT(LIBSPDM_SEVERITY_SUCCESS, LIBSPDM_SOURCE_SUCCESS, 0x0000)
++#define LIBSPDM_STATUS_SUCCESS (((libspdm_return_t)0x00000000))
+ 
+ #define LIBSPDM_RET_ON_ERR(status) \
+     do { \
+diff --git a/library/spdm_crypt_lib/libspdm_crypt_hmac.c b/library/spdm_crypt_lib/libspdm_crypt_hmac.c
+index 56f8b0efea..9ea14f3ea7 100644
+--- a/library/spdm_crypt_lib/libspdm_crypt_hmac.c
++++ b/library/spdm_crypt_lib/libspdm_crypt_hmac.c
+@@ -14,53 +14,53 @@ void *libspdm_hmac_new(uint32_t base_hash_algo)
+         return libspdm_hmac_sha256_new();
+ #else
+         LIBSPDM_ASSERT(false);
+-        return false;
++        return NULL;
+ #endif
+     case SPDM_ALGORITHMS_BASE_HASH_ALGO_TPM_ALG_SHA_384:
+ #if LIBSPDM_SHA384_SUPPORT
+         return libspdm_hmac_sha384_new();
+ #else
+         LIBSPDM_ASSERT(false);
+-        return false;
++        return NULL;
+ #endif
+     case SPDM_ALGORITHMS_BASE_HASH_ALGO_TPM_ALG_SHA_512:
+ #if LIBSPDM_SHA512_SUPPORT
+         return libspdm_hmac_sha512_new();
+ #else
+         LIBSPDM_ASSERT(false);
+-        return false;
++        return NULL;
+ #endif
+     case SPDM_ALGORITHMS_BASE_HASH_ALGO_TPM_ALG_SHA3_256:
+ #if LIBSPDM_SHA3_256_SUPPORT
+         return libspdm_hmac_sha3_256_new();
+ #else
+         LIBSPDM_ASSERT(false);
+-        return false;
++        return NULL;
+ #endif
+     case SPDM_ALGORITHMS_BASE_HASH_ALGO_TPM_ALG_SHA3_384:
+ #if LIBSPDM_SHA3_384_SUPPORT
+         return libspdm_hmac_sha3_384_new();
+ #else
+         LIBSPDM_ASSERT(false);
+-        return false;
++        return NULL;
+ #endif
+     case SPDM_ALGORITHMS_BASE_HASH_ALGO_TPM_ALG_SHA3_512:
+ #if LIBSPDM_SHA3_512_SUPPORT
+         return libspdm_hmac_sha3_512_new();
+ #else
+         LIBSPDM_ASSERT(false);
+-        return false;
++        return NULL;
+ #endif
+     case SPDM_ALGORITHMS_BASE_HASH_ALGO_TPM_ALG_SM3_256:
+ #if LIBSPDM_SM3_256_SUPPORT
+         return libspdm_hmac_sm3_256_new();
+ #else
+         LIBSPDM_ASSERT(false);
+-        return false;
++        return NULL;
+ #endif
+     default:
+         LIBSPDM_ASSERT(false);
+-        return false;
++        return NULL;
+     }
+ }
+ 
+-- 
+2.39.2
+

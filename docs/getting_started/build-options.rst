@@ -290,7 +290,7 @@ The |RMM| build system supports the following CMake build options.
    RMM_HTML_COV_REPORT		,ON | OFF		,ON			,"Enable HTML output report for coverage analysis"
    RMM_CBMC_VIEWER_OUTPUT	,ON | OFF		,OFF			,"Generate report of CBMC results using the tool cbmc-viewer"
    RMM_CBMC_SINGLE_TESTBENCH	,			,OFF			,"Run CBMC on a single testbench instead on all of them"
-   RMM_CCA_DA			,ON | OFF		,OFF			,"Enable Device Assignment support in RMM (experimental)"
+   RMM_V1_1			,ON | OFF		,OFF			,"Enable v1.1 features (experimental)"
    ATTEST_PLAT_TOKEN_SIZE	,			,0x1000			,"Maximum size in bytes expected for the Attestation platform token"
    PLAT_ARM_MAX_DRAM_BANKS	,			,2			,"Maximum number of DRAM banks allowed in Arm platform layer"
    ATTEST_EL3_TOKEN_SIGN	,ON|OFF			,OFF			,"Use EL3 service to sign realm attestation token."

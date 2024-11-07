@@ -246,8 +246,9 @@ static __unused int write_response_to_rec(struct rec *curr_rec,
 		 * Any accesses to aux granules via initialized pointers such as
 		 * attest_data, need to be recaluclated at the new high VA.
 		 */
-		rec_aux = buffer_aux_granules_map_el3_token_sign_slot(rec->g_aux,
-								rec->num_rec_aux);
+		rec_aux = buffer_rec_aux_granules_map_el3_token_sign_slot(
+							  rec->g_aux,
+							  rec->num_rec_aux);
 		assert(rec_aux != NULL);
 
 		unmap_unlock_needed = true;
@@ -264,7 +265,7 @@ static __unused int write_response_to_rec(struct rec *curr_rec,
 	}
 
 	if (unmap_unlock_needed) {
-		buffer_aux_unmap(rec_aux, rec->num_rec_aux);
+		buffer_rec_aux_unmap(rec_aux, rec->num_rec_aux);
 		buffer_unmap(rec);
 		granule_unlock(rec_granule);
 	}
