@@ -67,11 +67,6 @@ set(SOURCE_DIRS
     ${LIBSPDM_DIR}/library/spdm_requester_lib
     ${LIBSPDM_DIR}/library/spdm_secured_message_lib)
 
-# Manually create dependencies for libspdm libraries
-target_link_libraries(spdm_requester_lib PRIVATE spdm_common_lib spdm_crypt_lib)
-target_link_libraries(spdm_secured_message_lib PRIVATE spdm_crypt_lib)
-target_link_libraries(spdm_common_lib PRIVATE spdm_crypt_lib)
-
 #
 # Below are the list of os_stub libraries in libspdm that LIBSPDM_CORE_LIBS
 # depends on.
@@ -82,9 +77,6 @@ set(SOURCE_DIRS
     ${LIBSPDM_DIR}/os_stub/cryptlib_mbedtls
     ${LIBSPDM_DIR}/os_stub/memlib
     ${LIBSPDM_DIR}/os_stub/debuglib)
-
-# Manually create dependencies for cryptlib_mbedtls library
-target_link_libraries(cryptlib_mbedtls PRIVATE rmm-mbedtls)
 
 # For aarch64 build include aarch64_stub libraries that provides
 # libspdm_get_random_number_64, libspdm_sleep else include libspdm's os_stub
@@ -123,3 +115,10 @@ foreach(SOURCE_DIR IN LISTS SOURCE_DIRS)
 
     target_link_libraries(rmm-lib-spdm_requester INTERFACE ${SPDM_LIB})
 endforeach()
+
+# Manually create dependencies for libspdm libraries
+target_link_libraries(spdm_requester_lib PRIVATE spdm_common_lib spdm_crypt_lib)
+target_link_libraries(spdm_secured_message_lib PRIVATE spdm_crypt_lib)
+target_link_libraries(spdm_common_lib PRIVATE spdm_crypt_lib)
+# Manually create dependencies for cryptlib_mbedtls library
+target_link_libraries(cryptlib_mbedtls PRIVATE rmm-mbedtls)
