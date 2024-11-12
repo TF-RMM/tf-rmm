@@ -1,6 +1,7 @@
 [submodule "mbedtls"]
 	path = ext/mbedtls
 	url = https://github.com/ARMmbed/mbedtls.git
+	fetchRecurseSubmodules = false
 	ignore = dirty
 [submodule "ext/qcbor"]
 	path = ext/qcbor
@@ -12,3 +13,8 @@
 [submodule "ext/cpputest"]
 	path = ext/cpputest
 	url = https://github.com/cpputest/cpputest.git
+[submodule "ext/libspdm"]
+	path = ext/libspdm
+	url = https://github.com/DMTF/libspdm.git
+	fetchRecurseSubmodules = false
+	ignore = dirty

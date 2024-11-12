@@ -3,37 +3,13 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
-include(FetchContent)
-
 # Skip rmm-lib-spdm_requester from CMBC analysis
 if(RMM_CBMC_STATIC_ANALYSIS)
     add_library(rmm-lib-spdm_requester INTERFACE)
     return()
 endif()
 
-#
-# Git clone libspdm. We manually clone instead of adding this as a submodule
-# because adding libspdm as a submodule causes recursive clone to fetch all
-# dependency projects by libspdm.
-#
-set(LIBSPDM_URL "https://github.com/DMTF/libspdm.git")
-set(LIBSPDM_TAG "3.4.0")
 set(LIBSPDM_SRC "${RMM_SOURCE_DIR}/ext/libspdm")
-
-FetchContent_Declare(libspdm
-    GIT_REPOSITORY	${LIBSPDM_URL}
-    GIT_TAG		${LIBSPDM_TAG}
-    SOURCE_DIR		${LIBSPDM_SRC}
-    GIT_SUBMODULES	""
-    GIT_SHALLOW		1
-    GIT_PROGRESS	1)
-
-FetchContent_GetProperties(libspdm)
-if(NOT libspdm_POPULATED)
-    message("Fetching: ${LIBSPDM_URL} TAG: ${LIBSPDM_TAG}")
-    FetchContent_Populate(libspdm)
-    message("libspdm SRC: ${LIBSPDM_SRC}")
-endif()
 
 # Set LIBSPDM_DIR. Note: This variable is used by libspdm CMake.
 # libspdm is fetched to ext/libspdm in RMM source.
