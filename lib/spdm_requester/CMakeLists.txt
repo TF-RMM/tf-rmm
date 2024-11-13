@@ -3,8 +3,6 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/tools/common")
-include(GitUtils)
 include(FetchContent)
 
 # Skip rmm-lib-spdm_requester from CMBC analysis

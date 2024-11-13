@@ -15,7 +15,7 @@ find_program(CHECKSPDX_EXECUTABLE "checkspdx.py"
   DOC "Path to checkspdx.py"
   )
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/tools/common")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")
 include(GitUtils)
 
 # List of directories and files to exclude from checking for target

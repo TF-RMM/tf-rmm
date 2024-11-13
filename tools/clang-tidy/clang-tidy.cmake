@@ -22,7 +22,7 @@ if(NOT CLANGTIDY_EXECUTABLE)
   message(FATAL_ERROR "Could not find run-clang-tidy executable.")
 endif()
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/tools/common")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")
 include(GitUtils)
 
 #

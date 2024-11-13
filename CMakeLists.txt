@@ -11,13 +11,11 @@ cmake_policy(SET CMP0079 NEW)
 #
 # Add our module search paths so we can `include()` our CMake modules.
 #
-
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake/Modules")
 
 #
 # Include any dependencies.
 #
-
 include(ArmConfigOption)
 include(ArmConfigOptionOverride)
 

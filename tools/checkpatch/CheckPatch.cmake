@@ -25,7 +25,7 @@ find_program(COMMITMSGCHECK_EXECUTABLE "checkcommitmsg.py"
   DOC "Path to checkcommitmsg.py"
 )
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/tools/common")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")
 include(GitUtils)
 
 #

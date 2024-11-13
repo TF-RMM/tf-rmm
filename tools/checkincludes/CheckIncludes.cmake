@@ -15,7 +15,7 @@ find_program(CHECKINCLUDES_EXECUTABLE "checkincludes.py"
   DOC "Path to checkincludes.py"
   )
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/tools/common")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")
 include(GitUtils)
 
 # List of directories and files to exclude from checking for target
