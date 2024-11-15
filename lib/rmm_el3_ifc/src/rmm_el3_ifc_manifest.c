@@ -72,6 +72,23 @@ uintptr_t rmm_el3_ifc_get_plat_manifest_pa(void)
 }
 
 /*
+ * Calculate checksum of 64-bit words @buffer with @size length
+ */
+static uint64_t checksum_calc(uint64_t *buffer, size_t size)
+{
+	uint64_t sum = 0UL;
+
+	assert(((uintptr_t)buffer & (sizeof(uint64_t) - 1UL)) == 0UL);
+	assert((size & (sizeof(uint64_t) - 1UL)) == 0UL);
+
+	for (unsigned long i = 0UL; i < (size / sizeof(uint64_t)); i++) {
+		sum += buffer[i];
+	}
+
+	return sum;
+}
+
+/*
  * Return validated DRAM data passed in plat_dram pointer.
  * Return a pointer to the platform DRAM info structure setup by EL3 Firmware
  * or NULL in case of an error.
@@ -134,9 +151,6 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 			return E_RMM_BOOT_MANIFEST_DATA_ERROR;
 		}
 
-		/* Update checksum */
-		checksum += start + size;
-
 		/* Update end address of the bank */
 		end = start + size - 1UL;
 
@@ -155,6 +169,10 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 
 		bank_ptr++;
 	}
+
+	/* Update checksum */
+	checksum += checksum_calc((uint64_t *)plat_dram->banks,
+					sizeof(struct ns_dram_bank) * num_banks);
 
 	/* Checksum must be 0 */
 	if (checksum != 0UL) {
@@ -206,11 +224,9 @@ int rmm_el3_ifc_get_console_list_pa(struct console_list **plat_console_list)
 	/* Calculate the checksum of the console_list structure */
 	checksum = num_consoles + (uint64_t)console_ptr + csl_list->checksum;
 
-	for (unsigned long i = 0UL; i < num_consoles; i++) {
-		checksum += (uint64_t)console_ptr->base + console_ptr->baud_rate +
-			console_ptr->clk_in_hz + console_ptr->map_pages;
-		console_ptr++;
-	}
+	/* Update checksum */
+	checksum += checksum_calc((uint64_t *)console_ptr,
+					sizeof(struct console_info) * num_consoles);
 
 	/* Verify the checksum is 0 */
 	if (checksum != 0UL) {
