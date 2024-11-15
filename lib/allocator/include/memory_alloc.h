@@ -51,4 +51,10 @@ int buffer_alloc_ctx_assign(struct buffer_alloc_ctx *ctx);
  */
 void buffer_alloc_ctx_unassign(void);
 
+/*
+ * Memory allocation and free primitives.
+ */
+void *buffer_alloc_calloc(size_t n, size_t size);
+void buffer_alloc_free(void *ptr);
+
 #endif /* MEMORY_ALLOC_H */

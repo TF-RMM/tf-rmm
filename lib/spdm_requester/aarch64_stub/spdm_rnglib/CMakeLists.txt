@@ -3,10 +3,11 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
-set(src_spdm_rnglib
-    spdm_rnglib.c)
+add_library(spdm_rnglib)
 
-add_library(spdm_rnglib STATIC ${src_spdm_rnglib})
+target_sources(spdm_rnglib
+    PRIVATE "spdm_rnglib.c")
+
 target_include_directories(spdm_rnglib PRIVATE
     ${LIBSPDM_DIR}/include
     ${LIBSPDM_DIR}/include/hal

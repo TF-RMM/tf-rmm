@@ -6,11 +6,8 @@
 
 #include <base.h>
 #include <library/malloclib.h>
+#include <memory_alloc.h>
 #include <string.h>
-
-/* Declare memory allocation primitives to be used by libspdm */
-void *buffer_alloc_calloc(size_t n, size_t size);
-void buffer_alloc_free(void *ptr);
 
 /*
  * Memory allocation used by libspdm. Before calling libspdm layer that might
