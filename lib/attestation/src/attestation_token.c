@@ -81,8 +81,8 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 			  const struct q_useful_buf *out_buf)
 {
 	enum t_cose_err_t cose_res;
-	struct t_cose_key attest_key;
-	psa_key_handle_t key_handle;
+	struct t_cose_key attest_key __unused;
+	psa_key_handle_t key_handle __unused;
 
 	assert(me != NULL);
 
@@ -95,7 +95,7 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 	t_cose_sign_sign_init(&me->sign_ctx, T_COSE_OPT_MESSAGE_TYPE_SIGN1);
 	t_cose_sign_add_signer(&me->sign_ctx, t_cose_signature_sign_from_restart(&me->restartable_signer_ctx));
 
-
+#if !ATTEST_EL3_TOKEN_SIGN
 	/*
 	 * Get the reference to `mbedtls_ecp_keypair` and set it to t_cose.
 	 */
@@ -106,6 +106,7 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 	attest_key.key.handle = key_handle;
 
 	t_cose_signature_sign_restart_set_signing_key(&me->restartable_signer_ctx, attest_key);
+#endif
 
 	/* Spin up the CBOR encoder */
 	QCBOREncode_Init(&(me->cbor_enc_ctx), *out_buf);
