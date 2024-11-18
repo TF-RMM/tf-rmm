@@ -6,6 +6,176 @@ Change-log and Release notes
 ############################
 
 ******
+v0.6.0
+******
+
+The following sections have the details on the release. This release has been
+verified with `TF-A v2.12`_ release.
+
+============================
+New features in this release
+============================
+
+- Changes to align to `RMM v1.0 REL0 specification`_.
+
+- Support for alternative attestation token signing via EL3 which includes:
+
+  *  A new config flag, ``ATTEST_EL3_TOKEN_SIGN``, is introduced.
+  *  New RMM-EL3 interface APIs to query EL3_FEATURES, push and pull
+     EL3 Attest token sign requests and retrieve Realm attestation
+     public key from EL3.
+  *  Add support in fake_host architecture for validating the attestation
+     flow.
+  *  Patch to enable EL3 based signing flow in t_cose.
+
+======================================
+Bug fixes/improvements in this release
+======================================
+
+- Reduce memory footprint of RMM : redefine granule structure to reduce granule
+  struct from 4 bytes to 2 bytes.
+
+- Add support for FEAT_DoubleFault2 for Realms.
+
+- Improve RMM performance : remove broadcast invalidates when mapping and
+  unmapping slot buffers.
+
+- RMM hardening : invalidate caches during boot.
+
+- Add libspdm version 3.4.0 as an external dependency to TF-RMM.
+
+- Enable FEAT_DIT on a fine-grained basis in RMM.
+
+- Upgrade Mbed TLS to v3.6.0.
+
+- Add binary search algorithm to improve DRAM bank lookup. As a result,
+  the platform API implementation can be made common for all platforms.
+
+- Add capability to `xlat` library to map UNPRIV memory in preparation
+  for EL0 app support.
+
+- Refactor attestation component to allow RMM to continue functioning even
+  if attestation initialization fails.
+
+- Enhance lib/attestation component to handle platform token request in
+  hunks. This allows to transfer tokens larger than 4KB from EL3
+  (`issue#24`_).
+
+- Rename previous build option RMM_CCA_DA to RMM_V1_1. Some base
+  support patches related to `RMM v1.1 Alpha 9 specification`_ are also
+  merged, which includes:
+
+  *  Update RMI feature register0 with Device Assignment(DA) fields.
+  *  Add aarch64_stub libraries required by libspdm.
+  *  Define PDEV AUX granules map/unmap helpers.
+  *  Add DA specific granule state.
+
+- Fix checksum calculation of `console_info` data structure in RMM-EL3 boot
+  manifest.
+
+  *  Note that this is a breaking change and EL3 firmware needs to be updated
+     to send the correct checksum.
+
+- Fix RTT_READ_ENTRY to set x3 correctly.
+
+- Fix deadlock in RMI_REC_CREATE.
+
+  *  An error when aux granules are locked during REC_CREATE would have
+     resulted in a deadlock in RMM. This is fixed.
+
+- Fix error handling in attest key init sequence.
+
+- Fix checks on s2tte_get_ripas() in lib/s2tt.
+
+- Fix simd_context_init() call for SIMD_OWNER_NWD in unit tests.
+
+- Fix rmm-runtime to add `sb` instruction on realm_exit().
+
+- Fix outstanding Misra C 2012 issues in the source code.
+
+- Refactor `lib/attestation` to manage token state within the component.
+
+- Fix runtime to unlock RTT if the RTT walk succeeds in a corner case.
+
+- Add build option for plat token buffer size.
+
+- Fix calculation of VMPIDR_EL2 value to align with the specification.
+
+- Fix to ensure that physical address <= 48 bits for LPA2 disabled Realm
+  when running on a LPA2 capable hardware.
+
+- Remove hard-coded configuration of VTRC_EL2.PS.
+
+- Add workaround for Clang 18.x failure.
+
+- Fix usage of psa_hash_finish() in lib/measurement component.
+
+- Clear ISV bit for non emulatable data abort in rec->last_run_info.esr.
+
+- Fix to adjust heap size based on MAX_CPUS.
+
+- Revert setting of TSW bit in Realm HCR_EL2 flags.
+
+- Fix error handling in attest_init_realm_attestation_key() sequence
+  (`issue#25`_).
+
+==================================
+Build/Testing/Tooling improvements
+==================================
+
+- Add shrinkwrap overlays to facilitate RMM development and testing.
+
+- Add git helper to apply patches in submodule.
+
+- Add unittests for the s2tt library.
+
+- Enhance Cppcheck build target to fail the build if static
+  analysis errors are detected.
+
+=========
+Platforms
+=========
+
+- Rename the Rdfremont platform config to RD-V3.
+
+- Add support for QEMU SBSA platform.
+
+============================
+Known issues and limitations
+============================
+
+- Some capabilities mentioned in `RMM v1.0 REL0 specification`_ are
+  restricted or absent in TF-RMM as listed below:
+
+  * The support for Self-hosted debug in Realms is not implemented (`issue#23`_).
+
+=================
+Upcoming features
+=================
+
+- Prototype new features as described in `RMM v1.1 Alpha 9 specification`_.
+
+  *  Realm Device Assignment - A feature which allows devices to be assigned to Realms,
+     attested and granted permission to access Realm owned memory.
+  *  Planes - A feature which allows a Realm to be divided into multiple
+     mutually isolated execution environments, called Planes.
+  *  Support FEAT_MEC in the Realm world.
+
+- Continue to enhance CBMC analysis to support more RMI commands.
+
+- Fuzz testing for RMM utilizing the `fake_host` architecture.
+
+- Implement support for Self-hosted debug in Realms.
+
+- Support Live Firmware Activation of RMM.
+
+- EL0 app support to run parts of RMM at EL0.
+
+.. _TF-A v2.12: https://git.trustedfirmware.org/TF-A/trusted-firmware-a/+/refs/tags/v2.12.0
+.. _RMM v1.0 REL0 specification: https://developer.arm.com/documentation/den0137/1-0rel0/?lang=en
+.. _RMM v1.1 Alpha 9 specification: https://developer.arm.com/-/cdn-downloads/permalink/Architectures/Armv9/DEN0137_1.1-alp9.zip
+
+******
 v0.5.0
 ******
 
