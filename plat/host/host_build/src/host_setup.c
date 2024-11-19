@@ -21,8 +21,9 @@
 /* Create a simple 4 level (Lvl 0 - LvL 3) RTT structure */
 #define RTT_COUNT 4
 
-#define RMM_EL3_IFC_ABI_VERSION		\
-	RMM_EL3_IFC_MAKE_VERSION(RMM_EL3_IFC_VERS_MAJOR, RMM_EL3_IFC_VERS_MINOR)
+/* Define the EL3-RMM interface version as set from EL3 */
+#define EL3_IFC_ABI_VERSION		\
+	RMM_EL3_IFC_MAKE_VERSION(RMM_EL3_IFC_VERS_MAJOR, 4)
 #define RMM_EL3_MAX_CPUS		(1U)
 #define REALM_BUFFER_IPA		0x1000
 #define ATTEST_TOKEN_BUFFER_SIZE	0x100
@@ -307,7 +308,7 @@ int main(int argc, char *argv[])
 	host_util_setup_sysreg_and_boot_manifest();
 
 	plat_setup(0UL,
-		   RMM_EL3_IFC_ABI_VERSION,
+		   EL3_IFC_ABI_VERSION,
 		   RMM_EL3_MAX_CPUS,
 		   (uintptr_t)host_util_get_el3_rmm_shared_buffer());
 
