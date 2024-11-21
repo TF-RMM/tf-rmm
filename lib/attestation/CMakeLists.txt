@@ -38,13 +38,13 @@ target_link_libraries(rmm-lib-attestation
     rmm-lib-libc
     rmm-lib-rmm_el3_ifc
     rmm-lib-smc
+    rmm-mbedtls
 )
 
 target_link_libraries(rmm-lib-attestation
   PUBLIC
     rmm-lib-allocator
     rmm-lib-measurement
-    rmm-mbedtls
     t_cose)
 
 target_include_directories(rmm-lib-attestation

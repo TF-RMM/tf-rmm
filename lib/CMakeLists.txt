@@ -19,8 +19,7 @@ target_link_libraries(rmm-lib
               rmm-lib-smc
               rmm-lib-s2tt
               rmm-lib-slot_buf
-              rmm-lib-xlat
-              t_cose)
+              rmm-lib-xlat)
 
 add_subdirectory("allocator")
 add_subdirectory("arch")
