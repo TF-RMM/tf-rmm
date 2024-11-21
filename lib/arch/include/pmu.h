@@ -42,6 +42,6 @@ struct pmu_state {
 
 void pmu_save_state(struct pmu_state *pmu, unsigned int num_cnts);
 void pmu_restore_state(struct pmu_state *pmu, unsigned int num_cnts);
-void pmu_update_rec_exit(struct rmi_rec_exit *rec_exit);
+bool pmu_is_ovf_set(void);
 
 #endif /* PMU_H */

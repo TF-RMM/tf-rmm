@@ -7,7 +7,6 @@
 #include <arch_helpers.h>
 #include <assert.h>
 #include <pmu.h>
-#include <smc-rmi.h>
 
 /* Clear bits P0-P30, C and F0 */
 #define PMU_CLEAR_ALL	0x1FFFFFFFFUL
@@ -145,17 +144,15 @@ void pmu_restore_state(struct pmu_state *pmu, unsigned int num_cnts)
 }
 
 /*
- * Expose Realm PMU state on REC exit.
+ * Expose Realm PMU OVF status
  */
-void pmu_update_rec_exit(struct rmi_rec_exit *rec_exit)
+bool pmu_is_ovf_set(void)
 {
-	assert(rec_exit != NULL);
-
 	if (((read_pmovsset_el0() & read_pmintenset_el1() &
 	     read_pmcntenset_el0()) != 0UL) &&
 	     ((read_pmcr_el0() & PMCR_EL0_E_BIT) != 0UL)) {
-		rec_exit->pmu_ovf_status = RMI_PMU_OVERFLOW_ACTIVE;
+		return true;
 	} else {
-		rec_exit->pmu_ovf_status = RMI_PMU_OVERFLOW_NOT_ACTIVE;
+		return false;
 	}
 }
