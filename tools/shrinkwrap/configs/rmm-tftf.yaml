@@ -111,6 +111,10 @@ run:
     -C cluster0.has_ras_armv89_double_fault: 2
     -C cluster1.has_ras_armv89_double_fault: 2
 
+    # Enable PCIE DOE and IDE
+    -C pci.pcie_rc.ahci0.endpoint.doe_supported: 1
+    -C pci.pcie_rc.ahci0.endpoint.ide_supported: 1
+
     # Cache modelling settings
     -C cache_state_modelled: ${rtvar:CACHE_MODEL_ENABLED}
 
