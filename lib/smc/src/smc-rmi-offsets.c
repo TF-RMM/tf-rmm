@@ -7,7 +7,7 @@
 #include <stddef.h>
 
 COMPILER_ASSERT_NO_CBMC(sizeof(struct rmi_realm_params) == 0x1000UL);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, flags)) == 0U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, flags0)) == 0U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, s2sz)) == 0x8U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, sve_vl)) == 0x10U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, num_bps)) == 0x18U);

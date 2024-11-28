@@ -152,6 +152,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(VDEV_AUX_COUNT,		0, 0, NULL,			 true, true),
 	HANDLER(RTT_READ_ENTRY,		3, 4, smc_rtt_read_entry,	 false, true),
 	HANDLER(RTT_UNMAP_UNPROTECTED,	3, 1, smc_rtt_unmap_unprotected, false, false),
+	HANDLER(RTT_DEV_MEM_VALIDATE,	4, 1, NULL,			 false, true),
 	HANDLER(PSCI_COMPLETE,		3, 0, smc_psci_complete,	 true,  true),
 	HANDLER(FEATURES,		1, 1, smc_read_feature_register, true,  true),
 	HANDLER(RTT_FOLD,		3, 1, smc_rtt_fold,		 false, false),

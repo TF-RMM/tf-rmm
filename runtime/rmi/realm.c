@@ -69,7 +69,7 @@ static bool get_realm_params(struct rmi_realm_params *realm_params,
 
 static bool is_lpa2_requested(struct rmi_realm_params *p)
 {
-	return (EXTRACT(RMI_REALM_FLAGS_LPA2, p->flags) == RMI_FEATURE_TRUE);
+	return (EXTRACT(RMI_REALM_FLAGS0_LPA2, p->flags0) == RMI_FEATURE_TRUE);
 }
 
 /*
@@ -260,7 +260,7 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 	}
 
 	/* Validate RMI_REALM_FLAGS_SVE flag */
-	if (EXTRACT(RMI_REALM_FLAGS_SVE, p->flags) == RMI_FEATURE_TRUE) {
+	if (EXTRACT(RMI_REALM_FLAGS0_SVE, p->flags0) == RMI_FEATURE_TRUE) {
 		if (EXTRACT(RMI_FEATURE_REGISTER_0_SVE_EN, feat_reg0) ==
 						      RMI_FEATURE_FALSE) {
 			return false;
@@ -274,12 +274,12 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 	}
 
 	/*
-	 * Skip validation of RMI_REALM_FLAGS_PMU flag
+	 * Skip validation of RMI_REALM_FLAGS0_PMU flag
 	 * as RMM always assumes that PMUv3p7+ is present.
 	 */
 
 	/* Validate number of PMU counters if PMUv3 is enabled */
-	if (EXTRACT(RMI_REALM_FLAGS_PMU, p->flags) == RMI_FEATURE_TRUE) {
+	if (EXTRACT(RMI_REALM_FLAGS0_PMU, p->flags0) == RMI_FEATURE_TRUE) {
 		if (p->pmu_num_ctrs >
 		    EXTRACT(RMI_FEATURE_REGISTER_0_PMU_NUM_CTRS, feat_reg0)) {
 			return false;
@@ -444,7 +444,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 
 	rd->num_rec_aux = MAX_REC_AUX_GRANULES;
 
-	rd->simd_cfg.sve_en = EXTRACT(RMI_REALM_FLAGS_SVE, p.flags) != 0UL;
+	rd->simd_cfg.sve_en = EXTRACT(RMI_REALM_FLAGS0_SVE, p.flags0) != 0UL;
 	if (rd->simd_cfg.sve_en) {
 		rd->simd_cfg.sve_vq = (uint32_t)p.sve_vl;
 	}
@@ -455,7 +455,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 		rd->algorithm = HASH_SHA_512;
 	}
 
-	rd->pmu_enabled = EXTRACT(RMI_REALM_FLAGS_PMU, p.flags) != 0UL;
+	rd->pmu_enabled = EXTRACT(RMI_REALM_FLAGS0_PMU, p.flags0) != 0UL;
 	rd->pmu_num_ctrs = p.pmu_num_ctrs;
 
 	init_s2_starting_level(rd);

@@ -65,7 +65,7 @@ void measurement_realm_params_measure(unsigned char rim_measurement[],
 	 * - pmu_num_ctrs
 	 * - hash_algo
 	 */
-	rim_params.flags = realm_params->flags;
+	rim_params.flags0 = realm_params->flags0;
 	rim_params.s2sz = realm_params->s2sz;
 	rim_params.sve_vl = realm_params->sve_vl;
 	rim_params.num_bps = realm_params->num_bps;
