@@ -329,6 +329,13 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 		}
 	}
 
+	/* Validate if DA feature can be supported for Realm */
+	if ((EXTRACT(RMI_REALM_FLAGS0_DA, p->flags0) == RMI_FEATURE_TRUE) &&
+	    (EXTRACT(RMI_FEATURE_REGISTER_0_DA_EN, feat_reg0) ==
+	     RMI_FEATURE_FALSE)) {
+		return false;
+	}
+
 	if (!validate_ipa_bits_and_sl(p->s2sz, p->rtt_level_start,
 						is_lpa2_requested(p))) {
 		return false;
@@ -687,6 +694,12 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	rd->pmu_enabled = EXTRACT(RMI_REALM_FLAGS0_PMU, p.flags0) != 0UL;
 	rd->pmu_num_ctrs = p.pmu_num_ctrs;
 
+	/* Set DA feature flag */
+	rd->da_enabled = EXTRACT(RMI_REALM_FLAGS0_DA, p.flags0) != 0UL;
+	rd_vdev_refcount_reset(rd);
+	rd_vdev_inst_counter_reset(rd);
+	rd->g_vdev = NULL;
+
 	init_overlay_permissions(rd);
 
 	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {
@@ -756,7 +769,8 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 
 		g_rtt = s2tt_ctx->g_rtt;
 
-		if (total_root_rtt_refcount(g_rtt, num_rtts) != 0UL) {
+		if ((total_root_rtt_refcount(g_rtt, num_rtts) != 0UL) ||
+		    (rd_vdev_refcount_get(rd) != 0UL)) {
 			buffer_unmap(rd);
 			granule_unlock(g_rd);
 			return RMI_ERROR_REALM;

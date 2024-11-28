@@ -171,4 +171,8 @@ unsigned long smc_mec_set_shared(unsigned long mecid);
 
 unsigned long smc_mec_set_private(unsigned long mecid);
 
+unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_ptr,
+			      unsigned long vdev_ptr,
+			      unsigned long vdev_params_ptr);
+
 #endif /* SMC_HANDLER_H */

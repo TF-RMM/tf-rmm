@@ -24,6 +24,18 @@
 #define DEV_COMM_IDLE			U(2)
 #define DEV_COMM_PENDING		U(3)
 
+/* Represents operation being performed by an RDEV */
+#define RDEV_OP_NONE				U(0)
+#define RDEV_OP_GET_MEASUREMENTS		U(1)
+#define RDEV_OP_GET_INTERFACE_REPORT		U(2)
+#define RDEV_OP_LOCK				U(3)
+#define RDEV_OP_START				U(4)
+#define RDEV_OP_STOP				U(5)
+
+/* VDEV instance ID starting index */
+#define VDEV_INST_ID_INVALID			U(0)
+#define VDEV_INST_ID_BASE			U(1)
+
 /* PCIe device specific details */
 struct pcie_dev {
 	/* Device identifier */
@@ -104,5 +116,81 @@ struct pdev {
 	struct app_data_cfg da_app_data;
 };
 COMPILER_ASSERT(sizeof(struct pdev) <= GRANULE_SIZE);
+
+/*
+ * Realm device. An assigned device interface is referred to by the Realm as an
+ * RDEV. The underlying state and attributes of an RDEV are stored by the RMM in
+ * the corresponding VDEV object.
+ */
+struct realm_device {
+	/* RDEV state that is presented to the Realm. RsiDevState */
+	unsigned long rsi_state;
+
+	/*
+	 * Device interface operation that is in progress.
+	 * possible values are RDEV_OP_*
+	 */
+	unsigned long op;
+
+	/*
+	 * The parameters passed from Realm for the device operation. There can
+	 * be only one pending device operation.
+	 */
+	union {
+		/*
+		 * RSI_RDEV_GET_MEASUREMENTS call sets this meas_params. 'op'
+		 * must be RDEV_OP_GET_MEASUREMENTS
+		 */
+		struct dev_meas_params meas_params;
+	} op_params;
+
+	/* PA of VDEV. */
+	unsigned long vdev_ptr;
+};
+
+/*
+ * VDEV object. Represents the binding between a device function and a Realm. For
+ * example, a VDEV can represent a physical function of a PCIe device or a
+ * virtual function of a multi-function PCIe device. Every VDEV is associated
+ * with one PDEV.
+ */
+struct vdev {
+
+	/* The Realm to which this device is assigned */
+	struct granule *g_rd;
+
+	/* The PDEV to which this VDEV belongs */
+	struct granule *g_pdev;
+
+	/*
+	 * For a PCIe device this is the routing identifier of the virtual
+	 * endpoint.
+	 */
+	uint64_t id;
+
+	/* Instance id of the Realm device that is associated with this VDEV */
+	uint64_t inst_id;
+
+	/* TDI identifier */
+	uint64_t tdi_id;
+
+	/* State of this VDEV. RmiVdevState */
+	uint32_t rmi_state;
+
+	/*
+	 * Digest of device measurements and interface report. This digest is
+	 * calculated when RMM fetches these objects. The content of these device
+	 * objects are cached by NS host.
+	 */
+	struct dev_obj_digest meas_digest;
+	struct dev_obj_digest ifc_report_digest;
+
+	/*
+	 * Interaction between a Realm and the RMM uses RDEV. It is the Realm
+	 * side interface object for this VDEV
+	 */
+	struct realm_device rdev;
+};
+COMPILER_ASSERT(sizeof(struct vdev) <= GRANULE_SIZE);
 
 #endif /* DEV_H */
