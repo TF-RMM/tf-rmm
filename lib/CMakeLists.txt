@@ -28,12 +28,10 @@ add_subdirectory("gic")
 add_subdirectory("granule")
 add_subdirectory("mbedtls")
 add_subdirectory("measurement")
-add_subdirectory("qcbor")
 add_subdirectory("rmm_el3_ifc")
 add_subdirectory("smc")
 add_subdirectory("s2tt")
 add_subdirectory("slot_buf")
-add_subdirectory("t_cose")
 add_subdirectory("xlat")
 
 # Device Assignment feature in RMM v1.1 needs rmm-lib-spdm_requester

@@ -50,7 +50,7 @@ target_link_libraries(t_cose
 
 target_link_libraries(t_cose
     PUBLIC
-       rmm-mbedtls
+       rmm-app-attestation-mbedtls
        qcbor
 )
 

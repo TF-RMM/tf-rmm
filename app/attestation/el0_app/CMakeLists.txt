@@ -13,6 +13,8 @@ if(RMM_CBMC_STATIC_ANALYSIS)
 endif()
 
 add_subdirectory("mbedtls_attest")
+add_subdirectory("qcbor")
+add_subdirectory("t_cose")
 
 include(ArmTargetLinkerScript)
 
