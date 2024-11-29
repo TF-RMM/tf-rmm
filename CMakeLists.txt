@@ -11,15 +11,19 @@ cmake_policy(SET CMP0079 NEW)
 #
 # Add our module search paths so we can `include()` our CMake modules.
 #
-
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake/Modules")
+include(GitUtils)
 
 #
 # Include any dependencies.
 #
-
 include(ArmConfigOption)
 include(ArmConfigOptionOverride)
+
+#
+# Update the Submodules
+#
+Git_Update_Submodule()
 
 #
 # Run preliminary setup scripts.

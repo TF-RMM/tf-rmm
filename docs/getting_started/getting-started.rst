@@ -185,7 +185,10 @@ To clone this repository from the server, run the following in your shell:
 
 .. code-block:: bash
 
-    git clone --recursive https://git.trustedfirmware.org/TF-RMM/tf-rmm.git
+    git clone https://git.trustedfirmware.org/TF-RMM/tf-rmm.git
+
+Note that the RMM submodule dependencies will be updated during the
+configuration phase of build.
 
 Additional steps for Contributors
 *********************************

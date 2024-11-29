@@ -126,15 +126,7 @@ target_compile_definitions(rmm-common
 #
 # Get git commit information
 #
-find_package(Git)
-if(GIT_FOUND)
-  execute_process(
-    COMMAND ${GIT_EXECUTABLE} describe --always --dirty --tags
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE COMMIT_INFO
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-endif()
+Git_Get_Commit_Info(COMMIT_INFO)
 
 target_compile_definitions(rmm-common
     INTERFACE "COMMIT_INFO=\"${COMMIT_INFO}\"")
