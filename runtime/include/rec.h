@@ -90,6 +90,10 @@ COMPILER_ASSERT((sizeof(struct pmu_state) * MAX_TOTAL_PLANES) <= REC_PMU_SIZE);
 #define REC_NUM_PAGES		(1U)
 #endif /* CBMC */
 
+/* Type of REC pending operation. */
+#define REC_PENDING_NONE		U(0) /* No operation is pending */
+#define REC_PENDING_PSCI_COMPLETE	U(1) /* A PSCI operation is pending */
+
 struct granule;
 
 /*
@@ -247,6 +251,8 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 	unsigned long rec_idx;	/* which REC is this */
 	bool runnable;
 
+	unsigned int pending_op; /* Type of COMPLETE operation pending */
+
 	/*
 	 * We keep a local copy of Plane_0 and another one
 	 * for the current Plane_N
@@ -294,19 +300,6 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 
 	/* Pointer to per-cpu non-secure state */
 	struct ns_state *ns;
-
-	struct {
-		/*
-		 * Set to 'true' when there is a pending PSCI
-		 * command that must be resolved by the host.
-		 * PSCI is an SMC call, which means it will be trapped
-		 * to plane0 and then plane0 will issue it so the
-		 * command is encoded in regs[0] of plane0.
-		 *
-		 * A REC with pending PSCI is not schedulable.
-		 */
-		bool pending;
-	} psci_info;
 
 	/* Number of auxiliary granules */
 	unsigned int num_rec_aux;
@@ -485,6 +478,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit);
 void inject_serror(struct rec *rec, unsigned long vsesr);
 void emulate_stage2_data_abort(struct rmi_rec_exit *rec_exit,
 			       unsigned long rtt_level, unsigned long ipa);
+void rec_set_pending_op(struct rec *rec, unsigned int pending_op);
 
 #endif /* __ASSEMBLER__ */
 #endif /* REC_H */

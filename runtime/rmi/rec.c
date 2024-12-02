@@ -315,6 +315,17 @@ static void rec_aux_granules_init(struct rec *r)
 	buffer_rec_aux_unmap(rec_aux, r->num_rec_aux);
 }
 
+void rec_set_pending_op(struct rec *rec, unsigned int pending_op)
+{
+	/*
+	 * Make sure that a pending operation can only be set if there is no
+	 * operation pending currently
+	 */
+	assert((pending_op == REC_PENDING_NONE) || (rec->pending_op == REC_PENDING_NONE));
+
+	rec->pending_op = pending_op;
+}
+
 unsigned long smc_rec_create(unsigned long rd_addr,
 			     unsigned long rec_addr,
 			     unsigned long rec_params_addr)
@@ -416,6 +427,8 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	rec->active_plane_id = PLANE_0_ID;
 
 	rec->num_rec_aux = num_rec_aux;
+
+	rec_set_pending_op(rec, REC_PENDING_NONE);
 
 	rec->realm_info.primary_s2_ctx = rd->s2_ctx[PRIMARY_S2_CTX_ID];
 	rec->realm_info.g_rd = g_rd;

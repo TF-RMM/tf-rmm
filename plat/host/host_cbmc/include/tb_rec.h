@@ -30,6 +30,7 @@ struct rmm_rec {
 	enum ripas ripas_value;
 	enum ripas_change_destroyed ripas_destroyed;
 	bool host_call_pending;
+	unsigned int pending_op;
 };
 
 struct granule *init_rec_page(struct granule *g_rd);
