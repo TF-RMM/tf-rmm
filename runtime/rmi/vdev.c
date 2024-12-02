@@ -172,3 +172,88 @@ out_unmap_rd:
 
 	return rc;
 }
+
+/*
+ * Completes a pending VDEV request.
+ *
+ * rec_ptr		- PA of RD
+ * vdev_ptr		- PA of the VDEV
+ */
+unsigned long smc_vdev_complete(unsigned long rec_ptr, unsigned long vdev_ptr)
+{
+	struct granule *g_rec;
+	struct granule *g_vdev;
+	struct rec *rec;
+	struct vdev *vd;
+	struct rec_plane *plane;
+	unsigned long rmi_rc;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(rec_ptr) || !GRANULE_ALIGNED(vdev_ptr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Lock REC granule and map it */
+	g_rec = find_lock_granule(rec_ptr, GRANULE_STATE_REC);
+	if (g_rec == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+	rec = buffer_granule_map(g_rec, SLOT_REC);
+	assert(rec != NULL);
+
+	/* Lock VDEV granule and map it */
+	g_vdev = find_lock_granule(vdev_ptr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto out_unmap_rec;
+	}
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	/* Check if the REC pending operation is for VDEV request */
+	if ((rec->pending_op != REC_PENDING_VDEV_COMPLETE)) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto out_unmap_vdev;
+	}
+
+	/* Check the Realm owner and the Device ID of the REC and VDEV */
+	if ((rec->realm_info.g_rd != vd->g_rd) || (rec->vdev.id != vd->id)) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto out_unmap_vdev;
+	}
+
+	plane = rec_active_plane(rec);
+
+	if (rec->vdev.inst_id_valid) {
+		/* Compare instance id */
+		if (rec->vdev.inst_id == vd->inst_id) {
+			plane->regs[0] = RSI_SUCCESS;
+			/* todo: Update VDEV comm state */
+			rmi_rc = RMI_SUCCESS;
+		} else {
+			rmi_rc = RMI_ERROR_INPUT;
+		}
+	} else {
+		/* Get instance id */
+		plane->regs[0] = RSI_SUCCESS;
+		plane->regs[1] = vd->inst_id;
+		rmi_rc = RMI_SUCCESS;
+	}
+
+	/* Clear the REC pending request operation */
+	if (rmi_rc == RMI_SUCCESS) {
+		rec_set_pending_op(rec, REC_PENDING_NONE);
+	}
+
+out_unmap_vdev:
+	buffer_unmap(vd);
+	granule_unlock(g_vdev);
+out_unmap_rec:
+	buffer_unmap(rec);
+	granule_unlock(g_rec);
+
+	return rmi_rc;
+}

@@ -93,6 +93,7 @@ COMPILER_ASSERT((sizeof(struct pmu_state) * MAX_TOTAL_PLANES) <= REC_PMU_SIZE);
 /* Type of REC pending operation. */
 #define REC_PENDING_NONE		U(0) /* No operation is pending */
 #define REC_PENDING_PSCI_COMPLETE	U(1) /* A PSCI operation is pending */
+#define REC_PENDING_VDEV_COMPLETE	U(2) /* A VDEV request is pending */
 
 struct granule;
 
@@ -252,6 +253,7 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 	bool runnable;
 
 	unsigned int pending_op; /* Type of COMPLETE operation pending */
+	bool da_enabled;
 
 	/*
 	 * We keep a local copy of Plane_0 and another one
@@ -297,6 +299,18 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 		bool rtt_tree_pp;
 		bool rtt_s2ap_encoding;
 	} realm_info;
+
+	/* Populated when REC issues RDEV request */
+	struct {
+		/* Virtual device ID */
+		unsigned long id;
+
+		/* Device instance ID */
+		unsigned long inst_id;
+
+		/* Whether device instance ID is valid */
+		bool inst_id_valid;
+	} vdev;
 
 	/* Pointer to per-cpu non-secure state */
 	struct ns_state *ns;

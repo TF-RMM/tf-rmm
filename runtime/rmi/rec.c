@@ -438,6 +438,7 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	rec->realm_info.simd_cfg = rd->simd_cfg;
 	rec->realm_info.rtt_tree_pp = rd->rtt_tree_pp;
 	rec->realm_info.rtt_s2ap_encoding = rd->rtt_s2ap_encoding;
+	rec->da_enabled = rd->da_enabled;
 
 	/* Copy addresses of auxiliary granules */
 	(void)memcpy((void *)rec->g_aux, (const void *)rec_aux_granules,

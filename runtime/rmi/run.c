@@ -362,8 +362,10 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 		goto out_unmap_buffers;
 	}
 
-	/* REC with pending PSCI command is not schedulable */
-	if (rec->pending_op == REC_PENDING_PSCI_COMPLETE) {
+	/* REC with pending command is not schedulable */
+	if (rec->pending_op != REC_PENDING_NONE) {
+		assert((rec->pending_op == REC_PENDING_PSCI_COMPLETE) ||
+		       (rec->pending_op == REC_PENDING_VDEV_COMPLETE));
 		ret = RMI_ERROR_REC;
 		goto out_unmap_buffers;
 	}
