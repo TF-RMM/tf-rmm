@@ -71,13 +71,15 @@ void rmm_main(void)
 {
 	unsigned int rmm_el3_ifc_version = rmm_el3_ifc_get_version();
 	unsigned int manifest_version = rmm_el3_ifc_get_manifest_version();
+	unsigned long rmi_revision = rmi_get_highest_supported_version();
+	unsigned long rsi_revision = rsi_get_highest_supported_version();
 
 	/*
 	 * Report project name, version, build type and
 	 * commit information if it is present
 	 */
-	NOTICE("Booting %s v.%s(%s) %s Built with %s\n",
-		NAME, VERSION, RMM_BUILD_TYPE, COMMIT_INFO,
+	NOTICE("Booting %s v.%s(%s) %s Built: %s %s with %s\n",
+	       NAME, VERSION, RMM_BUILD_TYPE, COMMIT_INFO, __DATE__, __TIME__,
 #ifdef __clang__
 	VER_STRING("Clang ", __clang_major__, __clang_minor__,
 		__clang_patchlevel__)
@@ -97,11 +99,15 @@ void rmm_main(void)
 		RMM_EL3_MANIFEST_GET_VERS_MAJOR(manifest_version),
 		RMM_EL3_MANIFEST_GET_VERS_MINOR(manifest_version));
 
-	/* Report RMI/RSI ABI versions and build timestamp */
-	NOTICE("RMI/RSI ABI v.%lu.%lu/%lu.%lu built: %s %s\n",
-		RMI_ABI_VERSION_MAJOR, RMI_ABI_VERSION_MINOR,
-		RSI_ABI_VERSION_MAJOR, RSI_ABI_VERSION_MINOR,
-		__DATE__, __TIME__);
+	/* Report higher supported RMI revision */
+	NOTICE("RMI ABI revision v%lu.%lu\n",
+	       RMI_ABI_VERSION_GET_MAJOR(rmi_revision),
+	       RMI_ABI_VERSION_GET_MINOR(rmi_revision));
+
+	/* Report higher supported RSI revision */
+	NOTICE("RSI ABI revision v%lu.%lu\n",
+	       RSI_ABI_VERSION_GET_MAJOR(rsi_revision),
+	       RSI_ABI_VERSION_GET_MINOR(rsi_revision));
 
 	rmm_warmboot_main();
 
