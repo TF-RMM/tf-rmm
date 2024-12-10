@@ -136,6 +136,7 @@
 #define TCR_EL2_DS_WIDTH	UL(1)
 #define TCR_EL2_DS_LPA2_EN	INPLACE(TCR_EL2_DS, UL(1))
 
+#define TCR_EL2_A1		(UL(1) << 22)
 #define TCR_EL2_AS		(UL(1) << 36)
 #define TCR_EL2_HPD0		(UL(1) << 41)
 #define TCR_EL2_HPD1		(UL(1) << 42)

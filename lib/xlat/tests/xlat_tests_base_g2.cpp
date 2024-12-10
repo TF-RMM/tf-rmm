@@ -2118,6 +2118,9 @@ static void validate_tcr_el2(struct xlat_ctx *low_ctx,
 	/* Hierarchical permissions */
 	exp_tcr |= TCR_EL2_AS | TCR_EL2_HPD0 | TCR_EL2_HPD1;
 
+	/* The current ASID is defined by TTBR1_EL2 */
+	exp_tcr |= TCR_EL2_A1;
+
 	/*
 	 * Xlat library configures TCR_EL2.IPS to the max
 	 * supported by the PE.
