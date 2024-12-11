@@ -1388,7 +1388,7 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 	enum ripas ripas_val;
 	enum ripas_change_destroyed change_destroyed;
 
-	if (top <= base) {
+	if ((top <= base) || !GRANULE_ALIGNED(top)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
