@@ -2233,7 +2233,8 @@ void s2tt_walk_lock_unlock_tc1(void)
 	 ***************************************************************/
 
 	long sl = s2tt_test_helpers_min_table_lvl();
-	long end_level = S2TT_TEST_HELPERS_MAX_LVL;
+	const long end_level = S2TT_TEST_HELPERS_MAX_LVL;
+	long end_level_x;
 	unsigned long pa, sl_index;
 	unsigned long tt_walk_idx[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
 	unsigned long tt_walk[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
@@ -2242,7 +2243,7 @@ void s2tt_walk_lock_unlock_tc1(void)
 	struct s2tt_context s2tt_ctx = { 0UL };
 
 	/* Total number of granules, included the concatenated ones */
-	unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
+	const unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
 				(end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U);
 
 	/*
@@ -2369,15 +2370,15 @@ void s2tt_walk_lock_unlock_tc1(void)
 	 *
 	 * (Test 2a)
 	 */
-	end_level = S2TT_TEST_HELPERS_MAX_LVL - 1U;
-	val_tt_granule = addr_to_granule(tt_walk[end_level + 1U]);
+	end_level_x = S2TT_TEST_HELPERS_MAX_LVL - 1U;
+	val_tt_granule = addr_to_granule(tt_walk[end_level_x + 1U]);
 
 	s2tt_walk_lock_unlock((const struct s2tt_context *)&s2tt_ctx,
-			      pa, end_level, &wi);
+			      pa, end_level_x, &wi);
 
-	LONGS_EQUAL(end_level, wi.last_level);
+	LONGS_EQUAL(end_level_x, wi.last_level);
 	CHECK_TRUE(val_tt_granule == wi.g_llt);
-	LONGS_EQUAL(tt_walk_idx[end_level + 1U], wi.index);
+	LONGS_EQUAL(tt_walk_idx[end_level_x + 1U], wi.index);
 
 	for (unsigned int i = sl + 1U; i < granules; i++) {
 		if (g_tables[i] == wi.g_llt) {
@@ -2414,11 +2415,11 @@ void s2tt_walk_lock_unlock_tc1(void)
 	s2tt_ctx.num_root_rtts = S2TTE_MAX_CONCAT_TABLES;
 
 	s2tt_walk_lock_unlock((const struct s2tt_context *)&s2tt_ctx,
-			      pa, end_level, &wi);
+			      pa, end_level_x, &wi);
 
-	LONGS_EQUAL(end_level, wi.last_level);
+	LONGS_EQUAL(end_level_x, wi.last_level);
 	CHECK_TRUE(val_tt_granule == wi.g_llt);
-	LONGS_EQUAL(tt_walk_idx[end_level + 1U], wi.index);
+	LONGS_EQUAL(tt_walk_idx[end_level_x + 1U], wi.index);
 
 	for (unsigned int i = sl + 1U; i < granules; i++) {
 		if (g_tables[i] == wi.g_llt) {
@@ -2438,11 +2439,11 @@ void s2tt_walk_lock_unlock_tc1(void)
 	 *
 	 * (Tests 3a & 3b)
 	 */
-	end_level = S2TT_TEST_HELPERS_MAX_LVL;
+	end_level_x = S2TT_TEST_HELPERS_MAX_LVL;
 	(void)memset(&wi, 0, sizeof(wi));
 
 	populate_s2tts(&s2tt_ctx, pa, &tt_walk_idx[0U], &tt_walk[0U],
-		       end_level - 1L, &g_tables[0U], &val_tt_granule);
+		       end_level_x - 1L, &g_tables[0U], &val_tt_granule);
 
 	s2tt_ctx.s2_starting_level = sl;
 	s2tt_ctx.g_rtt = g_tables[sl + 1UL];
@@ -2450,11 +2451,11 @@ void s2tt_walk_lock_unlock_tc1(void)
 
 	/* Test 3a */
 	s2tt_walk_lock_unlock((const struct s2tt_context *)&s2tt_ctx,
-			     pa, end_level, &wi);
+			     pa, end_level_x, &wi);
 
-	LONGS_EQUAL((end_level - 1L), wi.last_level);
+	LONGS_EQUAL((end_level_x - 1L), wi.last_level);
 	CHECK_TRUE(val_tt_granule == wi.g_llt);
-	LONGS_EQUAL(tt_walk_idx[end_level], wi.index);
+	LONGS_EQUAL(tt_walk_idx[end_level_x], wi.index);
 
 	for (unsigned int i = sl + 1U; i < granules; i++) {
 		if (g_tables[i] == wi.g_llt) {
@@ -2491,11 +2492,11 @@ void s2tt_walk_lock_unlock_tc1(void)
 	s2tt_ctx.num_root_rtts = S2TTE_MAX_CONCAT_TABLES;
 
 	s2tt_walk_lock_unlock((const struct s2tt_context *)&s2tt_ctx,
-			     pa, end_level, &wi);
+			     pa, end_level_x, &wi);
 
-	LONGS_EQUAL((end_level - 1L), wi.last_level);
+	LONGS_EQUAL((end_level_x - 1L), wi.last_level);
 	CHECK_TRUE(val_tt_granule == wi.g_llt);
-	LONGS_EQUAL(tt_walk_idx[end_level], wi.index);
+	LONGS_EQUAL(tt_walk_idx[end_level_x], wi.index);
 
 	for (unsigned int i = sl + 1U; i < granules; i++) {
 		if (g_tables[i] == wi.g_llt) {
@@ -2518,7 +2519,7 @@ void s2tt_walk_lock_unlock_tc2(void)
 	 ***************************************************************/
 
 	long sl = s2tt_test_helpers_min_table_lvl();
-	long end_level = S2TT_TEST_HELPERS_MAX_LVL;
+	const long end_level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa;
 	unsigned long sl_index;
 	unsigned long tt_walk_idx[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
@@ -2528,7 +2529,7 @@ void s2tt_walk_lock_unlock_tc2(void)
 	struct s2tt_context s2tt_ctx;
 
 	/* Total number of granules, included the concatenated ones */
-	unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
+	const unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
 				(end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U);
 
 	/*
@@ -2591,7 +2592,7 @@ void s2tt_walk_lock_unlock_tc3(void)
 	 ***************************************************************/
 
 	long sl = s2tt_test_helpers_min_table_lvl();
-	long end_level = S2TT_TEST_HELPERS_MAX_LVL;
+	const long end_level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa;
 	unsigned long tt_walk_idx[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
 	unsigned long tt_walk[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
@@ -2600,7 +2601,7 @@ void s2tt_walk_lock_unlock_tc3(void)
 	struct s2tt_context s2tt_ctx;
 
 	/* Total number of granules, included the concatenated ones */
-	unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
+	const unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
 				(end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U);
 
 	/*
@@ -2678,7 +2679,7 @@ void s2tt_walk_lock_unlock_tc5(void)
 	 ***************************************************************/
 
 	long sl = s2tt_test_helpers_min_table_lvl();
-	long end_level = S2TT_TEST_HELPERS_MAX_LVL;
+	const long end_level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa;
 	unsigned long tt_walk_idx[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
 	unsigned long tt_walk[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
@@ -2686,7 +2687,7 @@ void s2tt_walk_lock_unlock_tc5(void)
 	struct s2tt_context s2tt_ctx;
 
 	/* Total number of granules, included the concatenated ones */
-	unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
+	const unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
 				(end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U);
 
 	/*
@@ -2725,7 +2726,7 @@ void s2tt_walk_lock_unlock_tc6(void)
 	 ***************************************************************/
 
 	long sl = s2tt_test_helpers_min_table_lvl();
-	long end_level = S2TT_TEST_HELPERS_MAX_LVL;
+	const long end_level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa;
 	unsigned long tt_walk_idx[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
 	unsigned long tt_walk[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
@@ -2734,7 +2735,7 @@ void s2tt_walk_lock_unlock_tc6(void)
 	struct s2tt_context s2tt_ctx;
 
 	/* Total number of granules, included the concatenated ones */
-	unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
+	const unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
 				(end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2);
 
 	/*
@@ -2773,7 +2774,7 @@ void s2tt_walk_lock_unlock_tc7(void)
 	 ***************************************************************/
 
 	long sl = s2tt_test_helpers_min_table_lvl();
-	long end_level = S2TT_TEST_HELPERS_MAX_LVL;
+	const long end_level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa;
 	unsigned long tt_walk_idx[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
 	unsigned long tt_walk[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
@@ -2782,7 +2783,7 @@ void s2tt_walk_lock_unlock_tc7(void)
 	struct s2tt_context s2tt_ctx;
 
 	/* Total number of granules, included the concatenated ones */
-	unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
+	const unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
 				(end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U);
 
 	/*
@@ -2821,7 +2822,7 @@ void s2tt_walk_lock_unlock_tc8(void)
 	 ***************************************************************/
 
 	long sl = s2tt_test_helpers_min_table_lvl();
-	long end_level = S2TT_TEST_HELPERS_MAX_LVL;
+	const long end_level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa;
 	unsigned long tt_walk_idx[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
 	unsigned long tt_walk[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
@@ -2830,7 +2831,7 @@ void s2tt_walk_lock_unlock_tc8(void)
 	struct s2tt_context s2tt_ctx;
 
 	/* Total number of granules, included the concatenated ones */
-	unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
+	const unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
 				(end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U);
 
 	/*
@@ -2869,7 +2870,7 @@ void s2tt_walk_lock_unlock_tc9(void)
 	 ***************************************************************/
 
 	long sl = s2tt_test_helpers_min_table_lvl();
-	long end_level = S2TT_TEST_HELPERS_MAX_LVL;
+	const long end_level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa;
 	unsigned long tt_walk_idx[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
 	unsigned long tt_walk[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
@@ -2878,7 +2879,7 @@ void s2tt_walk_lock_unlock_tc9(void)
 	s2tt_context s2tt_ctx;
 
 	/* Total number of granules, included the concatenated ones */
-	unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
+	const unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
 		(end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U);
 
 	/*
@@ -2920,7 +2921,7 @@ void s2tt_walk_lock_unlock_tc10(void)
 	 ***************************************************************/
 
 	long sl = s2tt_test_helpers_min_table_lvl();
-	long end_level = S2TT_TEST_HELPERS_MAX_LVL;
+	const long end_level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa;
 	unsigned long tt_walk_idx[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
 	unsigned long tt_walk[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
@@ -2929,7 +2930,7 @@ void s2tt_walk_lock_unlock_tc10(void)
 	struct s2tt_context s2tt_ctx;
 
 	/* Total number of granules, included the concatenated ones */
-	unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
+	const unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
 				(end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U);
 
 	/*
@@ -2970,7 +2971,7 @@ void s2tt_walk_lock_unlock_tc11(void)
 	 * permitted.
 	 ***************************************************************/
 
-	long end_level = S2TT_TEST_HELPERS_MAX_LVL;
+	const long end_level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa;
 	unsigned long sl_index;
 	unsigned long tt_walk_idx[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
@@ -2980,7 +2981,7 @@ void s2tt_walk_lock_unlock_tc11(void)
 	struct s2tt_context s2tt_ctx;
 
 	/* Total number of granules, included the concatenated ones */
-	unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
+	const unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
 				(end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U);
 
 	/*
