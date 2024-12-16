@@ -495,14 +495,30 @@
 #define ID_AA64PFR0_EL1_AMU_WIDTH	UL(4)
 
 /* ID_AA64PFR1_EL1 definitions */
-#define ID_AA64PFR1_EL1_MTE_SHIFT	UL(8)
-#define ID_AA64PFR1_EL1_MTE_WIDTH	UL(4)
+#define ID_AA64PFR1_EL1_SSBS_SHIFT		UL(4)
+#define ID_AA64PFR1_EL1_SSBS_WIDTH		UL(4)
+#define ID_AA64PFR1_EL1_SSBS_NOT_IMPLEMENTED	UL(0)
+#define ID_AA64PFR1_EL1_FEAT_SSBS		UL(1)
+#define ID_AA64PFR1_EL1_FEAT_SSBS2		UL(2)
+
+#define ID_AA64PFR1_EL1_MTE_SHIFT		UL(8)
+#define ID_AA64PFR1_EL1_MTE_WIDTH		UL(4)
+#define ID_AA64PFR1_EL1_MTE_NOT_IMPLEMENTED	UL(0)
+#define ID_AA64PFR1_EL1_MTE1			UL(1)
+#define ID_AA64PFR1_EL1_MTE2			UL(2)
+#define ID_AA64PFR1_EL1_MTE3			UL(3)
 
 #define ID_AA64PFR1_EL1_SME_SHIFT		UL(24)
 #define ID_AA64PFR1_EL1_SME_WIDTH		UL(4)
 #define ID_AA64PFR1_EL1_SME_NOT_IMPLEMENTED	UL(0)
 #define ID_AA64PFR1_EL1_SME_IMPLEMENTED		UL(1)
 #define ID_AA64PFR1_EL1_SME2_IMPLEMENTED	UL(2)
+
+#define ID_AA64PFR1_EL1_NMI_SHIFT		UL(36)
+#define ID_AA64PFR1_EL1_NMI_WIDTH		UL(4)
+
+#define ID_AA64PFR1_EL1_GCS_SHIFT		UL(44)
+#define ID_AA64PFR1_EL1_GCS_WIDTH		UL(4)
 
 #define ID_AA64PFR1_EL1_DF2_SHIFT		UL(56)
 #define ID_AA64PFR1_EL1_DF2_WIDTH		UL(4)
@@ -603,7 +619,14 @@
 #define SPSR_EL2_nRW_AARCH32		INPLACE(SPSR_EL2_nRW, UL(1))
 
 #define SPSR_EL2_DAIF_SHIFT		6
+#define SPSR_EL2_DAIF_WIDTH		U(4)
 #define SPSR_EL2_AIF_SHIFT		U(6)
+
+#define SPSR_EL2_BTYPE_SHIFT		U(10)
+#define SPSR_EL2_BTYPE_WIDTH		U(2)
+
+#define SPSR_EL2_NZCV_BITS_SHIFT	U(28)
+#define SPSR_EL2_NZCV_BITS_WIDTH	U(4)
 
 #define DAIF_FIQ_BIT			(UL(1) << 0)
 #define DAIF_IRQ_BIT			(UL(1) << 1)
@@ -628,6 +651,7 @@
 #define SPSR_EL2_N_BIT			(UL(1) << 31)
 #define SPSR_EL2_PM_BIT			(UL(1) << 32)
 #define SPSR_EL2_PPEND_BIT		(UL(1) << 33)
+#define SPSR_EL2_EXLOCK_BIT		(UL(1) << 34)
 
 /* Floating point control and status register */
 #define FPCR				S3_3_C4_C4_0
@@ -771,6 +795,8 @@
 #define SCTLR_ELx_EnIA_BIT		(UL(1) << 31)
 #define SCTLR_ELx_BT0_BIT		(UL(1) << 35)
 #define SCTLR_ELx_BT1_BIT		(UL(1) << 36)
+#define SCTLR_ELx_DSSBS_BIT		(UL(1) << 44)
+#define SCTLR_ELx_SPINTMASK_BIT		(UL(1) << 62)
 
 #define SCTLR_EL1_FLAGS (SCTLR_ELx_SPAN_BIT | SCTLR_ELx_EIS_BIT | SCTLR_ELx_nTWE_BIT | \
 			 SCTLR_ELx_nTWI_BIT | SCTLR_ELx_EOS_BIT | SCTLR_ELx_nAA_BIT | \
@@ -1127,5 +1153,12 @@
 /* Stack Pointer selection */
 #define MODE_SP_EL0			UL(0)
 #define MODE_SP_ELX			UL(1)
+
+/*******************************************************************************
+ * FEAT_GCS - Guarded Control Stack Registers
+ ******************************************************************************/
+#define ID_GCSCR_EL12			S3_5_C2_C5_0
+#define GCSCR_EXLOCK_EN_BIT		(UL(1) << 6)
+
 
 #endif /* ARCH_H */

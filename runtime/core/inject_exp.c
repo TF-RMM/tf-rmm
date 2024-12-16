@@ -47,24 +47,118 @@ static unsigned long calc_vector_entry(unsigned long vbar, unsigned long spsr,
 }
 
 /*
- * Calculate the value of the pstate when an exception
- * is inserted into the Realm.
+ * Explicitly create all bits of SPSR to get PSTATE when an exception is
+ * injected into the Realm.
+ *
+ * The code is based on "Aarch64.exceptions.takeexception" described in
+ * DDI0602 revision 2023-06.
+ * "https://developer.arm.com/documentation/ddi0602/2023-06/Shared-Pseudocode/aarch64-exceptions-takeexception?lang=en"
+ *
+ * NOTE: This piece of code must be reviewed every release to ensure that
+ * we keep up with new ARCH features which introduces a new SPSR bit.
  */
-static unsigned long calc_pstate(void)
+static unsigned long calc_spsr(unsigned long old_spsr,
+			       unsigned long old_sctlr)
 {
+	/* Set the mode */
+	unsigned long spsr = SPSR_EL2_MODE_EL1h;
+
+	/* Mask all exceptions, update DAIF bits */
+	spsr |= MASK(SPSR_EL2_DAIF);
+
 	/*
-	 * The pstate is EL1, AArch64, SPSel = SP_ELx and:
-	 * DAIF = '1111b'
-	 * NZCV = '0000b'
-	 * TODO: setup TCO, DIT, UAO, PAN, SSBS, BTYPE
+	 * BTYPE bits are cleared as FEAT_BTI is mandatory since
+	 * v9.2 of the architecture.
 	 */
-	unsigned long pstate = SPSR_EL2_MODE_EL1h |
-			       SPSR_EL2_nRW_AARCH64 |
-			       SPSR_EL2_F_BIT |
-			       SPSR_EL2_I_BIT |
-			       SPSR_EL2_A_BIT |
-			       SPSR_EL2_D_BIT;
-	return pstate;
+	spsr &= ~MASK(SPSR_EL2_BTYPE);
+
+	/*
+	 * If SSBS is implemented, take the value from SCTLR.DSSBS.
+	 * Otherwise, SPSR.SSBS = RES0.
+	 */
+	if (is_feat_ssbs_present()) {
+		if ((old_sctlr & SCTLR_ELx_DSSBS_BIT) != 0UL) {
+			spsr |= SPSR_EL2_SSBS_BIT;
+		} else {
+			spsr &= ~SPSR_EL2_SSBS_BIT;
+		}
+	}
+
+	/*
+	 * If FEAT_NMI is implemented, ALLINT = !(SCTLR.SPINTMASK).
+	 * Otherwise, SPSR.ALLINT = RES0.
+	 */
+	if (is_feat_nmi_present()) {
+		if ((old_sctlr & SCTLR_ELx_SPINTMASK_BIT) == 0UL) {
+			spsr |= SPSR_EL2_ALLINT_BIT;
+		} else {
+			spsr &= ~SPSR_EL2_ALLINT_BIT;
+		}
+	}
+
+	/* Clear PSTATE.IL bit explicitly */
+	spsr &= ~SPSR_EL2_IL_BIT;
+
+	/* Clear PSTATE.SS bit explicitly */
+	spsr &= ~SPSR_EL2_SS_BIT;
+
+	/*
+	 * Update PSTATE.PAN bit.
+	 * FEAT_PAN is mandatory from v8.1.
+	 */
+	if ((old_sctlr & SCTLR_ELx_SPAN_BIT) == 0UL) {
+		spsr |= SPSR_EL2_PAN_BIT;
+	}
+
+	/*
+	 * UAO bit is cleared as FEAT_UAO is mandatory since
+	 * v9.2 of the architecture.
+	 */
+	spsr &= ~SPSR_EL2_UAO_BIT;
+
+	/* DIT bit is unchanged */
+	spsr |= (old_spsr & SPSR_EL2_DIT_BIT);
+
+	/*
+	 * If FEAT_MTE2 is implemented, mask tag faults by setting TCO bit.
+	 * Otherwise, SPSR.TCO = RES0.
+	 */
+	if (is_feat_mte2_present()) {
+		spsr |= SPSR_EL2_TCO_BIT;
+	}
+
+	/* NZCV bits are unchanged */
+	spsr |= (old_spsr & MASK(SPSR_EL2_NZCV_BITS));
+
+	/*
+	 * If FEAT_EBEP is present, set PM bit.
+	 * Otherwise, SPSR.PM = RES0.
+	 */
+	if (is_feat_ebep_present()) {
+		spsr |= SPSR_EL2_PM_BIT;
+	}
+
+	/*
+	 * If FEAT_SEBEP is present, explicitly clear PPEND bit.
+	 * Otherwise, SPSR.PPEND = RES0.
+	 */
+	if (is_feat_sebep_present()) {
+		spsr &= ~SPSR_EL2_PPEND_BIT;
+	}
+
+	/*
+	 * If FEAT_GCS is present, update EXLOCK bit.
+	 * Otherwise, SPSR.EXLOCK = RES0.
+	 */
+	if (is_feat_gcs_present()) {
+		if ((read_gcscr_el12() & GCSCR_EXLOCK_EN_BIT) != 0UL) {
+			spsr |= SPSR_EL2_EXLOCK_BIT;
+		} else {
+			spsr &= ~SPSR_EL2_EXLOCK_BIT;
+		}
+	}
+
+	return spsr;
 }
 
 /*
@@ -126,21 +220,22 @@ void inject_sync_idabort(unsigned long fsc)
 	unsigned long far_el2 = read_far_el2();
 	unsigned long elr_el2 = read_elr_el2();
 	unsigned long spsr_el2 = read_spsr_el2();
-	unsigned long vbar_el2 = read_vbar_el12();
+	unsigned long vbar_el1 = read_vbar_el12();
+	unsigned long sctlr_el1 = read_sctlr_el12();
 
 	unsigned long esr_el1 = calc_esr_idabort(esr_el2, spsr_el2, fsc);
 	bool sctlr2_ease_bit = ((read_sctlr2_el12_if_present() &
 				 SCTLR2_ELx_EASE_BIT) != 0UL);
-	unsigned long pc = calc_vector_entry(vbar_el2, spsr_el2,
+	unsigned long pc = calc_vector_entry(vbar_el1, spsr_el2,
 					     sctlr2_ease_bit);
-	unsigned long pstate = calc_pstate();
+	unsigned long spsr = calc_spsr(spsr_el2, sctlr_el1);
 
 	write_far_el12(far_el2);
 	write_elr_el12(elr_el2);
 	write_spsr_el12(spsr_el2);
 	write_esr_el12(esr_el1);
 	write_elr_el2(pc);
-	write_spsr_el2(pstate);
+	write_spsr_el2(spsr);
 }
 
 /*
@@ -159,7 +254,7 @@ void inject_sync_idabort_rec(struct rec *rec, unsigned long fsc)
 						rec->pstate, fsc);
 	rec->pc = calc_vector_entry(rec->sysregs.vbar_el1, rec->pstate,
 				    sctlr2_ease_bit);
-	rec->pstate = calc_pstate();
+	rec->pstate = calc_spsr(rec->pstate, rec->sysregs.sctlr_el1);
 }
 
 /*
@@ -171,14 +266,15 @@ void realm_inject_undef_abort(void)
 	unsigned long elr = read_elr_el2();
 	unsigned long spsr = read_spsr_el2();
 	unsigned long vbar = read_vbar_el12();
+	unsigned long sctlr = read_sctlr_el12();
 
 	unsigned long pc = calc_vector_entry(vbar, spsr, false);
-	unsigned long pstate = calc_pstate();
+	unsigned long new_spsr = calc_spsr(spsr, sctlr);
 
 	write_elr_el12(elr);
 	write_spsr_el12(spsr);
 	write_esr_el12(esr);
 
 	write_elr_el2(pc);
-	write_spsr_el2(pstate);
+	write_spsr_el2(new_spsr);
 }

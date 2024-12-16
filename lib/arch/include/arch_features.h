@@ -169,9 +169,83 @@ static inline bool is_feat_sctlr2x_present(void)
 		read_id_aa64mmfr3_el1()) == 1UL);
 }
 
-DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(sctlr2_el12, if_present,		\
-				   is_feat_sctlr2x_present, 0UL)
+/*
+ * Check if FEAT_MTE2 is implemented.
+ * ID_AA64PFR1_EL1.MTE, bits [11:8]:
+ * 0b0000 FEAT_MTE is not implemented.
+ * 0b0001 FEAT_MTE is implemented.
+ * 0b0010 FEAT_MTE2 is implemented.
+ * 0b0011 FEAT_MTE3 is implemented.
+ */
+static inline bool is_feat_mte2_present(void)
+{
+	unsigned long mte = EXTRACT(ID_AA64PFR1_EL1_MTE, read_id_aa64pfr1_el1());
+
+	return ((mte >= ID_AA64PFR1_EL1_MTE2) && (mte <= ID_AA64PFR1_EL1_MTE3));
+}
+
+/*
+ * Check if FEAT_SSBS is implemented.
+ * ID_AA64PFR1_EL1, bits [7:4]:
+ * 0b0000: FEAT_SSBS is not implemented.
+ * 0b0001: FEAT_SSBS is implemented.
+ * 0b0010: FEAT_SSBS2 is implemented.
+ */
+static inline bool is_feat_ssbs_present(void)
+{
+	unsigned long ssbs = EXTRACT(ID_AA64PFR1_EL1_SSBS, read_id_aa64pfr1_el1());
+
+	return ((ssbs >= ID_AA64PFR1_EL1_FEAT_SSBS) &&
+		(ssbs <= ID_AA64PFR1_EL1_FEAT_SSBS2));
+}
+
+/*
+ * Check if FEAT_NMI is implemented.
+ * ID_AA64PFR1_EL1, bits [39:36]:
+ * 0b0000: FEAT_NMI is not implemented.
+ * 0b0001: FEAT_NMI is implemented.
+ */
+static inline bool is_feat_nmi_present(void)
+{
+	return (EXTRACT(ID_AA64PFR1_EL1_NMI, read_id_aa64pfr1_el1()) == 1UL);
+}
+
+/*
+ * Check if FEAT_EBEP is implemented.
+ * ID_AA64DFR1_EL1, bits [51:48]:
+ * 0b0000: FEAT_EBEP is not implemented.
+ * 0b0001: FEAT_EBEP is implemented.
+ */
+static inline bool is_feat_ebep_present(void)
+{
+	return (EXTRACT(ID_AA64DFR1_EL1_EBEP, read_id_aa64dfr1_el1()) == 1UL);
+}
+
+/*
+ * Check if FEAT_SEBEP is implemented.
+ * ID_AA64DFR0_EL1, bits [27:24]:
+ * 0b0000: FEAT_SEBEP is not implemented.
+ * 0b0001: FEAT_SEBEP is implemented.
+ */
+static inline bool is_feat_sebep_present(void)
+{
+	return (EXTRACT(ID_AA64DFR0_EL1_SEBEP, read_id_aa64dfr0_el1()) == 1UL);
+}
+
+/*
+ * Check if FEAT_GCS is implemented.
+ * ID_AA64PFR1_EL1, bits [47:44}:
+ * 0b0000: FEAT_GCS is not implemented.
+ * 0b0001: FEAT_GCS is implemented.
+ */
+static inline bool is_feat_gcs_present(void)
+{
+	return (EXTRACT(ID_AA64PFR1_EL1_GCS, read_id_aa64pfr1_el1()) == 1UL);
+}
 
 unsigned int arch_feat_get_pa_width(void);
+
+DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(sctlr2_el12, if_present,		\
+				   is_feat_sctlr2x_present, 0UL)
 
 #endif /* ARCH_FEATURES_H */
