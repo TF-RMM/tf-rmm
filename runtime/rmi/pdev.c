@@ -32,7 +32,7 @@ static void pdev_restore_aux_granules_state(struct granule *pdev_aux[],
 		granule_lock(g_pdev_aux, GRANULE_STATE_PDEV_AUX);
 		if (scrub) {
 			buffer_granule_memzero(g_pdev_aux,
-			   (enum buffer_slot)((unsigned int)SLOT_PDEV_AUX0 + i));
+			   safe_cast_to_slot(SLOT_PDEV_AUX0, i));
 		}
 		granule_unlock_transition(g_pdev_aux, GRANULE_STATE_DELEGATED);
 	}
