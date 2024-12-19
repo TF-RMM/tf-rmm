@@ -183,7 +183,7 @@ static void free_rec_aux_granules(struct granule *rec_aux[],
 		granule_lock(g_rec_aux, GRANULE_STATE_REC_AUX);
 		if (scrub) {
 			buffer_granule_memzero(g_rec_aux,
-			   (enum buffer_slot)((unsigned int)SLOT_REC_AUX0 + i));
+				(enum buffer_slot)((unsigned int)SLOT_REC_AUX0 + i));
 		}
 		granule_unlock_transition(g_rec_aux, GRANULE_STATE_DELEGATED);
 	}
@@ -366,7 +366,6 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	rec->g_rec = g_rec;
 	rec->rec_idx = rec_idx;
 	rec->num_rec_aux = num_rec_aux;
-
 	rec->realm_info.s2_ctx = rd->s2_ctx;
 	rec->realm_info.g_rd = g_rd;
 	rec->realm_info.pmu_enabled = rd->pmu_enabled;

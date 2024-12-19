@@ -383,7 +383,8 @@ static inline bool rsi_handler_needs_fpu(unsigned int id)
  */
 static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 {
-	struct rsi_result res = { 0 };
+	struct rsi_result res = {UPDATE_REC_RETURN_TO_REALM, 0UL,
+				{{[0 ... SMC_RESULT_REGS-1] = 0UL}}};
 	unsigned int function_id = (unsigned int)rec->regs[0];
 	bool restore_simd_ctx = false;
 	unsigned int i;

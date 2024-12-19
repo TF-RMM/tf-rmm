@@ -142,7 +142,7 @@
 #define ALIGNED(_size, _alignment)		\
 			(((unsigned long)(_size) % (_alignment)) == UL(0))
 
-#define GRANULE_ALIGNED(_addr) ALIGNED((void *)(_addr), GRANULE_SIZE)
+#define GRANULE_ALIGNED(_addr) ALIGNED((uintptr_t)(_addr), GRANULE_SIZE)
 #define ALIGNED_TO_ARRAY(_addr, _array)		\
 			(((uintptr_t)(_addr) >= (uintptr_t)&(_array)[0]) && \
 			 ((((uintptr_t)(_addr) - (uintptr_t)&(_array)[0]) % \
