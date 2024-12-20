@@ -310,6 +310,7 @@ void s2tt_walk_lock_unlock(const struct s2tt_context *s2_ctx,
 			   long level,
 			   struct s2tt_walk *wi)
 {
+	/* coverity[misra_c_2012_rule_11_9_violation:SUPRESS] */
 	struct granule *g_tbls[NR_RTT_LEVELS_LPA2] = { (struct granule *)NULL };
 	struct granule *g_root;
 	unsigned long sl_idx, ipa_bits;

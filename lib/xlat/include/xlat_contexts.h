@@ -15,7 +15,7 @@
 #include <xlat_defs.h>
 
 /* Enumerator to identify the right address space within a context */
-typedef enum xlat_addr_region_id {
+typedef enum {
 	VA_LOW_REGION = 0,
 	VA_HIGH_REGION,
 	VA_REGIONS
@@ -37,7 +37,7 @@ struct xlat_ctx_tbls {
 	unsigned int next_table;
 
 	/* Set to true when the translation tables are initialized. */
-	bool initialized;
+	bool init;
 }  __aligned(CACHE_WRITEBACK_GRANULE);
 
 /*
@@ -86,7 +86,7 @@ struct xlat_ctx_cfg {
 	 */
 	xlat_addr_region_id_t region;
 
-	bool initialized;
+	bool init;
 } __aligned(CACHE_WRITEBACK_GRANULE);
 
 /*

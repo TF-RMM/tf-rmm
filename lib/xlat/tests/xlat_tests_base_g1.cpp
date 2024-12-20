@@ -1077,7 +1077,7 @@ void xlat_ctx_init_tc1(void)
 		 * field is not validated here. Instead, it will be validated
 		 * for each especific test later.
 		 */
-		CHECK_TRUE(tbls.initialized == true);
+		CHECK_TRUE(tbls.init == true);
 		CHECK_TRUE(tbls.tables == xlat_test_helpers_tbls());
 		CHECK_TRUE(tbls.tables_num == XLAT_TESTS_MAX_TABLES);
 	}

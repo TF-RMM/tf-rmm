@@ -106,7 +106,7 @@ uintptr_t xlat_arch_get_max_supported_pa(void);
 		(_tbls)->tables = (_tables);				\
 		(_tbls)->tables_num = (_tnum);				\
 		(_tbls)->next_table = 0U;				\
-		(_tbls)->initialized = false;				\
+		(_tbls)->init = false;					\
 	}
 
 #endif /* XLAT_TABLES_PRIVATE_H */

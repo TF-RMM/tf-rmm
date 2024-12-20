@@ -172,10 +172,10 @@ static bool is_valid_vintid(unsigned long intid)
 	 * If extended INTID range sopported, check for
 	 * Extended PPI [1056..1119] and Extended SPI [4096..5119]
 	 */
-	return (gic_virt_feature.ext_range ?
-		((((intid) >= MIN_EPPI_ID) && ((intid) <= MAX_EPPI_ID)) ||
-		 (((intid) >= MIN_ESPI_ID) && ((intid) <= MAX_ESPI_ID))) :
-		false);
+	return (bool)(gic_virt_feature.ext_range ?
+				((((intid) >= MIN_EPPI_ID) && ((intid) <= MAX_EPPI_ID)) ||
+				(((intid) >= MIN_ESPI_ID) && ((intid) <= MAX_ESPI_ID))) :
+				false);
 }
 
 bool gic_validate_state(struct rmi_rec_enter *rec_enter)
