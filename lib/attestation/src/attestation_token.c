@@ -373,7 +373,7 @@ int attest_realm_token_create(enum hash_algo algorithm,
 /* This function will only succeed if attestation_init() has succeeded. */
 enum attest_token_err_t attest_token_ctx_init(struct token_sign_cntxt *token_ctx,
 			unsigned char *heap_buf,
-			unsigned int heap_buf_len,
+			unsigned long heap_buf_len,
 			uintptr_t cookie)
 {
 	(void)cookie;
