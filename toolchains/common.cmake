@@ -16,7 +16,7 @@ foreach(language IN ITEMS ASM C CXX)
     string(APPEND CMAKE_${language}_FLAGS_INIT "-fdata-sections ")
     string(APPEND CMAKE_${language}_FLAGS_INIT "-Wall -Werror ")
     string(APPEND CMAKE_${language}_FLAGS_INIT "-gdwarf-4 ")
-    string(APPEND CMAKE_${language}_FLAGS_DEBUG_INIT "-Og ")
+    string(APPEND CMAKE_${language}_FLAGS_DEBUG_INIT "-Og -Wnull-dereference ")
     string(APPEND CMAKE_${language}_FLAGS_RELEASE_INIT "-g ")
 endforeach()
 
