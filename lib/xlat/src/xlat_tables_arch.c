@@ -41,44 +41,26 @@ static bool xlat_arch_is_granule_size_supported(size_t size)
  * Encode a Physical Address Space size for its use in TCR_ELx.
  * If the PA is not supported, return ULLONG_MAX (~0ULL).
  */
-static uint64_t tcr_physical_addr_size_bits(uintptr_t max_addr)
+static uint64_t tcr_physical_addr_size_bits(unsigned int max_pa_width)
 {
-	if ((max_addr & ADDR_MASK_52_TO_63) != 0ULL) {
-		/* Physical address can't exceed 52 bits */
+	switch (max_pa_width) {
+	case PARANGE_WIDTH_52BITS:
+		return (is_feat_lpa2_4k_present() ? TCR_PS_BITS_4PB : ~(0ULL));
+	case PARANGE_WIDTH_48BITS:
+		return TCR_PS_BITS_256TB;
+	case PARANGE_WIDTH_44BITS:
+		return TCR_PS_BITS_16TB;
+	case PARANGE_WIDTH_42BITS:
+		return TCR_PS_BITS_4TB;
+	case PARANGE_WIDTH_40BITS:
+		return TCR_PS_BITS_1TB;
+	case PARANGE_WIDTH_36BITS:
+		return TCR_PS_BITS_64GB;
+	case PARANGE_WIDTH_32BITS:
+		return TCR_PS_BITS_4GB;
+	default:
 		return ~(0ULL);
 	}
-
-	/* 52 bits address */
-	if ((max_addr & ADDR_MASK_48_TO_51) != 0ULL) {
-		return is_feat_lpa2_4k_present() ? TCR_PS_BITS_4PB : ~(0ULL);
-	}
-
-	/* 48 bits address */
-	if ((max_addr & ADDR_MASK_44_TO_47) != 0ULL) {
-		return TCR_PS_BITS_256TB;
-	}
-
-	/* 44 bits address */
-	if ((max_addr & ADDR_MASK_42_TO_43) != 0ULL) {
-		return TCR_PS_BITS_16TB;
-	}
-
-	/* 42 bits address */
-	if ((max_addr & ADDR_MASK_40_TO_41) != 0ULL) {
-		return TCR_PS_BITS_4TB;
-	}
-
-	/* 40 bits address */
-	if ((max_addr & ADDR_MASK_36_TO_39) != 0ULL) {
-		return TCR_PS_BITS_1TB;
-	}
-
-	/* 36 bits address */
-	if ((max_addr & ADDR_MASK_32_TO_35) != 0ULL) {
-		return TCR_PS_BITS_64GB;
-	}
-
-	return TCR_PS_BITS_4GB;
 }
 
 void xlat_arch_write_mmu_cfg(struct xlat_mmu_cfg *mmu_cfg)
@@ -201,8 +183,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx, struct xlat_mmu_cfg *mm
 	/*
 	 * Set physical address size to the limit supported by the PE.
 	 */
-	pa_size_bits = tcr_physical_addr_size_bits(
-					xlat_arch_get_max_supported_pa());
+	pa_size_bits = tcr_physical_addr_size_bits(arch_feat_get_pa_width());
 	if (pa_size_bits == ~(0ULL)) {
 		return -EPERM;
 	}

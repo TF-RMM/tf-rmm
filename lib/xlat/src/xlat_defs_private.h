@@ -95,14 +95,8 @@
 #define ATTR_INDEX_MASK			U(0x3)
 #define ATTR_INDEX_GET(attr)		(((attr) >> UL(2)) & ATTR_INDEX_MASK)
 
-/* Different address masks */
+/* Highest PA address masks */
 #define ADDR_MASK_52_TO_63	BIT_MASK_ULL(U(63), U(52))
-#define ADDR_MASK_48_TO_51	BIT_MASK_ULL(U(51), U(48))
-#define ADDR_MASK_44_TO_47	BIT_MASK_ULL(U(47), U(44))
-#define ADDR_MASK_42_TO_43	BIT_MASK_ULL(U(43), U(42))
-#define ADDR_MASK_40_TO_41	BIT_MASK_ULL(U(41), U(40))
-#define ADDR_MASK_36_TO_39	BIT_MASK_ULL(U(39), U(36))
-#define ADDR_MASK_32_TO_35	BIT_MASK_ULL(U(35), U(32))
 
 /*
  * Helper function to set the OA into a tte.

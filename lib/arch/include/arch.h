@@ -527,13 +527,14 @@
 #define ID_AA64MMFR0_EL1_PARANGE_SHIFT	U(0)
 #define ID_AA64MMFR0_EL1_PARANGE_WIDTH	UL(4)
 
-#define PARANGE_0000_WIDTH	U(32)
-#define PARANGE_0001_WIDTH	U(36)
-#define PARANGE_0010_WIDTH	U(40)
-#define PARANGE_0011_WIDTH	U(42)
-#define PARANGE_0100_WIDTH	U(44)
-#define PARANGE_0101_WIDTH	U(48)
-#define PARANGE_0110_WIDTH	U(52)
+/* Defines for PA width corresponding to PARange [0:3] in id_aa64mmfr0_el1 */
+#define PARANGE_WIDTH_32BITS	U(32)		/* PARange - 0x0 */
+#define PARANGE_WIDTH_36BITS	U(36)		/* PARange - 0x1 */
+#define PARANGE_WIDTH_40BITS	U(40)		/* PARange - 0x2 */
+#define PARANGE_WIDTH_42BITS	U(42)		/* PARange - 0x3 */
+#define PARANGE_WIDTH_44BITS	U(44)		/* PARange - 0x4 */
+#define PARANGE_WIDTH_48BITS	U(48)		/* PARange - 0x5 */
+#define PARANGE_WIDTH_52BITS	U(52)		/* PARange - 0x6 */
 
 #define ID_AA64MMFR0_EL1_ECV_SHIFT		UL(60)
 #define ID_AA64MMFR0_EL1_ECV_WIDTH		UL(4)

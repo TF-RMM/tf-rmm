@@ -20,7 +20,7 @@
 #include <string.h>
 #include <vmid.h>
 
-#define RMI_FEATURE_MIN_IPA_SIZE	PARANGE_0000_WIDTH
+#define RMI_FEATURE_MIN_IPA_SIZE	PARANGE_WIDTH_32BITS
 
 unsigned long smc_realm_activate(unsigned long rd_addr)
 {

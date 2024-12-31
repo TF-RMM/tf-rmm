@@ -584,10 +584,14 @@ void xlat_ctx_cfg_init_tc8(void)
 	unsigned int index;
 	uint64_t id_aa64mmfr0_el1 = read_id_aa64mmfr0_el1();
 	bool lpa2 = is_feat_lpa2_4k_present();
-	unsigned int pa_range_bits_arr[] = {
-		PARANGE_0000_WIDTH, PARANGE_0001_WIDTH, PARANGE_0010_WIDTH,
-		PARANGE_0011_WIDTH, PARANGE_0100_WIDTH, PARANGE_0101_WIDTH,
-		PARANGE_0110_WIDTH
+	const unsigned int pa_range_bits_arr[] = {
+		[0x0] = PARANGE_WIDTH_32BITS,
+		[0x1] = PARANGE_WIDTH_36BITS,
+		[0x2] = PARANGE_WIDTH_40BITS,
+		[0x3] = PARANGE_WIDTH_42BITS,
+		[0x4] = PARANGE_WIDTH_44BITS,
+		[0x5] = PARANGE_WIDTH_48BITS,
+		[0x6] = PARANGE_WIDTH_52BITS
 	};
 	uint64_t max_va_size = XLAT_TEST_MAX_VA_SIZE();
 
