@@ -62,6 +62,8 @@ static unsigned long get_buffer_pa(uintptr_t buf, size_t buflen)
 	unsigned long buffer_pa;
 	unsigned long offset = buf - rmm_shared_buffer_start_va;
 
+	(void)buflen;
+
 	assert((offset + buflen) <= rmm_el3_ifc_get_shared_buf_size());
 	assert((buf & ~PAGE_SIZE_MASK) == rmm_shared_buffer_start_va);
 

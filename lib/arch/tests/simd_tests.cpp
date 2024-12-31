@@ -34,21 +34,31 @@ static void reset_times_called(void)
 
 static void fpu_save_regs_cb(struct fpu_regs *regs)
 {
+	(void)regs;
+
 	increment_times_called(FPU_SAVE_REGS);
 }
 
 static void sve_save_regs_cb(struct sve_regs *regs, bool save_ffr)
 {
+	(void)regs;
+	(void)save_ffr;
+
 	increment_times_called(SVE_SAVE_REGS);
 }
 
 static void fpu_restore_regs_cb(struct fpu_regs *regs)
 {
+	(void)regs;
+
 	increment_times_called(FPU_RESTORE_REGS);
 }
 
 static void sve_restore_regs_cb(struct sve_regs *regs, bool restore_ffr)
 {
+	(void)regs;
+	(void)restore_ffr;
+
 	increment_times_called(SVE_RESTORE_REGS);
 }
 
@@ -77,7 +87,9 @@ TEST_GROUP(simd) {
 TEST(simd, simd_init_TC1)
 {
 	int ret;
-	struct simd_config simd_cfg = { 0 };
+	struct simd_config simd_cfg;
+
+	(void)memset(&simd_cfg, 0, sizeof(simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 1:
@@ -104,8 +116,10 @@ TEST(simd, simd_init_TC2)
 {
 	u_register_t saved_cptr;
 	int ret;
-	struct simd_config simd_cfg = { 0 };
+	struct simd_config simd_cfg;
 	union simd_cbs cb;
+
+	(void)memset(&simd_cfg, 0, sizeof(simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 2:
@@ -167,7 +181,9 @@ TEST(simd, simd_init_TC3)
 	u_register_t saved_cptr;
 	int ret1;
 	int ret2;
-	struct simd_config simd_cfg = { 0 };
+	struct simd_config simd_cfg;
+
+	(void)memset(&simd_cfg, 0, sizeof(simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 3:
@@ -242,7 +258,9 @@ TEST(simd, simd_context_init_TC1)
 {
 	int ret;
 	struct simd_context test_simd_ctx;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 1:
@@ -261,7 +279,7 @@ TEST(simd, simd_context_init_TC1)
 TEST(simd, simd_context_init_TC2)
 {
 	int ret;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	struct simd_context test_simd_ctx;
 
 	/******************************************************************
@@ -271,6 +289,7 @@ TEST(simd, simd_context_init_TC2)
 	 * second call to exit early with exit code -1.
 	 ******************************************************************/
 
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 	(void)memset(&test_simd_ctx, 0, sizeof(struct simd_context));
 	simd_test_helpers_setup_id_regs(false, false);
 
@@ -292,8 +311,10 @@ TEST(simd, simd_context_init_TC2)
 TEST(simd, simd_context_init_TC3)
 {
 	int ret;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	struct simd_context test_simd_ctx;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 3:
@@ -321,10 +342,12 @@ TEST(simd, simd_context_init_TC3)
 TEST(simd, simd_context_init_TC4)
 {
 	int ret1, ret2;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	struct simd_context test_simd_ctx;
 	struct simd_config cpu_simd_cfg;
 	union simd_cbs cb;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 4:
@@ -365,9 +388,11 @@ TEST(simd, simd_context_init_TC4)
 TEST(simd, simd_context_init_TC5)
 {
 	int ret;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	struct simd_context test_simd_ctx;
 	union simd_cbs cb;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 5:
@@ -402,8 +427,10 @@ TEST(simd, simd_context_init_TC5)
 TEST(simd, simd_context_init_TC6)
 {
 	int ret;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	struct simd_context test_simd_ctx;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 6:
@@ -431,11 +458,13 @@ TEST(simd, simd_context_init_TC6)
 TEST(simd, simd_context_save_TC1)
 {
 	struct simd_context test_simd_ctx;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	u_register_t cptr_el2;
 	int ret;
 	union simd_cbs cb;
 	int times_called_prev;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 1:
@@ -494,8 +523,10 @@ ASSERT_TEST(simd, simd_context_save_TC2)
 ASSERT_TEST(simd, simd_context_save_TC3)
 {
 	struct simd_context test_simd_ctx;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	int ret;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 3:
@@ -524,8 +555,10 @@ ASSERT_TEST(simd, simd_context_save_TC3)
 ASSERT_TEST(simd, simd_context_save_TC4)
 {
 	struct simd_context test_simd_ctx;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	int ret;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 4:
@@ -578,8 +611,10 @@ ASSERT_TEST(simd, simd_context_restore_TC1)
 ASSERT_TEST(simd, simd_context_restore_TC2)
 {
 	struct simd_context test_simd_ctx;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	int ret;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 2:
@@ -608,8 +643,10 @@ ASSERT_TEST(simd, simd_context_restore_TC2)
 ASSERT_TEST(simd, simd_context_restore_TC3)
 {
 	struct simd_context test_simd_ctx;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	int ret;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 3:
@@ -639,8 +676,10 @@ ASSERT_TEST(simd, simd_context_restore_TC3)
 ASSERT_TEST(simd, simd_context_restore_TC4)
 {
 	struct simd_context test_simd_ctx;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	int ret;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 4:
@@ -678,10 +717,12 @@ TEST(simd, simd_context_switch_TC1)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	union simd_cbs cb_save;
 	union simd_cbs cb_restore;
 	int ret1, ret2;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 1:
@@ -740,10 +781,12 @@ TEST(simd, simd_context_switch_TC2)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	union simd_cbs cb_save;
 	union simd_cbs cb_restore;
 	int ret;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 2:
@@ -871,10 +914,12 @@ TEST(simd, simd_context_switch_TC4)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	union simd_cbs cb_save;
 	union simd_cbs cb_restore;
 	int ret;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 4:
@@ -935,10 +980,12 @@ TEST(simd, simd_context_switch_TC5)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	union simd_cbs cb_save;
 	union simd_cbs cb_restore;
 	int ret;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 5:
@@ -1008,10 +1055,12 @@ TEST(simd, simd_context_switch_TC6)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	union simd_cbs cb_save;
 	union simd_cbs cb_restore;
 	int ret1, ret2;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 6:
@@ -1069,10 +1118,12 @@ TEST(simd, simd_context_switch_TC7)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	union simd_cbs cb_save;
 	union simd_cbs cb_restore;
 	int ret;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 7:
@@ -1136,13 +1187,15 @@ TEST(simd, simd_context_switch_TC8)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	union simd_cbs cb_fpu_save;
 	union simd_cbs cb_fpu_restore;
 	union simd_cbs cb_sve_save;
 	union simd_cbs cb_sve_restore;
 	union simd_cbs cb_sve_clear_p_ffr;
 	int ret;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 8:
@@ -1226,13 +1279,15 @@ TEST(simd, simd_context_switch_TC9)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	union simd_cbs cb_fpu_save;
 	union simd_cbs cb_fpu_restore;
 	union simd_cbs cb_sve_save;
 	union simd_cbs cb_sve_restore;
 	union simd_cbs cb_sve_clear_p_ffr;
 	int ret1, ret2;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 9:
@@ -1312,11 +1367,13 @@ TEST(simd, simd_update_smc_sve_hint_TC1)
 {
 	struct simd_context simd_ctx_nwd;
 	struct simd_context simd_ctx_rl;
-	struct simd_config test_simd_cfg = { 0 };
+	struct simd_config test_simd_cfg;
 	union simd_cbs cb_save;
 	union simd_cbs cb_restore;
 	union simd_cbs cb_sve_clear_p_ffr;
 	int ret1, ret2;
+
+	(void)memset(&test_simd_cfg, 0, sizeof(test_simd_cfg));
 
 	/******************************************************************
 	 * TEST CASE 1:

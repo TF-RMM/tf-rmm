@@ -12,6 +12,8 @@
 /* Serial output - called from console driver */
 static int host_csl_putc(int c, const struct console *csl)
 {
+	(void)csl;
+
 	assert(csl != NULL);
 	return putchar(c);
 }

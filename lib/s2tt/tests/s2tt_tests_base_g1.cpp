@@ -109,7 +109,9 @@ void s2tte_create_assigned_destroyed_tc1(void)
 
 		unsigned long pa = s2tt_test_helpers_gen_addr(i, true);
 		unsigned long tte;
-		s2tt_context s2tt_ctx = { 0UL };
+		s2tt_context s2tt_ctx;
+
+		(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 		/*
 		 * Generate an s2tt context to be used for the test.
@@ -154,7 +156,9 @@ void s2tte_create_assigned_destroyed_tc2(void)
 			(unsigned long)s2tt_test_helpers_min_block_lvl(),
 			(unsigned long)S2TT_TEST_HELPERS_MAX_LVL);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	pa += test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
 
@@ -182,7 +186,9 @@ void s2tte_create_assigned_destroyed_tc3(void)
 
 	long level = s2tt_test_helpers_min_block_lvl() - 1;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -208,7 +214,9 @@ void s2tte_create_assigned_destroyed_tc4(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -256,7 +264,9 @@ void s2tte_create_assigned_empty_tc1(void)
 
 		unsigned long pa = s2tt_test_helpers_gen_addr(i, true);
 		unsigned long tte;
-		s2tt_context s2tt_ctx = { 0UL };
+		s2tt_context s2tt_ctx;
+
+		(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 		/*
 		 * Generate an s2tt context to be used for the test.
@@ -301,7 +311,9 @@ void s2tte_create_assigned_empty_tc2(void)
 			(unsigned long)s2tt_test_helpers_min_block_lvl(),
 			(unsigned long)S2TT_TEST_HELPERS_MAX_LVL);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	pa += test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
 
@@ -329,7 +341,9 @@ void s2tte_create_assigned_empty_tc3(void)
 
 	long level = s2tt_test_helpers_min_block_lvl() - 1;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -355,7 +369,9 @@ void s2tte_create_assigned_empty_tc4(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -397,7 +413,9 @@ void s2tte_create_assigned_ram_tc1(void)
 	 * verify that it is valid.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -446,7 +464,9 @@ void s2tte_create_assigned_ram_tc2(void)
 			(unsigned long)S2TT_TEST_HELPERS_MAX_LVL);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -474,7 +494,9 @@ void s2tte_create_assigned_ram_tc3(void)
 
 	long level = s2tt_test_helpers_min_block_lvl() - 1;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -500,7 +522,9 @@ void s2tte_create_assigned_ram_tc4(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -550,7 +574,9 @@ void s2tte_create_assigned_ns_tc1(void)
 									  false);
 		unsigned long attrs = s2tt_test_helpers_gen_ns_attrs(false,
 								     false);
-		struct s2tt_context s2tt_ctx = { 0UL };
+		struct s2tt_context s2tt_ctx;
+
+		(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 		/*
 		 * Initialize an s2tt_context structure for the test.
@@ -641,7 +667,9 @@ void s2tte_create_assigned_unchanged_tc1(void)
 	 * correct.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -717,7 +745,9 @@ void s2tte_create_assigned_unchanged_tc2(void)
 					RIPAS_EMPTY,
 					RIPAS_DESTROYED);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -748,7 +778,9 @@ void s2tte_create_assigned_unchanged_tc3(void)
 					RIPAS_EMPTY,
 					RIPAS_DESTROYED);
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -777,7 +809,9 @@ void s2tte_create_assigned_unchanged_tc4(void)
 					RIPAS_EMPTY,
 					RIPAS_DESTROYED);
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -807,7 +841,9 @@ void s2tte_create_assigned_unchanged_tc5(void)
 	unsigned long ripas = INPLACE(S2TTE_INVALID_RIPAS,
 						S2TT_TEST_RIPAS_INVALID);
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -854,7 +890,9 @@ void s2tte_create_table_tc1(void)
 	 * a table tte.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -898,7 +936,9 @@ void s2tte_create_table_tc2(void)
 			(unsigned long)s2tt_test_helpers_min_block_lvl(),
 			(unsigned long)S2TT_TEST_HELPERS_MAX_LVL);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -925,7 +965,9 @@ void s2tte_create_table_tc3(void)
 
 	long level = s2tt_test_helpers_min_table_lvl() - 1;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -950,7 +992,9 @@ void s2tte_create_table_tc4(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -990,8 +1034,9 @@ void host_ns_s2tte_is_valid_tc1(void)
 	 * For all valid levels, generate a random ns_s2tte and pass it
 	 * to host_ns_s2tte_is_valid() to validate its behaviour.
 	 ***************************************************************/
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
 
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1024,8 +1069,9 @@ void host_ns_s2tte_is_valid_tc2(void)
 	 * and pass them to host_ns_s2tte_is_valid() to validate its
 	 * behaviour.
 	 ***************************************************************/
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
 
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1076,7 +1122,9 @@ void host_ns_s2tte_is_valid_tc3(void)
 	 * level.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1109,7 +1157,9 @@ void host_ns_s2tte_is_valid_tc4(void)
 	 * level.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1160,7 +1210,10 @@ void host_ns_s2tte_is_valid_tc6(void)
 	 * when LPA2 is disabled
 	 **************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
 	unsigned long host_attrs;
 	unsigned long tte;
 	long level = s2tt_test_helpers_min_block_lvl();
@@ -1192,7 +1245,9 @@ void host_ns_s2tte_tc1(void)
 	 * has been set by the host.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1236,7 +1291,9 @@ void host_ns_s2tte_tc2(void)
 	 * below the minimum supported.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1278,7 +1335,9 @@ void host_ns_s2tte_tc3(void)
 	 * above the maximum supported.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate the tte with an assumed PA == 0, which is aligned to
@@ -1317,7 +1376,9 @@ void host_ns_s2tte_tc4(void)
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 	unsigned long host_attrs = s2tt_test_helpers_gen_ns_attrs(true, false);
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1348,7 +1409,9 @@ void s2tte_has_ripas_tc1(void)
 	unsigned long ripas[] = {S2TTE_INVALID_RIPAS_EMPTY,
 				 S2TTE_INVALID_RIPAS_RAM,
 				 S2TTE_INVALID_RIPAS_DESTROYED};
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1399,7 +1462,9 @@ void s2tte_has_ripas_tc2(void)
 	 ***************************************************************/
 
 	unsigned long tte;
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1634,7 +1699,9 @@ void s2tte_is_assigned_empty_tc1(void)
 	unsigned long ripas[] = {S2TTE_NS,
 				 S2TTE_INVALID_RIPAS_RAM,
 				 S2TTE_INVALID_RIPAS_DESTROYED};
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1689,7 +1756,10 @@ void s2tte_is_assigned_ns_tc1(void)
 	unsigned long ripas[] = {S2TTE_INVALID_RIPAS_EMPTY,
 				 S2TTE_INVALID_RIPAS_RAM,
 				 S2TTE_INVALID_RIPAS_DESTROYED};
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
 	/*
 	 * Initialize an s2tt_context structure for the test.
 	 * Only 'enable_lpa2' is used by the API, so the rest of fields
@@ -1743,7 +1813,9 @@ void s2tte_is_assigned_ns_tc2(void)
 	unsigned long pa = 0UL;
 	unsigned long tte = s2tt_test_helpers_gen_ns_attrs(true, false);
 	long level = s2tt_test_helpers_min_block_lvl();
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1776,7 +1848,9 @@ void s2tte_is_assigned_ram_tc1(void)
 	unsigned long ripas[] = {S2TTE_NS,
 				 S2TTE_INVALID_RIPAS_EMPTY,
 				 S2TTE_INVALID_RIPAS_DESTROYED};
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1827,7 +1901,9 @@ void s2tte_is_assigned_ram_tc2(void)
 	 ***************************************************************/
 	unsigned long pa = 0UL;
 	unsigned long tte;
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1859,7 +1935,9 @@ void s2tte_is_assigned_destroyed_tc1(void)
 	unsigned long ripas[] = {S2TTE_NS,
 				 S2TTE_INVALID_RIPAS_RAM,
 				 S2TTE_INVALID_RIPAS_EMPTY};
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1911,7 +1989,9 @@ void s2tte_is_table_tc1(void)
 	 * as a number of negative tests for each valid level.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -1971,7 +2051,9 @@ void s2tte_get_ripas_tc1(void)
 	unsigned long ripas[] = {S2TTE_INVALID_RIPAS_EMPTY,
 				 S2TTE_INVALID_RIPAS_RAM,
 				 S2TTE_INVALID_RIPAS_DESTROYED};
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Initialize an s2tt_context structure for the test.
@@ -2217,7 +2299,9 @@ void s2tt_init_assigned_empty_tc1(void)
 	 * S2TTEs and validate its contents.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2261,7 +2345,9 @@ void s2tt_init_assigned_empty_tc2(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2287,7 +2373,9 @@ void s2tt_init_assigned_empty_tc3(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = s2tt_test_helpers_min_block_lvl() - 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2311,7 +2399,9 @@ void s2tt_init_assigned_empty_tc4(void)
 
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2339,7 +2429,9 @@ void s2tt_init_assigned_empty_tc5(void)
 					       S2TT_TEST_HELPERS_MAX_LVL);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true) +
 		test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2380,7 +2472,9 @@ void s2tt_init_assigned_ram_tc1(void)
 	 * S2TTEs and validate its contents.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2424,7 +2518,9 @@ void s2tt_init_assigned_ram_tc2(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2450,7 +2546,9 @@ void s2tt_init_assigned_ram_tc3(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = s2tt_test_helpers_min_block_lvl() - 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2474,7 +2572,9 @@ void s2tt_init_assigned_ram_tc4(void)
 
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2502,7 +2602,9 @@ void s2tt_init_assigned_ram_tc5(void)
 					       S2TT_TEST_HELPERS_MAX_LVL);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true) +
 		test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2544,7 +2646,9 @@ void s2tt_init_assigned_ns_tc1(void)
 	 * S2TTEs and validate its contents.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2700,7 +2804,9 @@ void s2tt_init_assigned_destroyed_tc1(void)
 	 * For each valid level, initialize a table with
 	 * assigned-destroyed S2TTEs and validate its contents.
 	 ***************************************************************/
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2745,7 +2851,9 @@ void s2tt_init_assigned_destroyed_tc2(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2771,7 +2879,9 @@ void s2tt_init_assigned_destroyed_tc3(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = s2tt_test_helpers_min_block_lvl() - 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2796,7 +2906,9 @@ void s2tt_init_assigned_destroyed_tc4(void)
 
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2825,7 +2937,9 @@ void s2tt_init_assigned_destroyed_tc5(void)
 					       S2TT_TEST_HELPERS_MAX_LVL);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true) +
 		test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2870,7 +2984,9 @@ void s2tte_pa_tc1(void)
 	unsigned long ripas[] = {S2TTE_INVALID_RIPAS_EMPTY,
 				 S2TTE_INVALID_RIPAS_RAM,
 				 S2TTE_INVALID_RIPAS_DESTROYED};
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2923,7 +3039,9 @@ void s2tte_pa_tc2(void)
 	long level = test_helpers_get_rand_in_range(
 			s2tt_test_helpers_min_block_lvl(),
 			S2TT_TEST_HELPERS_MAX_LVL);
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2957,7 +3075,9 @@ void s2tte_pa_tc3(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -2992,7 +3112,9 @@ void s2tte_pa_tc4(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -3027,7 +3149,9 @@ void s2tte_pa_tc5(void)
 
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long pa = 0UL; /* Valid for any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only

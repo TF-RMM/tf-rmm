@@ -136,6 +136,8 @@ static int gen_mmap_array_by_level(xlat_mmap_region *mmap,
 	uint64_t mmap_start_va = start_va;
 	unsigned int max_table_entries = XLAT_GET_TABLE_ENTRIES(first_lvl);
 
+	(void)mmap_size;
+
 	assert(mmap_size >= 3U);
 	assert(last_lvl > XLAT_TEST_MIN_LVL());
 	assert(last_lvl <= XLAT_TABLE_LEVEL_MAX);
