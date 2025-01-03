@@ -1,6 +1,7 @@
 /*
  * SPDX-License-Identifier: BSD-3-Clause
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+ * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  */
 
 #include <arch_helpers.h>
@@ -20,11 +21,15 @@
 #include <utest_exit.h>
 #include <xlat_tables.h>
 
+#define HOST_RMM_EL3_IFC_VERS_MAJOR		(0U)
+#define HOST_RMM_EL3_IFC_VERS_MINOR		(4U)
+
 /*
  * Define and set the Boot Interface arguments.
  */
 #define RMM_EL3_IFC_ABI_VERSION		\
-	RMM_EL3_IFC_MAKE_VERSION(RMM_EL3_IFC_VERS_MAJOR, RMM_EL3_IFC_VERS_MINOR)
+	RMM_EL3_IFC_MAKE_VERSION(HOST_RMM_EL3_IFC_VERS_MAJOR, HOST_RMM_EL3_IFC_VERS_MINOR)
+
 #define RMM_EL3_MAX_CPUS		(MAX_CPUS)
 
 /* Maximum size of the assertion check string */
