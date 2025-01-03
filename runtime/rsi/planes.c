@@ -16,7 +16,8 @@
 #include <utils_def.h>
 
 static void copy_state_from_plane_entry(struct rec_plane *plane,
-					struct rsi_plane_enter *entry)
+					struct rsi_plane_enter *entry,
+					bool restore_gic)
 {
 	for (unsigned int i = 0; i < RSI_PLANE_NR_GPRS; i++) {
 		plane->regs[i] = entry->gprs[i];
@@ -24,8 +25,10 @@ static void copy_state_from_plane_entry(struct rec_plane *plane,
 
 	plane->pc = entry->pc;
 	plane->sysregs->pstate = entry->pstate;
-	gic_copy_state_from_entry(&plane->sysregs->gicstate,
+	if (restore_gic) {
+		gic_copy_state_from_entry(&plane->sysregs->gicstate,
 			(unsigned long *)&entry->gicv3_lrs, entry->gicv3_hcr);
+	}
 }
 
 void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
@@ -38,6 +41,7 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	struct s2_walk_result walk_res;
 	struct granule *gr;
 	struct rsi_plane_run *run;
+	bool restore_gic = true;
 
 	res->action = UPDATE_REC_RETURN_TO_REALM;
 
@@ -79,8 +83,17 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	/* Activate plane N */
 	plane_n = rec_activate_plane_n(rec, (unsigned int)plane_idx);
 
+	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_OWN_GIC) != 0UL) {
+		rec->gic_owner = (unsigned int)plane_idx;
+
+		/* Transfer the GIC status from Plane 0 to the new owner */
+		gic_copy_state(&plane_n->sysregs->gicstate,
+			       &plane_0->sysregs->gicstate);
+		restore_gic = false;
+	}
+
 	/* Copy target Plane state from entry structure to REC */
-	copy_state_from_plane_entry(plane_n, &run->enter);
+	copy_state_from_plane_entry(plane_n, &run->enter, restore_gic);
 
 	/* Initialize trap control bits */
 	plane_n->sysregs->hcr_el2 = rec->common_sysregs.hcr_el2;

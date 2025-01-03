@@ -1040,6 +1040,17 @@ out_return_to_plane_0:
 	/* Deactivate plane 0 */
 	rec_deactivate_plane_n(rec);
 
+	/* Return GIC ownership to Plane 0 if it was owned by the previous plane */
+	if (rec->gic_owner != PLANE_0_ID) {
+		/* We need to save/restore plane_n/plane_0 here */
+		assert(save_restore_plane_state);
+
+		gic_copy_state(&plane_0->sysregs->gicstate,
+				&plane_n->sysregs->gicstate);
+
+		rec->gic_owner = PLANE_0_ID;
+	}
+
 	/* Advance the PC on Plane 0 */
 	plane_0->pc = plane_0->pc + 4UL;
 

@@ -404,9 +404,9 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	}
 
 	/*
-	 * If the active plane is not P0 and either there is an active IRQ
-	 * pending or REC_ENTRY_PLAG_FORCE_P0 is set, exit the plane and pass
-	 * control to P0.
+	 * If either the active plane is not the GIC owner and there is an
+	 * active IRQ, or the active plane is not P0 and REC_ENTRY_PLAG_FORCE_P0
+	 * is set, exit the plane and pass control to P0.
 	 *
 	 * Note that we do not need to save PN context back to the REC here as
 	 * it was saved when RMM first received the interrupt and exited to NS.
@@ -417,8 +417,9 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 		if ((rec_run.enter.flags & REC_ENTRY_FLAG_FORCE_P0) != 0UL) {
 			report_err = !handle_plane_n_exit(rec, &rec_run.exit,
 						ARM_EXCEPTION_SYNC_LEL, false);
-		} else if (gic_is_interrupt_pending(&rec_run.enter.gicv3_lrs[0]) ||
-			   gic_is_maint_interrupt_pending(&rec->plane[1].sysregs->gicstate)) {
+		} else if ((rec->active_plane_id != rec->gic_owner) &&
+			   (gic_is_interrupt_pending(&rec_run.enter.gicv3_lrs[0]) ||
+			   gic_is_maint_interrupt_pending(&rec->plane[1].sysregs->gicstate))) {
 			report_err = !handle_plane_n_exit(rec, &rec_run.exit,
 						ARM_EXCEPTION_IRQ_LEL, false);
 		}
@@ -431,7 +432,7 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 
 	plane = rec_active_plane(rec);
 
-	if (rec_is_plane_0_active(rec)) {
+	if (rec->active_plane_id == rec->gic_owner) {
 		gic_copy_state_from_entry(&plane->sysregs->gicstate,
 				(unsigned long *)&rec_run.enter.gicv3_lrs,
 				rec_run.enter.gicv3_hcr);
@@ -463,9 +464,9 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 
 	rec_run_loop(rec, &rec_run.exit);
 
-	if (rec->active_plane_id == PLANE_0_ID) {
-		/* Active plane might have change during rec_run_loop() */
-		plane = rec_plane_0(rec);
+	/* Active plane might have changed during rec_run_loop() */
+	plane = rec_active_plane(rec);
+	if (rec->active_plane_id == rec->gic_owner) {
 		gic_copy_state_to_exit(&plane->sysregs->gicstate,
 					   (unsigned long *)&rec_run.exit.gicv3_lrs,
 					   &rec_run.exit.gicv3_hcr,

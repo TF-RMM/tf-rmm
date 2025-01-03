@@ -145,6 +145,17 @@ void gic_copy_state_from_entry(struct gic_cpu_state *gicstate,
 	gicstate->ich_hcr_el2 |= gicv3_hcr & ICH_HCR_EL2_NS_MASK;
 }
 
+void gic_copy_state(struct gic_cpu_state *dst,
+		    struct gic_cpu_state *src)
+{
+	size_t size = (gic_virt_feature.nr_lrs * sizeof(dst->ich_lr_el2[0]));
+
+	/* Copy List Registers */
+	(void)memcpy((void *)dst->ich_lr_el2, (void *)src->ich_lr_el2, size);
+
+	dst->ich_hcr_el2 = src->ich_hcr_el2;
+}
+
 void gic_copy_state_to_exit(struct gic_cpu_state *gicstate,
 			  unsigned long *gicv3_lrs,
 			  unsigned long *gicv3_hcr,

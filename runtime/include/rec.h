@@ -307,6 +307,9 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 
 	/* Index of the currently active plane */
 	unsigned int active_plane_id;
+
+	/* GIC Owner plane id */
+	unsigned int gic_owner;
 };
 COMPILER_ASSERT(sizeof(struct rec) <= GRANULE_SIZE);
 

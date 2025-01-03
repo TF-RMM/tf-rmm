@@ -226,6 +226,8 @@ void gic_copy_state_to_exit(struct gic_cpu_state *gicstate,
 	unsigned long *gicv3_hcr,
 	unsigned long *gicv3_misr,
 	unsigned long *gicv3_vmcr);
+void gic_copy_state(struct gic_cpu_state *dst,
+		    struct gic_cpu_state *src);
 bool gic_validate_state(unsigned long gicv3_hcr, unsigned long *gicv3_lrs);
 bool gic_is_interrupt_pending(unsigned long *gicv3_lrs);
 bool gic_is_maint_interrupt_pending(struct gic_cpu_state *gicstate);
