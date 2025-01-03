@@ -371,17 +371,15 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	/* Map auxiliary granules */
 	rec_aux = buffer_rec_aux_granules_map(rec->g_aux, rec->num_rec_aux);
 
-	plane = rec_active_plane(rec);
-
 	/*
 	 * Check GIC state after checking other conditions but before doing
 	 * anything which may have side effects.
 	 */
-	if (!gic_validate_state(&rec_run.enter)) {
+	if (!gic_validate_state(rec_run.enter.gicv3_hcr,
+				&rec_run.enter.gicv3_lrs[0])) {
 		ret = RMI_ERROR_REC;
 		goto out_unmap_aux_granules;
 	}
-	gic_copy_state_from_rec_entry(&plane->sysregs->gicstate, &rec_run.enter);
 
 	/*
 	 * Note that the order of checking SEA insertion needs to be prior
@@ -405,13 +403,38 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 		goto out_unmap_aux_granules;
 	}
 
-	if (!rec_is_plane_0_active(rec) &&
-		((rec_run.enter.flags & REC_ENTRY_FLAG_FORCE_P0) != 0UL)) {
-		if (!handle_plane_n_exit(rec, &rec_run.exit,
-					 ARM_EXCEPTION_SYNC_LEL)) {
+	/*
+	 * If the active plane is not P0 and either there is an active IRQ
+	 * pending or REC_ENTRY_PLAG_FORCE_P0 is set, exit the plane and pass
+	 * control to P0.
+	 *
+	 * Note that we do not need to save PN context back to the REC here as
+	 * it was saved when RMM first received the interrupt and exited to NS.
+	 */
+	if (!rec_is_plane_0_active(rec)) {
+		bool report_err = false;
+
+		if ((rec_run.enter.flags & REC_ENTRY_FLAG_FORCE_P0) != 0UL) {
+			report_err = !handle_plane_n_exit(rec, &rec_run.exit,
+						ARM_EXCEPTION_SYNC_LEL, false);
+		} else if (gic_is_interrupt_pending(&rec_run.enter.gicv3_lrs[0]) ||
+			   gic_is_maint_interrupt_pending(&rec->plane[1].sysregs->gicstate)) {
+			report_err = !handle_plane_n_exit(rec, &rec_run.exit,
+						ARM_EXCEPTION_IRQ_LEL, false);
+		}
+
+		if (report_err) {
 			ret = RMI_ERROR_INPUT;
 			goto out_unmap_aux_granules;
 		}
+	}
+
+	plane = rec_active_plane(rec);
+
+	if (rec_is_plane_0_active(rec)) {
+		gic_copy_state_from_entry(&plane->sysregs->gicstate,
+				(unsigned long *)&rec_run.enter.gicv3_lrs,
+				rec_run.enter.gicv3_hcr);
 	}
 
 	rec->set_ripas.response =
@@ -443,8 +466,11 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	if (rec->active_plane_id == PLANE_0_ID) {
 		/* Active plane might have change during rec_run_loop() */
 		plane = rec_plane_0(rec);
-		gic_copy_state_to_rec_exit(&plane->sysregs->gicstate,
-					   &rec_run.exit);
+		gic_copy_state_to_exit(&plane->sysregs->gicstate,
+					   (unsigned long *)&rec_run.exit.gicv3_lrs,
+					   &rec_run.exit.gicv3_hcr,
+					   &rec_run.exit.gicv3_misr,
+					   &rec_run.exit.gicv3_vmcr);
 	}
 
 out_unmap_aux_granules:

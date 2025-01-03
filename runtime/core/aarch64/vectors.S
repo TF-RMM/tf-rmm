@@ -36,6 +36,7 @@ el2_sync_lel:
 	b	realm_exit
 ENDPROC(el2_sync_lel)
 
+/* All interrupts result in REC Exit back to the NS Host. */
 el2_irq_lel:
 	stp	x0, x1, [sp, #-16]!
 	mov	x0, #ARM_EXCEPTION_IRQ_LEL

@@ -243,7 +243,7 @@ static bool handle_data_abort(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		if (abort_is_permission_fault(esr) || empty_ipa) {
 			assert(access_in_rec_par(rec, fipa));
 			return handle_plane_n_exit(rec, rec_exit,
-						   ARM_EXCEPTION_SYNC_LEL);
+						   ARM_EXCEPTION_SYNC_LEL, true);
 		}
 	}
 
@@ -318,7 +318,7 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 		 */
 		if (abort_is_permission_fault(esr) || empty_ipa || !in_par) {
 			return handle_plane_n_exit(rec, rec_exit,
-						   ARM_EXCEPTION_SYNC_LEL);
+						   ARM_EXCEPTION_SYNC_LEL, true);
 		}
 	}
 
@@ -452,7 +452,7 @@ static bool handle_wfx_exception(struct rec *rec,
 
 	/* WFx call from Plane N are forwarded to Plane 0 */
 	advance_pc();
-	ret = handle_plane_n_exit(rec, rec_exit, ARM_EXCEPTION_SYNC_LEL);
+	ret = handle_plane_n_exit(rec, rec_exit, ARM_EXCEPTION_SYNC_LEL, true);
 
 	if (!ret) {
 		/*
@@ -487,7 +487,7 @@ static bool handle_hvc_exception(struct rec *rec,
 	 * the instruction following the one that caused the exception. In
 	 * the case of an HVC instruction, the PC is already advanced.
 	 */
-	ret = handle_plane_n_exit(rec, rec_exit, ARM_EXCEPTION_SYNC_LEL);
+	ret = handle_plane_n_exit(rec, rec_exit, ARM_EXCEPTION_SYNC_LEL, true);
 
 	if (!ret) {
 		/*
@@ -521,7 +521,7 @@ static bool handle_rsi_from_pn(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			(plane->trap_hc != (bool)RSI_TRAP)) {
 		advance_pc();
 		*p0_return = handle_plane_n_exit(rec, rec_exit,
-						 ARM_EXCEPTION_SYNC_LEL);
+						 ARM_EXCEPTION_SYNC_LEL, true);
 
 		/*
 		 * If handle_plane_n_exit() returned false, RMM needs to return
@@ -874,14 +874,15 @@ bool handle_realm_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int excep
 	return false;
 }
 
-static void handle_plane_exit_sync(struct rsi_plane_exit *exit)
+static void handle_plane_exit_syndrome(struct rsi_plane_exit *exit,
+				       unsigned long exit_reason)
 {
 	const unsigned long esr_el2 = read_esr_el2();
 	const unsigned long elr_el2 = read_elr_el2();
 	const unsigned long far_el2 = read_far_el2();
 	const unsigned long hpfar_el2 = read_hpfar_el2();
 
-	exit->reason = RSI_EXIT_SYNC;
+	exit->reason = exit_reason;
 	exit->elr_el2 = elr_el2;
 	exit->esr_el2 = esr_el2;
 	exit->far_el2 = far_el2;
@@ -892,7 +893,10 @@ static void do_handle_plane_exit(int exception, struct rsi_plane_exit *exit)
 {
 	switch (exception) {
 	case ARM_EXCEPTION_SYNC_LEL:
-		handle_plane_exit_sync(exit);
+		handle_plane_exit_syndrome(exit, RSI_EXIT_SYNC);
+		break;
+	case ARM_EXCEPTION_IRQ_LEL:
+		handle_plane_exit_syndrome(exit, RSI_EXIT_IRQ);
 		break;
 	default:
 		ERROR("Unhandled Plane exit exception: 0x%x\n", exception);
@@ -909,19 +913,6 @@ static void copy_timer_state_to_plane_exit(STRUCT_TYPE sysreg_state * sysregs,
 	exit->cntv_cval = sysregs->pp_sysregs.cntv_cval_el0;
 }
 
-static void copy_gicstate_to_plane_exit(struct gic_cpu_state *gicstate,
-					struct rsi_plane_exit *exit)
-{
-	exit->gicv3_hcr = gicstate->ich_hcr_el2;
-
-	for (unsigned int i = 0; i < RSI_PLANE_GIC_NUM_LRS; i++) {
-		exit->gicv3_lrs[i] = gicstate->ich_lr_el2[i];
-	}
-
-	exit->gicv3_misr = gicstate->ich_misr_el2;
-	exit->gicv3_vmcr = gicstate->ich_vmcr_el2;
-}
-
 static void copy_state_to_plane_exit(struct rec_plane *plane,
 				     struct rsi_plane_exit *exit)
 {
@@ -931,7 +922,11 @@ static void copy_state_to_plane_exit(struct rec_plane *plane,
 
 	exit->pstate = plane->sysregs->pstate;
 	copy_timer_state_to_plane_exit(plane->sysregs, exit);
-	copy_gicstate_to_plane_exit(&plane->sysregs->gicstate, exit);
+	gic_copy_state_to_exit(&plane->sysregs->gicstate,
+			(unsigned long *)&exit->gicv3_lrs,
+			&exit->gicv3_hcr,
+			&exit->gicv3_misr,
+			&exit->gicv3_vmcr);
 }
 
 /*
@@ -949,10 +944,20 @@ static void copy_state_to_plane_exit(struct rec_plane *plane,
  * - The caller must ensure that Plane N executes the same
  *   instruction the next time the Realm is scheduled.
  *
+ * @save_restore_plane_state indicates whether the Plane N state needs to be
+ * saved and Plane 0 needs to be restored. It is false when this function is
+ * invoked from an RMI handler as the Plane N state would have already been
+ * saved as part of previous exit and Plane 0 will be directly restored from
+ * REC as part of REC_ENTER.
+ * It is true, when invoked from an RSI handler.
+ *
  * Note that this function expects the PC on Plane N to point to the instruction
  * after the one that caused the exception.
  */
-bool handle_plane_n_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int exception)
+bool handle_plane_n_exit(struct rec *rec,
+			 struct rmi_rec_exit *rec_exit,
+			 int exception,
+			 bool save_restore_plane_state)
 {
 	enum s2_walk_status walk_status;
 	struct s2_walk_result walk_res;
@@ -1001,8 +1006,10 @@ bool handle_plane_n_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int exc
 
 	ret = RSI_SUCCESS;
 
-	/* Save target Plane state to REC */
-	save_realm_state(plane_n);
+	/* Save Plane N state to REC */
+	if (save_restore_plane_state) {
+		save_realm_state(plane_n);
+	}
 
 	/* Map rsi_plane_run granule to RMM address space */
 	gr = find_granule(walk_res.pa);
@@ -1037,7 +1044,9 @@ out_return_to_plane_0:
 	plane_0->pc = plane_0->pc + 4UL;
 
 	/* Restore Plane 0 state from REC */
-	restore_realm_state(rec, plane_0);
+	if (save_restore_plane_state) {
+		restore_realm_state(rec, plane_0);
+	}
 
 	return true;
 }

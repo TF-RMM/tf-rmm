@@ -15,18 +15,6 @@
 #include <smc-rsi.h>
 #include <utils_def.h>
 
-static void copy_gicstate_from_plane_entry(struct gic_cpu_state *gicstate,
-					    struct rsi_plane_enter *entry)
-{
-	/* TODO: need to do some sanitisation here */
-	gicstate->ich_hcr_el2 &= ICH_HCR_EL2_NS_MASK;
-	gicstate->ich_hcr_el2 |= entry->gicv3_hcr & ICH_HCR_EL2_NS_MASK;
-
-	for (unsigned int i = 0; i < RSI_PLANE_GIC_NUM_LRS; i++) {
-		gicstate->ich_lr_el2[i] = entry->gicv3_lrs[i];
-	}
-}
-
 static void copy_state_from_plane_entry(struct rec_plane *plane,
 					struct rsi_plane_enter *entry)
 {
@@ -36,8 +24,8 @@ static void copy_state_from_plane_entry(struct rec_plane *plane,
 
 	plane->pc = entry->pc;
 	plane->sysregs->pstate = entry->pstate;
-
-	copy_gicstate_from_plane_entry(&plane->sysregs->gicstate, entry);
+	gic_copy_state_from_entry(&plane->sysregs->gicstate,
+			(unsigned long *)&entry->gicv3_lrs, entry->gicv3_hcr);
 }
 
 void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
