@@ -142,7 +142,16 @@ struct realm_device {
 		 * must be RDEV_OP_GET_MEASUREMENTS
 		 */
 		struct dev_meas_params meas_params;
+
+		/*
+		 * RSI_RDEV_{LOCK/START/STOP/GET_INTERFACE_REPORT} call set this
+		 * parameter
+		 */
+		struct dev_tdisp_params tdisp_params;
 	} op_params;
+
+	/* Nonce updated as part of lock interface and used in start interface */
+	uint8_t start_interface_nonce[64];
 
 	/* PA of VDEV. */
 	unsigned long vdev_ptr;

@@ -308,6 +308,18 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 		/* Device instance ID */
 		unsigned long inst_id;
 
+		/* VDEV granule cached as part of GET_INSTANCE() flow */
+		struct granule *g_vdev;
+
+		/* PA of the vdev granule */
+		unsigned long vdev_ptr;
+
+		/*
+		 * Whether a vdev_communicate flow is in progress.
+		 * vdev_ptr set when flag is_comm is true
+		 */
+		bool is_comm;
+
 		/* Whether device instance ID is valid */
 		bool inst_id_valid;
 	} vdev;

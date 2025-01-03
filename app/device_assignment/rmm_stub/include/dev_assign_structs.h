@@ -92,6 +92,19 @@ struct dev_meas_params {
 	unsigned char nonce[32];
 };
 
+struct dev_tdisp_params {
+	/* Interface ID to lock/start/stop/get_report */
+	uint32_t tdi_id;
+
+	/*
+	 * If the command is lock interface, start_interface_nonce is an output
+	 * value.
+	 *
+	 * If the command is start interface, start_interface_nonce is an input.
+	 */
+	uint8_t *start_interface_nonce;
+};
+
 /*
  * App functions for device communication. App uses heap available via tpidrro_el0.
  * The function execution can yield and return back to RMM. In this case

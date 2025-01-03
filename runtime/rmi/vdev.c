@@ -243,8 +243,11 @@ unsigned long smc_vdev_complete(unsigned long rec_ptr, unsigned long vdev_ptr)
 		rmi_rc = RMI_SUCCESS;
 	}
 
-	/* Clear the REC pending request operation */
 	if (rmi_rc == RMI_SUCCESS) {
+		/* Cache the vdev granule */
+		rec->vdev.g_vdev = g_vdev;
+
+		/* Clear the REC pending request operation */
 		rec_set_pending_op(rec, REC_PENDING_NONE);
 	}
 
