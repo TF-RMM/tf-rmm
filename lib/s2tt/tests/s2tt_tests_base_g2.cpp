@@ -33,7 +33,9 @@ void s2tte_is_addr_lvl_aligned_tc1(void)
 	 * validate that add_is_level_aligned() returns the right
 	 * result.
 	 ***************************************************************/
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -60,7 +62,9 @@ void s2tte_is_addr_lvl_aligned_tc2(void)
 	 * PA and validate that add_is_level_aligned() returns the
 	 * right result.
 	 ***************************************************************/
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -91,7 +95,9 @@ void s2tte_is_addr_lvl_aligned_tc3(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Aligned to any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -116,7 +122,9 @@ void s2tte_is_addr_lvl_aligned_tc4(void)
 
 	long level = s2tt_test_helpers_min_table_lvl() - 1L;
 	unsigned long pa = 0UL; /* Aligned to any level */
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -176,7 +184,10 @@ void s2tt_invalidate_page_tc1(void)
 	 * implementation.
 	 **************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
 	unsigned long ipa = s2tt_test_helpers_gen_addr(S2TT_TEST_HELPERS_MAX_LVL, true);
 
 	s2tt_ctx.vmid = (unsigned int)test_helpers_get_rand_in_range(
@@ -212,7 +223,10 @@ void s2tt_invalidate_block_tc1(void)
 	 * implementation.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
 	unsigned long ipa;
 
 	for (unsigned int level = S2TT_MIN_BLOCK_LEVEL;
@@ -253,7 +267,10 @@ void s2tt_invalidate_pages_in_block_tc1(void)
 	 * implementation.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
 	unsigned long ipa = s2tt_test_helpers_gen_addr(S2TT_TEST_HELPERS_MAX_LVL, true);
 
 	s2tt_ctx.vmid = (unsigned int)test_helpers_get_rand_in_range(
@@ -341,7 +358,10 @@ static void test_is_unassigned_x_block(unsigned int type)
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned int tte_idx = (unsigned int)test_helpers_get_rand_in_range(0UL,
 					     S2TTES_PER_S2TT - 1UL);
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
 	unsigned int idx;
 
 	assert(type <= S2TTE_INVALID_NS_INDEX);
@@ -575,7 +595,9 @@ void s2tt_maps_assigned_empty_block_tc1(void)
 	 * the expected value
 	 ***************************************************************/
 
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -618,7 +640,9 @@ void s2tt_maps_assigned_empty_block_tc2(void)
 	unsigned long assigned_ripas[] = {S2TTE_INVALID_RIPAS_RAM,
 					  S2TTE_NS,
 					  S2TTE_INVALID_RIPAS_DESTROYED};
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -678,7 +702,9 @@ void s2tt_maps_assigned_empty_block_tc3(void)
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa;
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -712,7 +738,9 @@ void s2tt_maps_assigned_empty_block_tc4(void)
 	 ***************************************************************/
 
 	long level = s2tt_test_helpers_min_block_lvl();
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -740,7 +768,9 @@ void s2tt_maps_assigned_empty_block_tc5(void)
 	long level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -772,7 +802,9 @@ void s2tt_maps_assigned_empty_block_tc6(void)
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -805,7 +837,9 @@ void s2tt_maps_assigned_empty_block_tc7(void)
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -835,7 +869,9 @@ void s2tt_maps_assigned_ram_block_tc1(void)
 	 * the expected value
 	 ***************************************************************/
 
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -878,7 +914,9 @@ void s2tt_maps_assigned_ram_block_tc2(void)
 	unsigned long assigned_ripas[] = {S2TTE_INVALID_RIPAS_EMPTY,
 					  S2TTE_NS,
 					  S2TTE_INVALID_RIPAS_DESTROYED};
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -938,7 +976,9 @@ void s2tt_maps_assigned_ram_block_tc3(void)
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa;
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -972,7 +1012,9 @@ void s2tt_maps_assigned_ram_block_tc4(void)
 	 ***************************************************************/
 
 	long level = s2tt_test_helpers_min_block_lvl();
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -999,7 +1041,9 @@ void s2tt_maps_assigned_ram_block_tc5(void)
 	long level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1031,7 +1075,9 @@ void s2tt_maps_assigned_ram_block_tc6(void)
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1063,7 +1109,9 @@ void s2tt_maps_assigned_ram_block_tc7(void)
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1092,7 +1140,9 @@ void s2tt_maps_assigned_ns_block_tc1(void)
 	 * the expected value
 	 ***************************************************************/
 
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1130,7 +1180,9 @@ void s2tt_maps_assigned_ns_block_tc2(void)
 	 * the expected value.
 	 ***************************************************************/
 
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1189,7 +1241,9 @@ void s2tt_maps_assigned_ns_block_tc3(void)
 					  S2TTE_INVALID_RIPAS_DESTROYED};
 
 	unsigned long attrs = s2tt_test_helpers_gen_ns_attrs(true, false);
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1250,7 +1304,9 @@ void s2tt_maps_assigned_ns_block_tc4(void)
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long attrs = s2tt_test_helpers_gen_ns_attrs(true, false);
 	unsigned long pa;
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1285,7 +1341,9 @@ void s2tt_maps_assigned_ns_block_tc5(void)
 	 ***************************************************************/
 
 	long level = s2tt_test_helpers_min_block_lvl();
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1313,7 +1371,9 @@ void s2tt_maps_assigned_ns_block_tc6(void)
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
 	unsigned long attrs = s2tt_test_helpers_gen_ns_attrs(true, false);
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1345,7 +1405,9 @@ void s2tt_maps_assigned_ns_block_tc7(void)
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
 	unsigned long attrs = s2tt_test_helpers_gen_ns_attrs(true, false);
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1378,7 +1440,9 @@ void s2tt_maps_assigned_ns_block_tc8(void)
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
 	unsigned long attrs = s2tt_test_helpers_gen_ns_attrs(true, false);
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1407,7 +1471,9 @@ void s2tt_maps_assigned_destroyed_block_tc1(void)
 	 * the expected value
 	 ***************************************************************/
 
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1451,7 +1517,9 @@ void s2tt_maps_assigned_destroyed_block_tc2(void)
 	unsigned long assigned_ripas[] = {S2TTE_INVALID_RIPAS_EMPTY,
 					  S2TTE_NS,
 					  S2TTE_INVALID_RIPAS_RAM};
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1512,7 +1580,9 @@ void s2tt_maps_assigned_destroyed_block_tc3(void)
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa;
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1546,7 +1616,9 @@ void s2tt_maps_assigned_destroyed_block_tc4(void)
 	 ***************************************************************/
 
 	long level = s2tt_test_helpers_min_block_lvl();
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1574,7 +1646,9 @@ void s2tt_maps_assigned_destroyed_block_tc5(void)
 	long level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1606,7 +1680,9 @@ void s2tt_maps_assigned_destroyed_block_tc6(void)
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1639,7 +1715,9 @@ void s2tt_maps_assigned_destroyed_block_tc7(void)
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long s2tt[S2TTES_PER_S2TT];
 	unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1782,7 +1860,9 @@ void s2tt_skip_non_live_entries_tc1(void)
 		s2tt_init_unassigned_ram,
 		s2tt_init_unassigned_destroyed
 	};
-	s2tt_context s2tt_ctx = { 0UL };
+	s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
@@ -1880,7 +1960,10 @@ void s2tt_skip_non_live_entries_tc2(void)
 	 * Call s2tt_skip_non_live_entries() with a NULL s2tt pointer.
 	 ***************************************************************/
 
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
 	struct s2tt_walk wi = {
 		NULL,  /* Not needed */
 		0UL,
@@ -1908,7 +1991,9 @@ void s2tt_skip_non_live_entries_tc3(void)
 	 ***************************************************************/
 
 	unsigned long s2tt[S2TTES_PER_S2TT];
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test. Only
@@ -1932,7 +2017,10 @@ void s2tt_skip_non_live_entries_tc4(void)
 	 ***************************************************************/
 
 	unsigned long s2tt[S2TTES_PER_S2TT];
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
 	struct s2tt_walk wi = {
 		NULL,  /* Not needed */
 		0UL,
@@ -1959,7 +2047,10 @@ void s2tt_skip_non_live_entries_tc5(void)
 	 ***************************************************************/
 
 	unsigned long s2tt[S2TTES_PER_S2TT];
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
 	struct s2tt_walk wi = {
 		NULL,  /* Not needed */
 		0UL,
@@ -1986,7 +2077,10 @@ void s2tt_skip_non_live_entries_tc6(void)
 	 ***************************************************************/
 
 	unsigned long s2tt[S2TTES_PER_S2TT];
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
 	struct s2tt_walk wi = {
 		NULL,  /* Not needed */
 		S2TTES_PER_S2TT + 1UL,
@@ -2240,7 +2334,9 @@ void s2tt_walk_lock_unlock_tc1(void)
 	unsigned long tt_walk[end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U];
 	struct s2tt_walk wi;
 	struct granule *val_tt_granule;
-	struct s2tt_context s2tt_ctx = { 0UL };
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/* Total number of granules, included the concatenated ones */
 	const unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
