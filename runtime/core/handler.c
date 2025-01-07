@@ -183,7 +183,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RTT_AUX_UNMAP_PROTECTED, 3, 2, smc_rtt_aux_unmap_protected, false, true),
 	HANDLER(RTT_AUX_UNMAP_UNPROTECTED, 3, 2, smc_rtt_aux_unmap_unprotected, false, true),
 	HANDLER(VDEV_ABORT,		0, 0, NULL,			 true, true),
-	HANDLER(VDEV_COMMUNICATE,	0, 0, NULL,			 true, true),
+	HANDLER(VDEV_COMMUNICATE,	3, 0, smc_vdev_communicate,	 true, true),
 	HANDLER(VDEV_CREATE,		4, 0, smc_vdev_create,		 true, true),
 	HANDLER(VDEV_DESTROY,		0, 0, NULL,			 true, true),
 	HANDLER(VDEV_GET_STATE,		0, 0, NULL,			 true, true),

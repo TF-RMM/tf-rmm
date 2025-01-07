@@ -87,6 +87,14 @@ void handle_rsi_rdev_continue(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	assert(false);
 }
 
+void rdev_state_transition(struct realm_device *rdev,
+			   unsigned long dev_comm_state)
+{
+	(void)rdev;
+	(void)dev_comm_state;
+	assert(false);
+}
+
 /*
  * Called from REC enter to check if RDEV communication request is completed by
  * the VDEV

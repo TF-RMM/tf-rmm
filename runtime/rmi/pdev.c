@@ -319,19 +319,14 @@ out_restore_pdev_aux_granule_state:
 
 /* Validate RmiDevCommData.RmiDevCommEnter argument passed by Host */
 static unsigned long copyin_and_validate_dev_comm_enter(
-				  unsigned long dev_comm_data_ptr,
+				  struct granule *g_dev_comm_data,
 				  struct rmi_dev_comm_enter *enter_args,
 				  unsigned int dev_comm_state)
 {
-	struct granule *g_dev_comm_data;
 	struct granule *g_buf;
 	bool ns_access_ok;
 
-	g_dev_comm_data = find_granule(dev_comm_data_ptr);
-	if ((g_dev_comm_data == NULL) ||
-	    (granule_unlocked_state(g_dev_comm_data) != GRANULE_STATE_NS)) {
-		return RMI_ERROR_INPUT;
-	}
+	assert(g_dev_comm_data != NULL);
 
 	ns_access_ok = ns_buffer_read(SLOT_NS, g_dev_comm_data,
 				      RMI_DEV_COMM_ENTER_OFFSET,
@@ -381,17 +376,12 @@ static unsigned long copyin_and_validate_dev_comm_enter(
 /*
  * copyout DevCommExitArgs
  */
-static unsigned long copyout_dev_comm_exit(unsigned long dev_comm_data_ptr,
-				   struct rmi_dev_comm_exit *exit_args)
+static unsigned long copyout_dev_comm_exit(struct granule *g_dev_comm_data,
+					   struct rmi_dev_comm_exit *exit_args)
 {
-	struct granule *g_dev_comm_data;
 	bool ns_access_ok;
 
-	g_dev_comm_data = find_granule(dev_comm_data_ptr);
-	if ((g_dev_comm_data == NULL) ||
-	    (granule_unlocked_state(g_dev_comm_data) != GRANULE_STATE_NS)) {
-		return RMI_ERROR_INPUT;
-	}
+	assert(g_dev_comm_data != NULL);
 
 	ns_access_ok = ns_buffer_write(SLOT_NS, g_dev_comm_data,
 				       RMI_DEV_COMM_EXIT_OFFSET,
@@ -443,8 +433,90 @@ static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_a
 	return rc;
 }
 
-static unsigned long dev_communicate(struct pdev *pd,
-				     unsigned long dev_comm_data_ptr)
+/* Dispatch a command to VDEV based on the VDEV state */
+static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
+	struct rmi_dev_comm_enter *enter_args,
+	struct rmi_dev_comm_exit *exit_args)
+{
+	int rc;
+	struct dev_obj_digest *comm_digest_ptr;
+	struct dev_tdisp_params *tdisp_params_ptr;
+
+	/*
+	 * State is already validated in vdev_communicate smc handler, the
+	 * following are just sanity check:
+	 */
+	assert((vd->rmi_state == RMI_VDEV_STATE_COMMUNICATING) ||
+	       (vd->rmi_state == RMI_VDEV_STATE_STOPPING));
+	assert((vd->rmi_state != RMI_VDEV_STATE_COMMUNICATING) ||
+	       (vd->rdev.op != RDEV_OP_NONE));
+
+	if (vd->rdev.op == RDEV_OP_GET_MEASUREMENTS) {
+		comm_digest_ptr = &vd->meas_digest;
+	} else if (vd->rdev.op == RDEV_OP_GET_INTERFACE_REPORT) {
+		comm_digest_ptr = &vd->ifc_report_digest;
+	} else {
+		comm_digest_ptr = NULL;
+	}
+
+	if ((vd->rdev.op == RDEV_OP_LOCK) ||
+	    (vd->rdev.op == RDEV_OP_GET_INTERFACE_REPORT) ||
+	    (vd->rdev.op == RDEV_OP_START) ||
+	    (vd->rdev.op == RDEV_OP_STOP)) {
+		tdisp_params_ptr = &vd->rdev.op_params.tdisp_params;
+	} else {
+		tdisp_params_ptr = NULL;
+	}
+
+	if (pd->dev_comm_state == DEV_COMM_ACTIVE) {
+		return dev_assign_dev_communicate(&pd->da_app_data, enter_args, exit_args,
+			comm_digest_ptr, tdisp_params_ptr, DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
+	}
+
+	switch (vd->rdev.op) {
+	case RDEV_OP_GET_MEASUREMENTS:
+		/*
+		 * In this RDEV op, the device measurement is retrieved and its
+		 * hash needs to be calculated during device communication
+		 */
+		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args, exit_args,
+			comm_digest_ptr, tdisp_params_ptr,
+			DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS);
+		break;
+	case RDEV_OP_LOCK:
+		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+			exit_args, comm_digest_ptr, tdisp_params_ptr,
+			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_LOCK);
+		break;
+	case RDEV_OP_GET_INTERFACE_REPORT:
+		/*
+		 * In this RDEV op, the device interface report is retrieved and
+		 * its hash needs to be calculated during device communication
+		 */
+		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+			exit_args, comm_digest_ptr, tdisp_params_ptr,
+			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_REPORT);
+		break;
+	case RDEV_OP_START:
+		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+			exit_args, comm_digest_ptr, tdisp_params_ptr,
+			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_START);
+		break;
+	case RDEV_OP_STOP:
+		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+			exit_args, comm_digest_ptr, tdisp_params_ptr,
+			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP);
+		break;
+	default:
+		assert(false);
+		rc = -1;
+	}
+
+	return rc;
+}
+
+unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
+			      struct granule *g_dev_comm_data)
 {
 	struct rmi_dev_comm_enter enter_args;
 	struct rmi_dev_comm_exit exit_args;
@@ -461,7 +533,7 @@ static unsigned long dev_communicate(struct pdev *pd,
 
 	/* Validate RmiDevCommEnter arguments in DevCommData */
 	/* coverity[uninit_use_in_call:SUPPRESS] */
-	comm_rc = copyin_and_validate_dev_comm_enter(dev_comm_data_ptr, &enter_args,
+	comm_rc = copyin_and_validate_dev_comm_enter(g_dev_comm_data, &enter_args,
 		pd->dev_comm_state);
 	if (comm_rc != RMI_SUCCESS) {
 		return comm_rc;
@@ -472,16 +544,24 @@ static unsigned long dev_communicate(struct pdev *pd,
 	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
 	assert(aux_mapped_addr != NULL);
 
-	rc = pdev_dispatch_cmd(pd, &enter_args, &exit_args);
+	if (vd == NULL) {
+		rc = pdev_dispatch_cmd(pd, &enter_args, &exit_args);
+	} else {
+		rc = vdev_dispatch_cmd(pd, vd, &enter_args, &exit_args);
+	}
 
 	/* Unmap all PDEV aux granules */
 	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_aux);
 
-	comm_rc = copyout_dev_comm_exit(dev_comm_data_ptr,
+	comm_rc = copyout_dev_comm_exit(g_dev_comm_data,
 				       &exit_args);
 	if (comm_rc != RMI_SUCCESS) {
-		/* todo: device status is updated but copyout data failed? */
-		return RMI_ERROR_INPUT;
+		/*
+		 * Communication to device has happened, but failed to copy out
+		 * to exit args. Don't return early so that Comm State to error
+		 * below.
+		 */
+		rc = DEV_ASSIGN_STATUS_ERROR;
 	}
 
 	/*
@@ -502,7 +582,7 @@ static unsigned long dev_communicate(struct pdev *pd,
 		assert(false);
 	}
 
-	return RMI_SUCCESS;
+	return comm_rc;
 }
 
 /*
@@ -515,6 +595,7 @@ unsigned long smc_pdev_communicate(unsigned long pdev_ptr,
 				   unsigned long dev_comm_data_ptr)
 {
 	struct granule *g_pdev;
+	struct granule *g_dev_comm_data;
 	struct pdev *pd;
 	unsigned long rmi_rc;
 
@@ -538,9 +619,16 @@ unsigned long smc_pdev_communicate(unsigned long pdev_ptr,
 		return RMI_ERROR_INPUT;
 	}
 
+	g_dev_comm_data = find_granule(dev_comm_data_ptr);
+	if ((g_dev_comm_data == NULL) ||
+		(granule_unlocked_state(g_dev_comm_data) != GRANULE_STATE_NS)) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto out_pdev_buf_unmap;
+	}
+
 	assert(pd->g_pdev == g_pdev);
 
-	rmi_rc = dev_communicate(pd, dev_comm_data_ptr);
+	rmi_rc = dev_communicate(pd, NULL, g_dev_comm_data);
 
 	/*
 	 * Based on the device communication results update the device IO state
@@ -569,10 +657,13 @@ unsigned long smc_pdev_communicate(unsigned long pdev_ptr,
 		/* No state change required */
 		break;
 	case DEV_COMM_PENDING:
+		ERROR("PDEV Communicate: Dev comm state is Pending due of communication error.\n");
+		break;
 	default:
 		assert(false);
 	}
 
+out_pdev_buf_unmap:
 	buffer_unmap(pd);
 	granule_unlock(g_pdev);
 

@@ -202,4 +202,8 @@ struct vdev {
 };
 COMPILER_ASSERT(sizeof(struct vdev) <= GRANULE_SIZE);
 
+unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
+			      struct granule *g_dev_comm_data);
+void rdev_state_transition(struct realm_device *rdev,
+			   unsigned long dev_comm_state);
 #endif /* DEV_H */

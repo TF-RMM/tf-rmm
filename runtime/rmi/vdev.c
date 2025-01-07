@@ -260,3 +260,133 @@ out_unmap_rec:
 
 	return rmi_rc;
 }
+
+/*
+ * smc_vdev_communicate
+ *
+ * pdev_ptr	- PA of the PDEV
+ * vdev_ptr	- PA of the VDEV
+ * data_ptr	- PA of the communication data structure
+ */
+unsigned long smc_vdev_communicate(unsigned long pdev_ptr,
+				   unsigned long vdev_ptr,
+				   unsigned long dev_comm_data_ptr)
+{
+	struct granule *g_pdev = NULL;
+	struct granule *g_vdev = NULL;
+	struct granule *g_dev_comm_data;
+	struct pdev *pd = NULL;
+	struct vdev *vd = NULL;
+	unsigned long rmi_rc;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(pdev_ptr) || !GRANULE_ALIGNED(vdev_ptr) ||
+	    !GRANULE_ALIGNED(dev_comm_data_ptr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Map PDEV and VDEV. */
+	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_PDEV);
+	if (g_pdev == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
+	assert(pd != NULL);
+
+	g_vdev = find_lock_granule(vdev_ptr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto out_error;
+	}
+
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	if (vd->g_pdev != g_pdev) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto out_error;
+	}
+
+	g_dev_comm_data = find_granule(dev_comm_data_ptr);
+	if ((g_dev_comm_data == NULL) ||
+		(granule_unlocked_state(g_dev_comm_data) != GRANULE_STATE_NS)) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto out_error;
+	}
+
+	if (vd->rmi_state == RMI_VDEV_STATE_COMMUNICATING) {
+		if (vd->rdev.op == RDEV_OP_NONE) {
+			rmi_rc = RMI_ERROR_DEVICE;
+			goto out_error;
+		}
+	} else if (vd->rmi_state != RMI_VDEV_STATE_STOPPING) {
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto out_error;
+	}
+
+	rmi_rc = dev_communicate(pd, vd, g_dev_comm_data);
+	/* Do not return early here in case of error. Instead do the state
+	 * transition below based on pd->dev_comm_state set by dev_communicate.
+	 */
+
+	/*
+	 * Transistion VDEV state based on device communication state. VDEV
+	 * do not have dev_comm state as there is only one session to the device
+	 * which is created and maintained by PDEV. So use PDEV's comm_state to
+	 * update VDEV rmi_state.
+	 */
+	switch (pd->dev_comm_state) {
+	case DEV_COMM_ERROR:
+		if (vd->rmi_state == RMI_VDEV_STATE_STOPPING) {
+			vd->rmi_state = RMI_VDEV_STATE_STOPPED;
+		} else {
+			vd->rmi_state = RMI_VDEV_STATE_ERROR;
+		}
+		break;
+	case DEV_COMM_IDLE:
+		/*
+		 * Last device communication is completed, move the PDEV state
+		 * to next state based on the current state.
+		 */
+		if (vd->rmi_state == RMI_VDEV_STATE_COMMUNICATING) {
+			vd->rmi_state = RMI_VDEV_STATE_READY;
+		} else if (vd->rmi_state == RMI_VDEV_STATE_STOPPING) {
+			vd->rmi_state = RMI_VDEV_STATE_STOPPED;
+		} else {
+			/*
+			 * Transition to error as Host can trigger vdev
+			 * communicate in IDLE state.
+			 */
+			vd->rmi_state = RMI_VDEV_STATE_ERROR;
+		}
+		break;
+	case DEV_COMM_ACTIVE:
+		/* No state change required */
+		break;
+	case DEV_COMM_PENDING:
+		ERROR("VDEV Communicate: Dev comm state is Pending due of communication error.\n");
+		break;
+	default:
+		assert(false);
+	}
+
+	rdev_state_transition(&vd->rdev, pd->dev_comm_state);
+
+out_error:
+	if (vd != NULL) {
+		buffer_unmap(vd);
+	}
+	if (g_vdev != NULL) {
+		granule_unlock(g_vdev);
+	}
+	if (pd != NULL) {
+		buffer_unmap(pd);
+	}
+	granule_unlock(g_pdev);
+
+	return rmi_rc;
+}
