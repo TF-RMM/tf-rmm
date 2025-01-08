@@ -19,6 +19,7 @@
 #include <simd.h>
 #include <sizes.h>
 #include <smc-rmi.h>
+#include <timers.h>
 #include <utils_def.h>
 
 #ifndef CBMC
@@ -151,6 +152,7 @@ struct ns_state {
 	STRUCT_TYPE sysreg_state sysregs;
 	unsigned long icc_sre_el2;
 	struct pmu_state pmu;
+	struct timer_state el2_timer;
 } __aligned(CACHE_WRITEBACK_GRANULE);
 
 /*

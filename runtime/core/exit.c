@@ -25,6 +25,7 @@
 #include <smc-rsi.h>
 #include <status.h>
 #include <sysreg_traps.h>
+#include <timers.h>
 
 __dead2 static void system_abort(void)
 {
@@ -933,7 +934,8 @@ static void copy_state_to_plane_exit(struct rec_plane *plane,
  * Handles the exit from plane N
  *
  * If 'true' is returned:
- * - The Realm has switched to Plane 0.
+ * - The Realm has switched to Plane 0. This include changes to the
+ *   entire state of the platform, such as the timers or the GIC.
  * - The Realm can continue running
  *
  * If 'false' is returned:
@@ -1057,6 +1059,11 @@ out_return_to_plane_0:
 	/* Restore Plane 0 state from REC */
 	if (save_restore_plane_state) {
 		restore_realm_state(rec, plane_0);
+		/*
+		 * Since we are returning to P0, we need to undo
+		 * multiplex_el2_timer(), so we restore NS timer.
+		 */
+		hyp_timer_restore_state(&rec->ns->el2_timer);
 	}
 
 	return true;

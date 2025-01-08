@@ -267,6 +267,8 @@ static void save_ns_state(struct rec *rec)
 		pmu_save_state(&ns_state->pmu,
 				(unsigned int)EXTRACT(PMCR_EL0_N, read_pmcr_el0()));
 	}
+
+	hyp_timer_save_state(&ns_state->el2_timer);
 }
 
 static void restore_ns_state(struct rec *rec)
@@ -299,6 +301,8 @@ static void restore_ns_state(struct rec *rec)
 		pmu_restore_state(&ns_state->pmu,
 				  (unsigned int)EXTRACT(PMCR_EL0_N, read_pmcr_el0()));
 	}
+
+	hyp_timer_restore_state(&ns_state->el2_timer);
 }
 
 static void activate_events(struct rec *rec)
@@ -353,6 +357,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	int realm_exception_code;
 	unsigned int cpuid = my_cpuid();
 	struct rec_plane *plane = rec_active_plane(rec);
+	bool skip_timer_report = false;
 
 	assert(cpuid < MAX_CPUS);
 	assert(rec->ns == NULL);
@@ -372,6 +377,14 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	assert(rec->active_simd_ctx == NULL);
 	rec->active_simd_ctx = &g_ns_simd_ctx[cpuid];
 
+	/*
+	 * In case we enter straight into a Plane N, we might need to
+	 * adjust EL2 timer to get notified of Plane 0 EL1 timers.
+	 */
+	if (!rec_is_plane_0_active(rec)) {
+		multiplex_el2_timer(rec);
+	}
+
 	do {
 		unsigned long rmm_cptr_el2 = read_cptr_el2();
 
@@ -385,6 +398,25 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		 * change in output level to the NS caller.
 		 */
 		if (check_pending_timers(plane)) {
+			if (!rec_is_plane_0_active(rec)) {
+				bool plane_n_exited;
+
+				skip_timer_report = true;
+				report_timer_state_to_ns(rec, rec_exit);
+
+				/* Switch to P0 to handle timer interrupt */
+				plane_n_exited = handle_plane_n_exit(rec, rec_exit,
+							ARM_EXCEPTION_IRQ_LEL, true);
+
+				if (!plane_n_exited) {
+					/*
+					 * @TODO: This condition needs to be properly
+					 * reported back to NS.
+					 */
+					ERROR("%s at %s: handle_plane_n_exit failed!\n",
+							__FILE__, __func__);
+				}
+			}
 			rec_exit->exit_reason = RMI_EXIT_IRQ;
 			break;
 		}
@@ -440,7 +472,10 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	/* Clear active simd_context */
 	rec->active_simd_ctx = NULL;
 
-	report_timer_state_to_ns(rec_exit);
+	if (!skip_timer_report) {
+		/* Timer status already reported */
+		report_timer_state_to_ns(rec, rec_exit);
+	}
 
 	save_realm_state(plane);
 	save_pmu(rec, rec_exit);

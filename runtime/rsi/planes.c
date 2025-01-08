@@ -13,6 +13,7 @@
 #include <rsi-handler.h>
 #include <run.h>
 #include <smc-rsi.h>
+#include <timers.h>
 #include <utils_def.h>
 
 static void copy_state_from_plane_entry(struct rec_plane *plane,
@@ -73,6 +74,11 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 
 	/* Save Plane 0 state to REC */
 	save_realm_state(plane_0);
+
+	/*
+	 * Check if the primary plane has timers that we need to be notified of
+	 */
+	multiplex_el2_timer(rec);
 
 	/* Map Realm data granule to RMM address space */
 	gr = find_granule(walk_res.pa);
