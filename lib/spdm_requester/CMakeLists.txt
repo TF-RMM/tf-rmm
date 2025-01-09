@@ -69,6 +69,10 @@ else()
         ${LIBSPDM_DIR}/os_stub/platform_lib)
 endif()
 
+# Disable -Wstrict-overflow for libspdm
+set(BACKUP_C_FLAGS "${CMAKE_C_FLAGS}")
+string(REPLACE "-Wstrict-overflow" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
+
 # Add all source directories
 foreach(SOURCE_DIR IN LISTS SOURCE_DIRS)
     # Get the library basename
@@ -84,11 +88,19 @@ foreach(SOURCE_DIR IN LISTS SOURCE_DIRS)
     target_compile_definitions(${SPDM_LIB} PRIVATE
         ${LIBSPDM_CONFIG}
         "-DMBEDTLS_CONFIG_FILE=<rmm_mbedtls_config.h>")
+
+    # RMM default compile flags are passed to libspdm. Disable few warnings
+    # reported as error until libspdm resolves these issues.
     target_compile_options(${SPDM_LIB} PRIVATE
-        "-Wno-incompatible-pointer-types")
+        "-Wno-incompatible-pointer-types"
+        "-Wno-unused-parameter"
+        "-Wno-old-style-declaration"
+        "-Wno-sign-compare")
 
     target_link_libraries(rmm-lib-spdm_requester INTERFACE ${SPDM_LIB})
 endforeach()
+
+set(CMAKE_C_FLAGS "${BACKUP_C_FLAGS}")
 
 # Manually create dependencies for libspdm libraries
 target_link_libraries(spdm_requester_lib PRIVATE spdm_common_lib spdm_crypt_lib)
