@@ -8,6 +8,7 @@
 #include <buffer.h>
 #include <debug.h>
 #include <dev.h>
+#include <dev_assign_app.h>
 #include <feature.h>
 #include <granule.h>
 #include <realm.h>
@@ -389,4 +390,340 @@ out_error:
 	granule_unlock(g_pdev);
 
 	return rmi_rc;
+}
+
+/*
+ * smc_vdev_aux_count
+ *
+ * Get number of auxiliary Granules required for a VDEV.
+ *
+ * pdev_flags	- PDEV flags
+ * vdev_flags	- VDEV flags
+ * res		- SMC result
+ */
+void smc_vdev_aux_count(unsigned long pdev_flags, unsigned long vdev_flags,
+			struct smc_result *res)
+{
+	/* VDEV aux granules will be enabled when VSMMU support is enabled */
+	(void)pdev_flags;
+	(void)vdev_flags;
+
+	if (is_rmi_feat_da_enabled()) {
+		res->x[0] = RMI_SUCCESS;
+		res->x[1] = 0UL;
+	} else {
+		res->x[0] = SMC_NOT_SUPPORTED;
+	}
+}
+
+/*
+ * smc_vdev_get_state
+ *
+ * Get state of a VDEV.
+ *
+ * vdev_ptr	- PA of the VDEV
+ * res		- SMC result
+ */
+void smc_vdev_get_state(unsigned long vdev_ptr, struct smc_result *res)
+{
+	struct granule *g_vdev;
+	struct vdev *vd;
+
+	if (!is_rmi_feat_da_enabled()) {
+		res->x[0] = SMC_NOT_SUPPORTED;
+		return;
+	}
+
+	if (!GRANULE_ALIGNED(vdev_ptr)) {
+		goto out_err_input;
+	}
+
+	/* Lock vdev granule and map it */
+	g_vdev = find_lock_granule(vdev_ptr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		goto out_err_input;
+	}
+
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = vd->rmi_state;
+
+	buffer_unmap(vd);
+	granule_unlock(g_vdev);
+
+	return;
+
+out_err_input:
+	res->x[0] = RMI_ERROR_INPUT;
+}
+
+/*
+ * smc_vdev_abort
+ *
+ * vdev_ptr	- PA of the VDEV
+ */
+unsigned long smc_vdev_abort(unsigned long vdev_ptr)
+{
+	int rc __unused;
+	struct granule *g_pdev;
+	struct granule *g_vdev;
+	void *aux_mapped_addr;
+	unsigned long smc_rc;
+	struct pdev *pd;
+	struct vdev *vd;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(vdev_ptr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Lock the vdev granule and map it, to get the pdev granule address. */
+	g_vdev = find_lock_granule(vdev_ptr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	g_pdev = vd->g_pdev;
+
+	/*
+	 * To lock and map pdev, we first need to unlock vdev, and lock the
+	 * granules again in the pdev-vdev order, so locking order is
+	 * maintained.
+	 */
+	buffer_unmap(vd);
+	granule_unlock(g_vdev);
+
+	granule_lock(g_pdev, GRANULE_STATE_PDEV);
+	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
+	assert(pd != NULL);
+
+	granule_lock(g_vdev, GRANULE_STATE_VDEV);
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	if (vd->rmi_state != RMI_VDEV_STATE_COMMUNICATING) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_vdev_buf_unmap;
+	}
+
+	/*
+	 * If there is no active device communication, then mapping aux
+	 * granules and cancelling an existing communication is not required.
+	 *
+	 * todo: add helper routine dev_communicate_abort() in pdev.c
+	 */
+	if (pd->dev_comm_state != DEV_COMM_ACTIVE) {
+		goto vdev_reset_state;
+	}
+
+	/* Map PDEV aux granules */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
+	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
+	assert(aux_mapped_addr != NULL);
+
+	/*
+	 * This will resume the blocked CMA SPDM command and the recv callback
+	 * handler will return error and abort the command.
+	 */
+	rc = dev_assign_abort_app_operation(&pd->da_app_data);
+	assert(rc == 0);
+
+	/* Unmap all PDEV aux granules */
+	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_aux);
+
+vdev_reset_state:
+	vd->rmi_state = RMI_VDEV_STATE_READY;
+	pd->dev_comm_state = DEV_COMM_IDLE;
+	smc_rc = RMI_SUCCESS;
+
+out_vdev_buf_unmap:
+	buffer_unmap(vd);
+	granule_unlock(g_vdev);
+	buffer_unmap(pd);
+	granule_unlock(g_pdev);
+
+	return smc_rc;
+}
+
+/*
+ * smc_vdev_stop
+ *
+ * vdev_ptr	- PA of the VDEV
+ */
+unsigned long smc_vdev_stop(unsigned long vdev_ptr)
+{
+	struct granule *g_pdev;
+	struct granule *g_vdev;
+	unsigned long smc_rc;
+	struct pdev *pd;
+	struct vdev *vd;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(vdev_ptr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Lock the vdev granule and map it, to get the pdev granule address. */
+	g_vdev = find_lock_granule(vdev_ptr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	g_pdev = vd->g_pdev;
+
+	/*
+	 * To lock and map pdev, we first need to unlock vdev, and lock the
+	 * granules again in the pdev-vdev order, so locking order is
+	 * maintained.
+	 */
+	buffer_unmap(vd);
+	granule_unlock(g_vdev);
+
+	granule_lock(g_pdev, GRANULE_STATE_PDEV);
+	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
+	assert(pd != NULL);
+
+	granule_lock(g_vdev, GRANULE_STATE_VDEV);
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	if ((vd->rmi_state != RMI_VDEV_STATE_READY) &&
+	    (vd->rmi_state != RMI_VDEV_STATE_ERROR)) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_vdev_buf_unmap;
+	}
+
+	vd->rmi_state = RMI_VDEV_STATE_STOPPING;
+
+	/*
+	 * This setup the rdev operation to stop the device. This flow will
+	 * change in alp13.
+	 */
+	vd->rdev.op = RDEV_OP_STOP;
+	vd->rdev.rsi_state = RSI_RDEV_STATE_STOPPING;
+
+	/* No dev communication state for VDEV */
+	pd->dev_comm_state = DEV_COMM_PENDING;
+	smc_rc = RMI_SUCCESS;
+
+
+out_vdev_buf_unmap:
+	buffer_unmap(vd);
+	granule_unlock(g_vdev);
+	buffer_unmap(pd);
+	granule_unlock(g_pdev);
+
+
+	return smc_rc;
+}
+
+/*
+ * smc_vdev_destroy
+ *
+ * rd_addr	- PA of RD
+ * pdev_ptr	- PA of the PDEV
+ * vdev_ptr	- PA of the VDEV
+ */
+unsigned long smc_vdev_destroy(unsigned long rd_ptr, unsigned long pdev_ptr,
+			       unsigned long vdev_ptr)
+{
+	struct granule *g_rd = NULL;
+	struct granule *g_pdev = NULL;
+	struct granule *g_vdev = NULL;
+	struct rd *rd = NULL;
+	struct pdev *pd = NULL;
+	struct vdev *vd = NULL;
+	unsigned long smc_rc;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(rd_ptr) || !GRANULE_ALIGNED(pdev_ptr) ||
+	    !GRANULE_ALIGNED(vdev_ptr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if (!find_lock_two_granules(rd_ptr, GRANULE_STATE_RD, &g_rd,
+				    pdev_ptr, GRANULE_STATE_PDEV, &g_pdev)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
+	assert(pd != NULL);
+
+	/* Lock vdev granule and map it */
+	g_vdev = find_lock_granule(vdev_ptr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		smc_rc = RMI_ERROR_INPUT;
+		goto out_err_input;
+	}
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	if ((vd->g_rd != g_rd) ||
+	    (vd->g_pdev != g_pdev)) {
+		smc_rc = RMI_ERROR_INPUT;
+		goto out_err_input;
+	}
+
+	if (vd->rmi_state != RMI_VDEV_STATE_STOPPED) {
+		smc_rc = RMI_ERROR_INPUT;
+		goto out_err_input;
+	}
+
+	/* Update Realm */
+	rd_vdev_refcount_dec(rd);
+
+	/* Update PDEV. */
+	pd->num_vdevs -= 1U;
+
+	buffer_unmap(vd);
+
+	/* Move the VDEV granule from VDEV to delegated state */
+	granule_unlock_transition_to_delegated(g_vdev);
+	vd = NULL;
+	g_vdev = NULL;
+	smc_rc = RMI_SUCCESS;
+
+	/* No aux granules allocated */
+
+out_err_input:
+	if (vd != NULL) {
+		buffer_unmap(vd);
+	}
+	if (g_vdev != NULL) {
+		granule_unlock(g_vdev);
+	}
+
+	if (pd != NULL) {
+		buffer_unmap(pd);
+	}
+	if (g_pdev != NULL) {
+		granule_unlock(g_pdev);
+	}
+
+	if (rd != NULL) {
+		buffer_unmap(rd);
+	}
+	granule_unlock(g_rd);
+
+	return smc_rc;
 }

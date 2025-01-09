@@ -181,4 +181,16 @@ unsigned long smc_vdev_communicate(unsigned long pdev_ptr,
 				   unsigned long vdev_ptr,
 				   unsigned long dev_comm_data_ptr);
 
+void smc_vdev_get_state(unsigned long vdev_ptr, struct smc_result *res);
+
+void smc_vdev_aux_count(unsigned long pdev_flags, unsigned long vdev_flags,
+			struct smc_result *res);
+
+unsigned long smc_vdev_abort(unsigned long vdev_ptr);
+
+unsigned long smc_vdev_stop(unsigned long vdev_ptr);
+
+unsigned long smc_vdev_destroy(unsigned long rd_ptr, unsigned long pdev_ptr,
+			       unsigned long vdev_ptr);
+
 #endif /* SMC_HANDLER_H */

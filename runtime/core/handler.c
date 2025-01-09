@@ -85,6 +85,7 @@ enum rmi_type {
 	set_rmi_type(5, 0),	/* 5 arguments, 0 output values */
 	set_rmi_type(1, 1),	/* 1 argument,  1 output value */
 	set_rmi_type(1, 2),	/* 1 argument,  2 output values */
+	set_rmi_type(2, 1),	/* 2 arguments, 1 output value */
 	set_rmi_type(2, 2),	/* 2 arguments, 2 output values */
 	set_rmi_type(3, 1),	/* 3 arguments, 1 output value */
 	set_rmi_type(3, 2),	/* 3 arguments, 2 output values */
@@ -105,6 +106,7 @@ struct smc_handler {
 		handler_5	f_50;
 		handler_1_o	f_11;
 		handler_1_o	f_12;
+		handler_2_o	f_21;
 		handler_2_o	f_22;
 		handler_3_o	f_31;
 		handler_3_o	f_32;
@@ -154,7 +156,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RTT_CREATE,		4, 0, smc_rtt_create,		 false, true),
 	HANDLER(RTT_DESTROY,		3, 2, smc_rtt_destroy,		 false, true),
 	HANDLER(RTT_MAP_UNPROTECTED,	4, 0, smc_rtt_map_unprotected,	 false, false),
-	HANDLER(VDEV_AUX_COUNT,		0, 0, NULL,			 true, true),
+	HANDLER(VDEV_AUX_COUNT,		2, 1, smc_vdev_aux_count,	 true, true),
 	HANDLER(RTT_READ_ENTRY,		3, 4, smc_rtt_read_entry,	 false, true),
 	HANDLER(RTT_UNMAP_UNPROTECTED,	3, 1, smc_rtt_unmap_unprotected, false, false),
 	HANDLER(RTT_DEV_MEM_VALIDATE,	4, 1, NULL,			 false, true),
@@ -182,12 +184,12 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RTT_AUX_MAP_UNPROTECTED, 3, 3, smc_rtt_aux_map_unprotected, false, true),
 	HANDLER(RTT_AUX_UNMAP_PROTECTED, 3, 2, smc_rtt_aux_unmap_protected, false, true),
 	HANDLER(RTT_AUX_UNMAP_UNPROTECTED, 3, 2, smc_rtt_aux_unmap_unprotected, false, true),
-	HANDLER(VDEV_ABORT,		0, 0, NULL,			 true, true),
+	HANDLER(VDEV_ABORT,		1, 0, smc_vdev_abort,		 true, true),
 	HANDLER(VDEV_COMMUNICATE,	3, 0, smc_vdev_communicate,	 true, true),
 	HANDLER(VDEV_CREATE,		4, 0, smc_vdev_create,		 true, true),
-	HANDLER(VDEV_DESTROY,		0, 0, NULL,			 true, true),
-	HANDLER(VDEV_GET_STATE,		0, 0, NULL,			 true, true),
-	HANDLER(VDEV_STOP,		0, 0, NULL,			 true, true),
+	HANDLER(VDEV_DESTROY,		3, 0, smc_vdev_destroy,		 true, true),
+	HANDLER(VDEV_GET_STATE,		1, 1, smc_vdev_get_state,	 true, true),
+	HANDLER(VDEV_STOP,		1, 0, smc_vdev_stop,		 true, true),
 	HANDLER(RTT_SET_S2AP,		4, 1, smc_rtt_set_s2ap,		 false, true),
 	HANDLER(MEC_SET_SHARED,		1, 0, smc_mec_set_shared,	 true, true),
 	HANDLER(MEC_SET_PRIVATE,	1, 0, smc_mec_set_private,	 true, true),
