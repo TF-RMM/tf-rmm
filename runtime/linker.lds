@@ -77,6 +77,13 @@ SECTIONS
 		bss_end = .;
 	} >RAM
 
+	.granules_memory ALIGN(GRANULE_SIZE) (NOLOAD) : {
+		granules_memory_start = .;
+		*(granules_memory)
+		. = ALIGN(GRANULE_SIZE);
+		granules_memory_end = .;
+	} >RAM
+
 	. = ALIGN(GRANULE_SIZE);
 	rmm_rw_end = .;
 

@@ -15,7 +15,8 @@
 #include <string.h>
 #include <utils_def.h>
 
-IF_NCBMC(static) struct granule granules[RMM_MAX_GRANULES];
+IF_NCBMC(static) struct granule granules[RMM_MAX_GRANULES]
+			IF_NCBMC(__section("granules_memory"));
 
 /*
  * Takes a valid pointer to a struct granule, and returns the granule physical

@@ -146,6 +146,15 @@ func rmm_entry
 	bl	xlat_enable_mmu_el2
 	bl	pauth_init_enable_el2
 
+	/*
+	 * Clear granules memory
+	 */
+	adrp	x0, granules_memory_start
+	adrp	x2, granules_memory_end
+	sub	x2, x2, x0
+	mov	x1, xzr
+	bl	memset
+
 	bl	rmm_main
 	b	smc_ret
 
