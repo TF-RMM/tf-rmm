@@ -6,6 +6,7 @@
 
 #include <assert.h>
 #include <buffer.h>
+#include <dev_granule.h>
 #include <errno.h>
 #include <granule.h>
 #include <measurement.h>
@@ -20,7 +21,8 @@
 #include <string.h>
 
 /*
- * Validate the map_addr value passed to RMI_RTT_* and RMI_DATA_* commands.
+ * Validate the map_addr value passed to
+ * RMI_RTT_*, RMI_DATA_* and RMI_DEV_MEM_* commands.
  */
 static bool validate_map_addr(unsigned long map_addr,
 			      long level,
@@ -47,7 +49,7 @@ static bool validate_rtt_structure_cmds(unsigned long map_addr,
 }
 
 /*
- * Map/Unmap commands can operate up to a level 2 block entry so min_level is
+ * Map/Unmap commands can operate up to a level 1 block entry so min_level is
  * the smallest block size.
  */
 static bool validate_rtt_map_cmds(unsigned long map_addr,
@@ -260,6 +262,69 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 		 */
 		atomic_granule_get(wi.g_llt);
 
+	} else if (s2tte_is_assigned_dev_empty(&s2_ctx, parent_s2tte, level - 1L)) {
+		unsigned long block_pa;
+
+		/*
+		 * We should observe parent assigned s2tte only when
+		 * we create tables above this level.
+		 */
+		assert(level > S2TT_MIN_DEV_BLOCK_LEVEL);
+
+		block_pa = s2tte_pa(&s2_ctx, parent_s2tte, level - 1L);
+
+		s2tt_init_assigned_dev_empty(&s2_ctx, s2tt, block_pa, level);
+
+		/*
+		 * Increase the refcount to mark the granule as in-use. refcount
+		 * is incremented by S2TTES_PER_S2TT (ref RTT unfolding).
+		 */
+		granule_refcount_inc(g_tbl, (unsigned short)S2TTES_PER_S2TT);
+
+	} else if (s2tte_is_assigned_dev_destroyed(&s2_ctx, parent_s2tte, level - 1L)) {
+		unsigned long block_pa;
+
+		/*
+		 * We should observe parent assigned s2tte only when
+		 * we create tables above this level.
+		 */
+		assert(level > S2TT_MIN_DEV_BLOCK_LEVEL);
+
+		block_pa = s2tte_pa(&s2_ctx, parent_s2tte, level - 1L);
+
+		s2tt_init_assigned_dev_destroyed(&s2_ctx, s2tt, block_pa, level);
+
+		/*
+		 * Increase the refcount to mark the granule as in-use. refcount
+		 * is incremented by S2TTES_PER_S2TT (ref RTT unfolding).
+		 */
+		granule_refcount_inc(g_tbl, (unsigned short)S2TTES_PER_S2TT);
+
+	} else if (s2tte_is_assigned_dev_dev(&s2_ctx, parent_s2tte, level - 1L)) {
+		unsigned long block_pa;
+
+		/*
+		 * We should observe parent valid s2tte only when
+		 * we create tables above this level.
+		 */
+		assert(level > S2TT_MIN_DEV_BLOCK_LEVEL);
+
+		/*
+		 * Break before make. This may cause spurious S2 aborts.
+		 */
+		s2tte_write(&parent_s2tt[wi.index], 0UL);
+		s2tt_invalidate_block(&s2_ctx, map_addr);
+
+		block_pa = s2tte_pa(&s2_ctx, parent_s2tte, level - 1L);
+
+		s2tt_init_assigned_dev_dev(&s2_ctx, s2tt, parent_s2tte, block_pa, level);
+
+		/*
+		 * Increase the refcount to mark the granule as in-use. refcount
+		 * is incremented by S2TTES_PER_S2TT (ref RTT unfolding).
+		 */
+		granule_refcount_inc(g_tbl, (unsigned short)S2TTES_PER_S2TT);
+
 	} else if (s2tte_is_table(&s2_ctx, parent_s2tte, level - 1L)) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned char)(level - 1L));
@@ -432,7 +497,22 @@ void smc_rtt_fold(unsigned long rd_addr,
 		} else if (s2tt_maps_assigned_destroyed_block(&s2_ctx,
 							      table, level)) {
 			parent_s2tte = s2tte_create_assigned_destroyed(&s2_ctx,
-						block_pa, level - 1L);
+							block_pa, level - 1L);
+		} else if (s2tt_maps_assigned_dev_empty_block(&s2_ctx,
+								table, level)) {
+			parent_s2tte = s2tte_create_assigned_dev_empty(&s2_ctx,
+									block_pa,
+									level - 1L);
+		} else if (s2tt_maps_assigned_dev_destroyed_block(&s2_ctx,
+								  table, level)) {
+			parent_s2tte = s2tte_create_assigned_dev_destroyed(&s2_ctx,
+									   block_pa,
+									   level - 1L);
+		} else if (s2tt_maps_assigned_dev_dev_block(&s2_ctx, table, level)) {
+			parent_s2tte = s2tte_create_assigned_dev_dev(&s2_ctx,
+									s2tte,
+									level - 1L);
+
 		/* The table contains mixed entries that cannot be folded */
 		} else {
 			ret = pack_return_code(RMI_ERROR_RTT,
@@ -459,7 +539,8 @@ void smc_rtt_fold(unsigned long rd_addr,
 	s2tte_write(&parent_s2tt[wi.index], 0UL);
 
 	if (s2tte_is_assigned_ram(&s2_ctx, parent_s2tte, level - 1L) ||
-	    s2tte_is_assigned_ns(&s2_ctx, parent_s2tte, level - 1L)) {
+	    s2tte_is_assigned_ns(&s2_ctx, parent_s2tte, level - 1L)  ||
+	    s2tte_is_assigned_dev_dev(&s2_ctx, parent_s2tte, level - 1L)) {
 		s2tt_invalidate_pages_in_block(&s2_ctx, map_addr);
 	} else {
 		s2tt_invalidate_block(&s2_ctx, map_addr);
@@ -832,6 +913,19 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 		res->x[2] = RMI_ASSIGNED;
 		res->x[3] = s2tte_pa(&s2_ctx, s2tte, wi.last_level);
 		res->x[4] = (unsigned long)RIPAS_DESTROYED;
+	} else if (s2tte_is_assigned_dev_empty(&s2_ctx, s2tte, wi.last_level)) {
+		res->x[2] = RMI_ASSIGNED_DEV;
+		res->x[3] = s2tte_pa(&s2_ctx, s2tte, wi.last_level);
+		res->x[4] = (unsigned long)RIPAS_EMPTY;
+	} else if (s2tte_is_assigned_dev_destroyed(&s2_ctx, s2tte,
+							wi.last_level)) {
+		res->x[2] = RMI_ASSIGNED_DEV;
+		res->x[3] = 0UL;
+		res->x[4] = (unsigned long)RIPAS_DESTROYED;
+	} else if (s2tte_is_assigned_dev_dev(&s2_ctx, s2tte, wi.last_level)) {
+		res->x[2] = RMI_ASSIGNED_DEV;
+		res->x[3] = s2tte_pa(&s2_ctx, s2tte, wi.last_level);
+		res->x[4] = (unsigned long)RIPAS_DEV;
 	} else if (s2tte_is_unassigned_ns(&s2_ctx, s2tte)) {
 		res->x[2] = RMI_UNASSIGNED;
 		res->x[3] = 0UL;
@@ -1473,4 +1567,215 @@ out_unmap_rec:
 out_unlock_rec_rd:
 	granule_unlock(g_rec);
 	granule_unlock(g_rd);
+}
+
+unsigned long smc_dev_mem_map(unsigned long rd_addr,
+				unsigned long map_addr,
+				unsigned long ulevel,
+				unsigned long dev_mem_addr)
+{
+	struct dev_granule *g_dev;
+	struct granule *g_rd;
+	struct rd *rd;
+	struct s2tt_walk wi;
+	struct s2tt_context s2_ctx;
+	unsigned long s2tte, *s2tt, num_granules;
+	long level = (long)ulevel;
+	unsigned long ret;
+	__unused enum dev_coh_type type;
+
+	/* Dev_Mem_Map/Unmap commands can operate up to a level 2 block entry */
+	if ((level < S2TT_MIN_DEV_BLOCK_LEVEL) || (level > S2TT_PAGE_LEVEL)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/*
+	 * The code below assumes that "external" granules are always
+	 * locked before "external" dev_granules, hence, RD GRANULE is locked
+	 * before DELEGATED DEV_GRANULE.
+	 *
+	 * The alternative scheme is that all external granules and device
+	 * granules are locked together in the order of their physical
+	 * addresses. For that scheme, however, we need primitives similar to
+	 * 'find_lock_two_granules' that would work with different object
+	 * types (struct granule and struct dev_granule).
+	 */
+
+	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
+	if (g_rd == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if (level == S2TT_PAGE_LEVEL) {
+		num_granules = 1UL;
+	} else {
+		assert(level == (S2TT_PAGE_LEVEL - 1L));
+		num_granules = S2TTES_PER_S2TT;
+	}
+
+	g_dev = find_lock_dev_granules(dev_mem_addr,
+					DEV_GRANULE_STATE_DELEGATED,
+					num_granules,
+					&type);
+	if (g_dev == NULL) {
+		granule_unlock(g_rd);
+		return RMI_ERROR_INPUT;
+	}
+
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	if (!addr_in_par(rd, map_addr) ||
+	    !validate_map_addr(map_addr, level, rd)) {
+		buffer_unmap(rd);
+		granule_unlock(g_rd);
+		ret = RMI_ERROR_INPUT;
+		goto out_unlock_granules;
+	}
+
+	s2_ctx = rd->s2_ctx;
+	buffer_unmap(rd);
+	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
+	granule_unlock(g_rd);
+
+	s2tt_walk_lock_unlock(&s2_ctx, map_addr, level, &wi);
+	if (wi.last_level != level) {
+		ret = pack_return_code(RMI_ERROR_RTT,
+					(unsigned char)wi.last_level);
+		goto out_unlock_ll_table;
+	}
+
+	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	assert(s2tt != NULL);
+
+	s2tte = s2tte_read(&s2tt[wi.index]);
+
+	if (!s2tte_is_unassigned(&s2_ctx, s2tte)) {
+		ret = pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
+		goto out_unmap_ll_table;
+	}
+
+	s2tte = s2tte_create_assigned_dev_unchanged(&s2_ctx, s2tte,
+						    dev_mem_addr, level);
+	s2tte_write(&s2tt[wi.index], s2tte);
+	atomic_granule_get(wi.g_llt);
+
+	ret = RMI_SUCCESS;
+
+out_unmap_ll_table:
+	buffer_unmap(s2tt);
+out_unlock_ll_table:
+	granule_unlock(wi.g_llt);
+out_unlock_granules:
+	while (num_granules != 0UL) {
+		if (ret == RMI_SUCCESS) {
+			dev_granule_unlock_transition(&g_dev[--num_granules],
+							DEV_GRANULE_STATE_MAPPED);
+		} else {
+			dev_granule_unlock(&g_dev[--num_granules]);
+		}
+	}
+	return ret;
+}
+
+void smc_dev_mem_unmap(unsigned long rd_addr,
+			unsigned long map_addr,
+			unsigned long ulevel,
+			struct smc_result *res)
+{
+	struct granule *g_rd;
+	struct rd *rd;
+	struct s2tt_walk wi;
+	struct s2tt_context s2_ctx;
+	unsigned long dev_mem_addr, dev_addr, s2tte, *s2tt, num_granules;
+	long level = (long)ulevel;
+	__unused enum dev_coh_type type;
+
+	/* Dev_Mem_Map/Unmap commands can operate up to a level 2 block entry */
+	if ((level < S2TT_MIN_DEV_BLOCK_LEVEL) || (level > S2TT_PAGE_LEVEL)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[2] = 0UL;
+		return;
+	}
+
+	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
+	if (g_rd == NULL) {
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[2] = 0UL;
+		return;
+	}
+
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	if (!addr_in_par(rd, map_addr) ||
+	    !validate_map_addr(map_addr, level, rd)) {
+		buffer_unmap(rd);
+		granule_unlock(g_rd);
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[2] = 0UL;
+		return;
+	}
+
+	s2_ctx = rd->s2_ctx;
+	buffer_unmap(rd);
+
+	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
+	granule_unlock(g_rd);
+
+	s2tt_walk_lock_unlock(&s2_ctx, map_addr, level, &wi);
+	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	assert(s2tt != NULL);
+
+	if (wi.last_level != level) {
+		res->x[0] = pack_return_code(RMI_ERROR_RTT,
+						(unsigned char)wi.last_level);
+		goto out_unmap_ll_table;
+	}
+
+	s2tte = s2tte_read(&s2tt[wi.index]);
+
+	if (s2tte_is_assigned_dev_dev(&s2_ctx, s2tte, level)) {
+		dev_mem_addr = s2tte_pa(&s2_ctx, s2tte, level);
+		s2tte = s2tte_create_unassigned_destroyed(&s2_ctx);
+		s2tte_write(&s2tt[wi.index], s2tte);
+		if (level == S2TT_PAGE_LEVEL) {
+			s2tt_invalidate_page(&s2_ctx, map_addr);
+		} else {
+			s2tt_invalidate_block(&s2_ctx, map_addr);
+		}
+	} else if (s2tte_is_assigned_dev_empty(&s2_ctx, s2tte, level)) {
+		dev_mem_addr = s2tte_pa(&s2_ctx, s2tte, level);
+		s2tte = s2tte_create_unassigned_empty(&s2_ctx);
+		s2tte_write(&s2tt[wi.index], s2tte);
+	} else if (s2tte_is_assigned_dev_destroyed(&s2_ctx, s2tte, level)) {
+		dev_mem_addr = s2tte_pa(&s2_ctx, s2tte, level);
+		s2tte = s2tte_create_unassigned_destroyed(&s2_ctx);
+		s2tte_write(&s2tt[wi.index], s2tte);
+	} else {
+		res->x[0] = pack_return_code(RMI_ERROR_RTT,
+						(unsigned char)level);
+		goto out_unmap_ll_table;
+	}
+
+	atomic_granule_put(wi.g_llt);
+
+	num_granules = (level == S2TT_PAGE_LEVEL) ? 1UL : S2TTES_PER_S2TT;
+	dev_addr = dev_mem_addr;
+
+	for (unsigned long i = 0UL; i < num_granules; i++) {
+		struct dev_granule *g_dev;
+
+		g_dev = find_lock_dev_granule(dev_addr, DEV_GRANULE_STATE_MAPPED, &type);
+		assert(g_dev != NULL);
+		dev_granule_unlock_transition(g_dev, DEV_GRANULE_STATE_DELEGATED);
+		dev_addr += GRANULE_SIZE;
+	}
+
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = dev_mem_addr;
+out_unmap_ll_table:
+	res->x[2] = s2tt_skip_non_live_entries(&s2_ctx, map_addr, s2tt, &wi);
+	buffer_unmap(s2tt);
+	granule_unlock(wi.g_llt);
 }

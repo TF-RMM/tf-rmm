@@ -532,7 +532,7 @@ classified into two categories:
 	- DEV_GRANULE_STATE_DELEGATED
 
 #. **Internal**: A granule state belongs to the `internal` class iff it is not
-   an `external`. These are objects which are referencedÂ from another
+   an `external`. These are objects which are referenced from another
    object after that object is locked. Each `internal` object should be
    referenced from exactly one place. The following granule states are
    `internal`:
@@ -548,6 +548,9 @@ We now state the locking guidelines for |RMM| as:
 
 #. Granules expected to be in an `external` state must be locked in order of
    their physical address, starting with the lowest address.
+
+#. Memory granules expected to be in an `external` state must be locked before
+   locking any device memory granules in `external` state.
 
 #. Once a granule expected to be in an `external` state has been locked, its
    state must be checked against the expected state. If these do not match, the

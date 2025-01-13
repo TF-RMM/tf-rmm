@@ -24,8 +24,8 @@ unsigned long plat_granule_addr_to_idx(unsigned long addr);
  * Takes an aligned dev_granule address, validates it and if valid returns the
  * index in the struct dev_granules array or UINT64_MAX in case of an error.
  *
- * This function also validates that the dev_granule address is a valid
- * page address and returns device granule type if the addr is valid.
+ * This function also validates that the dev_granule address is a valid page
+ * address and returns device granule coherency type if the addr is valid.
  */
 unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_coh_type *type);
 

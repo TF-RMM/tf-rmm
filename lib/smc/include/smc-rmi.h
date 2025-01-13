@@ -124,6 +124,7 @@
 #define RMI_UNASSIGNED		UL(0)
 #define RMI_ASSIGNED		UL(1)
 #define RMI_TABLE		UL(2)
+#define RMI_ASSIGNED_DEV	UL(3)
 
 /* RmiFeature enumerations */
 #define RMI_FEATURE_FALSE	UL(0)
@@ -188,8 +189,8 @@
 /* Address which is inaccessible to the Realm due to an action taken by the Host */
 #define RMI_DESTROYED	UL(2)
 
-/* Address where MMIO of an assigned Realm device is mapped. */
-#define RMI_IO		UL(3)
+/* Address where memory of an assigned Realm device is mapped */
+#define RMI_DEV		UL(3)
 
 /* RmiPmuOverflowStatus enumeration representing PMU overflow status */
 #define RMI_PMU_OVERFLOW_NOT_ACTIVE	U(0)
@@ -375,6 +376,9 @@
  * arg0 == RD address
  * arg1 == map address
  * arg2 == level
+ *
+ * ret1 == Top of the non-live address region. Only valid
+ *         if ret0 == RMI_SUCCESS or ret0 == (RMI_ERROR_RTT, x)
  */
 #define SMC_RMI_RTT_UNMAP_UNPROTECTED		SMC64_RMI_FID(U(0x12))
 
@@ -442,13 +446,27 @@
 
 /*
  * FID: 0xC4000172
+ *
+ * arg0 == RD address
+ * arg1 == map address
+ * arg2 == level
+ * arg3 == PA of the target device memory
  */
-#define SMC_RMI_DEV_MAP				SMC64_RMI_FID(U(0x22))
+#define SMC_RMI_DEV_MEM_MAP			SMC64_RMI_FID(U(0x22))
 
 /*
  * FID: 0xC4000173
+ *
+ * arg0 == RD address
+ * arg1 == map address
+ * arg2 == level
+ *
+ * ret1 == Address (PA) of the device memory granule, if ret0 == RMI_SUCCESS
+ *         Otherwise, undefined.
+ * ret2 == Top of the non-live address region. Only valid
+ *         if ret0 == RMI_SUCCESS or ret0 == (RMI_ERROR_RTT, x)
  */
-#define SMC_RMI_DEV_UNMAP			SMC64_RMI_FID(U(0x23))
+#define SMC_RMI_DEV_MEM_UNMAP			SMC64_RMI_FID(U(0x23))
 
 /*
  * FID: 0xC4000174

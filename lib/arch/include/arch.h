@@ -778,13 +778,13 @@
 #define VTCR_RES1		(UL(1) << 31)
 
 #define VTCR_FLAGS ( \
-	VTCR_IRGN0_WBRAWA | /* PTW inner cache attr. is WB RAWA*/ \
-	VTCR_ORGN0_WBRAWA | /* PTW outer cache attr. is WB RAWA*/ \
-	VTCR_SH0_IS       | /* PTW shareability attr. is Outer Sharable*/\
-	VTCR_TG0_4K       | /* 4K granule size in non-secure PT*/ \
+	VTCR_IRGN0_WBRAWA | /* PTW inner cache attr. is WB RAWA */ \
+	VTCR_ORGN0_WBRAWA | /* PTW outer cache attr. is WB RAWA */ \
+	VTCR_SH0_IS       | /* PTW shareability attr. is Inner Sharable */ \
+	VTCR_TG0_4K       | /* 4K granule size in non-secure PT */ \
 	/* VS = 0              size(VMID) = 8 */ \
-	/* NSW = 0             non-secure s2 is made of secure pages*/ \
-	VTCR_NSA           | /* non-secure IPA maps to non-secure PA */ \
+	/* NSW = 0             non-secure s2 is made of secure pages */ \
+	VTCR_NSA	  | /* non-secure IPA maps to non-secure PA */ \
 	VTCR_RES1 \
 	)
 
