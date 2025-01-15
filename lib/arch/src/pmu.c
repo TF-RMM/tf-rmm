@@ -42,10 +42,25 @@ void pmu_save_state(struct pmu_state *pmu, unsigned int num_cnts)
 	pmu->pmovsclr_el0 = read_pmovsclr_el0();
 	pmu->pmselr_el0 = read_pmselr_el0();
 	pmu->pmuserenr_el0 = read_pmuserenr_el0();
-	pmu->pmxevcntr_el0 = read_pmxevcntr_el0();
-	pmu->pmxevtyper_el0 = read_pmxevtyper_el0();
 
-	if (num_cnts != 0UL) {
+	/*
+	 * When PMSELR_EL0.SEL is greater than or equal to the number of
+	 * accessible event counters, then reads and writes of PMXEVCNTR_EL0
+	 * are CONSTRAINED UNPREDICTABLE.
+	 *
+	 * When PMSELR_EL0.SEL is not 31 and is greater than or equal to the
+	 * number of accessible event counters, then reads and writes of
+	 * PMXEVTYPER_EL0 are CONSTRAINED UNPREDICTABLE.
+	 */
+	if ((unsigned int)EXTRACT(PMSELR_EL0_SEL, pmu->pmselr_el0) < num_cnts) {
+		pmu->pmxevcntr_el0 = read_pmxevcntr_el0();
+		pmu->pmxevtyper_el0 = read_pmxevtyper_el0();
+	} else if ((unsigned int)EXTRACT(PMSELR_EL0_SEL, pmu->pmselr_el0) == 31U) {
+		pmu->pmxevtyper_el0 = read_pmxevtyper_el0();
+	}
+
+	/* Check number of event counters */
+	if (num_cnts != 0U) {
 		num_cnts--;
 		switch (num_cnts) {
 		READ_PMEV_EL0(30);
@@ -103,9 +118,24 @@ void pmu_restore_state(struct pmu_state *pmu, unsigned int num_cnts)
 	write_pmovsclr_el0(pmu->pmovsclr_el0 ^ PMU_CLEAR_ALL);
 	write_pmselr_el0(pmu->pmselr_el0);
 	write_pmuserenr_el0(pmu->pmuserenr_el0);
-	write_pmxevcntr_el0(pmu->pmxevcntr_el0);
-	write_pmxevtyper_el0(pmu->pmxevtyper_el0);
 
+	/*
+	 * When PMSELR_EL0.SEL is greater than or equal to the number of
+	 * accessible event counters, then reads and writes of PMXEVCNTR_EL0
+	 * are CONSTRAINED UNPREDICTABLE.
+	 *
+	 * When PMSELR_EL0.SEL is not 31 and is greater than or equal to the
+	 * number of accessible event counters, then reads and writes of
+	 * PMXEVTYPER_EL0 are CONSTRAINED UNPREDICTABLE.
+	 */
+	if ((unsigned int)EXTRACT(PMSELR_EL0_SEL, pmu->pmselr_el0) < num_cnts) {
+		write_pmxevcntr_el0(pmu->pmxevcntr_el0);
+		write_pmxevtyper_el0(pmu->pmxevtyper_el0);
+	} else if ((unsigned int)EXTRACT(PMSELR_EL0_SEL, pmu->pmselr_el0) == 31U) {
+		write_pmxevtyper_el0(pmu->pmxevtyper_el0);
+	}
+
+	/* Check number of event counters */
 	if (num_cnts != 0U) {
 		num_cnts--;
 		switch (num_cnts) {

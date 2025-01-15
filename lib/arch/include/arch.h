@@ -745,7 +745,6 @@
 	VTCR_RES1 \
 	)
 
-
 /* PMCR_EL0 Definitions */
 #define PMCR_EL0_N_SHIFT		11
 #define PMCR_EL0_N_WIDTH		U(5)
@@ -758,6 +757,9 @@
 #define PMCR_EL0_INIT			(PMCR_EL0_LC_BIT | PMCR_EL0_DP_BIT)
 #define PMCR_EL0_INIT_RESET		(PMCR_EL0_INIT | PMCR_EL0_C_BIT | \
 					 PMCR_EL0_P_BIT)
+/* PMSELR_EL0 Definitions */
+#define PMSELR_EL0_SEL_SHIFT		0
+#define PMSELR_EL0_SEL_WIDTH		U(5)
 
 /* DCZID_EL0 Definitions */
 #define DCZID_EL0_BS_SHIFT		0
