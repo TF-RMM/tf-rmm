@@ -18,9 +18,6 @@
 /* Counter-timer Physical Offset register */
 #define CNTPOFF_EL2		S3_4_C14_C0_6
 
-/* MPAM0 Register */
-#define MPAM0_EL1		S3_0_C10_C5_1
-
 /* Interrupt Controller registers */
 #define ICC_HPPIR1_EL1		S3_0_C12_C12_2
 #define ICC_SRE_EL2		S3_4_C12_C9_5
@@ -491,6 +488,9 @@
 #define ID_AA64PFR0_EL1_SVE_SHIFT	UL(32)
 #define ID_AA64PFR0_EL1_SVE_WIDTH	UL(4)
 
+#define ID_AA64PFR0_EL1_MPAM_SHIFT	UL(40)
+#define ID_AA64PFR0_EL1_MPAM_WIDTH	UL(4)
+
 #define ID_AA64PFR0_EL1_AMU_SHIFT	UL(44)
 #define ID_AA64PFR0_EL1_AMU_WIDTH	UL(4)
 
@@ -507,6 +507,9 @@
 #define ID_AA64PFR1_EL1_MTE1			UL(1)
 #define ID_AA64PFR1_EL1_MTE2			UL(2)
 #define ID_AA64PFR1_EL1_MTE3			UL(3)
+
+#define ID_AA64PFR1_EL1_MPAM_F_SHIFT		UL(16)
+#define ID_AA64PFR1_EL1_MPAM_F_WIDTH		UL(4)
 
 #define ID_AA64PFR1_EL1_SME_SHIFT		UL(24)
 #define ID_AA64PFR1_EL1_SME_WIDTH		UL(4)
@@ -1017,10 +1020,6 @@
 
 #define ICC_SRE_EL2_INIT	(ICC_SRE_EL2_ENABLE | ICC_SRE_EL2_DIB | \
 				 ICC_SRE_EL2_DFB | ICC_SRE_EL2_SRE)
-
-/* MPAM definitions */
-#define MPAM2_EL2_INIT		0x0
-#define MPAMHCR_EL2_INIT	0x0
 
 #define PMSCR_EL2_INIT		0x0
 

@@ -234,13 +234,35 @@ static inline bool is_feat_sebep_present(void)
 
 /*
  * Check if FEAT_GCS is implemented.
- * ID_AA64PFR1_EL1, bits [47:44}:
+ * ID_AA64PFR1_EL1, bits [47:44]:
  * 0b0000: FEAT_GCS is not implemented.
  * 0b0001: FEAT_GCS is implemented.
  */
 static inline bool is_feat_gcs_present(void)
 {
 	return (EXTRACT(ID_AA64PFR1_EL1_GCS, read_id_aa64pfr1_el1()) == 1UL);
+}
+
+/*
+ * Check if FEAT_MPAM is implemented, regardless of the version.
+ *
+ * The implemented FEAT_MPAM version is determined by:
+ *
+ *	ID_AA64PFR0_EL1, bits [43:40]: Major version.
+ *	ID_AA64PFR1_EL1, bits [19:16]: Minor version.
+ *
+ * with the following encoding:
+ *
+ *	Major  - Minor
+ *	0b0000 - 0b0000: FEAT_MPAM is not implemented.
+ *	0b0000 - 0b0001: FEAT_MPAM v0.1 is implemented.
+ *	0b0001 - 0b0000: FEAT_MPAM v1.0 is implemented.
+ *	0b0001 - 0b0001: FEAT_MPAM v1.1 is implemented.
+ */
+static inline bool is_feat_mpam_present(void)
+{
+	return ((EXTRACT(ID_AA64PFR0_EL1_MPAM, read_id_aa64pfr0_el1()) != 0UL) ||
+		(EXTRACT(ID_AA64PFR1_EL1_MPAM_F, read_id_aa64pfr1_el1()) != 0UL));
 }
 
 unsigned int arch_feat_get_pa_width(void);

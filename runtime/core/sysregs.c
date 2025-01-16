@@ -71,19 +71,24 @@
  *
  * Cleared fields:
  * - Activity Monitors Extension not implemented
+ * - Memory Partition and Monitoring Extension not implemented
  */
 #define ID_AA64PFR0_EL1_CLEAR		  \
-	MASK(ID_AA64PFR0_EL1_AMU)
+	MASK(ID_AA64PFR0_EL1_AMU)	| \
+	MASK(ID_AA64PFR0_EL1_MPAM)
+
 /*
  * ID_AA64PFR1_EL1:
  *
  * Cleared fields:
  * - Memory Tagging Extension is not implemented
  * - Scalable Matrix Extension (SME) not implemented
+ * - Memory Partition and Monitoring Extension not implemented
  */
 #define ID_AA64PFR1_EL1_CLEAR		  \
 	MASK(ID_AA64PFR1_EL1_MTE)	| \
-	MASK(ID_AA64PFR1_EL1_SME)
+	MASK(ID_AA64PFR1_EL1_SME)	| \
+	MASK(ID_AA64PFR1_EL1_MPAM_F)
 
 /*
  * Handle ID_AA64XXX<n>_EL1 instructions
