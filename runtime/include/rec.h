@@ -107,7 +107,6 @@ STRUCT_TYPE sysreg_state {
 	unsigned long sp_el1;
 	unsigned long elr_el1;
 	unsigned long spsr_el1;
-	unsigned long pmcr_el0;
 	unsigned long tpidrro_el0;
 	unsigned long tpidr_el0;
 	unsigned long csselr_el1;

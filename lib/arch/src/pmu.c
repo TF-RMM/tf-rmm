@@ -31,6 +31,7 @@ void pmu_save_state(struct pmu_state *pmu, unsigned int num_cnts)
 {
 	assert(pmu != NULL);
 
+	pmu->pmcr_el0 = read_pmcr_el0();
 	pmu->pmccfiltr_el0 = read_pmccfiltr_el0();
 	pmu->pmccntr_el0 = read_pmccntr_el0();
 	pmu->pmcntenset_el0 = read_pmcntenset_el0();
@@ -91,6 +92,7 @@ void pmu_restore_state(struct pmu_state *pmu, unsigned int num_cnts)
 {
 	assert(pmu != NULL);
 
+	write_pmcr_el0(pmu->pmcr_el0);
 	write_pmccfiltr_el0(pmu->pmccfiltr_el0);
 	write_pmccntr_el0(pmu->pmccntr_el0);
 	write_pmcntenset_el0(pmu->pmcntenset_el0);

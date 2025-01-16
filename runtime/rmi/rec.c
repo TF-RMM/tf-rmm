@@ -24,9 +24,6 @@
 static void init_rec_sysregs(struct rec *rec, unsigned long rec_mpidr)
 {
 	/* Set non-zero values only */
-	rec->sysregs.pmcr_el0 = rec->realm_info.pmu_enabled ?
-				PMCR_EL0_INIT_RESET : PMCR_EL0_INIT;
-
 	rec->sysregs.sctlr_el1 = SCTLR_EL1_FLAGS;
 	rec->sysregs.mdscr_el1 = MDSCR_EL1_TDCC_BIT;
 	rec->sysregs.vmpidr_el2 = rec_mpidr_to_mpidr(rec_mpidr) | VMPIDR_EL2_RES1;
@@ -190,7 +187,7 @@ static void free_rec_aux_granules(struct granule *rec_aux[],
 	}
 }
 
-/* Initialize REC simd state */
+/* Initialize rec SIMD state */
 static void rec_simd_state_init(struct rec *r)
 {
 	int __unused retval;
@@ -200,9 +197,16 @@ static void rec_simd_state_init(struct rec *r)
 	assert(retval == 0);
 }
 
+/* Initialize rec PMU state */
+static void rec_pmu_state_init(struct rec *r)
+{
+	r->aux_data.pmu->pmcr_el0 = r->realm_info.pmu_enabled ?
+					PMCR_EL0_INIT_RESET : PMCR_EL0_INIT;
+}
+
 /*
  * Initializes granule pages that are used for attestation heap, PMU and SIMD.
- * As part of initialization this function maps and unmaps the REC aux granules.
+ * As part of initialization this function maps and unmaps the rec aux granules.
  */
 static void rec_aux_granules_init(struct rec *r)
 {
@@ -239,6 +243,7 @@ static void rec_aux_granules_init(struct rec *r)
 		REC_ATTEST_SIZE;
 
 	rec_simd_state_init(r);
+	rec_pmu_state_init(r);
 
 	/* Unmap auxiliary granules */
 	buffer_rec_aux_unmap(rec_aux, r->num_rec_aux);

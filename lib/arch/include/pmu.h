@@ -23,6 +23,7 @@ struct pmev_regs {
  * thashing when allocated as an array for use by each CPU.
  */
 struct pmu_state {
+	unsigned long pmcr_el0;
 	unsigned long pmccfiltr_el0;
 	unsigned long pmccntr_el0;
 	unsigned long pmcntenset_el0;
