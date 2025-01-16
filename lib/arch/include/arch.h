@@ -431,6 +431,24 @@
 #define ESR_EL2_xVC_IMM_SHIFT		0
 #define ESR_EL2_xVC_IMM_WIDTH		U(16)
 
+/* MPAM2_EL2 definitions */
+#define MPAM2_EL2_TIDR_BIT		(UL(1) << 58)
+#define MPAM2_EL2_TRAPMPAM0EL1_BIT	(UL(1) << 49)
+#define MPAM2_EL2_TRAPMPAM1EL1_BIT	(UL(1) << 48)
+
+#define MPAM2_EL2_INIT			(MPAM2_EL2_TRAPMPAM0EL1_BIT | \
+					 MPAM2_EL2_TRAPMPAM1EL1_BIT | \
+					 MPAM2_EL2_TIDR_BIT)
+
+/* MPAMHCR_EL2 definitions */
+#define MPAMHCR_EL2_TRAP_MPAMIDR_EL1_BIT	(UL(1) << 31)
+
+#define MPAMHCR_EL2_INIT			(MPAMHCR_EL2_TRAP_MPAMIDR_EL1_BIT)
+
+/* MPAMIDR_EL1 definitions */
+#define MPAMIDR_EL1_HAS_TIDR_BIT		(UL(1) << 58)
+#define MPAMIDR_EL1_HAS_HCR_BIT			(UL(1) << 17)
+
 /* ID_AA64DFR0_EL1 definitions */
 #define ID_AA64DFR0_EL1_HPMN0_SHIFT		UL(60)
 #define ID_AA64DFR0_EL1_HPMN0_WIDTH		UL(4)
@@ -1074,6 +1092,16 @@
 #define ESR_EL2_SYSREG_ID_AA64MMFR0_EL1	SYSREG_ESR(3, 0, 0, 7, 0)
 #define ESR_EL2_SYSREG_ID_AA64MMFR1_EL1	SYSREG_ESR(3, 0, 0, 7, 1)
 #define ESR_EL2_SYSREG_ID_AA64MMFR2_EL1	SYSREG_ESR(3, 0, 0, 7, 2)
+
+/*
+ * FEAT_MPAM system registers encoding mask for registers
+ * MPAM0_EL1: (3, 0, 10, 5, 1)
+ * MPAM1_EL1: (3, 0, 10, 5, 0)
+ * MPAMSM_EL1: (3, 0, 10, 5, 3)
+ * MPAMIDR_EL1: (3, 0, 10, 4, 4)
+ */
+#define ESR_EL2_SYSREG_MPAM_MASK		SYSREG_ESR(3, 7, 15, 14, 0)
+#define ESR_EL2_SYSREG_MPAM			SYSREG_ESR(3, 0, 10, 4, 0)
 
 /* ID_AA64ISAR1_EL1 definitions */
 #define ID_AA64ISAR1_EL1_GPI_SHIFT	UL(28)

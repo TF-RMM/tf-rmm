@@ -29,6 +29,17 @@ static void rmm_arch_init(void)
 {
 	unsigned long hcrx_el2_init = HCRX_INIT;
 
+	/* All access to MPAM registers from EL1/0 must be trapped by RMM */
+	if (is_feat_mpam_present()) {
+		unsigned long mpamidr_el1 = read_mpamidr_el1();
+
+		if ((mpamidr_el1 & MPAMIDR_EL1_HAS_HCR_BIT) != 0UL) {
+			write_mpamhcr_el2(MPAMHCR_EL2_INIT);
+		}
+
+		write_mpam2_el2(MPAM2_EL2_INIT);
+	}
+
 	SPE(write_pmscr_el2(PMSCR_EL2_INIT));
 
 	write_cnthctl_el2(CNTHCTL_EL2_INIT);
