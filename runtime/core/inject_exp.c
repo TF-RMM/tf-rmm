@@ -6,6 +6,7 @@
 #include <arch.h>
 #include <arch_helpers.h>
 #include <assert.h>
+#include <debug.h>
 #include <inject_exp.h>
 #include <rec.h>
 
@@ -236,6 +237,9 @@ void inject_sync_idabort(unsigned long fsc)
 	write_esr_el12(esr_el1);
 	write_elr_el2(pc);
 	write_spsr_el2(spsr);
+
+	INFO("Inject Sync EA into current REC. FAR_EL2: 0x%lx, ELR_EL2: 0x%lx\n",
+			far_el2, elr_el2);
 }
 
 /*
@@ -255,6 +259,9 @@ void inject_sync_idabort_rec(struct rec *rec, unsigned long fsc)
 	rec->pc = calc_vector_entry(rec->sysregs.vbar_el1, rec->pstate,
 				    sctlr2_ease_bit);
 	rec->pstate = calc_spsr(rec->pstate, rec->sysregs.sctlr_el1);
+
+	INFO("Inject Sync EA into REC 0x%lx FAR_EL1: 0x%lx, ELR_EL1: 0x%lx\n",
+			(unsigned long)rec, rec->sysregs.far_el1, rec->sysregs.elr_el1);
 }
 
 /*
