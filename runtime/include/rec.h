@@ -104,7 +104,6 @@ struct granule;
  * System registers whose contents are specific to a REC.
  */
 STRUCT_TYPE sysreg_state {
-	unsigned long sp_el0;
 	unsigned long sp_el1;
 	unsigned long elr_el1;
 	unsigned long spsr_el1;
