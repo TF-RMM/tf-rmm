@@ -30,7 +30,7 @@ static void system_abort(void)
 	 * TODO: report the abort to the EL3.
 	 * We need to establish the exact EL3 API first.
 	 */
-	assert(false);
+	panic();
 }
 
 static bool fixup_aarch32_data_abort(struct rec *rec, unsigned long *esr)
@@ -161,11 +161,11 @@ static bool handle_sync_external_abort(struct rec *rec,
 		/*
 		 * The uncontainable SEA.
 		 * Fatal to the system.
+		 * Fall through.
 		 */
+	default:
 		system_abort();
 		break;
-	default:
-		assert(false);
 	}
 
 	return true;
@@ -570,13 +570,15 @@ static bool handle_exception_serror_lel(struct rec *rec, struct rmi_rec_exit *re
 		rec_exit->esr = esr & ESR_SERROR_MASK;
 		break;
 	case ESR_EL2_SERROR_AET_UC:	/* Uncontainable RAS Error */
-		system_abort();
-		break;
+		/*
+		 * Fall through.
+		 */
 	default:
 		/*
 		 * Unrecognized Asynchronous Error Type
 		 */
-		assert(false);
+		system_abort();
+		break;
 	}
 
 	return false;
