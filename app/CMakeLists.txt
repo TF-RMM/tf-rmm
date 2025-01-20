@@ -12,6 +12,7 @@ add_subdirectory("common")
 # The contents of the list is populated by the CMakeLists in the subdirectories
 set(EL0_APP_BIN_LIST "")
 
+add_subdirectory("attestation")
 add_subdirectory("random")
 
 set(EL0_APP_BIN_LIST ${EL0_APP_BIN_LIST} PARENT_SCOPE)
