@@ -338,14 +338,6 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 
 	rec->g_rec = g_rec;
 	rec->rec_idx = rec_idx;
-
-	init_rec_regs(rec, &rec_params, rd);
-	gic_cpu_state_init(&rec->sysregs.gicstate);
-
-	/* Copy addresses of auxiliary granules */
-	(void)memcpy(rec->g_aux, rec_aux_granules,
-			num_rec_aux * sizeof(struct granule *));
-
 	rec->num_rec_aux = num_rec_aux;
 
 	rec->realm_info.s2_ctx = rd->s2_ctx;
@@ -354,6 +346,13 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	rec->realm_info.pmu_num_ctrs = rd->pmu_num_ctrs;
 	rec->realm_info.algorithm = rd->algorithm;
 	rec->realm_info.simd_cfg = rd->simd_cfg;
+
+	init_rec_regs(rec, &rec_params, rd);
+	gic_cpu_state_init(&rec->sysregs.gicstate);
+
+	/* Copy addresses of auxiliary granules */
+	(void)memcpy(rec->g_aux, rec_aux_granules,
+			num_rec_aux * sizeof(struct granule *));
 
 	rec->runnable = (rec_params.flags & REC_PARAMS_FLAG_RUNNABLE) != 0UL;
 	if (rec->runnable) {
