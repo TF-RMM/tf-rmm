@@ -530,6 +530,7 @@ void host_monitor_call_with_res(unsigned long id,
 			res->x[0] = -EINVAL;
 			break;
 		}
+		break;
 	}
 	default:
 		VERBOSE("Unimplemented monitor call id %lx\n", id);

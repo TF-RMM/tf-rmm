@@ -78,7 +78,8 @@ static void save_realm_state(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 	if (rec->realm_info.pmu_enabled) {
 		/* Expose PMU Realm state to NS */
-		pmu_update_rec_exit(rec_exit);
+		rec_exit->pmu_ovf_status = (pmu_is_ovf_set() ?
+			RMI_PMU_OVERFLOW_ACTIVE : RMI_PMU_OVERFLOW_NOT_ACTIVE);
 
 		/* Save PMU context */
 		pmu_save_state(rec->aux_data.pmu,
