@@ -27,7 +27,6 @@ static struct simd_context g_ns_simd_ctx[MAX_CPUS]
 
 static void save_sysreg_state(struct sysreg_state *sysregs)
 {
-	sysregs->sp_el0 = read_sp_el0();
 	sysregs->sp_el1 = read_sp_el1();
 	sysregs->elr_el1 = read_elr_el12();
 	sysregs->spsr_el1 = read_spsr_el12();
@@ -89,7 +88,6 @@ static void save_realm_state(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 static void restore_sysreg_state(struct sysreg_state *sysregs)
 {
-	write_sp_el0(sysregs->sp_el0);
 	write_sp_el1(sysregs->sp_el1);
 	write_elr_el12(sysregs->elr_el1);
 	write_spsr_el12(sysregs->spsr_el1);
