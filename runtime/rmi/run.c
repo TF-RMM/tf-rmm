@@ -4,9 +4,11 @@
  */
 
 #include <arch.h>
+#include <atomics.h>
 #include <buffer.h>
 #include <debug.h>
 #include <esr.h>
+#include <exit.h>
 #include <gic.h>
 #include <granule.h>
 #include <inject_exp.h>
@@ -20,14 +22,15 @@
 #include <smc.h>
 #include <string.h>
 
-static void reset_last_run_info(struct rec *rec)
+static void reset_last_run_info(struct rec_plane *plane)
 {
-	rec->last_run_info.esr = 0UL;
+	plane->last_run_info.esr = 0UL;
 }
 
 static bool complete_mmio_emulation(struct rec *rec, struct rmi_rec_enter *rec_enter)
 {
-	unsigned long esr = rec->last_run_info.esr;
+	struct rec_plane *plane = rec_active_plane(rec);
+	unsigned long esr = plane->last_run_info.esr;
 	unsigned int rt = esr_srt(esr);
 
 	if ((rec_enter->flags & REC_ENTRY_FLAG_EMUL_MMIO) == 0UL) {
@@ -76,41 +79,130 @@ static bool complete_mmio_emulation(struct rec *rec, struct rmi_rec_enter *rec_e
 			}
 		}
 
-		rec->regs[rt] = val;
+		plane->regs[rt] = val;
 	}
 
-	rec->pc = rec->pc + 4UL;
+	plane->pc = plane->pc + 4UL;
 	return true;
 }
 
 static void complete_set_ripas(struct rec *rec)
 {
+	struct rec_plane *plane = rec_plane_0(rec);
 	enum ripas ripas_val = rec->set_ripas.ripas_val;
 
 	if (rec->set_ripas.base == rec->set_ripas.top) {
 		return;
 	}
 
+	/* RIPAS change request can only come from the Plane 0. */
+	assert(rec_is_plane_0_active(rec));
+
 	/* Pending request from Realm */
-	rec->regs[0] = RSI_SUCCESS;
-	rec->regs[1] = rec->set_ripas.addr;
+	plane->regs[0] = RSI_SUCCESS;
+	plane->regs[1] = rec->set_ripas.addr;
 
 	if ((ripas_val == RIPAS_RAM) && (rec->set_ripas.addr != rec->set_ripas.top)
 		 && (rec->set_ripas.response == REJECT)) {
-		rec->regs[2] = RSI_REJECT;
+		plane->regs[2] = RSI_REJECT;
 	} else {
-		rec->regs[2] = RSI_ACCEPT;
+		plane->regs[2] = RSI_ACCEPT;
 	}
 
 	rec->set_ripas.base = 0UL;
 	rec->set_ripas.top = 0UL;
 }
 
+static void complete_set_s2ap(struct rec *rec)
+{
+	struct rec_plane *plane = rec_plane_0(rec);
+	bool rtt_tree_pp;
+	unsigned long new_base;
+	unsigned long cookie = 0UL;
+
+	if ((rec->set_s2ap.base == 0UL) && (rec->set_s2ap.top == 0UL)) {
+		/* No S2AP index change pending. Just return */
+		return;
+	}
+
+	/* S2AP change request can only come from Plane 0. */
+	assert(rec_is_plane_0_active(rec));
+
+	rtt_tree_pp = rec->realm_info.rtt_tree_pp;
+
+	if (rec->set_s2ap.response != REJECT) {
+		struct rd *rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+
+		assert(rd != NULL);
+
+		set_perm_immutable(rd, rec->set_s2ap.index);
+
+		buffer_unmap(rd);
+	}
+
+	new_base = rec->set_s2ap.base;
+	if (rtt_tree_pp) {
+		/*
+		 * If we have updated the whole range of IPAs for the current
+		 * tree, we need to verify if there are pending RTT trees to
+		 * update and then create a new cookie to track the progress to
+		 * the next tree starting at base IPA.
+		 *
+		 * If, on the other hand, we haven't updated the whole range of
+		 * IPAs for the current tree, update the cookie with the new
+		 * base and the current tree index.
+		 *
+		 * Note that the current cookie contains the base addr and the
+		 * tree index from the last RSI_MEM_SET_PERM_INDEX call.
+		 */
+		unsigned long next_s2tt_idx;
+
+		cookie = rec->set_s2ap.cookie;
+		next_s2tt_idx = GET_RTT_IDX_FROM_COOKIE(cookie);
+		assert(next_s2tt_idx < rec_num_planes(rec));
+
+		if (new_base == rec->set_s2ap.top) {
+			next_s2tt_idx++;
+
+			if (next_s2tt_idx < rec_num_planes(rec)) {
+				/*
+				 * The current cookie should have the value
+				 * of the original base, which will be used to
+				 * create a new cookie to point to the base of
+				 * the next RTT tree.
+				 */
+				new_base = GET_RTT_BASE_FROM_COOKIE(cookie);
+				cookie = RTT_COOKIE_CREATE(new_base,
+								  next_s2tt_idx);
+			} else {
+				/*
+				 * Reset the cookie if we
+				 * updated all the trees.
+				 */
+				cookie = 0UL;
+			}
+		} else {
+			cookie = RTT_COOKIE_CREATE(new_base, next_s2tt_idx);
+		}
+	}
+
+	rec->set_s2ap.base = 0UL;
+	rec->set_s2ap.top = 0UL;
+	rec->set_s2ap.index = 0UL;
+	rec->set_s2ap.cookie = 0UL;
+
+	plane->regs[0] = RSI_SUCCESS;
+	plane->regs[1] = new_base;
+	plane->regs[2] = (unsigned long)rec->set_s2ap.response;
+	plane->regs[3] = cookie;
+}
+
 static bool complete_sea_insertion(struct rec *rec, struct rmi_rec_enter *rec_enter)
 {
-	unsigned long esr = rec->last_run_info.esr;
+	struct rec_plane *plane = rec_active_plane(rec);
+	unsigned long esr = plane->last_run_info.esr;
 	unsigned long fipa;
-	unsigned long hpfar = rec->last_run_info.hpfar;
+	unsigned long hpfar = plane->last_run_info.hpfar;
 
 	if ((rec_enter->flags & REC_ENTRY_FLAG_INJECT_SEA) == 0UL) {
 		return true;
@@ -132,7 +224,8 @@ static bool complete_sea_insertion(struct rec *rec, struct rmi_rec_enter *rec_en
 
 static void complete_sysreg_emulation(struct rec *rec, struct rmi_rec_enter *rec_enter)
 {
-	unsigned long esr = rec->last_run_info.esr;
+	struct rec_plane *plane = rec_active_plane(rec);
+	unsigned long esr = plane->last_run_info.esr;
 
 	/* Rt bits [9:5] of ISS field cannot exceed 0b11111 */
 	unsigned int rt = (unsigned int)ESR_EL2_SYSREG_ISS_RT(esr);
@@ -147,7 +240,7 @@ static void complete_sysreg_emulation(struct rec *rec, struct rmi_rec_enter *rec
 
 	/* Handle xzr */
 	if (rt != 31U) {
-		rec->regs[rt] = rec_enter->gprs[0];
+		plane->regs[rt] = rec_enter->gprs[0];
 	}
 }
 
@@ -162,7 +255,16 @@ static bool complete_host_call(struct rec *rec, struct rmi_rec_run *rec_run)
 	walk_result = complete_rsi_host_call(rec, &rec_run->enter);
 
 	if (walk_result.abort) {
-		emulate_stage2_data_abort(rec, &rec_run->exit, walk_result.rtt_level);
+		/*
+		 * The IPA where the result should be copied to (referred to by
+		 * X1 at RSI_HOST_CALL) has RAM ripas but invalid mapping.
+		 * Emulate the data abort against that IPA so that the host
+		 * can bring the page in.
+		 */
+		unsigned long ipa = rec_active_plane(rec)->regs[1];
+
+		emulate_stage2_data_abort(&rec_run->exit,
+					  walk_result.rtt_level, ipa);
 		return false;
 	}
 
@@ -176,11 +278,13 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	struct granule *g_rec;
 	struct granule *g_run;
 	struct rec *rec;
+	struct rec_plane *plane;
 	struct rd *rd;
 	struct rmi_rec_run rec_run;
 	unsigned long realm_state, ret;
 	bool success;
 	int res;
+	void *rec_aux;
 
 	/*
 	 * The content of `rec_run.exit` shall be returned to the host.
@@ -264,15 +368,20 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 		goto out_unmap_buffers;
 	}
 
+	/* Map auxiliary granules */
+	rec_aux = buffer_rec_aux_granules_map(rec->g_aux, rec->num_rec_aux);
+
+	plane = rec_active_plane(rec);
+
 	/*
 	 * Check GIC state after checking other conditions but before doing
 	 * anything which may have side effects.
 	 */
 	if (!gic_validate_state(&rec_run.enter)) {
 		ret = RMI_ERROR_REC;
-		goto out_unmap_buffers;
+		goto out_unmap_aux_granules;
 	}
-	gic_copy_state_from_rec_entry(&rec->sysregs.gicstate, &rec_run.enter);
+	gic_copy_state_from_rec_entry(&plane->sysregs->gicstate, &rec_run.enter);
 
 	/*
 	 * Note that the order of checking SEA insertion needs to be prior
@@ -283,41 +392,64 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	 */
 	if (!complete_sea_insertion(rec, &rec_run.enter)) {
 		ret = RMI_ERROR_REC;
-		goto out_unmap_buffers;
+		goto out_unmap_aux_granules;
 	}
 
 	if (!complete_mmio_emulation(rec, &rec_run.enter)) {
 		ret = RMI_ERROR_REC;
-		goto out_unmap_buffers;
+		goto out_unmap_aux_granules;
+	}
+
+	if (!complete_host_call(rec, &rec_run)) {
+		ret = RMI_SUCCESS;
+		goto out_unmap_aux_granules;
+	}
+
+	if (!rec_is_plane_0_active(rec) &&
+		((rec_run.enter.flags & REC_ENTRY_FLAG_FORCE_P0) != 0UL)) {
+		if (!handle_plane_n_exit(rec, &rec_run.exit,
+					 ARM_EXCEPTION_SYNC_LEL)) {
+			ret = RMI_ERROR_INPUT;
+			goto out_unmap_aux_granules;
+		}
 	}
 
 	rec->set_ripas.response =
 		((rec_run.enter.flags & REC_ENTRY_FLAG_RIPAS_RESPONSE) == 0UL) ?
 			ACCEPT : REJECT;
-
 	complete_set_ripas(rec);
+
+	rec->set_s2ap.response =
+		((rec_run.enter.flags & REC_ENTRY_FLAG_S2AP_RESPONSE) == 0UL) ?
+			ACCEPT : REJECT;
+	complete_set_s2ap(rec);
+
 	complete_sysreg_emulation(rec, &rec_run.enter);
 
-	if (!complete_host_call(rec, &rec_run)) {
-		ret = RMI_SUCCESS;
-		goto out_unmap_buffers;
-	}
+	reset_last_run_info(plane);
 
-	reset_last_run_info(rec);
-
-	rec->sysregs.hcr_el2 = rec->common_sysregs.hcr_el2;
+	plane->sysregs->hcr_el2 = rec->common_sysregs.hcr_el2;
 	if ((rec_run.enter.flags & REC_ENTRY_FLAG_TRAP_WFI) != 0UL) {
-		rec->sysregs.hcr_el2 |= HCR_TWI;
+		plane->sysregs->hcr_el2 |= HCR_TWI;
 	}
 	if ((rec_run.enter.flags & REC_ENTRY_FLAG_TRAP_WFE) != 0UL) {
-		rec->sysregs.hcr_el2 |= HCR_TWE;
+		plane->sysregs->hcr_el2 |= HCR_TWE;
 	}
 
 	ret = RMI_SUCCESS;
 
 	rec_run_loop(rec, &rec_run.exit);
 
-	gic_copy_state_to_rec_exit(&rec->sysregs.gicstate, &rec_run.exit);
+	if (rec->active_plane_id == PLANE_0_ID) {
+		/* Active plane might have change during rec_run_loop() */
+		plane = rec_plane_0(rec);
+		gic_copy_state_to_rec_exit(&plane->sysregs->gicstate,
+					   &rec_run.exit);
+	}
+
+out_unmap_aux_granules:
+	/* Unmap auxiliary granules */
+	buffer_rec_aux_unmap(rec_aux, rec->num_rec_aux);
 
 out_unmap_buffers:
 	buffer_unmap(rec);

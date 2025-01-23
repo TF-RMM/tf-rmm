@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <feature.h>
 #include <gic.h>
+#include <planes.h>
 #include <s2tt.h>
 #include <simd.h>
 #include <smc-handler.h>
@@ -96,8 +97,18 @@ unsigned long get_feature_register_0(void)
 
 #ifdef RMM_V1_1
 	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_DA_EN, RMI_FEATURE_TRUE);
+
+	if (s2tt_indirect_ap_supported()) {
+		feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_PLANE_RTT, RMI_RTT_PLANE_AUX_SINGLE);
+		feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_RTT_S2AP_INDIRECT, RMI_FEATURE_TRUE);
+	} else {
+		feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_PLANE_RTT, RMI_RTT_PLANE_AUX);
+	}
+
+	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_MAX_NUM_AUX_PLANES, MAX_AUX_PLANES);
 #else
 	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_DA_EN, RMI_FEATURE_FALSE);
+	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_RTT_S2AP_INDIRECT, RMI_FEATURE_FALSE);
 #endif
 
 	return feat_reg0;

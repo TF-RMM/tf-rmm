@@ -56,15 +56,33 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 			     unsigned long map_addr,
 			     unsigned long ulevel);
 
+unsigned long smc_rtt_aux_create(unsigned long rd_addr,
+				 unsigned long rtt_addr,
+				 unsigned long map_addr,
+				 unsigned long ulevel,
+				 unsigned long index);
+
 void smc_rtt_destroy(unsigned long rd_addr,
 		     unsigned long map_addr,
 		     unsigned long ulevel,
 		     struct smc_result *res);
 
+void smc_rtt_aux_destroy(unsigned long rd_addr,
+			 unsigned long map_addr,
+			 unsigned long ulevel,
+			 unsigned long index,
+			 struct smc_result *res);
+
 void smc_rtt_fold(unsigned long rd_addr,
 		  unsigned long map_addr,
 		  unsigned long ulevel,
 		  struct smc_result *res);
+
+void smc_rtt_aux_fold(unsigned long rd_addr,
+		      unsigned long map_addr,
+		      unsigned long ulevel,
+		      unsigned long index,
+		      struct smc_result *res);
 
 unsigned long smc_rtt_map_unprotected(unsigned long rd_addr,
 				      unsigned long map_addr,
@@ -95,6 +113,30 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 			unsigned long base,
 			unsigned long top,
 			struct smc_result *res);
+
+void smc_rtt_set_s2ap(unsigned long rd_addr, unsigned long rec_addr,
+		      unsigned long base, unsigned long top,
+		      struct smc_result *res);
+
+void smc_rtt_aux_map_protected(unsigned long rd_addr,
+			       unsigned long map_addr,
+			       unsigned long index,
+			       struct smc_result *res);
+
+void smc_rtt_aux_map_unprotected(unsigned long rd_addr,
+				 unsigned long map_addr,
+				 unsigned long index,
+				 struct smc_result *res);
+
+void smc_rtt_aux_unmap_protected(unsigned long rd_addr,
+				 unsigned long unmap_addr,
+				 unsigned long index,
+				 struct smc_result *res);
+
+void smc_rtt_aux_unmap_unprotected(unsigned long rd_addr,
+				   unsigned long unmap_addr,
+				   unsigned long index,
+				   struct smc_result *res);
 
 unsigned long smc_dev_mem_map(unsigned long rd_addr,
 				unsigned long map_addr,
