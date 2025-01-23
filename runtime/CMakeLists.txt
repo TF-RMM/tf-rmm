@@ -96,7 +96,8 @@ if(HOST_VARIANT STREQUAL "host_cbmc")
                 "rsi/fake_host/cbmc_memory.c"
                 "rsi/fake_host/cbmc_psci.c"
                 "rsi/fake_host/cbmc_realm_attest.c"
-                "rsi/fake_host/cbmc_version.c")
+                "rsi/fake_host/cbmc_version.c"
+                "rsi/fake_host/cbmc_planes.c")
     # In case of 'host_cbmc' variant no further source files are added to
     # the build.
     return()

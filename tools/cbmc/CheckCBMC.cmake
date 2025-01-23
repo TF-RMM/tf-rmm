@@ -90,6 +90,7 @@ set(cbmc_unwinds_list
   "--unwindset;smc_realm_create.0:${MAX_RTT_UNWIND}"
   "--unwindset;smc_rec_create.0:${MAX_AUX_REC}"
   "--unwindset;total_root_rtt_refcount.0:${MAX_RTT_UNWIND}"
+  "--unwindset;smc_realm_destroy.0:2"
 )
 
 set(cbmc_defines_list
