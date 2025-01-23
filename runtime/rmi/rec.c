@@ -10,6 +10,7 @@
 #include <gic.h>
 #include <granule.h>
 #include <measurement.h>
+#include <planes.h>
 #include <psci.h>
 #include <realm.h>
 #include <rec.h>
@@ -22,14 +23,15 @@
 #include <string.h>
 #include <xlat_high_va.h>
 
-static void init_rec_sysregs(struct rec *rec, unsigned long rec_mpidr)
+static void init_rec_sysregs(STRUCT_TYPE sysreg_state *sysregs,
+			     unsigned long mpidr)
 {
 	/* Set non-zero values only */
-	rec->sysregs.sctlr_el1 = SCTLR_EL1_FLAGS;
-	rec->sysregs.mdscr_el1 = MDSCR_EL1_TDCC_BIT;
-	rec->sysregs.vmpidr_el2 = rec_mpidr_to_mpidr(rec_mpidr) | VMPIDR_EL2_RES1;
-	rec->sysregs.cnthctl_el2 = CNTHCTL_EL2_NO_TRAPS;
-	rec->sysregs.cptr_el2 = CPTR_EL2_VHE_INIT;
+	sysregs->pp_sysregs.sctlr_el1 = SCTLR_EL1_FLAGS;
+	sysregs->pp_sysregs.mdscr_el1 = MDSCR_EL1_TDCC_BIT;
+	sysregs->vmpidr_el2 = mpidr | VMPIDR_EL2_RES1;
+	sysregs->cnthctl_el2 = CNTHCTL_EL2_NO_TRAPS;
+	sysregs->cptr_el2 = CPTR_EL2_VHE_INIT;
 }
 
 /*
@@ -72,7 +74,7 @@ static unsigned long realm_vtcr(struct rd *rd)
 				(VTCR_FLAGS | VTCR_VS) : VTCR_FLAGS;
 	unsigned int parange = arch_feat_get_pa_width();
 	int s2_starting_level = realm_rtt_starting_level(rd);
-	bool lpa2 = rd->s2_ctx.enable_lpa2;
+	bool lpa2 = rd->s2_ctx[PRIMARY_S2_CTX_ID].enable_lpa2;
 
 	assert(((!lpa2) && (s2_starting_level >= S2TT_MIN_STARTING_LEVEL)) ||
 	       ((lpa2) && (s2_starting_level >= S2TT_MIN_STARTING_LEVEL_LPA2)));
@@ -98,28 +100,21 @@ static unsigned long realm_vtcr(struct rd *rd)
 		vtcr |= VTCR_DS_52BIT;
 	}
 
+	/* Enable S2PIE and S2POE */
+	if (rd->rtt_s2ap_encoding == S2AP_INDIRECT_ENC) {
+		vtcr |= VTCR_S2PIE | VTCR_S2POE;
+	}
+
 	return vtcr;
 }
 
 static void init_common_sysregs(struct rec *rec, struct rd *rd)
 {
 	unsigned long mdcr_el2_val = read_mdcr_el2();
-	bool lpa2 = rd->s2_ctx.enable_lpa2;
 
 	/* Set non-zero values only */
 	rec->common_sysregs.hcr_el2 = HCR_REALM_FLAGS;
-	rec->common_sysregs.vtcr_el2 =  realm_vtcr(rd);
-	rec->common_sysregs.vttbr_el2 = (granule_addr(rd->s2_ctx.g_rtt) &
-					MASK(TTBRx_EL2_BADDR));
-	if (lpa2 == true) {
-		rec->common_sysregs.vttbr_el2 &= ~MASK(TTBRx_EL2_BADDR_MSB_LPA2);
-		rec->common_sysregs.vttbr_el2 |=
-			INPLACE(TTBRx_EL2_BADDR_MSB_LPA2,
-						EXTRACT(EL2_BADDR_MSB_LPA2,
-							granule_addr(rd->s2_ctx.g_rtt)));
-	}
-
-	rec->common_sysregs.vttbr_el2 |= INPLACE(VTTBR_EL2_VMID, rd->s2_ctx.vmid);
+	rec->common_sysregs.vtcr_el2 = realm_vtcr(rd);
 
 	/* Control trapping of accesses to PMU registers */
 	if (rd->pmu_enabled) {
@@ -139,33 +134,67 @@ static void init_common_sysregs(struct rec *rec, struct rd *rd)
 
 }
 
+/*
+ * Function to initialize sysregs.vttbr_el2 for each plane.
+ *
+ * This function expects that the aux granules are mapped and initialized.
+ */
+static void init_vttbr(struct rec *rec, struct rd *rd)
+{
+	for (unsigned int i = 0U; i < realm_num_planes(rd); i++) {
+		struct s2tt_context *s2_ctx = plane_to_s2_context(rd, i);
+		bool lpa2 = s2_ctx->enable_lpa2;
+		STRUCT_TYPE sysreg_state *sysregs = &rec->aux_data.sysregs[i];
+
+		sysregs->vttbr_el2 =
+			(granule_addr(s2_ctx->g_rtt) & MASK(TTBRx_EL2_BADDR));
+		if (lpa2 == true) {
+			sysregs->vttbr_el2 =
+				TTBRx_EL2_SET_MSB_LPA2((granule_addr(s2_ctx->g_rtt)),
+							(sysregs->vttbr_el2));
+		}
+
+		sysregs->vttbr_el2 |= INPLACE(VTTBR_EL2_VMID, s2_ctx->vmid);
+	}
+}
+
 static void init_rec_regs(struct rec *rec,
 			  struct rmi_rec_params *rec_params,
 			  struct rd *rd)
 {
-	unsigned int i;
+	/* Plane N context is initialized in plane_enter() */
+	void *rec_aux = buffer_rec_aux_granules_map(rec->g_aux, rec->num_rec_aux);
 
-	/*
-	 * We only need to set non-zero values here because we're intializing
-	 * data structures in the rec granule which was just converted from
-	 * the DELEGATED state to REC state, and we can rely on the RMM
-	 * invariant that DELEGATED granules are always zero-filled.
-	 */
+	for (unsigned int i = 0U; i < rec_num_planes(rec); i++) {
+		STRUCT_TYPE sysreg_state *sysregs = &rec->aux_data.sysregs[i];
 
-	for (i = 0U; i < REC_CREATE_NR_GPRS; i++) {
-		rec->regs[i] = rec_params->gprs[i];
+		if (i == PLANE_0_ID) {
+			struct rec_plane *plane = &rec->plane[0];
+
+			/* Initialize Plane 0 GPRS */
+			for (unsigned int j = 0U; j < REC_CREATE_NR_GPRS; j++) {
+				plane->regs[j] = rec_params->gprs[j];
+			}
+
+			plane->pc = rec_params->pc;
+			plane->sysregs = sysregs;
+
+			sysregs->pstate = SPSR_EL2_MODE_EL1h |
+				  SPSR_EL2_nRW_AARCH64 |
+				  SPSR_EL2_F_BIT |
+				  SPSR_EL2_I_BIT |
+				  SPSR_EL2_A_BIT |
+				  SPSR_EL2_D_BIT;
+		}
+
+		init_rec_sysregs(sysregs, rec_params->mpidr);
+		gic_cpu_state_init(&(sysregs->gicstate));
 	}
 
-	rec->pc = rec_params->pc;
-	rec->pstate = SPSR_EL2_MODE_EL1h |
-		      SPSR_EL2_nRW_AARCH64 |
-		      SPSR_EL2_F_BIT |
-		      SPSR_EL2_I_BIT |
-		      SPSR_EL2_A_BIT |
-		      SPSR_EL2_D_BIT;
-
-	init_rec_sysregs(rec, rec_params->mpidr);
 	init_common_sysregs(rec, rd);
+	init_vttbr(rec, rd);
+
+	buffer_rec_aux_unmap(rec_aux, rec->num_rec_aux);
 }
 
 /*
@@ -211,6 +240,7 @@ static void rec_aux_granules_init(struct rec *r)
 	struct rec_aux_data *aux_data;
 	size_t i;
 	int ret;
+	size_t used_aux_pages;
 
 	/* Map auxiliary granules */
 	/* coverity[overrun-buffer-val:SUPPRESS] */
@@ -222,13 +252,14 @@ static void rec_aux_granules_init(struct rec *r)
 	 * - REC_PMU_PAGES for PMU state
 	 * - REC_SIMD_PAGES for SIMD state
 	 * - REC_ATTEST_PAGES for 'rec_attest_data' structure
+	 * - REC_SYSREGS_PAGES to store sysregs per plane
 	 * - REC_ATTEST_BUFFER_PAGES for attestation buffer
 	 */
 	assert(r->num_rec_aux >= REC_NUM_PAGES);
 
 	/*
 	 * Assign base address for attestation heap, PMU, SIMD, attestation
-	 * data and buffer.
+	 * data, buffer and sysregs.
 	 */
 	aux_data = &r->aux_data;
 	aux_data->pmu = (struct pmu_state *)rec_aux;
@@ -236,9 +267,11 @@ static void rec_aux_granules_init(struct rec *r)
 		((uintptr_t)aux_data->pmu + REC_PMU_SIZE);
 	aux_data->attest_data = (struct rec_attest_data *)
 		((uintptr_t)aux_data->simd_ctx + REC_SIMD_SIZE);
+	aux_data->sysregs = (STRUCT_TYPE sysreg_state *)
+		((uintptr_t)aux_data->attest_data + REC_ATTEST_SIZE);
 
-	size_t used_aux_pages =
-		((uintptr_t)aux_data->attest_data + REC_ATTEST_SIZE -
+	used_aux_pages =
+		((uintptr_t)aux_data->sysregs + REC_SYSREGS_SIZE -
 			(uintptr_t)rec_aux) / GRANULE_SIZE;
 
 	assert(used_aux_pages < r->num_rec_aux);
@@ -361,16 +394,22 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 
 	rec->g_rec = g_rec;
 	rec->rec_idx = rec_idx;
+
+	rec->realm_info.num_aux_planes = rd->num_aux_planes;
+
+	/* REC always boots in PLANE_0_ID plane */
+	rec->active_plane_id = PLANE_0_ID;
+
 	rec->num_rec_aux = num_rec_aux;
-	rec->realm_info.s2_ctx = rd->s2_ctx;
+
+	rec->realm_info.primary_s2_ctx = rd->s2_ctx[PRIMARY_S2_CTX_ID];
 	rec->realm_info.g_rd = g_rd;
 	rec->realm_info.pmu_enabled = rd->pmu_enabled;
 	rec->realm_info.pmu_num_ctrs = rd->pmu_num_ctrs;
 	rec->realm_info.algorithm = rd->algorithm;
 	rec->realm_info.simd_cfg = rd->simd_cfg;
-
-	init_rec_regs(rec, &rec_params, rd);
-	gic_cpu_state_init(&rec->sysregs.gicstate);
+	rec->realm_info.rtt_tree_pp = rd->rtt_tree_pp;
+	rec->realm_info.rtt_s2ap_encoding = rd->rtt_s2ap_encoding;
 
 	/* Copy addresses of auxiliary granules */
 	(void)memcpy((void *)rec->g_aux, (const void *)rec_aux_granules,
@@ -394,6 +433,9 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	 * granules.
 	 */
 	rec_aux_granules_init(rec);
+
+	/* Initialize system registers */
+	init_rec_regs(rec, &rec_params, rd);
 
 	set_rd_rec_count(rd, rec_idx + 1U);
 
@@ -492,6 +534,7 @@ unsigned long smc_psci_complete(unsigned long calling_rec_addr,
 	struct granule *g_calling_rec, *g_target_rec;
 	struct rec  *calling_rec, *target_rec;
 	unsigned long ret;
+	void *target_rec_aux;
 
 	if (!GRANULE_ALIGNED(calling_rec_addr)) {
 		return RMI_ERROR_INPUT;
@@ -529,9 +572,14 @@ unsigned long smc_psci_complete(unsigned long calling_rec_addr,
 	assert(calling_rec != NULL);
 
 	target_rec = buffer_granule_map(g_target_rec, SLOT_REC2);
+
+	/* Reuse the REC_AUX slots for mapping Aux granules for target REC */
+	target_rec_aux = buffer_rec_aux_granules_map(target_rec->g_aux,
+						     target_rec->num_rec_aux);
 	assert(target_rec != NULL);
 
 	ret = psci_complete_request(calling_rec, target_rec, status);
+	buffer_rec_aux_unmap(target_rec_aux, target_rec->num_rec_aux);
 
 	buffer_unmap(target_rec);
 	buffer_unmap(calling_rec);
