@@ -56,11 +56,13 @@ bool host_memcpy_ns_write(void *ns_dest, const void *src, unsigned long size);
 /*
  * Fake host wrapper to run a realm.
  * Args:
- *     regs - pointer to GP regs to be restored/save when entering/exiting
- *            Realm
+ *     rec_regs - pointer to REC GP regs to be restored/saved when
+ *		  entering/exiting Realm.
+ *     rec_sp_el0 - pointer to the REC sp_el0 to be restored/saved when
+ *		    entering/exiting the Realm.
  * Return: Realm exception syndrome return.
  */
-int host_run_realm(unsigned long *regs);
+int host_run_realm(unsigned long *rec_regs, unsigned long *rec_sp_el0);
 
 /*
  * Fake Host wrapper for monitor_call.

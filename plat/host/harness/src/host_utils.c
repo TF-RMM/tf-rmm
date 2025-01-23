@@ -138,13 +138,13 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	boot_manifest->plat_data = (uintptr_t)NULL;
 }
 
-int host_util_rec_run(unsigned long *regs)
+int host_util_rec_run(unsigned long *rec_regs, unsigned long *rec_sp_el0)
 {
 	unsigned long pc = read_elr_el2();
 	realm_entrypoint_t realm_ep = (void *)pc;
 
 	write_esr_el2(0x0);
-	return realm_ep(regs);
+	return realm_ep(rec_regs, rec_sp_el0);
 }
 
 int host_util_rsi_helper(realm_entrypoint_t ep)
