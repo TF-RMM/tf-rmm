@@ -6,6 +6,7 @@
 #ifndef SMC_RSI_H
 #define SMC_RSI_H
 
+#include <arch.h>
 #include <smc.h>
 
 /*
@@ -222,24 +223,46 @@
 
 /*
  * FID: 0xC40001A0
+ *
+ * arg1 == Index of the plane to get values from
+ * arg2 == Index of the permission to retrieve
+ * ret0 == Status / error
+ * ret1 == Memory permission value
  */
 #define SMC_RSI_MEM_GET_PERM_VALUE	SMC64_RSI_FID(U(0x10))
 
 /*
  * FID: 0xC40001A1
+ *
+ * arg1 == Base of target IPA region
+ * arg2 == Top of target IPA region
+ * arg3 == Permission index
+ * arg4 == Cookie
+ * ret0 == Status / error
+ * ret1 == Base of IPA region which was not modified by the command
+ * ret2 == RSI response. Whether the host accepted or rejected the request
+ * ret3 == New cookie value
  */
 #define SMC_RSI_MEM_SET_PERM_INDEX	SMC64_RSI_FID(U(0x11))
 
 /*
  * FID: 0xC40001A2
+ *
+ * arg1 == Index of the plane where to modify the permissions
+ * arg2 == Index of the permission to modify
+ * arg3 == Memory permission value
+ * ret0 == Status / error
  */
 #define SMC_RSI_MEM_SET_PERM_VALUE	SMC64_RSI_FID(U(0x12))
 
 /*
  * FID: 0xC40001A3
+ *
+ * arg1 == Index of target plane
+ * arg2 == IPA of rsi_plane_run object
+ * ret0 == Status / error
  */
 #define SMC_RSI_PLANE_ENTER		SMC64_RSI_FID(U(0x13))
-
 /*
  * FID: 0xC40001A4
  */
@@ -291,11 +314,21 @@
 
 /*
  * FID: 0xC40001AE
+ *
+ * arg1 == Index of tharget plane
+ * arg2 == Encoding of target register
+ * ret0 == Status / error
+ * ret1 == Read value
  */
 #define SMC_RSI_PLANE_REG_READ		SMC64_RSI_FID(U(0x1E))
 
 /*
  * FID: 0xC40001AF
+ *
+ * arg1 == Index of target plane
+ * arg2 == Encoding of target register
+ * arg3 == Value to write to target register
+ * ret0 == Status / error
  */
 #define SMC_RSI_PLANE_REG_WRITE		SMC64_RSI_FID(U(0x1F))
 
@@ -310,6 +343,32 @@
  * FID: 0xC40001BF
  */
 #define SMC_RDEV_P2P_BIND		SMC64_RSI_FID(U(0x2F))
+
+/* Number of general purpose registers per Plane */
+#define RSI_PLANE_NR_GPRS		U(31)
+
+/* Maximum number of Interrupt Controller List Registers */
+#define RSI_PLANE_GIC_NUM_LRS		U(16)
+
+/* RsiPlaneExitReason represents the reason for a Plane exit */
+#define RSI_EXIT_SYNC			U(0)
+#define RSI_EXIT_IRQ			U(1)
+#define RSI_EXIT_HOST			U(2)
+
+/*
+ * RsiPlaneEnterFlags
+ *
+ * Flags provided by Plane 0 to RMM to configure entry into Plane N.
+ */
+#define RSI_PLANE_ENTER_FLAGS_TRAP_WFI	U(1UL << 0)
+#define RSI_PLANE_ENTER_FLAGS_TRAP_WFE	U(1UL << 1)
+#define RSI_PLANE_ENTER_FLAGS_TRAP_HC	U(1UL << 2)
+
+/*
+ * Possible values for RsiTrap type *
+ */
+#define RSI_TRAP			(1UL)
+#define RSI_NO_TRAP			(0UL)
 
 #ifndef __ASSEMBLER__
 /*
@@ -332,18 +391,18 @@
 /* RsiRealmConfig structure containing realm configuration */
 struct rsi_realm_config {
 	/* IPA width in bits */
-	SET_MEMBER_RSI(unsigned long ipa_width, 0, 8);
+	SET_MEMBER_RSI(unsigned long ipa_width, 0, 8);			/* Offset 0 */
 	/* Hash algorithm */
-	SET_MEMBER_RSI(unsigned char algorithm, 0x8, 0x10);
+	SET_MEMBER_RSI(unsigned char algorithm, 8, 0x10);		/* Offset 8 */
 	/* Number of auxiliary Planes */
-	SET_MEMBER_RSI(unsigned long num_aux_planes, 0x10, 0x18);
+	SET_MEMBER_RSI(unsigned long num_aux_planes, 0x10, 0x18);	/* Offset 0x10 */
 	/* GICv3 VGIC Type Register value */
-	SET_MEMBER_RSI(unsigned long gicv3_vtr, 0x18, 0x20);
+	SET_MEMBER_RSI(unsigned int gicv3_vtr, 0x18, 0x20);		/* Offset 0x12 */
 	/*
 	 * If ATS is enabled, determines the stage 2 translation used by devices
 	 * assigned to the Realm
 	 */
-	SET_MEMBER_RSI(unsigned long ats_plane, 0x20, 0x200);
+	SET_MEMBER_RSI(unsigned long ats_plane, 0x20, 0x200);		/* Offset 0x20 */
 
 	/* Realm Personalization Value */
 	SET_MEMBER_RSI(unsigned char rpv[RSI_RPV_SIZE], 0x200, 0x1000);
@@ -442,6 +501,89 @@ struct rsi_host_call {
 #define RSI_DEV_ATTEST_TYPE_PLATFORM_ATTESTED		U(1)
 
 /*
+ * RsiSysregAddress type definitons.
+ */
+#define RSI_SYSREG_ADDR_OP2_SHIFT	(EL2_SYSREG_ACCESS_OP2_SHIFT)
+#define RSI_SYSREG_ADDR_OP2_WIDTH	(EL2_SYSREG_ACCESS_OP2_WIDTH)
+
+#define RSI_SYSREG_ADDR_CRM_SHIFT	((RSI_SYSREG_ADDR_OP2_SHIFT) +	\
+					 (RSI_SYSREG_ADDR_OP2_WIDTH))
+#define RSI_SYSREG_ADDR_CRM_WIDTH	(EL2_SYSREG_ACCESS_CRM_WIDTH)
+
+#define RSI_SYSREG_ADDR_CRN_SHIFT	((RSI_SYSREG_ADDR_CRM_SHIFT) +	\
+					 (RSI_SYSREG_ADDR_CRM_WIDTH))
+#define RSI_SYSREG_ADDR_CRN_WIDTH	(EL2_SYSREG_ACCESS_CRN_WIDTH)
+
+#define RSI_SYSREG_ADDR_OP1_SHIFT	((RSI_SYSREG_ADDR_CRN_SHIFT) +	\
+					 (RSI_SYSREG_ADDR_CRN_WIDTH))
+#define RSI_SYSREG_ADDR_OP1_WIDTH	(EL2_SYSREG_ACCESS_OP1_WIDTH)
+
+#define RSI_SYSREG_ADDR_OP0_SHIFT	((RSI_SYSREG_ADDR_OP1_SHIFT) +	\
+					 (RSI_SYSREG_ADDR_OP1_WIDTH))
+#define RSI_SYSREG_ADDR_OP0_WIDTH	(EL2_SYSREG_ACCESS_OP0_WIDTH)
+
+#define RSI_SYSREG_ADDR_OPCODE(op0, op1, crn, crm, op2)		\
+	((UL(op0) << RSI_SYSREG_ADDR_OP0_SHIFT) |		\
+	 (UL(op1) << RSI_SYSREG_ADDR_OP1_SHIFT) |		\
+	 (UL(crn) << RSI_SYSREG_ADDR_CRN_SHIFT) |		\
+	 (UL(crm) << RSI_SYSREG_ADDR_CRM_SHIFT) |		\
+	 (UL(op2) << RSI_SYSREG_ADDR_OP2_SHIFT))
+
+/******************************************************************************
+ * Definitions of system register identifiers supported by
+ * RSI_PLANE_SYSREG_{READ, WRITE}
+ *****************************************************************************/
+
+#define RSI_SYSREG_ID_actlr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 1, 0, 1)
+#define RSI_SYSREG_ID_afsr0_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 5, 1, 0)
+#define RSI_SYSREG_ID_afsr1_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 5, 1, 1)
+#define RSI_SYSREG_ID_amair_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 10, 3, 0)
+#define RSI_SYSREG_ID_apiakeylo_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 1, 0)
+#define RSI_SYSREG_ID_apiakeyhi_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 1, 1)
+#define RSI_SYSREG_ID_apibkeylo_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 1, 2)
+#define RSI_SYSREG_ID_apibkeyhi_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 1, 3)
+#define RSI_SYSREG_ID_apdakeylo_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 2, 0)
+#define RSI_SYSREG_ID_apdakeyhi_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 2, 1)
+#define RSI_SYSREG_ID_apdbkeylo_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 2, 2)
+#define RSI_SYSREG_ID_apdbkeyhi_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 2, 3)
+#define RSI_SYSREG_ID_apgakeylo_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 3, 0)
+#define RSI_SYSREG_ID_apgakeyhi_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 3, 1)
+#define RSI_SYSREG_ID_cntkctl_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 14, 1, 0)
+#define RSI_SYSREG_ID_contextidr_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 13, 0, 1)
+#define RSI_SYSREG_ID_cpacr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 1, 0, 2)
+#define RSI_SYSREG_ID_csselr_el1		RSI_SYSREG_ADDR_OPCODE(3, 2, 0, 0, 0)
+#define RSI_SYSREG_ID_disr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 12, 1, 1)
+#define RSI_SYSREG_ID_elr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 4, 0, 1)
+#define RSI_SYSREG_ID_esr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 5, 2, 0)
+#define RSI_SYSREG_ID_far_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 6, 0, 0)
+#define RSI_SYSREG_ID_mair_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 10, 2, 0)
+#define RSI_SYSREG_ID_mdccint_el1		RSI_SYSREG_ADDR_OPCODE(2, 0, 0, 2, 0)
+#define RSI_SYSREG_ID_mdscr_el1			RSI_SYSREG_ADDR_OPCODE(2, 0, 0, 2, 2)
+#define RSI_SYSREG_ID_par_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 7, 4, 0)
+#define RSI_SYSREG_ID_pmcr_el0			RSI_SYSREG_ADDR_OPCODE(3, 3, 9, 12, 0)
+#define RSI_SYSREG_ID_sctlr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 1, 0, 0)
+#define RSI_SYSREG_ID_sp_el0			RSI_SYSREG_ADDR_OPCODE(3, 0, 4, 1, 0)
+#define RSI_SYSREG_ID_sp_el1			RSI_SYSREG_ADDR_OPCODE(3, 4, 4, 1, 0)
+#define RSI_SYSREG_ID_spsr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 4, 0, 0)
+#define RSI_SYSREG_ID_tcr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 0, 2)
+#define RSI_SYSREG_ID_tpidr_el0			RSI_SYSREG_ADDR_OPCODE(3, 3, 13, 0, 2)
+#define RSI_SYSREG_ID_tpidr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 13, 0, 4)
+#define RSI_SYSREG_ID_tpidrro_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 13, 0, 3)
+#define RSI_SYSREG_ID_ttbr0_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 0, 0)
+#define RSI_SYSREG_ID_ttbr1_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 0, 1)
+#define RSI_SYSREG_ID_vbar_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 12, 0, 0)
+#define RSI_SYSREG_ID_zcr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 1, 2, 0)
+#define RSI_SYSREG_ID_cntp_ctl_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 14, 2, 1)
+#define RSI_SYSREG_ID_cntp_cval_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 14, 2, 2)
+#define RSI_SYSREG_ID_cntv_ctl_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 14, 3, 1)
+#define RSI_SYSREG_ID_cntv_cval_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 14, 3, 2)
+#define RSI_SYSREG_ID_brbcr_el1			RSI_SYSREG_ADDR_OPCODE(2, 1, 9, 0, 0)
+#define RSI_SYSREG_ID_tcr2_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 0, 3)
+#define RSI_SYSREG_ID_pir_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 10, 2, 3)
+#define RSI_SYSREG_ID_pire0_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 10, 2, 2)
+#define RSI_SYSREG_ID_por_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 10, 2, 4)
+
+/*
  * RsiDevInfo
  * Contains device configuration information.
  * Width: 512 (0x200) bytes.
@@ -520,6 +662,88 @@ struct rsi_dev_measure_params {
 
 /* Returns the higher supported RSI ABI revision */
 unsigned long rsi_get_highest_supported_version(void);
+
+/*
+ * Data passed from Plane 0 to the RMM on entry to Plane N.
+ */
+struct rsi_plane_enter {
+	/* RsiPlaneEnterFlags - Offset 0x0 */
+	SET_MEMBER_RSI(unsigned long flags, 0, 0x8);
+	/* Program counter - Offset 0x8 */
+	SET_MEMBER_RSI(unsigned long pc, 0x8, 0x10);
+	/* PSTATE_value  - Offset 0x10 */
+	SET_MEMBER_RSI(unsigned long pstate, 0x10, 0x100);
+	/* General purpose registers - Offset 0x100 */
+	SET_MEMBER_RSI(unsigned long gprs[RSI_PLANE_NR_GPRS], 0x100, 0x200);
+	/* GICv3 registers */
+	SET_MEMBER_RSI(
+		struct {
+			/* GICv3 Hypervisor Control Register - Offset 0x200 */
+			unsigned long gicv3_hcr;
+			/* GICv3 List Registers - Offset 0x208 */
+			unsigned long gicv3_lrs[RSI_PLANE_GIC_NUM_LRS];
+		}, 0x200, 0x300);
+};
+
+/*
+ * Data passed from the RMM to Plane 0 on exit from Plane N.
+ */
+struct rsi_plane_exit {
+	/* RsiPlaneExitReason - Offset 0x0 */
+	SET_MEMBER_RSI(unsigned long reason, 0x0, 0x100);
+	/* EL2 system registers */
+	SET_MEMBER_RSI(
+		struct {
+			/* Exception Link Register - Offset 0x100 */
+			unsigned long elr_el2;
+			/* Exception Syndrome Register - Offset 0x108 */
+			unsigned long esr_el2;
+			/* Fault Address Register - Offset 0x110 */
+			unsigned long far_el2;
+			/* Hypervisor IPA Fault Address register - Offset 0x118 */
+			unsigned long hpfar_el2;
+			/* PSTATE Value - Offset 0x120 */
+			unsigned long pstate;
+		}, 0x100, 0x200);
+	/* General purpose registers - Offset 0x200 */
+	SET_MEMBER_RSI(unsigned long gprs[RSI_PLANE_NR_GPRS], 0x200, 0x300);
+	/* GICv3 registers */
+	SET_MEMBER_RSI(
+		struct {
+			/* GICv3 Hypervisor Control Register - Offset 0x300 */
+			unsigned long gicv3_hcr;
+			/* GICv3 List Registers - Offset 0x308 */
+			unsigned long gicv3_lrs[RSI_PLANE_GIC_NUM_LRS];
+			/* GICv3 Maintenance Interrupt State Register - Offset 0x388 */
+			unsigned long gicv3_misr;
+			/* GICv3 Virtual Machine Control Register - Offset 0x390*/
+			unsigned long gicv3_vmcr;
+		}, 0x300, 0x400);
+	/* Timer registers */
+	SET_MEMBER_RSI(
+		struct {
+			/* Physical Timer Control Register Value - Offstet 0x400 */
+			unsigned long cntp_ctl;
+			/* Physical Timer Compare Value Register - Offset 0x408 */
+			unsigned long cntp_cval;
+			/* Virtual Timer Control Register Value - Offset 0x410 */
+			unsigned long cntv_ctl;
+			/* Virtual Timer Compare Value Register - Offset 0x418 */
+			unsigned long cntv_cval;
+		}, 0x400, 0x500);
+};
+
+/*
+ * Data shared between Plane 0 and the RMM during entry to and exit
+ * from Plane N.
+ */
+struct rsi_plane_run {
+	/* Entry information - Offset 0x0 */
+	SET_MEMBER_RSI(struct rsi_plane_enter enter, 0x0, 0x800);
+	/* Exit information - Offset 0x800 */
+	SET_MEMBER_RSI(struct rsi_plane_exit exit, 0x800, 0x1000);
+};
+
 #endif /* __ASSEMBLER__ */
 
 #endif /* SMC_RSI_H */
