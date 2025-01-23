@@ -8,7 +8,8 @@ add_library(rmm-lib-granule)
 target_link_libraries(rmm-lib-granule
     PUBLIC rmm-lib-arch
            rmm-lib-common
-    PRIVATE rmm-lib-debug)
+    PRIVATE rmm-lib-debug
+            rmm-lib-smc)
 
 target_include_directories(rmm-lib-granule
     PUBLIC "include"

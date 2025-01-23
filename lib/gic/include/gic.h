@@ -6,6 +6,7 @@
 #ifndef GIC_H
 #define GIC_H
 
+#include <arch_helpers.h>
 #include <stdbool.h>
 #include <utils_def.h>
 
@@ -219,5 +220,10 @@ void gic_copy_state_to_rec_exit(struct gic_cpu_state *gicstate,
 bool gic_validate_state(struct rmi_rec_enter *rec_enter);
 void gic_restore_state(struct gic_cpu_state *gicstate);
 void gic_save_state(struct gic_cpu_state *gicstate);
+
+static inline unsigned long gic_get_ich_vtr(void)
+{
+	return read_ich_vtr_el2();
+}
 
 #endif /* GIC_H */
