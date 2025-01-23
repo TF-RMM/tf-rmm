@@ -30,7 +30,6 @@ static void save_sysreg_state(struct sysreg_state *sysregs)
 	sysregs->sp_el1 = read_sp_el1();
 	sysregs->elr_el1 = read_elr_el12();
 	sysregs->spsr_el1 = read_spsr_el12();
-	sysregs->pmcr_el0 = read_pmcr_el0();
 	sysregs->tpidrro_el0 = read_tpidrro_el0();
 	sysregs->tpidr_el0 = read_tpidr_el0();
 	sysregs->csselr_el1 = read_csselr_el1();
@@ -81,7 +80,10 @@ static void save_realm_state(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		rec_exit->pmu_ovf_status = (pmu_is_ovf_set() ?
 			RMI_PMU_OVERFLOW_ACTIVE : RMI_PMU_OVERFLOW_NOT_ACTIVE);
 
-		/* Save PMU context */
+		/*
+		 * Save realm PMU context.
+		 * Save number of PMU event counters configured for the realm.
+		 */
 		pmu_save_state(rec->aux_data.pmu,
 				rec->realm_info.pmu_num_ctrs);
 	}
@@ -92,7 +94,6 @@ static void restore_sysreg_state(struct sysreg_state *sysregs)
 	write_sp_el1(sysregs->sp_el1);
 	write_elr_el12(sysregs->elr_el1);
 	write_spsr_el12(sysregs->spsr_el1);
-	write_pmcr_el0(sysregs->pmcr_el0);
 	write_tpidrro_el0(sysregs->tpidrro_el0);
 	write_tpidr_el0(sysregs->tpidr_el0);
 	write_csselr_el1(sysregs->csselr_el1);
@@ -167,7 +168,10 @@ static void restore_realm_state(struct rec *rec)
 	configure_realm_stage2(rec);
 
 	if (rec->realm_info.pmu_enabled) {
-		/* Restore PMU context */
+		/*
+		 * Restore realm PMU context.
+		 * Restore number of PMU counters configured for the realm.
+		 */
 		pmu_restore_state(rec->aux_data.pmu,
 				  rec->realm_info.pmu_num_ctrs);
 	}
@@ -189,8 +193,12 @@ static void save_ns_state(struct rec *rec)
 	ns_state->icc_sre_el2 = read_icc_sre_el2();
 
 	if (rec->realm_info.pmu_enabled) {
-		/* Save PMU context */
-		pmu_save_state(&ns_state->pmu, rec->realm_info.pmu_num_ctrs);
+		/*
+		 * Save NS PMU context.
+		 * Save all implemented PMU event counters.
+		 */
+		pmu_save_state(&ns_state->pmu,
+				(unsigned int)EXTRACT(PMCR_EL0_N, read_pmcr_el0()));
 	}
 }
 
@@ -210,9 +218,12 @@ static void restore_ns_state(struct rec *rec)
 	write_icc_sre_el2(ns_state->icc_sre_el2);
 
 	if (rec->realm_info.pmu_enabled) {
-		/* Restore PMU state */
+		/*
+		 * Restore NS PMU state.
+		 * Restore all implemented PMU event counters.
+		 */
 		pmu_restore_state(&ns_state->pmu,
-				  rec->realm_info.pmu_num_ctrs);
+				  (unsigned int)EXTRACT(PMCR_EL0_N, read_pmcr_el0()));
 	}
 }
 
