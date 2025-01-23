@@ -17,7 +17,7 @@
  * Copy @count GPRs from @rec to @rec_exit.
  * The remaining @rec_exit.gprs[] values are zero filled.
  */
-static void forward_args_to_host(unsigned int count, struct rec *rec,
+static void forward_args_to_host(unsigned int count, struct rec_plane *plane,
 				 struct rmi_rec_exit *rec_exit)
 {
 	unsigned int i;
@@ -25,7 +25,7 @@ static void forward_args_to_host(unsigned int count, struct rec *rec,
 	assert(count <= 4U);
 
 	for (i = 0U; i < count; ++i) {
-		rec_exit->gprs[i] = rec->regs[i];
+		rec_exit->gprs[i] = plane->regs[i];
 	}
 
 	for (i = count; i < REC_EXIT_NR_GPRS; ++i) {
@@ -41,7 +41,8 @@ static void psci_version(struct rsi_result *res)
 	res->smc_res.x[0] = version_1_1;
 }
 
-static void psci_cpu_suspend(struct rec *rec, struct rmi_rec_exit *rec_exit,
+static void psci_cpu_suspend(struct rec_plane *plane,
+			     struct rmi_rec_exit *rec_exit,
 			     struct rsi_result *res)
 {
 	res->action = UPDATE_REC_EXIT_TO_HOST;
@@ -51,7 +52,7 @@ static void psci_cpu_suspend(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	 * so all we need to do is forward the FID to the NS hypervisor,
 	 * and we can ignore all the parameters.
 	 */
-	forward_args_to_host(1U, rec, rec_exit);
+	forward_args_to_host(1U, plane, rec_exit);
 
 	/*
 	 * The exit to the Host is just a notification; the Host does not need
@@ -80,7 +81,7 @@ static void psci_cpu_off(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	rec->runnable = false;
 
 	/* Notify the Host, passing the FID only. */
-	forward_args_to_host(1U, rec, rec_exit);
+	forward_args_to_host(1U, rec_active_plane(rec), rec_exit);
 
 	/*
 	 * The exit to the Host is just a notification; the Host does not need
@@ -91,21 +92,23 @@ static void psci_cpu_off(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	res->smc_res.x[0] = PSCI_RETURN_SUCCESS;
 }
 
-static void psci_reset_rec(struct rec *rec, unsigned long caller_sctlr_el1)
+static void psci_reset_rec(struct rec_plane *plane,
+			   unsigned long caller_sctlr_el1)
 {
 	/* Set execution level to EL1 (AArch64) and mask exceptions */
-	rec->pstate = SPSR_EL2_MODE_EL1h |
-		      SPSR_EL2_nRW_AARCH64 |
-		      SPSR_EL2_F_BIT |
-		      SPSR_EL2_I_BIT |
-		      SPSR_EL2_A_BIT |
-		      SPSR_EL2_D_BIT;
+	plane->sysregs->pstate = SPSR_EL2_MODE_EL1h |
+				 SPSR_EL2_nRW_AARCH64 |
+				 SPSR_EL2_F_BIT |
+				 SPSR_EL2_I_BIT |
+				 SPSR_EL2_A_BIT |
+				 SPSR_EL2_D_BIT;
 
 	/* Disable stage 1 MMU and caches */
-	rec->sysregs.sctlr_el1 = SCTLR_EL1_FLAGS;
+	plane->sysregs->pp_sysregs.sctlr_el1 = SCTLR_EL1_FLAGS;
 
 	/* Set the endianness of the target to that of the caller */
-	rec->sysregs.sctlr_el1 |= caller_sctlr_el1 & SCTLR_ELx_EE_BIT;
+	plane->sysregs->pp_sysregs.sctlr_el1 |=
+					caller_sctlr_el1 & SCTLR_ELx_EE_BIT;
 }
 
 static unsigned long rd_map_read_rec_count(struct granule *g_rd)
@@ -123,8 +126,9 @@ static unsigned long rd_map_read_rec_count(struct granule *g_rd)
 static void psci_cpu_on(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			struct rsi_result *res)
 {
-	unsigned long target_cpu = rec->regs[1];
-	unsigned long entry_point_address = rec->regs[2];
+	struct rec_plane *plane = rec_active_plane(rec);
+	unsigned long target_cpu = plane->regs[1];
+	unsigned long entry_point_address = plane->regs[2];
 	unsigned long target_rec_idx;
 
 	res->action = UPDATE_REC_RETURN_TO_REALM;
@@ -162,15 +166,16 @@ static void psci_cpu_on(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	 * Leave REC registers unchanged; these will be read and updated by
 	 * psci_complete_request.
 	 */
-	forward_args_to_host(2U, rec, rec_exit);
+	forward_args_to_host(2U, plane, rec_exit);
 	res->action = EXIT_TO_HOST;
 }
 
 static void psci_affinity_info(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			       struct rsi_result *res)
 {
-	unsigned long target_affinity = rec->regs[1];
-	unsigned long lowest_affinity_level = rec->regs[2];
+	struct rec_plane *plane = rec_active_plane(rec);
+	unsigned long target_affinity = plane->regs[1];
+	unsigned long lowest_affinity_level = plane->regs[2];
 	unsigned long target_rec_idx;
 
 	res->action = UPDATE_REC_RETURN_TO_REALM;
@@ -207,14 +212,14 @@ static void psci_affinity_info(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	 * Leave REC registers unchanged; these will be read and updated
 	 * by psci_complete_request.
 	 */
-	forward_args_to_host(2U, rec, rec_exit);
+	forward_args_to_host(2U, plane, rec_exit);
 
 	res->action = EXIT_TO_HOST;
 }
 
 /*
  * Turning a system off or requesting a reboot of a realm is enforced by the
- * RMM by preventing execution of a REC after the function has run.  Reboot
+ * RMM by preventing execution of a REC after the function has run. Reboot
  * functionality must be provided by the host hypervisor by creating a new
  * Realm with associated attestation, measurement etc.
  */
@@ -247,14 +252,14 @@ static void psci_system_off_reset(struct rec *rec,
 	system_off_reboot(rec);
 
 	/* Notify the Host, passing the FID only */
-	forward_args_to_host(1U, rec, rec_exit);
+	forward_args_to_host(1U, rec_active_plane(rec), rec_exit);
 
 	res->action = EXIT_TO_HOST;
 }
 
-static void psci_features(struct rec *rec, struct rsi_result *res)
+static void psci_features(struct rec_plane *plane, struct rsi_result *res)
 {
-	unsigned int psci_func_id = (unsigned int)rec->regs[1];
+	unsigned int psci_func_id = (unsigned int)plane->regs[1];
 
 	switch (psci_func_id) {
 	case SMC32_PSCI_CPU_SUSPEND:
@@ -281,7 +286,8 @@ void handle_psci(struct rec *rec,
 		 struct rmi_rec_exit *rec_exit,
 		 struct rsi_result *res)
 {
-	unsigned int function_id = (unsigned int)rec->regs[0];
+	struct rec_plane *plane = rec_active_plane(rec);
+	unsigned int function_id = (unsigned int)plane->regs[0];
 
 	switch (function_id) {
 	case SMC32_PSCI_VERSION:
@@ -289,7 +295,7 @@ void handle_psci(struct rec *rec,
 		break;
 	case SMC32_PSCI_CPU_SUSPEND:
 	case SMC64_PSCI_CPU_SUSPEND:
-		psci_cpu_suspend(rec, rec_exit, res);
+		psci_cpu_suspend(plane, rec_exit, res);
 		break;
 	case SMC32_PSCI_CPU_OFF:
 		psci_cpu_off(rec, rec_exit, res);
@@ -307,7 +313,7 @@ void handle_psci(struct rec *rec,
 		psci_system_off_reset(rec, rec_exit, res);
 		break;
 	case SMC32_PSCI_FEATURES:
-		psci_features(rec, res);
+		psci_features(plane, res);
 		break;
 	default:
 		res->action = UPDATE_REC_RETURN_TO_REALM;
@@ -323,9 +329,9 @@ void handle_psci(struct rec *rec,
 /*
  * In the following two functions, it is only safe to access the runnable field
  * on the target_rec once the target_rec is no longer running on another PE and
- * all writes performed by the other PE as part of smc_rec_enter is also
+ * all writes performed by the other PE as part of smc_rec_enter are also
  * guaranteed to be observed here, which we know when we read a zero refcount
- * on the target rec using acquire semantics paired with the release semantics
+ * on the target REC using acquire semantics paired with the release semantics
  * on the reference count in smc_rec_enter. If we observe a non-zero refcount
  * it simply means that the target_rec is running and we can return the
  * corresponding value.
@@ -336,6 +342,8 @@ static unsigned long complete_psci_cpu_on(struct rec *target_rec,
 					  unsigned long caller_sctlr_el1,
 					  unsigned long status)
 {
+	struct rec_plane *target_plane = rec_plane_0(target_rec);
+
 	if ((granule_refcount_read_acquire(target_rec->g_rec) != 0U) ||
 		target_rec->runnable) {
 		return PSCI_RETURN_ALREADY_ON;
@@ -349,9 +357,9 @@ static unsigned long complete_psci_cpu_on(struct rec *target_rec,
 		return PSCI_RETURN_DENIED;
 	}
 
-	psci_reset_rec(target_rec, caller_sctlr_el1);
-	target_rec->regs[0] = context_id;
-	target_rec->pc = entry_point_address;
+	psci_reset_rec(target_plane, caller_sctlr_el1);
+	target_plane->regs[0] = context_id;
+	target_plane->pc = entry_point_address;
 	target_rec->runnable = true;
 	return PSCI_RETURN_SUCCESS;
 }
@@ -371,7 +379,11 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 {
 	unsigned long ret = RMI_SUCCESS;
 	unsigned long rec_ret = PSCI_RETURN_NOT_SUPPORTED;
-	unsigned long mpidr = calling_rec->regs[1];
+	struct rec_plane *calling_plane = rec_active_plane(calling_rec);
+	unsigned long mpidr;
+
+	/* PSCI requests can only be done by Plane 0 */
+	assert(calling_plane == rec_plane_0(calling_rec));
 
 	if (!calling_rec->psci_info.pending) {
 		return RMI_ERROR_INPUT;
@@ -381,11 +393,13 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 		return RMI_ERROR_INPUT;
 	}
 
+	mpidr = calling_plane->regs[1];
+
 	if (mpidr_to_rec_idx(mpidr) != target_rec->rec_idx) {
 		return RMI_ERROR_INPUT;
 	}
 
-	switch (calling_rec->regs[0]) {
+	switch (calling_plane->regs[0]) {
 	case SMC32_PSCI_CPU_ON:
 	case SMC64_PSCI_CPU_ON:
 		if ((status != PSCI_RETURN_SUCCESS) &&
@@ -394,9 +408,9 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 		}
 
 		rec_ret = complete_psci_cpu_on(target_rec,
-						calling_rec->regs[2],
-						calling_rec->regs[3],
-						calling_rec->sysregs.sctlr_el1,
+						calling_plane->regs[2],
+						calling_plane->regs[3],
+						calling_plane->sysregs->pp_sysregs.sctlr_el1,
 						status);
 		/*
 		 * If the target CPU is already running and the Host has denied the
@@ -419,10 +433,10 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 		assert(false);
 	}
 
-	calling_rec->regs[0] = rec_ret;
-	calling_rec->regs[1] = 0;
-	calling_rec->regs[2] = 0;
-	calling_rec->regs[3] = 0;
+	calling_plane->regs[0] = rec_ret;
+	calling_plane->regs[1] = 0;
+	calling_plane->regs[2] = 0;
+	calling_plane->regs[3] = 0;
 	calling_rec->psci_info.pending = false;
 
 	return ret;

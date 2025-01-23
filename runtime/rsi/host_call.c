@@ -32,13 +32,17 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 {
 	enum s2_walk_status walk_status;
 	struct s2_walk_result walk_result;
-	unsigned long ipa = rec->regs[1];
+	struct rec_plane *plane = rec_active_plane(rec);
+	unsigned long ipa;
 	unsigned long page_ipa;
 	struct granule *gr;
 	uintptr_t data;
 	struct rsi_host_call *host_call;
 	unsigned int i;
 
+	assert(plane != NULL);
+
+	ipa = plane->regs[1];
 	assert(addr_in_rec_par(rec, ipa));
 
 	/* Only 'rec_enter' or 'rec_exit' should be set */
@@ -74,6 +78,7 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	if (rec_exit != NULL) {
 		/* Copy host call arguments to REC exit data structure */
 		rec_exit->imm = host_call->imm;
+		rec_exit->plane = rec->active_plane_id;
 		for (i = 0U; i < RSI_HOST_CALL_NR_GPRS; i++) {
 			rec_exit->gprs[i] = host_call->gprs[i];
 		}
@@ -94,7 +99,7 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			host_call->gprs[i] = rec_enter->gprs[i];
 		}
 
-		rec->regs[0] = RSI_SUCCESS;
+		plane->regs[0] = RSI_SUCCESS;
 	}
 
 	/* Unmap Realm data granule */
@@ -107,8 +112,12 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 void handle_rsi_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			  struct rsi_result *res)
 {
-	unsigned long ipa = rec->regs[1];
+	struct rec_plane *plane = rec_active_plane(rec);
+	unsigned long ipa;
 
+	assert(plane != NULL);
+
+	ipa = plane->regs[1];
 	res->action = UPDATE_REC_RETURN_TO_REALM;
 
 	if (!ALIGNED(ipa, sizeof(struct rsi_host_call))) {

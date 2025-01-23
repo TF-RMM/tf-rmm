@@ -55,8 +55,9 @@ void handle_rsi_version(struct rec *rec, struct rsi_result *res)
 {
 	unsigned long rsi_version;
 	unsigned long rsi_revision_higher;
+	struct rec_plane *plane = rec_active_plane(rec);
 
-	rsi_version = rec->regs[1];
+	rsi_version = plane->regs[1];
 	res->action = UPDATE_REC_RETURN_TO_REALM;
 
 	rsi_revision_higher = rsi_get_highest_supported_version();

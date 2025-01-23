@@ -95,7 +95,9 @@ static size_t print_entry(unsigned int id, unsigned long args[],
 	int cnt;
 
 	switch (id) {
-	case SMC_RSI_VERSION ... SMC_RSI_PLANE_REG_WRITE: {
+	case SMC_RSI_VERSION ... SMC_RSI_RDEV_VALIDATE_MAPPING:
+		FALLTHROUGH;
+	case SMC_RSI_PLANE_REG_READ ... SMC_RSI_PLANE_REG_WRITE: {
 		const struct rsi_handler *logger = fid_to_rsi_logger(id);
 
 		num = logger->num_args;
@@ -177,7 +179,9 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 	}
 
 	switch (function_id) {
-	case SMC_RSI_VERSION ... SMC_RSI_PLANE_REG_WRITE: {
+	case SMC_RSI_VERSION ... SMC_RSI_RDEV_VALIDATE_MAPPING:
+		FALLTHROUGH;
+	case SMC_RSI_PLANE_REG_READ ... SMC_RSI_PLANE_REG_WRITE: {
 		const struct rsi_handler *logger =
 				fid_to_rsi_logger(function_id);
 
