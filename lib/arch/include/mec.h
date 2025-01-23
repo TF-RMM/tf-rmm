@@ -85,4 +85,10 @@ static inline bool mec_is_realm_mecid_s1_init(void)
 	return true;
 }
 
+/*
+ * Check if MECID programmed in Realm S2 is private.
+ * This function will be invoked while REC is running.
+ */
+bool mec_is_realm_mecid_s2_pvt(void);
+
 #endif /* MEC_H */

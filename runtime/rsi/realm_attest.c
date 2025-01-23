@@ -7,6 +7,7 @@
 #include <debug.h>
 #include <granule.h>
 #include <measurement.h>
+#include <mec.h>
 #include <realm.h>
 #include <rsi-handler.h>
 #include <smc-rsi.h>
@@ -160,6 +161,7 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 
 	ret = attest_realm_token_create(&rec->attest_app_data,
 			     rd->algorithm, rd->measurement,
+			     mec_is_realm_mecid_s2_pvt(),
 			     &(rd->rpv[0]),
 			     (const void *)&plane->regs[1]);
 

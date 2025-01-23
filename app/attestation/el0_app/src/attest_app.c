@@ -202,6 +202,7 @@ static unsigned long realm_token_create(enum hash_algo algorithm)
 			     MEASUREMENT_SLOT_NR,
 			     &(params->rpv),
 			     RPV_SIZE,
+			     params->is_pvt_mecid,
 			     &(params->challenge),
 			     ATTEST_CHALLENGE_SIZE,
 			     &heap->token_sign_context,

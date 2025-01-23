@@ -7,6 +7,7 @@
 #include <atomics.h>
 #include <errno.h>
 #include <mec.h>
+#include <memory.h>
 #include <sizes.h>
 #include <spinlock.h>
 
@@ -135,9 +136,11 @@ int mec_set_shared(unsigned int mecid)
 	}
 
 	spinlock_acquire(&mec_state.shared_mecid_spinlock);
-	if ((mec_state.shared_mec == MECID_INVALID) && mec_reserve(mecid)) {
+	if ((SCA_READ32(&mec_state.shared_mec) == MECID_INVALID) &&
+			mec_reserve(mecid)) {
 		assert(mec_state.shared_mec_members == 0U);
-		mec_state.shared_mec = mecid;
+		/* To match with read-acquire when read outside spinlock */
+		SCA_WRITE32_RELEASE(&mec_state.shared_mec, mecid);
 		ret = 0;
 	}
 	spinlock_release(&mec_state.shared_mecid_spinlock);
@@ -156,8 +159,8 @@ bool mec_is_shared(unsigned int mecid)
 	assert(IS_MEC_VALID(mecid));
 
 	spinlock_acquire(&mec_state.shared_mecid_spinlock);
-	if ((mec_state.shared_mec != MECID_INVALID) &&
-		(mecid == mec_state.shared_mec)) {
+	if ((SCA_READ32(&mec_state.shared_mec) != MECID_INVALID) &&
+		(mecid == SCA_READ32(&mec_state.shared_mec))) {
 		ret = true;
 	}
 	spinlock_release(&mec_state.shared_mecid_spinlock);
@@ -185,9 +188,10 @@ int mec_set_private(unsigned int mecid)
 
 	spinlock_acquire(&mec_state.shared_mecid_spinlock);
 	if ((mec_state.shared_mec_members == 0U) &&
-		(mecid == mec_state.shared_mec)) {
+		(mecid == SCA_READ32(&mec_state.shared_mec))) {
 		mec_release(mecid);
-		mec_state.shared_mec = MECID_INVALID;
+		/* To match with read-acquire when read outside spinlock */
+		SCA_WRITE32_RELEASE(&mec_state.shared_mec, MECID_INVALID);
 		spinlock_release(&mec_state.shared_mecid_spinlock);
 		return 0;
 	}
@@ -218,7 +222,7 @@ bool mecid_reserve(unsigned int mecid)
 	assert(read_mecid_a1_el2() == RESERVED_MECID_SYSTEM);
 
 	spinlock_acquire(&mec_state.shared_mecid_spinlock);
-	if (mecid == mec_state.shared_mec) {
+	if (mecid == SCA_READ32(&mec_state.shared_mec)) {
 		bool ret;
 		if (mec_state.shared_mec_members < UINT64_MAX) {
 			mec_state.shared_mec_members++;
@@ -251,7 +255,7 @@ void mecid_free(unsigned int mecid)
 	assert(IS_MEC_VALID(mecid));
 
 	spinlock_acquire(&mec_state.shared_mecid_spinlock);
-	if (mecid == mec_state.shared_mec) {
+	if (mecid == SCA_READ32(&mec_state.shared_mec)) {
 		assert(mec_state.shared_mec_members > 0U);
 		mec_state.shared_mec_members--;
 		spinlock_release(&mec_state.shared_mecid_spinlock);
@@ -259,6 +263,28 @@ void mecid_free(unsigned int mecid)
 	}
 	spinlock_release(&mec_state.shared_mecid_spinlock);
 	mec_release(mecid);
+}
+
+/*
+ * Check if VMECID is private. This function will be invoked while REC is running.
+ */
+bool mec_is_realm_mecid_s2_pvt(void)
+{
+
+	/* cppcheck-suppress knownConditionTrueFalse */
+	if (!is_feat_mec_present()) {
+		return false;
+	}
+
+	unsigned int mecid = (unsigned int)read_vmecid_p_el2();
+	assert(mecid != RESERVED_MECID_SYSTEM);
+
+	/*
+	 * `shared_mec` can only be updated when no REC is using it and
+	 * is only updated under the `shared_mecid_spinlock`. Read
+	 * with ACQUIRE semantics.
+	 */
+	return (mecid != SCA_READ32_ACQUIRE(&mec_state.shared_mec));
 }
 
 /*

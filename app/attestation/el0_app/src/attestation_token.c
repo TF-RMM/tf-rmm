@@ -44,6 +44,18 @@ static void attest_get_hash_algo_text(enum hash_algo algorithm,
 	}
 }
 
+static UsefulBufC attest_get_mec_policy_text(bool private_mec)
+{
+	if (private_mec) {
+		/* cppcheck-suppress misra-c2012-10.4 */
+		/* coverity[misra_c_2012_rule_10_4_violation:SUPPRESS] */
+		return UsefulBuf_FROM_SZ_LITERAL("private");
+	}
+	/* cppcheck-suppress misra-c2012-10.4 */
+	/* coverity[misra_c_2012_rule_10_4_violation:SUPPRESS] */
+	return UsefulBuf_FROM_SZ_LITERAL("shared");
+}
+
 /*
  * Outline of token creation. Much of this occurs inside
  * t_cose_sign1_encode_parameters() and t_cose_sign1_encode_signature().
@@ -260,6 +272,7 @@ attest_app_cca_token_create(struct token_sign_cntxt *me,
  *	- Realm Challenge
  *	- Realm Personalization Value
  *	- Realm Hash Algorithm Id
+ *	- Realm MEC policy
  *	- Realm Public Key
  *	- Realm Public Key Hash Algorithm Id
  *	- Realm Initial Measurement
@@ -270,6 +283,7 @@ int attest_app_realm_token_create(enum hash_algo algorithm,
 			     unsigned int num_measurements,
 			     const void *rpv_buf,
 			     size_t rpv_len,
+			     bool is_pvt_mecid,
 			     const void *challenge_buf,
 			     size_t challenge_len,
 			     struct token_sign_cntxt *ctx,
@@ -335,6 +349,11 @@ int attest_app_realm_token_create(enum hash_algo algorithm,
 				  &buf);
 	QCBOREncode_AddTextToMapN(&(ctx->ctx.cbor_enc_ctx),
 				  CCA_REALM_PUB_KEY_HASH_ALGO_ID,
+				  buf);
+
+	buf = attest_get_mec_policy_text(is_pvt_mecid);
+	QCBOREncode_AddTextToMapN(&(ctx->ctx.cbor_enc_ctx),
+				  CCA_REALM_MEC_POLICY,
 				  buf);
 
 	QCBOREncode_AddTextToMapN(&(ctx->ctx.cbor_enc_ctx),
