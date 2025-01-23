@@ -17,7 +17,7 @@ extern "C" {
 TEST_GROUP(s2tt_non_lpa2) {
 	TEST_SETUP()
 	{
-		s2tt_test_helpers_setup(LPA2_DISABLED);
+		s2tt_test_helpers_setup(LPA2_DISABLED, S2PIE_DISABLED);
 	}
 
 	TEST_TEARDOWN()

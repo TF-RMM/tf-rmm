@@ -10,6 +10,7 @@
 #include <limits.h>
 #include <ripas.h>
 #include <s2tt.h>
+#include <s2tt_ap.h>
 #include <s2tt_pvt_defs.h>
 #include <s2tt_test_helpers.h>
 #include <stdbool.h>
@@ -20,15 +21,17 @@
 #include <xlat_defs.h>
 
 static bool lpa2_enabled;
+static bool s2pie_enabled;
 
 /*
  * Helper function to perform any system register initialization
  * needed for the tests.
  */
-static void s2tt_test_helpers_arch_init(bool lpa2_en)
+static void s2tt_test_helpers_arch_init(bool lpa2_en, bool s2pie_en)
 {
 	uint64_t id_aa64mmfr0_val  = INPLACE(ID_AA64MMFR0_EL1_TGRAN4_2,
 					    ID_AA64MMFR0_EL1_TGRAN4_2_TGRAN4);
+	uint64_t id_aa64mmfr3_val = 0UL;
 
 	/*
 	 * Enable the platform. We don't need support for several CPUs
@@ -44,18 +47,27 @@ static void s2tt_test_helpers_arch_init(bool lpa2_en)
 
 	/* Setup id_aa64mmfr0_el1 */
 	if (lpa2_en == true) {
-		id_aa64mmfr0_val = INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6UL) |
+		id_aa64mmfr0_val |= INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6UL) |
 				    INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
 					    ID_AA64MMFR0_EL1_TGRAN4_LPA2);
 
 	} else {
-		id_aa64mmfr0_val = INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5UL) |
-					INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
+		id_aa64mmfr0_val |= INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5UL) |
+				    INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
 					    ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED);
 	}
 
 	WRITE_CACHED_REG(id_aa64mmfr0_el1, id_aa64mmfr0_val);
 	lpa2_enabled = lpa2_en;
+
+	/* Setup id_aa64_mmfr3_el0 */
+	if (s2pie_en) {
+		id_aa64mmfr3_val |= INPLACE(ID_AA64MMFR3_EL1_S2POE, 1UL) |
+				    INPLACE(ID_AA64MMFR3_EL1_S2PIE, 1UL);
+	}
+	s2pie_enabled = s2pie_en;
+
+	WRITE_CACHED_REG(id_aa64mmfr3_el1, id_aa64mmfr3_val);
 
 	/* Make sure current cpu id is 0 (primary processor) */
 	host_util_set_cpuid(0U);
@@ -63,10 +75,10 @@ static void s2tt_test_helpers_arch_init(bool lpa2_en)
 	test_helpers_expect_assert_fail(false);
 }
 
-void s2tt_test_helpers_setup(bool lpa2)
+void s2tt_test_helpers_setup(bool lpa2, bool s2pie)
 {
 	test_helpers_init();
-	s2tt_test_helpers_arch_init(lpa2);
+	s2tt_test_helpers_arch_init(lpa2, s2pie);
 }
 
 unsigned long s2tt_test_helpers_lvl_mask(long level)
@@ -95,7 +107,9 @@ unsigned long s2tt_test_helpers_s2tte_oa_mask(void)
 
 unsigned long s2tt_test_helpers_s2tte_to_pa(unsigned long s2tte, long level)
 {
-	unsigned long pa = s2tte & s2tt_test_helpers_lvl_mask(level);
+	(void)level;
+
+	unsigned long pa = s2tte & s2tt_test_helpers_s2tte_oa_mask();
 
 	if (is_feat_lpa2_4k_2_present() == true) {
 		pa &= ~MASK(S2TT_TEST_MSB);
@@ -151,9 +165,14 @@ unsigned long s2tt_test_helpers_gen_addr(long level, bool aligned)
 unsigned long s2tt_test_helpers_s2tte_to_attrs(unsigned long tte, bool ns)
 {
 	unsigned long attrs_mask;
+	bool s2pie_en = s2tt_test_helpers_s2pie_enabled();
 
 	if (ns) {
-		attrs_mask = S2TTE_NS_ATTR_RMM | S2TT_DESC_TYPE_MASK | S2TTE_NS_ATTR_MASK;
+		attrs_mask = S2TTE_NS_ATTR_RMM | S2TT_DESC_TYPE_MASK |
+			     S2TTE_NS_ATTR_MASK;
+		attrs_mask |= (s2pie_en ?
+				S2TTE_PI_INDEX_MASK : S2TTE_RW_AP_MASK);
+
 		if (!is_feat_lpa2_4k_2_present()) {
 			attrs_mask |= S2TTE_SH_MASK;
 		}
@@ -161,6 +180,12 @@ unsigned long s2tt_test_helpers_s2tte_to_attrs(unsigned long tte, bool ns)
 		attrs_mask = ((is_feat_lpa2_4k_2_present() == true) ?
 			S2TTE_ATTRS_LPA2_MASK :
 			S2TTE_ATTRS_MASK) | S2TT_DESC_TYPE_MASK;
+
+		attrs_mask |= s2tt_test_generate_ap_mask();
+	}
+
+	if (s2pie_en) {
+		attrs_mask |= S2TTE_DIRTY_BIT;
 	}
 
 	return tte & attrs_mask;
@@ -170,6 +195,7 @@ unsigned long s2tt_test_helpers_gen_ns_attrs(bool host, bool reserved)
 {
 	unsigned long attrs;
 	bool done;
+	bool s2pie_en = s2tt_test_helpers_s2pie_enabled();
 
 	if (host == true) {
 		/* Generate a random set of attributes coming from the host */
@@ -177,16 +203,26 @@ unsigned long s2tt_test_helpers_gen_ns_attrs(bool host, bool reserved)
 			bool inv_attrs;
 
 			attrs = test_helpers_get_rand_in_range(0UL, ULONG_MAX);
-			attrs &= S2TTE_NS_ATTR_MASK;
+			attrs &= (S2TTE_NS_ATTR_MASK |
+					(s2pie_en ? S2TTE_PI_INDEX_MASK :
+						    S2TTE_RW_AP_MASK));
 
 			/* Find out if we are done or not */
 			inv_attrs = ((attrs & S2TTE_MEMATTR_MASK) ==
 						S2TTE_MEMATTR_FWB_RESERVED);
 			done = (reserved == inv_attrs);
+
+			if (s2pie_en) {
+				done &= (s2tte_get_pi_index(UNUSED_PTR, attrs) <=
+						(unsigned long)S2AP_IND_BASE_PERM_IDX_RW);
+			}
 		} while (!done);
 	} else {
 		/* Setup the NS TTE attributes that don't come from the host */
 		attrs = S2TTE_NS_ATTR_RMM;
+		if (s2pie_en) {
+			attrs |= S2TTE_DIRTY_BIT;
+		}
 	}
 
 	return attrs;
@@ -199,6 +235,10 @@ unsigned long s2tt_test_helpers_gen_attrs(bool invalid, long level)
 
 	if (invalid == true) {
 		return attrs | S2TT_TEST_INVALID_DESC;
+	}
+
+	if (s2tt_test_helpers_s2pie_enabled()) {
+		attrs |= S2TTE_DIRTY_BIT;
 	}
 
 	return ((level == S2TT_TEST_HELPERS_MAX_LVL) ?
@@ -252,23 +292,29 @@ bool s2tt_test_helpers_lpa2_enabled(void)
 	return lpa2_enabled;
 }
 
+bool s2tt_test_helpers_s2pie_enabled(void)
+{
+	return s2pie_enabled;
+}
+
 unsigned long s2tt_test_create_assigned(const struct s2tt_context *s2tt_ctx,
 					unsigned long pa, long level,
-					unsigned long ripas)
+					unsigned long ripas, unsigned long ap)
 {
 	if (ripas == S2TTE_INVALID_RIPAS_EMPTY) {
-		return s2tte_create_assigned_empty(s2tt_ctx, pa, level);
+		return s2tte_create_assigned_empty(s2tt_ctx, pa, level, ap);
 	} else if (ripas == S2TTE_INVALID_RIPAS_DESTROYED) {
-		return s2tte_create_assigned_destroyed(s2tt_ctx, pa, level);
+		return s2tte_create_assigned_destroyed(s2tt_ctx, pa, level, ap);
 	} else if (ripas == S2TTE_INVALID_RIPAS_RAM) {
-		return s2tte_create_assigned_ram(s2tt_ctx, pa, level);
+		return s2tte_create_assigned_ram(s2tt_ctx, pa, level, ap);
 	}
 
-	return s2tte_create_assigned_ns(s2tt_ctx, pa, level);
+	return s2tte_create_assigned_ns(s2tt_ctx, pa, level, ap);
 }
 
 unsigned long s2tt_test_create_assigned_dev_dev(const struct s2tt_context *s2tt_ctx,
-						unsigned long pa, long level)
+						unsigned long pa, long level,
+						unsigned long ap)
 {
 	unsigned long attr = S2TTE_TEST_DEV_ATTRS;
 
@@ -276,19 +322,20 @@ unsigned long s2tt_test_create_assigned_dev_dev(const struct s2tt_context *s2tt_
 	if (!s2tt_ctx->enable_lpa2) {
 		attr |= S2TTE_TEST_DEV_SH;
 	}
-	return s2tte_create_assigned_dev_dev(s2tt_ctx, (pa | attr), level);
+	return s2tte_create_assigned_dev_dev(s2tt_ctx, (pa | attr), level, ap);
 }
 
 unsigned long s2tt_test_create_assigned_dev(const struct s2tt_context *s2tt_ctx,
 					    unsigned long pa, long level,
-					    unsigned long ripas)
+					    unsigned long ripas,
+					    unsigned long ap)
 {
 	if (ripas == S2TTE_INVALID_RIPAS_EMPTY) {
-		return s2tte_create_assigned_dev_empty(s2tt_ctx, pa, level);
+		return s2tte_create_assigned_dev_empty(s2tt_ctx, pa, level, ap);
 	} else if (ripas == S2TTE_INVALID_RIPAS_DESTROYED) {
-		return s2tte_create_assigned_dev_destroyed(s2tt_ctx, pa, level);
+		return s2tte_create_assigned_dev_destroyed(s2tt_ctx, pa, level, ap);
 	} else if (ripas == S2TTE_INVALID_RIPAS_DEV) {
-		return s2tt_test_create_assigned_dev_dev(s2tt_ctx, pa, level);
+		return s2tt_test_create_assigned_dev_dev(s2tt_ctx, pa, level, ap);
 	}
 
 	assert(false);
@@ -297,7 +344,7 @@ unsigned long s2tt_test_create_assigned_dev(const struct s2tt_context *s2tt_ctx,
 
 void s2tt_test_init_assigned_dev_dev(const struct s2tt_context *s2tt_ctx,
 				     unsigned long *s2tt, unsigned long pa,
-				     long level)
+				     long level, unsigned long ap)
 {
 	unsigned long attr = S2TTE_TEST_DEV_ATTRS;
 
@@ -306,19 +353,40 @@ void s2tt_test_init_assigned_dev_dev(const struct s2tt_context *s2tt_ctx,
 		attr |= S2TTE_TEST_DEV_SH;
 	}
 
-	s2tt_init_assigned_dev_dev(s2tt_ctx, s2tt, (attr | pa), pa, level);
+	s2tt_init_assigned_dev_dev(s2tt_ctx, s2tt, (attr | pa), pa, level, ap);
 }
 
 unsigned long s2tt_test_create_unassigned(const struct s2tt_context *s2tt_ctx,
-					  unsigned long ripas)
+					  unsigned long ripas, unsigned long ap)
 {
 	if (ripas == S2TTE_INVALID_RIPAS_EMPTY) {
-		return s2tte_create_unassigned_empty(s2tt_ctx);
+		return s2tte_create_unassigned_empty(s2tt_ctx, ap);
 	} else if (ripas == S2TTE_INVALID_RIPAS_DESTROYED) {
-		return s2tte_create_unassigned_destroyed(s2tt_ctx);
+		return s2tte_create_unassigned_destroyed(s2tt_ctx, ap);
 	} else if (ripas == S2TTE_INVALID_RIPAS_RAM) {
-		return s2tte_create_unassigned_ram(s2tt_ctx);
+		return s2tte_create_unassigned_ram(s2tt_ctx, ap);
 	}
 
-	return s2tte_create_unassigned_ns(s2tt_ctx);
+	return s2tte_create_unassigned_ns(s2tt_ctx, ap);
+}
+
+unsigned long s2tt_test_generate_ap(bool dev)
+{
+	bool s2pie_en = s2tt_test_helpers_s2pie_enabled();
+	unsigned long mask = s2pie_en ? MASK(S2TTE_PO_INDEX) :
+					(dev ? S2TTE_RW_AP_MASK : S2TTE_PERM_MASK);
+	unsigned long s2tte_ap = test_helpers_get_rand_in_range(0UL, ULONG_MAX) & mask;
+
+	if (s2pie_en) {
+		unsigned long index = dev ? S2TTE_DEV_DEF_BASE_PERM_IDX :
+					    S2TTE_DEF_BASE_PERM_IDX;
+
+		s2tte_ap = s2tte_set_pi_index(NULL, s2tte_ap, index);
+	} else {
+		if (dev) {
+			s2tte_ap |= S2TTE_PERM_XNU_XNP;
+		}
+	}
+
+	return s2tte_ap;
 }

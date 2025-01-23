@@ -6,47 +6,50 @@
 #ifndef S2TT_PVT_DEFS
 #define S2TT_PVT_DEFS
 
+#include <s2ap_ind.h>
+#include <s2tt.h>
+
 /*
  * The type of stage 2 translation table entry (s2tte) is defined by:
  * 1. Table level where it resides
  * 2. NS field [55]
  * 3. HIPAS field [5:3]
- * 4. RIPAS field [2:1]
+ * 4. RIPAS field [57:56]
  * 5. DESC_TYPE field[1:0]
  *
  * RIPAS and DESC_TYPE fields share bit[1], bit[0] set to 1 applies to a valid descriptor
  * with HIPAS and RIPAS fields N/A.
  *
- * ===========================================================================================
- * s2tte type            level NS[55] HIPAS[5:3]      RIPAS[2:1]   DESC_TYPE[1:0] OA alignment
- * ==========================================================================================
- * unassigned_empty       any   0     unassigned[0]   empty[0]     invalid[0]     n/a
- * ------------------------------------------------------------------------------------------
- * unassigned_ram         any   0     unassigned[0]   ram[1]       invalid[2]     n/a
- * ------------------------------------------------------------------------------------------
- * unassigned_destroyed   any   0     unassigned[0]   destroyed[2] invalid[0]     n/a
- * ------------------------------------------------------------------------------------------
- * assigned_empty         2,3   0     assigned[1]     empty[0]     invalid[0]     to level
- * ------------------------------------------------------------------------------------------
- * assigned_ram           3     0     n/a             n/a          page[3]        to level
- *                        2     0     n/a             n/a          block[1]       to level
- * ------------------------------------------------------------------------------------------
- * assigned_destroyed     any   0     assigned[1]     destroyed[2] invalid[0]     n/a
- * ------------------------------------------------------------------------------------------
- * assigned_dev_empty     any   0     assigned_dev[3] empty[0]     invalid[0]     to level
- * ------------------------------------------------------------------------------------------
- * assigned_dev_destroyed any   0     assigned_dev[3] destroyed[2] invalid[0]     to level
- * ------------------------------------------------------------------------------------------
- * assigned_dev_dev       3     0     n/a             n/a          page[3]        to level
- *                        2     0     n/a             n/a          block[1]       to level
- * ==========================================================================================
- * unassigned_ns          any   1     unassigned[0]   n/a          invalid[0]     n/a
- * ------------------------------------------------------------------------------------------
- * assigned_ns	          3     1     n/a             n/a          page[3]        to level
- *                        2     1     n/a             n/a          block[1]       to level
- * ==========================================================================================
- * table                <=2    n/a    n/a             n/a          table[3]       to 4KB
- * ==========================================================================================
+ * ============================================================================================
+ * s2tte type            level NS[55] HIPAS[5:3]      RIPAS[2:1]     DESC_TYPE[1:0] OA alignment
+ * ============================================================================================
+ * unassigned_empty       any   0     unassigned[0]   empty[0]      invalid[0]     n/a
+ * --------------------------------------------------------------------------------------------
+ * unassigned_ram         any   0     unassigned[0]   ram[1]        invalid[2]     n/a
+ * --------------------------------------------------------------------------------------------
+ * unassigned_destroyed   any   0     unassigned[0]   destroyed[2]  invalid[0]     n/a
+ * --------------------------------------------------------------------------------------------
+ * assigned_empty         2,3   0     assigned[1]     empty[0]      invalid[0]     to level
+ * --------------------------------------------------------------------------------------------
+ * assigned_ram           3     0     n/a             n/a           page[3]        to level
+ *                        2     0     n/a             n/a           block[1]       to level
+ * --------------------------------------------------------------------------------------------
+ * assigned_destroyed     any   0     assigned[1]     destroyed[2]  invalid[0]     n/a
+ * --------------------------------------------------------------------------------------------
+ * assigned_dev_empty     any   0     assigned_dev[3] empty[0]      invalid[0]     to level
+ * --------------------------------------------------------------------------------------------
+ * assigned_dev_destroyed any   0     assigned_dev[3] destroyed[2]  invalid[0]     to level
+ * --------------------------------------------------------------------------------------------
+ * assigned_dev_dev       3     0     n/a             n/a           page[3]        to level
+ *                        2     0     n/a             n/a           block[1]       to level
+ * ============================================================================================
+ * unassigned_ns          any   1     unassigned[0]   n/a           invalid[0]     n/a
+ * --------------------------------------------------------------------------------------------
+ * assigned_ns	          3     1     n/a             n/a           page[3]        to level
+ *                        2     1     n/a             n/a           block[1]       to level
+ * ============================================================================================
+ * table                <=2    n/a    n/a             n/a           table[3]       to 4KB
+ * ============================================================================================
  */
 #define S2TTE_INVALID_HIPAS_SHIFT	3
 #define S2TTE_INVALID_HIPAS_WIDTH	3U
@@ -67,7 +70,7 @@
 
 #define S2TTE_NS			(1UL << 55)
 #define S2TTE_AF			(1UL << 10)
-#define S2TTE_XN			(2UL << 53)
+#define S2TTE_XN			(1UL << 53)
 
 /*
  * Descriptor types
@@ -115,10 +118,6 @@
 #define S2TTE_MEMATTR_DEV_COH		((1UL << 4) | (3UL << 2))
 #define S2TTE_MEMATTR_FWB_RESERVED	((1UL << 4) | (0UL << 2))
 
-#define S2TTE_AP_SHIFT			6
-#define S2TTE_AP_MASK			(3UL << S2TTE_AP_SHIFT)
-#define S2TTE_AP_RW			(3UL << S2TTE_AP_SHIFT)
-
 #define S2TTE_SH_SHIFT			8
 #define S2TTE_SH_MASK			(3UL << S2TTE_SH_SHIFT)
 #define S2TTE_SH_NS			(0UL << S2TTE_SH_SHIFT)
@@ -130,26 +129,25 @@
  * When FEAT_LPA2 is enabled, Shareability attributes are stored in VTCR_EL2
  * and they are not part of the S2TTE.
  */
-#define S2TTE_ATTRS_LPA2	(S2TTE_MEMATTR_FWB_NORMAL_WB | S2TTE_AP_RW | \
-				 S2TTE_AF)
-#define S2TTE_ATTRS_LPA2_MASK	(S2TTE_MEMATTR_MASK | S2TTE_AP_MASK | S2TTE_AF)
+#define S2TTE_ATTRS_LPA2	(S2TTE_MEMATTR_FWB_NORMAL_WB | S2TTE_AF)
+#define S2TTE_ATTRS_LPA2_MASK	(S2TTE_MEMATTR_MASK | S2TTE_AF)
 #define S2TTE_ATTRS		(S2TTE_ATTRS_LPA2 | S2TTE_SH_IS)
 #define S2TTE_ATTRS_MASK	(S2TTE_ATTRS_LPA2_MASK | S2TTE_SH_MASK)
 
-#define S2TTE_DEV_ATTRS		(S2TTE_AP_RW | S2TTE_AF | S2TTE_XN)
-#define S2TTE_DEV_ATTRS_MASK	(S2TTE_NS | S2TTE_AP_MASK | S2TTE_AF | S2TTE_XN)
+#define S2TTE_DEV_ATTRS		(S2TTE_AF)
+#define S2TTE_DEV_ATTRS_MASK	(S2TTE_NS | S2TTE_AF)
 
 #define S2TTE_DEV_COH_ATTRS	(S2TTE_DEV_ATTRS | S2TTE_MEMATTR_DEV_COH)
 #define S2TTE_DEV_NCOH_ATTRS	(S2TTE_DEV_ATTRS | S2TTE_MEMATTR_FWB_NC)
 
 /* NS attributes controlled by the host */
-#define S2TTE_NS_ATTR_MASK	(S2TTE_MEMATTR_MASK | S2TTE_AP_MASK)
+#define S2TTE_NS_ATTR_MASK	(S2TTE_MEMATTR_MASK)
 
 /*
  * Additional NS attributes set by RMM.
- * It does not include the descriptor type.
+ * It does not include the descriptor type and permissions.
  */
-#define S2TTE_NS_ATTR_RMM	(S2TTE_AF | S2TTE_NS | S2TTE_XN)
+#define S2TTE_NS_ATTR_RMM	(S2TTE_AF | S2TTE_NS)
 
 /* Descriptor templates */
 #define S2TTE_TABLE		S2TTE_L012_TABLE
@@ -171,7 +169,41 @@
 #define NR_RTT_LEVELS_LPA2	(S2TT_PAGE_LEVEL -		\
 					S2TT_MIN_STARTING_LEVEL_LPA2 + 1)
 
+/*
+ * Access permission bits.
+ */
+#define S2TTE_PERM_R_SHIFT		6UL
+#define S2TTE_PERM_R_WIDTH		1UL
+#define S2TTE_PERM_W_SHIFT		7UL
+#define S2TTE_PERM_W_WIDTH		1UL
+#define S2TTE_PERM_XN_SHIFT		53UL
+#define S2TTE_PERM_XN_WIDTH		2UL
+
+#define S2TTE_RW_AP_MASK		(MASK(S2TTE_PERM_R) | MASK(S2TTE_PERM_W))
+#define S2TTE_PERM_MASK			(S2TTE_RW_AP_MASK | MASK(S2TTE_PERM_XN))
+
+/*
+ * Properties of a Stage2 Access Permission Label.
+ */
+struct s2tte_label_encoding {
+	unsigned long value;
+};
+
+/*
+ * Macro to help creating a table to convert S2POE overlay values to
+ * Direct permissions.
+ * Note that the argument @_mro is only a placeholder and it is not used
+ * as there is no MRO bit on a direct permission encoding.
+ */
+#define S2TTE_AP_LABEL_ENCODE(_label, _mro, _r, _w, _xn)		\
+	[S2AP_IND_PERM_ ## _label] =	{				\
+		.value =  ((unsigned long)(_xn)				\
+			  | INPLACE(S2TTE_PERM_R, (unsigned long)(_r))	\
+			  | INPLACE(S2TTE_PERM_W, (unsigned long)(_w)))	\
+	}
+
 typedef unsigned long (*create_assigned_fn)(const struct s2tt_context *s2_ctx,
-						unsigned long pa, long level);
+						unsigned long pa, long level,
+						unsigned long s2tte_ap);
 
 #endif /* S2TT_PVT_DEFS */
