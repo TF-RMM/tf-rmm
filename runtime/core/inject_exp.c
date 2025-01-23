@@ -248,20 +248,27 @@ void inject_sync_idabort(unsigned long fsc)
  */
 void inject_sync_idabort_rec(struct rec *rec, unsigned long fsc)
 {
-	bool sctlr2_ease_bit = ((rec->sysregs.sctlr2_el1 &
-				 SCTLR2_ELx_EASE_BIT) != 0UL);
+	struct rec_plane *plane = rec_active_plane(rec);
+	bool sctlr2_ease_bit;
 
-	rec->sysregs.far_el1 = rec->last_run_info.far;
-	rec->sysregs.elr_el1 = rec->pc;
-	rec->sysregs.spsr_el1 = rec->pstate;
-	rec->sysregs.esr_el1 = calc_esr_idabort(rec->last_run_info.esr,
-						rec->pstate, fsc);
-	rec->pc = calc_vector_entry(rec->sysregs.vbar_el1, rec->pstate,
-				    sctlr2_ease_bit);
-	rec->pstate = calc_spsr(rec->pstate, rec->sysregs.sctlr_el1);
+	sctlr2_ease_bit = ((plane->sysregs->pp_sysregs.sctlr2_el1 &
+			    SCTLR2_ELx_EASE_BIT) != 0UL);
 
-	INFO("Inject Sync EA into REC 0x%lx FAR_EL1: 0x%lx, ELR_EL1: 0x%lx\n",
-			(unsigned long)rec, rec->sysregs.far_el1, rec->sysregs.elr_el1);
+	plane->sysregs->pp_sysregs.far_el1 = plane->last_run_info.far;
+	plane->sysregs->pp_sysregs.elr_el1 = plane->pc;
+	plane->sysregs->pp_sysregs.spsr_el1 = plane->sysregs->pstate;
+	plane->sysregs->pp_sysregs.esr_el1 =
+		calc_esr_idabort(plane->last_run_info.esr,
+						  plane->sysregs->pstate, fsc);
+	plane->pc = calc_vector_entry(plane->sysregs->pp_sysregs.vbar_el1,
+				      plane->sysregs->pstate, sctlr2_ease_bit);
+	plane->sysregs->pstate =
+		calc_spsr(plane->sysregs->pstate, plane->sysregs->pp_sysregs.sctlr_el1);
+
+	INFO("Inject Sync EA into Plane %u of REC 0x%lx FAR_EL1: 0x%lx, ELR_EL1: 0x%lx\n",
+			rec->active_plane_id, (unsigned long)rec,
+			plane->sysregs->pp_sysregs.far_el1,
+			plane->sysregs->pp_sysregs.elr_el1);
 }
 
 /*

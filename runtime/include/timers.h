@@ -9,7 +9,7 @@
 struct rec;
 struct rmi_rec_exit;
 
-bool check_pending_timers(struct rec *rec);
+bool check_pending_timers(struct rec_plane *plane);
 void report_timer_state_to_ns(struct rmi_rec_exit *rec_exit);
 
 #endif /* TIMERS_H */

@@ -12,8 +12,10 @@
 #include <exit.h>
 #include <granule.h>
 #include <pmu.h>
+#include <realm.h>
 #include <rec.h>
 #include <run.h>
+#include <s2ap_ind.h>
 #include <simd.h>
 #include <smc-rmi.h>
 #include <timers.h>
@@ -26,105 +28,97 @@ static struct simd_context g_ns_simd_ctx[MAX_CPUS]
 
 static void save_sysreg_state(struct sysreg_state *sysregs)
 {
-	sysregs->sp_el1 = read_sp_el1();
-	sysregs->elr_el1 = read_elr_el12();
-	sysregs->spsr_el1 = read_spsr_el12();
-	sysregs->tpidrro_el0 = read_tpidrro_el0();
-	sysregs->tpidr_el0 = read_tpidr_el0();
-	sysregs->csselr_el1 = read_csselr_el1();
-	sysregs->sctlr_el1 = read_sctlr_el12();
-	sysregs->sctlr2_el1 = read_sctlr2_el12_if_present();
-	sysregs->actlr_el1 = read_actlr_el1();
-	sysregs->cpacr_el1 = read_cpacr_el12();
-	sysregs->ttbr0_el1 = read_ttbr0_el12();
-	sysregs->ttbr1_el1 = read_ttbr1_el12();
-	sysregs->tcr_el1 = read_tcr_el12();
-	sysregs->esr_el1 = read_esr_el12();
-	sysregs->afsr0_el1 = read_afsr0_el12();
-	sysregs->afsr1_el1 = read_afsr1_el12();
-	sysregs->far_el1 = read_far_el12();
-	sysregs->mair_el1 = read_mair_el12();
-	sysregs->vbar_el1 = read_vbar_el12();
-	sysregs->tcr2_el1 = read_tcr2_el12_if_present();
+	sysregs->pp_sysregs.sp_el1 = read_sp_el1();
+	sysregs->pp_sysregs.elr_el1 = read_elr_el12();
+	sysregs->pp_sysregs.spsr_el1 = read_spsr_el12();
+	sysregs->pp_sysregs.tpidrro_el0 = read_tpidrro_el0();
+	sysregs->pp_sysregs.tpidr_el0 = read_tpidr_el0();
+	sysregs->pp_sysregs.csselr_el1 = read_csselr_el1();
+	sysregs->pp_sysregs.sctlr_el1 = read_sctlr_el12();
+	sysregs->pp_sysregs.sctlr2_el1 = read_sctlr2_el12_if_present();
+	sysregs->pp_sysregs.actlr_el1 = read_actlr_el1();
+	sysregs->pp_sysregs.cpacr_el1 = read_cpacr_el12();
+	sysregs->pp_sysregs.ttbr0_el1 = read_ttbr0_el12();
+	sysregs->pp_sysregs.ttbr1_el1 = read_ttbr1_el12();
+	sysregs->pp_sysregs.tcr_el1 = read_tcr_el12();
+	sysregs->pp_sysregs.esr_el1 = read_esr_el12();
+	sysregs->pp_sysregs.afsr0_el1 = read_afsr0_el12();
+	sysregs->pp_sysregs.afsr1_el1 = read_afsr1_el12();
+	sysregs->pp_sysregs.far_el1 = read_far_el12();
+	sysregs->pp_sysregs.mair_el1 = read_mair_el12();
+	sysregs->pp_sysregs.vbar_el1 = read_vbar_el12();
+	sysregs->pp_sysregs.tcr2_el1 = read_tcr2_el12_if_present();
 
-	sysregs->contextidr_el1 = read_contextidr_el12();
-	sysregs->tpidr_el1 = read_tpidr_el1();
-	sysregs->amair_el1 = read_amair_el12();
-	sysregs->cntkctl_el1 = read_cntkctl_el12();
-	sysregs->par_el1 = read_par_el1();
-	sysregs->mdscr_el1 = read_mdscr_el1();
-	sysregs->mdccint_el1 = read_mdccint_el1();
-	sysregs->disr_el1 = read_disr_el1();
+	sysregs->pp_sysregs.contextidr_el1 = read_contextidr_el12();
+	sysregs->pp_sysregs.tpidr_el1 = read_tpidr_el1();
+	sysregs->pp_sysregs.amair_el1 = read_amair_el12();
+	sysregs->pp_sysregs.cntkctl_el1 = read_cntkctl_el12();
+	sysregs->pp_sysregs.par_el1 = read_par_el1();
+	sysregs->pp_sysregs.mdscr_el1 = read_mdscr_el1();
+	sysregs->pp_sysregs.mdccint_el1 = read_mdccint_el1();
+	sysregs->pp_sysregs.disr_el1 = read_disr_el1();
+
+	/* S1AP state */
+	sysregs->pp_sysregs.pir_el1 = read_pir_el12_if_present();
+	sysregs->pp_sysregs.pire0_el1 = read_pire0_el12_if_present();
+	sysregs->pp_sysregs.por_el1 = read_por_el12_if_present();
 
 	/* Timer registers */
 	sysregs->cntpoff_el2 = read_cntpoff_el2();
 	sysregs->cntvoff_el2 = read_cntvoff_el2();
-	sysregs->cntp_ctl_el0 = read_cntp_ctl_el02();
-	sysregs->cntp_cval_el0 = read_cntp_cval_el02();
-	sysregs->cntv_ctl_el0 = read_cntv_ctl_el02();
-	sysregs->cntv_cval_el0 = read_cntv_cval_el02();
-
-	/* S1AP state */
-	sysregs->pir_el1 = read_pir_el12_if_present();
-	sysregs->pire0_el1 = read_pire0_el12_if_present();
-	sysregs->por_el1 = read_por_el12_if_present();
+	sysregs->pp_sysregs.cntp_ctl_el0 = read_cntp_ctl_el02();
+	sysregs->pp_sysregs.cntp_cval_el0 = read_cntp_cval_el02();
+	sysregs->pp_sysregs.cntv_ctl_el0 = read_cntv_ctl_el02();
+	sysregs->pp_sysregs.cntv_cval_el0 = read_cntv_cval_el02();
 }
 
-static void save_realm_state(struct rec *rec, struct rmi_rec_exit *rec_exit)
+void save_realm_state(struct rec_plane *plane)
 {
-	save_sysreg_state(&rec->sysregs);
+	save_sysreg_state(plane->sysregs);
 
-	rec->pc = read_elr_el2();
-	rec->pstate = read_spsr_el2();
+	plane->pc = read_elr_el2();
+	plane->sysregs->pstate = read_spsr_el2();
 
-	gic_save_state(&rec->sysregs.gicstate);
-
-	if (rec->realm_info.pmu_enabled) {
-		/* Expose PMU Realm state to NS */
-		rec_exit->pmu_ovf_status = (pmu_is_ovf_set() ?
-			RMI_PMU_OVERFLOW_ACTIVE : RMI_PMU_OVERFLOW_NOT_ACTIVE);
-
-		/*
-		 * Save realm PMU context.
-		 * Save number of PMU event counters configured for the realm.
-		 */
-		pmu_save_state(rec->aux_data.pmu,
-				rec->realm_info.pmu_num_ctrs);
-	}
+	gic_save_state(&plane->sysregs->gicstate);
 }
 
 static void restore_sysreg_state(struct sysreg_state *sysregs)
 {
-	write_sp_el1(sysregs->sp_el1);
-	write_elr_el12(sysregs->elr_el1);
-	write_spsr_el12(sysregs->spsr_el1);
-	write_tpidrro_el0(sysregs->tpidrro_el0);
-	write_tpidr_el0(sysregs->tpidr_el0);
-	write_csselr_el1(sysregs->csselr_el1);
-	write_sctlr_el12(sysregs->sctlr_el1);
-	write_sctlr2_el12_if_present(sysregs->sctlr2_el1);
-	write_actlr_el1(sysregs->actlr_el1);
-	write_cpacr_el12(sysregs->cpacr_el1);
-	write_ttbr0_el12(sysregs->ttbr0_el1);
-	write_ttbr1_el12(sysregs->ttbr1_el1);
-	write_tcr_el12(sysregs->tcr_el1);
-	write_esr_el12(sysregs->esr_el1);
-	write_afsr0_el12(sysregs->afsr0_el1);
-	write_afsr1_el12(sysregs->afsr1_el1);
-	write_far_el12(sysregs->far_el1);
-	write_mair_el12(sysregs->mair_el1);
-	write_vbar_el12(sysregs->vbar_el1);
-	write_tcr2_el12_if_present(sysregs->tcr2_el1);
+	write_sp_el1(sysregs->pp_sysregs.sp_el1);
+	write_elr_el12(sysregs->pp_sysregs.elr_el1);
+	write_spsr_el12(sysregs->pp_sysregs.spsr_el1);
+	write_tpidrro_el0(sysregs->pp_sysregs.tpidrro_el0);
+	write_tpidr_el0(sysregs->pp_sysregs.tpidr_el0);
+	write_csselr_el1(sysregs->pp_sysregs.csselr_el1);
+	write_sctlr_el12(sysregs->pp_sysregs.sctlr_el1);
+	write_sctlr2_el12_if_present(sysregs->pp_sysregs.sctlr2_el1);
+	write_actlr_el1(sysregs->pp_sysregs.actlr_el1);
+	write_cpacr_el12(sysregs->pp_sysregs.cpacr_el1);
+	write_ttbr0_el12(sysregs->pp_sysregs.ttbr0_el1);
+	write_ttbr1_el12(sysregs->pp_sysregs.ttbr1_el1);
+	write_tcr_el12(sysregs->pp_sysregs.tcr_el1);
+	write_esr_el12(sysregs->pp_sysregs.esr_el1);
+	write_afsr0_el12(sysregs->pp_sysregs.afsr0_el1);
+	write_afsr1_el12(sysregs->pp_sysregs.afsr1_el1);
+	write_far_el12(sysregs->pp_sysregs.far_el1);
+	write_mair_el12(sysregs->pp_sysregs.mair_el1);
+	write_vbar_el12(sysregs->pp_sysregs.vbar_el1);
+	write_tcr2_el12_if_present(sysregs->pp_sysregs.tcr2_el1);
 
-	write_contextidr_el12(sysregs->contextidr_el1);
-	write_tpidr_el1(sysregs->tpidr_el1);
-	write_amair_el12(sysregs->amair_el1);
-	write_cntkctl_el12(sysregs->cntkctl_el1);
-	write_par_el1(sysregs->par_el1);
-	write_mdscr_el1(sysregs->mdscr_el1);
-	write_mdccint_el1(sysregs->mdccint_el1);
-	write_disr_el1(sysregs->disr_el1);
+	write_contextidr_el12(sysregs->pp_sysregs.contextidr_el1);
+	write_tpidr_el1(sysregs->pp_sysregs.tpidr_el1);
+	write_amair_el12(sysregs->pp_sysregs.amair_el1);
+	write_cntkctl_el12(sysregs->pp_sysregs.cntkctl_el1);
+	write_par_el1(sysregs->pp_sysregs.par_el1);
+	write_mdscr_el1(sysregs->pp_sysregs.mdscr_el1);
+	write_mdccint_el1(sysregs->pp_sysregs.mdccint_el1);
+	write_disr_el1(sysregs->pp_sysregs.disr_el1);
 	write_vmpidr_el2(sysregs->vmpidr_el2);
+
+	/* S1AP state */
+	write_pir_el12_if_present(sysregs->pp_sysregs.pir_el1);
+	write_pire0_el12_if_present(sysregs->pp_sysregs.pire0_el1);
+	write_por_el12_if_present(sysregs->pp_sysregs.por_el1);
 
 	/* Timer registers */
 	write_cntpoff_el2(sysregs->cntpoff_el2);
@@ -136,34 +130,59 @@ static void restore_sysreg_state(struct sysreg_state *sysregs)
 	 * it again due to some expired CVAL left in the timer
 	 * register.
 	 */
-	write_cntp_cval_el02(sysregs->cntp_cval_el0);
-	write_cntp_ctl_el02(sysregs->cntp_ctl_el0);
-	write_cntv_cval_el02(sysregs->cntv_cval_el0);
-	write_cntv_ctl_el02(sysregs->cntv_ctl_el0);
 
-	/* S1AP state */
-	write_pir_el12_if_present(sysregs->pir_el1);
-	write_pire0_el12_if_present(sysregs->pire0_el1);
-	write_por_el12_if_present(sysregs->por_el1);
+	write_cntp_cval_el02(sysregs->pp_sysregs.cntp_cval_el0);
+	write_cntp_ctl_el02(sysregs->pp_sysregs.cntp_ctl_el0);
+	write_cntv_cval_el02(sysregs->pp_sysregs.cntv_cval_el0);
+	write_cntv_ctl_el02(sysregs->pp_sysregs.cntv_ctl_el0);
 }
 
-static void configure_realm_stage2(struct rec *rec)
+static unsigned long active_overlay_perms(struct rec *rec)
+{
+	unsigned long overlay_perms;
+	struct s2tt_context *s2_context;
+	struct rd *rd;
+
+	assert(rec->realm_info.rtt_s2ap_encoding != S2AP_DIRECT_ENC);
+
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+
+	assert(rd != NULL);
+
+	s2_context = plane_to_s2_context(rd, rec->active_plane_id);
+	overlay_perms = s2tt_ctx_get_overlay_perm_unlocked(s2_context);
+	buffer_unmap(rd);
+
+	return overlay_perms;
+}
+
+/*
+ * Configure the realm stage 2 registers.
+ * Note that there is a 1-2-1 correspondence between vttbr_el2 array index
+ * and the plane ID.
+ */
+static void restore_realm_stage2(struct rec *rec)
 {
 	write_vtcr_el2(rec->common_sysregs.vtcr_el2);
-	write_vttbr_el2(rec->common_sysregs.vttbr_el2);
+	write_vttbr_el2(rec_active_plane(rec)->sysregs->vttbr_el2);
+
+	if (rec->realm_info.rtt_s2ap_encoding == S2AP_INDIRECT_ENC) {
+		s2ap_ind_write_overlay(active_overlay_perms(rec));
+	}
+
 }
 
-static void restore_realm_state(struct rec *rec)
+void restore_realm_state(struct rec *rec, struct rec_plane *plane)
 {
 	/*
 	 * Restore this early to give time to the timer mask to propagate to
 	 * the GIC.  Issue an ISB to ensure the register write is actually
 	 * performed before doing the remaining work.
 	 */
-	write_cnthctl_el2(rec->sysregs.cnthctl_el2);
+	write_cnthctl_el2(plane->sysregs->cnthctl_el2);
 	isb();
 
-	restore_sysreg_state(&rec->sysregs);
+	restore_sysreg_state(plane->sysregs);
 
 	/*
 	 * Disable BRBE for R-EL1, BRBE related registers cannot be accessed
@@ -173,17 +192,41 @@ static void restore_realm_state(struct rec *rec)
 		write_brbcr_el1(BRBCR_INIT);
 	}
 
-	write_elr_el2(rec->pc);
-	write_spsr_el2(rec->pstate);
-	write_hcr_el2(rec->sysregs.hcr_el2);
+	write_elr_el2(plane->pc);
+	write_spsr_el2(plane->sysregs->pstate);
+	write_hcr_el2(plane->sysregs->hcr_el2);
 
 	/* Control trapping of accesses to PMU registers */
 	write_mdcr_el2(rec->common_sysregs.mdcr_el2);
 
-	gic_restore_state(&rec->sysregs.gicstate);
+	gic_restore_state(&plane->sysregs->gicstate);
 
-	configure_realm_stage2(rec);
+	restore_realm_stage2(rec);
+}
 
+/*
+ * @TODO: Currently it is assumed that only a single Plane in the realm uses
+ * PMU. Hence, the save and restore is only done as part of Realm exit and
+ * enter. This will need to be reworked as part of adding per-Plane support
+ * for PMU.
+ */
+static void save_pmu(struct rec *rec, struct rmi_rec_exit *rec_exit)
+{
+	if (rec->realm_info.pmu_enabled) {
+		/* Expose PMU Realm state to NS */
+		rec_exit->pmu_ovf_status = (pmu_is_ovf_set() ?
+		RMI_PMU_OVERFLOW_ACTIVE : RMI_PMU_OVERFLOW_NOT_ACTIVE);
+
+		/* Save PMU context
+		 * Save number of PMU event counters configured for the realm.
+		 */
+		pmu_save_state(rec->aux_data.pmu,
+				rec->realm_info.pmu_num_ctrs);
+	}
+}
+
+static void restore_pmu(struct rec *rec)
+{
 	if (rec->realm_info.pmu_enabled) {
 		/*
 		 * Restore realm PMU context.
@@ -204,7 +247,7 @@ static void save_ns_state(struct rec *rec)
 	save_sysreg_state(&ns_state->sysregs);
 
 	if (is_feat_brbe_present()) {
-		ns_state->sysregs.brbcr_el1 = read_brbcr_el1();
+		ns_state->sysregs.pp_sysregs.brbcr_el1 = read_brbcr_el1();
 	}
 
 	/*
@@ -236,7 +279,7 @@ static void restore_ns_state(struct rec *rec)
 	restore_sysreg_state(&ns_state->sysregs);
 
 	if (is_feat_brbe_present()) {
-		write_brbcr_el1(ns_state->sysregs.brbcr_el1);
+		write_brbcr_el1(ns_state->sysregs.pp_sysregs.brbcr_el1);
 	}
 
 	/*
@@ -265,7 +308,14 @@ static void activate_events(struct rec *rec)
 	 */
 	if (rec->serror_info.inject) {
 		write_vsesr_el2(rec->serror_info.vsesr_el2);
-		write_hcr_el2(rec->sysregs.hcr_el2 | HCR_VSE);
+
+		/*
+		 * @TODO: The RMM Specification says to exit to Host when Planes
+		 * encounter an SError. But SError should be injected into the
+		 * original plane N and not be re-routed to P0. Regardless if
+		 * P0 gets re-scheduled, we need a syndrome to be passed to P0.
+		 */
+		write_hcr_el2(rec_active_plane(rec)->sysregs->hcr_el2 | HCR_VSE);
 		rec->serror_info.inject = false;
 	}
 }
@@ -301,8 +351,8 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 {
 	struct ns_state *ns_state;
 	int realm_exception_code;
-	void *rec_aux;
 	unsigned int cpuid = my_cpuid();
+	struct rec_plane *plane = rec_active_plane(rec);
 
 	assert(cpuid < MAX_CPUS);
 	assert(rec->ns == NULL);
@@ -311,12 +361,9 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 	rec->ns = ns_state;
 
-	/* Map auxiliary granules */
-	/* coverity[overrun-buffer-val:SUPPRESS] */
-	rec_aux = buffer_rec_aux_granules_map(rec->g_aux, rec->num_rec_aux);
-
 	save_ns_state(rec);
-	restore_realm_state(rec);
+	restore_realm_state(rec, plane);
+	restore_pmu(rec);
 
 	/*
 	 * The run loop must be entered with active SIMD context set to current
@@ -328,13 +375,16 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	do {
 		unsigned long rmm_cptr_el2 = read_cptr_el2();
 
+		/* Active plane can change on each exit */
+		plane = rec_active_plane(rec);
+
 		/*
 		 * We must check the status of the arch timers in every
 		 * iteration of the loop to ensure we update the timer
 		 * mask on each entry to the realm and that we report any
 		 * change in output level to the NS caller.
 		 */
-		if (check_pending_timers(rec)) {
+		if (check_pending_timers(plane)) {
 			rec_exit->exit_reason = RMI_EXIT_IRQ;
 			break;
 		}
@@ -342,8 +392,8 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		activate_events(rec);
 
 		/* Restore REC's cptr_el2 */
-		if (rmm_cptr_el2 != rec->sysregs.cptr_el2) {
-			write_cptr_el2(rec->sysregs.cptr_el2);
+		if (rmm_cptr_el2 != plane->sysregs->cptr_el2) {
+			write_cptr_el2(plane->sysregs->cptr_el2);
 			isb();
 		}
 
@@ -352,22 +402,25 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		 * There shouldn't be any other function call which uses PAuth
 		 * till the RMM keys are restored.
 		 */
-		pauth_restore_realm_keys(&rec->pauth);
+		pauth_restore_realm_keys(&plane->sysregs->pauth);
 
-		realm_exception_code = run_realm(&rec->regs[0]);
+		realm_exception_code = run_realm(&plane->regs[0],
+						 &plane->sysregs->pp_sysregs.sp_el0);
 
 		/* Save Realm PAuth key. */
-		pauth_save_realm_keys(&rec->pauth);
+		pauth_save_realm_keys(&plane->sysregs->pauth);
 
 		/* Restore RMM PAuth key. */
 		pauth_restore_rmm_keys();
 
 		/* Restore RMM's cptr_el2 */
-		if (rmm_cptr_el2 != rec->sysregs.cptr_el2) {
+		if (rmm_cptr_el2 != plane->sysregs->cptr_el2) {
 			write_cptr_el2(rmm_cptr_el2);
 			isb();
 		}
 	} while (handle_realm_exit(rec, rec_exit, realm_exception_code));
+
+	assert(plane->sysregs != NULL);
 
 	/*
 	 * Check if FPU/SIMD was used, and if it was, save the realm state,
@@ -381,7 +434,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		 * As the REC SIMD context is now saved, disable all SIMD related
 		 * flags in REC's cptr.
 		 */
-		SIMD_DISABLE_ALL_CPTR_FLAGS(rec->sysregs.cptr_el2);
+		SIMD_DISABLE_ALL_CPTR_FLAGS(plane->sysregs->cptr_el2);
 	}
 
 	/* Clear active simd_context */
@@ -389,14 +442,12 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 	report_timer_state_to_ns(rec_exit);
 
-	save_realm_state(rec, rec_exit);
+	save_realm_state(plane);
+	save_pmu(rec, rec_exit);
 	restore_ns_state(rec);
 
 	/*
 	 * Clear NS pointer since that struct is local to this function.
 	 */
 	rec->ns = NULL;
-
-	/* Unmap auxiliary granules */
-	buffer_rec_aux_unmap(rec_aux, rec->num_rec_aux);
 }

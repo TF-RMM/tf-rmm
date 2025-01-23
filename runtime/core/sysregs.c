@@ -148,7 +148,7 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 		value = 0UL;
 	}
 
-	rec->regs[rt] = value;
+	rec_active_plane(rec)->regs[rt] = value;
 	return true;
 }
 
@@ -231,7 +231,7 @@ static unsigned long get_sysreg_write_value(struct rec *rec, unsigned long esr)
 		return 0UL;
 	}
 
-	return rec->regs[rt];
+	return rec_active_plane(rec)->regs[rt];
 }
 
 static void emulate_sysreg_access_ns(struct rec *rec,
@@ -286,7 +286,7 @@ bool handle_sysreg_access_trap(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	 * Handle writes to XZR register.
 	 */
 	if (!ESR_EL2_SYSREG_IS_WRITE(esr) && (rt != 31U)) {
-		rec->regs[rt] = 0UL;
+		rec_active_plane(rec)->regs[rt] = 0UL;
 	}
 
 	sysreg = esr & ESR_EL2_SYSREG_MASK;

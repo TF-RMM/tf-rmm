@@ -12,11 +12,13 @@
 #include <gic.h>
 #include <granule.h>
 #include <inject_exp.h>
+#include <planes.h>
 #include <psci.h>
 #include <realm.h>
 #include <rec.h>
 #include <rsi-handler.h>
 #include <rsi-logger.h>
+#include <run.h>
 #include <s2tt.h>
 #include <simd.h>
 #include <smc-rmi.h>
@@ -56,7 +58,8 @@ static unsigned long get_dabt_write_value(struct rec *rec, unsigned long esr)
 	if (rt == 31U) {
 		return 0UL;
 	}
-	return rec->regs[rt] & access_mask(esr);
+
+	return rec_active_plane(rec)->regs[rt] & access_mask(esr);
 }
 
 /*
@@ -106,6 +109,18 @@ static bool fsc_is_external_abort(unsigned long fsc)
 
 	if ((fsc >= ESR_EL2_ABORT_FSC_SEA_TTW_START) &&
 	    (fsc <= ESR_EL2_ABORT_FSC_SEA_TTW_END)) {
+		return true;
+	}
+
+	return false;
+}
+
+static bool abort_is_permission_fault(unsigned long esr)
+{
+	unsigned long fsc = esr & MASK(ESR_EL2_ABORT_FSC);
+
+	if ((fsc >= ESR_EL2_ABORT_FSC_PERM_FAULT_START) &&
+	    (fsc <= ESR_EL2_ABORT_FSC_PERM_FAULT_END)) {
 		return true;
 	}
 
@@ -170,22 +185,20 @@ static bool handle_sync_external_abort(struct rec *rec,
 	return true;
 }
 
-void emulate_stage2_data_abort(struct rec *rec,
-			       struct rmi_rec_exit *rec_exit,
-			       unsigned long rtt_level)
+void emulate_stage2_data_abort(struct rmi_rec_exit *rec_exit,
+			       unsigned long rtt_level,
+			       unsigned long ipa)
 {
-	unsigned long fipa = rec->regs[1];
-
 	assert(rtt_level <= (unsigned long)S2TT_PAGE_LEVEL);
 
 	/*
-	 * Setup Exception Syndrom Register to emulate a real data abort
+	 * Setup Exception Syndrome Register to emulate a real data abort
 	 * and return to NS host to handle it.
 	 */
 	rec_exit->esr = (ESR_EL2_EC_DATA_ABORT |
 			(ESR_EL2_ABORT_FSC_TRANSLATION_FAULT_L0 + rtt_level));
 	rec_exit->far = 0UL;
-	rec_exit->hpfar = fipa >> HPFAR_EL2_FIPA_OFFSET;
+	rec_exit->hpfar = ipa >> HPFAR_EL2_FIPA_OFFSET;
 	rec_exit->exit_reason = RMI_EXIT_SYNC;
 }
 
@@ -200,6 +213,7 @@ static bool handle_data_abort(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	unsigned long hpfar = read_hpfar_el2();
 	unsigned long fipa = (hpfar & MASK(HPFAR_EL2_FIPA)) << HPFAR_EL2_FIPA_OFFSET;
 	unsigned long write_val = 0UL;
+	bool empty_ipa;
 
 	if (handle_sync_external_abort(rec, rec_exit, esr)) {
 		/*
@@ -208,18 +222,37 @@ static bool handle_data_abort(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		return false;
 	}
 
-	/*
-	 * The memory access that crosses a page boundary may cause two aborts
-	 * with `hpfar_el2` values referring to two consecutive pages.
-	 *
-	 * Insert the SEA and return to the Realm if IPA is outside realm IPA space or
-	 * the granule's RIPAS is EMPTY.
-	 */
-	if ((fipa >= rec_ipa_size(rec)) || ipa_is_empty(fipa, rec)) {
+	empty_ipa = ipa_is_empty(fipa, rec);
+	if (rec_is_plane_0_active(rec)) {
+		/*
+		 * The SEA is injected back to Plane 0 if:
+		 *	- The fetch was from 'empty' memory.
+		 */
+		if (empty_ipa) {
+			inject_sync_idabort(ESR_EL2_ABORT_FSC_SEA);
+			return true;
+		}
+	} else {
+		/*
+		 * Data aborts from Plane N to Plane 0 are
+		 * reported when:
+		 *	- There is a permission fault
+		 *	- The fetch was from an 'empty' memory.
+		 * Note that this may occur only if the abort is from PAR
+		 */
+		if (abort_is_permission_fault(esr) || empty_ipa) {
+			assert(access_in_rec_par(rec, fipa));
+			return handle_plane_n_exit(rec, rec_exit,
+						   ARM_EXCEPTION_SYNC_LEL);
+		}
+	}
+
+	if (fipa >= rec_ipa_size(rec)) {
 		inject_sync_idabort(ESR_EL2_ABORT_FSC_SEA);
 		return true;
 	}
 
+	/* The rest of data aborts are reported to the host */
 	if (fixup_aarch32_data_abort(rec, &esr) ||
 	    access_in_rec_par(rec, fipa)) {
 		esr &= ESR_NONEMULATED_ABORT_MASK;
@@ -238,6 +271,7 @@ end:
 	rec_exit->far = far;
 	rec_exit->hpfar = hpfar;
 	rec_exit->gprs[0] = write_val;
+	rec_exit->rtt_tree = (unsigned long)active_s2_context_idx(rec);
 
 	return false;
 }
@@ -253,6 +287,7 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 	unsigned long fsc_type = fsc & ~MASK(ESR_EL2_ABORT_FSC_LEVEL);
 	unsigned long hpfar = read_hpfar_el2();
 	unsigned long fipa = (hpfar & MASK(HPFAR_EL2_FIPA)) << HPFAR_EL2_FIPA_OFFSET;
+	bool empty_ipa, in_par;
 
 	if (handle_sync_external_abort(rec, rec_exit, esr)) {
 		/*
@@ -261,16 +296,30 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 		return false;
 	}
 
-	/*
-	 * Insert the SEA and return to the Realm if:
-	 * - IPA is outside realm IPA space
-	 * - The instruction abort is at an Unprotected IPA, or
-	 * - The granule's RIPAS is EMPTY
-	 */
-	if ((fipa >= rec_ipa_size(rec)) ||
-			!access_in_rec_par(rec, fipa) || ipa_is_empty(fipa, rec)) {
-		inject_sync_idabort(ESR_EL2_ABORT_FSC_SEA);
-		return true;
+	empty_ipa = ipa_is_empty(fipa, rec);
+	in_par = access_in_rec_par(rec, fipa);
+	if (rec_is_plane_0_active(rec)) {
+		/*
+		 * The SEA is injected back to Plane 0 if:
+		 *	- The fetch was from 'empty' memory
+		 *	- The fetch was from outside PAR
+		 */
+		if (empty_ipa || !in_par) {
+			inject_sync_idabort(ESR_EL2_ABORT_FSC_SEA);
+			return true;
+		}
+	} else {
+		/*
+		 * Instruction aborts from Plane N to Plane 0 are
+		 * reported when:
+		 *	- The fetch was from outside PAR
+		 *	- There is a permission fault
+		 *	- The fetch was from an 'empty' memory.
+		 */
+		if (abort_is_permission_fault(esr) || empty_ipa || !in_par) {
+			return handle_plane_n_exit(rec, rec_exit,
+						   ARM_EXCEPTION_SYNC_LEL);
+		}
 	}
 
 	if (fsc_type != ESR_EL2_ABORT_FSC_TRANSLATION_FAULT) {
@@ -286,11 +335,12 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 		ERROR("    FSC: %12s0x%02lx\n", " ", fsc);
 		ERROR("    FAR: %16lx\n", far);
 		ERROR("  HPFAR: %16lx\n", hpfar);
-		return false;
 	}
 
+	/* The rest of instruction aborts are reported to the host */
 	rec_exit->hpfar = hpfar;
 	rec_exit->esr = esr & ESR_NONEMULATED_ABORT_MASK;
+	rec_exit->rtt_tree = (unsigned long)active_s2_context_idx(rec);
 
 	return false;
 }
@@ -347,7 +397,7 @@ static bool handle_simd_exception(struct rec *rec, unsigned long esr)
 	 * As the REC SIMD context is now restored, enable SIMD flags in REC's
 	 * cptr based on REC's SIMD configuration.
 	 */
-	SIMD_ENABLE_CPTR_FLAGS(&rec->realm_info.simd_cfg, rec->sysregs.cptr_el2);
+	SIMD_ENABLE_CPTR_FLAGS(&rec->realm_info.simd_cfg, rec_active_plane(rec)->sysregs->cptr_el2);
 
 	/*
 	 * Return 'true' indicating that this exception has been handled and
@@ -361,6 +411,13 @@ void advance_pc(void)
 	unsigned long pc = read_elr_el2();
 
 	write_elr_el2(pc + 4UL);
+}
+
+static void reverse_pc(void)
+{
+	unsigned long pc = read_elr_el2();
+
+	write_elr_el2(pc - 4UL);
 }
 
 static inline bool rsi_handler_needs_fpu(unsigned int id)
@@ -380,23 +437,145 @@ static inline bool rsi_handler_needs_fpu(unsigned int id)
  * Return 'true' if execution should continue in the REC, otherwise return
  * 'false' to go back to the NS caller of REC.Enter.
  */
+static bool handle_wfx_exception(struct rec *rec,
+				 struct rmi_rec_exit *rec_exit,
+				 unsigned long esr)
+{
+	bool ret;
+
+	if (rec_is_plane_0_active(rec)) {
+		/* WFx calls from Plane 0 are forwarded to the host */
+		rec_exit->esr = (esr & MASK(ESR_EL2_EC)) | ESR_EL2_WFx_TI_BIT;
+		advance_pc();
+		return false;
+	}
+
+	/* WFx call from Plane N are forwarded to Plane 0 */
+	advance_pc();
+	ret = handle_plane_n_exit(rec, rec_exit, ARM_EXCEPTION_SYNC_LEL);
+
+	if (!ret) {
+		/*
+		 * handle_plane_e_exit() returned false and therefore RMM needs
+		 * to return to Host for Stage 2 fixup. Once the fixup is done,
+		 * RMM must retry the same WFx instruction again, so we need to
+		 * reverse Plane_N PC here before exiting to the Host.
+		 */
+		reverse_pc();
+	}
+
+	return ret;
+}
+
+/*
+ * Return 'true' if execution should continue in the REC, otherwise return
+ * 'false' to go back to the NS caller of REC.Enter.
+ */
+static bool handle_hvc_exception(struct rec *rec,
+				 struct rmi_rec_exit *rec_exit)
+{
+	bool ret;
+
+	if (rec_is_plane_0_active(rec)) {
+		/* Plane 0 must use the SMC conduit for all services */
+		realm_inject_undef_abort();
+		return true;
+	}
+
+	/*
+	 * Handle_plane_n_exit() expects the PC to point to the address of
+	 * the instruction following the one that caused the exception. In
+	 * the case of an HVC instruction, the PC is already advanced.
+	 */
+	ret = handle_plane_n_exit(rec, rec_exit, ARM_EXCEPTION_SYNC_LEL);
+
+	if (!ret) {
+		/*
+		 * handle_plane_n_exit() returned false and therefore RMM needs
+		 * to return to Host for Stage 2 fixup. Once the fixup is done,
+		 * RMM must retry the same HVC instruction again, so we need to
+		 * reverse Plane_N PC here before exiting to the Host.
+		 */
+		reverse_pc();
+	}
+
+	return ret;
+}
+
+/*
+ * Return 'true' if no further process of the function pointed to by
+ * @function_id is needed.
+ */
+static bool handle_rsi_from_pn(struct rec *rec, struct rmi_rec_exit *rec_exit,
+			       struct rec_plane *plane,
+			       unsigned int function_id, bool *p0_return)
+{
+	/*
+	 * SMC calls from plane N cause plane exit to Plane 0 due to
+	 * synchronous exception.
+	 *
+	 * The only exception to this rule is when SMC_RSI_HOST_CALL is
+	 * invoked with plane->trap_hc == RSI_NO_TRAP, hence, filter this call.
+	 */
+	if (!(function_id == SMC_RSI_HOST_CALL) &&
+			(plane->trap_hc != (bool)RSI_TRAP)) {
+		advance_pc();
+		*p0_return = handle_plane_n_exit(rec, rec_exit,
+						 ARM_EXCEPTION_SYNC_LEL);
+
+		/*
+		 * If handle_plane_n_exit() returned false, RMM needs to return
+		 * to Host for Stage 2 fixup. Once the fixup is doen, RMM must
+		 * retry the same instruction again.
+		 */
+		if (!(*p0_return)) {
+			reverse_pc();
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+/*
+ * Return 'true' if execution should continue in the REC, otherwise return
+ * 'false' to go back to the NS caller.
+ */
 static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 {
 	struct rsi_result res = {UPDATE_REC_RETURN_TO_REALM, 0UL,
 				{{[0 ... SMC_RESULT_REGS-1] = 0UL}}};
-	unsigned int function_id = (unsigned int)rec->regs[0];
-	bool rec_ret, restore_simd_ctx = false;
+	struct rec_plane *plane = rec_active_plane(rec);
+	unsigned int function_id = (unsigned int)plane->regs[0];
+	bool restore_simd_ctx = false;
 	unsigned int i;
-
-	RSI_LOG_SET(rec->regs);
+	bool rec_ret;
+	bool p0_ret __unused;
 
 	/*
 	 * According to SMCCCv1.1+ if SMC call doesn't return result
 	 * in register starting from X4, it must preserve its value.
 	 */
 	for (i = 4U; i < SMC_RESULT_REGS; ++i) {
-		res.smc_res.x[i] = rec->regs[i];
+		res.smc_res.x[i] = plane->regs[i];
 	}
+
+	/* Ignore SVE hint bit, until RMM supports SVE hint bit */
+	function_id &= ~SMC_SVE_HINT;
+
+	if (!rec_is_plane_0_active(rec)) {
+		bool p0_return;
+
+		if (handle_rsi_from_pn(rec, rec_exit, plane,
+						function_id, &p0_return)) {
+			return p0_return;
+		}
+	}
+
+	assert(rec_is_plane_0_active(rec) || (function_id == SMC_RSI_HOST_CALL));
+
+	RSI_LOG_SET(plane->regs);
 
 	/* Ignore SVE hint bit, until RMM supports SVE hint bit */
 	function_id &= ~SMC_SVE_HINT;
@@ -445,6 +624,24 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	case SMC_RSI_HOST_CALL:
 		handle_rsi_host_call(rec, rec_exit, &res);
 		break;
+	case SMC_RSI_MEM_GET_PERM_VALUE:
+		handle_rsi_mem_get_perm_value(rec, &res);
+		break;
+	case SMC_RSI_MEM_SET_PERM_INDEX:
+		handle_rsi_mem_set_perm_index(rec, rec_exit, &res);
+		break;
+	case SMC_RSI_MEM_SET_PERM_VALUE:
+		handle_rsi_mem_set_perm_value(rec, &res);
+		break;
+	case SMC_RSI_PLANE_ENTER:
+		handle_rsi_plane_enter(rec, &res);
+		break;
+	case SMC_RSI_PLANE_REG_READ:
+		handle_rsi_plane_reg_read(rec, &res);
+		break;
+	case SMC_RSI_PLANE_REG_WRITE:
+		handle_rsi_plane_reg_write(rec, &res);
+		break;
 	default:
 		res.action = UPDATE_REC_RETURN_TO_REALM;
 		res.smc_res.x[0] = SMC_UNKNOWN;
@@ -455,22 +652,43 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		simd_context_restore(rec->active_simd_ctx);
 	}
 
-	if (((unsigned int)res.action & FLAG_UPDATE_REC) != 0U) {
-		for (i = 0U; i < SMC_RESULT_REGS; ++i) {
-			rec->regs[i] = res.smc_res.x[i];
+	/*
+	 * If the plane didn't change, either emulate a stage 2 abort or
+	 * advance PC. If handle_* opted to change planes, leave PC alone.
+	 */
+	if (((unsigned int)res.action & FLAG_PLANE_CHANGED) == 0U) {
+		if (((unsigned int)res.action & FLAG_STAGE_2_ABORT) != 0U) {
+			/*
+			 * The RSI call cannot prograess because the IPA that
+			 * was provided by the Realm has invalid mapping.
+			 * Emulate the data abort against that IPA so that the
+			 * host can bring the page in.
+			 *
+			 * All RSI calls except SMC_RSI_PLANE_ENTER hold the
+			 * IPA in X1.
+			 */
+			unsigned int ipa_reg =
+				(function_id == SMC_RSI_PLANE_ENTER) ? 2U : 1U;
+			unsigned long ipa = plane->regs[ipa_reg];
+
+			emulate_stage2_data_abort(rec_exit, res.rtt_level, ipa);
+		} else {
+			advance_pc();
 		}
 	}
 
-	if (((unsigned int)res.action & FLAG_STAGE_2_ABORT) != 0U) {
-		emulate_stage2_data_abort(rec, rec_exit, res.rtt_level);
-	} else {
-		advance_pc();
+	/* Update REC registers if requested */
+	if (((unsigned int)res.action & FLAG_UPDATE_REC) != 0U) {
+		for (i = 0U; i < SMC_RESULT_REGS; ++i) {
+			plane->regs[i] = res.smc_res.x[i];
+		}
 	}
 
 	rec_ret = (((unsigned int)res.action & FLAG_EXIT_TO_HOST) == 0U);
+	p0_ret = (((unsigned int)res.action &
+		   (FLAG_EXIT_TO_HOST | FLAG_PLANE_CHANGED)) == 0U);
 
-	/* Log RSI call */
-	RSI_LOG_EXIT(function_id, rec->regs, rec_ret);
+	RSI_LOG_EXIT(function_id, plane->regs, p0_ret);
 
 	return rec_ret;
 }
@@ -485,12 +703,9 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 
 	switch (esr & MASK(ESR_EL2_EC)) {
 	case ESR_EL2_EC_WFX:
-		rec_exit->esr = esr & (MASK(ESR_EL2_EC) | ESR_EL2_WFx_TI_BIT);
-		advance_pc();
-		return false;
+		return handle_wfx_exception(rec, rec_exit, esr);
 	case ESR_EL2_EC_HVC:
-		realm_inject_undef_abort();
-		return true;
+		return handle_hvc_exception(rec, rec_exit);
 	case ESR_EL2_EC_SMC:
 		return handle_realm_rsi(rec, rec_exit);
 	case ESR_EL2_EC_SYSREG: {
@@ -599,6 +814,8 @@ static bool handle_exception_irq_lel(struct rec *rec, struct rmi_rec_exit *rec_e
 /* Returns 'true' when returning to Realm (S) and false when to NS */
 bool handle_realm_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int exception)
 {
+	struct rec_plane *plane = rec_active_plane(rec);
+
 	switch (exception) {
 	case ARM_EXCEPTION_SYNC_LEL: {
 		bool ret;
@@ -610,16 +827,16 @@ bool handle_realm_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int excep
 		rec_exit->exit_reason = RMI_EXIT_SYNC;
 		ret = handle_exception_sync(rec, rec_exit);
 		if (!ret) {
-			rec->last_run_info.esr = read_esr_el2();
+			plane->last_run_info.esr = read_esr_el2();
 			/*
 			 * Clear the ISV bit in last_run_info so that on next REC entry
 			 * RMM doesn't allow MMIO emulation for invalid cases.
 			 */
 			if ((rec_exit->esr & ESR_EL2_ABORT_ISV_BIT) == 0UL) {
-				rec->last_run_info.esr &= ~ESR_EL2_ABORT_ISV_BIT;
+				plane->last_run_info.esr &= ~ESR_EL2_ABORT_ISV_BIT;
 			}
-			rec->last_run_info.far = read_far_el2();
-			rec->last_run_info.hpfar = read_hpfar_el2();
+			plane->last_run_info.far = read_far_el2();
+			plane->last_run_info.hpfar = read_hpfar_el2();
 		}
 		return ret;
 
@@ -643,9 +860,9 @@ bool handle_realm_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int excep
 		rec_exit->exit_reason = RMI_EXIT_SERROR;
 		ret = handle_exception_serror_lel(rec, rec_exit);
 		if (!ret) {
-			rec->last_run_info.esr = esr;
-			rec->last_run_info.far = read_far_el2();
-			rec->last_run_info.hpfar = read_hpfar_el2();
+			plane->last_run_info.esr = esr;
+			plane->last_run_info.far = read_far_el2();
+			plane->last_run_info.hpfar = read_hpfar_el2();
 		}
 		return ret;
 	}
@@ -655,4 +872,172 @@ bool handle_realm_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int excep
 	}
 
 	return false;
+}
+
+static void handle_plane_exit_sync(struct rsi_plane_exit *exit)
+{
+	const unsigned long esr_el2 = read_esr_el2();
+	const unsigned long elr_el2 = read_elr_el2();
+	const unsigned long far_el2 = read_far_el2();
+	const unsigned long hpfar_el2 = read_hpfar_el2();
+
+	exit->reason = RSI_EXIT_SYNC;
+	exit->elr_el2 = elr_el2;
+	exit->esr_el2 = esr_el2;
+	exit->far_el2 = far_el2;
+	exit->hpfar_el2 = hpfar_el2;
+}
+
+static void do_handle_plane_exit(int exception, struct rsi_plane_exit *exit)
+{
+	switch (exception) {
+	case ARM_EXCEPTION_SYNC_LEL:
+		handle_plane_exit_sync(exit);
+		break;
+	default:
+		ERROR("Unhandled Plane exit exception: 0x%x\n", exception);
+		assert(false);
+	}
+}
+
+static void copy_timer_state_to_plane_exit(STRUCT_TYPE sysreg_state * sysregs,
+					   struct rsi_plane_exit *exit)
+{
+	exit->cntp_ctl = sysregs->pp_sysregs.cntp_ctl_el0;
+	exit->cntp_cval = sysregs->pp_sysregs.cntp_cval_el0;
+	exit->cntv_ctl = sysregs->pp_sysregs.cntv_ctl_el0;
+	exit->cntv_cval = sysregs->pp_sysregs.cntv_cval_el0;
+}
+
+static void copy_gicstate_to_plane_exit(struct gic_cpu_state *gicstate,
+					struct rsi_plane_exit *exit)
+{
+	exit->gicv3_hcr = gicstate->ich_hcr_el2;
+
+	for (unsigned int i = 0; i < RSI_PLANE_GIC_NUM_LRS; i++) {
+		exit->gicv3_lrs[i] = gicstate->ich_lr_el2[i];
+	}
+
+	exit->gicv3_misr = gicstate->ich_misr_el2;
+	exit->gicv3_vmcr = gicstate->ich_vmcr_el2;
+}
+
+static void copy_state_to_plane_exit(struct rec_plane *plane,
+				     struct rsi_plane_exit *exit)
+{
+	for (unsigned int i = 0; i < RSI_PLANE_NR_GPRS; i++) {
+		exit->gprs[i] = plane->regs[i];
+	}
+
+	exit->pstate = plane->sysregs->pstate;
+	copy_timer_state_to_plane_exit(plane->sysregs, exit);
+	copy_gicstate_to_plane_exit(&plane->sysregs->gicstate, exit);
+}
+
+/*
+ * Handles the exit from plane N
+ *
+ * If 'true' is returned:
+ * - The Realm has switched to Plane 0.
+ * - The Realm can continue running
+ *
+ * If 'false' is returned:
+ * - The Realm has remained on Plane N because the stage 2 mapping of
+ *   `rsi_plane_run` page is not valid.
+ * - The data abort against the `rsi_plane_run` page be emulated.
+ * - The RMM should return to the host so that the host can fix the mapping.
+ * - The caller must ensure that Plane N executes the same
+ *   instruction the next time the Realm is scheduled.
+ *
+ * Note that this function expects the PC on Plane N to point to the instruction
+ * after the one that caused the exception.
+ */
+bool handle_plane_n_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int exception)
+{
+	enum s2_walk_status walk_status;
+	struct s2_walk_result walk_res;
+	struct rec_plane *plane_0, *plane_n;
+	unsigned long run_ipa, ret;
+	struct granule *gr;
+	struct rsi_plane_run *run;
+
+	assert(!rec_is_plane_0_active(rec));
+
+	plane_0 = rec_plane_0(rec);
+	plane_n = rec_active_plane(rec);
+
+	/* RSI_PLANE_ENTER receives the run structure IPA on the second arg */
+	run_ipa = plane_0->regs[2];
+
+	/*
+	 * Find the rsi_plane_run page where we should report the
+	 * plane N exit to Plane 0.
+	 */
+	walk_status = realm_ipa_to_pa(rec, run_ipa, &walk_res);
+
+	/*
+	 * Alignment and Protected IPA checks were done by
+	 * handle_rsi_plane_enter
+	 */
+	assert(walk_status != WALK_INVALID_PARAMS);
+
+	if (walk_res.ripas_val == RIPAS_EMPTY) {
+		/*
+		 * Plane 0 has set the ripas of `rsi_plane_run` granule
+		 * to "empty".
+		 * Exit to Plane 0 with error. The content of
+		 * Plane N will be lost.
+		 */
+		ret = RSI_ERROR_INPUT;
+		goto out_return_to_plane_0;
+	} else if (walk_status == WALK_FAIL) {
+		/* `rsi_plane_run` page is either destroyed or unassigned_ram s2tte */
+		emulate_stage2_data_abort(rec_exit, walk_res.rtt_level, run_ipa);
+
+		return false;
+	}
+
+	assert(walk_status == WALK_SUCCESS);
+
+	ret = RSI_SUCCESS;
+
+	/* Save target Plane state to REC */
+	save_realm_state(plane_n);
+
+	/* Map rsi_plane_run granule to RMM address space */
+	gr = find_granule(walk_res.pa);
+	run = (struct rsi_plane_run *)buffer_granule_map(gr, SLOT_REALM);
+
+	/* Zero the exit structure */
+	(void)memset((void *)&run->exit, 0, sizeof(struct rsi_plane_exit));
+
+	/* Copy target Plane state to exit structure */
+	copy_state_to_plane_exit(plane_n, &run->exit);
+
+	/* Populate other fields of exit structure */
+	do_handle_plane_exit(exception, &run->exit);
+
+	/* Unmap rsi_plane_run granule */
+	buffer_unmap(run);
+
+	/* Unlock last level RTT */
+	granule_unlock(walk_res.llt);
+
+out_return_to_plane_0:
+	/* Return values to Plane 0 */
+	plane_0->regs[0] = ret;
+	plane_0->regs[1] = 0UL;
+	plane_0->regs[2] = 0UL;
+	plane_0->regs[3] = 0UL;
+
+	/* Deactivate plane 0 */
+	rec_deactivate_plane_n(rec);
+
+	/* Advance the PC on Plane 0 */
+	plane_0->pc = plane_0->pc + 4UL;
+
+	/* Restore Plane 0 state from REC */
+	restore_realm_state(rec, plane_0);
+
+	return true;
 }
