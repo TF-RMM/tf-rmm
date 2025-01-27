@@ -18,3 +18,7 @@
 	url = https://github.com/DMTF/libspdm.git
 	fetchRecurseSubmodules = false
 	ignore = dirty
+[submodule "ext/spdm-emu"]
+	path = ext/spdm-emu
+	url = https://github.com/DMTF/spdm-emu.git
+	ignore = dirty

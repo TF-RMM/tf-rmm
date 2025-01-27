@@ -13,6 +13,7 @@ endif()
 
 add_subdirectory("mbedtls_da")
 add_subdirectory("spdm_requester")
+add_subdirectory("spdm_emu")
 
 include(ArmTargetLinkerScript)
 
