@@ -529,6 +529,35 @@ DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(pire0_el12, if_present,		\
 DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(por_el12, if_present,		\
 				   is_feat_s1poe_present, 0UL)
 
+/*
+ * Check if S2PIE is enabled
+ * ID_AA64MMFR3_EL1.S2PIE, bits [15:12]:
+ * 0b0000 Stage 2 permission indirection extension arch. feature is not implemented.
+ * 0b0001 Stage 2 permission indirection extension arch. feature is implemented.
+ */
+static inline bool is_feat_s2pie_present(void)
+{
+	return (EXTRACT(ID_AA64MMFR3_EL1_S2PIE,
+			READ_CACHED_REG(id_aa64mmfr3_el1)) != 0UL);
+}
+
+/*
+ * Check if S2POE is enabled
+ * ID_AA64MMFR3_EL1.S2POE, bits [23:20]:
+ * 0b0000 Stage 2 permission overlay extension arch. feature is not implemented.
+ * 0b0001 Stage 2 permission overlay extension arch. feature is implemented.
+ */
+static inline bool is_feat_s2poe_present(void)
+{
+	return (EXTRACT(ID_AA64MMFR3_EL1_S2POE,
+			READ_CACHED_REG(id_aa64mmfr3_el1)) != 0UL);
+}
+
+static inline bool are_feat_s2pie_and_s2poe_present(void)
+{
+	return is_feat_s2pie_present() && is_feat_s2poe_present();
+}
+
 unsigned int arch_feat_get_pa_width(void);
 
 #endif /* ARCH_FEATURES_H */
