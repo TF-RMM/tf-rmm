@@ -30,6 +30,9 @@
 #define REC_PMU_PAGES			1U
 #define REC_PMU_SIZE			(REC_PMU_PAGES * SZ_4K)
 
+/* Ensure that we have enough space to store the PMU contexts per plane. */
+COMPILER_ASSERT((sizeof(struct pmu_state) * MAX_TOTAL_PLANES) <= REC_PMU_SIZE);
+
 /*
  * SIMD context that holds FPU/SVE registers. Space to save max arch supported
  * SVE vector length of 2048 bits.
@@ -117,6 +120,13 @@ STRUCT_TYPE sysreg_state {
 	 */
 	struct gic_cpu_state gicstate;
 
+	/*
+	 * Pointer to the PMU registers.
+	 * Note that this is a pointer as pmu_state structure may have a
+	 * large storage itself.
+	 */
+	struct pmu_state *pmu;
+
 	unsigned long vmpidr_el2;	/* restored only */
 	unsigned long hcr_el2;		/* restored only */
 
@@ -174,9 +184,6 @@ COMPILER_ASSERT(sizeof(struct rec_attest_data) <= GRANULE_SIZE);
  * in auxilary granules for a REC.
  */
 struct rec_aux_data {
-	/* Pointer to PMU state */
-	struct pmu_state *pmu;
-
 	/* SIMD context region */
 	struct simd_context *simd_ctx;
 
@@ -314,6 +321,18 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 	unsigned int gic_owner;
 };
 COMPILER_ASSERT(sizeof(struct rec) <= GRANULE_SIZE);
+
+/*
+ * Retrieve a pointer to the sysregs given a rec structure and a plane index.
+ * Note that this macro does not do any sanitization to the arguments.
+ */
+#define REC_GET_SYSREGS_FROM_AUX(_rec, _index)				\
+	({								\
+		STRUCT_TYPE sysreg_state *_sysreg =			\
+			&((_rec)->aux_data.sysregs[(_index)]);		\
+									\
+		_sysreg;						\
+	})
 
 /*
  * Get the number of planes available on the realm

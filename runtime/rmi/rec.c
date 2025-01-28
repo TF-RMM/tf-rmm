@@ -226,8 +226,16 @@ static void rec_simd_state_init(struct rec *r)
 /* Initialize rec PMU state */
 static void rec_pmu_state_init(struct rec *r)
 {
-	r->aux_data.pmu->pmcr_el0 = r->realm_info.pmu_enabled ?
+	unsigned int num_planes = rec_num_planes(r);
+
+	for (unsigned int i = 0U; i < num_planes; i++) {
+		STRUCT_TYPE sysreg_state *sysregs =
+			REC_GET_SYSREGS_FROM_AUX(r, i);
+		assert(sysregs->pmu != NULL);
+
+		sysregs->pmu->pmcr_el0 = r->realm_info.pmu_enabled ?
 					PMCR_EL0_INIT_RESET : PMCR_EL0_INIT;
+	}
 }
 
 /*
@@ -238,9 +246,12 @@ static void rec_aux_granules_init(struct rec *r)
 {
 	void *rec_aux;
 	struct rec_aux_data *aux_data;
-	size_t i;
 	int ret;
+	struct pmu_state *pmu;
+	uintptr_t granule_pas[MAX_REC_AUX_GRANULES];
+	size_t granule_pa_count;
 	size_t used_aux_pages;
+	unsigned int num_planes;
 
 	/* Map auxiliary granules */
 	/* coverity[overrun-buffer-val:SUPPRESS] */
@@ -262,28 +273,32 @@ static void rec_aux_granules_init(struct rec *r)
 	 * data, buffer and sysregs.
 	 */
 	aux_data = &r->aux_data;
-	aux_data->pmu = (struct pmu_state *)rec_aux;
+	pmu = (struct pmu_state *)rec_aux;
 	aux_data->simd_ctx = (struct simd_context *)
-		((uintptr_t)aux_data->pmu + REC_PMU_SIZE);
+		((uintptr_t)pmu + REC_PMU_SIZE);
 	aux_data->attest_data = (struct rec_attest_data *)
 		((uintptr_t)aux_data->simd_ctx + REC_SIMD_SIZE);
 	aux_data->sysregs = (STRUCT_TYPE sysreg_state *)
 		((uintptr_t)aux_data->attest_data + REC_ATTEST_SIZE);
-
 	used_aux_pages =
 		((uintptr_t)aux_data->sysregs + REC_SYSREGS_SIZE -
 			(uintptr_t)rec_aux) / GRANULE_SIZE;
 
 	assert(used_aux_pages < r->num_rec_aux);
 
+	/* Associate the PMU state of each plane with its sysregs structure */
+	num_planes = rec_num_planes(r);
+	for (unsigned int i = 0U; i < num_planes; i++) {
+		aux_data->sysregs[i].pmu = &pmu[i];
+	}
+
 	rec_simd_state_init(r);
 	rec_pmu_state_init(r);
 
 	/* Use the rest of the aux pages for the app */
-	uintptr_t granule_pas[MAX_REC_AUX_GRANULES];
-	size_t granule_pa_count = r->num_rec_aux - used_aux_pages;
+	granule_pa_count = r->num_rec_aux - used_aux_pages;
 
-	for (i = 0; i < granule_pa_count; ++i) {
+	for (size_t i = 0UL; i < granule_pa_count; ++i) {
 		granule_pas[i] = granule_addr(r->g_aux[used_aux_pages + i]);
 	}
 

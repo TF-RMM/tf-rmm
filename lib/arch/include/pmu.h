@@ -12,6 +12,8 @@
 struct rmi_rec_exit;
 struct rec;
 
+#define PMU_N_PMEV_REGS		(31U)
+
 struct pmev_regs {
 	unsigned long pmevcntr_el0;
 	unsigned long pmevtyper_el0;
@@ -32,7 +34,7 @@ struct pmu_state {
 	unsigned long pmselr_el0;
 	unsigned long pmuserenr_el0;
 
-	struct pmev_regs pmev_regs[31];
+	struct pmev_regs pmev_regs[PMU_N_PMEV_REGS];
 
 } __aligned(CACHE_WRITEBACK_GRANULE);
 

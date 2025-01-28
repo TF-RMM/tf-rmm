@@ -1010,7 +1010,7 @@ bool handle_plane_n_exit(struct rec *rec,
 
 	/* Save Plane N state to REC */
 	if (save_restore_plane_state) {
-		save_realm_state(plane_n);
+		save_realm_state(rec, plane_n);
 	}
 
 	/* Map rsi_plane_run granule to RMM address space */

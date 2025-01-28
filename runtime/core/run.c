@@ -72,13 +72,54 @@ static void save_sysreg_state(struct sysreg_state *sysregs)
 	sysregs->pp_sysregs.cntv_cval_el0 = read_cntv_cval_el02();
 }
 
-void save_realm_state(struct rec_plane *plane)
+static void save_pmu(struct rec *rec)
+{
+	if (rec->realm_info.pmu_enabled) {
+		struct rec_plane *plane = rec_active_plane(rec);
+
+		assert(plane->sysregs != NULL);
+
+		/* Save PMU context
+		 * Save number of PMU event counters configured for the realm.
+		 */
+		pmu_save_state(plane->sysregs->pmu,
+				rec->realm_info.pmu_num_ctrs);
+	}
+}
+
+static void restore_pmu(struct rec *rec)
+{
+	if (rec->realm_info.pmu_enabled) {
+		struct rec_plane *plane = rec_active_plane(rec);
+
+		assert(plane->sysregs != NULL);
+
+		/*
+		 * Restore realm PMU context.
+		 * Restore number of PMU counters configured for the realm.
+		 */
+		pmu_restore_state(plane->sysregs->pmu,
+				  rec->realm_info.pmu_num_ctrs);
+	}
+}
+
+static void report_pmu_state_to_ns(struct rec *rec, struct rmi_rec_exit *rec_exit)
+{
+	if (rec->realm_info.pmu_enabled) {
+		/* Expose PMU Realm state to NS */
+		rec_exit->pmu_ovf_status = (pmu_is_ovf_set() ?
+		RMI_PMU_OVERFLOW_ACTIVE : RMI_PMU_OVERFLOW_NOT_ACTIVE);
+	}
+}
+
+void save_realm_state(struct rec *rec, struct rec_plane *plane)
 {
 	save_sysreg_state(plane->sysregs);
 
 	plane->pc = read_elr_el2();
 	plane->sysregs->pstate = read_spsr_el2();
 
+	save_pmu(rec);
 	gic_save_state(&plane->sysregs->gicstate);
 }
 
@@ -199,42 +240,10 @@ void restore_realm_state(struct rec *rec, struct rec_plane *plane)
 	/* Control trapping of accesses to PMU registers */
 	write_mdcr_el2(rec->common_sysregs.mdcr_el2);
 
+	restore_pmu(rec);
 	gic_restore_state(&plane->sysregs->gicstate);
 
 	restore_realm_stage2(rec);
-}
-
-/*
- * @TODO: Currently it is assumed that only a single Plane in the realm uses
- * PMU. Hence, the save and restore is only done as part of Realm exit and
- * enter. This will need to be reworked as part of adding per-Plane support
- * for PMU.
- */
-static void save_pmu(struct rec *rec, struct rmi_rec_exit *rec_exit)
-{
-	if (rec->realm_info.pmu_enabled) {
-		/* Expose PMU Realm state to NS */
-		rec_exit->pmu_ovf_status = (pmu_is_ovf_set() ?
-		RMI_PMU_OVERFLOW_ACTIVE : RMI_PMU_OVERFLOW_NOT_ACTIVE);
-
-		/* Save PMU context
-		 * Save number of PMU event counters configured for the realm.
-		 */
-		pmu_save_state(rec->aux_data.pmu,
-				rec->realm_info.pmu_num_ctrs);
-	}
-}
-
-static void restore_pmu(struct rec *rec)
-{
-	if (rec->realm_info.pmu_enabled) {
-		/*
-		 * Restore realm PMU context.
-		 * Restore number of PMU counters configured for the realm.
-		 */
-		pmu_restore_state(rec->aux_data.pmu,
-				  rec->realm_info.pmu_num_ctrs);
-	}
 }
 
 static void save_ns_state(struct rec *rec)
@@ -368,7 +377,6 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 	save_ns_state(rec);
 	restore_realm_state(rec, plane);
-	restore_pmu(rec);
 
 	/*
 	 * The run loop must be entered with active SIMD context set to current
@@ -477,8 +485,11 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		report_timer_state_to_ns(rec, rec_exit);
 	}
 
-	save_realm_state(plane);
-	save_pmu(rec, rec_exit);
+	/* Expose PMU Realm state to NS */
+	report_pmu_state_to_ns(rec, rec_exit);
+
+	save_realm_state(rec, plane);
+
 	restore_ns_state(rec);
 
 	/*

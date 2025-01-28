@@ -73,7 +73,7 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	}
 
 	/* Save Plane 0 state to REC */
-	save_realm_state(plane_0);
+	save_realm_state(rec, plane_0);
 
 	/*
 	 * Check if the primary plane has timers that we need to be notified of
@@ -126,6 +126,99 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 
 	/* Unlock last level RTT */
 	granule_unlock(walk_res.llt);
+}
+
+/* Bit definitions for the index used for pmvcntr and pvmtyper registers */
+#define REG_IDX_SHIFT		UL(0)
+#define REG_IDX_WIDTH		UL(5)
+#define REG_IDX_MASK		MASK(REG_IDX)
+
+/*
+ * Perform a RW access to the PMU PMEV register @reg_id stored in the
+ * sysreg context @sysreg.
+ */
+static bool access_pmu_pmev_el0_sysregs(STRUCT_TYPE sysreg_state *sysregs,
+			       unsigned long reg_id, unsigned long *value,
+			       bool read)
+{
+	/*
+	 * Generate the index for the pmev array of registers using @reg_id.
+	 * As per the Arm ARM, the index is stored in CRm and Op2 as follows:
+	 *
+	 * IDX = [CRm[1:0], Op2[2:0]]
+	 */
+	unsigned long reg_idx = reg_id & ~RSI_SYSREG_PMEV_MASK;
+
+	reg_idx = (((EXTRACT(RSI_SYSREG_ADDR_CRM, reg_idx) << RSI_SYSREG_ADDR_OP2_WIDTH)
+		   | (EXTRACT(RSI_SYSREG_ADDR_OP2, reg_idx))) & REG_IDX_MASK);
+
+	if (reg_idx < UL(PMU_N_PMEV_REGS)) {
+		struct pmev_regs *pmev_regs = &(sysregs->pmu->pmev_regs[reg_idx]);
+
+		if ((reg_id & RSI_SYSREG_PMEV_MASK) == RSI_SYSREG_PMEVCNTR_MASK) {
+			if (read) {
+				*value = pmev_regs->pmevcntr_el0;
+			} else {
+				pmev_regs->pmevcntr_el0 = *value;
+			}
+			return true;
+		}
+
+		if ((reg_id & RSI_SYSREG_PMEV_MASK) == RSI_SYSREG_PMEVTYPER_MASK) {
+			if (read) {
+				*value = pmev_regs->pmevtyper_el0;
+			} else {
+				pmev_regs->pmevtyper_el0 = *value;
+			}
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/*
+ * Perform a RW access to the PMU register @reg_id stored in the
+ * sysreg context @sysreg.
+ *
+ * This function does not make any sanitization or checks on the arguments
+ * so it expects all of them to be valid.
+ */
+static bool access_pmu_sysregs(STRUCT_TYPE sysreg_state *sysregs,
+			       unsigned long reg_id, unsigned long *value,
+			       bool read)
+{
+/* cppcheck-suppress misra-c2012-20.7 */
+#define PMU_SYSREG_ACCESS(_sysreg)				\
+	do {							\
+		if (read) {					\
+			*value = sysregs->pmu->_sysreg;		\
+		} else {					\
+			sysregs->pmu->_sysreg = *value;		\
+		}						\
+								\
+		return true;					\
+								\
+	} while (false)
+
+/* cppcheck-suppress misra-c2012-20.7 */
+#define PMU_SYSREG_ACCESS_CASE(_sysreg)				\
+	case RSI_SYSREG_ID_##_sysreg:				\
+		PMU_SYSREG_ACCESS(_sysreg)
+
+	switch (reg_id) {
+		PMU_SYSREG_ACCESS_CASE(pmcr_el0);
+		PMU_SYSREG_ACCESS_CASE(pmccfiltr_el0);
+		PMU_SYSREG_ACCESS_CASE(pmccntr_el0);
+		PMU_SYSREG_ACCESS_CASE(pmcntenset_el0);
+		PMU_SYSREG_ACCESS_CASE(pmintenset_el1);
+		PMU_SYSREG_ACCESS_CASE(pmovsset_el0);
+		PMU_SYSREG_ACCESS_CASE(pmselr_el0);
+		PMU_SYSREG_ACCESS_CASE(pmuserenr_el0);
+	default:
+		/* Try the PMU PMEV registers */
+		return access_pmu_pmev_el0_sysregs(sysregs, reg_id, value, read);
+	}
 }
 
 /*
@@ -210,7 +303,8 @@ static bool access_plane_sysreg(struct rec *rec,
 		SYSREG_ACCESS_CASE(pauth, apgakeylo_el1);
 		SYSREG_ACCESS_CASE(pauth, apgakeyhi_el1);
 	default:
-		return false;
+		/* Try with the PMU registers */
+		return access_pmu_sysregs(sysregs, sysreg, value, read);
 	}
 
 	/* coverity[misra_c_2012_rule_2_1_violation:SUPPRESS] */

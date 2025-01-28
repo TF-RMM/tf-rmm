@@ -561,7 +561,6 @@ struct rsi_host_call {
 #define RSI_SYSREG_ID_mdccint_el1		RSI_SYSREG_ADDR_OPCODE(2, 0, 0, 2, 0)
 #define RSI_SYSREG_ID_mdscr_el1			RSI_SYSREG_ADDR_OPCODE(2, 0, 0, 2, 2)
 #define RSI_SYSREG_ID_par_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 7, 4, 0)
-#define RSI_SYSREG_ID_pmcr_el0			RSI_SYSREG_ADDR_OPCODE(3, 3, 9, 12, 0)
 #define RSI_SYSREG_ID_sctlr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 1, 0, 0)
 #define RSI_SYSREG_ID_sp_el0			RSI_SYSREG_ADDR_OPCODE(3, 0, 4, 1, 0)
 #define RSI_SYSREG_ID_sp_el1			RSI_SYSREG_ADDR_OPCODE(3, 4, 4, 1, 0)
@@ -583,6 +582,19 @@ struct rsi_host_call {
 #define RSI_SYSREG_ID_pir_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 10, 2, 3)
 #define RSI_SYSREG_ID_pire0_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 10, 2, 2)
 #define RSI_SYSREG_ID_por_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 10, 2, 4)
+
+#define RSI_SYSREG_ID_pmcr_el0			RSI_SYSREG_ADDR_OPCODE(3, 3, 9, 12, 0)
+#define RSI_SYSREG_ID_pmccfiltr_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 14, 15, 7)
+#define RSI_SYSREG_ID_pmccntr_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 9, 13, 0)
+#define RSI_SYSREG_ID_pmcntenset_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 9, 12, 1)
+#define RSI_SYSREG_ID_pmintenset_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 9, 14, 1)
+#define RSI_SYSREG_ID_pmovsset_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 9, 14, 3)
+#define RSI_SYSREG_ID_pmselr_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 9, 12, 5)
+#define RSI_SYSREG_ID_pmuserenr_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 9, 14, 0)
+
+#define RSI_SYSREG_PMEV_MASK			SYSREG_TRAP_OPCODE(3, 7, 15, 12, 0)
+#define RSI_SYSREG_PMEVCNTR_MASK		SYSREG_TRAP_OPCODE(3, 3, 14, 8, 0)
+#define RSI_SYSREG_PMEVTYPER_MASK		SYSREG_TRAP_OPCODE(3, 3, 14, 12, 0)
 
 /*
  * RsiDevInfo

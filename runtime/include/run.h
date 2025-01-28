@@ -29,6 +29,6 @@ struct simd_context *get_cpu_ns_simd_context(void);
 void restore_realm_state(struct rec *rec, struct rec_plane *plane);
 
 /* Save the realm state @plane */
-void save_realm_state(struct rec_plane *plane);
+void save_realm_state(struct rec *rec, struct rec_plane *plane);
 
 #endif /* RUN_H */
