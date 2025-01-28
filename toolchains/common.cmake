@@ -20,7 +20,7 @@ foreach(language IN ITEMS ASM C CXX)
     string(APPEND CMAKE_${language}_FLAGS_INIT "-Wno-type-limits ")
     string(APPEND CMAKE_${language}_FLAGS_INIT "-gdwarf-4 ")
     string(APPEND CMAKE_${language}_FLAGS_INIT "-D_FORTIFY_SOURCE=2 ")
-    string(APPEND CMAKE_${language}_FLAGS_DEBUG_INIT "-Og -Wnull-dereference ")
+    string(APPEND CMAKE_${language}_FLAGS_DEBUG_INIT "-Og -Wnull-dereference -Wstrict-aliasing=1 ")
     string(APPEND CMAKE_${language}_FLAGS_RELEASE_INIT "-g ")
 endforeach()
 
