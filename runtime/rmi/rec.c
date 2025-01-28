@@ -326,6 +326,18 @@ void rec_set_pending_op(struct rec *rec, unsigned int pending_op)
 	rec->pending_op = pending_op;
 }
 
+static unsigned long get_rsi_feature_register_0(struct rd *rd)
+{
+	unsigned long rsi_feat_reg0 = 0UL;
+
+	if (rd->da_enabled) {
+		rsi_feat_reg0 |= INPLACE(RSI_FEATURE_REGISTER_0_DA,
+					 RSI_FEATURE_TRUE);
+	}
+
+	return rsi_feat_reg0;
+}
+
 unsigned long smc_rec_create(unsigned long rd_addr,
 			     unsigned long rec_addr,
 			     unsigned long rec_params_addr)
@@ -433,6 +445,7 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	rec->realm_info.primary_s2_ctx = rd->s2_ctx[PRIMARY_S2_CTX_ID];
 	rec->realm_info.g_rd = g_rd;
 	rec->realm_info.pmu_enabled = rd->pmu_enabled;
+	rec->realm_info.cached_rsi_feature_reg0 = get_rsi_feature_register_0(rd);
 	rec->realm_info.pmu_num_ctrs = rd->pmu_num_ctrs;
 	rec->realm_info.algorithm = rd->algorithm;
 	rec->realm_info.simd_cfg = rd->simd_cfg;

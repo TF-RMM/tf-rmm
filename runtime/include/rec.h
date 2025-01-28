@@ -290,6 +290,7 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 	 */
 	struct {
 		struct granule *g_rd;
+		unsigned long cached_rsi_feature_reg0;
 		bool pmu_enabled;
 		unsigned int pmu_num_ctrs;
 		enum hash_algo algorithm;
