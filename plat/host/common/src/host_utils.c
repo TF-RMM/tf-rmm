@@ -79,6 +79,8 @@ struct sysreg_cb *host_util_get_sysreg_cb(char *name)
 int host_util_set_sysreg_cb(char *name, rd_cb_t rd_cb, wr_cb_t wr_cb,
 			    u_register_t init)
 {
+	size_t name_len;
+
 	if (installed_cb_idx < SYSREG_MAX_CBS) {
 		sysregs[installed_cb_idx].callbacks.rd_cb = rd_cb;
 		sysregs[installed_cb_idx].callbacks.wr_cb = wr_cb;
@@ -89,14 +91,16 @@ int host_util_set_sysreg_cb(char *name, rd_cb_t rd_cb, wr_cb_t wr_cb,
 			sysregs[installed_cb_idx].value[i] = init;
 		}
 
-		(void)strncpy(&(sysregs[installed_cb_idx].name[0]),
-			      &name[0], MAX_SYSREG_NAME_LEN);
+		name_len = strlen(&name[0]);
+		if (name_len >= MAX_SYSREG_NAME_LEN) {
+			name_len = MAX_SYSREG_NAME_LEN - 1U;
+		}
+		(void)memcpy(&(sysregs[installed_cb_idx].name[0]), &name[0], name_len);
 
 		/*
-		 * Add a string termination character in case the
-		 * name were truncated.
+		 * Add a string termination character.
 		 */
-		sysregs[installed_cb_idx].name[MAX_SYSREG_NAME_LEN] = '\0';
+		sysregs[installed_cb_idx].name[name_len] = '\0';
 
 		++installed_cb_idx;
 
