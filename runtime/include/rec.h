@@ -219,7 +219,7 @@ struct rec_aux_data {
 	uintptr_t cca_token_buf;
 };
 
-struct rec {
+struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in logical order */
 	struct granule *g_rec;	/* the granule in which this REC lives */
 	unsigned long rec_idx;	/* which REC is this */
 	bool runnable;
