@@ -154,6 +154,14 @@ static void restore_realm_state(struct rec *rec)
 
 	restore_sysreg_state(&rec->sysregs);
 
+	/*
+	 * Disable BRBE for R-EL1, BRBE related registers cannot be accessed
+	 * from Realms as RMM will trap it.
+	 */
+	if (is_feat_brbe_present()) {
+		write_brbcr_el1(BRBCR_INIT);
+	}
+
 	write_elr_el2(rec->pc);
 	write_spsr_el2(rec->pstate);
 	write_hcr_el2(rec->sysregs.hcr_el2);
@@ -181,6 +189,10 @@ static void save_ns_state(struct rec *rec)
 
 	save_sysreg_state(&ns_state->sysregs);
 
+	if (is_feat_brbe_present()) {
+		ns_state->sysregs.brbcr_el1 = read_brbcr_el1();
+	}
+
 	/*
 	 * CNTHCTL_EL2 is saved/restored separately from the main system
 	 * registers, because the Realm configuration is written on every
@@ -205,6 +217,10 @@ static void restore_ns_state(struct rec *rec)
 	struct ns_state *ns_state = rec->ns;
 
 	restore_sysreg_state(&ns_state->sysregs);
+
+	if (is_feat_brbe_present()) {
+		write_brbcr_el1(ns_state->sysregs.brbcr_el1);
+	}
 
 	/*
 	 * CNTHCTL_EL2 is saved/restored separately from the main system

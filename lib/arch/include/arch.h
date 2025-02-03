@@ -198,6 +198,26 @@
 #define MAIR_ELx_ATTR0_SHIFT	0
 #define MAIR_ELx_ATTR0_WIDTH	U(8)
 
+/* BRBCR Register */
+#define BRBCR_EL1		S2_1_C9_C0_0
+#define BRBCR_EL2		S2_4_C9_C0_0
+
+#define BRBCR_INIT		UL(0)
+
+/* HDFGRTR_EL2 Register */
+#define HDFGRTR_EL2			S3_4_C3_C1_4
+
+#define HDFGRTR_EL2_NBRBDATA_SHIFT	61
+#define HDFGRTR_EL2_NBRBDATA_WIDTH	UL(1)
+#define HDFGRTR_EL2_NBRBCTL_SHIFT	60
+#define HDFGRTR_EL2_NBRBCTL_WIDTH	UL(1)
+#define HDFGRTR_EL2_NBRBIDR_SHIFT	59
+#define HDFGRTR_EL2_NBRBIDR_WIDTH	UL(1)
+
+#define HDFGRTR_EL2_INIT_CLEAR_MASK	MASK(HDFGRTR_EL2_NBRBDATA) | \
+					MASK(HDFGRTR_EL2_NBRBCTL) | \
+					MASK(HDFGRTR_EL2_NBRBIDR)
+
 /*******************************************************************************
  * Definitions of MAIR encodings for device and normal memory
  ******************************************************************************/
@@ -1093,6 +1113,13 @@
 
 #define ESR_EL2_SYSREG_DIRECTION	(UL(1) << 0)
 #define ESR_EL2_SYSREG_IS_WRITE(esr)	(((esr) & ESR_EL2_SYSREG_DIRECTION) == 0UL)
+
+/*
+ * FEAT_BRBE system registers encoding mask for registers from
+ * BRBINF<n>_EL1(2, 1, 8, 0, 0) to BRBTGTINJ_EL1(2, 1, 9, 1, 2).
+ */
+#define ESR_EL2_SYSREG_BRBE			SYSREG_ESR(2, 1, 8, 0, 0)
+#define ESR_EL2_SYSREG_BRBE_MASK		SYSREG_ESR(2, 7, 14, 0, 0)
 
 #define ESR_IL(esr)			((esr) & MASK(ESR_EL2_IL))
 

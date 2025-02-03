@@ -265,6 +265,28 @@ static inline bool is_feat_mpam_present(void)
 		(EXTRACT(ID_AA64PFR1_EL1_MPAM_F, read_id_aa64pfr1_el1()) != 0UL));
 }
 
+/*
+ * Check if FEAT_BRBE is implemented.
+ * ID_AA64DFR0_EL1, bits [55:52]:
+ * 0b0000: FEAT_BRBE is not implemented.
+ * 0b0001: FEAT_BRBE is implemented.
+ */
+static inline bool is_feat_brbe_present(void)
+{
+	return (EXTRACT(ID_AA64DFR0_EL1_BRBE, read_id_aa64dfr0_el1()) != 0UL);
+}
+
+/*
+ * Check if FEAT_FGT is implemented.
+ * ID_AA64MMFR0_EL1, bits [59:56]:
+ * 0b0000: FEAT_FGT controls are not implemented.
+ * 0b0001/0b0002: FEAT_FGT controls are implemented.
+ */
+static inline bool is_feat_fgt_present(void)
+{
+	return (EXTRACT(ID_AA64MMFR0_EL1_FGT, read_id_aa64mmfr0_el1()) != 0UL);
+}
+
 unsigned int arch_feat_get_pa_width(void);
 
 DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(sctlr2_el12, if_present,		\

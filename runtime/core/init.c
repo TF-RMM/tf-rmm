@@ -43,6 +43,14 @@ static void rmm_arch_init(void)
 	}
 
 	write_hcrx_el2(hcrx_el2_init);
+
+	/* Disable BRBE at R-EL2 and prevent access to BRBE regs from R-EL1 */
+	if (is_feat_brbe_present()) {
+		write_brbcr_el2(BRBCR_INIT);
+		write_hdfgrtr_el2((read_hdfgrtr_el2()) & (~HDFGRTR_EL2_INIT_CLEAR_MASK));
+	}
+
+
 }
 
 /* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
