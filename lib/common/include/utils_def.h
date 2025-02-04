@@ -149,14 +149,6 @@
 #define GRANULE_SIZE	(UL(1) << GRANULE_SHIFT)
 #define GRANULE_MASK	(~(GRANULE_SIZE - 1U))
 
-#define HAS_MPAM 0
-
-#if HAS_MPAM
-#define MPAM(_x...) _x
-#else
-#define MPAM(_x...)
-#endif
-
 #define HAS_SPE 0
 
 #if HAS_SPE

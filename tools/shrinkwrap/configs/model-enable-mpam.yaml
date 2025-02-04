@@ -1,0 +1,14 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Overlay to enable FEAT_MPAM on the model at run time
+
+run:
+  params:
+    -C cluster0.has_mpam: 2
+    -C cluster1.has_mpam: 2

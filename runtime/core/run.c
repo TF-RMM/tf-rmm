@@ -55,7 +55,6 @@ static void save_sysreg_state(struct sysreg_state *sysregs)
 	sysregs->mdscr_el1 = read_mdscr_el1();
 	sysregs->mdccint_el1 = read_mdccint_el1();
 	sysregs->disr_el1 = read_disr_el1();
-	MPAM(sysregs->mpam0_el1 = read_mpam0_el1();)
 
 	/* Timer registers */
 	sysregs->cntpoff_el2 = read_cntpoff_el2();
@@ -119,7 +118,6 @@ static void restore_sysreg_state(struct sysreg_state *sysregs)
 	write_mdscr_el1(sysregs->mdscr_el1);
 	write_mdccint_el1(sysregs->mdccint_el1);
 	write_disr_el1(sysregs->disr_el1);
-	MPAM(write_mpam0_el1(sysregs->mpam0_el1);)
 	write_vmpidr_el2(sysregs->vmpidr_el2);
 
 	/* Timer registers */

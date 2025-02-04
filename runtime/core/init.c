@@ -27,8 +27,6 @@ static void rmm_arch_init(void)
 {
 	unsigned long hcrx_el2_init = HCRX_INIT;
 
-	MPAM(write_mpam2_el2(MPAM2_EL2_INIT));
-	MPAM(write_mpamhcr_el2(MPAMHCR_EL2_INIT));
 	SPE(write_pmscr_el2(PMSCR_EL2_INIT));
 
 	write_cnthctl_el2(CNTHCTL_EL2_INIT);
