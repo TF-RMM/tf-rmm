@@ -35,29 +35,10 @@ void pmu_save_state(struct pmu_state *pmu, unsigned int num_cnts)
 	pmu->pmccfiltr_el0 = read_pmccfiltr_el0();
 	pmu->pmccntr_el0 = read_pmccntr_el0();
 	pmu->pmcntenset_el0 = read_pmcntenset_el0();
-	pmu->pmcntenclr_el0 = read_pmcntenclr_el0();
 	pmu->pmintenset_el1 = read_pmintenset_el1();
-	pmu->pmintenclr_el1 = read_pmintenclr_el1();
 	pmu->pmovsset_el0 = read_pmovsset_el0();
-	pmu->pmovsclr_el0 = read_pmovsclr_el0();
 	pmu->pmselr_el0 = read_pmselr_el0();
 	pmu->pmuserenr_el0 = read_pmuserenr_el0();
-
-	/*
-	 * When PMSELR_EL0.SEL is greater than or equal to the number of
-	 * accessible event counters, then reads and writes of PMXEVCNTR_EL0
-	 * are CONSTRAINED UNPREDICTABLE.
-	 *
-	 * When PMSELR_EL0.SEL is not 31 and is greater than or equal to the
-	 * number of accessible event counters, then reads and writes of
-	 * PMXEVTYPER_EL0 are CONSTRAINED UNPREDICTABLE.
-	 */
-	if ((unsigned int)EXTRACT(PMSELR_EL0_SEL, pmu->pmselr_el0) < num_cnts) {
-		pmu->pmxevcntr_el0 = read_pmxevcntr_el0();
-		pmu->pmxevtyper_el0 = read_pmxevtyper_el0();
-	} else if ((unsigned int)EXTRACT(PMSELR_EL0_SEL, pmu->pmselr_el0) == 31U) {
-		pmu->pmxevtyper_el0 = read_pmxevtyper_el0();
-	}
 
 	/* Check number of event counters */
 	if (num_cnts != 0U) {
@@ -111,29 +92,13 @@ void pmu_restore_state(struct pmu_state *pmu, unsigned int num_cnts)
 	write_pmccfiltr_el0(pmu->pmccfiltr_el0);
 	write_pmccntr_el0(pmu->pmccntr_el0);
 	write_pmcntenset_el0(pmu->pmcntenset_el0);
-	write_pmcntenclr_el0(pmu->pmcntenclr_el0 ^ PMU_CLEAR_ALL);
+	write_pmcntenclr_el0(pmu->pmcntenset_el0 ^ PMU_CLEAR_ALL);
 	write_pmintenset_el1(pmu->pmintenset_el1);
-	write_pmintenclr_el1(pmu->pmintenclr_el1 ^ PMU_CLEAR_ALL);
+	write_pmintenclr_el1(pmu->pmintenset_el1 ^ PMU_CLEAR_ALL);
 	write_pmovsset_el0(pmu->pmovsset_el0);
-	write_pmovsclr_el0(pmu->pmovsclr_el0 ^ PMU_CLEAR_ALL);
+	write_pmovsclr_el0(pmu->pmovsset_el0 ^ PMU_CLEAR_ALL);
 	write_pmselr_el0(pmu->pmselr_el0);
 	write_pmuserenr_el0(pmu->pmuserenr_el0);
-
-	/*
-	 * When PMSELR_EL0.SEL is greater than or equal to the number of
-	 * accessible event counters, then reads and writes of PMXEVCNTR_EL0
-	 * are CONSTRAINED UNPREDICTABLE.
-	 *
-	 * When PMSELR_EL0.SEL is not 31 and is greater than or equal to the
-	 * number of accessible event counters, then reads and writes of
-	 * PMXEVTYPER_EL0 are CONSTRAINED UNPREDICTABLE.
-	 */
-	if ((unsigned int)EXTRACT(PMSELR_EL0_SEL, pmu->pmselr_el0) < num_cnts) {
-		write_pmxevcntr_el0(pmu->pmxevcntr_el0);
-		write_pmxevtyper_el0(pmu->pmxevtyper_el0);
-	} else if ((unsigned int)EXTRACT(PMSELR_EL0_SEL, pmu->pmselr_el0) == 31U) {
-		write_pmxevtyper_el0(pmu->pmxevtyper_el0);
-	}
 
 	/* Check number of event counters */
 	if (num_cnts != 0U) {
@@ -180,11 +145,7 @@ void pmu_restore_state(struct pmu_state *pmu, unsigned int num_cnts)
  */
 bool pmu_is_ovf_set(void)
 {
-	if (((read_pmovsset_el0() & read_pmintenset_el1() &
-	     read_pmcntenset_el0()) != 0UL) &&
-	     ((read_pmcr_el0() & PMCR_EL0_E_BIT) != 0UL)) {
-		return true;
-	} else {
-		return false;
-	}
+	return (((read_pmovsset_el0() & read_pmintenset_el1() &
+		  read_pmcntenset_el0()) != 0UL) &&
+		((read_pmcr_el0() & PMCR_EL0_E_BIT) != 0UL));
 }
