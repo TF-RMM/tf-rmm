@@ -20,6 +20,7 @@
 #include <simd.h>
 #include <smc-rmi.h>
 #include <timers.h>
+#include <types.h>
 
 static struct ns_state g_ns_data[MAX_CPUS];
 
@@ -39,8 +40,6 @@ static void save_sysreg_state(struct sysreg_state *sysregs)
 	sysregs->pp_sysregs.sctlr2_el1 = read_sctlr2_el12_if_present();
 	sysregs->pp_sysregs.actlr_el1 = read_actlr_el1();
 	sysregs->pp_sysregs.cpacr_el1 = read_cpacr_el12();
-	sysregs->pp_sysregs.ttbr0_el1 = read_ttbr0_el12();
-	sysregs->pp_sysregs.ttbr1_el1 = read_ttbr1_el12();
 	sysregs->pp_sysregs.tcr_el1 = read_tcr_el12();
 	sysregs->pp_sysregs.esr_el1 = read_esr_el12();
 	sysregs->pp_sysregs.afsr0_el1 = read_afsr0_el12();
@@ -54,7 +53,6 @@ static void save_sysreg_state(struct sysreg_state *sysregs)
 	sysregs->pp_sysregs.tpidr_el1 = read_tpidr_el1();
 	sysregs->pp_sysregs.amair_el1 = read_amair_el12();
 	sysregs->pp_sysregs.cntkctl_el1 = read_cntkctl_el12();
-	sysregs->pp_sysregs.par_el1 = read_par_el1();
 	sysregs->pp_sysregs.mdscr_el1 = read_mdscr_el1();
 	sysregs->pp_sysregs.mdccint_el1 = read_mdccint_el1();
 	sysregs->pp_sysregs.disr_el1 = read_disr_el1();
@@ -71,6 +69,17 @@ static void save_sysreg_state(struct sysreg_state *sysregs)
 	sysregs->pp_sysregs.cntp_cval_el0 = read_cntp_cval_el02();
 	sysregs->pp_sysregs.cntv_ctl_el0 = read_cntv_ctl_el02();
 	sysregs->pp_sysregs.cntv_cval_el0 = read_cntv_cval_el02();
+
+	/* 128-bit registers */
+	if (is_feat_d128_present()) {
+		sysregs->pp_sysregs.par_el1 = read128_par_el1();
+		sysregs->pp_sysregs.ttbr0_el1 = read128_ttbr0_el12();
+		sysregs->pp_sysregs.ttbr1_el1 = read128_ttbr1_el12();
+	} else {
+		sysregs->pp_sysregs.par_el1.lo = read_par_el1();
+		sysregs->pp_sysregs.ttbr0_el1.lo = read_ttbr0_el12();
+		sysregs->pp_sysregs.ttbr1_el1.lo = read_ttbr1_el12();
+	}
 }
 
 static void save_pmu(struct rec *rec)
@@ -136,8 +145,6 @@ static void restore_sysreg_state(struct sysreg_state *sysregs)
 	write_sctlr2_el12_if_present(sysregs->pp_sysregs.sctlr2_el1);
 	write_actlr_el1(sysregs->pp_sysregs.actlr_el1);
 	write_cpacr_el12(sysregs->pp_sysregs.cpacr_el1);
-	write_ttbr0_el12(sysregs->pp_sysregs.ttbr0_el1);
-	write_ttbr1_el12(sysregs->pp_sysregs.ttbr1_el1);
 	write_tcr_el12(sysregs->pp_sysregs.tcr_el1);
 	write_esr_el12(sysregs->pp_sysregs.esr_el1);
 	write_afsr0_el12(sysregs->pp_sysregs.afsr0_el1);
@@ -151,7 +158,6 @@ static void restore_sysreg_state(struct sysreg_state *sysregs)
 	write_tpidr_el1(sysregs->pp_sysregs.tpidr_el1);
 	write_amair_el12(sysregs->pp_sysregs.amair_el1);
 	write_cntkctl_el12(sysregs->pp_sysregs.cntkctl_el1);
-	write_par_el1(sysregs->pp_sysregs.par_el1);
 	write_mdscr_el1(sysregs->pp_sysregs.mdscr_el1);
 	write_mdccint_el1(sysregs->pp_sysregs.mdccint_el1);
 	write_disr_el1(sysregs->pp_sysregs.disr_el1);
@@ -177,6 +183,17 @@ static void restore_sysreg_state(struct sysreg_state *sysregs)
 	write_cntp_ctl_el02(sysregs->pp_sysregs.cntp_ctl_el0);
 	write_cntv_cval_el02(sysregs->pp_sysregs.cntv_cval_el0);
 	write_cntv_ctl_el02(sysregs->pp_sysregs.cntv_ctl_el0);
+
+	/* 128-bit registers */
+	if (is_feat_d128_present()) {
+		write128_par_el1(&(sysregs->pp_sysregs.par_el1));
+		write128_ttbr0_el12(&(sysregs->pp_sysregs.ttbr0_el1));
+		write128_ttbr1_el12(&(sysregs->pp_sysregs.ttbr1_el1));
+	} else {
+		write_par_el1(sysregs->pp_sysregs.par_el1.lo);
+		write_ttbr0_el12(sysregs->pp_sysregs.ttbr0_el1.lo);
+		write_ttbr1_el12(sysregs->pp_sysregs.ttbr1_el1.lo);
+	}
 }
 
 static unsigned long active_overlay_perms(struct rec *rec)

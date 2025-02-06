@@ -16,14 +16,14 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	ASSERT(false, "handle_rsi_plane_enter");
 }
 
-void handle_rsi_plane_reg_read(struct rec *rec, struct rsi_result *res)
+void handle_rsi_plane_sysreg_read(struct rec *rec, struct rsi_result *res)
 {
-	ASSERT(false, "handle_rsi_plane_reg_read");
+	ASSERT(false, "handle_rsi_plane_sysreg_read");
 }
 
-void handle_rsi_plane_reg_write(struct rec *rec, struct rsi_result *res)
+void handle_rsi_plane_sysreg_write(struct rec *rec, struct rsi_result *res)
 {
-	ASSERT(false, "handle_rsi_plane_reg_write");
+	ASSERT(false, "handle_rsi_plane_sysreg_write");
 }
 
 #endif /* CBMC */

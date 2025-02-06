@@ -8,6 +8,7 @@
 
 #include <arch.h>
 #include <smc.h>
+#include <utils_def.h>
 
 /*
  * This file describes the Realm Services Interface (RSI) Application Binary
@@ -320,7 +321,7 @@
  * ret0 == Status / error
  * ret1 == Read value
  */
-#define SMC_RSI_PLANE_REG_READ		SMC64_RSI_FID(U(0x1E))
+#define SMC_RSI_PLANE_SYSREG_READ	SMC64_RSI_FID(U(0x1E))
 
 /*
  * FID: 0xC40001AF
@@ -330,7 +331,7 @@
  * arg3 == Value to write to target register
  * ret0 == Status / error
  */
-#define SMC_RSI_PLANE_REG_WRITE		SMC64_RSI_FID(U(0x1F))
+#define SMC_RSI_PLANE_SYSREG_WRITE	SMC64_RSI_FID(U(0x1F))
 
 /*
  * TODO: Currently RMM do not have support to enable RSI commands above FID
@@ -503,98 +504,108 @@ struct rsi_host_call {
 
 /*
  * RsiSysregAddress type definitons.
+ *
+ * The field encodings use the same shifts as used by KVM, that is, OP2
+ * starts at offset 0 (as Rt field on MSR/MRS instructions OPCODE is ignored),
+ * so we can reuse the existing macros as long as we set the op2 shift as 0.
  */
-#define RSI_SYSREG_ADDR_OP2_SHIFT	(EL2_SYSREG_ACCESS_OP2_SHIFT)
-#define RSI_SYSREG_ADDR_OP2_WIDTH	(EL2_SYSREG_ACCESS_OP2_WIDTH)
+#define RSI_SYSREG_ADDR_KVM_OP2_SHIFT		(U(0))
+#define RSI_SYSREG_ADDR_KVM_OP2_WIDTH		(EL2_SYSREG_ACCESS_OP2_WIDTH)
 
-#define RSI_SYSREG_ADDR_CRM_SHIFT	((RSI_SYSREG_ADDR_OP2_SHIFT) +	\
-					 (RSI_SYSREG_ADDR_OP2_WIDTH))
-#define RSI_SYSREG_ADDR_CRM_WIDTH	(EL2_SYSREG_ACCESS_CRM_WIDTH)
+#define RSI_SYSREG_ADDR_KVM_CRM_SHIFT		((RSI_SYSREG_ADDR_KVM_OP2_SHIFT) +	\
+						 (RSI_SYSREG_ADDR_KVM_OP2_WIDTH))
+#define RSI_SYSREG_ADDR_KVM_CRM_WIDTH		(EL2_SYSREG_ACCESS_CRM_WIDTH)
 
-#define RSI_SYSREG_ADDR_CRN_SHIFT	((RSI_SYSREG_ADDR_CRM_SHIFT) +	\
-					 (RSI_SYSREG_ADDR_CRM_WIDTH))
-#define RSI_SYSREG_ADDR_CRN_WIDTH	(EL2_SYSREG_ACCESS_CRN_WIDTH)
+#define RSI_SYSREG_ADDR_KVM_CRN_SHIFT		((RSI_SYSREG_ADDR_KVM_CRM_SHIFT) +	\
+						 (RSI_SYSREG_ADDR_KVM_CRM_WIDTH))
+#define RSI_SYSREG_ADDR_KVM_CRN_WIDTH		(EL2_SYSREG_ACCESS_CRN_WIDTH)
 
-#define RSI_SYSREG_ADDR_OP1_SHIFT	((RSI_SYSREG_ADDR_CRN_SHIFT) +	\
-					 (RSI_SYSREG_ADDR_CRN_WIDTH))
-#define RSI_SYSREG_ADDR_OP1_WIDTH	(EL2_SYSREG_ACCESS_OP1_WIDTH)
+#define RSI_SYSREG_ADDR_KVM_OP1_SHIFT		((RSI_SYSREG_ADDR_KVM_CRN_SHIFT) +	\
+						 (RSI_SYSREG_ADDR_KVM_CRN_WIDTH))
+#define RSI_SYSREG_ADDR_KVM_OP1_WIDTH		(EL2_SYSREG_ACCESS_OP1_WIDTH)
 
-#define RSI_SYSREG_ADDR_OP0_SHIFT	((RSI_SYSREG_ADDR_OP1_SHIFT) +	\
-					 (RSI_SYSREG_ADDR_OP1_WIDTH))
-#define RSI_SYSREG_ADDR_OP0_WIDTH	(EL2_SYSREG_ACCESS_OP0_WIDTH)
+#define RSI_SYSREG_ADDR_KVM_OP0_SHIFT		((RSI_SYSREG_ADDR_KVM_OP1_SHIFT) +	\
+						 (RSI_SYSREG_ADDR_KVM_OP1_WIDTH))
+#define RSI_SYSREG_ADDR_KVM_OP0_WIDTH		(EL2_SYSREG_ACCESS_OP0_WIDTH)
 
-#define RSI_SYSREG_ADDR_OPCODE(op0, op1, crn, crm, op2)		\
-	((UL(op0) << RSI_SYSREG_ADDR_OP0_SHIFT) |		\
-	 (UL(op1) << RSI_SYSREG_ADDR_OP1_SHIFT) |		\
-	 (UL(crn) << RSI_SYSREG_ADDR_CRN_SHIFT) |		\
-	 (UL(crm) << RSI_SYSREG_ADDR_CRM_SHIFT) |		\
-	 (UL(op2) << RSI_SYSREG_ADDR_OP2_SHIFT))
+#define RSI_SYSREG_ADDR_KVM_SYSREG128_SHIFT	((RSI_SYSREG_ADDR_KVM_OP0_SHIFT) +	\
+						 (RSI_SYSREG_ADDR_KVM_OP0_WIDTH))
+#define RSI_SYSREG_ADDR_KVM_SYSREG128_WIDTH	(U(1))
+
+#define RSI_SYSREG_ADDR_KVM_OPCODE(op0, op1, crn, crm, op2)	\
+	((UL(op0) << RSI_SYSREG_ADDR_KVM_OP0_SHIFT) |		\
+	 (UL(op1) << RSI_SYSREG_ADDR_KVM_OP1_SHIFT) |		\
+	 (UL(crn) << RSI_SYSREG_ADDR_KVM_CRN_SHIFT) |		\
+	 (UL(crm) << RSI_SYSREG_ADDR_KVM_CRM_SHIFT) |		\
+	 (UL(op2) << RSI_SYSREG_ADDR_KVM_OP2_SHIFT))
 
 /******************************************************************************
  * Definitions of system register identifiers supported by
  * RSI_PLANE_SYSREG_{READ, WRITE}
+ *
+ * Note that the register IDs generated match the KVM format.
  *****************************************************************************/
 
-#define RSI_SYSREG_ID_actlr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 1, 0, 1)
-#define RSI_SYSREG_ID_afsr0_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 5, 1, 0)
-#define RSI_SYSREG_ID_afsr1_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 5, 1, 1)
-#define RSI_SYSREG_ID_amair_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 10, 3, 0)
-#define RSI_SYSREG_ID_apiakeylo_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 1, 0)
-#define RSI_SYSREG_ID_apiakeyhi_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 1, 1)
-#define RSI_SYSREG_ID_apibkeylo_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 1, 2)
-#define RSI_SYSREG_ID_apibkeyhi_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 1, 3)
-#define RSI_SYSREG_ID_apdakeylo_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 2, 0)
-#define RSI_SYSREG_ID_apdakeyhi_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 2, 1)
-#define RSI_SYSREG_ID_apdbkeylo_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 2, 2)
-#define RSI_SYSREG_ID_apdbkeyhi_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 2, 3)
-#define RSI_SYSREG_ID_apgakeylo_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 3, 0)
-#define RSI_SYSREG_ID_apgakeyhi_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 3, 1)
-#define RSI_SYSREG_ID_cntkctl_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 14, 1, 0)
-#define RSI_SYSREG_ID_contextidr_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 13, 0, 1)
-#define RSI_SYSREG_ID_cpacr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 1, 0, 2)
-#define RSI_SYSREG_ID_csselr_el1		RSI_SYSREG_ADDR_OPCODE(3, 2, 0, 0, 0)
-#define RSI_SYSREG_ID_disr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 12, 1, 1)
-#define RSI_SYSREG_ID_elr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 4, 0, 1)
-#define RSI_SYSREG_ID_esr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 5, 2, 0)
-#define RSI_SYSREG_ID_far_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 6, 0, 0)
-#define RSI_SYSREG_ID_mair_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 10, 2, 0)
-#define RSI_SYSREG_ID_mdccint_el1		RSI_SYSREG_ADDR_OPCODE(2, 0, 0, 2, 0)
-#define RSI_SYSREG_ID_mdscr_el1			RSI_SYSREG_ADDR_OPCODE(2, 0, 0, 2, 2)
-#define RSI_SYSREG_ID_par_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 7, 4, 0)
-#define RSI_SYSREG_ID_sctlr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 1, 0, 0)
-#define RSI_SYSREG_ID_sp_el0			RSI_SYSREG_ADDR_OPCODE(3, 0, 4, 1, 0)
-#define RSI_SYSREG_ID_sp_el1			RSI_SYSREG_ADDR_OPCODE(3, 4, 4, 1, 0)
-#define RSI_SYSREG_ID_spsr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 4, 0, 0)
-#define RSI_SYSREG_ID_tcr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 0, 2)
-#define RSI_SYSREG_ID_tpidr_el0			RSI_SYSREG_ADDR_OPCODE(3, 3, 13, 0, 2)
-#define RSI_SYSREG_ID_tpidr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 13, 0, 4)
-#define RSI_SYSREG_ID_tpidrro_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 13, 0, 3)
-#define RSI_SYSREG_ID_ttbr0_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 0, 0)
-#define RSI_SYSREG_ID_ttbr1_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 0, 1)
-#define RSI_SYSREG_ID_vbar_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 12, 0, 0)
-#define RSI_SYSREG_ID_zcr_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 1, 2, 0)
-#define RSI_SYSREG_ID_cntp_ctl_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 14, 2, 1)
-#define RSI_SYSREG_ID_cntp_cval_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 14, 2, 2)
-#define RSI_SYSREG_ID_cntv_ctl_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 14, 3, 1)
-#define RSI_SYSREG_ID_cntv_cval_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 14, 3, 2)
-#define RSI_SYSREG_ID_brbcr_el1			RSI_SYSREG_ADDR_OPCODE(2, 1, 9, 0, 0)
-#define RSI_SYSREG_ID_tcr2_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 2, 0, 3)
-#define RSI_SYSREG_ID_pir_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 10, 2, 3)
-#define RSI_SYSREG_ID_pire0_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 10, 2, 2)
-#define RSI_SYSREG_ID_por_el1			RSI_SYSREG_ADDR_OPCODE(3, 0, 10, 2, 4)
+#define RSI_SYSREG_KVM_ID_actlr_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 1, 0, 1)
+#define RSI_SYSREG_KVM_ID_afsr0_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 5, 1, 0)
+#define RSI_SYSREG_KVM_ID_afsr1_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 5, 1, 1)
+#define RSI_SYSREG_KVM_ID_amair_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 10, 3, 0)
+#define RSI_SYSREG_KVM_ID_apiakeylo_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 2, 1, 0)
+#define RSI_SYSREG_KVM_ID_apiakeyhi_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 2, 1, 1)
+#define RSI_SYSREG_KVM_ID_apibkeylo_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 2, 1, 2)
+#define RSI_SYSREG_KVM_ID_apibkeyhi_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 2, 1, 3)
+#define RSI_SYSREG_KVM_ID_apdakeylo_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 2, 2, 0)
+#define RSI_SYSREG_KVM_ID_apdakeyhi_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 2, 2, 1)
+#define RSI_SYSREG_KVM_ID_apdbkeylo_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 2, 2, 2)
+#define RSI_SYSREG_KVM_ID_apdbkeyhi_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 2, 2, 3)
+#define RSI_SYSREG_KVM_ID_apgakeylo_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 2, 3, 0)
+#define RSI_SYSREG_KVM_ID_apgakeyhi_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 2, 3, 1)
+#define RSI_SYSREG_KVM_ID_cntkctl_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 14, 1, 0)
+#define RSI_SYSREG_KVM_ID_contextidr_el1	RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 13, 0, 1)
+#define RSI_SYSREG_KVM_ID_cpacr_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 1, 0, 2)
+#define RSI_SYSREG_KVM_ID_csselr_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 2, 0, 0, 0)
+#define RSI_SYSREG_KVM_ID_disr_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 12, 1, 1)
+#define RSI_SYSREG_KVM_ID_elr_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 4, 0, 1)
+#define RSI_SYSREG_KVM_ID_esr_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 5, 2, 0)
+#define RSI_SYSREG_KVM_ID_far_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 6, 0, 0)
+#define RSI_SYSREG_KVM_ID_mair_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 10, 2, 0)
+#define RSI_SYSREG_KVM_ID_mdccint_el1		RSI_SYSREG_ADDR_KVM_OPCODE(2, 0, 0, 2, 0)
+#define RSI_SYSREG_KVM_ID_mdscr_el1		RSI_SYSREG_ADDR_KVM_OPCODE(2, 0, 0, 2, 2)
+#define RSI_SYSREG_KVM_ID_par_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 7, 4, 0)
+#define RSI_SYSREG_KVM_ID_sctlr_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 1, 0, 0)
+#define RSI_SYSREG_KVM_ID_sp_el0		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 4, 1, 0)
+#define RSI_SYSREG_KVM_ID_sp_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 4, 4, 1, 0)
+#define RSI_SYSREG_KVM_ID_spsr_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 4, 0, 0)
+#define RSI_SYSREG_KVM_ID_tcr_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 2, 0, 2)
+#define RSI_SYSREG_KVM_ID_tpidr_el0		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 13, 0, 2)
+#define RSI_SYSREG_KVM_ID_tpidr_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 13, 0, 4)
+#define RSI_SYSREG_KVM_ID_tpidrro_el0		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 13, 0, 3)
+#define RSI_SYSREG_KVM_ID_ttbr0_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 2, 0, 0)
+#define RSI_SYSREG_KVM_ID_ttbr1_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 2, 0, 1)
+#define RSI_SYSREG_KVM_ID_vbar_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 12, 0, 0)
+#define RSI_SYSREG_KVM_ID_zcr_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 1, 2, 0)
+#define RSI_SYSREG_KVM_ID_cntp_ctl_el0		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 14, 2, 1)
+#define RSI_SYSREG_KVM_ID_cntp_cval_el0		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 14, 2, 2)
+#define RSI_SYSREG_KVM_ID_cntv_ctl_el0		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 14, 3, 1)
+#define RSI_SYSREG_KVM_ID_cntv_cval_el0		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 14, 3, 2)
+#define RSI_SYSREG_KVM_ID_brbcr_el1		RSI_SYSREG_ADDR_KVM_OPCODE(2, 1, 9, 0, 0)
+#define RSI_SYSREG_KVM_ID_tcr2_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 2, 0, 3)
+#define RSI_SYSREG_KVM_ID_pir_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 10, 2, 3)
+#define RSI_SYSREG_KVM_ID_pire0_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 10, 2, 2)
+#define RSI_SYSREG_KVM_ID_por_el1		RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 10, 2, 4)
 
-#define RSI_SYSREG_ID_pmcr_el0			RSI_SYSREG_ADDR_OPCODE(3, 3, 9, 12, 0)
-#define RSI_SYSREG_ID_pmccfiltr_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 14, 15, 7)
-#define RSI_SYSREG_ID_pmccntr_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 9, 13, 0)
-#define RSI_SYSREG_ID_pmcntenset_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 9, 12, 1)
-#define RSI_SYSREG_ID_pmintenset_el1		RSI_SYSREG_ADDR_OPCODE(3, 0, 9, 14, 1)
-#define RSI_SYSREG_ID_pmovsset_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 9, 14, 3)
-#define RSI_SYSREG_ID_pmselr_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 9, 12, 5)
-#define RSI_SYSREG_ID_pmuserenr_el0		RSI_SYSREG_ADDR_OPCODE(3, 3, 9, 14, 0)
+#define RSI_SYSREG_KVM_ID_pmcr_el0		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 9, 12, 0)
+#define RSI_SYSREG_KVM_ID_pmccfiltr_el0		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 14, 15, 7)
+#define RSI_SYSREG_KVM_ID_pmccntr_el0		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 9, 13, 0)
+#define RSI_SYSREG_KVM_ID_pmcntenset_el0	RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 9, 12, 1)
+#define RSI_SYSREG_KVM_ID_pmintenset_el1	RSI_SYSREG_ADDR_KVM_OPCODE(3, 0, 9, 14, 1)
+#define RSI_SYSREG_KVM_ID_pmovsset_el0		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 9, 14, 3)
+#define RSI_SYSREG_KVM_ID_pmselr_el0		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 9, 12, 5)
+#define RSI_SYSREG_KVM_ID_pmuserenr_el0		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 9, 14, 0)
 
-#define RSI_SYSREG_PMEV_MASK			SYSREG_TRAP_OPCODE(3, 7, 15, 12, 0)
-#define RSI_SYSREG_PMEVCNTR_MASK		SYSREG_TRAP_OPCODE(3, 3, 14, 8, 0)
-#define RSI_SYSREG_PMEVTYPER_MASK		SYSREG_TRAP_OPCODE(3, 3, 14, 12, 0)
+#define RSI_SYSREG_PMEV_MASK			RSI_SYSREG_ADDR_KVM_OPCODE(3, 7, 15, 12, 0)
+#define RSI_SYSREG_PMEVCNTR_MASK		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 14, 8, 0)
+#define RSI_SYSREG_PMEVTYPER_MASK		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 14, 12, 0)
 
 /*
  * RsiDevInfo

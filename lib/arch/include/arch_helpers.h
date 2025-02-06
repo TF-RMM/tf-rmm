@@ -35,6 +35,28 @@
 #define DEFINE_RENAME_SYSREG_WRITE_FUNC(_name, _reg_name)	\
 	DEFINE_SYSREG_WRITE_FUNC_(_name, _reg_name)
 
+/* Define read function for system register (128 bits)*/
+#define DEFINE_SYSREG128_READ_FUNC(_name)			\
+	DEFINE_SYSREG128_READ_FUNC_(_name, _name)
+
+/* Define read & write function for system register (128 bits)  */
+#define DEFINE_SYSREG128_RW_FUNCS(_name)			\
+	DEFINE_SYSREG128_READ_FUNC_(_name, _name)		\
+	DEFINE_SYSREG128_WRITE_FUNC_(_name, _name)
+
+/* Define read & write function for renamed system register (128 bits) */
+#define DEFINE_RENAME_SYSREG128_RW_FUNCS(_name, _reg_name)	\
+	DEFINE_SYSREG128_READ_FUNC_(_name, _reg_name)		\
+	DEFINE_SYSREG128_WRITE_FUNC_(_name, _reg_name)
+
+/* Define read function for renamed system register (128 bits) */
+#define DEFINE_RENAME_SYSREG128_READ_FUNC(_name, _reg_name)	\
+	DEFINE_SYSREG128_READ_FUNC_(_name, _reg_name)
+
+/* Define write function for renamed system register (128 bits) */
+#define DEFINE_RENAME_SYSREG128_WRITE_FUNC(_name, _reg_name)	\
+	DEFINE_SYSREG128_WRITE_FUNC_(_name, _reg_name)
+
 /*******************************************************************************
  * TLB maintenance accessor prototypes
  ******************************************************************************/
@@ -298,6 +320,8 @@ DEFINE_RENAME_SYSREG_RW_FUNCS(zcr_el2, ZCR_EL2)
 DEFINE_RENAME_SYSREG_RW_FUNCS(zcr_el12, ZCR_EL12)
 DEFINE_RENAME_SYSREG_RW_FUNCS(smcr_el2, SMCR_EL2)
 DEFINE_RENAME_SYSREG_RW_FUNCS(svcr, SVCR)
+DEFINE_RENAME_SYSREG128_RW_FUNCS(ttbr0_el12, TTBR0_EL12)
+DEFINE_RENAME_SYSREG128_RW_FUNCS(ttbr1_el12, TTBR1_EL12)
 DEFINE_SYSREG_RW_FUNCS(ttbr0_el12)
 DEFINE_SYSREG_RW_FUNCS(ttbr1_el12)
 DEFINE_SYSREG_RW_FUNCS(tcr_el12)
@@ -318,6 +342,7 @@ DEFINE_SYSREG_RW_FUNCS(cnrv_ctl_el02)
 DEFINE_SYSREG_RW_FUNCS(vtcr_el2)
 DEFINE_SYSREG_RW_FUNCS(vsesr_el2)
 DEFINE_SYSREG_RW_FUNCS(par_el1)
+DEFINE_RENAME_SYSREG128_RW_FUNCS(par_el1, PAR_EL1)
 DEFINE_SYSREG_READ_FUNC(id_pfr1_el1)
 DEFINE_RENAME_SYSREG_RW_FUNCS(mpam0_el1, MPAM0_EL1)
 DEFINE_SYSREG_READ_FUNC(CurrentEl)
@@ -372,11 +397,8 @@ DEFINE_SYSREG_RW_FUNCS(rmr_el2)
 DEFINE_SYSREG_RW_FUNCS(tcr_el1)
 DEFINE_SYSREG_RW_FUNCS(tcr_el2)
 
-DEFINE_SYSREG_RW_FUNCS(ttbr0_el1)
 DEFINE_SYSREG_RW_FUNCS(ttbr0_el2)
 DEFINE_SYSREG_RW_FUNCS(ttbr1_el2)
-
-DEFINE_SYSREG_RW_FUNCS(ttbr1_el1)
 
 DEFINE_SYSREG_RW_FUNCS(vttbr_el2)
 

@@ -111,7 +111,7 @@ void handle_rsi_mem_set_perm_index(struct rec *rec,
 				   struct rmi_rec_exit *rec_exit,
 				   struct rsi_result *res);
 void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res);
-void handle_rsi_plane_reg_read(struct rec *rec, struct rsi_result *res);
-void handle_rsi_plane_reg_write(struct rec *rec, struct rsi_result *res);
+void handle_rsi_plane_sysreg_read(struct rec *rec, struct rsi_result *res);
+void handle_rsi_plane_sysreg_write(struct rec *rec, struct rsi_result *res);
 
 #endif /* RSI_HANDLER_H */

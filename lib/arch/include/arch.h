@@ -902,6 +902,12 @@
 #define ID_AA64ISAR0_EL1_RNDR_SHIFT		UL(60)
 #define ID_AA64ISAR0_EL1_RNDR_WIDTH		UL(4)
 
+/******************************************************
+ * ID_AA64ISAR2_EL1 definitions
+ ******************************************************/
+#define ID_AA64ISAR2_EL1_SYSREG128_SHIFT	UL(32)
+#define ID_AA64ISAR2_EL1_SYSREG128_WIDTH	UL(4)
+
 /* SME Feature ID register 0 */
 #define ID_AA64SMFR0_EL1		S3_0_C0_C4_5
 
@@ -1518,5 +1524,20 @@
 
 #define EL2_SYSREG_ACCESS_OP0_SHIFT	UL(19)
 #define EL2_SYSREG_ACCESS_OP0_WIDTH	UL(2)
+
+#define EL2_SYSREG_ACCESS_OPCODE(op0, op1, crn, crm, op2) \
+		((UL(op0) << EL2_SYSREG_ACCESS_OP0_SHIFT) | \
+		 (UL(op1) << EL2_SYSREG_ACCESS_OP1_SHIFT) | \
+		 (UL(crn) << EL2_SYSREG_ACCESS_CRN_SHIFT) | \
+		 (UL(crm) << EL2_SYSREG_ACCESS_CRM_SHIFT) | \
+		 (UL(op2) << EL2_SYSREG_ACCESS_OP2_SHIFT))
+
+/*
+ * The following macros are used in the 128-bit register accessors to encode
+ * the instruction if FEAT_D128 is available.
+ */
+#define SYSREG_TTBR0_EL12		EL2_SYSREG_ACCESS_OPCODE(3, 5, 2, 0, 0)
+#define SYSREG_TTBR1_EL12		EL2_SYSREG_ACCESS_OPCODE(3, 5, 2, 0, 1)
+#define SYSREG_PAR_EL1			EL2_SYSREG_ACCESS_OPCODE(3, 0, 7, 4, 0)
 
 #endif /* ARCH_H */

@@ -155,6 +155,7 @@ The available Overlays are sumarized in the next table
    model-enable-lpa2.yaml,Overlay used to enable ``FEAT_LPA2`` on the |FVP| model at run time. In addition this overlay also sets the ``PA_SIZE`` on the model to 52
    model-wait-debugger.yaml,Overlay to configure the |FVP| model to listen for Iris connections on port 7100 and make it wait until a debugger is connected before starting execution
    model-enable-s2pie-s2poe.yaml,Overlay to enable ``FEAT_S2PIE`` and ``FEAT_S2POE`` on the |FVP| model at run time.
+   model-enable-feat_d128.yaml,Overlay used to enable ``FEAT_D128`` on the |FVP| model at runtime.
    rmm-debug.yaml,Overlay to build |RMM| (as well as |TF-A|) in debug mode
    rmm-v1_1.yaml,Overlay to build |RMM| with v1.1 features
    clean.yaml,Overlay used to avoid an exception with ``Shrinkwrap clean`` in which a path with a valid format needs to be specified for |RMM|

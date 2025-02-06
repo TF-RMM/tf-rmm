@@ -637,11 +637,11 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	case SMC_RSI_PLANE_ENTER:
 		handle_rsi_plane_enter(rec, &res);
 		break;
-	case SMC_RSI_PLANE_REG_READ:
-		handle_rsi_plane_reg_read(rec, &res);
+	case SMC_RSI_PLANE_SYSREG_READ:
+		handle_rsi_plane_sysreg_read(rec, &res);
 		break;
-	case SMC_RSI_PLANE_REG_WRITE:
-		handle_rsi_plane_reg_write(rec, &res);
+	case SMC_RSI_PLANE_SYSREG_WRITE:
+		handle_rsi_plane_sysreg_write(rec, &res);
 		break;
 	default:
 		res.action = UPDATE_REC_RETURN_TO_REALM;

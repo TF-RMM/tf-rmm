@@ -7,6 +7,7 @@
 #define PLANES_H
 
 #include <smc-rmi.h>
+#include <types.h>
 #include <utils_def.h>
 
 /* Plane 0 on a realm has always index '0' */
@@ -28,7 +29,7 @@
 #define RTT_COOKIE_CREATE(_addr, _idx)		(((_addr) & GRANULE_MASK) | \
 						 ((_idx) & ~GRANULE_MASK))
 
-/* Arquitectural registers used per plane */
+/* sysregs used per plane */
 STRUCT_TYPE plane_el01_regs {
 	unsigned long actlr_el1;
 	unsigned long afsr0_el1;
@@ -46,7 +47,6 @@ STRUCT_TYPE plane_el01_regs {
 	unsigned long mair_el1;
 	unsigned long mdccint_el1;
 	unsigned long mdscr_el1;
-	unsigned long par_el1;
 	unsigned long pir_el1;
 	unsigned long pire0_el1;
 	unsigned long por_el1;
@@ -57,8 +57,6 @@ STRUCT_TYPE plane_el01_regs {
 	unsigned long tcr_el1;
 	unsigned long tcr2_el1;
 	unsigned long tpidr_el1;
-	unsigned long ttbr0_el1;
-	unsigned long ttbr1_el1;
 	unsigned long vbar_el1;
 	unsigned long zcr_el1;
 
@@ -69,6 +67,14 @@ STRUCT_TYPE plane_el01_regs {
 	unsigned long sp_el0;
 	unsigned long tpidrro_el0;
 	unsigned long tpidr_el0;
+
+	/*
+	 * The following registers are treated as 128-bit wide when
+	 * FEAT_SYSREG128 is supported and 64-bit wide when not.
+	 */
+	struct reg128 par_el1;
+	struct reg128 ttbr0_el1;
+	struct reg128 ttbr1_el1;
 };
 
 #endif /* PLANES_H */

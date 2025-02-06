@@ -42,6 +42,21 @@ static inline void write_ ## _name(u_register_t v)		\
 #define SYSREG_WRITE_CONST(_reg_name, v)			\
 		host_write_sysreg(#_reg_name, v)
 
+/* @TODO: FEAT_SYSREG128 not supported on fake_host */
+#define DEFINE_SYSREG128_READ_FUNC_(_name, _reg_name)		\
+static inline struct reg128 read128_ ## _name(void)		\
+{								\
+	struct reg128 retval = {0UL, 0UL};			\
+								\
+	return retval;						\
+}
+
+#define DEFINE_SYSREG128_WRITE_FUNC_(_name, _reg_name)		\
+static inline void write128_ ## _name(struct reg128 *v)		\
+{								\
+	(void)v;						\
+}
+
 /**********************************************************************
  * Macro to read general purpose register
  *********************************************************************/

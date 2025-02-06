@@ -94,6 +94,7 @@ build:
   tfa:
     params:
       BL33: ${artifact:TFTF_BIN}
+      ENABLE_FEAT_D128: 2
 
 run:
   rtvars:

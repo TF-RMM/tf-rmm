@@ -6,7 +6,9 @@
 #ifndef INSTR_HELPERS_H
 #define INSTR_HELPERS_H
 
+#include <arch.h>
 #include <types.h>
+#include <utils_def.h>
 
 /**********************************************************************
  * Macros which create inline functions to read or write CPU system
@@ -33,6 +35,70 @@ static inline void write_ ## _name(u_register_t v)		\
 
 #define SYSREG_WRITE_CONST(_reg_name, v)			\
 	__asm__ volatile ("msr " #_reg_name ", %0" : : "i" (v))
+
+/*
+ * The following macros define accessors for 128-bit registers.
+ */
+
+/*
+ * Fixed opcode for AArch64 instruction
+ * MRRS x0, x1, <sysreg>
+ * where <sysreg> is left as all zeros.
+ */
+#define MRRS_OPCODE		(UL(0xD5700000))
+#define DEFINE_SYSREG128_READ_FUNC_(_name, _reg_encoding)		\
+	_DEFINE_SYSREG128_READ_FUNC_(_name,				\
+			/* mrrs x0, x1, _reg_encoding */		\
+			(MRRS_OPCODE | SYSREG_ ## _reg_encoding))	\
+
+#define _DEFINE_SYSREG128_READ_FUNC_(_name, _mrrs)			\
+__attribute__((__always_inline__))					\
+static inline struct reg128 read128_ ## _name(void)			\
+{									\
+	struct reg128 retval;						\
+									\
+	/* mrrs needs contiguous registers, so we manually select them */ \
+	register uint64_t __lo asm("x0");				\
+	register uint64_t __hi asm("x1");				\
+									\
+	__asm__ volatile (						\
+		".inst %c2\n"	/* mrrs x0, x1, _reg_encoding */	\
+		: "=r"(__lo), "=r"(__hi)				\
+		: "i"(_mrrs)						\
+		: "memory"						\
+	);								\
+									\
+	retval.lo = __lo;						\
+	retval.hi = __hi;						\
+									\
+	return retval;							\
+}
+
+/*
+ * Fixed opcode for AArch64 instruction
+ * MSRR <sysreg>, x0, x1
+ * where <sysreg> is left as all zeros.
+ */
+#define MSRR_OPCODE		(UL(0xD5500000))
+#define DEFINE_SYSREG128_WRITE_FUNC_(_name, _reg_encoding)		\
+	_DEFINE_SYSREG128_WRITE_FUNC_(_name,				\
+			/* msrr _reg_encoding, x0, x1 */		\
+			(MSRR_OPCODE | SYSREG_ ## _reg_encoding))	\
+
+#define _DEFINE_SYSREG128_WRITE_FUNC_(_name, _msrr)			\
+__attribute__((__always_inline__))					\
+static inline void write128_ ## _name(struct reg128 *v)			\
+{									\
+	/* msrr needs contiguous registers, so we manually select them */ \
+	register uint64_t __lo asm("x0") = (uint64_t)v->lo;		\
+	register uint64_t __hi asm("x1") = (uint64_t)v->hi;		\
+									\
+	__asm__ volatile (						\
+		".inst %c2\n"	/* msrr _reg_encoding, x0, x1 */	\
+		: : "r"(__lo), "r"(__hi), "i"(_msrr)			\
+		:							\
+	);								\
+}
 
 /**********************************************************************
  * Macro to read general purpose register

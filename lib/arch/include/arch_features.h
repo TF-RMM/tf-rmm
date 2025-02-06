@@ -560,6 +560,30 @@ static inline bool are_feat_s2pie_and_s2poe_present(void)
 	return is_feat_s2pie_present() && is_feat_s2poe_present();
 }
 
+/*
+ * Check if FEAT_D128 is implemented
+ * ID_AA64MMFR3_EL1, BITS [35:32]:
+ * 0b0000 128-bit Translation Table Descriptor Extension is not implemented.
+ * 0b0001 128-bit Translation Table Descriptor Extension is implemented.
+ */
+static inline bool is_feat_d128_present(void)
+{
+	return (EXTRACT(ID_AA64MMFR3_EL1_D128,
+			READ_CACHED_REG(id_aa64mmfr3_el1)) != 0UL);
+}
+
+/*
+ * Check if FEAT_SYSREG128 is implemented
+ * ID_AA64ISAR2_EL1.SYSREG_128, BITS [35:32]:
+ * 0b0000 Instructions to access 128-bit System Registers are not implemented.
+ * 0b0001 Instructions to access 128-bit System Registers are implemented.
+ */
+static inline bool is_feat_sysreg128_present(void)
+{
+	return (EXTRACT(ID_AA64ISAR2_EL1_SYSREG128,
+			READ_CACHED_REG(id_aa64isar2_el1)) != 0UL);
+}
+
 unsigned int arch_feat_get_pa_width(void);
 
 #endif /* ARCH_FEATURES_H */
