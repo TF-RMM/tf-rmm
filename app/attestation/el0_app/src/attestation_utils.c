@@ -3,101 +3,142 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <app_common.h>
 #include <assert.h>
-#include <attest_app.h>
 #include <attestation.h>
 #include <attestation_priv.h>
+#include <attestation_token.h>
 #include <debug.h>
+#include <el0_app_helpers.h>
 #include <errno.h>
-#include <mbedtls/memory_buffer_alloc.h>
 #include <psa/crypto.h>
-#include <sizes.h>
+#include <t_cose_el3_token_sign.h>
+
+#if ATTEST_EL3_TOKEN_SIGN
+static int el3_token_sign_queue_try_enqueue(struct t_cose_el3_token_sign_ctx *ctx_locked,
+					    uint64_t *ticket)
+{
+	unsigned long ret;
+	struct service_el3_token_sign_request *request =
+		(struct service_el3_token_sign_request *)get_shared_mem_start();
+
+
+	if ((ctx_locked == NULL) || (ticket == NULL) ||
+		/* coverity[misra_c_2012_rule_14_3_violation:SUPPRESS] */
+		/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
+		(ctx_locked->state.hash_len > sizeof(request->hash_buf)) ||
+		(ctx_locked->state.sign_alg_id != PSA_ALG_ECDSA(PSA_ALG_SHA_384)) ||
+		(ctx_locked->state.hash_len != PSA_HASH_LENGTH(PSA_ALG_SHA_384))) {
+		return -EINVAL;
+	}
+
+	request->cookie = ctx_locked->state.cookie;
+	request->hash_buf_len = ctx_locked->state.hash_len;
+
+	memcpy(request->hash_buf,
+		ctx_locked->state.hash_buffer,
+		ctx_locked->state.hash_len);
+
+	ret = el0_app_service_call(APP_SERVICE_EL3_TOKEN_SIGN_QUEUE_TRY_ENQUEUE,
+				   0, 0, 0, 0);
+	*ticket = request->ticket;
+	return ret;
+
+}
 
 /*
- * Memory buffer for the allocator during key initialization.
- *
- * Used to compute the public key and set up a PRNG object per CPU. PRNGs are
- * needed for key blinding during EC signing.
- *
- * Memory requirements:
- * +------------------------+-------+-------------------------+
- * |                        |  MAX  |  Persisting allocation  |
- * +------------------------+-------+-------------------------+
- * | Public key computation |  2.9K |         0.1K            |
- * +------------------------+-------+-------------------------+
- * | one SHA256 HMAC_DRBG   |       |                         |
- * |   buffer               |  364B |         364B            |
- * |                        |       |                         |
- * | PRNG setup for 32 CPUs |  12K  |        11.6K            |
- * +------------------------+-------+-------------------------+
- *
- * Measured with eg:
- *	src/lib/memory_buffer_alloc.c: mbedtls_memory_buffer_alloc_status()
- *
- * Reserve enough space for the temporary PRNG and per-CPU ones (see
- * attest_rnd_prng_init()), plus more space for other allocations.
+ * Initialize the EL3 token signing module. Also initialize callbacks
+ * in the t_cose library. The function returns 0 on success, and -ENOTSUP
+ * on failure.
  */
-#define PRNG_INIT_HEAP_SIZE	((MAX_CPUS + 1UL) * 364UL)
-#define MISC_PER_CPU		(SZ_4K / 16U)
-#define INIT_HEAP_SIZE		(PRNG_INIT_HEAP_SIZE + (MISC_PER_CPU * MAX_CPUS))
+static int el3_token_sign_queue_init(void)
+{
+	/*
+	 * The t_cose layer is initialized first so that even if EL3 firmware
+	 * does not support EL3_TOKEN_SIGN, the t_cose layer has a clean state.
+	 */
+	t_cose_crypto_el3_enqueue_cb_init(el3_token_sign_queue_try_enqueue);
 
-static unsigned char mem_buf[INIT_HEAP_SIZE]
-					__aligned(sizeof(unsigned long));
+	bool el3_token_sign_supported =
+		el0_app_service_call(APP_SERVICE_EL3_IFC_EL3_TOKEN_SIGN_SUPPORTED, 0, 0, 0, 0);
 
-static bool attest_initialized;
+	if (!el3_token_sign_supported) {
+		ERROR("The EL3_TOKEN_SIGN feature is not supported by EL3 firmware.");
+		return -ENOTSUP;
+	}
 
-static struct buffer_alloc_ctx init_ctx;
+	return 0;
+}
+
+/*
+ * Write the response from EL3 to the context. The response is written only if the context
+ * is valid and the response is for the right request.
+ * The caller must ensure that the REC granule lock is held so that it cannot be deleted
+ * while the response is being written.
+ * Since the REC granule lock is held, the lock ordering is granule lock -> ctx->lock.
+ */
+int app_attest_el3_token_write_response_to_ctx(struct token_sign_cntxt *sign_ctx,
+					   uint64_t req_ticket,
+					   size_t sig_len,
+					   uint8_t signature_buf[])
+{
+	assert(sign_ctx != NULL);
+
+	struct t_cose_el3_token_sign_ctx *ctx = &(sign_ctx->ctx.crypto_ctx);
+
+	spinlock_acquire(&ctx->lock);
+
+	/*
+	 * Check the ticket to ensure that the response is for the right
+	 * request. If the ticket does not match, drop the response.
+	 * The ticket may not match if the request was cancelled by
+	 * the realm calling token_init again. It is also possible that
+	 * the realm has cancelled an existing request, initialized another
+	 * request and  queued it, before the response to the previous request
+	 * arrives. The ticket value ensures unique match of request and
+	 * response regardless of the number of time, cancel and/or queueing
+	 * of requests occur.
+	 */
+	if ((ctx->state.req_ticket) != (req_ticket)) {
+		assert((ctx->state.req_ticket == 0UL) ||
+			(ctx->state.req_ticket >= req_ticket));
+		ERROR("%s:%d ticket mismatch %lx %lx, dropping response\n",
+			__func__, __LINE__, ctx->state.req_ticket,
+			req_ticket);
+		goto out_buf_lock;
+	}
+
+	if (sig_len > ctx->state.sig_len) {
+		ERROR("%s:%d sig len mismatch %lx %lx\n", __func__, __LINE__,
+		      ctx->state.sig_len, sig_len);
+		ctx->state.is_el3_err = true;
+		goto out_buf_lock;
+	}
+
+	ctx->state.sig_len = sig_len;
+	(void)memcpy(ctx->state.sig_buffer,
+		(void *)signature_buf, sig_len);
+	ctx->state.is_sig_valid = true;
+
+out_buf_lock:
+	spinlock_release(&ctx->lock);
+	return 0;
+}
+#endif
 
 int attestation_init(void)
 {
 	int ret;
-	psa_status_t psa_status;
-
-	/* Enable Data Independent Timing feature */
-	write_dit(DIT_BIT);
-
-	/*
-	 * Associate the allocated heap for mbedtls with the current CPU.
-	 */
-	ret = buffer_alloc_ctx_assign(&init_ctx);
-	if (ret != 0) {
-		return ret;
-	}
-
-	SIMD_FPU_ALLOW(mbedtls_memory_buffer_alloc_init(mem_buf,
-							sizeof(mem_buf)));
-
-	SIMD_FPU_ALLOW(ret = attest_rnd_prng_init());
-	if (ret != 0) {
-		goto attest_init_fail;
-	}
-
-	init_rmm_app_helpers_applications();
-
-	SIMD_FPU_ALLOW(psa_status = psa_crypto_init());
-	if (psa_status != PSA_SUCCESS) {
-		ret = -EINVAL;
-		goto attest_init_fail;
-	}
-
-	/*
-	 * Set the number of max operations per ECC signing iteration to the
-	 * configured value.
-	 *
-	 * This adjusts the length of a single signing loop.
-	 */
-	SIMD_FPU_ALLOW(psa_interruptible_set_max_ops(MBEDTLS_ECP_MAX_OPS));
-
 	/* Retrieve the platform key from root world */
 	ret = attest_init_realm_attestation_key();
 	if (ret != 0) {
-		goto attest_init_fail;
+		return ret;
 	}
 
 	/* Retrieve the platform token from root world */
 	ret = attest_setup_platform_token();
 	if (ret != 0) {
-		goto attest_init_fail;
+		return ret;
 	}
 
 #if ATTEST_EL3_TOKEN_SIGN
@@ -105,20 +146,8 @@ int attestation_init(void)
 	if (el3_token_sign_queue_init() != 0) {
 		WARN("EL3 queue init failed.\n");
 		ret = -ENOTSUP;
-		goto attest_init_fail;
+		return ret;
 	}
 #endif
-	attest_initialized = true;
-
-	/* Disable Data Independent Timing feature */
-	write_dit(0x0);
-
-attest_init_fail:
-	buffer_alloc_ctx_unassign();
-	return ret;
-}
-
-bool attestation_initialised(void)
-{
-	return attest_initialized;
+	return 0;
 }

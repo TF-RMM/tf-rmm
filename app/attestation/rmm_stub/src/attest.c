@@ -274,12 +274,11 @@ enum attest_token_err_t attest_cca_token_create(
 	return (enum attest_token_err_t)ret;
 }
 
-long attest_token_sign_ctx_init(struct app_data_cfg *app_data)
+enum attest_token_err_t attest_token_sign_ctx_init(struct app_data_cfg *app_data, uintptr_t cookie)
 {
 	return (enum attest_token_err_t)app_run(app_data,
 		ATTESTATION_APP_FUNC_ID_TOKEN_CTX_INIT,
-			0, 0, 0, 0);
-
+			cookie, 0, 0, 0);
 }
 
 enum attest_token_err_t attest_realm_token_create(struct app_data_cfg *app_data,
@@ -308,3 +307,23 @@ enum attest_token_err_t attest_realm_token_create(struct app_data_cfg *app_data,
 	app_unmap_shared_page(app_data);
 	return ret;
 }
+
+#if ATTEST_EL3_TOKEN_SIGN
+int attest_app_el3_token_write_response_to_ctx(struct app_data_cfg *app_data,
+					       uint64_t req_ticket,
+					       size_t signature_buf_len,
+					       uint8_t signature_buf[])
+{
+	unsigned long ret;
+
+	app_map_shared_page(app_data);
+	assert(signature_buf_len <= GRANULE_SIZE);
+	memcpy(app_data->el2_shared_page, signature_buf, signature_buf_len);
+	SIMD_FPU_ALLOW(
+		ret = app_run(app_data,
+			EL3_TOKEN_WRITE_RESPONSE_TO_CTX,
+			req_ticket, signature_buf_len, 0, 0));
+	app_unmap_shared_page(app_data);
+	return ret;
+}
+#endif

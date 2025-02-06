@@ -82,11 +82,4 @@ enum hash_algo attest_get_realm_public_key_hash_algo_id(void);
  */
 int attest_rnd_prng_init(void);
 
-/*
- * Initialize the EL3 token signing module. Also initialize callbacks
- * in the t_cose library. The function returns 0 on success, and -ENOTSUP
- * on failure.
- */
-int el3_token_sign_queue_init(void);
-
 #endif /* ATTESTATION_PRIV_H */

@@ -6,9 +6,10 @@
 #include <app.h>
 #include <app_header.h>
 #include <arch_features.h>
-#include <attestation.h>
+#include <attest_app.h>
 #include <buffer.h>
 #include <debug.h>
+#include <random_app.h>
 #include <rmm_el3_ifc.h>
 #include <run.h>
 #include <simd.h>
@@ -77,6 +78,21 @@ void rmm_warmboot_main(void)
 	 * Finish initializing the slot buffer mechanism
 	 */
 	slot_buf_finish_warmboot_init();
+
+	/*
+	 * Random app init
+	 */
+#ifdef RMM_FPU_USE_AT_REL2
+	simd_context_save(get_cpu_ns_simd_context());
+#endif
+	random_app_init_prng();
+#ifdef RMM_FPU_USE_AT_REL2
+	simd_context_restore(get_cpu_ns_simd_context());
+#endif
+	/*
+	 * Attest app init
+	 */
+	attest_app_init_per_cpu_instance();
 }
 
 /*
@@ -131,8 +147,6 @@ void rmm_main(void)
 	app_info_setup();
 	app_framework_setup();
 
-	rmm_warmboot_main();
-
 	simd_init();
 
 	/* Initialize the NS SIMD context for all CPUs */
@@ -141,14 +155,31 @@ void rmm_main(void)
 #ifdef RMM_FPU_USE_AT_REL2
 	simd_context_save(get_cpu_ns_simd_context());
 #endif
-	if (attestation_init() != 0) {
+
+	/*
+	 * Initialise the prng for this CPU, as it may be used by the attest
+	 * global init during key calculation. This fuinction is also called in
+	 * rmm_warmboot_main, but it is not a problem as initialisation happens
+	 * only once, regardless of the number of calls to this function.
+	 */
+	random_app_init_prng();
+
+	/*
+	 * TODO: this function shouldn't panic!!
+	 * It should be possible to startup RMM without working attestation
+	 * Probably could still panic if there is an error during app management
+	 */
+	if (attest_app_global_init() != 0) {
 		WARN("Attestation init failed.\n");
 	}
+
 #ifdef RMM_FPU_USE_AT_REL2
 	/*
 	 * TODO: Do not save and restore NS state. Instead after
-	 * attestation_init clear FPU state.
+	 * attestation init clear FPU state.
 	 */
 	simd_context_restore(get_cpu_ns_simd_context());
 #endif
+
+	rmm_warmboot_main();
 }

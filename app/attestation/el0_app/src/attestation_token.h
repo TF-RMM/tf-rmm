@@ -183,37 +183,22 @@ enum attest_token_err_t attest_token_ctx_init(struct token_sign_cntxt *token_ctx
 					      uintptr_t cookie);
 
 /*
- * Pull the response from EL3 into the per cpu response buffer. The function
- * returns the cookie associated with the response. The response could correspond
- * to current REC or another REC which had requested the EL3 service.
- *
- * Arguments:
- * cookie		- Pointer to storage of cookie to return the value from
- *			  response.
- *
- * Return code:
- *	0		- Success
- *	-EAGAIN		- Response not ready. Call this API again.
- *	-ENOTSUP	- Other error including EL3_TOKEN_SIGN not supported in
- *			  EL3 firmware.
- */
-int attest_el3_token_sign_pull_response_from_el3(uintptr_t *cookie);
-
-/*
  * Write the response from EL3 to the context. The response is written only if the context
- * is valid and the response is for the right request. If the function returns an error
- * the caller must treat it as a fatal error. The cookie is checked against the per cpu
- * response buffer to ensure that the response is for the right request.
+ * is valid and the response is for the right request.
  * The caller must ensure that the REC granule lock is held so that it cannot be deleted
  * while the response is being written.
  *
  * Arguments:
  * ctx			- Pointer to token_sign_cntxt
- * cookie		- Pointer to storage of cookie to return the value from
- *			  response.
+ * req_ticket           - The req_ticket in the response
+ * sig_len              - The length of the signature in the response
+ * signature_buf        - The signature in the response
  *
  * Returns 0 on success or a negative error code otherwise.
  */
-int attest_el3_token_write_response_to_ctx(struct token_sign_cntxt *sign_ctx, uintptr_t cookie);
+int app_attest_el3_token_write_response_to_ctx(struct token_sign_cntxt *sign_ctx,
+					   uint64_t req_ticket,
+					   size_t sig_len,
+					   uint8_t signature_buf[]);
 
 #endif /* ATTESTATION_TOKEN_H */

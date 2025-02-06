@@ -8,6 +8,8 @@
 #ifndef APP_SERVICES_H
 #define APP_SERVICES_H
 
+#define APP_MAX_ATTEST_KEY_SIZE	1024U
+
 /* Services management */
 uint64_t call_app_service(unsigned long service_id,
 			  struct app_data_cfg *app_data,

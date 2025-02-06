@@ -92,14 +92,13 @@ void measurement_extend(void *app_data_cfg,
 	assert(extend_measurement != NULL);
 	assert(out != NULL);
 
-	SIMD_FPU_ALLOW(
-		do_extend(app_data_cfg,
-			  algorithm,
-			  current_measurement,
-			  extend_measurement,
-			  extend_measurement_size,
-			  out,
-			  out_size));
+	do_extend(app_data_cfg,
+			algorithm,
+			current_measurement,
+			extend_measurement,
+			extend_measurement_size,
+			out,
+			out_size);
 
 #if LOG_LEVEL >= LOG_LEVEL_VERBOSE
 	measurement_print(out, algorithm);

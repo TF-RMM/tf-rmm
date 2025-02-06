@@ -3,7 +3,6 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include <attestation.h>
 #include <buffer.h>
 #include <debug.h>
 #include <granule.h>
@@ -17,19 +16,6 @@
 
 #define MAX_EXTENDED_SIZE	(64U)
 #define MAX_MEASUREMENT_WORDS	(MAX_MEASUREMENT_SIZE / sizeof(unsigned long))
-/*
- * Return the Realm Personalization Value.
- *
- * Arguments:
- * rd    - The Realm descriptor.
- * claim_ptr - The start address of the Realm Personalization Value claim
- * claim_len - The length of the Realm Personalization Value claim
- */
-static void get_rpv(struct rd *rd, void **claim_ptr, size_t *claim_len)
-{
-	*claim_ptr = (uint8_t *)&(rd->rpv[0]);
-	*claim_len = RPV_SIZE;
-}
 
 /*
  * Function to continue with the token write operation
@@ -86,11 +72,9 @@ static void attest_token_continue_write_state(struct rec *rec,
 
 	if (attest_data->rmm_cca_token_copied_len == 0UL) {
 		ret = attest_cca_token_create(
-				&attest_data->token_sign_ctx,
+				&rec->attest_app_data,
 				(void *)cca_token_buf,
 				REC_ATTEST_TOKEN_BUF_SIZE,
-				&attest_data->rmm_realm_token_buf,
-				attest_data->rmm_realm_token_len,
 				&attest_token_len);
 
 		if (ret != ATTEST_TOKEN_ERR_SUCCESS) {
@@ -138,10 +122,7 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 {
 	struct rd *rd;
 	struct rec_attest_data *attest_data;
-	void *rpv_ptr;
-	size_t rpv_len;
 	enum attest_token_err_t ret;
-	int att_ret;
 
 	assert(rec != NULL);
 
@@ -157,10 +138,8 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	 * Calling RSI_ATTESTATION_TOKEN_INIT any time aborts any ongoing
 	 * operation.
 	 */
-	ret = attest_token_ctx_init(&attest_data->token_sign_ctx,
-				rec->aux_data.attest_heap_buf,
-				REC_HEAP_SIZE,
-				granule_addr(rec->g_rec));
+	ret = attest_token_sign_ctx_init(&rec->attest_app_data,
+						granule_addr(rec->g_rec));
 	if (ret != ATTEST_TOKEN_ERR_SUCCESS) {
 		ERROR("Failed to initialize attestation token context.\n");
 		res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
@@ -175,20 +154,14 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
 	assert(rd != NULL);
 
-	get_rpv(rd, &rpv_ptr, &rpv_len);
-	att_ret = attest_realm_token_create(rd->algorithm, rd->measurement,
-					    MEASUREMENT_SLOT_NR,
-					    rpv_ptr,
-					    rpv_len,
-					    (const void *)&rec->regs[1],
-					    ATTEST_CHALLENGE_SIZE,
-					    &attest_data->token_sign_ctx,
-					    attest_data->rmm_realm_token_buf,
-					    sizeof(attest_data->rmm_realm_token_buf));
+	ret = attest_realm_token_create(&rec->attest_app_data,
+			     rd->algorithm, rd->measurement,
+			     &(rd->rpv[0]),
+			     (const void *)&rec->regs[1]);
 	buffer_unmap(rd);
 	granule_unlock(rec->realm_info.g_rd);
 
-	if (att_ret != 0) {
+	if (ret != ATTEST_TOKEN_ERR_SUCCESS) {
 		ERROR("Realm token creation failed.\n");
 		res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
 		return;
@@ -212,9 +185,7 @@ static __unused int write_response_to_rec(struct rec *curr_rec,
 {
 	struct granule *rec_granule = NULL;
 	struct rec *rec = NULL;
-	void *rec_aux = NULL;
-	struct token_sign_cntxt *ctx = NULL;
-	struct rec_attest_data *attest_data = NULL;
+	struct app_data_cfg *attest_app_data;
 	bool unmap_unlock_needed = false;
 	int ret = 0;
 
@@ -240,33 +211,17 @@ static __unused int write_response_to_rec(struct rec *curr_rec,
 		rec = buffer_granule_map(rec_granule, SLOT_EL3_TOKEN_SIGN_REC);
 		assert(rec != NULL);
 
-		/*
-		 * Map auxiliary granules. Note that the aux granules are mapped at a
-		 * different high VA than during realm creation since this function
-		 * may be executing with another rec mapped at the same high VA.
-		 * Any accesses to aux granules via initialized pointers such as
-		 * attest_data, need to be recaluclated at the new high VA.
-		 */
-		rec_aux = buffer_rec_aux_granules_map_el3_token_sign_slot(
-							  rec->g_aux,
-							  rec->num_rec_aux);
-		assert(rec_aux != NULL);
-
 		unmap_unlock_needed = true;
-		attest_data = (struct rec_attest_data *)((uintptr_t)rec_aux + REC_HEAP_SIZE +
-			      REC_PMU_SIZE + REC_SIMD_SIZE);
 	} else {
 		rec = curr_rec;
-		attest_data = rec->aux_data.attest_data;
 	}
-	ctx = &attest_data->token_sign_ctx;
+	attest_app_data = &(rec->attest_app_data);
 
-	if (attest_el3_token_write_response_to_ctx(ctx, resp_granule) != 0) {
+	if (attest_el3_token_write_response_to_ctx(attest_app_data, resp_granule) != 0) {
 		ret = -EPERM;
 	}
 
 	if (unmap_unlock_needed) {
-		buffer_rec_aux_unmap(rec_aux, rec->num_rec_aux);
 		buffer_unmap(rec);
 		granule_unlock(rec_granule);
 	}
@@ -308,7 +263,7 @@ void handle_rsi_attest_token_continue(struct rec *rec,
 	while (attest_data->rmm_realm_token_len == 0U) {
 		enum attest_token_err_t ret;
 
-		ret = attest_realm_token_sign(&(attest_data->token_sign_ctx),
+		ret = attest_realm_token_sign(&rec->attest_app_data,
 					&(attest_data->rmm_realm_token_len));
 
 		if (ret == ATTEST_TOKEN_ERR_INVALID_STATE) {
@@ -425,7 +380,7 @@ void handle_rsi_measurement_extend(struct rec *rec, struct rsi_result *res)
 	extend_measurement = &rec->regs[3];
 	current_measurement = rd->measurement[index];
 
-	measurement_extend(rec->aux_data.attest_app_data,
+	measurement_extend(&rec->attest_app_data,
 			   rd->algorithm,
 			   current_measurement,
 			   extend_measurement,

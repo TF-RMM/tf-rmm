@@ -53,4 +53,38 @@ enum attest_token_err_t  attest_realm_token_create(struct app_data_cfg *app_data
 			     unsigned char measurements[][MAX_MEASUREMENT_SIZE],
 			     const void *rpv_buf,
 			     const void *challenge_buf);
+
+/* This API is private for this rmm-stub. */
+int attest_app_el3_token_write_response_to_ctx(struct app_data_cfg *app_data,
+					       uint64_t req_ticket,
+					       size_t signature_buf_len,
+					       uint8_t signature_buf[]);
+
+/*
+ * Write the response from EL3 to the context. The response is written only if the context
+ * is valid and the response is for the right request. If the function returns an error
+ * the caller must treat it as a fatal error. The cookie is checked against the per cpu
+ * response buffer to ensure that the response is for the right request.
+ * The caller must ensure that the REC granule lock is held so that it cannot be deleted
+ * while the response is being written.
+ */
+int attest_el3_token_write_response_to_ctx(struct app_data_cfg *app_data, uintptr_t cookie);
+
+/*
+ * Pull the response from EL3 into the per cpu response buffer. The function
+ * returns the cookie associated with the response. The response could correspond
+ * to current REC or another REC which had requested the EL3 service.
+ *
+ * Arguments:
+ * cookie		- Pointer to storage of cookie to return the value from
+ *			  response.
+ *
+ * Return code:
+ *	0		- Success
+ *	-EAGAIN		- Response not ready. Call this API again.
+ *	-ENOTSUP	- Other error including EL3_TOKEN_SIGN not supported in
+ *			  EL3 firmware.
+ */
+int attest_el3_token_sign_pull_response_from_el3(uintptr_t *cookie);
+
 #endif /* ATTEST_APP_H */

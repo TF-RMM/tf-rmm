@@ -10,6 +10,7 @@ target_link_libraries(rmm-app-cmn-fw
         rmm-lib-arch
         rmm-lib-debug
         rmm-lib-console
+        rmm-lib-rmm_el3_ifc
         rmm-lib-slot_buf
         rmm-el2-stub)
 

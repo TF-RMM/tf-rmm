@@ -90,7 +90,13 @@ static unsigned long app_global_init(void)
 	psa_status_t psa_status;
 	struct attest_heap_t *heap = (struct attest_heap_t *)get_heap_start();
 
-	mbedtls_memory_buffer_alloc_init(heap->mem_buf, sizeof(heap->mem_buf));
+	/* Enable Data Independent Timing feature */
+	write_dit(DIT_BIT);
+
+	mbedtls_memory_buffer_alloc_init(
+		heap->mem_buf,
+		sizeof(heap->mem_buf));
+
 	psa_status = psa_crypto_init();
 	if (psa_status != PSA_SUCCESS) {
 		return (unsigned long)(-EINVAL);
@@ -111,18 +117,29 @@ static unsigned long app_global_init(void)
 
 	attest_key_init_done = true;
 
+	/* Disable Data Independent Timing feature */
+	write_dit(0x0);
+
 	return 0UL;
 }
 
 static unsigned long do_token_creation(void)
 {
-	heap->token_sign_context.ctx.completed_token_len =
+	struct attest_heap_t *heap = (struct attest_heap_t *)get_heap_start();
+
+	enum attest_token_err_t ret =
 		attest_cca_token_create(&heap->token_sign_context,
 			heap->cca_attest_token_buf,
 			sizeof(heap->cca_attest_token_buf),
 			heap->realm_attest_token_buf,
-			heap->realm_token_len);
-	return heap->token_sign_context.ctx.completed_token_len;
+			heap->realm_token_len,
+			&heap->token_sign_context.ctx.completed_token_len);
+	if (ret == ATTEST_TOKEN_ERR_SUCCESS) {
+		(void)memcpy(get_shared_mem_start(),
+			     (void *)&heap->token_sign_context.ctx.completed_token_len,
+			     sizeof(size_t));
+	}
+	return (unsigned long)ret;
 }
 
 static size_t copy_attest_token_to_shared(size_t offset, size_t len)
@@ -138,13 +155,13 @@ static size_t copy_attest_token_to_shared(size_t offset, size_t len)
 	return len;
 }
 
-static long token_context_init(void)
+static unsigned long token_context_init(uintptr_t cookie)
 {
 	struct attest_heap_t *heap = (struct attest_heap_t *)get_heap_start();
 
 	heap->realm_token_len = 0;
 	mbedtls_memory_buffer_alloc_init(heap->mbedtls_heap_buf, sizeof(heap->mbedtls_heap_buf));
-	return attest_token_ctx_init(&heap->token_sign_context);
+	return (unsigned long)attest_token_ctx_init(&heap->token_sign_context, cookie);
 }
 
 static void *get_realm_token_create_params(void)
@@ -171,6 +188,18 @@ static unsigned long realm_token_create(enum hash_algo algorithm)
 			     heap->realm_attest_token_buf,
 			     sizeof(heap->realm_attest_token_buf));
 }
+
+#if ATTEST_EL3_TOKEN_SIGN
+static int el3_token_write_response_to_ctx(uint64_t req_ticket, size_t sig_len)
+{
+	struct attest_heap_t *heap = (struct attest_heap_t *)get_heap_start();
+
+	return app_attest_el3_token_write_response_to_ctx(&(heap->token_sign_context),
+					   req_ticket,
+					   sig_len,
+					   get_shared_mem_start());
+}
+#endif
 
 /* coverity[misra_c_2012_rule_5_8_violation:SUPPRESS] */
 unsigned long el0_app_entry_func(
@@ -209,9 +238,13 @@ unsigned long el0_app_entry_func(
 		if (!attest_key_init_done) {
 			return (unsigned long)ATTEST_TOKEN_ERR_INVALID_STATE;
 		}
-		return token_context_init();
+		return token_context_init(arg_0);
 	case ATTESTATION_APP_FUNC_ID_REALM_TOKEN_CREATE:
 		return realm_token_create((enum hash_algo)arg_0);
+#if ATTEST_EL3_TOKEN_SIGN
+	case EL3_TOKEN_WRITE_RESPONSE_TO_CTX:
+		return el3_token_write_response_to_ctx(arg_0, arg_1);
+#endif
 	default:
 		assert(false);
 		return 0;

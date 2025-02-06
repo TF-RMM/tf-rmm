@@ -3,14 +3,14 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include <app_services.h>
+#include <app_common.h>
 #include <assert.h>
 #include <attest_defs.h>
 #include <attestation_priv.h>
 #include <debug.h>
+#include <el0_app_helpers.h>
 #include <errno.h>
 #include <psa/crypto.h>
-#include <rmm_el3_ifc.h>
 #include <sizes.h>
 #include <t_cose/q_useful_buf.h>
 #include <t_cose/t_cose_common.h>
@@ -75,14 +75,13 @@ static enum hash_algo public_key_hash_algo_id = HASH_SHA_256;
  */
 int attest_init_realm_attestation_key(void)
 {
-	psa_status_t ret;
-	uintptr_t buf;
-	size_t attest_key_size;
+	psa_status_t psa_status;
+	unsigned long ret;
 	psa_key_attributes_t key_attributes = psa_key_attributes_init();
 	struct t_cose_key attest_key;
-	enum t_cose_err_t cose_res __unused;
-	struct q_useful_buf_c cose_key __unused = {0};
-	struct q_useful_buf cose_key_buf __unused  = { realm_attest_public_key,
+	enum t_cose_err_t cose_res;
+	struct q_useful_buf_c cose_key = {0};
+	struct q_useful_buf cose_key_buf  = { realm_attest_public_key,
 				      sizeof(realm_attest_public_key) };
 
 	/*
@@ -95,26 +94,24 @@ int attest_init_realm_attestation_key(void)
 		return -EINVAL;
 	}
 
-	/*
-	 * Get the realm attestation key. The key is retrieved in raw format.
-	 */
-	buf = rmm_el3_ifc_get_shared_buf_locked();
-
 #if ATTEST_EL3_TOKEN_SIGN
-	(void)key_attributes;
-	/* When EL3 service is used for attestation, EL3 returns public key in raw format */
-	if (rmm_el3_ifc_get_realm_attest_pub_key_from_el3(buf,
-			rmm_el3_ifc_get_shared_buf_size(),
-			&attest_key_size,
-			ATTEST_KEY_CURVE_ECC_SECP384R1) != 0) {
-		rmm_el3_ifc_release_shared_buf();
+
+	ret = el0_app_service_call(APP_SERVICE_GET_REALM_ATTEST_PUB_KEY_FROM_EL3,
+				   0, 0, 0, 0);
+	if (ret > (unsigned long)INT_MAX) {
 		return -EINVAL;
 	}
+	if (ret != 0U) {
+		return (int)ret;
+	}
 
-	/* Get the RMM public attestation key */
-	/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
-	(void)memcpy((void *)realm_attest_public_key, (const void *)buf, attest_key_size);
-	realm_attest_public_key_len = attest_key_size;
+	struct service_get_realm_attestation_pub_key_struct *attest_key_struct =
+		(struct service_get_realm_attestation_pub_key_struct *)get_shared_mem_start();
+
+	realm_attest_public_key_len = attest_key_struct->attest_pub_key_buf_size;
+	(void)memcpy((void *)realm_attest_public_key,
+		     attest_key_struct->attest_pub_key_buf,
+		     realm_attest_public_key_len);
 
 	/* Setup the key policy for public key */
 	psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_SIGN_HASH);
@@ -122,19 +119,23 @@ int attest_init_realm_attestation_key(void)
 	psa_set_key_type(&key_attributes, PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_FAMILY_SECP_R1));
 
 	/* Import public key to mbed-crypto */
-	ret = psa_import_key(&key_attributes,
-			     (const uint8_t *)buf,
-			     attest_key_size,
-			     &imported_key);
+	psa_status = psa_import_key(&key_attributes,
+				    realm_attest_public_key,
+				    realm_attest_public_key_len,
+				    &imported_key);
 #else
 
-	if (rmm_el3_ifc_get_realm_attest_key(buf,
-				rmm_el3_ifc_get_shared_buf_size(),
-				&attest_key_size,
-				ATTEST_KEY_CURVE_ECC_SECP384R1) != 0) {
-		rmm_el3_ifc_release_shared_buf();
+	ret = el0_app_service_call(APP_SERVICE_GET_REALM_ATTESTATION_KEY,
+				   0, 0, 0, 0);
+	if (ret > (unsigned long)INT_MAX) {
 		return -EINVAL;
 	}
+	if (ret != 0U) {
+		return (int)ret;
+	}
+
+	struct service_get_realm_attestation_key_struct *attest_key_struct =
+		(struct service_get_realm_attestation_key_struct *)get_shared_mem_start();
 
 	/* Setup the key policy for private key */
 	psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_SIGN_HASH);
@@ -142,18 +143,16 @@ int attest_init_realm_attestation_key(void)
 	psa_set_key_type(&key_attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
 
 	/* Import private key to mbed-crypto */
-	ret = psa_import_key(&key_attributes,
-			     (const uint8_t *)buf,
-			     attest_key_size,
+	psa_status = psa_import_key(&key_attributes,
+			     (const uint8_t *)attest_key_struct->attest_key_buf,
+			     attest_key_struct->attest_key_buf_size,
 			     &imported_key);
 
-	/* Clear the private key from the buffer */
-	/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
-	(void)memset((uint8_t *)buf, 0, attest_key_size);
+	/* Clear the private key from the shared buffer */
+	(void)memset(attest_key_struct->attest_key_buf, 0, attest_key_struct->attest_key_buf_size);
 #endif
-	rmm_el3_ifc_release_shared_buf();
 
-	if (ret != PSA_SUCCESS) {
+	if (psa_status != PSA_SUCCESS) {
 		ERROR("psa_import_key has failed\n");
 		psa_reset_key_attributes(&key_attributes);
 		return -EINVAL;
@@ -178,13 +177,13 @@ int attest_init_realm_attestation_key(void)
 	realm_attest_public_key_len = cose_key.len;
 
 	/* Compute the hash of the RMM public attestation key */
-	ret = psa_hash_compute(PSA_ALG_SHA_256,
+	psa_status = psa_hash_compute(PSA_ALG_SHA_256,
 			       realm_attest_public_key,
 			       realm_attest_public_key_len,
 			       realm_attest_public_key_hash,
 			       sizeof(realm_attest_public_key_hash),
 			       &realm_attest_public_key_hash_len);
-	if (ret != PSA_SUCCESS) {
+	if (psa_status != PSA_SUCCESS) {
 		ERROR("psa_hash_compute has failed\n");
 		psa_reset_key_attributes(&key_attributes);
 		(void) psa_destroy_key(imported_key);
@@ -251,13 +250,11 @@ int attest_get_realm_public_key(struct q_useful_buf_c *public_key)
 
 int attest_setup_platform_token(void)
 {
-	uintptr_t shared_buf;
-	size_t shared_buf_len;
-	size_t token_hunk_len = 0UL, remaining_len = 0UL;
+	void *shared_buf = get_shared_mem_start();
+	size_t remaining_len = 0UL;
 	struct q_useful_buf_c rmm_pub_key_hash;
 	/* coverity[misra_c_2012_rule_14_3_violation:SUPPRESS] */
-	/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
-	uint64_t hash_length = PSA_HASH_LENGTH(PSA_ALG_SHA_256);
+	uint64_t hash_length;
 	uint64_t offset = 0;
 	int ret;
 
@@ -272,52 +269,45 @@ int attest_setup_platform_token(void)
 		return ret;
 	}
 
-	shared_buf = rmm_el3_ifc_get_shared_buf_locked();
+	(void)memcpy(shared_buf, rmm_pub_key_hash.ptr,
+				 rmm_pub_key_hash.len);
+	hash_length = rmm_pub_key_hash.len;
 
-	shared_buf_len = rmm_el3_ifc_get_shared_buf_size();
-
-	(void)memcpy((void *)shared_buf, rmm_pub_key_hash.ptr,
-					 rmm_pub_key_hash.len);
+	struct service_get_platform_token_struct *service_get_platform_token_struct =
+		(struct service_get_platform_token_struct *)get_shared_mem_start();
 
 	do {
-		ret = rmm_el3_ifc_get_platform_token(
-				shared_buf,
-				shared_buf_len,
-				hash_length,
-				&token_hunk_len,
-				&remaining_len);
+		size_t token_hunk_len;
+		unsigned long uret;
 
-		/* Retry if EL3 is busy */
-		if (ret == E_RMM_AGAIN) {
-			continue;
-		}
+		uret = el0_app_service_call(APP_SERVICE_GET_PLATFORM_TOKEN,
+					hash_length, 0, 0, 0);
 
-		if (ret != E_RMM_OK) {
-			rmm_el3_ifc_release_shared_buf();
+		if (uret != 0U) {
 			return -EINVAL;
 		}
+
+		token_hunk_len = service_get_platform_token_struct->token_hunk_len;
+		remaining_len = service_get_platform_token_struct->remaining_len;
 
 		assert(token_hunk_len != 0UL);
 
 		if ((offset + token_hunk_len + remaining_len)
 				> ATTEST_PLAT_TOKEN_SIZE) {
-			rmm_el3_ifc_release_shared_buf();
 			ERROR("Not enough space allocated to store token\n");
 			return -ENOMEM;
 		}
 
 		/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
 		(void)memcpy((void *)&rmm_platform_token_buf[offset],
-			     (void *)shared_buf,
+			     (void *)service_get_platform_token_struct->token_hunk_buf,
 			     token_hunk_len);
 
 		offset += token_hunk_len;
 
 		/* Reset hash_length variable for the rest of the calls */
 		hash_length = 0;
-	} while ((ret == E_RMM_AGAIN) || (remaining_len > 0UL));
-
-	rmm_el3_ifc_release_shared_buf();
+	} while (remaining_len > 0UL);
 
 	rmm_platform_token.ptr = rmm_platform_token_buf;
 	/*

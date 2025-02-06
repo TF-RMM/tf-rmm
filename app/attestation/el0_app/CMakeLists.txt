@@ -75,6 +75,7 @@ target_include_directories(rmm-app-attestation-elf
 
 target_link_libraries(rmm-app-attestation-elf
     PRIVATE
+        rmm-lib-arch
         rmm-lib-libc
         rmm-lib-smc
         rmm-app-common-el0_app
@@ -111,7 +112,6 @@ target_sources(rmm-app-attestation-elf
         "src/attest_app.c"
         "src/attest_measurement.c"
         "src/attestation_key.c"
-        "src/attestation_rnd.c"
         "src/attestation_token.c"
         "src/attestation_utils.c")
 

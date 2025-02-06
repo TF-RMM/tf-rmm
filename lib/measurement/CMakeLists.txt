@@ -7,8 +7,8 @@ add_library(rmm-lib-measurement)
 
 target_link_libraries(rmm-lib-measurement
     PUBLIC rmm-lib-smc
-            rmm-app-attestation-stub
-    PRIVATE rmm-lib-arch
+    PRIVATE rmm-el2-stub
+            rmm-lib-arch
             rmm-lib-common
             rmm-lib-debug)
 

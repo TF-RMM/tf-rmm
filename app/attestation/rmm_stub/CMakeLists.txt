@@ -9,12 +9,18 @@ target_link_libraries(rmm-app-attestation-stub
     rmm-lib-arch
     rmm-lib-common
     rmm-lib-debug
+    rmm-lib-rmm_el3_ifc
     rmm-lib-smc
     rmm-el2-stub)
 
 target_include_directories(rmm-app-attestation-stub
     PUBLIC "include"
     PRIVATE "../../common/include")
+
+target_compile_definitions(rmm-app-attestation-stub
+    PUBLIC
+        "ATTEST_EL3_TOKEN_SIGN=$<IF:$<BOOL:${ATTEST_EL3_TOKEN_SIGN}>,1,0>"
+)
 
 target_sources(rmm-app-attestation-stub
     PRIVATE
