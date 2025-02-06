@@ -63,6 +63,8 @@
 #define round_down(value, boundary)		\
 	((value) & ~round_boundary(value, boundary))
 
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+
 /* Size of a 'm_' member of 's_' structure */
 /* cppcheck-suppress [misra-c2012-20.7] */
 #define SIZE_OF(s_, m_)		(sizeof(((struct s_ *)NULL)->m_))
@@ -243,6 +245,9 @@
 #define IF_NCBMC(x)	x
 #define IF_CBMC(x)
 #endif /* CBMC */
+
+/* cppcheck-suppress misra-c2012-20.7 */
+#define SIZEOF_MEMBER(struct_type, member) (sizeof(((struct_type *)0)->member))
 
 #endif /* !(defined(__ASSEMBLER__) || defined(__LINKER__)) */
 

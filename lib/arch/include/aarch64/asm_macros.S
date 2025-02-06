@@ -164,4 +164,18 @@
 	300:
 	.endm
 
+	.macro ventry_unused error_message
+	.balign	0x80
+	wfe
+	b	.-4
+	.endm
+
+	.macro ventry label
+		.balign	0x80
+		b	\label
+	.endm
+
+	/* VBAR_EL3[10:0] are hardwired to 0, align vector address accordingly */
+	.balign 0x800
+
 #endif /* ASM_MACROS_S */
