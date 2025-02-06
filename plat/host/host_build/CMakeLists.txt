@@ -7,7 +7,8 @@ add_library(rmm-plat-host_build)
 
 target_link_libraries(rmm-plat-host_build
     PRIVATE rmm-lib
-            rmm-host-common)
+            rmm-host-common
+            rmm-el2-stub)
 
 target_sources(rmm-plat-host_build
     PRIVATE "src/host_setup.c"

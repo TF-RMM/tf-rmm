@@ -8,6 +8,8 @@
 
 #ifndef __ASSEMBLER__
 #include <app_header_structures.h>
+#include <stddef.h>
+#include <stdint.h>
 #endif
 
 #define APP_COUNT		0U

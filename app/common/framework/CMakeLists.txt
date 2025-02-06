@@ -8,6 +8,7 @@ add_library(rmm-app-cmn-fw)
 target_link_libraries(rmm-app-cmn-fw
     PRIVATE
         rmm-lib-arch
+        rmm-lib-debug
         rmm-lib-console
         rmm-lib-slot_buf
         rmm-el2-stub
@@ -20,10 +21,17 @@ target_include_directories(rmm-app-cmn-fw
            "../include/${RMM_ARCH}"
            "../../common/include")
 
-target_sources(rmm-app-cmn-fw
-    PRIVATE "src/${RMM_ARCH}/app.c"
-            "src/${RMM_ARCH}/app_header.c"
-    )
+if((HOST_VARIANT STREQUAL "host_cbmc") OR (HOST_VARIANT STREQUAL "host_test"))
+    target_sources(rmm-app-cmn-fw
+        PRIVATE "src/no_app_support/app.c"
+                "src/no_app_support/app_header.c"
+        )
+else()
+    target_sources(rmm-app-cmn-fw
+        PRIVATE "src/${RMM_ARCH}/app.c"
+                "src/${RMM_ARCH}/app_header.c"
+        )
+endif()
 
 target_compile_definitions(rmm-app-cmn-fw
     PUBLIC

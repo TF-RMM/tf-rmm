@@ -82,9 +82,6 @@ struct rmm_rec Rec(uint64_t addr)
 
 bool AuxStateEqual(struct granule **aux, uint64_t num_aux, unsigned char state)
 {
-	struct granule *g_rec_aux = aux[0];
-	unsigned char aux_state = granule_unlocked_state(g_rec_aux);
-
 	__CPROVER_assert(num_aux >= 0 && num_aux <= MAX_REC_AUX_GRANULES,
 		"internal: _AuxStateEqual range check.");
 	for (int i = 0; i < num_aux && i < MAX_REC_AUX_GRANULES; ++i) {
