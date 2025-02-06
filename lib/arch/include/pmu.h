@@ -27,15 +27,10 @@ struct pmu_state {
 	unsigned long pmccfiltr_el0;
 	unsigned long pmccntr_el0;
 	unsigned long pmcntenset_el0;
-	unsigned long pmcntenclr_el0;
 	unsigned long pmintenset_el1;
-	unsigned long pmintenclr_el1;
 	unsigned long pmovsset_el0;
-	unsigned long pmovsclr_el0;
 	unsigned long pmselr_el0;
 	unsigned long pmuserenr_el0;
-	unsigned long pmxevcntr_el0;
-	unsigned long pmxevtyper_el0;
 
 	struct pmev_regs pmev_regs[31];
 
