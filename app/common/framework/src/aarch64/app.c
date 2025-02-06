@@ -456,8 +456,13 @@ static void collect_app_bss(void)
 	int ret __unused;
 	size_t app_index;
 
+	void attest_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
 	void random_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
 
+	ret = app_get_index(ATTESTATION_APP_ID, &app_index);
+	assert(ret == 0);
+	attest_app_get_bss(&app_bss_memory_array[app_index].pa,
+		&app_bss_memory_array[app_index].size);
 	ret = app_get_index(RMM_RANDOM_APP_ID, &app_index);
 	assert(ret == 0);
 	random_app_get_bss(&app_bss_memory_array[app_index].pa,

@@ -12,7 +12,7 @@
 #include <stdint.h>
 #endif
 
-#define APP_COUNT		1U
+#define APP_COUNT		2U
 
 #ifndef __ASSEMBLER__
 

@@ -175,7 +175,7 @@ if(NOT RMM_ARCH STREQUAL fake_host)
     add_custom_command(
         COMMAND "${BUNDLE_APP_RMM}" --out-bin ${ARTEFACT_DIR}/${RMM_IMG} --rmm-bin ${ARTEFACT_DIR}/rmm_core.img ${EL0_APP_BIN_LIST} 2> ${BUNDLE_COMMAND_OUTPUT}
         OUTPUT ${RMM_IMG}
-        DEPENDS rmm_core.img rmm-random-app-bin)
+        DEPENDS rmm_core.img rmm-random-app-bin rmm-attestation-app-bin)
 endif()
 
 add_custom_target(rmm ALL DEPENDS rmm_core.img rmm_core.dump rmm_core.elf rmm.elf rmm_core.map ${RMM_IMG})
