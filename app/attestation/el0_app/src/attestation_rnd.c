@@ -21,6 +21,7 @@ psa_status_t mbedtls_psa_external_get_random(
 	(void)context;
 	struct app_data_cfg *rnd_app_data = random_app_get_data_cfg();
 	int ret = random_app_prng_get_random(rnd_app_data, output, output_size);
+
 	if (ret != 0) {
 		return PSA_ERROR_HARDWARE_FAILURE;
 	}

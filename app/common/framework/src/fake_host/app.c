@@ -13,13 +13,15 @@
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
+#include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 
 /*
  * TODO: The host application uses a single shared page that is the same for all
  *       the application instances. The best location for this buffer would be
  *       in struct app_data_cfg, but it doesn't fit there as a size limit on
- *       the `struct rec` size which contains attestation helper app's data.
+ *       the `struct rec` size which contains attestation app's data.
  *       Remove this TODO once the aarch64 implementation uses a single shared
  *       page as well.
  */
@@ -158,6 +160,10 @@ static struct app_process_data *get_app_process_data(unsigned long app_id)
 
 void app_framework_setup(void)
 {
+	/* Not related to app initialisation, but this is a good location for
+	 * one time initialisation
+	 */
+	srand(time(NULL));
 }
 
 int app_init_data(struct app_data_cfg *app_data,
@@ -275,4 +281,27 @@ unsigned long app_run(struct app_data_cfg *app_data,
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, shared_page, GRANULE_SIZE);
 
 	return retval;
+}
+
+/* Used by the Mbed TLS library in case EL3 token signing is active when
+ * emulating EL3 signing.
+ */
+int32_t mbedtls_psa_external_get_random(
+	void *context,
+	uint8_t *output, size_t output_size, size_t *output_length)
+{
+	size_t i;
+
+	(void)context;
+
+	for (i = 0; i < output_size; ++i) {
+		/* Using pseudo-random generation as mbedtls library might
+		 * return with error if not enough entropy.
+		 */
+		output[i] = (uint8_t)(unsigned int)rand();
+	}
+
+	*output_length = output_size;
+
+	return 0;
 }

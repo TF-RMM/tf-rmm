@@ -12,7 +12,7 @@
 #ifndef ATTESTATION_TOKEN_H
 #define ATTESTATION_TOKEN_H
 
-#include <measurement.h>
+#include <attest_defs.h>
 #ifndef CBMC
 #include <qcbor/qcbor.h>
 #endif /* CBMC */
@@ -37,32 +37,6 @@ enum attest_token_gen_state_t {
 #ifndef CBMC
 
 #define ATTEST_TOKEN_BUFFER_SIZE		GRANULE_SIZE
-
-enum attest_token_err_t {
-	/* Success */
-	ATTEST_TOKEN_ERR_SUCCESS = 0,
-	/* The Attest token context state is incorrect */
-	ATTEST_TOKEN_ERR_INVALID_STATE,
-	/* The buffer passed in to receive the output is too small. */
-	ATTEST_TOKEN_ERR_TOO_SMALL,
-	/*
-	 * Something went wrong formatting the CBOR, most likely the
-	 * payload has maps or arrays that are not closed.
-	 */
-	ATTEST_TOKEN_ERR_CBOR_FORMATTING,
-	/* Signing key is not found or of wrong type. */
-	ATTEST_TOKEN_ERR_SIGNING_KEY,
-	ATTEST_TOKEN_ERR_COSE_ERROR,
-	/*
-	 * Signing is in progress, function should be called with the same
-	 * parameters again.
-	 */
-	ATTEST_TOKEN_ERR_COSE_SIGN_IN_PROGRESS,
-	/*
-	 * Error code to return when CCA token creation fails.
-	 */
-	ATTEST_TOKEN_ERR_CCA_TOKEN_CREATE
-};
 
 /*
  * The context for creating an attestation token. The caller of
@@ -89,9 +63,9 @@ struct attest_token_encode_ctx {
 #else
 	struct t_cose_psa_crypto_context              crypto_ctx;
 #endif
-};
 
-#define ATTEST_CHALLENGE_SIZE			(64)
+	size_t                                        completed_token_len;
+};
 
 /*
  * The context for signing an attestation token. Each REC contains one context
@@ -111,16 +85,6 @@ struct token_sign_cntxt {
 
 #define ATTEST_TOKEN_BUFFER_SIZE		GRANULE_SIZE
 
-enum attest_token_err_t {
-	/* Success */
-	ATTEST_TOKEN_ERR_SUCCESS = 0,
-	/*
-	 * Signing is in progress, function should be called with the same
-	 * parameters again.
-	 */
-	ATTEST_TOKEN_ERR_COSE_SIGN_IN_PROGRESS
-};
-
 struct attest_token_encode_ctx {
 	uint32_t unused;
 };
@@ -128,8 +92,6 @@ struct attest_token_encode_ctx {
 struct token_sign_cntxt {
 	enum attest_token_gen_state_t state;
 };
-
-#define ATTEST_CHALLENGE_SIZE			(1)
 
 #endif /* CBMC */
 
@@ -150,7 +112,7 @@ struct token_sign_cntxt {
  * formatting of the token is completed.
  */
 enum attest_token_err_t
-attest_realm_token_sign(struct token_sign_cntxt *me,
+attest_app_realm_token_sign(struct token_sign_cntxt *me,
 			size_t *completed_token_len);
 
 /*
@@ -169,7 +131,7 @@ attest_realm_token_sign(struct token_sign_cntxt *me,
  * created. Otherwise, returns the proper error value.
  */
 enum attest_token_err_t
-attest_cca_token_create(struct token_sign_cntxt *me,
+attest_app_cca_token_create(struct token_sign_cntxt *me,
 				void *attest_token_buf,
 				size_t attest_token_buf_size,
 				const void *realm_token_buf,
@@ -194,7 +156,7 @@ attest_cca_token_create(struct token_sign_cntxt *me,
  * Returns ATTEST_TOKEN_ERR_SUCCESS (0) on success or a negative error code
  * otherwise.
  */
-int attest_realm_token_create(enum hash_algo algorithm,
+int attest_app_realm_token_create(enum hash_algo algorithm,
 			     unsigned char measurements[][MAX_MEASUREMENT_SIZE],
 			     unsigned int num_measurements,
 			     const void *rpv_buf,
@@ -206,15 +168,11 @@ int attest_realm_token_create(enum hash_algo algorithm,
 			     size_t realm_token_buf_size);
 
 /*
- * Initialize the token sign context and also the heap buffer used for the crypto.
- * It is assumed that the heap alloc context has already been assigned to this
- * CPU. If the token sign context has already been initialized, this API will
- * not initialize again as an optimization.
+ * Initialize the token sign context. If the token sign context has already been
+ * initialized, this API will not initialize again as an optimization.
  *
  * Arguments:
  * token_ctx		- Token sign context.
- * heap_buf		- Buffer to use as heap.
- * heap_buf_len		- Size of the buffer to use as heap.
  * cookie		- Unique cookie to associate with the context (ex rec granule PA)
  *
  * Return code:
@@ -222,9 +180,7 @@ int attest_realm_token_create(enum hash_algo algorithm,
  *	ATTEST_TOKEN_ERR_INVALID_STATE	- Failed possibly due to invalid state.
  */
 enum attest_token_err_t attest_token_ctx_init(struct token_sign_cntxt *token_ctx,
-			   unsigned char *heap_buf,
-			   unsigned long heap_buf_len,
-			   uintptr_t cookie);
+					      uintptr_t cookie);
 
 /*
  * Pull the response from EL3 into the per cpu response buffer. The function
@@ -236,9 +192,9 @@ enum attest_token_err_t attest_token_ctx_init(struct token_sign_cntxt *token_ctx
  *			  response.
  *
  * Return code:
- * 	0		- Success
- * 	-EAGAIN		- Response not ready. Call this API again.
- * 	-ENOTSUP	- Other error including EL3_TOKEN_SIGN not supported in
+ *	0		- Success
+ *	-EAGAIN		- Response not ready. Call this API again.
+ *	-ENOTSUP	- Other error including EL3_TOKEN_SIGN not supported in
  *			  EL3 firmware.
  */
 int attest_el3_token_sign_pull_response_from_el3(uintptr_t *cookie);

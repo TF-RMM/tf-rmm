@@ -9,16 +9,14 @@
  *    trusted-firmware-m/secure_fw/partitions/initial_attestation/attest_token_encode.c
  */
 
-#include <alloc_utils.h>
+#include <arch.h>
+#include <arch_features.h>
 #include <assert.h>
-#include <attestation.h>
 #include <attestation_defs_priv.h>
 #include <attestation_priv.h>
 #include <attestation_token.h>
 #include <debug.h>
-#include <measurement.h>
 #include <qcbor/qcbor.h>
-#include <simd.h>
 #include <t_cose/q_useful_buf.h>
 #include <t_cose/t_cose_common.h>
 #include <t_cose/t_cose_sign1_sign.h>
@@ -92,9 +90,11 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 	me->key_select = key_select;
 
 	t_cose_signature_sign_restart_init(&me->restartable_signer_ctx, cose_alg_id);
-	t_cose_signature_sign_restart_set_crypto_context(&me->restartable_signer_ctx, &(me->crypto_ctx));
+	t_cose_signature_sign_restart_set_crypto_context(
+		&me->restartable_signer_ctx, &(me->crypto_ctx));
 	t_cose_sign_sign_init(&me->sign_ctx, T_COSE_OPT_MESSAGE_TYPE_SIGN1);
-	t_cose_sign_add_signer(&me->sign_ctx, t_cose_signature_sign_from_restart(&me->restartable_signer_ctx));
+	t_cose_sign_add_signer(&me->sign_ctx,
+			       t_cose_signature_sign_from_restart(&me->restartable_signer_ctx));
 
 #if !ATTEST_EL3_TOKEN_SIGN
 	/*
@@ -126,7 +126,7 @@ attest_token_encode_start(struct attest_token_encode_ctx *me,
 }
 
 enum attest_token_err_t
-attest_realm_token_sign(struct token_sign_cntxt *me,
+attest_app_realm_token_sign(struct token_sign_cntxt *me,
 			size_t *completed_token_len)
 {
 	/* The completed and signed encoded cose_sign1 */
@@ -146,11 +146,10 @@ attest_realm_token_sign(struct token_sign_cntxt *me,
 	write_dit(DIT_BIT);
 
 	/* Finish up the COSE_Sign1. This is where the signing happens */
-	SIMD_FPU_ALLOW(
-		cose_res = t_cose_sign_encode_finish(&me->ctx.sign_ctx,
-						     NULL_Q_USEFUL_BUF_C,
-						     me->ctx.signed_payload,
-						     &me->ctx.cbor_enc_ctx));
+	cose_res = t_cose_sign_encode_finish(&me->ctx.sign_ctx,
+						NULL_Q_USEFUL_BUF_C,
+						me->ctx.signed_payload,
+						&me->ctx.cbor_enc_ctx);
 
 	/* Disable Data Independent Timing feature */
 	write_dit(0x0);
@@ -191,7 +190,7 @@ attest_realm_token_sign(struct token_sign_cntxt *me,
 }
 
 enum attest_token_err_t
-attest_cca_token_create(struct token_sign_cntxt *me,
+attest_app_cca_token_create(struct token_sign_cntxt *me,
 		       void *attest_token_buf,
 		       size_t attest_token_buf_size,
 		       const void *realm_token_buf,
@@ -266,7 +265,7 @@ attest_cca_token_create(struct token_sign_cntxt *me,
  *	- Realm Initial Measurement
  *	- Realm Extensible Measurements
  */
-int attest_realm_token_create(enum hash_algo algorithm,
+int attest_app_realm_token_create(enum hash_algo algorithm,
 			     unsigned char measurements[][MAX_MEASUREMENT_SIZE],
 			     unsigned int num_measurements,
 			     const void *rpv_buf,
@@ -373,32 +372,18 @@ int attest_realm_token_create(enum hash_algo algorithm,
 
 /* This function will only succeed if attestation_init() has succeeded. */
 enum attest_token_err_t attest_token_ctx_init(struct token_sign_cntxt *token_ctx,
-			unsigned char *heap_buf,
-			unsigned long heap_buf_len,
-			uintptr_t cookie)
+					      uintptr_t cookie)
 {
 	(void)cookie;
 
 	if (token_ctx->state != ATTEST_TOKEN_INIT) {
-		int ret;
-
 		/* Clear context for signing an attestation token */
 		(void)memset(token_ctx, 0, sizeof(struct token_sign_cntxt));
-
-		if (!attestation_initialised()) {
-			ERROR("Attestation init failed.\n");
-			return ATTEST_TOKEN_ERR_INVALID_STATE;
-		}
-
-		ret = alloc_heap_ctx_init(heap_buf,
-						heap_buf_len);
-		if (ret != 0) {
-			return ATTEST_TOKEN_ERR_INVALID_STATE;
-		}
 
 #if ATTEST_EL3_TOKEN_SIGN
 		t_cose_crypto_el3_ctx_init(&token_ctx->ctx.crypto_ctx, cookie);
 #endif
+
 		token_ctx->state = ATTEST_TOKEN_INIT;
 	}
 

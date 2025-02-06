@@ -19,12 +19,6 @@
 #define MEASUREMENT_DATA_HEADER		(2U)
 #define MEASUREMENT_REC_HEADER		(3U)
 
-/* Measurement slot reserved for RIM */
-#define RIM_MEASUREMENT_SLOT		(0U)
-
-/* Maximum number of measurements */
-#define MEASUREMENT_SLOT_NR		(5U)
-
 #define MEASURE_DESC_TYPE_DATA		0x0
 #define MEASURE_DESC_TYPE_REC		0x1
 #define MEASURE_DESC_TYPE_RIPAS		0x2
@@ -44,30 +38,6 @@ void measurement_extend(void *app_data_cfg,
 			size_t extend_measurement_size,
 			unsigned char *out,
 			size_t out_size);
-
-/*
- * Return the hash size in bytes for the selected measurement algorithm.
- *
- * Arguments:
- *	- algorithm:	Algorithm to check.
- */
-static inline size_t measurement_get_size(const enum hash_algo algorithm)
-{
-	size_t ret = 0UL;
-
-	switch (algorithm) {
-	case HASH_SHA_256:
-		ret = (size_t)SHA256_SIZE;
-		break;
-	case HASH_SHA_512:
-		ret = (size_t)SHA512_SIZE;
-		break;
-	default:
-		assert(false);
-	}
-
-	return ret;
-}
 
 /*
  * Measure a data granule

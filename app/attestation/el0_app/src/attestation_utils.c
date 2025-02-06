@@ -10,9 +10,7 @@
 #include <debug.h>
 #include <errno.h>
 #include <mbedtls/memory_buffer_alloc.h>
-#include <memory_alloc.h>
 #include <psa/crypto.h>
-#include <simd.h>
 #include <sizes.h>
 
 /*
@@ -91,7 +89,7 @@ int attestation_init(void)
 	SIMD_FPU_ALLOW(psa_interruptible_set_max_ops(MBEDTLS_ECP_MAX_OPS));
 
 	/* Retrieve the platform key from root world */
-	SIMD_FPU_ALLOW(ret = attest_init_realm_attestation_key());
+	ret = attest_init_realm_attestation_key();
 	if (ret != 0) {
 		goto attest_init_fail;
 	}

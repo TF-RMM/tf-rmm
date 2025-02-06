@@ -3,15 +3,14 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <app_services.h>
 #include <assert.h>
-#include <attestation.h>
+#include <attest_defs.h>
 #include <attestation_priv.h>
 #include <debug.h>
 #include <errno.h>
-#include <measurement.h>
 #include <psa/crypto.h>
 #include <rmm_el3_ifc.h>
-#include <simd.h>
 #include <sizes.h>
 #include <t_cose/q_useful_buf.h>
 #include <t_cose/t_cose_common.h>
@@ -85,8 +84,6 @@ int attest_init_realm_attestation_key(void)
 	struct q_useful_buf_c cose_key __unused = {0};
 	struct q_useful_buf cose_key_buf __unused  = { realm_attest_public_key,
 				      sizeof(realm_attest_public_key) };
-
-	assert(SIMD_IS_FPU_ALLOWED());
 
 	/*
 	 * The realm attestation key is requested from the root world in the

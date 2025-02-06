@@ -53,3 +53,24 @@ void app_unmap_shared_page(struct app_data_cfg *app_data)
 {
 	(void)app_data;
 }
+
+/* Used by the Mbed TLS library in case EL3 token signing is active when
+ * emulating EL3 signing.
+ */
+int32_t mbedtls_psa_external_get_random(
+	void *context,
+	uint8_t *output, size_t output_size, size_t *output_length)
+{
+	static uint8_t val;
+	size_t i;
+
+	(void)context;
+
+	for (i = 0; i < output_size; ++i) {
+		output[i] = val;
+	}
+
+	*output_length = output_size;
+
+	return 0;
+}

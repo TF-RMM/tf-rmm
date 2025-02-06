@@ -7,30 +7,11 @@
 #define ATTEST_APP_H
 
 #include <app.h>
+#include <attest_defs.h>
+#include <sizes.h>
 #include <smc-rmi.h>
 #include <stddef.h>
 
-/* RmmHashAlgorithm type as per RMM spec */
-enum hash_algo {
-	HASH_SHA_256 = RMI_HASH_SHA_256,
-	HASH_SHA_512 = RMI_HASH_SHA_512,
-};
-
-/* Size in bytes of the SHA256 measurement */
-#define SHA256_SIZE			(32U)
-
-/* Size in bytes of the SHA512 measurement */
-#define SHA512_SIZE			(64U)
-
-#ifndef CBMC
-/*
- * Size in bytes of the largest measurement type that can be supported.
- * This macro needs to be updated accordingly if new algorithms are supported.
- */
-#define MAX_MEASUREMENT_SIZE		SHA512_SIZE
-#else
-#define MAX_MEASUREMENT_SIZE		sizeof(uint64_t)
-#endif
 
 void attest_do_hash(unsigned int algorithm,
 		    void *data,
@@ -44,7 +25,32 @@ void attest_do_extend(struct app_data_cfg *app_data,
 		      unsigned char *out,
 		      size_t out_size);
 
+/* Do the global initialisation for the attestation app
+ * This function gets the RAK from EL3, and stores it in the app keystore.
+ */
+int attest_app_global_init(void);
+
 /* Init an app instance for this CPU */
 void attest_app_init_per_cpu_instance(void);
 
+/* Iniialise a new app instance in the app_data object */
+int attest_app_init(struct app_data_cfg *app_data,
+	uintptr_t granule_pas[],
+	size_t granule_pa_count);
+enum attest_token_err_t attest_realm_token_sign(
+			struct app_data_cfg *app_data,
+			size_t *realm_token_len);
+enum attest_token_err_t attest_cca_token_create(
+				struct app_data_cfg *app_data,
+				void *attest_token_buf,
+				size_t attest_token_buf_size,
+				size_t *attest_token_len);
+enum attest_token_err_t attest_token_sign_ctx_init(
+				struct app_data_cfg *app_data,
+				uintptr_t cookie);
+enum attest_token_err_t  attest_realm_token_create(struct app_data_cfg *app_data,
+			     enum hash_algo algorithm,
+			     unsigned char measurements[][MAX_MEASUREMENT_SIZE],
+			     const void *rpv_buf,
+			     const void *challenge_buf);
 #endif /* ATTEST_APP_H */

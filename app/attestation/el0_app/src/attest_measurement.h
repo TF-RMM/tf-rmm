@@ -6,7 +6,7 @@
 #ifndef ATTEST_MEASUREMENT_H
 #define ATTEST_MEASUREMENT_H
 
-#include <attest_app.h>
+#include <attest_defs.h>
 #include <stddef.h>
 
 unsigned long app_do_hash(enum hash_algo algorithm, size_t size, uint8_t *shared);

@@ -11,6 +11,7 @@
 #include <psa/crypto.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 #include <utils_def.h>
 
 unsigned long app_do_hash(enum hash_algo algorithm,
