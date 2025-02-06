@@ -22,4 +22,7 @@
 #define APP_EXIT_CALL		UL(23)
 #define APP_SERVICE_CALL	UL(47)
 
+#define APP_SERVICE_COUNT			16U
+#define APP_SERVICE_PRINT			2U
+
 #endif /* APP_COMMON_H */

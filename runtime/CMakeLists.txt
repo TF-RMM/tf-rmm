@@ -21,7 +21,8 @@ target_compile_definitions(rmm-runtime
 
 target_link_libraries(rmm-runtime
     PRIVATE rmm-lib
-            rmm-platform)
+            rmm-platform
+            rmm-el2-stub)
 
 target_include_directories(rmm-runtime
     PRIVATE "include")

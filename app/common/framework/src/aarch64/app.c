@@ -7,6 +7,7 @@
 #include <app_common.h>
 #include <app_header.h>
 #include <app_header_private.h>
+#include <app_services.h>
 #include <arch.h>
 #include <arch_helpers.h>
 #include <assert.h>
@@ -631,6 +632,16 @@ unsigned long app_run(struct app_data_cfg *app_data,
 
 			if (imm16 == APP_EXIT_CALL) {
 				break;
+			}
+			if (imm16 == APP_SERVICE_CALL) {
+				app_reg_ctx->app_regs[0] =
+					call_app_service(app_reg_ctx->app_regs[0],
+							 app_data,
+							 app_reg_ctx->app_regs[1],
+							 app_reg_ctx->app_regs[2],
+							 app_reg_ctx->app_regs[3],
+							 app_reg_ctx->app_regs[4]);
+				continue;
 			}
 		}
 
