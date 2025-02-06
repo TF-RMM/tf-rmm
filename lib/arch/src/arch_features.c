@@ -102,15 +102,19 @@ static void update_id_aa64mmfr3_el1(struct cached_idreg_info *ptr)
 
 	/*************************************************************
 	 * Cache and update IDAA64MMFR3_EL1 based on supported features
+	 * Bit[20-23] - S2POE
 	 * Bit[19-16] - S1POE
+	 * Bit[15-12] - S2PIE
 	 * Bit[11-8]  - S1PIE
 	 * Bit[7-4] - SCTLRx
 	 * Bit[3-0] - TCRx
 	 **************************************************************/
 
-	if (EXTRACT_BIT(SMC_FEAT_SCR_S1PIE, value) == 0U) {
+	if (EXTRACT_BIT(SMC_FEAT_SCR_SxPxE, value) == 0U) {
 		ptr->id_aa64mmfr3_el1 &= ~MASK(ID_AA64MMFR3_EL1_S1POE);
 		ptr->id_aa64mmfr3_el1 &= ~MASK(ID_AA64MMFR3_EL1_S1PIE);
+		ptr->id_aa64mmfr3_el1 &= ~MASK(ID_AA64MMFR3_EL1_S2POE);
+		ptr->id_aa64mmfr3_el1 &= ~MASK(ID_AA64MMFR3_EL1_S2PIE);
 	}
 
 	if (EXTRACT_BIT(SMC_FEAT_SCR_SCTLR2, value) == 0U) {

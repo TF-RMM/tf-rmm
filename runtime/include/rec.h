@@ -161,6 +161,7 @@ STRUCT_TYPE common_sysreg_state {
 struct ns_state {
 	STRUCT_TYPE sysreg_state sysregs;
 	unsigned long icc_sre_el2;
+	unsigned long s2por_el1;
 	struct pmu_state pmu;
 	struct timer_state el2_timer;
 } __aligned(CACHE_WRITEBACK_GRANULE);

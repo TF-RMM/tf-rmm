@@ -16,6 +16,7 @@
 #include <rec.h>
 #include <run.h>
 #include <s2ap_ind.h>
+#include <s2tt.h>
 #include <simd.h>
 #include <smc-rmi.h>
 #include <timers.h>
@@ -268,6 +269,11 @@ static void save_ns_state(struct rec *rec)
 
 	ns_state->icc_sre_el2 = read_icc_sre_el2();
 
+	if (rec->realm_info.rtt_s2ap_encoding) {
+		assert(s2tt_indirect_ap_supported());
+		ns_state->s2por_el1 = read_s2por_el1();
+	}
+
 	if (rec->realm_info.pmu_enabled) {
 		/*
 		 * Save NS PMU context.
@@ -301,6 +307,11 @@ static void restore_ns_state(struct rec *rec)
 	write_cnthctl_el2(ns_state->sysregs.cnthctl_el2);
 
 	write_icc_sre_el2(ns_state->icc_sre_el2);
+
+	if (rec->realm_info.rtt_s2ap_encoding) {
+		assert(s2tt_indirect_ap_supported());
+		write_s2por_el1(ns_state->s2por_el1);
+	}
 
 	if (rec->realm_info.pmu_enabled) {
 		/*
