@@ -18,20 +18,20 @@ int attestation_init(void)
 	return 0;
 }
 
-int attestation_heap_ctx_init(unsigned char *buf, size_t buf_size)
+int alloc_heap_ctx_init(unsigned char *buf, size_t buf_size)
 {
-	ASSERT(false, "attestation_heap_ctx_init");
+	ASSERT(false, "alloc_heap_ctx_init");
 	return 0;
 }
 
-void attestation_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx)
+void alloc_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx)
 {
-	ASSERT(false, "attestation_heap_ctx_assign_pe");
+	ASSERT(false, "alloc_heap_ctx_assign_pe");
 }
 
-void attestation_heap_ctx_unassign_pe(void)
+void alloc_heap_ctx_unassign_pe(void)
 {
-	ASSERT(false, "attestation_heap_ctx_unassign_pe");
+	ASSERT(false, "alloc_heap_ctx_unassign_pe");
 }
 
 #endif /* CBMC */

@@ -6,8 +6,7 @@
 add_library(rmm-lib INTERFACE)
 
 target_link_libraries(rmm-lib
-    INTERFACE rmm-lib-allocator
-              rmm-lib-arch
+    INTERFACE rmm-lib-arch
               rmm-lib-attestation
               rmm-lib-common
               rmm-lib-console

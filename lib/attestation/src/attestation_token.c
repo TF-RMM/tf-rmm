@@ -9,6 +9,7 @@
  *    trusted-firmware-m/secure_fw/partitions/initial_attestation/attest_token_encode.c
  */
 
+#include <alloc_utils.h>
 #include <assert.h>
 #include <attestation.h>
 #include <attestation_defs_priv.h>
@@ -384,7 +385,12 @@ enum attest_token_err_t attest_token_ctx_init(struct token_sign_cntxt *token_ctx
 		/* Clear context for signing an attestation token */
 		(void)memset(token_ctx, 0, sizeof(struct token_sign_cntxt));
 
-		ret = attestation_heap_ctx_init(heap_buf,
+		if (!attestation_initialised()) {
+			ERROR("Attestation init failed.\n");
+			return ATTEST_TOKEN_ERR_INVALID_STATE;
+		}
+
+		ret = alloc_heap_ctx_init(heap_buf,
 						heap_buf_len);
 		if (ret != 0) {
 			return ATTEST_TOKEN_ERR_INVALID_STATE;

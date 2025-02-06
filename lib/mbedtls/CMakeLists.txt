@@ -66,4 +66,5 @@ foreach(MBEDTLS_LIB IN ITEMS ${MBEDTLS_LIBS})
     target_compile_definitions(${MBEDTLS_LIB} PUBLIC
         "-DMBEDTLS_CONFIG_FILE=<rmm_mbedtls_config.h>")
     target_link_libraries(rmm-mbedtls INTERFACE ${MBEDTLS_LIB})
+    target_link_libraries(${MBEDTLS_LIB} PRIVATE rmm-lib-allocator)
 endforeach()

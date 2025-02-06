@@ -117,32 +117,7 @@ attest_init_fail:
 	return ret;
 }
 
-int attestation_heap_ctx_init(unsigned char *buf, size_t buf_size)
+bool attestation_initialised(void)
 {
-	assert(buf != NULL);
-
-	if (attest_initialized == false) {
-		ERROR("Attestation init failed.\n");
-		return -EINVAL;
-	}
-
-	/* Initialise the mbedTLS heap */
-	mbedtls_memory_buffer_alloc_init(buf, buf_size);
-
-	return 0;
-}
-
-void attestation_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx)
-{
-	int ret __unused;
-	assert(ctx != NULL);
-
-	/* Associate the buffer_alloc_ctx to this CPU */
-	ret = buffer_alloc_ctx_assign(ctx);
-	assert(ret == 0);
-}
-
-void attestation_heap_ctx_unassign_pe(void)
-{
-	buffer_alloc_ctx_unassign();
+	return attest_initialized;
 }
