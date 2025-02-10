@@ -24,6 +24,7 @@ void xlat_ctx_cfg_init_tc10(void);
 void xlat_ctx_cfg_init_tc11(void);
 void xlat_ctx_cfg_init_tc12(void);
 void xlat_ctx_cfg_init_tc13(void);
+void xlat_ctx_cfg_init_tc14(void);
 
 void xlat_ctx_init_tc1(void);
 void xlat_ctx_init_tc2(void);

@@ -196,7 +196,8 @@ int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
 
 	ret = xlat_ctx_cfg_init(&runtime_xlat_ctx_cfg, VA_LOW_REGION,
 				&static_regions[0], nregions + COMMON_REGIONS,
-				PLAT_CMN_VIRT_ADDR_SPACE_SIZE);
+				PLAT_CMN_VIRT_ADDR_SPACE_SIZE,
+				RMM_ASID);
 
 	if (ret != 0) {
 		ERROR("%s (%u): %s (%i)\n",
@@ -209,7 +210,8 @@ int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
 	ret = xlat_ctx_init(&runtime_xlat_ctx, &runtime_xlat_ctx_cfg,
 			    &runtime_tbls,
 			    &static_s1tt[0],
-			    PLAT_CMN_CTX_MAX_XLAT_TABLES);
+			    PLAT_CMN_CTX_MAX_XLAT_TABLES,
+			    ((uint64_t)(void *)&static_s1tt[0]) & MASK(TTBRx_EL2_BADDR));
 
 	if (ret != 0) {
 		ERROR("%s (%u): %s (%i)\n",

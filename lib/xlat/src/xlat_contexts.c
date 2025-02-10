@@ -231,7 +231,8 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 		      xlat_addr_region_id_t region,
 		      struct xlat_mmap_region *mm,
 		      unsigned int mm_regions,
-		      size_t va_size)
+		      size_t va_size,
+		      uint32_t asid)
 {
 	int retval;
 	size_t max_va_size = (is_feat_lpa2_4k_present() == true) ?
@@ -262,6 +263,10 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 		return -EALREADY;
 	}
 
+	if ((asid & ((1UL << TTBRx_EL2_ASID_WIDTH) - 1U)) != asid) {
+		return -EINVAL;
+	}
+
 	retval = add_mmap_to_ctx_cfg(cfg, region, mm, mm_regions, va_size);
 
 	if (retval < 0) {
@@ -274,6 +279,7 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 	cfg->base_level = (GET_XLAT_TABLE_LEVEL_BASE(va_size));
 	cfg->region = region;
 	cfg->init = true;
+	cfg->asid = asid;
 
 	if (!is_mmu_enabled()) {
 		inv_dcache_range((uintptr_t)cfg, sizeof(struct xlat_ctx_cfg));
@@ -287,7 +293,8 @@ int xlat_ctx_init(struct xlat_ctx *ctx,
 		  struct xlat_ctx_cfg *cfg,
 		  struct xlat_ctx_tbls *tbls_ctx,
 		  uint64_t *tables_ptr,
-		  unsigned int ntables)
+		  unsigned int ntables,
+		  uint64_t base_table_pa)
 {
 	if ((ctx == NULL) || (tbls_ctx == NULL) || (cfg == NULL)) {
 		return -EINVAL;
@@ -313,7 +320,7 @@ int xlat_ctx_init(struct xlat_ctx *ctx,
 	ctx->cfg = cfg;
 
 	/* Initialize the tables structure */
-	XLAT_INIT_CTX_TBLS(tbls_ctx, tables_ptr, ntables);
+	XLAT_INIT_CTX_TBLS(tbls_ctx, tables_ptr, ntables, base_table_pa);
 
 	/* Add the tables to the context */
 	ctx->tbls = tbls_ctx;

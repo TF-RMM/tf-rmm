@@ -102,6 +102,11 @@ TEST(xlat_tests_LPA2, xlat_ctx_cfg_init_TC12)
 	xlat_ctx_cfg_init_tc12();
 }
 
+TEST(xlat_tests_LPA2, xlat_ctx_cfg_init_tc14)
+{
+	xlat_ctx_cfg_init_tc14();
+}
+
 TEST(xlat_tests_LPA2, xlat_ctx_init_TC1)
 {
 	xlat_ctx_init_tc1();

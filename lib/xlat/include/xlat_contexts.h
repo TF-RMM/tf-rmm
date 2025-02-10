@@ -9,6 +9,8 @@
 #ifndef XLAT_CONTEXTS_H
 #define XLAT_CONTEXTS_H
 
+#define RMM_ASID	U(0)
+
 #if !(defined(__ASSEMBLER__) || defined(__LINKER__))
 
 #include <stdbool.h>
@@ -35,6 +37,12 @@ struct xlat_ctx_tbls {
 	uint64_t *tables;
 	unsigned int tables_num;
 	unsigned int next_table;
+
+	/*
+	 * Physical address of the base page table (i.e. PA of `tables[0]` in
+	 * this structure)
+	 */
+	uint64_t base_table_pa;
 
 	/* Set to true when the translation tables are initialized. */
 	bool init;
@@ -85,6 +93,11 @@ struct xlat_ctx_cfg {
 	 * Virtual address region handled by this context.
 	 */
 	xlat_addr_region_id_t region;
+
+	/*
+	 * The ASID value associated with this translation context
+	 */
+	uint32_t asid;
 
 	bool init;
 } __aligned(CACHE_WRITEBACK_GRANULE);
@@ -139,6 +152,7 @@ struct xlat_ctx {
  *	      context configuration.
  *	- mm_regions: Number of memory regions in the mm array.
  *	- va_size: Size of the VA space for the current context.
+ *	- asid: The Address Space ID associated with this context
  *
  * Return:
  *	- 0 on success or a negative POSIX error otherwise.
@@ -147,7 +161,8 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 		      xlat_addr_region_id_t region,
 		      struct xlat_mmap_region *mm,
 		      unsigned int mm_regions,
-		      size_t va_size);
+		      size_t va_size,
+		      uint32_t asid);
 
 /*
  * Initializes the translation context (xlat_ctx) and the xlat_ctx_tbls with
@@ -166,6 +181,7 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
  *		      the memory provided must be page aligned and multiple
  *		      of page size.
  *	- ntables: Number of pages passed in the `tables_ptr`.
+ *	- base_table_pa: The PA of the base page table.
  *
  * Return:
  *	- 0 on success.
@@ -176,7 +192,8 @@ int xlat_ctx_init(struct xlat_ctx *ctx,
 		  struct xlat_ctx_cfg *cfg,
 		  struct xlat_ctx_tbls *tbls_ctx,
 		  uint64_t *tables_ptr,
-		  unsigned int ntables);
+		  unsigned int ntables,
+		  uint64_t base_table_pa);
 
 #endif /*__ASSEMBLER__*/
 #endif /* XLAT_CONTEXTS_H */

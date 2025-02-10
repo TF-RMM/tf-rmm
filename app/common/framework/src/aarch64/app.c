@@ -150,7 +150,8 @@ static int init_app_translation(size_t app_id,
 				&app_data->app_va_xlat_ctx_cfg,
 				&app_data->app_va_tbls,
 				page_table,
-				APP_XLAT_TABLE_COUNT);
+				APP_XLAT_TABLE_COUNT,
+				page_table_pa);
 	if (ret != 0) {
 		return ret;
 	}
@@ -159,31 +160,6 @@ static int init_app_translation(size_t app_id,
 	if (ret != 0) {
 		return ret;
 	}
-
-	/* TODO: The xlat library writes the VA of the base table to te TTBR.
-	 * For delegated granules this VA doesn't match with the PA, so need
-	 * to update the TTBR here.
-	 * One change to do in future could be to change
-	 * xlat_arch_setup_mmu_cfg() to take max_va, region and base table
-	 * address as input and give the mmu_config as output.
-	 */
-	if (!in_rmm_rw_range((uintptr_t)page_table)) {
-		unsigned long ttbrx = app_data->mmu_config.ttbrx;
-
-		assert((page_table_pa & MASK(TTBRx_EL2_BADDR)) == page_table_pa);
-		/* clear the bits for TTBRx_EL2_BADDR */
-		ttbrx &= ~MASK(TTBRx_EL2_BADDR);
-		/* write the new address */
-		ttbrx |= page_table_pa;
-		app_data->mmu_config.ttbrx = ttbrx;
-	}
-
-	/* Make sure that the app ID fits in the ASID field */
-	assert(app_id < (1LU << ASID_SIZE_NO_FEAT_ASID16));
-	/* ASID 0 is reserved to EL2 RMM */
-	assert(app_id != 0U);
-	/* Set the ASID field in the TTBR to the app ID */
-	app_data->mmu_config.ttbrx |= INPLACE(TTBRx_EL2_ASID, app_id);
 
 	/*
 	 * TODO: This limits the max APP VA size. (i.e. a single 3rd level table
@@ -580,7 +556,8 @@ void app_framework_setup(void)
 		ret = xlat_ctx_cfg_init(&app_id_data->app_va_xlat_ctx_cfg_base, VA_HIGH_REGION,
 					app_id_data->mm_regions_array,
 					RMM_APP_MMAP_REGION_COUNT,
-					XLAT_HIGH_VA_SIZE);
+					XLAT_HIGH_VA_SIZE,
+					app_header->app_id);
 		if (ret != 0) {
 			panic();
 		}

@@ -101,11 +101,12 @@ uintptr_t xlat_arch_get_max_supported_pa(void);
  * _tnum:
  *   Maximum number of tables that can fit in the _tables area.
  */
-#define XLAT_INIT_CTX_TBLS(_tbls, _tables, _tnum)			\
+#define XLAT_INIT_CTX_TBLS(_tbls, _tables, _tnum, _base_table_pa)	\
 	{								\
 		(_tbls)->tables = (_tables);				\
 		(_tbls)->tables_num = (_tnum);				\
 		(_tbls)->next_table = 0U;				\
+		(_tbls)->base_table_pa = (_base_table_pa);		\
 		(_tbls)->init = false;					\
 	}
 
