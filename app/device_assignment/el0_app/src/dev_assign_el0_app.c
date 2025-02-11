@@ -15,6 +15,25 @@
 #include <smc-rmi.h>
 #include <string.h>
 
+static void copy_enter_args_from_shared(struct dev_assign_info *info)
+{
+	struct dev_comm_enter_shared *shared = (struct dev_comm_enter_shared *)info->shared_buf;
+
+	assert(shared != NULL);
+	info->enter_args = shared->rmi_dev_comm_enter;
+
+	info->tdisp_params.nonce_ptr_is_valid = shared->tdisp_params.nonce_ptr_is_valid;
+	info->tdisp_params.tdi_id = shared->tdisp_params.tdi_id;
+	if (shared->tdisp_params.nonce_ptr_is_valid &&
+	    (!shared->tdisp_params.nonce_is_output)) {
+		(void)memcpy(info->tdisp_params.start_interface_nonce_buffer,
+			     shared->tdisp_params.start_interface_nonce_buffer,
+			     RDEV_START_INTERFACE_NONCE_SIZE);
+	}
+
+	(void)memset(&info->exit_args, 0, sizeof(info->exit_args));
+}
+
 static void copy_back_exit_args_to_shared(struct dev_assign_info *info)
 {
 	struct dev_comm_exit_shared *shared;
@@ -28,6 +47,13 @@ static void copy_back_exit_args_to_shared(struct dev_assign_info *info)
 		(void)memcpy(shared->cached_digest.value, info->cached_digest.value,
 			     info->cached_digest.len);
 		info->cached_digest.len = 0;
+	}
+
+	shared->tdisp_params.nonce_is_output = info->tdisp_params.nonce_is_output;
+	if (info->tdisp_params.nonce_is_output) {
+		(void)memcpy(shared->tdisp_params.start_interface_nonce_buffer,
+			     info->tdisp_params.start_interface_nonce_buffer,
+			     RDEV_START_INTERFACE_NONCE_SIZE);
 	}
 }
 
@@ -93,8 +119,7 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 
 	el0_app_yield();
 
-	info->enter_args = *((struct rmi_dev_comm_enter *)info->shared_buf);
-	(void)memset(&info->exit_args, 0, sizeof(info->exit_args));
+	copy_enter_args_from_shared(info);
 
 	if (info->enter_args.status == RMI_DEV_COMM_ENTER_STATUS_ERROR) {
 		return LIBSPDM_STATUS_SEND_FAIL;
@@ -1089,9 +1114,7 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 		return INT_TO_ULONG(DEV_ASSIGN_STATUS_ERROR);
 	}
 
-	/* Initialize the entry and exit args */
-	info->enter_args = *(struct rmi_dev_comm_enter *)shared_buf;
-	(void)memset(&info->exit_args, 0, sizeof(info->exit_args));
+	copy_enter_args_from_shared(info);
 
 	switch (func_id) {
 	case DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT:
@@ -1105,6 +1128,18 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 		break;
 	case DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS:
 		ret = dev_assign_cmd_get_measurements_main(info);
+		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_LOCK:
+		ret = dev_tdisp_lock_main(info);
+		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_REPORT:
+		ret = dev_tdisp_report_main(info);
+		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_START:
+		ret = dev_tdisp_start_main(info);
+		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP:
+		ret = dev_tdisp_stop_main(info);
 		break;
 	default:
 		assert(false);
@@ -1147,6 +1182,10 @@ unsigned long el0_app_entry_func(
 	case DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION:
 	case DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION:
 	case DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS:
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_LOCK:
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_REPORT:
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_START:
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP:
 		return dev_assign_communicate_cmd_cmn(func_id, heap);
 	case DEVICE_ASSIGN_APP_FUNC_SET_PUBLIC_KEY:
 		return (unsigned long)dev_assign_set_pubkey(heap, arg_0);

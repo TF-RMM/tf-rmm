@@ -151,7 +151,7 @@ struct realm_device {
 	} op_params;
 
 	/* Nonce updated as part of lock interface and used in start interface */
-	uint8_t start_interface_nonce[64];
+	uint8_t start_interface_nonce[RDEV_START_INTERFACE_NONCE_SIZE];
 
 	/* PA of VDEV. */
 	unsigned long vdev_ptr;

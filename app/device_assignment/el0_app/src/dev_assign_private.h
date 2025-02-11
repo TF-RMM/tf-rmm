@@ -282,6 +282,8 @@ struct dev_assign_info {
 	size_t spdm_cert_chain_digest_length;
 	size_t spdm_cert_chain_len;
 
+	struct dev_assign_tdisp_params tdisp_params;
+
 	/*
 	 * The PSA equivalent of the 'rmi_hash_algo'. Tnis value is used by PSA
 	 * crypto calls to caclulate hash of cached device objects.
@@ -305,5 +307,10 @@ int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info);
 int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info);
 
 void dev_assign_unset_pubkey(struct dev_assign_info *info);
+
+int dev_tdisp_lock_main(struct dev_assign_info *info);
+int dev_tdisp_report_main(struct dev_assign_info *info);
+int dev_tdisp_start_main(struct dev_assign_info *info);
+int dev_tdisp_stop_main(struct dev_assign_info *info);
 
 #endif /* DEV_ASSIGN_PRIVATE_H */
