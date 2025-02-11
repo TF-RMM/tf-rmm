@@ -8,6 +8,8 @@
 #include <dev_assign_helper.h>
 #include <dev_assign_private.h>
 #include <el0_app_helpers.h>
+#include <industry_standard/pci_tdisp.h>
+#include <industry_standard/pcidoe.h>
 #include <library/spdm_crypt_lib.h>
 #include <mbedtls/memory_buffer_alloc.h>
 #include <psa/crypto.h>
@@ -327,6 +329,9 @@ static int dev_assign_dev_comm_set_cache(struct dev_assign_info *info, void *cac
 		info->exit_args.cache_obj_id = (unsigned char)RMI_DEV_COMM_OBJECT_CERTIFICATE;
 	} else if (cache_type == CACHE_TYPE_MEAS) {
 		info->exit_args.cache_obj_id = (unsigned char)RMI_DEV_COMM_OBJECT_MEASUREMENTS;
+	} else if (cache_type == CACHE_TYPE_INTERFACE_REPORT) {
+		info->exit_args.cache_obj_id =
+			(unsigned char)RMI_DEV_COMM_OBJECT_INTERFACE_REPORT;
 	}
 
 	return 0;
@@ -430,7 +435,7 @@ static int cma_spdm_cache_certificate(struct dev_assign_info *info,
 	 * to let NS Host to cache device certificate.
 	 */
 	rc = dev_assign_dev_comm_set_cache(info, cert_rsp, cache_offset,
-				  cache_len, (uint8_t)CACHE_TYPE_CERT, hash_op_flags);
+				  cache_len, CACHE_TYPE_CERT, hash_op_flags);
 
 	info->spdm_cert_chain_len += cert_rsp->portion_length;
 
@@ -464,7 +469,74 @@ static int dev_assign_cache_measurements(struct dev_assign_info *info,
 	info->psa_hash_op = psa_hash_operation_init();
 
 	rc = dev_assign_dev_comm_set_cache(info, meas_rsp, cache_offset,
-				  cache_len, (uint8_t)CACHE_TYPE_MEAS, hash_op_flags);
+				  cache_len, CACHE_TYPE_MEAS, hash_op_flags);
+
+	return rc;
+}
+
+/* Process SPDM VDM response */
+static int cache_spdm_vdm_response(struct dev_assign_info *info,
+				   void *spdm_response,
+				   size_t transport_message_size)
+{
+	pci_doe_spdm_vendor_defined_response_t *doe_vdm_rsp;
+	pci_doe_spdm_vendor_defined_header_t *doe_vdm_hdr;
+	pci_tdisp_device_interface_report_response_t *ifc_rsp;
+	size_t cache_offset, cache_len;
+	uint8_t hash_op_flags;
+	int rc;
+
+	doe_vdm_rsp = (pci_doe_spdm_vendor_defined_response_t *)spdm_response;
+
+	/* Check if VDM is TDISP protocol */
+	doe_vdm_hdr = &doe_vdm_rsp->pci_doe_vendor_header;
+	if ((doe_vdm_hdr->standard_id != (uint16_t)SPDM_STANDARD_ID_PCISIG) ||
+	    (doe_vdm_hdr->vendor_id != (uint16_t)SPDM_VENDOR_ID_PCISIG) ||
+	    (doe_vdm_hdr->pci_protocol.protocol_id != (uint8_t)PCI_PROTOCOL_ID_TDISP)) {
+		ERROR("Invalid DOE VDM header.\n");
+		return 0;
+	}
+
+	ifc_rsp = (pci_tdisp_device_interface_report_response_t *)
+		((uintptr_t)doe_vdm_rsp +
+		 sizeof(pci_doe_spdm_vendor_defined_response_t));
+
+	/* Check if TDISP message is TDISP_DEVICE_INTERFACE_REPORT */
+	if (ifc_rsp->header.message_type != (uint8_t)PCI_TDISP_DEVICE_INTERFACE_REPORT) {
+		return 0;
+	}
+
+	/* Set hash flags based on start of cache response */
+	if (!info->cache_tdisp_if_report) {
+		hash_op_flags = HASH_OP_FLAG_SETUP | HASH_OP_FLAG_UPDATE;
+		info->psa_hash_op = psa_hash_operation_init();
+		info->cache_tdisp_if_report = true;
+	} else {
+		hash_op_flags = HASH_OP_FLAG_UPDATE;
+	}
+
+	if (ifc_rsp->remainder_length == 0U) {
+		hash_op_flags |= HASH_OP_FLAG_FINISH;
+		/*
+		 * Reset the cache_tdisp_if_report to allow a fresh
+		 * get_interface_report
+		 */
+		info->cache_tdisp_if_report = false;
+	}
+
+	cache_offset = sizeof(pci_doe_spdm_vendor_defined_response_t) +
+		sizeof(pci_tdisp_device_interface_report_response_t);
+	cache_len = ifc_rsp->portion_length;
+
+	if ((cache_len > transport_message_size) ||
+	    (cache_offset > (transport_message_size - cache_len))) {
+		ERROR("Invalid cache_offset or cache_len.\n");
+		return -1;
+	}
+
+	rc = dev_assign_dev_comm_set_cache(info, spdm_response, cache_offset,
+				  cache_len, CACHE_TYPE_INTERFACE_REPORT,
+				  hash_op_flags);
 
 	return rc;
 }
@@ -592,6 +664,12 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 
 		meas_rsp = (spdm_measurements_response_t *)spdm_hdr;
 		rc = dev_assign_cache_measurements(info, meas_rsp);
+		if (rc != 0) {
+			return LIBSPDM_STATUS_RECEIVE_FAIL;
+		}
+	} else if (spdm_hdr->request_response_code ==
+		   (uint8_t)SPDM_VENDOR_DEFINED_RESPONSE) {
+		rc = cache_spdm_vdm_response(info, (void *)spdm_hdr, transport_message_size);
 		if (rc != 0) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}

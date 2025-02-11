@@ -225,8 +225,9 @@
 				PRIV_LIBSPDM_MBEDTLS_HEAP_SIZE +	\
 				PRIV_LIBSPDM_CONTEXT_SIZE))
 
-#define CACHE_TYPE_CERT			U(0x1)
-#define CACHE_TYPE_MEAS			U(0x2)
+#define CACHE_TYPE_CERT			((uint8_t)0x1)
+#define CACHE_TYPE_MEAS			((uint8_t)0x2)
+#define CACHE_TYPE_INTERFACE_REPORT	((uint8_t)0x3)
 
 struct dev_assign_info {
 	/* RMI device handle */
@@ -266,6 +267,11 @@ struct dev_assign_info {
 	uint32_t session_id;
 	/* Whether the last request sent was encrypted or not. */
 	bool is_msg_sspdm;
+	/*
+	 * True if hashing is in progress for the current report
+	 * False if finished or not started.
+	 */
+	bool cache_tdisp_if_report;
 
 	/*
 	 * A temporary stash of cached_digest for certificate,
