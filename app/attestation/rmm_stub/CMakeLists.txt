@@ -15,7 +15,8 @@ target_link_libraries(rmm-app-attestation-stub
 
 target_include_directories(rmm-app-attestation-stub
     PUBLIC "include"
-    PRIVATE "../../common/include")
+    PRIVATE "../../common/include"
+            "src")
 
 target_compile_definitions(rmm-app-attestation-stub
     PUBLIC
@@ -26,10 +27,20 @@ target_sources(rmm-app-attestation-stub
     PRIVATE
         "src/attest.c")
 
-if (ATTEST_EL3_TOKEN_SIGN)
+if(HOST_VARIANT STREQUAL "host_cbmc")
+    target_sources(rmm-app-attestation-stub
+        PRIVATE "src/fake_host/cbmc_rim.c")
+else()
     target_sources(rmm-app-attestation-stub
         PRIVATE
-        "src/attestation_el3_token_sign.c")
+            "src/measurement.c"
+            "src/rim.c")
+
+    if (ATTEST_EL3_TOKEN_SIGN)
+        target_sources(rmm-app-attestation-stub
+            PRIVATE
+            "src/attestation_el3_token_sign.c")
+    endif()
 endif()
 
 list(APPEND RMM_EL2_STUB_LIBRARIES "rmm-app-attestation-stub")
