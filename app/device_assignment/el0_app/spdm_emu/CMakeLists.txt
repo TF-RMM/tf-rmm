@@ -45,7 +45,8 @@ add_library(rmm-pci_tdisp_requester_lib)
 
 target_compile_options(rmm-pci_tdisp_requester_lib
     PRIVATE
-        "-Wno-unused-parameter")
+        "-Wno-unused-parameter"
+        "-Wno-unaligned-access")
 
 target_link_libraries(rmm-pci_tdisp_requester_lib
     PUBLIC  rmm-pci_doe_requester_lib
@@ -65,3 +66,32 @@ target_sources(rmm-pci_tdisp_requester_lib
             "${SPDM_EMU_SOURCE_DIR}/library/pci_tdisp_requester_lib/pci_tdisp_req_start_interface.c"
             "${SPDM_EMU_SOURCE_DIR}/library/pci_tdisp_requester_lib/pci_tdisp_req_stop_interface.c"
             "${SPDM_EMU_SOURCE_DIR}/library/pci_tdisp_requester_lib/pci_tdisp_send_receive.c")
+
+#
+# Add rmm-pci-ide-km-requester-lib library
+#
+
+add_library(rmm-pci-ide-km-requester-lib)
+
+target_compile_options(rmm-pci-ide-km-requester-lib
+    PRIVATE
+        "-Wno-unused-parameter"
+        "-Wno-unaligned-access")
+
+target_link_libraries(rmm-pci-ide-km-requester-lib
+    PUBLIC  rmm-pci_doe_requester_lib
+    PRIVATE rmm-lib-common
+            rmm-lib-debug)
+
+target_include_directories(rmm-pci-ide-km-requester-lib
+    PUBLIC  "${SPDM_EMU_SOURCE_DIR}/include"
+    PRIVATE "${RMM_SOURCE_DIR}/app/device_assignment/el0_app/spdm_requester")
+
+target_sources(rmm-pci-ide-km-requester-lib
+    PRIVATE "${SPDM_EMU_SOURCE_DIR}/library/pci_ide_km_requester_lib/pci_ide_km_req_key_prog.c"
+            "${SPDM_EMU_SOURCE_DIR}/library/pci_ide_km_requester_lib/pci_ide_km_req_key_set_go.c"
+            "${SPDM_EMU_SOURCE_DIR}/library/pci_ide_km_requester_lib/pci_ide_km_req_key_set_stop.c"
+            "${SPDM_EMU_SOURCE_DIR}/library/pci_ide_km_requester_lib/pci_ide_km_req_query.c"
+            "${SPDM_EMU_SOURCE_DIR}/library/pci_ide_km_requester_lib/pci_ide_km_send_receive.c")
+
+
