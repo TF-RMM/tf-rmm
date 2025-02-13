@@ -204,7 +204,7 @@ Run unittests for a specific test group(s) (e.g. unittests whose group starts wi
 
     cmake -DRMM_CONFIG=host_defcfg -DHOST_VARIANT=host_test -DCMAKE_BUILD_TYPE=Debug -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
     cmake --build ${RMM_BUILD_DIR} -- build -j
-    ${RMM_BUILD_DIR}/Debug/rmm.elf -gxlat -v -r${NUMBER_OF_TEST_ITERATIONS}
+    ${RMM_BUILD_DIR}/Debug/rmm_core.elf -gxlat -v -r${NUMBER_OF_TEST_ITERATIONS}
 
 16. Generate Coverage Report.
 
@@ -225,7 +225,7 @@ Run coverage analysis on a specific set of unittests (e.g. unittests whose group
 
     cmake -DRMM_CONFIG=host_defcfg -DHOST_VARIANT=host_test -DRMM_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
     cmake --build ${RMM_BUILD_DIR} -- build -j
-    ${RMM_BUILD_DIR}/Debug/rmm.elf -gxlat
+    ${RMM_BUILD_DIR}/Debug/rmm_core.elf -gxlat
     cmake --build ${RMM_BUILD_DIR} -- run-coverage
 
 Run coverage analysis on the `host_build` variant of host platform:
@@ -233,7 +233,7 @@ Run coverage analysis on the `host_build` variant of host platform:
 .. code-block:: bash
 
     cmake -DRMM_CONFIG=host_defcfg -DHOST_VARIANT=host_build -DRMM_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
-    ${RMM_BUILD_DIR}/Debug/rmm.elf
+    ${RMM_BUILD_DIR}/Debug/rmm_core.elf
     cmake --build ${RMM_BUILD_DIR} -- run-coverage
 
 The above commands will automatically generate the HTML coverage report in folder

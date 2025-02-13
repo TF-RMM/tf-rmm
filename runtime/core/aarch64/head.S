@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <app_header.h>
 #include <arch.h>
 #include <asm_macros.S>
 #include <rmm_el3_ifc.h>
@@ -21,6 +22,7 @@
 	mov	x21, x1
 	mov	x22, x2
 	mov	x23, x3
+	mov	x24, lr
 
 	/* Disable DIT */
 	msr	DIT, xzr
@@ -122,6 +124,20 @@
 	sub	x2, x1, x0
 	mov	x1, xzr
 	bl	memset
+
+	/*
+	 * Save RMM image addresses.
+	 */
+	adrp	x1, rmm_entry /* rmm_entry is page alined */
+#ifndef APP_COUNT
+#error APP_COUNT is not defined
+#endif
+#if APP_COUNT == 0
+	mov	x0, x1
+#else
+	sub	x0, x24, #4
+#endif
+	bl 	app_save_rmm_entry_info
 
 	/*
 	 * Restore args received from previous BL image

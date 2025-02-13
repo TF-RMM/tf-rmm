@@ -5,6 +5,7 @@
 
 #ifndef CBMC
 
+#include <app_header.h>
 #include <arch_helpers.h>
 #include <assert.h>
 #include <buffer.h>
@@ -36,6 +37,19 @@ IMPORT_SYM(uintptr_t, rmm_rw_end, RMM_RW_END);
 #define RMM_CODE_SIZE		(RMM_CODE_END - RMM_CODE_START)
 #define RMM_RO_SIZE		(RMM_RO_END - RMM_RO_START)
 #define RMM_RW_SIZE		(RMM_RW_END - RMM_RW_START)
+
+/* Map the application binary data as RO. This is necessary so that the RMM can
+ * simply access the app header structures. Execution is not enabled as RMM is
+ * never intended to run app code in EL2. Write is not enabled as data pages
+ * might only be written from EL0, and for that purpose a separate mapping is
+ * created.
+ */
+#if APP_COUNT != 0
+#define RMM_APP			MAP_REGION_FLAT(			\
+					0,				\
+					0,				\
+					(MT_RO_DATA | MT_REALM))
+#endif
 
 #define RMM_CODE		MAP_REGION_FLAT(			\
 					RMM_CODE_START,			\
@@ -75,8 +89,17 @@ IMPORT_SYM(uintptr_t, rmm_rw_end, RMM_RW_END);
 					0,				\
 					(MT_DEVICE | MT_RW | MT_REALM))
 
+
+#if APP_COUNT == 0
 /* Number of common memory mapping regions */
 #define COMMON_REGIONS		(4U)
+#define REGION_RMM_SHARED_IDX	3
+#else
+/* Number of common memory mapping regions */
+#define COMMON_REGIONS		(5U)
+#define REGION_RMM_APP_IDX	0
+#define REGION_RMM_SHARED_IDX	4
+#endif
 
 /* Total number of memory mapping regions */
 #define TOTAL_MMAP_REGIONS	(COMMON_REGIONS + PLAT_CMN_EXTRA_MMAP_REGIONS)
@@ -118,9 +141,15 @@ int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
 {
 	int ret;
 	unsigned int plat_offset, cmn_offset;
+#if APP_COUNT != 0
+	uint64_t rmm_img_start = app_get_rmm_start();
+#endif
 
 	/* Common regions sorted by ascending VA */
 	struct xlat_mmap_region regions[COMMON_REGIONS] = {
+#if APP_COUNT != 0
+		RMM_APP,
+#endif
 		RMM_CODE,
 		RMM_RO,
 		RMM_RW,
@@ -135,9 +164,16 @@ int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
 		return -EINVAL;
 	}
 
+#if APP_COUNT != 0
+	/* setup the parameters for the application binary data */
+	regions[REGION_RMM_APP_IDX].base_pa = rmm_img_start;
+	regions[REGION_RMM_APP_IDX].base_va = rmm_img_start;
+	regions[REGION_RMM_APP_IDX].size = RMM_CODE_START - rmm_img_start;
+#endif
+
 	/* Setup the parameters of the shared area */
-	regions[3].base_pa = get_shared_buf_pa();
-	regions[3].size = rmm_el3_ifc_get_shared_buf_size();
+	regions[REGION_RMM_SHARED_IDX].base_pa = get_shared_buf_pa();
+	regions[REGION_RMM_SHARED_IDX].size = rmm_el3_ifc_get_shared_buf_size();
 
 	plat_offset = COMMON_REGIONS;
 	cmn_offset = 0U;

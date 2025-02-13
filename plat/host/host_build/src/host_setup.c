@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <app_header.h>
 #include <arch_helpers.h>
 #include <assert.h>
 #include <debug.h>
@@ -296,10 +297,79 @@ static int create_realm(void)
 
 void rmm_main(void);
 
+void print_help(char *app_name)
+{
+	rmm_log("Run RMM on the host\n\n");
+	rmm_log("Usage: %s [-h|--help] [app_id app_elf [...]]\n\n", app_name);
+
+	rmm_log("Arguments:\n");
+	rmm_log("  -h, --help      print this message and exit.\n");
+	rmm_log("  app_id          Integer value of app id of the app.\n");
+	rmm_log("  app_elf         path to the app's elf file.\n");
+}
+
+void process_command_line_arguments(int argc, char *argv[])
+{
+	int ret __unused;
+	int i;
+	unsigned int curr_app_index = 0;
+	char *end;
+	struct app_header *app_header;
+
+	for (i = 1; i < argc; ++i) {
+		if (strcmp(argv[i], "--help") == 0 ||
+		   strcmp(argv[i], "-h") == 0) {
+			print_help(argv[0]);
+			exit(0);
+		}
+		if (curr_app_index >= APP_COUNT) {
+			ERROR("Too many apps (more than %d).\n", APP_COUNT);
+			exit(1);
+		}
+		if (i+1 >= argc) {
+			ERROR("Invalid number of arguments.\n");
+			exit(1);
+		}
+
+		ret = app_get_header_ptr_at_index(curr_app_index, &app_header);
+		assert(ret == 0);
+		app_header->app_id = strtol(argv[i], &end, 0);
+		if (end != argv[i] + strlen(argv[i])) {
+			ERROR("Invalid app id '%s'.\n", argv[i]);
+			exit(1);
+		}
+		i += 1;
+		app_header->app_elf_name = argv[i];
+		NOTICE("Registering app at idx %u: id=%lu, filename='%s'\n",
+			curr_app_index, app_header->app_id, app_header->app_elf_name);
+
+		/* test opening the image file */
+		FILE *f = fopen(app_header->app_elf_name, "rb");
+
+		if (f == NULL) {
+			ERROR("Failed to open file '%s'\n", app_header->app_elf_name);
+			exit(1);
+		}
+		size_t bytes_read = fread(&ret, 1U, 1U, f);
+
+		if (bytes_read != 1) {
+			ERROR("Failed to read from file '%s'\n", app_header->app_elf_name);
+			exit(1);
+		}
+		ret = fclose(f);
+		if (ret != 0) {
+			ERROR("Failed to close file during read test'%s'\n",
+				app_header->app_elf_name);
+			exit(1);
+		}
+		++curr_app_index;
+	}
+}
+
 int main(int argc, char *argv[])
 {
-	(void)argc;
-	(void)argv;
+
+	process_command_line_arguments(argc, argv);
 
 	VERBOSE("RMM: Beginning of Fake Host execution\n");
 

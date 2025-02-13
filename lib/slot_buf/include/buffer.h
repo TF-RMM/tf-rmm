@@ -39,7 +39,14 @@ enum buffer_slot {
 	SLOT_RSI_CALL = U(SLOT_VDEV_AUX0) + VDEV_PARAM_AUX_GRANULES_MAX,
 	SLOT_EL3_TOKEN_SIGN_REC,	/* Slot for target REC during EL3 sign flow */
 	SLOT_EL3_TOKEN_SIGN_AUX0,	/* Slots for AUX granules on target REC for EL3 sign flow */
-	NR_CPU_SLOTS = U(SLOT_EL3_TOKEN_SIGN_AUX0) + MAX_REC_AUX_GRANULES
+	/* TODO: The number of slots for app framework can be optimised as in
+	 * theory it should be enough to have a single page being mapped, this
+	 * is just for convenience.
+	 */
+	SLOT_APP_INIT = U(SLOT_EL3_TOKEN_SIGN_AUX0) + MAX_REC_AUX_GRANULES,
+	SLOT_APP_PAGE_TABLE,
+	SLOT_APP_SHARED,
+	NR_CPU_SLOTS
 };
 
 bool check_cpu_slots_empty(void);

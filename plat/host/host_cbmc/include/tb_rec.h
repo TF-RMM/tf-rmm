@@ -18,7 +18,6 @@ struct Rec_Runnable {
  * There is a mismatch in the type of `struct rec` against spec.
  */
 struct rmm_rec {
-	enum attest_token_gen_state_t attest_state;
 	struct granule *aux[MAX_REC_AUX_GRANULES];
 	struct Rec_Runnable flags;
 	uint64_t gprs[RPV_SIZE];
