@@ -13,7 +13,9 @@
  * registers
  *********************************************************************/
 
+/* Force inline */
 #define DEFINE_SYSREG_READ_FUNC_(_name, _reg_name)		\
+__attribute__((__always_inline__))				\
 static inline u_register_t read_ ## _name(void)			\
 {								\
 	u_register_t v;						\
@@ -22,6 +24,7 @@ static inline u_register_t read_ ## _name(void)			\
 }
 
 #define DEFINE_SYSREG_WRITE_FUNC_(_name, _reg_name)		\
+__attribute__((__always_inline__))				\
 static inline void write_ ## _name(u_register_t v)		\
 {								\
 	(void)v; /* To avoid MISRA-C:2012-2.7 warnings */ \
@@ -43,6 +46,7 @@ static inline void write_ ## _name(u_register_t v)		\
 
 /* Define function for simple system instruction */
 #define DEFINE_SYSOP_FUNC(_op)				\
+__attribute__((__always_inline__))			\
 static inline void (_op)(void)				\
 {							\
 	__asm__ (#_op);					\
@@ -50,6 +54,7 @@ static inline void (_op)(void)				\
 
 /* Define function for system instruction with register parameter */
 #define DEFINE_SYSOP_PARAM_FUNC(_op)			\
+__attribute__((__always_inline__))			\
 static inline void (_op)(uint64_t v)			\
 {							\
 	(void)v; /* To avoid MISRA-C:2012-2.7 warnings */ \
@@ -58,6 +63,7 @@ static inline void (_op)(uint64_t v)			\
 
 /* Define function for system instruction with type specifier */
 #define DEFINE_SYSOP_TYPE_FUNC(_op, _type)		\
+__attribute__((__always_inline__))			\
 static inline void (_op ## _type)(void)			\
 {							\
 	__asm__ (#_op " " #_type : : : "memory");			\
@@ -65,6 +71,7 @@ static inline void (_op ## _type)(void)			\
 
 /* Define function for system instruction with register parameter */
 #define DEFINE_SYSOP_TYPE_PARAM_FUNC(_op, _type)	\
+__attribute__((__always_inline__))			\
 static inline void (_op ## _type)(uint64_t v)		\
 {							\
 	(void)v; /* To avoid MISRA-C:2012-2.7 warnings */ \

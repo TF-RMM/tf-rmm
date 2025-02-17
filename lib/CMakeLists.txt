@@ -16,6 +16,7 @@ target_link_libraries(rmm-lib
               rmm-lib-smc
               rmm-lib-s2tt
               rmm-lib-slot_buf
+              rmm-lib-stack_protector
               rmm-lib-xlat)
 
 add_subdirectory("allocator")
@@ -30,6 +31,7 @@ add_subdirectory("rmm_el3_ifc")
 add_subdirectory("smc")
 add_subdirectory("s2tt")
 add_subdirectory("slot_buf")
+add_subdirectory("stack_protector")
 add_subdirectory("xlat")
 
 # Device Assignment feature in RMM v1.1 needs rmm-lib-spdm_requester

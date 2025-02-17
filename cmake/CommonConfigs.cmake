@@ -91,6 +91,17 @@ arm_config_option(
     ADVANCED)
 
 #
+# Enable the Stack protection compiler flag.
+# Having the PAUTH and BTI feature enabled makes the software-based
+# stack frame canary redundant. Enabling the software canary could
+# have a performance degradation. Hence the default is OFF.
+#
+arm_config_option(
+	NAME STACK_PROTECTOR
+	HELP "Enable Stack Protection Compiler Flags"
+	string OFF)
+
+#
 # Introduce a pseudo-library purely for applying flags to RMM's libraries.
 # This is applied to any targets created after this point.
 #
@@ -137,6 +148,14 @@ target_compile_definitions(rmm-common
 
 target_compile_definitions(rmm-common
     INTERFACE "RMM_NUM_PAGES_PER_STACK=UL(${RMM_NUM_PAGES_PER_STACK})")
+
+# Set stack protector option.
+if(STACK_PROTECTOR)
+	target_compile_definitions(rmm-common
+	INTERFACE "STACK_PROTECTOR_ENABLED=1")
+	message(STATUS "Stack Protector is Enabled.")
+	add_compile_options(-fstack-protector-strong)
+endif()
 
 if(RMM_FPU_USE_AT_REL2 AND RMM_ARCH STREQUAL aarch64)
     target_compile_definitions(rmm-common

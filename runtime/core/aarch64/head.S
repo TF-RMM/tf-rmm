@@ -159,8 +159,17 @@ func rmm_entry
 	 * xlat tables.
 	 */
 	bl	plat_setup
+
 	bl	xlat_enable_mmu_el2
 	bl	pauth_init_enable_el2
+
+#ifdef STACK_PROTECTOR_ENABLED
+	/*
+	 * The canary init function uses spin_lock and hence it is
+	 * called after MMU is enabled.
+	 */
+	bl	rmm_init_stack_canary
+#endif /* STACK_PROTECTOR_ENABLED */
 
 	/*
 	 * Clear granules memory
