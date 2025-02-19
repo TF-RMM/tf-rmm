@@ -15,8 +15,8 @@ target_link_libraries(rmm-app-common-el0_app
 target_include_directories(rmm-app-common-el0_app
   PUBLIC "include"
          "include/${RMM_ARCH}"
-  PRIVATE "../../common/include"
-          "../../common/include/${RMM_ARCH}")
+         "../../common/include"
+         "../../common/include/${RMM_ARCH}")
 
 target_sources(rmm-app-common-el0_app
   PRIVATE

@@ -32,6 +32,14 @@
 
 /* The following static variables are common for all attest app instances */
 static bool attest_key_init_done;
+/*
+ * The initial heap is used during the global init call off the attestation app.
+ * This initialization happens once during RMM boot on the primary CPU, and
+ * this heap is going to hold the Realm Attestation Key. It is allocated in RMM
+ * core's .bss so that it cam be commonly used by all app instances.
+ */
+static buffer_alloc_ctx init_mbedtls_heap_ctx;
+static unsigned char init_mbedtls_heap_buf[4U * 1024U] __aligned(sizeof(unsigned long));
 
 /*
  * Variables that need to be allocated in the heap buffer
@@ -42,6 +50,7 @@ struct attest_heap_t {
 	 * Variables that are not dynamically allocated, but need to be kept
 	 * local to app instance.
 	 */
+	buffer_alloc_ctx mbedtls_heap_ctx;
 	struct token_sign_cntxt token_sign_context;
 	uint8_t cca_attest_token_buf[REC_ATTEST_TOKEN_BUF_SIZE];
 	/* The realm token is never returned to RMM only used inside the app */
@@ -54,6 +63,16 @@ COMPILER_ASSERT(sizeof(struct attest_heap_t) == (HEAP_PAGE_COUNT * GRANULE_SIZE)
 
 /* Make sure that the buffer used by the allocator is aligned */
 COMPILER_ASSERT((UL(offsetof(struct attest_heap_t, mbedtls_heap_buf)) % sizeof(unsigned long)) == 0U);
+
+/* coverity[misra_c_2012_rule_5_8_violation:SUPPRESS] */
+void *mbedtls_app_get_heap(void)
+{
+	if (attest_key_init_done) {
+		return &((struct attest_heap_t *)get_heap_start())->mbedtls_heap_ctx;
+	} else {
+		return &init_mbedtls_heap_ctx;
+	}
+}
 
 /*
  * This function is used by Mbed TLS as a source of entropy. This means it is
@@ -88,14 +107,18 @@ static unsigned long app_global_init(void)
 {
 	int ret;
 	psa_status_t psa_status;
-	struct attest_heap_t *heap = (struct attest_heap_t *)get_heap_start();
 
 	/* Enable Data Independent Timing feature */
 	write_dit(DIT_BIT);
 
+	/*
+	 * First init the buffer with a global heap so that the memory that is
+	 * allocated from heap during initialisation is accessible later from
+	 * other app instances as well.
+	 */
 	mbedtls_memory_buffer_alloc_init(
-		heap->mem_buf,
-		sizeof(heap->mem_buf));
+		init_mbedtls_heap_buf,
+		sizeof(init_mbedtls_heap_buf));
 
 	psa_status = psa_crypto_init();
 	if (psa_status != PSA_SUCCESS) {
@@ -128,7 +151,7 @@ static unsigned long do_token_creation(void)
 	struct attest_heap_t *heap = (struct attest_heap_t *)get_heap_start();
 
 	enum attest_token_err_t ret =
-		attest_cca_token_create(&heap->token_sign_context,
+		attest_app_cca_token_create(&heap->token_sign_context,
 			heap->cca_attest_token_buf,
 			sizeof(heap->cca_attest_token_buf),
 			heap->realm_attest_token_buf,
@@ -177,7 +200,7 @@ static unsigned long realm_token_create(enum hash_algo algorithm)
 	struct attest_heap_t *heap = (struct attest_heap_t *)get_heap_start();
 
 	/* coverity[misra_c_2012_directive_4_7_violation:SUPPRESS] */
-	return (unsigned long)attest_realm_token_create(algorithm,
+	return (unsigned long)attest_app_realm_token_create(algorithm,
 			     params->measurements,
 			     MEASUREMENT_SLOT_NR,
 			     &(params->rpv),
@@ -225,7 +248,7 @@ unsigned long el0_app_entry_func(
 		return app_do_extend((enum hash_algo)arg_0, arg_1, (uint8_t *)shared);
 	case ATTESTATION_APP_FUNC_ID_TOKEN_SIGN:
 		/* coverity[misra_c_2012_directive_4_7_violation:SUPPRESS] */
-		token_ret = attest_realm_token_sign(
+		token_ret = attest_app_realm_token_sign(
 			&heap->token_sign_context, &heap->realm_token_len);
 		*((size_t *)get_shared_mem_start()) = heap->realm_token_len;
 		return (unsigned long)token_ret;

@@ -97,7 +97,7 @@ void attest_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
 
 void attest_app_get_bss(uintptr_t *bss_pa, size_t *bss_size)
 {
-	static char attest_app_bss[2U * GRANULE_SIZE] __aligned(GRANULE_SIZE);
+	static char attest_app_bss[3U * GRANULE_SIZE] __aligned(GRANULE_SIZE);
 	*bss_pa = (uintptr_t)attest_app_bss;
 	*bss_size = sizeof(attest_app_bss);
 }

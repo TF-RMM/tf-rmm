@@ -21,11 +21,18 @@ struct random_heap_t {
 	/* Variables that are not dynamically allocated, but need to be kept
 	 * local to app instance.
 	 */
+	buffer_alloc_ctx mbedtls_heap_ctx;
 	bool prng_init_done;
 	mbedtls_hmac_drbg_context cpu_drbg_ctx;
 	/* The actual heap buffer */
 	unsigned char mbedtls_heap_buf[PRNG_HEAP_SIZE] __aligned(sizeof(unsigned long));
 };
+
+/* coverity[misra_c_2012_rule_5_8_violation:SUPPRESS] */
+void *mbedtls_app_get_heap(void)
+{
+	return &((struct random_heap_t *)get_heap_start())->mbedtls_heap_ctx;
+}
 
 /* Make sure that the buffer used by the allocator is 64 bit dword aligned. */
 COMPILER_ASSERT((U(offsetof(struct random_heap_t, mbedtls_heap_buf)) % sizeof(unsigned long)) == 0UL);

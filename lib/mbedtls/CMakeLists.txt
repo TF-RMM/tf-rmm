@@ -17,7 +17,8 @@ set(MBEDTLS_BIN_DIR "${CMAKE_BINARY_DIR}/ext/mbedtls")
 set(MBEDTLS_PATCH_DIR "${RMM_SOURCE_DIR}/configs/mbedtls")
 set(MBEDTLS_PATCH_FILES
     "${MBEDTLS_PATCH_DIR}/0001-Remove-compiler-options-for-clang.patch"
-    "${MBEDTLS_PATCH_DIR}/0002-Disable-explicit_bzero.patch")
+    "${MBEDTLS_PATCH_DIR}/0002-Disable-explicit_bzero.patch"
+    "${MBEDTLS_PATCH_DIR}/0003-refactor-alloc-Use-the-heap-structure-provided-by-ap.patch")
 
 Git_Apply_Patches(${MBEDTLS_SRC_DIR} "${MBEDTLS_PATCH_FILES}")
 
