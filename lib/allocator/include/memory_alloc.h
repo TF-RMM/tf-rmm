@@ -11,7 +11,7 @@
 typedef struct memory_header_s memory_header_t;
 
 
-struct buffer_alloc_ctx {
+struct rmm_buffer_alloc_ctx {
 	unsigned char		*buf;
 	size_t			len;
 	memory_header_t		*first;
@@ -42,7 +42,7 @@ struct memory_header_s {
  * Returns:
  *  0 on success or a POSIX error code or error.
  */
-int buffer_alloc_ctx_assign(struct buffer_alloc_ctx *ctx);
+int buffer_alloc_ctx_assign(struct rmm_buffer_alloc_ctx *ctx);
 
 /*
  * Function to unasign a heap context from the current CPU.

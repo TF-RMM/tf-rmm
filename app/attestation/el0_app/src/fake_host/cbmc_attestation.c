@@ -12,7 +12,7 @@
 #include <stddef.h>
 #include <tb_common.h>
 
-int alloc_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx)
+int alloc_heap_ctx_assign_pe(struct rmm_buffer_alloc_ctx *ctx)
 {
 	ASSERT(false, "alloc_heap_ctx_assign_pe");
 }

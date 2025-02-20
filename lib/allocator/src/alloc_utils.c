@@ -20,7 +20,7 @@ int alloc_heap_ctx_init(unsigned char *buf, size_t buf_size)
 	return 0;
 }
 
-void alloc_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx)
+void alloc_heap_ctx_assign_pe(struct rmm_buffer_alloc_ctx *ctx)
 {
 	int ret __unused;
 

@@ -8,13 +8,13 @@
 
 #include <stddef.h>
 
-struct buffer_alloc_ctx;
+struct rmm_buffer_alloc_ctx;
 
 /*
- * Initialize the heap buffer to be used with the given buffer_alloc_ctx.
+ * Initialize the heap buffer to be used with the given rmm_buffer_alloc_ctx.
  * This is done when a REC is created.
  *
- * As a pre-requisite, ensure that a buffer_alloc_ctx has been assigned to this
+ * As a pre-requisite, ensure that a rmm_buffer_alloc_ctx has been assigned to this
  * PE prior to calling this function.
  *
  * Arguments:
@@ -30,9 +30,9 @@ int alloc_heap_ctx_init(unsigned char *buf, size_t buf_size);
  * prior to entering a Realm to allow it invoking RMM crypto operations.
  *
  * Arguments:
- * ctx - pointer to buffer_alloc_ctx
+ * ctx - pointer to rmm_buffer_alloc_ctx
  */
-void alloc_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx);
+void alloc_heap_ctx_assign_pe(struct rmm_buffer_alloc_ctx *ctx);
 
 
 /*
@@ -40,7 +40,7 @@ void alloc_heap_ctx_assign_pe(struct buffer_alloc_ctx *ctx);
  * after exiting the realm.
  *
  * Arguments:
- * ctx - pointer to buffer_alloc_ctx
+ * ctx - pointer to rmm_buffer_alloc_ctx
  */
 void alloc_heap_ctx_unassign_pe(void);
 
