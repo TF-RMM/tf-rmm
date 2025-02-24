@@ -175,13 +175,25 @@ int dev_assign_cmd_start_session_main(struct dev_assign_info *info)
 				       &session_id,
 				       NULL, /* hbeat period */
 				       NULL /* measurement_hash */);
-	if (status == LIBSPDM_STATUS_SUCCESS) {
-		info->session_id = session_id;
-		VERBOSE("SPDM secure session id: 0x%x\n", info->session_id);
-		return DEV_ASSIGN_STATUS_SUCCESS;
+	if (status != LIBSPDM_STATUS_SUCCESS) {
+		ERROR("Creating secure session failed with status 0x%x\n", status);
+		return DEV_ASSIGN_STATUS_ERROR;
 	}
 
-	return DEV_ASSIGN_STATUS_ERROR;
+	info->session_id = session_id;
+	VERBOSE("SPDM secure session id: 0x%x\n", info->session_id);
+
+	/* If DSM has IDE, do IDE key programming to RootPort and at EndPoint */
+	if (info->has_ide) {
+		status = dev_assign_ide_setup(info);
+		if (status != LIBSPDM_STATUS_SUCCESS) {
+			ERROR("IDE setup failed with status 0x%x for session id %u\n",
+				status, session_id);
+			return DEV_ASSIGN_STATUS_ERROR;
+		}
+	}
+
+	return DEV_ASSIGN_STATUS_SUCCESS;
 }
 
 static libspdm_return_t get_measurements(
@@ -282,12 +294,23 @@ int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
 int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info)
 {
 	int rc = DEV_ASSIGN_STATUS_SUCCESS;
+	libspdm_return_t status;
+
+	/* Stop IDE at RootPort and Endpoint */
+	if (info->has_ide) {
+		status = dev_assing_ide_teardown(info);
+		if (status != LIBSPDM_STATUS_SUCCESS) {
+			ERROR("IDE STOP failed with status 0x%x\n", status);
+		} else {
+			INFO("IDE Stop completed: 0x%x\n", status);
+		}
+	}
 
 	if (info->session_id != 0U) {
 		/* Terminate the connection. This closes the secure session */
-		libspdm_return_t status = libspdm_stop_session(info->libspdm_ctx,
-							       info->session_id,
-							       0 /* end_session_attributes */);
+		status = libspdm_stop_session(info->libspdm_ctx,
+					      info->session_id,
+					      0 /* end_session_attributes */);
 
 		if (status != LIBSPDM_STATUS_SUCCESS) {
 			ERROR("SPDM_END_SESSION failed: 0x%x\n", status);

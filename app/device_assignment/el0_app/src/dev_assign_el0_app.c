@@ -1238,6 +1238,12 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP:
 		ret = dev_tdisp_stop_main(info);
 		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_IDE_RESET:
+		ret = dev_assign_ide_reset_main(info);
+		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_IDE_REFRESH:
+		ret = dev_assign_ide_refresh_main(info);
+		break;
 	default:
 		assert(false);
 		return INT_TO_ULONG(DEV_ASSIGN_STATUS_ERROR);
@@ -1283,6 +1289,8 @@ unsigned long el0_app_entry_func(
 	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_REPORT:
 	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_START:
 	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP:
+	case DEVICE_ASSIGN_APP_FUNC_ID_IDE_RESET:
+	case DEVICE_ASSIGN_APP_FUNC_ID_IDE_REFRESH:
 		return dev_assign_communicate_cmd_cmn(func_id, heap);
 	case DEVICE_ASSIGN_APP_FUNC_SET_PUBLIC_KEY:
 		return (unsigned long)dev_assign_set_pubkey(heap, arg_0);

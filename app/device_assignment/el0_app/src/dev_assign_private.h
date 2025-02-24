@@ -247,6 +247,9 @@ struct dev_assign_info {
 	/* IDE stream ID */
 	uint64_t ide_sid;
 
+	/* Current IDE key slot in use */
+	uint8_t ide_kslot_cur;
+
 	buffer_alloc_ctx mbedtls_heap_ctx;
 
 	/* Public key context */
@@ -322,5 +325,11 @@ int dev_tdisp_lock_main(struct dev_assign_info *info);
 int dev_tdisp_report_main(struct dev_assign_info *info);
 int dev_tdisp_start_main(struct dev_assign_info *info);
 int dev_tdisp_stop_main(struct dev_assign_info *info);
+
+libspdm_return_t dev_assign_ide_setup(struct dev_assign_info *info);
+libspdm_return_t dev_assing_ide_teardown(struct dev_assign_info *info);
+int dev_assign_ide_refresh_main(struct dev_assign_info *info);
+int dev_assign_ide_reset_main(struct dev_assign_info *info);
+
 
 #endif /* DEV_ASSIGN_PRIVATE_H */
