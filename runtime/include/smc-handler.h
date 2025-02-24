@@ -167,6 +167,10 @@ unsigned long smc_pdev_stop(unsigned long pdev_addr);
 
 unsigned long smc_pdev_destroy(unsigned long pdev_addr);
 
+unsigned long smc_pdev_notify(unsigned long pdev_addr, unsigned long ev);
+
+unsigned long smc_pdev_ide_reset(unsigned long pdev_addr);
+
 unsigned long smc_mec_set_shared(unsigned long mecid);
 
 unsigned long smc_mec_set_private(unsigned long mecid);
