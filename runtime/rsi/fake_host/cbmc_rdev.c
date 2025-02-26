@@ -78,6 +78,16 @@ void handle_rsi_rdev_get_interface_report(struct rec *rec,
 	assert(false);
 }
 
+void handle_rsi_rdev_validate_mapping(struct rec *rec,
+				      struct rmi_rec_exit *rec_exit,
+				      struct rsi_result *res)
+{
+	(void)rec;
+	(void)rec_exit;
+	(void)res;
+	assert(false);
+}
+
 void handle_rsi_rdev_continue(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			      struct rsi_result *res)
 {

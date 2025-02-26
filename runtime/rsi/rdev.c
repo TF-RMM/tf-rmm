@@ -931,6 +931,111 @@ out:
 	res->smc_res.x[1] = 0x10; /* PCI_TDISP_MESSAGE_VERSION_10 */
 }
 
+/* Validate Realm device memory mappings */
+void handle_rsi_rdev_validate_mapping(struct rec *rec,
+				      struct rmi_rec_exit *rec_exit,
+				      struct rsi_result *res)
+{
+	struct rd *rd;
+	unsigned long rsi_rc;
+	enum rsi_action rsi_action;
+	unsigned long vdev_id;
+	unsigned long vdev_inst_id;
+	struct realm_device *rdev;
+	struct vdev *vd;
+	struct rec_plane *plane;
+	unsigned long target_ipa_base;
+	unsigned long target_ipa_top;
+	unsigned long target_pa_base;
+	unsigned long mmio_flags;
+
+	/* Set default action to return to Realm */
+	rsi_action = UPDATE_REC_RETURN_TO_REALM;
+
+	/* RSI calls can only be issued by Plane 0 */
+	plane = rec_plane_0(rec);
+
+	/*
+	 * X1: Virtual device identifier
+	 * X2: Device instance identifier
+	 * X3: Base of target IPA region
+	 * X4: Top of target IPA region
+	 * X5: Base of target PA region
+	 * X6: Flags of type RsiDevMemFlags
+	 */
+	vdev_id = plane->regs[1];
+	vdev_inst_id = plane->regs[2];
+	target_ipa_base = plane->regs[3];
+	target_ipa_top = plane->regs[4];
+	target_pa_base = plane->regs[5];
+	mmio_flags = plane->regs[6];
+
+	(void)vdev_id;
+	(void)vdev_inst_id;
+
+	if (!GRANULE_ALIGNED(target_ipa_base) ||
+	    !GRANULE_ALIGNED(target_ipa_top) ||
+	    !GRANULE_ALIGNED(target_pa_base) ||
+	    (target_ipa_top <= target_ipa_base)) {
+		rsi_rc = RSI_ERROR_INPUT;
+		goto out;
+	}
+
+	/* rd granule mapped but not locked */
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	if (!rd->da_enabled) {
+		rsi_rc = RSI_ERROR_STATE;
+		goto out_rd_unmap;
+	}
+
+	/* This will be replaced by rdev_from_inst_id() */
+	if (rd->g_vdev == NULL) {
+		rsi_rc = RSI_ERROR_INPUT;
+		goto out_rd_unmap;
+	}
+	vd = buffer_granule_map(rd->g_vdev, SLOT_VDEV);
+	if (vd == NULL) {
+		rsi_rc = RSI_ERROR_INPUT;
+		goto out_rd_unmap;
+	}
+
+	rdev = &vd->rdev;
+
+	if ((rdev->rsi_state != RSI_RDEV_STATE_LOCKED) &&
+	    (rdev->rsi_state != RSI_RDEV_STATE_STARTED)) {
+		rsi_rc = RSI_ERROR_DEVICE;
+		goto out_vd_unmap;
+	}
+
+	/* Update REC dev_mem */
+	rec->dev_mem.base = target_ipa_base;
+	rec->dev_mem.top = target_ipa_top;
+	rec->dev_mem.addr = target_ipa_base;
+	rec->dev_mem.pa = target_pa_base;
+	rec->dev_mem.flags = mmio_flags;
+
+	/* Update REC exit dev_mem */
+	rec_exit->exit_reason = RMI_EXIT_DEV_MEM_MAP;
+	rec_exit->dev_mem_base = target_ipa_base;
+	rec_exit->dev_mem_top = target_ipa_top;
+	rec_exit->dev_mem_pa = target_pa_base;
+
+	/* Exit to host to process DEV mem mapping */
+	rsi_action = UPDATE_REC_EXIT_TO_HOST;
+
+out_vd_unmap:
+	buffer_unmap(vd);
+out_rd_unmap:
+	buffer_unmap(rd);
+out:
+	if (rsi_action == UPDATE_REC_RETURN_TO_REALM) {
+		res->smc_res.x[0] = rsi_rc;
+	}
+	res->action = rsi_action;
+}
+
 void handle_rsi_rdev_continue(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			      struct rsi_result *res)
 {
