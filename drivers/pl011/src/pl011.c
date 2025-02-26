@@ -15,16 +15,17 @@
 #define UARTECR			0x04U
 #define UARTFR			0x18U
 
+/* Transmit FIFO full */
+#define PL011_UARTFR_TXFF	(U(1) << 5)
+
+#ifndef PL011_GENERIC_SBSA_UART
+
 /* PL011 registers (out of the SBSA specification) */
 #define UARTIBRD		0x24U
 #define UARTFBRD		0x28U
 #define UARTLCR_H		0x2CU
 #define UARTCR			0x30U
-
 /* Flag reg bits */
-
-/* Transmit FIFO full */
-#define PL011_UARTFR_TXFF	(U(1) << 5)
 
 /* Control reg bits */
 #define PL011_UARTCR_RXE	(U(1) << 9)	/* Receive enable */
@@ -37,6 +38,8 @@
 /* Line Control Register Bits */
 #define PL011_UARTLCR_H_WLEN_8	(U(3) << 5)
 #define PL011_UARTLCR_H_FEN	(U(1) << 4)	/* FIFOs Enable */
+
+#endif /* PL011_GENERIC_SBSA_UART */
 
 static inline void pl011_wait(uintptr_t base)
 {
@@ -78,13 +81,13 @@ int pl011_init(uintptr_t base_addr,
 		unsigned int uart_clk,
 		unsigned int baud_rate)
 {
-	unsigned int div;
-
 	/* Check Base address, baud rate and UART clock for sanity */
 	if ((base_addr == 0UL) || (uart_clk == 0U) ||
 		(baud_rate == 0U)) {
 		return -EINVAL;
 	}
+#ifndef PL011_GENERIC_SBSA_UART
+	unsigned int div;
 
 	/* Disable UART before programming */
 	write32(0U, (void *)(base_addr + UARTCR));
@@ -100,13 +103,16 @@ int pl011_init(uintptr_t base_addr,
 
 	/* Enable FIFO and set word length, parity and number of stop bits */
 	write32(PL011_LINE_CONTROL, (void *)((base_addr) + UARTLCR_H));
+#endif /* PL011_GENERIC_SBSA_UART */
 
 	/* Clear any pending errors */
 	write32(0U, (void *)((base_addr) + UARTECR));
 
+#ifndef PL011_GENERIC_SBSA_UART
 	/* Enable Tx, Rx, and UART overall */
 	write32(PL011_UARTCR_RXE | PL011_UARTCR_TXE | PL011_UARTCR_UARTEN,
 		(void *)((base_addr) + UARTCR));
+#endif /* PL011_GENERIC_SBSA_UART */
 
 	pl011_csl.base = base_addr;
 

@@ -277,6 +277,7 @@ The |RMM| build system supports the following CMake build options.
    RMM_TOOLCHAIN		,gnu | llvm		,			,"Toolchain name"
    LOG_LEVEL			,0 - 50			,40(Debug) 20(Release)	,"Log level to apply for RMM (0 - 50)."
    RMM_STATIC_ANALYSIS		,			,			,"Enable static analysis checkers"
+   PL011_GENERIC_SBSA_UART	,ON | OFF		,OFF			,"Enable Generic (SBSA Compliant) PL011. This a subset of PL011 UART"
    PLAT_CMN_CTX_MAX_XLAT_TABLES ,			,0			,"Maximum number of translation tables used by the runtime context"
    PLAT_CMN_EXTRA_MMAP_REGIONS	,			,0			,"Extra platform mmap regions that need to be mapped in S1 xlat tables"
    PLAT_CMN_VIRT_ADDR_SPACE_WIDTH,			,38			,"Stage 1 Virtual address space width in bits for this platform"
