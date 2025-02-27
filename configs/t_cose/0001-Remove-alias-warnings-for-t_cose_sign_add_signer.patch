@@ -1,0 +1,40 @@
+From 09c33eb2de865b063f687612ab744d7e6a4028b8 Mon Sep 17 00:00:00 2001
+From: Jacob Man Chun Yiu <jacobmanchun.yiu@arm.com>
+Date: Mon, 10 Feb 2025 14:49:29 +0000
+Subject: [PATCH] Remove alias warnings for t_cose_sign_add_signer
+
+When tf-rmm is built with Wstrict-aliasing=2 compiler option, we get
+aliasing issues with this function.
+
+As a temporary fix, we remove alias warnings using pragma diagnostics
+
+Signed-off-by: Jacob Man Chun Yiu <jacobmanchun.yiu@arm.com>
+---
+ inc/t_cose/t_cose_sign_sign.h | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/inc/t_cose/t_cose_sign_sign.h b/inc/t_cose/t_cose_sign_sign.h
+index 2f2a1e3..ffb066d 100644
+--- a/inc/t_cose/t_cose_sign_sign.h
++++ b/inc/t_cose/t_cose_sign_sign.h
+@@ -434,7 +434,8 @@ t_cose_sign_add_body_header_params(struct t_cose_sign_sign_ctx *me,
+     me->added_body_parameters = parameters;
+ }
+
+-
++#pragma GCC diagnostic push
++#pragma GCC diagnostic ignored "-Wstrict-aliasing"
+ static inline void
+ t_cose_sign_add_signer(struct t_cose_sign_sign_ctx  *context,
+                        struct t_cose_signature_sign *signer)
+@@ -442,6 +443,7 @@ t_cose_sign_add_signer(struct t_cose_sign_sign_ctx  *context,
+     /* Use base class function to add a signer/recipient to the linked list. */
+     t_cose_link_rs((struct t_cose_rs_obj **)&context->signers, (struct t_cose_rs_obj *)signer);
+ }
++#pragma GCC diagnostic pop
+
+ #ifdef __cplusplus
+ }
+--
+2.43.0
+

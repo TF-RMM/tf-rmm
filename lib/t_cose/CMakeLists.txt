@@ -17,12 +17,17 @@ set(T_COSE_SOURCE_DIR "${RMM_SOURCE_DIR}/ext/t_cose")
 set(T_COSE_PATCH_DIR "${RMM_SOURCE_DIR}/configs/t_cose")
 set(T_COSE_PATCH_FILES
     "${T_COSE_PATCH_DIR}/0001-Add-t_cose_key_encode-API.patch"
-    "${T_COSE_PATCH_DIR}/0001-Add-compile-time-option-for-el3-signing.patch")
+    "${T_COSE_PATCH_DIR}/0001-Add-compile-time-option-for-el3-signing.patch"
+    "${T_COSE_PATCH_DIR}/0001-Remove-alias-warnings-for-t_cose_sign_add_signer.patch")
 
 Git_Apply_Patches(${T_COSE_SOURCE_DIR} "${T_COSE_PATCH_FILES}")
 
 #TODO: Eliminate warning suppression once the t_cose submodule is updated to
 #      a released version.
+
+# Avoid strict-aliasing for external repository t_cose
+string(REPLACE "-Wstrict-aliasing=1" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
+
 target_compile_options(t_cose
     PRIVATE
         "-Wno-maybe-uninitialized"
