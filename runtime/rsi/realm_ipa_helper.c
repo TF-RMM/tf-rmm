@@ -141,8 +141,7 @@ enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long start,
 		if (!s2tte_has_ripas(s2_ctx, s2tte, wi.last_level)) {
 			break;
 		}
-		tmp = s2tte_is_assigned_ram(s2_ctx, s2tte, wi.last_level) ?
-			RIPAS_RAM : s2tte_get_ripas(s2_ctx, s2tte);
+		tmp = s2tte_get_ripas(s2_ctx, s2tte);
 		/*
 		 * Cache the result of the first entry and compare the rest
 		 * with the first and break if there is a mismatch.
