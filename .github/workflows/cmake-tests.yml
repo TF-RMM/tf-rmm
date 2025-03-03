@@ -40,7 +40,7 @@ jobs:
       run: cmake --build ${{github.workspace}}/build -- run-coverage
 
     - name: Archive coverage results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: coverage-results
         path: ${{github.workspace}}/build/${{env.BUILD_TYPE}}/${{env.COVERAGE_REPORT}}
