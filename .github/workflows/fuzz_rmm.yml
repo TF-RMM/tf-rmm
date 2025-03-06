@@ -1,0 +1,72 @@
+name: Fuzz RMM
+
+on:
+  push:
+
+env:
+  BUILD_NAME: ci-fuzz
+  FUZZ_DURATION: 1000
+  AFL_NO_UI: 1
+  AFL_AUTORESUME: 0
+  AFL_SKIP_CPUFREQ: 1
+  AFL_SHA1_FILENAMES: 1
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+  build:
+    name: Build and Fuzz
+    runs-on: ubuntu-latest
+    container:
+      image: aflplusplus/aflplusplus
+      options: --tmpfs /mnt/aflout:rw,size=1G
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get system info
+        run: |
+          nproc
+          df
+          lsmem
+          lscpu
+          mount | grep /mnt/aflout
+
+      - name: 'Git ownership and submodule init'
+        run: |
+          git config --global --add safe.directory '*'
+          git submodule init
+          git submodule update
+
+      - name: 'Install dependencies'
+        run: |
+          apt update -y
+          apt install -y llvm-19
+          update-alternatives --install /usr/bin/llvm-cov llvm-cov /usr/lib/llvm-19/bin/llvm-cov 100
+          update-alternatives --install /usr/bin/llvm-objdump llvm-objdump /usr/lib/llvm-19/bin/llvm-objdump 100
+          pip install -r tools/fuzz/python/requirements.txt
+
+      - name: 'Build'
+        run: |
+          . ./tools/fuzz/fuzz.env
+          fuzzbuild 1 ${{env.BUILD_NAME}}
+        shell: bash
+
+#      - name: 'Fuzz-bench'
+#        run: |
+#          cmake --build _Fuzz/builds/${{env.BUILD_NAME}} -- quick-bench
+#        shell: bash
+
+      - name: 'Fuzz-parallel'
+        run: |
+          python tools/fuzz/python/multirun.py spawn -b ${{env.BUILD_NAME}} --mix --no-ui -w 4 -V ${{env.FUZZ_DURATION}}
+          cmake --build _Fuzz/builds/${{env.BUILD_NAME}} -- run-coverage | tee _Fuzz/summary.txt
+          afl-plot _Fuzz/aflout/${{env.BUILD_NAME}}/m-${{env.BUILD_NAME}} _Fuzz/bench/${{env.BUILD_NAME}}
+        shell: bash
+
+      - name: 'Summary'
+        run: cat _Fuzz/summary.txt | tail -4 | head -3
+
+      - name: 'Archive results'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-results
+          path: _Fuzz
