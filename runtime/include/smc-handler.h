@@ -94,6 +94,10 @@ void smc_rtt_unmap_unprotected(unsigned long rd_addr,
 				unsigned long ulevel,
 				struct smc_result *res);
 
+void smc_rtt_dev_mem_validate(unsigned long rd_addr, unsigned long rec_addr,
+			      unsigned long base, unsigned long top,
+			      struct smc_result *res);
+
 void smc_rtt_read_entry(unsigned long rd_addr,
 			unsigned long map_addr,
 			unsigned long ulevel,

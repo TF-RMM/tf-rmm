@@ -2896,3 +2896,206 @@ out_unmap_rd:
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
 }
+
+static int rtt_dev_mem_set(const struct s2tt_context *s2_ctx,
+			   unsigned long *s2ttep, long level,
+			   unsigned long dev_mem_pa)
+{
+	unsigned long s2tte;
+	int ret = 0;
+
+	s2tte = s2tte_read(s2ttep);
+	assert(s2_ctx != NULL);
+
+	if (!s2tte_has_ripas(s2_ctx, s2tte, level)) {
+		return -EPERM;
+	}
+
+	if (s2tte_is_assigned_dev_empty(s2_ctx, s2tte, level)) {
+		unsigned long pa;
+
+		/* Compare the PA with Realm dev_mem_pa */
+		pa = s2tte_pa(s2_ctx, s2tte, level);
+		if (pa != dev_mem_pa) {
+			return -1;
+		}
+
+		/* todo: check dev_mem_pa coherent type */
+
+		s2tte = s2tte_create_assigned_dev_dev_coh_type(s2_ctx, s2tte,
+							       level, DEV_MEM_NON_COHERENT, s2tte);
+	} else {
+		return -1;
+	}
+
+	s2tte_write(s2ttep, s2tte);
+	return ret;
+}
+
+static void rtt_dev_mem_set_range(struct s2tt_context *s2_ctx,
+				  unsigned long *s2tt, unsigned long base,
+				  unsigned long top, unsigned long dev_mem_pa,
+				  bool is_coh, struct s2tt_walk *wi,
+				  struct rd *rd, struct smc_result *res)
+{
+	unsigned long index;
+	long level = wi->last_level;
+	unsigned long map_size;
+	unsigned long addr;
+
+	/* Align to the RTT level */
+	map_size = s2tte_map_size((int)level);
+	addr = base & ~(map_size - 1UL);
+
+	(void)is_coh;
+
+	/* Make sure we don't touch a range below the requested range */
+	if (addr != base) {
+		res->x[0] = pack_return_code(RMI_ERROR_RTT,
+					     (unsigned char)level);
+		return;
+	}
+
+	for (index = wi->index; index < S2TTES_PER_S2TT; index++) {
+		int ret;
+
+		/*
+		 * Break on "top_align" failure condition,
+		 * or if this entry crosses the range.
+		 */
+		if ((addr + map_size) > top) {
+			break;
+		}
+
+		ret = rtt_dev_mem_set(s2_ctx, &s2tt[index], level, dev_mem_pa);
+		if (ret < 0) {
+			break;
+		}
+
+		/* Handle TLBI */
+		if (ret != 0) {
+			tlb_handler_t tlb_handler;
+			tlb_handler_per_vmids_t tlb_handler_per_vmids;
+
+			if (level == S2TT_PAGE_LEVEL) {
+				tlb_handler = s2tt_invalidate_page;
+				tlb_handler_per_vmids = invalidate_page_per_vmids;
+			} else {
+				tlb_handler = s2tt_invalidate_block;
+				tlb_handler_per_vmids = invalidate_block_for_vmids;
+			}
+
+			if (s2_ctx->indirect_s2ap) {
+				assert(!rd->rtt_tree_pp);
+
+				/* Invalidate TLBs for all Plane VMIDs */
+				tlb_handler_per_vmids(rd, addr);
+			} else {
+				tlb_handler(s2_ctx, addr);
+			}
+		}
+
+		addr += map_size;
+		dev_mem_pa += map_size;
+	}
+
+	if (addr > base) {
+		res->x[0] = RMI_SUCCESS;
+		res->x[1] = addr;
+	} else {
+		res->x[0] = pack_return_code(RMI_ERROR_RTT,
+					     (unsigned char)level);
+	}
+}
+
+void smc_rtt_dev_mem_validate(unsigned long rd_addr, unsigned long rec_addr,
+			      unsigned long base, unsigned long top,
+			      struct smc_result *res)
+{
+	struct granule *g_rd, *g_rec;
+	struct s2tt_context *s2_ctx;
+	unsigned long dev_mem_pa;
+	unsigned long *s2tt;
+	struct s2tt_walk wi;
+	struct rec *rec;
+	struct rd *rd;
+	bool is_coh;
+
+	if ((top <= base) || !GRANULE_ALIGNED(top)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd, rec_addr,
+				   GRANULE_STATE_REC, &g_rec)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	/* Ensure REC is not running */
+	if (granule_refcount_read_acquire(g_rec) != 0U) {
+		res->x[0] = RMI_ERROR_REC;
+		goto out_unlock_rec_rd;
+	}
+
+	rec = buffer_granule_map(g_rec, SLOT_REC);
+	assert(rec != NULL);
+
+	if (g_rd != rec->realm_info.g_rd) {
+		res->x[0] = RMI_ERROR_REC;
+		goto out_unmap_rec;
+	}
+
+	if ((base != rec->dev_mem.addr) || (top > rec->dev_mem.top)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		goto out_unmap_rec;
+	}
+
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	/*
+	 * At this point, we know base == rec->dev_mem.addr and thus must be
+	 * aligned to GRANULE size.
+	 */
+	assert(validate_map_addr(base, S2TT_PAGE_LEVEL, rd));
+
+	s2_ctx = plane_to_s2_context(rd, PLANE_0_ID);
+	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
+
+	/* Walk to the deepest level possible */
+	s2tt_walk_lock_unlock(s2_ctx, base, S2TT_PAGE_LEVEL, &wi);
+
+	/* Base has to be aligned to the level at which it is mapped in RTT. */
+	if (!validate_map_addr(base, wi.last_level, rd)) {
+		res->x[0] = pack_return_code(RMI_ERROR_RTT,
+					     (unsigned char)wi.last_level);
+		goto out_unlock_llt;
+	}
+
+	dev_mem_pa = rec->dev_mem.pa;
+
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
+	assert(s2tt != NULL);
+
+	/* current support DEV_MEM_NON_COHERENT */
+	is_coh = false;
+	rtt_dev_mem_set_range(s2_ctx, s2tt, base, top, dev_mem_pa, is_coh,
+			      &wi, rd, res);
+
+	if (res->x[0] == RMI_SUCCESS) {
+		rec->dev_mem.addr = res->x[1];
+	}
+
+	buffer_unmap(s2tt);
+out_unlock_llt:
+	granule_unlock(wi.g_llt);
+	buffer_unmap(rd);
+
+out_unmap_rec:
+	buffer_unmap(rec);
+
+out_unlock_rec_rd:
+	granule_unlock(g_rec);
+	granule_unlock(g_rd);
+}
