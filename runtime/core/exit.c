@@ -357,7 +357,7 @@ static bool handle_simd_exception(struct rec *rec, unsigned long esr)
 	return true;
 }
 
-static void advance_pc(void)
+void advance_pc(void)
 {
 	unsigned long pc = read_elr_el2();
 
@@ -493,8 +493,6 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 		return handle_realm_rsi(rec, rec_exit);
 	case ESR_EL2_EC_SYSREG: {
 		bool ret = handle_sysreg_access_trap(rec, rec_exit, esr);
-
-		advance_pc();
 		return ret;
 	}
 	case ESR_EL2_EC_INST_ABORT:
