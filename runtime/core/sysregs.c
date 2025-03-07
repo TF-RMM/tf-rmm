@@ -9,6 +9,7 @@
 #include <arch_helpers.h>
 #include <debug.h>
 #include <esr.h>
+#include <inject_exp.h>
 #include <rec.h>
 #include <smc-rmi.h>
 #include <sysreg_traps.h>
@@ -95,12 +96,13 @@
  */
 static bool handle_id_sysreg_trap(struct rec *rec,
 				  struct rmi_rec_exit *rec_exit,
-				  unsigned long esr)
+				  unsigned long esr, bool *skip_adv_pc)
 {
 	unsigned int rt;
 	unsigned long idreg, value;
 
 	(void)rec_exit;
+	(void)skip_adv_pc;
 
 	/*
 	 * We only set HCR_EL2.TID3 to trap ID registers at the moment and
@@ -195,11 +197,12 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 
 static bool handle_icc_el1_sysreg_trap(struct rec *rec,
 				       struct rmi_rec_exit *rec_exit,
-				       unsigned long esr)
+				       unsigned long esr, bool *skip_adv_pc)
 {
 	__unused unsigned long sysreg = esr & ESR_EL2_SYSREG_MASK;
 
 	(void)rec;
+	(void)skip_adv_pc;
 
 	/*
 	 * We should only have configured ICH_HCR_EL2 to trap on DIR and we
@@ -223,7 +226,7 @@ static bool handle_icc_el1_sysreg_trap(struct rec *rec,
 }
 
 typedef bool (*sysreg_handler_fn)(struct rec *rec, struct rmi_rec_exit *rec_exit,
-				  unsigned long esr);
+				  unsigned long esr, bool *skip_adv_pc);
 
 struct sysreg_handler {
 	unsigned long esr_mask;
@@ -280,6 +283,7 @@ bool handle_sysreg_access_trap(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	unsigned int rt = (unsigned int)ESR_EL2_SYSREG_ISS_RT(esr);
 	unsigned int __unused op0, op1, crn, crm, op2;
 	unsigned long __unused sysreg;
+	bool skip_advance_pc = false;
 
 	/* Check for 32-bit instruction trapped */
 	assert(ESR_IL(esr) != 0UL);
@@ -289,10 +293,13 @@ bool handle_sysreg_access_trap(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		const struct sysreg_handler *handler = &sysreg_handlers[i];
 
 		if ((esr & handler->esr_mask) == handler->esr_value) {
-			bool handled = handler->fn(rec, rec_exit, esr);
+			bool handled = handler->fn(rec, rec_exit, esr, &skip_advance_pc);
 
 			if (!handled) {
 				emulate_sysreg_access_ns(rec, rec_exit, esr);
+			}
+			if (!skip_advance_pc) {
+				advance_pc();
 			}
 			return handled;
 		}
@@ -319,5 +326,6 @@ bool handle_sysreg_access_trap(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		ESR_EL2_SYSREG_IS_WRITE(esr) ? "write" : "read",
 		op0, op1, crn, crm, op2);
 
+	advance_pc();
 	return true;
 }

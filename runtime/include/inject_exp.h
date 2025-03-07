@@ -8,6 +8,9 @@
 
 struct rec;
 
+/* TODO: move declaration to suitable header */
+void advance_pc(void);
+
 void inject_sync_idabort(unsigned long fsc);
 void inject_sync_idabort_rec(struct rec *rec, unsigned long fsc);
 void realm_inject_undef_abort(void);
