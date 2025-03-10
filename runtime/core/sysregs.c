@@ -225,6 +225,20 @@ static bool handle_icc_el1_sysreg_trap(struct rec *rec,
 	return false;
 }
 
+static bool handle_brbe_el1_sysreg_trap(struct rec *rec,
+					struct rmi_rec_exit *rec_exit,
+					unsigned long esr, bool *skip_adv_pc)
+{
+	(void)rec;
+	(void)rec_exit;
+	(void)esr;
+
+	realm_inject_undef_abort();
+	*skip_adv_pc = true;
+
+	return true;
+}
+
 typedef bool (*sysreg_handler_fn)(struct rec *rec, struct rmi_rec_exit *rec_exit,
 				  unsigned long esr, bool *skip_adv_pc);
 
@@ -243,7 +257,9 @@ static const struct sysreg_handler sysreg_handlers[] = {
 	SYSREG_HANDLER(ESR_EL2_SYSREG_ICC_EL1_MASK, ESR_EL2_SYSREG_ICC_EL1,
 		       handle_icc_el1_sysreg_trap),
 	SYSREG_HANDLER(ESR_EL2_SYSREG_MASK, ESR_EL2_SYSREG_ICC_PMR_EL1,
-		       handle_icc_el1_sysreg_trap)
+		       handle_icc_el1_sysreg_trap),
+	SYSREG_HANDLER(ESR_EL2_SYSREG_BRBE_MASK, ESR_EL2_SYSREG_BRBE,
+			handle_brbe_el1_sysreg_trap)
 };
 
 static unsigned long get_sysreg_write_value(struct rec *rec, unsigned long esr)
@@ -301,6 +317,7 @@ bool handle_sysreg_access_trap(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			if (!skip_advance_pc) {
 				advance_pc();
 			}
+
 			return handled;
 		}
 	}

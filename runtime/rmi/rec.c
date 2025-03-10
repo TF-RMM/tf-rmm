@@ -135,6 +135,7 @@ static void init_common_sysregs(struct rec *rec, struct rd *rd)
 	}
 
 	rec->common_sysregs.mdcr_el2 = mdcr_el2_val;
+
 }
 
 static void init_rec_regs(struct rec *rec,
