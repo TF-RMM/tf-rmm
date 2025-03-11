@@ -15,8 +15,6 @@
 #include <unistd.h>
 #include <utils_def.h>
 
-extern size_t app_heap_page_count;
-
 static uint8_t shared_buffer[GRANULE_SIZE];
 static struct app_instance_data_list_t *instance_list;
 
@@ -186,7 +184,7 @@ static pthread_t create_app_instance(void)
 	instance_list_new->data.read_from_main_fd = fds_main_to_instance[0];
 	instance_list_new->data.write_to_main_fd = fds_instance_to_main[1];
 
-	instance_list_new->data.heap_size = app_heap_page_count * GRANULE_SIZE;
+	instance_list_new->data.heap_size = HEAP_PAGE_COUNT * GRANULE_SIZE;
 	instance_list_new->data.heap_start = malloc(instance_list_new->data.heap_size);
 	if (instance_list_new->data.heap_start == NULL) {
 		exit(1);
