@@ -29,6 +29,8 @@
 #define E_RMM_NOMEM			(-4)
 #define E_RMM_INVAL                     (-5)
 #define E_RMM_AGAIN			(-6)
+#define E_RMM_FAULT			(-7)
+#define E_RMM_IN_PROGRESS		(-8)
 
 /****************************************
  * Generic defines for RMM-EL3 interface
@@ -44,15 +46,15 @@
  * SMC Function IDs for the EL3-RMM interface
  ********************************************/
 
-					/* 0x1B0 - 0x1B1 */
+					/* 0xc40001b0 - 0xc40001b1 */
 #define SMC_RMM_GTSI_DELEGATE		SMC64_STD_FID(RMM_EL3, U(0))
 #define SMC_RMM_GTSI_UNDELEGATE		SMC64_STD_FID(RMM_EL3, U(1))
 
-					/* 0x1B2 - 0x1B3 */
+					/* 0xc40001b2 - 0xc40001b3 */
 #define SMC_RMM_GET_REALM_ATTEST_KEY	SMC64_STD_FID(RMM_EL3, U(2))
 #define SMC_RMM_GET_PLAT_TOKEN		SMC64_STD_FID(RMM_EL3, U(3))
 
-					/* 0x1CF */
+					/* 0xc40001cf */
 #define SMC_RMM_BOOT_COMPLETE		SMC64_STD_FID(RMM_EL3, U(0x1F))
 
 /* SMC_RMM_BOOT_COMPLETE return codes */
@@ -66,14 +68,27 @@
 #define E_RMM_BOOT_MANIFEST_DATA_ERROR			(-7)
 
 /* Starting RMM-EL3 interface version 0.4 */
-					/* 0x1B4 */
+					/* 0xc40001b4 */
 #define SMC_RMM_EL3_FEATURES		SMC64_STD_FID(RMM_EL3, U(4))
 
-					/* 0x1B5 */
+					/* 0xc40001b5 */
 #define SMC_RMM_EL3_TOKEN_SIGN		SMC64_STD_FID(RMM_EL3, U(5))
 
-					/* 0x1B6 */
+					/* 0xc40001b6 */
 #define SMC_RMM_MEC_REFRESH		SMC64_STD_FID(RMM_EL3, U(6))
+
+/* Starting RMM-EL3 interface version 0.5 */
+					/* 0xc40001b7 */
+#define SMC_RMM_RP_IDE_KEY_PROG		SMC64_STD_FID(RMM_EL3, U(7))
+
+					/* 0xc40001b8 */
+#define SMC_RMM_RP_IDE_KEY_SET_GO	SMC64_STD_FID(RMM_EL3, U(8))
+
+					/* 0xc40001b9 */
+#define SMC_RMM_RP_IDE_KEY_SET_STOP	SMC64_STD_FID(RMM_EL3, U(9))
+
+					/* 0xc40001ba */
+#define SMC_RMM_RP_IDE_KM_POLL		SMC64_STD_FID(RMM_EL3, U(10))
 
 /************************
  * Version related macros
@@ -190,6 +205,28 @@ COMPILER_ASSERT(U(offsetof(struct el3_token_sign_response, cookie)) == 0x0U);
 COMPILER_ASSERT(U(offsetof(struct el3_token_sign_response, req_ticket)) == 0x8U);
 COMPILER_ASSERT(U(offsetof(struct el3_token_sign_response, sig_len)) == 0x10U);
 COMPILER_ASSERT(U(offsetof(struct el3_token_sign_response, signature_buf)) == 0x12U);
+
+/***************************************************************************
+ * SMC_RMM_EL3_RP_IDE_KM related macros
+ ***************************************************************************/
+#define EL3_IFC_IDE_STREAM_INFO_ID_SHIFT		U(0)
+#define EL3_IFC_IDE_STREAM_INFO_ID_WIDTH		U(8)
+#define EL3_IFC_IDE_STREAM_INFO_KEY_SUBSTREAM_SHIFT	U(8)
+#define EL3_IFC_IDE_STREAM_INFO_KEY_SUBSTREAM_WIDTH	U(3)
+#define EL3_IFC_IDE_STREAM_INFO_KEY_DIRECTION_SHIFT	U(11)
+#define EL3_IFC_IDE_STREAM_INFO_KEY_DIRECTION_WIDTH	U(1)
+#define EL3_IFC_IDE_STREAM_INFO_KEY_SLOT_SHIFT		U(12)
+#define EL3_IFC_IDE_STREAM_INFO_KEY_SLOT_WIDTH		U(1)
+
+/* Number of times to retry a IDE KM call if the SMC returns E_RMM_AGAIN */
+#define EL3_IFC_IDE_KM_RETRY_COUNT_MAX			U(3)
+
+/* Construct stream_info from key set, key direction, key substream, stream id */
+#define EL3_IFC_IDE_MAKE_STREAM_INFO(_kslot, _kdir, _ksubstream, _id)	\
+	(INPLACE(EL3_IFC_IDE_STREAM_INFO_KEY_SLOT, (_kslot)) |\
+	 INPLACE(EL3_IFC_IDE_STREAM_INFO_KEY_DIRECTION, (_kdir)) | \
+	 INPLACE(EL3_IFC_IDE_STREAM_INFO_KEY_SUBSTREAM, (_ksubstream)) | \
+	 INPLACE(EL3_IFC_IDE_STREAM_INFO_ID, (_id)))
 
 /***************************************************************************
  * RMM-EL3 Interface related functions
@@ -575,6 +612,86 @@ int rmm_el3_ifc_get_realm_attest_pub_key_from_el3(uintptr_t buf, size_t buflen,
  *			version is < 0.4.
  */
 int rmm_el3_ifc_get_feat_register(unsigned int feat_reg_idx, uint64_t *feat_reg);
+
+struct el3_ifc_rp_ide_key {
+	unsigned long kq_w0;
+	unsigned long kq_w1;
+	unsigned long kq_w2;
+	unsigned long kq_w3;
+};
+
+struct el3_ifc_rp_ide_iv {
+	unsigned long iq_w0;
+	unsigned long iq_w1;
+};
+
+/*
+ * Set the key/IV info for a stream. The key is 256 bits and IV is 96 bits. The
+ * caller needs to call this SMC to program this key to the {Rx, Tx} ports and
+ * for each sub-stream corresponding to a single keyset.
+ *
+ * Args:
+ *	- ecam_addr	Identify the root complex (RC).
+ *	- rp_id		Identify the RP within the RC
+ *	- stream_info	IDE selective stream information
+ *	- key		IDE key buffer
+ *	- iv		IV buffer
+ *
+ * Return:
+ *	- E_RMM_OK	On Success. The key programming succeeded.
+ *	- E_RMM_FAULT	On Failure. The key programming failed
+ *	- E_RMM_INVAL	If the arguments are invalid.
+ *	- E_RMM_AGAIN	The RP KM interface is busy, and the call needs to be
+ *			retried.
+ *	- E_RMM_UNK	If the SMC is not implemented or if interface
+ *			version is < 0.5.
+ */
+int rmm_el3_ifc_rp_ide_key_prog(unsigned long ecam_addr, unsigned long rp_id,
+				unsigned long stream_info, struct el3_ifc_rp_ide_key *key,
+				struct el3_ifc_rp_ide_iv *iv);
+
+/*
+ * Activate the IDE stream once all the keys have been programmed. The caller
+ * needs to ensure that the corresponding rmm_el3_ifc_ide_key_prog() has
+ * succeeded prior to this call.
+ *
+ * Args:
+ *	- ecam_addr	Identify the root complex (RC).
+ *	- rp_id		Identify the RP within the RC
+ *	- stream_info	IDE selective stream information
+ *
+ * Return:
+ *	- E_RMM_OK	On Success. The key programming succeeded.
+ *	- E_RMM_FAULT	On Failure. The key programming failed
+ *	- E_RMM_INVAL	If the arguments are invalid.
+ *	- E_RMM_AGAIN	The RP KM interface is busy, and the call needs to be
+ *			retried.
+ *	- E_RMM_UNK	If the SMC is not implemented or if interface
+ *			version is < 0.5.
+ */
+int rmm_el3_ifc_rp_ide_key_set_go(unsigned long ecam_addr, unsigned long rp_id,
+				  unsigned long stream_info);
+
+/*
+ * Stop the IDE stream. This SMC is typically only used in tear down of the IDE
+ * Stream.
+ *
+ * Args:
+ *	- ecam_addr	Identify the root complex (RC).
+ *	- rp_id		Identify the RP within the RC
+ *	- stream_info	IDE selective stream information
+ *
+ * Return:
+ *	- E_RMM_OK	On Success. The key programming succeeded.
+ *	- E_RMM_FAULT	On Failure. The key programming failed
+ *	- E_RMM_INVAL	If the arguments are invalid.
+ *	- E_RMM_AGAIN	The RP KM interface is busy, and the call needs to be
+ *			retried.
+ *	- E_RMM_UNK	If the SMC is not implemented or if interface
+ *			version is < 0.5.
+ */
+int rmm_el3_ifc_rp_ide_key_set_stop(unsigned long ecam_addr, unsigned long rp_id,
+				    unsigned long stream_info);
 
 #endif /* __ASSEMBLER__ */
 #endif /* RMM_EL3_IFC_H */
