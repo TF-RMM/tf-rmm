@@ -257,34 +257,6 @@ bool host_memcpy_ns_write(void *ns_dest, const void *src, unsigned long size)
 	return true;
 }
 
-unsigned long host_monitor_call(unsigned long id,
-			unsigned long arg0,
-			unsigned long arg1,
-			unsigned long arg2,
-			unsigned long arg3,
-			unsigned long arg4,
-			unsigned long arg5)
-{
-	/* Avoid MISRA C:2102-2.7 warnings */
-	(void)arg1;
-	(void)arg2;
-	(void)arg3;
-	(void)arg4;
-	(void)arg5;
-
-	switch (id) {
-	case SMC_RMM_GTSI_DELEGATE:
-		return host_gtsi_delegate(arg0);
-	case SMC_RMM_GTSI_UNDELEGATE:
-		return host_gtsi_undelegate(arg0);
-	case SMCCC_ARCH_FEATURES:
-		/* Always return success */
-		return 0UL;
-	default:
-		return 0UL;
-	}
-}
-
 #ifndef CBMC
 static int el3_token_sign_push_req(uint64_t buf_pa, uint64_t buf_size)
 {
@@ -497,55 +469,60 @@ static int rmm_el3_get_features(uint64_t feat_reg_idx, uint64_t *feat_reg)
 }
 #endif
 
-void host_monitor_call_with_res(unsigned long id,
-			unsigned long arg0,
-			unsigned long arg1,
-			unsigned long arg2,
-			unsigned long arg3,
-			unsigned long arg4,
-			unsigned long arg5,
-			struct smc_result *res)
+void host_monitor_call(unsigned long id, struct smc_args *args,
+		       struct smc_result *res)
 {
 #ifndef CBMC
-	/* Avoid MISRA C:2102-2.7 warnings */
-	(void)arg3;
-	(void)arg4;
-	(void)arg5;
 	unsigned long token_hunk_size = 0;
 	unsigned long remaining_len = 0;
+#endif
 
 	switch (id) {
+	case SMC_RMM_GTSI_DELEGATE:
+		res->x[0] = host_gtsi_delegate(args->v[0]);
+		break;
+	case SMC_RMM_GTSI_UNDELEGATE:
+		res->x[0] = host_gtsi_undelegate(args->v[0]);
+		break;
+	case SMCCC_ARCH_FEATURES:
+		/* Always return success */
+		res->x[0] = 0UL;
+		break;
+#ifndef CBMC
 	case SMC_RMM_GET_PLAT_TOKEN:
-		res->x[0] = attest_get_platform_token(arg0, arg1,
-				arg2, &token_hunk_size, &remaining_len);
+		res->x[0] = attest_get_platform_token(args->v[0], args->v[1],
+						      args->v[2],
+						      &token_hunk_size,
+						      &remaining_len);
 		res->x[1] = token_hunk_size;
 		res->x[2] = remaining_len;
 		break;
 	case SMC_RMM_GET_REALM_ATTEST_KEY:
-		res->x[0] = attest_get_signing_key(arg0, &arg1, arg2);
-		res->x[1] = arg1;
+		res->x[0] = attest_get_signing_key(args->v[0], &args->v[1],
+						   args->v[2]);
+		res->x[1] = args->v[1];
 		break;
 	case SMC_RMM_EL3_FEATURES:
-		res->x[0] = rmm_el3_get_features(arg0, &arg1);
-		res->x[1] = arg1;
+		res->x[0] = rmm_el3_get_features(args->v[0], &args->v[1]);
+		res->x[1] = args->v[1];
 		break;
 	case SMC_RMM_EL3_TOKEN_SIGN:
 	{
-		switch (arg0) {
+		switch (args->v[0]) {
 		case SMC_RMM_EL3_TOKEN_SIGN_PUSH_REQ_OP:
-			res->x[0] = el3_token_sign_push_req(arg1,
-								arg2);
+			res->x[0] = el3_token_sign_push_req(args->v[1],
+							    args->v[2]);
 			break;
 		case SMC_RMM_EL3_TOKEN_SIGN_PULL_RESP_OP:
-			res->x[0] = el3_token_sign_pull_resp(arg1,
-								&arg2);
-			res->x[1] = arg2;
+			res->x[0] = el3_token_sign_pull_resp(args->v[1],
+							     &args->v[2]);
+			res->x[1] = args->v[2];
 			break;
 		case SMC_RMM_EL3_TOKEN_SIGN_GET_RAK_PUB_OP:
-			res->x[0] = el3_token_sign_get_rak_pub(arg1,
-								&arg2,
-								arg3);
-			res->x[1] = arg2;
+			res->x[0] = el3_token_sign_get_rak_pub(args->v[1],
+							       &args->v[2],
+							       args->v[3]);
+			res->x[1] = args->v[2];
 			break;
 		default:
 			res->x[0] = -EINVAL;
@@ -563,10 +540,11 @@ void host_monitor_call_with_res(unsigned long id,
 		res->x[1] = UL(-1);
 		break;
 	}
+#endif
 	default:
 		VERBOSE("Unimplemented monitor call id %lx\n", id);
+		res->x[0] = ~0LU;
 	}
-#endif
 }
 
 int host_run_realm(unsigned long *rec_regs, unsigned long *rec_sp_el0)
