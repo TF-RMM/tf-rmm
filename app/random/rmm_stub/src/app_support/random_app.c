@@ -41,13 +41,15 @@ static void get_random_seed(uintptr_t output, size_t len)
 static int random_app_init(
 	struct app_data_cfg *app_data,
 	uintptr_t granule_pas[],
-	size_t granule_pa_count)
+	size_t granule_pa_count,
+	void *granule_va_start)
 {
 	assert(!random_app_init_done[my_cpuid()]);
 	return app_init_data(app_data,
 				  RMM_RANDOM_APP_ID,
 				  granule_pas,
-				  granule_pa_count);
+				  granule_pa_count,
+				  granule_va_start);
 }
 
 static int random_app_prng_init(struct app_data_cfg *app_data,
@@ -133,7 +135,8 @@ void random_app_init_prng(void)
 
 	ret = random_app_init(&rmm_random_app_datas[cpuid],
 			granule_pas,
-			RANDOM_APP_PAGE_COUNT);
+			RANDOM_APP_PAGE_COUNT,
+			&rmm_random_app_pages[cpuid][0][0]);
 	if (ret != 0) {
 		return;
 	}

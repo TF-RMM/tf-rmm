@@ -18,7 +18,6 @@
 #define ATTESTATION_APP_FUNC_ID_EXTEND_MEASUREMENT		93
 #define ATTESTATION_APP_FUNC_ID_TOKEN_SIGN			107
 #define ATTESTATION_APP_FUNC_ID_DO_CCA_TOKEN_CREATION		111
-#define ATTESTATION_APP_FUNC_ID_COPY_ATTEST_TOKEN_TO_SHARED	112
 #define ATTESTATION_APP_FUNC_ID_TOKEN_CTX_INIT			113
 #define ATTESTATION_APP_FUNC_ID_REALM_TOKEN_CREATE		114
 #define EL3_TOKEN_WRITE_RESPONSE_TO_CTX				115
@@ -36,8 +35,11 @@ enum hash_algo {
 #define SHA512_SIZE			(64U)
 
 #ifndef CBMC
-/* Number of pages per REC for attestation buffer */
-#define REC_ATTEST_TOKEN_BUF_SIZE	(RMM_CCA_TOKEN_BUFFER * SZ_4K)
+/*
+ * Buffer size for CCA attestation token. Allocated on the attestation app heap
+ * area.
+ */
+#define ATTEST_TOKEN_BUF_SIZE	(RMM_CCA_TOKEN_BUFFER * SZ_4K)
 /*
  * Size in bytes of the largest measurement type that can be supported.
  * This macro needs to be updated accordingly if new algorithms are supported.
@@ -46,7 +48,7 @@ enum hash_algo {
 #define ATTEST_CHALLENGE_SIZE		(64)
 #define RMM_REALM_TOKEN_BUF_SIZE	SZ_1K
 #else
-#define REC_ATTEST_TOKEN_BUF_SIZE	4U
+#define ATTEST_TOKEN_BUF_SIZE	4U
 #define MAX_MEASUREMENT_SIZE		sizeof(uint64_t)
 #define ATTEST_CHALLENGE_SIZE		(1)
 #define RMM_REALM_TOKEN_BUF_SIZE	4U
@@ -123,6 +125,10 @@ static inline size_t measurement_get_size(const enum hash_algo algorithm)
 
 	return ret;
 }
+
+struct attest_heap_shared{
+	uint8_t cca_attest_token_buf[ATTEST_TOKEN_BUF_SIZE];
+};
 
 struct attest_extend_measurement_buffers {
 	size_t current_measurement_buf_offset;

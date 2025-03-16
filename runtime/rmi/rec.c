@@ -5,7 +5,6 @@
 
 #include <arch.h>
 #include <arch_features.h>
-#include <attest_app.h>
 #include <buffer.h>
 #include <debug.h>
 #include <gic.h>
@@ -21,6 +20,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
+#include <xlat_high_va.h>
 
 static void init_rec_sysregs(struct rec *rec, unsigned long rec_mpidr)
 {
@@ -240,11 +240,9 @@ static void rec_aux_granules_init(struct rec *r)
 		((uintptr_t)aux_data->pmu + REC_PMU_SIZE);
 	aux_data->attest_data = (struct rec_attest_data *)
 		((uintptr_t)aux_data->simd_ctx + REC_SIMD_SIZE);
-	aux_data->cca_token_buf = (uintptr_t)aux_data->attest_data +
-		REC_ATTEST_SIZE;
 
 	size_t used_aux_pages =
-		(aux_data->cca_token_buf + REC_ATTEST_TOKEN_BUF_SIZE -
+		((uintptr_t)aux_data->attest_data + REC_ATTEST_SIZE -
 			(uintptr_t)rec_aux) / GRANULE_SIZE;
 
 	assert(used_aux_pages < r->num_rec_aux);
@@ -262,7 +260,9 @@ static void rec_aux_granules_init(struct rec *r)
 
 	ret = attest_app_init(&r->attest_app_data,
 		granule_pas,
-		granule_pa_count);
+		granule_pa_count,
+		(void *)(SLOT_VIRT +
+			(((unsigned long)SLOT_REC_AUX0 + used_aux_pages) * GRANULE_SIZE)));
 	if (ret != 0) {
 		panic();
 	}

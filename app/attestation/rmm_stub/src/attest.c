@@ -45,12 +45,14 @@ static unsigned long global_init_attest_app(struct app_data_cfg *app_data)
 int attest_app_init(
 	struct app_data_cfg *app_data,
 	uintptr_t granule_pas[],
-	size_t granule_pa_count)
+	size_t granule_pa_count,
+	void *granule_va_start)
 {
 	return app_init_data(app_data,
 				ATTESTATION_APP_ID,
 				granule_pas,
-				granule_pa_count);
+				granule_pa_count,
+				granule_va_start);
 }
 
 int attest_app_global_init(void)
@@ -73,7 +75,8 @@ int attest_app_global_init(void)
 	ret = app_init_data(&app_data,
 				ATTESTATION_APP_ID,
 				granule_pas,
-				ARRAY_SIZE(granule_pas));
+				ARRAY_SIZE(granule_pas),
+				rmm_attest_app_pages[cpuid][0]);
 	if (ret != 0) {
 		return ret;
 	}
@@ -121,7 +124,8 @@ void attest_app_init_per_cpu_instance(void)
 
 	ret = attest_app_init(&rmm_attest_app_datas[cpuid],
 			granule_pas,
-			ATTESTATION_APP_PAGE_COUNT);
+			ATTESTATION_APP_PAGE_COUNT,
+			&rmm_attest_app_pages[cpuid][0][0]);
 	if (ret != 0) {
 		panic();
 	}
@@ -220,12 +224,9 @@ enum attest_token_err_t attest_realm_token_sign(
 
 enum attest_token_err_t attest_cca_token_create(
 				struct app_data_cfg *app_data,
-				void *attest_token_buf,
-				size_t attest_token_buf_size,
 				size_t *attest_token_len)
 {
 	/* Call the actual token creation */
-	size_t token_len;
 	unsigned long ret;
 
 	app_map_shared_page(app_data);
@@ -239,37 +240,7 @@ enum attest_token_err_t attest_cca_token_create(
 		return (enum attest_token_err_t)ret;
 	}
 
-	token_len = *(size_t *)app_data->el2_shared_page;
-
-	if (token_len > attest_token_buf_size) {
-		return ATTEST_TOKEN_ERR_TOO_SMALL;
-	}
-
-	/* Obtain the resulting token from the app */
-	size_t offset = 0;
-
-	while (offset < token_len) {
-		size_t len = GRANULE_SIZE;
-		size_t chunk_len;
-
-		if ((token_len - offset) < len) {
-			len = token_len - offset;
-		}
-		SIMD_FPU_ALLOW(
-			chunk_len = app_run(app_data,
-				ATTESTATION_APP_FUNC_ID_COPY_ATTEST_TOKEN_TO_SHARED,
-				offset, len, 0, 0));
-		if (chunk_len != len) {
-			app_unmap_shared_page(app_data);
-			return ATTEST_TOKEN_ERR_INVALID_STATE;
-		}
-
-		(void)memcpy((void *)&((char *)attest_token_buf)[offset],
-			     app_data->el2_shared_page, len);
-
-		offset += len;
-	}
-	*attest_token_len = token_len;
+	*attest_token_len = *(size_t *)app_data->el2_shared_page;
 	app_unmap_shared_page(app_data);
 	return (enum attest_token_err_t)ret;
 }

@@ -26,7 +26,7 @@
 	((HEAP_PAGE_COUNT * GRANULE_SIZE) -		\
 		(sizeof(buffer_alloc_ctx) +		\
 		 sizeof(struct token_sign_cntxt) +	\
-		 REC_ATTEST_TOKEN_BUF_SIZE +		\
+		 ATTEST_TOKEN_BUF_SIZE +		\
 		 RMM_REALM_TOKEN_BUF_SIZE +		\
 		 sizeof(size_t)))
 
@@ -50,9 +50,19 @@ struct attest_heap_t {
 	 * Variables that are not dynamically allocated, but need to be kept
 	 * local to app instance.
 	 */
+	/*
+	 * The first member, heap_shared structure, is defined in the RMM stub.
+	 * This is necessary because to optimise the attestation token access of
+	 * the RMM core, the cca_attest_token_buf is accessed directly (it is
+	 * mapped in the RMM core VA space) instead being copied over using a
+	 * shared page.
+	 * The whole attest_heap_t structure cannot be defined in the RMM app
+	 * stub, because some definitions (e.g. buffer_alloc_ctx) is not visible
+	 * in the RMM core.
+	 */
+	struct attest_heap_shared heap_shared; /* Must be the first */
 	buffer_alloc_ctx mbedtls_heap_ctx;
 	struct token_sign_cntxt token_sign_context;
-	uint8_t cca_attest_token_buf[REC_ATTEST_TOKEN_BUF_SIZE];
 	/* The realm token is never returned to RMM only used inside the app */
 	uint8_t realm_attest_token_buf[RMM_REALM_TOKEN_BUF_SIZE];
 	size_t realm_token_len;
@@ -152,8 +162,8 @@ static unsigned long do_token_creation(void)
 
 	enum attest_token_err_t ret =
 		attest_app_cca_token_create(&heap->token_sign_context,
-			heap->cca_attest_token_buf,
-			sizeof(heap->cca_attest_token_buf),
+			heap->heap_shared.cca_attest_token_buf,
+			sizeof(heap->heap_shared.cca_attest_token_buf),
 			heap->realm_attest_token_buf,
 			heap->realm_token_len,
 			&heap->token_sign_context.ctx.completed_token_len);
@@ -163,19 +173,6 @@ static unsigned long do_token_creation(void)
 			     sizeof(size_t));
 	}
 	return (unsigned long)ret;
-}
-
-static size_t copy_attest_token_to_shared(size_t offset, size_t len)
-{
-	struct attest_heap_t *heap = (struct attest_heap_t *)get_heap_start();
-
-	if ((len >= GRANULE_SIZE) ||
-		(offset > heap->token_sign_context.ctx.completed_token_len) ||
-		((offset + len) > heap->token_sign_context.ctx.completed_token_len)) {
-		return 0;
-	}
-	(void)memcpy(get_shared_mem_start(), (void *)&heap->cca_attest_token_buf[offset], len);
-	return len;
 }
 
 static unsigned long token_context_init(uintptr_t cookie)
@@ -255,8 +252,6 @@ unsigned long el0_app_entry_func(
 	case ATTESTATION_APP_FUNC_ID_DO_CCA_TOKEN_CREATION:
 		/* coverity[misra_c_2012_directive_4_7_violation:SUPPRESS] */
 		return do_token_creation();
-	case ATTESTATION_APP_FUNC_ID_COPY_ATTEST_TOKEN_TO_SHARED:
-		return copy_attest_token_to_shared(arg_0, arg_1);
 	case ATTESTATION_APP_FUNC_ID_TOKEN_CTX_INIT:
 		if (!attest_key_init_done) {
 			return (unsigned long)ATTEST_TOKEN_ERR_INVALID_STATE;

@@ -36,14 +36,13 @@ void attest_app_init_per_cpu_instance(void);
 /* Iniialise a new app instance in the app_data object */
 int attest_app_init(struct app_data_cfg *app_data,
 	uintptr_t granule_pas[],
-	size_t granule_pa_count);
+	size_t granule_pa_count,
+	void *granule_va_start);
 enum attest_token_err_t attest_realm_token_sign(
 			struct app_data_cfg *app_data,
 			size_t *realm_token_len);
 enum attest_token_err_t attest_cca_token_create(
 				struct app_data_cfg *app_data,
-				void *attest_token_buf,
-				size_t attest_token_buf_size,
 				size_t *attest_token_len);
 enum attest_token_err_t attest_token_sign_ctx_init(
 				struct app_data_cfg *app_data,

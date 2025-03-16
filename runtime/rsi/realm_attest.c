@@ -32,7 +32,6 @@ static void attest_token_continue_write_state(struct rec *rec,
 	struct s2_walk_result walk_res = { 0UL };
 	size_t attest_token_len, length;
 	struct rec_attest_data *attest_data = rec->aux_data.attest_data;
-	uintptr_t cca_token_buf = rec->aux_data.cca_token_buf;
 	enum attest_token_err_t ret;
 
 	/*
@@ -73,8 +72,6 @@ static void attest_token_continue_write_state(struct rec *rec,
 	if (attest_data->rmm_cca_token_copied_len == 0UL) {
 		ret = attest_cca_token_create(
 				&rec->attest_app_data,
-				(void *)cca_token_buf,
-				REC_ATTEST_TOKEN_BUF_SIZE,
 				&attest_token_len);
 
 		if (ret != ATTEST_TOKEN_ERR_SUCCESS) {
@@ -90,9 +87,10 @@ static void attest_token_continue_write_state(struct rec *rec,
 	length = (size < attest_token_len) ? size : attest_token_len;
 
 	/* Copy attestation token */
+	struct attest_heap_shared *heap_shared = app_get_heap_ptr(&rec->attest_app_data);
 	(void)memcpy((void *)(realm_att_token + offset),
-		     (void *)(cca_token_buf +
-				attest_data->rmm_cca_token_copied_len),
+		     (void *)(&heap_shared->cca_attest_token_buf[
+				attest_data->rmm_cca_token_copied_len]),
 		     length);
 
 	attest_token_len -= length;
@@ -168,7 +166,7 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	}
 
 	res->smc_res.x[0] = RSI_SUCCESS;
-	res->smc_res.x[1] = REC_ATTEST_TOKEN_BUF_SIZE;
+	res->smc_res.x[1] = ATTEST_TOKEN_BUF_SIZE;
 }
 
 /*
