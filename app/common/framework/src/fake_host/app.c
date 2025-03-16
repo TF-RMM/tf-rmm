@@ -169,13 +169,15 @@ void app_framework_setup(void)
 int app_init_data(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
-		      size_t granule_count)
+		      size_t granule_count,
+		      void *granule_va_start)
 {
 	struct app_process_data *app_process_data;
 	unsigned long command;
 
 	(void)granule_pas;
 	(void)granule_count;
+	(void)granule_va_start;
 
 	app_process_data = get_app_process_data(app_id);
 	if (app_process_data == NULL) {
@@ -193,6 +195,8 @@ int app_init_data(struct app_data_cfg *app_data,
 		sizeof(app_data->thread_id));
 	app_data->el2_shared_page = NULL;
 	app_data->app_id = app_id;
+	app_data->app_heap = NULL;
+	app_data->app_heap_size = 0;
 	return 0;
 }
 
@@ -231,7 +235,9 @@ unsigned long app_run(struct app_data_cfg *app_data,
 
 	unsigned long bytes_to_forward =
 		5 * sizeof(unsigned long) +
-		sizeof(shared_page);
+		sizeof(shared_page) +
+		sizeof(unsigned long) +
+		app_data->app_heap_size;
 
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &bytes_to_forward,
 		sizeof(bytes_to_forward));
@@ -241,8 +247,13 @@ unsigned long app_run(struct app_data_cfg *app_data,
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &arg2, sizeof(arg2));
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &arg3, sizeof(arg3));
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, shared_page, GRANULE_SIZE);
+	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &(app_data->app_heap_size), sizeof(app_data->app_heap_size));
+	if (app_data->app_heap_size > 0) {
+		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, app_data->app_heap, app_data->app_heap_size);
+	}
 
 	unsigned long reason;
+	size_t app_heap_size;
 
 	while (true) {
 		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &reason, sizeof(reason));
@@ -260,12 +271,22 @@ unsigned long app_run(struct app_data_cfg *app_data,
 		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &arg2, sizeof(arg2));
 		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &arg3, sizeof(arg3));
 		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, shared_page, GRANULE_SIZE);
+		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &app_heap_size, sizeof(app_heap_size));
+		if (app_data->app_heap_size == 0) {
+			app_data->app_heap = malloc(app_heap_size);
+			app_data->app_heap_size = app_heap_size;
+		} else {
+			assert(app_data->app_heap_size == app_heap_size);
+		}
+		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, app_data->app_heap, app_heap_size);
 
 		retval = call_app_service(service_index, app_data, arg0, arg1, arg2, arg3);
 
 		bytes_to_forward =
 			sizeof(unsigned long) +
-			sizeof(shared_page);
+			sizeof(shared_page) +
+			sizeof(unsigned long) +
+			app_data->app_heap_size;
 
 		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &command, sizeof(command));
 		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &app_data->thread_id,
@@ -275,12 +296,28 @@ unsigned long app_run(struct app_data_cfg *app_data,
 
 		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &retval, sizeof(retval));
 		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, shared_page, GRANULE_SIZE);
-	}
+		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &(app_data->app_heap_size), sizeof(app_data->app_heap_size));
+		assert(app_data->app_heap_size > 0);
+		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, app_data->app_heap, app_data->app_heap_size);
+		}
 
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &retval, sizeof(retval));
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, shared_page, GRANULE_SIZE);
+	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &app_heap_size, sizeof(app_heap_size));
+	if (app_data->app_heap_size == 0) {
+		app_data->app_heap = malloc(app_heap_size);
+		app_data->app_heap_size = app_heap_size;
+	} else {
+		assert(app_data->app_heap_size == app_heap_size);
+	}
+	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, app_data->app_heap, app_heap_size);
 
 	return retval;
+}
+
+void *app_get_heap_ptr(struct app_data_cfg *app_data)
+{
+	return app_data->app_heap;
 }
 
 /* Used by the Mbed TLS library in case EL3 token signing is active when

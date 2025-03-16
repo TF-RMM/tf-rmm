@@ -109,6 +109,11 @@ target_sources(rmm-app-attestation-elf
         "src/attestation_token.c"
         "src/attestation_utils.c")
 
+if (RMM_ARCH STREQUAL fake_host)
+    target_sources(rmm-app-attestation-elf
+        PRIVATE "src/fake_host/attest_app_host.c")
+endif()
+
 target_link_options(rmm-app-attestation-elf
     PRIVATE "-Wl,-Map=$<TARGET_FILE:rmm-app-attestation-elf>.map")
 

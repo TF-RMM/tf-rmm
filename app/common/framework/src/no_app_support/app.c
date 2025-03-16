@@ -19,12 +19,13 @@ void app_framework_setup(void)
 int app_init_data(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
-		      size_t granule_count)
-{
+		      size_t granule_count,
+		      void *granule_va_start){
 	(void)app_data;
 	(void)app_id;
 	(void)granule_pas;
 	(void)granule_count;
+	(void)granule_va_start;
 	return 0;
 }
 

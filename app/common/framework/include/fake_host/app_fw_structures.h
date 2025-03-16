@@ -23,10 +23,18 @@ struct app_process_data {
 struct app_data_cfg {
 	unsigned long app_id;
 	void *el2_shared_page;
-	/* This thread ID is valid in the corresponding app process, not in the
+	/*
+	 * This thread ID is valid in the corresponding app process, not in the
 	 * main RMM process!
 	 */
 	pthread_t thread_id;
+	/*
+	 * Points to a dynamically allocated buffer that will hold a copy of the
+	 * app instance's heap. It is used to emulate the RMM EL2 code's direct
+	 * access to El0 app heap memory.
+	 */
+	void *app_heap;
+	size_t app_heap_size;
 };
 
 #endif /* APP_FW_STRUCTURES_H */

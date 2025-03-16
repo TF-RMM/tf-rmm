@@ -75,7 +75,8 @@ struct app_data_cfg {
 	uintptr_t shared_page_pa;
 	uintptr_t el0_shared_page_va;
 	void *el2_shared_page; /* Is NULL while the shared page is not mapped */
-	uintptr_t heap_va;
+	void *el2_heap_start; /* The start VA in the EL2 VA space of the app heap area */
+	uintptr_t heap_va; /* this VA address is valid in the EL0 VA space */
 	uintptr_t heap_size;
 	uintptr_t stack_buf_start_va;
 

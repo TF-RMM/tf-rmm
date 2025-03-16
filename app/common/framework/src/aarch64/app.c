@@ -349,7 +349,8 @@ static int app_heap_xlat_map(struct app_data_cfg *app_data,
 int app_init_data(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
-		      size_t granule_count)
+		      size_t granule_count,
+		      void *granule_va_start)
 {
 	struct app_header *app_header = NULL;
 	int ret = 0;
@@ -415,6 +416,7 @@ int app_init_data(struct app_data_cfg *app_data,
 	stack_top = app_data->stack_buf_start_va + stack_size;
 
 	app_data->heap_size = heap_size;
+	app_data->el2_heap_start = (void *)&(((char *)granule_va_start)[next_granule_idx * GRANULE_SIZE]);
 	ret = app_heap_xlat_map(app_data, app_data->heap_va, app_data->heap_size,
 		&next_granule_idx, granule_pas, granule_count);
 	if (ret != 0) {
@@ -445,6 +447,11 @@ int app_init_data(struct app_data_cfg *app_data,
 unmap_page_table:
 	unmap_page(granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE], page_table);
 	return ret;
+}
+
+void *app_get_heap_ptr(struct app_data_cfg *app_data)
+{
+	return app_data->el2_heap_start;
 }
 
 /* TODO:

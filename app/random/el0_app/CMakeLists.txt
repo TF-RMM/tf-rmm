@@ -73,6 +73,11 @@ target_sources(rmm-app-random-elf
     PRIVATE
         "src/random_app.c")
 
+if (RMM_ARCH STREQUAL fake_host)
+    target_sources(rmm-app-random-elf
+        PRIVATE "src/fake_host/random_app_host.c")
+endif()
+
 target_link_options(rmm-app-random-elf
     PRIVATE "-Wl,-Map=$<TARGET_FILE:rmm-app-random-elf>.map")
 
