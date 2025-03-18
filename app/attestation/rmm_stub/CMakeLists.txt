@@ -6,12 +6,12 @@
 add_library(rmm-app-attestation-stub)
 
 target_link_libraries(rmm-app-attestation-stub
+    rmm-el2-stub
     rmm-lib-arch
     rmm-lib-common
     rmm-lib-debug
     rmm-lib-rmm_el3_ifc
-    rmm-lib-smc
-    rmm-el2-stub)
+    rmm-lib-smc)
 
 target_include_directories(rmm-app-attestation-stub
     PUBLIC "include"

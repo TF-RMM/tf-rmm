@@ -7,12 +7,12 @@ add_library(rmm-app-cmn-fw)
 
 target_link_libraries(rmm-app-cmn-fw
     PRIVATE
+        rmm-el2-stub
         rmm-lib-arch
-        rmm-lib-debug
         rmm-lib-console
+        rmm-lib-debug
         rmm-lib-rmm_el3_ifc
-        rmm-lib-slot_buf
-        rmm-el2-stub)
+        rmm-lib-slot_buf)
 
 target_link_libraries(rmm-app-cmn-fw
     PUBLIC

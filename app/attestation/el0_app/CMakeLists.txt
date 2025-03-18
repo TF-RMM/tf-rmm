@@ -77,15 +77,15 @@ target_include_directories(rmm-app-attestation-elf
 
 target_link_libraries(rmm-app-attestation-elf
     PRIVATE
-        rmm-lib-arch
-        rmm-lib-libc
-        rmm-lib-smc
+        qcbor
         rmm-app-common-el0_app
+        rmm-lib-arch
         rmm-lib-common
         rmm-lib-console
         rmm-lib-debug
+        rmm-lib-libc
+        rmm-lib-smc
         rmm-lib-xlat
-        qcbor
         t_cose)
 
 add_custom_command(

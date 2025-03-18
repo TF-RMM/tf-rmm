@@ -50,15 +50,15 @@ target_link_libraries(t_cose
 
 target_link_libraries(t_cose
     PUBLIC
-       rmm-app-attestation-mbedtls
-       qcbor
+        qcbor
+        rmm-app-attestation-mbedtls
 )
 
 target_include_directories(t_cose
     PUBLIC
         "include"
-        "${T_COSE_SOURCE_DIR}/inc"
         "${T_COSE_SOURCE_DIR}/crypto_adapters"
+        "${T_COSE_SOURCE_DIR}/inc"
     PRIVATE
         "${T_COSE_SOURCE_DIR}/src"
 )
@@ -66,11 +66,11 @@ target_include_directories(t_cose
 target_sources(t_cose
     PRIVATE
         "${T_COSE_SOURCE_DIR}/crypto_adapters/t_cose_psa_crypto.c"
+        "${T_COSE_SOURCE_DIR}/src/t_cose_key.c"
         "${T_COSE_SOURCE_DIR}/src/t_cose_parameters.c"
         "${T_COSE_SOURCE_DIR}/src/t_cose_sign_sign.c"
         "${T_COSE_SOURCE_DIR}/src/t_cose_signature_sign_restart.c"
         "${T_COSE_SOURCE_DIR}/src/t_cose_util.c"
-        "${T_COSE_SOURCE_DIR}/src/t_cose_key.c"
 )
 
 if (ATTEST_EL3_TOKEN_SIGN)

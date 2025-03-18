@@ -51,9 +51,9 @@ target_include_directories(rmm-app-random-elf
 target_link_libraries(rmm-app-random-elf
     PRIVATE
         rmm-app-common-el0_app
+        rmm-app-random-mbedtls
         rmm-lib-common
         rmm-lib-debug
-        rmm-app-random-mbedtls
         rmm-lib-xlat)
 
 add_custom_command(
