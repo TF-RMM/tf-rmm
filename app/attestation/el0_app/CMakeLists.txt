@@ -88,14 +88,6 @@ target_link_libraries(rmm-app-attestation-elf
         qcbor
         t_cose)
 
-if(HOST_VARIANT STREQUAL "host_cbmc")
-    target_sources(rmm-app-attestation-elf
-        PRIVATE "src/fake_host/cbmc_attestation.c")
-    # In case of 'host_cbmc' variant no further source files are added to
-    # the build.
-    return()
-endif()
-
 add_custom_command(
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-app-attestation-elf>" "${CMAKE_CURRENT_BINARY_DIR}/rmm_app_attestation.elf"
     OUTPUT rmm_app_attestation.elf
