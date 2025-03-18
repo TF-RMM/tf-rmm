@@ -132,6 +132,51 @@ static inline uint16_t atomic_load_add_release_16(uint16_t *loc, uint16_t val)
 }
 
 /*
+ * Atomically adds @val to the 8-bit value stored at memory location @loc.
+ * Returns the old value.
+ */
+static inline uint8_t atomic_load_add_8(uint8_t *loc, uint8_t val)
+{
+	uint8_t old_val;
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)loc;
+	(void)val;
+
+	asm volatile(
+	"	ldaddb %w[val], %w[old_val], %[loc]\n"
+	: [loc] "+Q" (*loc),
+	  [old_val] "=r" (old_val)
+	: [val] "r" (val)
+	: "memory");
+
+	return old_val;
+}
+
+/*
+ * Atomically adds @val to the 8-bit value stored at memory location @loc.
+ * Stores to memory with release semantics.
+ * Returns the old value.
+ */
+static inline uint8_t atomic_load_add_release_8(uint8_t *loc, uint8_t val)
+{
+	uint8_t old_val;
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)loc;
+	(void)val;
+
+	asm volatile(
+	"	ldaddlb %w[val], %w[old_val], %[loc]\n"
+	: [loc] "+Q" (*loc),
+	  [old_val] "=r" (old_val)
+	: [val] "r" (val)
+	: "memory");
+
+	return old_val;
+}
+
+/*
  * Atomically set bit @bit in value pointed to by @loc with release semantics.
  */
 static inline void atomic_bit_set_release_64(uint64_t *loc, unsigned int bit)
@@ -231,6 +276,30 @@ static inline uint16_t atomic_eor_16(uint16_t *loc, uint16_t val)
 
 	asm volatile(
 	"	ldeorh %w[val], %w[old_val], %[loc]\n"
+	: [loc] "+Q" (*loc),
+	  [old_val] "=r" (old_val)
+	: [val] "r" (val)
+	: "memory"
+	);
+
+	return old_val;
+}
+
+/*
+ * Atomically performs exclusive-OR with @val on the 8-bit value stored at memory
+ * location @loc and stores the result back to memory.
+ * Returns the old value.
+ */
+static inline uint8_t atomic_eor_8(uint8_t *loc, uint8_t val)
+{
+	uint8_t old_val;
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)loc;
+	(void)val;
+
+	asm volatile(
+	"	ldeorb %w[val], %w[old_val], %[loc]\n"
 	: [loc] "+Q" (*loc),
 	  [old_val] "=r" (old_val)
 	: [val] "r" (val)
