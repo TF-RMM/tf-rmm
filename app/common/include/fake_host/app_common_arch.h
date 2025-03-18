@@ -12,7 +12,7 @@
 #define OP_OR_EXIT(op, fd, buf, count, error_on_eof)                                               \
 	do {                                                                                       \
 		size_t count_processed = 0;                                                        \
-		size_t op_or_exit_ret;                                                             \
+		ssize_t op_or_exit_ret;                                                             \
 		while (1) {                                                                        \
 			op_or_exit_ret = op(fd, &((char *)buf)[count_processed],                   \
 					    count - count_processed);                              \

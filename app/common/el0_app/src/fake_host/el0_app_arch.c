@@ -208,29 +208,27 @@ void call_app_instance(int process_read_fd, int process_write_fd, pthread_t thre
 	struct app_instance_data_list_t *instance_data = get_instance_list_item(thread_id);
 
 	unsigned long num_bytes_to_forward;
-	unsigned long bytes_forwarded = 0;
-	char copy_buffer[6*1024];
+	char copy_buffer[1024];
 
 	/* Send the call details */
 	READ_OR_EXIT(process_read_fd, &num_bytes_to_forward, sizeof(num_bytes_to_forward));
-	while (bytes_forwarded < num_bytes_to_forward) {
+	while (num_bytes_to_forward > 0) {
 		size_t to_forward = min(num_bytes_to_forward, sizeof(copy_buffer));
 
 		READ_OR_EXIT(process_read_fd, copy_buffer, to_forward);
 		WRITE_OR_EXIT(instance_data->write_to_instance_fd, copy_buffer, to_forward);
-		bytes_forwarded += to_forward;
+		num_bytes_to_forward -= to_forward;
 	}
 
 	/* return the response */
-	bytes_forwarded = 0;
 	READ_OR_EXIT(instance_data->read_from_instance_fd, &num_bytes_to_forward,
 		sizeof(num_bytes_to_forward));
-	while (bytes_forwarded < num_bytes_to_forward) {
+	while (num_bytes_to_forward > 0) {
 		size_t to_forward = min(num_bytes_to_forward, sizeof(copy_buffer));
 
 		READ_OR_EXIT(instance_data->read_from_instance_fd, copy_buffer, to_forward);
 		WRITE_OR_EXIT(process_write_fd, copy_buffer, to_forward);
-		bytes_forwarded += to_forward;
+		num_bytes_to_forward -= to_forward;
 	}
 }
 
