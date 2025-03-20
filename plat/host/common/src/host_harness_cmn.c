@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <host_utils.h>
 #ifndef CBMC
+#include <mbedtls/memory_buffer_alloc.h>
 #include <psa/crypto.h>
 #endif
 #include <rmm_el3_ifc.h>
@@ -305,16 +306,30 @@ static int el3_token_sign_push_req(uint64_t buf_pa, uint64_t buf_size)
 	return 0;
 }
 
+/* coverity[misra_c_2012_rule_5_8_violation:SUPPRESS] */
+void *mbedtls_app_get_heap(void)
+{
+	static buffer_alloc_ctx alloc_ctx;
+	return &alloc_ctx;
+}
+
 static void init_signing_key(void)
 {
 	psa_key_attributes_t key_attributes = psa_key_attributes_init();
 	psa_status_t status __unused;
 
 	static int init_done;
+	static unsigned char mbedtls_heap_buf[4U * 1024U] __aligned(sizeof(unsigned long));
 
 	if (init_done) {
 		return;
 	}
+
+	psa_crypto_init();
+
+	mbedtls_memory_buffer_alloc_init(
+		mbedtls_heap_buf,
+		sizeof(mbedtls_heap_buf));
 
 	/* Setup the key policy for private key */
 	psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_SIGN_HASH);
@@ -327,6 +342,9 @@ static void init_signing_key(void)
 			     sample_attest_priv_key,
 			     sizeof(sample_attest_priv_key),
 			     &signing_key);
+	if (status != PSA_SUCCESS) {
+		rmm_log("init_signing_key: status = %d\n", (int)status);
+	}
 	assert(status == PSA_SUCCESS);
 	init_done = 1;
 }
@@ -603,4 +621,12 @@ void host_write_sysreg(char *reg_name, u_register_t v)
 			callbacks->wr_cb(v, callbacks->reg);
 		}
 	}
+
+}
+
+/* Used by Mbed TLS buffer alloc */
+void mbedtls_exit_panic(unsigned int reason)
+{
+	(void) reason;
+	panic();
 }
