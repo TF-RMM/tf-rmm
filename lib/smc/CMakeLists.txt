@@ -10,7 +10,8 @@ target_link_libraries(rmm-lib-smc
             rmm-lib-common)
 
 target_include_directories(rmm-lib-smc
-    PUBLIC "include")
+    PUBLIC "include"
+    PUBLIC "include/${RMM_ARCH}")
 
 if(NOT RMM_ARCH STREQUAL fake_host)
     target_sources(rmm-lib-smc

@@ -6,6 +6,7 @@
 #ifndef SMC_H
 #define SMC_H
 
+#include <smc_arch.h>
 #include <utils_def.h>
 
 /* FID: Type - Fast Call */
@@ -177,13 +178,6 @@ unsigned long monitor_call(unsigned long id,
 			unsigned long arg3,
 			unsigned long arg4,
 			unsigned long arg5);
-
-/* Result registers X0-X4 */
-#define SMC_RESULT_REGS		5U
-
-struct smc_result {
-	unsigned long x[SMC_RESULT_REGS];
-};
 
 void monitor_call_with_res(unsigned long id,
 			   unsigned long arg0,

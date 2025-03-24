@@ -561,69 +561,6 @@ int host_run_realm(unsigned long *regs)
 	return host_util_rec_run(regs);
 }
 
-void host_spinlock_acquire(spinlock_t *l)
-{
-	/*
-	 * The fake_host architecture is single threaded and we do not expect
-	 * the lock to be already acquired in properly implemented locking
-	 * sequence.
-	 */
-	assert(l->val == 0);
-	l->val = 1;
-}
-
-void host_spinlock_release(spinlock_t *l)
-{
-	l->val = 0;
-}
-
-void host_byte_spinlock_acquire(byte_spinlock_t *l)
-{
-	assert(l->val == 0);
-	l->val = 1;
-}
-
-void host_byte_spinlock_release(byte_spinlock_t *l)
-{
-	l->val = 0;
-}
-
-
-u_register_t host_read_sysreg(char *reg_name)
-{
-	struct sysreg_cb *callbacks = host_util_get_sysreg_cb(reg_name);
-
-	/*
-	 * Return 0UL as default value for registers which do not have
-	 * a read callback installed.
-	 */
-	if (callbacks == NULL) {
-		return 0UL;
-	}
-
-	if (callbacks->rd_cb == NULL) {
-		return 0UL;
-	}
-
-	return callbacks->rd_cb(callbacks->reg);
-}
-
-void host_write_sysreg(char *reg_name, u_register_t v)
-{
-	struct sysreg_cb *callbacks = host_util_get_sysreg_cb(reg_name);
-
-	/*
-	 * Ignore the write if the register does not have a write
-	 * callback installed.
-	 */
-	if (callbacks != NULL) {
-		if (callbacks->wr_cb != NULL) {
-			callbacks->wr_cb(v, callbacks->reg);
-		}
-	}
-
-}
-
 /* Used by Mbed TLS buffer alloc */
 void mbedtls_exit_panic(unsigned int reason)
 {

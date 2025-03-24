@@ -88,6 +88,12 @@ target_link_libraries(rmm-app-attestation-elf
         rmm-lib-xlat
         t_cose)
 
+if(RMM_ARCH STREQUAL fake_host)
+    target_link_libraries(rmm-app-attestation-elf
+        PRIVATE
+            rmm-host-support)
+endif()
+
 add_custom_command(
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-app-attestation-elf>" "${CMAKE_CURRENT_BINARY_DIR}/rmm_app_attestation.elf"
     OUTPUT rmm_app_attestation.elf

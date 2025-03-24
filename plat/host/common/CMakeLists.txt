@@ -18,8 +18,11 @@ arm_config_option(
 add_library(rmm-host-common)
 
 target_link_libraries(rmm-host-common
-    PRIVATE  rmm-lib
-             rmm-plat-common)
+    PRIVATE rmm-lib
+            rmm-plat-common)
+
+target_link_libraries(rmm-host-common
+    PUBLIC  rmm-host-support)
 
 add_subdirectory("mbedtls_host")
 
