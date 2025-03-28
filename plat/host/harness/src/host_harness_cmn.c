@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
+#include <host_el3_rp_ide_km.h>
 #include <host_utils.h>
 #ifndef CBMC
 #include <mbedtls/memory_buffer_alloc.h>
@@ -530,6 +531,21 @@ void host_monitor_call(unsigned long id, struct smc_args *args,
 		}
 		break;
 	}
+	case SMC_RMM_RP_IDE_KEY_PROG:
+		res->x[0] = host_el3_rp_ide_key_prog(args->v[0], args->v[1],
+						     args->v[2], args->v[3],
+						     args->v[4], args->v[5],
+						     args->v[6], args->v[7],
+						     args->v[8]);
+		break;
+	case SMC_RMM_RP_IDE_KEY_SET_GO:
+		res->x[0] = host_el3_rp_ide_key_set_go(args->v[0], args->v[1],
+						       args->v[2]);
+		break;
+	case SMC_RMM_RP_IDE_KEY_SET_STOP:
+		res->x[0] = host_el3_rp_ide_key_set_stop(args->v[0], args->v[1],
+							 args->v[2]);
+		break;
 	case SMCCC_ARCH_FEATURE_AVAILABILITY:
 	{
 		/*
