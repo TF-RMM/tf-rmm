@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <host_harness.h>
+#include <smc.h>
 #include <stddef.h>
 
 unsigned long monitor_call(unsigned long id,
@@ -16,6 +17,15 @@ unsigned long monitor_call(unsigned long id,
 			unsigned long arg5)
 {
 	return host_monitor_call(id, arg0, arg1, arg2, arg3, arg4, arg5);
+}
+
+unsigned long monitor_call_with_arg(unsigned long id, struct smc_arg *arg)
+{
+	(void)id;
+	(void)arg;
+
+	/* todo: implement SMC with arguments for host platform */
+	return SMC_NOT_SUPPORTED;
 }
 
 void monitor_call_with_res(unsigned long id,
