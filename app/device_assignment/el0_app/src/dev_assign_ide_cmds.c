@@ -3,9 +3,11 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <app_common.h>
 #include <debug.h>
 #include <dev_assign_private.h>
 #include <dev_assign_structs.h>
+#include <el0_app_helpers.h>
 #include <library/pci_ide_km_requester_lib.h>
 #include <library/spdm_crypt_lib.h>
 #include <string.h>
@@ -27,6 +29,79 @@ static bool ide_init_key_buffer(pci_ide_km_aes_256_gcm_key_buffer_t *key_buffer)
 	}
 
 	return got_rand_number;
+}
+
+static int rmm_rp_ide_key_prog(struct dev_assign_info *info,
+			       pci_ide_km_aes_256_gcm_key_buffer_t *key_buf,
+			       uint8_t kslot, uint8_t sub_stream,
+			       uint8_t key_direction)
+{
+	struct service_rp_ide_op_struct *service_params;
+	bool is_rx;
+
+	if (key_direction == U(PCI_IDE_KM_KEY_DIRECTION_RX)) {
+		is_rx = true;
+	} else {
+		is_rx = false;
+	}
+
+	service_params = get_shared_mem_start();
+
+	assert(sizeof(service_params->key) == sizeof(key_buf->key));
+	(void)memcpy(service_params->key, key_buf->key, sizeof(service_params->key));
+	assert(sizeof(service_params->iv) == sizeof(key_buf->iv));
+	(void)memcpy(service_params->iv, key_buf->iv, sizeof(service_params->iv));
+
+	service_params->ecam_addr = info->ecam_addr;
+	service_params->rp_id = info->rp_id;
+	service_params->ide_sid = info->ide_sid;
+
+	return (int)el0_app_service_call(APP_SERVICE_RP_IDE_KEY_PROGRAM,
+		kslot, (is_rx ? 1U : 0U), sub_stream, 0);
+}
+
+static int rmm_rp_ide_key_set_go(struct dev_assign_info *info, uint8_t kslot,
+				 uint8_t sub_stream, uint8_t key_direction)
+{
+	struct service_rp_ide_op_struct *service_params;
+	bool is_rx;
+
+	if (key_direction == U(PCI_IDE_KM_KEY_DIRECTION_RX)) {
+		is_rx = true;
+	} else {
+		is_rx = false;
+	}
+
+	service_params = get_shared_mem_start();
+
+	service_params->ecam_addr = info->ecam_addr;
+	service_params->rp_id = info->rp_id;
+	service_params->ide_sid = info->ide_sid;
+
+	return (int)el0_app_service_call(APP_SERVICE_RP_IDE_KEY_SET_GO,
+		kslot, (is_rx ? 1U : 0U), sub_stream, 0);
+}
+
+static int rmm_rp_ide_key_set_stop(struct dev_assign_info *info, uint8_t sub_stream,
+				   uint8_t key_direction)
+{
+	struct service_rp_ide_op_struct *service_params;
+	bool is_rx;
+
+	if (key_direction == U(PCI_IDE_KM_KEY_DIRECTION_RX)) {
+		is_rx = true;
+	} else {
+		is_rx = false;
+	}
+
+	service_params = get_shared_mem_start();
+
+	service_params->ecam_addr = info->ecam_addr;
+	service_params->rp_id = info->rp_id;
+	service_params->ide_sid = info->ide_sid;
+
+	return (int)el0_app_service_call(APP_SERVICE_RP_IDE_KEY_SET_STOP,
+		info->ide_kslot_cur, (is_rx ? 1U : 0U), sub_stream, 0);
 }
 
 static libspdm_return_t
@@ -65,11 +140,18 @@ ide_km_endpoint_rp_key_set_stop(struct dev_assign_info *info, uint8_t key_direct
 		}
 	}
 
-	/* todo: EL3_IDE_KEY_SET_STOP: rootport port */
+	/* EL3_IDE_KEY_SET_STOP to rootport */
 	INFO("EL3_IDE_KEY_SET_STOP: rootport dir: %d id/sub_id: %d/[0-%d]\n",
 		key_direction, stream_id, IDE_SUBSTREAM_MAX - 1U);
 	for (sub_stream = 0; sub_stream < IDE_SUBSTREAM_MAX; sub_stream++) {
-		/* TODO: Call IDE key stop */
+		int rc;
+
+		rc = rmm_rp_ide_key_set_stop(info, sub_stream, key_direction);
+		if (rc != 0) {
+			ERROR("EL3_IDE_KEY_SET_STOP Failed: rootport dir: %d id/sub_id: %d/%d\n",
+				key_direction, stream_id, sub_stream);
+			return (libspdm_return_t)-1;
+		}
 	}
 
 	return status;
@@ -110,11 +192,19 @@ ide_km_endpoint_rp_key_set_go(struct dev_assign_info *info, uint8_t kslot,
 		}
 	}
 
-	/* todo: EL3_IDE_KEY_SET_GO: rootport port */
+	/* EL3_IDE_KEY_SET_GO to rootport */
 	INFO("EL3_IDE_KEY_SET_GO: rootport dir: %d id/sub_id: %d/[0-%d]\n",
 		key_direction, stream_id, IDE_SUBSTREAM_MAX - 1U);
 	for (sub_stream = 0; sub_stream < IDE_SUBSTREAM_MAX; sub_stream++) {
-		/* TODO: Call IDE key set go */
+		int rc;
+
+		rc = rmm_rp_ide_key_set_go(info, kslot, sub_stream,
+					   key_direction);
+		if (rc != 0) {
+			ERROR("EL3_IDE_KEY_SET_GO Failed: rootport dir: %d id/sub_id: %d/%d\n",
+			     key_direction, stream_id, sub_stream);
+			return (libspdm_return_t)-1;
+		}
 	}
 
 	return status;
@@ -191,11 +281,27 @@ ide_km_endpoint_rp_key_prog(struct dev_assign_info *info, uint8_t kslot)
 		}
 	}
 
-	/* todo: EL3_IDE_KEY_PROG: rootport port RX/TX */
+	/* EL3_IDE_KEY_PROG: program rootport RX/TX */
 	INFO("EL3_IDE_KEY_PROG: Root Port RX/TX id/sub_id: %d/[0-%d]\n",
 		stream_id, IDE_SUBSTREAM_MAX - 1U);
 	for (sub_stream = 0; sub_stream < IDE_SUBSTREAM_MAX; sub_stream++) {
-		/* TODO: Call Ide key prog for RX and TX */
+		int rc;
+
+		rc = rmm_rp_ide_key_prog(info, &rx_key_buffer, kslot, sub_stream,
+					 PCI_IDE_KM_KEY_DIRECTION_RX);
+		if (rc != 0) {
+			ERROR("EL3_IDE_KEY_PROG Failed: Root Port RX id/sub_id: %d/%d\n",
+				stream_id, sub_stream);
+			return (libspdm_return_t)-1;
+		}
+
+		rc = rmm_rp_ide_key_prog(info, &tx_key_buffer, kslot, sub_stream,
+					 PCI_IDE_KM_KEY_DIRECTION_TX);
+		if (rc != 0) {
+			ERROR("EL3_IDE_KEY_PROG Failed: Root Port TX id/sub_id: %d/%d\n",
+				stream_id, sub_stream);
+			return (libspdm_return_t)-1;
+		}
 	}
 
 	return status;

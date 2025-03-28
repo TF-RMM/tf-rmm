@@ -33,6 +33,9 @@
 #define APP_SERVICE_EL3_IFC_EL3_TOKEN_SIGN_SUPPORTED	8U
 #define APP_SERVICE_WRITE_TO_NS_BUF			9U
 #define APP_SERVICE_READ_FROM_NS_BUF_ALIGNED		10U
+#define APP_SERVICE_RP_IDE_KEY_PROGRAM			11U
+#define APP_SERVICE_RP_IDE_KEY_SET_GO			12U
+#define APP_SERVICE_RP_IDE_KEY_SET_STOP			13U
 
 #define APP_SERVICE_RW_NS_BUF_SHARED		0U
 #define APP_SERVICE_RW_NS_BUF_HEAP		1U
@@ -57,6 +60,15 @@ struct service_get_platform_token_struct {
 	uint8_t token_hunk_buf[GRANULE_SIZE - 16U];
 };
 COMPILER_ASSERT(sizeof(struct service_get_platform_token_struct) == GRANULE_SIZE);
+
+struct service_rp_ide_op_struct {
+	uint32_t key[8];
+	uint32_t iv[2];
+	uint64_t ecam_addr;
+	uint16_t rp_id;
+	uint64_t ide_sid;
+};
+COMPILER_ASSERT(sizeof(struct service_rp_ide_op_struct) <= GRANULE_SIZE);
 
 #if ATTEST_EL3_TOKEN_SIGN
 struct service_el3_token_sign_request {

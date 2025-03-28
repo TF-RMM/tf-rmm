@@ -425,6 +425,129 @@ static uint64_t app_service_read_from_ns_buf_aligned(struct app_data_cfg *app_da
 	return 0;
 }
 
+static uint64_t app_service_rp_ide_key_program(struct app_data_cfg *app_data,
+				      unsigned long kslot,
+				      unsigned long is_rx,
+				      unsigned long sub_stream,
+				      unsigned long arg3)
+{
+	unsigned long stream_info;
+	struct service_rp_ide_op_struct *params;
+	struct el3_ifc_rp_ide_iv iv;
+	uint32_t retry = 0;
+	int rc;
+
+	(void)arg3;
+
+	assert(app_data->el2_shared_page != NULL);
+	params = (struct service_rp_ide_op_struct *)app_data->el2_shared_page;
+
+	/* pci_ide_km_aes_256_gcm_key_buffer_t uses 8 bytes for IV */
+	iv.iq_w0 = (unsigned long)params->iv[0] |
+		  ((unsigned long)params->iv[1] << 32U);
+	iv.iq_w1 = 0U;
+
+	stream_info = EL3_IFC_IDE_MAKE_STREAM_INFO((uint8_t)kslot, ((is_rx != 0U) ? 1U : 0U),
+						   (uint8_t)sub_stream, params->ide_sid);
+
+	do {
+		assert(sizeof(params->key) == sizeof(struct el3_ifc_rp_ide_key));
+		rc = rmm_el3_ifc_rp_ide_key_prog(params->ecam_addr, params->rp_id,
+						 stream_info,
+						 (struct el3_ifc_rp_ide_key *)&params->key,
+						 &iv);
+		if (rc != E_RMM_AGAIN) {
+			/* TODO: This could return to the app in case of
+			 * E_RMM_AGAIN as well and then let the APP decide.
+			 * This will naturally add some delay and also allow
+			 * pre-emption/yield to NS in a natural way.
+			 */
+			return (uint64_t)rc;
+		}
+
+		/* todo: add DSM wait to exit to Host */
+
+		/* TODO: Handle E_RMM_IN_PROGRESS error code */
+
+		INFO("DSM_IDE: rp_ide_key_prog retry: %d\n", retry);
+	} while (++retry < EL3_IFC_IDE_KM_RETRY_COUNT_MAX);
+
+	return (uint64_t)rc;
+
+}
+
+static uint64_t app_service_rp_ide_key_set_go(struct app_data_cfg *app_data,
+				      unsigned long kslot,
+				      unsigned long is_rx,
+				      unsigned long sub_stream,
+				      unsigned long arg3)
+{
+	unsigned long stream_info;
+	struct service_rp_ide_op_struct *params;
+	uint32_t retry = 0;
+	int rc;
+
+	(void)arg3;
+
+	assert(app_data->el2_shared_page != NULL);
+	params = (struct service_rp_ide_op_struct *)app_data->el2_shared_page;
+
+	stream_info = EL3_IFC_IDE_MAKE_STREAM_INFO((uint8_t)kslot, ((is_rx != 0U) ? 1U : 0U),
+						   (uint8_t)sub_stream, params->ide_sid);
+
+	do {
+		rc = rmm_el3_ifc_rp_ide_key_set_go(params->ecam_addr, params->rp_id,
+						   stream_info);
+		if (rc != E_RMM_AGAIN) {
+			return (uint64_t)rc;
+		}
+
+		/* todo: add DSM wait to exit to Host */
+
+		/* TODO: Handle E_RMM_IN_PROGRESS error code */
+
+		INFO("DSM_IDE: rp_ide_key_set_go retry: %d\n", retry);
+	} while (++retry < EL3_IFC_IDE_KM_RETRY_COUNT_MAX);
+
+	return (uint64_t)rc;
+}
+
+static uint64_t app_service_rp_ide_key_set_stop(struct app_data_cfg *app_data,
+				      unsigned long kslot,
+				      unsigned long is_rx,
+				      unsigned long sub_stream,
+				      unsigned long arg3)
+{
+	unsigned long stream_info;
+	struct service_rp_ide_op_struct *params;
+	uint32_t retry = 0;
+	int rc;
+
+	(void)arg3;
+
+	assert(app_data->el2_shared_page != NULL);
+	params = (struct service_rp_ide_op_struct *)app_data->el2_shared_page;
+
+	stream_info = EL3_IFC_IDE_MAKE_STREAM_INFO((uint8_t)kslot, ((is_rx != 0U) ? 1U : 0U),
+						   (uint8_t)sub_stream, params->ide_sid);
+
+	do {
+		rc = rmm_el3_ifc_rp_ide_key_set_stop(params->ecam_addr, params->rp_id,
+						     stream_info);
+		if (rc != E_RMM_AGAIN) {
+			return (uint64_t)rc;
+		}
+
+		/* todo: add DSM wait to exit to Host */
+
+		/* TODO: Handle E_RMM_IN_PROGRESS error code */
+
+		INFO("DSM_IDE: rp_ide_key_set_go retry: %d\n", retry);
+	} while (++retry < EL3_IFC_IDE_KM_RETRY_COUNT_MAX);
+
+	return (uint64_t)rc;
+}
+
 static app_service_func service_functions[APP_SERVICE_COUNT] = {
 	[APP_SERVICE_PRINT] = app_service_print,
 	[APP_SERVICE_RANDOM] = app_service_get_random,
@@ -437,6 +560,9 @@ static app_service_func service_functions[APP_SERVICE_COUNT] = {
 #endif /* ATTEST_EL3_TOKEN_SIGN */
 	[APP_SERVICE_WRITE_TO_NS_BUF] = app_service_write_to_ns_buf,
 	[APP_SERVICE_READ_FROM_NS_BUF_ALIGNED] = app_service_read_from_ns_buf_aligned,
+	[APP_SERVICE_RP_IDE_KEY_PROGRAM] = app_service_rp_ide_key_program,
+	[APP_SERVICE_RP_IDE_KEY_SET_GO] = app_service_rp_ide_key_set_go,
+	[APP_SERVICE_RP_IDE_KEY_SET_STOP] = app_service_rp_ide_key_set_stop,
 	};
 
 uint64_t call_app_service(unsigned long service_id,
