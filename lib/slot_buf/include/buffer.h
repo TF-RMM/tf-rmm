@@ -124,4 +124,19 @@ void *buffer_pdev_aux_granules_map(struct granule *g_pdev_aux[],
 /* Unmaps the `num_aux` granules from slot starting SLOT_PDEV_AUX0 */
 void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux);
 
+/*
+ * Maps a range of granules into continuous slots.
+ *
+ * On success, it returns the VA of the first slot where the range has been
+ * mapped to. Otherwise, it will return NULL.
+ */
+void *buffer_map_range_internal(enum buffer_slot slot, struct granule *g_arry[],
+				unsigned int slot_num);
+
+/*
+ * Unmaps continuous slot buffers starting from the one passed via `buf`
+ * argument.
+ */
+void buffer_unmap_range_internal(void *buf, unsigned int num_slots);
+
 #endif /* BUFFER_H */

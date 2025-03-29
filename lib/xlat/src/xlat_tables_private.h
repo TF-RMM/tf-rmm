@@ -36,6 +36,15 @@ uint64_t xlat_arch_get_pas(uint64_t attr);
 void xlat_arch_tlbi_va(uintptr_t va);
 
 /*
+ * Invalidate all TLB entries that match the given range of virtual addresses.
+ * This operation applies to all PEs in the same Inner Shareable domain as the
+ * PE that executes this function. This functions must be called for every
+ * translation table entry that is modified. It only affects the EL2
+ * Translate regime.
+ */
+void xlat_arch_tlbi_va_range(uintptr_t va, unsigned int page_num);
+
+/*
  * This function has to be called at the end of any code that uses the function
  * xlat_arch_tlbi_va().
  */

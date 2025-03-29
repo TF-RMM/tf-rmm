@@ -138,6 +138,29 @@ void buffer_unmap(void *buf)
 }
 
 /*
+ * Maps a range of granules @g_arry[] into the provided @slot -
+ * @slot + @slot_num, returning the virtual address.
+ *
+ * The caller must either hold @g::lock or hold a reference.
+ */
+void *buffer_granule_range_map(struct granule *g_arry[], enum buffer_slot slot,
+			       unsigned int slot_num)
+{
+	if (slot + slot_num >= NR_CPU_SLOTS) {
+		ERROR("Invalid range of slots: %u to %u\n",
+		      slot, slot + slot_num);
+		return NULL;
+	}
+
+	return buffer_arch_map_range(slot, g_arry, slot_num);
+
+}
+
+void buffer_unmap_range(void *buf, unsigned int num_slots)
+{
+	buffer_arch_unmap_range(buf, num_slots);
+}
+/*
  * Map a Non secure granule @g into the slot @slot and read data from
  * this granule to @dest. Unmap the granule once the read is done.
  *
@@ -222,27 +245,15 @@ static void *buffer_aux_granules_map(struct granule *g_aux[],
 {
 	void *mapped_aux = NULL;
 
-	for (unsigned int i = 0U; i < num_aux; i++) {
-		void *aux = buffer_granule_map(g_aux[i],
-					(enum buffer_slot)((unsigned int)
-							   slot + i));
-		assert(aux != NULL);
+	mapped_aux = buffer_granule_range_map(g_aux, slot, num_aux);
 
-		if (i == 0UL) {
-			mapped_aux = aux;
-		}
-	}
+	assert(mapped_aux != NULL);
 	return mapped_aux;
 }
 
 static void buffer_aux_unmap(void *aux, unsigned int num_aux)
 {
-	unsigned char *aux_vaddr = (unsigned char *)aux;
-
-	for (unsigned int i = 0U; i < num_aux; i++) {
-		buffer_unmap((void *)((uintptr_t)aux_vaddr +
-				      (i * GRANULE_SIZE)));
-	}
+	buffer_unmap_range(aux, num_aux);
 }
 
 /*
@@ -347,5 +358,34 @@ void buffer_unmap_internal(void *buf)
 	int ret __unused;
 
 	ret = xlat_unmap_memory_page(get_cached_llt_info(), (uintptr_t)buf);
+	assert(ret == 0);
+}
+
+void *buffer_map_range_internal(enum buffer_slot slot, struct granule *g_arry[],
+				const unsigned int slot_num)
+{
+	uint64_t attr = XLAT_NG_DATA_ATTR;
+	uintptr_t va = slot_to_va(slot);
+	struct xlat_llt_info *entry = get_cached_llt_info();
+
+	attr |= ((slot == SLOT_NS) ? MT_NS : MT_REALM);
+
+	if (xlat_map_range_memory_pages_with_attrs(entry, va, g_arry, attr,
+						   slot_num) != 0) {
+		/* Error mapping the buffer */
+		ERROR("Failed to map buffer range\n");
+		return NULL;
+	}
+
+	return (void *)va;
+}
+
+void buffer_unmap_range_internal(void *buf, unsigned int num_slots)
+{
+	int ret __unused;
+
+	ret = xlat_unmap_range_memory_pages(get_cached_llt_info(),
+					    (uintptr_t)buf, num_slots);
+
 	assert(ret == 0);
 }

@@ -12,6 +12,7 @@
 #if !(defined(__ASSEMBLER__) || defined(__LINKER__))
 
 #include <arch_features.h>
+#include <granule_types.h>
 #include <limits.h>
 #include <memory.h>
 #include <stddef.h>
@@ -305,6 +306,30 @@ int xlat_map_memory_page_with_attrs(const struct xlat_llt_info * const table,
 				    const uintptr_t va,
 				    const uintptr_t pa,
 				    const uint64_t attrs);
+
+/*
+ * Function to unmap a range of memory pages for a given VA. The regions to
+ * which the VAs belong should have been configured as TRANSIENT during the
+ * xlat library configuration.
+ *
+ * This function returns 0 on success or an error code otherwise.
+ */
+int xlat_unmap_range_memory_pages(struct xlat_llt_info * const table,
+				  const uintptr_t va,
+				  const unsigned int page_num);
+
+/*
+ * Function to map a range of physical memory pages from the descriptor table
+ * entries and VA given. The regions to which the VAs belong should have been
+ * configured as TRANSIENT during the xlat library configuration.
+ *
+ * This function returns 0 on success or a negative error code otherwise.
+ */
+int xlat_map_range_memory_pages_with_attrs(const struct xlat_llt_info * const table,
+					   const uintptr_t va,
+					   struct granule *g_arry[],
+					   const uint64_t attrs,
+					   const unsigned int page_num);
 
 /*
  * This function finds the TTE on a table given the corresponding

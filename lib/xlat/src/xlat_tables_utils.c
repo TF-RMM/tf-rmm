@@ -10,6 +10,8 @@
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
+#include <granule.h>
+#include <granule_types.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -393,6 +395,59 @@ int xlat_unmap_memory_page(struct xlat_llt_info * const table,
 }
 
 /*
+ * Function to unmap a range of memory pages for a given VA. The regions to
+ * which the VAs belong should have been configured as TRANSIENT during the
+ * xlat library configuration.
+ *
+ * This function returns 0 on success or an error code otherwise.
+ */
+int xlat_unmap_range_memory_pages(struct xlat_llt_info * const table,
+				  const uintptr_t va,
+				  const unsigned int page_num)
+{
+	uint64_t *tte;
+	uint64_t desc;
+	unsigned int i;
+
+	assert(table != NULL);
+
+	for (i = 0; i < page_num; i++) {
+		tte = xlat_get_tte_ptr(table,
+				       va + i * XLAT_BLOCK_SIZE(table->level));
+		if (tte == NULL) {
+			ERROR("Fail to get TTE for VA 0x%lx\n",
+			      va + i * XLAT_BLOCK_SIZE(table->level));
+			return -EFAULT;
+		}
+		/*
+		 * This function must only be called on valid transient
+		 * descriptors.
+		 */
+		desc = xlat_read_tte(tte);
+		if ((desc & (TRANSIENT_DESC | VALID_DESC))
+		    != (TRANSIENT_DESC | VALID_DESC)) {
+			ERROR("Invalid descriptor(0x%lx) for VA 0x%lx\n", desc,
+			      va + i * XLAT_BLOCK_SIZE(table->level));
+			return -EFAULT;
+		}
+	}
+
+	for (i = 0; i < page_num; i++) {
+		tte = xlat_get_tte_ptr(table,
+				       va + i * XLAT_BLOCK_SIZE(table->level));
+		xlat_write_tte_release(tte, TRANSIENT_DESC);
+	}
+
+	/* Invalidate any cached copy of this range mapping in the TLBs. */
+	xlat_arch_tlbi_va_range(va, page_num);
+
+	/* Ensure completion of the invalidation. */
+	xlat_arch_tlbi_va_sync();
+
+	return 0;
+}
+
+/*
  * Function to map a physical memory page from the descriptor table entry
  * and VA given. The region to which the VA belongs should have been configured
  * as TRANSIENT during the xlat library configuration.
@@ -437,6 +492,64 @@ int xlat_map_memory_page_with_attrs(const struct xlat_llt_info * const table,
 			table->level) | TRANSIENT_DESC;
 
 	xlat_write_tte(tte_ptr, tte);
+
+	/* Ensure the translation table write has drained into memory */
+	dsb(nshst);
+	isb();
+
+	return 0;
+}
+
+/*
+ * Function to map a range of physical memory pages from the descriptor table
+ * entries and VA given. The regions to which the VAs belong should have been
+ * configured as TRANSIENT during the xlat library configuration.
+ *
+ * This function returns 0 on success or a negative error code otherwise.
+ */
+int xlat_map_range_memory_pages_with_attrs(const struct xlat_llt_info * const table,
+					   const uintptr_t va,
+					   struct granule *g_arry[],
+					   const uint64_t attrs,
+					   const unsigned int page_num)
+{
+	uint64_t tte;
+	uint64_t *tte_ptr;
+	unsigned int i;
+	unsigned long pa;
+
+	assert(table != NULL);
+
+	for (i = 0; i < page_num; i++) {
+		tte_ptr = xlat_get_tte_ptr(table,
+					va + i * XLAT_BLOCK_SIZE(table->level));
+		if (tte_ptr == NULL) {
+			ERROR("Fail to get tte ptr for VA 0x%lx\n",
+			      va + i * XLAT_BLOCK_SIZE(table->level));
+			return -EFAULT;
+		}
+		if (xlat_read_tte(tte_ptr) != TRANSIENT_DESC) {
+			ERROR("Invalid descriptor(0x%lx) for VA 0x%lx\n",
+			      xlat_read_tte(tte_ptr),
+			      va + i * XLAT_BLOCK_SIZE(table->level));
+			return -EFAULT;
+		}
+		if (granule_addr(g_arry[i]) > xlat_arch_get_max_supported_pa())
+		{
+			ERROR("PA 0x%lx is out of range\n",
+			      granule_addr(g_arry[i]));
+			return -EFAULT;
+		}
+	}
+
+	for (i = 0; i < page_num; i++) {
+		pa = granule_addr(g_arry[i]);
+		tte_ptr = xlat_get_tte_ptr(table,
+					va + i * XLAT_BLOCK_SIZE(table->level));
+		tte = xlat_desc(attrs, pa & XLAT_ADDR_MASK(table->level),
+			table->level) | TRANSIENT_DESC;
+		xlat_write_tte(tte_ptr, tte);
+	}
 
 	/* Ensure the translation table write has drained into memory */
 	dsb(nshst);

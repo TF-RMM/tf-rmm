@@ -9,7 +9,8 @@ target_link_libraries(rmm-lib-xlat
     PRIVATE rmm-lib-common
             rmm-lib-libc
             rmm-lib-arch
-            rmm-lib-debug)
+            rmm-lib-debug
+     PUBLIC rmm-lib-granule)
 
 target_include_directories(rmm-lib-xlat
     PUBLIC "include")

@@ -1155,6 +1155,42 @@
 #define TLBI_ADDR_MASK		UL(0x0FFFFFFFFFFF)
 #define TLBI_ADDR(x)		(((x) >> TLBI_ADDR_SHIFT) & TLBI_ADDR_MASK)
 
+#define TLBI_TTL_TG_4K		UL(1)
+#define TLBI_TTL_TG_16K		UL(2)
+#define TLBI_TTL_TG_64K		UL(3)
+
+#define TLBI_RANGE_MAX_PAGES	UL(64)
+#define TLBI_RANGE_ADDR_MASK	UL(0x1FFFFFFFFF)
+#define TLBI_RANGE_NUM_MASK	UL(0x1f)
+
+#define TLBI_RANGE_NUM(pages, scale)	\
+	((((pages) >> (5 * (scale) + 1)) & TLBI_RANGE_NUM_MASK) - 1)
+
+/*
+ * This macro creates a properly formatted VA operand for the TLB RANGE.
+ * The value bit assignments are:
+ *
+ * +----------+------+-------+-------+-------+----------------------+
+ * |   ASID   |  TG  | SCALE |  NUM  |  TTL  |        BADDR         |
+ * +-----------------+-------+-------+-------+----------------------+
+ * |63      48|47  46|45   44|43   39|38   37|36                   0|
+ *
+ * The address range is determined by below formula:
+ * [BADDR, BADDR + (NUM + 1) * 2^(5*SCALE + 1) * PAGESIZE)
+ *
+ */
+#define TLBI_VADDR_RANGE(addr, asid, tg, scale, num, ttl)	\
+	({							\
+		unsigned long __ta = (addr) >> GRANULE_SHIFT;	\
+		__ta &= TLBI_RANGE_ADDR_MASK;			\
+		__ta |= (unsigned long)(ttl) << 37;		\
+		__ta |= (unsigned long)(num) << 39;		\
+		__ta |= (unsigned long)(scale) << 44;		\
+		__ta |= (unsigned long)(tg) << 46;		\
+		__ta |= (unsigned long)(asid) << 48;		\
+		__ta;						\
+	})
+
 /* ID_AA64MMFR2_EL1 definitions */
 #define ID_AA64MMFR2_EL1_ST_SHIFT	UL(28)
 #define ID_AA64MMFR2_EL1_ST_WIDTH	UL(4)

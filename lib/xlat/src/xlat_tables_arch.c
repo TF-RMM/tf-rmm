@@ -235,6 +235,57 @@ void xlat_arch_tlbi_va(uintptr_t va)
 	tlbivae2(TLBI_ADDR(va));
 }
 
+static unsigned long get_trans_granule(void)
+{
+	switch (GRANULE_SIZE) {
+	case SZ_4K:
+		return TLBI_TTL_TG_4K;
+	case SZ_16K:
+		return TLBI_TTL_TG_16K;
+	case SZ_64K:
+		return TLBI_TTL_TG_64K;
+	default:
+		ERROR("Invalid granule size = 0x%lx\n", GRANULE_SIZE);
+		return 0;
+	}
+}
+
+void xlat_arch_tlbi_va_range(uintptr_t va, unsigned int page_num)
+{
+	int num;
+	uintptr_t addr;
+	/*
+	 * For code lightweight, we only support scale = 0, In this scenario,
+	 * the max page_num is 64(TLBI_RANGE_MAX_PAGES).
+	 */
+	if (page_num > TLBI_RANGE_MAX_PAGES) {
+		ERROR("Invalid page num = %u\n", page_num);
+		return;
+	}
+	/*
+	 * Ensure the translation table write has drained into memory before
+	 * invalidating the TLB entry. Note that the barrier is scoped to
+	 * the local core (non-shareable) and the TLBI is local (not
+	 * broadcast), and is expected to be used only for per core mapping.
+	 */
+	dsb(nshst);
+
+	/*
+	 * If 'page_num' is odd, flush the first page through non-range
+	 * operations;
+	 */
+	if (page_num % 2 != 0) {
+		tlbivae2(TLBI_ADDR(va));
+		page_num--;
+		va += GRANULE_SIZE;
+	}
+
+	num = TLBI_RANGE_NUM(page_num, 0);
+	addr = TLBI_VADDR_RANGE(va, 0, get_trans_granule(), 0, num, 0);
+
+	tlbirvae2(addr);
+}
+
 void xlat_arch_tlbi_va_sync(void)
 {
 	/*
