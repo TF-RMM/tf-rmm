@@ -36,3 +36,9 @@ arm_config_option_override(NAME RMM_MAX_GRANULES DEFAULT 0x80000)
 # Add a large number of MMAP regions to exercise unittests on xlat lib.
 #
 arm_config_option_override(NAME PLAT_CMN_MAX_MMAP_REGIONS DEFAULT 0xff)
+
+#
+# Maximum number of non-coherent device granules supported, enough to cover
+# 256MB of PCIe memory region.
+#
+arm_config_option_override(NAME RMM_MAX_NCOH_GRANULES DEFAULT 0x10000)

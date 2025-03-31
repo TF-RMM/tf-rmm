@@ -284,6 +284,8 @@ The |RMM| build system supports the following CMake build options.
    MBEDTLS_ECP_MAX_OPS		,248 -			,1000			,"Number of max operations per ECC signing iteration"
    RMM_FPU_USE_AT_REL2		,ON | OFF		,OFF(fake_host) ON(aarch64),"Enable FPU/SIMD usage in RMM."
    RMM_MAX_GRANULES		,			,0			,"Maximum number of memory granules available to the system"
+   RMM_MAX_COH_GRANULES		,			,0			,"Maximum number of coherent device granules available to the system"
+   RMM_MAX_NCOH_GRANULES	,			,0			,"Maximum number of non-coherent device granules available to the system"
    HOST_VARIANT			,host_build | host_test | host_cbmc	,host_build	,"Variant to build for the host platform. Only available when RMM_PLATFORM=host"
    HOST_MEM_SIZE		,			,0x40000000		,"Host memory size that will be used as physical granules"
    RMM_COVERAGE 		,ON | OFF		,OFF			,"Enable coverage analysis"
@@ -292,7 +294,7 @@ The |RMM| build system supports the following CMake build options.
    RMM_CBMC_SINGLE_TESTBENCH	,			,OFF			,"Run CBMC on a single testbench instead on all of them"
    RMM_V1_1			,ON | OFF		,OFF			,"Enable v1.1 features (experimental)"
    ATTEST_PLAT_TOKEN_SIZE	,			,0x1000			,"Maximum size in bytes expected for the Attestation platform token"
-   PLAT_ARM_MAX_DRAM_BANKS	,			,2			,"Maximum number of DRAM banks allowed in Arm platform layer"
+   PLAT_ARM_MAX_MEM_BANKS	,			,2			,"Maximum possible number of DRAM and COH/NCOH device memory banks allowed in Arm platform layer"
    ATTEST_EL3_TOKEN_SIGN	,ON|OFF			,OFF			,"Use EL3 service to sign realm attestation token."
 
 .. _llvm_build:

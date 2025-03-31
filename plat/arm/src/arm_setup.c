@@ -4,7 +4,7 @@
  */
 
 #include <arch_features.h>
-#include <arm_dram.h>
+#include <arm_memory.h>
 #include <debug.h>
 #include <pl011.h>
 #include <plat_common.h>
@@ -15,7 +15,7 @@
 #include <xlat_tables.h>
 
 #define ARM_RMM_UART	MAP_REGION_FLAT(			\
-				0,			\
+				0,				\
 				SZ_4K,				\
 				(MT_DEVICE | MT_RW | MT_REALM))
 
@@ -52,9 +52,10 @@ void plat_warmboot_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 {
 	int ret;
-	struct ns_dram_info *plat_dram;
+	struct memory_info *plat_memory_info;
 	struct console_list *csl_list;
 	struct console_info *console_ptr;
+	const enum range_type type[] = {DEV_RANGE_COHERENT, DEV_RANGE_NON_COHERENT};
 
 	/* TBD Initialize UART for early log */
 	struct xlat_mmap_region plat_regions[] = {
@@ -112,15 +113,40 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 	 * to the platform DRAM info structure
 	 */
 	ret = rmm_el3_ifc_get_dram_data_validated_pa(
-					PLAT_ARM_MAX_DRAM_BANKS,
-					&plat_dram);
+					PLAT_ARM_MAX_MEM_BANKS,
+					&plat_memory_info);
 	if (ret != E_RMM_BOOT_SUCCESS) {
 		ERROR("DRAM data error\n");
 		rmm_el3_ifc_report_fail_to_el3(ret);
 	}
 
 	/* Set up Arm DRAM layout */
-	arm_set_dram_layout(plat_dram);
+	arm_set_dram_layout(plat_memory_info);
+
+	/* cppcheck-suppress misra-c2012-14.2 */
+	for (unsigned int i = 0U; i < ARRAY_SIZE(type); i++) {
+		/*
+		 * Validate device address ranges data and get pointer
+		 * to the platform device address ranges info structure
+		 */
+		ret = rmm_el3_ifc_get_dev_range_validated_pa(
+						PLAT_ARM_MAX_MEM_BANKS,
+						&plat_memory_info,
+						type[i]);
+		if (ret == E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED) {
+			break;
+		}
+
+		if (ret != E_RMM_BOOT_SUCCESS) {
+			ERROR("Device address ranges data error\n");
+			rmm_el3_ifc_report_fail_to_el3(ret);
+		}
+
+		if (plat_memory_info != NULL) {
+			/* Set up Arm device address ranges layout */
+			arm_set_dev_layout(plat_memory_info, type[i]);
+		}
+	}
 
 	plat_warmboot_setup(x0, x1, x2, x3);
 }

@@ -247,8 +247,13 @@ uintptr_t rmm_el3_ifc_get_shared_buf_locked(void);
 void rmm_el3_ifc_release_shared_buf(void);
 
 /*****************************************************************************
- * Boot Manifest functions and structures (v0.3)
+ * Boot Manifest definitions, functions and structures (v0.4)
  ****************************************************************************/
+enum range_type {
+	DEV_RANGE_COHERENT,
+	DEV_RANGE_NON_COHERENT,
+	DEV_RANGE_MAX
+};
 
 /* Console info structure */
 struct console_info {
@@ -266,32 +271,39 @@ struct console_list {
 	uint64_t checksum;		/* Checksum of console_info data */
 };
 
-/* NS DRAM bank structure */
-struct ns_dram_bank {
+/* Memory bank/IO region structure */
+struct memory_bank {
 	uintptr_t base;			/* Base address */
-	uint64_t size;			/* Size of bank */
+	uint64_t size;			/* Size of bank/IO region */
 };
 
-/* NS DRAM layout info structure */
-struct ns_dram_info {
-	uint64_t num_banks;		/* Number of DRAM banks */
-	struct ns_dram_bank *banks;	/* Pointer to dram_banks[] */
-	uint64_t checksum;		/* Checksum of ns_dram_info data */
+/* Memory/IO region layout info structure */
+struct memory_info {
+	uint64_t num_banks;		/* Number of memory banks/IO regions */
+	struct memory_bank *banks;	/* Pointer to memory_banks[] */
+	uint64_t checksum;		/* Checksum of memory_info data */
 };
 
-/* Boot manifest core structure as per v0.3 */
+/* Boot Manifest core structure as per v0.4 */
 struct rmm_core_manifest {
 	uint32_t version;		/* Manifest version */
 	uint32_t padding;		/* RES0 */
 	uintptr_t plat_data;		/* Manifest platform data */
-	struct ns_dram_info plat_dram;	/* Platform DRAM data (from v0.2) */
-	struct console_list plat_console; /* Platform console list (from 0.3) */
+	/* Platform DRAM data (from v0.2) */
+	struct memory_info plat_dram;
+	/* Platform console list (from v0.3) */
+	struct console_list plat_console;
+	/* Platform device address ranges (v0.4) */
+	struct memory_info plat_ncoh_region;
+	struct memory_info plat_coh_region;
 };
 
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, version)) == 0U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_data)) == 8U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_dram)) == 16U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_console)) == 40U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_ncoh_region)) == 64U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_coh_region)) == 88U);
 
 /*
  * Accessors to the Boot Manifest data
@@ -311,7 +323,7 @@ uintptr_t rmm_el3_ifc_get_plat_manifest_pa(void);
 
 /*
  * Return validated DRAM data passed in plat_dram pointer
- * from the Boot manifest v0.2 onwards.
+ * from the Boot Manifest v0.2 onwards.
  *
  * Args:
  *	- max_num_banks:	Maximum number of platform's DRAM banks
@@ -323,17 +335,16 @@ uintptr_t rmm_el3_ifc_get_plat_manifest_pa(void);
  * Return:
  *	- E_RMM_BOOT_SUCCESS			    Success.
  *	- E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED Version reported by the
- *						    Boot manifest is not
+ *						    Boot Manifest is not
  *						    supported by this API.
  *	- E_RMM_BOOT_MANIFEST_DATA_ERROR	    Error parsing data.
  */
 int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
-					   struct ns_dram_info **plat_dram_info);
-
+					   struct memory_info **plat_dram_info);
 
 /*
  * Return validated Console list passed in plat_console pointer
- * from the Boot manifest v0.3 onwards.
+ * from the Boot Manifest v0.3 onwards.
  *
  * Args:
  *	- plat_console_list:	Return physical address to platform console
@@ -343,11 +354,38 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
  * Return:
  *	- E_RMM_BOOT_SUCCESS			    Success.
  *	- E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED Version reported by the
- *						    Boot manifest is not
+ *						    Boot Manifest is not
  *						    supported by this API.
  *	- E_RMM_BOOT_MANIFEST_DATA_ERROR	    Error parsing data.
  */
 int rmm_el3_ifc_get_console_list_pa(struct console_list **plat_console_list);
+
+/*
+ * Return validated device address ranges data passed in plat_ncoh_region and
+ * plat_coh_region fields from the Boot Manifest v0.4 onwards.
+ *
+ * Args:
+ *	- max_num_banks:	Maximum number device memory banks supported
+ *				by platform for a particular device memory range.
+ *	- plat_dev_region_info:	Return physical address to the platform
+ *				device address ranges info structure setup by EL3
+ *				Firmware, or NULL in case it is not available.
+ *	- type:			Device address ranges coherency type.
+ *
+ * Return:
+ *	- E_RMM_BOOT_SUCCESS			    Success.
+ *	- E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED Version reported by the
+ *						    Boot Manifest is not
+ *						    supported by this API.
+ *	- E_RMM_BOOT_MANIFEST_DATA_ERROR	    Error parsing data.
+ *
+ * Note:
+ *	Function can return E_RMM_BOOT_SUCCESS and set *plat_dev_range_info to NULL
+ *	in case when a particular device memory range is not available.
+ */
+int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
+					   struct memory_info **plat_dev_range_info,
+					   enum range_type type);
 
 /****************************************************************************
  * RMM-EL3 Runtime interface APIs

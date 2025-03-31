@@ -76,6 +76,31 @@ static inline uint16_t atomic_load_add_release_16(uint16_t *loc, uint16_t val)
 }
 
 /*
+ * Atomically adds @val to the 8-bit value stored at memory location @loc.
+ * Returns the old value.
+ */
+static inline uint8_t atomic_load_add_8(uint8_t *loc, uint8_t val)
+{
+	uint8_t old_val = *loc;
+
+	*loc += val;
+	return old_val;
+}
+
+/*
+ * Atomically adds @val to the 8-bit value stored at memory location @loc.
+ * Stores to memory with release semantics.
+ * Returns the old value.
+ */
+static inline uint8_t atomic_load_add_release_8(uint8_t *loc, uint8_t val)
+{
+	uint8_t old_val = *loc;
+
+	*loc += val;
+	return old_val;
+}
+
+/*
  * Atomically set bit @bit in value pointed to by @val with release semantics.
  */
 static inline void atomic_bit_set_release_64(uint64_t *loc, unsigned int bit)
@@ -128,6 +153,19 @@ static inline bool atomic_bit_set_acquire_release_64(uint64_t *loc, unsigned int
 static inline uint16_t atomic_eor_16(uint16_t *loc, uint16_t val)
 {
 	uint16_t old_val = *loc;
+
+	*loc ^= val;
+	return old_val;
+}
+
+/*
+ * Atomically performs exclusive-OR with @val on the 8-bit value stored at memory
+ * location @loc and stores the result back to memory.
+ * Returns the old value.
+ */
+static inline uint8_t atomic_eor_8(uint8_t *loc, uint8_t val)
+{
+	uint8_t old_val = *loc;
 
 	*loc ^= val;
 	return old_val;
