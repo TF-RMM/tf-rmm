@@ -441,16 +441,6 @@
  */
 
 /*
- * FID: 0xC4000170
- */
-#define SMC_RMI_GRANULE_DEV_DELEGATE		SMC64_RMI_FID(U(0x20))
-
-/*
- * FID: 0xC4000171
- */
-#define SMC_RMI_GRANULE_DEV_UNDELEGATE		SMC64_RMI_FID(U(0x21))
-
-/*
  * FID: 0xC4000172
  */
 #define SMC_RMI_DEV_MAP				SMC64_RMI_FID(U(0x22))
@@ -838,24 +828,6 @@ struct rmi_rec_run {
 #define RMI_SIGNATURE_ALGORITHM_RSASSA_3072	U(0)
 #define RMI_SIGNATURE_ALGORITHM_ECDSA_P256	U(1)
 #define RMI_SIGNATURE_ALGORITHM_ECDSA_P384	U(2)
-
-/*
- * RmiDevMemShared
- * Represents whether device memory Granule should be shared
- * Width: 1 bit
- */
-#define RMI_DEV_MEM_PRIVATE			U(0)
-#define RMI_DEV_MEM_SHARED			U(1)
-
-/*
- * RmiDevDelegateFlags
- * Fieldset contains flags provided by the Host during device memory granule
- * delegation.
- * Width: 64 bits
- */
-/* RmiDevMemShared: Bit 0 */
-#define RMI_DEV_DELEGATE_FLAGS_SHARE_SHIFT	U(0)
-#define RMI_DEV_DELEGATE_FLAGS_SHARE_WIDTH	U(1)
 
 /*
  * RmiDevCommEnterStatus (Name in Spec RmiDevCommStatus)

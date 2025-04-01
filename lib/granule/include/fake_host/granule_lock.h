@@ -25,4 +25,20 @@ static inline void granule_bitlock_release(struct granule *g)
 	g->descriptor &= ~GRN_LOCK_BIT;
 }
 
+static inline void dev_granule_bitlock_acquire(struct dev_granule *g)
+{
+	/*
+	 * The fake_host architecture is single threaded and we do not expect
+	 * the lock to be already acquired in properly implemented locking
+	 * sequence.
+	 */
+	assert((g->descriptor & DEV_GRN_LOCK_BIT) == 0);
+	g->descriptor |= DEV_GRN_LOCK_BIT;
+}
+
+static inline void dev_granule_bitlock_release(struct dev_granule *g)
+{
+	g->descriptor &= ~DEV_GRN_LOCK_BIT;
+}
+
 #endif /* GRANULE_LOCK_H */

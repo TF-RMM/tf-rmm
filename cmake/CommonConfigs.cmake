@@ -37,7 +37,7 @@ arm_config_option(
     NAME RMM_MAX_COH_GRANULES
     HELP "Maximum number of coherent device granules supported"
     TYPE STRING
-    DEFAULT 0x0)
+    DEFAULT 1)
 
 #
 # RMM_MAX_NCOH_GRANULES. Maximum number of non-coherent device granules supported.
@@ -46,7 +46,7 @@ arm_config_option(
     NAME RMM_MAX_NCOH_GRANULES
     HELP "Maximum number of non-coherent device granules supported"
     TYPE STRING
-    DEFAULT 0x0)
+    DEFAULT 1)
 
 arm_config_option(
     NAME RMM_NUM_PAGES_PER_STACK
@@ -121,11 +121,15 @@ endif()
 target_compile_definitions(rmm-common
     INTERFACE "RMM_MAX_GRANULES=U(${RMM_MAX_GRANULES})")
 
+if (RMM_MAX_COH_GRANULES EQUAL 0x0)
+    message (FATAL_ERROR "RMM_MAX_COH_GRANULES cannot be set to 0")
+endif()
+
 target_compile_definitions(rmm-common
     INTERFACE "RMM_MAX_COH_GRANULES=U(${RMM_MAX_COH_GRANULES})")
 
 if (RMM_MAX_NCOH_GRANULES EQUAL 0x0)
-    message (FATAL_ERROR "RMM_MAX_NCOH_GRANULES not configured")
+    message (FATAL_ERROR "RMM_MAX_NCOH_GRANULES cannot be set to 0")
 endif()
 
 target_compile_definitions(rmm-common

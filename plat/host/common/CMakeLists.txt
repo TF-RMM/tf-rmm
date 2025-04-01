@@ -4,9 +4,16 @@
 #
 
 arm_config_option(
-    NAME HOST_MEM_SIZE
-    HELP "Host memory size that will be used as physical granules"
-    DEFAULT "0x40000000")
+    NAME HOST_DRAM_SIZE
+    HELP "Host memory size that will be used as physical DRAM"
+    TYPE STRING
+    DEFAULT "0x20000000")
+
+arm_config_option(
+    NAME HOST_NCOH_DEV_SIZE
+    HELP "Host memory size that will be used as non-coherent device granules"
+    TYPE STRING
+    DEFAULT "0xA000")
 
 add_library(rmm-host-common)
 
@@ -29,4 +36,7 @@ target_include_directories(rmm-host-common
     PRIVATE "src")
 
 target_compile_definitions(rmm-host-common
-    PUBLIC "HOST_MEM_SIZE=UL(${HOST_MEM_SIZE})")
+    PUBLIC "HOST_DRAM_SIZE=UL(${HOST_DRAM_SIZE})")
+
+target_compile_definitions(rmm-host-common
+    PUBLIC "HOST_NCOH_DEV_SIZE=UL(${HOST_NCOH_DEV_SIZE})")

@@ -6,6 +6,10 @@
 #ifndef RMM_EL3_IFC_H
 #define RMM_EL3_IFC_H
 
+#ifndef __ASSEMBLER__
+#include <dev_type.h>
+#endif
+
 #include <sizes.h>
 #include <smc.h>
 
@@ -249,11 +253,6 @@ void rmm_el3_ifc_release_shared_buf(void);
 /*****************************************************************************
  * Boot Manifest definitions, functions and structures (v0.4)
  ****************************************************************************/
-enum range_type {
-	DEV_RANGE_COHERENT,
-	DEV_RANGE_NON_COHERENT,
-	DEV_RANGE_MAX
-};
 
 /* Console info structure */
 struct console_info {
@@ -385,7 +384,7 @@ int rmm_el3_ifc_get_console_list_pa(struct console_list **plat_console_list);
  */
 int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
 					   struct memory_info **plat_dev_range_info,
-					   enum range_type type);
+					   enum dev_type type);
 
 /****************************************************************************
  * RMM-EL3 Runtime interface APIs

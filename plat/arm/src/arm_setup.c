@@ -55,7 +55,7 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 	struct memory_info *plat_memory_info;
 	struct console_list *csl_list;
 	struct console_info *console_ptr;
-	const enum range_type type[] = {DEV_RANGE_COHERENT, DEV_RANGE_NON_COHERENT};
+	const enum dev_type type[] = {DEV_RANGE_COHERENT, DEV_RANGE_NON_COHERENT};
 
 	/* TBD Initialize UART for early log */
 	struct xlat_mmap_region plat_regions[] = {

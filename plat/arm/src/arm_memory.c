@@ -50,7 +50,7 @@ void arm_set_dram_layout(struct memory_info *plat_dram)
 	arm_set_memory_layout(plat_dram, arm_get_dram_layout());
 }
 
-void arm_set_dev_layout(struct memory_info *plat_dev, enum range_type type)
+void arm_set_dev_layout(struct memory_info *plat_dev, enum dev_type type)
 {
 	struct arm_memory_layout *memory_ptr;
 
