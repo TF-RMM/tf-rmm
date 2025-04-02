@@ -288,7 +288,7 @@ static int app_rw_page_xlat_map(struct app_data_cfg *app_data,
 			return -EINVAL;
 		}
 
-		INFO("    mapping %s page: 0x%lx -> 0x%lx\n",
+		LOG_APP_FW("    mapping %s page: 0x%lx -> 0x%lx\n",
 			section_name, granule_pas[*next_granule_idx], va);
 		ret = app_xlat_map(
 			app_data,
@@ -358,7 +358,7 @@ int app_init_data(struct app_data_cfg *app_data,
 	size_t next_granule_idx = GRANULE_PA_IDX_COUNT;
 	uintptr_t stack_top;
 
-	INFO("Initialising app %lu\n", app_id);
+	LOG_APP_FW("Initialising app %lu\n", app_id);
 
 	if (app_data == NULL) {
 		ERROR("%s (%u): app data is NULL\n", __func__, __LINE__);
@@ -383,8 +383,8 @@ int app_init_data(struct app_data_cfg *app_data,
 	size_t stack_size = app_header->stack_page_count * GRANULE_SIZE;
 	size_t heap_size = app_header->heap_page_count * GRANULE_SIZE;
 
-	INFO("    stack_size = %lu\n", stack_size);
-	INFO("    heap_size = %lu\n", heap_size);
+	LOG_APP_FW("    stack_size = %lu\n", stack_size);
+	LOG_APP_FW("    heap_size = %lu\n", heap_size);
 
 	void *page_table = slot_map_app_pagetable(granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE]);
 

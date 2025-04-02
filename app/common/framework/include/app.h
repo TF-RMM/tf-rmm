@@ -24,6 +24,12 @@
 
 #define GRANULE_COUNT(size)	(round_up(size, GRANULE_SIZE) / GRANULE_SIZE)
 
+#ifdef APP_FW_LOGGING
+#define LOG_APP_FW INFO
+#else
+#define LOG_APP_FW VERBOSE
+#endif
+
 /*
  * Function to set up the App framework. Called once, during cold boot.
  */

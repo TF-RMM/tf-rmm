@@ -100,43 +100,43 @@ size_t app_get_required_granule_count_from_header(struct app_header *app_header)
 static void dump_header(struct app_header *app_header)
 {
 
-	INFO("    app_header_magic: #1=%016lx, #2=%016lx\n",
+	LOG_APP_FW("    app_header_magic: #1=%016lx, #2=%016lx\n",
 		app_header->app_header_magic, app_header->app_header_magic2);
 	if ((app_header->app_name[APP_NAME_BUF_SIZE - 1U] == '\0')) {
-		INFO("    app_name               =   %s\n", app_header->app_name);
+		LOG_APP_FW("    app_name               =   %s\n", app_header->app_name);
 	} else {
-		INFO("    app_name INVALID\n");
+		LOG_APP_FW("    app_name INVALID\n");
 	}
-	INFO("    app_header_version     =   0x%16x\n",
+	LOG_APP_FW("    app_header_version     =   0x%16x\n",
 		app_header->app_header_version);
-	INFO("    app_id                 =     %16d\n", app_header->app_id);
-	INFO("    app_len                =   0x%16lx\n", app_header->app_len);
-	INFO("    required granule_count =     %16lu\n\n",
+		LOG_APP_FW("    app_id                 =     %16d\n", app_header->app_id);
+		LOG_APP_FW("    app_len                =   0x%16lx\n", app_header->app_len);
+	LOG_APP_FW("    required granule_count =     %16lu\n\n",
 		app_get_required_granule_count_from_header(app_header));
 
-	INFO("    section  |   offset |               va |     size\n");
-	INFO("    ---------|----------|------------------|---------\n");
-	INFO("    text     | %8lx | %16lx | %8lx\n",
+	LOG_APP_FW("    section  |   offset |               va |     size\n");
+	LOG_APP_FW("    ---------|----------|------------------|---------\n");
+	LOG_APP_FW("    text     | %8lx | %16lx | %8lx\n",
 		app_header->section_text_offset,
 		app_header->section_text_va,
 		app_header->section_text_size);
-	INFO("    rodata   | %8lx | %16lx | %8lx\n",
+	LOG_APP_FW("    rodata   | %8lx | %16lx | %8lx\n",
 		app_header->section_rodata_offset,
 		app_header->section_rodata_va,
 		app_header->section_rodata_size);
-	INFO("    data     | %8lx | %16lx | %8lx\n",
+	LOG_APP_FW("    data     | %8lx | %16lx | %8lx\n",
 		app_header->section_data_offset,
 		app_header->section_data_va,
 		app_header->section_data_size);
-	INFO("    bss      |      N/A | %16lx | %8lx\n",
+	LOG_APP_FW("    bss      |      N/A | %16lx | %8lx\n",
 		app_header->section_bss_va,
 		app_header->section_bss_size);
-	INFO("    shared   |      N/A | %16lx | %8lx\n",
+	LOG_APP_FW("    shared   |      N/A | %16lx | %8lx\n",
 		app_header->section_shared_va,
 		GRANULE_SIZE);
-	INFO("    stack    |      N/A |              N/A | %8lx\n",
+	LOG_APP_FW("    stack    |      N/A |              N/A | %8lx\n",
 		app_header->stack_page_count * GRANULE_SIZE);
-	INFO("    heap     |      N/A |              N/A | %8lx\n\n",
+	LOG_APP_FW("    heap     |      N/A |              N/A | %8lx\n\n",
 		app_header->heap_page_count * GRANULE_SIZE);
 }
 
@@ -193,7 +193,7 @@ void app_info_setup(void)
 	unsigned long i;
 	struct app_header *app_header = (struct app_header *)rmm_start_address;
 
-	INFO("Loading apps. RMM Core start address: 0x%lx\n", rmm_core_start_address);
+	LOG_APP_FW("Loading apps. RMM Core start address: 0x%lx\n", rmm_core_start_address);
 
 	/* cppcheck-suppress unsignedLessThanZero
 	 * As i is unsigned, i < APP_COUNT cannot be true when APP_COUNT is 0.
@@ -208,7 +208,7 @@ void app_info_setup(void)
 			panic();
 		}
 
-		INFO("App header @%lu (at 0x%lx):\n", i, (uintptr_t)app_header);
+		LOG_APP_FW("App header @%lu (at 0x%lx):\n", i, (uintptr_t)app_header);
 		dump_header(app_header);
 
 		if (sanity_check_header(app_header) != 0) {
