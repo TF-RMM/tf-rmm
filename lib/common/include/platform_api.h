@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
+
 #ifndef PLATFORM_API_H
 #define PLATFORM_API_H
 

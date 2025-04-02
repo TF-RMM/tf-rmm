@@ -37,7 +37,8 @@ target_link_libraries(rmm-plat-arm
 target_sources(rmm-plat-arm
     PRIVATE "src/arm_setup.c"
             "src/arm_granule.c"
-            "src/arm_memory.c")
+            "src/arm_memory.c"
+            "src/arm_root_complex.c")
 
 target_include_directories(rmm-plat-arm
     PRIVATE "src/include")

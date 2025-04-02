@@ -322,7 +322,64 @@ struct memory_info {
 	uint64_t checksum;		/* Checksum of memory_info data */
 };
 
-/* Boot Manifest core structure as per v0.4 */
+/* SMMUv3 Info structure */
+struct smmu_info {
+	uint64_t smmu_base;		/* SMMUv3 base address */
+	uint64_t smmu_r_base;		/* SMMUv3 Realm Pages base address */
+};
+
+/* SMMUv3 Info List structure */
+struct smmu_list {
+	uint64_t num_smmus;		/* Number of smmu_info entries */
+	struct smmu_info *smmus;	/* Pointer to smmu_info[] array */
+	uint64_t checksum;		/* Checksum of smmu_list data */
+};
+
+/* PCIe BDF Mapping Info structure */
+struct bdf_mapping_info {
+	uint16_t mapping_base;	/* Base of BDF mapping (inclusive) */
+	uint16_t mapping_top;	/* Top of BDF mapping (exclusive) */
+	uint16_t mapping_off;	/* Mapping offset, as per Arm Base System Architecture: */
+				/* StreamID = zero_extend(RequesterID[N-1:0]) + (1<<N)*Constant_B */
+	uint16_t smmu_idx;	/* SMMU index in smmu_info[] array */
+};
+
+/* PCIe Root Port Info structure */
+struct root_port_info {
+	uint16_t root_port_id;			/* Root Port identifier */
+	uint16_t padding;			/* RES0 */
+	uint32_t num_bdf_mappings;		/* Number of BDF mappings */
+	struct bdf_mapping_info *bdf_mappings;	/* Pointer to bdf_mapping_info[] array */
+};
+
+/* PCIe Root Complex info structure v0.1 */
+struct root_complex_info {
+	uint64_t ecam_base;			/* ECAM base address. */
+	uint8_t segment;			/* PCIe segment identifier */
+	uint8_t padding[3];			/* RES0 */
+	uint32_t num_root_ports;		/* Number of root ports */
+	struct root_port_info *root_ports;	/* Pointer to root_port_info[] array */
+};
+
+/* PCIe Root Complex List structure */
+struct root_complex_list {
+	/* Number of pci_rc_info entries */
+	uint64_t num_root_complex;
+
+	/* PCIe Root Complex info structure version */
+	uint32_t rc_info_version;
+
+	/* RES0 */
+	uint32_t padding;
+
+	/* Pointer to pci_rc_info[] array */
+	struct root_complex_info *root_complex;
+
+	/* Checksum of pci_rc_list data */
+	uint64_t checksum;
+};
+
+/* Boot Manifest core structure as per v0.5 */
 struct rmm_core_manifest {
 	uint32_t version;		/* Manifest version */
 	uint32_t padding;		/* RES0 */
@@ -334,6 +391,10 @@ struct rmm_core_manifest {
 	/* Platform device address ranges (v0.4) */
 	struct memory_info plat_ncoh_region;
 	struct memory_info plat_coh_region;
+	/* Platform SMMUv3 list (v0.5) */
+	struct smmu_list plat_smmu;
+	/* Platform PCIe Root Complex list (v0.5) */
+	struct root_complex_list plat_root_complex;
 };
 
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, version)) == 0U);
@@ -342,6 +403,10 @@ COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_dram)) == 16U)
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_console)) == 40U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_ncoh_region)) == 64U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_coh_region)) == 88U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest,
+				   plat_smmu)) == 112U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest,
+				   plat_root_complex)) == 136U);
 
 /*
  * Accessors to the Boot Manifest data
@@ -424,6 +489,20 @@ int rmm_el3_ifc_get_console_list_pa(struct console_list **plat_console_list);
 int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
 					   struct memory_info **plat_dev_range_info,
 					   enum dev_coh_type type);
+
+/*
+ * Return validated Root Complex list from the Boot Manifest v0.5 onwards.
+ *
+ * Args:
+ *	- plat_rc_list:	Pointer to return Root Complext list
+ * Return:
+ *	- E_RMM_BOOT_SUCCESS			    Success.
+ *	- E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED Version reported by the
+ *						    Boot Manifest is not
+ *						    supported by this API.
+ *	- E_RMM_BOOT_MANIFEST_DATA_ERROR	    Error parsing data.
+ */
+int rmm_el3_ifc_get_root_complex_list_pa(struct root_complex_list **plat_rc_list);
 
 /****************************************************************************
  * RMM-EL3 Runtime interface APIs
@@ -692,6 +771,60 @@ int rmm_el3_ifc_rp_ide_key_set_go(unsigned long ecam_addr, unsigned long rp_id,
  */
 int rmm_el3_ifc_rp_ide_key_set_stop(unsigned long ecam_addr, unsigned long rp_id,
 				    unsigned long stream_info);
+
+/* todo: these PLAT_ARM_ macros needs to come from build config */
+
+/* Max supported Root Complexes */
+#define PLAT_ARM_ROOT_COMPLEX_MAX		U(1)
+
+/* Max supported Root Ports per Root Complex */
+#define PLAT_ARM_ROOT_PORT_MAX			U(1)
+
+/* Max supported BDF mappings per Root Port */
+#define PLAT_ARM_BDF_MAPPINGS_MAX		U(1)
+
+/* PCIe BDF Mapping Info structure. This is same as struct bdf_mapping_info  */
+struct arm_bdf_mapping_info {
+	/* Base of BDF mapping (inclusive) */
+	uint16_t mapping_base;
+
+	/* Top of BDF mapping (exclusive) */
+	uint16_t mapping_top;
+
+	/* Mapping offset, as per Arm Base System Architecture: */
+	uint16_t mapping_off;
+
+	/* SMMU index in smmu_info[] array */
+	uint16_t smmu_idx;
+};
+
+/* Arm Root Port info */
+struct arm_root_port_info {
+	/* Root Port identifier */
+	uint16_t root_port_id;
+
+	/* Number of valid BDF mapping info structures, initialized during boot */
+	uint8_t bdf_info_count;
+
+	struct arm_bdf_mapping_info arm_bdf_info[PLAT_ARM_BDF_MAPPINGS_MAX];
+};
+
+/* Arm Root Complex management structures */
+struct arm_root_complex_info {
+	/* ECAM base address */
+	uint64_t ecam_base;
+
+	/* PCIe segment identifier */
+	uint8_t segment;
+
+	/*
+	 * Number of valid PCIe Root Port info structures, initialized during
+	 * boot.
+	 */
+	uint8_t rp_info_count;
+
+	struct arm_root_port_info arm_rp_info[PLAT_ARM_ROOT_PORT_MAX];
+};
 
 #endif /* __ASSEMBLER__ */
 #endif /* RMM_EL3_IFC_H */
