@@ -27,28 +27,19 @@ static uint64_t app_service_print(struct app_data_cfg *app_data,
 {
 	size_t len = arg0;
 	size_t i;
-	size_t offset = 0;
-	char print_buf[4];
+	char *shared_page;
 
 	(void)arg1;
 	(void)arg2;
 	(void)arg3;
 
-	while (len > 0U) {
-		char *shared_page;
-		size_t to_print = len;
+	if (len >= GRANULE_SIZE) {
+		return (uint64_t)(-EINVAL);
+	}
 
-		if (to_print > sizeof(print_buf)) {
-			to_print = sizeof(print_buf);
-		}
-		shared_page = app_data->el2_shared_page;
-		assert(shared_page != NULL);
-		(void)memcpy(print_buf, &shared_page[offset], to_print);
-		for (i = 0; i < to_print; ++i) {
-			(void)console_putc((int)print_buf[i]);
-		}
-		offset += to_print;
-		len -= to_print;
+	shared_page = app_data->el2_shared_page;
+	for (i = 0U; i < len; ++i) {
+		(void)console_putc((int)shared_page[i]);
 	}
 	return 0;
 }
