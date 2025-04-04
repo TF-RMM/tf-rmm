@@ -242,7 +242,7 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
  */
 int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
 					   struct memory_info **plat_dev_range_info,
-					   enum dev_type type)
+					   enum dev_coh_type type)
 {
 	struct memory_info *plat_memory;
 	unsigned int max_granules;
@@ -256,12 +256,12 @@ int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
 		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
 	}
 
-	assert(type < DEV_RANGE_MAX);
+	assert(type < DEV_MEM_MAX);
 
 	VERBOSE("Device %scoherent address range:\n",
-		(type == DEV_RANGE_COHERENT) ? "" : "non-");
+		(type == DEV_MEM_COHERENT) ? "" : "non-");
 
-	if (type == DEV_RANGE_COHERENT) {
+	if (type == DEV_MEM_COHERENT) {
 		plat_memory = &local_core_manifest.plat_coh_region;
 		max_granules = RMM_MAX_COH_GRANULES;
 	} else {

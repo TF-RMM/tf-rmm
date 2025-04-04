@@ -177,7 +177,7 @@ static inline void dev_granule_unlock_transition(struct dev_granule *g,
  * This is purely a lookup, and provides no guarantees about the attributes of
  * the dev_granule (i.e. whether it is locked, its state or its reference count).
  */
-unsigned long dev_granule_addr(const struct dev_granule *g, enum dev_type type);
+unsigned long dev_granule_addr(const struct dev_granule *g, enum dev_coh_type type);
 
 /*
  * Takes an aligned dev_granule address, returns a pointer to the corresponding
@@ -186,7 +186,7 @@ unsigned long dev_granule_addr(const struct dev_granule *g, enum dev_type type);
  * This is purely a lookup, and provides no guarantees about the attributes of
  * the granule (i.e. whether it is locked, its state or its reference count).
  */
-struct dev_granule *addr_to_dev_granule(unsigned long addr, enum dev_type *type);
+struct dev_granule *addr_to_dev_granule(unsigned long addr, enum dev_coh_type *type);
 
 /*
  * Verifies whether @addr is a valid dev_granule physical address, returns
@@ -202,7 +202,7 @@ struct dev_granule *addr_to_dev_granule(unsigned long addr, enum dev_type *type)
  *     - @addr is not aligned to the size of a granule.
  *     - @addr is out of range.
  */
-struct dev_granule *find_dev_granule(unsigned long addr, enum dev_type *type);
+struct dev_granule *find_dev_granule(unsigned long addr, enum dev_coh_type *type);
 
 /*
  * Obtain a pointer to a locked dev_granule at @addr if @addr is a valid dev_granule
@@ -219,7 +219,7 @@ struct dev_granule *find_dev_granule(unsigned long addr, enum dev_type *type);
  */
 struct dev_granule *find_lock_dev_granule(unsigned long addr,
 					  unsigned char expected_state,
-					  enum dev_type *type);
+					  enum dev_coh_type *type);
 /*
  * Refcount field occupies LSB bits of the dev_granule descriptor,
  * and functions which modify its value can operate directly on

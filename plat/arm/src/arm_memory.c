@@ -50,19 +50,19 @@ void arm_set_dram_layout(struct memory_info *plat_dram)
 	arm_set_memory_layout(plat_dram, arm_get_dram_layout());
 }
 
-void arm_set_dev_layout(struct memory_info *plat_dev, enum dev_type type)
+void arm_set_dev_layout(struct memory_info *plat_dev, enum dev_coh_type type)
 {
 	struct arm_memory_layout *memory_ptr;
 
 	assert(plat_dev != NULL);
-	assert(type < DEV_RANGE_MAX);
+	assert(type < DEV_MEM_MAX);
 
 	switch (type) {
-	case DEV_RANGE_COHERENT:
+	case DEV_MEM_COHERENT:
 		memory_ptr = arm_get_dev_coh_layout();
 		break;
 	default:
-		/* DEV_RANGE_NON_COHERENT */
+		/* DEV_MEM_NON_COHERENT */
 		memory_ptr = arm_get_dev_ncoh_layout();
 	}
 

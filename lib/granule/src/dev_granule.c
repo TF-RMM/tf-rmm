@@ -21,7 +21,7 @@ IF_NCBMC(static) struct dev_granule dev_ncoh_granules[RMM_MAX_NCOH_GRANULES]
  * This is purely a lookup, and provides no guarantees about the attributes of
  * the dev_granule (i.e. whether it is locked, its state or its reference count).
  */
-unsigned long dev_granule_addr(const struct dev_granule *g, enum dev_type type)
+unsigned long dev_granule_addr(const struct dev_granule *g, enum dev_coh_type type)
 {
 	(void)type;
 	unsigned long idx;
@@ -29,7 +29,7 @@ unsigned long dev_granule_addr(const struct dev_granule *g, enum dev_type type)
 	assert(g != NULL);
 
 	/* No coherent device granules */
-	assert(type == DEV_RANGE_NON_COHERENT);
+	assert(type == DEV_MEM_NON_COHERENT);
 
 	idx = ((unsigned long)g - (unsigned long)dev_ncoh_granules) /
 						sizeof(struct dev_granule);
@@ -43,12 +43,12 @@ unsigned long dev_granule_addr(const struct dev_granule *g, enum dev_type type)
  * This is purely a lookup, and provides no guarantees about the attributes of
  * the granule (i.e. whether it is locked, its state or its reference count).
  */
-static struct dev_granule *dev_granule_from_idx(unsigned long idx, enum dev_type type)
+static struct dev_granule *dev_granule_from_idx(unsigned long idx, enum dev_coh_type type)
 {
 	(void)type;
 
 	/* No coherent device granules */
-	assert((type == DEV_RANGE_NON_COHERENT) && (idx < RMM_MAX_NCOH_GRANULES));
+	assert((type == DEV_MEM_NON_COHERENT) && (idx < RMM_MAX_NCOH_GRANULES));
 
 	return &dev_ncoh_granules[idx];
 }
@@ -60,7 +60,7 @@ static struct dev_granule *dev_granule_from_idx(unsigned long idx, enum dev_type
  * This is purely a lookup, and provides no guarantees about the attributes of
  * the granule (i.e. whether it is locked, its state or its reference count).
  */
-struct dev_granule *addr_to_dev_granule(unsigned long addr, enum dev_type *type)
+struct dev_granule *addr_to_dev_granule(unsigned long addr, enum dev_coh_type *type)
 {
 	unsigned long idx;
 
@@ -84,7 +84,7 @@ struct dev_granule *addr_to_dev_granule(unsigned long addr, enum dev_type *type)
  *     - @addr is not aligned to the size of a granule.
  *     - @addr is out of range.
  */
-struct dev_granule *find_dev_granule(unsigned long addr, enum dev_type *type)
+struct dev_granule *find_dev_granule(unsigned long addr, enum dev_coh_type *type)
 {
 	unsigned long idx;
 
@@ -115,7 +115,7 @@ struct dev_granule *find_dev_granule(unsigned long addr, enum dev_type *type)
  */
 struct dev_granule *find_lock_dev_granule(unsigned long addr,
 					  unsigned char expected_state,
-					  enum dev_type *type)
+					  enum dev_coh_type *type)
 {
 	struct dev_granule *g = find_dev_granule(addr, type);
 
