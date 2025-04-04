@@ -11,4 +11,7 @@
 
 #define va_to_slot_arch			va_to_slot_internal
 
+#define mmio_arch_map			mmio_map_internal
+#define mmio_arch_unmap			mmio_unmap_internal
+
 #endif /* SLOT_BUF_ARCH_H */

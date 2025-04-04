@@ -17,6 +17,18 @@ bool memcpy_ns_write(void *ns_dest, const void *src, unsigned long size)
 	return host_memcpy_ns_write(ns_dest, src, size);
 }
 
+bool memcpy_ns_read_4(void *dest, const void *ns_src)
+{
+	return host_memcpy_ns_read(dest, ns_src, 4U);
+}
+
+bool memcpy_ns_write_4(void *ns_dest, uint32_t value)
+{
+	uint32_t src = value;
+
+	return host_memcpy_ns_write(ns_dest, &src, 4U);
+}
+
 int run_realm(unsigned long *regs, unsigned long *sp_el0)
 {
 	return host_run_realm(regs, sp_el0);

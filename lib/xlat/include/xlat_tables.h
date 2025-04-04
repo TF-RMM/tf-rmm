@@ -169,6 +169,9 @@
 #define MT_RO_DATA		(MT_MEMORY | MT_RO | MT_EXECUTE_NEVER)
 #define MT_RW_DATA		(MT_MEMORY | MT_RW | MT_EXECUTE_NEVER)
 
+/* Device memory */
+#define MT_RW_DEV		(MT_DEVICE | MT_RW | MT_EXECUTE_NEVER)
+
 /* Access permissions for data access */
 #define MT_AP_UNPRIV		(INPLACE(MT_ACCESS_UNPRIV, 1UL))
 

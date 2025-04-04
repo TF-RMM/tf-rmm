@@ -94,6 +94,27 @@ bool ns_buffer_write_unaligned(enum buffer_slot slot,
 			       size_t *ns_start_offset);
 
 /*
+ * These helper routines are used to access NS mmio region. These regions do
+ * not have any granules and granule state associated with it, as these pages
+ * are always accessed with NS state and it can't be delegated.
+ *
+ * This is used to read fixed size of 4 bytes.
+ */
+bool ns_mmio_read_4(unsigned long mmio_addr, unsigned int offset,
+		    uint32_t *dest);
+
+/*
+ * This is a special helper where the memory is NS mmio space but the write
+ * is allowed only from Realm PAS or Root PAS. This helper is used to write to
+ * extended capability register in Root Port ECAM config space. These config
+ * space is a special NS memory and RMM do not track granule state.
+ *
+ * This is used to write fixed size of 4 bytes.
+ */
+bool realm_mmio_write_4(unsigned long mmio_addr, unsigned int offset,
+				uint32_t data);
+
+/*
  * Finishes initializing the slot buffer mechanism.
  * This function should be called after the MMU is enabled, during the
  * warmboot path.
@@ -188,5 +209,15 @@ void buffer_unmap_internal(void *buf);
  * Returns the slot corresponding to a given VA.
  */
 enum buffer_slot va_to_slot_internal(void *buf);
+
+/*
+ * Maps a given PA to the SLOT_NS with attributes set as Device.
+ */
+void *mmio_map_internal(unsigned long mmio_pa, uint64_t pas_type);
+
+/*
+ * Unmaps the slot buffer mapped by mmio_map_internal.
+ */
+void mmio_unmap_internal(void *mmio_va);
 
 #endif /* BUFFER_H */

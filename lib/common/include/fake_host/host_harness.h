@@ -93,6 +93,9 @@ void *host_buffer_arch_map(unsigned int slot, unsigned long addr);
  */
 void host_buffer_arch_unmap(void *buf);
 
+void *host_mmio_arch_map(unsigned long addr, uint64_t pas_type);
+void host_mmio_arch_unmap(void *buf);
+
 /*
  * Fake host wrapper to delegate a granule using the Granule Transition Service
  */

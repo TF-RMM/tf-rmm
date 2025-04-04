@@ -20,6 +20,17 @@ void host_buffer_arch_unmap(void *buf)
 	(void)buf;
 }
 
+void *host_mmio_arch_map(unsigned long addr, uint64_t pas_type)
+{
+	(void)pas_type;
+	return (void *)addr;
+}
+
+void host_mmio_arch_unmap(void *mmio)
+{
+	(void)mmio;
+}
+
 unsigned long host_gtsi_delegate(unsigned long addr)
 {
 	if (get_granule_gpt(addr) == GPT_NS) {

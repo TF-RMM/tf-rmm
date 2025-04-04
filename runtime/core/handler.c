@@ -424,6 +424,8 @@ struct rmm_trap_element {
  */
 extern void *ns_read;
 extern void *ns_write;
+bool memcpy_ns_read_4(void *dest, const void *ns_src);
+bool memcpy_ns_write_4(void *ns_dest, uint32_t value);
 
 /*
  * The new value of the PC when the GPF occurs on a registered location.
@@ -433,6 +435,8 @@ extern void *ns_access_ret_0;
 static struct rmm_trap_element rmm_trap_list[] = {
 	RMM_TRAP_HANDLER(ns_read, ns_access_ret_0),
 	RMM_TRAP_HANDLER(ns_write, ns_access_ret_0),
+	RMM_TRAP_HANDLER(memcpy_ns_read_4, ns_access_ret_0),
+	RMM_TRAP_HANDLER(memcpy_ns_write_4, ns_access_ret_0),
 };
 #define RMM_TRAP_LIST_SIZE (sizeof(rmm_trap_list)/sizeof(struct rmm_trap_element))
 
