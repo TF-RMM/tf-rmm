@@ -94,6 +94,7 @@ target_sources(rmm-app-dev-assign-elf
         "src/dev_assign_el0_app.c"
         "src/dev_assign_cmds.c"
         "src/dev_assign_helper.c"
+        "src/rme_dvsec.c"
         "src/dev_assign_ide_cmds.c"
         "src/dev_tdisp_cmds.c")
 

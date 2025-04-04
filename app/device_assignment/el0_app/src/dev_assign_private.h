@@ -16,6 +16,7 @@
 #include <mbedtls/memory_buffer_alloc.h>
 #include <mbedtls/rsa.h>
 #include <psa/crypto.h>
+#include <rme_dvsec.h>
 #include <sizes.h>
 #include <utils_def.h>
 
@@ -249,6 +250,10 @@ struct dev_assign_info {
 
 	/* Current IDE key slot in use */
 	uint8_t ide_kslot_cur;
+
+	/* This device Root Port DVSEC address in ECAM space */
+	uint64_t rp_ecam_addr;
+	uint32_t rp_dvsec_offset;
 
 	buffer_alloc_ctx mbedtls_heap_ctx;
 

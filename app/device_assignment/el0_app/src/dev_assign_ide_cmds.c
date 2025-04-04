@@ -331,7 +331,7 @@ static libspdm_return_t dev_assign_ide_refresh(struct dev_assign_info *info, uin
 
 	/* Update the in use key slot */
 	if (status == LIBSPDM_STATUS_SUCCESS) {
-		INFO("DSM: IDE: Current active key slot: %d\n", kslot);
+		INFO("IDE Refresh: Current active key slot: %d\n", kslot);
 		info->ide_kslot_cur = kslot;
 	}
 
@@ -369,10 +369,27 @@ libspdm_return_t dev_assign_ide_setup(struct dev_assign_info *info)
 	uint8_t bus_num;
 	uint8_t segment;
 	uint8_t max_port_index;
+	int rc;
 
-	/* todo: DVSEC programming */
+	rc = dvsec_init(info);
+	if (rc != 0) {
+		ERROR("IDE Setup: dvsec init failed\n");
+		return (libspdm_return_t)-1;
+	}
 
-	/* pci_ide_km_query */
+	rc = dvsec_stream_lock(info);
+	if (rc != 0) {
+		ERROR("IDE Setup: dvsec stream lock failed\n");
+		return (libspdm_return_t)-1;
+	}
+
+	/*
+	 * todo:
+	 * 1. Read stream config from RP IDE Extended Capability registers
+	 * 2. Check against dsm stream id
+	 */
+
+	/* Transmit IDE_KM_QUERY */
 	/* cppcheck-suppress misra-c2012-12.1 */
 	/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
 	ide_reg_block_count = PCI_IDE_KM_IDE_REG_BLOCK_SUPPORTED_COUNT;
@@ -384,8 +401,16 @@ libspdm_return_t dev_assign_ide_setup(struct dev_assign_info *info)
 		goto out_set_cmd_rc;
 	}
 
-	/* Setup IDE in Endpoint and at RootPort using key slot 0 */
+	/*
+	 * todo:
+	 * From IDE_KM_RESP, check EP capability matches with Extended Capability
+	 */
+
+	/* Step 1-6: Setup IDE in Endpoint and at RootPort using key slot 0 */
 	status = dev_assign_ide_refresh(info, PCI_IDE_KM_KEY_SET_K0);
+
+	/* Test DVSEC status */
+	assert(dvsec_is_stream_locked(info));
 
 out_set_cmd_rc:
 	INFO("%s: ret: 0x%x\n", __func__, status);
@@ -413,6 +438,7 @@ static libspdm_return_t update_teardown_status(libspdm_return_t old_status,
  */
 libspdm_return_t dev_assing_ide_teardown(struct dev_assign_info *info)
 {
+	int rc;
 	libspdm_return_t status;
 	libspdm_return_t next_status;
 
@@ -420,7 +446,7 @@ libspdm_return_t dev_assing_ide_teardown(struct dev_assign_info *info)
 	status = ide_km_endpoint_rp_key_set_stop(info,
 						 PCI_IDE_KM_KEY_DIRECTION_TX);
 	if (status != LIBSPDM_STATUS_SUCCESS) {
-		ERROR("DSM: IDE_teardown: Setting stop for TX failed, status=0x%x\n", status);
+		ERROR("IDE Teardown: Setting stop for TX failed, status=0x%x\n", status);
 		/* Do not return, attempt to continue teardown */
 	}
 
@@ -428,10 +454,25 @@ libspdm_return_t dev_assing_ide_teardown(struct dev_assign_info *info)
 	next_status = ide_km_endpoint_rp_key_set_stop(info,
 						 PCI_IDE_KM_KEY_DIRECTION_RX);
 	if (next_status != LIBSPDM_STATUS_SUCCESS) {
-		ERROR("DSM: IDE_teardown: Setting stop for RX failed, status=0x%x\n", next_status);
+		ERROR("IDE Teardown: Setting stop for RX failed, status=0x%x\n", next_status);
 		/* Do not return, attempt to continue teardown */
 	}
 	status = update_teardown_status(status, next_status);
+
+	/* DVSEC unlock stream */
+	rc = dvsec_stream_unlock(info);
+	if (rc != 0) {
+		ERROR("IDE Teardown: dvsec unlock failed\n");
+		status = update_teardown_status(status, (libspdm_return_t)-1);
+		/* Do not return, attempt to continue teardown */
+	}
+
+	/* DVSEC deinit */
+	rc = dvsec_deinit(info);
+	if (rc != 0) {
+		ERROR("IDE Teardown: dvsec deinit failed\n");
+		status = update_teardown_status(status, (libspdm_return_t)-1);
+	}
 
 	INFO("%s: ret: 0x%x\n", __func__, status);
 	return status;
@@ -440,6 +481,14 @@ libspdm_return_t dev_assing_ide_teardown(struct dev_assign_info *info)
 /*
  * Refresh IDM Key programming both at Upstream port and at Root port using the
  * next key slot.
+ *
+ * 1. Transmit IDE_KM QUERY
+ * 2. Receive IDE_KM QUERY_RESP
+ * 3. Check EP IDE stream is in Secure state, Enabled and is using dsm->kslot_cur
+ * 4. Read the Root port IDE capabilities in config space and ensure that IDE
+ *    Stream is in Secure state and enabled.
+ * 5. Ensure that the stream is still locked (RMEDA_CTL2.SEL_STR_LOCK==1)
+ * 6. Switch the keyslot and call refresh to EP and RP
  */
 int dev_assign_ide_refresh_main(struct dev_assign_info *info)
 {
@@ -450,17 +499,24 @@ int dev_assign_ide_refresh_main(struct dev_assign_info *info)
 		return DEV_ASSIGN_STATUS_ERROR;
 	}
 
-	/* todo: Check DVSEC for IDE still in secure state and locked */
+	/*
+	 * todo:
+	 * Step 1 to 4
+	 */
 
-	/* todo: Query IDE KM and check key slot in use matches with DSM state */
+	/* Step 5: Ensure that the stream is still locked */
+	if (!dvsec_is_stream_locked(info)) {
+		ERROR("IDE Refresh: dvsec stream not locked\n");
+		return DEV_ASSIGN_STATUS_ERROR;
+	}
 
+	/* 6. Switch the keyslot and call refresh to EP and RP */
 	if (info->ide_kslot_cur == U(PCI_IDE_KM_KEY_SET_K0)) {
 		kslot_next = PCI_IDE_KM_KEY_SET_K1;
 	} else {
 		kslot_next = PCI_IDE_KM_KEY_SET_K0;
 	}
 
-	/* Setup IDE in Endpoint and at RootPort using next key slot */
 	status = dev_assign_ide_refresh(info, kslot_next);
 	INFO("%s: ret: 0x%x\n", __func__, status);
 	if (status != LIBSPDM_STATUS_SUCCESS) {
@@ -470,11 +526,7 @@ int dev_assign_ide_refresh_main(struct dev_assign_info *info)
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }
 
-/*
- * Reset IDE link at Endpoint and at RootPort.
- * 1. IDE KEY_SET_STOP
- * 2. Using key slot 0 do KEY_PROG and KEY_SET_GO
- */
+/* Reset IDE link at Endpoint and at RootPort and reset DVSEC */
 int dev_assign_ide_reset_main(struct dev_assign_info *info)
 {
 	__unused libspdm_return_t status;
@@ -484,24 +536,11 @@ int dev_assign_ide_reset_main(struct dev_assign_info *info)
 		return DEV_ASSIGN_STATUS_ERROR;
 	}
 
-	/* todo: DVSEC re-programming? */
-
-	/*  IDE KEY_SET_STOP at Endpoint and at RootPort */
 	status = dev_assing_ide_teardown(info);
-	if (status != LIBSPDM_STATUS_SUCCESS) {
-		ERROR("DSM_IDE_RESET: KEY_SET_STOP failed\n");
-		ret = DEV_ASSIGN_STATUS_ERROR;
-		goto out_err_ide_reset;
+	if (status == LIBSPDM_STATUS_SUCCESS) {
+		status = dev_assign_ide_setup(info);
 	}
 
-	/* Setup IDE in Endpoint and at RootPort using key slot 0 */
-	status = dsm_spdm_vdm_ide_refresh(info, PCI_IDE_KM_KEY_SET_K0);
-	if (status != LIBSPDM_STATUS_SUCCESS) {
-		ERROR("DSM_IDE_RESET: KEY_PROG and KEY_SET_GO failed\n");
-		ret = DEV_ASSIGN_STATUS_ERROR;
-	}
-
-out_err_ide_reset:
 	INFO("%s: ret: 0x%x\n", __func__, status);
 	return ret;
 }

@@ -548,6 +548,35 @@ static uint64_t app_service_rp_ide_key_set_stop(struct app_data_cfg *app_data,
 	return (uint64_t)rc;
 }
 
+static uint64_t app_service_ns_mmio_read_4(struct app_data_cfg *app_data,
+			  unsigned long mmio_addr,
+			  unsigned long offset,
+			  unsigned long arg2,
+			  unsigned long arg3)
+{
+	(void)arg2;
+	(void)arg3;
+
+	assert(offset <= UINT32_MAX);
+	assert(app_data->el2_shared_page != NULL);
+	return (uint64_t)ns_mmio_read_4(mmio_addr, (unsigned int)offset,
+					(uint32_t *)app_data->el2_shared_page);
+}
+
+static uint64_t app_service_realm_mmio_write_4(struct app_data_cfg *app_data,
+			  unsigned long mmio_addr,
+			  unsigned long offset,
+			  unsigned long data,
+			  unsigned long arg3)
+{
+	(void)app_data;
+	(void)arg3;
+
+	assert(offset <= UINT32_MAX);
+	return (uint64_t)realm_mmio_write_4(mmio_addr, (unsigned int)offset,
+						    (uint32_t)data);
+}
+
 static app_service_func service_functions[APP_SERVICE_COUNT] = {
 	[APP_SERVICE_PRINT] = app_service_print,
 	[APP_SERVICE_RANDOM] = app_service_get_random,
@@ -563,7 +592,9 @@ static app_service_func service_functions[APP_SERVICE_COUNT] = {
 	[APP_SERVICE_RP_IDE_KEY_PROGRAM] = app_service_rp_ide_key_program,
 	[APP_SERVICE_RP_IDE_KEY_SET_GO] = app_service_rp_ide_key_set_go,
 	[APP_SERVICE_RP_IDE_KEY_SET_STOP] = app_service_rp_ide_key_set_stop,
-	};
+	[APP_SERVICE_NS_MMIO_READ_4] = app_service_ns_mmio_read_4,
+	[APP_SERVICE_REALM_MMIO_WRITE_4] = app_service_realm_mmio_write_4,
+};
 
 uint64_t call_app_service(unsigned long service_id,
 			  struct app_data_cfg *app_data,
