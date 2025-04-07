@@ -18,7 +18,7 @@ arm_config_option_override(NAME RMM_MAX_SIZE DEFAULT 0x01800000)
 # Maximum number of translation tables allocated by the runtime context
 # for the translation library.
 #
-arm_config_option_override(NAME PLAT_CMN_CTX_MAX_XLAT_TABLES DEFAULT 6)
+arm_config_option_override(NAME PLAT_CMN_CTX_MAX_XLAT_TABLES DEFAULT 12)
 
 #
 # Maximum number of granules supported, enough to cover

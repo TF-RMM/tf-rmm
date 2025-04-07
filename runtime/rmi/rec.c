@@ -20,6 +20,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
+#include <xlat_high_va.h>
 
 static void init_rec_sysregs(struct rec *rec, unsigned long rec_mpidr)
 {
@@ -213,6 +214,8 @@ static void rec_aux_granules_init(struct rec *r)
 {
 	void *rec_aux;
 	struct rec_aux_data *aux_data;
+	size_t i;
+	int ret;
 
 	/* Map auxiliary granules */
 	rec_aux = buffer_rec_aux_granules_map(r->g_aux, r->num_rec_aux);
@@ -220,7 +223,6 @@ static void rec_aux_granules_init(struct rec *r)
 
 	/*
 	 * Ensure we have enough aux granules for use by REC:
-	 * - REC_HEAP_PAGES for MbedTLS heap
 	 * - REC_PMU_PAGES for PMU state
 	 * - REC_SIMD_PAGES for SIMD state
 	 * - REC_ATTEST_PAGES for 'rec_attest_data' structure
@@ -233,18 +235,37 @@ static void rec_aux_granules_init(struct rec *r)
 	 * data and buffer.
 	 */
 	aux_data = &r->aux_data;
-	aux_data->attest_heap_buf = (uint8_t *)rec_aux;
-	aux_data->pmu = (struct pmu_state *)
-		((uintptr_t)aux_data->attest_heap_buf + REC_HEAP_SIZE);
+	aux_data->pmu = (struct pmu_state *)rec_aux;
 	aux_data->simd_ctx = (struct simd_context *)
 		((uintptr_t)aux_data->pmu + REC_PMU_SIZE);
 	aux_data->attest_data = (struct rec_attest_data *)
 		((uintptr_t)aux_data->simd_ctx + REC_SIMD_SIZE);
-	aux_data->cca_token_buf = (uintptr_t)aux_data->attest_data +
-		REC_ATTEST_SIZE;
+
+	size_t used_aux_pages =
+		((uintptr_t)aux_data->attest_data + REC_ATTEST_SIZE -
+			(uintptr_t)rec_aux) / GRANULE_SIZE;
+
+	assert(used_aux_pages < r->num_rec_aux);
 
 	rec_simd_state_init(r);
 	rec_pmu_state_init(r);
+
+	/* Use the rest of the aux pages for the app */
+	uintptr_t granule_pas[MAX_REC_AUX_GRANULES];
+	size_t granule_pa_count = r->num_rec_aux - used_aux_pages;
+
+	for (i = 0; i < granule_pa_count; ++i) {
+		granule_pas[i] = granule_addr(r->g_aux[used_aux_pages + i]);
+	}
+
+	ret = attest_app_init(&r->attest_app_data,
+		granule_pas,
+		granule_pa_count,
+		(void *)(SLOT_VIRT +
+			(((unsigned long)SLOT_REC_AUX0 + used_aux_pages) * GRANULE_SIZE)));
+	if (ret != 0) {
+		panic();
+	}
 
 	/* Unmap auxiliary granules */
 	buffer_rec_aux_unmap(rec_aux, r->num_rec_aux);

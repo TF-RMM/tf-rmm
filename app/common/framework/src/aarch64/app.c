@@ -288,7 +288,7 @@ static int app_rw_page_xlat_map(struct app_data_cfg *app_data,
 			return -EINVAL;
 		}
 
-		INFO("    mapping %s page: 0x%lx -> 0x%lx\n",
+		LOG_APP_FW("    mapping %s page: 0x%lx -> 0x%lx\n",
 			section_name, granule_pas[*next_granule_idx], va);
 		ret = app_xlat_map(
 			app_data,
@@ -349,7 +349,8 @@ static int app_heap_xlat_map(struct app_data_cfg *app_data,
 int app_init_data(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
-		      size_t granule_count)
+		      size_t granule_count,
+		      void *granule_va_start)
 {
 	struct app_header *app_header = NULL;
 	int ret = 0;
@@ -357,7 +358,7 @@ int app_init_data(struct app_data_cfg *app_data,
 	size_t next_granule_idx = GRANULE_PA_IDX_COUNT;
 	uintptr_t stack_top;
 
-	INFO("Initialising app %lu\n", app_id);
+	LOG_APP_FW("Initialising app %lu\n", app_id);
 
 	if (app_data == NULL) {
 		ERROR("%s (%u): app data is NULL\n", __func__, __LINE__);
@@ -382,8 +383,8 @@ int app_init_data(struct app_data_cfg *app_data,
 	size_t stack_size = app_header->stack_page_count * GRANULE_SIZE;
 	size_t heap_size = app_header->heap_page_count * GRANULE_SIZE;
 
-	INFO("    stack_size = %lu\n", stack_size);
-	INFO("    heap_size = %lu\n", heap_size);
+	LOG_APP_FW("    stack_size = %lu\n", stack_size);
+	LOG_APP_FW("    heap_size = %lu\n", heap_size);
 
 	void *page_table = slot_map_app_pagetable(granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE]);
 
@@ -415,6 +416,7 @@ int app_init_data(struct app_data_cfg *app_data,
 	stack_top = app_data->stack_buf_start_va + stack_size;
 
 	app_data->heap_size = heap_size;
+	app_data->el2_heap_start = (void *)&(((char *)granule_va_start)[next_granule_idx * GRANULE_SIZE]);
 	ret = app_heap_xlat_map(app_data, app_data->heap_va, app_data->heap_size,
 		&next_granule_idx, granule_pas, granule_count);
 	if (ret != 0) {
@@ -447,12 +449,31 @@ unmap_page_table:
 	return ret;
 }
 
+void *app_get_heap_ptr(struct app_data_cfg *app_data)
+{
+	return app_data->el2_heap_start;
+}
+
 /* TODO:
  * Collect the bss memory addresses allocated by the app rmm stub.
  * Remove this once RMM memory allocation is sorted out.
  */
 static void collect_app_bss(void)
 {
+	int ret __unused;
+	size_t app_index;
+
+	void attest_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
+	void random_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
+
+	ret = app_get_index(ATTESTATION_APP_ID, &app_index);
+	assert(ret == 0);
+	attest_app_get_bss(&app_bss_memory_array[app_index].pa,
+		&app_bss_memory_array[app_index].size);
+	ret = app_get_index(RMM_RANDOM_APP_ID, &app_index);
+	assert(ret == 0);
+	random_app_get_bss(&app_bss_memory_array[app_index].pa,
+		&app_bss_memory_array[app_index].size);
 }
 
 void app_framework_setup(void)

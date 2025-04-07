@@ -18,4 +18,6 @@ target_include_directories(rmm-lib-allocator
     PUBLIC "include")
 
 target_sources(rmm-lib-allocator
-    PRIVATE "src/memory_alloc.c")
+    PRIVATE
+      "src/alloc_utils.c"
+      "src/memory_alloc.c")

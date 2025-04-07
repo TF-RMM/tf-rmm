@@ -5,13 +5,24 @@
 
 add_library(rmm-app-cmn-fw)
 
+arm_config_option(
+    NAME APP_FW_LOGGING
+    HELP "Boost app framework logging level from VERBOSE to INFO"
+    TYPE BOOL
+    DEFAULT OFF
+    ADVANCED)
+
 target_link_libraries(rmm-app-cmn-fw
     PRIVATE
-        rmm-lib-arch
-        rmm-lib-debug
-        rmm-lib-console
-        rmm-lib-slot_buf
         rmm-el2-stub
+        rmm-lib-arch
+        rmm-lib-console
+        rmm-lib-debug
+        rmm-lib-rmm_el3_ifc
+        rmm-lib-slot_buf)
+
+target_link_libraries(rmm-app-cmn-fw
+    PUBLIC
         rmm-lib-xlat)
 
 target_include_directories(rmm-app-cmn-fw
@@ -20,6 +31,11 @@ target_include_directories(rmm-app-cmn-fw
            "include/${RMM_ARCH}"
            "../include/${RMM_ARCH}"
            "../../common/include")
+
+if(APP_FW_LOGGING)
+    target_compile_definitions(rmm-app-cmn-fw
+        PRIVATE "APP_FW_LOGGING=1")
+endif()
 
 if((HOST_VARIANT STREQUAL "host_cbmc") OR (HOST_VARIANT STREQUAL "host_test"))
     target_sources(rmm-app-cmn-fw

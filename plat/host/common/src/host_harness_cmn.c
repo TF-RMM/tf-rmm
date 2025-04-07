@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <host_utils.h>
 #ifndef CBMC
+#include <mbedtls/memory_buffer_alloc.h>
 #include <psa/crypto.h>
 #endif
 #include <rmm_el3_ifc.h>
@@ -305,16 +306,30 @@ static int el3_token_sign_push_req(uint64_t buf_pa, uint64_t buf_size)
 	return 0;
 }
 
+/* coverity[misra_c_2012_rule_5_8_violation:SUPPRESS] */
+void *mbedtls_app_get_heap(void)
+{
+	static buffer_alloc_ctx alloc_ctx;
+	return &alloc_ctx;
+}
+
 static void init_signing_key(void)
 {
 	psa_key_attributes_t key_attributes = psa_key_attributes_init();
 	psa_status_t status __unused;
 
 	static int init_done;
+	static unsigned char mbedtls_heap_buf[4U * 1024U] __aligned(sizeof(unsigned long));
 
 	if (init_done) {
 		return;
 	}
+
+	psa_crypto_init();
+
+	mbedtls_memory_buffer_alloc_init(
+		mbedtls_heap_buf,
+		sizeof(mbedtls_heap_buf));
 
 	/* Setup the key policy for private key */
 	psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_SIGN_HASH);
@@ -327,6 +342,9 @@ static void init_signing_key(void)
 			     sample_attest_priv_key,
 			     sizeof(sample_attest_priv_key),
 			     &signing_key);
+	if (status != PSA_SUCCESS) {
+		rmm_log("init_signing_key: status = %d\n", (int)status);
+	}
 	assert(status == PSA_SUCCESS);
 	init_done = 1;
 }
@@ -543,64 +561,9 @@ int host_run_realm(unsigned long *regs)
 	return host_util_rec_run(regs);
 }
 
-void host_spinlock_acquire(spinlock_t *l)
+/* Used by Mbed TLS buffer alloc */
+void mbedtls_exit_panic(unsigned int reason)
 {
-	/*
-	 * The fake_host architecture is single threaded and we do not expect
-	 * the lock to be already acquired in properly implemented locking
-	 * sequence.
-	 */
-	assert(l->val == 0);
-	l->val = 1;
-}
-
-void host_spinlock_release(spinlock_t *l)
-{
-	l->val = 0;
-}
-
-void host_byte_spinlock_acquire(byte_spinlock_t *l)
-{
-	assert(l->val == 0);
-	l->val = 1;
-}
-
-void host_byte_spinlock_release(byte_spinlock_t *l)
-{
-	l->val = 0;
-}
-
-
-u_register_t host_read_sysreg(char *reg_name)
-{
-	struct sysreg_cb *callbacks = host_util_get_sysreg_cb(reg_name);
-
-	/*
-	 * Return 0UL as default value for registers which do not have
-	 * a read callback installed.
-	 */
-	if (callbacks == NULL) {
-		return 0UL;
-	}
-
-	if (callbacks->rd_cb == NULL) {
-		return 0UL;
-	}
-
-	return callbacks->rd_cb(callbacks->reg);
-}
-
-void host_write_sysreg(char *reg_name, u_register_t v)
-{
-	struct sysreg_cb *callbacks = host_util_get_sysreg_cb(reg_name);
-
-	/*
-	 * Ignore the write if the register does not have a write
-	 * callback installed.
-	 */
-	if (callbacks != NULL) {
-		if (callbacks->wr_cb != NULL) {
-			callbacks->wr_cb(v, callbacks->reg);
-		}
-	}
+	(void) reason;
+	panic();
 }

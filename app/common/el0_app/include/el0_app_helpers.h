@@ -12,6 +12,13 @@
 void *get_shared_mem_start(void);
 size_t get_shared_mem_size(void);
 
+/*
+ * This function must be defined by the app that uses Mbed TLS allocator
+ *
+ * The function returns the start address to a buffer_alloc_ctx object.
+ */
+void *mbedtls_app_get_heap(void);
+
 unsigned long el0_app_entry_func(
 	unsigned long func_id,
 	unsigned long arg_0,

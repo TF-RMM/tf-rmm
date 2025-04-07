@@ -12,8 +12,8 @@ endif()
 rmm_build_unittest(NAME granule
                    TARGET rmm-lib-granule
                    LIBRARIES rmm-lib-slot_buf
-                             rmm-platform
                              rmm-lib-xlat
+                             rmm-platform
                    SOURCES "tests/granule.cpp"
                    ITERATIONS 10)
 

@@ -19,12 +19,13 @@ void app_framework_setup(void)
 int app_init_data(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
-		      size_t granule_count)
-{
+		      size_t granule_count,
+		      void *granule_va_start){
 	(void)app_data;
 	(void)app_id;
 	(void)granule_pas;
 	(void)granule_count;
+	(void)granule_va_start;
 	return 0;
 }
 
@@ -52,4 +53,25 @@ void app_map_shared_page(struct app_data_cfg *app_data)
 void app_unmap_shared_page(struct app_data_cfg *app_data)
 {
 	(void)app_data;
+}
+
+/* Used by the Mbed TLS library in case EL3 token signing is active when
+ * emulating EL3 signing.
+ */
+int32_t mbedtls_psa_external_get_random(
+	void *context,
+	uint8_t *output, size_t output_size, size_t *output_length)
+{
+	static uint8_t val;
+	size_t i;
+
+	(void)context;
+
+	for (i = 0; i < output_size; ++i) {
+		output[i] = val;
+	}
+
+	*output_length = output_size;
+
+	return 0;
 }

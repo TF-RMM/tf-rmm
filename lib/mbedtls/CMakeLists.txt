@@ -17,7 +17,8 @@ set(MBEDTLS_BIN_DIR "${CMAKE_BINARY_DIR}/ext/mbedtls")
 set(MBEDTLS_PATCH_DIR "${RMM_SOURCE_DIR}/configs/mbedtls")
 set(MBEDTLS_PATCH_FILES
     "${MBEDTLS_PATCH_DIR}/0001-Remove-compiler-options-for-clang.patch"
-    "${MBEDTLS_PATCH_DIR}/0002-Disable-explicit_bzero.patch")
+    "${MBEDTLS_PATCH_DIR}/0002-Disable-explicit_bzero.patch"
+    "${MBEDTLS_PATCH_DIR}/0003-refactor-alloc-Use-the-heap-structure-provided-by-ap.patch")
 
 Git_Apply_Patches(${MBEDTLS_SRC_DIR} "${MBEDTLS_PATCH_FILES}")
 
@@ -66,4 +67,5 @@ foreach(MBEDTLS_LIB IN ITEMS ${MBEDTLS_LIBS})
     target_compile_definitions(${MBEDTLS_LIB} PUBLIC
         "-DMBEDTLS_CONFIG_FILE=<rmm_mbedtls_config.h>")
     target_link_libraries(rmm-mbedtls INTERFACE ${MBEDTLS_LIB})
+    target_link_libraries(${MBEDTLS_LIB} PRIVATE rmm-lib-allocator)
 endforeach()

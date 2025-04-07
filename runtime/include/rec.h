@@ -9,9 +9,8 @@
 #ifndef __ASSEMBLER__
 
 #include <arch.h>
-#include <attestation_token.h>
+#include <attest_app.h>
 #include <gic.h>
-#include <memory_alloc.h>
 #include <pauth.h>
 #include <pmu.h>
 #include <ripas.h>
@@ -25,11 +24,6 @@
 #define RMM_REC_SAVED_GEN_REG_COUNT	U(31)
 #define STRUCT_TYPE			struct
 #define REG_TYPE			unsigned long
-#define RMM_REALM_TOKEN_BUF_SIZE	SZ_1K
-
-/* MbedTLS needs 8K of heap for attestation usecases */
-#define REC_HEAP_PAGES			2U
-#define REC_HEAP_SIZE			(REC_HEAP_PAGES * SZ_4K)
 
 /* Number of pages per REC for PMU state */
 #define REC_PMU_PAGES			1U
@@ -51,12 +45,8 @@
 #define REC_ATTEST_PAGES		1U
 #define REC_ATTEST_SIZE			(REC_ATTEST_PAGES * SZ_4K)
 
-/* Number of pages per REC for attestation buffer */
-#define REC_ATTEST_TOKEN_BUF_SIZE	(RMM_CCA_TOKEN_BUFFER * SZ_4K)
-
 /* Number of pages per REC to be allocated */
-#define REC_NUM_PAGES		(REC_HEAP_PAGES	  + \
-				 REC_PMU_PAGES	  + \
+#define REC_NUM_PAGES		(REC_PMU_PAGES	  + \
 				 REC_SIMD_PAGES	  + \
 				 REC_ATTEST_PAGES + \
 				 RMM_CCA_TOKEN_BUFFER)
@@ -80,10 +70,6 @@
 #define STRUCT_TYPE	                union
 /* Reserve a single byte per saved register instead of 8. */
 #define REG_TYPE			unsigned char
-#define RMM_REALM_TOKEN_BUF_SIZE	4U
-
-#define REC_HEAP_PAGES		2U
-#define REC_HEAP_SIZE		(REC_HEAP_PAGES * SZ_4K)
 
 #define REC_PMU_PAGES		0U
 #define REC_PMU_SIZE		(REC_PMU_PAGES * SZ_4K)
@@ -182,7 +168,6 @@ struct ns_state {
  * Data used when handling attestation requests
  */
 struct rec_attest_data {
-	unsigned char rmm_realm_token_buf[RMM_REALM_TOKEN_BUF_SIZE];
 	size_t rmm_realm_token_len;
 
 	/* Number of CCA token bytes copied to the Realm */
@@ -190,11 +175,6 @@ struct rec_attest_data {
 
 	/* Number of CCA token bytes left to copy to the Realm */
 	size_t rmm_cca_token_len;
-
-	struct token_sign_cntxt token_sign_ctx;
-
-	/* Buffer allocation info used for heap init and management */
-	struct buffer_alloc_ctx alloc_ctx;
 };
 COMPILER_ASSERT(sizeof(struct rec_attest_data) <= GRANULE_SIZE);
 
@@ -203,9 +183,6 @@ COMPILER_ASSERT(sizeof(struct rec_attest_data) <= GRANULE_SIZE);
  * in auxilary granules for a REC.
  */
 struct rec_aux_data {
-	/* Pointer to the heap buffer */
-	uint8_t *attest_heap_buf;
-
 	/* Pointer to PMU state */
 	struct pmu_state *pmu;
 
@@ -214,12 +191,9 @@ struct rec_aux_data {
 
 	/* Pointer to attestation-related data */
 	struct rec_attest_data *attest_data;
-
-	/* Address of the attestation token buffer */
-	uintptr_t cca_token_buf;
 };
 
-struct rec {
+struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in logical order */
 	struct granule *g_rec;	/* the granule in which this REC lives */
 	unsigned long rec_idx;	/* which REC is this */
 	bool runnable;
@@ -302,6 +276,8 @@ struct rec {
 
 	/* True if host call is pending */
 	bool host_call;
+
+	struct app_data_cfg attest_app_data;
 
 	/* The active SIMD context that is live in CPU registers */
 	struct simd_context *active_simd_ctx;

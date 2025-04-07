@@ -13,13 +13,15 @@
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
+#include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 
 /*
  * TODO: The host application uses a single shared page that is the same for all
  *       the application instances. The best location for this buffer would be
  *       in struct app_data_cfg, but it doesn't fit there as a size limit on
- *       the `struct rec` size which contains attestation helper app's data.
+ *       the `struct rec` size which contains attestation app's data.
  *       Remove this TODO once the aarch64 implementation uses a single shared
  *       page as well.
  */
@@ -158,18 +160,24 @@ static struct app_process_data *get_app_process_data(unsigned long app_id)
 
 void app_framework_setup(void)
 {
+	/* Not related to app initialisation, but this is a good location for
+	 * one time initialisation
+	 */
+	srand(time(NULL));
 }
 
 int app_init_data(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
-		      size_t granule_count)
+		      size_t granule_count,
+		      void *granule_va_start)
 {
 	struct app_process_data *app_process_data;
 	unsigned long command;
 
 	(void)granule_pas;
 	(void)granule_count;
+	(void)granule_va_start;
 
 	app_process_data = get_app_process_data(app_id);
 	if (app_process_data == NULL) {
@@ -187,6 +195,8 @@ int app_init_data(struct app_data_cfg *app_data,
 		sizeof(app_data->thread_id));
 	app_data->el2_shared_page = NULL;
 	app_data->app_id = app_id;
+	app_data->app_heap = NULL;
+	app_data->app_heap_size = 0;
 	return 0;
 }
 
@@ -225,7 +235,9 @@ unsigned long app_run(struct app_data_cfg *app_data,
 
 	unsigned long bytes_to_forward =
 		5 * sizeof(unsigned long) +
-		sizeof(shared_page);
+		sizeof(shared_page) +
+		sizeof(unsigned long) +
+		app_data->app_heap_size;
 
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &bytes_to_forward,
 		sizeof(bytes_to_forward));
@@ -235,8 +247,13 @@ unsigned long app_run(struct app_data_cfg *app_data,
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &arg2, sizeof(arg2));
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &arg3, sizeof(arg3));
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, shared_page, GRANULE_SIZE);
+	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &(app_data->app_heap_size), sizeof(app_data->app_heap_size));
+	if (app_data->app_heap_size > 0) {
+		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, app_data->app_heap, app_data->app_heap_size);
+	}
 
 	unsigned long reason;
+	size_t app_heap_size;
 
 	while (true) {
 		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &reason, sizeof(reason));
@@ -254,12 +271,22 @@ unsigned long app_run(struct app_data_cfg *app_data,
 		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &arg2, sizeof(arg2));
 		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &arg3, sizeof(arg3));
 		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, shared_page, GRANULE_SIZE);
+		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &app_heap_size, sizeof(app_heap_size));
+		if (app_data->app_heap_size == 0) {
+			app_data->app_heap = malloc(app_heap_size);
+			app_data->app_heap_size = app_heap_size;
+		} else {
+			assert(app_data->app_heap_size == app_heap_size);
+		}
+		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, app_data->app_heap, app_heap_size);
 
 		retval = call_app_service(service_index, app_data, arg0, arg1, arg2, arg3);
 
 		bytes_to_forward =
 			sizeof(unsigned long) +
-			sizeof(shared_page);
+			sizeof(shared_page) +
+			sizeof(unsigned long) +
+			app_data->app_heap_size;
 
 		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &command, sizeof(command));
 		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &app_data->thread_id,
@@ -269,10 +296,49 @@ unsigned long app_run(struct app_data_cfg *app_data,
 
 		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &retval, sizeof(retval));
 		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, shared_page, GRANULE_SIZE);
-	}
+		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &(app_data->app_heap_size), sizeof(app_data->app_heap_size));
+		assert(app_data->app_heap_size > 0);
+		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, app_data->app_heap, app_data->app_heap_size);
+		}
 
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &retval, sizeof(retval));
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, shared_page, GRANULE_SIZE);
+	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &app_heap_size, sizeof(app_heap_size));
+	if (app_data->app_heap_size == 0) {
+		app_data->app_heap = malloc(app_heap_size);
+		app_data->app_heap_size = app_heap_size;
+	} else {
+		assert(app_data->app_heap_size == app_heap_size);
+	}
+	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, app_data->app_heap, app_heap_size);
 
 	return retval;
+}
+
+void *app_get_heap_ptr(struct app_data_cfg *app_data)
+{
+	return app_data->app_heap;
+}
+
+/* Used by the Mbed TLS library in case EL3 token signing is active when
+ * emulating EL3 signing.
+ */
+int32_t mbedtls_psa_external_get_random(
+	void *context,
+	uint8_t *output, size_t output_size, size_t *output_length)
+{
+	size_t i;
+
+	(void)context;
+
+	for (i = 0; i < output_size; ++i) {
+		/* Using pseudo-random generation as mbedtls library might
+		 * return with error if not enough entropy.
+		 */
+		output[i] = (uint8_t)(unsigned int)rand();
+	}
+
+	*output_length = output_size;
+
+	return 0;
 }

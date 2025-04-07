@@ -7,10 +7,8 @@ add_library(rmm-lib-timers)
 
 target_link_libraries(rmm-lib-timers
     PRIVATE rmm-lib-arch
-            rmm-lib-attestation
             rmm-lib-common
             rmm-lib-gic
-            rmm-lib-measurement
             rmm-lib-realm
             rmm-lib-smc
             rmm-lib-debug

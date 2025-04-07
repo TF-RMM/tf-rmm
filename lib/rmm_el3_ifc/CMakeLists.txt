@@ -17,6 +17,12 @@ target_link_libraries(rmm-lib-rmm_el3_ifc
         rmm-lib-xlat
         rmm-lib-smc)
 
+if(RMM_ARCH STREQUAL fake_host)
+    target_link_libraries(rmm-lib-rmm_el3_ifc
+        PRIVATE
+            rmm-host-support)
+endif()
+
 if(HOST_VARIANT STREQUAL "host_cbmc")
     target_sources(rmm-lib-rmm_el3_ifc
         PRIVATE "src/fake_host/cbmc_rmm_el3_ifc.c"

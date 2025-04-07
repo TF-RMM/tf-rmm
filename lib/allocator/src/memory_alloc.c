@@ -60,11 +60,11 @@
 #endif /* MBEDTLS_SELF_TEST */
 
 /* Array of heaps per CPU */
-static struct buffer_alloc_ctx *ctx_per_cpu[MAX_CPUS];
+static struct rmm_buffer_alloc_ctx *ctx_per_cpu[MAX_CPUS];
 
-static inline struct buffer_alloc_ctx *get_heap_ctx(void)
+static inline struct rmm_buffer_alloc_ctx *get_heap_ctx(void)
 {
-	struct buffer_alloc_ctx *ctx;
+	struct rmm_buffer_alloc_ctx *ctx;
 	unsigned int cpu_id = my_cpuid();
 
 	assert(cpu_id < MAX_CPUS);
@@ -104,7 +104,7 @@ static int verify_header(struct memory_header_s *hdr)
 	return 0;
 }
 
-static int verify_chain(struct buffer_alloc_ctx *heap)
+static int verify_chain(struct rmm_buffer_alloc_ctx *heap)
 {
 	struct memory_header_s *prv = heap->first;
 	struct memory_header_s *cur;
@@ -135,7 +135,7 @@ static int verify_chain(struct buffer_alloc_ctx *heap)
 	return 0;
 }
 
-static void *buffer_alloc_calloc_with_heap(struct buffer_alloc_ctx *heap,
+static void *buffer_alloc_calloc_with_heap(struct rmm_buffer_alloc_ctx *heap,
 					   size_t n,
 					   size_t size)
 {
@@ -256,13 +256,13 @@ static void *buffer_alloc_calloc_with_heap(struct buffer_alloc_ctx *heap,
 
 void *buffer_alloc_calloc(size_t n, size_t size)
 {
-	struct buffer_alloc_ctx *heap = get_heap_ctx();
+	struct rmm_buffer_alloc_ctx *heap = get_heap_ctx();
 
 	assert(heap);
 	return buffer_alloc_calloc_with_heap(heap, n, size);
 }
 
-static void buffer_alloc_free_with_heap(struct buffer_alloc_ctx *heap,
+static void buffer_alloc_free_with_heap(struct rmm_buffer_alloc_ctx *heap,
 					void *ptr)
 {
 	struct memory_header_s *hdr;
@@ -359,13 +359,13 @@ static void buffer_alloc_free_with_heap(struct buffer_alloc_ctx *heap,
 
 void buffer_alloc_free(void *ptr)
 {
-	struct buffer_alloc_ctx *heap = get_heap_ctx();
+	struct rmm_buffer_alloc_ctx *heap = get_heap_ctx();
 
 	assert(heap);
 	buffer_alloc_free_with_heap(heap, ptr);
 }
 
-int buffer_alloc_ctx_assign(struct buffer_alloc_ctx *ctx)
+int buffer_alloc_ctx_assign(struct rmm_buffer_alloc_ctx *ctx)
 {
 	unsigned int cpuid = my_cpuid();
 
@@ -400,7 +400,7 @@ void buffer_alloc_ctx_unassign(void)
 /* NOTE: This function is not currently expected to be called. */
 void mbedtls_memory_buffer_set_verify(int verify)
 {
-	struct buffer_alloc_ctx *heap = get_heap_ctx();
+	struct rmm_buffer_alloc_ctx *heap = get_heap_ctx();
 
 	assert(heap);
 	heap->verify = verify;
@@ -408,7 +408,7 @@ void mbedtls_memory_buffer_set_verify(int verify)
 
 int mbedtls_memory_buffer_alloc_verify(void)
 {
-	struct buffer_alloc_ctx *heap = get_heap_ctx();
+	struct rmm_buffer_alloc_ctx *heap = get_heap_ctx();
 
 	assert(heap);
 	return verify_chain(heap);
@@ -422,11 +422,11 @@ void mbedtls_memory_buffer_alloc_init(unsigned char *buf, size_t len)
 	 * while the buffer is passed in the init function.
 	 * This way the interface can remain the same.
 	 */
-	struct buffer_alloc_ctx *heap = get_heap_ctx();
+	struct rmm_buffer_alloc_ctx *heap = get_heap_ctx();
 
 	assert(heap);
 
-	(void)memset(heap, 0, sizeof(struct buffer_alloc_ctx));
+	(void)memset(heap, 0, sizeof(struct rmm_buffer_alloc_ctx));
 
 	if (len < sizeof(struct memory_header_s) +
 	    U(MBEDTLS_MEMORY_ALIGN_MULTIPLE)) {
@@ -454,8 +454,8 @@ void mbedtls_memory_buffer_alloc_init(unsigned char *buf, size_t len)
 
 void mbedtls_memory_buffer_alloc_free(void)
 {
-	struct buffer_alloc_ctx *heap = get_heap_ctx();
+	struct rmm_buffer_alloc_ctx *heap = get_heap_ctx();
 
 	assert(heap);
-	(void)memset(heap, 0, sizeof(struct buffer_alloc_ctx));
+	(void)memset(heap, 0, sizeof(struct rmm_buffer_alloc_ctx));
 }

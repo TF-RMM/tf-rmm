@@ -15,8 +15,6 @@
 #include <unistd.h>
 #include <utils_def.h>
 
-extern size_t app_heap_page_count;
-
 static uint8_t shared_buffer[GRANULE_SIZE];
 static struct app_instance_data_list_t *instance_list;
 
@@ -105,7 +103,9 @@ unsigned long el0_app_service_call(unsigned long service_index,
 
 	unsigned long bytes_to_forward =
 		6 * sizeof(unsigned long) +
-		sizeof(shared_buffer);
+		sizeof(shared_buffer) +
+		sizeof(size_t) +
+		app_data->heap_size;
 
 	WRITE_OR_EXIT(app_data->write_to_main_fd, &bytes_to_forward, sizeof(bytes_to_forward));
 	WRITE_OR_EXIT(app_data->write_to_main_fd, &reason, sizeof(reason));
@@ -115,11 +115,17 @@ unsigned long el0_app_service_call(unsigned long service_index,
 	WRITE_OR_EXIT(app_data->write_to_main_fd, &arg2, sizeof(arg2));
 	WRITE_OR_EXIT(app_data->write_to_main_fd, &arg3, sizeof(arg3));
 	WRITE_OR_EXIT(app_data->write_to_main_fd, shared_buffer, sizeof(shared_buffer));
+	WRITE_OR_EXIT(app_data->write_to_main_fd, &app_data->heap_size, sizeof(size_t));
+	WRITE_OR_EXIT(app_data->write_to_main_fd, app_data->heap_start, app_data->heap_size);
 
 	unsigned long retval;
+	size_t heap_size;
 
 	READ_OR_EXIT(app_data->read_from_main_fd, &retval, sizeof(retval));
 	READ_OR_EXIT(app_data->read_from_main_fd, shared_buffer, sizeof(shared_buffer));
+	READ_OR_EXIT(app_data->read_from_main_fd, &heap_size, sizeof(size_t));
+	assert(heap_size == app_data->heap_size);
+	READ_OR_EXIT(app_data->read_from_main_fd, app_data->heap_start, app_data->heap_size);
 	return retval;
 }
 
@@ -133,6 +139,7 @@ void *app_instance_main(void *args)
 
 	while (true) {
 		unsigned long app_func_id;
+		size_t heap_size;
 
 		READ_OR_EXIT(app_data->read_from_main_fd, &app_func_id, sizeof(app_func_id));
 		READ_OR_EXIT(app_data->read_from_main_fd, &arg0, sizeof(arg0));
@@ -140,19 +147,28 @@ void *app_instance_main(void *args)
 		READ_OR_EXIT(app_data->read_from_main_fd, &arg2, sizeof(arg2));
 		READ_OR_EXIT(app_data->read_from_main_fd, &arg3, sizeof(arg3));
 		READ_OR_EXIT(app_data->read_from_main_fd, shared_buffer, sizeof(shared_buffer));
+		READ_OR_EXIT(app_data->read_from_main_fd, &heap_size, sizeof(size_t));
+		if (heap_size != 0) {
+			assert(heap_size == app_data->heap_size);
+			READ_OR_EXIT(app_data->read_from_main_fd, app_data->heap_start, app_data->heap_size);
+		}
 
 		unsigned long retval = el0_app_entry_func(app_func_id, arg0, arg1, arg2, arg3);
 		unsigned long reason = APP_EXIT_CALL;
 
 		unsigned long bytes_to_forward =
 			2 * sizeof(unsigned long) +
-			sizeof(shared_buffer);
+			sizeof(shared_buffer) +
+			sizeof(size_t) +
+			app_data->heap_size;
 
 		WRITE_OR_EXIT(app_data->write_to_main_fd, &bytes_to_forward,
 			sizeof(bytes_to_forward));
 		WRITE_OR_EXIT(app_data->write_to_main_fd, &reason, sizeof(reason));
 		WRITE_OR_EXIT(app_data->write_to_main_fd, &retval, sizeof(retval));
 		WRITE_OR_EXIT(app_data->write_to_main_fd, shared_buffer, sizeof(shared_buffer));
+		WRITE_OR_EXIT(app_data->write_to_main_fd, &app_data->heap_size, sizeof(size_t));
+		WRITE_OR_EXIT(app_data->write_to_main_fd, app_data->heap_start, app_data->heap_size);
 	}
 	return NULL;
 }
@@ -186,7 +202,7 @@ static pthread_t create_app_instance(void)
 	instance_list_new->data.read_from_main_fd = fds_main_to_instance[0];
 	instance_list_new->data.write_to_main_fd = fds_instance_to_main[1];
 
-	instance_list_new->data.heap_size = app_heap_page_count * GRANULE_SIZE;
+	instance_list_new->data.heap_size = get_heap_page_count() * GRANULE_SIZE;
 	instance_list_new->data.heap_start = malloc(instance_list_new->data.heap_size);
 	if (instance_list_new->data.heap_start == NULL) {
 		exit(1);
@@ -210,29 +226,27 @@ void call_app_instance(int process_read_fd, int process_write_fd, pthread_t thre
 	struct app_instance_data_list_t *instance_data = get_instance_list_item(thread_id);
 
 	unsigned long num_bytes_to_forward;
-	unsigned long bytes_forwarded = 0;
-	char copy_buffer[6*1024];
+	char copy_buffer[1024];
 
 	/* Send the call details */
 	READ_OR_EXIT(process_read_fd, &num_bytes_to_forward, sizeof(num_bytes_to_forward));
-	while (bytes_forwarded < num_bytes_to_forward) {
+	while (num_bytes_to_forward > 0) {
 		size_t to_forward = min(num_bytes_to_forward, sizeof(copy_buffer));
 
 		READ_OR_EXIT(process_read_fd, copy_buffer, to_forward);
 		WRITE_OR_EXIT(instance_data->write_to_instance_fd, copy_buffer, to_forward);
-		bytes_forwarded += to_forward;
+		num_bytes_to_forward -= to_forward;
 	}
 
 	/* return the response */
-	bytes_forwarded = 0;
 	READ_OR_EXIT(instance_data->read_from_instance_fd, &num_bytes_to_forward,
 		sizeof(num_bytes_to_forward));
-	while (bytes_forwarded < num_bytes_to_forward) {
+	while (num_bytes_to_forward > 0) {
 		size_t to_forward = min(num_bytes_to_forward, sizeof(copy_buffer));
 
 		READ_OR_EXIT(instance_data->read_from_instance_fd, copy_buffer, to_forward);
 		WRITE_OR_EXIT(process_write_fd, copy_buffer, to_forward);
-		bytes_forwarded += to_forward;
+		num_bytes_to_forward -= to_forward;
 	}
 }
 

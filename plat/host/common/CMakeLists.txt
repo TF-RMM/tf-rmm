@@ -18,11 +18,16 @@ arm_config_option(
 add_library(rmm-host-common)
 
 target_link_libraries(rmm-host-common
-    PRIVATE  rmm-lib
-             rmm-plat-common)
+    PRIVATE rmm-lib
+            rmm-plat-common)
 
 target_link_libraries(rmm-host-common
-    PRIVATE  rmm-mbedtls) # Mbed TLS is added for host emulating signing in EL3
+    PUBLIC  rmm-host-support)
+
+add_subdirectory("mbedtls_host")
+
+target_link_libraries(rmm-host-common
+    PRIVATE  rmm-host-mbedtls) # Mbed TLS is added for host emulating signing in EL3
 
 target_sources(rmm-host-common
     PRIVATE "src/host_console.c"

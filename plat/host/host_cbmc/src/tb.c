@@ -19,6 +19,9 @@ void __init_global_state(unsigned long cmd)
 	global_sanity_check();
 	/* Set up all the system register */
 	host_util_setup_sysreg_and_boot_manifest();
+	register_host_monitor_functions(
+		host_monitor_call,
+		host_monitor_call_with_res);
 	switch (cmd) {
 	case SMC_RMI_GRANULE_DELEGATE:
 	case SMC_RMI_GRANULE_UNDELEGATE: {

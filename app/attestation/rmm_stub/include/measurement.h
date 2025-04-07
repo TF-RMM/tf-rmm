@@ -1,0 +1,97 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+ */
+
+#ifndef MEASUREMENT_H
+#define MEASUREMENT_H
+
+#include <assert.h>
+#include <attest_app.h>
+#include <smc-rmi.h>
+#include <stdbool.h>
+#include <stddef.h>
+
+/*
+ * Types of measurement headers as specified in RMM Spec. section C1.1.2
+ */
+#define MEASUREMENT_REALM_HEADER	(1U)
+#define MEASUREMENT_DATA_HEADER		(2U)
+#define MEASUREMENT_REC_HEADER		(3U)
+
+#define MEASURE_DESC_TYPE_DATA		0x0
+#define MEASURE_DESC_TYPE_REC		0x1
+#define MEASURE_DESC_TYPE_RIPAS		0x2
+
+/*
+ * Calculate the hash of data with algorithm hash_algo to the buffer `out`.
+ */
+void measurement_hash_compute(enum hash_algo algorithm,
+			      void *data,
+			      size_t size, unsigned char *out);
+
+/* Extend a measurement with algorithm hash_algo. */
+void measurement_extend(void *app_data_cfg,
+			enum hash_algo algorithm,
+			void *current_measurement,
+			void *extend_measurement,
+			size_t extend_measurement_size,
+			unsigned char *out,
+			size_t out_size);
+
+/*
+ * Measure a data granule
+ *
+ * Arguments:
+ *	- rim_measurement:	The buffer where the RIM to be updated is found.
+ *	- algorithm:		Algorithm to use for measurement.
+ *	- data:			Content of the granule.
+ *	- ipa:			IPA of the data granule.
+ *	- flags:		Flags according to the specification.
+ */
+void measurement_data_granule_measure(unsigned char rim_measurement[],
+				      enum hash_algo algorithm,
+				      void *data,
+				      unsigned long ipa,
+				      unsigned long flags);
+
+/*
+ * Measure realm params
+ *
+ * Arguments:
+ *	- rim_measurement:	The buffer where the RIM to be updated is found.
+ *	- algorithm:		Algorithm to use for measurement.
+ *	- realm_params:		The parameters of the realm.
+ */
+void measurement_realm_params_measure(unsigned char rim_measurement[],
+				      enum hash_algo algorithm,
+				      struct rmi_realm_params *realm_params);
+
+/*
+ * Measure REC params
+ *
+ * Arguments:
+ *	- rim_measurement:	The buffer where the RIM to be updated is found.
+ *	- algorithm:		Algorithm to use for measurement.
+ *	- rec_params:		The rec params to measure.
+ */
+void measurement_rec_params_measure(unsigned char rim_measurement[],
+				    enum hash_algo algorithm,
+				    struct rmi_rec_params *rec_params);
+
+
+/*
+ * Measure a RIPAS granule
+ *
+ * Arguments:
+ *	- rim_measurement:	The buffer where the RIM to be updated is found.
+ *	- algorithm:		Algorithm to use for measurement.
+ *	- base:			Base of target IPA region.
+ *	- top:			Top of target IPA region.
+ */
+void measurement_init_ripas_measure(unsigned char rim_measurement[],
+				    enum hash_algo algorithm,
+				    unsigned long base,
+				    unsigned long top);
+
+#endif /* MEASUREMENT_H */

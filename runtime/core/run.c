@@ -6,7 +6,6 @@
 
 #include <arch.h>
 #include <arch_features.h>
-#include <attestation.h>
 #include <buffer.h>
 #include <cpuid.h>
 #include <debug.h>
@@ -297,12 +296,6 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	/* Map auxiliary granules */
 	rec_aux = buffer_rec_aux_granules_map(rec->g_aux, rec->num_rec_aux);
 
-	/*
-	 * Associate the attest heap with the current CPU. This heap will be
-	 * used for attestation RSI calls when the REC is running.
-	 */
-	attestation_heap_ctx_assign_pe(&rec->aux_data.attest_data->alloc_ctx);
-
 	save_ns_state(rec);
 	restore_realm_state(rec);
 
@@ -384,10 +377,6 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	 * Clear NS pointer since that struct is local to this function.
 	 */
 	rec->ns = NULL;
-
-	/* Undo the heap association */
-	attestation_heap_ctx_unassign_pe();
-
 
 	/* Unmap auxiliary granules */
 	buffer_rec_aux_unmap(rec_aux, rec->num_rec_aux);
