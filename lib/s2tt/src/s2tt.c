@@ -113,6 +113,17 @@ static void stage2_tlbi_ipa(const struct s2tt_context *s2_ctx,
 }
 
 /*
+ * Returns true if @s2tte has HIPAS=@hipas.
+ */
+static inline bool s2tte_has_hipas(unsigned long s2tte, unsigned long hipas)
+{
+	bool invalid_desc = ((s2tte & S2TT_DESC_VALID_MASK) == S2TTE_INVALID);
+	unsigned long invalid_desc_hipas = s2tte & S2TTE_INVALID_HIPAS_MASK;
+
+	return (invalid_desc && (invalid_desc_hipas == hipas));
+}
+
+/*
  * Returns true if s2tte has 'output address' field, namely, if it is one of:
  * - assigned_empty
  * - assigned_ram
@@ -123,11 +134,12 @@ static void stage2_tlbi_ipa(const struct s2tt_context *s2_ctx,
 static bool s2tte_has_pa(const struct s2tt_context *s2_ctx,
 			 unsigned long s2tte, long level)
 {
-	unsigned long desc_type = s2tte & S2TT_DESC_TYPE_MASK;
+	(void)s2_ctx;
+	(void)level;
+	bool valid_desc = ((s2tte & S2TT_DESC_VALID_MASK) == S2TTE_VALID);
 
-	return ((desc_type != S2TTE_INVALID) ||	/* block, page or table */
-		s2tte_is_assigned_empty(s2_ctx, s2tte, level) ||
-		s2tte_is_assigned_destroyed(s2_ctx, s2tte, level));
+	return (valid_desc ||	/* block, page or table */
+		s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_ASSIGNED));
 }
 
 /*
@@ -428,6 +440,8 @@ static unsigned long s2tte_create_assigned(const struct s2tt_context *s2_ctx,
 					   unsigned long pa, long level,
 					   unsigned long s2tte_ripas)
 {
+	unsigned long tte;
+
 	assert(level >= S2TT_MIN_BLOCK_LEVEL);
 	assert(level <= S2TT_PAGE_LEVEL);
 	assert(EXTRACT(S2TTE_INVALID_RIPAS, s2tte_ripas)
@@ -435,18 +449,19 @@ static unsigned long s2tte_create_assigned(const struct s2tt_context *s2_ctx,
 	assert(s2_ctx != NULL);
 	assert(s2tte_is_addr_lvl_aligned(s2_ctx, pa, level));
 
-	unsigned long tte = pa_to_s2tte(pa, s2_ctx->enable_lpa2);
-	unsigned long s2tte_page, s2tte_block;
-
-	if (s2_ctx->enable_lpa2 == true) {
-		s2tte_page = S2TTE_PAGE_LPA2;
-		s2tte_block = S2TTE_BLOCK_LPA2;
-	} else {
-		s2tte_page = S2TTE_PAGE;
-		s2tte_block = S2TTE_BLOCK;
-	}
+	tte = pa_to_s2tte(pa, s2_ctx->enable_lpa2);
 
 	if (s2tte_ripas == S2TTE_INVALID_RIPAS_RAM) {
+		unsigned long s2tte_page, s2tte_block;
+
+		if (s2_ctx->enable_lpa2) {
+			s2tte_page = S2TTE_PAGE_LPA2;
+			s2tte_block = S2TTE_BLOCK_LPA2;
+		} else {
+			s2tte_page = S2TTE_PAGE;
+			s2tte_block = S2TTE_BLOCK;
+		}
+
 		if (level == S2TT_PAGE_LEVEL) {
 			return (tte | s2tte_page);
 		}
@@ -513,20 +528,18 @@ unsigned long s2tte_create_assigned_unchanged(const struct s2tt_context *s2_ctx,
 unsigned long s2tte_create_assigned_ns(const struct s2tt_context *s2_ctx,
 				       unsigned long s2tte, long level)
 {
-	assert(s2_ctx != NULL);
-
 	/*
 	 * We just mask out the DESC_TYPE below. We assume rest of the
 	 * bits have been setup properly by the caller.
 	 */
 	unsigned long new_s2tte = s2tte & ~S2TT_DESC_TYPE_MASK;
-	bool lpa2 = s2_ctx->enable_lpa2;
 
+	assert(s2_ctx != NULL);
 	assert(level >= S2TT_MIN_BLOCK_LEVEL);
 	assert(level <= S2TT_PAGE_LEVEL);
 
 	/* The Shareability bits need to be added if FEAT_LPA2 is not enabled */
-	if (!lpa2) {
+	if (!s2_ctx->enable_lpa2) {
 		new_s2tte |= S2TTE_SH_IS;
 	}
 
@@ -604,8 +617,7 @@ unsigned long s2tte_create_table(const struct s2tt_context *s2_ctx,
 
 	assert(s2_ctx != NULL);
 
-	/* cppcheck-suppress misra-c2012-10.6 */
-	min_starting_level = (s2_ctx->enable_lpa2 == true) ?
+	min_starting_level = s2_ctx->enable_lpa2 ?
 			S2TT_MIN_STARTING_LEVEL_LPA2 : S2TT_MIN_STARTING_LEVEL;
 
 	assert(level < S2TT_PAGE_LEVEL);
@@ -616,7 +628,7 @@ unsigned long s2tte_create_table(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if s2tte has defined ripas value, namely if it is one of:
+ * Returns true if s2tte has defined RIPAS value, namely if it is one of:
  * - unassigned_empty
  * - unassigned_ram
  * - unassigned_destroyed
@@ -629,17 +641,6 @@ bool s2tte_has_ripas(const struct s2tt_context *s2_ctx,
 {
 	return (((s2tte & S2TTE_NS) == 0UL) && !s2tte_is_table(s2_ctx,
 							       s2tte, level));
-}
-
-/*
- * Returns true if @s2tte has HIPAS=@hipas.
- */
-static inline bool s2tte_has_hipas(unsigned long s2tte, unsigned long hipas)
-{
-	unsigned long desc_type = s2tte & S2TT_DESC_TYPE_MASK;
-	unsigned long invalid_desc_hipas = s2tte & S2TTE_INVALID_HIPAS_MASK;
-
-	return ((desc_type == S2TTE_INVALID) && (invalid_desc_hipas == hipas));
 }
 
 /*
@@ -805,16 +806,17 @@ bool s2tte_is_table(const struct s2tt_context *s2_ctx, unsigned long s2tte,
  */
 enum ripas s2tte_get_ripas(const struct s2tt_context *s2_ctx, unsigned long s2tte)
 {
-	unsigned long desc_ripas = s2tte & S2TTE_INVALID_RIPAS_MASK;
-	unsigned long desc_type = s2tte & S2TT_DESC_TYPE_MASK;
-
 	(void)s2_ctx;
+	unsigned long desc_ripas = s2tte & S2TTE_INVALID_RIPAS_MASK;
+	bool valid_desc = ((s2tte & S2TT_DESC_VALID_MASK) == S2TTE_VALID);
 
 	/*
 	 * If a valid S2TTE descriptor is passed, the RIPAS corresponds to
 	 * RIPAS_RAM.
 	 */
-	if (desc_type != S2TTE_INVALID) {
+	if (valid_desc) {
+		__unused unsigned long desc_type = s2tte & S2TT_DESC_TYPE_MASK;
+
 		assert((desc_type == S2TTE_L012_BLOCK) ||
 			(desc_type == S2TTE_L3_PAGE));
 		return RIPAS_RAM;
