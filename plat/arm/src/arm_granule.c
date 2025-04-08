@@ -74,7 +74,7 @@ unsigned long plat_granule_addr_to_idx(unsigned long addr)
 	return granule_addr_to_idx(addr, &arm_dram);
 }
 
-unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_type *type)
+unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_coh_type *type)
 {
 	unsigned long ret;
 
@@ -84,7 +84,7 @@ unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_type *ty
 	if (arm_dev_ncoh.num_granules != 0UL) {
 		ret = granule_addr_to_idx(addr, &arm_dev_ncoh);
 		if (ret != UINT64_MAX) {
-			*type = DEV_RANGE_NON_COHERENT;
+			*type = DEV_MEM_NON_COHERENT;
 			return ret;
 		}
 	}
@@ -93,12 +93,12 @@ unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_type *ty
 	if (arm_dev_coh.num_granules != 0UL) {
 		ret = granule_addr_to_idx(addr, &arm_dev_coh);
 		if (ret != UINT64_MAX) {
-			*type = DEV_RANGE_COHERENT;
+			*type = DEV_MEM_COHERENT;
 			return ret;
 		}
 	}
 
-	*type = DEV_RANGE_MAX;
+	*type = DEV_MEM_MAX;
 	return UINT64_MAX;
 }
 
@@ -150,12 +150,12 @@ unsigned long plat_granule_idx_to_addr(unsigned long idx)
 	return granule_idx_to_addr(idx, &arm_dram);
 }
 
-unsigned long plat_dev_granule_idx_to_addr(unsigned long idx, enum dev_type type)
+unsigned long plat_dev_granule_idx_to_addr(unsigned long idx, enum dev_coh_type type)
 {
 	(void)type;
 
 	/* No coherent device memory */
-	assert(type == DEV_RANGE_NON_COHERENT);
+	assert(type == DEV_MEM_NON_COHERENT);
 
 	return granule_idx_to_addr(idx, &arm_dev_ncoh);
 }

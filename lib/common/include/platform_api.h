@@ -27,7 +27,7 @@ unsigned long plat_granule_addr_to_idx(unsigned long addr);
  * This function also validates that the dev_granule address is a valid
  * page address and returns device granule type if the addr is valid.
  */
-unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_type *type);
+unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_coh_type *type);
 
 /*
  * Takes an index in the struct granules array and returns the aligned granule
@@ -41,6 +41,6 @@ unsigned long plat_granule_idx_to_addr(unsigned long idx);
  * dev_granule address of the specified device type. The index must be within
  * the number of dev_granules expected by the platform.
  */
-unsigned long plat_dev_granule_idx_to_addr(unsigned long idx, enum dev_type type);
+unsigned long plat_dev_granule_idx_to_addr(unsigned long idx, enum dev_coh_type type);
 
 #endif /* PLATFORM_API_H */

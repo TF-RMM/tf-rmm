@@ -6,11 +6,11 @@
 #ifndef DEV_TYPE_H
 #define DEV_TYPE_H
 
-/* Types of device memory */
-enum dev_type {
-	DEV_RANGE_COHERENT,
-	DEV_RANGE_NON_COHERENT,
-	DEV_RANGE_MAX
+/* RmmDevMemCoherent type */
+enum dev_coh_type {
+	DEV_MEM_COHERENT,
+	DEV_MEM_NON_COHERENT,
+	DEV_MEM_MAX
 };
 
 #endif /* DEV_TYPE_H */

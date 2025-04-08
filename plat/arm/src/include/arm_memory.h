@@ -26,7 +26,7 @@ struct arm_memory_layout {
 };
 
 void arm_set_dram_layout(struct memory_info *plat_dram);
-void arm_set_dev_layout(struct memory_info *plat_dev, enum dev_type type);
+void arm_set_dev_layout(struct memory_info *plat_dev, enum dev_coh_type type);
 struct arm_memory_layout *arm_get_dram_layout(void);
 struct arm_memory_layout *arm_get_dev_ncoh_layout(void);
 struct arm_memory_layout *arm_get_dev_coh_layout(void);

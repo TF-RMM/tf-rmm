@@ -15,7 +15,7 @@
 #ifdef RMM_V1_1
 static unsigned long dev_granule_delegate(unsigned long addr)
 {
-	enum dev_type type;
+	enum dev_coh_type type;
 
 	/* Try to find device granule */
 	struct dev_granule *g = find_dev_granule(addr, &type);
@@ -44,7 +44,7 @@ static unsigned long dev_granule_delegate(unsigned long addr)
 
 static unsigned long dev_granule_undelegate(unsigned long addr)
 {
-	enum dev_type type;
+	enum dev_coh_type type;
 
 	/* Try to find device granule */
 	struct dev_granule *g = find_dev_granule(addr, &type);

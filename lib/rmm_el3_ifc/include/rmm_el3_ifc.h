@@ -384,7 +384,7 @@ int rmm_el3_ifc_get_console_list_pa(struct console_list **plat_console_list);
  */
 int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
 					   struct memory_info **plat_dev_range_info,
-					   enum dev_type type);
+					   enum dev_coh_type type);
 
 /****************************************************************************
  * RMM-EL3 Runtime interface APIs
