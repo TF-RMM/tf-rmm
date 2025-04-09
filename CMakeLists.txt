@@ -173,7 +173,7 @@ if(NOT RMM_ARCH STREQUAL fake_host)
 
     set(BUNDLE_COMMAND_OUTPUT "${ARTEFACT_DIR}/bundle_app_out.txt")
     add_custom_command(
-        COMMAND "${BUNDLE_APP_RMM}" --out-bin ${ARTEFACT_DIR}/${RMM_IMG} --rmm-bin ${ARTEFACT_DIR}/rmm_core.img ${EL0_APP_BIN_LIST} 2> ${BUNDLE_COMMAND_OUTPUT}
+        COMMAND "${BUNDLE_APP_RMM}" --out-bin ${ARTEFACT_DIR}/${RMM_IMG} --rmm-bin ${ARTEFACT_DIR}/rmm_core.img --log-file-name ${BUNDLE_COMMAND_OUTPUT} ${EL0_APP_BIN_LIST}
         OUTPUT ${RMM_IMG}
         DEPENDS rmm_core.img rmm-random-app-bin rmm-attestation-app-bin)
 endif()
