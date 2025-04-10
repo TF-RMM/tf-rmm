@@ -47,6 +47,7 @@ A bundled RMM binary has the following structure:
 from argparse import ArgumentParser
 import logging
 import struct
+import sys
 
 logger = None
 
@@ -105,14 +106,14 @@ def main():
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     fmt = logging.Formatter("%(levelname)s: %(message)s")
-    hdl = logging.StreamHandler()
-    hdl.setFormatter(fmt)
-    logger.addHandler(hdl)
+    console_hdl = logging.StreamHandler(sys.stdout)
+    console_hdl.setFormatter(fmt)
+    logger.addHandler(console_hdl)
 
     if args.log_file_name:
-        hdl = logging.FileHandler(args.log_file_name, mode="w")
-        hdl.setFormatter(fmt)
-        logger.addHandler(hdl)
+        file_hdl = logging.FileHandler(args.log_file_name, mode="w")
+        file_hdl.setFormatter(fmt)
+        logger.addHandler(file_hdl)
 
     apps_size = 0
     app_bin_contents = []
