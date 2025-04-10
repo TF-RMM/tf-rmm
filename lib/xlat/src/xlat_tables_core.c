@@ -49,7 +49,13 @@ typedef enum {
 /* Returns a pointer to the first empty translation table. */
 static inline uint64_t *xlat_table_get_empty(struct xlat_ctx *ctx)
 {
-	assert(ctx->tbls->next_table < ctx->tbls->tables_num);
+	if (ctx->tbls->next_table >= ctx->tbls->tables_num) {
+		ERROR("Maximum number of translation tables reached. "
+			"Increase PLAT_CMN_CTX_MAX_XLAT_TABLE.\n");
+
+		assert(false);	/* Required for unit tests */
+		panic();
+	}
 
 	return &ctx->tbls->tables[(size_t)XLAT_TABLE_ENTRIES *
 					ctx->tbls->next_table++];
