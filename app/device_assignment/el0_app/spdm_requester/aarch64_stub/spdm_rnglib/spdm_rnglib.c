@@ -4,10 +4,13 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <app_common.h>
 #include <assert.h>
 #include <base.h>
+#include <el0_app_helpers.h>
 #include <library/rnglib.h>
 #include <psa/crypto.h>
+#include <string.h>
 
 /*
  * Generates a 64-bit random number.
@@ -22,11 +25,15 @@
  */
 bool libspdm_get_random_number_64(uint64_t *rand_data)
 {
-	psa_status_t status;
+	unsigned long ret;
 
-	assert(rand_data != NULL);
+	ret = el0_app_service_call(APP_SERVICE_RANDOM,
+				   sizeof(*rand_data), 0, 0, 0);
+	if (ret != 0U) {
+		return false;
+	}
 
-	status = psa_generate_random((uint8_t *)rand_data, sizeof(*rand_data));
+	(void)memcpy((void *)rand_data, get_shared_mem_start(), sizeof(*rand_data));
 
-	return (status == PSA_SUCCESS) ? true : false;
+	return true;
 }
