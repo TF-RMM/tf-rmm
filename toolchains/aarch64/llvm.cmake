@@ -64,3 +64,4 @@ endforeach()
 
 # Use lld as default linker
 string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fuse-ld=lld ")
+string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-Wl,--apply-dynamic-relocs ")
