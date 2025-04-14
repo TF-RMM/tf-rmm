@@ -3,19 +3,23 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
+#
+# This compiles libraries in ext/libspdm project to add SPDM requester protocol
+# support in RMM.
+#
+add_library(rmm-spdm_requester INTERFACE)
+
 # Skip rmm-spdm_requester from CMBC analysis
 if(RMM_CBMC_STATIC_ANALYSIS)
-    add_library(rmm-spdm_requester INTERFACE)
     return()
 endif()
 
-set(LIBSPDM_SRC "${RMM_SOURCE_DIR}/ext/libspdm")
-
 # Set LIBSPDM_DIR. Note: This variable is used by libspdm CMake.
 # libspdm is fetched to ext/libspdm in RMM source.
-set(LIBSPDM_DIR ${LIBSPDM_SRC})
+set(LIBSPDM_DIR "${RMM_SOURCE_DIR}/ext/libspdm")
 set(LIBSPDM_BIN_DIR "${CMAKE_BINARY_DIR}/ext/libspdm")
 set(MBEDTLS_SRC_DIR "${RMM_SOURCE_DIR}/ext/mbedtls")
+
 
 # Apply RMM specific patches to libspdm once cloned.
 set(LIBSPDM_PATCH_DIR "${RMM_SOURCE_DIR}/configs/libspdm")
@@ -24,12 +28,6 @@ set(LIBSPDM_PATCH_FILES
     "${LIBSPDM_PATCH_DIR}/0002-fix-libspdm_hmac_new-return-and-LIBSPDM_STATUS_SUCCE.patch"
     )
 Git_Apply_Patches(${LIBSPDM_DIR} "${LIBSPDM_PATCH_FILES}")
-
-#
-# This compiles libraries in ext/libspdm project to add SPDM requester protocol
-# support in RMM.
-#
-add_library(rmm-lib-spdm_requester INTERFACE)
 
 # Set libspdm config file
 set(LIBSPDM_CONFIG "LIBSPDM_CONFIG=<rmm_libspdm_config.h>")
@@ -82,7 +80,7 @@ foreach(SOURCE_DIR IN LISTS SOURCE_DIRS)
     add_subdirectory(${SOURCE_DIR} ${LIBSPDM_BIN_DIR}/${SPDM_LIB})
 
     target_include_directories(${SPDM_LIB} PRIVATE
-        "${RMM_SOURCE_DIR}/app/device_assignment/el0_app/spdm_requester/"
+        "${RMM_SOURCE_DIR}/app/device_assignment/el0_app/spdm_requester"
         "${RMM_SOURCE_DIR}/app/device_assignment/el0_app/mbedtls_da"
         "${MBEDTLS_SRC_DIR}/include")
     target_compile_definitions(${SPDM_LIB} PRIVATE
@@ -97,14 +95,22 @@ foreach(SOURCE_DIR IN LISTS SOURCE_DIRS)
         "-Wno-old-style-declaration"
         "-Wno-sign-compare")
 
-    target_link_libraries(rmm-lib-spdm_requester INTERFACE ${SPDM_LIB})
+    target_link_libraries(rmm-spdm_requester INTERFACE ${SPDM_LIB})
 endforeach()
 
 set(CMAKE_C_FLAGS "${BACKUP_C_FLAGS}")
 
-# Manually create dependencies for libspdm libraries
+# Set includes and compile definitions for this interface library
+target_include_directories(rmm-spdm_requester INTERFACE
+    "${RMM_SOURCE_DIR}/configs/libspdm"
+    "${LIBSPDM_DIR}/include")
+target_compile_definitions(rmm-spdm_requester INTERFACE
+    ${LIBSPDM_CONFIG})
+
+# Manually create internal dependencies for libspdm libraries
 target_link_libraries(spdm_requester_lib PRIVATE spdm_common_lib spdm_crypt_lib)
 target_link_libraries(spdm_secured_message_lib PRIVATE spdm_crypt_lib)
 target_link_libraries(spdm_common_lib PRIVATE spdm_crypt_lib)
-# Manually create dependencies for cryptlib_mbedtls library
-target_link_libraries(cryptlib_mbedtls PRIVATE da-rmm-mbedtls)
+
+# Manually create external dependencies for libspdm libraries
+target_link_libraries(cryptlib_mbedtls PRIVATE rmm-app-da-mbedtls)
