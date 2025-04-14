@@ -28,8 +28,10 @@
  * RMM
  */
 #define MBEDTLS_PLATFORM_MEMORY
-#define MBEDTLS_PLATFORM_FREE_MACRO buffer_alloc_free
-#define MBEDTLS_PLATFORM_CALLOC_MACRO buffer_alloc_calloc
+
+
+/* Enable Mbed TLS's built in allocator */
+#define MBEDTLS_MEMORY_BUFFER_ALLOC_C
 
 #define MBEDTLS_PLATFORM_NO_STD_FUNCTIONS
 
@@ -86,20 +88,9 @@
 #define MBEDTLS_MEMORY_ALIGN_MULTIPLE	8
 
 /*
- * Enable acceleration of the SHA-256, SHA-224, SHA-512 and SHA-384
- * cryptographic hash algorithms with the ARMv8 cryptographic extensions, which
- * must be available at runtime or else an illegal instruction fault will occur.
- */
-#ifdef RMM_FPU_USE_AT_REL2
-#define MBEDTLS_SHA256_USE_A64_CRYPTO_ONLY
-#define MBEDTLS_SHA512_USE_A64_CRYPTO_ONLY
-#endif
-
-/*
  * Configs required by SPDM requester used by Device Assignment feature in
  * RMM v1.1
  */
-#ifdef RMM_V1_1
 #define MBEDTLS_OID_C
 #define MBEDTLS_RSA_C
 #define MBEDTLS_PKCS1_V15
@@ -132,10 +123,3 @@
 #define MBEDTLS_ECP_DP_SECP521R1_ENABLED
 
 #define MBEDTLS_TEST_SW_INET_PTON
-#endif /* RMM_V1_1 */
-
-/*
- * Declare memory allocation primitives to be used by MbedTLS
- */
-void *buffer_alloc_calloc(size_t n, size_t size);
-void buffer_alloc_free(void *ptr);

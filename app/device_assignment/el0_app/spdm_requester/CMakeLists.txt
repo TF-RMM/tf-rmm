@@ -3,9 +3,9 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
-# Skip rmm-lib-spdm_requester from CMBC analysis
+# Skip rmm-spdm_requester from CMBC analysis
 if(RMM_CBMC_STATIC_ANALYSIS)
-    add_library(rmm-lib-spdm_requester INTERFACE)
+    add_library(rmm-spdm_requester INTERFACE)
     return()
 endif()
 
@@ -82,12 +82,12 @@ foreach(SOURCE_DIR IN LISTS SOURCE_DIRS)
     add_subdirectory(${SOURCE_DIR} ${LIBSPDM_BIN_DIR}/${SPDM_LIB})
 
     target_include_directories(${SPDM_LIB} PRIVATE
-        "${RMM_SOURCE_DIR}/configs/libspdm"
-        "${RMM_SOURCE_DIR}/configs/mbedtls"
+        "${RMM_SOURCE_DIR}/app/device_assignment/el0_app/spdm_requester/"
+        "${RMM_SOURCE_DIR}/app/device_assignment/el0_app/mbedtls_da"
         "${MBEDTLS_SRC_DIR}/include")
     target_compile_definitions(${SPDM_LIB} PRIVATE
         ${LIBSPDM_CONFIG}
-        "-DMBEDTLS_CONFIG_FILE=<rmm_mbedtls_config.h>")
+        "-DMBEDTLS_CONFIG_FILE=<rmm_mbedtls_config_da.h>")
 
     # RMM default compile flags are passed to libspdm. Disable few warnings
     # reported as error until libspdm resolves these issues.
@@ -107,4 +107,4 @@ target_link_libraries(spdm_requester_lib PRIVATE spdm_common_lib spdm_crypt_lib)
 target_link_libraries(spdm_secured_message_lib PRIVATE spdm_crypt_lib)
 target_link_libraries(spdm_common_lib PRIVATE spdm_crypt_lib)
 # Manually create dependencies for cryptlib_mbedtls library
-target_link_libraries(cryptlib_mbedtls PRIVATE rmm-mbedtls)
+target_link_libraries(cryptlib_mbedtls PRIVATE da-rmm-mbedtls)
