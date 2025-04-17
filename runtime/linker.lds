@@ -55,8 +55,8 @@ SECTIONS
 
 	ASSERT(rmm_ro_end == ALIGN(GRANULE_SIZE), "rmm_ro_end is not page aligned")
 
-	/* Align rw data to the next 2MB block */
-	.data ALIGN(SZ_2M) : {
+	/* Align rw data to the next 4kB block */
+	.data ALIGN(SZ_4K) : {
 		rmm_rw_start = .;
 		*(.data*)
 	} >RAM
@@ -71,7 +71,7 @@ SECTIONS
 		rmm_rela_end = .;
 	} >RAM
 
-	.bss ALIGN(16) (NOLOAD) : {
+	.bss ALIGN(SZ_4K) (NOLOAD) : {
 		bss_start = .;
 		*(.bss*)
 		bss_end = .;
