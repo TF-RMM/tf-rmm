@@ -10,8 +10,11 @@
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
+#include <sizes.h>
 #include <stddef.h>
 #include <utils_def.h>
+
+#define RMM_CORE_ALIGNMENT	SZ_64K
 
 static struct app_header *app_header_ptrs[APP_COUNT];
 static uint64_t rmm_start_address;
@@ -195,6 +198,12 @@ void app_info_setup(void)
 
 	LOG_APP_FW("Loading apps. RMM Core start address: 0x%lx\n", rmm_core_start_address);
 
+	/* Make sure that RMM core start address is properly aligned */
+
+	if (!ALIGNED(rmm_core_start_address, RMM_CORE_ALIGNMENT)) {
+		ERROR("rmm_core_start_address is not aligned\n");
+		panic();
+	}
 	/* cppcheck-suppress unsignedLessThanZero
 	 * As i is unsigned, i < APP_COUNT cannot be true when APP_COUNT is 0.
 	 */
@@ -225,7 +234,9 @@ void app_info_setup(void)
 		app_header = (struct app_header *)&(((char *)app_header)[app_header->app_len]);
 	}
 
-	if ((uintptr_t)app_header != (uintptr_t)rmm_core_start_address) {
+	uintptr_t expected_rmm_core_start = round_up((uintptr_t)app_header, RMM_CORE_ALIGNMENT);
+
+	if (expected_rmm_core_start != (uintptr_t)rmm_core_start_address) {
 		/* There are extra bytes after the last header before the
 		 * rmm_entry function. Maybe there were more apps provided to
 		 * the bundle app than APP_COUNT?
