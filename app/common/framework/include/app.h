@@ -21,6 +21,7 @@
  */
 #define RMM_RANDOM_APP_ID			(103U)
 #define ATTESTATION_APP_ID			(211U)
+#define RMM_DEV_ASSIGN_APP_ID			(110U)
 
 #define GRANULE_COUNT(size)	(round_up(size, GRANULE_SIZE) / GRANULE_SIZE)
 

@@ -106,4 +106,7 @@ void smc_dev_mem_unmap(unsigned long rd_addr,
 			unsigned long ulevel,
 			struct smc_result *res);
 
+unsigned long smc_pdev_create(unsigned long pdev_ptr,
+			      unsigned long pdev_params_ptr);
+
 #endif /* SMC_HANDLER_H */

@@ -33,6 +33,10 @@
 /* Enable Mbed TLS's built in allocator */
 #define MBEDTLS_MEMORY_BUFFER_ALLOC_C
 
+/* RMM defines its own mbedtls_exit */
+#define MBEDTLS_PLATFORM_EXIT_MACRO mbedtls_exit_panic
+void mbedtls_exit_panic(unsigned int reason);
+
 #define MBEDTLS_PLATFORM_NO_STD_FUNCTIONS
 
 #define MBEDTLS_CIPHER_C
