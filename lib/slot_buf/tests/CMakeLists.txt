@@ -11,6 +11,7 @@ endif()
 # Add test functionality
 rmm_build_unittest(NAME slot_buffer
                    TARGET rmm-lib-slot_buf
+                   LIBRARIES rmm-platform
                    SOURCES "tests/buffer.cpp"
                            "tests/buffer_test_helpers.c"
                    ITERATIONS 10)

@@ -20,11 +20,7 @@ target_include_directories(rmm-lib-slot_buf
     PRIVATE "src/include"
             "src/include/${RMM_ARCH}")
 
-if(RMM_ARCH STREQUAL fake_host)
-    # Needed to access the platform callbacks.
-    target_link_libraries(rmm-lib-slot_buf
-        PRIVATE rmm-platform)
-else()
+if(NOT RMM_ARCH STREQUAL fake_host)
     target_sources(rmm-lib-slot_buf
         PRIVATE "src/aarch64/ns_access.S")
 endif()

@@ -12,12 +12,10 @@ extern "C" {
 #include <buffer_test_helpers.h>
 #include <cpuid.h>
 #include <granule.h>
-#include <host_defs.h>
 #include <host_harness.h>
 #include <host_utils.h>
 #include <stdlib.h>
 #include <string.h>
-#include <test_harness.h>
 #include <test_helpers.h>
 #include <xlat_tables.h>
 }
@@ -390,7 +388,7 @@ ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC8)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	test_granule = test_helpers_granule_struct_base() +
-							HOST_NR_GRANULES;
+				test_helpers_get_nr_granules();
 	slot = (enum buffer_slot)test_helpers_get_rand_in_range(
 						(unsigned long)(SLOT_NS + 1U),
 						(unsigned long)NR_CPU_SLOTS);

@@ -12,7 +12,7 @@ arm_config_option(
 
 target_link_libraries(rmm-plat-host_cbmc
     PRIVATE rmm-lib
-    PUBLIC rmm-host-common)
+    PUBLIC rmm-host-harness)
 
 target_sources(rmm-plat-host_cbmc
     PRIVATE

@@ -4,14 +4,31 @@
  */
 
 #include <assert.h>
+#include <debug.h>
 #include <errno.h>
-#include <host_support.h>
+#include <host_utils.h>
 #include <string.h>
 
 static struct sysreg_data sysregs[SYSREG_MAX_CBS];
 static struct sysreg_data sysregs_snapshot[SYSREG_MAX_CBS];
 static unsigned int installed_cb_idx;
 static unsigned int current_cpuid;
+
+/*
+ * Generic callback to access a sysreg for reading.
+ */
+static u_register_t sysreg_rd_cb(u_register_t *reg)
+{
+	return *reg;
+}
+
+/*
+ * Generic callback to access a sysreg for writing.
+ */
+static void sysreg_wr_cb(u_register_t val, u_register_t *reg)
+{
+	*reg = val;
+}
 
 u_register_t host_read_sysreg(char *reg_name)
 {
@@ -98,6 +115,12 @@ int host_util_set_sysreg_cb(char *name, rd_cb_t rd_cb, wr_cb_t wr_cb,
 	}
 
 	return -ENOMEM;
+}
+
+int host_util_set_default_sysreg_cb(char *name, u_register_t init)
+{
+	return host_util_set_sysreg_cb(name, &sysreg_rd_cb,
+				       &sysreg_wr_cb, init);
 }
 
 void host_util_take_sysreg_snapshot(void)

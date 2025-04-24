@@ -20,7 +20,7 @@ target_link_libraries(rmm-lib-rmm_el3_ifc
 if(RMM_ARCH STREQUAL fake_host)
     target_link_libraries(rmm-lib-rmm_el3_ifc
         PRIVATE
-            rmm-host-support)
+            rmm-host-el2-el0-cmn)
 endif()
 
 if(HOST_VARIANT STREQUAL "host_cbmc")

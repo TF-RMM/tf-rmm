@@ -9,7 +9,9 @@
 #include <stddef.h>
 
 /*
- * This function must be defined by the app that uses Mbed TLS allocator
+ * This function must be defined for Mbed TLS allocator.
+ * The host build platform includes MbedTLS and hence this
+ * header and function must be provided.
  *
  * The function returns the start address to a buffer_alloc_ctx object.
  */

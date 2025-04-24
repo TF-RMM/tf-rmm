@@ -9,7 +9,6 @@
 #include <debug.h>
 #include <errno.h>
 #include <granule.h>
-#include <host_defs.h>
 #include <host_utils.h>
 #include <limits.h>
 #include <platform_api.h>

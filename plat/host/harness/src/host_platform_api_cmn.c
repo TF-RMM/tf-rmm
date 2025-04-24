@@ -6,7 +6,6 @@
 #include <assert.h>
 #include <debug.h>
 #include <host_console.h>
-#include <host_defs.h>
 #include <host_utils.h>
 #include <plat_common.h>
 #include <rmm_el3_ifc.h>
@@ -49,10 +48,6 @@ void plat_setup(uint64_t x0, uint64_t x1,
 		uint64_t x2, uint64_t x3)
 {
 	(void)host_csl_init();
-
-	register_host_monitor_functions(
-		host_monitor_call,
-		host_monitor_call_with_res);
 
 	/* Initialize the RMM-EL3 interface */
 	if (plat_cmn_init_el3_ifc(x0, x1, x2, x3) != 0) {
