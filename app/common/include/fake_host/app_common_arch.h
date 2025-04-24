@@ -7,7 +7,7 @@
 #define APP_COMMON_ARCH_H
 
 #define CREATE_NEW_APP_INSTANCE		13
-#define CALL_APP_INSTANCE		21
+#define RUN_APP_INSTANCE		21
 
 #define OP_OR_EXIT(op, fd, buf, count, error_on_eof)                                               \
 	do {                                                                                       \

@@ -8,6 +8,7 @@
 
 .globl el0_app_entry
 .globl el0_app_service_call
+.globl el0_app_yield
 
 /*
  * This function must be the first function in the file!
@@ -41,5 +42,10 @@ func el0_app_service_call
 	svc APP_SERVICE_CALL
 	ret
 endfunc el0_app_service_call
+
+func el0_app_yield
+	svc APP_YIELD_CALL
+	ret
+endfunc el0_app_yield
 
 

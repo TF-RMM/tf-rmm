@@ -84,6 +84,7 @@ struct app_data_cfg {
 	uintptr_t entry_point;
 
 	bool app_entered;
+	uint32_t exit_flag; /* App Exit Flag */
 };
 COMPILER_ASSERT((XLAT_TABLE_ENTRIES * APP_XLAT_TABLE_COUNT) <= GRANULE_SIZE);
 

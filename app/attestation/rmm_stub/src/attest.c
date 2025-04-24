@@ -38,6 +38,7 @@ static unsigned long global_init_attest_app(struct app_data_cfg *app_data)
 	app_map_shared_page(app_data);
 	SIMD_FPU_ALLOW(
 		ret = app_run(app_data, ATTESTATION_APP_FUNC_ID_GLOBAL_INIT, 0, 0, 0, 0));
+	assert(app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG);
 	app_unmap_shared_page(app_data);
 	return ret;
 }
@@ -154,7 +155,7 @@ void attest_do_hash(unsigned int algorithm,
 		hash_size = app_run(app_data,
 			ATTESTATION_APP_FUNC_ID_DO_HASH,
 			algorithm, size, 0, 0));
-
+	assert(app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG);
 	(void)memcpy((void *)out, app_data->el2_shared_page, hash_size);
 	app_unmap_shared_page(app_data);
 }
@@ -197,7 +198,7 @@ void attest_do_extend(struct app_data_cfg *app_data,
 				ATTESTATION_APP_FUNC_ID_EXTEND_MEASUREMENT,
 				(unsigned long)algorithm,
 				extend_measurement_size, 0, 0));
-
+	assert(app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG);
 	shared_page_ret = (struct attest_extend_measurement_return_buffer *)
 		app_data->el2_shared_page;
 	assert(hash_size == shared_page_ret->measurement_size);
@@ -217,6 +218,7 @@ enum attest_token_err_t attest_realm_token_sign(
 		retval = app_run(app_data,
 			    ATTESTATION_APP_FUNC_ID_TOKEN_SIGN,
 			    0, 0, 0, 0));
+	assert(app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG);
 	*realm_token_len = *(size_t *)app_data->el2_shared_page;
 	app_unmap_shared_page(app_data);
 	return (enum attest_token_err_t)retval;
@@ -235,6 +237,7 @@ enum attest_token_err_t attest_cca_token_create(
 			ATTESTATION_APP_FUNC_ID_DO_CCA_TOKEN_CREATION,
 			0, 0, 0, 0));
 
+	assert(app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG);
 	if (ret != (unsigned long)ATTEST_TOKEN_ERR_SUCCESS) {
 		app_unmap_shared_page(app_data);
 		return (enum attest_token_err_t)ret;
@@ -247,9 +250,13 @@ enum attest_token_err_t attest_cca_token_create(
 
 enum attest_token_err_t attest_token_sign_ctx_init(struct app_data_cfg *app_data, uintptr_t cookie)
 {
-	return (enum attest_token_err_t)app_run(app_data,
+	enum attest_token_err_t ret;
+
+	ret = (enum attest_token_err_t)app_run(app_data,
 		ATTESTATION_APP_FUNC_ID_TOKEN_CTX_INIT,
 			cookie, 0, 0, 0);
+	assert(app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG);
+	return ret;
 }
 
 enum attest_token_err_t attest_realm_token_create(struct app_data_cfg *app_data,
@@ -275,6 +282,7 @@ enum attest_token_err_t attest_realm_token_create(struct app_data_cfg *app_data,
 	ret = (enum attest_token_err_t)app_run(app_data,
 		ATTESTATION_APP_FUNC_ID_REALM_TOKEN_CREATE,
 			(unsigned long)algorithm, 0, 0, 0);
+	assert(app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG);
 	app_unmap_shared_page(app_data);
 	return ret;
 }
@@ -294,6 +302,7 @@ int attest_app_el3_token_write_response_to_ctx(struct app_data_cfg *app_data,
 		ret = app_run(app_data,
 			EL3_TOKEN_WRITE_RESPONSE_TO_CTX,
 			req_ticket, signature_buf_len, 0, 0));
+	assert(app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG);
 	app_unmap_shared_page(app_data);
 	return ret;
 }

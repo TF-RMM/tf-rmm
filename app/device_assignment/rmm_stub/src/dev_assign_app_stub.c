@@ -40,6 +40,7 @@ int dev_assign_app_init(struct app_data_cfg *app_data, uintptr_t granule_pas[],
 
 	rc = (int)app_run(app_data, DEVICE_ASSIGN_APP_FUNC_ID_INIT,
 			app_data->heap_size, 0, 0, 0);
+	assert(app_data->exit_flag == APP_EXIT_SVC_EXIT_FLAG);
 	app_unmap_shared_page(app_data);
 
 	return rc;
