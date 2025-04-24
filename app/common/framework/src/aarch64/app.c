@@ -70,12 +70,21 @@ static void *map_page_to_slot(uintptr_t pa, enum buffer_slot slot)
 	if (in_rmm_rw_range(pa)) {
 		return (void *)pa;
 	}
-	/* Assume delegated granule */
+	/*
+	 * It is assumed that the caller has provided the list of granules
+	 * after validating they belong to the particular type : REC_AUX or
+	 * PDEV_AUX.
+	 */
+	/* First assume delegated REC_AUX granule */
 	struct granule *app_data_granule = find_lock_granule(pa, GRANULE_STATE_REC_AUX);
 
 	if (app_data_granule == NULL) {
-		ERROR("ERROR %s:%d\n", __func__, __LINE__);
-		return NULL;
+		/* Try PDEV_AUX Granule next */
+		app_data_granule = find_lock_granule(pa, GRANULE_STATE_PDEV_AUX);
+		if (app_data_granule == NULL) {
+			ERROR("ERROR %s:%d\n", __func__, __LINE__);
+			return NULL;
+		}
 	}
 	return buffer_granule_map(app_data_granule, slot);
 }
@@ -195,8 +204,8 @@ static int allocate_bss(size_t app_id, size_t bss_size, uintptr_t *pa)
 	 * allocation mechanism is not available, as a temporary workaround the
 	 * BSS memory for an app is allocated in the app's rmm_stub library.
 	 */
+	int ret __unused;
 	size_t app_index;
-	int ret;
 	struct app_header *app_header;
 
 	(void)bss_size;
@@ -441,6 +450,7 @@ static void collect_app_bss(void)
 
 	void attest_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
 	void random_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
+	void dev_assign_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
 
 	ret = app_get_index(ATTESTATION_APP_ID, &app_index);
 	assert(ret == 0);
@@ -450,6 +460,10 @@ static void collect_app_bss(void)
 	assert(ret == 0);
 	random_app_get_bss(&app_bss_memory_array[app_index].pa,
 		&app_bss_memory_array[app_index].size);
+	ret = app_get_index(RMM_DEV_ASSIGN_APP_ID, &app_index);
+	assert(ret == 0);
+	dev_assign_app_get_bss(&app_bss_memory_array[app_index].pa,
+			&app_bss_memory_array[app_index].size);
 }
 
 void app_framework_setup(void)
@@ -470,7 +484,7 @@ void app_framework_setup(void)
 	for (app_index = 0; app_index < APP_COUNT; ++app_index) {
 		/* coverity[deadcode:SUPPRESS] */
 		/* coverity[misra_c_2012_rule_14_3_violation:SUPPRESS] */
-		int ret;
+		int ret __unused;
 		uintptr_t bss_pa;
 
 		ret = app_get_header_ptr_at_index(app_index, &app_header);

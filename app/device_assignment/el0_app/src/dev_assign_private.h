@@ -13,6 +13,7 @@
 #include <library/spdm_requester_lib.h>
 #include <library/spdm_secured_message_lib.h>
 #include <mbedtls/memory_buffer_alloc.h>
+#include <psa/crypto.h>
 #include <sizes.h>
 #include <utils_def.h>
 
@@ -245,6 +246,12 @@ struct dev_assign_info {
 	/* Exit and Entry args for dev_communicate cmds */
 	struct rmi_dev_comm_enter enter_args;
 	struct rmi_dev_comm_exit exit_args;
+
+	/*
+	 * The PSA equivalent of the 'rmi_hash_algo'. This value is used by PSA
+	 * crypto calls to calculate hash of cached device objects.
+	 */
+	psa_algorithm_t psa_hash_algo;
 
 	void *send_recv_buffer;
 	void *scratch_buffer;
