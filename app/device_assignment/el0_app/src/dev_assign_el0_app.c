@@ -17,10 +17,79 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 					      const void *request,
 					      uint64_t timeout)
 {
-	(void)spdm_context;
-	(void)request_size;
-	(void)request;
-	(void)timeout;
+	struct dev_assign_info *info;
+	int rc;
+	uintptr_t buf_offset;
+
+	info = spdm_to_dev_assign_info(spdm_context);
+
+	if ((uintptr_t)info->send_recv_buffer > (uintptr_t)request) {
+		/* cppcheck-suppress misra-c2012-12.2 */
+		/* cppcheck-suppress misra-c2012-10.1 */
+		/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
+		/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
+		return LIBSPDM_STATUS_SEND_FAIL;
+	}
+
+	/*
+	 * The request buffer can be allocated from either send_recv buffer or
+	 * scratch buffer. Since both these buffers are next to each other,
+	 * we can perform a sanity check.
+	 */
+	buf_offset = (uintptr_t)request - (uintptr_t)info->send_recv_buffer;
+
+	size_t request_size_align = round_up(request_size, 8U);
+
+	if ((buf_offset + request_size_align)
+		> (PRIV_LIBSPDM_SEND_RECV_BUF_SIZE + PRIV_LIBSPDM_SCRATCH_BUF_SIZE)) {
+		/* cppcheck-suppress misra-c2012-12.2 */
+		/* cppcheck-suppress misra-c2012-10.1 */
+		/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
+		/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
+		return LIBSPDM_STATUS_SEND_FAIL;
+	}
+
+	/* Clear out any extra bytes due to rounding up of request_size */
+	(void)memset((void *)((uintptr_t)request + request_size),
+		0, request_size_align - request_size);
+
+	/*
+	 * Sending the message. Device communication request is written to the
+	 * NS buffer.
+	 */
+	rc = (int)el0_app_service_call(APP_SERVICE_WRITE_TO_NS_BUF,
+		APP_SERVICE_RW_NS_BUF_HEAP, (unsigned long)buf_offset,
+		info->enter_args.req_addr, request_size_align);
+
+	if (rc != 0) {
+		/* cppcheck-suppress misra-c2012-12.2 */
+		/* cppcheck-suppress misra-c2012-10.1 */
+		/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
+		/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
+		return LIBSPDM_STATUS_SEND_FAIL;
+	}
+
+	info->exit_args.flags |= RMI_DEV_COMM_EXIT_FLAGS_SEND_BIT;
+	info->exit_args.timeout = timeout;
+	info->exit_args.protocol = (unsigned char)RMI_DEV_COMM_PROTOCOL_SPDM;
+	info->exit_args.req_len = request_size;
+
+	/* Copy back the exit args to shared buf */
+	*(struct rmi_dev_comm_exit *)info->shared_buf = info->exit_args;
+
+	el0_app_yield();
+
+	info->enter_args = *((struct rmi_dev_comm_enter *)info->shared_buf);
+	(void)memset(&info->exit_args, 0, sizeof(info->exit_args));
+
+	if (info->enter_args.status == RMI_DEV_COMM_ENTER_STATUS_ERROR) {
+		/* cppcheck-suppress misra-c2012-12.2 */
+		/* cppcheck-suppress misra-c2012-10.1 */
+		/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
+		/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
+		return LIBSPDM_STATUS_SEND_FAIL;
+	}
+
 	return LIBSPDM_STATUS_SUCCESS;
 }
 
@@ -29,10 +98,56 @@ static libspdm_return_t spdm_receive_message(void *spdm_context,
 						 void **response,
 						 uint64_t timeout)
 {
-	(void)spdm_context;
-	(void)response_size;
-	(void)response;
+	struct dev_assign_info *info = spdm_to_dev_assign_info(spdm_context);
+	int rc;
+	uintptr_t buf_offset;
+	unsigned long resp_len = info->enter_args.resp_len;
+
 	(void)timeout;
+
+	info = spdm_to_dev_assign_info(spdm_context);
+
+	if ((uintptr_t)info->send_recv_buffer > (uintptr_t)*response) {
+		/* cppcheck-suppress misra-c2012-12.2 */
+		/* cppcheck-suppress misra-c2012-10.1 */
+		/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
+		/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
+		return LIBSPDM_STATUS_RECEIVE_FAIL;
+	}
+
+	buf_offset = (uintptr_t)*response - (uintptr_t)info->send_recv_buffer;
+
+	size_t resp_len_align = round_up(resp_len, 8U);
+
+	if ((buf_offset + resp_len_align)
+			> (PRIV_LIBSPDM_SEND_RECV_BUF_SIZE + PRIV_LIBSPDM_SCRATCH_BUF_SIZE)) {
+		/* cppcheck-suppress misra-c2012-12.2 */
+		/* cppcheck-suppress misra-c2012-10.1 */
+		/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
+		/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
+		return LIBSPDM_STATUS_RECEIVE_FAIL;
+	}
+
+	assert(info->enter_args.status == RMI_DEV_COMM_ENTER_STATUS_RESPONSE);
+
+	/*
+	 * Sending the message. Device communication request is written to the
+	 * NS buffer.
+	 */
+	rc = (int)el0_app_service_call(APP_SERVICE_READ_FROM_NS_BUF,
+		APP_SERVICE_RW_NS_BUF_HEAP, (unsigned long)buf_offset,
+		info->enter_args.resp_addr, resp_len_align);
+
+	if (rc != 0) {
+		/* cppcheck-suppress misra-c2012-12.2 */
+		/* cppcheck-suppress misra-c2012-10.1 */
+		/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
+		/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
+		return LIBSPDM_STATUS_RECEIVE_FAIL;
+	}
+
+	*response_size = resp_len;
+
 	return LIBSPDM_STATUS_SUCCESS;
 }
 
@@ -47,10 +162,10 @@ spdm_transport_encode_message(void *spdm_context, const uint32_t *session_id,
 	(void)session_id;
 	(void)is_app_message;
 	(void)is_request_message;
-	(void)message_size;
-	(void)message;
-	(void)transport_message_size;
-	(void)transport_message;
+
+	*transport_message_size = message_size;
+	*transport_message = message;
+
 	return LIBSPDM_STATUS_SUCCESS;
 }
 
@@ -62,13 +177,13 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 				  size_t *message_size, void **message)
 {
 	(void)spdm_context;
-	(void)session_id;
 	(void)is_app_message;
 	(void)is_request_message;
-	(void)transport_message_size;
-	(void)transport_message;
-	(void)message_size;
-	(void)message;
+
+	*session_id = NULL;
+	*message_size = transport_message_size;
+	*message = transport_message;
+
 	return LIBSPDM_STATUS_SUCCESS;
 }
 
@@ -91,12 +206,13 @@ static void spdm_release_sender_buffer(void *spdm_context,
 	(void)msg_buf_ptr;
 	info = spdm_to_dev_assign_info(spdm_context);
 	assert(info->send_recv_buffer == msg_buf_ptr);
+	/* Nothing to do */
 }
 
 static libspdm_return_t spdm_acquire_receiver_buffer(void *spdm_context,
 							 void **msg_buf_ptr)
 {
-	struct dev_assign_info *info __unused;
+	struct dev_assign_info *info;
 
 	info = spdm_to_dev_assign_info(spdm_context);
 	*msg_buf_ptr = info->send_recv_buffer;
@@ -112,6 +228,7 @@ static void spdm_release_receiver_buffer(void *spdm_context,
 	(void)msg_buf_ptr;
 	info = spdm_to_dev_assign_info(spdm_context);
 	assert(info->send_recv_buffer == msg_buf_ptr);
+	/* Nothing to do */
 }
 
 /*
@@ -402,6 +519,40 @@ static int dev_assign_init(uintptr_t el0_heap, size_t heap_size, struct dev_assi
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }
 
+static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintptr_t heap)
+{
+	struct dev_assign_info *info = heap_start_to_dev_assign_info(heap);
+	unsigned long ret;
+
+	void *shared_buf = info->shared_buf;
+
+	if (shared_buf == NULL) {
+		ERROR("Dev_assign cmds called without init\n");
+		return (unsigned long)DEV_ASSIGN_STATUS_ERROR;
+	}
+
+	/* Initialize the entry and exit args */
+	info->enter_args = *(struct rmi_dev_comm_enter *)shared_buf;
+	(void)memset(&info->exit_args, 0, sizeof(info->exit_args));
+
+	switch (func_id) {
+	case DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT:
+		ret = (unsigned long)dev_assign_cmd_init_connection_main(info);
+		break;
+	default:
+		assert(false);
+		return (unsigned long)DEV_ASSIGN_STATUS_ERROR;
+	}
+
+	/* Reset the exit flag on error */
+	if (ret != 0UL) {
+		info->exit_args.flags = 0;
+	}
+
+	/* Copy back the exit args to shared buf */
+	*(struct rmi_dev_comm_exit *)shared_buf = info->exit_args;
+	return ret;
+}
 
 /* coverity[misra_c_2012_rule_5_8_violation:SUPPRESS] */
 unsigned long el0_app_entry_func(
@@ -425,6 +576,8 @@ unsigned long el0_app_entry_func(
 		return (unsigned long)dev_assign_init(heap, arg_0,
 			(struct dev_assign_params *)shared);
 	}
+	case DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT:
+		return dev_assign_communicate_cmd_cmn(func_id, heap);
 	case DEVICE_ASSIGN_APP_FUNC_ID_DEINIT:
 		return (unsigned long)dev_assign_deinit(heap);
 	default:

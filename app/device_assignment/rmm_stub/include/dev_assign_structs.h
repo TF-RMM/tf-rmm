@@ -50,6 +50,44 @@ struct dev_assign_spdm_shared {
 };
 
 /*
+ * App functions for device communication. App uses heap available via tpidrro_el0.
+ * The function execution can yield and return back to RMM. In this case
+ * the return would be via APP_YIELD_CALL svc. Callers need to check
+ * `app_data->exit_flag` for APP_EXIT_SVC_YIELD_FLAG. The `rmi_dev_comm_enter`
+ * is expected to be populated in shared buf for entry into app and
+ * `rmm_dev_comm_exit` is expected to be populated for exit from app.
+ * These entry and exit data is expected to be populated in the yield case
+ * as well.
+ *
+ * Shared app buf == `struct dev_assign_comm_params`
+ *
+ * ret0 == DEV_ASSIGN_STATUS_SUCCESS if connection is successful.
+ *         DEV_ASSIGN_STATUS_ERROR if error on connection.
+ *         NA if app is yielded.
+ *
+ */
+#define DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT		2
+
+/*
+ * Pseudo App function ID for device communication resume. App uses heap available via
+ * tpidrro_el0. The cmd should only be issued to dev_assign_dev_communicate() if the
+ * app was yeilded. The `rmi_dev_comm_enter` is expected to be populated in shared
+ * buf for entry into app and `rmm_dev_comm_exit` is expected to be populated for
+ * exit from app. The app can yeild again and callers need to check `app_data->exit_flag`
+ * for APP_EXIT_SVC_YIELD_FLAG.
+ *
+ * Note that this function ID is not passed to the app but used in stub to handle
+ * resume after a yield (and hence pseudo).
+ *
+ * Shared app buf == `struct dev_assign_comm_params`
+ *
+ * ret0 == DEV_ASSIGN_STATUS_SUCCESS if connection is successful.
+ *         DEV_ASSIGN_STATUS_ERROR if error on connection.
+ *         NA if app is yielded.
+ */
+#define DEVICE_ASSIGN_APP_FUNC_ID_RESUME		10
+
+/*
  * App function ID to de-initialise. App uses heap available via
  * tpidrro_el0.
  *

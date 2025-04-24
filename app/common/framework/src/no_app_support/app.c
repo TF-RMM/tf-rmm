@@ -87,6 +87,12 @@ int32_t mbedtls_psa_external_get_random(
 	return 0;
 }
 
+void *app_get_heap_ptr(struct app_data_cfg *app_data)
+{
+	(void)app_data;
+	return NULL;
+}
+
 size_t app_get_required_granule_count(unsigned long app_id)
 {
 	(void)app_id;

@@ -331,6 +331,244 @@ out_restore_pdev_aux_granule_state:
 	return smc_rc;
 }
 
+
+/* Validate RmiDevCommData.RmiDevCommEnter argument passed by Host */
+static unsigned long copyin_and_validate_dev_comm_enter(
+				  unsigned long dev_comm_data_ptr,
+				  struct rmi_dev_comm_enter *enter_args,
+				  unsigned int dev_comm_state)
+{
+	struct granule *g_dev_comm_data;
+	struct granule *g_buf;
+	bool ns_access_ok;
+
+	g_dev_comm_data = find_granule(dev_comm_data_ptr);
+	if ((g_dev_comm_data == NULL) ||
+	    (granule_unlocked_state(g_dev_comm_data) != GRANULE_STATE_NS)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	ns_access_ok = ns_buffer_read(SLOT_NS, g_dev_comm_data,
+				      RMI_DEV_COMM_ENTER_OFFSET,
+				      sizeof(struct rmi_dev_comm_enter),
+				      enter_args);
+	if (!ns_access_ok) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if (!GRANULE_ALIGNED(enter_args->req_addr) ||
+	    !GRANULE_ALIGNED(enter_args->resp_addr) ||
+	    (enter_args->resp_len > GRANULE_SIZE)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if ((enter_args->status == RMI_DEV_COMM_ENTER_STATUS_RESPONSE) &&
+		(enter_args->resp_len == 0U)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Check if request and response buffers are in NS PAS */
+	g_buf = find_granule(enter_args->req_addr);
+	if ((g_buf == NULL) ||
+	    (granule_unlocked_state(g_buf) != GRANULE_STATE_NS)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	g_buf = find_granule(enter_args->resp_addr);
+	if ((g_buf == NULL) ||
+	    (granule_unlocked_state(g_buf) != GRANULE_STATE_NS)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if ((dev_comm_state == DEV_COMM_ACTIVE) &&
+	    ((enter_args->status != RMI_DEV_COMM_ENTER_STATUS_RESPONSE) &&
+	    (enter_args->status != RMI_DEV_COMM_ENTER_STATUS_ERROR))) {
+		return RMI_ERROR_DEVICE;
+	}
+
+	if ((dev_comm_state == DEV_COMM_PENDING) &&
+	    (enter_args->status != RMI_DEV_COMM_ENTER_STATUS_NONE)) {
+		return RMI_ERROR_DEVICE;
+	}
+	return RMI_SUCCESS;
+}
+
+/*
+ * copyout DevCommExitArgs
+ */
+static unsigned long copyout_dev_comm_exit(unsigned long dev_comm_data_ptr,
+				   struct rmi_dev_comm_exit *exit_args)
+{
+	struct granule *g_dev_comm_data;
+	bool ns_access_ok;
+
+	g_dev_comm_data = find_granule(dev_comm_data_ptr);
+	if ((g_dev_comm_data == NULL) ||
+	    (granule_unlocked_state(g_dev_comm_data) != GRANULE_STATE_NS)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	ns_access_ok = ns_buffer_write(SLOT_NS, g_dev_comm_data,
+				       RMI_DEV_COMM_EXIT_OFFSET,
+				       sizeof(struct rmi_dev_comm_exit),
+				       exit_args);
+	if (!ns_access_ok) {
+		return RMI_ERROR_INPUT;
+	}
+
+	return RMI_SUCCESS;
+}
+
+static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_args,
+		struct rmi_dev_comm_exit *exit_args)
+{
+	int rc;
+
+	if (pd->dev_comm_state == DEV_COMM_ACTIVE) {
+		return dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+			exit_args, DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
+	}
+
+	switch (pd->rmi_state) {
+	case RMI_PDEV_STATE_NEW:
+		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+			exit_args, DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT);
+		break;
+	default:
+		assert(false);
+		rc = -1;
+	}
+
+	return rc;
+}
+
+static unsigned long dev_communicate(struct pdev *pd,
+				     unsigned long dev_comm_data_ptr)
+{
+	struct rmi_dev_comm_enter enter_args;
+	struct rmi_dev_comm_exit exit_args;
+	void *aux_mapped_addr;
+	unsigned long comm_rc;
+	int rc;
+
+	assert(pd != NULL);
+
+	if ((pd->dev_comm_state == DEV_COMM_IDLE) ||
+			(pd->dev_comm_state == DEV_COMM_ERROR)) {
+		return RMI_ERROR_DEVICE;
+	}
+
+	/* Validate RmiDevCommEnter arguments in DevCommData */
+	/* coverity[uninit_use_in_call:SUPPRESS] */
+	comm_rc = copyin_and_validate_dev_comm_enter(dev_comm_data_ptr, &enter_args,
+		pd->dev_comm_state);
+	if (comm_rc != RMI_SUCCESS) {
+		return comm_rc;
+	}
+
+	/* Map PDEV aux granules */
+	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
+	assert(aux_mapped_addr != NULL);
+
+	rc = pdev_dispatch_cmd(pd, &enter_args, &exit_args);
+
+	/* Unmap all PDEV aux granules */
+	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_aux);
+
+	comm_rc = copyout_dev_comm_exit(dev_comm_data_ptr,
+				       &exit_args);
+	if (comm_rc != RMI_SUCCESS) {
+		/* todo: device status is updated but copyout data failed? */
+		return RMI_ERROR_INPUT;
+	}
+
+	/*
+	 * Based on the device communication results update the device IO state
+	 * and PDEV state.
+	 */
+	switch (rc) {
+	case DEV_ASSIGN_STATUS_COMM_BLOCKED:
+		pd->dev_comm_state = DEV_COMM_ACTIVE;
+		break;
+	case DEV_ASSIGN_STATUS_ERROR:
+		pd->dev_comm_state = DEV_COMM_ERROR;
+		break;
+	case DEV_ASSIGN_STATUS_SUCCESS:
+		pd->dev_comm_state = DEV_COMM_IDLE;
+		break;
+	default:
+		assert(false);
+	}
+
+	return RMI_SUCCESS;
+}
+
+/*
+ * smc_pdev_communicate
+ *
+ * pdev_ptr	- PA of the PDEV
+ * data_ptr	- PA of the communication data structure
+ */
+unsigned long smc_pdev_communicate(unsigned long pdev_ptr,
+				   unsigned long dev_comm_data_ptr)
+{
+	struct granule *g_pdev;
+	struct pdev *pd;
+	unsigned long rmi_rc;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(pdev_ptr) || !GRANULE_ALIGNED(dev_comm_data_ptr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Lock pdev granule and map it */
+	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_PDEV);
+	if (g_pdev == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
+	if (pd == NULL) {
+		granule_unlock(g_pdev);
+		return RMI_ERROR_INPUT;
+	}
+
+	assert(pd->g_pdev == g_pdev);
+
+	rmi_rc = dev_communicate(pd, dev_comm_data_ptr);
+
+	/*
+	 * Based on the device communication results update the device IO state
+	 * and PDEV state.
+	 */
+	switch (pd->dev_comm_state) {
+	case DEV_COMM_ERROR:
+		pd->rmi_state = RMI_PDEV_STATE_ERROR;
+		break;
+	case DEV_COMM_IDLE:
+		if (pd->rmi_state == RMI_PDEV_STATE_NEW) {
+			pd->rmi_state = RMI_PDEV_STATE_NEEDS_KEY;
+		} else {
+			pd->rmi_state = RMI_PDEV_STATE_ERROR;
+		}
+		break;
+	case DEV_COMM_ACTIVE:
+		/* No state change required */
+		break;
+	case DEV_COMM_PENDING:
+	default:
+		assert(false);
+	}
+
+	buffer_unmap(pd);
+	granule_unlock(g_pdev);
+
+	return rmi_rc;
+}
+
 /*
  * smc_pdev_get_state
  *

@@ -111,6 +111,9 @@ unsigned long smc_pdev_create(unsigned long pdev_ptr,
 
 void smc_pdev_aux_count(unsigned long flags, struct smc_result *res);
 
+unsigned long smc_pdev_communicate(unsigned long pdev_ptr,
+				   unsigned long dev_comm_data_ptr);
+
 void smc_pdev_get_state(unsigned long pdev_ptr, struct smc_result *res);
 
 unsigned long smc_pdev_destroy(unsigned long pdev_ptr);
