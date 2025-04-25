@@ -1,0 +1,22 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Overlay to enable stack protection compilation on shrinkwrap
+
+buildex:
+  btvars:
+    # Stack_Protector compiler flag
+    STACK_PROTECTOR:
+      type: "ON"
+      value: string
+
+build:
+  rmm:
+    sourcedir: ${btvar:RMM_SRC}
+    params:
+      -DSTACK_PROTECTOR: ${btvar:STACK_PROTECTOR}

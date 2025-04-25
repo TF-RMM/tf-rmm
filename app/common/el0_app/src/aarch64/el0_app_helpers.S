@@ -21,6 +21,9 @@ func el0_app_entry
 	mov	x23, x3
 	mov	x24, x4
 	mov	x25, lr
+#ifdef STACK_PROTECTOR_ENABLED
+	bl	rmm_init_stack_canary
+#endif /* STACK_PROTECTOR_ENABLED */
 	bl init_console
 	mov	x0, x20
 	mov	x1, x21

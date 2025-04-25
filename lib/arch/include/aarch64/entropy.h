@@ -12,7 +12,10 @@
 /*
  * Write 8 bytes of random data in random. Returns true on success, false on
  * failure.
+ * One of its use case is to initialize canary value. Hence the
+ * `no_stack_protector` attribute.
  */
+__attribute__((no_stack_protector))
 static inline bool arch_collect_entropy(uint64_t *random)
 {
 	unsigned long rc;

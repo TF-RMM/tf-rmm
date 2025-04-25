@@ -297,6 +297,7 @@ The |RMM| build system supports the following CMake build options.
    ATTEST_PLAT_TOKEN_SIZE	,			,0x1000			,"Maximum size in bytes expected for the Attestation platform token"
    PLAT_ARM_MAX_MEM_BANKS	,			,2			,"Maximum possible number of DRAM and COH/NCOH device memory banks allowed in Arm platform layer"
    ATTEST_EL3_TOKEN_SIGN	,ON|OFF			,OFF			,"Use EL3 service to sign realm attestation token."
+   STACK_PROTECTOR		,ON | OFF		,OFF			,"Enable the stack protector compiler option."
 
 .. _llvm_build:
 

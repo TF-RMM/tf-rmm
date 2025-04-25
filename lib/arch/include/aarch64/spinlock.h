@@ -15,6 +15,7 @@ typedef struct {
 	unsigned int val;
 } spinlock_t;
 
+__attribute__((__always_inline__))
 static inline void spinlock_acquire(spinlock_t *l)
 {
 	unsigned int tmp;
@@ -38,6 +39,7 @@ static inline void spinlock_acquire(spinlock_t *l)
 	);
 }
 
+__attribute__((__always_inline__))
 static inline void spinlock_release(spinlock_t *l)
 {
 	/* To avoid misra-c2012-2.7 warnings */
@@ -56,6 +58,7 @@ typedef struct {
 	unsigned char val;
 } byte_spinlock_t;
 
+__attribute__((__always_inline__))
 static inline void byte_spinlock_acquire(byte_spinlock_t *l)
 {
 	unsigned int tmp;
@@ -79,6 +82,7 @@ static inline void byte_spinlock_acquire(byte_spinlock_t *l)
 	);
 }
 
+__attribute__((__always_inline__))
 static inline void byte_spinlock_release(byte_spinlock_t *l)
 {
 	/* To avoid misra-c2012-2.7 warnings */

@@ -10,6 +10,7 @@ target_link_libraries(rmm-app-common-el0_app
   rmm-lib-console
   rmm-lib-common
   rmm-lib-debug
+  rmm-lib-stack_protector
 )
 
 target_include_directories(rmm-app-common-el0_app
