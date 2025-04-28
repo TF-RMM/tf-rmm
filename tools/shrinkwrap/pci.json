@@ -1,0 +1,57 @@
+{
+    "rootport/rootport0": {
+        "device_number": 1,
+        "device_id" : 3567,
+        "vendor_id" : 5045,
+        "acs_supported" : 1,
+        "rmeda_dvsec_enable": 1,
+        "ide_supported": 1,
+        "__downstream__" : {
+            "smmuv3testengine/smmuv3testengine1": {
+                "endpoint.device": 0,
+                "endpoint.multi_function" : 1,
+                "endpoint.function": 0,
+                "endpoint.doe_supported": 1,
+                "endpoint.ide_supported": 1,
+                "endpoint.tee_io_supported": 1,
+                "endpoint.certificate_der_filename": "<fixup_path>/sample_key/ecp384/bundle_responder.certchain.der",
+                "endpoint.private_key_filename": "<fixup_path>/sample_key/ecp384/end_responder.key",
+                "endpoint.bit_mask_of_base_asym_alg": 0x80
+            },
+            "smmuv3testengine/smmuv3testengine2": {
+                "endpoint.device": 0,
+                "endpoint.multi_function" : 0,
+                "endpoint.function": 1,
+                "endpoint.tee_io_supported": 1,
+                "endpoint.certificate_der_filename": "<fixup_path>/sample_key/ecp384/bundle_responder.certchain.der",
+                "endpoint.private_key_filename": "<fixup_path>/sample_key/ecp384/end_responder.key",
+                "endpoint.bit_mask_of_base_asym_alg": 0x80
+            }
+        }
+    },
+
+    "rootport/rootport1": {
+        "device_number": 2,
+        "device_id" : 3567,
+        "vendor_id" : 5045,
+        "acs_supported" : 1,
+        "rmeda_dvsec_enable": 1,
+        "ide_supported": 1,
+        "diagnostics_level": 4,
+        "__downstream__" : {
+            "ahci/ahci1": {
+                "endpoint.device": 0,
+                "endpoint.multi_function" : 0,
+                "endpoint.function": 0,
+                "endpoint.doe_supported": 1,
+                "endpoint.ide_supported": 1,
+                "endpoint.tee_io_supported": 1,
+                "endpoint.certificate_der_filename": "<fixup_path>/sample_key/ecp384/bundle_responder.certchain.der",
+                "endpoint.private_key_filename": "<fixup_path>/sample_key/ecp384/end_responder.key",
+                "endpoint.bit_mask_of_base_asym_alg": 0x80,
+                "endpoint.diagnostics": 4,
+                "image_path": "<fixup_path>/ahci-disk.img"
+            }
+        }
+    }
+}
