@@ -55,10 +55,10 @@
  * round_down() is similar but rounds the value down instead.
  */
 #define round_boundary(value, boundary)		\
-	((__typeof__(value))((boundary) - 1))
+	((__typeof__(value))((boundary) - U(1)))
 
 #define round_up(value, boundary)		\
-	((((value) - 1) | round_boundary(value, boundary)) + 1)
+	((((value) - U(1)) | round_boundary(value, boundary)) + U(1))
 
 #define round_down(value, boundary)		\
 	((value) & ~round_boundary(value, boundary))
@@ -149,7 +149,7 @@
 						sizeof((_array)[0])) == UL(0)))
 
 #define GRANULE_SIZE	(UL(1) << GRANULE_SHIFT)
-#define GRANULE_MASK	(~(GRANULE_SIZE - 1U))
+#define GRANULE_MASK	(~(GRANULE_SIZE - U(1)))
 
 #define HAS_SPE 0
 
