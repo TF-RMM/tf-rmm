@@ -71,7 +71,16 @@ static void start_app_process(unsigned long app_id, int read_fd, int write_fd)
 	struct app_header *app_header;
 
 	ret = app_get_header_ptr(app_id, &app_header);
-	assert(ret == 0);
+	if (ret != 0) {
+		ERROR("-----------------------------------------------------------------------\n");
+		ERROR("This error usually happens when no app elf files are provided to the\n");
+		ERROR("RMM core elf, or there is a mismatch between the app ID in the RMM core\n");
+		ERROR("and the app ID provided in the command line.\n");
+		ERROR("See the output with '--help'.\n");
+		ERROR("-----------------------------------------------------------------------\n");
+		exit(1);
+	}
+
 	char s_read_fd[sizeof(int) * 3 + 2];
 	char s_write_fd[sizeof(int) * 3 + 2];
 
