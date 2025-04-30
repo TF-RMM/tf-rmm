@@ -98,7 +98,6 @@ unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_coh_type
 		}
 	}
 
-	*type = DEV_MEM_MAX;
 	return UINT64_MAX;
 }
 

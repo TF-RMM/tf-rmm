@@ -171,8 +171,8 @@ static inline void dev_granule_unlock_transition(struct dev_granule *g,
 }
 
 /*
- * Takes a valid pointer to a struct dev_granule, corresponding to dev_type
- * and returns the dev_granule physical address.
+ * Takes a valid pointer to a struct dev_granule, corresponding to device memory
+ * coherency type and returns the dev_granule physical address.
  *
  * This is purely a lookup, and provides no guarantees about the attributes of
  * the dev_granule (i.e. whether it is locked, its state or its reference count).
@@ -181,7 +181,8 @@ unsigned long dev_granule_addr(const struct dev_granule *g, enum dev_coh_type ty
 
 /*
  * Takes an aligned dev_granule address, returns a pointer to the corresponding
- * struct dev_granule and sets device granule type in address passed in @type.
+ * struct dev_granule and sets device granule coherency type in address passed
+ * in @type.
  *
  * This is purely a lookup, and provides no guarantees about the attributes of
  * the granule (i.e. whether it is locked, its state or its reference count).
@@ -197,7 +198,7 @@ struct dev_granule *addr_to_dev_granule(unsigned long addr, enum dev_coh_type *t
  *
  * Returns:
  *     Pointer to the struct dev_granule if @addr is a valid dev_granule physical
- *     address and device granule type in address passed in @type.
+ *     address and device granule coherency type in address passed in @type.
  *     NULL if any of:
  *     - @addr is not aligned to the size of a granule.
  *     - @addr is out of range.
@@ -207,7 +208,7 @@ struct dev_granule *find_dev_granule(unsigned long addr, enum dev_coh_type *type
 /*
  * Obtain a pointer to a locked dev_granule at @addr if @addr is a valid dev_granule
  * physical address and the state of the dev_granule at @addr is @expected_state and
- * set device granule type.
+ * set device granule coherency type.
  *
  * Returns:
  *	A valid dev_granule pointer if @addr is a valid dev_granule physical address
@@ -216,10 +217,38 @@ struct dev_granule *find_dev_granule(unsigned long addr, enum dev_coh_type *type
  *	- @addr is not aligned to the size of a granule.
  *	- @addr is out of range.
  *	- if the state of the dev_granule at @addr is not @expected_state.
+ *	The system coherent memory space associated with dev_granule is returned in
+ *	@type output parameter.
  */
 struct dev_granule *find_lock_dev_granule(unsigned long addr,
 					  unsigned char expected_state,
 					  enum dev_coh_type *type);
+
+/*
+ * Obtain a pointer to an array of @n locked dev_granules at @addr if @addr is a
+ * valid dev_granule physical address and the states of all @n dev_granules in
+ * array at @addr are @expected_state.
+ *
+ * Returns:
+ *	A valid pointer to the 1st dev_granule in array if @addr is a valid
+ *	dev_granule physical address.
+ *	NULL if any of:
+ *	- @addr is not aligned to the size of a granule.
+ *	- @addr is out of range.
+ *	- if the states of all dev_granules in array at @addr are not @expected_state.
+ *	- if not all @n dev_granules in array have the same coherency type.
+ *	The coherency type associated with dev_granules is returned in
+ *	@type output parameter.
+ *
+ * Locking only succeeds if all @n the dev_granules are in their expected states and
+ * have the same coherency memory type.
+ * If the function fails, no lock is held.
+ */
+struct dev_granule *find_lock_dev_granules(unsigned long addr,
+					   unsigned char expected_state,
+					   unsigned long n,
+					   enum dev_coh_type *type);
+
 /*
  * Refcount field occupies LSB bits of the dev_granule descriptor,
  * and functions which modify its value can operate directly on

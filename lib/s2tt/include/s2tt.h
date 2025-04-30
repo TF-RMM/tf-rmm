@@ -7,6 +7,7 @@
 #define S2TT_H
 
 #include <arch_features.h>
+#include <dev_type.h>
 #include <granule_types.h>
 #include <memory.h>
 #include <stdbool.h>
@@ -49,6 +50,7 @@ struct s2tt_context {
 #define S2TT_MIN_STARTING_LEVEL		(0)
 #define S2TT_MIN_STARTING_LEVEL_LPA2	(-1)
 #define S2TT_PAGE_LEVEL			(3)
+#define S2TT_MIN_DEV_BLOCK_LEVEL	(2)
 #define S2TT_MIN_BLOCK_LEVEL		(1)
 
 /*
@@ -113,6 +115,19 @@ unsigned long s2tte_create_assigned_unchanged(const struct s2tt_context *s2_ctx,
 					      unsigned long s2tte,
 					      unsigned long pa,
 					      long level);
+unsigned long s2tte_create_assigned_dev_empty(const struct s2tt_context *s2_ctx,
+						unsigned long pa, long level);
+unsigned long s2tte_create_assigned_dev_destroyed(const struct s2tt_context *s2_ctx,
+						  unsigned long pa, long level);
+unsigned long s2tte_create_assigned_dev_dev(const struct s2tt_context *s2_ctx,
+					    unsigned long s2tte, long level);
+unsigned long s2tte_create_assigned_dev_dev_coh_type(const struct s2tt_context *s2_ctx,
+						     unsigned long s2tte, long level,
+						     enum dev_coh_type type);
+unsigned long s2tte_create_assigned_dev_unchanged(const struct s2tt_context *s2_ctx,
+						  unsigned long s2tte,
+						  unsigned long pa,
+						  long level);
 unsigned long s2tte_create_table(const struct s2tt_context *s2_ctx,
 				 unsigned long pa, long level);
 
@@ -138,10 +153,18 @@ bool s2tte_is_assigned_ram(const struct s2tt_context *s2_ctx,
 			   unsigned long s2tte, long level);
 bool s2tte_is_assigned_ns(const struct s2tt_context *s2_ctx,
 			  unsigned long s2tte, long level);
-bool s2tte_is_table(const struct s2tt_context *s2_ctx,
-		    unsigned long s2tte, long level);
 bool s2tte_is_assigned_destroyed(const struct s2tt_context *s2_ctx,
 				 unsigned long s2tte, long level);
+
+bool s2tte_is_assigned_dev_empty(const struct s2tt_context *s2_ctx,
+				 unsigned long s2tte, long level);
+bool s2tte_is_assigned_dev_destroyed(const struct s2tt_context *s2_ctx,
+					unsigned long s2tte, long level);
+bool s2tte_is_assigned_dev_dev(const struct s2tt_context *s2_ctx,
+				unsigned long s2tte, long level);
+
+bool s2tte_is_table(const struct s2tt_context *s2_ctx,
+		    unsigned long s2tte, long level);
 
 unsigned long s2tte_pa(const struct s2tt_context *s2_ctx,
 		       unsigned long s2tte, long level);
@@ -175,6 +198,13 @@ void s2tt_init_assigned_ns(const struct s2tt_context *s2_ctx,
 void s2tt_init_assigned_destroyed(const struct s2tt_context *s2_ctx,
 				  unsigned long *s2tt, unsigned long pa,
 				  long level);
+void s2tt_init_assigned_dev_empty(const struct s2tt_context *s2_ctx,
+				  unsigned long *s2tt, unsigned long pa, long level);
+void s2tt_init_assigned_dev_destroyed(const struct s2tt_context *s2_ctx,
+					unsigned long *s2tt, unsigned long pa, long level);
+void s2tt_init_assigned_dev_dev(const struct s2tt_context *s2_ctx,
+				unsigned long *s2tt, unsigned long s2tte,
+				unsigned long pa, long level);
 
 void s2tt_invalidate_page(const struct s2tt_context *s2_ctx, unsigned long addr);
 void s2tt_invalidate_block(const struct s2tt_context *s2_ctx, unsigned long addr);
@@ -197,6 +227,12 @@ bool s2tt_maps_assigned_ram_block(const struct s2tt_context *s2_ctx,
 bool s2tt_maps_assigned_ns_block(const struct s2tt_context *s2_ctx,
 				 unsigned long *table, long level);
 bool s2tt_maps_assigned_destroyed_block(const struct s2tt_context *s2_ctx,
+					unsigned long *table, long level);
+bool s2tt_maps_assigned_dev_empty_block(const struct s2tt_context *s2_ctx,
+					unsigned long *table, long level);
+bool s2tt_maps_assigned_dev_destroyed_block(const struct s2tt_context *s2_ctx,
+						unsigned long *table, long level);
+bool s2tt_maps_assigned_dev_dev_block(const struct s2tt_context *s2_ctx,
 					unsigned long *table, long level);
 
 struct s2tt_walk {

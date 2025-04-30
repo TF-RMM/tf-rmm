@@ -150,18 +150,18 @@ static void sort_granules(struct granule_set *gs, unsigned long n)
 /*
  * Find a set of granules and lock them in order of their address.
  *
- * @granules: Pointer to array of @n items.  Each item must be pre-populated
+ * @gs:		Pointer to array of @n items. Each item must be pre-populated
  *		with ->addr set to the granule's address, and ->state set to
  *		the expected state of the granule, and ->g_ret pointing to
  *		a valid 'struct granule *'.
  *		This function sorts the supplied array in place.
- * @n: Number of struct granule_set in array pointed to by @granules
+ * @n: Number of struct granule_set in array pointed to by @gs
  *
  * Returns:
- *     True if all granules in @granules were successfully locked.
+ *     True if all granules in @gs were successfully locked.
  *
  *     False if any two entries in @granules have the same ->addr, or
- *     if, for any entry in @granules, any of the following is true:
+ *     if, for any entry in @gs, any of the following is true:
  *       - entry->addr is not aligned to the size of a granule
  *       - entry->addr is out of range
  *       - the state of the granule at entry->addr is not entry->state
@@ -169,7 +169,7 @@ static void sort_granules(struct granule_set *gs, unsigned long n)
  * Locking only succeeds if the granules are in their expected states as per the
  * locking rules in granule_types.h.
  *
- * If the function succeeds, for all items in @granules, ->g points to a locked
+ * If the function succeeds, for all items in @gs, ->g points to a locked
  * granule in ->state and *->g_ret is set to the pointer value.
  *
  * If the function fails, no lock is held and no *->g_ret pointers are

@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <bitmap.h>
 #include <buffer.h>
+#include <dev_granule.h>
 #include <granule.h>
 #include <ripas.h>
 #include <s2tt.h>
@@ -113,21 +114,32 @@ static void stage2_tlbi_ipa(const struct s2tt_context *s2_ctx,
 }
 
 /*
+ * Returns true if @s2tte has HIPAS=@hipas.
+ */
+static inline bool s2tte_has_hipas(unsigned long s2tte, unsigned long hipas)
+{
+	bool invalid_desc = ((s2tte & S2TT_DESC_VALID_MASK) == S2TTE_INVALID);
+	unsigned long invalid_desc_hipas = s2tte & S2TTE_INVALID_HIPAS_MASK;
+
+	return (invalid_desc && (invalid_desc_hipas == hipas));
+}
+
+/*
  * Returns true if s2tte has 'output address' field, namely, if it is one of:
- * - assigned_empty
- * - assigned_ram
- * - assigned_ns
- * - assigned_destroyed
- * - table
+ * - valid TTE
+ * - HIPAS = assigned
+ * - HIPAS = assigned_dev
  */
 static bool s2tte_has_pa(const struct s2tt_context *s2_ctx,
 			 unsigned long s2tte, long level)
 {
-	unsigned long desc_type = s2tte & S2TT_DESC_TYPE_MASK;
+	(void)s2_ctx;
+	(void)level;
+	bool valid_desc = ((s2tte & S2TT_DESC_VALID_MASK) == S2TTE_VALID);
 
-	return ((desc_type != S2TTE_INVALID) ||	/* block, page or table */
-		s2tte_is_assigned_empty(s2_ctx, s2tte, level) ||
-		s2tte_is_assigned_destroyed(s2_ctx, s2tte, level));
+	return (valid_desc ||	/* block, page or table */
+		s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_ASSIGNED) ||
+		s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_ASSIGNED_DEV));
 }
 
 /*
@@ -421,32 +433,34 @@ unsigned long s2tte_create_unassigned_ns(const struct s2tt_context *s2_ctx)
 }
 
 /*
- * Creates an invalid s2tte with output address @pa, HIPAS=ASSIGNED and
+ * Creates s2tte with output address @pa, HIPAS=ASSIGNED and
  * RIPAS=@s2tte_ripas, at level @level.
  */
 static unsigned long s2tte_create_assigned(const struct s2tt_context *s2_ctx,
 					   unsigned long pa, long level,
 					   unsigned long s2tte_ripas)
 {
+	unsigned long tte;
+
+	assert(s2_ctx != NULL);
 	assert(level >= S2TT_MIN_BLOCK_LEVEL);
 	assert(level <= S2TT_PAGE_LEVEL);
-	assert(EXTRACT(S2TTE_INVALID_RIPAS, s2tte_ripas)
-		<= EXTRACT(S2TTE_INVALID_RIPAS, S2TTE_INVALID_RIPAS_DESTROYED));
-	assert(s2_ctx != NULL);
+	assert(s2tte_ripas <= S2TTE_INVALID_RIPAS_DESTROYED);
 	assert(s2tte_is_addr_lvl_aligned(s2_ctx, pa, level));
 
-	unsigned long tte = pa_to_s2tte(pa, s2_ctx->enable_lpa2);
-	unsigned long s2tte_page, s2tte_block;
-
-	if (s2_ctx->enable_lpa2 == true) {
-		s2tte_page = S2TTE_PAGE_LPA2;
-		s2tte_block = S2TTE_BLOCK_LPA2;
-	} else {
-		s2tte_page = S2TTE_PAGE;
-		s2tte_block = S2TTE_BLOCK;
-	}
+	tte = pa_to_s2tte(pa, s2_ctx->enable_lpa2);
 
 	if (s2tte_ripas == S2TTE_INVALID_RIPAS_RAM) {
+		unsigned long s2tte_page, s2tte_block;
+
+		if (s2_ctx->enable_lpa2) {
+			s2tte_page = S2TTE_PAGE_LPA2;
+			s2tte_block = S2TTE_BLOCK_LPA2;
+		} else {
+			s2tte_page = S2TTE_PAGE;
+			s2tte_block = S2TTE_BLOCK;
+		}
+
 		if (level == S2TT_PAGE_LEVEL) {
 			return (tte | s2tte_page);
 		}
@@ -499,7 +513,157 @@ unsigned long s2tte_create_assigned_unchanged(const struct s2tt_context *s2_ctx,
 {
 	unsigned long current_ripas = s2tte & S2TTE_INVALID_RIPAS_MASK;
 
+	assert((s2tte & S2TT_DESC_VALID_MASK) == S2TTE_INVALID);
+
 	return s2tte_create_assigned(s2_ctx, pa, level, current_ripas);
+}
+
+/*
+ * Creates an invalid s2tte with output address @pa, HIPAS=ASSIGNED_DEV and
+ * RIPAS=@s2tte_ripas, at level @level.
+ * This function is only called for @s2tte_ripas values corresponding to
+ * RIPAS_EMPTY and RIPAS_DESTROYED.
+ */
+static unsigned long s2tte_create_assigned_dev(const struct s2tt_context *s2_ctx,
+						unsigned long pa, long level,
+						unsigned long s2tte_ripas)
+{
+	(void)level;
+	unsigned long tte;
+
+	assert(s2_ctx != NULL);
+	assert(level >= S2TT_MIN_DEV_BLOCK_LEVEL);
+	assert((s2tte_ripas == S2TTE_INVALID_RIPAS_EMPTY) ||
+		(s2tte_ripas == S2TTE_INVALID_RIPAS_DESTROYED));
+	assert(s2tte_is_addr_lvl_aligned(s2_ctx, pa, level));
+
+	tte = pa_to_s2tte(pa, s2_ctx->enable_lpa2);
+
+	return (tte | S2TTE_INVALID_HIPAS_ASSIGNED_DEV | s2tte_ripas);
+}
+
+/*
+ * Creates an invalid s2tte with output address @pa, HIPAS=ASSIGNED_DEV
+ * and RIPAS=EMPTY, at level @level.
+ */
+unsigned long s2tte_create_assigned_dev_empty(const struct s2tt_context *s2_ctx,
+						unsigned long pa, long level)
+{
+	return s2tte_create_assigned_dev(s2_ctx, pa, level,
+					 S2TTE_INVALID_RIPAS_EMPTY);
+}
+
+/*
+ * Creates an invalid s2tte with output address @pa, HIPAS=ASSIGNED_DEV and
+ * RIPAS=DESTROYED, at level @level.
+ */
+unsigned long s2tte_create_assigned_dev_destroyed(const struct s2tt_context *s2_ctx,
+						  unsigned long pa, long level)
+{
+	return s2tte_create_assigned_dev(s2_ctx, pa, level,
+					 S2TTE_INVALID_RIPAS_DESTROYED);
+}
+
+/*
+ * Creates an dev_assigned s2tte with output address @pa and the same
+ * RIPAS as passed on @s2tte.
+ */
+unsigned long s2tte_create_assigned_dev_unchanged(const struct s2tt_context *s2_ctx,
+						  unsigned long s2tte,
+						  unsigned long pa,
+						  long level)
+{
+	unsigned long current_ripas = s2tte & S2TTE_INVALID_RIPAS_MASK;
+
+	assert((s2tte & S2TT_DESC_VALID_MASK) == S2TTE_INVALID);
+
+	return s2tte_create_assigned_dev(s2_ctx, pa, level, current_ripas);
+}
+
+/*
+ * Creates a valid assigned_dev_dev s2tte at @level with attributes passed in
+ * @attr.
+ */
+static unsigned long create_assigned_dev_dev_attr(unsigned long s2tte,
+						  unsigned long attr, long level,
+						  bool lpa2)
+{
+	unsigned long pa, new_s2tte;
+
+	assert(level >= S2TT_MIN_DEV_BLOCK_LEVEL);
+
+	pa = s2tte_to_pa(s2tte, level, lpa2);
+
+	new_s2tte = attr | pa_to_s2tte(pa, lpa2);
+
+	if (level == S2TT_PAGE_LEVEL) {
+		return (new_s2tte | S2TTE_L3_PAGE);
+	}
+
+	return (new_s2tte | S2TTE_L012_BLOCK);
+}
+
+/*
+ * Creates a valid assigned_dev_dev s2tte at @level with attributes passed in
+ * @s2tte.
+ */
+unsigned long s2tte_create_assigned_dev_dev(const struct s2tt_context *s2_ctx,
+					    unsigned long s2tte, long level)
+{
+	unsigned long s2tte_mask = (S2TTE_DEV_ATTRS_MASK | S2TTE_MEMATTR_MASK);
+	unsigned long attr;
+	bool lpa2;
+
+	assert(s2_ctx != NULL);
+
+	lpa2 = s2_ctx->enable_lpa2;
+
+	/* Add Shareability bits if FEAT_LPA2 is not enabled */
+	if (!lpa2) {
+		s2tte_mask |= S2TTE_SH_MASK;
+	}
+
+	/* Get attributes */
+	attr = s2tte & s2tte_mask;
+
+	return create_assigned_dev_dev_attr(s2tte, attr, level, lpa2);
+}
+
+/*
+ * Creates a valid assigned_dev_dev s2tte at @level with attributes based on
+ * device coherency passed in @type.
+ */
+unsigned long s2tte_create_assigned_dev_dev_coh_type(const struct s2tt_context *s2_ctx,
+						     unsigned long s2tte, long level,
+						     enum dev_coh_type type)
+{
+	unsigned long attr;
+	bool lpa2;
+
+	assert(s2_ctx != NULL);
+	assert(type < DEV_MEM_MAX);
+
+	lpa2 = s2_ctx->enable_lpa2;
+
+	if (type == DEV_MEM_COHERENT) {
+		/* Coherent device */
+		attr = S2TTE_DEV_COH_ATTRS;
+
+		/* Add Shareability bits if FEAT_LPA2 is not enabled */
+		if (!lpa2) {
+			attr |= S2TTE_SH_IS;	/* Inner Shareable */
+		}
+	} else {
+		/* Non-coherent device */
+		attr = S2TTE_DEV_NCOH_ATTRS;
+
+		/* Add Shareability bits if FEAT_LPA2 is not enabled */
+		if (!lpa2) {
+			attr |= S2TTE_SH_OS;	/* Outer Shareable */
+		}
+	}
+
+	return create_assigned_dev_dev_attr(s2tte, attr, level, lpa2);
 }
 
 /*
@@ -513,20 +677,18 @@ unsigned long s2tte_create_assigned_unchanged(const struct s2tt_context *s2_ctx,
 unsigned long s2tte_create_assigned_ns(const struct s2tt_context *s2_ctx,
 				       unsigned long s2tte, long level)
 {
-	assert(s2_ctx != NULL);
-
 	/*
 	 * We just mask out the DESC_TYPE below. We assume rest of the
 	 * bits have been setup properly by the caller.
 	 */
 	unsigned long new_s2tte = s2tte & ~S2TT_DESC_TYPE_MASK;
-	bool lpa2 = s2_ctx->enable_lpa2;
 
+	assert(s2_ctx != NULL);
 	assert(level >= S2TT_MIN_BLOCK_LEVEL);
 	assert(level <= S2TT_PAGE_LEVEL);
 
 	/* The Shareability bits need to be added if FEAT_LPA2 is not enabled */
-	if (!lpa2) {
+	if (!s2_ctx->enable_lpa2) {
 		new_s2tte |= S2TTE_SH_IS;
 	}
 
@@ -598,14 +760,12 @@ unsigned long host_ns_s2tte(const struct s2tt_context *s2_ctx,
 unsigned long s2tte_create_table(const struct s2tt_context *s2_ctx,
 				 unsigned long pa, long level)
 {
-	__unused long min_starting_level;
-
 	(void)level;
+	__unused long min_starting_level;
 
 	assert(s2_ctx != NULL);
 
-	/* cppcheck-suppress misra-c2012-10.6 */
-	min_starting_level = (s2_ctx->enable_lpa2 == true) ?
+	min_starting_level = s2_ctx->enable_lpa2 ?
 			S2TT_MIN_STARTING_LEVEL_LPA2 : S2TT_MIN_STARTING_LEVEL;
 
 	assert(level < S2TT_PAGE_LEVEL);
@@ -616,7 +776,7 @@ unsigned long s2tte_create_table(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if s2tte has defined ripas value, namely if it is one of:
+ * Returns true if s2tte has defined RIPAS value, namely if it is one of:
  * - unassigned_empty
  * - unassigned_ram
  * - unassigned_destroyed
@@ -629,17 +789,6 @@ bool s2tte_has_ripas(const struct s2tt_context *s2_ctx,
 {
 	return (((s2tte & S2TTE_NS) == 0UL) && !s2tte_is_table(s2_ctx,
 							       s2tte, level));
-}
-
-/*
- * Returns true if @s2tte has HIPAS=@hipas.
- */
-static inline bool s2tte_has_hipas(unsigned long s2tte, unsigned long hipas)
-{
-	unsigned long desc_type = s2tte & S2TT_DESC_TYPE_MASK;
-	unsigned long invalid_desc_hipas = s2tte & S2TTE_INVALID_HIPAS_MASK;
-
-	return ((desc_type == S2TTE_INVALID) && (invalid_desc_hipas == hipas));
 }
 
 /*
@@ -658,8 +807,23 @@ static inline bool s2tte_has_unassigned_ripas(unsigned long s2tte,
 static inline bool s2tte_has_assigned_ripas(unsigned long s2tte,
 					    unsigned long ripas)
 {
+	assert((s2tte & S2TT_DESC_VALID_MASK) == S2TTE_INVALID);
+	assert(ripas != S2TTE_INVALID_RIPAS_RAM);
+
 	return (((s2tte & S2TTE_INVALID_RIPAS_MASK) == ripas) &&
 		  s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_ASSIGNED));
+}
+
+/*
+ * Returns true if @s2tte has HIPAS=ASSIGNED_DEV and RIPAS=@ripas.
+ */
+static bool s2tte_has_assigned_dev_ripas(unsigned long s2tte, unsigned long ripas)
+{
+	assert((s2tte & S2TT_DESC_VALID_MASK) == S2TTE_INVALID);
+	assert(ripas != S2TTE_INVALID_RIPAS_DEV);
+
+	return ((s2tte & S2TTE_INVALID_RIPAS_MASK) == ripas) &&
+		 s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_ASSIGNED_DEV);
 }
 
 /*
@@ -724,8 +888,12 @@ bool s2tte_is_unassigned_destroyed(const struct s2tt_context *s2_ctx,
 bool s2tte_is_assigned_destroyed(const struct s2tt_context *s2_ctx,
 				 unsigned long s2tte, long level)
 {
-	(void)level;
 	(void)s2_ctx;
+	(void)level;
+
+	if ((s2tte & S2TT_DESC_VALID_MASK) != S2TTE_INVALID) {
+		return false;
+	}
 
 	return s2tte_has_assigned_ripas(s2tte, S2TTE_INVALID_RIPAS_DESTROYED);
 }
@@ -736,8 +904,12 @@ bool s2tte_is_assigned_destroyed(const struct s2tt_context *s2_ctx,
 bool s2tte_is_assigned_empty(const struct s2tt_context *s2_ctx,
 			     unsigned long s2tte, long level)
 {
-	(void)level;
 	(void)s2_ctx;
+	(void)level;
+
+	if ((s2tte & S2TT_DESC_VALID_MASK) != S2TTE_INVALID) {
+		return false;
+	}
 
 	return s2tte_has_assigned_ripas(s2tte, S2TTE_INVALID_RIPAS_EMPTY);
 }
@@ -745,9 +917,8 @@ bool s2tte_is_assigned_empty(const struct s2tt_context *s2_ctx,
 static bool s2tte_check(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 			long level, unsigned long ns)
 {
-	unsigned long desc_type;
-
 	(void)s2_ctx;
+	unsigned long desc_type;
 
 	if ((s2tte & S2TTE_NS) != ns) {
 		return false;
@@ -786,6 +957,80 @@ bool s2tte_is_assigned_ns(const struct s2tt_context *s2_ctx,
 }
 
 /*
+ * Returns true if @s2tte has HIPAS=ASSIGNED_DEV and RIPAS=RIPAS_DEV.
+ */
+bool s2tte_is_assigned_dev_dev(const struct s2tt_context *s2_ctx,
+				unsigned long s2tte, long level)
+{
+	unsigned long attr;
+	unsigned long desc_type = s2tte & S2TT_DESC_TYPE_MASK;
+	bool lpa2;
+
+	assert(s2_ctx != NULL);
+
+	/* Only pages at L3 and valid blocks at L2 allowed */
+	if (!(((level == S2TT_PAGE_LEVEL) && (desc_type == S2TTE_L3_PAGE)) ||
+	      ((level == S2TT_MIN_DEV_BLOCK_LEVEL) && (desc_type == S2TTE_L012_BLOCK)))) {
+		return false;
+	}
+
+	attr = s2tte & (S2TTE_DEV_ATTRS_MASK | S2TTE_MEMATTR_MASK);
+	lpa2 = s2_ctx->enable_lpa2;
+
+	/*
+	 * Check that NS, XN, S2AP, AF and MemAttr[3:0] match with provided
+	 * attributes. When LPA2 is not enabled, assert if shareability
+	 * attrubutes are not set correctly.
+	 */
+	if (attr == S2TTE_DEV_COH_ATTRS) {
+		if (!lpa2) {
+			/* Coherent device, Inner Shareable */
+			assert((s2tte & S2TTE_SH_MASK) == S2TTE_SH_IS);
+		}
+		return true;
+	} else if (attr == S2TTE_DEV_NCOH_ATTRS) {
+		if (!lpa2) {
+			/* Non-coherent device, Outer Shareable */
+			assert((s2tte & S2TTE_SH_MASK) == S2TTE_SH_OS);
+		}
+		return true;
+	}
+	return false;
+}
+
+/*
+ * Returns true if @s2tte has HIPAS=ASSIGNED_DEV and RIPAS=RIPAS_EMPTY.
+ */
+bool s2tte_is_assigned_dev_empty(const struct s2tt_context *s2_ctx,
+				 unsigned long s2tte, long level)
+{
+	(void)s2_ctx;
+	(void)level;
+
+	if ((s2tte & S2TT_DESC_VALID_MASK) != S2TTE_INVALID) {
+		return false;
+	}
+
+	return s2tte_has_assigned_dev_ripas(s2tte, S2TTE_INVALID_RIPAS_EMPTY);
+}
+
+/*
+ * Returns true if @s2tte is an dev_assigned_destroyed.
+ */
+bool s2tte_is_assigned_dev_destroyed(const struct s2tt_context *s2_ctx,
+					unsigned long s2tte, long level)
+{
+	(void)s2_ctx;
+	(void)level;
+
+	if ((s2tte & S2TT_DESC_VALID_MASK) != S2TTE_INVALID) {
+		return false;
+	}
+
+	return s2tte_has_assigned_dev_ripas(s2tte, S2TTE_INVALID_RIPAS_DESTROYED);
+}
+
+/*
  * Returns true if @s2tte is a table at level @level.
  */
 bool s2tte_is_table(const struct s2tt_context *s2_ctx, unsigned long s2tte,
@@ -805,16 +1050,17 @@ bool s2tte_is_table(const struct s2tt_context *s2_ctx, unsigned long s2tte,
  */
 enum ripas s2tte_get_ripas(const struct s2tt_context *s2_ctx, unsigned long s2tte)
 {
-	unsigned long desc_ripas = s2tte & S2TTE_INVALID_RIPAS_MASK;
-	unsigned long desc_type = s2tte & S2TT_DESC_TYPE_MASK;
-
 	(void)s2_ctx;
+	unsigned long desc_ripas = s2tte & S2TTE_INVALID_RIPAS_MASK;
+	bool valid_desc = ((s2tte & S2TT_DESC_VALID_MASK) == S2TTE_VALID);
 
 	/*
 	 * If a valid S2TTE descriptor is passed, the RIPAS corresponds to
 	 * RIPAS_RAM.
 	 */
-	if (desc_type != S2TTE_INVALID) {
+	if (valid_desc) {
+		__unused unsigned long desc_type = s2tte & S2TT_DESC_TYPE_MASK;
+
 		assert((desc_type == S2TTE_L012_BLOCK) ||
 			(desc_type == S2TTE_L3_PAGE));
 		return RIPAS_RAM;
@@ -838,10 +1084,10 @@ enum ripas s2tte_get_ripas(const struct s2tt_context *s2_ctx, unsigned long s2tt
 void s2tt_init_unassigned_empty(const struct s2tt_context *s2_ctx,
 				unsigned long *s2tt)
 {
-	assert(s2tt != NULL);
-
 	unsigned long s2tte =
 		s2tte_create_unassigned_empty(s2_ctx);
+
+	assert(s2tt != NULL);
 
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
 		s2tt[i] = s2tte;
@@ -859,9 +1105,9 @@ void s2tt_init_unassigned_empty(const struct s2tt_context *s2_ctx,
 void s2tt_init_unassigned_ram(const struct s2tt_context *s2_ctx,
 			      unsigned long *s2tt)
 {
-	assert(s2tt != NULL);
-
 	unsigned long s2tte = s2tte_create_unassigned_ram(s2_ctx);
+
+	assert(s2tt != NULL);
 
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
 		s2tt[i] = s2tte;
@@ -879,9 +1125,9 @@ void s2tt_init_unassigned_ram(const struct s2tt_context *s2_ctx,
 void s2tt_init_unassigned_ns(const struct s2tt_context *s2_ctx,
 			     unsigned long *s2tt)
 {
-	assert(s2tt != NULL);
-
 	unsigned long s2tte = s2tte_create_unassigned_ns(s2_ctx);
+
+	assert(s2tt != NULL);
 
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
 		s2tt[i] = s2tte;
@@ -899,14 +1145,15 @@ void s2tt_init_unassigned_ns(const struct s2tt_context *s2_ctx,
 void s2tt_init_unassigned_destroyed(const struct s2tt_context *s2_ctx,
 				    unsigned long *s2tt)
 {
-	assert(s2tt != NULL);
-
 	unsigned long s2tte =
 		s2tte_create_unassigned_destroyed(s2_ctx);
+
+	assert(s2tt != NULL);
 
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
 		s2tt[i] = s2tte;
 	}
+
 	dsb(ish);
 }
 
@@ -1009,6 +1256,78 @@ void s2tt_init_assigned_ns(const struct s2tt_context *s2_ctx,
 		s2tt[i] = s2tte_create_assigned_ns(s2_ctx,
 				attrs | pa_to_s2tte(pa, s2_ctx->enable_lpa2),
 				level);
+		pa += map_size;
+	}
+
+	dsb(ish);
+}
+
+/*
+ * Populates @s2tt with HIPAS=ASSIGNED_DEV, RIPAS=EMPTY s2ttes that refer to a
+ * contiguous memory block starting at @pa, and mapped at level @level.
+ *
+ * The granule is populated before it is made a table,
+ * hence, don't use s2tte_write for access.
+ */
+void s2tt_init_assigned_dev_empty(const struct s2tt_context *s2_ctx,
+				  unsigned long *s2tt, unsigned long pa, long level)
+{
+	const unsigned long map_size = s2tte_map_size(level);
+
+	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
+		s2tt[i] = s2tte_create_assigned_dev_empty(s2_ctx, pa, level);
+		pa += map_size;
+	}
+
+	dsb(ish);
+}
+
+/*
+ * Populates @s2tt with HIPAS=ASSIGNED_DEV, RIPAS=DESTROYED s2ttes that refer to a
+ * contiguous memory block starting at @pa, and mapped at level @level.
+ *
+ * The granule is populated before it is made a table,
+ * hence, don't use s2tte_write for access.
+ */
+void s2tt_init_assigned_dev_destroyed(const struct s2tt_context *s2_ctx,
+					unsigned long *s2tt, unsigned long pa, long level)
+{
+	const unsigned long map_size = s2tte_map_size(level);
+
+	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
+		s2tt[i] = s2tte_create_assigned_dev_destroyed(s2_ctx, pa, level);
+		pa += map_size;
+	}
+
+	dsb(ish);
+}
+
+/*
+ * Populates @s2tt with assigned_dev_dev s2ttes that refer to a
+ * contiguous memory block starting at @pa, and mapped at level @level.
+ *
+ * The granule is populated before it is made a table,
+ * hence, don't use s2tte_write for access.
+ */
+void s2tt_init_assigned_dev_dev(const struct s2tt_context *s2_ctx,
+				unsigned long *s2tt, unsigned long s2tte,
+				unsigned long pa, long level)
+{
+	const unsigned long map_size = s2tte_map_size(level);
+	unsigned long s2tte_mask = (S2TTE_DEV_ATTRS_MASK | S2TTE_MEMATTR_MASK);
+
+	assert(s2_ctx != NULL);
+	assert(level >= S2TT_MIN_DEV_BLOCK_LEVEL);
+
+	/* Add Shareability bits if FEAT_LPA2 is not enabled */
+	if (!s2_ctx->enable_lpa2) {
+		s2tte_mask |= S2TTE_SH_MASK;
+	}
+
+	s2tte &= s2tte_mask;
+
+	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
+		s2tt[i] = s2tte_create_assigned_dev_dev(s2_ctx, s2tte | pa, level);
 		pa += map_size;
 	}
 
@@ -1251,6 +1570,39 @@ bool s2tt_maps_assigned_destroyed_block(const struct s2tt_context *s2_ctx,
 {
 	return table_maps_block(s2_ctx, table, level,
 				s2tte_is_assigned_destroyed, false);
+}
+
+/*
+ * Returns true if all s2ttes are assigned_dev_empty and
+ * refer to a contiguous block of granules aligned to @level - 1.
+ */
+bool s2tt_maps_assigned_dev_empty_block(const struct s2tt_context *s2_ctx,
+					unsigned long *table, long level)
+{
+	return table_maps_block(s2_ctx, table, level,
+				s2tte_is_assigned_dev_empty, false);
+}
+
+/*
+ * Returns true if all s2ttes are assigned_dev_destroyed and
+ * refer to a contiguous block of granules aligned to @level - 1.
+ */
+bool s2tt_maps_assigned_dev_destroyed_block(const struct s2tt_context *s2_ctx,
+					   unsigned long *table, long level)
+{
+	return table_maps_block(s2_ctx, table, level,
+				s2tte_is_assigned_dev_destroyed, false);
+}
+
+/*
+ * Returns true if all s2ttes are assigned_dev_dev and
+ * refer to a contiguous block of granules aligned to @level - 1.
+ */
+bool s2tt_maps_assigned_dev_dev_block(const struct s2tt_context *s2_ctx,
+					unsigned long *table, long level)
+{
+	return table_maps_block(s2_ctx, table, level,
+				s2tte_is_assigned_dev_dev, false);
 }
 
 /*

@@ -15,15 +15,14 @@ IF_NCBMC(static) struct dev_granule dev_ncoh_granules[RMM_MAX_NCOH_GRANULES]
 			IF_NCBMC(__section("granules_memory"));
 
 /*
- * Takes a valid pointer to a struct dev_granule, corresponding to dev_type
- * and returns the dev_granule physical address.
+ * Takes a valid pointer to a struct dev_granule, corresponding to device memory
+ * coherency type and returns the dev_granule physical address.
  *
  * This is purely a lookup, and provides no guarantees about the attributes of
  * the dev_granule (i.e. whether it is locked, its state or its reference count).
  */
 unsigned long dev_granule_addr(const struct dev_granule *g, enum dev_coh_type type)
 {
-	(void)type;
 	unsigned long idx;
 
 	assert(g != NULL);
@@ -55,7 +54,8 @@ static struct dev_granule *dev_granule_from_idx(unsigned long idx, enum dev_coh_
 
 /*
  * Takes an aligned dev_granule address, returns a pointer to the corresponding
- * struct dev_granule and sets device granule type in address passed in @type.
+ * struct dev_granule and sets device granule coherency type in address passed
+ * in @type.
  *
  * This is purely a lookup, and provides no guarantees about the attributes of
  * the granule (i.e. whether it is locked, its state or its reference count).
@@ -72,7 +72,8 @@ struct dev_granule *addr_to_dev_granule(unsigned long addr, enum dev_coh_type *t
 
 /*
  * Verifies whether @addr is a valid dev_granule physical address, returns
- * a pointer to the corresponding struct dev_granule and sets device granule type.
+ * a pointer to the corresponding struct dev_granule and sets device granule
+ * coherency type.
  *
  * This is purely a lookup, and provides no guarantees w.r.t the state of the
  * granule (e.g. locking).
@@ -103,7 +104,7 @@ struct dev_granule *find_dev_granule(unsigned long addr, enum dev_coh_type *type
 /*
  * Obtain a pointer to a locked dev_granule at @addr if @addr is a valid dev_granule
  * physical address and the state of the dev_granule at @addr is @expected_state and
- * set device granule type.
+ * set device granule coherency type.
  *
  * Returns:
  *	A valid dev_granule pointer if @addr is a valid dev_granule physical address
@@ -112,6 +113,8 @@ struct dev_granule *find_dev_granule(unsigned long addr, enum dev_coh_type *type
  *	- @addr is not aligned to the size of a granule.
  *	- @addr is out of range.
  *	- if the state of the dev_granule at @addr is not @expected_state.
+ *	The system coherent memory space associated with dev_granule is returned in
+ *	@type output parameter.
  */
 struct dev_granule *find_lock_dev_granule(unsigned long addr,
 					  unsigned char expected_state,
@@ -125,6 +128,60 @@ struct dev_granule *find_lock_dev_granule(unsigned long addr,
 
 	if (!dev_granule_lock_on_state_match(g, expected_state)) {
 		return NULL;
+	}
+
+	return g;
+}
+
+/*
+ * Obtain a pointer to an array of @n locked dev_granules at @addr if @addr is a
+ * valid dev_granule physical address and the states of all @n dev_granules in
+ * array at @addr are @expected_state.
+ *
+ * Returns:
+ *	A valid pointer to the 1st dev_granule in array if @addr is a valid
+ *	dev_granule physical address.
+ *	NULL if any of:
+ *	- @addr is not aligned to the size of a granule.
+ *	- @addr is out of range.
+ *	- if the states of all dev_granules in array at @addr are not @expected_state.
+ *	- if not all @n dev_granules in array have the same coherency type.
+ *	The coherency type associated with dev_granules is returned in
+ *	@type output parameter.
+ *
+ * Locking only succeeds if all @n the dev_granules are in their expected states and
+ * have the same coherency memory type.
+ * If the function fails, no lock is held.
+ */
+struct dev_granule *find_lock_dev_granules(unsigned long addr,
+					   unsigned char expected_state,
+					   unsigned long n,
+					   enum dev_coh_type *type)
+{
+	struct dev_granule *g;
+
+	/*
+	 * Find and lock the 1st dev_granule in array.
+	 * Get its coherency type.
+	 */
+	g = find_lock_dev_granule(addr, expected_state, type);
+	if (g == NULL) {
+		return NULL;
+	}
+
+	for (unsigned long i = 1UL; i < n; i++) {
+		enum dev_coh_type g_type;
+		struct dev_granule *g_dev;
+
+		addr += GRANULE_SIZE;
+
+		g_dev = find_lock_dev_granule(addr, expected_state, &g_type);
+		if ((g_dev == NULL) || (g_type != *type)) {
+			while (i != 0UL) {
+				dev_granule_unlock(&g[--i]);
+			}
+			return NULL;
+		}
 	}
 
 	return g;

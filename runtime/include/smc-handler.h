@@ -96,4 +96,14 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 			unsigned long top,
 			struct smc_result *res);
 
+unsigned long smc_dev_mem_map(unsigned long rd_addr,
+				unsigned long map_addr,
+				unsigned long ulevel,
+				unsigned long dev_mem_addr);
+
+void smc_dev_mem_unmap(unsigned long rd_addr,
+			unsigned long map_addr,
+			unsigned long ulevel,
+			struct smc_result *res);
+
 #endif /* SMC_HANDLER_H */
