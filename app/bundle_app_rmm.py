@@ -37,6 +37,9 @@ A bundled RMM binary has the following structure:
     |      App binary content      |                           |
     |                              |                           |
     +------------------------------+                          -+
+    |   Pad to RMM_BIN_ALIGNMENT   |                           |
+    |       (May be missing)       |                           |
+    +------------------------------+                          -+
     |                              |                           |
     |      RMM binary content      |                           +rmm_bin
     |                              |                           |
@@ -50,6 +53,8 @@ import struct
 import sys
 
 logger = None
+
+RMM_BIN_ALIGNMENT = 64 * 1024
 
 
 def initial_branch_instruction(offset):
@@ -125,10 +130,16 @@ def main():
             apps_size += len(app_bin_content)
             app_bin_contents.append(app_bin_content)
 
+    rmm_bin_padding = 0
+    if (apps_size % RMM_BIN_ALIGNMENT) != 0:
+        rmm_bin_padding = RMM_BIN_ALIGNMENT - (apps_size % RMM_BIN_ALIGNMENT)
+
+    rmm_bin_offset = apps_size + rmm_bin_padding
+
     # Create the bundled bin file
     with open(args.out_bin, "wb") as out_file:
         # Write the starting branch instruction
-        out_file.write(initial_branch_instruction(apps_size))
+        out_file.write(initial_branch_instruction(rmm_bin_offset))
         # for the first entry, the Initial branch instruction is added in place
         # the first 4 bytes of the padding in the app header.
         start_offset = 4
@@ -137,6 +148,9 @@ def main():
             # For the rest of the files, write the full header
             start_offset = 0
 
+        # Add padding so that the RMM bin start is aligned at RMM_BIN_ALIGNMENT
+        out_file.write(bytearray(rmm_bin_padding))
+
         # Add the RMM bin file to the bundle
         with open(args.rmm_bin, "rb") as rmm_bin_file:
             out_file.write(rmm_bin_file.read())
@@ -144,7 +158,9 @@ def main():
     logger.info(
         f"{args.out_bin} was successfully created. Added {len(args.app_bin_files)} app(s)."
     )
-    logger.info(f"The offset of the RMM bin is {apps_size} (0x{apps_size:x}) bytes")
+    logger.info(
+        f"The offset of the RMM core is {rmm_bin_offset} (0x{rmm_bin_offset:x}) bytes from start of packaged bin."
+    )
 
 
 if __name__ == "__main__":
