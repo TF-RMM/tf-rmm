@@ -133,10 +133,9 @@ void handle_rsi_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 struct rsi_walk_result complete_rsi_host_call(struct rec *rec,
 					      struct rmi_rec_enter *rec_enter)
 {
-	struct rsi_result res;
+	struct rsi_result res = {UPDATE_REC_RETURN_TO_REALM, 0UL,
+				{{[0 ... SMC_RESULT_REGS-1] = 0UL}}};
 	struct rsi_walk_result walk_res = { false, 0UL };
-
-	(void)memset(&res, 0, sizeof(res));
 
 	/*
 	 * Do the necessary to walk the S2 RTTs and copy args from NS Host

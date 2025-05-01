@@ -312,7 +312,7 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 
 			/* Point to new subtable from this one. */
 			table_base[table_idx] =
-				TABLE_DESC | (uintptr_t)(void *)subtable;
+				TABLE_DESC | (uintptr_t)subtable;
 
 			/* Recurse to write into subtable */
 			/* cppcheck-suppress misra-c2012-17.2 */
@@ -326,7 +326,7 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 		} else if (action == ACTION_RECURSE_INTO_TABLE) {
 			uintptr_t end_va;
 
-			subtable = (uint64_t *)(void *)xlat_get_oa_from_tte(desc);
+			subtable = (uint64_t *)xlat_get_oa_from_tte(desc);
 			/* Recurse to write into subtable */
 			/* cppcheck-suppress misra-c2012-17.2 */
 			end_va = xlat_tables_map_region(ctx, mm, table_idx_va,
@@ -523,7 +523,7 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 
 	/* Inv the cache as a good measure */
 	if (!is_mmu_enabled()) {
-		inv_dcache_range((uintptr_t)(void *)ctx_tbls->tables,
+		inv_dcache_range((uintptr_t)ctx_tbls->tables,
 				sizeof(uint64_t) * (unsigned long)ctx_tbls->tables_num
 							* XLAT_TABLE_ENTRIES);
 	}
@@ -531,7 +531,7 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 	ctx_tbls->init = true;
 
 	if (!is_mmu_enabled()) {
-		inv_dcache_range((uintptr_t)(void *)ctx_tbls,
+		inv_dcache_range((uintptr_t)ctx_tbls,
 				   sizeof(struct xlat_ctx_tbls));
 	}
 	xlat_tables_print(ctx);

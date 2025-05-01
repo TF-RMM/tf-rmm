@@ -11,11 +11,12 @@
 #include <stddef.h>
 #include <utils_def.h>
 
+/* NOLINTNEXTLINE(cert-int09-c) */
 enum buffer_slot {
 	/*
 	 * NS.
 	 */
-	SLOT_NS,
+	SLOT_NS = 0,
 
 	/*
 	 * RMM-private.

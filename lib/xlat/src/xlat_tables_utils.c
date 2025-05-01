@@ -334,7 +334,7 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 		table_base_va += (XLAT_BLOCK_SIZE(level) * idx);
 
 		/* Get the next table */
-		ret_table = (uint64_t *)(void *)xlat_get_oa_from_tte(desc);
+		ret_table = (uint64_t *)xlat_get_oa_from_tte(desc);
 	}
 
 	/*
