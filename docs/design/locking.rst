@@ -532,7 +532,7 @@ classified into two categories:
 	- DEV_GRANULE_STATE_DELEGATED
 
 #. **Internal**: A granule state belongs to the `internal` class iff it is not
-   an `external`. These are objects which are referenced from another
+   an `external`. These are objects which are referenced from another
    object after that object is locked. Each `internal` object should be
    referenced from exactly one place. The following granule states are
    `internal`:
