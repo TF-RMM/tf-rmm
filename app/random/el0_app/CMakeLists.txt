@@ -87,21 +87,8 @@ target_compile_definitions(rmm-app-random-elf
 
 if(NOT RMM_ARCH STREQUAL fake_host)
     set(COMMON_APP_LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/../../common/el0_app/linker.lds")
-    set(RANDOM_APP_LINKER_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/linker_random.lds")
 
-    add_custom_command(
-        COMMAND "${CMAKE_COMMAND}" -E copy "${COMMON_APP_LINKER_SCRIPT}" "${RANDOM_APP_LINKER_SCRIPT}"
-        OUTPUT ${RANDOM_APP_LINKER_SCRIPT}
-        DEPENDS ${COMMON_APP_LINKER_SCRIPT})
-
-        arm_target_linker_script(rmm-app-random-elf "${RANDOM_APP_LINKER_SCRIPT}")
-
-    # create the directory for the preprocessed ld file
-    # This is necessary for the 'Unix Makefiles' generator as the directory is not created by the
-    # generated Makefiles.
-    get_target_property(linker_script_location rmm-app-random-elf-lds LOCATION_${CMAKE_BUILD_TYPE})
-    get_filename_component(preprocessed_ldsi_dir ${linker_script_location} DIRECTORY [CACHE])
-    file(MAKE_DIRECTORY "${preprocessed_ldsi_dir}")
+    arm_target_linker_script(rmm-app-random-elf "${COMMON_APP_LINKER_SCRIPT}")
 
     set_property(TARGET rmm-app-random-elf-lds APPEND
         PROPERTY COMPILE_DEFINITIONS "__LINKER__")
@@ -125,7 +112,7 @@ if(NOT RMM_ARCH STREQUAL fake_host)
         --stack-page-count ${RMM_NUM_PAGES_PER_RANDOM_APP_STACK}
         --heap-page-count ${RMM_NUM_PAGES_PER_RANDOM_APP_HEAP}
         --out-bin ${RAW_DATA_OUTPUT_FILE}
-    DEPENDS rmm-app-random-elf ${RANDOM_APP_LINKER_SCRIPT}
+    DEPENDS rmm-app-random-elf rmm-app-random-elf-lds
     )
 
     # Add a custom target that depends on the bin file. This is necessary so that

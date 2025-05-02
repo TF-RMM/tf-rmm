@@ -128,21 +128,8 @@ target_compile_definitions(rmm-app-attestation-elf
 
 if(NOT RMM_ARCH STREQUAL fake_host)
     set(COMMON_APP_LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/../../common/el0_app/linker.lds")
-    set(ATTEST_APP_LINKER_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/linker_attest.lds")
 
-    add_custom_command(
-        COMMAND "${CMAKE_COMMAND}" -E copy "${COMMON_APP_LINKER_SCRIPT}" "${ATTEST_APP_LINKER_SCRIPT}"
-        OUTPUT ${ATTEST_APP_LINKER_SCRIPT}
-        DEPENDS ${COMMON_APP_LINKER_SCRIPT})
-
-    arm_target_linker_script(rmm-app-attestation-elf "${ATTEST_APP_LINKER_SCRIPT}")
-
-    # create the directory for the preprocessed ld file
-    # This is necessary for the 'Unix Makefiles' generator as the directory is not created by the
-    # generated Makefiles.
-    get_target_property(linker_script_location rmm-app-attestation-elf-lds LOCATION_${CMAKE_BUILD_TYPE})
-    get_filename_component(preprocessed_ldsi_dir ${linker_script_location} DIRECTORY [CACHE])
-    file(MAKE_DIRECTORY "${preprocessed_ldsi_dir}")
+    arm_target_linker_script(rmm-app-attestation-elf "${COMMON_APP_LINKER_SCRIPT}")
 
     set_property(TARGET rmm-app-attestation-elf-lds APPEND
         PROPERTY COMPILE_DEFINITIONS "__LINKER__")
@@ -166,7 +153,7 @@ if(NOT RMM_ARCH STREQUAL fake_host)
         --stack-page-count ${ATTESTATION_APP_STACK_SIZE}
         --heap-page-count ${ATTESTATION_APP_HEAP_SIZE}
         --out-bin ${RAW_DATA_OUTPUT_FILE}
-    DEPENDS rmm-app-attestation-elf ${ATTEST_APP_LINKER_SCRIPT}
+    DEPENDS rmm-app-attestation-elf rmm-app-attestation-elf-lds
     )
 
     # Add a custom target that depends on the bin file. This is necessary so that
