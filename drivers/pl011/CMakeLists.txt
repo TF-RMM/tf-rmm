@@ -3,10 +3,25 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
+#
+# Option to make PL011 SBSA compliant. Typically only enabled in
+# hardware validation environments.
+#
+arm_config_option(
+	NAME PL011_GENERIC_SBSA_UART
+	HELP "Enable Generic (SBSA Compliant) PL011. This a subset of PL011 UART"
+	STRINGS "ON" "OFF"
+	DEFAULT "OFF")
+
 add_library(rmm-driver-pl011)
 
 target_link_libraries(rmm-driver-pl011
     PRIVATE rmm-lib)
+
+if(PL011_GENERIC_SBSA_UART)
+    target_compile_definitions(rmm-driver-pl011
+        PUBLIC "PL011_GENERIC_SBSA_UART=1")
+endif()
 
 target_include_directories(rmm-driver-pl011
     PUBLIC "include")
