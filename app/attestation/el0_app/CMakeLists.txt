@@ -91,7 +91,7 @@ target_link_libraries(rmm-app-attestation-elf
 if(RMM_ARCH STREQUAL fake_host)
     target_link_libraries(rmm-app-attestation-elf
         PRIVATE
-            rmm-host-support)
+            rmm-host-el2-el0-cmn)
 endif()
 
 add_custom_command(

@@ -6,8 +6,8 @@
 add_library(rmm-plat-host_build)
 
 target_link_libraries(rmm-plat-host_build
-    PRIVATE rmm-lib
-            rmm-host-common
+    PRIVATE rmm-host-harness
+            rmm-lib
             rmm-el2-stub)
 
 target_sources(rmm-plat-host_build

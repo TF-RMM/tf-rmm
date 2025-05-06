@@ -46,7 +46,7 @@ add_library(rmm-host-mbedtls INTERFACE)
 add_dependencies(rmm-host-mbedtls rmm-mbedtls)
 
 target_include_directories(rmm-host-mbedtls INTERFACE
-    "${RMM_SOURCE_DIR}plat/host/common/mbedtls_host"
+    "${RMM_SOURCE_DIR}plat/host/harness/mbedtls_host"
     "${MBEDTLS_SRC_DIR}/include")
 target_compile_definitions(rmm-host-mbedtls INTERFACE
     "-DMBEDTLS_CONFIG_FILE=<rmm_mbedtls_config_host.h>")
@@ -56,10 +56,10 @@ set(MBEDTLS_LIBS mbedcrypto)
 
 foreach(MBEDTLS_LIB IN ITEMS ${MBEDTLS_LIBS})
     target_include_directories(${MBEDTLS_TARGET_PREFIX}${MBEDTLS_LIB} PUBLIC
-        "${RMM_SOURCE_DIR}/plat/host/common/mbedtls_host"
+        "${RMM_SOURCE_DIR}/plat/host/harness/mbedtls_host"
         "${MBEDTLS_SRC_DIR}/include")
     target_compile_definitions(${MBEDTLS_TARGET_PREFIX}${MBEDTLS_LIB} PUBLIC
         "-DMBEDTLS_CONFIG_FILE=<rmm_mbedtls_config_host.h>")
     target_link_libraries(rmm-host-mbedtls INTERFACE ${MBEDTLS_TARGET_PREFIX}${MBEDTLS_LIB})
-    target_link_libraries(${MBEDTLS_TARGET_PREFIX}${MBEDTLS_LIB} PRIVATE rmm-host-common)
+    target_link_libraries(${MBEDTLS_TARGET_PREFIX}${MBEDTLS_LIB} PRIVATE rmm-host-harness)
 endforeach()

@@ -9,7 +9,6 @@
 #include "buffer.h"
 #include "granule.h"
 #include "granule_types.h"
-#include "host_defs.h"
 #include "host_utils.h"
 #include "platform_api.h"
 #include "sizes.h"

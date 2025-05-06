@@ -4,7 +4,6 @@
  */
 
 #include "granule.h"
-#include "host_defs.h"
 #include "host_utils.h"
 #include "measurement.h"
 #include "s2tt.h"

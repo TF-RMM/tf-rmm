@@ -4,17 +4,11 @@
  */
 
 #include <arch_helpers.h>
-#include <assert.h>
 #include <debug.h>
-#include <errno.h>
 #include <gic.h>
-#include <host_defs.h>
 #include <host_utils.h>
-#include <plat_common.h>
 #include <rmm_el3_ifc.h>
-#include <string.h>
-#include <utils_def.h>
-#include <xlat_tables.h>
+#include <xlat_defs.h>
 
 /*
  * Allocate memory to emulate physical memory to initialize the
@@ -36,27 +30,6 @@ static unsigned char el3_rmm_shared_buffer[PAGE_SIZE] __aligned(PAGE_SIZE);
 static struct rmm_core_manifest *boot_manifest =
 			(struct rmm_core_manifest *)el3_rmm_shared_buffer;
 
-/*
- * Generic callback to access a sysreg for reading.
- */
-static u_register_t sysreg_rd_cb(u_register_t *reg)
-{
-	return *reg;
-}
-
-/*
- * Generic callback to access a sysreg for writing.
- */
-static void sysreg_wr_cb(u_register_t val, u_register_t *reg)
-{
-	*reg = val;
-}
-
-int host_util_set_default_sysreg_cb(char *name, u_register_t init)
-{
-	return host_util_set_sysreg_cb(name, &sysreg_rd_cb,
-				       &sysreg_wr_cb, init);
-}
 
 unsigned long host_util_get_granule_base(void)
 {

@@ -7,7 +7,6 @@
 #include <arch_helpers.h>
 #include <assert.h>
 #include <debug.h>
-#include <host_defs.h>
 #include <host_rmi_wrappers.h>
 #include <host_utils.h>
 #include <platform_api.h>

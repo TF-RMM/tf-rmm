@@ -15,7 +15,6 @@ extern "C" {
 #include <status.h>
 #include <stdlib.h>
 #include <string.h>
-#include <test_harness.h>
 #include <test_helpers.h>
 #include <unistd.h>
 #include <utils_def.h>

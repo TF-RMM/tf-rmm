@@ -7,7 +7,7 @@
 #define TB_COMMON_H
 
 #include "granule.h"
-#include "host_defs.h"
+#include "host_utils.h"
 #include "stdbool.h"
 #include "stdint.h"
 #include "string.h"
