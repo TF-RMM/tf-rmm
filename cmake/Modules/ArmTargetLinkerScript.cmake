@@ -17,8 +17,9 @@ Set the linker script for a target.
 
     arm_target_linker_script(<target> <script>)
 
-Sets the linker script of the target ``<target>`` to the script ``<script>``,
-which is first preprocessed with the C preprocessor.
+Sets the linker script of the target ``<target>`` from the input script
+``<script>``. The input is first preprocessed with the C preprocessor, and the
+result is output to the current binary directory.
 
 Properties for the linker script target may be set on `<target>-lds`.
 

@@ -22,6 +22,9 @@ target created by this macro can then be used as a dependency for a higher-level
 target. The output file can be retrieved from the :prop_tgt:`LOCATION_<CONFIG>
 <prop_tgt:LOCATION_<CONFIG>>` target property.
 
+The path of the output file is built using only the file name of the source, so
+the source does not have to be in CMAKE_CURRENT_SOURCE_DIR.
+
 The following target properties are passed to the preprocessor:
 
 - :prop_tgt:`COMPILE_OPTIONS <prop_tgt:COMPILE_OPTIONS>`
@@ -55,16 +58,11 @@ For processing linker scripts specifically, see the
 include_guard()
 
 macro(arm_preprocess_source target source)
-    #
-    # We start by trying to get the source file relative to the current source
-    # directory, which means that we can mirror where it goes in the binary
-    # directory. This just replicates what CMake does with source files it's
-    # aware of.
-    #
-
-    get_filename_component(preprocessed_source "${source}.i" ABSOLUTE)
-    file(RELATIVE_PATH preprocessed_source "${CMAKE_CURRENT_SOURCE_DIR}"
-        "${preprocessed_source}")
+    ##
+    ## Create the output file path from the basename of the source, and the
+    ## current binary directory.
+    ##
+    get_filename_component(preprocessed_source "${source}.i" NAME)
 
     #
     # If we're using a multi-config generator, we need to place the output file

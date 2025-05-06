@@ -94,15 +94,22 @@ if(RMM_ARCH STREQUAL fake_host)
             rmm-host-el2-el0-cmn)
 endif()
 
+# Target for output directory.
+add_custom_target(attest_app_output_dir
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_BINARY_DIR}/$<CONFIG>"
+    COMMENT "Creating output directory"
+)
+
 add_custom_command(
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-app-attestation-elf>" "${CMAKE_CURRENT_BINARY_DIR}/rmm_app_attestation.elf"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-app-attestation-elf>" "${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_attestation.elf"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-app-attestation-elf>.map" "${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_attestation.map"
     OUTPUT rmm_app_attestation.elf
-    DEPENDS rmm-app-attestation-elf)
+    DEPENDS rmm-app-attestation-elf attest_app_output_dir)
 
 # Create the dump file using whatever tool comes with the toolchain.
 if(CMAKE_OBJDUMP)
     add_custom_command(
-        COMMAND "${CMAKE_OBJDUMP}" -dxS "${CMAKE_CURRENT_BINARY_DIR}/rmm_app_attestation.elf" > "${CMAKE_CURRENT_BINARY_DIR}/rmm_app_attestation.dump"
+        COMMAND "${CMAKE_OBJDUMP}" -dxS "${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_attestation.elf" > "${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_attestation.dump"
         OUTPUT rmm_app_attestation.dump
         DEPENDS rmm_app_attestation.elf)
 endif()
@@ -128,21 +135,8 @@ target_compile_definitions(rmm-app-attestation-elf
 
 if(NOT RMM_ARCH STREQUAL fake_host)
     set(COMMON_APP_LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/../../common/el0_app/linker.lds")
-    set(ATTEST_APP_LINKER_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/linker_attest.lds")
 
-    add_custom_command(
-        COMMAND "${CMAKE_COMMAND}" -E copy "${COMMON_APP_LINKER_SCRIPT}" "${ATTEST_APP_LINKER_SCRIPT}"
-        OUTPUT ${ATTEST_APP_LINKER_SCRIPT}
-        DEPENDS ${COMMON_APP_LINKER_SCRIPT})
-
-    arm_target_linker_script(rmm-app-attestation-elf "${ATTEST_APP_LINKER_SCRIPT}")
-
-    # create the directory for the preprocessed ld file
-    # This is necessary for the 'Unix Makefiles' generator as the directory is not created by the
-    # generated Makefiles.
-    get_target_property(linker_script_location rmm-app-attestation-elf-lds LOCATION_${CMAKE_BUILD_TYPE})
-    get_filename_component(preprocessed_ldsi_dir ${linker_script_location} DIRECTORY [CACHE])
-    file(MAKE_DIRECTORY "${preprocessed_ldsi_dir}")
+    arm_target_linker_script(rmm-app-attestation-elf "${COMMON_APP_LINKER_SCRIPT}")
 
     set_property(TARGET rmm-app-attestation-elf-lds APPEND
         PROPERTY COMPILE_DEFINITIONS "__LINKER__")
@@ -151,7 +145,7 @@ if(NOT RMM_ARCH STREQUAL fake_host)
         PROPERTY COMPILE_DEFINITIONS "GRANULE_SHIFT=U(${GRANULE_SHIFT})")
 
     # Get the name of the bin file that will contain the app data
-    get_filename_component(RAW_DATA_OUTPUT_FILE ${CMAKE_CURRENT_BINARY_DIR}/attest_app_data.bin ABSOLUTE)
+    get_filename_component(RAW_DATA_OUTPUT_FILE ${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_attestation.bin ABSOLUTE)
 
     list(APPEND EL0_APP_BIN_LIST "${RAW_DATA_OUTPUT_FILE}")
     set(EL0_APP_BIN_LIST ${EL0_APP_BIN_LIST} PARENT_SCOPE)
@@ -166,10 +160,12 @@ if(NOT RMM_ARCH STREQUAL fake_host)
         --stack-page-count ${ATTESTATION_APP_STACK_SIZE}
         --heap-page-count ${ATTESTATION_APP_HEAP_SIZE}
         --out-bin ${RAW_DATA_OUTPUT_FILE}
-    DEPENDS rmm-app-attestation-elf ${ATTEST_APP_LINKER_SCRIPT}
+    DEPENDS rmm-app-attestation-elf rmm-app-attestation-elf-lds
     )
 
     # Add a custom target that depends on the bin file. This is necessary so that
     # the bundled image can depend on it.
-    add_custom_target(rmm-attestation-app-bin DEPENDS ${RAW_DATA_OUTPUT_FILE} rmm_app_attestation.dump)
+    add_custom_target(rmm-attestation-app DEPENDS ${RAW_DATA_OUTPUT_FILE} rmm_app_attestation.dump)
+else()
+    add_custom_target(rmm-attestation-app DEPENDS rmm_app_attestation.dump)
 endif()
