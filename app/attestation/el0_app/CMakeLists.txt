@@ -94,15 +94,22 @@ if(RMM_ARCH STREQUAL fake_host)
             rmm-host-support)
 endif()
 
+# Target for output directory.
+add_custom_target(attest_app_output_dir
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_BINARY_DIR}/$<CONFIG>"
+    COMMENT "Creating output directory"
+)
+
 add_custom_command(
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-app-attestation-elf>" "${CMAKE_CURRENT_BINARY_DIR}/rmm_app_attestation.elf"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-app-attestation-elf>" "${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_attestation.elf"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-app-attestation-elf>.map" "${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_attestation.map"
     OUTPUT rmm_app_attestation.elf
-    DEPENDS rmm-app-attestation-elf)
+    DEPENDS rmm-app-attestation-elf attest_app_output_dir)
 
 # Create the dump file using whatever tool comes with the toolchain.
 if(CMAKE_OBJDUMP)
     add_custom_command(
-        COMMAND "${CMAKE_OBJDUMP}" -dxS "${CMAKE_CURRENT_BINARY_DIR}/rmm_app_attestation.elf" > "${CMAKE_CURRENT_BINARY_DIR}/rmm_app_attestation.dump"
+        COMMAND "${CMAKE_OBJDUMP}" -dxS "${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_attestation.elf" > "${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_attestation.dump"
         OUTPUT rmm_app_attestation.dump
         DEPENDS rmm_app_attestation.elf)
 endif()
@@ -138,7 +145,7 @@ if(NOT RMM_ARCH STREQUAL fake_host)
         PROPERTY COMPILE_DEFINITIONS "GRANULE_SHIFT=U(${GRANULE_SHIFT})")
 
     # Get the name of the bin file that will contain the app data
-    get_filename_component(RAW_DATA_OUTPUT_FILE ${CMAKE_CURRENT_BINARY_DIR}/attest_app_data.bin ABSOLUTE)
+    get_filename_component(RAW_DATA_OUTPUT_FILE ${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_attestation.bin ABSOLUTE)
 
     list(APPEND EL0_APP_BIN_LIST "${RAW_DATA_OUTPUT_FILE}")
     set(EL0_APP_BIN_LIST ${EL0_APP_BIN_LIST} PARENT_SCOPE)
@@ -158,5 +165,7 @@ if(NOT RMM_ARCH STREQUAL fake_host)
 
     # Add a custom target that depends on the bin file. This is necessary so that
     # the bundled image can depend on it.
-    add_custom_target(rmm-attestation-app-bin DEPENDS ${RAW_DATA_OUTPUT_FILE} rmm_app_attestation.dump)
+    add_custom_target(rmm-attestation-app DEPENDS ${RAW_DATA_OUTPUT_FILE} rmm_app_attestation.dump)
+else()
+    add_custom_target(rmm-attestation-app DEPENDS rmm_app_attestation.dump)
 endif()

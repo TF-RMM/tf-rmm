@@ -56,15 +56,22 @@ target_link_libraries(rmm-app-random-elf
         rmm-lib-debug
         rmm-lib-xlat)
 
+# Target for output directory.
+add_custom_target(random_app_output_dir
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_BINARY_DIR}/$<CONFIG>"
+    COMMENT "Creating output directory"
+)
+
 add_custom_command(
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-app-random-elf>" "${CMAKE_CURRENT_BINARY_DIR}/rmm_app_random.elf"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-app-random-elf>" "${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_random.elf"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:rmm-app-random-elf>.map" "${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_random.map"
     OUTPUT rmm_app_random.elf
-    DEPENDS rmm-app-random-elf)
+    DEPENDS rmm-app-random-elf random_app_output_dir)
 
 # Create the dump file using whatever tool comes with the toolchain.
 if(CMAKE_OBJDUMP)
     add_custom_command(
-        COMMAND "${CMAKE_OBJDUMP}" -dxS "${CMAKE_CURRENT_BINARY_DIR}/rmm_app_random.elf" > "${CMAKE_CURRENT_BINARY_DIR}/rmm_app_random.dump"
+        COMMAND "${CMAKE_OBJDUMP}" -dxS "${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_random.elf" > "${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_random.dump"
         OUTPUT rmm_app_random.dump
         DEPENDS rmm_app_random.elf)
 endif()
@@ -97,7 +104,7 @@ if(NOT RMM_ARCH STREQUAL fake_host)
         PROPERTY COMPILE_DEFINITIONS "GRANULE_SHIFT=U(${GRANULE_SHIFT})")
 
     # Get the name of the bin file that will contain the app data
-    get_filename_component(RAW_DATA_OUTPUT_FILE ${CMAKE_CURRENT_BINARY_DIR}/random_app_data.bin ABSOLUTE)
+    get_filename_component(RAW_DATA_OUTPUT_FILE ${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_app_random.bin ABSOLUTE)
 
     list(APPEND EL0_APP_BIN_LIST "${RAW_DATA_OUTPUT_FILE}")
     set(EL0_APP_BIN_LIST ${EL0_APP_BIN_LIST} PARENT_SCOPE)
@@ -117,5 +124,7 @@ if(NOT RMM_ARCH STREQUAL fake_host)
 
     # Add a custom target that depends on the bin file. This is necessary so that
     # the bundled image can depend on it.
-    add_custom_target(rmm-random-app-bin DEPENDS ${RAW_DATA_OUTPUT_FILE} rmm_app_random.dump)
+    add_custom_target(rmm-random-app DEPENDS ${RAW_DATA_OUTPUT_FILE} rmm_app_random.dump)
+else()
+    add_custom_target(rmm-random-app DEPENDS rmm_app_random.dump)
 endif()
