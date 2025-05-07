@@ -3,4 +3,4 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
-pyelftools>=0.31
+pyelftools>=0.32
