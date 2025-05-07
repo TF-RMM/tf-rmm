@@ -6,6 +6,185 @@ Change-log and Release notes
 ############################
 
 ******
+v0.7.0
+******
+
+The following sections have the details on the release. This release has been
+verified with `TF-A v2.13`_ release.
+
+============================
+New features in this release
+============================
+
+- Deprivileging RMM code via EL0 App support
+
+  *  Introduced a framework for building, packaging, and executing EL0 apps.
+  *  Restructured the RMM code base to build certain components as separate
+     EL0 applications.
+  *  Moved the Attestation and pseudo-random number generator functionality
+     to EL0 Apps.
+  *  Added `fake-host` support to run EL0 applications.
+  *  Added a supporting design document.
+
+- Added some RMMv1.1 APIs
+
+  *  Implemented ``RMI_DEV_MEM_(UN)MAP`` commands.
+  *  Added support for device granules in ``RMI_GRANULE_DELEGATE`` and
+     ``RMI_GRANULE_UNDELEGATE`` commands.
+
+======================================
+Bug fixes/improvements in this release
+======================================
+
+- EL0 App framework fixes and improvements
+
+  *  Collected app artifacts in a single location.
+  *  Fixed the path to the EL0 apps linker script.
+  *  Refactored the host-common layer to separate El2-EL0 shared and
+     EL2-specific code.
+  *  Enforced 64KB alignment for the RMM Core to meet ELF loader requirements.
+  *  Forced lld to apply link time reloc values - this is to resolve issue
+     with App execution when linked using LLD.
+
+- Enable Generic PL011 UART config - This reduces the PL011 driver
+  to operate on the SBSA Generic UART register subset.
+
+- Enabled ``-fstack-protector-strong`` compiler flag for stack protection.
+
+- Added support to read device memory info from the Boot manifest at EL3 and
+  handle DEV granules in RMM.
+
+- Fixed various ``clang-tidy-18`` errors.
+
+- Hid MPAM from Realms and trap access to MPAM registers from Realm. Since RMM
+  does not support configuring MPAM for Realms, disabled FEAT_MPAM for Realms.
+
+- Disabled BRBE at R-EL2 and R-EL1.
+
+- Modified ``handle_sysreg_access_trap`` to skip advancing PC to allow injecting
+  UNDEF abort back into Realms.
+
+- Added -Wstrict-aliasing compiler flag.
+
+- Fixed PMU save/restore register sequence in RMM.
+
+  * RMM now saves/restores all NS event counters, even if realm is not
+    using all counters.
+  * Removed pmxevcntr_el0 and pmxevtyper_el0 registers from
+    saving/restoring as they are aliases for pmevcntrN_el0 and pmevtyperN_el0,
+    selected by pmselr_el0.sel.
+  * Removed saving pmcntenclr_el0, pmintenclr_el1 and pmovsclr_el0. These
+    registers are restored with inverted values of pmcntenset_el0,
+    pmintenset_el1 and pmovsset_el0.
+
+- Improved performance by clearing granule memory after MMU is enabled.
+
+- Updated default cases for handling SEAs and SEIs so that they call
+  system_abort() instead of asserting.
+
+- Corrected the DFSC macro value for asynchronous SError exceptions
+  from ``0x1`` to ``0x11``.
+
+- Fixed missing ``break`` in ``fake_host`` when processing monitor call ID.
+
+- Added ``-fno-delete-null-pointer-checks`` to disable optimization that can
+  remove such checks.
+
+- Added -Wextra compile flag for more warnings.
+
+- Introduced additional compiler options: `-Wstrict-overflow` and
+  ``-D_FORTIFY_SOURCE=2``. Note: `FORTIFY_SOURCE` is added for
+  future-proofing; RMM does not currently link against ``glibc``.
+
+- Added the `-Wnull-dereference` compile option to Debug build of RMM.
+  It is added only to Debug build as it shows false positives for Release
+  build.
+
+- Removed the redundant granule_unlock() in smc_rec_create error path
+  when Aux granule is not found.
+
+- Fixed Coverity MISRA compliance issues.
+
+- Correctly configured PSTATE flags (``TCO``, ``DIT``, ``UAO``, ``PAN``,
+  ``SSBS``, ``BTYPE``) during abort injection to R-EL1.
+
+- Added missing `top_gran_align` check to `RMI_RTT_SET_RIPAS` ABI.
+
+- Added support in RMI_VERSION and RSI_VERSION commands to report lower and
+  higher supported interface revisions.
+
+- Fixed a missing call to release the shared buffer between EL3 and RMM in
+  one of the error code paths of the EL3_TOKEN_SIGN attestation flow.
+
+==================================
+Build/Testing/Tooling improvements
+==================================
+
+- Updated minimum CMake version requirement to 3.20. This is needed
+  to support the build for EL0 app framework.
+
+- Upgraded jinja2 from 3.1.5 to 3.1.6 for document generation
+
+- Explicitly set C++ standard for Unit tests (which are written in C++).
+
+- Removed variable size arrays in some unittests.
+
+- Added support for updating git submodules during configuration of RMM.
+  This ensures updated dependencies are automatically integrated during
+  builds, particularly after project rebases. This also ties in with the
+  patching mechanism in RMM wherein a particular SHA is assumed for the
+  submodules.
+
+- Updated Shrinkwrap overlay to add PCIE DOE and IDE parameters for
+  the FVP to facilitate CCA DA development.
+
+- Switched to importing `libspdm` via git submodules instead of a custom
+  CMake mechanism.
+
+- Moved git utils cmake helpers to ``cmake/`` folder.
+
+=========
+Platforms
+=========
+
+- Added initial platform support for RD-V3-R1. RD-V3-R1 and
+  RD-V3-R1-Cfg1 Fixed Virtual Platforms are Arm Neoverse Reference Design
+  platforms with ARMv9 RME enabled CPUs.
+
+============================
+Known issues and limitations
+============================
+
+- Some capabilities mentioned in `RMM v1.0 REL0 specification`_ are
+  restricted or absent in TF-RMM as listed below:
+
+  * The support for Self-hosted debug in Realms is not implemented (`issue#23`_).
+
+=================
+Upcoming features
+=================
+
+- Prototype new features as described in `RMM v1.1 Alpha 13 specification`_.
+
+  *  Realm Device Assignment - A feature which allows devices to be assigned to Realms,
+     attested and granted permission to access Realm owned memory.
+  *  Planes - A feature which allows a Realm to be divided into multiple
+     mutually isolated execution environments, called Planes.
+  *  Support FEAT_MEC in the Realm world.
+
+- Continue to enhance CBMC analysis to support more RMI commands.
+
+- Fuzz testing for RMM utilizing the `fake_host` architecture.
+
+- Implement support for Self-hosted debug in Realms.
+
+- Support Live Firmware Activation of RMM.
+
+
+.. _TF-A v2.13: https://git.trustedfirmware.org/TF-A/trusted-firmware-a/+/refs/tags/v2.13.0
+.. _RMM v1.1 Alpha 13 specification: https://developer.arm.com/-/cdn-downloads/permalink/Architectures/Armv9/DEN0137_1.1-alp13.zip
+
+******
 v0.6.0
 ******
 
