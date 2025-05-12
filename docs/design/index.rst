@@ -13,4 +13,5 @@ Design
     file-org-and-config
     fake-host-architecture
     cold-and-warm-boot-design
+    el0-app
 
