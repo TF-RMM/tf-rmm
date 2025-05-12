@@ -97,6 +97,7 @@ int attest_el3_token_sign_pull_response_from_el3(uintptr_t *cookie)
 	if (ret != E_RMM_OK) {
 		ERROR("%s:%d Failed to pull response from EL3: %d\n",
 			__func__, __LINE__, ret);
+		rmm_el3_ifc_release_shared_buf();
 		return -ENOTSUP;
 	}
 
