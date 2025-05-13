@@ -235,6 +235,7 @@ attest_app_cca_token_create(struct token_sign_cntxt *me,
 
 	QCBOREncode_OpenMap(&cbor_enc_ctx);
 
+#ifdef DOWNREV_CCA_TOKEN_TOP_FORMAT
 	QCBOREncode_AddBytesToMapN(&cbor_enc_ctx,
 				   CCA_PLAT_TOKEN,
 				   platform_token);
@@ -242,6 +243,19 @@ attest_app_cca_token_create(struct token_sign_cntxt *me,
 	QCBOREncode_AddBytesToMapN(&cbor_enc_ctx,
 				   CCA_REALM_DELEGATED_TOKEN,
 				   realm_token_ub);
+#else /*DOWNREV_CCA_TOKEN_TOP_FORMAT*/
+
+	QCBOREncode_OpenArrayInMapN(&cbor_enc_ctx, CCA_PLAT_TOKEN);
+	QCBOREncode_AddInt64(&cbor_enc_ctx, COAP_EAT_CWT_TYPE);
+	QCBOREncode_AddBytes(&cbor_enc_ctx, platform_token);
+	QCBOREncode_CloseArray(&cbor_enc_ctx);
+
+	QCBOREncode_OpenArrayInMapN(&cbor_enc_ctx, CCA_REALM_DELEGATED_TOKEN);
+	QCBOREncode_AddInt64(&cbor_enc_ctx, COAP_EAT_CWT_TYPE);
+	QCBOREncode_AddBytes(&cbor_enc_ctx, realm_token_ub);
+	QCBOREncode_CloseArray(&cbor_enc_ctx);
+
+#endif /*DOWNREV_CCA_TOKEN_TOP_FORMAT*/
 	QCBOREncode_CloseMap(&cbor_enc_ctx);
 
 	qcbor_res = QCBOREncode_Finish(&cbor_enc_ctx, &completed_token);

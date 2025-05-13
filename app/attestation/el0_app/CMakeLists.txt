@@ -45,6 +45,13 @@ arm_config_option(
     DEFAULT 0x1000
     ADVANCED)
 
+arm_config_option(
+    NAME DOWNREV_CCA_TOKEN_TOP_FORMAT
+    HELP "Enables support for the (deprecated) EAT Collection form of the CCA top level attestation token"
+    TYPE BOOL
+    DEFAULT FALSE
+    ADVANCED)
+
 MATH(EXPR CCA_TOKEN_BUFFER_BYTES "${RMM_CCA_TOKEN_BUFFER} * 0x1000")
 if (${CCA_TOKEN_BUFFER_BYTES} LESS ${ATTEST_PLAT_TOKEN_SIZE})
     message(FATAL_ERROR "RMM_CCA_TOKEN_BUFFER size is less than ATTEST_PLAT_TOKEN_SIZE")
@@ -80,6 +87,11 @@ target_compile_definitions(rmm-app-attestation-elf
         "ATTEST_PLAT_TOKEN_SIZE=U(${ATTEST_PLAT_TOKEN_SIZE})"
         "MBEDTLS_ECP_MAX_OPS=${MBEDTLS_ECP_MAX_OPS}U"
 )
+
+if(DOWNREV_CCA_TOKEN_TOP_FORMAT)
+    target_compile_definitions(rmm-app-attestation-elf
+        PRIVATE "DOWNREV_CCA_TOKEN_TOP_FORMAT=1")
+endif()
 
 # Add fake_host specific sources
 if(RMM_ARCH STREQUAL fake_host)
