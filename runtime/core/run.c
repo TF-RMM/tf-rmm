@@ -45,6 +45,7 @@ static void save_sysreg_state(struct sysreg_state *sysregs)
 	sysregs->far_el1 = read_far_el12();
 	sysregs->mair_el1 = read_mair_el12();
 	sysregs->vbar_el1 = read_vbar_el12();
+	sysregs->tcr2_el1 = read_tcr2_el12_if_present();
 
 	sysregs->contextidr_el1 = read_contextidr_el12();
 	sysregs->tpidr_el1 = read_tpidr_el1();
@@ -108,6 +109,7 @@ static void restore_sysreg_state(struct sysreg_state *sysregs)
 	write_far_el12(sysregs->far_el1);
 	write_mair_el12(sysregs->mair_el1);
 	write_vbar_el12(sysregs->vbar_el1);
+	write_tcr2_el12_if_present(sysregs->tcr2_el1);
 
 	write_contextidr_el12(sysregs->contextidr_el1);
 	write_tpidr_el1(sysregs->tpidr_el1);

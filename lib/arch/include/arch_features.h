@@ -287,6 +287,20 @@ static inline bool is_feat_fgt_present(void)
 	return (EXTRACT(ID_AA64MMFR0_EL1_FGT, read_id_aa64mmfr0_el1()) != 0UL);
 }
 
+/*
+ * Check if FEAT_TCR2 is implemented.
+ * ID_AA64MMFR3_EL1, bits [3:0]:
+ * 0b0000: FEAT_TCR2 is not implemented.
+ * 0b0001: FEAT_TCR2 is implemented.
+ */
+static inline bool is_feat_tcr2_present(void)
+{
+	return (EXTRACT(ID_AA64MMFR3_EL1_TCRX, read_id_aa64mmfr3_el1()) != 0UL);
+}
+
+DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(tcr2_el12, if_present,		\
+				   is_feat_tcr2_present, 0UL)
+
 unsigned int arch_feat_get_pa_width(void);
 
 DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(sctlr2_el12, if_present,		\

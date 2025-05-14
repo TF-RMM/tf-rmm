@@ -92,6 +92,16 @@
 	MASK(ID_AA64PFR1_EL1_MPAM_F)
 
 /*
+ * ID_AA64MMFR3_EL1:
+ *
+ * Cleared fields:
+ * - Everything exept for FEAT_TCR2 and FEAT_SCTLR2
+ */
+#define ID_AA64MMFR3_EL1_CLEAR		  \
+	~(MASK(ID_AA64MMFR3_EL1_TCRX)	| \
+	  MASK(ID_AA64MMFR3_EL1_SCTLRX))
+
+/*
  * Handle ID_AA64XXX<n>_EL1 instructions
  */
 static bool handle_id_sysreg_trap(struct rec *rec,
@@ -152,6 +162,9 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 		break;
 	SYSREG_CASE(MMFR2)
 		value = SYSREG_READ(MMFR2);
+		break;
+	SYSREG_CASE(MMFR3)
+		value = SYSREG_READ_CLEAR(MMFR3);
 		break;
 	SYSREG_CASE(PFR0)
 		/*
