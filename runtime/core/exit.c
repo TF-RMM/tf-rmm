@@ -386,7 +386,7 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	struct rsi_result res = {UPDATE_REC_RETURN_TO_REALM, 0UL,
 				{{[0 ... SMC_RESULT_REGS-1] = 0UL}}};
 	unsigned int function_id = (unsigned int)rec->regs[0];
-	bool restore_simd_ctx = false;
+	bool rec_ret, restore_simd_ctx = false;
 	unsigned int i;
 
 	RSI_LOG_SET(rec->regs);
@@ -468,10 +468,12 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		advance_pc();
 	}
 
-	/* Log RSI call */
-	RSI_LOG_EXIT(function_id, rec->regs);
+	rec_ret = (((unsigned int)res.action & FLAG_EXIT_TO_HOST) == 0U);
 
-	return (((unsigned int)res.action & FLAG_EXIT_TO_HOST) == 0U);
+	/* Log RSI call */
+	RSI_LOG_EXIT(function_id, rec->regs, rec_ret);
+
+	return rec_ret;
 }
 
 /*

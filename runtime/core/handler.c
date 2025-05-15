@@ -221,8 +221,12 @@ static void rmi_log_on_exit(unsigned int handler_id,
 	    (handler->log_error && (rc.status != RMI_SUCCESS))) {
 		unsigned int num;
 
-		/* Print function name */
-		INFO("SMC_RMI_%-21s", handler->fn_name);
+		/*
+		 * Print function name.
+		 * RSI handler function SMC_RSI_RDEV_GET_INTERFACE_REPORT has
+		 * maximum name length of 33 chars excluding the null terminator.
+		 */
+		INFO("SMC_RMI_%-25s", handler->fn_name);
 
 		/* Print arguments */
 		num = (unsigned int)handler->type & 0xFFU;
