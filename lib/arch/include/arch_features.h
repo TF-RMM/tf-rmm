@@ -41,6 +41,14 @@ static inline void write_ ## _name ## _ ## _cond_name(u_register_t v)	\
 					     _cond_checker, _default)	\
 	DEFINE_CONDITIONAL_SYSREG_WRITE_FUNC_(_name, _cond_name, _cond_checker)
 
+
+/*
+ * Called once during cold boot on the primary CPU
+ * before any features are queried in RMM.
+ */
+void arch_features_query_el3_support(void);
+
+
 static inline bool is_armv8_4_ttst_present(void)
 {
 	return (EXTRACT(ID_AA64MMFR2_EL1_ST,

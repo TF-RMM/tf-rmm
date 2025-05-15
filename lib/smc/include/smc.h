@@ -94,6 +94,10 @@
 	(SMC_SET_FIELD(SMC_ARCH_CALL_BASE, CC, SMC_CC_SMC32)		|  \
 	 SMC_SET_FIELD(SMC_ARCH_CALL_BASE, FNUM, (_offset)))
 
+#define SMC64_ARCH_FID(_offset)						   \
+	(SMC_SET_FIELD(SMC_ARCH_CALL_BASE, CC, SMC_CC_SMC64)		|  \
+	 SMC_SET_FIELD(SMC_ARCH_CALL_BASE, FNUM, (_offset)))
+
 #define SMC32_STD_FID(_range, _offset)					   \
 	(SMC_SET_FIELD(SMC_STD_CALL_BASE, CC, SMC_CC_SMC32)		|  \
 	 SMC_SET_FIELD(SMC_STD_CALL_BASE, FNUM,				   \
@@ -145,8 +149,11 @@
 #define SMCCC_VERSION			SMC32_ARCH_FID(U(0))
 #define SMCCC_ARCH_FEATURES		SMC32_ARCH_FID(U(1))
 #define SMCCC_ARCH_SOC_ID		SMC32_ARCH_FID(U(2))
+
 #define SMCCC_ARCH_WORKAROUND_2		SMC32_ARCH_FID(U(0x7FFF))
 #define SMCCC_ARCH_WORKAROUND_1		SMC32_ARCH_FID(U(0x8000))
+
+#define SMCCC_ARCH_FEATURE_AVAILABILITY SMC64_ARCH_FID(U(3))
 
 /* Implemented version of the SMC Calling Convention */
 #define SMCCC_VERSION_MAJOR	U(1)
@@ -171,6 +178,15 @@
 
 /* Result registers X0-X4 */
 #define SMC_RESULT_REGS		5U
+
+/*
+ * opcode of system register for SMCCC_ARCH_FEATURE_AVAILABILITY as
+ * defined by opcode = (op0 « 19) | (op1 « 16) | (CRn « 12) | (CRm « 8) | (op2 « 5)
+ */
+#define SCR_EL3_OPCODE		U(0x1E1100)
+#define CPTR_EL3_OPCODE		U(0x1E1140)
+#define MDCR_EL3_OPCODE		U(0x1E1320)
+#define MPAM3_EL3_OPCODE	U(0x1EA500)
 
 #ifndef __ASSEMBLER__
 struct smc_result {

@@ -7,8 +7,79 @@
 #include <arch_features.h>
 #include <arch_helpers.h>
 #include <assert.h>
+#include <el3_feat_status.h>
+#include <smc.h>
 #include <stdint.h>
 #include <utils_def.h>
+
+#define WRITE_EL3_FEAT_EN_STATUS(obj, bitmask, value)	((obj).bitmask = (value))
+#define READ_EL3_FEAT_EN_STATUS(obj, bitmask)		((obj).bitmask)
+
+static struct el3_feat_en_status el3_feat_enb_status = {
+	.scr_bitmask = UINT64_MAX,
+	.cptr_bitmask = UINT64_MAX,
+	.mdcr_bitmask = UINT64_MAX,
+	.mpam3_bitmask = UINT64_MAX
+};
+
+/*
+ * SMCCC_ARCH_FEATURE_AVAILABILITY: query EL3 from R-EL2 about the support
+ * and availability of architectural features at EL3
+ */
+
+void arch_features_query_el3_support(void)
+{
+	unsigned long val;
+	struct smc_result smc_res = {0};
+
+	/* check if arch_feature_availability is supported */
+	val = monitor_call(SMCCC_ARCH_FEATURES,
+			      SMCCC_ARCH_FEATURE_AVAILABILITY,
+			      0UL, 0UL, 0UL, 0UL, 0UL);
+
+	if (val != SMC_SUCCESS) {
+		goto smc_failed;
+	}
+	monitor_call_with_res(SMCCC_ARCH_FEATURE_AVAILABILITY,
+			      SCR_EL3_OPCODE,
+			      0UL, 0UL, 0UL, 0UL, 0UL,
+			      &smc_res);
+
+	if (smc_res.x[0] == SMC_SUCCESS) {
+		WRITE_EL3_FEAT_EN_STATUS(el3_feat_enb_status, scr_bitmask, smc_res.x[1]);
+	}
+
+	monitor_call_with_res(SMCCC_ARCH_FEATURE_AVAILABILITY,
+			      CPTR_EL3_OPCODE,
+			      0UL, 0UL, 0UL, 0UL, 0UL,
+			      &smc_res);
+
+	if (smc_res.x[0] == SMC_SUCCESS) {
+		WRITE_EL3_FEAT_EN_STATUS(el3_feat_enb_status, cptr_bitmask, smc_res.x[1]);
+	}
+
+	monitor_call_with_res(SMCCC_ARCH_FEATURE_AVAILABILITY,
+			      MDCR_EL3_OPCODE,
+			      0UL, 0UL, 0UL, 0UL, 0UL,
+			      &smc_res);
+
+	if (smc_res.x[0] == SMC_SUCCESS) {
+		WRITE_EL3_FEAT_EN_STATUS(el3_feat_enb_status, mdcr_bitmask, smc_res.x[1]);
+	}
+
+	monitor_call_with_res(SMCCC_ARCH_FEATURE_AVAILABILITY,
+			      MPAM3_EL3_OPCODE,
+			      0UL, 0UL, 0UL, 0UL, 0UL,
+			      &smc_res);
+
+	if (smc_res.x[0] != SMC_SUCCESS) {
+		WRITE_EL3_FEAT_EN_STATUS(el3_feat_enb_status, mpam3_bitmask, smc_res.x[1]);
+	}
+	return;
+
+smc_failed:
+	return;
+}
 
 #ifndef CBMC
 /*
