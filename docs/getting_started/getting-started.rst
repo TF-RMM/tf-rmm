@@ -42,7 +42,7 @@ The following tools are required to obtain and build |RMM|:
    :header: "Name", "Version", "Component"
 
    "C compiler", see :ref:`getting_started_toolchain` ,"Firmware"
-   "CMake", ">=3.15.0", "Firmware, Documentation"
+   "CMake", ">=3.20.0", "Firmware, Documentation"
    "GNU Make", ">4.0", "Firmware, Documentation"
    "Python",3.x,"Firmware, Documentation"
    "Perl",>=5.26,"Firmware, Documentation"
@@ -125,7 +125,7 @@ required packages with the following commands:
 
 .. note::
 
-    Please download cmake 3.19 or later version from https://cmake.org/download/.
+    Please download cmake 3.20 or later version from https://cmake.org/download/.
 
 3. Add CMake path into environment:
 

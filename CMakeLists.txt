@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
-cmake_minimum_required(VERSION 3.15.0)
+cmake_minimum_required(VERSION 3.20.0)
 
 # allow target_link_libraries() to be used with targets in other directories
 cmake_policy(SET CMP0079 NEW)
