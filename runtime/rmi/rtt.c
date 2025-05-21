@@ -1261,39 +1261,38 @@ static int update_ripas(const struct s2tt_context *s2_ctx,
 			} else {
 				return -EINVAL;
 			}
+		} else if (s2tte_is_assigned_dev_empty(s2_ctx, s2tte, level) ||
+			   s2tte_is_assigned_dev_destroyed(s2_ctx, s2tte, level) ||
+			   s2tte_is_assigned_dev_dev(s2_ctx, s2tte, level)) {
+			return -EINVAL;
 		} else {
 			/* No action is required */
 			return 0;
 		}
 	} else if (ripas_val == RIPAS_EMPTY) {
-		if (s2tte_is_unassigned_ram(s2_ctx, s2tte)) {
+		if (s2tte_is_unassigned_ram(s2_ctx, s2tte) ||
+		    s2tte_is_unassigned_destroyed(s2_ctx, s2tte)) {
 			s2tte = s2tte_create_unassigned_empty(s2_ctx);
-		} else if (s2tte_is_unassigned_destroyed(s2_ctx, s2tte)) {
-			if (change_destroyed == CHANGE_DESTROYED) {
-				s2tte = s2tte_create_unassigned_empty(s2_ctx);
-			} else {
-				return -EINVAL;
-			}
-		} else if (s2tte_is_assigned_ram(s2_ctx, s2tte, level)) {
+		} else if (s2tte_is_assigned_ram(s2_ctx, s2tte, level) ||
+			   s2tte_is_assigned_destroyed(s2_ctx, s2tte, level)) {
 			pa = s2tte_pa(s2_ctx, s2tte, level);
 			s2tte = s2tte_create_assigned_empty(s2_ctx, pa, level);
 			/* TLBI is required */
 			ret = 1;
-		} else if (s2tte_is_assigned_destroyed(s2_ctx, s2tte, level)) {
-			if (change_destroyed == CHANGE_DESTROYED) {
-				pa = s2tte_pa(s2_ctx, s2tte, level);
-				s2tte = s2tte_create_assigned_empty(s2_ctx,
-								    pa, level);
-				/* TLBI is required */
-				ret = 1;
-			} else {
-				return -EINVAL;
-			}
+		} else if (s2tte_is_assigned_dev_dev(s2_ctx, s2tte, level) ||
+			   s2tte_is_assigned_dev_destroyed(s2_ctx, s2tte, level)) {
+			pa = s2tte_pa(s2_ctx, s2tte, level);
+			s2tte = s2tte_create_assigned_dev_empty(s2_ctx, pa, level);
+			/* TLBI is required */
+			ret = 1;
 		} else {
 			/* No action is required */
 			return 0;
 		}
+	} else {
+		assert(false);
 	}
+
 	s2tte_write(s2ttep, s2tte);
 	return ret;
 }
@@ -1650,7 +1649,8 @@ unsigned long smc_dev_mem_map(unsigned long rd_addr,
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
 
-	if (!s2tte_is_unassigned(&s2_ctx, s2tte)) {
+	if (!(s2tte_is_unassigned_empty(&s2_ctx, s2tte) ||
+	      s2tte_is_unassigned_destroyed(&s2_ctx, s2tte))) {
 		ret = pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
 		goto out_unmap_ll_table;
 	}
