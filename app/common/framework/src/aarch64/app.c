@@ -56,8 +56,8 @@ static struct app_bss_memory_t app_bss_memory_array[APP_COUNT];
 /* TODO: get this declarations properly from a header */
 int run_app(struct app_reg_ctx *app_reg_ctx, uint64_t heap_properties);
 
-IMPORT_SYM(uintptr_t, rmm_rw_start, RMM_RW_RANGE_START);
-IMPORT_SYM(uintptr_t, rmm_rw_end, RMM_RW_RANGE_END);
+IMPORT_SYM(uintptr_t, rmm_rw_start, RMM_RW_RANGE_START); /* NOLINT */
+IMPORT_SYM(uintptr_t, rmm_rw_end, RMM_RW_RANGE_END); /* NOLINT */
 
 static bool in_rmm_rw_range(uintptr_t address)
 {
@@ -216,7 +216,11 @@ static int allocate_bss(size_t app_id, size_t bss_size, uintptr_t *pa)
 	}
 	ret = app_get_header_ptr_at_index(app_index, &app_header);
 	assert(ret == 0);
-	assert(app_bss_memory_array[app_index].size == bss_size);
+	if (app_bss_memory_array[app_index].size != bss_size) {
+		ERROR("App id %lu requested %lu bytes, got %lu bytes.\n",
+			app_id, bss_size, app_bss_memory_array[app_index].size);
+		assert(false);
+	}
 	*pa = app_bss_memory_array[app_index].pa;
 	return 0;
 }
