@@ -1101,8 +1101,12 @@ void host_ns_s2tte_is_valid_tc2(void)
 		 * as that would be equivalent to have some invalid bits
 		 * set to '1' as well.
 		 */
-		host_attrs = s2tt_test_helpers_gen_ns_attrs(true, false) |
+		do {
+			host_attrs = s2tt_test_helpers_gen_ns_attrs(true, false) |
 				test_helpers_get_rand_in_range(1UL, ULONG_MAX);
+		} while ((host_attrs & ~(S2TTE_NS_ATTR_MASK |
+					 s2tt_test_helpers_s2tte_oa_mask())) == 0UL);
+
 		tte = s2tt_test_helpers_pa_to_s2tte(pa, level) | host_attrs;
 
 		CHECK_FALSE(host_ns_s2tte_is_valid(
