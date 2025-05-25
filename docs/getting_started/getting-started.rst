@@ -56,7 +56,7 @@ The following tools are required to obtain and build |RMM|:
    "gcovr",">=v4.2","Tools(Coverage analysis)"
    "CBMC",">=5.84.0","Tools(CBMC analysis)"
    "Cppcheck",">=2.14.0","Tools(Cppcheck)"
-   "pyelftools","==0.31","Firmware (EL0 app)"
+   "pyelftools","==0.32","Firmware (EL0 app)"
 
 .. _getting_started_toolchain:
 
