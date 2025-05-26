@@ -51,6 +51,11 @@ unsigned long app_resume(struct app_data_cfg *app_data)
 	return 0U;
 }
 
+void app_abort(struct app_data_cfg *app_data)
+{
+	(void)app_data;
+}
+
 void app_map_shared_page(struct app_data_cfg *app_data)
 {
 	(void)app_data;

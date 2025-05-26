@@ -126,6 +126,16 @@ unsigned long app_run(struct app_data_cfg *app_data,
 unsigned long app_resume(struct app_data_cfg *app_data);
 
 /*
+ * Abort an application instance by resetting its register context its init
+ * value. This resets the stack pointer and the PC. General purpose register
+ * values, stack, heap, and data/bss memory content is not affected.
+ *
+ * Arguments:
+ *	- app_data: An initialised app config (selects the app instance to abort)
+ */
+void app_abort(struct app_data_cfg *app_data);
+
+/*
  * Map the app shared page in the EL2 VA space
  *
  * Arguments:

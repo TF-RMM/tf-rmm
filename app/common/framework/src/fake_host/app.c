@@ -392,6 +392,13 @@ unsigned long app_resume(struct app_data_cfg *app_data)
 	return app_run_internal(app_data, app_process_data);
 }
 
+void app_abort(struct app_data_cfg *app_data)
+{
+	(void)app_data;
+
+	/* TODO: Add implementation */
+	assert(false);
+}
 
 void *app_get_heap_ptr(struct app_data_cfg *app_data)
 {

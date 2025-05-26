@@ -79,6 +79,7 @@ struct app_data_cfg {
 	uintptr_t heap_va; /* this VA address is valid in the EL0 VA space */
 	uintptr_t heap_size;
 	uintptr_t stack_buf_start_va;
+	uintptr_t stack_top; /* Initial value of the stack pointer */
 
 	/* App entry point VA */
 	uintptr_t entry_point;

@@ -331,6 +331,31 @@ static int app_heap_xlat_map(struct app_data_cfg *app_data,
 	      next_granule_idx, granule_pas, granule_count);
 }
 
+static int init_app_reg_ctx(struct app_data_cfg *app_data)
+{
+
+	struct app_reg_ctx *app_reg_ctx =
+		(struct app_reg_ctx *)slot_map_page_to_init(app_data->app_reg_ctx_pa);
+
+	if (app_reg_ctx == NULL) {
+		ERROR("%s (%u): Failed to map app_reg_ctx page\n", __func__, __LINE__);
+		return -EINVAL;
+	}
+
+	app_reg_ctx->app_ttbr1_el2 = app_data->mmu_config.ttbrx;
+	app_reg_ctx->sp_el0 = app_data->stack_top;
+	app_reg_ctx->pstate = SPSR_EL2_MODE_EL0t |
+				       SPSR_EL2_nRW_AARCH64 |
+				       SPSR_EL2_F_BIT |
+				       SPSR_EL2_I_BIT |
+				       SPSR_EL2_A_BIT |
+				       SPSR_EL2_D_BIT;
+	app_reg_ctx->pc = app_data->entry_point;
+
+	unmap_page(app_data->app_reg_ctx_pa, app_reg_ctx);
+	return 0;
+}
+
 int app_init_data(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
@@ -341,7 +366,6 @@ int app_init_data(struct app_data_cfg *app_data,
 	int ret = 0;
 	/* idx 0 and 1 is used for app_reg_ctx and for page table */;
 	size_t next_granule_idx = GRANULE_PA_IDX_COUNT;
-	uintptr_t stack_top;
 
 	LOG_APP_FW("Initialising app %lu\n", app_id);
 
@@ -398,7 +422,7 @@ int app_init_data(struct app_data_cfg *app_data,
 	if (ret != 0) {
 		goto unmap_page_table;
 	}
-	stack_top = app_data->stack_buf_start_va + stack_size;
+	app_data->stack_top = app_data->stack_buf_start_va + stack_size;
 
 	app_data->heap_size = heap_size;
 	app_data->el2_heap_start = (void *)&(((char *)granule_va_start)[next_granule_idx * GRANULE_SIZE]);
@@ -412,23 +436,12 @@ int app_init_data(struct app_data_cfg *app_data,
 	app_data->entry_point = app_header->section_text_va;
 
 	app_data->app_reg_ctx_pa = granule_pas[GRANULE_PA_IDX_APP_REG_CTX];
-	struct app_reg_ctx *app_reg_ctx =
-		(struct app_reg_ctx *)slot_map_page_to_init(app_data->app_reg_ctx_pa);
 
-	if (app_reg_ctx == NULL) {
-		ERROR("%s (%u): Failed to map app_reg_ctx page\n", __func__, __LINE__);
+	ret = init_app_reg_ctx(app_data);
+	if (ret != 0) {
 		goto unmap_page_table;
 	}
-	app_reg_ctx->app_ttbr1_el2 = app_data->mmu_config.ttbrx;
-	app_reg_ctx->sp_el0 = stack_top;
-	app_reg_ctx->pstate = SPSR_EL2_MODE_EL0t |
-				       SPSR_EL2_nRW_AARCH64 |
-				       SPSR_EL2_F_BIT |
-				       SPSR_EL2_I_BIT |
-				       SPSR_EL2_A_BIT |
-				       SPSR_EL2_D_BIT;
-	app_reg_ctx->pc = app_data->entry_point;
-	unmap_page(app_data->app_reg_ctx_pa, app_reg_ctx);
+
 unmap_page_table:
 	unmap_page(granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE], page_table);
 	return ret;
@@ -722,4 +735,9 @@ unsigned long app_resume(struct app_data_cfg *app_data)
 	unmap_page(app_data->app_reg_ctx_pa, app_reg_ctx);
 
 	return retval;
+}
+
+void app_abort(struct app_data_cfg *app_data)
+{
+	(void)init_app_reg_ctx(app_data);
 }
