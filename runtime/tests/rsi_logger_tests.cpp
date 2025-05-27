@@ -40,7 +40,7 @@ TEST_GROUP(rsi_logger_tests) {
 };
 
 #if (RSI_LOG_LEVEL > LOG_LEVEL_NONE) && (RSI_LOG_LEVEL <= LOG_LEVEL)
-static void rsi_log_test(unsigned int id, unsigned int status)
+static void rsi_log_test(unsigned int id, unsigned int status, bool ret_to_rec)
 {
 	unsigned long args[10];
 	unsigned long regs[5];
@@ -67,22 +67,26 @@ static void rsi_log_test(unsigned int id, unsigned int status)
 		regs[i] = rand();
 	}
 
-	rsi_log_on_exit(id, args, regs);
+	rsi_log_on_exit(id, args, regs, ret_to_rec);
 }
 
 TEST(rsi_logger_tests, RSI_LOGGER_TC1)
 {
 	unsigned int status, id;
 
-	for (status = LOG_SUCCESS; status <= LOG_RANDOM; status++) {
-		for (id = SMC_RSI_VERSION; id <= SMC_RSI_HOST_CALL; id++) {
-			rsi_log_test(id, status);
-		}
-	}
+	for (unsigned int i = 0U; i < 2U; i++) {
+		bool ret_to_rec = ((i & 1U) != 0U);
 
-	rsi_log_test(SMC32_PSCI_FID_MIN, LOG_RANDOM);
-	rsi_log_test(SMC64_PSCI_FID_MAX, LOG_RANDOM);
-	rsi_log_test(SMC64_PSCI_FID_MAX + rand(), LOG_RANDOM);
+		for (status = LOG_SUCCESS; status <= LOG_RANDOM; status++) {
+			for (id = SMC_RSI_VERSION; id <= SMC_RSI_PLANE_REG_WRITE; id++) {
+				rsi_log_test(id, status, ret_to_rec);
+			}
+		}
+
+		rsi_log_test(SMC32_PSCI_FID_MIN, LOG_RANDOM, ret_to_rec);
+		rsi_log_test(SMC64_PSCI_FID_MAX, LOG_RANDOM, ret_to_rec);
+		rsi_log_test(SMC64_PSCI_FID_MAX + rand(), LOG_RANDOM, ret_to_rec);
+	}
 
 	TEST_EXIT;
 }

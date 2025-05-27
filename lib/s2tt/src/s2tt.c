@@ -783,6 +783,7 @@ unsigned long s2tte_create_table(const struct s2tt_context *s2_ctx,
  * - assigned_empty
  * - assigned_ram
  * - assigned_destroyed
+ * - assigned_dev
  */
 bool s2tte_has_ripas(const struct s2tt_context *s2_ctx,
 		     unsigned long s2tte, long level)
@@ -914,13 +915,21 @@ bool s2tte_is_assigned_empty(const struct s2tt_context *s2_ctx,
 	return s2tte_has_assigned_ripas(s2tte, S2TTE_INVALID_RIPAS_EMPTY);
 }
 
-static bool s2tte_check(const struct s2tt_context *s2_ctx, unsigned long s2tte,
-			long level, unsigned long ns)
+static bool s2tte_check_assigned_ram_or_ns(const struct s2tt_context *s2_ctx,
+					   unsigned long s2tte, long level,
+					   unsigned long ns)
 {
 	(void)s2_ctx;
-	unsigned long desc_type;
+	unsigned long attr, desc_type;
 
 	if ((s2tte & S2TTE_NS) != ns) {
+		return false;
+	}
+
+	attr = s2tte & (S2TTE_DEV_ATTRS_MASK | S2TTE_MEMATTR_MASK);
+
+	/* Return false for device memory */
+	if ((attr == S2TTE_DEV_COH_ATTRS) || (attr == S2TTE_DEV_NCOH_ATTRS)) {
 		return false;
 	}
 
@@ -944,7 +953,7 @@ static bool s2tte_check(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 bool s2tte_is_assigned_ram(const struct s2tt_context *s2_ctx,
 			   unsigned long s2tte, long level)
 {
-	return s2tte_check(s2_ctx, s2tte, level, 0UL);
+	return s2tte_check_assigned_ram_or_ns(s2_ctx, s2tte, level, 0UL);
 }
 
 /*
@@ -953,7 +962,7 @@ bool s2tte_is_assigned_ram(const struct s2tt_context *s2_ctx,
 bool s2tte_is_assigned_ns(const struct s2tt_context *s2_ctx,
 			  unsigned long s2tte, long level)
 {
-	return s2tte_check(s2_ctx, s2tte, level, S2TTE_NS);
+	return s2tte_check_assigned_ram_or_ns(s2_ctx, s2tte, level, S2TTE_NS);
 }
 
 /*
@@ -1045,8 +1054,8 @@ bool s2tte_is_table(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 /*
  * Returns RIPAS of @s2tte.
  *
- * Caller should ensure that HIPAS=UNASSIGNED or HIPAS=ASSIGNED.
- * The s2tte, if valid, should correspond to RIPAS_RAM.
+ * Caller should ensure that HIPAS=UNASSIGNED, ASSIGNED or ASSIGNED_DEV
+ * The s2tte, if valid, should correspond to RIPAS_RAM or RIPAS_DEV.
  */
 enum ripas s2tte_get_ripas(const struct s2tt_context *s2_ctx, unsigned long s2tte)
 {
@@ -1056,17 +1065,30 @@ enum ripas s2tte_get_ripas(const struct s2tt_context *s2_ctx, unsigned long s2tt
 
 	/*
 	 * If a valid S2TTE descriptor is passed, the RIPAS corresponds to
-	 * RIPAS_RAM.
+	 * RIPAS_RAM or RIPAS_DEV.
 	 */
 	if (valid_desc) {
 		__unused unsigned long desc_type = s2tte & S2TT_DESC_TYPE_MASK;
+		unsigned long attr = s2tte & (S2TTE_DEV_ATTRS_MASK |
+						S2TTE_MEMATTR_MASK);
 
 		assert((desc_type == S2TTE_L012_BLOCK) ||
 			(desc_type == S2TTE_L3_PAGE));
+		/*
+		 * For device memory check that NS, XN, S2AP, AF and MemAttr[3:0]
+		 * match with S2TTE_DEV_COH_ATTRS or S2TTE_DEV_NCOH_ATTRS
+		 * attributes.
+		 * Assume that shareability attrubutes are set correctly.
+		 */
+		if ((attr == S2TTE_DEV_COH_ATTRS) ||
+		    (attr == S2TTE_DEV_NCOH_ATTRS)) {
+			return RIPAS_DEV;
+		}
 		return RIPAS_RAM;
 	}
 
-	assert(EXTRACT(S2TTE_INVALID_HIPAS, s2tte) <= RMI_ASSIGNED);
+	/* Only HIPAS=UNASSIGNED, ASSIGNED or ASSIGNED_DEV are valid */
+	assert(EXTRACT(S2TTE_INVALID_HIPAS, s2tte) != RMI_TABLE);
 
 	desc_ripas = desc_ripas >> S2TTE_INVALID_RIPAS_SHIFT;
 

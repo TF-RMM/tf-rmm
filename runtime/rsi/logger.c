@@ -11,8 +11,11 @@
 #include <string.h>
 #include <utils_def.h>
 
-/* RMI handler uses 29 chars for function name */
-#define MAX_NAME_LEN	29UL
+/*
+ * RSI handler uses 34 chars max for function name including the null
+ * terminator
+ */
+#define MAX_NAME_LEN	sizeof("SMC_RSI_RDEV_GET_INTERFACE_REPORT")
 
 /* Max 10 64-bit parameters separated by space */
 #define PARAMS_STR_LEN	(10UL * sizeof("0123456789ABCDEF"))
@@ -20,7 +23,7 @@
 #define MAX_STATUS_LEN	sizeof("RSI_ERROR_UNKNOWN")
 
 #define BUFFER_SIZE	(MAX_NAME_LEN + PARAMS_STR_LEN + \
-			sizeof(" > ") - 1UL + MAX_STATUS_LEN)
+			sizeof(" > ") - 3UL + MAX_STATUS_LEN)
 
 #define WHITESPACE_CHAR	0x20
 
@@ -96,10 +99,10 @@ static size_t print_entry(unsigned int id, unsigned long args[],
 
 		num = logger->num_args;
 		if (logger->fn_name != NULL) {
-			cnt = snprintf(buf, MAX_NAME_LEN + 1UL,
+			cnt = snprintf(buf, MAX_NAME_LEN,
 				       "%s%s", "SMC_RSI", logger->fn_name);
 		} else {
-			cnt = snprintf(buf, MAX_NAME_LEN + 1UL,
+			cnt = snprintf(buf, MAX_NAME_LEN,
 				       "%s", "SMC_RSI_<unsupported>");
 		}
 		break;
@@ -108,22 +111,22 @@ static size_t print_entry(unsigned int id, unsigned long args[],
 	case SMC32_PSCI_FID_MIN ... SMC32_PSCI_FID_MAX:
 		FALLTHROUGH;
 	case SMC64_PSCI_FID_MIN ... SMC64_PSCI_FID_MAX:
-		cnt = snprintf(buf, MAX_NAME_LEN + 1UL, "%s%08x", "PSCI_", id);
+		cnt = snprintf(buf, MAX_NAME_LEN, "%s%08x", "PSCI_", id);
 		break;
 
 	/* Other SMC calls */
 	default:
-		cnt = snprintf(buf, MAX_NAME_LEN + 1UL, "%s%08x", "SMC_", id);
+		cnt = snprintf(buf, MAX_NAME_LEN, "%s%08x", "SMC_", id);
 		break;
 	}
 
-	assert((cnt > 0) && ((unsigned int)cnt < (MAX_NAME_LEN + 1U)));
+	assert((cnt > 0) && ((unsigned int)cnt < MAX_NAME_LEN));
 
 	(void)memset((void *)((uintptr_t)buf + (unsigned int)cnt), WHITESPACE_CHAR,
 					MAX_NAME_LEN - (size_t)cnt);
 
-	buf = (char *)((uintptr_t)buf + MAX_NAME_LEN);
-	len -= MAX_NAME_LEN;
+	buf = (char *)((uintptr_t)buf + MAX_NAME_LEN - 1UL);
+	len -= (MAX_NAME_LEN - 1UL);
 
 	/* Arguments */
 	for (unsigned int i = 0U; i < num; i++) {
@@ -155,13 +158,22 @@ static int print_code(char *buf, size_t len, unsigned long res)
 
 /* cppcheck-suppress misra-c2012-8.4 */
 void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
-		     unsigned long regs[])
+		     unsigned long regs[], bool ret_to_rec)
 {
 	char buffer[BUFFER_SIZE];
 	size_t len = print_entry(function_id, args, buffer, sizeof(buffer));
 	char *buf = (char *)((uintptr_t)buffer + sizeof(buffer) - len);
-	unsigned int num = 3U;	/* results in X1-X3 */
+	unsigned int num;
 	int cnt;
+
+	/*
+	 * Return status and results in regs[] are only valid if the RSI call
+	 * execution returns to REC.
+	 */
+	if (!ret_to_rec) {
+		rmm_log("%s\n", buffer);
+		return;
+	}
 
 	switch (function_id) {
 	case SMC_RSI_VERSION ... SMC_RSI_PLANE_REG_WRITE: {
@@ -176,6 +188,7 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 	default:
 		/* Print result code */
 		cnt = print_code(buf, len, regs[0]);
+		num = 3U;	/* results in X1-X3 */
 	}
 
 	assert((cnt > 0) && (cnt < (int)len));
