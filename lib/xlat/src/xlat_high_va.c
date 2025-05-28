@@ -99,6 +99,8 @@ int xlat_high_va_setup(void)
 	/* Allocate xlat_mmap_region for high VA mappings which will be specific to PEs */
 	static struct xlat_mmap_region mm_regions_array[MAX_CPUS][MMAP_REGION_COUNT] = {
 		[0 ... MAX_CPUS-1] = {RMM_EH_STACK_MMAP, RMM_STACK_MMAP, RMM_SLOT_BUF_MMAP}};
+	uint64_t *tables_ptr;
+
 	/*
 	 * The base tables for all the contexts are manually allocated as a continuous
 	 * block of memory (one L3 table per PE).
@@ -121,7 +123,8 @@ int xlat_high_va_setup(void)
 	ret = xlat_ctx_cfg_init(&high_va_xlat_ctx_cfgs[cpuid], VA_HIGH_REGION,
 				 &mm_regions_array[cpuid][0U],
 				 MMAP_REGION_COUNT,
-				 XLAT_HIGH_VA_SIZE);
+				 XLAT_HIGH_VA_SIZE,
+				 RMM_ASID);
 	if (!((ret == 0) || (ret == -EALREADY))) {
 		return ret;
 	}
@@ -130,10 +133,12 @@ int xlat_high_va_setup(void)
 	 * Initialize the translation tables for the current context.
 	 * This is done on the first boot of each PE.
 	 */
+	tables_ptr = &high_va_tts[(size_t)XLAT_TABLE_ENTRIES * cpuid];
 	ret = xlat_ctx_init(&high_va_xlat_ctx[cpuid],
 				&high_va_xlat_ctx_cfgs[cpuid],
 				&high_va_tbls[cpuid],
-				&high_va_tts[(size_t)XLAT_TABLE_ENTRIES * cpuid], 1U);
+				tables_ptr, 1U,
+				((uint64_t)(void *)tables_ptr) & MASK(TTBRx_EL2_BADDR));
 
 	if (!((ret == 0) || (ret == -EALREADY))) {
 		return ret;

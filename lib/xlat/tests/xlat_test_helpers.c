@@ -74,11 +74,13 @@ void xlat_test_helpers_init_ctx_tbls(struct xlat_ctx_tbls *ctx_tbls,
 				     uint64_t *tbls,
 				     unsigned int tables_num,
 				     unsigned int next_table,
+				     unsigned long base_table_pa,
 				     bool initialized)
 {
 	ctx_tbls->tables = tbls;
 	ctx_tbls->tables_num = tables_num;
 	ctx_tbls->next_table = next_table;
+	ctx_tbls->base_table_pa = base_table_pa;
 	ctx_tbls->init = initialized;
 }
 
@@ -91,6 +93,7 @@ void xlat_test_helpers_init_ctx_cfg(struct xlat_ctx_cfg *ctx_cfg,
 				    xlat_addr_region_id_t region,
 				    struct xlat_mmap_region *mm,
 				    unsigned int mmaps,
+				    unsigned long asid,
 				    bool initialized)
 {
 	ctx_cfg->max_va_size = max_va_size;
@@ -101,6 +104,7 @@ void xlat_test_helpers_init_ctx_cfg(struct xlat_ctx_cfg *ctx_cfg,
 	ctx_cfg->max_mapped_va_offset = max_mapped_va_offset;
 	ctx_cfg->base_level = base_level;
 	ctx_cfg->region = region;
+	ctx_cfg->asid = asid;
 	ctx_cfg->init = initialized;
 }
 
@@ -211,6 +215,18 @@ void xlat_test_helpers_rand_mmap_array(struct xlat_mmap_region *mmap,
 
 		assert(next_va_start < max_va);
 	}
+}
+
+unsigned long xlat_test_helpers_rand_asid(void)
+{
+	return test_helpers_get_rand_in_range(0UL,
+		(1U << TTBRx_EL2_ASID_WIDTH) - 1U);
+}
+
+uint64_t xlat_test_helpers_rand_table_pa(void)
+{
+	return test_helpers_get_rand_in_range(0UL,
+		(1UL << TTBRx_EL2_BADDR_WIDTH) - 1U);
 }
 
 int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,

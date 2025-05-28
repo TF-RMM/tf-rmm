@@ -357,7 +357,8 @@ void xlat_ctx_init_tc5(void)
 				/* Initialize the test structure */
 				retval = xlat_ctx_cfg_init(&cfg, va_region,
 							   &init_mmap[0U],
-							   mmap_count, va_size);
+							   mmap_count, va_size,
+							   xlat_test_helpers_rand_asid());
 
 				/*
 				 * verify that the test setup is correct so far
@@ -367,7 +368,8 @@ void xlat_ctx_init_tc5(void)
 				/* Test xlat_ctx_init() */
 				retval = xlat_ctx_init(&ctx, &cfg, &tbls,
 						       xlat_test_helpers_tbls(),
-						       XLAT_TESTS_MAX_TABLES);
+						       XLAT_TESTS_MAX_TABLES,
+						       xlat_test_helpers_rand_table_pa());
 
 				/*
 				 * verify that the test setup is correct so far
@@ -459,14 +461,16 @@ void xlat_get_llt_from_va_tc1(void)
 
 			retval = xlat_ctx_cfg_init(&cfg, va_region,
 						   &init_mmap[0U],
-						   mmap_count, va_size);
+						   mmap_count, va_size,
+						   xlat_test_helpers_rand_asid());
 
 			/* Ensure that so far the test setup is OK */
 			CHECK_TRUE(retval == 0);
 
 			retval = xlat_ctx_init(&ctx, &cfg, &tbls,
 					       xlat_test_helpers_tbls(),
-					       XLAT_TESTS_MAX_TABLES);
+					       XLAT_TESTS_MAX_TABLES,
+					       xlat_test_helpers_rand_table_pa());
 
 			/* Ensure that so far the test setup is OK */
 			CHECK_TRUE(retval == 0);
@@ -598,12 +602,14 @@ void xlat_get_llt_from_va_tc2(void)
 
 			retval = xlat_ctx_cfg_init(&cfg, va_region,
 						   &init_mmap[0U], 3U,
-						   max_va_size);
+						   max_va_size,
+						   xlat_test_helpers_rand_asid());
 			CHECK_TRUE(retval == 0);
 
 			retval = xlat_ctx_init(&ctx, &cfg, &tbls,
 					       xlat_test_helpers_tbls(),
-					       XLAT_TESTS_MAX_TABLES);
+					       XLAT_TESTS_MAX_TABLES,
+					       xlat_test_helpers_rand_table_pa());
 			CHECK_TRUE(retval == 0);
 
 			VERBOSE("\n");
@@ -696,12 +702,14 @@ void xlat_get_llt_from_va_tc3(void)
 
 		retval = xlat_ctx_cfg_init(&cfg, va_region,
 					   &init_mmap[0U], 3U,
-					   max_va_size);
+					   max_va_size,
+					   xlat_test_helpers_rand_asid());
 		CHECK_TRUE(retval == 0);
 
 		retval = xlat_ctx_init(&ctx, &cfg, &tbls,
 				       xlat_test_helpers_tbls(),
-				       XLAT_TESTS_MAX_TABLES);
+				       XLAT_TESTS_MAX_TABLES,
+				       xlat_test_helpers_rand_table_pa());
 		CHECK_TRUE(retval == 0);
 
 		VERBOSE("\n");
@@ -749,11 +757,13 @@ void xlat_get_llt_from_va_prepare_assertion(struct xlat_ctx *ctx,
 	/* Generate a random mmap area */
 	xlat_test_helpers_rand_mmap_array(init_mmap, 1U, start_va, end_va, true);
 
-	(void)xlat_ctx_cfg_init(cfg, va_region, init_mmap, 1U, max_va_size);
+	(void)xlat_ctx_cfg_init(cfg, va_region, init_mmap, 1U, max_va_size,
+		xlat_test_helpers_rand_asid());
 
 	(void)xlat_ctx_init(ctx, cfg, tbls,
 			    xlat_test_helpers_tbls(),
-			    XLAT_TESTS_MAX_TABLES);
+			    XLAT_TESTS_MAX_TABLES,
+			    xlat_test_helpers_rand_table_pa());
 }
 
 void xlat_get_llt_from_va_tc4(void)
@@ -994,14 +1004,16 @@ void xlat_get_tte_ptr_tc1(void)
 		CHECK_TRUE(retval == 0);
 
 		retval = xlat_ctx_cfg_init(&cfg, va_region, &init_mmap[0U], 3U,
-					   max_va_size);
+					   max_va_size,
+					   xlat_test_helpers_rand_asid());
 
 		/* Ensure that so far the test setup is OK */
 		CHECK_TRUE(retval == 0);
 
 		retval = xlat_ctx_init(&ctx, &cfg, &tbls,
 					xlat_test_helpers_tbls(),
-					XLAT_TESTS_MAX_TABLES);
+					XLAT_TESTS_MAX_TABLES,
+					xlat_test_helpers_rand_table_pa());
 
 		/* Ensure that so far the test setup is OK */
 		CHECK_TRUE(retval == 0);
@@ -1241,14 +1253,16 @@ void xlat_unmap_memory_page_tc1(void)
 			/* Initialize the test structure */
 			retval = xlat_ctx_cfg_init(&cfg, va_region,
 						   &init_mmap[0U],
-						   mmap_count, va_size);
+						   mmap_count, va_size,
+						   xlat_test_helpers_rand_asid());
 
 			/* Verify that the test setup is correct so far */
 			CHECK_TRUE(retval == 0);
 
 			retval = xlat_ctx_init(&ctx, &cfg, &tbls,
 					       xlat_test_helpers_tbls(),
-					       XLAT_TESTS_MAX_TABLES);
+					       XLAT_TESTS_MAX_TABLES,
+					       xlat_test_helpers_rand_table_pa());
 
 			/* Verify that the test setup is correct so far */
 			CHECK_TRUE(retval == 0);
@@ -1394,14 +1408,16 @@ void xlat_unmap_memory_page_tc2(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&cfg, va_region, &init_mmap[0U],
-					   mmap_count, va_size);
+					   mmap_count, va_size,
+					   xlat_test_helpers_rand_asid());
 
 		/* Verify that the test setup is correct so far */
 		CHECK_TRUE(retval == 0);
 
 		retval = xlat_ctx_init(&ctx, &cfg, &tbls,
 				       xlat_test_helpers_tbls(),
-				       XLAT_TESTS_MAX_TABLES);
+				       XLAT_TESTS_MAX_TABLES,
+				       xlat_test_helpers_rand_table_pa());
 
 		/* Verify that the test setup is correct so far */
 		CHECK_TRUE(retval == 0);
@@ -1610,14 +1626,16 @@ void xlat_map_memory_page_with_attrs_tc1(void)
 			/* Initialize the test structure */
 			retval = xlat_ctx_cfg_init(&cfg, va_region,
 						   &init_mmap[0U],
-						   mmap_count, va_size);
+						   mmap_count, va_size,
+						   xlat_test_helpers_rand_asid());
 
 			/* Verify that the test setup is correct so far */
 			CHECK_TRUE(retval == 0);
 
 			retval = xlat_ctx_init(&ctx, &cfg, &tbls,
 					       xlat_test_helpers_tbls(),
-					       XLAT_TESTS_MAX_TABLES);
+					       XLAT_TESTS_MAX_TABLES,
+					       xlat_test_helpers_rand_table_pa());
 
 			/* Verify that the test setup is correct so far */
 			CHECK_TRUE(retval == 0);
@@ -1818,14 +1836,16 @@ void xlat_map_memory_page_with_attrs_tc2(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&cfg, va_region, &init_mmap[0U],
-					   mmap_count, va_size);
+					   mmap_count, va_size,
+					   xlat_test_helpers_rand_asid());
 
 		/* Verify that the test setup is correct so far */
 		CHECK_TRUE(retval == 0);
 
 		retval = xlat_ctx_init(&ctx, &cfg, &tbls,
 				       xlat_test_helpers_tbls(),
-				       XLAT_TESTS_MAX_TABLES);
+				       XLAT_TESTS_MAX_TABLES,
+				       xlat_test_helpers_rand_table_pa());
 
 		/* Verify that the test setup is correct so far */
 		CHECK_TRUE(retval == 0);
@@ -2048,14 +2068,17 @@ static void validate_ttbrx_el2(struct xlat_ctx *ctx)
 {
 	uint64_t expected_ttbrx, ttbrx;
 	xlat_addr_region_id_t va_region;
+	unsigned long asid = ctx->cfg->asid &
+		((1UL << TTBRx_EL2_ASID_WIDTH) - 1U);
 
 	assert(ctx != NULL);
 
 	va_region = ctx->cfg->region;
 
 	/* BADDR */
-	expected_ttbrx = ((uint64_t)&ctx->tbls->tables[0U]) &
-						MASK(TTBRx_EL2_BADDR);
+	expected_ttbrx =
+		(((uint64_t)ctx->tbls->base_table_pa) & MASK(TTBRx_EL2_BADDR));
+	expected_ttbrx |= (INPLACE(TTBRx_EL2_ASID, asid));
 
 	ttbrx = read_ttbr1_el2();
 	if (va_region == VA_LOW_REGION) {
@@ -2201,11 +2224,13 @@ void xlat_arch_setup_mmu_cfg_tc1(void)
 		xlat_test_helpers_rand_mmap_array(&init_mmap[i], 1U, start_va, end_va, true);
 
 		retval = xlat_ctx_cfg_init(&cfg[i], va_region, &init_mmap[i],
-					   1U, max_va_size);
+					   1U, max_va_size,
+					   xlat_test_helpers_rand_asid());
 		CHECK_TRUE(retval == 0);
 
 		retval = xlat_ctx_init(&ctx[i], &cfg[i], &tbls[i],
-				       base_tbl[i], XLAT_TESTS_MAX_TABLES >> 1U);
+				       base_tbl[i], XLAT_TESTS_MAX_TABLES >> 1U,
+				       xlat_test_helpers_rand_table_pa());
 		CHECK_TRUE(retval == 0);
 
 		/* Initialize MMU for the given context */
@@ -2265,12 +2290,14 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va, true);
 
 	retval = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &init_mmap,
-					1U, max_va_size);
+					1U, max_va_size,
+					xlat_test_helpers_rand_asid());
 	CHECK_TRUE(retval == 0);
 
 	retval = xlat_ctx_init(&ctx, &cfg, &tbls,
 			       xlat_test_helpers_tbls(),
-			       XLAT_TESTS_MAX_TABLES);
+			       XLAT_TESTS_MAX_TABLES,
+			       xlat_test_helpers_rand_table_pa());
 	CHECK_TRUE(retval == 0);
 
 	/* Force the context to be uninitialized */
@@ -2420,12 +2447,14 @@ void xlat_arch_setup_mmu_cfg_tc6(void)
 	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va, true);
 
 	retval = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &init_mmap,
-					1U, max_va_size);
+					1U, max_va_size,
+					xlat_test_helpers_rand_asid());
 	CHECK_TRUE(retval == 0);
 
 	retval = xlat_ctx_init(&ctx, &cfg, &tbls,
 				xlat_test_helpers_tbls(),
-				XLAT_TESTS_MAX_TABLES);
+				XLAT_TESTS_MAX_TABLES,
+				xlat_test_helpers_rand_table_pa());
 	CHECK_TRUE(retval == 0);
 
 	/* Force the MMU enablement */

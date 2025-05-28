@@ -63,6 +63,7 @@ void xlat_test_helpers_init_ctx_tbls(struct xlat_ctx_tbls *ctx_tbls,
 				     uint64_t *tbls,
 				     unsigned int tables_num,
 				     unsigned int next_table,
+				     unsigned long base_table_pa,
 				     bool initialized);
 
 /*
@@ -81,6 +82,7 @@ void xlat_test_helpers_init_ctx_cfg(struct xlat_ctx_cfg *ctx_cfg,
 				    xlat_addr_region_id_t region,
 				    struct xlat_mmap_region *mm,
 				    unsigned int mmaps,
+				    unsigned long asid,
 				    bool initialized);
 
 /*
@@ -105,6 +107,12 @@ void xlat_test_helpers_rand_mmap_array(struct xlat_mmap_region *mmap,
 					size_t size, uintptr_t min_va,
 					uintptr_t max_va,
 					bool allow_transient);
+
+/* Generate a random valid ASID */
+unsigned long xlat_test_helpers_rand_asid(void);
+
+/* Generate random page table PA */
+uint64_t xlat_test_helpers_rand_table_pa(void);
 
 /* Return the base VA according to the region */
 uintptr_t xlat_test_helpers_get_start_va(xlat_addr_region_id_t region,
