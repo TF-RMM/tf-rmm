@@ -286,7 +286,7 @@ static inline void atomic_granule_get(struct granule *g)
 }
 
 /*
- * Atomically increments the reference counter of the granule by @val.
+ * Atomically decrements the reference counter of the granule by @val.
  *
  * Must be called with granule lock held.
  */

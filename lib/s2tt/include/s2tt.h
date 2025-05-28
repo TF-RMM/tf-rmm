@@ -191,7 +191,6 @@ bool s2tte_is_assigned_ns(const struct s2tt_context *s2_ctx,
 			  unsigned long s2tte, long level);
 bool s2tte_is_assigned_destroyed(const struct s2tt_context *s2_ctx,
 				 unsigned long s2tte, long level);
-
 bool s2tte_is_assigned_dev(const struct s2tt_context *s2_ctx,
 			   unsigned long s2tte);
 bool s2tte_is_assigned_dev_empty(const struct s2tt_context *s2_ctx,

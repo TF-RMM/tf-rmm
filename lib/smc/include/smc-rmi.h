@@ -663,7 +663,6 @@
  * arg2 == RTT Tree index
  *
  * ret1 == Top IPA of non-live RTT entries from entry at which the RTT walk terminated
- * ret2 == level of RTTE reached by a walk of the RTT
  * if ret0 == RMI_SUCCESS, otherwise, undefined.
  */
 #define SMC_RMI_RTT_AUX_UNMAP_PROTECTED		SMC64_RMI_FID(U(0x33))
