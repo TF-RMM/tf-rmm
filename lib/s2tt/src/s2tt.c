@@ -1060,7 +1060,8 @@ bool s2tte_is_table(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 enum ripas s2tte_get_ripas(const struct s2tt_context *s2_ctx, unsigned long s2tte)
 {
 	(void)s2_ctx;
-	unsigned long desc_ripas = s2tte & S2TTE_INVALID_RIPAS_MASK;
+	__unused unsigned long desc_hipas;
+	enum ripas desc_ripas;
 	bool valid_desc = ((s2tte & S2TT_DESC_VALID_MASK) == S2TTE_VALID);
 
 	/*
@@ -1087,14 +1088,15 @@ enum ripas s2tte_get_ripas(const struct s2tt_context *s2_ctx, unsigned long s2tt
 		return RIPAS_RAM;
 	}
 
+	desc_hipas = EXTRACT(S2TTE_INVALID_HIPAS, s2tte);
+
 	/* Only HIPAS=UNASSIGNED, ASSIGNED or ASSIGNED_DEV are valid */
-	assert(EXTRACT(S2TTE_INVALID_HIPAS, s2tte) != RMI_TABLE);
+	assert((desc_hipas <= RMI_ASSIGNED_DEV) && (desc_hipas != RMI_TABLE));
 
-	desc_ripas = desc_ripas >> S2TTE_INVALID_RIPAS_SHIFT;
+	desc_ripas = (enum ripas)EXTRACT(S2TTE_INVALID_RIPAS, s2tte);
+	assert(desc_ripas <= RIPAS_DESTROYED);
 
-	assert(desc_ripas <= (unsigned int)RIPAS_DESTROYED);
-
-	return (enum ripas)desc_ripas;
+	return desc_ripas;
 }
 
 /*
