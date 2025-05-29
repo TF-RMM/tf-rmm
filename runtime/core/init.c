@@ -76,7 +76,7 @@ static void rmm_arch_init(void)
 
 /* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
-void rmm_warmboot_main(void)
+uint64_t rmm_warmboot_main(void)
 {
 	/*
 	 * Do the rest of RMM architecture init
@@ -107,6 +107,8 @@ void rmm_warmboot_main(void)
 	 * Stage 2 translation library initializaton.
 	 */
 	s2tt_init();
+
+	return 0UL;
 }
 
 /*
@@ -116,7 +118,7 @@ void rmm_warmboot_main(void)
  */
 /* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
-void rmm_main(void)
+uint64_t rmm_main(void)
 {
 	unsigned int rmm_el3_ifc_version = rmm_el3_ifc_get_version();
 	unsigned int manifest_version = rmm_el3_ifc_get_manifest_version();
@@ -200,5 +202,5 @@ void rmm_main(void)
 		feature_da_disable();
 	}
 
-	rmm_warmboot_main();
+	return rmm_warmboot_main();
 }

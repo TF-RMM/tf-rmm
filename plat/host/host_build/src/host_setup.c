@@ -271,6 +271,8 @@ void initialise_app_headers(int argc, char *argv[])
 	free(base_dir_copy);
 }
 
+uint64_t rmm_main(void);
+
 int main(int argc, char *argv[])
 {
 	int rc;
@@ -297,7 +299,7 @@ int main(int argc, char *argv[])
 	enable_fake_host_mmu();
 
 	/* Start RMM */
-	rmm_main();
+	(void)rmm_main();
 
 	/* Create a realm and a rec */
 	if (host_create_realm_and_activate(&g_realm) != 0) {

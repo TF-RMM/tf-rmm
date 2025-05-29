@@ -32,6 +32,8 @@
 
 #define RMM_EL3_MAX_CPUS		(MAX_CPUS)
 
+uint64_t per_cpu_token[RMM_EL3_MAX_CPUS] = {0UL};
+
 /* Maximum size of the assertion check string */
 #define CHECK_SIZE			U(80)
 
@@ -70,7 +72,7 @@ static void start_primary_pe(void)
 	 *
 	 * Note: It is expected that the attestation init will fail.
 	 */
-	rmm_main();
+	per_cpu_token[0] = rmm_main();
 }
 
 static void start_secondary_pe(unsigned int cpuid)
@@ -97,7 +99,7 @@ static void start_secondary_pe(unsigned int cpuid)
 	 * Finalize the warmboot path.
 	 * This enables the slot buffer mechanism.
 	 */
-	rmm_warmboot_main();
+	per_cpu_token[cpuid] = rmm_warmboot_main();
 }
 
 void test_helpers_rmm_start(bool secondaries)

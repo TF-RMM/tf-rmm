@@ -202,6 +202,7 @@ skip_to_warmboot:
 
 	bl	rmm_warmboot_main
 smc_ret:
+	mov	x2, x0
 	mov_imm	x0, SMC_RMM_BOOT_COMPLETE
 	mov_imm	x1, E_RMM_BOOT_SUCCESS
 	smc	#0
