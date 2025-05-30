@@ -11,7 +11,6 @@
 #include <arch_features.h>
 #include <granule.h>
 #include <sizes.h>
-#include <smc-handler.h>
 #include <smc-rmi.h>
 #include <utils_def.h>
 
