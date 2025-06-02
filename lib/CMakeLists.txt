@@ -19,7 +19,6 @@ target_link_libraries(rmm-lib
               rmm-lib-stack_protector
               rmm-lib-xlat)
 
-add_subdirectory("allocator")
 add_subdirectory("arch")
 add_subdirectory("common")
 add_subdirectory("console")
@@ -33,9 +32,3 @@ add_subdirectory("s2tt")
 add_subdirectory("slot_buf")
 add_subdirectory("stack_protector")
 add_subdirectory("xlat")
-
-# Device Assignment feature in RMM v1.1 needs rmm-lib-spdm_requester
-if(RMM_V1_1)
-    target_link_libraries(rmm-lib INTERFACE rmm-lib-spdm_requester)
-    add_subdirectory("spdm_requester")
-endif()

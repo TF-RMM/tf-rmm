@@ -13,6 +13,7 @@ add_subdirectory("common")
 set(EL0_APP_BIN_LIST "")
 
 add_subdirectory("attestation")
+add_subdirectory("device_assignment")
 add_subdirectory("random")
 
 set(EL0_APP_BIN_LIST ${EL0_APP_BIN_LIST} PARENT_SCOPE)

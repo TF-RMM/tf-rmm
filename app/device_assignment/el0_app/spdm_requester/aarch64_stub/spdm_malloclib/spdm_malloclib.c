@@ -6,7 +6,7 @@
 
 #include <base.h>
 #include <library/malloclib.h>
-#include <memory_alloc.h>
+#include <mbedtls/platform.h>
 #include <string.h>
 
 /*
@@ -16,14 +16,14 @@
  */
 void *allocate_pool(size_t AllocationSize)
 {
-	return buffer_alloc_calloc(1, AllocationSize);
+	return mbedtls_calloc(1, AllocationSize);
 }
 
 void *allocate_zero_pool(size_t AllocationSize)
 {
 	void *buffer;
 
-	buffer = buffer_alloc_calloc(1, AllocationSize);
+	buffer = mbedtls_calloc(1, AllocationSize);
 	if (buffer == NULL) {
 		return NULL;
 	}
@@ -34,5 +34,5 @@ void *allocate_zero_pool(size_t AllocationSize)
 
 void free_pool(void *buffer)
 {
-	buffer_alloc_free(buffer);
+	mbedtls_free(buffer);
 }
