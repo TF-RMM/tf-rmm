@@ -171,4 +171,7 @@
 #define NR_RTT_LEVELS_LPA2	(S2TT_PAGE_LEVEL -		\
 					S2TT_MIN_STARTING_LEVEL_LPA2 + 1)
 
+typedef unsigned long (*create_assigned_fn)(const struct s2tt_context *s2_ctx,
+						unsigned long pa, long level);
+
 #endif /* S2TT_PVT_DEFS */
