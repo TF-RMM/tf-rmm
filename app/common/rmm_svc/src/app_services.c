@@ -25,22 +25,14 @@ static uint64_t app_service_print(struct app_data_cfg *app_data,
 			  unsigned long arg2,
 			  unsigned long arg3)
 {
-	size_t len = arg0;
-	size_t i;
-	char *shared_page;
+	int character = (int)arg0;
 
+	(void)app_data;
 	(void)arg1;
 	(void)arg2;
 	(void)arg3;
 
-	if (len >= GRANULE_SIZE) {
-		return (uint64_t)(-EINVAL);
-	}
-
-	shared_page = app_data->el2_shared_page;
-	for (i = 0U; i < len; ++i) {
-		(void)console_putc((int)shared_page[i]);
-	}
+	(void)console_putc(character);
 	return 0;
 }
 
