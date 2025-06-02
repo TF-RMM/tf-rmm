@@ -112,6 +112,7 @@ void s2tte_is_table_tc1(void);
 /* s2tte_get_ripas() */
 void s2tte_get_ripas_tc1(void);
 void s2tte_get_ripas_tc2(void);
+void s2tte_get_ripas_tc3(void);
 
 /* s2tt_init_unassigned_empty() */
 void s2tt_init_unassigned_empty_tc1(void);

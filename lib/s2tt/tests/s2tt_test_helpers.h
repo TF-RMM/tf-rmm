@@ -51,6 +51,10 @@
 /* Invalid value for the RIPAS field */
 #define S2TT_TEST_RIPAS_INVALID		(3UL)
 
+/* Non-coherent device memory attributes, Outer Shareable */
+#define S2TTE_TEST_DEV_ATTRS		S2TTE_DEV_NCOH_ATTRS
+#define S2TTE_TEST_DEV_SH		S2TTE_SH_OS
+
 /*
  * Function to setup the environment for the tests specifying
  * whether FEAT_LPA2 is supported or not.
@@ -112,6 +116,9 @@ long s2tt_test_helpers_min_table_lvl(void);
 /* Get the minimum block level */
 long s2tt_test_helpers_min_block_lvl(void);
 
+/* Get the minimum device memory block level */
+long s2tt_test_helpers_min_dev_block_lvl(void);
+
 /* For a given level return the VA space size of an S2TTE entry at such level */
 unsigned long s2tt_test_helpers_get_entry_va_space_size(long level);
 
@@ -126,6 +133,20 @@ bool s2tt_test_helpers_lpa2_enabled(void);
 unsigned long s2tt_test_create_assigned(const struct s2tt_context *s2tt_ctx,
 					unsigned long pa, long level,
 					unsigned long ripas);
+
+/* Helper to create an assigned_dev S2TTE as per the passed parameters */
+unsigned long s2tt_test_create_assigned_dev(const struct s2tt_context *s2tt_ctx,
+					    unsigned long pa, long level,
+					    unsigned long ripas);
+
+/* Helper to create an assigned_dev_dev S2TTE as per the passed parameters */
+unsigned long s2tt_test_create_assigned_dev_dev(const struct s2tt_context *s2tt_ctx,
+						unsigned long pa, long level);
+
+/* Helper to init an assigned_dev_dev S2TTE as per the passed parameters */
+void s2tt_test_init_assigned_dev_dev(const struct s2tt_context *s2tt_ctx,
+				     unsigned long *s2tt,
+				     unsigned long pa, long level);
 
 /* Helper to create an unassigned S2TTE as per the passed parameters */
 unsigned long s2tt_test_create_unassigned(const struct s2tt_context *s2tt_ctx,
