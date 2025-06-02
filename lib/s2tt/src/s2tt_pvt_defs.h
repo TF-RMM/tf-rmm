@@ -48,7 +48,7 @@
  * table                <=2    n/a    n/a             n/a          table[3]       to 4KB
  * ==========================================================================================
  */
-#define S2TTE_INVALID_HIPAS_SHIFT	5
+#define S2TTE_INVALID_HIPAS_SHIFT	3
 #define S2TTE_INVALID_HIPAS_WIDTH	3U
 #define S2TTE_INVALID_HIPAS_MASK	MASK(S2TTE_INVALID_HIPAS)
 
