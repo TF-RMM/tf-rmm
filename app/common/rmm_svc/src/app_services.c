@@ -50,9 +50,8 @@ static uint64_t app_service_get_random(struct app_data_cfg *app_data,
 			  unsigned long arg3)
 {
 	size_t len = arg0;
-	uint8_t buf[GRANULE_SIZE];
 	int ret;
-	void *shared_page;
+	bool unmap_shared_page = false;
 
 	(void)arg1;
 	(void)arg2;
@@ -69,15 +68,21 @@ static uint64_t app_service_get_random(struct app_data_cfg *app_data,
 
 	struct app_data_cfg *random_app_data = random_app_get_data_cfg();
 
-	ret = random_app_prng_get_random(random_app_data, buf, len);
+	if (app_data->el2_shared_page == NULL) {
+		app_map_shared_page(app_data);
+		unmap_shared_page = true;
+	}
+
+	/* Pass the caller app's shared page as buf to the random app stub. */
+	ret = random_app_prng_get_random(random_app_data, app_data->el2_shared_page, len);
 	if (ret != 0) {
 		return (uint64_t)ret;
 	}
 
-	shared_page = app_data->el2_shared_page;
-	assert(shared_page != NULL);
-	/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
-	(void)memcpy(shared_page, (void *)buf, len);
+	if (unmap_shared_page) {
+		app_unmap_shared_page(app_data);
+	}
+
 	return 0;
 }
 
