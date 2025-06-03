@@ -124,7 +124,7 @@ void xlat_test_setup(bool lpa2)
 
 void xlat_test_helpers_set_parange(unsigned int parange)
 {
-	u_register_t reg = read_id_aa64mmfr0_el1() &
+	u_register_t reg = READ_CACHED_REG(id_aa64mmfr0_el1)&
 					~MASK(ID_AA64MMFR0_EL1_PARANGE);
 
 	host_write_sysreg("id_aa64mmfr0_el1",

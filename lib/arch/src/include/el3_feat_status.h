@@ -23,31 +23,46 @@ struct el3_feat_en_status {
  * +--------------------+---------------+
  * | scr_bitmask[59]	| FEAT_FGT2	|
  * +--------------------+---------------+
+ * | scr_bitmask[49]	| FEAT_MEC	|
+ * +--------------------+---------------+
+ * | scr_bitmask[47]	| FEAT_D128	|
+ * +--------------------+---------------+
  * | scr_bitmask[45]	| FEAT_S1PIE	|
  * +--------------------+---------------+
  * | scr_bitmask[44]	| FEAT_SCTLR2	|
  * +--------------------+---------------+
  * | scr_bitmask[43]	| FEAT_TCR2	|
  * +--------------------+---------------+
- * | scr_bitmask[40]	| FEAT_RNG_TRAP	|
+ * | scr_bitmask[42]	| FEAT_THE	|
  * +--------------------+---------------+
  * | scr_bitmask[41]	| FEAT_SME	|
  * +--------------------+---------------+
+ * | scr_bitmask[40]	| FEAT_RNG_TRAP	|
+ * +--------------------+---------------+
  * | scr_bitmask[39]	| FEAT_GCS	|
+ * +--------------------+---------------+
+ * | scr_bitmask[38]	| FEAT_HCX	|
  * +--------------------+---------------+
  * | scr_bitmask[27]	| FEAT_FGT	|
  * +--------------------+---------------+
  * | scr_bitmask[26]	| FEAT_MTE2	|
  * +--------------------+---------------+
+ * | scr_bitmask[25]	| FEAT_CSV2_2	|
+ * +--------------------+---------------+
  */
 #define SMC_FEAT_SCR_FGT2_SHIFT		U(59)
-#define SMC_FEAT_SCR_S1PIESHIFT		U(45)
+#define SMC_FEAT_SCR_MEC_SHIFT		U(49)
+#define SMC_FEAT_SCR_D128_SHIFT		U(47)
+#define SMC_FEAT_SCR_S1PIE_SHIFT	U(45)
 #define SMC_FEAT_SCR_SCTLR2_SHIFT	U(44)
 #define SMC_FEAT_SCR_TCR2_SHIFT		U(43)
 #define SMC_FEAT_SCR_SME_SHIFT		U(41)
+#define SMC_FEAT_SCR_RNG_TRAP_SHIFT	U(40)
 #define SMC_FEAT_SCR_GCS_SHIFT		U(39)
+#define SMC_FEAT_SCR_HCX_SHIFT		U(38)
 #define SMC_FEAT_SCR_FGT_SHIFT		U(27)
 #define SMC_FEAT_SCR_MTE2_SHIFT		U(26)
+#define SMC_FEAT_SCR_CSV2_2_SHIFT	U(25)
 
 /*
  * Feature offsets in cptr_feat_bitmask

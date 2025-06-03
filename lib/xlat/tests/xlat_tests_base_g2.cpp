@@ -1780,7 +1780,9 @@ void xlat_map_memory_page_with_attrs_tc2(void)
 	unsigned int parange_index =
 			(unsigned int)test_helpers_get_rand_in_range(0UL,
 					ARRAY_SIZE(pa_range_bits_arr) - 1U);
-	uint64_t id_aa64mmfr0_el1 = read_id_aa64mmfr0_el1();
+
+	uint64_t id_aa64mmfr0_el1 = READ_CACHED_REG(id_aa64mmfr0_el1);
+
 
 	/***************************************************************
 	 * TEST CASE 2:
@@ -2148,7 +2150,7 @@ static void validate_tcr_el2(struct xlat_ctx *low_ctx,
 	 * Xlat library configures TCR_EL2.IPS to the max
 	 * supported by the PE.
 	 */
-	parange = EXTRACT(ID_AA64MMFR0_EL1_PARANGE, read_id_aa64mmfr0_el1());
+	parange = EXTRACT(ID_AA64MMFR0_EL1_PARANGE, READ_CACHED_REG(id_aa64mmfr0_el1));
 	exp_tcr |= INPLACE(TCR_EL2_IPS, parange);
 
 	if (is_feat_lpa2_4k_present() == true) {

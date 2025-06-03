@@ -18,9 +18,31 @@ unsigned long get_feature_register_0(void)
 	/* Set S2SZ field */
 	unsigned long s2sz = arch_feat_get_pa_width();
 	unsigned long feat_reg0 = INPLACE(RMI_FEATURE_REGISTER_0_S2SZ, s2sz);
-	unsigned long num_bps = EXTRACT(ID_AA64DFR0_EL1_BRPs, read_id_aa64dfr0_el1());
-	unsigned long num_wps = EXTRACT(ID_AA64DFR0_EL1_WRPs, read_id_aa64dfr0_el1());
 	struct simd_config simd_cfg = { 0 };
+
+	/*
+	 * If FEAT_Debugv8p9 is implemented and 16 or more breakpoints or
+	 * watchpoints are implemented, then BRPs and WRPs fields read as
+	 * 0b1111 and ID_AA64DFR1_EL1 indicates the number of breakpoints
+	 * and watchpoints.
+	 */
+	unsigned long num_bps = EXTRACT(ID_AA64DFR0_EL1_BRPs, READ_CACHED_REG(id_aa64dfr0_el1));
+
+	if (num_bps == 15UL) {
+		num_bps = EXTRACT(ID_AA64DFR1_EL1_BRPs, READ_CACHED_REG(id_aa64dfr1_el1));
+		if (num_bps == 0UL) {
+			num_bps = 15UL;
+		}
+	}
+
+	unsigned long num_wps = EXTRACT(ID_AA64DFR0_EL1_WRPs, READ_CACHED_REG(id_aa64dfr0_el1));
+
+	if (num_wps == 15UL) {
+		num_wps = EXTRACT(ID_AA64DFR1_EL1_WRPs, READ_CACHED_REG(id_aa64dfr1_el1));
+		if (num_wps == 0UL) {
+			num_wps = 15UL;
+		}
+	}
 
 	/* Set LPA2 field. RMM needs both Stage 1 and Stage 2 to support LPA2 */
 	if ((is_feat_lpa2_4k_2_present() && is_feat_lpa2_4k_present()) == true) {
@@ -31,8 +53,7 @@ unsigned long get_feature_register_0(void)
 	/* Set support for SHA256 and SHA512 hash algorithms */
 	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_HASH_SHA_256,
 						RMI_FEATURE_TRUE) |
-		     INPLACE(RMI_FEATURE_REGISTER_0_HASH_SHA_512,
-						RMI_FEATURE_TRUE);
+		     INPLACE(RMI_FEATURE_REGISTER_0_HASH_SHA_512, RMI_FEATURE_TRUE);
 
 	/* RMM supports PMUv3p7+ */
 	assert(read_pmu_version() >= ID_AA64DFR0_EL1_PMUv3p7);
@@ -44,26 +65,6 @@ unsigned long get_feature_register_0(void)
 	/* Set number of PMU counters available */
 	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_PMU_NUM_CTRS,
 				EXTRACT(PMCR_EL0_N, read_pmcr_el0()));
-
-	/*
-	 * If FEAT_Debugv8p9 is implemented and 16 or more breakpoints or
-	 * watchpoints are implemented, then BRPs and WRPs fields read as
-	 * 0b1111 and ID_AA64DFR1_EL1 indicates the number of breakpoints
-	 * and watchpoints.
-	 */
-	if (num_bps == 15UL) {
-		num_bps = EXTRACT(ID_AA64DFR1_EL1_BRPs, read_id_aa64dfr1_el1());
-		if (num_bps == 0UL) {
-			num_bps = 15UL;
-		}
-	}
-
-	if (num_wps == 15UL) {
-		num_wps = EXTRACT(ID_AA64DFR1_EL1_WRPs, read_id_aa64dfr1_el1());
-		if (num_wps == 0UL) {
-			num_wps = 15UL;
-		}
-	}
 
 	/* Set number of breakpoints and watchpoints supported, minus 1 */
 	feat_reg0 |= (INPLACE(RMI_FEATURE_REGISTER_0_NUM_BPS, num_bps) |

@@ -45,8 +45,8 @@ void simd_test_helpers_teardown(void)
 
 void simd_test_helpers_setup_id_regs(bool is_sve_en, bool is_sme_en)
 {
-	u_register_t id_aa64pfr0_el1 = read_id_aa64pfr0_el1();
-	u_register_t id_aa64pfr1_el1 = read_id_aa64pfr1_el1();
+	u_register_t id_aa64pfr0_el1 = READ_CACHED_REG(id_aa64pfr0_el1);
+	u_register_t id_aa64pfr1_el1 = READ_CACHED_REG(id_aa64pfr1_el1);
 
 	if (is_sve_en) {
 		id_aa64pfr0_el1 |= INPLACE(ID_AA64PFR0_EL1_SVE, 1UL);

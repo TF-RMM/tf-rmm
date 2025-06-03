@@ -606,7 +606,7 @@ void xlat_ctx_cfg_init_tc8(void)
 	unsigned int mmap_index;
 	int retval;
 	unsigned int index;
-	uint64_t id_aa64mmfr0_el1 = read_id_aa64mmfr0_el1();
+	uint64_t id_aa64mmfr0_el1 = READ_CACHED_REG(id_aa64mmfr0_el1);
 	bool lpa2 = is_feat_lpa2_4k_present();
 	const unsigned int pa_range_bits_arr[] = {
 		[0x0] = PARANGE_WIDTH_32BITS,
