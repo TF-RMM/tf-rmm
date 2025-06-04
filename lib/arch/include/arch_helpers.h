@@ -433,6 +433,9 @@ DEFINE_SYSREG_READ_FUNC(dczid_el0)
 DEFINE_RENAME_SYSREG_RW_FUNCS(dit, DIT)
 
 DEFINE_RENAME_SYSREG_READ_FUNC(gcscr_el12, ID_GCSCR_EL12)
+
+DEFINE_RENAME_SYSREG_RW_FUNCS(tcr2_el12, TCR2_EL12);
+
 /*******************************************************************************
  * Timer register accessor prototypes
  ******************************************************************************/

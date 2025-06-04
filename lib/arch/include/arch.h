@@ -69,6 +69,9 @@
 /* SCTLR2_EL12 register */
 #define SCTLR2_EL12		S3_5_C1_C0_3
 
+/* TCR2_EL12 register */
+#define TCR2_EL12		S3_5_C2_C0_3
+
 /* CLIDR definitions */
 #define LOC_SHIFT		U(24)
 #define CTYPE_SHIFT(n)		U(3 * ((n) - 1))
@@ -191,6 +194,7 @@
 #define HCRX_EL2	S3_4_C1_C2_2
 
 /* HCRX_EL2 definitions */
+#define HCRX_TCR2EN	(UL(1) << 14)
 #define HCRX_SCTLR2EN	(UL(1) << 15)
 
 #define HCRX_INIT	(UL(0))
@@ -1092,6 +1096,7 @@
 #define ESR_EL2_SYSREG_ID_AA64MMFR0_EL1	SYSREG_ESR(3, 0, 0, 7, 0)
 #define ESR_EL2_SYSREG_ID_AA64MMFR1_EL1	SYSREG_ESR(3, 0, 0, 7, 1)
 #define ESR_EL2_SYSREG_ID_AA64MMFR2_EL1	SYSREG_ESR(3, 0, 0, 7, 2)
+#define ESR_EL2_SYSREG_ID_AA64MMFR3_EL1	SYSREG_ESR(3, 0, 0, 7, 3)
 
 /*
  * FEAT_MPAM system registers encoding mask for registers
@@ -1192,6 +1197,10 @@
 
 /* ID_AA64MMFR3_EL1_definitions */
 #define ID_AA64MMFR3			S3_0_C0_C7_3
+
+#define ID_AA64MMFR3_EL1_TCRX_SHIFT	UL(0)
+#define ID_AA64MMFR3_EL1_TCRX_WIDTH	UL(4)
+
 #define ID_AA64MMFR3_EL1_SCTLRX_SHIFT	UL(4)
 #define ID_AA64MMFR3_EL1_SCTLRX_WIDTH	UL(4)
 

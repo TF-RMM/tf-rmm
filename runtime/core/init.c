@@ -30,6 +30,10 @@ static void rmm_arch_init(void)
 {
 	unsigned long hcrx_el2_init = HCRX_INIT;
 
+	if (is_feat_tcr2_present()) {
+		hcrx_el2_init |= HCRX_TCR2EN;
+	}
+
 	/* All access to MPAM registers from EL1/0 must be trapped by RMM */
 	if (is_feat_mpam_present()) {
 		unsigned long mpamidr_el1 = read_mpamidr_el1();
