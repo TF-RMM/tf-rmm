@@ -73,6 +73,11 @@ uintptr_t xlat_arch_get_max_supported_pa(void);
 #define XLAT_GET_PXN_DESC() (UPPER_ATTRS(PXN))
 
 /*
+ * Return the Alternate MECID mask for a page or block descriptor.
+ */
+#define XLAT_GET_AMEC_DESC() (UPPER_ATTRS(AMEC))
+
+/*
  * Return the Guarded Page mask that will be used by BTI.
  */
 #define XLAT_GET_GP_DESC() (UPPER_ATTRS(GP))

@@ -480,6 +480,16 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr)
 
 	attr |= ((slot == SLOT_NS) ? MT_NS : MT_REALM);
 
+	/*
+	 * SLOT_RTT, SLOT_RTT2 and SLOT_REALM need to be accessed using Realm's
+	 * MECID. Realm MECID will be programmed in MECID_A1_EL2. The rest
+	 * of granules are accessed via RMM MECID programmed in MECID_P1_EL2.
+	 */
+	if (is_feat_mec_present() && ((slot == SLOT_RTT) || (slot == SLOT_RTT2)
+			|| (slot == SLOT_REALM))) {
+		attr |= MT_AP_AMEC;
+	}
+
 	if (xlat_map_memory_page_with_attrs(entry, va,
 					    (uintptr_t)addr, attr) != 0) {
 		/* Error mapping the buffer */

@@ -158,6 +158,10 @@
 #define TCR_TxSZ_MIN_LPA2	UL(12)
 #define TCR_TxSZ_MAX		UL(48)
 
+/* TCR2_EL2 definitions (EL2) */
+#define TCR2_EL2		S3_4_C2_C0_3
+#define TCR2_EL2_AMEC1		(UL(1) << 13)
+
 /* HCR definitions */
 #define HCR_FWB		(UL(1) << 46)
 #define HCR_TEA		(UL(1) << 37)

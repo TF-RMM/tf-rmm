@@ -126,6 +126,9 @@
 /* Access permissions for instruction execution in Unprivileged EL */
 #define MT_EXEC_UNPRIV_FLAG_SHIFT	(MT_ACCESS_UNPRIV_SHIFT + 1U)
 
+/* Access region via Alternate MECID */
+#define MT_AMEC_SHIFT			(MT_EXEC_UNPRIV_FLAG_SHIFT + 1U)
+
 /* All other bits are reserved */
 
 /*
@@ -171,6 +174,12 @@
 
 /* Access permissions for unprivileged code execution */
 #define MT_EXEC_UNPRIV		(INPLACE(MT_EXEC_UNPRIV_FLAG, 1UL))
+
+/*
+ * Access permission to access memory region with Alternate MEC_ID. By
+ * default the Primary MEC ID is used.
+ */
+#define MT_AP_AMEC		(INPLACE(MT_AMEC, 1UL))
 
 /*
  * Public macros related to the TTEs
@@ -229,6 +238,7 @@ struct xlat_mmu_cfg {
 	xlat_addr_region_id_t region;
 	unsigned long mair;
 	unsigned long tcr;
+	unsigned long tcr2;
 	uint64_t txsz;
 	unsigned long ttbrx;
 };
