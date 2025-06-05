@@ -3,17 +3,243 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include <arch_features.h>
 #include <assert.h>
+#include <atomics.h>
+#include <errno.h>
 #include <mec.h>
 #include <sizes.h>
-#include <stdint.h>
+#include <spinlock.h>
+
+#define MECID_WIDTH	U(16)
+#define MEC_MAX_COUNT	(U(1) << MECID_WIDTH)
+#define MECID_INVALID	U(-1)
+
+#define MECID_ARRAY_SIZE	((MEC_MAX_COUNT) / BITS_PER_UL)
+
+#define MECID_SYSTEM_BIT	(1U << (RESERVED_MECID_SYSTEM % BITS_PER_UL))
+#define MECID_SYSTEM_OFFSET	(RESERVED_MECID_SYSTEM / BITS_PER_UL)
+
+#define IS_MEC_VALID(id)	(((id) - RESERVED_IDS) <= mecid_max())
+
+/* MECID of 0 is Shared as default */
+#define MECID_DEFAULT_SHARED		INTERNAL_MECID(0U)
+#define MECID_DEFAULT_SHARED_BIT	(1U << (MECID_DEFAULT_SHARED % BITS_PER_UL))
+#define MECID_DEFAULT_SHARED_OFFSET	(MECID_DEFAULT_SHARED / BITS_PER_UL)
 
 /*
- * Before enabling the MMU, the RMM code is written and read with MECID 0, so
- * the only possible value at the moment for RMM is 0.
+ * Ensure that the array offset is the same so that we can use a single offset
+ * for initializing DEFAULT_OFFSET_BIT and SYSTEM_BIT.
  */
-#define RESERVED_MECID_SYSTEM	0
+COMPILER_ASSERT(MECID_DEFAULT_SHARED_OFFSET == MECID_SYSTEM_OFFSET);
+
+#define MEC_RESERVE_INITALIZER		(MECID_DEFAULT_SHARED_BIT | MECID_SYSTEM_BIT)
+
+static struct {
+	/*
+	 * Together, the mec_reserved array and the shared_mec value define the
+	 * state of all MECs in the system.
+	 *
+	 * For a given mecid:
+	 *
+	 * if mecid == shared_mec
+	 *     MEC state is SHARED
+	 *
+	 * if mec_reserved[mecid] == true
+	 *     MEC state is PRIVATE_ASSIGNED or SHARED or RESERVED.
+	 * else
+	 *     MEC state is PRIVATE_UNASSIGNED
+	 */
+	unsigned long shared_mec_members;
+	unsigned int shared_mec;
+
+	spinlock_t shared_mecid_spinlock;
+
+	/* The bitmap for the reserved/used MECID values.*/
+	unsigned long mec_reserved[MECID_ARRAY_SIZE];
+} mec_state = {
+	.shared_mec = MECID_DEFAULT_SHARED,
+	.mec_reserved = {
+		[MECID_SYSTEM_OFFSET] = MEC_RESERVE_INITALIZER}
+};
+
+/* Maximum MECID allocatable */
+static unsigned int mecid_max(void)
+{
+	unsigned int mecid_count;
+
+	/* cppcheck-suppress knownConditionTrueFalse */
+	if (!is_feat_mec_present()) {
+		return 0;
+	}
+
+	/*
+	 * MECIDR_MECIDWIDTHM1 plus 1 is the MECID width in bits.
+	 * So Max count is (2^MECID width) - 1. Also reduce the RESERVED_IDs
+	 * from the count.
+	 */
+	mecid_count = (unsigned int)1 << (EXTRACT(MECIDR_MECIDWIDTHM1,
+						read_mecidr_el2()) + 1U);
+	mecid_count = mecid_count - RESERVED_IDS - 1U;
+
+	assert(mecid_count <= MEC_MAX_COUNT);
+	return mecid_count;
+}
+
+/*
+ * Atomically set a bit corresponding to mecid. Returns true if the
+ * bit was not set previously, else returns false.
+ */
+static bool mec_reserve(unsigned int mecid)
+{
+	unsigned int offset, bit;
+
+	assert(IS_MEC_VALID(mecid));
+
+	offset = mecid / BITS_PER_UL;
+	bit = mecid % BITS_PER_UL;
+
+	if (!atomic_bit_set_acquire_release_64(&mec_state.mec_reserved[offset],
+						bit)) {
+		return true;
+	}
+
+	return false;
+}
+
+/*
+ * Atomically clear a bit corresponding to mecid.
+ */
+static void mec_release(unsigned int mecid)
+{
+	unsigned int offset, bit;
+
+	assert(IS_MEC_VALID(mecid));
+
+	offset = mecid / BITS_PER_UL;
+	bit = mecid % BITS_PER_UL;
+	atomic_bit_clear_release_64(&mec_state.mec_reserved[offset], bit);
+}
+
+/*
+ * Helper to set a MECID as shared. Check that there is no shared MECID
+ * and if MECID reservation is successful, then sets the MECID as shared.
+ */
+int mec_set_shared(unsigned int mecid)
+{
+	int ret = -EINVAL;
+
+	mecid = INTERNAL_MECID(mecid);
+
+	if (!(IS_MEC_VALID(mecid))) {
+		return ret;
+	}
+
+	spinlock_acquire(&mec_state.shared_mecid_spinlock);
+	if ((mec_state.shared_mec == MECID_INVALID) && mec_reserve(mecid)) {
+		assert(mec_state.shared_mec_members == 0U);
+		mec_state.shared_mec = mecid;
+		ret = 0;
+	}
+	spinlock_release(&mec_state.shared_mecid_spinlock);
+
+	return ret;
+}
+
+/*
+ * Helper to set a Shared MECID as Private. If there are no Realms
+ * using the Shared MECID and if the MECID was Shared, then
+ * release the MECID reservation.
+ */
+int mec_set_private(unsigned int mecid)
+{
+	mecid = INTERNAL_MECID(mecid);
+
+	/* cppcheck-suppress knownConditionTrueFalse */
+	if (!is_feat_mec_present()) {
+		return -1;
+	}
+
+	if (!(IS_MEC_VALID(mecid))) {
+		return -1;
+	}
+
+	spinlock_acquire(&mec_state.shared_mecid_spinlock);
+	if ((mec_state.shared_mec_members == 0U) &&
+		(mecid == mec_state.shared_mec)) {
+		mec_release(mecid);
+		mec_state.shared_mec = MECID_INVALID;
+		spinlock_release(&mec_state.shared_mecid_spinlock);
+		return 0;
+	}
+	spinlock_release(&mec_state.shared_mecid_spinlock);
+
+	return -1;
+}
+
+/*
+ * Assign a MECID for a particular Realm. Reserve
+ * the MECID if it is not Shared. If Shared, increment
+ * the use count.
+ * Returns true if successful, else returns false.
+ */
+bool mecid_reserve(unsigned int mecid)
+{
+	/* cppcheck-suppress knownConditionTrueFalse */
+	if (!is_feat_mec_present()) {
+		return true;
+	}
+
+	mecid = INTERNAL_MECID(mecid);
+
+	if (!(IS_MEC_VALID(mecid))) {
+		return false;
+	}
+
+	assert(read_mecid_a1_el2() == RESERVED_MECID_SYSTEM);
+
+	spinlock_acquire(&mec_state.shared_mecid_spinlock);
+	if (mecid == mec_state.shared_mec) {
+		bool ret;
+		if (mec_state.shared_mec_members < UINT64_MAX) {
+			mec_state.shared_mec_members++;
+			ret = true;
+		} else {
+			ret = false;
+		}
+		spinlock_release(&mec_state.shared_mecid_spinlock);
+		return ret;
+	}
+	spinlock_release(&mec_state.shared_mecid_spinlock);
+	return mec_reserve(mecid);
+}
+
+/*
+ * Unassign a MECID, typically called when Realm is destroyed.
+ * Unreserve the MECID if it is not Shared else decrement
+ * the use count.
+ */
+void mecid_free(unsigned int mecid)
+{
+	/* cppcheck-suppress knownConditionTrueFalse */
+	if (!is_feat_mec_present()) {
+		return;
+	}
+
+	mecid = INTERNAL_MECID(mecid);
+
+	/* The MECID is already validated during assign */
+	assert(IS_MEC_VALID(mecid));
+
+	spinlock_acquire(&mec_state.shared_mecid_spinlock);
+	if (mecid == mec_state.shared_mec) {
+		assert(mec_state.shared_mec_members > 0U);
+		mec_state.shared_mec_members--;
+		spinlock_release(&mec_state.shared_mecid_spinlock);
+		return;
+	}
+	spinlock_release(&mec_state.shared_mecid_spinlock);
+	mec_release(mecid);
+}
 
 /*
  * RMM is loaded by EL3 with MEC disabled. This means that RMM must use
@@ -29,6 +255,7 @@ void mec_init_mmu(void)
 	 */
 	assert(!is_mmu_enabled());
 
+	/* cppcheck-suppress knownConditionTrueFalse */
 	if ((!is_feat_sctlr2x_present()) || (!is_feat_mec_present())) {
 		return;
 	}

@@ -10,6 +10,7 @@
 #include <feature.h>
 #include <granule.h>
 #include <measurement.h>
+#include <mec.h>
 #include <realm.h>
 #include <s2tt.h>
 #include <s2tt_ap.h>
@@ -779,4 +780,32 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	granule_unlock_transition_to_delegated(g_rd);
 
 	return RMI_SUCCESS;
+}
+
+unsigned long smc_mec_set_shared(unsigned long mecid)
+{
+#ifndef RMM_V1_1
+	(void)mecid;
+	return SMC_NOT_SUPPORTED;
+#else
+	if (mec_set_shared((unsigned int)mecid) != 0) {
+		return RMI_ERROR_INPUT;
+	}
+
+	return RMI_SUCCESS;
+#endif
+}
+
+unsigned long smc_mec_set_private(unsigned long mecid)
+{
+#ifndef RMM_V1_1
+	(void)mecid;
+	return SMC_NOT_SUPPORTED;
+#else
+	if (mec_set_private((unsigned int)mecid) != 0) {
+		return RMI_ERROR_INPUT;
+	}
+
+	return RMI_SUCCESS;
+#endif
 }

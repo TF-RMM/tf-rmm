@@ -167,4 +167,8 @@ unsigned long smc_pdev_stop(unsigned long pdev_ptr);
 
 unsigned long smc_pdev_destroy(unsigned long pdev_ptr);
 
+unsigned long smc_mec_set_shared(unsigned long mecid);
+
+unsigned long smc_mec_set_private(unsigned long mecid);
+
 #endif /* SMC_HANDLER_H */

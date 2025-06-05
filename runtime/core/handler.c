@@ -188,8 +188,8 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(VDEV_GET_STATE,		0, 0, NULL,			 true, true),
 	HANDLER(VDEV_STOP,		0, 0, NULL,			 true, true),
 	HANDLER(RTT_SET_S2AP,		4, 1, smc_rtt_set_s2ap,		 false, true),
-	HANDLER(MEC_SET_SHARED,		0, 0, NULL,			 true, true),
-	HANDLER(MEC_SET_PRIVATE,	0, 0, NULL,			 true, true),
+	HANDLER(MEC_SET_SHARED,		1, 0, smc_mec_set_shared,	 true, true),
+	HANDLER(MEC_SET_PRIVATE,	1, 0, smc_mec_set_private,	 true, true),
 	HANDLER(VDEV_COMPLETE,		0, 0, NULL,			 true, true)
 };
 
