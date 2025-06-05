@@ -63,7 +63,7 @@ static struct {
 };
 
 /* Maximum MECID allocatable */
-static unsigned int mecid_max(void)
+unsigned int mecid_max(void)
 {
 	unsigned int mecid_count;
 
