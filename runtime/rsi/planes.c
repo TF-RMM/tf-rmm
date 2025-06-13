@@ -13,6 +13,7 @@
 #include <rec.h>
 #include <rsi-handler.h>
 #include <run.h>
+#include <simd.h>
 #include <smc-rsi.h>
 #include <timers.h>
 #include <utils_def.h>
@@ -112,6 +113,13 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_TRAP_WFE) != RSI_NO_TRAP) {
 		plane_n->sysregs->hcr_el2 |= HCR_TWE;
 	}
+
+	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_TRAP_SIMD) != RSI_NO_TRAP) {
+		SIMD_DISABLE_ALL_CPTR_FLAGS((plane_n->sysregs->cptr_el2));
+	}
+
+	plane_n->trap_simd =
+		((run->enter.flags & RSI_PLANE_ENTER_FLAGS_TRAP_SIMD) != RSI_NO_TRAP);
 
 	plane_n->trap_hc =
 		((run->enter.flags & RSI_PLANE_ENTER_FLAGS_TRAP_HC) != RSI_NO_TRAP);

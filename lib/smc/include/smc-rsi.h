@@ -365,6 +365,7 @@
 #define RSI_PLANE_ENTER_FLAGS_TRAP_WFE	U(1UL << 1)
 #define RSI_PLANE_ENTER_FLAGS_TRAP_HC	U(1UL << 2)
 #define RSI_PLANE_ENTER_FLAGS_OWN_GIC	U(1UL << 3)
+#define RSI_PLANE_ENTER_FLAGS_TRAP_SIMD	U(1UL << 4)
 
 /*
  * Possible values for RsiTrap type *

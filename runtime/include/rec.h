@@ -205,6 +205,7 @@ struct rec_plane {
 	unsigned long pc;
 
 	bool trap_hc;
+	bool trap_simd;
 
 	STRUCT_TYPE {
 		/*

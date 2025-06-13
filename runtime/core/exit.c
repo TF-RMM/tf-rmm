@@ -350,9 +350,17 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
  * Handle FPU or SVE or SME exceptions.
  * Returns: true if the exception is handled.
  */
-static bool handle_simd_exception(struct rec *rec, unsigned long esr)
+static bool handle_simd_exception(struct rec *rec, struct rmi_rec_exit *rec_exit,
+				  unsigned long esr)
 {
 	unsigned long esr_el2_ec = esr & MASK(ESR_EL2_EC);
+
+	if (!rec_is_plane_0_active(rec) &&
+	    (rec_active_plane(rec)->trap_simd == (bool)RSI_TRAP)) {
+		/* Trap the exception to Plane 0 */
+		(void)handle_plane_n_exit(rec, rec_exit, ARM_EXCEPTION_SYNC_LEL, true);
+		return false;
+	}
 
 	/*
 	 * If the REC wants to use SVE and if SVE is not enabled for this REC
@@ -720,7 +728,7 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 	case ESR_EL2_EC_FPU:
 	case ESR_EL2_EC_SVE:
 	case ESR_EL2_EC_SME:
-		return handle_simd_exception(rec, esr);
+		return handle_simd_exception(rec, rec_exit, esr);
 	default:
 		/*
 		 * TODO: Check if there are other exit reasons we could
@@ -921,7 +929,6 @@ static void copy_state_to_plane_exit(struct rec_plane *plane,
 		exit->gprs[i] = plane->regs[i];
 	}
 
-	exit->pstate = plane->sysregs->pstate;
 	copy_timer_state_to_plane_exit(plane->sysregs, exit);
 	gic_copy_state_to_exit(&plane->sysregs->gicstate,
 			(unsigned long *)&exit->gicv3_lrs,
