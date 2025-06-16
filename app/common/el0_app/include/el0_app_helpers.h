@@ -32,5 +32,7 @@ unsigned long el0_app_service_call(unsigned long service_index,
 				   unsigned long arg2,
 				   unsigned long arg3);
 
+void el0_app_yield(void);
+
 #endif /* EL0_APP_HELPERS_H */
 

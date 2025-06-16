@@ -8,7 +8,9 @@
 #include <app_services.h>
 #include <assert.h>
 #include <attest_services.h>
+#include <buffer.h>
 #include <console.h>
+#include <debug.h>
 #include <errno.h>
 #include <random_app.h>
 #include <rmm_el3_ifc.h>
@@ -19,28 +21,25 @@ typedef uint64_t (*app_service_func)(struct app_data_cfg *app_data,
 			  unsigned long arg2,
 			  unsigned long arg3);
 
+struct ns_rw_data {
+	uintptr_t app_buf;
+	struct granule *ns_granule;
+};
+
 static uint64_t app_service_print(struct app_data_cfg *app_data,
 			  unsigned long arg0,
 			  unsigned long arg1,
 			  unsigned long arg2,
 			  unsigned long arg3)
 {
-	size_t len = arg0;
-	size_t i;
-	char *shared_page;
+	int character = (int)arg0;
 
+	(void)app_data;
 	(void)arg1;
 	(void)arg2;
 	(void)arg3;
 
-	if (len >= GRANULE_SIZE) {
-		return (uint64_t)(-EINVAL);
-	}
-
-	shared_page = app_data->el2_shared_page;
-	for (i = 0U; i < len; ++i) {
-		(void)console_putc((int)shared_page[i]);
-	}
+	(void)console_putc(character);
 	return 0;
 }
 
@@ -259,6 +258,153 @@ static uint64_t app_service_el3_ifc_el3_token_sign_supported(struct app_data_cfg
 }
 #endif
 
+static struct ns_rw_data validate_and_get_ns_rw_data(struct app_data_cfg *app_data,
+	unsigned long app_buf_id,
+	unsigned long app_buf_offset,
+	unsigned long ns_addr,
+	unsigned long buf_len)
+{
+	struct ns_rw_data rw_data = {0, NULL};
+	uintptr_t app_buf = 0;
+
+	if ((app_buf_id != APP_SERVICE_RW_NS_BUF_SHARED) &&
+	    (app_buf_id != APP_SERVICE_RW_NS_BUF_HEAP)) {
+		ERROR("%s called with invalid app_buf_id 0x%lx", __func__, app_buf_id);
+		return rw_data;
+	}
+
+	/* Based on app_buf_id, work out the size of app buffer */
+	unsigned long app_buf_size = (app_buf_id == APP_SERVICE_RW_NS_BUF_SHARED) ?
+		GRANULE_SIZE : app_data->heap_size;
+
+	if ((app_buf_offset > app_buf_size) ||
+	    ((app_buf_size - app_buf_offset) < buf_len) ||
+	    (!ALIGNED(buf_len, 8U)) ||
+	    (!ALIGNED(app_buf_offset, 8U))) {
+		ERROR("%s called with invalid buf offset 0x%lx or len 0x%lx",
+				__func__, app_buf_offset, buf_len);
+		return rw_data;
+	}
+
+	if (app_buf_id == APP_SERVICE_RW_NS_BUF_SHARED) {
+		app_buf = (uintptr_t)app_data->el2_shared_page + app_buf_offset;
+	} else {
+		app_buf = (uintptr_t)app_get_heap_ptr(app_data) + app_buf_offset;
+	}
+
+	unsigned long ns_addr_offset = ns_addr & ~GRANULE_MASK;
+
+	/* The data rw should not cross page boundary as only the single NS page
+	 * is mapped.
+	 */
+	if (((ns_addr_offset + buf_len) > SZ_4K) || (!ALIGNED(ns_addr_offset, 8U))) {
+		ERROR("%s called with invalid ns addr 0x%lx.",
+				__func__, ns_addr);
+		return rw_data;
+	}
+
+	/* Copy the data from NS buffer */
+	rw_data.ns_granule = find_granule(ns_addr & GRANULE_MASK);
+	if ((rw_data.ns_granule == NULL) ||
+		(granule_unlocked_state(rw_data.ns_granule) != GRANULE_STATE_NS)) {
+		ERROR("%s ns granule not found or invalid state for ns addr 0x%lx",
+				__func__, ns_addr);
+		return rw_data;
+	}
+
+	rw_data.app_buf = app_buf;
+	return rw_data;
+}
+
+/*
+ * Service to write to NS Address from app shared page or shared heap
+ * with specified offset and length.
+ *
+ * Arguments:
+ *	arg0 - App Buffer identifier (one of APP_SERVICE_RW_NS_BUF_*)
+ *	arg1 - App Buffer offset (must be 8 byte aligned).
+ *	arg2 - NS buf physical address (must be 8 byte aligned)
+ *	arg3 - Length to write (must be 8 byte aligned)
+ *
+ * The App buffer offset + Length must be either less that PAGE_SIZE or heap_size,
+ * depending on App Buffer identifier. This is a sanity check to ensure that
+ * buffer is in App VA space. Similarly the NS Address write must be within the
+ * page. It is assumed that app buffer is already mapped in RMM S1 MMU.
+ *
+ * Return:
+ *	0	- Success
+ *	-EINVAL	- Failure
+ */
+static uint64_t app_service_write_to_ns_buf(struct app_data_cfg *app_data,
+	unsigned long app_buf_id,
+	unsigned long app_buf_offset,
+	unsigned long ns_addr,
+	unsigned long buf_len)
+{
+	bool ns_access_ok;
+	struct ns_rw_data rw_data = validate_and_get_ns_rw_data(app_data, app_buf_id,
+		app_buf_offset, ns_addr, buf_len);
+
+	if (rw_data.ns_granule == NULL) {
+		return (uint64_t)(-EINVAL);
+	}
+
+	ns_access_ok = ns_buffer_write(SLOT_NS, rw_data.ns_granule, 0, buf_len,
+		(void *)rw_data.app_buf);
+	if (!ns_access_ok) {
+		ERROR("%s ns buffer read failed for ns addr 0x%lx and app_buf 0x%lx",
+				__func__, ns_addr, rw_data.app_buf);
+		return (uint64_t)(-EINVAL);
+	}
+
+	return 0;
+}
+
+/*
+ * Service to read from NS Address to app shared page or shared heap
+ * with specified offset and length.
+ *
+ * Arguments:
+ *	arg0 - App Buffer identifier (one of APP_SERVICE_RW_NS_BUF_*)
+ *	arg1 - App Buffer offset (must be 8 byte aligned).
+ *	arg2 - NS buf physical address (must be 8 byte aligned)
+ *	arg3 - Length to read (must be 8 byte aligned)
+ *
+ * The App buffer offset + Length must be either less that PAGE_SIZE or heap_size,
+ * depending on App Buffer identifier. This is a sanity check to ensure that
+ * buffer is in App VA space. Similarly the NS Address read must be within the
+ * page. It is assumed that app buffer is already mapped in RMM S1 MMU.
+ *
+ * Return:
+ *	0	- Success
+ *	-EINVAL	- Failure
+ */
+static uint64_t app_service_read_from_ns_buf(struct app_data_cfg *app_data,
+	unsigned long app_buf_id,
+	unsigned long app_buf_offset,
+	unsigned long ns_addr,
+	unsigned long buf_len)
+{
+	bool ns_access_ok;
+	struct ns_rw_data rw_data = validate_and_get_ns_rw_data(app_data, app_buf_id,
+		app_buf_offset, ns_addr, buf_len);
+
+	if (rw_data.ns_granule == NULL) {
+		return (uint64_t)(-EINVAL);
+	}
+
+	ns_access_ok = ns_buffer_read(SLOT_NS, rw_data.ns_granule, 0, buf_len,
+		(void *)rw_data.app_buf);
+	if (!ns_access_ok) {
+		ERROR("%s ns buffer read failed for ns addr 0x%lx and app_buf 0x%lx",
+				__func__, ns_addr, rw_data.app_buf);
+		return (uint64_t)(-EINVAL);
+	}
+
+	return 0;
+}
+
+
 static app_service_func service_functions[APP_SERVICE_COUNT] = {
 	[APP_SERVICE_PRINT] = app_service_print,
 	[APP_SERVICE_RANDOM] = app_service_get_random,
@@ -269,6 +415,8 @@ static app_service_func service_functions[APP_SERVICE_COUNT] = {
 	[APP_SERVICE_EL3_TOKEN_SIGN_QUEUE_TRY_ENQUEUE] = app_service_el3_token_sign_queue_try_enqueue,
 	[APP_SERVICE_EL3_IFC_EL3_TOKEN_SIGN_SUPPORTED] = app_service_el3_ifc_el3_token_sign_supported,
 #endif /* ATTEST_EL3_TOKEN_SIGN */
+	[APP_SERVICE_WRITE_TO_NS_BUF] = app_service_write_to_ns_buf,
+	[APP_SERVICE_READ_FROM_NS_BUF] = app_service_read_from_ns_buf,
 	};
 
 uint64_t call_app_service(unsigned long service_id,

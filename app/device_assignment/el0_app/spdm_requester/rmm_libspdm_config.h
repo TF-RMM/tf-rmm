@@ -12,9 +12,23 @@
 /* Based on RMM build type, set libspdm DEBUG flag */
 #ifdef DEBUG
 #define LIBSPDM_DEBUG_ENABLE 1
+
+/*
+ * For DEBUG builds libspdm dump the device response in hex format. Override
+ * helper routine to skip dump
+ */
+#define LIBSPDM_INTERNAL_DUMP_HEX_OVERRIDE libspdm_disable_hex_dump
+#define LIBSPDM_INTERNAL_DUMP_HEX_STR_OVERRIDE libspdm_disable_hex_dump
+#define LIBSPDM_INTERNAL_DUMP_DATA_OVERRIDE libspdm_disable_hex_dump
+static inline void libspdm_disable_hex_dump(const unsigned char *data,
+					    unsigned long size)
+{
+	(void)data;
+	(void)size;
+}
 #else
 #define LIBSPDM_DEBUG_ENABLE 0
-#endif
+#endif /* DEBUG */
 
 /*
  * Setting this causes libspdm_debug_assert to call assert(0). The default

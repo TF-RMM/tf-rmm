@@ -45,6 +45,17 @@ unsigned long app_run(struct app_data_cfg *app_data,
 	return 0;
 }
 
+unsigned long app_resume(struct app_data_cfg *app_data)
+{
+	(void)app_data;
+	return 0U;
+}
+
+void app_abort(struct app_data_cfg *app_data)
+{
+	(void)app_data;
+}
+
 void app_map_shared_page(struct app_data_cfg *app_data)
 {
 	(void)app_data;
@@ -74,4 +85,16 @@ int32_t mbedtls_psa_external_get_random(
 	*output_length = output_size;
 
 	return 0;
+}
+
+void *app_get_heap_ptr(struct app_data_cfg *app_data)
+{
+	(void)app_data;
+	return NULL;
+}
+
+size_t app_get_required_granule_count(unsigned long app_id)
+{
+	(void)app_id;
+	return 0U;
 }

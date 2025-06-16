@@ -22,12 +22,10 @@ static struct console app_console = {
 
 int app_console_putc(int character, const struct console *console)
 {
-	signed char *shared_buf = (signed char *)get_shared_mem_start();
 	unsigned long ret;
 
 	(void) console;
-	shared_buf[0] = (signed char)character;
-	ret = el0_app_service_call(APP_SERVICE_PRINT, 1, 0, 0, 0);
+	ret = el0_app_service_call(APP_SERVICE_PRINT, (unsigned long)character, 0, 0, 0);
 
 	if (ret > (unsigned long)INT_MAX) {
 		return -1;

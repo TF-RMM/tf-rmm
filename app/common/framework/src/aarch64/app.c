@@ -70,12 +70,21 @@ static void *map_page_to_slot(uintptr_t pa, enum buffer_slot slot)
 	if (in_rmm_rw_range(pa)) {
 		return (void *)pa;
 	}
-	/* Assume delegated granule */
+	/*
+	 * It is assumed that the caller has provided the list of granules
+	 * after validating they belong to the particular type : REC_AUX or
+	 * PDEV_AUX.
+	 */
+	/* First assume delegated REC_AUX granule */
 	struct granule *app_data_granule = find_lock_granule(pa, GRANULE_STATE_REC_AUX);
 
 	if (app_data_granule == NULL) {
-		ERROR("ERROR %s:%d\n", __func__, __LINE__);
-		return NULL;
+		/* Try PDEV_AUX Granule next */
+		app_data_granule = find_lock_granule(pa, GRANULE_STATE_PDEV_AUX);
+		if (app_data_granule == NULL) {
+			ERROR("ERROR %s:%d\n", __func__, __LINE__);
+			return NULL;
+		}
 	}
 	return buffer_granule_map(app_data_granule, slot);
 }
@@ -195,8 +204,8 @@ static int allocate_bss(size_t app_id, size_t bss_size, uintptr_t *pa)
 	 * allocation mechanism is not available, as a temporary workaround the
 	 * BSS memory for an app is allocated in the app's rmm_stub library.
 	 */
+	int ret __unused;
 	size_t app_index;
-	int ret;
 	struct app_header *app_header;
 
 	(void)bss_size;
@@ -322,6 +331,31 @@ static int app_heap_xlat_map(struct app_data_cfg *app_data,
 	      next_granule_idx, granule_pas, granule_count);
 }
 
+static int init_app_reg_ctx(struct app_data_cfg *app_data)
+{
+
+	struct app_reg_ctx *app_reg_ctx =
+		(struct app_reg_ctx *)slot_map_page_to_init(app_data->app_reg_ctx_pa);
+
+	if (app_reg_ctx == NULL) {
+		ERROR("%s (%u): Failed to map app_reg_ctx page\n", __func__, __LINE__);
+		return -EINVAL;
+	}
+
+	app_reg_ctx->app_ttbr1_el2 = app_data->mmu_config.ttbrx;
+	app_reg_ctx->sp_el0 = app_data->stack_top;
+	app_reg_ctx->pstate = SPSR_EL2_MODE_EL0t |
+				       SPSR_EL2_nRW_AARCH64 |
+				       SPSR_EL2_F_BIT |
+				       SPSR_EL2_I_BIT |
+				       SPSR_EL2_A_BIT |
+				       SPSR_EL2_D_BIT;
+	app_reg_ctx->pc = app_data->entry_point;
+
+	unmap_page(app_data->app_reg_ctx_pa, app_reg_ctx);
+	return 0;
+}
+
 int app_init_data(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
@@ -332,7 +366,6 @@ int app_init_data(struct app_data_cfg *app_data,
 	int ret = 0;
 	/* idx 0 and 1 is used for app_reg_ctx and for page table */;
 	size_t next_granule_idx = GRANULE_PA_IDX_COUNT;
-	uintptr_t stack_top;
 
 	LOG_APP_FW("Initialising app %lu\n", app_id);
 
@@ -389,7 +422,7 @@ int app_init_data(struct app_data_cfg *app_data,
 	if (ret != 0) {
 		goto unmap_page_table;
 	}
-	stack_top = app_data->stack_buf_start_va + stack_size;
+	app_data->stack_top = app_data->stack_buf_start_va + stack_size;
 
 	app_data->heap_size = heap_size;
 	app_data->el2_heap_start = (void *)&(((char *)granule_va_start)[next_granule_idx * GRANULE_SIZE]);
@@ -403,23 +436,12 @@ int app_init_data(struct app_data_cfg *app_data,
 	app_data->entry_point = app_header->section_text_va;
 
 	app_data->app_reg_ctx_pa = granule_pas[GRANULE_PA_IDX_APP_REG_CTX];
-	struct app_reg_ctx *app_reg_ctx =
-		(struct app_reg_ctx *)slot_map_page_to_init(app_data->app_reg_ctx_pa);
 
-	if (app_reg_ctx == NULL) {
-		ERROR("%s (%u): Failed to map app_reg_ctx page\n", __func__, __LINE__);
+	ret = init_app_reg_ctx(app_data);
+	if (ret != 0) {
 		goto unmap_page_table;
 	}
-	app_reg_ctx->app_ttbr1_el2 = app_data->mmu_config.ttbrx;
-	app_reg_ctx->sp_el0 = stack_top;
-	app_reg_ctx->pstate = SPSR_EL2_MODE_EL0t |
-				       SPSR_EL2_nRW_AARCH64 |
-				       SPSR_EL2_F_BIT |
-				       SPSR_EL2_I_BIT |
-				       SPSR_EL2_A_BIT |
-				       SPSR_EL2_D_BIT;
-	app_reg_ctx->pc = app_data->entry_point;
-	unmap_page(app_data->app_reg_ctx_pa, app_reg_ctx);
+
 unmap_page_table:
 	unmap_page(granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE], page_table);
 	return ret;
@@ -441,6 +463,7 @@ static void collect_app_bss(void)
 
 	void attest_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
 	void random_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
+	void dev_assign_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
 
 	ret = app_get_index(ATTESTATION_APP_ID, &app_index);
 	assert(ret == 0);
@@ -450,6 +473,10 @@ static void collect_app_bss(void)
 	assert(ret == 0);
 	random_app_get_bss(&app_bss_memory_array[app_index].pa,
 		&app_bss_memory_array[app_index].size);
+	ret = app_get_index(RMM_DEV_ASSIGN_APP_ID, &app_index);
+	assert(ret == 0);
+	dev_assign_app_get_bss(&app_bss_memory_array[app_index].pa,
+			&app_bss_memory_array[app_index].size);
 }
 
 void app_framework_setup(void)
@@ -470,7 +497,7 @@ void app_framework_setup(void)
 	for (app_index = 0; app_index < APP_COUNT; ++app_index) {
 		/* coverity[deadcode:SUPPRESS] */
 		/* coverity[misra_c_2012_rule_14_3_violation:SUPPRESS] */
-		int ret;
+		int ret __unused;
 		uintptr_t bss_pa;
 
 		ret = app_get_header_ptr_at_index(app_index, &app_header);
@@ -573,23 +600,14 @@ static uint64_t encode_heap_data(unsigned long heap_va, size_t heap_size)
 	return heap_va | heap_page_count;
 }
 
-unsigned long app_run(struct app_data_cfg *app_data,
-			  unsigned long app_func_id,
-			  unsigned long arg0,
-			  unsigned long arg1,
-			  unsigned long arg2,
-			  unsigned long arg3)
+static void app_run_internal(struct app_data_cfg *app_data,
+				struct app_reg_ctx *app_reg_ctx)
 {
-	unsigned long retval;
 	unsigned long old_hcr_el2 = read_hcr_el2();
 	unsigned long old_elr_el2 = read_elr_el2();
 	unsigned long old_spsr_el2 = read_spsr_el2();
 
 	write_hcr_el2(HCR_EL2_INIT);
-
-	struct app_reg_ctx *app_reg_ctx =
-		(struct app_reg_ctx *)
-		slot_map_app_reg_ctx_page(app_data->app_reg_ctx_pa);
 
 	assert(app_reg_ctx != NULL);
 
@@ -598,12 +616,6 @@ unsigned long app_run(struct app_data_cfg *app_data,
 
 	assert(!app_data->app_entered);
 	app_data->app_entered = true;
-
-	app_reg_ctx->app_regs[0] = app_func_id;
-	app_reg_ctx->app_regs[1] = arg0;
-	app_reg_ctx->app_regs[2] = arg1;
-	app_reg_ctx->app_regs[3] = arg2;
-	app_reg_ctx->app_regs[4] = arg3;
 
 	while (true) {
 		int app_exception_code;
@@ -629,9 +641,13 @@ unsigned long app_run(struct app_data_cfg *app_data,
 			uint16_t imm16 = (uint16_t)EXTRACT(ESR_EL2_ISS, esr);
 
 			if (imm16 == APP_EXIT_CALL) {
+				app_data->exit_flag = (uint32_t)APP_EXIT_SVC_EXIT_FLAG;
 				break;
-			}
-			if (imm16 == APP_SERVICE_CALL) {
+			} else if (imm16 == APP_YIELD_CALL) {
+				app_data->exit_flag = (uint32_t)APP_EXIT_SVC_YIELD_FLAG;
+				break;
+			} else if (imm16 == APP_SERVICE_CALL) {
+				app_data->exit_flag = (uint32_t)APP_EXIT_SVC_SERVICE_FLAG;
 				app_reg_ctx->app_regs[0] =
 					call_app_service(app_reg_ctx->app_regs[0],
 							 app_data,
@@ -648,13 +664,8 @@ unsigned long app_run(struct app_data_cfg *app_data,
 		ERROR("Failed to return properly from the EL0 app\n");
 		ERROR("    ELR_EL2 = 0x%lx\n", elr_el2);
 
-		assert(false);
+		panic();
 	}
-
-	/* Return the value in X0 as EL0 app return value */
-	retval = app_reg_ctx->app_regs[0];
-
-	unmap_page(app_data->app_reg_ctx_pa, app_reg_ctx);
 
 	assert(app_data->app_entered);
 	app_data->app_entered = false;
@@ -663,6 +674,70 @@ unsigned long app_run(struct app_data_cfg *app_data,
 	write_elr_el2(old_elr_el2);
 	write_spsr_el2(old_spsr_el2);
 	isb();
+}
+
+unsigned long app_run(struct app_data_cfg *app_data,
+			  unsigned long app_func_id,
+			  unsigned long arg0,
+			  unsigned long arg1,
+			  unsigned long arg2,
+			  unsigned long arg3)
+{
+	/* Special init pattern to detect incorrect use of retval when yielded */
+	unsigned long retval = 0x0F0F0F0F;
+	struct app_reg_ctx *app_reg_ctx =
+		(struct app_reg_ctx *)
+		slot_map_app_reg_ctx_page(app_data->app_reg_ctx_pa);
+
+	assert(app_reg_ctx != NULL);
+
+	/* This function should not be called if the EL0 app was yeilded */
+	assert(app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG);
+
+	app_reg_ctx->app_regs[0] = app_func_id;
+	app_reg_ctx->app_regs[1] = arg0;
+	app_reg_ctx->app_regs[2] = arg1;
+	app_reg_ctx->app_regs[3] = arg2;
+	app_reg_ctx->app_regs[4] = arg3;
+
+	app_run_internal(app_data, app_reg_ctx);
+
+	/* Return the value in X0 as EL0 app return value if not yeilded */
+	if (app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG) {
+		retval = app_reg_ctx->app_regs[0];
+	}
+
+	unmap_page(app_data->app_reg_ctx_pa, app_reg_ctx);
 
 	return retval;
+}
+
+
+unsigned long app_resume(struct app_data_cfg *app_data)
+{
+	unsigned long retval = 0xF0F0F0F0U;
+	struct app_reg_ctx *app_reg_ctx =
+		(struct app_reg_ctx *)
+		slot_map_app_reg_ctx_page(app_data->app_reg_ctx_pa);
+
+	assert(app_reg_ctx != NULL);
+
+	/* This function should only be called if the EL0 app was yeilded */
+	assert(app_data->exit_flag == APP_EXIT_SVC_YIELD_FLAG);
+
+	app_run_internal(app_data, app_reg_ctx);
+
+	/* Return the value in X0 as EL0 app return value if not yeilded */
+	if (app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG) {
+		retval = app_reg_ctx->app_regs[0];
+	}
+
+	unmap_page(app_data->app_reg_ctx_pa, app_reg_ctx);
+
+	return retval;
+}
+
+void app_abort(struct app_data_cfg *app_data)
+{
+	(void)init_app_reg_ctx(app_data);
 }

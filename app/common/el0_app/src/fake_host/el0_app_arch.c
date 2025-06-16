@@ -129,6 +129,33 @@ unsigned long el0_app_service_call(unsigned long service_index,
 	return retval;
 }
 
+void el0_app_yield(void)
+{
+	pthread_t thread_id = pthread_self();
+	struct app_instance_data_t *app_data = get_instance_data(thread_id);
+
+	unsigned long reason = APP_SERVICE_CALL;
+
+	unsigned long bytes_to_forward =
+		sizeof(unsigned long) +
+		sizeof(shared_buffer) +
+		sizeof(size_t) +
+		app_data->heap_size;
+
+	WRITE_OR_EXIT(app_data->write_to_main_fd, &bytes_to_forward, sizeof(bytes_to_forward));
+	WRITE_OR_EXIT(app_data->write_to_main_fd, &reason, sizeof(reason));
+	WRITE_OR_EXIT(app_data->write_to_main_fd, shared_buffer, sizeof(shared_buffer));
+	WRITE_OR_EXIT(app_data->write_to_main_fd, &app_data->heap_size, sizeof(size_t));
+	WRITE_OR_EXIT(app_data->write_to_main_fd, app_data->heap_start, app_data->heap_size);
+
+	size_t heap_size;
+
+	READ_OR_EXIT(app_data->read_from_main_fd, shared_buffer, sizeof(shared_buffer));
+	READ_OR_EXIT(app_data->read_from_main_fd, &heap_size, sizeof(size_t));
+	assert(heap_size == app_data->heap_size);
+	READ_OR_EXIT(app_data->read_from_main_fd, app_data->heap_start, app_data->heap_size);
+}
+
 void *app_instance_main(void *args)
 {
 	struct app_instance_data_t *app_data =
@@ -220,7 +247,7 @@ static pthread_t create_app_instance(void)
 	return instance_list_new->thread_id;
 }
 
-void call_app_instance(int process_read_fd, int process_write_fd, pthread_t thread_id)
+void run_app_instance(int process_read_fd, int process_write_fd, pthread_t thread_id)
 {
 
 	struct app_instance_data_list_t *instance_data = get_instance_list_item(thread_id);
@@ -288,12 +315,12 @@ int main(int argc, char **argv)
 			WRITE_OR_EXIT(process_write_fd, &thread_id, sizeof(thread_id));
 			break;
 		}
-		case CALL_APP_INSTANCE:
+		case RUN_APP_INSTANCE:
 		{
 			pthread_t thread_id;
 
 			READ_OR_EXIT(process_read_fd, &thread_id, sizeof(thread_id));
-			call_app_instance(process_read_fd, process_write_fd, thread_id);
+			run_app_instance(process_read_fd, process_write_fd, thread_id);
 			break;
 		}
 		default:

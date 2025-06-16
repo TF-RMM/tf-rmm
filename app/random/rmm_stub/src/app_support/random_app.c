@@ -70,6 +70,8 @@ static int random_app_prng_init(struct app_data_cfg *app_data,
 	SIMD_FPU_ALLOW(
 	ret = app_run(app_data, RANDOM_APP_FUNC_ID_PRNG_INIT, seed_len, 0, 0, 0));
 
+	assert(app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG);
+
 	if (ret > (unsigned long)INT_MAX) {
 		return - EINVAL;
 	} else {
@@ -91,6 +93,9 @@ int random_app_prng_get_random(struct app_data_cfg *app_data, uint8_t *buf, size
 	}
 	SIMD_FPU_ALLOW(
 	ret = app_run(app_data, RANDOM_APP_FUNC_ID_PRNG_GET_RANDOM, output_size, 0, 0, 0));
+
+	assert(app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG);
+
 	if (ret > (unsigned long)INT_MAX) {
 		return - EINVAL;
 	}

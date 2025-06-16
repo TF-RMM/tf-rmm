@@ -205,7 +205,7 @@ int app_init_data(struct app_data_cfg *app_data,
 	app_data->el2_shared_page = NULL;
 	app_data->app_id = app_id;
 	app_data->app_heap = NULL;
-	app_data->app_heap_size = 0;
+	app_data->heap_size = 0;
 	return 0;
 }
 
@@ -221,6 +221,108 @@ void app_unmap_shared_page(struct app_data_cfg *app_data)
 	app_data->el2_shared_page = NULL;
 }
 
+static unsigned long app_run_internal(struct app_data_cfg *app_data,
+	struct app_process_data *app_process_data)
+{
+	unsigned long retval = 0x0F0F0F0FU;
+
+	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process,
+		shared_page, GRANULE_SIZE);
+	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process,
+		&(app_data->heap_size), sizeof(app_data->heap_size));
+	if (app_data->heap_size > 0) {
+		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process,
+			app_data->app_heap, app_data->heap_size);
+	}
+
+	unsigned long reason;
+	size_t app_heap_size;
+
+	while (true) {
+		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &reason, sizeof(reason));
+		if (reason == APP_EXIT_CALL) {
+			READ_OR_EXIT(app_process_data->fd_app_process_to_rmm,
+				&retval, sizeof(retval));
+			app_data->exit_flag = (uint32_t)APP_EXIT_SVC_EXIT_FLAG;
+			break;
+		} else if (reason == APP_YIELD_CALL) {
+			app_data->exit_flag = (uint32_t)APP_EXIT_SVC_YIELD_FLAG;
+			break;
+		} else if (reason == APP_SERVICE_CALL) {
+
+			unsigned long service_index;
+			unsigned long arg0;
+			unsigned long arg1;
+			unsigned long arg2;
+			unsigned long arg3;
+
+			READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &service_index,
+				sizeof(service_index));
+			READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &arg0, sizeof(arg0));
+			READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &arg1, sizeof(arg1));
+			READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &arg2, sizeof(arg2));
+			READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &arg3, sizeof(arg3));
+			READ_OR_EXIT(app_process_data->fd_app_process_to_rmm,
+				shared_page, GRANULE_SIZE);
+			READ_OR_EXIT(app_process_data->fd_app_process_to_rmm,
+				&app_heap_size, sizeof(app_heap_size));
+			if (app_data->heap_size == 0) {
+				app_data->app_heap = malloc(app_heap_size);
+				app_data->heap_size = app_heap_size;
+			} else {
+				assert(app_data->heap_size == app_heap_size);
+			}
+			READ_OR_EXIT(app_process_data->fd_app_process_to_rmm,
+				app_data->app_heap, app_heap_size);
+
+			retval = call_app_service(service_index, app_data, arg0, arg1, arg2, arg3);
+
+			unsigned long bytes_to_forward =
+				sizeof(unsigned long) +
+				sizeof(shared_page) +
+				sizeof(unsigned long) +
+				app_data->heap_size;
+
+			const unsigned long command = RUN_APP_INSTANCE;
+
+			WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process,
+				&command, sizeof(command));
+			WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &app_data->thread_id,
+				sizeof(app_data->thread_id));
+			WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &bytes_to_forward,
+				sizeof(bytes_to_forward));
+
+			WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process,
+				&retval, sizeof(retval));
+			WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process,
+				shared_page, GRANULE_SIZE);
+			WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process,
+				&(app_data->heap_size), sizeof(app_data->heap_size));
+			assert(app_data->heap_size > 0);
+			WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process,
+				app_data->app_heap, app_data->heap_size);
+
+			continue;
+		}
+
+		ERROR("ERROR: Invalid exit reason %lu\n", reason);
+		exit(1);
+
+	}
+	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, shared_page, GRANULE_SIZE);
+	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm,
+		&app_heap_size, sizeof(app_heap_size));
+	if (app_data->heap_size == 0) {
+		app_data->app_heap = malloc(app_heap_size);
+		app_data->heap_size = app_heap_size;
+	} else {
+		assert(app_data->heap_size == app_heap_size);
+	}
+	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, app_data->app_heap, app_heap_size);
+
+	return retval;
+}
+
 unsigned long app_run(struct app_data_cfg *app_data,
 		      unsigned long app_func_id,
 		      unsigned long arg0,
@@ -228,7 +330,6 @@ unsigned long app_run(struct app_data_cfg *app_data,
 		      unsigned long arg2,
 		      unsigned long arg3)
 {
-	unsigned long retval;
 	struct app_process_data *app_process_data;
 
 	app_process_data = get_app_process_data(app_data->app_id);
@@ -236,7 +337,10 @@ unsigned long app_run(struct app_data_cfg *app_data,
 		exit(1);
 	}
 
-	const unsigned long command = CALL_APP_INSTANCE;
+	/* This function should not be called if the EL0 app was yielded */
+	assert(app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG);
+
+	const unsigned long command = RUN_APP_INSTANCE;
 
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &command, sizeof(command));
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &app_data->thread_id,
@@ -246,7 +350,7 @@ unsigned long app_run(struct app_data_cfg *app_data,
 		5 * sizeof(unsigned long) +
 		sizeof(shared_page) +
 		sizeof(unsigned long) +
-		app_data->app_heap_size;
+		app_data->heap_size;
 
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &bytes_to_forward,
 		sizeof(bytes_to_forward));
@@ -255,78 +359,56 @@ unsigned long app_run(struct app_data_cfg *app_data,
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &arg1, sizeof(arg1));
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &arg2, sizeof(arg2));
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &arg3, sizeof(arg3));
-	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, shared_page, GRANULE_SIZE);
-	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &(app_data->app_heap_size), sizeof(app_data->app_heap_size));
-	if (app_data->app_heap_size > 0) {
-		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, app_data->app_heap, app_data->app_heap_size);
+
+	return app_run_internal(app_data, app_process_data);
+}
+
+unsigned long app_resume(struct app_data_cfg *app_data)
+{
+	struct app_process_data *app_process_data;
+
+	app_process_data = get_app_process_data(app_data->app_id);
+	if (app_process_data == NULL) {
+		exit(1);
 	}
 
-	unsigned long reason;
-	size_t app_heap_size;
+	/* This function should only be called if the EL0 app was yielded */
+	assert(app_data->exit_flag == APP_EXIT_SVC_YIELD_FLAG);
 
-	while (true) {
-		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &reason, sizeof(reason));
-		if (reason == APP_EXIT_CALL) {
-			break;
-		}
+	const unsigned long command = RUN_APP_INSTANCE;
 
-		/* assume service call */
-		unsigned long service_index;
+	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &command, sizeof(command));
+	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &app_data->thread_id,
+		sizeof(app_data->thread_id));
 
-		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &service_index,
-			sizeof(service_index));
-		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &arg0, sizeof(arg0));
-		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &arg1, sizeof(arg1));
-		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &arg2, sizeof(arg2));
-		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &arg3, sizeof(arg3));
-		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, shared_page, GRANULE_SIZE);
-		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &app_heap_size, sizeof(app_heap_size));
-		if (app_data->app_heap_size == 0) {
-			app_data->app_heap = malloc(app_heap_size);
-			app_data->app_heap_size = app_heap_size;
-		} else {
-			assert(app_data->app_heap_size == app_heap_size);
-		}
-		READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, app_data->app_heap, app_heap_size);
+	unsigned long bytes_to_forward =
+		sizeof(shared_page) +
+		sizeof(unsigned long) +
+		app_data->heap_size;
 
-		retval = call_app_service(service_index, app_data, arg0, arg1, arg2, arg3);
+	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &bytes_to_forward,
+		sizeof(bytes_to_forward));
 
-		bytes_to_forward =
-			sizeof(unsigned long) +
-			sizeof(shared_page) +
-			sizeof(unsigned long) +
-			app_data->app_heap_size;
+	return app_run_internal(app_data, app_process_data);
+}
 
-		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &command, sizeof(command));
-		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &app_data->thread_id,
-			sizeof(app_data->thread_id));
-		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &bytes_to_forward,
-			sizeof(bytes_to_forward));
+void app_abort(struct app_data_cfg *app_data)
+{
+	(void)app_data;
 
-		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &retval, sizeof(retval));
-		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, shared_page, GRANULE_SIZE);
-		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &(app_data->app_heap_size), sizeof(app_data->app_heap_size));
-		assert(app_data->app_heap_size > 0);
-		WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, app_data->app_heap, app_data->app_heap_size);
-		}
-
-	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &retval, sizeof(retval));
-	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, shared_page, GRANULE_SIZE);
-	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &app_heap_size, sizeof(app_heap_size));
-	if (app_data->app_heap_size == 0) {
-		app_data->app_heap = malloc(app_heap_size);
-		app_data->app_heap_size = app_heap_size;
-	} else {
-		assert(app_data->app_heap_size == app_heap_size);
-	}
-	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, app_data->app_heap, app_heap_size);
-
-	return retval;
+	/* TODO: Add implementation */
+	assert(false);
 }
 
 void *app_get_heap_ptr(struct app_data_cfg *app_data)
 {
 	return app_data->app_heap;
+}
+
+size_t app_get_required_granule_count(unsigned long app_id)
+{
+	(void)app_id;
+	return 0U;
 }
 
 /* Used by the Mbed TLS library in case EL3 token signing is active when

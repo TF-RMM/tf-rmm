@@ -34,7 +34,8 @@ struct app_data_cfg {
 	 * access to El0 app heap memory.
 	 */
 	void *app_heap;
-	size_t app_heap_size;
+	size_t heap_size;
+	uint32_t exit_flag; /* App Exit Flag */
 };
 
 #endif /* APP_FW_STRUCTURES_H */
