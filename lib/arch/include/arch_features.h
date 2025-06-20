@@ -301,6 +301,18 @@ static inline bool is_feat_tcr2_present(void)
 DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(tcr2_el12, if_present,		\
 				   is_feat_tcr2_present, 0UL)
 
+/*
+ * Check if FEAT_MEC is implemented.
+ * ID_AA64MMFR3_EL1.MEC, bits [31:28]:
+ * 0b0000: Memory Encryption Contexts is not implemented
+ * 0b0001: Memory Encryption Contexts is implemented
+ */
+static inline bool is_feat_mec_present(void)
+{
+	return (EXTRACT(ID_AA64MMFR3_EL1_MEC,
+		read_id_aa64mmfr3_el1()) != 0UL);
+}
+
 unsigned int arch_feat_get_pa_width(void);
 
 DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(sctlr2_el12, if_present,		\

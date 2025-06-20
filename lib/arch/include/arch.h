@@ -1204,6 +1204,9 @@
 #define ID_AA64MMFR3_EL1_SCTLRX_SHIFT	UL(4)
 #define ID_AA64MMFR3_EL1_SCTLRX_WIDTH	UL(4)
 
+#define ID_AA64MMFR3_EL1_MEC_SHIFT	UL(28)
+#define ID_AA64MMFR3_EL1_MEC_WIDTH	UL(4)
+
 /* Custom defined values to indicate the vector offset to exception handlers */
 #define ARM_EXCEPTION_SYNC_LEL		0
 #define ARM_EXCEPTION_IRQ_LEL		1
