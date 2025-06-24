@@ -421,11 +421,15 @@ void dev_assign_unset_pubkey(struct dev_assign_info *info)
 	libspdm_data_parameter_t parameter;
 	void *data_ptr;
 
-	if ((info->key_sig_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P256) ||
-	    (info->key_sig_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P384)) {
-		mbedtls_ecdh_free(&info->pk_ctx.ecdh);
-	} else {
-		mbedtls_rsa_free(&info->pk_ctx.rsa);
+	if (info->pk_ctx.initialised) {
+		if ((info->key_sig_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P256) ||
+		    (info->key_sig_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P384)) {
+			mbedtls_ecdh_free(&info->pk_ctx.ecdh);
+		} else {
+			assert(info->key_sig_algo == RMI_SIGNATURE_ALGORITHM_RSASSA_3072);
+			mbedtls_rsa_free(&info->pk_ctx.rsa);
+		}
+		info->pk_ctx.initialised = false;
 	}
 
 	/* Set LIBSPDM_DATA_PEER_USED_CERT_CHAIN_PUBLIC_KEY in spdm connection */
@@ -529,6 +533,7 @@ end_ecdsa:
 	}
 
 	info->key_sig_algo = (uint32_t)key_sig_algo;
+	info->pk_ctx.initialised = true;
 
 	/* Set LIBSPDM_DATA_PEER_USED_CERT_CHAIN_PUBLIC_KEY in spdm connection */
 	(void)memset(&parameter, 0, sizeof(parameter));
@@ -692,6 +697,7 @@ static int dev_assign_init(uintptr_t el0_heap, size_t heap_size, struct dev_assi
 		info->ide_sid = params->ide_sid;
 	}
 	info->spdm_cert_chain_digest_length = 0;
+	info->pk_ctx.initialised = false;
 
 	info->psa_hash_algo = rmi_to_psa_hash_algo(params->rmi_hash_algo);
 

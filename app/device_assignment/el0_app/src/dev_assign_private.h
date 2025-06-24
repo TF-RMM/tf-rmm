@@ -249,9 +249,12 @@ struct dev_assign_info {
 
 	/* Public key context */
 	uint32_t key_sig_algo;
-	union {
-		mbedtls_ecdh_context ecdh;
-		mbedtls_rsa_context rsa;
+	struct {
+		union{
+			mbedtls_ecdh_context ecdh;
+			mbedtls_rsa_context rsa;
+		};
+		bool initialised;
 	} pk_ctx;
 
 	/* Exit and Entry args for dev_communicate cmds */
