@@ -222,6 +222,11 @@ long s2tt_test_helpers_min_block_lvl(void)
 	return S2TT_MIN_BLOCK_LEVEL;
 }
 
+long s2tt_test_helpers_min_dev_block_lvl(void)
+{
+	return S2TT_MIN_DEV_BLOCK_LEVEL;
+}
+
 unsigned long s2tt_test_helpers_get_entry_va_space_size(long level)
 {
 	assert(level >= s2tt_test_helpers_min_table_lvl());
@@ -263,6 +268,48 @@ unsigned long s2tt_test_create_assigned(const struct s2tt_context *s2tt_ctx,
 	}
 
 	return s2tte_create_assigned_ns(s2tt_ctx, pa, level);
+}
+
+unsigned long s2tt_test_create_assigned_dev_dev(const struct s2tt_context *s2tt_ctx,
+						unsigned long pa, long level)
+{
+	unsigned long attr = S2TTE_TEST_DEV_ATTRS;
+
+	/* Add Shareability bits if FEAT_LPA2 is not enabled */
+	if (!s2tt_ctx->enable_lpa2) {
+		attr |= S2TTE_TEST_DEV_SH;
+	}
+	return s2tte_create_assigned_dev_dev(s2tt_ctx, (pa | attr), level);
+}
+
+unsigned long s2tt_test_create_assigned_dev(const struct s2tt_context *s2tt_ctx,
+					    unsigned long pa, long level,
+					    unsigned long ripas)
+{
+	if (ripas == S2TTE_INVALID_RIPAS_EMPTY) {
+		return s2tte_create_assigned_dev_empty(s2tt_ctx, pa, level);
+	} else if (ripas == S2TTE_INVALID_RIPAS_DESTROYED) {
+		return s2tte_create_assigned_dev_destroyed(s2tt_ctx, pa, level);
+	} else if (ripas == S2TTE_INVALID_RIPAS_DEV) {
+		return s2tt_test_create_assigned_dev_dev(s2tt_ctx, pa, level);
+	}
+
+	assert(false);
+	return 0UL;
+}
+
+void s2tt_test_init_assigned_dev_dev(const struct s2tt_context *s2tt_ctx,
+				     unsigned long *s2tt, unsigned long pa,
+				     long level)
+{
+	unsigned long attr = S2TTE_TEST_DEV_ATTRS;
+
+	/* Add Shareability bits if FEAT_LPA2 is not enabled */
+	if (!s2tt_ctx->enable_lpa2) {
+		attr |= S2TTE_TEST_DEV_SH;
+	}
+
+	s2tt_init_assigned_dev_dev(s2tt_ctx, s2tt, (attr | pa), pa, level);
 }
 
 unsigned long s2tt_test_create_unassigned(const struct s2tt_context *s2tt_ctx,

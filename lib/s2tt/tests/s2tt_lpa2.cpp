@@ -7,6 +7,7 @@
 #include <CppUTest/TestHarness.h>
 #include <s2tt_tests_base_g1.h>
 #include <s2tt_tests_base_g2.h>
+#include <s2tt_tests_base_g3.h>
 
 extern "C" {
 #include <test_helpers.h>
@@ -133,6 +134,56 @@ ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_ns_tc3)
 	s2tte_create_assigned_ns_tc3();
 }
 
+TEST(s2tt_lpa2, s2tte_create_assigned_dev_destroyed_tc1)
+{
+	s2tte_create_assigned_dev_destroyed_tc1();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_destroyed_tc2)
+{
+	s2tte_create_assigned_dev_destroyed_tc2();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_destroyed_tc3)
+{
+	s2tte_create_assigned_dev_destroyed_tc3();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_destroyed_tc4)
+{
+	s2tte_create_assigned_dev_destroyed_tc4();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_destroyed_tc5)
+{
+	s2tte_create_assigned_dev_destroyed_tc5();
+}
+
+TEST(s2tt_lpa2, s2tte_create_assigned_dev_empty_tc1)
+{
+	s2tte_create_assigned_dev_empty_tc1();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_empty_tc2)
+{
+	s2tte_create_assigned_dev_empty_tc2();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_empty_tc3)
+{
+	s2tte_create_assigned_dev_empty_tc3();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_empty_tc4)
+{
+	s2tte_create_assigned_dev_empty_tc4();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_empty_tc5)
+{
+	s2tte_create_assigned_dev_empty_tc5();
+}
+
 TEST(s2tt_lpa2, s2tte_create_assigned_unchanged_tc1)
 {
 	s2tte_create_assigned_unchanged_tc1();
@@ -161,6 +212,46 @@ ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_unchanged_tc5)
 ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_unchanged_tc6)
 {
 	s2tte_create_assigned_unchanged_tc6();
+}
+
+TEST(s2tt_lpa2, s2tte_create_assigned_dev_unchanged_tc1)
+{
+	s2tte_create_assigned_dev_unchanged_tc1();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_unchanged_tc2)
+{
+	s2tte_create_assigned_dev_unchanged_tc2();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_unchanged_tc3)
+{
+	s2tte_create_assigned_dev_unchanged_tc3();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_unchanged_tc4)
+{
+	s2tte_create_assigned_dev_unchanged_tc4();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_unchanged_tc5)
+{
+	s2tte_create_assigned_dev_unchanged_tc5();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_unchanged_tc6)
+{
+	s2tte_create_assigned_dev_unchanged_tc6();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_unchanged_tc7)
+{
+	s2tte_create_assigned_dev_unchanged_tc7();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_create_assigned_dev_unchanged_tc8)
+{
+	s2tte_create_assigned_dev_unchanged_tc8();
 }
 
 TEST(s2tt_lpa2, s2tte_create_table_tc1)
@@ -248,6 +339,16 @@ TEST(s2tt_lpa2, s2tte_has_ripas_tc2)
 	s2tte_has_ripas_tc2();
 }
 
+TEST(s2tt_lpa2, s2tte_has_ripas_dev_tc1)
+{
+	s2tte_has_ripas_dev_tc1();
+}
+
+TEST(s2tt_lpa2, s2tte_has_ripas_dev_tc2)
+{
+	s2tte_has_ripas_dev_tc2();
+}
+
 TEST(s2tt_lpa2, s2tte_is_unassigned_tc1)
 {
 	s2tte_is_unassigned_tc1();
@@ -303,6 +404,36 @@ TEST(s2tt_lpa2, s2tte_is_assigned_destroyed_tc1)
 	s2tte_is_assigned_destroyed_tc1();
 }
 
+TEST(s2tt_lpa2, s2tte_is_assigned_dev_destroyed_tc1)
+{
+	s2tte_is_assigned_dev_destroyed_tc1();
+}
+
+TEST(s2tt_lpa2, s2tte_is_assigned_dev_empty_tc1)
+{
+	s2tte_is_assigned_dev_empty_tc1();
+}
+
+TEST(s2tt_lpa2, s2tte_is_assigned_dev_dev_tc1)
+{
+	s2tte_is_assigned_dev_dev_tc1();
+}
+
+TEST(s2tt_lpa2, s2tte_is_assigned_dev_dev_tc2)
+{
+	s2tte_is_assigned_dev_dev_tc2();
+}
+
+TEST(s2tt_lpa2, s2tte_is_assigned_dev_dev_tc3)
+{
+	s2tte_is_assigned_dev_dev_tc3();
+}
+
+TEST(s2tt_lpa2, s2tte_is_assigned_dev_dev_tc4)
+{
+	s2tte_is_assigned_dev_dev_tc4();
+}
+
 TEST(s2tt_lpa2, s2tte_is_table_tc1)
 {
 	s2tte_is_table_tc1();
@@ -316,6 +447,21 @@ TEST(s2tt_lpa2, s2tte_get_ripas_tc1)
 ASSERT_TEST(s2tt_lpa2, s2tte_get_ripas_tc2)
 {
 	s2tte_get_ripas_tc2();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tte_get_ripas_tc3)
+{
+	s2tte_get_ripas_tc3();
+}
+
+TEST(s2tt_lpa2, s2tte_get_ripas_dev_tc1)
+{
+	s2tte_get_ripas_dev_tc1();
+}
+
+TEST(s2tt_lpa2, s2tte_get_ripas_dev_tc2)
+{
+	s2tte_get_ripas_dev_tc2();
 }
 
 TEST(s2tt_lpa2, s2tt_init_unassigned_empty_tc1)
@@ -471,6 +617,96 @@ ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_destroyed_tc5)
 ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_destroyed_tc6)
 {
 	s2tt_init_assigned_destroyed_tc6();
+}
+
+TEST(s2tt_lpa2, s2tt_init_assigned_dev_empty_tc1)
+{
+	s2tt_init_assigned_dev_empty_tc1();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_empty_tc2)
+{
+	s2tt_init_assigned_dev_empty_tc2();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_empty_tc3)
+{
+	s2tt_init_assigned_dev_empty_tc3();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_empty_tc4)
+{
+	s2tt_init_assigned_dev_empty_tc4();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_empty_tc5)
+{
+	s2tt_init_assigned_dev_empty_tc5();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_empty_tc6)
+{
+	s2tt_init_assigned_dev_empty_tc6();
+}
+
+TEST(s2tt_lpa2, s2tt_init_assigned_dev_destroyed_tc1)
+{
+	s2tt_init_assigned_dev_destroyed_tc1();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_destroyed_tc2)
+{
+	s2tt_init_assigned_dev_destroyed_tc2();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_destroyed_tc3)
+{
+	s2tt_init_assigned_dev_destroyed_tc3();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_destroyed_tc4)
+{
+	s2tt_init_assigned_dev_destroyed_tc4();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_destroyed_tc5)
+{
+	s2tt_init_assigned_dev_destroyed_tc5();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_destroyed_tc6)
+{
+	s2tt_init_assigned_dev_destroyed_tc6();
+}
+
+TEST(s2tt_lpa2, s2tt_init_assigned_dev_dev_tc1)
+{
+	s2tt_init_assigned_dev_dev_tc1();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_dev_tc2)
+{
+	s2tt_init_assigned_dev_dev_tc2();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_dev_tc3)
+{
+	s2tt_init_assigned_dev_dev_tc3();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_dev_tc4)
+{
+	s2tt_init_assigned_dev_dev_tc4();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_dev_tc5)
+{
+	s2tt_init_assigned_dev_dev_tc5();
+}
+
+ASSERT_TEST(s2tt_lpa2, s2tt_init_assigned_dev_dev_tc6)
+{
+	s2tt_init_assigned_dev_dev_tc6();
 }
 
 TEST(s2tt_lpa2, s2tte_pa_tc1)

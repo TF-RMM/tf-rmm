@@ -184,7 +184,7 @@ void s2tte_create_assigned_destroyed_tc3(void)
 	 * S2TTE with a level below the minimum.
 	 ***************************************************************/
 
-	long level = s2tt_test_helpers_min_block_lvl() - 1;
+	long level = s2tt_test_helpers_min_block_lvl() - 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
 	struct s2tt_context s2tt_ctx;
 
@@ -212,7 +212,7 @@ void s2tte_create_assigned_destroyed_tc4(void)
 	 * S2TTE with a level above the maximum.
 	 ***************************************************************/
 
-	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
+	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
 	struct s2tt_context s2tt_ctx;
 
@@ -339,7 +339,7 @@ void s2tte_create_assigned_empty_tc3(void)
 	 * S2TTE with a level below the minimum.
 	 ***************************************************************/
 
-	long level = s2tt_test_helpers_min_block_lvl() - 1;
+	long level = s2tt_test_helpers_min_block_lvl() - 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
 	struct s2tt_context s2tt_ctx;
 
@@ -367,7 +367,7 @@ void s2tte_create_assigned_empty_tc4(void)
 	 * S2TTE with a level above the maximum.
 	 ***************************************************************/
 
-	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
+	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
 	struct s2tt_context s2tt_ctx;
 
@@ -492,7 +492,7 @@ void s2tte_create_assigned_ram_tc3(void)
 	 * with a level below the minimum.
 	 ***************************************************************/
 
-	long level = s2tt_test_helpers_min_block_lvl() - 1;
+	long level = s2tt_test_helpers_min_block_lvl() - 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
 	struct s2tt_context s2tt_ctx;
 
@@ -520,7 +520,7 @@ void s2tte_create_assigned_ram_tc4(void)
 	 * with a level above the maximum.
 	 ***************************************************************/
 
-	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
+	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
 	struct s2tt_context s2tt_ctx;
 
@@ -643,7 +643,7 @@ void s2tte_create_assigned_ns_tc3(void)
 	 * with a level above the maximum.
 	 ***************************************************************/
 
-	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
+	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
 
 	test_helpers_expect_assert_fail(true);
@@ -773,7 +773,7 @@ void s2tte_create_assigned_unchanged_tc3(void)
 	 * assigned-unchanged S2TTE with a level below the minimum.
 	 ***************************************************************/
 
-	long level = s2tt_test_helpers_min_block_lvl() - 1;
+	long level = s2tt_test_helpers_min_block_lvl() - 1L;
 	unsigned long ripas = test_helpers_get_rand_in_range(
 					RIPAS_EMPTY,
 					RIPAS_DESTROYED);
@@ -804,7 +804,7 @@ void s2tte_create_assigned_unchanged_tc4(void)
 	 * assigned-unchanged S2TTE with a level above the maximum.
 	 ***************************************************************/
 
-	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
+	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long ripas = test_helpers_get_rand_in_range(
 					RIPAS_EMPTY,
 					RIPAS_DESTROYED);
@@ -1177,7 +1177,7 @@ void host_ns_s2tte_is_valid_tc4(void)
 	 * any level.
 	 */
 	unsigned long tte = s2tt_test_helpers_gen_ns_attrs(true, false);
-	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
+	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 
 	test_helpers_expect_assert_fail(true);
 	(void)host_ns_s2tte_is_valid((const struct s2tt_context *)&s2tt_ctx,
@@ -1723,7 +1723,7 @@ void s2tte_is_assigned_empty_tc1(void)
 					(const struct s2tt_context *)&s2tt_ctx,
 					pa, level);
 
-		/* Validate s2tt_is_assigned_empty with an unassigned empty TTE */
+		/* Validate s2tt_is_assigned_empty with an assigned empty TTE */
 		CHECK_TRUE(s2tte_is_assigned_empty((const struct s2tt_context *)&s2tt_ctx,
 						   tte, level) == true);
 
@@ -1871,7 +1871,7 @@ void s2tte_is_assigned_ram_tc1(void)
 			s2tte_create_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
 						  pa, level);
 
-		/* Validate s2tt_is_assigned_empty with an assigned ram TTE */
+		/* Validate s2tt_is_assigned_ram with an assigned ram TTE */
 		CHECK_TRUE(s2tte_is_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
 						 tte, level) == true);
 
@@ -2100,14 +2100,35 @@ void s2tte_get_ripas_tc2(void)
 
 	unsigned long tte = s2tte_create_unassigned_destroyed(
 					(const struct s2tt_context *)NULL);
-	tte &= ~S2TTE_INVALID_HIPAS_MASK;
-
 	/*
-	 * As per s2tt_pvt_defs.h, HIPAS field is 3 bits wide with
-	 * only the first bit used.
+	 * As per s2tt_pvt_defs.h, HIPAS field is 3 bits wide with only the
+	 * first 2 bits used. Get random invalid HIPAS to test with.
 	 */
-	tte |= INPLACE(S2TTE_INVALID_HIPAS,
-			EXTRACT(S2TTE_INVALID_HIPAS, S2TTE_INVALID_HIPAS_ASSIGNED) + 1UL);
+	unsigned long inv_hipas = test_helpers_get_rand_in_range(
+					RMI_ASSIGNED_DEV + 1UL, 7UL);
+
+	tte &= ~S2TTE_INVALID_HIPAS_MASK;
+	tte |= INPLACE(S2TTE_INVALID_HIPAS, inv_hipas);
+
+	test_helpers_expect_assert_fail(true);
+	(void)s2tte_get_ripas((const struct s2tt_context *)NULL, tte);
+	test_helpers_fail_if_no_assert_failed();
+}
+
+void s2tte_get_ripas_tc3(void)
+{
+	/***************************************************************
+	 * TEST CASE 3:
+	 *
+	 * Test s2tte_get_ripas() with an invalid S2TTE and an invalid
+	 * HIPAS=RMI_TABLE.
+	 ***************************************************************/
+
+	unsigned long tte = s2tte_create_unassigned_destroyed(
+					(const struct s2tt_context *)NULL);
+
+	tte &= ~S2TTE_INVALID_HIPAS_MASK;
+	tte |= INPLACE(S2TTE_INVALID_HIPAS, RMI_TABLE);
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_get_ripas((const struct s2tt_context *)NULL, tte);
@@ -2347,7 +2368,7 @@ void s2tt_init_assigned_empty_tc2(void)
 	 ***************************************************************/
 
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
-	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
+	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
 	struct s2tt_context s2tt_ctx;
 
@@ -2520,7 +2541,7 @@ void s2tt_init_assigned_ram_tc2(void)
 	 ***************************************************************/
 
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
-	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
+	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
 	struct s2tt_context s2tt_ctx;
 
@@ -2721,7 +2742,7 @@ void s2tt_init_assigned_ns_tc2(void)
 	 ***************************************************************/
 
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
-	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
+	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
 	unsigned long attrs = s2tt_test_helpers_gen_ns_attrs(true, false);
 
@@ -2853,7 +2874,7 @@ void s2tt_init_assigned_destroyed_tc2(void)
 	 ***************************************************************/
 
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
-	long level = S2TT_TEST_HELPERS_MAX_LVL + 1;
+	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
 	struct s2tt_context s2tt_ctx;
 

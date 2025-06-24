@@ -323,7 +323,7 @@ typedef bool(*s2tt_is_unassigned_x_block_cb)(const struct s2tt_context *s2tt_ctx
 
 /*
  * Helper to implement a set of negative tests for
- * s2tte_is_unassigned_{x}_block() APIS where x belongs to
+ * s2tte_is_unassigned_{x}_block() APIs where x belongs to
  * [RMI_EMPTY, RMI_RAM, RMI_DESTROYED, NS]:
  *
  *	- Validate s2tt_is_unassigned_{x}_block() with a corresponding
