@@ -24,10 +24,6 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 	info = spdm_to_dev_assign_info(spdm_context);
 
 	if ((uintptr_t)info->send_recv_buffer > (uintptr_t)request) {
-		/* cppcheck-suppress misra-c2012-12.2 */
-		/* cppcheck-suppress misra-c2012-10.1 */
-		/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
-		/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
 		return LIBSPDM_STATUS_SEND_FAIL;
 	}
 
@@ -42,10 +38,6 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 
 	if ((buf_offset + request_size_align)
 		> (PRIV_LIBSPDM_SEND_RECV_BUF_SIZE + PRIV_LIBSPDM_SCRATCH_BUF_SIZE)) {
-		/* cppcheck-suppress misra-c2012-12.2 */
-		/* cppcheck-suppress misra-c2012-10.1 */
-		/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
-		/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
 		return LIBSPDM_STATUS_SEND_FAIL;
 	}
 
@@ -62,10 +54,6 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 		info->enter_args.req_addr, request_size_align);
 
 	if (rc != 0) {
-		/* cppcheck-suppress misra-c2012-12.2 */
-		/* cppcheck-suppress misra-c2012-10.1 */
-		/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
-		/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
 		return LIBSPDM_STATUS_SEND_FAIL;
 	}
 
@@ -83,10 +71,6 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 	(void)memset(&info->exit_args, 0, sizeof(info->exit_args));
 
 	if (info->enter_args.status == RMI_DEV_COMM_ENTER_STATUS_ERROR) {
-		/* cppcheck-suppress misra-c2012-12.2 */
-		/* cppcheck-suppress misra-c2012-10.1 */
-		/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
-		/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
 		return LIBSPDM_STATUS_SEND_FAIL;
 	}
 
@@ -108,10 +92,6 @@ static libspdm_return_t spdm_receive_message(void *spdm_context,
 	info = spdm_to_dev_assign_info(spdm_context);
 
 	if ((uintptr_t)info->send_recv_buffer > (uintptr_t)*response) {
-		/* cppcheck-suppress misra-c2012-12.2 */
-		/* cppcheck-suppress misra-c2012-10.1 */
-		/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
-		/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
 		return LIBSPDM_STATUS_RECEIVE_FAIL;
 	}
 
@@ -121,10 +101,6 @@ static libspdm_return_t spdm_receive_message(void *spdm_context,
 
 	if ((buf_offset + resp_len_align)
 			> (PRIV_LIBSPDM_SEND_RECV_BUF_SIZE + PRIV_LIBSPDM_SCRATCH_BUF_SIZE)) {
-		/* cppcheck-suppress misra-c2012-12.2 */
-		/* cppcheck-suppress misra-c2012-10.1 */
-		/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
-		/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
 		return LIBSPDM_STATUS_RECEIVE_FAIL;
 	}
 
@@ -139,10 +115,6 @@ static libspdm_return_t spdm_receive_message(void *spdm_context,
 		info->enter_args.resp_addr, resp_len_align);
 
 	if (rc != 0) {
-		/* cppcheck-suppress misra-c2012-12.2 */
-		/* cppcheck-suppress misra-c2012-10.1 */
-		/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
-		/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
 		return LIBSPDM_STATUS_RECEIVE_FAIL;
 	}
 
