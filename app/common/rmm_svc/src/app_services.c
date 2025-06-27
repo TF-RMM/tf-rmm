@@ -50,9 +50,8 @@ static uint64_t app_service_get_random(struct app_data_cfg *app_data,
 			  unsigned long arg3)
 {
 	size_t len = arg0;
-	uint8_t buf[GRANULE_SIZE];
 	int ret;
-	void *shared_page;
+	bool unmap_shared_page = false;
 
 	(void)arg1;
 	(void)arg2;
@@ -69,15 +68,21 @@ static uint64_t app_service_get_random(struct app_data_cfg *app_data,
 
 	struct app_data_cfg *random_app_data = random_app_get_data_cfg();
 
-	ret = random_app_prng_get_random(random_app_data, buf, len);
+	if (app_data->el2_shared_page == NULL) {
+		app_map_shared_page(app_data);
+		unmap_shared_page = true;
+	}
+
+	/* Pass the caller app's shared page as buf to the random app stub. */
+	ret = random_app_prng_get_random(random_app_data, app_data->el2_shared_page, len);
 	if (ret != 0) {
 		return (uint64_t)ret;
 	}
 
-	shared_page = app_data->el2_shared_page;
-	assert(shared_page != NULL);
-	/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
-	(void)memcpy(shared_page, (void *)buf, len);
+	if (unmap_shared_page) {
+		app_unmap_shared_page(app_data);
+	}
+
 	return 0;
 }
 
@@ -269,7 +274,7 @@ static struct ns_rw_data validate_and_get_ns_rw_data(struct app_data_cfg *app_da
 
 	if ((app_buf_id != APP_SERVICE_RW_NS_BUF_SHARED) &&
 	    (app_buf_id != APP_SERVICE_RW_NS_BUF_HEAP)) {
-		ERROR("%s called with invalid app_buf_id 0x%lx", __func__, app_buf_id);
+		ERROR("%s called with invalid app_buf_id 0x%lx\n", __func__, app_buf_id);
 		return rw_data;
 	}
 
@@ -281,7 +286,7 @@ static struct ns_rw_data validate_and_get_ns_rw_data(struct app_data_cfg *app_da
 	    ((app_buf_size - app_buf_offset) < buf_len) ||
 	    (!ALIGNED(buf_len, 8U)) ||
 	    (!ALIGNED(app_buf_offset, 8U))) {
-		ERROR("%s called with invalid buf offset 0x%lx or len 0x%lx",
+		ERROR("%s called with invalid buf offset 0x%lx or len 0x%lx\n",
 				__func__, app_buf_offset, buf_len);
 		return rw_data;
 	}
@@ -298,7 +303,7 @@ static struct ns_rw_data validate_and_get_ns_rw_data(struct app_data_cfg *app_da
 	 * is mapped.
 	 */
 	if (((ns_addr_offset + buf_len) > SZ_4K) || (!ALIGNED(ns_addr_offset, 8U))) {
-		ERROR("%s called with invalid ns addr 0x%lx.",
+		ERROR("%s called with invalid ns addr 0x%lx.\n",
 				__func__, ns_addr);
 		return rw_data;
 	}
@@ -307,7 +312,7 @@ static struct ns_rw_data validate_and_get_ns_rw_data(struct app_data_cfg *app_da
 	rw_data.ns_granule = find_granule(ns_addr & GRANULE_MASK);
 	if ((rw_data.ns_granule == NULL) ||
 		(granule_unlocked_state(rw_data.ns_granule) != GRANULE_STATE_NS)) {
-		ERROR("%s ns granule not found or invalid state for ns addr 0x%lx",
+		ERROR("%s ns granule not found or invalid state for ns addr 0x%lx\n",
 				__func__, ns_addr);
 		return rw_data;
 	}
@@ -352,7 +357,7 @@ static uint64_t app_service_write_to_ns_buf(struct app_data_cfg *app_data,
 	ns_access_ok = ns_buffer_write(SLOT_NS, rw_data.ns_granule, 0, buf_len,
 		(void *)rw_data.app_buf);
 	if (!ns_access_ok) {
-		ERROR("%s ns buffer read failed for ns addr 0x%lx and app_buf 0x%lx",
+		ERROR("%s ns buffer read failed for ns addr 0x%lx and app_buf 0x%lx\n",
 				__func__, ns_addr, rw_data.app_buf);
 		return (uint64_t)(-EINVAL);
 	}
@@ -396,14 +401,13 @@ static uint64_t app_service_read_from_ns_buf(struct app_data_cfg *app_data,
 	ns_access_ok = ns_buffer_read(SLOT_NS, rw_data.ns_granule, 0, buf_len,
 		(void *)rw_data.app_buf);
 	if (!ns_access_ok) {
-		ERROR("%s ns buffer read failed for ns addr 0x%lx and app_buf 0x%lx",
+		ERROR("%s ns buffer read failed for ns addr 0x%lx and app_buf 0x%lx\n",
 				__func__, ns_addr, rw_data.app_buf);
 		return (uint64_t)(-EINVAL);
 	}
 
 	return 0;
 }
-
 
 static app_service_func service_functions[APP_SERVICE_COUNT] = {
 	[APP_SERVICE_PRINT] = app_service_print,

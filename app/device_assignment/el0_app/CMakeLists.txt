@@ -89,7 +89,8 @@ endif()
 target_sources(rmm-app-dev-assign-elf
     PRIVATE
         "src/dev_assign_el0_app.c"
-        "src/dev_assign_cmds.c")
+        "src/dev_assign_cmds.c"
+        "src/dev_assign_helper.c")
 
 if (RMM_ARCH STREQUAL fake_host)
     target_sources(rmm-app-dev-assign-elf

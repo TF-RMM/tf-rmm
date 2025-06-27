@@ -34,6 +34,8 @@ int dev_assign_app_init(struct app_data_cfg *app_data, uintptr_t granule_pas[],
  * app_data - Pointer to app_data_cfg. This is opaque to caller
  * comm_enter_args - Entry arguments to app
  * comm_exit_args - Exit arguments from app
+ * comm_digest_ptr - Pointer to the location where the calculated digest is to
+ *                   be copied. Should be NULL if no digest is expected.
  * dev_cmd - Valid device communicate cmds.
  *
  * Note that when this function indicates that the app is yeilded
@@ -46,6 +48,33 @@ int dev_assign_app_init(struct app_data_cfg *app_data, uintptr_t granule_pas[],
 int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 	struct rmi_dev_comm_enter *comm_enter_args,
 	struct rmi_dev_comm_exit *comm_exit_args,
+	struct dev_obj_digest *comm_digest_ptr,
 	int dev_cmd);
+
+/*
+ * Aborts the current communication with the device.
+ * Arguments:
+ * app_data - Pointer to app_data_cfg. This is opaque to caller
+ *
+ * This command updates the status field of the struct rmi_dev_comm_enter
+ * is going to be read by spdm_send_message. The value is set to error, and the
+ * app is resumed, which causes the app to abort the operation and return with
+ * error.
+ *
+ * Returns DEV_ASSIGN_STATUS_SUCCESS.
+ */
+int dev_assign_abort_app_operation(struct app_data_cfg *app_data);
+
+/*
+ * Sets public key of the device.
+ * Arguments:
+ * app_data - Pointer to app_data_cfg. This is opaque to caller
+ * pubkey_params - Public key parameters as received from the NS host
+ *
+ * Returns DEV_ASSIGN_STATUS_SUCCESS if setting the public was successful
+ *         DEV_ASSIGN_STATUS_ERROR otherwise.
+ */
+int dev_assign_set_public_key(struct app_data_cfg *app_data,
+			      struct rmi_public_key_params *pubkey_params);
 
 #endif /* DEV_ASSIGN_APP_H */

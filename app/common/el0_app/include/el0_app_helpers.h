@@ -17,8 +17,10 @@ size_t get_shared_mem_size(void);
  *
  * The function returns the start address to a buffer_alloc_ctx object.
  */
+/* coverity[misra_c_2012_rule_5_8_violation:SUPPRESS] */
 void *mbedtls_app_get_heap(void);
 
+/* coverity[misra_c_2012_rule_5_8_violation:SUPPRESS] */
 unsigned long el0_app_entry_func(
 	unsigned long func_id,
 	unsigned long arg_0,

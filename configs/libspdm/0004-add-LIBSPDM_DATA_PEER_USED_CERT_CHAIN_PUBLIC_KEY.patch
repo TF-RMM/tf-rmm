@@ -1,0 +1,54 @@
+From cf5a0e58bf4b3b8375e9d9a39056bd47f19a52c2 Mon Sep 17 00:00:00 2001
+From: Arunachalam Ganapathy <arunachalam.ganapathy@arm.com>
+Date: Fri, 26 Jul 2024 11:34:11 +0100
+Subject: [PATCH 4/5] add LIBSPDM_DATA_PEER_USED_CERT_CHAIN_PUBLIC_KEY
+
+Add LIBSPDM_DATA_PEER_USED_CERT_CHAIN_PUBLIC_KEY to set public key
+context in provided certificate slot id.
+
+Signed-off-by: Arunachalam Ganapathy <arunachalam.ganapathy@arm.com>
+---
+ include/library/spdm_common_lib.h                  |  1 +
+ library/spdm_common_lib/libspdm_com_context_data.c | 14 ++++++++++++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/include/library/spdm_common_lib.h b/include/library/spdm_common_lib.h
+index a1fa8cc3..764eeb2e 100644
+--- a/include/library/spdm_common_lib.h
++++ b/include/library/spdm_common_lib.h
+@@ -159,6 +159,7 @@ typedef enum {
+ 
+     LIBSPDM_DATA_TOTAL_KEY_PAIRS,
+     LIBSPDM_DATA_PEER_USED_CERT_CHAIN_HASH,
++    LIBSPDM_DATA_PEER_USED_CERT_CHAIN_PUBLIC_KEY,
+ 
+     /* MAX */
+     LIBSPDM_DATA_MAX
+diff --git a/library/spdm_common_lib/libspdm_com_context_data.c b/library/spdm_common_lib/libspdm_com_context_data.c
+index 2307d192..08852240 100644
+--- a/library/spdm_common_lib/libspdm_com_context_data.c
++++ b/library/spdm_common_lib/libspdm_com_context_data.c
+@@ -626,6 +626,20 @@ libspdm_return_t libspdm_set_data(void *spdm_context, libspdm_data_type_t data_t
+                          sizeof(context->connection_info.peer_used_cert_chain[slot_id].buffer_hash),
+                          data, data_size);
+     break;
++    case LIBSPDM_DATA_PEER_USED_CERT_CHAIN_PUBLIC_KEY:
++        if (parameter->location != LIBSPDM_DATA_LOCATION_CONNECTION) {
++            return LIBSPDM_STATUS_INVALID_PARAMETER;
++        }
++        slot_id = parameter->additional_data[0];
++        if (slot_id >= SPDM_MAX_SLOT_COUNT) {
++            return LIBSPDM_STATUS_INVALID_PARAMETER;
++        }
++        if (data_size != sizeof(void *)) {
++            return LIBSPDM_STATUS_INVALID_PARAMETER;
++        }
++        context->connection_info.peer_used_cert_chain[slot_id].leaf_cert_public_key =
++            *(void **)data;
++    break;
+     case LIBSPDM_DATA_PEER_PUBLIC_KEY:
+         if (parameter->location != LIBSPDM_DATA_LOCATION_LOCAL) {
+             return LIBSPDM_STATUS_INVALID_PARAMETER;
+-- 
+2.34.1
+

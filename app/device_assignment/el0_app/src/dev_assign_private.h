@@ -12,7 +12,9 @@
 #include <industry_standard/spdm_secured_message.h>
 #include <library/spdm_requester_lib.h>
 #include <library/spdm_secured_message_lib.h>
+#include <mbedtls/ecdh.h>
 #include <mbedtls/memory_buffer_alloc.h>
+#include <mbedtls/rsa.h>
 #include <psa/crypto.h>
 #include <sizes.h>
 #include <utils_def.h>
@@ -223,6 +225,8 @@
 				PRIV_LIBSPDM_MBEDTLS_HEAP_SIZE +	\
 				PRIV_LIBSPDM_CONTEXT_SIZE))
 
+#define CACHE_TYPE_CERT			U(0x1)
+
 struct dev_assign_info {
 	/* RMI device handle */
 	void *dev_handle;
@@ -243,15 +247,41 @@ struct dev_assign_info {
 
 	buffer_alloc_ctx mbedtls_heap_ctx;
 
+	/* Public key context */
+	uint32_t key_sig_algo;
+	struct {
+		union{
+			mbedtls_ecdh_context ecdh;
+			mbedtls_rsa_context rsa;
+		};
+		bool initialised;
+	} pk_ctx;
+
 	/* Exit and Entry args for dev_communicate cmds */
 	struct rmi_dev_comm_enter enter_args;
 	struct rmi_dev_comm_exit exit_args;
 
+	/* ID of the SPDM session started by libspdm_start_session */
+	uint32_t session_id;
+
+	/* Temporarily store the calculated digest that needs to be cached */
+	struct dev_obj_digest cached_digest;
+
+	/* spdm_cert_chain digest details */
+	psa_hash_operation_t spdm_cert_chain_hash_op;
+	psa_algorithm_t spdm_cert_chain_algo;
+	uint8_t spdm_cert_chain_digest[64];
+	size_t spdm_cert_chain_digest_length;
+	size_t spdm_cert_chain_len;
+
 	/*
-	 * The PSA equivalent of the 'rmi_hash_algo'. This value is used by PSA
-	 * crypto calls to calculate hash of cached device objects.
+	 * The PSA equivalent of the 'rmi_hash_algo'. Tnis value is used by PSA
+	 * crypto calls to caclulate hash of cached device objects.
 	 */
 	psa_algorithm_t psa_hash_algo;
+
+	/* State of the hash operation for object referred by 'digest'*/
+	psa_hash_operation_t psa_hash_op;
 
 	void *send_recv_buffer;
 	void *scratch_buffer;
@@ -262,5 +292,9 @@ struct dev_assign_info {
 };
 
 int dev_assign_cmd_init_connection_main(struct dev_assign_info *info);
+int dev_assign_cmd_start_session_main(struct dev_assign_info *info);
+int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info);
+
+void dev_assign_unset_pubkey(struct dev_assign_info *info);
 
 #endif /* DEV_ASSIGN_PRIVATE_H */
