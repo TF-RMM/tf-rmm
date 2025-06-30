@@ -68,7 +68,8 @@ int dev_tdisp_lock_main(struct dev_assign_info *info)
 
 	/* TODO: Derive parameters according to current platform */
 	/* coverity[uninit_use:SUPPRESS] */
-	lock_param.flags = rsp_caps.lock_interface_flags_supported;
+	lock_param.flags = (uint16_t)(rsp_caps.lock_interface_flags_supported &
+				      ~U(PCI_TDISP_LOCK_INTERFACE_FLAGS_LOCK_MSIX));
 	lock_param.default_stream_id = 0;
 	lock_param.mmio_reporting_offset = 0xD0000000;
 
