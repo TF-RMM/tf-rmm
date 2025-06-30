@@ -644,9 +644,9 @@ static unsigned long get_expected_key_size(unsigned long rmi_key_algo)
 {
 	switch (rmi_key_algo) {
 	case RMI_SIGNATURE_ALGORITHM_ECDSA_P256:
-		return 32;
+		return 65;
 	case RMI_SIGNATURE_ALGORITHM_ECDSA_P384:
-		return 48;
+		return 97;
 	case RMI_SIGNATURE_ALGORITHM_RSASSA_3072:
 		return 384;
 	default:
