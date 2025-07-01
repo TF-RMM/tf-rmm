@@ -145,7 +145,7 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 	assert(parent_s2tt != NULL);
 
 	parent_s2tte = s2tte_read(&parent_s2tt[wi.index]);
-	s2tt = buffer_granule_map(g_tbl, SLOT_DELEGATED);
+	s2tt = buffer_granule_map(g_tbl, SLOT_RTT2);
 	assert(s2tt != NULL);
 
 	if (s2tte_is_unassigned_empty(&s2_ctx, parent_s2tte)) {
@@ -1047,7 +1047,7 @@ static unsigned long data_create(unsigned long rd_addr,
 
 	if (g_src != NULL) {
 		bool ns_access_ok;
-		void *data = buffer_granule_map(g_data, SLOT_DELEGATED);
+		void *data = buffer_granule_map(g_data, SLOT_REALM);
 
 		assert(data != NULL);
 

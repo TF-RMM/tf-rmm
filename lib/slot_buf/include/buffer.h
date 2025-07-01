@@ -32,12 +32,16 @@ enum buffer_slot {
 				 * be reserved.
 				 */
 	SLOT_RTT = U(SLOT_REC_AUX0) + MAX_REC_AUX_GRANULES,
-	SLOT_RTT2,		/* Some commands access two RTT granules at a time*/
+	SLOT_RTT2,		/* Some commands access two RTT granules at a time
+				 * Both the RTT slots use Realm MECID when FEAT_MEC
+				 * is present.
+				 */
 	SLOT_PDEV,		/* Slot for Physical device object */
 	SLOT_PDEV_AUX0,		/* Slots for PDEV auxiliary granules */
 	SLOT_VDEV = U(SLOT_PDEV_AUX0) + PDEV_PARAM_AUX_GRANULES_MAX,
 	SLOT_VDEV_AUX0,		/* Slots for VDEV auxiliary granules */
-	SLOT_RSI_CALL = U(SLOT_VDEV_AUX0) + VDEV_PARAM_AUX_GRANULES_MAX,
+	/* Slot to map Realm Data. This slot uses the Realm MECID when FEAT_MEC is present. */
+	SLOT_REALM = U(SLOT_VDEV_AUX0) + VDEV_PARAM_AUX_GRANULES_MAX,
 	SLOT_EL3_TOKEN_SIGN_REC,	/* Slot for target REC during EL3 sign flow */
 	SLOT_EL3_TOKEN_SIGN_AUX0,	/* Slots for AUX granules on target REC for EL3 sign flow */
 	/* TODO: The number of slots for app framework can be optimised as in
