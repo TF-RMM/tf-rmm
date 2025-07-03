@@ -87,8 +87,6 @@ build:
   tftf:
     repo:
       revision: ${btvar:TFTF_REVISION}
-    artifacts:
-      TFTF_BIN: ${param:builddir}/fvp/release/tftf.bin
     params:
       TESTS: realm-payload # Include only relevant tests for RMM/RME
       ENABLE_REALM_PAYLOAD_TESTS: 1
