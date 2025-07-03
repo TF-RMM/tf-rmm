@@ -1,4 +1,4 @@
-From e9e88a3a7fbebeb0710a78b37f795fb628f8aa56 Mon Sep 17 00:00:00 2001
+From 70d1fde098e8971fe3324b8f986bbdee9f2e884a Mon Sep 17 00:00:00 2001
 From: Arunachalam Ganapathy <arunachalam.ganapathy@arm.com>
 Date: Mon, 7 Oct 2024 16:09:26 +0100
 Subject: [PATCH] fix: libspdm_hmac_new return and LIBSPDM_STATUS_CONSTRUCT macro
@@ -8,22 +8,52 @@ Subject: [PATCH] fix: libspdm_hmac_new return and LIBSPDM_STATUS_CONSTRUCT macro
 2. Cast all the macro parameters of LIBSPDM_STATUS_CONSTRUCT to
    uint32_t to prevent misra check errors.
 
+3. Use unsigned literals in LIBSPDM_STATUS_SEVERITY and
+   LIBSPDM_STATUS_SOURCE
+
 Signed-off-by: Arunachalam Ganapathy <arunachalam.ganapathy@arm.com>
 ---
- include/library/spdm_return_status.h        |  2 +-
+ include/library/spdm_return_status.h        | 12 ++++++------
  library/spdm_crypt_lib/libspdm_crypt_hmac.c | 16 ++++++++--------
- 2 files changed, 9 insertions(+), 9 deletions(-)
+ 2 files changed, 14 insertions(+), 14 deletions(-)
 
 diff --git a/include/library/spdm_return_status.h b/include/library/spdm_return_status.h
 index 708c16d917..ad739d23d1 100644
 --- a/include/library/spdm_return_status.h
 +++ b/include/library/spdm_return_status.h
+@@ -23,21 +23,21 @@ typedef uint32_t libspdm_return_t;
+ 
+ /* Returns 1 if severity is LIBSPDM_SEVERITY_SUCCESS else it returns 0. */
+ #define LIBSPDM_STATUS_IS_SUCCESS(status) \
+-    (LIBSPDM_STATUS_SEVERITY(status) == LIBSPDM_SEVERITY_SUCCESS)
++    (LIBSPDM_STATUS_SEVERITY(status) == (uint32_t)LIBSPDM_SEVERITY_SUCCESS)
+ 
+ /* Returns 1 if severity is LIBSPDM_SEVERITY_ERROR else it returns 0. */
+ #define LIBSPDM_STATUS_IS_ERROR(status) \
+-    (LIBSPDM_STATUS_SEVERITY(status) == LIBSPDM_SEVERITY_ERROR)
++    (LIBSPDM_STATUS_SEVERITY(status) == (uint32_t)LIBSPDM_SEVERITY_ERROR)
+ 
+ /* Returns 1 if severity is LIBSPDM_SEVERITY_WARNING else it returns 0. */
+ #define LIBSPDM_STATUS_IS_WARNING(status) \
+-    (LIBSPDM_STATUS_SEVERITY(status) == LIBSPDM_SEVERITY_WARNING)
++    (LIBSPDM_STATUS_SEVERITY(status) == (uint32_t)LIBSPDM_SEVERITY_WARNING)
+ 
+ /* Returns the severity of the status. */
+-#define LIBSPDM_STATUS_SEVERITY(status) (((status) >> 28) & 0xf)
++#define LIBSPDM_STATUS_SEVERITY(status) (((status) >> 28U) & 0xfU)
+ 
+ /* Returns the source of the status. */
+-#define LIBSPDM_STATUS_SOURCE(status) (((status) >> 16) & 0xff)
++#define LIBSPDM_STATUS_SOURCE(status) (((status) >> 16U) & 0xffU)
+ 
+ #define LIBSPDM_SEVERITY_SUCCESS 0x0
+ #define LIBSPDM_SEVERITY_WARNING 0x4
 @@ -52,7 +52,7 @@ typedef uint32_t libspdm_return_t;
  #define LIBSPDM_SOURCE_RNG 0x06
  
  #define LIBSPDM_STATUS_CONSTRUCT(severity, source, code) \
 -    ((libspdm_return_t)(((severity) << 28) | ((source) << 16) | (code)))
-+    ((libspdm_return_t)(((uint32_t)(severity) << 28) | ((uint32_t)(source) << 16) | (uint32_t)(code)))
++    ((libspdm_return_t)(((uint32_t)(severity) << 28U) | ((uint32_t)(source) << 16U) | (uint32_t)(code)))
  
  /* Success status is always 0x00000000. */
  #define LIBSPDM_STATUS_SUCCESS \
