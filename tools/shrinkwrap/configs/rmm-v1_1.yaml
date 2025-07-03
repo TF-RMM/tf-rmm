@@ -1,0 +1,14 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Overlay for RMM to enable v1.1 features like DA, planes
+
+build:
+  rmm:
+    params:
+      -DRMM_V1_1: ON

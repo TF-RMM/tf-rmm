@@ -155,6 +155,7 @@ The available Overlays are sumarized in the next table
    model-enable-lpa2.yaml,Overlay used to enable ``FEAT_LPA2`` on the |FVP| model at run time. In addition this overlay also sets the ``PA_SIZE`` on the model to 52
    model-wait-debugger.yaml,Overlay to configure the |FVP| model to listen for Iris connections on port 7100 and make it wait until a debugger is connected before starting execution
    rmm-debug.yaml,Overlay to build |RMM| (as well as |TF-A|) in debug mode
+   rmm-v1_1.yaml,Overlay to build |RMM| with v1.1 features
    clean.yaml,Overlay used to avoid an exception with ``Shrinkwrap clean`` in which a path with a valid format needs to be specified for |RMM|
 
 Example of use
@@ -170,6 +171,13 @@ repositories:
 
        shrinkwrap --runtime=null build rmm-tftf.yaml --overlay=model-enable-lpa2.yaml --btvar=RMM_SRC=${PWD} --no-sync-all
 
+Similarly you can use overlay rmm-v1_1.yaml to enable RMM v1.1 features along
+with rmm-debug.yaml to enable debug build.
+
+    .. code-block:: shell
+
+       shrinkwrap --runtime=null build rmm-tftf.yaml --overlay=rmm-v1_1.yaml --overlay=rmm-debug.yaml --btvar=RMM_SRC=${PWD} --no-sync-all
+
 Then you run your tests with
 
     .. code-block:: shell
@@ -182,6 +190,8 @@ Then you run your tests with
       the same setting as used on the build stage. Also, with this setting,
       the appropriate FVP (FVP_Base_RevC-2xAEMvA) needs to be present in the
       system ${PATH}.
+
+      FVP version must be >= ``11.29.27`` when rmm-v1_1.yaml overlay is used.
 
 -----
 
