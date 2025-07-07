@@ -24,7 +24,7 @@
 #include <status.h>
 #include <sysreg_traps.h>
 
-static void system_abort(void)
+__dead2 static void system_abort(void)
 {
 	/*
 	 * TODO: report the abort to the EL3.
