@@ -306,6 +306,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	rec->ns = ns_state;
 
 	/* Map auxiliary granules */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
 	rec_aux = buffer_rec_aux_granules_map(rec->g_aux, rec->num_rec_aux);
 
 	save_ns_state(rec);
