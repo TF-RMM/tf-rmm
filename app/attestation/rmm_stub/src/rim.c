@@ -38,6 +38,7 @@ void measurement_data_granule_measure(unsigned char rim_measurement[],
 	 * Hashing the measurement descriptor structure; the result is the
 	 * updated RIM.
 	 */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
 	measurement_hash_compute(algorithm,
 			       &measure_desc,
 			       sizeof(measure_desc),
@@ -74,6 +75,7 @@ void measurement_realm_params_measure(unsigned char rim_measurement[],
 	rim_params.algorithm = realm_params->algorithm;
 
 	/* Measure relevant realm params this will be the init value of RIM */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
 	measurement_hash_compute(algorithm,
 			       &rim_params,
 			       sizeof(struct rmi_realm_params),
@@ -108,6 +110,7 @@ void measurement_rec_params_measure(unsigned char rim_measurement[],
 	 * Hash the REC params structure and store the result in the
 	 * measurement descriptor structure.
 	 */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
 	measurement_hash_compute(algorithm,
 				&rec_params_measured,
 				sizeof(struct rmi_rec_params),
@@ -116,6 +119,7 @@ void measurement_rec_params_measure(unsigned char rim_measurement[],
 	 * Hash the measurement descriptor structure; the result is the
 	 * updated RIM.
 	 */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
 	measurement_hash_compute(algorithm,
 			       &measure_desc,
 			       sizeof(struct measurement_desc_rec),
@@ -142,6 +146,7 @@ void measurement_init_ripas_measure(unsigned char rim_measurement[],
 	 * Hashing the measurement descriptor structure; the result is the
 	 * updated RIM.
 	 */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
 	measurement_hash_compute(algorithm,
 				 &measure_desc,
 				 sizeof(measure_desc),
