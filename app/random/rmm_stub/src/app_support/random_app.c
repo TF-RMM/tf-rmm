@@ -117,14 +117,17 @@ void random_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
 void random_app_get_bss(uintptr_t *bss_pa, size_t *bss_size)
 {
 	static char random_app_bss[GRANULE_SIZE] __aligned(GRANULE_SIZE);
+
 	*bss_pa = (uintptr_t)random_app_bss;
 	*bss_size = sizeof(random_app_bss);
 }
 
 void random_app_init_prng(void)
 {
-	int ret;
 	unsigned int cpuid = my_cpuid();
+	uintptr_t granule_pas[RANDOM_APP_PAGE_COUNT];
+	uint8_t seed[128];
+	int ret;
 
 	/* Need to be initialised only once as part of cold or warm boot. */
 	if (random_app_init_done[cpuid]) {
@@ -132,8 +135,6 @@ void random_app_init_prng(void)
 	}
 
 	/* Initialise the random applications for this CPU */
-	uintptr_t granule_pas[RANDOM_APP_PAGE_COUNT];
-
 	for (size_t i = 0; i < RANDOM_APP_PAGE_COUNT; ++i) {
 		granule_pas[i] = (uintptr_t)&rmm_random_app_pages[cpuid][i][0];
 	}
@@ -149,10 +150,9 @@ void random_app_init_prng(void)
 	/*
 	 * Initialise the prng for generating random numbers.
 	 */
-	uint8_t seed[128] = {0};
-
 	get_random_seed((uintptr_t)seed, sizeof(seed));
 
+	/* coverity[overrun-buffer-val:SUPPRESS] */
 	ret = random_app_prng_init(&rmm_random_app_datas[cpuid], seed, sizeof(seed));
 	if (ret != 0) {
 		return;
