@@ -196,7 +196,10 @@ static void restore_realm_state(struct rec *rec)
 
 static void save_ns_state(struct rec *rec)
 {
-	struct ns_state *ns_state = rec->ns;
+	struct ns_state *ns_state;
+
+	assert(rec->ns != NULL);
+	ns_state = rec->ns;
 
 	save_sysreg_state(&ns_state->sysregs);
 
@@ -225,7 +228,10 @@ static void save_ns_state(struct rec *rec)
 
 static void restore_ns_state(struct rec *rec)
 {
-	struct ns_state *ns_state = rec->ns;
+	struct ns_state *ns_state;
+
+	assert(rec->ns != NULL);
+	ns_state = rec->ns;
 
 	restore_sysreg_state(&ns_state->sysregs);
 
