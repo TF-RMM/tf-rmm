@@ -513,6 +513,7 @@ uint64_t *xlat_get_tte_ptr(const struct xlat_llt_info * const llt,
 	offset = va - llt->llt_base_va;
 	index = (unsigned int)(offset >> XLAT_ADDR_SHIFT(llt->level));
 
+	assert(llt->table != NULL);
 	return (index < XLAT_GET_TABLE_ENTRIES(llt->level)) ?
 			&llt->table[index] : NULL;
 }

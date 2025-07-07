@@ -137,6 +137,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx, struct xlat_mmu_cfg *mm
 		return -EPERM;
 	}
 
+	assert(ctx->cfg != NULL);
 	if (!ctx->cfg->init) {
 		return -EINVAL;
 	}
