@@ -23,6 +23,7 @@ static void arm_set_memory_layout(struct memory_info *plat_info,
 	assert(num_banks <= PLAT_ARM_MAX_MEM_BANKS);
 
 	/* Pointer to memory_bank[] array */
+	assert(plat_info->banks != NULL);
 	bank_ptr = plat_info->banks;
 
 	for (unsigned long i = 0UL; i < num_banks; i++) {
