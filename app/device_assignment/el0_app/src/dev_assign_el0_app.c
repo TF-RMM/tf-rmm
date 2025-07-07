@@ -853,13 +853,13 @@ static int dev_assign_init(uintptr_t el0_heap, size_t heap_size, struct dev_assi
 static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintptr_t heap)
 {
 	struct dev_assign_info *info = heap_start_to_dev_assign_info(heap);
-	unsigned long ret;
+	int ret;
 
 	void *shared_buf = info->shared_buf;
 
 	if (shared_buf == NULL) {
 		ERROR("Dev_assign cmds called without init\n");
-		return (unsigned long)DEV_ASSIGN_STATUS_ERROR;
+		return INT_TO_ULONG(DEV_ASSIGN_STATUS_ERROR);
 	}
 
 	/* Initialize the entry and exit args */
@@ -868,27 +868,27 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 
 	switch (func_id) {
 	case DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT:
-		ret = (unsigned long)dev_assign_cmd_init_connection_main(info);
+		ret = dev_assign_cmd_init_connection_main(info);
 		break;
 	case DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION:
-		ret = (unsigned long)dev_assign_cmd_start_session_main(info);
+		ret = dev_assign_cmd_start_session_main(info);
 		break;
 	case DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION:
-		ret = (unsigned long)dev_assign_cmd_stop_connection_main(info);
+		ret = dev_assign_cmd_stop_connection_main(info);
 		break;
 	default:
 		assert(false);
-		return (unsigned long)DEV_ASSIGN_STATUS_ERROR;
+		return INT_TO_ULONG(DEV_ASSIGN_STATUS_ERROR);
 	}
 
 	/* Reset the exit flag on error */
-	if (ret != 0UL) {
+	if (ret != 0) {
 		info->exit_args.flags = 0;
 	}
 
 	/* Copy back the exit args to shared buf */
 	copy_back_exit_args_to_shared(info);
-	return ret;
+	return INT_TO_ULONG(ret);
 }
 
 /* coverity[misra_c_2012_rule_5_8_violation:SUPPRESS] */
