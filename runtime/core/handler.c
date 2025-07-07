@@ -509,5 +509,8 @@ unsigned long handle_rmm_trap(dump_regs_t *regs)
 	}
 
 	fatal_abort(regs);
+
+	/* Suppress unreachable error */
+	/* coverity[misra_c_2012_rule_2_1_violation:SUPPRESS] */
 	return 0UL;
 }
