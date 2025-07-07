@@ -149,6 +149,7 @@ void attest_do_hash(unsigned int algorithm,
 	app_data = &rmm_attest_app_datas[my_cpuid()];
 
 	app_map_shared_page(app_data);
+	assert(app_data->el2_shared_page != NULL);
 	(void)memcpy(app_data->el2_shared_page, data, size);
 
 	SIMD_FPU_ALLOW(
@@ -181,6 +182,7 @@ void attest_do_extend(struct app_data_cfg *app_data,
 	}
 
 	app_map_shared_page(app_data);
+	assert(app_data->el2_shared_page != NULL);
 	shared_page = app_data->el2_shared_page;
 	shared_page->current_measurement_buf_offset = 0;
 	shared_page->current_measurement_buf_size = MAX_MEASUREMENT_SIZE;
@@ -219,6 +221,7 @@ enum attest_token_err_t attest_realm_token_sign(
 			    ATTESTATION_APP_FUNC_ID_TOKEN_SIGN,
 			    0, 0, 0, 0));
 	assert(app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG);
+	assert(app_data->el2_shared_page != NULL);
 	*realm_token_len = *(size_t *)app_data->el2_shared_page;
 	app_unmap_shared_page(app_data);
 	return (enum attest_token_err_t)retval;
@@ -243,6 +246,7 @@ enum attest_token_err_t attest_cca_token_create(
 		return (enum attest_token_err_t)ret;
 	}
 
+	assert(app_data->el2_shared_page != NULL);
 	*attest_token_len = *(size_t *)app_data->el2_shared_page;
 	app_unmap_shared_page(app_data);
 	return (enum attest_token_err_t)ret;
@@ -269,6 +273,7 @@ enum attest_token_err_t attest_realm_token_create(struct app_data_cfg *app_data,
 	enum attest_token_err_t ret;
 
 	app_map_shared_page(app_data);
+	assert(app_data->el2_shared_page != NULL);
 	shared_page = app_data->el2_shared_page;
 	(void)memcpy(&(shared_page->measurements),
 	       measurements,
