@@ -74,6 +74,7 @@ static uint64_t app_service_get_random(struct app_data_cfg *app_data,
 	}
 
 	/* Pass the caller app's shared page as buf to the random app stub. */
+	assert(app_data->el2_shared_page != NULL);
 	ret = random_app_prng_get_random(random_app_data, app_data->el2_shared_page, len);
 	if (ret != 0) {
 		return (uint64_t)ret;
