@@ -17,8 +17,10 @@
 
 static void copy_back_exit_args_to_shared(struct dev_assign_info *info)
 {
-	struct dev_comm_exit_shared *shared = (struct dev_comm_exit_shared *)info->shared_buf;
+	struct dev_comm_exit_shared *shared;
 
+	assert(info->shared_buf != NULL);
+	shared = (struct dev_comm_exit_shared *)info->shared_buf;
 	shared->rmi_dev_comm_exit = info->exit_args;
 	shared->cached_digest.len = info->cached_digest.len;
 
@@ -39,6 +41,7 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 	uintptr_t buf_offset;
 
 	info = spdm_to_dev_assign_info(spdm_context);
+	assert(info->shared_buf != NULL);
 
 	if ((uintptr_t)info->send_recv_buffer > (uintptr_t)request) {
 		return LIBSPDM_STATUS_SEND_FAIL;
