@@ -66,7 +66,9 @@ static void rmm_arch_init(void)
 		write_hdfgrtr_el2((read_hdfgrtr_el2()) & (~HDFGRTR_EL2_INIT_CLEAR_MASK));
 	}
 
-
+	/* Configure FEAT_FGT registers */
+	write_hfgrtr_el2(read_hfgrtr_el2() | HFGRTR_EL2_INIT);
+	write_hfgwtr_el2(read_hfgwtr_el2() | HFGWTR_EL2_INIT);
 }
 
 /* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */

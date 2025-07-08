@@ -63,6 +63,11 @@ static void save_sysreg_state(struct sysreg_state *sysregs)
 	sysregs->cntp_cval_el0 = read_cntp_cval_el02();
 	sysregs->cntv_ctl_el0 = read_cntv_ctl_el02();
 	sysregs->cntv_cval_el0 = read_cntv_cval_el02();
+
+	/* S1AP state */
+	sysregs->pir_el1 = read_pir_el12_if_present();
+	sysregs->pire0_el1 = read_pire0_el12_if_present();
+	sysregs->por_el1 = read_por_el12_if_present();
 }
 
 static void save_realm_state(struct rec *rec, struct rmi_rec_exit *rec_exit)
@@ -135,6 +140,11 @@ static void restore_sysreg_state(struct sysreg_state *sysregs)
 	write_cntp_ctl_el02(sysregs->cntp_ctl_el0);
 	write_cntv_cval_el02(sysregs->cntv_cval_el0);
 	write_cntv_ctl_el02(sysregs->cntv_ctl_el0);
+
+	/* S1AP state */
+	write_pir_el12_if_present(sysregs->pir_el1);
+	write_pire0_el12_if_present(sysregs->pire0_el1);
+	write_por_el12_if_present(sysregs->por_el1);
 }
 
 static void configure_realm_stage2(struct rec *rec)

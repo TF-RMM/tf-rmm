@@ -120,6 +120,9 @@ STRUCT_TYPE sysreg_state {
 	unsigned long disr_el1;
 	unsigned long brbcr_el1;
 	unsigned long tcr2_el1;
+	unsigned long pir_el1;
+	unsigned long pire0_el1;
+	unsigned long por_el1;
 
 	/* Timer Registers */
 	unsigned long cnthctl_el2;

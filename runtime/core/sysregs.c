@@ -95,11 +95,13 @@
  * ID_AA64MMFR3_EL1:
  *
  * Cleared fields:
- * - Everything exept for FEAT_TCR2 and FEAT_SCTLR2
+ * - Everything except for FEAT_TCR2, FEAT_SCTLR2, FEAT_S1POE and FEAT_S1PIE
  */
 #define ID_AA64MMFR3_EL1_CLEAR		  \
 	~(MASK(ID_AA64MMFR3_EL1_TCRX)	| \
-	  MASK(ID_AA64MMFR3_EL1_SCTLRX))
+	  MASK(ID_AA64MMFR3_EL1_SCTLRX) | \
+	  MASK(ID_AA64MMFR3_EL1_S1PIE)	| \
+	  MASK(ID_AA64MMFR3_EL1_S1POE))
 
 /*
  * Handle ID_AA64XXX<n>_EL1 instructions

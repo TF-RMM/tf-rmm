@@ -169,6 +169,9 @@ static inline bool is_feat_sctlr2x_present(void)
 		read_id_aa64mmfr3_el1()) == 1UL);
 }
 
+DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(sctlr2_el12, if_present,		\
+				   is_feat_sctlr2x_present, 0UL)
+
 /*
  * Check if FEAT_MTE2 is implemented.
  * ID_AA64PFR1_EL1.MTE, bits [11:8]:
@@ -313,9 +316,37 @@ static inline bool is_feat_mec_present(void)
 		read_id_aa64mmfr3_el1()) != 0UL);
 }
 
-unsigned int arch_feat_get_pa_width(void);
+/*
+ * Check if S1PIE is implemented
+ * ID_AA64MMFR3_EL1.S1PIE, bits [11:8]:
+ * 0b0000 Stage 1 permission indirection extension arch. feature is not implemented.
+ * 0b0001 Stage 1 permission indirection extension arch. feature is implemented.
+ */
+static inline bool is_feat_s1pie_present(void)
+{
+	return (EXTRACT(ID_AA64MMFR3_EL1_S1PIE, read_id_aa64mmfr3_el1()) != 0UL);
+}
 
-DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(sctlr2_el12, if_present,		\
-				   is_feat_sctlr2x_present, 0UL)
+/*
+ * Check if S1POE is implemented
+ * ID_AA64MMFR3_EL1.S1POE, bits [19:16]:
+ * 0b0000 Stage 1 permission overlay extension arch. feature is not implemented.
+ * 0b0001 Stage 1 permission overlay extension arch. feature is implemented.
+ */
+static inline bool is_feat_s1poe_present(void)
+{
+	return (EXTRACT(ID_AA64MMFR3_EL1_S1POE, read_id_aa64mmfr3_el1()) != 0UL);
+}
+
+DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(pir_el12, if_present,		\
+				   is_feat_s1pie_present, 0UL)
+
+DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(pire0_el12, if_present,		\
+				   is_feat_s1pie_present, 0UL)
+
+DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(por_el12, if_present,		\
+				   is_feat_s1poe_present, 0UL)
+
+unsigned int arch_feat_get_pa_width(void);
 
 #endif /* ARCH_FEATURES_H */

@@ -72,6 +72,12 @@
 /* TCR2_EL12 register */
 #define TCR2_EL12		S3_5_C2_C0_3
 
+/* Permission Indirection Registers*/
+#define PIRE0_EL2		S3_4_C10_C2_2
+#define PIRE0_EL12		S3_5_C10_C2_2
+#define PIR_EL12		S3_5_C10_C2_3
+#define POR_EL12		S3_5_C10_C2_4
+
 /* CLIDR definitions */
 #define LOC_SHIFT		U(24)
 #define CTYPE_SHIFT(n)		U(3 * ((n) - 1))
@@ -221,6 +227,31 @@
 #define HDFGRTR_EL2_INIT_CLEAR_MASK	MASK(HDFGRTR_EL2_NBRBDATA) | \
 					MASK(HDFGRTR_EL2_NBRBCTL) | \
 					MASK(HDFGRTR_EL2_NBRBIDR)
+/* Hypervisor Fine Granule Trap Registers */
+#define HFGRTR_EL2			S3_4_C1_C1_4
+
+#define HFGRTR_EL2_NPOR_EL1_BIT		(UL(1) << 60)
+#define HFGRTR_EL2_NPOR_EL0_BIT		(UL(1) << 59)
+#define HFGRTR_EL2_NPIR_EL1_BIT		(UL(1) << 58)
+#define HFGRTR_EL2_NPIRE0_EL1_BIT	(UL(1) << 57)
+
+#define HFGRTR_EL2_INIT			(HFGRTR_EL2_NPOR_EL1_BIT	| \
+					 HFGRTR_EL2_NPOR_EL0_BIT	| \
+					 HFGRTR_EL2_NPIR_EL1_BIT	| \
+					 HFGRTR_EL2_NPIRE0_EL1_BIT)
+
+#define HFGWTR_EL2			S3_4_C1_C1_5
+
+
+#define HFGWTR_EL2_NPOR_EL1_BIT		(UL(1) << 60)
+#define HFGWTR_EL2_NPOR_EL0_BIT		(UL(1) << 59)
+#define HFGWTR_EL2_NPIR_EL1_BIT		(UL(1) << 58)
+#define HFGWTR_EL2_NPIRE0_EL1_BIT	(UL(1) << 57)
+
+#define HFGWTR_EL2_INIT			(HFGWTR_EL2_NPOR_EL1_BIT	| \
+					 HFGWTR_EL2_NPOR_EL0_BIT	| \
+					 HFGWTR_EL2_NPIR_EL1_BIT	| \
+					 HFGWTR_EL2_NPIRE0_EL1_BIT)
 
 /*******************************************************************************
  * Definitions of MAIR encodings for device and normal memory
@@ -1203,6 +1234,12 @@
 
 #define ID_AA64MMFR3_EL1_SCTLRX_SHIFT	UL(4)
 #define ID_AA64MMFR3_EL1_SCTLRX_WIDTH	UL(4)
+
+#define ID_AA64MMFR3_EL1_S1PIE_SHIFT	UL(8)
+#define ID_AA64MMFR3_EL1_S1PIE_WIDTH	UL(4)
+
+#define ID_AA64MMFR3_EL1_S1POE_SHIFT	UL(16)
+#define ID_AA64MMFR3_EL1_S1POE_WIDTH	UL(4)
 
 #define ID_AA64MMFR3_EL1_MEC_SHIFT	UL(28)
 #define ID_AA64MMFR3_EL1_MEC_WIDTH	UL(4)
