@@ -14,6 +14,11 @@ find_program(CMAKE_C_COMPILER
     DOC "Path to clang."
     REQUIRED)
 
+find_program(CMAKE_CXX_COMPILER
+    NAMES "clang++"
+    DOC "Path to clang++."
+    REQUIRED)
+
 set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
 
 find_program(CMAKE_OBJCOPY
