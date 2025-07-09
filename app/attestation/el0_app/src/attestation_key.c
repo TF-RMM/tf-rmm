@@ -269,6 +269,7 @@ int attest_setup_platform_token(void)
 		return ret;
 	}
 
+	assert(rmm_pub_key_hash.ptr != NULL);
 	(void)memcpy(shared_buf, rmm_pub_key_hash.ptr,
 				 rmm_pub_key_hash.len);
 	hash_length = rmm_pub_key_hash.len;

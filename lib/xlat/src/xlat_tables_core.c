@@ -49,6 +49,7 @@ typedef enum {
 /* Returns a pointer to the first empty translation table. */
 static inline uint64_t *xlat_table_get_empty(struct xlat_ctx *ctx)
 {
+	assert(ctx->tbls != NULL);
 	if (ctx->tbls->next_table >= ctx->tbls->tables_num) {
 		ERROR("Maximum number of translation tables reached. "
 			"Increase PLAT_CMN_CTX_MAX_XLAT_TABLE.\n");
@@ -480,6 +481,8 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 	struct xlat_ctx_cfg *ctx_cfg;
 	struct xlat_ctx_tbls *ctx_tbls;
 
+	assert(ctx->cfg != NULL);
+	assert(ctx->tbls != NULL);
 	ctx_cfg = ctx->cfg;
 	ctx_tbls = ctx->tbls;
 
@@ -503,7 +506,7 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 	 * next available table.
 	 */
 	ctx_tbls->next_table++;
-	for (unsigned int i = 0U; i < ctx->cfg->mmap_regions; i++) {
+	for (unsigned int i = 0U; i < ctx_cfg->mmap_regions; i++) {
 		uintptr_t end_va = xlat_tables_map_region(ctx,
 						&ctx_cfg->mmap[i], 0U,
 						ctx_tbls->tables,

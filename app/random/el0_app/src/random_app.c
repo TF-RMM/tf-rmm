@@ -99,7 +99,7 @@ unsigned long el0_app_entry_func(
 	unsigned long arg_2,
 	unsigned long arg_3)
 {
-	unsigned long ret;
+	int ret;
 
 	(void)arg_1;
 	(void)arg_2;
@@ -107,13 +107,16 @@ unsigned long el0_app_entry_func(
 
 	switch (func_id) {
 	case RANDOM_APP_FUNC_ID_PRNG_INIT:
-		ret = (unsigned long)prng_init(arg_0);
-		return ret;
+		ret = prng_init(arg_0);
+		break;
 	case RANDOM_APP_FUNC_ID_PRNG_GET_RANDOM:
-		ret = (unsigned long)prng_get_random(arg_0);
-		return ret;
+		ret = prng_get_random(arg_0);
+		break;
 	default:
 		assert(false);
-		return 0;
+		ret = -EINVAL;
+		break;
 	}
+
+	return INT_TO_ULONG(ret);
 }

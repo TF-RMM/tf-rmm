@@ -24,7 +24,7 @@
 #include <status.h>
 #include <sysreg_traps.h>
 
-static void system_abort(void)
+__dead2 static void system_abort(void)
 {
 	/*
 	 * TODO: report the abort to the EL3.
@@ -165,7 +165,6 @@ static bool handle_sync_external_abort(struct rec *rec,
 		 */
 	default:
 		system_abort();
-		break;
 	}
 
 	return true;
@@ -579,7 +578,6 @@ static bool handle_exception_serror_lel(struct rec *rec, struct rmi_rec_exit *re
 		 * Unrecognized Asynchronous Error Type
 		 */
 		system_abort();
-		break;
 	}
 
 	return false;

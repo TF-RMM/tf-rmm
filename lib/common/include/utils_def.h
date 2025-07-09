@@ -249,6 +249,9 @@
 /* cppcheck-suppress misra-c2012-20.7 */
 #define SIZEOF_MEMBER(struct_type, member) (sizeof(((struct_type *)0)->member))
 
+#define INT_TO_ULONG(_code) \
+	(unsigned long)(_code) /* coverity[integer_overflow:SUPPRESS] */
+
 #endif /* !(defined(__ASSEMBLER__) || defined(__LINKER__)) */
 
 #endif /* UTILS_DEF_H */

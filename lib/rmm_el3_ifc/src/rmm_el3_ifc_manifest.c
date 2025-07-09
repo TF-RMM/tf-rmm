@@ -176,6 +176,7 @@ static int get_memory_data_validated_pa(unsigned long max_num_banks,
 	}
 
 	/* Update checksum */
+	assert(plat_memory->banks != NULL);
 	checksum += checksum_calc((uint64_t *)plat_memory->banks,
 					sizeof(struct memory_bank) * num_banks);
 

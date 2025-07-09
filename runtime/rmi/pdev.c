@@ -233,6 +233,7 @@ unsigned long smc_pdev_create(unsigned long pdev_ptr,
 	}
 
 	/* Map all PDEV aux granules to slot starting SLOT_PDEV_AUX0 */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
 	aux_mapped_addr = buffer_pdev_aux_granules_map(pdev_aux_granules,
 						       (unsigned int)pdev_params.num_aux);
 	if (aux_mapped_addr == NULL) {
@@ -482,6 +483,7 @@ static unsigned long dev_communicate(struct pdev *pd,
 	}
 
 	/* Map PDEV aux granules */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
 	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
 	assert(aux_mapped_addr != NULL);
 
@@ -747,6 +749,7 @@ unsigned long smc_pdev_set_pubkey(unsigned long pdev_ptr,
 	}
 
 	/* Map PDEV aux granules */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
 	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
 	assert(aux_mapped_addr != NULL);
 
@@ -875,6 +878,7 @@ unsigned long smc_pdev_abort(unsigned long pdev_ptr)
 	}
 
 	/* Map PDEV aux granules */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
 	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
 	assert(aux_mapped_addr != NULL);
 
@@ -953,6 +957,7 @@ unsigned long smc_pdev_destroy(unsigned long pdev_ptr)
 	}
 
 	/* Map PDEV aux granules and map PDEV heap */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
 	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
 	assert(aux_mapped_addr != NULL);
 

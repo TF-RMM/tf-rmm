@@ -218,6 +218,7 @@ static void rec_aux_granules_init(struct rec *r)
 	int ret;
 
 	/* Map auxiliary granules */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
 	rec_aux = buffer_rec_aux_granules_map(r->g_aux, r->num_rec_aux);
 	assert(rec_aux != NULL);
 

@@ -47,8 +47,8 @@ void init_console(void)
 }
 
 /* Used by Mbed TLS buffer alloc */
-void mbedtls_exit_panic(unsigned int reason)
+__dead2 void mbedtls_exit_panic(unsigned int reason)
 {
-	(void) reason;
+	(void)reason;
 	panic();
 }

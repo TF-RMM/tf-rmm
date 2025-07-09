@@ -36,6 +36,7 @@ int dev_assign_app_init(struct app_data_cfg *app_data, uintptr_t granule_pas[],
 	}
 
 	app_map_shared_page(app_data);
+	assert(app_data->el2_shared_page != NULL);
 	shared = app_data->el2_shared_page;
 	(void)memcpy(shared, params, sizeof(*shared));
 
@@ -63,6 +64,7 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION));
 
 	app_map_shared_page(app_data);
+	assert(app_data->el2_shared_page != NULL);
 	shared = app_data->el2_shared_page;
 	*shared = *comm_enter_args;
 
@@ -77,6 +79,7 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 		rc = DEV_ASSIGN_STATUS_COMM_BLOCKED;
 	}
 
+	assert(app_data->el2_shared_page != NULL);
 	shared_ret = app_data->el2_shared_page;
 
 	*comm_exit_args = shared_ret->rmi_dev_comm_exit;
@@ -107,6 +110,7 @@ int dev_assign_abort_app_operation(struct app_data_cfg *app_data)
 	 * immediately, unwinding its stack, and returning error.
 	 */
 	app_map_shared_page(app_data);
+	assert(app_data->el2_shared_page != NULL);
 	shared = app_data->el2_shared_page;
 	shared->status = (unsigned char)RMI_DEV_COMM_ENTER_STATUS_ERROR;
 	rc = app_resume(app_data);
@@ -122,6 +126,7 @@ int dev_assign_set_public_key(struct app_data_cfg *app_data,
 	int rc;
 
 	app_map_shared_page(app_data);
+	assert(app_data->el2_shared_page != NULL);
 	(void)memcpy(app_data->el2_shared_page, (void *)pubkey_params,
 		     sizeof(*pubkey_params));
 	rc = (int)app_run(app_data, DEVICE_ASSIGN_APP_FUNC_SET_PUBLIC_KEY,

@@ -196,7 +196,10 @@ static void restore_realm_state(struct rec *rec)
 
 static void save_ns_state(struct rec *rec)
 {
-	struct ns_state *ns_state = rec->ns;
+	struct ns_state *ns_state;
+
+	assert(rec->ns != NULL);
+	ns_state = rec->ns;
 
 	save_sysreg_state(&ns_state->sysregs);
 
@@ -225,7 +228,10 @@ static void save_ns_state(struct rec *rec)
 
 static void restore_ns_state(struct rec *rec)
 {
-	struct ns_state *ns_state = rec->ns;
+	struct ns_state *ns_state;
+
+	assert(rec->ns != NULL);
+	ns_state = rec->ns;
 
 	restore_sysreg_state(&ns_state->sysregs);
 
@@ -306,6 +312,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	rec->ns = ns_state;
 
 	/* Map auxiliary granules */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
 	rec_aux = buffer_rec_aux_granules_map(rec->g_aux, rec->num_rec_aux);
 
 	save_ns_state(rec);
