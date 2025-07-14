@@ -138,7 +138,7 @@ int xlat_high_va_setup(void)
 				&high_va_xlat_ctx_cfgs[cpuid],
 				&high_va_tbls[cpuid],
 				tables_ptr, 1U,
-				((uint64_t)(void *)tables_ptr) & MASK(TTBRx_EL2_BADDR));
+				((uint64_t)tables_ptr) & MASK(TTBRx_EL2_BADDR));
 
 	if (!((ret == 0) || (ret == -EALREADY))) {
 		return ret;

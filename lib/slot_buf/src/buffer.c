@@ -224,8 +224,7 @@ static void *buffer_aux_granules_map(struct granule *g_aux[],
 
 	for (unsigned int i = 0U; i < num_aux; i++) {
 		void *aux = buffer_granule_map(g_aux[i],
-					(enum buffer_slot)((unsigned int)
-							   slot + i));
+					safe_cast_to_slot(slot, i));
 		assert(aux != NULL);
 
 		if (i == 0UL) {

@@ -211,7 +211,7 @@ int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
 			    &runtime_tbls,
 			    &static_s1tt[0],
 			    PLAT_CMN_CTX_MAX_XLAT_TABLES,
-			    ((uint64_t)(void *)&static_s1tt[0]) & MASK(TTBRx_EL2_BADDR));
+			    ((uint64_t)&static_s1tt[0]) & MASK(TTBRx_EL2_BADDR));
 
 	if (ret != 0) {
 		ERROR("%s (%u): %s (%i)\n",

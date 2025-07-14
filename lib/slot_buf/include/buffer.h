@@ -50,6 +50,21 @@ enum buffer_slot {
 	NR_CPU_SLOTS
 };
 
+static inline enum buffer_slot safe_cast_to_slot(enum buffer_slot slot, unsigned int val)
+{
+	switch (slot) {
+	case SLOT_REC_AUX0:
+		assert(val < MAX_REC_AUX_GRANULES);
+		break;
+	case SLOT_PDEV_AUX0:
+		assert(val < PDEV_PARAM_AUX_GRANULES_MAX);
+		break;
+	default:
+		assert(false);
+	}
+	return (enum buffer_slot)((unsigned int)slot + val); /* NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange) */
+}
+
 bool check_cpu_slots_empty(void);
 void *buffer_granule_map(struct granule *g, enum buffer_slot slot);
 void buffer_unmap(void *buf);
