@@ -268,7 +268,8 @@ static struct ns_rw_data validate_and_get_ns_rw_data(struct app_data_cfg *app_da
 	unsigned long app_buf_id,
 	unsigned long app_buf_offset,
 	unsigned long ns_addr,
-	unsigned long buf_len)
+	unsigned long buf_len,
+	bool force_alignment)
 {
 	struct ns_rw_data rw_data = {0, NULL};
 	uintptr_t app_buf = 0;
@@ -284,12 +285,19 @@ static struct ns_rw_data validate_and_get_ns_rw_data(struct app_data_cfg *app_da
 		GRANULE_SIZE : app_data->heap_size;
 
 	if ((app_buf_offset > app_buf_size) ||
-	    ((app_buf_size - app_buf_offset) < buf_len) ||
-	    (!ALIGNED(buf_len, 8U)) ||
-	    (!ALIGNED(app_buf_offset, 8U))) {
+	    ((app_buf_size - app_buf_offset) < buf_len)) {
 		ERROR("%s called with invalid buf offset 0x%lx or len 0x%lx\n",
 				__func__, app_buf_offset, buf_len);
 		return rw_data;
+	}
+
+	if (force_alignment) {
+		if ((!ALIGNED(buf_len, 8U)) ||
+		    (!ALIGNED(app_buf_offset, 8U))) {
+			ERROR("%s called with unaligned buf offset 0x%lx or len 0x%lx\n",
+					__func__, app_buf_offset, buf_len);
+			return rw_data;
+		}
 	}
 
 	if (app_buf_id == APP_SERVICE_RW_NS_BUF_SHARED) {
@@ -309,7 +317,7 @@ static struct ns_rw_data validate_and_get_ns_rw_data(struct app_data_cfg *app_da
 		return rw_data;
 	}
 
-	/* Copy the data from NS buffer */
+	/* Find the ns_granule and populate it in rw_data */
 	rw_data.ns_granule = find_granule(ns_addr & GRANULE_MASK);
 	if ((rw_data.ns_granule == NULL) ||
 		(granule_unlocked_state(rw_data.ns_granule) != GRANULE_STATE_NS)) {
@@ -328,14 +336,15 @@ static struct ns_rw_data validate_and_get_ns_rw_data(struct app_data_cfg *app_da
  *
  * Arguments:
  *	arg0 - App Buffer identifier (one of APP_SERVICE_RW_NS_BUF_*)
- *	arg1 - App Buffer offset (must be 8 byte aligned).
+ *	arg1 - App Buffer offset.
  *	arg2 - NS buf physical address (must be 8 byte aligned)
- *	arg3 - Length to write (must be 8 byte aligned)
+ *	arg3 - Length to write
  *
  * The App buffer offset + Length must be either less that PAGE_SIZE or heap_size,
  * depending on App Buffer identifier. This is a sanity check to ensure that
  * buffer is in App VA space. Similarly the NS Address write must be within the
  * page. It is assumed that app buffer is already mapped in RMM S1 MMU.
+ * The aligned offset is returned back to the caller in the shared page.
  *
  * Return:
  *	0	- Success
@@ -348,20 +357,26 @@ static uint64_t app_service_write_to_ns_buf(struct app_data_cfg *app_data,
 	unsigned long buf_len)
 {
 	bool ns_access_ok;
+	size_t gr_offset;
+	size_t *shared_page;
 	struct ns_rw_data rw_data = validate_and_get_ns_rw_data(app_data, app_buf_id,
-		app_buf_offset, ns_addr, buf_len);
+		app_buf_offset, ns_addr, buf_len, false);
 
 	if (rw_data.ns_granule == NULL) {
 		return (uint64_t)(-EINVAL);
 	}
 
-	ns_access_ok = ns_buffer_write(SLOT_NS, rw_data.ns_granule, 0, buf_len,
-		(void *)rw_data.app_buf);
+	ns_access_ok = ns_buffer_write_unaligned(SLOT_NS, rw_data.ns_granule, 0, buf_len,
+		(void *)rw_data.app_buf, &gr_offset);
 	if (!ns_access_ok) {
 		ERROR("%s ns buffer read failed for ns addr 0x%lx and app_buf 0x%lx\n",
 				__func__, ns_addr, rw_data.app_buf);
 		return (uint64_t)(-EINVAL);
 	}
+	shared_page = (size_t *)app_data->el2_shared_page;
+	assert(shared_page != NULL);
+	/* coverity[misra_c_2012_rule_9_1_violation:SUPPRESS] */
+	*shared_page = gr_offset;
 
 	return 0;
 }
@@ -385,7 +400,7 @@ static uint64_t app_service_write_to_ns_buf(struct app_data_cfg *app_data,
  *	0	- Success
  *	-EINVAL	- Failure
  */
-static uint64_t app_service_read_from_ns_buf(struct app_data_cfg *app_data,
+static uint64_t app_service_read_from_ns_buf_aligned(struct app_data_cfg *app_data,
 	unsigned long app_buf_id,
 	unsigned long app_buf_offset,
 	unsigned long ns_addr,
@@ -393,7 +408,7 @@ static uint64_t app_service_read_from_ns_buf(struct app_data_cfg *app_data,
 {
 	bool ns_access_ok;
 	struct ns_rw_data rw_data = validate_and_get_ns_rw_data(app_data, app_buf_id,
-		app_buf_offset, ns_addr, buf_len);
+		app_buf_offset, ns_addr, buf_len, true);
 
 	if (rw_data.ns_granule == NULL) {
 		return (uint64_t)(-EINVAL);
@@ -421,7 +436,7 @@ static app_service_func service_functions[APP_SERVICE_COUNT] = {
 	[APP_SERVICE_EL3_IFC_EL3_TOKEN_SIGN_SUPPORTED] = app_service_el3_ifc_el3_token_sign_supported,
 #endif /* ATTEST_EL3_TOKEN_SIGN */
 	[APP_SERVICE_WRITE_TO_NS_BUF] = app_service_write_to_ns_buf,
-	[APP_SERVICE_READ_FROM_NS_BUF] = app_service_read_from_ns_buf,
+	[APP_SERVICE_READ_FROM_NS_BUF_ALIGNED] = app_service_read_from_ns_buf_aligned,
 	};
 
 uint64_t call_app_service(unsigned long service_id,

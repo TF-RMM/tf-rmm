@@ -72,6 +72,8 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 	rc = (int)el0_app_service_call(APP_SERVICE_WRITE_TO_NS_BUF,
 		APP_SERVICE_RW_NS_BUF_HEAP, (unsigned long)buf_offset,
 		info->enter_args.req_addr, request_size_align);
+	/* NS start offset is expected to be 0. */
+	assert(*((size_t *)info->shared_buf) == 0U);
 
 	if (rc != 0) {
 		return LIBSPDM_STATUS_SEND_FAIL;
@@ -130,7 +132,7 @@ static libspdm_return_t spdm_receive_message(void *spdm_context,
 	 * Sending the message. Device communication request is written to the
 	 * NS buffer.
 	 */
-	rc = (int)el0_app_service_call(APP_SERVICE_READ_FROM_NS_BUF,
+	rc = (int)el0_app_service_call(APP_SERVICE_READ_FROM_NS_BUF_ALIGNED,
 		APP_SERVICE_RW_NS_BUF_HEAP, (unsigned long)buf_offset,
 		info->enter_args.resp_addr, resp_len_align);
 
