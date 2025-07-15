@@ -217,6 +217,131 @@ bool ns_buffer_write(enum buffer_slot slot,
 	return retval;
 }
 
+/*
+ * Helper function to copy less than 8 bytes from the source buffer to a 8 byte
+ * aligned ns buffer at a specific offset. The function always writes 8 bytes to
+ * the NS buffer, the dest buffer is filled with zero bytes before and after the
+ * content copied from src.
+ */
+static bool ns_buffer_write_unaligned_small(uintptr_t dest,
+					    size_t size,
+					    void *src,
+					    size_t offset)
+{
+	uint64_t temp_buf = 0UL;
+	uint8_t *temp_dest;
+
+	assert(ALIGNED(dest, 8U));
+	assert(ALIGNED(((uintptr_t)&src), 8U));
+	assert(ALIGNED(((uintptr_t)&temp_buf), 8U));
+	assert(size > 0U);
+	assert(size < 8U);
+	assert((size + offset) <= 8U);
+
+	temp_dest = &((uint8_t *)&temp_buf)[offset];
+	(void)memcpy((void *)temp_dest, src, size);
+
+	return memcpy_ns_write((void *)(dest), &temp_buf, sizeof(temp_buf));
+}
+
+/*
+ * Copies 'size' bytes from 'src' to 'ns_gr' at the offset 'offset'. The
+ * function uses an optimized version of memcpy ('memcpy_ns_write') that expects
+ * 'dest', 'src' and 'size' to be aligned at 8 bytes.
+ * This function uses a temporary buffer, in case 'src' and or 'size' is not
+ * aligned. Offset is expected to be 8 byte aligned.
+ * If 'src' is not aligned, extra bytes are copied at the beginning of ns_gr to
+ * make the copy eight aligned. If len is not aligned some extra bytes are
+ * copied in the end.
+ * The number of bytes to be copied (counting the extra bytes for the alignment)
+ * must be smaller than GRANULE_SIZE.
+ * The number of extra zeroes added at the beginning of the buffer are returned
+ * in ns_start_offset.
+ * The function returns true, if the copy operation was successful. Returns
+ * false otherwise.
+ * ns_start_offset should only be relied on if the function returns true.
+ */
+bool ns_buffer_write_unaligned(enum buffer_slot slot,
+			       struct granule *ns_gr,
+			       unsigned int offset,
+			       size_t size,
+			       void *src,
+			       size_t *ns_start_offset)
+{
+	uintptr_t dest;
+	size_t align_diff;
+	size_t aligned_size;
+	void *aligned_src;
+	bool retval = false;
+
+	assert(is_ns_slot(slot));
+	assert(ns_gr != NULL);
+	assert(src != NULL);
+
+	if (size == 0U) {
+		return true;
+	}
+
+	/*
+	 * To simplify the trapping mechanism around NS access,
+	 * ns_buffer_write_unaligned uses a single 8-byte STR instruction.
+	 * In case 'src' and size is not aligned, a temporary 8 aligned buffer
+	 * is used to do the copy. Offset must be aligned.
+	 */
+	assert(ALIGNED(offset, 8U));
+
+	offset &= (unsigned int)(~GRANULE_MASK);
+
+	dest = (uintptr_t)ns_buffer_granule_map(slot, ns_gr);
+
+	aligned_src = (void *)round_down((uintptr_t)src, 8U);
+	assert((uintptr_t)aligned_src <= (uintptr_t)src);
+	align_diff = (uintptr_t)src - (uintptr_t)aligned_src;
+	assert(align_diff < 8U);
+	assert((offset + round_up(align_diff + size, 8U)) <= GRANULE_SIZE);
+
+	if (align_diff > 0U) {
+		size_t unaligned_size = min(size, 8U - align_diff);
+
+		retval = ns_buffer_write_unaligned_small(
+			dest + offset, unaligned_size, src, align_diff);
+		if (!retval) {
+			goto unmap;
+		} else {
+			src = (void *)((uintptr_t)src + (8U - align_diff));
+			offset += 8U;
+			size -= unaligned_size;
+		}
+	}
+	assert(ALIGNED((uintptr_t)src, 8U));
+
+	aligned_size = round_down(size, 8U);
+	assert(aligned_size <= size);
+
+	if (aligned_size > 0U) {
+		retval = memcpy_ns_write((void *)(dest + offset), src, aligned_size);
+		if (!retval) {
+			goto unmap;
+		} else {
+			src = (void *)((uintptr_t)src + aligned_size);
+			offset += (unsigned int)aligned_size;
+			size -= aligned_size;
+		}
+	}
+	assert(size < 8U);
+
+	if (size > 0U) {
+		retval = ns_buffer_write_unaligned_small(dest + offset, size, src, 0);
+	}
+unmap:
+
+	ns_buffer_unmap((void *)dest);
+
+	*ns_start_offset = align_diff;
+
+	return retval;
+}
+
 static void *buffer_aux_granules_map(struct granule *g_aux[],
 				     unsigned int num_aux, enum buffer_slot slot, bool zeroed)
 {
