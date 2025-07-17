@@ -313,11 +313,11 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 		struct granule *g_vdev;
 
 		/* PA of the vdev granule */
-		unsigned long vdev_ptr;
+		unsigned long vdev_addr;
 
 		/*
 		 * Whether a vdev_communicate flow is in progress.
-		 * vdev_ptr set when flag is_comm is true
+		 * vdev_addr set when flag is_comm is true
 		 */
 		bool is_comm;
 

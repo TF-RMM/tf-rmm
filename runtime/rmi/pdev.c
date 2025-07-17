@@ -113,11 +113,11 @@ void smc_pdev_aux_count(unsigned long flags, struct smc_result *res)
 /*
  * smc_pdev_create
  *
- * pdev_ptr		- PA of the PDEV
- * pdev_params_ptr	- PA of PDEV parameters
+ * pdev_addr		- PA of the PDEV
+ * pdev_params_addr	- PA of PDEV parameters
  */
-unsigned long smc_pdev_create(unsigned long pdev_ptr,
-			      unsigned long pdev_params_ptr)
+unsigned long smc_pdev_create(unsigned long pdev_addr,
+			      unsigned long pdev_params_addr)
 {
 	struct granule *g_pdev;
 	struct granule *g_pdev_params;
@@ -135,13 +135,13 @@ unsigned long smc_pdev_create(unsigned long pdev_ptr,
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(pdev_ptr) ||
-	    !GRANULE_ALIGNED(pdev_params_ptr)) {
+	if (!GRANULE_ALIGNED(pdev_addr) ||
+	    !GRANULE_ALIGNED(pdev_params_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
 	/* Map and copy PDEV parameters */
-	g_pdev_params = find_granule(pdev_params_ptr);
+	g_pdev_params = find_granule(pdev_params_addr);
 	if ((g_pdev_params == NULL) ||
 	    (granule_unlocked_state(g_pdev_params) != GRANULE_STATE_NS)) {
 		return RMI_ERROR_INPUT;
@@ -214,7 +214,7 @@ unsigned long smc_pdev_create(unsigned long pdev_ptr,
 	}
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_DELEGATED);
+	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_DELEGATED);
 	if (g_pdev == NULL) {
 		smc_rc = RMI_ERROR_INPUT;
 		goto out_restore_pdev_aux_granule_state;
@@ -588,11 +588,11 @@ unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
 /*
  * smc_pdev_communicate
  *
- * pdev_ptr	- PA of the PDEV
- * data_ptr	- PA of the communication data structure
+ * pdev_addr	- PA of the PDEV
+ * data_addr	- PA of the communication data structure
  */
-unsigned long smc_pdev_communicate(unsigned long pdev_ptr,
-				   unsigned long dev_comm_data_ptr)
+unsigned long smc_pdev_communicate(unsigned long pdev_addr,
+				   unsigned long dev_comm_data_addr)
 {
 	struct granule *g_pdev;
 	struct granule *g_dev_comm_data;
@@ -603,12 +603,12 @@ unsigned long smc_pdev_communicate(unsigned long pdev_ptr,
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(pdev_ptr) || !GRANULE_ALIGNED(dev_comm_data_ptr)) {
+	if (!GRANULE_ALIGNED(pdev_addr) || !GRANULE_ALIGNED(dev_comm_data_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_PDEV);
+	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
 	if (g_pdev == NULL) {
 		return RMI_ERROR_INPUT;
 	}
@@ -619,7 +619,7 @@ unsigned long smc_pdev_communicate(unsigned long pdev_ptr,
 		return RMI_ERROR_INPUT;
 	}
 
-	g_dev_comm_data = find_granule(dev_comm_data_ptr);
+	g_dev_comm_data = find_granule(dev_comm_data_addr);
 	if ((g_dev_comm_data == NULL) ||
 		(granule_unlocked_state(g_dev_comm_data) != GRANULE_STATE_NS)) {
 		rmi_rc = RMI_ERROR_INPUT;
@@ -675,10 +675,10 @@ out_pdev_buf_unmap:
  *
  * Get state of a PDEV.
  *
- * pdev_ptr	- PA of the PDEV
+ * pdev_addr	- PA of the PDEV
  * res		- SMC result
  */
-void smc_pdev_get_state(unsigned long pdev_ptr, struct smc_result *res)
+void smc_pdev_get_state(unsigned long pdev_addr, struct smc_result *res)
 {
 	struct granule *g_pdev;
 	struct pdev *pd;
@@ -688,12 +688,12 @@ void smc_pdev_get_state(unsigned long pdev_ptr, struct smc_result *res)
 		return;
 	}
 
-	if (!GRANULE_ALIGNED(pdev_ptr)) {
+	if (!GRANULE_ALIGNED(pdev_addr)) {
 		goto out_err_input;
 	}
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_PDEV);
+	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
 	if (g_pdev == NULL) {
 		goto out_err_input;
 	}
@@ -742,11 +742,11 @@ static bool public_key_sig_algo_valid(unsigned long rmi_key_algo)
 /*
  * Provide public key associated with a PDEV.
  *
- * pdev_ptr		- PA of the PDEV
- * pubkey_params_ptr	- PA of the pubkey parameters
+ * pdev_addr		- PA of the PDEV
+ * pubkey_params_addr	- PA of the pubkey parameters
  */
-unsigned long smc_pdev_set_pubkey(unsigned long pdev_ptr,
-				  unsigned long pubkey_params_ptr)
+unsigned long smc_pdev_set_pubkey(unsigned long pdev_addr,
+				  unsigned long pubkey_params_addr)
 {
 	struct granule *g_pdev;
 	struct granule *g_pubkey_params;
@@ -763,12 +763,12 @@ unsigned long smc_pdev_set_pubkey(unsigned long pdev_ptr,
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(pdev_ptr) || !GRANULE_ALIGNED(pubkey_params_ptr)) {
+	if (!GRANULE_ALIGNED(pdev_addr) || !GRANULE_ALIGNED(pubkey_params_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
 	/* Map and copy public key parameter */
-	g_pubkey_params = find_granule(pubkey_params_ptr);
+	g_pubkey_params = find_granule(pubkey_params_addr);
 	if ((g_pubkey_params == NULL) ||
 	    (granule_unlocked_state(g_pubkey_params) != GRANULE_STATE_NS)) {
 		return RMI_ERROR_INPUT;
@@ -806,7 +806,7 @@ unsigned long smc_pdev_set_pubkey(unsigned long pdev_ptr,
 	}
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_PDEV);
+	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
 	if (g_pdev == NULL) {
 		return RMI_ERROR_INPUT;
 	}
@@ -853,9 +853,9 @@ out_pdev_buf_unmap:
  * Stop the PDEV. This sets the PDEV state to STOPPING, and a PDEV communicate
  * call can do device specific cleanup like terminating a secure session.
  *
- * pdev_ptr	- PA of the PDEV
+ * pdev_addr	- PA of the PDEV
  */
-unsigned long smc_pdev_stop(unsigned long pdev_ptr)
+unsigned long smc_pdev_stop(unsigned long pdev_addr)
 {
 	struct granule *g_pdev;
 	unsigned long smc_rc;
@@ -865,12 +865,12 @@ unsigned long smc_pdev_stop(unsigned long pdev_ptr)
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(pdev_ptr)) {
+	if (!GRANULE_ALIGNED(pdev_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_PDEV);
+	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
 	if (g_pdev == NULL) {
 		return RMI_ERROR_INPUT;
 	}
@@ -908,9 +908,9 @@ out_pdev_buf_unmap:
 /*
  * Abort device communication associated with a PDEV.
  *
- * pdev_ptr	- PA of the PDEV
+ * pdev_addr	- PA of the PDEV
  */
-unsigned long smc_pdev_abort(unsigned long pdev_ptr)
+unsigned long smc_pdev_abort(unsigned long pdev_addr)
 {
 	int rc __unused;
 	struct granule *g_pdev;
@@ -922,12 +922,12 @@ unsigned long smc_pdev_abort(unsigned long pdev_ptr)
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(pdev_ptr)) {
+	if (!GRANULE_ALIGNED(pdev_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_PDEV);
+	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
 	if (g_pdev == NULL) {
 		return RMI_ERROR_INPUT;
 	}
@@ -997,9 +997,9 @@ out_pdev_buf_unmap:
  * Destroy a PDEV. Host can reclaim PDEV resources when the PDEV state is STOPPED
  * using RMI PDEV_DESTROY.
  *
- * pdev_ptr	- PA of the PDEV
+ * pdev_addr	- PA of the PDEV
  */
-unsigned long smc_pdev_destroy(unsigned long pdev_ptr)
+unsigned long smc_pdev_destroy(unsigned long pdev_addr)
 {
 	int rc __unused;
 	struct granule *g_pdev;
@@ -1010,12 +1010,12 @@ unsigned long smc_pdev_destroy(unsigned long pdev_ptr)
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(pdev_ptr)) {
+	if (!GRANULE_ALIGNED(pdev_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_PDEV);
+	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
 	if (g_pdev == NULL) {
 		return RMI_ERROR_INPUT;
 	}

@@ -1025,10 +1025,10 @@ void handle_rsi_rdev_continue(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	if (rsi_action == UPDATE_REC_EXIT_TO_HOST) {
 		/*
 		 * Update REC exit fields to NS host to get the VDEV ptr
-		 * todo: RMM must get this vdev_ptr using VDEV request?
+		 * todo: RMM must get this vdev_addr using VDEV request?
 		 */
 		rec_exit->exit_reason = RMI_EXIT_VDEV_COMM;
-		rec_exit->vdev = rdev->vdev_ptr;
+		rec_exit->vdev = rdev->vdev_addr;
 
 		/*
 		 * Spec A9.4.3.2 State transitions:
@@ -1044,7 +1044,7 @@ void handle_rsi_rdev_continue(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		 * this flag will be checked for completion of RDEV request.
 		 */
 		rec->vdev.is_comm = true;
-		rec->vdev.vdev_ptr = rdev->vdev_ptr;
+		rec->vdev.vdev_addr = rdev->vdev_addr;
 	}
 	res->action = rsi_action;
 
@@ -1158,15 +1158,15 @@ void handle_rsi_rdev_complete(struct rec *rec)
 {
 	struct granule *g_vdev;
 	unsigned long rsi_rc;
-	unsigned long vdev_ptr;
+	unsigned long vdev_addr;
 	struct vdev *vd;
 	struct rec_plane *plane;
 
 	assert(rec->vdev.is_comm == true);
 
-	vdev_ptr = rec->vdev.vdev_ptr;
+	vdev_addr = rec->vdev.vdev_addr;
 	/* Lock VDEV granule and map it */
-	g_vdev = find_lock_granule(vdev_ptr, GRANULE_STATE_VDEV);
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
 	if (g_vdev == NULL) {
 		rsi_rc = RSI_ERROR_STATE;
 		goto out_err_unlock;

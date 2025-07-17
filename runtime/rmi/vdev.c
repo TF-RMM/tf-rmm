@@ -20,13 +20,13 @@
 #include <utils_def.h>
 
 static unsigned long validate_vdev_params(
-	unsigned long vdev_params_ptr,
+	unsigned long vdev_params_addr,
 	struct rmi_vdev_params *vdev_params)
 {
 	struct granule *g_vdev_params;
 
 	/* Map and copy VDEV parameters */
-	g_vdev_params = find_granule(vdev_params_ptr);
+	g_vdev_params = find_granule(vdev_params_addr);
 	if ((g_vdev_params == NULL) ||
 	    (granule_unlocked_state(g_vdev_params) != GRANULE_STATE_NS)) {
 		return RMI_ERROR_INPUT;
@@ -56,13 +56,13 @@ static unsigned long validate_vdev_params(
  * smc_vdev_create
  *
  * rd_addr		- PA of RD
- * pdev_ptr		- PA of the PDEV
- * vdev_ptr		- PA of the VDEV
- * vdev_params_ptr	- PA of VDEV parameters
+ * pdev_addr		- PA of the PDEV
+ * vdev_addr		- PA of the VDEV
+ * vdev_params_addr	- PA of VDEV parameters
  */
-unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_ptr,
-			      unsigned long vdev_ptr,
-			      unsigned long vdev_params_ptr)
+unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
+			      unsigned long vdev_addr,
+			      unsigned long vdev_params_addr)
 {
 	struct rmi_vdev_params vdev_params; /* this consumes 4k of stack */
 	struct granule *g_rd;
@@ -77,24 +77,24 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_ptr,
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(rd_addr) || !GRANULE_ALIGNED(pdev_ptr) ||
-	    !GRANULE_ALIGNED(vdev_ptr) || !GRANULE_ALIGNED(vdev_params_ptr)) {
+	if (!GRANULE_ALIGNED(rd_addr) || !GRANULE_ALIGNED(pdev_addr) ||
+	    !GRANULE_ALIGNED(vdev_addr) || !GRANULE_ALIGNED(vdev_params_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
 	/* coverity[uninit_use_in_call:SUPPRESS] */
-	rc = validate_vdev_params(vdev_params_ptr, &vdev_params);
+	rc = validate_vdev_params(vdev_params_addr, &vdev_params);
 	if (rc != RMI_SUCCESS) {
 		return rc;
 	}
 
 	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
-				    pdev_ptr, GRANULE_STATE_PDEV, &g_pdev)) {
+				    pdev_addr, GRANULE_STATE_PDEV, &g_pdev)) {
 		return RMI_ERROR_INPUT;
 	}
 
 	/* Lock vdev granule and map it */
-	g_vdev = find_lock_granule(vdev_ptr, GRANULE_STATE_DELEGATED);
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_DELEGATED);
 	if (g_vdev == NULL) {
 		granule_unlock(g_rd);
 		granule_unlock(g_pdev);
@@ -148,7 +148,7 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_ptr,
 	/* Initialize RDEV */
 	vd->rdev.rsi_state = RSI_RDEV_STATE_UNLOCKED;
 	vd->rdev.op = RDEV_OP_NONE;
-	vd->rdev.vdev_ptr = vdev_ptr;
+	vd->rdev.vdev_addr = vdev_addr;
 
 	/* Update Realm */
 	rd->g_vdev = g_vdev;
@@ -177,10 +177,10 @@ out_unmap_rd:
 /*
  * Completes a pending VDEV request.
  *
- * rec_ptr		- PA of RD
- * vdev_ptr		- PA of the VDEV
+ * rec_addr		- PA of REC
+ * vdev_addr		- PA of the VDEV
  */
-unsigned long smc_vdev_complete(unsigned long rec_ptr, unsigned long vdev_ptr)
+unsigned long smc_vdev_complete(unsigned long rec_addr, unsigned long vdev_addr)
 {
 	struct granule *g_rec;
 	struct granule *g_vdev;
@@ -193,12 +193,12 @@ unsigned long smc_vdev_complete(unsigned long rec_ptr, unsigned long vdev_ptr)
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(rec_ptr) || !GRANULE_ALIGNED(vdev_ptr)) {
+	if (!GRANULE_ALIGNED(rec_addr) || !GRANULE_ALIGNED(vdev_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
 	/* Lock REC granule and map it */
-	g_rec = find_lock_granule(rec_ptr, GRANULE_STATE_REC);
+	g_rec = find_lock_granule(rec_addr, GRANULE_STATE_REC);
 	if (g_rec == NULL) {
 		return RMI_ERROR_INPUT;
 	}
@@ -206,7 +206,7 @@ unsigned long smc_vdev_complete(unsigned long rec_ptr, unsigned long vdev_ptr)
 	assert(rec != NULL);
 
 	/* Lock VDEV granule and map it */
-	g_vdev = find_lock_granule(vdev_ptr, GRANULE_STATE_VDEV);
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
 	if (g_vdev == NULL) {
 		rmi_rc = RMI_ERROR_INPUT;
 		goto out_unmap_rec;
@@ -265,13 +265,13 @@ out_unmap_rec:
 /*
  * smc_vdev_communicate
  *
- * pdev_ptr	- PA of the PDEV
- * vdev_ptr	- PA of the VDEV
- * data_ptr	- PA of the communication data structure
+ * pdev_addr		- PA of the PDEV
+ * vdev_addr		- PA of the VDEV
+ * dev_comm_data_addr	- PA of the communication data structure
  */
-unsigned long smc_vdev_communicate(unsigned long pdev_ptr,
-				   unsigned long vdev_ptr,
-				   unsigned long dev_comm_data_ptr)
+unsigned long smc_vdev_communicate(unsigned long pdev_addr,
+				   unsigned long vdev_addr,
+				   unsigned long dev_comm_data_addr)
 {
 	struct granule *g_pdev = NULL;
 	struct granule *g_vdev = NULL;
@@ -284,13 +284,13 @@ unsigned long smc_vdev_communicate(unsigned long pdev_ptr,
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(pdev_ptr) || !GRANULE_ALIGNED(vdev_ptr) ||
-	    !GRANULE_ALIGNED(dev_comm_data_ptr)) {
+	if (!GRANULE_ALIGNED(pdev_addr) || !GRANULE_ALIGNED(vdev_addr) ||
+	    !GRANULE_ALIGNED(dev_comm_data_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
 	/* Map PDEV and VDEV. */
-	g_pdev = find_lock_granule(pdev_ptr, GRANULE_STATE_PDEV);
+	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
 	if (g_pdev == NULL) {
 		return RMI_ERROR_INPUT;
 	}
@@ -298,7 +298,7 @@ unsigned long smc_vdev_communicate(unsigned long pdev_ptr,
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
 
-	g_vdev = find_lock_granule(vdev_ptr, GRANULE_STATE_VDEV);
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
 	if (g_vdev == NULL) {
 		rmi_rc = RMI_ERROR_INPUT;
 		goto out_error;
@@ -312,7 +312,7 @@ unsigned long smc_vdev_communicate(unsigned long pdev_ptr,
 		goto out_error;
 	}
 
-	g_dev_comm_data = find_granule(dev_comm_data_ptr);
+	g_dev_comm_data = find_granule(dev_comm_data_addr);
 	if ((g_dev_comm_data == NULL) ||
 		(granule_unlocked_state(g_dev_comm_data) != GRANULE_STATE_NS)) {
 		rmi_rc = RMI_ERROR_INPUT;
@@ -421,10 +421,10 @@ void smc_vdev_aux_count(unsigned long pdev_flags, unsigned long vdev_flags,
  *
  * Get state of a VDEV.
  *
- * vdev_ptr	- PA of the VDEV
+ * vdev_addr	- PA of the VDEV
  * res		- SMC result
  */
-void smc_vdev_get_state(unsigned long vdev_ptr, struct smc_result *res)
+void smc_vdev_get_state(unsigned long vdev_addr, struct smc_result *res)
 {
 	struct granule *g_vdev;
 	struct vdev *vd;
@@ -434,12 +434,12 @@ void smc_vdev_get_state(unsigned long vdev_ptr, struct smc_result *res)
 		return;
 	}
 
-	if (!GRANULE_ALIGNED(vdev_ptr)) {
+	if (!GRANULE_ALIGNED(vdev_addr)) {
 		goto out_err_input;
 	}
 
 	/* Lock vdev granule and map it */
-	g_vdev = find_lock_granule(vdev_ptr, GRANULE_STATE_VDEV);
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
 	if (g_vdev == NULL) {
 		goto out_err_input;
 	}
@@ -462,9 +462,9 @@ out_err_input:
 /*
  * smc_vdev_abort
  *
- * vdev_ptr	- PA of the VDEV
+ * vdev_addr	- PA of the VDEV
  */
-unsigned long smc_vdev_abort(unsigned long vdev_ptr)
+unsigned long smc_vdev_abort(unsigned long vdev_addr)
 {
 	int rc __unused;
 	struct granule *g_pdev;
@@ -478,12 +478,12 @@ unsigned long smc_vdev_abort(unsigned long vdev_ptr)
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(vdev_ptr)) {
+	if (!GRANULE_ALIGNED(vdev_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
 	/* Lock the vdev granule and map it, to get the pdev granule address. */
-	g_vdev = find_lock_granule(vdev_ptr, GRANULE_STATE_VDEV);
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
 	if (g_vdev == NULL) {
 		return RMI_ERROR_INPUT;
 	}
@@ -556,9 +556,9 @@ out_vdev_buf_unmap:
 /*
  * smc_vdev_stop
  *
- * vdev_ptr	- PA of the VDEV
+ * vdev_addr	- PA of the VDEV
  */
-unsigned long smc_vdev_stop(unsigned long vdev_ptr)
+unsigned long smc_vdev_stop(unsigned long vdev_addr)
 {
 	struct granule *g_pdev;
 	struct granule *g_vdev;
@@ -570,12 +570,12 @@ unsigned long smc_vdev_stop(unsigned long vdev_ptr)
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(vdev_ptr)) {
+	if (!GRANULE_ALIGNED(vdev_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
 	/* Lock the vdev granule and map it, to get the pdev granule address. */
-	g_vdev = find_lock_granule(vdev_ptr, GRANULE_STATE_VDEV);
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
 	if (g_vdev == NULL) {
 		return RMI_ERROR_INPUT;
 	}
@@ -635,11 +635,11 @@ out_vdev_buf_unmap:
  * smc_vdev_destroy
  *
  * rd_addr	- PA of RD
- * pdev_ptr	- PA of the PDEV
- * vdev_ptr	- PA of the VDEV
+ * pdev_addr	- PA of the PDEV
+ * vdev_addr	- PA of the VDEV
  */
-unsigned long smc_vdev_destroy(unsigned long rd_ptr, unsigned long pdev_ptr,
-			       unsigned long vdev_ptr)
+unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
+			       unsigned long vdev_addr)
 {
 	struct granule *g_rd = NULL;
 	struct granule *g_pdev = NULL;
@@ -653,13 +653,13 @@ unsigned long smc_vdev_destroy(unsigned long rd_ptr, unsigned long pdev_ptr,
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(rd_ptr) || !GRANULE_ALIGNED(pdev_ptr) ||
-	    !GRANULE_ALIGNED(vdev_ptr)) {
+	if (!GRANULE_ALIGNED(rd_addr) || !GRANULE_ALIGNED(pdev_addr) ||
+	    !GRANULE_ALIGNED(vdev_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
-	if (!find_lock_two_granules(rd_ptr, GRANULE_STATE_RD, &g_rd,
-				    pdev_ptr, GRANULE_STATE_PDEV, &g_pdev)) {
+	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+				    pdev_addr, GRANULE_STATE_PDEV, &g_pdev)) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -670,7 +670,7 @@ unsigned long smc_vdev_destroy(unsigned long rd_ptr, unsigned long pdev_ptr,
 	assert(pd != NULL);
 
 	/* Lock vdev granule and map it */
-	g_vdev = find_lock_granule(vdev_ptr, GRANULE_STATE_VDEV);
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
 	if (g_vdev == NULL) {
 		smc_rc = RMI_ERROR_INPUT;
 		goto out_err_input;

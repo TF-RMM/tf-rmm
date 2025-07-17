@@ -154,7 +154,7 @@ struct realm_device {
 	uint8_t start_interface_nonce[RDEV_START_INTERFACE_NONCE_SIZE];
 
 	/* PA of VDEV. */
-	unsigned long vdev_ptr;
+	unsigned long vdev_addr;
 };
 
 /*
