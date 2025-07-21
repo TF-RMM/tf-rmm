@@ -277,6 +277,9 @@ unsigned long host_monitor_call(unsigned long id,
 		return host_gtsi_delegate(arg0);
 	case SMC_RMM_GTSI_UNDELEGATE:
 		return host_gtsi_undelegate(arg0);
+	case SMCCC_ARCH_FEATURES:
+		/* Always return success */
+		return 0UL;
 	default:
 		return 0UL;
 	}
@@ -548,6 +551,16 @@ void host_monitor_call_with_res(unsigned long id,
 			res->x[0] = -EINVAL;
 			break;
 		}
+		break;
+	}
+	case SMCCC_ARCH_FEATURE_AVAILABILITY:
+	{
+		/*
+		 * Always return that all features are enabled from SMC mock layer.
+		 * The tests modify the ID regs as needed for test functionality
+		 */
+		res->x[0] = SMC_SUCCESS;
+		res->x[1] = UL(-1);
 		break;
 	}
 	default:

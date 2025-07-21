@@ -48,6 +48,8 @@ static void start_primary_pe(void)
 	/* Early setup the CpuId into tpidr_el2 */
 	write_tpidr_el2(0U);
 
+	arch_features_query_el3_support();
+
 	plat_setup(0UL,
 		   RMM_EL3_IFC_ABI_VERSION,
 		   RMM_EL3_MAX_CPUS,

@@ -11,6 +11,7 @@
 
 static struct sysreg_data sysregs[SYSREG_MAX_CBS];
 static struct sysreg_data sysregs_snapshot[SYSREG_MAX_CBS];
+struct cached_idreg_info cached_idreg_snapshot = {0};
 static unsigned int installed_cb_idx;
 static unsigned int current_cpuid;
 
@@ -127,19 +128,25 @@ void host_util_take_sysreg_snapshot(void)
 {
 	memcpy((void *)&sysregs_snapshot[0], (void *)&sysregs[0],
 		sizeof(struct sysreg_data) * SYSREG_MAX_CBS);
+	memcpy((void *)&cached_idreg_snapshot,
+	       (void *)&cached_idreg,
+	       sizeof(cached_idreg_snapshot));
 }
 
 void host_util_restore_sysreg_snapshot(void)
 {
 	memcpy((void *)&sysregs[0], (void *)&sysregs_snapshot[0],
 		sizeof(struct sysreg_data) * SYSREG_MAX_CBS);
+	memcpy((void *)&cached_idreg,
+	       (void *)&cached_idreg_snapshot,
+	       sizeof(cached_idreg));
 }
 
 void host_util_zero_sysregs_and_cbs(void)
 {
-
 	(void)memset((void *)sysregs, 0,
 		     sizeof(struct sysreg_data) * SYSREG_MAX_CBS);
+	ZERO_CACHED_REGS();
 
 	installed_cb_idx = 0U;
 }

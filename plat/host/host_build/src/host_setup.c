@@ -376,6 +376,8 @@ int main(int argc, char *argv[])
 
 	host_util_setup_sysreg_and_boot_manifest();
 
+	arch_features_query_el3_support();
+
 	plat_setup(0UL,
 		   EL3_IFC_ABI_VERSION,
 		   RMM_EL3_MAX_CPUS,
