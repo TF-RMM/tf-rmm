@@ -425,6 +425,10 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 	default:
 		return false;
 	}
+	/* Check MECID and reserve if allowed */
+	if (!mecid_reserve((unsigned int)p->mecid)) {
+		return false;
+	}
 
 	*n_vmids = p->num_aux_planes + 1U;
 	vmid[0] = p->vmid;
@@ -439,6 +443,7 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 		if (!vmid_reserve(vmid[i])) {
 			/* Free reserved VMID before returning */
 			free_vmids(vmid, i);
+			mecid_free((unsigned int)p->mecid);
 			return false;
 		}
 	}
@@ -601,6 +606,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	 */
 	if (!transition_sl_rtts(rtt_base, p.rtt_num_start, n_rtts)) {
 		free_vmids(vmid, n_vmids);
+		mecid_free((unsigned int)p.mecid);
 		return RMI_ERROR_INPUT;
 	}
 
@@ -613,6 +619,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	if (g_rd == NULL) {
 		revert_sl_rtts(rtt_base, p.rtt_num_start, n_rtts);
 		free_vmids(vmid, n_vmids);
+		mecid_free((unsigned int)p.mecid);
 		return RMI_ERROR_INPUT;
 	}
 
@@ -771,6 +778,12 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 		vmid_free(rd->s2_ctx[i].vmid);
 	}
 
+	/*
+	 * Free the Realm MEC ID. The AMEC and VMEC registers will be
+	 * reset by the caller of this function. Note that there are no
+	 * active S1 nor S2 mappings using the Realm MECID at this point.
+	 */
+	mecid_free(rd->mecid);
 	buffer_unmap(rd);
 
 	/*
