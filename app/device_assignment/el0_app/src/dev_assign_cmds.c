@@ -191,6 +191,7 @@ int dev_assign_cmd_start_session_main(struct dev_assign_info *info)
 				status, session_id);
 			return DEV_ASSIGN_STATUS_ERROR;
 		}
+		info->ide_active = true;
 	}
 
 	return DEV_ASSIGN_STATUS_SUCCESS;
@@ -297,7 +298,7 @@ int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info)
 	libspdm_return_t status;
 
 	/* Stop IDE at RootPort and Endpoint */
-	if (info->has_ide) {
+	if (info->ide_active) {
 		status = dev_assing_ide_teardown(info);
 		if (status != LIBSPDM_STATUS_SUCCESS) {
 			ERROR("IDE STOP failed with status 0x%x\n", status);

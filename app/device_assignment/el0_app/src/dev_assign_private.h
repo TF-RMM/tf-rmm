@@ -238,6 +238,7 @@ struct dev_assign_info {
 	uint8_t cert_slot_id;
 
 	bool has_ide;
+	bool ide_active;
 
 	/* Identify the root complex (RC). */
 	uint64_t ecam_addr;
