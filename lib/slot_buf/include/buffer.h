@@ -99,6 +99,12 @@ void *buffer_rec_aux_granules_map(struct granule *g_rec_aux[],
 				  unsigned int num_aux);
 
 /*
+ * Maps and zeroes the `num_aux` SLOT_REC_AUX granules.
+ */
+void *buffer_rec_aux_granules_map_zeroed(struct granule *g_rec_aux[],
+				  unsigned int num_aux);
+
+/*
  * Maps the `num_aux` granules in REC to SLOT_EL3_TOKEN_SIGN_AUX0.
  */
 void *buffer_rec_aux_granules_map_el3_token_sign_slot(
@@ -115,6 +121,30 @@ void buffer_rec_aux_unmap(void *rec_aux, unsigned int num_aux);
  * Map the granule 'g' to 'slot', zeroes its content and unmaps it.
  */
 void buffer_granule_memzero(struct granule *g, enum buffer_slot slot);
+
+/*
+ * Maps the `num_aux` granules at 'g_pdev_aux' to buffer slot starting
+ * SLOT_PDEV_AUX0.
+ */
+void *buffer_pdev_aux_granules_map(struct granule *g_pdev_aux[],
+				   unsigned int num_aux);
+
+/*
+ * Maps and zeroes the `num_aux` granules at 'g_pdev_aux' to buffer slot
+ * starting SLOT_PDEV_AUX0.
+ */
+void *buffer_pdev_aux_granules_map_zeroed(struct granule *g_pdev_aux[],
+				   unsigned int num_aux);
+
+/* Unmaps the `num_aux` granules from slot starting SLOT_PDEV_AUX0 */
+void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux);
+
+static inline void *buffer_granule_map_zeroed(struct granule *g, enum buffer_slot slot)
+{
+	void *buf = buffer_granule_map(g, slot);
+	granule_memzero_mapped(buf);
+	return buf;
+}
 
 /******************************************************************************
  * Internal APIs not meant to be invoked by generic RMM code.
@@ -133,15 +163,5 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr);
  * Unmaps the slot buffer corresponding to the VA passed via `buf` argument.
  */
 void buffer_unmap_internal(void *buf);
-
-/*
- * Maps the `num_aux` granules at 'g_pdev_aux' to buffer slot starting
- * SLOT_PDEV_AUX0.
- */
-void *buffer_pdev_aux_granules_map(struct granule *g_pdev_aux[],
-				   unsigned int num_aux);
-
-/* Unmaps the `num_aux` granules from slot starting SLOT_PDEV_AUX0 */
-void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux);
 
 #endif /* BUFFER_H */

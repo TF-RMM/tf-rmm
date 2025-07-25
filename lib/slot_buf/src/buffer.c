@@ -218,13 +218,21 @@ bool ns_buffer_write(enum buffer_slot slot,
 }
 
 static void *buffer_aux_granules_map(struct granule *g_aux[],
-				     unsigned int num_aux, enum buffer_slot slot)
+				     unsigned int num_aux, enum buffer_slot slot, bool zeroed)
 {
 	void *mapped_aux = NULL;
 
 	for (unsigned int i = 0U; i < num_aux; i++) {
-		void *aux = buffer_granule_map(g_aux[i],
-					safe_cast_to_slot(slot, i));
+		void *aux;
+
+		if (zeroed) {
+			aux = buffer_granule_map_zeroed(g_aux[i],
+				safe_cast_to_slot(slot, i));
+		} else {
+			aux = buffer_granule_map(g_aux[i],
+				safe_cast_to_slot(slot, i));
+		}
+
 		assert(aux != NULL);
 
 		if (i == 0UL) {
@@ -253,7 +261,19 @@ void *buffer_rec_aux_granules_map(struct granule *g_rec_aux[],
 {
 	assert(g_rec_aux != NULL);
 	assert(num_aux <= MAX_REC_AUX_GRANULES);
-	return buffer_aux_granules_map(g_rec_aux, num_aux, SLOT_REC_AUX0);
+	return buffer_aux_granules_map(g_rec_aux, num_aux, SLOT_REC_AUX0, false);
+}
+
+/*
+ * The parent REC granules lock is expected to be acquired before functions
+ * buffer_rec_aux_granules_map_zeroed() and buffer_rec_aux_unmap() are called.
+ */
+void *buffer_rec_aux_granules_map_zeroed(struct granule *g_rec_aux[],
+				  unsigned int num_aux)
+{
+	assert(g_rec_aux != NULL);
+	assert(num_aux <= MAX_REC_AUX_GRANULES);
+	return buffer_aux_granules_map(g_rec_aux, num_aux, SLOT_REC_AUX0, true);
 }
 
 /*
@@ -268,7 +288,7 @@ void *buffer_rec_aux_granules_map_el3_token_sign_slot(
 	assert(g_rec_aux != NULL);
 	assert(num_aux <= MAX_REC_AUX_GRANULES);
 	return buffer_aux_granules_map(g_rec_aux, num_aux,
-				       SLOT_EL3_TOKEN_SIGN_AUX0);
+				       SLOT_EL3_TOKEN_SIGN_AUX0, false);
 }
 
 void buffer_rec_aux_unmap(void *rec_aux, unsigned int num_aux)
@@ -287,7 +307,19 @@ void *buffer_pdev_aux_granules_map(struct granule *g_pdev_aux[],
 {
 	assert(g_pdev_aux != NULL);
 	assert(num_aux <= PDEV_PARAM_AUX_GRANULES_MAX);
-	return buffer_aux_granules_map(g_pdev_aux, num_aux, SLOT_PDEV_AUX0);
+	return buffer_aux_granules_map(g_pdev_aux, num_aux, SLOT_PDEV_AUX0, false);
+}
+
+/*
+ * The parent REC granule lock is expected to be acquired before functions
+ * buffer_pdev_aux_granules_map_zeroed() and buffer_pdev_aux_unmap() are called.
+ */
+void *buffer_pdev_aux_granules_map_zeroed(struct granule *g_pdev_aux[],
+				  unsigned int num_aux)
+{
+	assert(g_pdev_aux != NULL);
+	assert(num_aux <= PDEV_PARAM_AUX_GRANULES_MAX);
+	return buffer_aux_granules_map(g_pdev_aux, num_aux, SLOT_PDEV_AUX0, true);
 }
 
 void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux)
