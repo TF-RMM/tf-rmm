@@ -89,4 +89,21 @@ static inline void (_op ## _type)(uint64_t v)		\
 /* DC ZVA, Data Cache Zero by VA instruction */
 #define DEFINE_SYSOP_DCZVA	DEFINE_SYSOP_TYPE_PARAM_FUNC(dc, zva)
 
+#define DCCIPAE_NS_BIT		(1UL << 63)
+#define DCCIPAE_NSE_BIT		(1UL << 62)
+
+/*
+ * DC CIPAE, Data or unified Cache line Clean and Invalidate by PA to
+ * PoE.
+ */
+#define DEFINE_SYSOP_DCCIPAE					\
+__attribute((__always_inline__))				\
+static inline void dccipae(uint64_t pa)				\
+{								\
+								\
+	(void)pa; /* To avoid MISRA-C:2012-2.7 warnings */	\
+	pa |= (DCCIPAE_NS_BIT | DCCIPAE_NSE_BIT);		\
+	__asm__ ("sys #4, c7, c14, #0, %0" : : "r" (pa));	\
+}
+
 #endif /* INSTR_HELPERS_H */

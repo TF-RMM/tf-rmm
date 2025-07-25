@@ -64,6 +64,7 @@ DEFINE_SYSOP_TYPE_PARAM_FUNC(dc, ivac)
 DEFINE_SYSOP_TYPE_PARAM_FUNC(dc, civac)
 DEFINE_SYSOP_TYPE_PARAM_FUNC(dc, cvau)
 DEFINE_SYSOP_DCZVA
+DEFINE_SYSOP_DCCIPAE
 
 /*******************************************************************************
  * Address translation accessor prototypes

@@ -91,4 +91,11 @@ static inline void (_op ## _type)(uint64_t v)		\
 #define DEFINE_SYSOP_DCZVA
 void dczva(uint64_t addr);
 
+/*
+ * DC CIPAE, Data or unified Cache line Clean and Invalidate by PA to
+ * PoE.
+ */
+#define DEFINE_SYSOP_DCCIPAE
+void dccipae(uint64_t addr);
+
 #endif /* INSTR_HELPERS_H */

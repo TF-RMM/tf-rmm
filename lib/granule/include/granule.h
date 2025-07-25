@@ -220,6 +220,8 @@ bool find_lock_two_granules(unsigned long addr1,
 			    struct granule **g2);
 
 void granule_memzero_mapped(void *buf);
+void granule_dcci_poe(struct granule *g);
+
 
 /*
  * Refcount field occupies LSB bits of the granule descriptor,
