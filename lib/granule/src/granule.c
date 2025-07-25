@@ -262,6 +262,12 @@ void granule_memzero_mapped(void *buf)
 	dsb(ish);
 }
 
+void granule_sanitize_mapped(void *buf)
+{
+	/* Zero for now. Additional sanitize will be added later */
+	granule_memzero_mapped(buf);
+}
+
 void granule_dcci_poe(struct granule *g)
 {
 	unsigned long ctr_el0 = read_ctr_el0();

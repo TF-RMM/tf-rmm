@@ -459,19 +459,6 @@ void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux)
 	return buffer_aux_unmap(pdev_aux, num_aux);
 }
 
-void buffer_granule_memzero(struct granule *g, enum buffer_slot slot)
-{
-	unsigned long *buf;
-
-	assert(g != NULL);
-
-	buf = buffer_granule_map(g, slot);
-	assert(buf != NULL);
-
-	granule_memzero_mapped(buf);
-	buffer_unmap(buf);
-}
-
 /******************************************************************************
  * Internal helpers
  ******************************************************************************/

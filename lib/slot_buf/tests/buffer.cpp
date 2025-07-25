@@ -1338,7 +1338,7 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC10)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-TEST(slot_buffer, buffer_granule_memzero_TC1)
+TEST(slot_buffer, buffer_granule_map_zeroed_TC1)
 {
 	unsigned long addrs[3] = {host_util_get_granule_base(),
 				  (get_rand_granule_idx() * GRANULE_SIZE) +
@@ -1365,8 +1365,8 @@ TEST(slot_buffer, buffer_granule_memzero_TC1)
 	 * granules in between.
 	 * Repeat the operation on all possible CPUs.
 	 *
-	 * NOTE: buffer_granule_memzero() will fail with SLOT_NS, so skip that
-	 *	 testcase.
+	 * NOTE: buffer_granule_map_zero() will fail with SLOT_NS, so
+	 *       skip that testcase.
 	 ***************************************************************/
 
 	for (unsigned int i = 0U; i < 3U; i++) {
@@ -1379,7 +1379,7 @@ TEST(slot_buffer, buffer_granule_memzero_TC1)
 
 			for (unsigned int k = 0; k < NR_CPU_SLOTS; k++) {
 				if (k == SLOT_NS) {
-					/* Not supported by buffer_granule_memzero */
+					/* Not supported by buffer_granule_map_zeroed */
 					continue;
 				}
 
@@ -1387,7 +1387,8 @@ TEST(slot_buffer, buffer_granule_memzero_TC1)
 				memset((void *)addrs[i],
 					(int)test_helpers_get_rand_in_range(1UL, INT_MAX),
 					GRANULE_SIZE);
-				buffer_granule_memzero(granule, (enum buffer_slot)k);
+				void *buf = buffer_granule_map_zeroed(granule, (enum buffer_slot)k);
+				buffer_unmap(buf);
 
 				for (unsigned int l = 0;
 				     l < (GRANULE_SIZE / sizeof(int)); l++) {
@@ -1400,16 +1401,17 @@ TEST(slot_buffer, buffer_granule_memzero_TC1)
 	} /* Number of granules to test */
 }
 
-ASSERT_TEST(slot_buffer, buffer_granule_memzero_TC2)
+ASSERT_TEST(slot_buffer, buffer_granule_map_zeroed_TC2)
 {
 	/***************************************************************
 	 * TEST CASE 2:
 	 *
-	 * Verify that buffer_granule_memzero() asserts if granule is NULL
+	 * Verify that buffer_granule_map_zeroed() asserts if granule
+	 * is NULL
 	 ***************************************************************/
 
 	test_helpers_expect_assert_fail(true);
-	buffer_granule_memzero(NULL, SLOT_DELEGATED);
+	buffer_granule_map_zeroed(NULL, SLOT_DELEGATED);
 	test_helpers_fail_if_no_assert_failed();
 }
 

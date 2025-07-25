@@ -132,7 +132,7 @@ unsigned long smc_granule_undelegate(unsigned long addr)
 		}
 
 		/* Scrub any Realm world data before returning granule to NS */
-		buffer_granule_memzero(g, SLOT_DELEGATED);
+		buffer_granule_sanitize(g);
 
 		/*
 		 * A delegated memory granule should only be undelegated on request from RMM.

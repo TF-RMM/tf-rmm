@@ -125,11 +125,6 @@ void *buffer_rec_aux_granules_map_el3_token_sign_slot(
 void buffer_rec_aux_unmap(void *rec_aux, unsigned int num_aux);
 
 /*
- * Map the granule 'g' to 'slot', zeroes its content and unmaps it.
- */
-void buffer_granule_memzero(struct granule *g, enum buffer_slot slot);
-
-/*
  * Maps the `num_aux` granules at 'g_pdev_aux' to buffer slot starting
  * SLOT_PDEV_AUX0.
  */
@@ -145,6 +140,17 @@ void *buffer_pdev_aux_granules_map_zeroed(struct granule *g_pdev_aux[],
 
 /* Unmaps the `num_aux` granules from slot starting SLOT_PDEV_AUX0 */
 void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux);
+
+/*
+ * Sanitize (scrub) a buffer. This function will evolve in future
+ * as more securty hardening is done.
+ */
+static inline void buffer_granule_sanitize(struct granule *g)
+{
+	void *buf = buffer_granule_map(g, SLOT_DELEGATED);
+	granule_sanitize_mapped(buf);
+	buffer_unmap(buf);
+}
 
 static inline void *buffer_granule_map_zeroed(struct granule *g, enum buffer_slot slot)
 {
