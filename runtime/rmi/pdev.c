@@ -24,17 +24,13 @@
  * called and therefore no lock is acquired before its invocation.
  */
 static void pdev_restore_aux_granules_state(struct granule *pdev_aux[],
-					    unsigned int cnt, bool scrub)
+					    unsigned int cnt)
 {
 	for (unsigned int i = 0U; i < cnt; i++) {
 		struct granule *g_pdev_aux = pdev_aux[i];
 
 		granule_lock(g_pdev_aux, GRANULE_STATE_PDEV_AUX);
-		if (scrub) {
-			buffer_granule_memzero(g_pdev_aux,
-			   safe_cast_to_slot(SLOT_PDEV_AUX0, i));
-		}
-		granule_unlock_transition(g_pdev_aux, GRANULE_STATE_DELEGATED);
+		granule_unlock_transition_to_delegated(g_pdev_aux);
 	}
 }
 
@@ -210,8 +206,7 @@ unsigned long smc_pdev_create(unsigned long pdev_ptr,
 		g_pdev_aux = find_lock_granule(pdev_params.aux[i],
 					       GRANULE_STATE_DELEGATED);
 		if (g_pdev_aux == NULL) {
-			pdev_restore_aux_granules_state(pdev_aux_granules, i,
-							false);
+			pdev_restore_aux_granules_state(pdev_aux_granules, i);
 			return RMI_ERROR_INPUT;
 		}
 		granule_unlock_transition(g_pdev_aux, GRANULE_STATE_PDEV_AUX);
@@ -225,20 +220,18 @@ unsigned long smc_pdev_create(unsigned long pdev_ptr,
 		goto out_restore_pdev_aux_granule_state;
 	}
 
-	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
-	if (pd == NULL) {
-		smc_rc = RMI_ERROR_INPUT;
-		granule_unlock_transition(g_pdev, GRANULE_STATE_DELEGATED);
-		goto out_restore_pdev_aux_granule_state;
-	}
+	pd = buffer_granule_map_zeroed(g_pdev, SLOT_PDEV);
+	assert(pd != NULL);
 
 	/* Map all PDEV aux granules to slot starting SLOT_PDEV_AUX0 */
 	/* coverity[overrun-buffer-val:SUPPRESS] */
-	aux_mapped_addr = buffer_pdev_aux_granules_map(pdev_aux_granules,
+	aux_mapped_addr = buffer_pdev_aux_granules_map_zeroed(pdev_aux_granules,
 						       (unsigned int)pdev_params.num_aux);
 	if (aux_mapped_addr == NULL) {
+		buffer_unmap(pd);
+		granule_unlock(g_pdev);
 		smc_rc = RMI_ERROR_INPUT;
-		goto out_unmap_pdev_slot_buffer;
+		goto out_restore_pdev_aux_granule_state;
 	}
 
 	/* Call init routine to initialize device class specific state */
@@ -304,20 +297,11 @@ unsigned long smc_pdev_create(unsigned long pdev_ptr,
 	/* Unmap all PDEV aux granules */
 	buffer_pdev_aux_unmap(aux_mapped_addr, (unsigned int)pdev_params.num_aux);
 
-out_unmap_pdev_slot_buffer:
-	/* unmap PDEV buffer from slot PDEV */
-	buffer_unmap(pd);
-
 	/*
-	 * On success, unlock and transit the PDEV granule state to
-	 * GRANULE_STATE_PDEV else unlock and retain the state at
-	 * GRANULE_STATE_DELEGATED.
+	 * Unlock and transit the PDEV granule state to GRANULE_STATE_PDEV.
 	 */
-	if (smc_rc == RMI_SUCCESS) {
-		granule_unlock_transition(g_pdev, GRANULE_STATE_PDEV);
-	} else {
-		granule_unlock_transition(g_pdev, GRANULE_STATE_DELEGATED);
-	}
+	buffer_unmap(pd);
+	granule_unlock_transition(g_pdev, GRANULE_STATE_PDEV);
 
 out_restore_pdev_aux_granule_state:
 	if (smc_rc != RMI_SUCCESS) {
@@ -326,7 +310,7 @@ out_restore_pdev_aux_granule_state:
 		 * GRANULE_STATE_DELEGATED
 		 */
 		pdev_restore_aux_granules_state(pdev_aux_granules,
-				(unsigned int)pdev_params.num_aux, false);
+				(unsigned int)pdev_params.num_aux);
 	}
 
 	return smc_rc;
@@ -973,13 +957,11 @@ unsigned long smc_pdev_destroy(unsigned long pdev_ptr)
 	 * Scrub PDEV AUX granules and move its state from PDEV_AUX to
 	 * delegated.
 	 */
-	pdev_restore_aux_granules_state(pd->g_aux, pd->num_aux, true);
-
-	/* Move the PDEV granule from PDEV to delegated state */
-	granule_memzero_mapped(pd);
+	pdev_restore_aux_granules_state(pd->g_aux, pd->num_aux);
 	buffer_unmap(pd);
 
-	granule_unlock_transition(g_pdev, GRANULE_STATE_DELEGATED);
+	/* Move the PDEV granule from PDEV to delegated state */
+	granule_unlock_transition_to_delegated(g_pdev);
 
 	return RMI_SUCCESS;
 }
