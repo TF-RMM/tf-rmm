@@ -70,7 +70,7 @@ build environment.
 
 Currently, the following compilers are supported:
 
-- GCC (aarch64-none-elf-) >= 10.2-2020.11 (from the `Arm Developer website`_)
+- GCC (aarch64-none-elf-) >= 11.2-2022.02 (from the `Arm GNU Toolchain downloads`_)
 - Clang+LLVM >= 14.0.0 (from the `LLVM Releases website`_)
 
 The respective compiler binary must be found in the shell's search path.
@@ -321,7 +321,7 @@ as described in :ref:`RMM Fake host architecture` design.
 
 -----
 
-.. _Arm Developer website: https://developer.arm.com/open-source/gnu-toolchain/gnu-a/downloads
+.. _Arm GNU Toolchain downloads: https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads
 .. _LLVM Releases website: https://releases.llvm.org/
 .. _RMM-EL3 Communication Specification: https://trustedfirmware-a.readthedocs.io/en/latest/components/rmm-el3-comms-spec.html
 .. _TF-A: https://www.trustedfirmware.org/projects/tf-a/
