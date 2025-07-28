@@ -288,7 +288,11 @@ struct dev_assign_info {
 	size_t spdm_cert_chain_digest_length;
 	size_t spdm_cert_chain_len;
 
-	struct dev_assign_tdisp_params tdisp_params;
+	/*
+	 * The parameters passed from Realm for the device operation. There can
+	 * be only one pending device operation.
+	 */
+	struct dev_assign_op_params dev_assign_op_params;
 
 	/*
 	 * The PSA equivalent of the 'rmi_hash_algo'. Tnis value is used by PSA

@@ -408,21 +408,23 @@ static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_a
 
 	if (pd->dev_comm_state == DEV_COMM_ACTIVE) {
 		return dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
+			exit_args, comm_digest_ptr, NULL, NULL, DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
 	}
 
 	switch (pd->rmi_state) {
 	case RMI_PDEV_STATE_NEW:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT);
+			exit_args, comm_digest_ptr, NULL, NULL,
+			DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT);
 		break;
 	case RMI_PDEV_STATE_HAS_KEY:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION);
+			exit_args, comm_digest_ptr, NULL, NULL,
+			DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION);
 		break;
 	case RMI_PDEV_STATE_STOPPING:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL,
+			exit_args, comm_digest_ptr, NULL, NULL,
 			DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION);
 		break;
 	default:
@@ -439,6 +441,7 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 	struct rmi_dev_comm_exit *exit_args)
 {
 	int rc;
+	struct dev_meas_params *meas_params_ptr = NULL;
 	struct dev_obj_digest *comm_digest_ptr;
 	struct dev_tdisp_params *tdisp_params_ptr;
 
@@ -450,6 +453,12 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 	       (vd->rmi_state == RMI_VDEV_STATE_STOPPING));
 	assert((vd->rmi_state != RMI_VDEV_STATE_COMMUNICATING) ||
 	       (vd->rdev.op != RDEV_OP_NONE));
+
+	if (vd->rdev.op == RDEV_OP_GET_MEASUREMENTS) {
+		meas_params_ptr = &vd->rdev.op_params.meas_params;
+	} else {
+		meas_params_ptr = NULL;
+	}
 
 	if (vd->rdev.op == RDEV_OP_GET_MEASUREMENTS) {
 		comm_digest_ptr = &vd->meas_digest;
@@ -470,7 +479,8 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 
 	if (pd->dev_comm_state == DEV_COMM_ACTIVE) {
 		return dev_assign_dev_communicate(&pd->da_app_data, enter_args, exit_args,
-			comm_digest_ptr, tdisp_params_ptr, DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
+			comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
+			DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
 	}
 
 	switch (vd->rdev.op) {
@@ -480,12 +490,12 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 		 * hash needs to be calculated during device communication
 		 */
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args, exit_args,
-			comm_digest_ptr, tdisp_params_ptr,
+			comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS);
 		break;
 	case RDEV_OP_LOCK:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, tdisp_params_ptr,
+			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_LOCK);
 		break;
 	case RDEV_OP_GET_INTERFACE_REPORT:
@@ -494,17 +504,17 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 		 * its hash needs to be calculated during device communication
 		 */
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, tdisp_params_ptr,
+			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_REPORT);
 		break;
 	case RDEV_OP_START:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, tdisp_params_ptr,
+			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_START);
 		break;
 	case RDEV_OP_STOP:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, tdisp_params_ptr,
+			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP);
 		break;
 	default:

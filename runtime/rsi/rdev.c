@@ -353,7 +353,7 @@ static bool validate_rsi_meas_params(struct rsi_dev_measure_params *rsi_meas_par
 	 */
 	if ((!flags_all) &&
 		(((rsi_meas_params->indices[0] & 0x01U) != 0U) ||
-		 ((rsi_meas_params->indices[31] & 0x80U) != 0U))) {
+		 ((rsi_meas_params->indices[RDEV_MEAS_PARAM_NONCE_LEN - 1U] & 0x80U) != 0U))) {
 		return false;
 	}
 	return true;

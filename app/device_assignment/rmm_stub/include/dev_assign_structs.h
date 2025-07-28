@@ -7,9 +7,11 @@
 #define DEV_ASSIGN_STRUCTS_H
 
 #include <smc-rmi.h>
+#include <smc-rsi.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <utils_def.h>
 
 #define DEV_ASSIGN_STATUS_SUCCESS	(0)
 #define DEV_ASSIGN_STATUS_ERROR		(-1)
@@ -31,6 +33,12 @@
  *         DEV_ASSIGN_STATUS_ERROR if error on initialization.
  */
 #define DEVICE_ASSIGN_APP_FUNC_ID_INIT			1
+
+enum dev_assign_op_params_type {
+	DEV_ASSIGN_OP_PARAMS_NONE,
+	DEV_ASSIGN_OP_PARAMS_TDISP,
+	DEV_ASSIGN_OP_PARAMS_MEAS
+};
 
 /*
  * RMM maintains digest of device object if its cached by NS host. This device
@@ -71,27 +79,6 @@ struct dev_assign_tdisp_params {
 };
 
 /*
- * The structure that dev_assign_dev_communicate can use to send data to app
- * shared memory app call
- */
-struct dev_comm_enter_shared {
-	struct rmi_dev_comm_enter rmi_dev_comm_enter;
-
-	struct dev_assign_tdisp_params tdisp_params;
-};
-
-/*
- * The structure that dev_assign_dev_communicate can use to get data from app
- * shared memory on return
- */
-struct dev_comm_exit_shared {
-	struct rmi_dev_comm_exit rmi_dev_comm_exit;
-
-	struct dev_obj_digest cached_digest;
-	struct dev_assign_tdisp_params tdisp_params;
-};
-
-/*
  * Get measurements operation related parameters passed when command is
  * RDEV_GET_MEASUREMENTS
  */
@@ -106,11 +93,42 @@ struct dev_meas_params {
 	bool raw;
 
 	/* Bitmap of measurement indices to get when 'all=false' */
-	unsigned char indices[32];
+	unsigned char indices[RDEV_MEAS_PARAM_INDICES_LEN];
 
 	/* nonce value used in get measurement, when 'sign=true' */
-	unsigned char nonce[32];
+	unsigned char nonce[RDEV_MEAS_PARAM_NONCE_LEN];
 };
+
+struct dev_assign_op_params {
+	enum dev_assign_op_params_type param_type;
+	union {
+		struct dev_meas_params meas_params;
+		struct dev_assign_tdisp_params tdisp_params;
+	};
+};
+
+/*
+ * The structure that dev_assign_dev_communicate can use to send data to app
+ * shared memory app call
+ */
+struct dev_comm_enter_shared {
+	struct rmi_dev_comm_enter rmi_dev_comm_enter;
+
+	struct dev_assign_op_params dev_assign_op_params;
+};
+COMPILER_ASSERT(sizeof(struct dev_comm_enter_shared) <= GRANULE_SIZE);
+
+/*
+ * The structure that dev_assign_dev_communicate can use to get data from app
+ * shared memory on return
+ */
+struct dev_comm_exit_shared {
+	struct rmi_dev_comm_exit rmi_dev_comm_exit;
+
+	struct dev_obj_digest cached_digest;
+	struct dev_assign_op_params dev_assign_op_params;
+};
+COMPILER_ASSERT(sizeof(struct dev_comm_exit_shared) <= GRANULE_SIZE);
 
 struct dev_tdisp_params {
 	/* Interface ID to lock/start/stop/get_report */

@@ -24,13 +24,24 @@ static void copy_enter_args_from_shared(struct dev_assign_info *info)
 	assert(shared != NULL);
 	info->enter_args = shared->rmi_dev_comm_enter;
 
-	info->tdisp_params.nonce_ptr_is_valid = shared->tdisp_params.nonce_ptr_is_valid;
-	info->tdisp_params.tdi_id = shared->tdisp_params.tdi_id;
-	if (shared->tdisp_params.nonce_ptr_is_valid &&
-	    (!shared->tdisp_params.nonce_is_output)) {
-		(void)memcpy(info->tdisp_params.start_interface_nonce_buffer,
-			     shared->tdisp_params.start_interface_nonce_buffer,
-			     RDEV_START_INTERFACE_NONCE_SIZE);
+	info->dev_assign_op_params.param_type = shared->dev_assign_op_params.param_type;
+	if (shared->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_TDISP) {
+		struct dev_assign_tdisp_params *shared_tdisp_params =
+			&shared->dev_assign_op_params.tdisp_params;
+		struct dev_assign_tdisp_params *info_tdisp_params =
+			&info->dev_assign_op_params.tdisp_params;
+
+		info_tdisp_params->nonce_ptr_is_valid = shared_tdisp_params->nonce_ptr_is_valid;
+		info_tdisp_params->tdi_id = shared_tdisp_params->tdi_id;
+		if (shared_tdisp_params->nonce_ptr_is_valid &&
+		    (!shared_tdisp_params->nonce_is_output)) {
+			(void)memcpy(info_tdisp_params->start_interface_nonce_buffer,
+				shared_tdisp_params->start_interface_nonce_buffer,
+				RDEV_START_INTERFACE_NONCE_SIZE);
+		}
+	} else if (shared->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_MEAS) {
+		/* Copy over measurement parameters */
+		info->dev_assign_op_params.meas_params = shared->dev_assign_op_params.meas_params;
 	}
 
 	(void)memset(&info->exit_args, 0, sizeof(info->exit_args));
@@ -51,11 +62,19 @@ static void copy_back_exit_args_to_shared(struct dev_assign_info *info)
 		info->cached_digest.len = 0;
 	}
 
-	shared->tdisp_params.nonce_is_output = info->tdisp_params.nonce_is_output;
-	if (info->tdisp_params.nonce_is_output) {
-		(void)memcpy(shared->tdisp_params.start_interface_nonce_buffer,
-			     info->tdisp_params.start_interface_nonce_buffer,
-			     RDEV_START_INTERFACE_NONCE_SIZE);
+	shared->dev_assign_op_params.param_type = info->dev_assign_op_params.param_type;
+	if (info->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_TDISP) {
+		struct dev_assign_tdisp_params *shared_tdisp_params =
+			&shared->dev_assign_op_params.tdisp_params;
+		struct dev_assign_tdisp_params *info_tdisp_params =
+			&info->dev_assign_op_params.tdisp_params;
+
+		shared_tdisp_params->nonce_is_output = info_tdisp_params->nonce_is_output;
+		if (info_tdisp_params->nonce_is_output) {
+			(void)memcpy(shared_tdisp_params->start_interface_nonce_buffer,
+				info_tdisp_params->start_interface_nonce_buffer,
+				RDEV_START_INTERFACE_NONCE_SIZE);
+		}
 	}
 }
 

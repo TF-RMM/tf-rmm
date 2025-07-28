@@ -6,7 +6,6 @@
 #ifndef SMC_RSI_H
 #define SMC_RSI_H
 
-#include <arch.h>
 #include <smc.h>
 #include <utils_def.h>
 
@@ -670,6 +669,9 @@ struct rsi_dev_info {
 #define RSI_DEV_MEASURE_FLAGS_RAW_SHIFT		U(2)
 #define RSI_DEV_MEASURE_FLAGS_RAW_WIDTH		U(1)
 
+#define RDEV_MEAS_PARAM_INDICES_LEN		U(32)
+#define RDEV_MEAS_PARAM_NONCE_LEN		U(32)
+
 /*
  * RsiDevMeasureParams
  * This structure contains device measurement parameters.
@@ -680,9 +682,9 @@ struct rsi_dev_measure_params {
 	SET_MEMBER_RSI(unsigned long flags, 0, 0x8);
 
 	/* RsiBoolean[256]: Measurement indices */
-	SET_MEMBER_RSI(unsigned char indices[32], 0x100, 0x200);
+	SET_MEMBER_RSI(unsigned char indices[RDEV_MEAS_PARAM_INDICES_LEN], 0x100, 0x200);
 	/* RsiBoolean[256]: Nonce value used in measurement requests */
-	SET_MEMBER_RSI(unsigned char nonce[32], 0x200, 0x1000);
+	SET_MEMBER_RSI(unsigned char nonce[RDEV_MEAS_PARAM_NONCE_LEN], 0x200, 0x1000);
 };
 
 /* Returns the higher supported RSI ABI revision */
