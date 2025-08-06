@@ -403,20 +403,28 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 		goto out_unmap_aux_granules;
 	}
 
-	/*
-	 * If either the active plane is not the GIC owner and there is an
-	 * active IRQ, or the active plane is not P0 and REC_ENTRY_PLAG_FORCE_P0
-	 * is set, exit the plane and pass control to P0.
-	 *
-	 * Note that we do not need to save PN context back to the REC here as
-	 * it was saved when RMM first received the interrupt and exited to NS.
-	 */
+	/* If active plane is not P0 ... */
 	if (!rec_is_plane_0_active(rec)) {
 		bool report_err = false;
 
-		if ((rec_run.enter.flags & REC_ENTRY_FLAG_FORCE_P0) != 0UL) {
+		/*
+		 * ... and either REC_ENTRY_FLAG_FORCE_P0 or
+		 * REC_ENTRY_FLAG_INJECT_SEA are set, then exit the plane
+		 * with sync exception and go back to P0. Else...
+		 */
+		if (((rec_run.enter.flags &
+			(REC_ENTRY_FLAG_FORCE_P0 | REC_ENTRY_FLAG_INJECT_SEA)) != 0UL)) {
 			report_err = !handle_plane_n_exit(rec, &rec_run.exit,
 						ARM_EXCEPTION_SYNC_LEL, false);
+		/*
+		 * ... if the active plane is not the current GIC owner and there
+		 * is a pending interrupt, then exit the plane with IRQ exception
+		 * and go back to P0.
+		 *
+		 * Note, in both cases, that we do not need to save PN context
+		 * back to the REC, as it was already saved when RMM first
+		 * received the interrupt and exited to NS.
+		 */
 		} else if ((rec->active_plane_id != rec->gic_owner) &&
 			   (gic_is_interrupt_pending(&rec_run.enter.gicv3_lrs[0]) ||
 			   gic_is_maint_interrupt_pending(&rec->plane[1].sysregs->gicstate))) {

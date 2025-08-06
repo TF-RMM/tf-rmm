@@ -218,6 +218,17 @@ struct rec_plane {
 		unsigned long hpfar;
 		unsigned long far;
 	} last_run_info;
+
+	STRUCT_TYPE {
+		/*
+		 * The contents of the *_EL2 system registers at the last time
+		 * Plane N exited to Plane 0.
+		 * These values are used to populate the rsi_plane_exit structure.
+		 */
+		unsigned long esr;
+		unsigned long hpfar;
+		unsigned long far;
+	} plane_exit_info;
 };
 
 /*

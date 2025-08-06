@@ -884,28 +884,30 @@ bool handle_realm_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int excep
 }
 
 static void handle_plane_exit_syndrome(struct rsi_plane_exit *exit,
+				       struct rec_plane *plane,
 				       unsigned long exit_reason)
 {
-	const unsigned long esr_el2 = read_esr_el2();
-	const unsigned long elr_el2 = read_elr_el2();
-	const unsigned long far_el2 = read_far_el2();
-	const unsigned long hpfar_el2 = read_hpfar_el2();
-
+	/* Get the most recent value for pstate */
 	exit->reason = exit_reason;
-	exit->elr_el2 = elr_el2;
-	exit->esr_el2 = esr_el2;
-	exit->far_el2 = far_el2;
-	exit->hpfar_el2 = hpfar_el2;
+	exit->elr_el2 = plane->pc;
+	exit->esr_el2 = plane->plane_exit_info.esr;
+	exit->far_el2 = plane->plane_exit_info.far;
+	exit->hpfar_el2 = plane->plane_exit_info.hpfar;
+
+	assert(plane->sysregs != NULL);
+	exit->pstate = plane->sysregs->pstate;
+
 }
 
-static void do_handle_plane_exit(int exception, struct rsi_plane_exit *exit)
+static void do_handle_plane_exit(int exception, struct rsi_plane_exit *exit,
+				 struct rec_plane *plane)
 {
 	switch (exception) {
 	case ARM_EXCEPTION_SYNC_LEL:
-		handle_plane_exit_syndrome(exit, RSI_EXIT_SYNC);
+		handle_plane_exit_syndrome(exit, plane, RSI_EXIT_SYNC);
 		break;
 	case ARM_EXCEPTION_IRQ_LEL:
-		handle_plane_exit_syndrome(exit, RSI_EXIT_IRQ);
+		handle_plane_exit_syndrome(exit, plane, RSI_EXIT_IRQ);
 		break;
 	default:
 		ERROR("Unhandled Plane exit exception: 0x%x\n", exception);
@@ -928,6 +930,8 @@ static void copy_state_to_plane_exit(struct rec_plane *plane,
 	for (unsigned int i = 0; i < RSI_PLANE_NR_GPRS; i++) {
 		exit->gprs[i] = plane->regs[i];
 	}
+
+	assert(plane->sysregs != NULL);
 
 	copy_timer_state_to_plane_exit(plane->sysregs, exit);
 	gic_copy_state_to_exit(&plane->sysregs->gicstate,
@@ -1031,7 +1035,7 @@ bool handle_plane_n_exit(struct rec *rec,
 	copy_state_to_plane_exit(plane_n, &run->exit);
 
 	/* Populate other fields of exit structure */
-	do_handle_plane_exit(exception, &run->exit);
+	do_handle_plane_exit(exception, &run->exit, plane_n);
 
 	/* Unmap rsi_plane_run granule */
 	buffer_unmap(run);

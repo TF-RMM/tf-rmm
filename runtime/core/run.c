@@ -129,6 +129,10 @@ void save_realm_state(struct rec *rec, struct rec_plane *plane)
 	plane->pc = read_elr_el2();
 	plane->sysregs->pstate = read_spsr_el2();
 
+	plane->plane_exit_info.esr = read_esr_el2();
+	plane->plane_exit_info.hpfar = read_hpfar_el2();
+	plane->plane_exit_info.far = read_far_el2();
+
 	save_pmu(rec);
 	gic_save_state(&plane->sysregs->gicstate);
 }
