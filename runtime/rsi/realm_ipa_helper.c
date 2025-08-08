@@ -32,9 +32,10 @@
  * WALK_INVALID_PARAMS	Parameter 'ipa' is unaligned to granule size or is not
  *			a Protected IPA, 's2_walk' structure is not updated.
  * WALK_FAIL		Mapping is not in the page table (either hipas is not
- *			RMI_ASSIGNED or ripas is not RIPAS_RAM).
- *			Only 's2_walk.rtt_level' and 's2_walk.ripas' are
- *			updated. NS Host needs to fix.
+ *			RMI_ASSIGNED or ripas is not RIPAS_RAM), or the IPA maps
+ *			to device memory (ripas is RIPAS_DEV).
+ *			Only 's2_walk.rtt_level' and 's2_walk.ripas_val' are
+ *			updated. NS Host needs to fix (non-device case).
  */
 enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 				    unsigned long ipa,
@@ -199,7 +200,8 @@ bool realm_mem_lock_map(struct rec *rec, unsigned long ipa,
 	case WALK_SUCCESS:
 		break;
 	case WALK_FAIL:
-		if (walk_res.ripas_val == RIPAS_EMPTY) {
+		if ((walk_res.ripas_val == RIPAS_EMPTY) ||
+		    (walk_res.ripas_val == RIPAS_DEV)) {
 			/* Error needs to be reported back to realm */
 			res->action = UPDATE_REC_RETURN_TO_REALM;
 			res->smc_res.x[0] = RSI_ERROR_INPUT;

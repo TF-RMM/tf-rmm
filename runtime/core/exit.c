@@ -1015,17 +1015,18 @@ bool handle_plane_n_exit(struct rec *rec,
 	 */
 	assert(walk_status != WALK_INVALID_PARAMS);
 
-	if (walk_res.ripas_val == RIPAS_EMPTY) {
+	if ((walk_res.ripas_val == RIPAS_EMPTY) ||
+	    (walk_res.ripas_val == RIPAS_DEV)) {
 		/*
 		 * Plane 0 has set the ripas of `rsi_plane_run` granule
-		 * to "empty".
+		 * to "empty" or device memory.
 		 * Exit to Plane 0 with error. The content of
 		 * Plane N will be lost.
 		 */
 		ret = RSI_ERROR_INPUT;
 		goto out_return_to_plane_0;
 	} else if (walk_status == WALK_FAIL) {
-		/* `rsi_plane_run` page is either destroyed or unassigned_ram s2tte */
+		/* `rsi_plane_run` page is destroyed or unassigned_ram s2tte */
 		emulate_stage2_data_abort(rec_exit, walk_res.rtt_level, run_ipa);
 
 		return false;

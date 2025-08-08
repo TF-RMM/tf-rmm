@@ -15,11 +15,17 @@
  * Map RmmRipas to RmiRipas to simplify code/decode operations.
  */
 enum ripas {
-	RIPAS_EMPTY = RMI_EMPTY,	/* Unused IPA for Realm */
-	RIPAS_RAM = RMI_RAM,		/* IPA used for Code/Data by Realm */
-	RIPAS_DESTROYED = RMI_DESTROYED,/* IPA is inaccessible to the Realm */
-	RIPAS_DEV = RMI_DEV		/* IPA where memory of an assigned
-					   Realm device is mapped */
+	/* Address where no Realm resources are mapped */
+	RIPAS_EMPTY = RMI_EMPTY,
+	/* Address where private code or data owned by the Realm is mapped */
+	RIPAS_RAM = RMI_RAM,
+	/*
+	 * Address which is inaccessible to the Realm due to an action taken
+	 * by the Host
+	 */
+	RIPAS_DESTROYED = RMI_DESTROYED,
+	/* Address where memory of an assigned Realm device is mapped */
+	RIPAS_DEV = RMI_DEV
 };
 
 /*
