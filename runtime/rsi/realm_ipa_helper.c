@@ -69,20 +69,7 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 		s2_walk->ripas_val = RIPAS_RAM;
 		walk_status = WALK_SUCCESS;
 	} else {
-		if (s2tte_is_unassigned_destroyed(s2_ctx, s2tte) ||
-		    s2tte_is_assigned_destroyed(s2_ctx,
-						s2tte, wi.last_level)) {
-			s2_walk->ripas_val = RIPAS_DESTROYED;
-		} else if (s2tte_is_unassigned_ram(s2_ctx, s2tte)) {
-			s2_walk->ripas_val = RIPAS_RAM;
-		} else {
-			/*
-			 * Only unassigned_empty & assigned_empty
-			 * are left as an option.
-			 */
-			s2_walk->ripas_val = RIPAS_EMPTY;
-		}
-
+		s2_walk->ripas_val = s2tte_get_ripas(s2_ctx, s2tte);
 		granule_unlock(wi.g_llt);
 		walk_status = WALK_FAIL;
 	}
