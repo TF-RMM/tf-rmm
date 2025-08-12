@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <mec.h>
 #include <memory.h>
+#include <rmm_el3_ifc.h>
 #include <sizes.h>
 #include <spinlock.h>
 
@@ -101,6 +102,11 @@ static bool mec_reserve(unsigned int mecid)
 
 	if (!atomic_bit_set_acquire_release_64(&mec_state.mec_reserved[offset],
 						bit)) {
+		/*
+		 * Tweak the key associated with the MEC ID. This function
+		 * is called with lock aqcuired when reserving Shared MECID.
+		 */
+		(void)rmm_el3_ifc_mecid_update((unsigned short)mecid);
 		return true;
 	}
 
@@ -142,26 +148,6 @@ int mec_set_shared(unsigned int mecid)
 		/* To match with read-acquire when read outside spinlock */
 		SCA_WRITE32_RELEASE(&mec_state.shared_mec, mecid);
 		ret = 0;
-	}
-	spinlock_release(&mec_state.shared_mecid_spinlock);
-
-	return ret;
-}
-
-/*
- * Helper to query whether a MECID is shared or not.
- */
-bool mec_is_shared(unsigned int mecid)
-{
-	bool ret = false;
-
-	mecid = INTERNAL_MECID(mecid);
-	assert(IS_MEC_VALID(mecid));
-
-	spinlock_acquire(&mec_state.shared_mecid_spinlock);
-	if ((SCA_READ32(&mec_state.shared_mec) != MECID_INVALID) &&
-		(mecid == SCA_READ32(&mec_state.shared_mec))) {
-		ret = true;
 	}
 	spinlock_release(&mec_state.shared_mecid_spinlock);
 

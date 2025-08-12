@@ -11,7 +11,6 @@
 #include <granule.h>
 #include <measurement.h>
 #include <realm.h>
-#include <rmm_el3_ifc.h>
 #include <s2tt.h>
 #include <s2tt_ap.h>
 #include <simd.h>
@@ -789,17 +788,9 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	granule_unlock_transition_to_delegated(g_rd);
 
 	/*
-	 * Tweak the key associated with the MEC ID and Free it. The Realm
-	 * MECID registers will be reset by the caller of this function.
-	 * Note that there are no active S1 nor S2 mappings using the
-	 * Realm MECID and DCCIPoE is completed at this point.
-	 * For the shared MECID, the key associated remains unchanged in
-	 * order to preserve the encryption contexts in other Realms using
-	 * the shared MECID.
+	 * Note that there are no active S1 nor S2 mappings
+	 * using the Realm MECID and DCCIPoE is completed at this point.
 	 */
-	if (!mec_is_shared(mecid)) {
-		(void)rmm_el3_ifc_mecid_update((unsigned short)mecid);
-	}
 	mecid_free(mecid);
 
 	return RMI_SUCCESS;
