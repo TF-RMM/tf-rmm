@@ -1411,7 +1411,7 @@ ASSERT_TEST(slot_buffer, buffer_granule_map_zeroed_TC2)
 	 ***************************************************************/
 
 	test_helpers_expect_assert_fail(true);
-	buffer_granule_map_zeroed(NULL, SLOT_DELEGATED);
+	buffer_granule_map_zeroed(NULL, SLOT_RD);
 	test_helpers_fail_if_no_assert_failed();
 }
 

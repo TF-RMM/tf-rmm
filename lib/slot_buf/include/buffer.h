@@ -21,7 +21,6 @@ enum buffer_slot {
 	/*
 	 * RMM-private.
 	 */
-	SLOT_DELEGATED,
 	SLOT_RD,
 	SLOT_REC,
 	SLOT_REC2,		/* Some commands access two REC granules at a time*/
@@ -140,17 +139,6 @@ void *buffer_pdev_aux_granules_map_zeroed(struct granule *g_pdev_aux[],
 
 /* Unmaps the `num_aux` granules from slot starting SLOT_PDEV_AUX0 */
 void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux);
-
-/*
- * Sanitize (scrub) a buffer. This function will evolve in future
- * as more securty hardening is done.
- */
-static inline void buffer_granule_sanitize(struct granule *g)
-{
-	void *buf = buffer_granule_map(g, SLOT_DELEGATED);
-	granule_sanitize_mapped(buf);
-	buffer_unmap(buf);
-}
 
 static inline void *buffer_granule_map_zeroed(struct granule *g, enum buffer_slot slot)
 {

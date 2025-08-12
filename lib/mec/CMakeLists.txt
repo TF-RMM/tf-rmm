@@ -6,7 +6,8 @@
 add_library(rmm-lib-mec)
 
 target_link_libraries(rmm-lib-mec
-    PRIVATE rmm-lib-rmm_el3_ifc
+    PRIVATE rmm-lib-debug
+            rmm-lib-rmm_el3_ifc
             rmm-lib-smc
     PUBLIC  rmm-lib-arch
 )

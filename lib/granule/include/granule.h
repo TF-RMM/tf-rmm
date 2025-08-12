@@ -231,6 +231,7 @@ void granule_memzero_mapped(void *buf);
 void granule_dcci_poe(struct granule *g);
 
 void granule_sanitize_mapped(void *buf);
+void granule_sanitize_1_mapped(void *buf);
 
 /*
  * Helper to transition a granule to DELEGATED state. This function

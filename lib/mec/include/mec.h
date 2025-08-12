@@ -18,14 +18,33 @@
  */
 #define RESERVED_MECID_SYSTEM	0U
 
+/* Avoid MISRA C:2102-20.9 violation */
+#ifndef RMM_MEM_SCRUB_METHOD
+#define RMM_MEM_SCRUB_METHOD 0
+#endif /* RMM_MEM_SCRUB_METHOD */
+
+#if (RMM_MEM_SCRUB_METHOD == 2)
+/* Reserve MECID 1 for Sanitizing/Scrubbing Granules */
+#define RESERVED_MECID_SCRUB	1U
+/* RMM reserves 2 MECIDs ID for itself - 0 for RMM use and 1 for Scrub */
+#define RESERVED_IDS	2U
+#else
 /* RMM reserves only a single ID for itself */
 #define RESERVED_IDS	1U
+#endif
 
 /*
- * Note that the actually programmed MECID is shifted
- * by RESERVED_IDS from the param `mecid`. This helps RMM to reserve
- * MECIDs starting from 0 and adhere to the RMM specification which
- * mandates reservation from the maximum MECID values.
+ * The effective MECID programmed internally is offset by RESERVED_IDS
+ * from the `mecid` parameter passed to this component's API.
+ *
+ * This offset ensures compliance with the RMM specification, which requires
+ * that the RMM user interface sees MECID 0 as valid and available for use.
+ * Internally, however, RMM itself uses MECID 0, so the offset allows
+ * RMM to reserve low MECID values for internal use while presenting
+ * a contiguous range starting from 0 to external users.
+ *
+ * As a result, the user-visible MECID 0 is not actually programmed as 0,
+ * but as RESERVED_IDS, effectively hiding the internal reservation.
  */
 #define INTERNAL_MECID(id)	((id) + RESERVED_IDS)
 
@@ -89,5 +108,17 @@ static inline bool mec_is_realm_mecid_s1_init(void)
  * This function will be invoked while REC is running.
  */
 bool mec_is_realm_mecid_s2_pvt(void);
+
+#if (RMM_MEM_SCRUB_METHOD == 2)
+/* Initialize the Reserved MECID for Stage 1 of RMM */
+static inline void mec_init_scrub_mecid_s1(void)
+{
+	if (is_feat_mec_present()) {
+		assert(read_mecid_a1_el2() == RESERVED_MECID_SYSTEM);
+		write_mecid_a1_el2(RESERVED_MECID_SCRUB);
+		isb();
+	}
+}
+#endif
 
 #endif /* MEC_H */

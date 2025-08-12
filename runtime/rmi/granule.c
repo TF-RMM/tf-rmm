@@ -8,6 +8,7 @@
 #include <debug.h>
 #include <dev_granule.h>
 #include <granule.h>
+#include <mec.h>
 #include <rmm_el3_ifc.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
@@ -132,7 +133,26 @@ unsigned long smc_granule_undelegate(unsigned long addr)
 		}
 
 		/* Scrub any Realm world data before returning granule to NS */
-		buffer_granule_sanitize(g);
+#if (RMM_MEM_SCRUB_METHOD == 1)
+		/* Any Slot which uses RMM MECID will do, use SLOT_RD for now */
+		void *buf = buffer_granule_map(g, SLOT_RD);
+		granule_sanitize_1_mapped(buf);
+		buffer_unmap(buf);
+#elif (RMM_MEM_SCRUB_METHOD == 2)
+		/* Change to the reserved Scrub MECID */
+		mec_init_scrub_mecid_s1();
+		/* A Slot which uses Realm MECID needs to be used */
+		void *buf = buffer_granule_map(g, SLOT_REALM);
+		granule_sanitize_mapped(buf);
+		buffer_unmap(buf);
+		mec_reset_realm_mecid();
+#else
+		/* Any Slot which uses RMM MECID will do, use SLOT_RD for now */
+		void *buf = buffer_granule_map(g, SLOT_RD);
+		granule_sanitize_mapped(buf);
+		buffer_unmap(buf);
+#endif
+		/* DCCI PoPA as part of undelegate in EL3 will flush to PoE */
 
 		/*
 		 * A delegated memory granule should only be undelegated on request from RMM.

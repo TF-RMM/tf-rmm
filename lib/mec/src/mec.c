@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <atomics.h>
+#include <debug.h>
 #include <errno.h>
 #include <mec.h>
 #include <memory.h>
@@ -273,6 +274,14 @@ bool mec_is_realm_mecid_s2_pvt(void)
 	return (mecid != SCA_READ32_ACQUIRE(&mec_state.shared_mec));
 }
 
+#if (RMM_MEM_SCRUB_METHOD == 1)
+# define SCRUB_METHOD_STRING "RMM_MEM_SCRUB_METHOD 1 is selected.\n"
+#elif (RMM_MEM_SCRUB_METHOD == 2)
+# define SCRUB_METHOD_STRING "RMM_MEM_SCRUB_METHOD 2 is selected.\n"
+#else
+# define SCRUB_METHOD_STRING "RMM_MEM_SCRUB_METHOD is default.\n"
+#endif
+
 /*
  * RMM is loaded by EL3 with MEC disabled. This means that RMM must use
  * a MECID of 0 for its own execution and Data.
@@ -287,8 +296,13 @@ void mec_init_mmu(void)
 	 */
 	assert(!is_mmu_enabled());
 
+	INFO(SCRUB_METHOD_STRING);
+
 	/* cppcheck-suppress knownConditionTrueFalse */
 	if ((!is_feat_sctlr2x_present()) || (!is_feat_mec_present())) {
+#if (RMM_MEM_SCRUB_METHOD == 2)
+		WARN("RMM_MEM_SCRUB_METHOD=2 is set but FEAT_MEC is not present.\n");
+#endif
 		return;
 	}
 
