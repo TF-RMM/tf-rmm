@@ -174,18 +174,13 @@ static void init_rec_regs(struct rec *rec,
  * use when this function is called and therefore no lock is
  * acquired before its invocation.
  */
-static void free_rec_aux_granules(struct granule *rec_aux[],
-				  unsigned int cnt, bool scrub)
+static void free_rec_aux_granules(struct granule *rec_aux[], unsigned int cnt)
 {
 	for (unsigned int i = 0U; i < cnt; i++) {
 		struct granule *g_rec_aux = rec_aux[i];
 
 		granule_lock(g_rec_aux, GRANULE_STATE_REC_AUX);
-		if (scrub) {
-			buffer_granule_memzero(g_rec_aux,
-				safe_cast_to_slot(SLOT_REC_AUX0, i));
-		}
-		granule_unlock_transition(g_rec_aux, GRANULE_STATE_DELEGATED);
+		granule_unlock_transition_to_delegated(g_rec_aux);
 	}
 }
 
@@ -219,7 +214,7 @@ static void rec_aux_granules_init(struct rec *r)
 
 	/* Map auxiliary granules */
 	/* coverity[overrun-buffer-val:SUPPRESS] */
-	rec_aux = buffer_rec_aux_granules_map(r->g_aux, r->num_rec_aux);
+	rec_aux = buffer_rec_aux_granules_map_zeroed(r->g_aux, r->num_rec_aux);
 	assert(rec_aux != NULL);
 
 	/*
@@ -284,7 +279,6 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	struct rd *rd;
 	struct rmi_rec_params rec_params;
 	unsigned long rec_idx;
-	unsigned char new_rec_state = GRANULE_STATE_DELEGATED;
 	unsigned long ret;
 	bool ns_access_ok;
 	unsigned int num_rec_aux;
@@ -314,9 +308,10 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 						rec_params.aux[i],
 						GRANULE_STATE_DELEGATED);
 		if (g_rec_aux == NULL) {
-			free_rec_aux_granules(rec_aux_granules, i, false);
+			free_rec_aux_granules(rec_aux_granules, i);
 			return RMI_ERROR_INPUT;
 		}
+
 		granule_unlock_transition(g_rec_aux, GRANULE_STATE_REC_AUX);
 		rec_aux_granules[i] = g_rec_aux;
 	}
@@ -340,9 +335,6 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 		goto out_unlock;
 	}
 
-	rec = buffer_granule_map(g_rec, SLOT_REC);
-	assert(rec != NULL);
-
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
@@ -363,6 +355,9 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 		ret = RMI_ERROR_INPUT;
 		goto out_unmap;
 	}
+
+	rec = buffer_granule_map_zeroed(g_rec, SLOT_REC);
+	assert(rec != NULL);
 
 	rec->g_rec = g_rec;
 	rec->rec_idx = rec_idx;
@@ -393,7 +388,6 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 	 * refcount atomically.
 	 */
 	atomic_granule_get(g_rd);
-	new_rec_state = GRANULE_STATE_REC;
 
 	/*
 	 * Map REC aux granules, initialize aux data and unmap REC aux
@@ -403,19 +397,24 @@ unsigned long smc_rec_create(unsigned long rd_addr,
 
 	set_rd_rec_count(rd, rec_idx + 1U);
 
+	buffer_unmap(rec);
+
 	ret = RMI_SUCCESS;
 
 out_unmap:
 	buffer_unmap(rd);
-	buffer_unmap(rec);
 
 out_unlock:
 	granule_unlock(g_rd);
-	granule_unlock_transition(g_rec, new_rec_state);
+	if (ret == RMI_SUCCESS) {
+		granule_unlock_transition(g_rec, GRANULE_STATE_REC);
+	} else {
+		granule_unlock(g_rec);
+	}
 
 out_free_aux:
 	if (ret != RMI_SUCCESS) {
-		free_rec_aux_granules(rec_aux_granules, num_rec_aux, false);
+		free_rec_aux_granules(rec_aux_granules, num_rec_aux);
 	}
 	return ret;
 }
@@ -445,12 +444,10 @@ unsigned long smc_rec_destroy(unsigned long rec_addr)
 	g_rd = rec->realm_info.g_rd;
 
 	/* Free and scrub the auxiliary granules */
-	free_rec_aux_granules(rec->g_aux, rec->num_rec_aux, true);
-
-	granule_memzero_mapped(rec);
+	free_rec_aux_granules(rec->g_aux, rec->num_rec_aux);
 	buffer_unmap(rec);
 
-	granule_unlock_transition(g_rec, GRANULE_STATE_DELEGATED);
+	granule_unlock_transition_to_delegated(g_rec);
 
 	/*
 	 * Decrement refcount. The refcount should be balanced before

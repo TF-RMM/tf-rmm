@@ -46,7 +46,7 @@ void handle_rsi_realm_config(struct rec *rec, struct rsi_result *res)
 
 	/* Map Realm data granule to RMM address space */
 	gr = find_granule(walk_res.pa);
-	config = (struct rsi_realm_config *)buffer_granule_map(gr, SLOT_RSI_CALL);
+	config = (struct rsi_realm_config *)buffer_granule_map(gr, SLOT_REALM);
 	assert(config != NULL);
 
 	/* Populate config structure */

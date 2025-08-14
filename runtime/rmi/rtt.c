@@ -145,7 +145,8 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 	assert(parent_s2tt != NULL);
 
 	parent_s2tte = s2tte_read(&parent_s2tt[wi.index]);
-	s2tt = buffer_granule_map(g_tbl, SLOT_DELEGATED);
+	/* No need to memzero as the table creation does not rely on this */
+	s2tt = buffer_granule_map(g_tbl, SLOT_RTT2);
 	assert(s2tt != NULL);
 
 	if (s2tte_is_unassigned_empty(&s2_ctx, parent_s2tte)) {
@@ -336,8 +337,6 @@ unsigned long smc_rtt_create(unsigned long rd_addr,
 
 	ret = RMI_SUCCESS;
 
-	granule_set_state(g_tbl, GRANULE_STATE_RTT);
-
 	parent_s2tte = s2tte_create_table(&s2_ctx, rtt_addr, level - 1L);
 	s2tte_write(&parent_s2tt[wi.index], parent_s2tte);
 
@@ -346,7 +345,12 @@ out_unmap_table:
 	buffer_unmap(parent_s2tt);
 out_unlock_llt:
 	granule_unlock(wi.g_llt);
-	granule_unlock(g_tbl);
+	if (ret == RMI_SUCCESS) {
+		granule_unlock_transition(g_tbl, GRANULE_STATE_RTT);
+	} else {
+		granule_unlock(g_tbl);
+	}
+
 	return ret;
 }
 
@@ -547,9 +551,9 @@ void smc_rtt_fold(unsigned long rd_addr,
 	}
 
 	s2tte_write(&parent_s2tt[wi.index], parent_s2tte);
-
-	granule_memzero_mapped(table);
-	granule_set_state(g_tbl, GRANULE_STATE_DELEGATED);
+	buffer_unmap(table);
+	granule_unlock_transition_to_delegated(g_tbl);
+	goto out_unmap_parent_table;
 
 out_unmap_table:
 	buffer_unmap(table);
@@ -570,7 +574,7 @@ void smc_rtt_destroy(unsigned long rd_addr,
 	struct granule *g_tbl;
 	struct rd *rd;
 	struct s2tt_walk wi;
-	unsigned long *table, *parent_s2tt, parent_s2tte;
+	unsigned long *parent_s2tt, parent_s2tte;
 	long level = (long)ulevel;
 	unsigned long  rtt_addr;
 	unsigned long ret;
@@ -635,15 +639,13 @@ void smc_rtt_destroy(unsigned long rd_addr,
 	 */
 	if (granule_refcount_read(g_tbl) != 0U) {
 		ret = pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
-		goto out_unlock_table;
+		granule_unlock(g_tbl);
+		goto out_unmap_parent_table;
 	}
 
 	ret = RMI_SUCCESS;
 	res->x[1] = rtt_addr;
 	skip_non_live = true;
-
-	table = buffer_granule_map(g_tbl, SLOT_RTT2);
-	assert(table != NULL);
 
 	if (in_par) {
 		parent_s2tte = s2tte_create_unassigned_destroyed(&s2_ctx);
@@ -671,12 +673,8 @@ void smc_rtt_destroy(unsigned long rd_addr,
 
 	s2tte_write(&parent_s2tt[wi.index], parent_s2tte);
 
-	granule_memzero_mapped(table);
-	granule_set_state(g_tbl, GRANULE_STATE_DELEGATED);
+	granule_unlock_transition_to_delegated(g_tbl);
 
-	buffer_unmap(table);
-out_unlock_table:
-	granule_unlock(g_tbl);
 out_unmap_parent_table:
 	if (skip_non_live) {
 		res->x[2] = s2tt_skip_non_live_entries(&s2_ctx, map_addr,
@@ -990,7 +988,6 @@ static unsigned long data_create(unsigned long rd_addr,
 	struct s2tt_walk wi;
 	struct s2tt_context *s2_ctx;
 	unsigned long s2tte, *s2tt;
-	unsigned char new_data_state = GRANULE_STATE_DELEGATED;
 	unsigned long ret;
 
 	if (!find_lock_two_granules(data_addr,
@@ -1047,18 +1044,13 @@ static unsigned long data_create(unsigned long rd_addr,
 
 	if (g_src != NULL) {
 		bool ns_access_ok;
-		void *data = buffer_granule_map(g_data, SLOT_DELEGATED);
+		void *data = buffer_granule_map(g_data, SLOT_REALM);
 
 		assert(data != NULL);
 
 		ns_access_ok = ns_buffer_read(SLOT_NS, g_src, 0U,
 					      GRANULE_SIZE, data);
 		if (!ns_access_ok) {
-			/*
-			 * Some data may be copied before the failure. Zero
-			 * g_data granule as it will remain in delegated state.
-			 */
-			granule_memzero_mapped(data);
 			buffer_unmap(data);
 			ret = RMI_ERROR_INPUT;
 			goto out_unmap_ll_table;
@@ -1075,12 +1067,14 @@ static unsigned long data_create(unsigned long rd_addr,
 		s2tte = s2tte_create_assigned_ram(s2_ctx, data_addr,
 						  S2TT_PAGE_LEVEL);
 	} else {
+		/* Map, zero initialize and unmap the data granule */
+		void *data = buffer_granule_map_zeroed(g_data, SLOT_REALM);
+
+		buffer_unmap(data);
 		s2tte = s2tte_create_assigned_unchanged(s2_ctx, s2tte,
 							data_addr,
 							S2TT_PAGE_LEVEL);
 	}
-
-	new_data_state = GRANULE_STATE_DATA;
 
 	s2tte_write(&s2tt[wi.index], s2tte);
 	atomic_granule_get(wi.g_llt);
@@ -1094,7 +1088,12 @@ out_unlock_ll_table:
 out_unmap_rd:
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
-	granule_unlock_transition(g_data, new_data_state);
+	if (ret == RMI_SUCCESS) {
+		granule_unlock_transition(g_data, GRANULE_STATE_DATA);
+	} else {
+		granule_unlock(g_data);
+	}
+
 	return ret;
 }
 
@@ -1205,8 +1204,12 @@ void smc_data_destroy(unsigned long rd_addr,
 	 */
 	g_data = find_lock_granule(data_addr, GRANULE_STATE_DATA);
 	assert(g_data != NULL);
-	buffer_granule_memzero(g_data, SLOT_DELEGATED);
-	granule_unlock_transition(g_data, GRANULE_STATE_DELEGATED);
+
+	/*
+	 * The data will be scrubbed when this granule is re-used for another Realm
+	 * or reclaimed by NS Host.
+	 */
+	granule_unlock_transition_to_delegated(g_data);
 
 	res->x[0] = RMI_SUCCESS;
 	res->x[1] = data_addr;

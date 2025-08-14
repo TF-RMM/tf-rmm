@@ -200,7 +200,7 @@ static void init_s2_starting_level(struct rd *rd)
 
 	num_root_rtts = rd->s2_ctx.num_root_rtts;
 	for (unsigned int rtt = 0U; rtt < num_root_rtts; rtt++) {
-		unsigned long *s2tt = buffer_granule_map(g_rtt, SLOT_RTT);
+		unsigned long *s2tt = buffer_granule_map_zeroed(g_rtt, SLOT_RTT);
 
 		assert(s2tt != NULL);
 
@@ -330,8 +330,7 @@ static void free_sl_rtts(struct granule *g_rtt, unsigned int num_rtts)
 						(i * sizeof(struct granule)));
 
 		granule_lock(g, GRANULE_STATE_RTT);
-		buffer_granule_memzero(g, SLOT_RTT);
-		granule_unlock_transition(g, GRANULE_STATE_DELEGATED);
+		granule_unlock_transition_to_delegated(g);
 	}
 }
 
@@ -428,7 +427,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 		return RMI_ERROR_INPUT;
 	}
 
-	rd = buffer_granule_map(g_rd, SLOT_RD);
+	rd = buffer_granule_map_zeroed(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
 	set_rd_state(rd, REALM_NEW);
@@ -537,13 +536,16 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	 * Just release the VMID value so it can be used in another Realm.
 	 */
 	vmid_free(rd->s2_ctx.vmid);
-	buffer_unmap(rd);
 
 	free_sl_rtts(g_rtt, num_rtts);
 
-	/* This implicitly destroys the measurement */
-	buffer_granule_memzero(g_rd, SLOT_RD);
-	granule_unlock_transition(g_rd, GRANULE_STATE_DELEGATED);
+	buffer_unmap(rd);
+
+	/*
+	 * The measurement data in rd will be destroyed eventually when
+	 * the granule is reclaimed for another Realm or by NS Host.
+	 */
+	granule_unlock_transition_to_delegated(g_rd);
 
 	return RMI_SUCCESS;
 }

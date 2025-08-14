@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <arch_features.h>
 #include <buffer.h>
 #include <debug.h>
 #include <dev_granule.h>
@@ -106,9 +107,13 @@ unsigned long smc_granule_delegate(unsigned long addr)
 			return RMI_ERROR_INPUT;
 		}
 
-		granule_set_state(g, GRANULE_STATE_DELEGATED);
-		buffer_granule_memzero(g, SLOT_DELEGATED);
-		granule_unlock(g);
+		/*
+		 * The granule will be initialized later when the granule transitions
+		 * to other states. RMM does not scrub here as the initilization makes
+		 * the scrub redundant.
+		 */
+		granule_unlock_transition(g, GRANULE_STATE_DELEGATED);
+
 		return RMI_SUCCESS;
 	}
 
@@ -125,8 +130,12 @@ unsigned long smc_granule_undelegate(unsigned long addr)
 		if (!granule_lock_on_state_match(g, GRANULE_STATE_DELEGATED)) {
 			return RMI_ERROR_INPUT;
 		}
+
+		/* Scrub any Realm world data before returning granule to NS */
+		buffer_granule_memzero(g, SLOT_DELEGATED);
+
 		/*
-		 * A delegated memoty granule should only be undelegated on request from RMM.
+		 * A delegated memory granule should only be undelegated on request from RMM.
 		 * If this call fails, we have an unrecoverable error in EL3/RMM.
 		 */
 		if (rmm_el3_ifc_gtsi_undelegate(addr) != SMC_SUCCESS) {
@@ -135,8 +144,7 @@ unsigned long smc_granule_undelegate(unsigned long addr)
 			panic();
 		}
 
-		granule_set_state(g, GRANULE_STATE_NS);
-		granule_unlock(g);
+		granule_unlock_transition(g, GRANULE_STATE_NS);
 		return RMI_SUCCESS;
 	}
 

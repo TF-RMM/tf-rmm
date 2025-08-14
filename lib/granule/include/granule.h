@@ -142,7 +142,7 @@ static inline unsigned char granule_get_state(struct granule *g)
 }
 
 /* Must be called with granule lock held */
-static inline void granule_set_state(struct granule *g, unsigned char state)
+static inline void __granule_set_state(struct granule *g, unsigned char state)
 {
 	unsigned short val;
 
@@ -202,7 +202,14 @@ static inline void granule_unlock(struct granule *g)
 static inline void granule_unlock_transition(struct granule *g,
 					     unsigned char new_state)
 {
-	granule_set_state(g, new_state);
+	/*
+	 * Restrict this function to non-delegated states. The only
+	 * exception is when transitioning from NS to delegated state.
+	 */
+	assert((new_state != GRANULE_STATE_DELEGATED) ||
+		(granule_get_state(g) == GRANULE_STATE_NS));
+
+	__granule_set_state(g, new_state);
 	granule_unlock(g);
 }
 
@@ -220,6 +227,31 @@ bool find_lock_two_granules(unsigned long addr1,
 			    struct granule **g2);
 
 void granule_memzero_mapped(void *buf);
+void granule_dcci_poe(struct granule *g);
+
+/*
+ * Helper to transition a granule to DELEGATED state. This function
+ * does the necessary Cache maintenance to PoE when FEAT_MEC is present.
+ * There should not be any live mapping for this granule on any CPU
+ * when this function is called.
+ * Note that this API is not to be used for NS -> DELEGATED transition.
+ */
+static inline void granule_unlock_transition_to_delegated(struct granule *g)
+{
+	assert((g != NULL) && LOCKED(g));
+
+	unsigned char current_state __unused = granule_get_state(g);
+
+	/* Transition from DELEGATED to DELEGATED is invalid */
+	assert(current_state != GRANULE_STATE_DELEGATED);
+	/* This function is not to be used for NS -> DELEGATED transition */
+	assert(current_state != GRANULE_STATE_NS);
+	granule_dcci_poe(g);
+	/* Set new state to DELEGATED */
+	__granule_set_state(g, GRANULE_STATE_DELEGATED);
+
+	granule_unlock(g);
+}
 
 /*
  * Refcount field occupies LSB bits of the granule descriptor,

@@ -1126,7 +1126,7 @@ TEST(granule, granule_lock_TC1)
 			granule_bitlock_acquire(granule);
 
 			/* Set the granule state */
-			granule_set_state(granule, state);
+			__granule_set_state(granule, state);
 
 			/* Unlock the granule */
 			granule_bitlock_release(granule);
@@ -1174,7 +1174,7 @@ ASSERT_TEST(granule, granule_lock_TC2)
 	granule_bitlock_acquire(granule);
 
 	/* Set the granule state */
-	granule_set_state(granule, state);
+	__granule_set_state(granule, state);
 
 	test_helpers_expect_assert_fail(true);
 
@@ -1215,7 +1215,7 @@ TEST(granule, granule_lock_on_state_match_TC1)
 			granule_bitlock_acquire(granule);
 
 			/* Set the granule state */
-			granule_set_state(granule, state);
+			__granule_set_state(granule, state);
 
 			/* Unlock the granule */
 			granule_bitlock_release(granule);
@@ -1261,7 +1261,7 @@ TEST(granule, granule_lock_on_state_match_TC2)
 			granule_bitlock_acquire(granule);
 
 			/* Set the granule state */
-			granule_set_state(granule, state);
+			__granule_set_state(granule, state);
 
 			/* Unlock the granule */
 			granule_bitlock_release(granule);
@@ -1452,7 +1452,7 @@ ASSERT_TEST(granule, granule_set_state_TC1)
 		test_helpers_expect_assert_fail(true);
 
 		/* Change the granule state */
-		granule_set_state(NULL, state);
+		__granule_set_state(NULL, state);
 		test_helpers_fail_if_no_assert_failed();
 	}
 }
@@ -1485,7 +1485,7 @@ TEST(granule, granule_set_get_state_TC1)
 			granule = find_lock_granule(addrs[i], state);
 
 			/* Change the granule state */
-			granule_set_state(granule, next_state);
+			__granule_set_state(granule, next_state);
 
 			/* Check that the state is correct */
 			CHECK_EQUAL(next_state, granule_get_state(granule));
@@ -1537,7 +1537,7 @@ TEST(granule, granule_set_get_unlocked_state_TC1)
 			granule = find_lock_granule(addrs[i], state);
 
 			/* Change the granule state */
-			granule_set_state(granule, next_state);
+			__granule_set_state(granule, next_state);
 
 			/* Unlock the granule */
 			granule_unlock(granule);
@@ -1585,7 +1585,7 @@ TEST(granule, granule_unlock_TC1)
 			granule = find_lock_granule(addrs[i], GRANULE_STATE_NS);
 
 			/* Change the state of the granule */
-			granule_set_state(granule, state);
+			__granule_set_state(granule, state);
 
 			/* Check that the state is correct */
 			CHECK_EQUAL(state, granule_get_state(granule));
@@ -1600,7 +1600,7 @@ TEST(granule, granule_unlock_TC1)
 			 * Leave the granule in a known state for
 			 * the next iteration
 			 */
-			granule_set_state(granule, GRANULE_STATE_NS);
+			__granule_set_state(granule, GRANULE_STATE_NS);
 
 			/* Unlock the granule */
 			granule_bitlock_release(granule);
@@ -1692,7 +1692,7 @@ TEST(granule, find_lock_unused_granule_TC1)
 		/* Find, lock the granule and set it to the expected state */
 		granule = find_granule(addrs[i]);
 		granule_bitlock_acquire(granule);
-		granule_set_state(granule, GRANULE_STATE_RD);
+		__granule_set_state(granule, GRANULE_STATE_RD);
 
 		granule_bitlock_release(granule);
 
@@ -1749,7 +1749,7 @@ TEST(granule, find_lock_unused_granule_TC2)
 		 * Start the test with a granule in the same state as at the
 		 * end of the previous test
 		 */
-		granule_set_state(granule, GRANULE_STATE_RD);
+		__granule_set_state(granule, GRANULE_STATE_RD);
 		granule_bitlock_release(granule);
 
 		for (unsigned char state = GRANULE_STATE_NS;
@@ -1798,7 +1798,7 @@ TEST(granule, find_lock_unused_granule_TC3)
 		granule_set_refcount(granule, 10U);
 
 		granule_bitlock_acquire(granule);
-		granule_set_state(granule, GRANULE_STATE_RD);
+		__granule_set_state(granule, GRANULE_STATE_RD);
 		granule_bitlock_release(granule);
 
 		ret = find_lock_unused_granule(addrs[i], GRANULE_STATE_RD,

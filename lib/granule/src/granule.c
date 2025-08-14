@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <arch_features.h>
 #include <arch_helpers.h>
 #include <assert.h>
 #include <debug.h>
@@ -243,8 +244,9 @@ void granule_memzero_mapped(void *buf)
 	assert((dczid_el0 & DCZID_EL0_DZP_BIT) == 0UL);
 
 	/*
-	 * Log2 of the block size in words.
-	 * The maximum size supported is 2KB, indicated by value 0b1001.
+	 * Log2 of the block size in bytes.
+	 * The maximum size supported is 2KB, indicated by DCZID_EL0.BS
+	 * value 0b1001 (512 words).
 	 */
 	log2_size = (unsigned int)EXTRACT(DCZID_EL0_BS, dczid_el0) + 2U;
 	block_size = U(1) << log2_size;
@@ -260,3 +262,34 @@ void granule_memzero_mapped(void *buf)
 	dsb(ish);
 }
 
+void granule_dcci_poe(struct granule *g)
+{
+	unsigned long ctr_el0 = read_ctr_el0();
+	unsigned int log2_size;
+	unsigned int line_size;
+	unsigned int cnt;
+	unsigned long pa = granule_addr(g);
+
+	/* cppcheck-suppress knownConditionTrueFalse */
+	if (!is_feat_mec_present()) {
+		return;
+	}
+
+	/* Log2 of the line size in bytes */
+	log2_size = (unsigned int)EXTRACT(CTR_EL0_DminLine, ctr_el0) + 2U;
+	line_size = U(1) << log2_size;
+
+	/* Number of iterations */
+	cnt = U(1) << (GRANULE_SHIFT - log2_size);
+
+	for (unsigned int i = 0U; i < cnt; i++) {
+		/*
+		 * DC CIPAE: Data or unified Cache line Clean and Invalidate
+		 * by PA to PoE (Point of Encryption).
+		 */
+		dccipae(pa);
+		pa += line_size;
+	}
+
+	dsb(ish);
+}

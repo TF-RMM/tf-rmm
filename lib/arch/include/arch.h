@@ -844,6 +844,11 @@
 #define DCZID_EL0_BS_WIDTH		U(4)
 #define DCZID_EL0_DZP_BIT		(UL(1) << 4)
 
+/* CTR_EL0 Definitions */
+#define CTR_EL0				S3_3_C0_C0_1
+#define CTR_EL0_DminLine_SHIFT		16
+#define CTR_EL0_DminLine_WIDTH		U(4)
+
 /* MDSCR_EL1 Definitions */
 #define MDSCR_EL1_TDCC_BIT	(UL(1) << 12)
 
