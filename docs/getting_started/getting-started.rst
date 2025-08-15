@@ -57,6 +57,7 @@ The following tools are required to obtain and build |RMM|:
    "CBMC",">=5.84.0","Tools(CBMC analysis)"
    "Cppcheck",">=2.14.0","Tools(Cppcheck)"
    "pyelftools","==0.32","Firmware (EL0 app)"
+   "Clang-tidy",">=18.1.8","Tools(clang-tidy)"
 
 .. _getting_started_toolchain:
 
