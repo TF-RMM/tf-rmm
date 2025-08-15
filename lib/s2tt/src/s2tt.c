@@ -41,7 +41,7 @@ static unsigned long s2tte_lvl_mask(long level, bool lpa2)
 }
 
 /*
- * Return an IPA mask @level
+ * Return an IPA mask for level @level
  */
 unsigned long s2tte_ipa_lvl_mask(long level, bool lpa2)
 {
@@ -62,9 +62,16 @@ unsigned long s2tte_ipa_lvl_mask(long level, bool lpa2)
 /*
  * Extracts the PA mapped by an S2TTE, aligned to a given level.
  */
-static unsigned long s2tte_to_pa(unsigned long s2tte, long level, bool lpa2)
+unsigned long s2tte_to_pa(const struct s2tt_context *s2_ctx,
+			  unsigned long s2tte, long level)
 {
-	unsigned long pa = s2tte & s2tte_lvl_mask(level, lpa2);
+	unsigned long pa = s2tte;
+	bool lpa2;
+
+	assert(s2_ctx != NULL);
+
+	lpa2 = s2_ctx->enable_lpa2;
+	pa &= s2tte_lvl_mask(level, lpa2);
 
 	if (lpa2) {
 		pa &= ~MASK(LPA2_S2TTE_51_50);
@@ -75,11 +82,11 @@ static unsigned long s2tte_to_pa(unsigned long s2tte, long level, bool lpa2)
 }
 
 /*
- * Invalidates S2 TLB entries from [ipa, ipa + size] region tagged with `vmid`.
+ * Invalidates S2 TLB entries from [ipa, ipa + size] region tagged with a
+ * VMID for each one passed @vmids.
  */
-static void stage2_tlbi_ipa(const struct s2tt_context *s2_ctx,
-			    unsigned long ipa,
-			    unsigned long size)
+static void stage2_tlbi_ipa_per_vmids(unsigned int *vmids, unsigned int nvmids,
+				      unsigned long ipa, unsigned long size)
 {
 	/*
 	 * Notes:
@@ -94,42 +101,46 @@ static void stage2_tlbi_ipa(const struct s2tt_context *s2_ctx,
 	 *   - Address range invalidation.
 	 */
 
-	assert(s2_ctx != NULL);
+	assert(vmids != NULL);
 
 	/*
 	 * Save the current content of vttb_el2.
 	 */
 	unsigned long old_vttbr_el2 = read_vttbr_el2();
 
-	/*
-	 * Make 'vmid' the `current vmid`. Note that the tlbi instructions
-	 * bellow target the TLB entries that match the `current vmid`.
-	 */
-	write_vttbr_el2(INPLACE(VTTBR_EL2_VMID, s2_ctx->vmid));
-	isb();
+	for (unsigned int i = 0U; i < nvmids; i++) {
+		/*
+		 * Make vmids[i] the `current vmid`. Note that the tlbi
+		 * instructions bellow target the TLB entries that match
+		 * the `current vmid`.
+		 */
+		write_vttbr_el2(INPLACE(VTTBR_EL2_VMID, vmids[i]));
+		isb();
 
-	/*
-	 * Invalidate entries in S2 TLB caches that
-	 * match both `ipa` & the `current vmid`.
-	 */
-	while (size != 0UL) {
-		tlbiipas2e1is(ipa >> 12);
-		size -= GRANULE_SIZE;
-		ipa += GRANULE_SIZE;
+		/*
+		 * Invalidate entries in S2 TLB caches that
+		 * match both `ipa` & the `current vmid`.
+		 */
+		while (size != 0UL) {
+			tlbiipas2e1is(ipa >> 12);
+			size -= GRANULE_SIZE;
+			ipa += GRANULE_SIZE;
+		}
+		dsb(ish);
+
+		/*
+		 * The architecture does not require TLB invalidation by
+		 * IPA to affect combined Stage-1 + Stage-2 TLBs. Therefore
+		 * we must invalidate all of Stage-1 after invalidating Stage-2.
+		 *
+		 * Bear in mind that as the effective value of
+		 * HCR_EL2.{E2H, TGE} == {1, 1} the current VMID is not taken
+		 * into account for the invalidation.
+		 */
+		tlbivmalle1is();
+		dsb(ish);
+		isb();
 	}
-	dsb(ish);
-
-	/*
-	 * The architecture does not require TLB invalidation by IPA to affect
-	 * combined Stage-1 + Stage-2 TLBs. Therefore we must invalidate all of
-	 * Stage-1 after invalidating Stage-2.
-	 *
-	 * Bear in mind that as the effective value of HCR_EL2.{E2H, TGE} == {1, 1}
-	 * the current VMID is not taken into account for the invalidation.
-	 */
-	tlbivmalle1is();
-	dsb(ish);
-	isb();
 
 	/*
 	 * Restore the old content of vttb_el2.
@@ -171,11 +182,15 @@ static bool s2tte_has_pa(const struct s2tt_context *s2_ctx,
  * Creates a TTE containing only the PA.
  * This function expects 'pa' to be aligned and bounded.
  */
-static unsigned long pa_to_s2tte(unsigned long pa, bool lpa2)
+unsigned long pa_to_s2tte(const struct s2tt_context *s2_ctx, unsigned long pa)
 {
 	unsigned long tte = pa;
 
-	if (lpa2) {
+	assert(s2_ctx != NULL);
+
+	pa &= s2tte_ipa_lvl_mask(S2TT_PAGE_LEVEL, s2_ctx->enable_lpa2);
+
+	if (s2_ctx->enable_lpa2) {
 		tte &= ~MASK(LPA2_OA_51_50);
 		tte |= INPLACE(LPA2_S2TTE_51_50, EXTRACT(LPA2_OA_51_50, pa));
 	}
@@ -229,7 +244,25 @@ static unsigned long s2tte_get_ap(const struct s2tt_context *s2_ctx,
  */
 void s2tt_invalidate_page(const struct s2tt_context *s2_ctx, unsigned long addr)
 {
-	stage2_tlbi_ipa(s2_ctx, addr, GRANULE_SIZE);
+	assert(s2_ctx != NULL);
+
+	unsigned int vmid = s2_ctx->vmid;
+
+	stage2_tlbi_ipa_per_vmids(&vmid, 1U, addr, GRANULE_SIZE);
+}
+
+/*
+ * Invalidate S2 TLB entries with "addr" IPA for the list of VMIDS @vmids.
+ * Call this function after:
+ * 1.  A L3 page desc has been removed.
+ */
+void s2tt_invalidate_page_per_vmids(const struct s2tt_context *s2_ctx,
+				    unsigned int *vmids, unsigned int nvmids,
+				    unsigned long addr)
+{
+	(void)s2_ctx;
+
+	stage2_tlbi_ipa_per_vmids(vmids, nvmids, addr, GRANULE_SIZE);
 }
 
 /*
@@ -241,7 +274,27 @@ void s2tt_invalidate_page(const struct s2tt_context *s2_ctx, unsigned long addr)
  */
 void s2tt_invalidate_block(const struct s2tt_context *s2_ctx, unsigned long addr)
 {
-	stage2_tlbi_ipa(s2_ctx, addr, GRANULE_SIZE);
+	assert(s2_ctx != NULL);
+
+	unsigned int vmid = s2_ctx->vmid;
+
+	stage2_tlbi_ipa_per_vmids(&vmid, 1U, addr, GRANULE_SIZE);
+}
+
+/*
+ * Invalidate S2 TLB entries with "addr" IPA for the list of VMIDS @vmids.
+ * Call this function after:
+ * 1.  A L2 block desc has been removed, or
+ * 2a. A L2 table desc has been removed, where
+ * 2b. All S2TTEs in L3 table that the L2 table desc was pointed to were invalid.
+ */
+void s2tt_invalidate_block_per_vmids(const struct s2tt_context *s2_ctx,
+				     unsigned int *vmids, unsigned int nvmids,
+				     unsigned long addr)
+{
+	(void)s2_ctx;
+
+	stage2_tlbi_ipa_per_vmids(vmids, nvmids, addr, GRANULE_SIZE);
 }
 
 /*
@@ -253,7 +306,26 @@ void s2tt_invalidate_block(const struct s2tt_context *s2_ctx, unsigned long addr
 void s2tt_invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
 				    unsigned long addr)
 {
-	stage2_tlbi_ipa(s2_ctx, addr, BLOCK_L2_SIZE);
+	assert(s2_ctx != NULL);
+
+	unsigned int vmid = s2_ctx->vmid;
+
+	stage2_tlbi_ipa_per_vmids(&vmid, 1U, addr, BLOCK_L2_SIZE);
+}
+
+/*
+ * Invalidate S2 TLB entries with "addr" IPA for the list of VMIDS @vmids.
+ * Call this function after:
+ * 1a. A L2 table desc has been removed, where
+ * 1b. Some S2TTEs in the table that the L2 table desc was pointed to were valid.
+ */
+void s2tt_invalidate_pages_in_block_per_vmids(const struct s2tt_context *s2_ctx,
+					      unsigned int *vmids, unsigned int nvmids,
+					      unsigned long addr)
+{
+	(void)s2_ctx;
+
+	stage2_tlbi_ipa_per_vmids(vmids, nvmids, addr, BLOCK_L2_SIZE);
 }
 
 /*
@@ -324,8 +396,8 @@ static unsigned long table_get_entry(const struct s2tt_context *s2_ctx,
 	return entry;
 }
 
-#define table_entry_to_phys(tte, lpa2)			\
-				s2tte_to_pa(tte, S2TT_PAGE_LEVEL, lpa2)
+#define table_entry_to_phys(ctx, tte)				\
+				s2tte_to_pa(ctx, tte, S2TT_PAGE_LEVEL)
 
 static struct granule *find_next_level_idx(const struct s2tt_context *s2_ctx,
 					   struct granule *g_tbl,
@@ -339,7 +411,7 @@ static struct granule *find_next_level_idx(const struct s2tt_context *s2_ctx,
 		return NULL;
 	}
 
-	return addr_to_granule(table_entry_to_phys(entry, s2_ctx->enable_lpa2));
+	return addr_to_granule(table_entry_to_phys(s2_ctx, entry));
 }
 
 static struct granule *find_lock_next_level(const struct s2tt_context *s2_ctx,
@@ -514,7 +586,7 @@ static unsigned long s2tte_create_assigned(const struct s2tt_context *s2_ctx,
 	assert(s2tte_ripas <= S2TTE_INVALID_RIPAS_DESTROYED);
 	assert(s2tte_is_addr_lvl_aligned(s2_ctx, pa, level));
 
-	tte = pa_to_s2tte(pa, s2_ctx->enable_lpa2);
+	tte = pa_to_s2tte(s2_ctx, pa);
 
 	if (s2tte_ripas == S2TTE_INVALID_RIPAS_RAM) {
 		unsigned long s2tte_page, s2tte_block;
@@ -611,7 +683,7 @@ static unsigned long s2tte_create_assigned_dev(const struct s2tt_context *s2_ctx
 	assert((s2tte_ripas == S2TTE_INVALID_RIPAS_EMPTY) ||
 	       (s2tte_ripas == S2TTE_INVALID_RIPAS_DESTROYED));
 
-	tte = pa_to_s2tte(pa, s2_ctx->enable_lpa2);
+	tte = pa_to_s2tte(s2_ctx, pa);
 
 	return (tte | S2TTE_INVALID_HIPAS_ASSIGNED_DEV | s2tte_ripas);
 }
@@ -681,14 +753,13 @@ static unsigned long create_assigned_dev_dev_attr(const struct s2tt_context *s2_
 						  unsigned long s2tte_ap)
 {
 	unsigned long pa, new_s2tte;
-	bool lpa2 = s2_ctx->enable_lpa2;
 
 	assert(level >= S2TT_MIN_DEV_BLOCK_LEVEL);
 	assert(level <= S2TT_PAGE_LEVEL);
 
-	pa = s2tte_to_pa(s2tte, level, lpa2);
+	pa = s2tte_to_pa(s2_ctx, s2tte, level);
 
-	new_s2tte = attr | pa_to_s2tte(pa, lpa2) | s2tte_get_ap(s2_ctx, s2tte_ap, true);
+	new_s2tte = attr | pa_to_s2tte(s2_ctx, pa) | s2tte_get_ap(s2_ctx, s2tte_ap, true);
 
 	if (level == S2TT_PAGE_LEVEL) {
 		return (new_s2tte | S2TTE_L3_PAGE);
@@ -910,7 +981,7 @@ unsigned long s2tte_create_table(const struct s2tt_context *s2_ctx,
 	assert(level >= min_starting_level);
 	assert(GRANULE_ALIGNED(pa));
 
-	return (pa_to_s2tte(pa, s2_ctx->enable_lpa2) | S2TTE_TABLE);
+	return (pa_to_s2tte(s2_ctx, pa) | S2TTE_TABLE);
 }
 
 /*
@@ -1523,7 +1594,7 @@ void s2tt_init_assigned_ns(const struct s2tt_context *s2_ctx,
 
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
 		s2tt[i] = s2tte_create_assigned_ns(s2_ctx,
-				attrs | pa_to_s2tte(pa, s2_ctx->enable_lpa2),
+				attrs | pa_to_s2tte(s2_ctx, pa),
 				level, s2tte_ap);
 		pa += map_size;
 	}
@@ -1619,7 +1690,6 @@ bool s2tte_is_live(const struct s2tt_context *s2_ctx,
 unsigned long s2tte_pa(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 		       long level)
 {
-	bool lpa2;
 	__unused long min_starting_level;
 
 	assert(s2_ctx != NULL);
@@ -1631,13 +1701,11 @@ unsigned long s2tte_pa(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 	assert(level <= S2TT_PAGE_LEVEL);
 	assert(s2tte_has_pa(s2_ctx, s2tte, level));
 
-	lpa2 = s2_ctx->enable_lpa2;
-
 	if (s2tte_is_table(s2_ctx, s2tte, level)) {
-		return table_entry_to_phys(s2tte, lpa2);
+		return table_entry_to_phys(s2_ctx, s2tte);
 	}
 
-	return s2tte_to_pa(s2tte, level, lpa2);
+	return s2tte_to_pa(s2_ctx, s2tte, level);
 }
 
 bool s2tte_is_addr_lvl_aligned(const struct s2tt_context *s2_ctx,

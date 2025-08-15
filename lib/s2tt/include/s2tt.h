@@ -219,6 +219,11 @@ unsigned long s2tte_update_prot_ap(struct s2tt_context *s2_ctx,
 bool s2tte_is_live(const struct s2tt_context *s2_ctx,
 		   unsigned long s2tte, long level);
 
+unsigned long pa_to_s2tte(const struct s2tt_context *s2_ctx, unsigned long pa);
+
+unsigned long s2tte_to_pa(const struct s2tt_context *s2_ctx,
+			  unsigned long s2tte, long level);
+
 /***************************************************************************
  * Helpers for Stage 2 Translation Tables  (S2TT).
  **************************************************************************/
@@ -255,9 +260,18 @@ void s2tt_init_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 				unsigned long pa, long level, unsigned long s2tte_ap);
 
 void s2tt_invalidate_page(const struct s2tt_context *s2_ctx, unsigned long addr);
+void s2tt_invalidate_page_per_vmids(const struct s2tt_context *s2_ctx,
+				    unsigned int *vmids, unsigned int nvmids,
+				    unsigned long addr);
 void s2tt_invalidate_block(const struct s2tt_context *s2_ctx, unsigned long addr);
+void s2tt_invalidate_block_per_vmids(const struct s2tt_context *s2_ctx,
+				     unsigned int *vmids, unsigned int nvmids,
+				     unsigned long addr);
 void s2tt_invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
 				    unsigned long addr);
+void s2tt_invalidate_pages_in_block_per_vmids(const struct s2tt_context *s2_ctx,
+					      unsigned int *vmids, unsigned int nvmids,
+					      unsigned long addr);
 
 bool s2tt_is_unassigned_empty_block(const struct s2tt_context *s2_ctx,
 				    unsigned long *table, unsigned long s2tte_ap);
