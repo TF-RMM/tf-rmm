@@ -85,6 +85,13 @@ bool ns_buffer_write(enum buffer_slot slot,
 		     size_t size,
 		     void *src);
 
+bool ns_buffer_write_unaligned(enum buffer_slot slot,
+			       struct granule *ns_gr,
+			       unsigned int offset,
+			       size_t size,
+			       void *src,
+			       size_t *ns_start_offset);
+
 /*
  * Finishes initializing the slot buffer mechanism.
  * This function should be called after the MMU is enabled, during the

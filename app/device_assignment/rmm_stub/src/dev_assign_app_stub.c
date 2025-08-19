@@ -13,7 +13,7 @@ void dev_assign_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
 
 void dev_assign_app_get_bss(uintptr_t *bss_pa, size_t *bss_size)
 {
-	static char dev_assign_app_bss[GRANULE_SIZE] __aligned(GRANULE_SIZE);
+	static char dev_assign_app_bss[GRANULE_SIZE * 3U] __aligned(GRANULE_SIZE);
 	*bss_pa = (uintptr_t)dev_assign_app_bss;
 	*bss_size = sizeof(dev_assign_app_bss);
 }
@@ -61,7 +61,8 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 	assert((dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_RESUME) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION) ||
-		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION));
+		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION) ||
+		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS));
 
 	app_map_shared_page(app_data);
 	assert(app_data->el2_shared_page != NULL);

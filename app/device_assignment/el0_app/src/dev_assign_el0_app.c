@@ -72,6 +72,8 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 	rc = (int)el0_app_service_call(APP_SERVICE_WRITE_TO_NS_BUF,
 		APP_SERVICE_RW_NS_BUF_HEAP, (unsigned long)buf_offset,
 		info->enter_args.req_addr, request_size_align);
+	/* NS start offset is expected to be 0. */
+	assert(*((size_t *)info->shared_buf) == 0U);
 
 	if (rc != 0) {
 		return LIBSPDM_STATUS_SEND_FAIL;
@@ -79,7 +81,11 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 
 	info->exit_args.flags |= RMI_DEV_COMM_EXIT_FLAGS_SEND_BIT;
 	info->exit_args.timeout = timeout;
-	info->exit_args.protocol = (unsigned char)RMI_DEV_COMM_PROTOCOL_SPDM;
+	if (!info->is_msg_sspdm) {
+		info->exit_args.protocol = (unsigned char)RMI_DEV_COMM_PROTOCOL_SPDM;
+	} else {
+		info->exit_args.protocol = (unsigned char)RMI_DEV_COMM_PROTOCOL_SECURE_SPDM;
+	}
 	info->exit_args.req_len = request_size;
 
 	/* Copy back the exit args to shared buf */
@@ -130,7 +136,7 @@ static libspdm_return_t spdm_receive_message(void *spdm_context,
 	 * Sending the message. Device communication request is written to the
 	 * NS buffer.
 	 */
-	rc = (int)el0_app_service_call(APP_SERVICE_READ_FROM_NS_BUF,
+	rc = (int)el0_app_service_call(APP_SERVICE_READ_FROM_NS_BUF_ALIGNED,
 		APP_SERVICE_RW_NS_BUF_HEAP, (unsigned long)buf_offset,
 		info->enter_args.resp_addr, resp_len_align);
 
@@ -143,6 +149,46 @@ static libspdm_return_t spdm_receive_message(void *spdm_context,
 	return LIBSPDM_STATUS_SUCCESS;
 }
 
+/* Get sequence number in an SPDM secure message. */
+static uint8_t cma_spdm_get_sequence_number(uint64_t sequence_number,
+					    uint8_t *sequence_number_buffer)
+{
+	/* Sequence number not required as no transport is used */
+	(void)sequence_number;
+	(void)sequence_number_buffer;
+	return 0U;
+}
+
+/* Return max random number count in an SPDM secure message. */
+static uint32_t cma_spdm_get_max_rand_num_cnt(void)
+{
+	/* Sequence number not required as no transport is used */
+	return 0U;
+}
+
+/*
+ * This function translates the negotiated secured_message_version to a DSP0277
+ * version.
+ */
+static spdm_version_number_t cma_spdm_get_secured_spdm_version(
+	spdm_version_number_t secured_message_version)
+{
+	/*
+	 * In the currently used version of libspdm the caller is doing the
+	 * translation, so returning the version parameter without change here.
+	 */
+	return secured_message_version;
+}
+
+/* cppcheck-suppress [misra-c2012-8.4] */
+/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
+const libspdm_secured_message_callbacks_t cma_spdm_sec_msg_cbs = {
+	.version = LIBSPDM_SECURED_MESSAGE_CALLBACKS_VERSION,
+	.get_sequence_number = cma_spdm_get_sequence_number,
+	.get_max_random_number_count = cma_spdm_get_max_rand_num_cnt,
+	.get_secured_spdm_version = cma_spdm_get_secured_spdm_version,
+};
+
 static libspdm_return_t
 spdm_transport_encode_message(void *spdm_context, const uint32_t *session_id,
 				  bool is_app_message, bool is_request_message,
@@ -150,13 +196,48 @@ spdm_transport_encode_message(void *spdm_context, const uint32_t *session_id,
 				  size_t *transport_message_size,
 				  void **transport_message)
 {
-	(void)spdm_context;
-	(void)session_id;
-	(void)is_app_message;
-	(void)is_request_message;
+	libspdm_return_t status;
+	struct dev_assign_info *info;
+	uint8_t *sec_msg;
+	size_t sec_msg_size;
+	void *sec_msg_ctx;
 
-	*transport_message_size = message_size;
-	*transport_message = message;
+	(void)is_app_message;
+	info = spdm_to_dev_assign_info(spdm_context);
+
+	/* Message send outside the secure session */
+	if (session_id == NULL) {
+		info->is_msg_sspdm = false;
+
+		*transport_message_size = message_size;
+		*transport_message = message;
+		return LIBSPDM_STATUS_SUCCESS;
+	}
+
+	sec_msg_ctx = libspdm_get_secured_message_context_via_session_id(
+		spdm_context, *session_id);
+	if (sec_msg_ctx == NULL) {
+		return LIBSPDM_STATUS_UNSUPPORTED_CAP;
+	}
+
+	/* convert message to secured message */
+	sec_msg = (uint8_t *)*transport_message;
+	sec_msg_size = *transport_message_size;
+	status = libspdm_encode_secured_message(sec_msg_ctx, *session_id,
+						is_request_message,
+						message_size, message,
+						&sec_msg_size, sec_msg,
+						&cma_spdm_sec_msg_cbs);
+	if (status != LIBSPDM_STATUS_SUCCESS) {
+		INFO("cma_spdm: encode_secured_message failed\n");
+		return status;
+	}
+
+	info->is_msg_sspdm = true;
+
+	/* No transport header are used */
+	*transport_message_size = sec_msg_size;
+	*transport_message = (void *)sec_msg;
 
 	return LIBSPDM_STATUS_SUCCESS;
 }
@@ -164,30 +245,63 @@ spdm_transport_encode_message(void *spdm_context, const uint32_t *session_id,
 /*
  * Set cache flags in DevCommExit and compute digest of cached data.
  */
-static int dev_assign_dev_comm_set_cache(struct dev_assign_info *info, const void *cache_buf,
+static int dev_assign_dev_comm_set_cache(struct dev_assign_info *info, void *cache_buf,
 				  size_t cache_offset, size_t cache_len,
 				  uint8_t cache_type, uint8_t hash_op_flags)
 {
-	uint8_t *hash_src;
 	const size_t digest_size = DEV_OBJ_DIGEST_MAX;
+	size_t ns_buf_cache_offset;
+	void *cache_src;
 	int rc;
+
+	cache_src = (void *)((unsigned long)cache_buf + cache_offset);
+
+	/*
+	 * If 'is_msg_sspdm' is true, then overwrite the NS response buffer with the
+	 * decrypted data. Else use the existing content to be cached by the
+	 * NS host.
+	 */
+	if (info->is_msg_sspdm) {
+
+		/*
+		 * In case of secure message the NS buffer is overwritten with
+		 * the decrypted data.
+		 */
+		rc = (int)el0_app_service_call(APP_SERVICE_WRITE_TO_NS_BUF,
+			APP_SERVICE_RW_NS_BUF_HEAP, (uintptr_t)cache_src -
+				(uintptr_t)(info->send_recv_buffer),
+			info->enter_args.resp_addr, cache_len);
+		assert(info->shared_buf != NULL);
+		ns_buf_cache_offset = *((size_t *)info->shared_buf);
+		assert(ns_buf_cache_offset < 8U);
+		if (rc != 0) {
+			return -1;
+		}
+	} else {
+		/*
+		 * In case of non-secure message the existing content in the NS
+		 * buffer is used for caching.
+		 */
+		ns_buf_cache_offset = cache_offset;
+	}
 
 	assert(info->cached_digest.len == 0U);
 
-	hash_src = (uint8_t *)((unsigned long)cache_buf + cache_offset);
 	rc = dev_assign_hash_extend(info->psa_hash_algo, &info->psa_hash_op,
-				 hash_op_flags, hash_src, cache_len,
-				 info->cached_digest.value, digest_size,
-				 &info->cached_digest.len);
+				    hash_op_flags, cache_src, cache_len,
+				    info->cached_digest.value, digest_size,
+				    &info->cached_digest.len);
 	if (rc != 0) {
 		return -1;
 	}
 
 	info->exit_args.flags |= RMI_DEV_COMM_EXIT_FLAGS_CACHE_RSP_BIT;
-	info->exit_args.cache_rsp_offset = cache_offset;
+	info->exit_args.cache_rsp_offset = ns_buf_cache_offset;
 	info->exit_args.cache_rsp_len = cache_len;
 	if (cache_type == CACHE_TYPE_CERT) {
 		info->exit_args.cache_obj_id = (unsigned char)RMI_DEV_COMM_OBJECT_CERTIFICATE;
+	} else if (cache_type == CACHE_TYPE_MEAS) {
+		info->exit_args.cache_obj_id = (unsigned char)RMI_DEV_COMM_OBJECT_MEASUREMENTS;
 	}
 
 	return 0;
@@ -298,25 +412,127 @@ static int cma_spdm_cache_certificate(struct dev_assign_info *info,
 	return rc;
 }
 
+/* Process device measurements response */
+static int dev_assign_cache_measurements(struct dev_assign_info *info,
+					 spdm_measurements_response_t *meas_rsp)
+{
+	size_t cache_offset, cache_len;
+	uint8_t hash_op_flags;
+	int rc;
+
+	/*
+	 * Measurement length is a three byte wide integer represented as a 3
+	 * bytes array, index 0 being the least significant byte. Reconstruct
+	 * the value cache_len.
+	 */
+	/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
+	cache_len = ((size_t)meas_rsp->measurement_record_length[0]) |
+		    ((size_t)meas_rsp->measurement_record_length[1] << 8U) |
+		    ((size_t)meas_rsp->measurement_record_length[2] << 16U);
+	if (cache_len > (size_t)LIBSPDM_MAX_MEASUREMENT_RECORD_SIZE) {
+		return -1;
+	}
+
+	cache_offset = sizeof(spdm_measurements_response_t);
+	hash_op_flags = (HASH_OP_FLAG_SETUP | HASH_OP_FLAG_UPDATE |
+			 HASH_OP_FLAG_FINISH);
+	info->psa_hash_op = psa_hash_operation_init();
+
+	rc = dev_assign_dev_comm_set_cache(info, meas_rsp, cache_offset,
+				  cache_len, (uint8_t)CACHE_TYPE_MEAS, hash_op_flags);
+
+	return rc;
+}
+
+static libspdm_return_t
+spdm_transport_decode_secured_message(struct dev_assign_info *info,
+				      void *spdm_context, uint32_t **session_id,
+				      bool is_request_message,
+				      size_t transport_message_size,
+				      void *transport_message,
+				      size_t *message_size, void **message)
+{
+	libspdm_return_t status;
+	spdm_secured_message_a_data_header1_t *sec_msg_hdr1;
+	libspdm_error_struct_t spdm_error;
+	void *sec_msg_ctx;
+	uint8_t *sec_msg;
+	size_t sec_msg_size;
+
+	/* No transport headers, set secured message and its size */
+	sec_msg = transport_message;
+	sec_msg_size = transport_message_size;
+
+	/*
+	 * Last message was sent inside session, get session ID from the
+	 * encrpyted message received and check against the session id in CMA
+	 * SPDM context.
+	 */
+	sec_msg_hdr1 = (spdm_secured_message_a_data_header1_t *)sec_msg;
+	if (sec_msg_hdr1->session_id != info->session_id) {
+		return LIBSPDM_STATUS_UNSUPPORTED_CAP;
+	}
+
+	/* Get secured message context from session id */
+	sec_msg_ctx = libspdm_get_secured_message_context_via_session_id(
+		spdm_context,  info->session_id);
+	if (sec_msg_ctx == NULL) {
+		spdm_error.error_code = SPDM_ERROR_CODE_INVALID_SESSION;
+		spdm_error.session_id = info->session_id;
+		libspdm_set_last_spdm_error_struct(spdm_context, &spdm_error);
+		return LIBSPDM_STATUS_UNSUPPORTED_CAP;
+	}
+
+	/* Convert secured mssage to normal message */
+	status = libspdm_decode_secured_message(sec_msg_ctx, info->session_id,
+						is_request_message,
+						sec_msg_size, sec_msg,
+						message_size, message,
+						&cma_spdm_sec_msg_cbs);
+	if (status != LIBSPDM_STATUS_SUCCESS) {
+		libspdm_secured_message_get_last_spdm_error_struct(
+			sec_msg_ctx, &spdm_error);
+		libspdm_set_last_spdm_error_struct(spdm_context, &spdm_error);
+		return status;
+	}
+
+	*session_id = &info->session_id;
+
+	return LIBSPDM_STATUS_SUCCESS;
+}
+
 static libspdm_return_t
 spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
-				  bool *is_app_message, bool is_request_message,
-				  size_t transport_message_size,
-				  void *transport_message,
-				  size_t *message_size, void **message)
+			      bool *is_app_message, bool is_request_message,
+			      size_t transport_message_size,
+			      void *transport_message,
+			      size_t *message_size, void **message)
 {
-
 	struct dev_assign_info *info;
 	spdm_message_header_t *spdm_hdr;
+	int rc;
 
-	(void)spdm_context;
 	(void)is_app_message;
-	(void)is_request_message;
 	info = spdm_to_dev_assign_info(spdm_context);
 
-	*session_id = NULL;
-	*message_size = transport_message_size;
-	*message = transport_message;
+	/*
+	 * As no transport headers are available, the type of the received
+	 * message is SPDM or SECURED_SPDM based on last sent request type.
+	 */
+	if (!info->is_msg_sspdm) {
+		*session_id = NULL;
+		*message_size = transport_message_size;
+		*message = transport_message;
+	} else {
+		libspdm_return_t status;
+
+		status = spdm_transport_decode_secured_message(info, spdm_context, session_id,
+				is_request_message, transport_message_size, transport_message,
+				message_size, message);
+		if (status != LIBSPDM_STATUS_SUCCESS) {
+			return status;
+		}
+	}
 
 	if (transport_message_size < sizeof(spdm_message_header_t)) {
 		return LIBSPDM_STATUS_RECEIVE_FAIL;
@@ -328,7 +544,6 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 	 * once the message is decrypted.
 	 */
 	if (spdm_hdr->request_response_code == (uint8_t)SPDM_CERTIFICATE) {
-		int rc;
 		spdm_certificate_response_t *cert_rsp;
 
 		if (transport_message_size < sizeof(spdm_certificate_response_t)) {
@@ -343,6 +558,15 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 		}
 
 		rc = cma_spdm_cache_certificate(info, cert_rsp);
+		if (rc != 0) {
+			return LIBSPDM_STATUS_RECEIVE_FAIL;
+		}
+	} else if (spdm_hdr->request_response_code ==
+		   (uint8_t)SPDM_MEASUREMENTS) {
+		spdm_measurements_response_t *meas_rsp;
+
+		meas_rsp = (spdm_measurements_response_t *)spdm_hdr;
+		rc = dev_assign_cache_measurements(info, meas_rsp);
 		if (rc != 0) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}
@@ -879,6 +1103,9 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 	case DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION:
 		ret = dev_assign_cmd_stop_connection_main(info);
 		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS:
+		ret = dev_assign_cmd_get_measurements_main(info);
+		break;
 	default:
 		assert(false);
 		return INT_TO_ULONG(DEV_ASSIGN_STATUS_ERROR);
@@ -919,6 +1146,7 @@ unsigned long el0_app_entry_func(
 	case DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT:
 	case DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION:
 	case DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION:
+	case DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS:
 		return dev_assign_communicate_cmd_cmn(func_id, heap);
 	case DEVICE_ASSIGN_APP_FUNC_SET_PUBLIC_KEY:
 		return (unsigned long)dev_assign_set_pubkey(heap, arg_0);

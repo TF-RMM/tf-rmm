@@ -250,7 +250,9 @@
 #define SIZEOF_MEMBER(struct_type, member) (sizeof(((struct_type *)0)->member))
 
 #define INT_TO_ULONG(_code) \
-	(unsigned long)(_code) /* coverity[integer_overflow:SUPPRESS] */
+	/* coverity[integer_overflow:SUPPRESS] */ \
+	/* coverity[return_overflow:SUPPRESS] */ \
+	(unsigned long)(_code)
 
 #endif /* !(defined(__ASSEMBLER__) || defined(__LINKER__)) */
 
