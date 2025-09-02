@@ -330,9 +330,6 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 		/* Device instance ID */
 		unsigned long inst_id;
 
-		/* VDEV granule cached as part of GET_INSTANCE() flow */
-		struct granule *g_vdev;
-
 		/* PA of the vdev granule */
 		unsigned long vdev_addr;
 

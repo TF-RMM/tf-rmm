@@ -245,9 +245,6 @@ unsigned long smc_vdev_complete(unsigned long rec_addr, unsigned long vdev_addr)
 	}
 
 	if (rmi_rc == RMI_SUCCESS) {
-		/* Cache the vdev granule */
-		rec->vdev.g_vdev = g_vdev;
-
 		/* Clear the REC pending request operation */
 		rec_set_pending_op(rec, REC_PENDING_NONE);
 	}
