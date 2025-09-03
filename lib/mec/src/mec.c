@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <atomics.h>
+#include <cpuid.h>
 #include <debug.h>
 #include <errno.h>
 #include <mec.h>
@@ -64,6 +65,34 @@ static struct {
 	.mec_reserved = {
 		[MECID_SYSTEM_OFFSET] = MEC_RESERVE_INITALIZER}
 };
+
+static uint64_t mecid_pcpcu_refcnt[MAX_CPUS];
+
+void _mecid_s1_get(unsigned int mecid)
+{
+	/* no acquire/release needed as this is a per-cpu only access variable */
+	uint64_t old_val =  atomic_load_add_64(&mecid_pcpcu_refcnt[my_cpuid()], 1U);
+	if (old_val == 0U) {
+		assert(read_mecid_a1_el2() == RESERVED_MECID_SYSTEM);
+		write_mecid_a1_el2(INTERNAL_MECID(mecid));
+		isb();
+	} else {
+		assert(read_mecid_a1_el2() == INTERNAL_MECID(mecid));
+	}
+}
+
+void _mecid_s1_put(void)
+{
+	/* no acquire/release needed as this is a per-cpu only accessed variable */
+	uint64_t old_val = atomic_load_add_64(&mecid_pcpcu_refcnt[my_cpuid()], (uint64_t)(-1));
+	assert(old_val != 0U);
+	assert(read_mecid_a1_el2() != RESERVED_MECID_SYSTEM);
+
+	if (old_val == 1U) {
+		write_mecid_a1_el2(RESERVED_MECID_SYSTEM);
+		isb();
+	}
+}
 
 /* Maximum MECID allocatable */
 unsigned int mecid_max(void)

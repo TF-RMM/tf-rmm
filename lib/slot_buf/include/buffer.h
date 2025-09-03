@@ -70,6 +70,8 @@ static inline enum buffer_slot safe_cast_to_slot(enum buffer_slot slot, unsigned
 
 bool check_cpu_slots_empty(void);
 void *buffer_granule_map(struct granule *g, enum buffer_slot slot);
+void *buffer_granule_mecid_map(struct granule *g, enum buffer_slot slot,
+			unsigned int mecid);
 void buffer_unmap(void *buf);
 
 bool ns_buffer_read(enum buffer_slot slot,
@@ -146,6 +148,16 @@ static inline void *buffer_granule_map_zeroed(struct granule *g, enum buffer_slo
 	granule_memzero_mapped(buf);
 	return buf;
 }
+
+static inline void *buffer_granule_mecid_map_zeroed(struct granule *g,
+			enum buffer_slot slot, unsigned int mecid)
+{
+
+	void *buf = buffer_granule_mecid_map(g, slot, mecid);
+	granule_memzero_mapped(buf);
+	return buf;
+}
+
 
 /******************************************************************************
  * Internal APIs not meant to be invoked by generic RMM code.

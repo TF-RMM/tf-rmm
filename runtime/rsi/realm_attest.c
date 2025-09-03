@@ -68,7 +68,8 @@ static void attest_token_continue_write_state(struct rec *rec,
 
 	/* Map realm data granule to RMM address space */
 	gr = find_granule(walk_res.pa);
-	realm_att_token = (uintptr_t)buffer_granule_map(gr, SLOT_REALM);
+	realm_att_token = (uintptr_t)buffer_granule_mecid_map(gr, SLOT_REALM,
+					rec->realm_info.primary_s2_ctx.mecid);
 	assert(realm_att_token != 0UL);
 
 	if (attest_data->rmm_cca_token_copied_len == 0UL) {

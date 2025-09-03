@@ -290,7 +290,6 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 		unsigned int num_aux_planes;
 		bool rtt_tree_pp;
 		bool rtt_s2ap_encoding;
-		unsigned int mecid;
 	} realm_info;
 
 	/* Pointer to per-cpu non-secure state */

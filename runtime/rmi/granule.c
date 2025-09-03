@@ -140,12 +140,10 @@ unsigned long smc_granule_undelegate(unsigned long addr)
 		buffer_unmap(buf);
 #elif (RMM_MEM_SCRUB_METHOD == 2)
 		/* Change to the reserved Scrub MECID */
-		mec_init_scrub_mecid_s1();
 		/* A Slot which uses Realm MECID needs to be used */
-		void *buf = buffer_granule_map(g, SLOT_REALM);
+		void *buf = buffer_granule_mecid_map(g, SLOT_REALM, mec_scrub_mecid());
 		granule_sanitize_mapped(buf);
 		buffer_unmap(buf);
-		mec_reset_realm_mecid();
 #else
 		/* Any Slot which uses RMM MECID will do, use SLOT_RD for now */
 		void *buf = buffer_granule_map(g, SLOT_RD);

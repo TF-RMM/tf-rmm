@@ -33,6 +33,14 @@ uintptr_t slot_to_va(enum buffer_slot slot)
 	return (SLOT_VIRT + (GRANULE_SIZE * (unsigned long)slot));
 }
 
+static inline enum buffer_slot va_to_slot(uintptr_t buf)
+{
+	enum buffer_slot slot = (enum buffer_slot)((buf - SLOT_VIRT) >> GRANULE_SHIFT);
+	assert(slot < NR_CPU_SLOTS);
+
+	return slot;
+}
+
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 struct xlat_llt_info *get_cached_llt_info(void)
 {
@@ -127,7 +135,8 @@ static inline void ns_buffer_unmap(void *buf)
 
 /*
  * Maps a granule @g into the provided @slot, returning
- * the virtual address.
+ * the virtual address. Note that slots which require Realm MECID
+ * to be programmed should not use this API.
  *
  * The caller must either hold @g::lock or hold a reference.
  */
@@ -135,14 +144,35 @@ void *buffer_granule_map(struct granule *g, enum buffer_slot slot)
 {
 	unsigned long addr = granule_addr(g);
 
-	assert(is_realm_pas_slot(slot));
+	assert(is_realm_pas_slot(slot) && !is_realm_mecid_slot(slot));
 
+	return buffer_arch_map(slot, addr);
+}
+
+/*
+ * Maps a granule @g into the provided @slot, programs
+ * the MECID and returns the virtual address.
+ *
+ * The caller must either hold @g::lock or hold a reference.
+ */
+void *buffer_granule_mecid_map(struct granule *g, enum buffer_slot slot,
+		unsigned int mecid)
+{
+	unsigned long addr = granule_addr(g);
+
+	assert(is_realm_pas_slot(slot) && is_realm_mecid_slot(slot));
+
+	mec_realm_mecid_s1_init(mecid);
 	return buffer_arch_map(slot, addr);
 }
 
 void buffer_unmap(void *buf)
 {
 	buffer_arch_unmap(buf);
+
+	if (is_realm_mecid_slot(va_to_slot((uintptr_t)buf))) {
+		mec_realm_mecid_s1_reset();
+	}
 }
 
 /*

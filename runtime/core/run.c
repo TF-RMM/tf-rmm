@@ -138,6 +138,8 @@ void save_realm_state(struct rec *rec, struct rec_plane *plane)
 
 	save_pmu(rec);
 	gic_save_state(&plane->sysregs->gicstate);
+
+	mec_realm_mecid_s2_reset();
 }
 
 static void restore_sysreg_state(struct sysreg_state *sysregs)
@@ -203,25 +205,6 @@ static void restore_sysreg_state(struct sysreg_state *sysregs)
 	}
 }
 
-static unsigned long active_overlay_perms(struct rec *rec)
-{
-	unsigned long overlay_perms;
-	struct s2tt_context *s2_context;
-	struct rd *rd;
-
-	assert(rec->realm_info.rtt_s2ap_encoding != S2AP_DIRECT_ENC);
-
-	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
-
-	assert(rd != NULL);
-
-	s2_context = plane_to_s2_context(rd, rec->active_plane_id);
-	overlay_perms = s2tt_ctx_get_overlay_perm_unlocked(s2_context);
-	buffer_unmap(rd);
-
-	return overlay_perms;
-}
-
 /*
  * Configure the realm stage 2 registers.
  * Note that there is a 1-2-1 correspondence between vttbr_el2 array index
@@ -229,17 +212,26 @@ static unsigned long active_overlay_perms(struct rec *rec)
  */
 static void restore_realm_stage2(struct rec *rec)
 {
+	struct s2tt_context *s2_context;
+	struct rd *rd;
+
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	s2_context = plane_to_s2_context(rd, rec->active_plane_id);
+
 	assert(rec_active_plane(rec)->sysregs != NULL);
 
 	/* Program vmec prior to Stage 2 programming */
-	mec_init_realm_mecid_s2(rec->realm_info.mecid);
+	mec_realm_mecid_s2_init(s2_context->mecid);
 	write_vtcr_el2(rec->common_sysregs.vtcr_el2);
 	write_vttbr_el2(rec_active_plane(rec)->sysregs->vttbr_el2);
 
 	if (rec->realm_info.rtt_s2ap_encoding == S2AP_INDIRECT_ENC) {
-		s2ap_ind_write_overlay(active_overlay_perms(rec));
+		s2ap_ind_write_overlay(s2tt_ctx_get_overlay_perm_unlocked(s2_context));
 	}
 
+	buffer_unmap(rd);
 }
 
 void restore_realm_state(struct rec *rec, struct rec_plane *plane)

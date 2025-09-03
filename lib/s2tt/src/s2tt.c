@@ -388,7 +388,7 @@ static unsigned long table_get_entry(const struct s2tt_context *s2_ctx,
 
 	(void)s2_ctx;
 
-	table = buffer_granule_map(g_tbl, SLOT_RTT);
+	table = buffer_granule_mecid_map(g_tbl, SLOT_RTT, s2_ctx->mecid);
 	assert(table != NULL);
 
 	entry = s2tte_read(&table[idx]);

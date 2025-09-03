@@ -10,6 +10,7 @@
 #include <feature.h>
 #include <granule.h>
 #include <measurement.h>
+#include <mec.h>
 #include <realm.h>
 #include <s2tt.h>
 #include <s2tt_ap.h>
@@ -36,7 +37,7 @@ unsigned long smc_realm_activate(unsigned long rd_addr)
 		return RMI_ERROR_INPUT;
 	}
 
-	rd = map_rd_and_init_realm_mecid_s1(g_rd);
+	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
 	if (get_rd_state_locked(rd) == REALM_NEW) {
@@ -204,7 +205,8 @@ static void init_s2_starting_level(struct rd *rd, unsigned int rtt_index)
 
 	num_root_rtts = s2tt_ctx->num_root_rtts;
 	for (unsigned int rtt = 0U; rtt < num_root_rtts; rtt++) {
-		unsigned long *s2tt = buffer_granule_map_zeroed(g_rtt, SLOT_RTT);
+		unsigned long *s2tt = buffer_granule_mecid_map_zeroed(g_rtt, SLOT_RTT,
+						s2tt_ctx->mecid);
 
 		assert(s2tt != NULL);
 
@@ -628,7 +630,6 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	set_rd_state(rd, REALM_NEW);
 	set_rd_rec_count(rd, 0UL);
 
-	rd->mecid = (unsigned int)p.mecid;
 	rd->rtt_tree_pp = rtt_tree_pp;
 	rd->num_aux_planes = p.num_aux_planes;
 	rd->rtt_s2ap_encoding = (EXTRACT(RMI_REALM_FLAGS1_S2AP_ENC, p.flags1) != 0UL);
@@ -654,6 +655,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 		s2tt_ctx->num_root_rtts = p.rtt_num_start;
 		s2tt_ctx->enable_lpa2 = is_lpa2_requested(&p);
 		s2tt_ctx->indirect_s2ap = rd->rtt_s2ap_encoding;
+		s2tt_ctx->mecid = (unsigned int)p.mecid;
 	}
 
 	for (unsigned int plane_idx = 0U; plane_idx < realm_num_planes(rd); plane_idx++) {
@@ -742,11 +744,11 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 		}
 	}
 
-	rd = map_rd_and_init_realm_mecid_s1(g_rd);
+	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
 	num_rtts = plane_to_s2_context(rd, PLANE_0_ID)->num_root_rtts;
-	mecid = rd->mecid;
+	mecid = plane_to_s2_context(rd, PLANE_0_ID)->mecid;
 
 	/* Check that root tables from all RTT trees don't hold any references */
 	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {

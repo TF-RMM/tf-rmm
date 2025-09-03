@@ -57,20 +57,34 @@ int mec_set_shared(unsigned int mecid);
 bool mecid_reserve(unsigned int mecid);
 void mecid_free(unsigned int mecid);
 
+void _mecid_s1_get(unsigned int mecid);
+void _mecid_s1_put(void);
+
 /* Initialize Realm MECID for Stage 1 of RMM */
-static inline void mec_init_realm_mecid_s1(unsigned int mecid)
+static inline void mec_realm_mecid_s1_init(unsigned int mecid)
 {
 	(void)mecid;
-	if (is_feat_mec_present()) {
-		assert((unsigned int)read_mecid_a1_el2() ==
-				RESERVED_MECID_SYSTEM);
-		write_mecid_a1_el2((unsigned long)INTERNAL_MECID(mecid));
-		isb();
+	/* cppcheck-suppress knownConditionTrueFalse */
+	if (!is_feat_mec_present()) {
+		return;
 	}
+
+	_mecid_s1_get(mecid);
+}
+
+/* Reset Realm MECID for Stage 1 of RMM */
+static inline void mec_realm_mecid_s1_reset(void)
+{
+	/* cppcheck-suppress knownConditionTrueFalse */
+	if (!is_feat_mec_present()) {
+		return;
+	}
+
+	_mecid_s1_put();
 }
 
 /* Initialize Realm MECID for Stage 2 of Realm */
-static inline void mec_init_realm_mecid_s2(unsigned int mecid)
+static inline void mec_realm_mecid_s2_init(unsigned int mecid)
 {
 	(void)mecid;
 	if (is_feat_mec_present()) {
@@ -81,14 +95,30 @@ static inline void mec_init_realm_mecid_s2(unsigned int mecid)
 	}
 }
 
-/* Reset Realm MECID registers , both for S1 of RMM and S2 of Realm */
-static inline void mec_reset_realm_mecid(void)
+/* Initialize Realm MECID for Stage 2 of Realm */
+static inline void mec_realm_mecid_s2_reset(void)
 {
 	if (is_feat_mec_present()) {
-		write_mecid_a1_el2((unsigned long)RESERVED_MECID_SYSTEM);
-		write_vmecid_p_el2((unsigned long)RESERVED_MECID_SYSTEM);
-		isb();
+		assert(read_vmecid_p_el2() != RESERVED_MECID_SYSTEM);
+		write_vmecid_p_el2(RESERVED_MECID_SYSTEM);
+		/* No isb() since NS world switch is expected after this */
 	}
+}
+
+/* Check if both Realm MECID registers for S1 and S2 are reset */
+static inline bool is_mec_reset_realm_mecid(void)
+{
+	/* cppcheck-suppress knownConditionTrueFalse */
+	if (!is_feat_mec_present()) {
+		return true;
+	}
+
+	if ((read_mecid_a1_el2() == RESERVED_MECID_SYSTEM) &&
+		(read_vmecid_p_el2() == RESERVED_MECID_SYSTEM)) {
+			return true;
+	}
+
+	return false;
 }
 
 /* Check if Realm MECID for Stage 1 of RMM is initialized */
@@ -111,13 +141,9 @@ bool mec_is_realm_mecid_s2_pvt(void);
 
 #if (RMM_MEM_SCRUB_METHOD == 2)
 /* Initialize the Reserved MECID for Stage 1 of RMM */
-static inline void mec_init_scrub_mecid_s1(void)
+static inline unsigned int mec_scrub_mecid(void)
 {
-	if (is_feat_mec_present()) {
-		assert(read_mecid_a1_el2() == RESERVED_MECID_SYSTEM);
-		write_mecid_a1_el2(RESERVED_MECID_SCRUB);
-		isb();
-	}
+	return RESERVED_MECID_SCRUB;
 }
 #endif
 

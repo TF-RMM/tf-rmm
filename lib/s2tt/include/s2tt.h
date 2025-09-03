@@ -45,6 +45,13 @@ struct s2tt_context {
 
 	/* Overlay permissions for the current S2 context */
 	unsigned long overlay_perm;
+
+	/* MECID to be used when rtt is accessed by RMM */
+	unsigned int mecid;
+
+	/*
+	 * TODO: we will need other translation regime state, e.g. TCR, MAIR(?).
+	 */
 };
 
 #define S2TT_MIN_IPA_BITS		U(32)

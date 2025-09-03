@@ -395,8 +395,8 @@ void handle_ns_smc(unsigned int function_id,
 	/* Current CPU's SIMD state must not be saved when exiting RMM */
 	assert(simd_is_state_saved() == false);
 	assert(check_cpu_slots_empty());
-	/* Ensure that MECID regs are reset before exit from RMM */
-	mec_reset_realm_mecid();
+	/* Check that MECID regs are reset before exit from RMM */
+	assert(is_mec_reset_realm_mecid());
 }
 
 /*

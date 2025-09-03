@@ -1029,7 +1029,8 @@ bool handle_plane_n_exit(struct rec *rec,
 
 	/* Map rsi_plane_run granule to RMM address space */
 	gr = find_granule(walk_res.pa);
-	run = (struct rsi_plane_run *)buffer_granule_map(gr, SLOT_REALM);
+	run = (struct rsi_plane_run *)buffer_granule_mecid_map(gr, SLOT_REALM,
+		rec->realm_info.primary_s2_ctx.mecid);
 
 	/* Zero the exit structure */
 	(void)memset((void *)&run->exit, 0, sizeof(struct rsi_plane_exit));
