@@ -14,6 +14,12 @@
 #include <stdint.h>
 #include <xlat_defs.h>
 
+#define MEC_REFRESH_MECID_SHIFT		U(32)
+#define MEC_REFRESH_MECID_WIDTH		UL(16)
+
+#define MEC_REFRESH_REASON_SHIFT	U(0)
+#define MEC_REFRESH_REASON_WIDTH	UL(1)
+
 /* Spinlock used to protect the EL3<->RMM shared area */
 static spinlock_t shared_area_lock = {0U};
 
@@ -276,4 +282,18 @@ int rmm_el3_ifc_get_feat_register(unsigned int feat_reg_idx, uint64_t *feat_reg)
 	*feat_reg = smc_res.x[1];
 
 	return E_RMM_OK;
+}
+
+unsigned long rmm_el3_ifc_mec_refresh(unsigned short mecid,
+					bool is_destroy)
+{
+	unsigned long x1 = 0UL;
+
+	/* x1[47:32] */
+	x1 |= INPLACE(MEC_REFRESH_MECID, mecid);
+	/* x1[0] */
+	x1 |= INPLACE(MEC_REFRESH_REASON, is_destroy);
+
+	return monitor_call(SMC_RMM_MEC_REFRESH, x1,
+				0UL, 0UL, 0UL, 0UL, 0UL);
 }

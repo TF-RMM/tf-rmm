@@ -133,10 +133,10 @@ static bool mec_reserve(unsigned int mecid)
 	if (!atomic_bit_set_acquire_release_64(&mec_state.mec_reserved[offset],
 						bit)) {
 		/*
-		 * Tweak the key associated with the MEC ID. This function
+		 * Tweak the key associated with the MECID. This function
 		 * is called with lock aqcuired when reserving Shared MECID.
 		 */
-		(void)rmm_el3_ifc_mecid_update((unsigned short)mecid);
+		(void)rmm_el3_ifc_mec_refresh((unsigned short)mecid, false);
 		return true;
 	}
 
@@ -154,6 +154,12 @@ static void mec_release(unsigned int mecid)
 
 	offset = mecid / BITS_PER_UL;
 	bit = mecid % BITS_PER_UL;
+
+	/*
+	 * Tweak the key associated with the MECID. This function
+	 * is called before releasing the MECID.
+	 */
+	(void)rmm_el3_ifc_mec_refresh((unsigned short)mecid, true);
 	atomic_bit_clear_release_64(&mec_state.mec_reserved[offset], bit);
 }
 
@@ -334,6 +340,11 @@ void mec_init_mmu(void)
 #endif
 		return;
 	}
+#if (RMM_MEM_SCRUB_METHOD == 2)
+	(void)rmm_el3_ifc_mec_refresh(RESERVED_MECID_SCRUB, false);
+#endif
+	/* Initialize the default shared MECID */
+	(void)rmm_el3_ifc_mec_refresh(MECID_DEFAULT_SHARED, false);
 
 	mecid = RESERVED_MECID_SYSTEM;
 
