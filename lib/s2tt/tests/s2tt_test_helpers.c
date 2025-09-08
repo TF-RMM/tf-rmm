@@ -27,8 +27,7 @@ static bool lpa2_enabled;
  */
 static void s2tt_test_helpers_arch_init(bool lpa2_en)
 {
-	unsigned int retval __unused;
-	uint64_t id_aa64mmfr0_el0 = INPLACE(ID_AA64MMFR0_EL1_TGRAN4_2,
+	uint64_t id_aa64mmfr0_val  = INPLACE(ID_AA64MMFR0_EL1_TGRAN4_2,
 					    ID_AA64MMFR0_EL1_TGRAN4_2_TGRAN4);
 
 	/*
@@ -38,27 +37,25 @@ static void s2tt_test_helpers_arch_init(bool lpa2_en)
 	test_helpers_rmm_start(false);
 
 	/*
-	 * Reset the sysreg state so that we can setup
+	 * Reset the cached ID reg state so that we can setup
 	 * custom values for the tests
 	 */
-	host_util_zero_sysregs_and_cbs();
+	ZERO_CACHED_REGS();
 
 	/* Setup id_aa64mmfr0_el1 */
 	if (lpa2_en == true) {
-		id_aa64mmfr0_el0 |= INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6UL) |
+		id_aa64mmfr0_val = INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6UL) |
 				    INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
 					    ID_AA64MMFR0_EL1_TGRAN4_LPA2);
+
 	} else {
-		id_aa64mmfr0_el0 |= INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5UL) |
-				    INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
+		id_aa64mmfr0_val = INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5UL) |
+					INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
 					    ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED);
 	}
+
+	WRITE_CACHED_REG(id_aa64mmfr0_el1, id_aa64mmfr0_val);
 	lpa2_enabled = lpa2_en;
-
-	retval = host_util_set_default_sysreg_cb("id_aa64mmfr0_el1",
-						 id_aa64mmfr0_el0);
-
-	assert(retval == 0);
 
 	/* Make sure current cpu id is 0 (primary processor) */
 	host_util_set_cpuid(0U);

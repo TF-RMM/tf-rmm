@@ -19,7 +19,7 @@
 
 static uint64_t read_id_aa64mmfr0_el0_tgran4(void)
 {
-	return EXTRACT(ID_AA64MMFR0_EL1_TGRAN4, read_id_aa64mmfr0_el1());
+	return EXTRACT(ID_AA64MMFR0_EL1_TGRAN4, READ_CACHED_REG(id_aa64mmfr0_el1));
 }
 
 /*

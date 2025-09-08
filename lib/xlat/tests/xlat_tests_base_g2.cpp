@@ -1780,7 +1780,9 @@ void xlat_map_memory_page_with_attrs_tc2(void)
 	unsigned int parange_index =
 			(unsigned int)test_helpers_get_rand_in_range(0UL,
 					ARRAY_SIZE(pa_range_bits_arr) - 1U);
-	uint64_t id_aa64mmfr0_el1 = read_id_aa64mmfr0_el1();
+
+	uint64_t id_aa64mmfr0_val = READ_CACHED_REG(id_aa64mmfr0_el1);
+
 
 	/***************************************************************
 	 * TEST CASE 2:
@@ -1945,7 +1947,7 @@ void xlat_map_memory_page_with_attrs_tc2(void)
 		CHECK_EQUAL(val_tte, tbl_ptr[tte_idx]);
 
 		/* Restore the maximum supported PA size for next tests */
-		host_write_sysreg("id_aa64mmfr0_el1", id_aa64mmfr0_el1);
+		WRITE_CACHED_REG(id_aa64mmfr0_el1, id_aa64mmfr0_val);
 
 		/* The rest of the tests will be based on init_mmap[2] */
 		test_va = init_mmap[2U].base_va + ctx.cfg->base_va;
@@ -2148,7 +2150,7 @@ static void validate_tcr_el2(struct xlat_ctx *low_ctx,
 	 * Xlat library configures TCR_EL2.IPS to the max
 	 * supported by the PE.
 	 */
-	parange = EXTRACT(ID_AA64MMFR0_EL1_PARANGE, read_id_aa64mmfr0_el1());
+	parange = EXTRACT(ID_AA64MMFR0_EL1_PARANGE, READ_CACHED_REG(id_aa64mmfr0_el1));
 	exp_tcr |= INPLACE(TCR_EL2_IPS, parange);
 
 	if (is_feat_lpa2_4k_present() == true) {
@@ -2259,6 +2261,7 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	int retval;
 	struct xlat_mmap_region init_mmap;
 	uint64_t max_va_size =	XLAT_TEST_MAX_VA_SIZE();
+	uint64_t temp_idval;
 	struct xlat_mmu_cfg mmu_config;
 
 	/***************************************************************
@@ -2313,10 +2316,11 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	ctx.cfg->init = true;
 
 	/* Force the architecture to report 4K granularity as not available */
-	host_write_sysreg("id_aa64mmfr0_el1",
-		INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5U) |
-		INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
-				ID_AA64MMFR0_EL1_TGRAN4_NOT_SUPPORTED));
+	temp_idval = INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5U) |
+				INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
+				ID_AA64MMFR0_EL1_TGRAN4_NOT_SUPPORTED);
+
+	WRITE_CACHED_REG(id_aa64mmfr0_el1, temp_idval);
 
 	/* Try to initialize MMU for the given context */
 	retval = xlat_arch_setup_mmu_cfg(&ctx, &mmu_config);
@@ -2330,10 +2334,11 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	 * Note that this scenario should never happen on the architecture
 	 * however, the library still checks for this.
 	 */
-	host_write_sysreg("id_aa64mmfr0_el1",
-		INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6U) |
-		INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
-				ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED));
+	temp_idval = INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6U) |
+				INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
+				ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED);
+
+	WRITE_CACHED_REG(id_aa64mmfr0_el1, temp_idval);
 
 	/* Try to initialize MMU for the given context */
 	retval = xlat_arch_setup_mmu_cfg(&ctx, &mmu_config);
@@ -2490,6 +2495,7 @@ void xlat_arch_setup_mmu_cfg_tc7(void)
 void xlat_get_oa_from_tte_tc1(void)
 {
 	uint64_t test_tte, val_addr, output_addr;
+	uint64_t id_aa64mmfr0_val;
 
 	/***************************************************************
 	 * TEST CASE 1:
@@ -2507,10 +2513,11 @@ void xlat_get_oa_from_tte_tc1(void)
 	test_tte = ~0ULL;
 
 	/* Test with FEAT_LPA2 available */
-	host_write_sysreg("id_aa64mmfr0_el1",
-				INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6UL) |
+	id_aa64mmfr0_val = INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6UL) |
 				INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
-					ID_AA64MMFR0_EL1_TGRAN4_LPA2));
+					ID_AA64MMFR0_EL1_TGRAN4_LPA2);
+
+	WRITE_CACHED_REG(id_aa64mmfr0_el1, id_aa64mmfr0_val);
 
 	/* Generate the validation address from the test TTE */
 	val_addr = test_tte & BIT_MASK_ULL(TTE_OA_BIT_49_LPA2, OA_SHIFT);
@@ -2523,10 +2530,11 @@ void xlat_get_oa_from_tte_tc1(void)
 		      (void *)output_addr, (void *)val_addr);
 
 	/* Repeat the test, by disabling support for FEAT_LPA2 this time */
-	host_write_sysreg("id_aa64mmfr0_el1",
-		INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5U) |
-		INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
-				ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED));
+	id_aa64mmfr0_val = INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5UL) |
+				INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
+					ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED);
+
+	WRITE_CACHED_REG(id_aa64mmfr0_el1, id_aa64mmfr0_val);
 
 	/* Generate the validation address */
 	val_addr = test_tte & BIT_MASK_ULL(TTE_OA_MSB, OA_SHIFT);

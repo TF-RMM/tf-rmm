@@ -6,7 +6,9 @@
 add_library(rmm-lib-arch)
 
 target_link_libraries(rmm-lib-arch
-    PUBLIC rmm-lib-common)
+    PUBLIC rmm-lib-common
+    PRIVATE rmm-lib-debug
+    PRIVATE rmm-lib-smc)
 
 target_include_directories(rmm-lib-arch
     PUBLIC  "include"
@@ -19,11 +21,13 @@ target_include_directories(rmm-lib-arch
 
 # Include files needed for aarch64, fake_host and cbmc builds
 target_sources(rmm-lib-arch
-        PRIVATE "src/vmid.c")
+        PRIVATE "src/vmid.c"
+                "src/arch_features.c")
 
 if(HOST_VARIANT STREQUAL "host_cbmc")
   target_sources(rmm-lib-arch
-        PRIVATE "src/fake_host/cbmc_arch_features.c"
+        PRIVATE "src/fake_host/cache_wrappers.c"
+                "src/fake_host/cbmc_arch_features.c"
                 "src/fake_host/cbmc_simd.c"
                 "src/fake_host/instr_helpers.c")
     # In case of 'host_cbmc' variant no further source files are added to
@@ -32,8 +36,7 @@ if(HOST_VARIANT STREQUAL "host_cbmc")
 endif()
 
 target_sources(rmm-lib-arch
-        PRIVATE "src/arch_features.c"
-                "src/pmu.c"
+        PRIVATE "src/pmu.c"
                 "src/pauth.c"
                 "src/simd.c")
 

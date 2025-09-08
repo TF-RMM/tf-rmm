@@ -6,6 +6,8 @@
 #ifndef HOST_UTILS_H
 #define HOST_UTILS_H
 
+#include <arch_features.h>
+#include <arch_helpers.h>
 #include <types.h>
 #include <utils_def.h>
 
@@ -21,6 +23,9 @@
 /* Maximum size allowed for a sysreg name */
 #define MAX_SYSREG_NAME_LEN	(25U)
 
+#define WRITE_CACHED_REG(reg, value)		((cached_idreg.reg) = (value))
+#define ZERO_CACHED_REGS()			((void)memset(&cached_idreg, 0, \
+						 sizeof(cached_idreg)))
 /*
  * Callback prototype invoked when a sysreg is read.
  *

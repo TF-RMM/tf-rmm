@@ -17,92 +17,6 @@
 #define SYSREG_CASE(reg) \
 	case ESR_EL2_SYSREG_##ID_AA64##reg##_EL1:
 
-#define SYSREG_READ(reg)		\
-	read_ID_AA64##reg##_EL1()
-
-#define SYSREG_READ_CLEAR(reg)		\
-	(read_ID_AA64##reg##_EL1() &	\
-	~(ID_AA64##reg##_EL1_CLEAR))
-
-#define SYSREG_READ_CLEAR_SET(reg)	\
-	((read_ID_AA64##reg##_EL1()  &	\
-	~(ID_AA64##reg##_EL1_CLEAR)) |	\
-	 (ID_AA64##reg##_EL1_SET))
-
-/* System registers ID_AA64xxx_EL1 feature clear masks and set values */
-
-/*
- * ID_AA64DFR0_EL1:
- *
- * Cleared fields:
- * - Trace unit System registers not implemented
- * - PMU Snapshot extension not implemented
- * - Synchronous-exception-based event profiling not implemented
- * - Number of breakpoints that are context-aware
- * - Statistical Profiling Extension not implemented
- * - Armv8.4 Self-hosted Trace Extension not implemented
- * - Trace Buffer Extension not implemented
- * - Branch Record Buffer Extension not implemented
- * - Trace Buffer External Mode not implemented
- */
-#define ID_AA64DFR0_EL1_CLEAR			  \
-	MASK(ID_AA64DFR0_EL1_TraceVer)		| \
-	MASK(ID_AA64DFR0_EL1_PMSS)		| \
-	MASK(ID_AA64DFR0_EL1_SEBEP)		| \
-	MASK(ID_AA64DFR0_EL1_CTX_CMPS)		| \
-	MASK(ID_AA64DFR0_EL1_PMSVer)		| \
-	MASK(ID_AA64DFR0_EL1_TraceFilt)		| \
-	MASK(ID_AA64DFR0_EL1_TraceBuffer)	| \
-	MASK(ID_AA64DFR0_EL1_BRBE)		| \
-	MASK(ID_AA64DFR0_EL1_ExtTrcBuff)
-
-/*
- * ID_AA64DFR1_EL1:
- *
- * Cleared fields:
- * - Exception-based event profiling not implemented
- * - PMU fixed-function instruction counter not implemented
- */
-#define ID_AA64DFR1_EL1_CLEAR		  \
-	MASK(ID_AA64DFR1_EL1_EBEP)	| \
-	MASK(ID_AA64DFR1_EL1_ICNTR)
-
-/*
- * ID_AA64PFR0_EL1:
- *
- * Cleared fields:
- * - Activity Monitors Extension not implemented
- * - Memory Partition and Monitoring Extension not implemented
- */
-#define ID_AA64PFR0_EL1_CLEAR		  \
-	MASK(ID_AA64PFR0_EL1_AMU)	| \
-	MASK(ID_AA64PFR0_EL1_MPAM)
-
-/*
- * ID_AA64PFR1_EL1:
- *
- * Cleared fields:
- * - Memory Tagging Extension is not implemented
- * - Scalable Matrix Extension (SME) not implemented
- * - Memory Partition and Monitoring Extension not implemented
- */
-#define ID_AA64PFR1_EL1_CLEAR		  \
-	MASK(ID_AA64PFR1_EL1_MTE)	| \
-	MASK(ID_AA64PFR1_EL1_SME)	| \
-	MASK(ID_AA64PFR1_EL1_MPAM_F)
-
-/*
- * ID_AA64MMFR3_EL1:
- *
- * Cleared fields:
- * - Everything except for FEAT_TCR2, FEAT_SCTLR2, FEAT_S1POE and FEAT_S1PIE
- */
-#define ID_AA64MMFR3_EL1_CLEAR		  \
-	~(MASK(ID_AA64MMFR3_EL1_TCRX)	| \
-	  MASK(ID_AA64MMFR3_EL1_SCTLRX) | \
-	  MASK(ID_AA64MMFR3_EL1_S1PIE)	| \
-	  MASK(ID_AA64MMFR3_EL1_S1POE))
-
 /*
  * Handle ID_AA64XXX<n>_EL1 instructions
  */
@@ -112,6 +26,7 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 {
 	unsigned int rt;
 	unsigned long idreg, value;
+	unsigned long mask = 0U;
 
 	(void)rec_exit;
 	(void)skip_adv_pc;
@@ -139,60 +54,79 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 
 	switch (idreg) {
 	SYSREG_CASE(AFR0)
-		value = SYSREG_READ(AFR0);
+		value = READ_CACHED_REG(id_aa64afr0_el1);
 		break;
 	SYSREG_CASE(AFR1)
-		value = SYSREG_READ(AFR1);
+		value = READ_CACHED_REG(id_aa64afr1_el1);
 		break;
 	SYSREG_CASE(DFR0)
-		value = SYSREG_READ_CLEAR(DFR0);
+		value = READ_CACHED_REG(id_aa64dfr0_el1);
+
+		/*
+		 * Clear BRBE bits for realms
+		 */
+		mask = MASK(ID_AA64DFR0_EL1_BRBE);
+		value &= ~mask;
+
 		break;
 	SYSREG_CASE(DFR1)
-		value = SYSREG_READ_CLEAR(DFR1);
+		value = READ_CACHED_REG(id_aa64dfr1_el1);
+		break;
+	SYSREG_CASE(DFR2)
+		value = READ_CACHED_REG(id_aa64dfr2_el1);
+		break;
+	SYSREG_CASE(FPFR0)
+		value = READ_CACHED_REG(id_aa64fpfr0_el1);
 		break;
 	SYSREG_CASE(ISAR0)
-		value = SYSREG_READ(ISAR0);
+		value = READ_CACHED_REG(id_aa64isar0_el1);
 		break;
 	SYSREG_CASE(ISAR1)
-		value = SYSREG_READ(ISAR1);
+		value = READ_CACHED_REG(id_aa64isar1_el1);
 		break;
 	SYSREG_CASE(MMFR0)
-		value = SYSREG_READ(MMFR0);
+		value = READ_CACHED_REG(id_aa64mmfr0_el1);
 		break;
 	SYSREG_CASE(MMFR1)
-		value = SYSREG_READ(MMFR1);
+		value = READ_CACHED_REG(id_aa64mmfr1_el1);
 		break;
 	SYSREG_CASE(MMFR2)
-		value = SYSREG_READ(MMFR2);
+		value = READ_CACHED_REG(id_aa64mmfr2_el1);
 		break;
 	SYSREG_CASE(MMFR3)
-		value = SYSREG_READ_CLEAR(MMFR3);
+		value = READ_CACHED_REG(id_aa64mmfr3_el1);
+		break;
+	SYSREG_CASE(MMFR4)
+		value = READ_CACHED_REG(id_aa64mmfr4_el1);
 		break;
 	SYSREG_CASE(PFR0)
 		/*
 		 * Workaround for TF-A trapping AMU registers access
 		 * to EL3 in Realm state.
 		 */
-		value = SYSREG_READ_CLEAR(PFR0);
+		value = READ_CACHED_REG(id_aa64pfr0_el1);
 
 		/*
-		 * Clear SVE bits if architecture supports it but SVE is
-		 * disabled for current realm.
+		 * Clear SVE, MPAM and AMU bits for current realm.
 		 */
-		if ((EXTRACT(ID_AA64PFR0_EL1_SVE, value) != 0UL) &&
-		    (rec->realm_info.simd_cfg.sve_en == false)) {
-			value &= ~MASK(ID_AA64PFR0_EL1_SVE);
+		if (rec->realm_info.simd_cfg.sve_en == false) {
+			mask = MASK(ID_AA64PFR0_EL1_SVE);
 		}
+		mask |= (MASK(ID_AA64PFR0_EL1_MPAM) | \
+			MASK(ID_AA64PFR0_EL1_AMU));
+
+		value &= ~mask;
 		break;
 	SYSREG_CASE(PFR1)
-		value = SYSREG_READ_CLEAR(PFR1);
+		value = READ_CACHED_REG(id_aa64pfr1_el1);
+
+		mask |= (MASK(ID_AA64PFR1_EL1_MPAM_F) | \
+			MASK(ID_AA64PFR1_EL1_SME));
+
+		value &= ~mask;
 		break;
-	SYSREG_CASE(ZFR0)
-		if (is_feat_sve_present() && rec->realm_info.simd_cfg.sve_en) {
-			value = read_id_aa64zfr0_el1();
-		} else {
-			value = 0UL;
-		}
+	SYSREG_CASE(PFR2)
+		value = READ_CACHED_REG(id_aa64pfr2_el1);
 		break;
 	SYSREG_CASE(SMFR0)
 		/*
@@ -201,8 +135,16 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 		 */
 		value = 0UL;
 		break;
+	SYSREG_CASE(ZFR0)
+		if (is_feat_sve_present() && rec->realm_info.simd_cfg.sve_en) {
+			value = READ_CACHED_REG(id_aa64zfr0_el1);
+		} else {
+			value = 0UL;
+		}
+		break;
 	default:
 		/* All other encodings are in the RES0 space */
+		WARN("Accessing unknown ID register.\n");
 		value = 0UL;
 	}
 

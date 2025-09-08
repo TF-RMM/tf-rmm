@@ -20,6 +20,7 @@ void __init_global_state(unsigned long cmd)
 
 	/* Set up all the system register */
 	host_util_setup_sysreg_and_boot_manifest();
+	arch_features_query_el3_support();
 
 	switch (cmd) {
 	case SMC_RMI_GRANULE_DELEGATE:

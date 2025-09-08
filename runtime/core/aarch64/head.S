@@ -140,6 +140,12 @@
 	bl 	app_save_rmm_entry_info
 
 	/*
+	 * This function has to be called before plat_setup,
+	 * since arch features are queried in plat_setup.
+	 */
+	bl	arch_features_query_el3_support
+
+	/*
 	 * Restore args received from previous BL image
 	 */
 	mov	x0, x20

@@ -4,7 +4,6 @@
  */
 
 #include <arch.h>
-#include <arch_helpers.h>
 #include <host_utils.h>
 #include <simd_callbacks.h>
 #include <simd_private.h>
@@ -16,8 +15,6 @@ static void simd_test_helpers_setup_sysregs(void)
 	int __unused ret;
 
 	(void)host_util_set_default_sysreg_cb("cptr_el2", 0UL);
-	(void)host_util_set_default_sysreg_cb("id_aa64pfr0_el1", 0UL);
-	(void)host_util_set_default_sysreg_cb("id_aa64pfr1_el1", 0UL);
 	(void)host_util_set_default_sysreg_cb("zcr_el2", 0UL);
 	ret = host_util_set_default_sysreg_cb("svcr", 0UL);
 
@@ -45,22 +42,18 @@ void simd_test_helpers_teardown(void)
 
 void simd_test_helpers_setup_id_regs(bool is_sve_en, bool is_sme_en)
 {
-	u_register_t id_aa64pfr0_el1 = read_id_aa64pfr0_el1();
-	u_register_t id_aa64pfr1_el1 = read_id_aa64pfr1_el1();
+	u_register_t id_aa64pfr0_val = 0U;
+	u_register_t id_aa64pfr1_val = 0U;
 
 	if (is_sve_en) {
-		id_aa64pfr0_el1 |= INPLACE(ID_AA64PFR0_EL1_SVE, 1UL);
-	} else {
-		id_aa64pfr0_el1 |= INPLACE(ID_AA64PFR0_EL1_SVE, 0UL);
+		id_aa64pfr0_val |= INPLACE(ID_AA64PFR0_EL1_SVE, 1UL);
 	}
 
-	host_write_sysreg("id_aa64pfr0_el1", id_aa64pfr0_el1);
+	WRITE_CACHED_REG(id_aa64pfr0_el1, id_aa64pfr0_val);
 
 	if (is_sme_en) {
-		id_aa64pfr1_el1 |= INPLACE(ID_AA64PFR1_EL1_SME, 1UL);
-	} else {
-		id_aa64pfr1_el1 |= INPLACE(ID_AA64PFR1_EL1_SME, 0UL);
+		id_aa64pfr1_val |= INPLACE(ID_AA64PFR1_EL1_SME, 1UL);
 	}
 
-	host_write_sysreg("id_aa64pfr1_el1", id_aa64pfr1_el1);
+	WRITE_CACHED_REG(id_aa64pfr1_el1, id_aa64pfr1_val);
 }

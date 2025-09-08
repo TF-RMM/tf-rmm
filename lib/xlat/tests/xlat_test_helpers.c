@@ -52,8 +52,7 @@ static void xlat_test_helpers_arch_init(bool lpa2_en)
 					    ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED);
 	}
 
-	retval = host_util_set_default_sysreg_cb("id_aa64mmfr0_el1",
-						 id_aa64mmfr0_el0);
+	WRITE_CACHED_REG(id_aa64mmfr0_el1, id_aa64mmfr0_el0);
 
 	/* Initialize MMU registers to 0 */
 	retval = host_util_set_default_sysreg_cb("sctlr_el2", 0UL);
@@ -124,11 +123,10 @@ void xlat_test_setup(bool lpa2)
 
 void xlat_test_helpers_set_parange(unsigned int parange)
 {
-	u_register_t reg = read_id_aa64mmfr0_el1() &
+	u_register_t reg = READ_CACHED_REG(id_aa64mmfr0_el1) &
 					~MASK(ID_AA64MMFR0_EL1_PARANGE);
 
-	host_write_sysreg("id_aa64mmfr0_el1",
-			reg | INPLACE(ID_AA64MMFR0_EL1_PARANGE, parange));
+	WRITE_CACHED_REG(id_aa64mmfr0_el1, (reg | INPLACE(ID_AA64MMFR0_EL1_PARANGE, parange)));
 }
 
 uintptr_t xlat_test_helpers_get_start_va(xlat_addr_region_id_t region,
