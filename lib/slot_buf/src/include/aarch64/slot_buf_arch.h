@@ -9,4 +9,6 @@
 #define buffer_arch_map			buffer_map_internal
 #define buffer_arch_unmap		buffer_unmap_internal
 
+#define va_to_slot_arch			va_to_slot_internal
+
 #endif /* SLOT_BUF_ARCH_H */

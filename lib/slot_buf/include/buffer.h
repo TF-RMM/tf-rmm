@@ -145,6 +145,12 @@ void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux);
 /* Sanitizes the granule based on the sanitize policy configured */
 void buffer_granule_sanitize(struct granule *g);
 
+/* Whether the Slot correspnds to one that is mapped using Realm MECID */
+static inline bool is_realm_mecid_slot(enum buffer_slot slot)
+{
+	return ((slot == SLOT_REALM) || (slot == SLOT_RTT) || (slot == SLOT_RTT2));
+}
+
 static inline void *buffer_granule_map_zeroed(struct granule *g, enum buffer_slot slot)
 {
 	void *buf = buffer_granule_map(g, slot);
@@ -177,5 +183,10 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr);
  * Unmaps the slot buffer corresponding to the VA passed via `buf` argument.
  */
 void buffer_unmap_internal(void *buf);
+
+/*
+ * Returns the slot corresponding to a given VA.
+ */
+enum buffer_slot va_to_slot_internal(void *buf);
 
 #endif /* BUFFER_H */

@@ -16,5 +16,10 @@ target_include_directories(rmm-lib-mec
     PUBLIC  "include"
 )
 
-target_sources(rmm-lib-mec
+if(HOST_VARIANT STREQUAL "host_cbmc")
+    target_sources(rmm-lib-mec
+        PRIVATE "src/fake_host/cbmc_mec.c")
+else()
+    target_sources(rmm-lib-mec
         PRIVATE "src/mec.c")
+endif()

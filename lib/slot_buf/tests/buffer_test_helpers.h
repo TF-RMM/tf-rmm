@@ -27,8 +27,10 @@ uintptr_t buffer_test_helpers_slot_va_from_pa(uintptr_t pa);
 
 void *buffer_test_cb_map_access(unsigned int slot, unsigned long addr);
 void buffer_test_cb_unmap_access(void *buf);
+unsigned int buffer_test_cb_va_to_slot_access(void *buf);
 
 void *buffer_test_cb_map_aarch64_vmsa(unsigned int slot, unsigned long addr);
 void buffer_test_cb_unmap_aarch64_vmsa(void *buf);
+unsigned int buffer_test_cb_va_to_slot_aarch64_vmsa(void *buf);
 
 #endif /* BUFFER_TEST_HELPERS_H */

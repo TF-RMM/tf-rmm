@@ -18,7 +18,7 @@
 #define HOST_NR_NCOH_GRANULES		(HOST_NCOH_DEV_SIZE/GRANULE_SIZE)
 
 /* Maximum number of sysregs for which we can install callbacks */
-#define SYSREG_MAX_CBS		(30U)
+#define SYSREG_MAX_CBS		(36U)
 
 /* Maximum size allowed for a sysreg name */
 #define MAX_SYSREG_NAME_LEN	(25U)

@@ -33,14 +33,6 @@ uintptr_t slot_to_va(enum buffer_slot slot)
 	return (SLOT_VIRT + (GRANULE_SIZE * (unsigned long)slot));
 }
 
-static inline enum buffer_slot va_to_slot(uintptr_t buf)
-{
-	enum buffer_slot slot = (enum buffer_slot)((buf - SLOT_VIRT) >> GRANULE_SHIFT);
-	assert(slot < NR_CPU_SLOTS);
-
-	return slot;
-}
-
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 struct xlat_llt_info *get_cached_llt_info(void)
 {
@@ -114,12 +106,6 @@ static inline bool is_realm_pas_slot(enum buffer_slot slot)
 	return (slot != SLOT_NS) && (slot < NR_CPU_SLOTS);
 }
 
-/* Whether the Slot correspnds to one that is mapped using Realm MECID */
-static inline bool is_realm_mecid_slot(enum buffer_slot slot)
-{
-	return ((slot == SLOT_REALM) || (slot == SLOT_RTT) || (slot == SLOT_RTT2));
-}
-
 static void *ns_buffer_granule_map(enum buffer_slot slot, struct granule *granule)
 {
 	unsigned long addr = granule_addr(granule);
@@ -170,7 +156,7 @@ void buffer_unmap(void *buf)
 {
 	buffer_arch_unmap(buf);
 
-	if (is_realm_mecid_slot(va_to_slot((uintptr_t)buf))) {
+	if (is_realm_mecid_slot(va_to_slot_arch(buf))) {
 		mec_realm_mecid_s1_reset();
 	}
 }
@@ -570,4 +556,13 @@ void buffer_unmap_internal(void *buf)
 
 	ret = xlat_unmap_memory_page(get_cached_llt_info(), (uintptr_t)buf);
 	assert(ret == 0);
+}
+
+enum buffer_slot va_to_slot_internal(void *buf)
+{
+	enum buffer_slot slot = (enum buffer_slot)((uintptr_t)buf - SLOT_VIRT)
+					>> GRANULE_SHIFT;
+	assert(slot < NR_CPU_SLOTS);
+
+	return slot;
 }

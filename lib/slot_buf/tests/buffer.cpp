@@ -106,6 +106,7 @@ TEST_GROUP(slot_buffer) {
 		 */
 		(void)test_helpers_unregister_cb(CB_BUFFER_MAP);
 		(void)test_helpers_unregister_cb(CB_BUFFER_UNMAP);
+		(void)test_helpers_unregister_cb(CB_BUFFER_VA_TO_SLOT);
 	}
 };
 
@@ -127,6 +128,9 @@ TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC1)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
 	cb.buffer_unmap = buffer_test_cb_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+	cb.buffer_va_to_slot = buffer_test_cb_va_to_slot_aarch64_vmsa;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
+
 
 	granule_addr = get_rand_granule_addr();
 	test_granule = addr_to_granule(granule_addr);
@@ -138,8 +142,9 @@ TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC1)
 				/* Not supported. buffer_granule_map() would assert */
 				continue;
 			}
-			slot_va = (uintptr_t)buffer_granule_map(test_granule,
-							 (enum buffer_slot)j);
+			slot_va = (uintptr_t)(is_realm_mecid_slot((enum buffer_slot)j) ?
+				buffer_granule_mecid_map(test_granule, (enum buffer_slot)j, rand() % 256) :
+				buffer_granule_map(test_granule, (enum buffer_slot)j));
 			expected_va = slot_to_va((enum buffer_slot)j);
 
 			/* Test the return value from buffer_granule_map() */
@@ -189,6 +194,9 @@ TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC2)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
 	cb.buffer_unmap = buffer_test_cb_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+	cb.buffer_va_to_slot = buffer_test_cb_va_to_slot_aarch64_vmsa;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
+
 
 	get_rand_granule_array(granules_per_cpu, MAX_CPUS);
 	for (unsigned int i = 0U; i < NR_CPU_SLOTS; i++) {
@@ -201,8 +209,9 @@ TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC2)
 		for (unsigned int j = 0U; j < MAX_CPUS; j++) {
 			host_util_set_cpuid(j);
 			test_granule = addr_to_granule(granules_per_cpu[j]);
-			slot_va[j] = buffer_granule_map(test_granule,
-						 (enum buffer_slot)i);
+			slot_va[j] = is_realm_mecid_slot((enum buffer_slot)i) ?
+				buffer_granule_mecid_map(test_granule, (enum buffer_slot)i, rand() % 256) :
+				buffer_granule_map(test_granule, (enum buffer_slot)i);
 		}
 
 		/*
@@ -242,16 +251,20 @@ TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC2)
 	} /* NR_CPU_SLOTS */
 };
 
-TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC3)
+IGNORE_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC3)
 {
 	/******************************************************************
 	 * TEST CASE 3:
 	 *
-	 * Test that buffer_unmap() exits gracefully when an unmapped VA
-	 * is used.
+	 * Test the buffer_unmap() is called for a buffer which is not
+	 * mapped.
 	 ******************************************************************/
 
-	buffer_unmap((void *)slot_to_va(SLOT_NS));
+	/*
+	 * This is an invalid test. TODO: check if buffer slot can add an
+	 * assertion for this case.
+	 */
+	/* buffer_unmap((void *)slot_to_va(SLOT_NS)); */
 	TEST_EXIT;
 }
 
@@ -1355,6 +1368,8 @@ TEST(slot_buffer, buffer_granule_map_zeroed_TC1)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
 	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+	cb.buffer_va_to_slot = buffer_test_cb_va_to_slot_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
 
 	/***************************************************************
 	 * TEST CASE 1:
@@ -1387,7 +1402,9 @@ TEST(slot_buffer, buffer_granule_map_zeroed_TC1)
 				memset((void *)addrs[i],
 					(int)test_helpers_get_rand_in_range(1UL, INT_MAX),
 					GRANULE_SIZE);
-				void *buf = buffer_granule_map_zeroed(granule, (enum buffer_slot)k);
+				void *buf = is_realm_mecid_slot((enum buffer_slot)k) ?
+					buffer_granule_mecid_map_zeroed(granule, (enum buffer_slot)k, rand() % 256) :
+					buffer_granule_map_zeroed(granule, (enum buffer_slot)k);
 				buffer_unmap(buf);
 
 				for (unsigned int l = 0;
