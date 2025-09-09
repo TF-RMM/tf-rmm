@@ -75,6 +75,72 @@ static inline uint64_t __sca_read64_acquire(uint64_t *ptr)
 }
 #define SCA_READ64_ACQUIRE(_p) ((typeof(*(_p)))__sca_read64_acquire((void *)(_p)))
 
+/* Single-Copy Atomic 32-bit write */
+static inline void __sca_write32(uint32_t *ptr, uint32_t val)
+{
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)ptr;
+	(void)val;
+
+	asm volatile(
+	"	str	%w[val], %[ptr]\n"
+	: [ptr] "=m" (*ptr)
+	: [val] "r" (val)
+	);
+}
+#define SCA_WRITE32(_p, _v) __sca_write32((void *)(_p), ((uint32_t)(_v)))
+
+/* Single-Copy Atomic 32-bit write with RELEASE memory ordering semantics */
+static inline void __sca_write32_release(uint32_t *ptr, uint32_t val)
+{
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)ptr;
+	(void)val;
+
+	asm volatile(
+	"	stlr	%w[val], %[ptr]\n"
+	: [ptr] "=Q" (*ptr)
+	: [val] "r" (val)
+	);
+}
+#define SCA_WRITE32_RELEASE(_p, _v) __sca_write32_release((void *)(_p), ((uint32_t)(_v)))
+
+/* Single-Copy Atomic 32-bit read */
+static inline uint32_t __sca_read32(uint32_t *ptr)
+{
+	uint32_t val;
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)ptr;
+
+	asm volatile(
+	"	ldr	%w[val], %[ptr]\n"
+	: [val] "=r" (val)
+	: [ptr] "m" (*ptr)
+	);
+
+	return val;
+}
+#define SCA_READ32(_p) ((typeof(*(_p)))__sca_read32((void *)(_p)))
+
+/* Single-Copy Atomic 32-bit read with ACQUIRE memory ordering semantics */
+static inline uint32_t __sca_read32_acquire(uint32_t *ptr)
+{
+	uint32_t val;
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)ptr;
+
+	asm volatile(
+	"	ldar	%w[val], %[ptr]\n"
+	: [val] "=r" (val)
+	: [ptr] "Q" (*ptr)
+	);
+
+	return val;
+}
+#define SCA_READ32_ACQUIRE(_p) ((typeof(*(_p)))__sca_read32_acquire((void *)(_p)))
+
 /* Single-Copy Atomic 16-bit read */
 static inline uint16_t __sca_read16(uint16_t *ptr)
 {
