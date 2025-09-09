@@ -71,7 +71,7 @@ int dev_tdisp_lock_main(struct dev_assign_info *info)
 	lock_param.flags = (uint16_t)(rsp_caps.lock_interface_flags_supported &
 				      ~U(PCI_TDISP_LOCK_INTERFACE_FLAGS_LOCK_MSIX));
 	lock_param.default_stream_id = 0;
-	lock_param.mmio_reporting_offset = 0xD0000000;
+	lock_param.mmio_reporting_offset = 0UL;
 
 	assert(tdisp_params->nonce_ptr_is_valid);
 	status = pci_tdisp_lock_interface(NULL, info->libspdm_ctx,
