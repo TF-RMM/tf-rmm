@@ -133,16 +133,22 @@ static void update_id_aa64pfr0_el1(struct cached_idreg_info *ptr)
 
 	unsigned long value;
 
-	value = READ_EL3_FEAT_EN_STATUS(el3_feat_enb_status, cptr_bitmask);
+	/* Read SCR mask value */
+	value = READ_EL3_FEAT_EN_STATUS(el3_feat_enb_status, scr_bitmask);
 
 	/*************************************************************
 	 * Cache and update IDAA64PFR0_EL1 based on supported features
+	 * Bit[56-59] - CSV2
 	 * Bit[32-35] - SVE
 	 **************************************************************/
 
 	if (EXTRACT_BIT(SMC_FEAT_SCR_CSV2_2, value) == 0U) {
 		ptr->id_aa64pfr0_el1 &= ~MASK(ID_AA64PFR0_EL1_CSV2);
 	}
+
+	/* Read CPTR mask value */
+	value = READ_EL3_FEAT_EN_STATUS(el3_feat_enb_status, cptr_bitmask);
+
 	if (EXTRACT_BIT(SMC_FEAT_CPTR_SVE, value) == 0U) {
 		ptr->id_aa64pfr0_el1 &= ~MASK(ID_AA64PFR0_EL1_SVE);
 	}

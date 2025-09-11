@@ -104,6 +104,6 @@ struct el3_feat_en_status {
  * | mpam_bitmask[62]	| FEAT_MPAM	|
  * +--------------------+---------------+
  */
-#define MPAM3_FEAT_SHIFT		U(62)
+#define SMC_FEAT_MPAM3_MPAM_SHIFT	U(62)
 
 #endif /* EL3_FEAT_STATUS_H */
