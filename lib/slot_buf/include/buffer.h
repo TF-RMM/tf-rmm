@@ -142,6 +142,9 @@ void *buffer_pdev_aux_granules_map_zeroed(struct granule *g_pdev_aux[],
 /* Unmaps the `num_aux` granules from slot starting SLOT_PDEV_AUX0 */
 void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux);
 
+/* Sanitizes the granule based on the sanitize policy configured */
+void buffer_granule_sanitize(struct granule *g);
+
 static inline void *buffer_granule_map_zeroed(struct granule *g, enum buffer_slot slot)
 {
 	void *buf = buffer_granule_map(g, slot);
@@ -152,12 +155,10 @@ static inline void *buffer_granule_map_zeroed(struct granule *g, enum buffer_slo
 static inline void *buffer_granule_mecid_map_zeroed(struct granule *g,
 			enum buffer_slot slot, unsigned int mecid)
 {
-
 	void *buf = buffer_granule_mecid_map(g, slot, mecid);
 	granule_memzero_mapped(buf);
 	return buf;
 }
-
 
 /******************************************************************************
  * Internal APIs not meant to be invoked by generic RMM code.

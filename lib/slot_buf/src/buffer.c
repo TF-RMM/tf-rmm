@@ -175,6 +175,32 @@ void buffer_unmap(void *buf)
 	}
 }
 
+void buffer_granule_sanitize(struct granule *g)
+{
+	void *buf;
+
+#if (RMM_MEM_SCRUB_METHOD == 1)
+	/* Any Slot which uses RMM MECID will do, use SLOT_RD for now */
+	buf = buffer_granule_map(g, SLOT_RD);
+	granule_sanitize_1_mapped(buf);
+	buffer_unmap(buf);
+#elif (RMM_MEM_SCRUB_METHOD == 2)
+	/* A Slot which uses Realm MECID needs to be used */
+	unsigned long addr = granule_addr(g);
+
+	mec_init_scrub_mecid_s1();
+	buf = buffer_arch_map(SLOT_REALM, addr);
+	granule_sanitize_mapped(buf);
+	buffer_arch_unmap(buf);
+	mec_reset_scrub_mecid_s1();
+#else
+	/* Any Slot which uses RMM MECID will do, use SLOT_RD for now */
+	buf = buffer_granule_map(g, SLOT_RD);
+	granule_sanitize_mapped(buf);
+	buffer_unmap(buf);
+#endif
+}
+
 /*
  * Map a Non secure granule @g into the slot @slot and read data from
  * this granule to @dest. Unmap the granule once the read is done.

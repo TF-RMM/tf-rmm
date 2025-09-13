@@ -140,10 +140,24 @@ static inline bool mec_is_realm_mecid_s1_init(void)
 bool mec_is_realm_mecid_s2_pvt(void);
 
 #if (RMM_MEM_SCRUB_METHOD == 2)
-/* Initialize the Reserved MECID for Stage 1 of RMM */
-static inline unsigned int mec_scrub_mecid(void)
+/* Initialize the reserved scrub MECID for Stage 1 of RMM */
+static inline void mec_init_scrub_mecid_s1(void)
 {
-	return RESERVED_MECID_SCRUB;
+	if (is_feat_mec_present()) {
+		assert(read_mecid_a1_el2() == RESERVED_MECID_SYSTEM);
+		write_mecid_a1_el2(RESERVED_MECID_SCRUB);
+		isb();
+	}
+}
+
+/* Reset the reserved scrub MECID for Stage 1 of RMM */
+static inline void mec_reset_scrub_mecid_s1(void)
+{
+	if (is_feat_mec_present()) {
+		assert(read_mecid_a1_el2() == RESERVED_MECID_SCRUB);
+		write_mecid_a1_el2(RESERVED_MECID_SYSTEM);
+		isb();
+	}
 }
 #endif
 

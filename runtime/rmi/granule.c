@@ -133,23 +133,8 @@ unsigned long smc_granule_undelegate(unsigned long addr)
 		}
 
 		/* Scrub any Realm world data before returning granule to NS */
-#if (RMM_MEM_SCRUB_METHOD == 1)
-		/* Any Slot which uses RMM MECID will do, use SLOT_RD for now */
-		void *buf = buffer_granule_map(g, SLOT_RD);
-		granule_sanitize_1_mapped(buf);
-		buffer_unmap(buf);
-#elif (RMM_MEM_SCRUB_METHOD == 2)
-		/* Change to the reserved Scrub MECID */
-		/* A Slot which uses Realm MECID needs to be used */
-		void *buf = buffer_granule_mecid_map(g, SLOT_REALM, mec_scrub_mecid());
-		granule_sanitize_mapped(buf);
-		buffer_unmap(buf);
-#else
-		/* Any Slot which uses RMM MECID will do, use SLOT_RD for now */
-		void *buf = buffer_granule_map(g, SLOT_RD);
-		granule_sanitize_mapped(buf);
-		buffer_unmap(buf);
-#endif
+		buffer_granule_sanitize(g);
+
 		/* DCCI PoPA as part of undelegate in EL3 will flush to PoE */
 
 		/*
