@@ -9,6 +9,7 @@
 #include <debug.h>
 #include <entropy.h>
 #include <granule.h>
+#include <memory.h>
 #include <platform_api.h>
 #include <stddef.h>
 #include <utils_def.h>
@@ -280,7 +281,8 @@ void granule_sanitize_1_mapped(void *buf)
 	static uint64_t global_scrub_seed;
 	uint64_t *p = (uint64_t *)buf;
 
-	if (SCA_READ64(&global_scrub_seed) == 0ULL) {
+	/* cppcheck-suppress misra-c2012-17.3 */
+	if (SCA_READ64(&global_scrub_seed) == 0UL) {
 		/*
 		 * Initialize the seed with a random value if not initialized
 		 * or the value is 0.

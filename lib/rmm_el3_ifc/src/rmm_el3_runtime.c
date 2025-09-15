@@ -292,7 +292,7 @@ unsigned long rmm_el3_ifc_mec_refresh(unsigned short mecid,
 	/* x1[47:32] */
 	x1 |= INPLACE(MEC_REFRESH_MECID, mecid);
 	/* x1[0] */
-	x1 |= INPLACE(MEC_REFRESH_REASON, is_destroy);
+	x1 |= INPLACE(MEC_REFRESH_REASON, (unsigned long)is_destroy);
 
 	return monitor_call(SMC_RMM_MEC_REFRESH, x1,
 				0UL, 0UL, 0UL, 0UL, 0UL);

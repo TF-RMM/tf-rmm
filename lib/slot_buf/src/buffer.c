@@ -560,8 +560,10 @@ void buffer_unmap_internal(void *buf)
 
 enum buffer_slot va_to_slot_internal(void *buf)
 {
-	enum buffer_slot slot = (enum buffer_slot)((uintptr_t)buf - SLOT_VIRT)
-					>> GRANULE_SHIFT;
+	enum buffer_slot slot;
+
+	slot = (enum buffer_slot)(((uintptr_t)buf - SLOT_VIRT) >> GRANULE_SHIFT); /* NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange) */
+
 	assert(slot < NR_CPU_SLOTS);
 
 	return slot;
