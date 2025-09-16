@@ -30,6 +30,8 @@ Maintainers
 :|G|: `javier-almansasobrino`_
 :|M|: Mate Toth-Pal <mate.toth-pal@arm.com>
 :|G|: `Máté Tóth-Pál`_
+:|M|: Raghupathy K <raghupathyk@nvidia.com>
+:|G|: `raghuncstate`_
 :|M|: Soby Mathew <soby.mathew@arm.com>
 :|G|: `soby-mathew`_
 
@@ -39,5 +41,6 @@ Maintainers
 .. _javier-almansasobrino: https://github.com/javieralso-arm/
 .. _arugan02: https://github.com/arugan02
 .. _Máté Tóth-Pál: https://github.com/matetothpal
+.. _raghuncstate: https://github.com/raghuncstate
 
 .. _Project Maintenance Process: https://trusted-firmware-docs.readthedocs.io/en/latest/generic_processes/project_maintenance_process.html
