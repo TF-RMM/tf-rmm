@@ -124,6 +124,8 @@ static void report_pmu_state_to_ns(struct rec *rec, struct rmi_rec_exit *rec_exi
 
 void save_realm_state(struct rec *rec, struct rec_plane *plane)
 {
+	assert(plane->sysregs != NULL);
+
 	save_sysreg_state(plane->sysregs);
 
 	plane->pc = read_elr_el2();
@@ -226,6 +228,8 @@ static unsigned long active_overlay_perms(struct rec *rec)
  */
 static void restore_realm_stage2(struct rec *rec)
 {
+	assert(rec_active_plane(rec)->sysregs != NULL);
+
 	write_vtcr_el2(rec->common_sysregs.vtcr_el2);
 	write_vttbr_el2(rec_active_plane(rec)->sysregs->vttbr_el2);
 
@@ -242,6 +246,8 @@ void restore_realm_state(struct rec *rec, struct rec_plane *plane)
 	 * the GIC.  Issue an ISB to ensure the register write is actually
 	 * performed before doing the remaining work.
 	 */
+	assert(plane->sysregs != NULL);
+
 	write_cnthctl_el2(plane->sysregs->cnthctl_el2);
 	isb();
 
@@ -360,6 +366,7 @@ static void activate_events(struct rec *rec)
 		 * original plane N and not be re-routed to P0. Regardless if
 		 * P0 gets re-scheduled, we need a syndrome to be passed to P0.
 		 */
+		assert(rec_active_plane(rec)->sysregs != NULL);
 		write_hcr_el2(rec_active_plane(rec)->sysregs->hcr_el2 | HCR_VSE);
 		rec->serror_info.inject = false;
 	}
@@ -430,6 +437,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 		/* Active plane can change on each exit */
 		plane = rec_active_plane(rec);
+		assert(plane->sysregs != NULL);
 
 		/*
 		 * We must check the status of the arch timers in every
@@ -491,8 +499,6 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 			isb();
 		}
 	} while (handle_realm_exit(rec, rec_exit, realm_exception_code));
-
-	assert(plane->sysregs != NULL);
 
 	/*
 	 * Check if FPU/SIMD was used, and if it was, save the realm state,

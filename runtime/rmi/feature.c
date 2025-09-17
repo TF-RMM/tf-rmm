@@ -7,7 +7,6 @@
 #include <assert.h>
 #include <feature.h>
 #include <gic.h>
-#include <planes.h>
 #include <s2tt.h>
 #include <simd.h>
 #include <smc-handler.h>

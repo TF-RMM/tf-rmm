@@ -95,6 +95,8 @@ static void psci_cpu_off(struct rec *rec, struct rmi_rec_exit *rec_exit,
 static void psci_reset_rec(struct rec_plane *plane,
 			   unsigned long caller_sctlr_el1)
 {
+	assert(plane->sysregs != NULL);
+
 	/* Set execution level to EL1 (AArch64) and mask exceptions */
 	plane->sysregs->pstate = SPSR_EL2_MODE_EL1h |
 				 SPSR_EL2_nRW_AARCH64 |
@@ -384,6 +386,7 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 
 	/* PSCI requests can only be done by Plane 0 */
 	assert(calling_plane == rec_plane_0(calling_rec));
+	assert(calling_plane->sysregs != NULL);
 
 	if (!calling_rec->psci_info.pending) {
 		return RMI_ERROR_INPUT;

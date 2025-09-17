@@ -146,6 +146,8 @@ void report_timer_state_to_ns(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		 * to report.
 		 */
 		STRUCT_TYPE sysreg_state *sysregs = rec->plane[PLANE_0_ID].sysregs;
+		assert(sysregs != NULL);
+
 		unsigned long p0_cntv_cval = sysregs->pp_sysregs.cntv_cval_el0 -
 					     sysregs->cntvoff_el2;
 		unsigned long p0_cntv_ctl = sysregs->pp_sysregs.cntv_ctl_el0;
@@ -218,8 +220,13 @@ void multiplex_el2_timer(struct rec *rec)
 {
 	/* Plane 0 time information */
 	STRUCT_TYPE sysreg_state *sysregs = rec->plane[PLANE_0_ID].sysregs;
-	struct timer_state *ns_el2_timer_state = &rec->ns->el2_timer;
+	struct timer_state *ns_el2_timer_state;
 	unsigned long pp_cnt_cval, ns_cnt_cval, ns_cnt_ctl;
+
+	assert(rec->ns != NULL);
+	assert(sysregs != NULL);
+
+	ns_el2_timer_state = &rec->ns->el2_timer;
 
 	/*
 	 * Physical Timer

@@ -406,6 +406,7 @@ static bool handle_simd_exception(struct rec *rec, struct rmi_rec_exit *rec_exit
 	 * As the REC SIMD context is now restored, enable SIMD flags in REC's
 	 * cptr based on REC's SIMD configuration.
 	 */
+	assert(rec_active_plane(rec)->sysregs != NULL);
 	SIMD_ENABLE_CPTR_FLAGS(&rec->realm_info.simd_cfg, rec_active_plane(rec)->sysregs->cptr_el2);
 
 	/*
@@ -983,6 +984,8 @@ bool handle_plane_n_exit(struct rec *rec,
 
 	plane_0 = rec_plane_0(rec);
 	plane_n = rec_active_plane(rec);
+	assert(plane_0->sysregs != NULL);
+	assert(plane_n->sysregs != NULL);
 
 	/* RSI_PLANE_ENTER receives the run structure IPA on the second arg */
 	run_ipa = plane_0->regs[2];
@@ -1074,6 +1077,7 @@ out_return_to_plane_0:
 		 * Since we are returning to P0, we need to undo
 		 * multiplex_el2_timer(), so we restore NS timer.
 		 */
+		assert(rec->ns != NULL);
 		hyp_timer_restore_state(&rec->ns->el2_timer);
 	}
 

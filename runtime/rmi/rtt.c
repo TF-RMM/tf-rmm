@@ -95,7 +95,7 @@ static unsigned long default_protected_ap(struct s2tt_context *s2_ctx)
 				    S2TTE_DEF_PROT_OVERLAY_IDX);
 }
 
-static bool validate_aux_rtt_args(struct rd *rd, unsigned int s2tt_idx,
+static bool validate_aux_rtt_args(struct rd *rd, unsigned long s2tt_idx,
 				  unsigned long map_addr)
 {
 	/*
@@ -119,14 +119,14 @@ static bool validate_aux_rtt_args(struct rd *rd, unsigned int s2tt_idx,
  */
 static void invalidate_page_per_vmids(struct rd *rd, unsigned long map_addr)
 {
-	unsigned int vmids[MAX_S2_CTXS];
+	unsigned int vmid_list[MAX_S2_CTXS];
 	unsigned int nvmids = realm_num_planes(rd);
 
 	for (unsigned int i = 0U; i < nvmids; i++) {
-		vmids[i] = plane_to_s2_context(rd, i)->vmid;
+		vmid_list[i] = plane_to_s2_context(rd, i)->vmid;
 	}
 
-	s2tt_invalidate_page_per_vmids(UNUSED_PTR, vmids, nvmids, map_addr);
+	s2tt_invalidate_page_per_vmids(UNUSED_PTR, vmid_list, nvmids, map_addr);
 }
 
 /*
@@ -135,14 +135,14 @@ static void invalidate_page_per_vmids(struct rd *rd, unsigned long map_addr)
  */
 static void invalidate_block_for_vmids(struct rd *rd, unsigned long map_addr)
 {
-	unsigned int vmids[MAX_S2_CTXS];
+	unsigned int vmid_list[MAX_S2_CTXS];
 	unsigned int nvmids = realm_num_planes(rd);
 
 	for (unsigned int i = 0U; i < nvmids; i++) {
-		vmids[i] = plane_to_s2_context(rd, i)->vmid;
+		vmid_list[i] = plane_to_s2_context(rd, i)->vmid;
 	}
 
-	s2tt_invalidate_block_per_vmids(UNUSED_PTR, vmids, nvmids, map_addr);
+	s2tt_invalidate_block_per_vmids(UNUSED_PTR, vmid_list, nvmids, map_addr);
 }
 
 /*
@@ -152,14 +152,14 @@ static void invalidate_block_for_vmids(struct rd *rd, unsigned long map_addr)
 static void invalidate_pages_in_block_for_contexts(struct rd *rd,
 						   unsigned long map_addr)
 {
-	unsigned int vmids[MAX_S2_CTXS];
+	unsigned int vmid_list[MAX_S2_CTXS];
 	unsigned int nvmids = realm_num_planes(rd);
 
 	for (unsigned int i = 0U; i < nvmids; i++) {
-		vmids[i] = plane_to_s2_context(rd, i)->vmid;
+		vmid_list[i] = plane_to_s2_context(rd, i)->vmid;
 	}
 
-	s2tt_invalidate_pages_in_block_per_vmids(UNUSED_PTR, vmids, nvmids, map_addr);
+	s2tt_invalidate_pages_in_block_per_vmids(UNUSED_PTR, vmid_list, nvmids, map_addr);
 }
 
 static unsigned long rtt_create(unsigned long rd_addr,
@@ -2262,6 +2262,8 @@ void smc_rtt_set_s2ap(unsigned long rd_addr, unsigned long rec_addr,
 		s2tt_idx = PRIMARY_S2_CTX_ID;
 	}
 
+	assert(s2tt_idx < MAX_S2_CTXS);
+
 	s2_ctx = &rd->s2_ctx[s2tt_idx];
 	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
 
@@ -2287,7 +2289,7 @@ void smc_rtt_set_s2ap(unsigned long rd_addr, unsigned long rec_addr,
 	 */
 	next = base;
 	while ((wi.index < S2TTES_PER_S2TT) && (next < top)) {
-		unsigned long base_index;
+		unsigned int base_index;
 
 		if ((next + map_size) > top) {
 			/*

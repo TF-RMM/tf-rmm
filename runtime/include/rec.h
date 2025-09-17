@@ -159,11 +159,11 @@ STRUCT_TYPE common_sysreg_state {
  * when allocated as an array for N CPUs.
  */
 struct ns_state {
-	STRUCT_TYPE sysreg_state sysregs;
+	struct pmu_state pmu;
 	unsigned long icc_sre_el2;
 	unsigned long s2por_el1;
-	struct pmu_state pmu;
 	struct timer_state el2_timer;
+	STRUCT_TYPE sysreg_state sysregs;
 } __aligned(CACHE_WRITEBACK_GRANULE);
 
 /*
@@ -341,8 +341,11 @@ COMPILER_ASSERT(sizeof(struct rec) <= GRANULE_SIZE);
  */
 #define REC_GET_SYSREGS_FROM_AUX(_rec, _index)				\
 	({								\
-		STRUCT_TYPE sysreg_state *_sysreg =			\
-			&((_rec)->aux_data.sysregs[(_index)]);		\
+		STRUCT_TYPE sysreg_state *_sysreg;			\
+									\
+		assert((_rec)->aux_data.sysregs != NULL);		\
+		_sysreg = &((_rec)->aux_data.sysregs[(_index)]);	\
+		assert(_sysreg != NULL);				\
 									\
 		_sysreg;						\
 	})
@@ -365,6 +368,7 @@ static inline struct rec_plane *rec_activate_plane_n(struct rec *rec,
 
 	rec->active_plane_id = plane_idx;
 
+	assert(rec->aux_data.sysregs != NULL);
 	rec->plane[1].sysregs = &rec->aux_data.sysregs[plane_idx];
 	return &rec->plane[1];
 }

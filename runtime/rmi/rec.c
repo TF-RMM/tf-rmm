@@ -144,7 +144,7 @@ static void init_vttbr(struct rec *rec, struct rd *rd)
 	for (unsigned int i = 0U; i < realm_num_planes(rd); i++) {
 		struct s2tt_context *s2_ctx = plane_to_s2_context(rd, i);
 		bool lpa2 = s2_ctx->enable_lpa2;
-		STRUCT_TYPE sysreg_state *sysregs = &rec->aux_data.sysregs[i];
+		STRUCT_TYPE sysreg_state *sysregs = REC_GET_SYSREGS_FROM_AUX(rec, i);
 
 		sysregs->vttbr_el2 =
 			(granule_addr(s2_ctx->g_rtt) & MASK(TTBRx_EL2_BADDR));
@@ -166,7 +166,7 @@ static void init_rec_regs(struct rec *rec,
 	void *rec_aux = buffer_rec_aux_granules_map(rec->g_aux, rec->num_rec_aux);
 
 	for (unsigned int i = 0U; i < rec_num_planes(rec); i++) {
-		STRUCT_TYPE sysreg_state *sysregs = &rec->aux_data.sysregs[i];
+		STRUCT_TYPE sysreg_state *sysregs = REC_GET_SYSREGS_FROM_AUX(rec, i);
 
 		if (i == PLANE_0_ID) {
 			struct rec_plane *plane = &rec->plane[0];

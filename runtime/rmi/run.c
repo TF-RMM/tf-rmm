@@ -407,6 +407,8 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	if (!rec_is_plane_0_active(rec)) {
 		bool report_err = false;
 
+		assert(rec->plane[1].sysregs != NULL);
+
 		/*
 		 * ... and either REC_ENTRY_FLAG_FORCE_P0 or
 		 * REC_ENTRY_FLAG_INJECT_SEA are set, then exit the plane
@@ -439,6 +441,7 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	}
 
 	plane = rec_active_plane(rec);
+	assert(plane->sysregs != NULL);
 
 	if (rec->active_plane_id == rec->gic_owner) {
 		gic_copy_state_from_entry(&plane->sysregs->gicstate,
@@ -474,6 +477,8 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 
 	/* Active plane might have changed during rec_run_loop() */
 	plane = rec_active_plane(rec);
+	assert(plane->sysregs != NULL);
+
 	if (rec->active_plane_id == rec->gic_owner) {
 		gic_copy_state_to_exit(&plane->sysregs->gicstate,
 					   (unsigned long *)&rec_run.exit.gicv3_lrs,

@@ -26,6 +26,8 @@ static void copy_state_from_plane_entry(struct rec_plane *plane,
 		plane->regs[i] = entry->gprs[i];
 	}
 
+	assert(plane->sysregs != NULL);
+
 	plane->pc = entry->pc;
 	plane->sysregs->pstate = entry->pstate;
 	if (restore_gic) {
@@ -50,6 +52,7 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 
 	/* This command can only be executed from Plane 0 */
 	assert(rec_is_plane_0_active(rec));
+	assert(plane_0->sysregs != NULL);
 
 	if ((plane_idx == PLANE_0_ID) ||
 	    (plane_idx >= rec_num_planes(rec))) {
@@ -90,6 +93,7 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 
 	/* Activate plane N */
 	plane_n = rec_activate_plane_n(rec, (unsigned int)plane_idx);
+	assert(plane_n->sysregs != NULL);
 
 	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_OWN_GIC) != 0UL) {
 		rec->gic_owner = (unsigned int)plane_idx;
@@ -153,7 +157,9 @@ static bool access_pmu_pmev_el0(struct rec *rec,
 {
 	unsigned long plane_id = plane->regs[1];
 	unsigned long sysreg_id = plane->regs[2];
-	STRUCT_TYPE sysreg_state *sysregs = &rec->aux_data.sysregs[plane_id];
+	STRUCT_TYPE sysreg_state *sysregs = REC_GET_SYSREGS_FROM_AUX(rec, plane_id);
+
+	assert(sysregs->pmu != NULL);
 
 	if (EXTRACT(RSI_SYSREG_ADDR_KVM_SYSREG128, sysreg_id) != 0UL) {
 		/*  No 128-bit registers allowed here */
@@ -218,7 +224,7 @@ static bool access_pmu_sysregs(struct rec *rec,
 	unsigned long plane_id = plane->regs[1];
 	unsigned long sysreg_id = plane->regs[2];
 	unsigned long val = plane->regs[3];
-	STRUCT_TYPE sysreg_state *sysregs = &rec->aux_data.sysregs[plane_id];
+	STRUCT_TYPE sysreg_state *sysregs = REC_GET_SYSREGS_FROM_AUX(rec, plane_id);
 
 	if (EXTRACT(RSI_SYSREG_ADDR_KVM_SYSREG128, sysreg_id) != 0UL) {
 		/*  No 128-bit registers allowed here */
@@ -229,6 +235,7 @@ static bool access_pmu_sysregs(struct rec *rec,
 #define PMU_SYSREG_ACCESS_CASE(_sysreg)						\
 	case RSI_SYSREG_KVM_ID_##_sysreg:					\
 		do {								\
+			assert(sysregs->pmu != NULL);				\
 			pmu_sysreg_access(res, &sysregs->pmu->_sysreg,		\
 					  val, read);				\
 			return true;						\
@@ -248,6 +255,7 @@ static bool access_pmu_sysregs(struct rec *rec,
 		return false;
 	}
 
+	/* coverity[misra_c_2012_rule_2_1_violation:SUPPRESS] */
 	return false;
 }
 
@@ -306,7 +314,7 @@ static bool access_plane_sysreg(struct rec *rec,
 {
 	unsigned long plane_id = plane->regs[1];
 	unsigned long sysreg = plane->regs[2];
-	STRUCT_TYPE sysreg_state *sysregs = &rec->aux_data.sysregs[plane_id];
+	STRUCT_TYPE sysreg_state *sysregs = REC_GET_SYSREGS_FROM_AUX(rec, plane_id);
 	bool is_128b = (EXTRACT(RSI_SYSREG_ADDR_KVM_SYSREG128, sysreg) != 0UL);
 	struct reg128 val;
 
@@ -389,6 +397,7 @@ static bool access_plane_sysreg(struct rec *rec,
 		return false;
 	}
 
+	/* coverity[misra_c_2012_rule_2_1_violation:SUPPRESS] */
 	return false;
 }
 

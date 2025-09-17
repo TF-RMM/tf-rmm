@@ -52,16 +52,16 @@
 #define S2TTE_PERM_INDEX_COUNT			(S2AP_IND_PERM_IDX_COUNT)
 
 /* Default base permission for protected IPA space */
-#define S2TTE_DEF_BASE_PERM_IDX				(S2AP_IND_BASE_PERM_IDX_RW_upX)
+#define S2TTE_DEF_BASE_PERM_IDX			(U(S2AP_IND_BASE_PERM_IDX_RW_upX))
 
 /* Default base permission for DEV IPA space */
-#define S2TTE_DEV_DEF_BASE_PERM_IDX			(S2AP_IND_BASE_PERM_IDX_RW)
+#define S2TTE_DEV_DEF_BASE_PERM_IDX		(U(S2AP_IND_BASE_PERM_IDX_RW))
 
 /* Default overlay permission index for Protected IPA space */
-#define S2TTE_DEF_PROT_OVERLAY_IDX			(0UL)
+#define S2TTE_DEF_PROT_OVERLAY_IDX		(0U)
 
 /* Default overlay permission index for unprotected IPA space */
-#define S2TTE_DEF_UNPROT_OVERLAY_IDX			(S2TTE_PERM_INDEX_COUNT - 1U)
+#define S2TTE_DEF_UNPROT_OVERLAY_IDX		(S2TTE_PERM_INDEX_COUNT - 1U)
 
 /* get base permission index from s2tte */
 static inline unsigned long s2tte_get_pi_index(const struct s2tt_context *s2_ctx,

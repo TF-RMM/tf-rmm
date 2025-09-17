@@ -251,6 +251,8 @@ void inject_sync_idabort_rec(struct rec *rec, unsigned long fsc)
 	struct rec_plane *plane = rec_active_plane(rec);
 	bool sctlr2_ease_bit;
 
+	assert(plane->sysregs != NULL);
+
 	sctlr2_ease_bit = ((plane->sysregs->pp_sysregs.sctlr2_el1 &
 			    SCTLR2_ELx_EASE_BIT) != 0UL);
 
