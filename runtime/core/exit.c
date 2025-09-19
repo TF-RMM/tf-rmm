@@ -455,7 +455,7 @@ static bool handle_wfx_exception(struct rec *rec,
 
 	if (rec_is_plane_0_active(rec)) {
 		/* WFx calls from Plane 0 are forwarded to the host */
-		rec_exit->esr = (esr & MASK(ESR_EL2_EC)) | ESR_EL2_WFx_TI_BIT;
+		rec_exit->esr = (esr & (MASK(ESR_EL2_EC) | ESR_EL2_WFx_TI_BIT));
 		advance_pc();
 		return false;
 	}

@@ -1024,13 +1024,13 @@ static void map_unmap_ns(unsigned long rd_addr,
 
 	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
 
-	if ((op == MAP_NS) &&
-	    (!host_ns_s2tte_is_valid(s2_ctx, host_s2tte, level))) {
+	if (!validate_rtt_map_cmds(map_addr, level, rd)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		goto out_unmap_rd;
 	}
 
-	if (!validate_rtt_map_cmds(map_addr, level, rd)) {
+	if ((op == MAP_NS) &&
+	    (!host_ns_s2tte_is_valid(s2_ctx, host_s2tte, level))) {
 		res->x[0] = RMI_ERROR_INPUT;
 		goto out_unmap_rd;
 	}
