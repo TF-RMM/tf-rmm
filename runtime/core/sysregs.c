@@ -95,6 +95,11 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 		break;
 	SYSREG_CASE(MMFR3)
 		value = READ_CACHED_REG(id_aa64mmfr3_el1);
+
+		/* Disable FEAT_S2PIE and FEAT_S2POE for realms */
+		mask = MASK(ID_AA64MMFR3_EL1_S2PIE) | MASK(ID_AA64MMFR3_EL1_S2POE);
+		value &= ~mask;
+
 		break;
 	SYSREG_CASE(MMFR4)
 		value = READ_CACHED_REG(id_aa64mmfr4_el1);
@@ -148,7 +153,7 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 		value = 0UL;
 	}
 
-	rec->regs[rt] = value;
+	rec_active_plane(rec)->regs[rt] = value;
 	return true;
 }
 
@@ -218,6 +223,8 @@ static const struct sysreg_handler sysreg_handlers[] = {
 	SYSREG_HANDLER(ESR_EL2_SYSREG_BRBE_MASK, ESR_EL2_SYSREG_BRBE,
 			inject_undef_abort_on_sysreg_trap),
 	SYSREG_HANDLER(ESR_EL2_SYSREG_MPAM_MASK, ESR_EL2_SYSREG_MPAM,
+			inject_undef_abort_on_sysreg_trap),
+	SYSREG_HANDLER(ESR_EL2_SYSREG_MASK, ESR_EL2_SYSREG_S2POR_EL1,
 			inject_undef_abort_on_sysreg_trap)
 };
 
@@ -231,7 +238,7 @@ static unsigned long get_sysreg_write_value(struct rec *rec, unsigned long esr)
 		return 0UL;
 	}
 
-	return rec->regs[rt];
+	return rec_active_plane(rec)->regs[rt];
 }
 
 static void emulate_sysreg_access_ns(struct rec *rec,
@@ -286,7 +293,7 @@ bool handle_sysreg_access_trap(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	 * Handle writes to XZR register.
 	 */
 	if (!ESR_EL2_SYSREG_IS_WRITE(esr) && (rt != 31U)) {
-		rec->regs[rt] = 0UL;
+		rec_active_plane(rec)->regs[rt] = 0UL;
 	}
 
 	sysreg = esr & ESR_EL2_SYSREG_MASK;

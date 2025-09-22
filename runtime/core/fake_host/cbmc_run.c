@@ -7,6 +7,7 @@
 
 #ifdef CBMC
 
+#include <planes.h>
 #include <rec.h>
 #include <stdbool.h>
 #include <tb_common.h>
@@ -30,6 +31,16 @@ struct simd_context *get_cpu_ns_simd_context(void)
 {
 	ASSERT(false, "get_cpu_ns_simd_context");
 	return NULL;
+}
+
+void restore_realm_state(struct rec *rec, struct rec_plane *plane)
+{
+	ASSERT(false, "restore_realm_state");
+}
+
+void save_realm_state(struct rec_plane *plane)
+{
+	ASSERT(false, "save_realm_state");
 }
 
 #endif /* CBMC */

@@ -78,7 +78,7 @@ TEST(rsi_logger_tests, RSI_LOGGER_TC1)
 		bool ret_to_rec = ((i & 1U) != 0U);
 
 		for (status = LOG_SUCCESS; status <= LOG_RANDOM; status++) {
-			for (id = SMC_RSI_VERSION; id <= SMC_RSI_PLANE_REG_WRITE; id++) {
+			for (id = SMC_RSI_VERSION; id <= SMC_RSI_PLANE_SYSREG_WRITE; id++) {
 				rsi_log_test(id, status, ret_to_rec);
 			}
 		}

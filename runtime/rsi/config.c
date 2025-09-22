@@ -4,6 +4,7 @@
  */
 
 #include <buffer.h>
+#include <gic.h>
 #include <granule.h>
 #include <realm.h>
 #include <rsi-handler.h>
@@ -13,12 +14,17 @@ COMPILER_ASSERT(RSI_RPV_SIZE == RPV_SIZE);
 
 void handle_rsi_realm_config(struct rec *rec, struct rsi_result *res)
 {
-	unsigned long ipa = rec->regs[1];
+	struct rec_plane *plane = rec_active_plane(rec);
+	unsigned long ipa;
 	enum s2_walk_status walk_status;
 	struct s2_walk_result walk_res;
 	struct granule *gr;
 	struct rsi_realm_config *config;
 	struct rd *rd;
+
+	assert(plane != NULL);
+
+	ipa = plane->regs[1];
 
 	res->action = UPDATE_REC_RETURN_TO_REALM;
 
@@ -50,12 +56,15 @@ void handle_rsi_realm_config(struct rec *rec, struct rsi_result *res)
 	assert(config != NULL);
 
 	/* Populate config structure */
-	config->ipa_width = rec->realm_info.s2_ctx.ipa_bits;
+	config->ipa_width = rec->realm_info.primary_s2_ctx.ipa_bits;
 	if (rec->realm_info.algorithm == HASH_SHA_256) {
 		config->algorithm = RSI_HASH_SHA_256;
 	} else {
 		config->algorithm = RSI_HASH_SHA_512;
 	}
+
+	config->num_aux_planes = rec->realm_info.num_aux_planes;
+	config->gicv3_vtr = (unsigned int)gic_get_ich_vtr();
 
 	/* Map rd granule */
 	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);

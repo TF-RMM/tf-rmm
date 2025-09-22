@@ -1,0 +1,23 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Overlay to enable FEAT_SxPIE and FEAT_SxPOE on FVP at run time.
+
+run:
+  params:
+     # Enable Permission Indirection
+    -C cluster0.has_permission_indirection_s1: 2
+    -C cluster1.has_permission_indirection_s1: 2
+    -C cluster0.has_permission_indirection_s2: 2
+    -C cluster1.has_permission_indirection_s2: 2
+
+    # Enable Permission Overlay
+    -C cluster0.has_permission_overlay_s1: 2
+    -C cluster1.has_permission_overlay_s1: 2
+    -C cluster0.has_permission_overlay_s2: 2
+    -C cluster1.has_permission_overlay_s2: 2

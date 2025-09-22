@@ -155,8 +155,8 @@
  * Granule content is not protected by granule::lock, as it is always
  * subject to reads and writes from within a Realm.
  *
- * A granule in this state is always referenced from exactly one entry
- * in an RTT granule which must be locked before locking this granule.
+ * A granule in this state can be referenced by at most one entry on each
+ * possible RTT tree, which must be locked before locking this granule.
  * Only a single DATA granule can be locked at a time.
  * The complete internal locking order for DATA granules is:
  *

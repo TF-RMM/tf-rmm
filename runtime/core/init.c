@@ -12,6 +12,7 @@
 #include <random_app.h>
 #include <rmm_el3_ifc.h>
 #include <run.h>
+#include <s2tt.h>
 #include <simd.h>
 #include <smc-rmi.h>
 #include <smc-rsi.h>
@@ -99,6 +100,11 @@ void rmm_warmboot_main(void)
 	 * Attest app init
 	 */
 	attest_app_init_per_cpu_instance();
+
+	/*
+	 * Stage 2 translation library initializaton.
+	 */
+	s2tt_init();
 }
 
 /*

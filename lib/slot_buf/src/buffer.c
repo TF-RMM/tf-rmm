@@ -347,6 +347,11 @@ static void *buffer_aux_granules_map(struct granule *g_aux[],
 {
 	void *mapped_aux = NULL;
 
+	assert(((slot == SLOT_REC_AUX0) && (num_aux <= MAX_REC_AUX_GRANULES)) ||
+	       ((slot == SLOT_PDEV_AUX0) && (num_aux <= PDEV_PARAM_AUX_GRANULES_MAX)) ||
+	       ((slot == SLOT_VDEV_AUX0) && (num_aux <= VDEV_PARAM_AUX_GRANULES_MAX)) ||
+	       ((slot == SLOT_EL3_TOKEN_SIGN_AUX0) && (num_aux <= MAX_REC_AUX_GRANULES)));
+
 	for (unsigned int i = 0U; i < num_aux; i++) {
 		void *aux;
 

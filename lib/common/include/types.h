@@ -10,4 +10,9 @@
 
 typedef uint64_t u_register_t;
 
+struct reg128 {
+	unsigned long lo;
+	unsigned long hi;
+};
+
 #endif /* TYPES_H */

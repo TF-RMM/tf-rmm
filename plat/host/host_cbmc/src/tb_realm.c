@@ -29,6 +29,7 @@ bool VmidIsFree(uint16_t vmid)
 struct rmm_realm Realm(uint64_t addr)
 {
 	size_t i;
+	struct s2tt_context *s2_ctx;
 
 	/*
 	 * TODO: change to a unified function call
@@ -43,17 +44,18 @@ struct rmm_realm Realm(uint64_t addr)
 
 	__CPROVER_assert(rd_ptr, "internal: `_Realm` rd_ptr is not null");
 
+	s2_ctx = &rd_ptr->s2_ctx[PRIMARY_S2_CTX_ID];
 
 	/* convert the type */
 	struct rmm_realm spec_rd = {
-		.ipa_width = rd_ptr->s2_ctx.ipa_bits,
+		.ipa_width = s2_ctx->ipa_bits,
 		.hash_algo = rd_ptr->algorithm,
 		.rec_index = rd_ptr->rec_count,
-		.rtt_base = granule_metadata_ptr_to_pa(rd_ptr->s2_ctx.g_rtt),
-		.rtt_level_start = rd_ptr->s2_ctx.s2_starting_level,
-		.rtt_num_start = rd_ptr->s2_ctx.num_root_rtts,
+		.rtt_base = granule_metadata_ptr_to_pa(s2_ctx->g_rtt),
+		.rtt_level_start = s2_ctx->s2_starting_level,
+		.rtt_num_start = s2_ctx->num_root_rtts,
 		.state = rd_ptr->state,
-		.vmid = rd_ptr->s2_ctx.vmid
+		.vmid = s2_ctx->vmid
 	};
 
 	for (i = 0; i < MEASUREMENT_SLOT_NR; ++i) {
@@ -96,7 +98,7 @@ bool valid_s2tt_context(struct s2tt_context value)
 bool valid_rd(struct rd value)
 {
 	return valid_realm_state(value.state)
-		&& valid_s2tt_context(value.s2_ctx)
+		&& valid_s2tt_context(value.s2_ctx[PRIMARY_S2_CTX_ID])
 		&& valid_hash_algo(value.algorithm)
 		&& value.num_rec_aux == MAX_REC_AUX_GRANULES;
 }
@@ -104,15 +106,18 @@ bool valid_rd(struct rd value)
 struct rd init_rd(void)
 {
 	struct rd value = nondet_struct_rd();
-
 	unsigned int num_root_rtts = nondet_unsigned_int();
 
 	__CPROVER_assume(valid_num_root_rtts(num_root_rtts));
 	struct granule *g_root_rtt = init_rtt_root_page(num_root_rtts);
 
-	value.s2_ctx.num_root_rtts = num_root_rtts;
-	value.s2_ctx.g_rtt = g_root_rtt;
+	__CPROVER_assume(value.num_aux_planes == 0U);
+	struct s2tt_context *s2_ctx = &value.s2_ctx[PRIMARY_S2_CTX_ID];
+
+	s2_ctx->num_root_rtts = num_root_rtts;
+	s2_ctx->g_rtt = g_root_rtt;
 	value.rpv[0] = 0;
+
 	/*
 	 * If the `g_root_rtt` does not satisfy the assume condition, all
 	 * following `cover` checks fail.
@@ -120,7 +125,7 @@ struct rd init_rd(void)
 	__CPROVER_assume(valid_rd(value));
 
 	/* Non-deterministically if the vmid is registered. */
-	uint64_t vmid = value.s2_ctx.vmid;
+	uint64_t vmid = s2_ctx->vmid;
 	unsigned int offset = vmid / BITS_PER_UL;
 
 	vmid %= BITS_PER_UL;
@@ -175,14 +180,15 @@ bool RealmIsLive(uint64_t rd_addr)
 	}
 
 	struct rd *rd = pa_to_granule_buffer_ptr(rd_addr);
+	struct s2tt_context *s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
 
 	__ASSERT(rd, "internal: `_RealmIsLive`, rd is not null");
 
 	/* Check the refcount for all root rtts */
 	for (size_t i = 0;
-	    i < rd->s2_ctx.num_root_rtts && i < MAX_ROOT_RTT_CBMC;
+	    i < s2_ctx->num_root_rtts && i < MAX_ROOT_RTT_CBMC;
 	    ++i) {
-		if (granule_refcount_read(&rd->s2_ctx.g_rtt[i]) != 0) {
+		if (granule_refcount_read(&s2_ctx->g_rtt[i]) != 0) {
 			return true;
 		}
 	}

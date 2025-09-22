@@ -18,6 +18,7 @@ extern "C" {
 #include <s2tt_test_helpers.h>
 #include <ripas.h>
 #include <s2tt.h>	/* Interface to exercise */
+#include <s2tt_ap.h>
 #include <test_helpers.h>
 #include <unistd.h>
 #include <utils_def.h>
@@ -32,11 +33,34 @@ void s2tte_create_unassigned_empty_tc1(void)
 	 * S2TTE is valid.
 	 ***************************************************************/
 
+	unsigned long ap = test_helpers_get_rand_in_range(0UL, ULONG_MAX);
 	unsigned long expected_tte = S2TTE_INVALID_RIPAS_EMPTY |
 				     S2TTE_INVALID_HIPAS_UNASSIGNED;
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
+	/*
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
+	 */
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
+
+	if (s2tt_ctx.indirect_s2ap) {
+		expected_tte = s2tte_set_pi_index(&s2tt_ctx, expected_tte,
+						 S2TTE_DEF_BASE_PERM_IDX);
+		expected_tte &= ~MASK(S2TTE_PO_INDEX);
+		expected_tte |= ap & MASK(S2TTE_PO_INDEX);
+		expected_tte |= S2TTE_DIRTY_BIT;
+	} else {
+		expected_tte |= (ap & S2TTE_PERM_MASK);
+	}
 
 	/* s2tt_context argument is ignored */
-	unsigned long tte = s2tte_create_unassigned_empty(NULL);
+	unsigned long tte = s2tte_create_unassigned_empty(
+			(const struct s2tt_context *)&s2tt_ctx, ap);
 
 	UNSIGNED_LONGS_EQUAL(expected_tte, tte);
 }
@@ -50,11 +74,34 @@ void s2tte_create_unassigned_ram_tc1(void)
 	 * S2TTE is valid.
 	 ***************************************************************/
 
+	unsigned long ap = test_helpers_get_rand_in_range(0UL, ULONG_MAX);
 	unsigned long expected_tte = S2TTE_INVALID_RIPAS_RAM |
 				     S2TTE_INVALID_HIPAS_UNASSIGNED;
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
+	/*
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
+	 */
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
+
+	if (s2tt_ctx.indirect_s2ap) {
+		expected_tte = s2tte_set_pi_index(&s2tt_ctx, expected_tte,
+						 S2TTE_DEF_BASE_PERM_IDX);
+		expected_tte &= ~MASK(S2TTE_PO_INDEX);
+		expected_tte |= ap & MASK(S2TTE_PO_INDEX);
+		expected_tte |= S2TTE_DIRTY_BIT;
+	} else {
+		expected_tte |= (ap & S2TTE_PERM_MASK);
+	}
 
 	/* s2tt_context argument is ignored */
-	unsigned long tte = s2tte_create_unassigned_ram(NULL);
+	unsigned long tte = s2tte_create_unassigned_ram(
+			(const struct s2tt_context *)&s2tt_ctx, ap);
 
 	UNSIGNED_LONGS_EQUAL(expected_tte, tte);
 }
@@ -68,11 +115,34 @@ void s2tte_create_unassigned_destroyed_tc1(void)
 	 * S2TTE is valid.
 	 ***************************************************************/
 
+	unsigned long ap = test_helpers_get_rand_in_range(0UL, ULONG_MAX);
 	unsigned long expected_tte = S2TTE_INVALID_RIPAS_DESTROYED |
 				     S2TTE_INVALID_HIPAS_UNASSIGNED;
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
+	/*
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
+	 */
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
+
+	if (s2tt_ctx.indirect_s2ap) {
+		expected_tte = s2tte_set_pi_index(&s2tt_ctx, expected_tte,
+						 S2TTE_DEF_BASE_PERM_IDX);
+		expected_tte &= ~MASK(S2TTE_PO_INDEX);
+		expected_tte |= ap & MASK(S2TTE_PO_INDEX);
+		expected_tte |= S2TTE_DIRTY_BIT;
+	} else {
+		expected_tte |= (ap & S2TTE_PERM_MASK);
+	}
 
 	/* s2tt_context argument is ignored */
-	unsigned long tte = s2tte_create_unassigned_destroyed(NULL);
+	unsigned long tte = s2tte_create_unassigned_destroyed(
+			(const struct s2tt_context *)&s2tt_ctx, ap);
 
 	UNSIGNED_LONGS_EQUAL(expected_tte, tte);
 }
@@ -89,7 +159,7 @@ void s2tte_create_unassigned_ns_tc1(void)
 	unsigned long expected_tte = S2TTE_NS | S2TTE_INVALID_HIPAS_UNASSIGNED;
 
 	/* s2tt_context argument is ignored */
-	unsigned long tte = s2tte_create_unassigned_ns(NULL);
+	unsigned long tte = s2tte_create_unassigned_ns(NULL, 0UL);
 
 	UNSIGNED_LONGS_EQUAL(expected_tte, tte);
 }
@@ -109,19 +179,22 @@ void s2tte_create_assigned_destroyed_tc1(void)
 
 		unsigned long pa = s2tt_test_helpers_gen_addr(i, true);
 		unsigned long tte;
+		unsigned long ap = test_helpers_get_rand_in_range(0UL, ULONG_MAX);
+		unsigned long ap_mask = s2tt_test_generate_ap_mask();
 		s2tt_context s2tt_ctx;
 
 		(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 		/*
 		 * Generate an s2tt context to be used for the test.
-		 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-		 * the rest of them can be uninitialized.
+		 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+		 * on this API, so the rest of them can be uninitialized.
 		 */
 		s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+		s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 		tte = s2tte_create_assigned_destroyed((const struct s2tt_context *)&s2tt_ctx,
-						      pa, i);
+						      pa, i, ap);
 
 		/* Validate the address */
 		UNSIGNED_LONGS_EQUAL(
@@ -135,11 +208,24 @@ void s2tte_create_assigned_destroyed_tc1(void)
 		UNSIGNED_LONGS_EQUAL((tte & S2TTE_INVALID_HIPAS_MASK),
 						S2TTE_INVALID_HIPAS_ASSIGNED);
 
+		/* Validate the Access Permissions */
+		if (s2tt_ctx.indirect_s2ap) {
+			UNSIGNED_LONGS_EQUAL(s2tte_get_pi_index(&s2tt_ctx, tte),
+					     S2TTE_DEF_BASE_PERM_IDX);
+			UNSIGNED_LONGS_EQUAL((ap & MASK(S2TTE_PO_INDEX)),
+					     (tte & MASK(S2TTE_PO_INDEX)));
+		} else {
+			UNSIGNED_LONGS_EQUAL((ap & ap_mask), (tte & ap_mask));
+		}
+
 		/* The rest of the fields must be all 0 */
+		if (s2tt_ctx.indirect_s2ap) {
+			ap_mask |= S2TTE_DIRTY_BIT;
+		}
 		UNSIGNED_LONGS_EQUAL(
 			(tte & ~(s2tt_test_helpers_s2tte_oa_mask() |
 			S2TTE_INVALID_RIPAS_MASK |
-			S2TTE_INVALID_HIPAS_MASK)), 0UL);
+			S2TTE_INVALID_HIPAS_MASK | ap_mask)), 0UL);
 	}
 }
 
@@ -156,6 +242,7 @@ void s2tte_create_assigned_destroyed_tc2(void)
 			(unsigned long)s2tt_test_helpers_min_block_lvl(),
 			(unsigned long)S2TT_TEST_HELPERS_MAX_LVL);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
+	unsigned long ap = test_helpers_get_rand_in_range(0UL, ULONG_MAX);
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
@@ -164,14 +251,15 @@ void s2tte_create_assigned_destroyed_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-	 * the rest of them can be uninitialized.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_destroyed((const struct s2tt_context *)&s2tt_ctx,
-					      pa, level);
+					      pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -186,20 +274,22 @@ void s2tte_create_assigned_destroyed_tc3(void)
 
 	long level = s2tt_test_helpers_min_block_lvl() - 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-	 * the rest of them can be uninitialized.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_destroyed((const struct s2tt_context *)&s2tt_ctx,
-					      pa, level);
+					      pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -214,20 +304,22 @@ void s2tte_create_assigned_destroyed_tc4(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-	 * the rest of them can be uninitialized.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_destroyed((const struct s2tt_context *)&s2tt_ctx,
-					      pa, level);
+					      pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -242,10 +334,11 @@ void s2tte_create_assigned_destroyed_tc5(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_destroyed((const struct s2tt_context *)NULL,
-					      pa, level);
+					      pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -264,19 +357,22 @@ void s2tte_create_assigned_empty_tc1(void)
 
 		unsigned long pa = s2tt_test_helpers_gen_addr(i, true);
 		unsigned long tte;
+		unsigned long ap = test_helpers_get_rand_in_range(0UL, ULONG_MAX);
+		unsigned long ap_mask = s2tt_test_generate_ap_mask();
 		s2tt_context s2tt_ctx;
 
 		(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 		/*
 		 * Generate an s2tt context to be used for the test.
-		 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-		 * the rest of them can be uninitialized.
+		 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+		 * on this API, so the rest of them can be uninitialized.
 		 */
 		s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+		s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 		tte = s2tte_create_assigned_empty((const struct s2tt_context *)&s2tt_ctx,
-						  pa, i);
+						  pa, i, ap);
 
 		/* Validate the address */
 		UNSIGNED_LONGS_EQUAL(
@@ -290,11 +386,24 @@ void s2tte_create_assigned_empty_tc1(void)
 		UNSIGNED_LONGS_EQUAL((tte & S2TTE_INVALID_HIPAS_MASK),
 						S2TTE_INVALID_HIPAS_ASSIGNED);
 
+		/* Validate de Access Permissions */
+		if (s2tt_ctx.indirect_s2ap) {
+			UNSIGNED_LONGS_EQUAL(s2tte_get_pi_index(&s2tt_ctx, tte),
+					     S2TTE_DEF_BASE_PERM_IDX);
+			UNSIGNED_LONGS_EQUAL((ap & MASK(S2TTE_PO_INDEX)),
+					     (tte & MASK(S2TTE_PO_INDEX)));
+		} else {
+			UNSIGNED_LONGS_EQUAL((ap & ap_mask), (tte & ap_mask));
+		}
+
 		/* The rest of the fields must be all 0 */
+		if (s2tt_ctx.indirect_s2ap) {
+			ap_mask |= S2TTE_DIRTY_BIT;
+		}
 		UNSIGNED_LONGS_EQUAL(
 			(tte & ~(s2tt_test_helpers_s2tte_oa_mask() |
 			S2TTE_INVALID_RIPAS_MASK |
-			S2TTE_INVALID_HIPAS_MASK)), 0UL);
+			S2TTE_INVALID_HIPAS_MASK | ap_mask)), 0UL);
 	}
 }
 
@@ -311,6 +420,7 @@ void s2tte_create_assigned_empty_tc2(void)
 			(unsigned long)s2tt_test_helpers_min_block_lvl(),
 			(unsigned long)S2TT_TEST_HELPERS_MAX_LVL);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
@@ -319,14 +429,15 @@ void s2tte_create_assigned_empty_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-	 * the rest of them can be uninitialized.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_empty((const struct s2tt_context *)&s2tt_ctx,
-					   pa, level);
+					   pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -341,20 +452,22 @@ void s2tte_create_assigned_empty_tc3(void)
 
 	long level = s2tt_test_helpers_min_block_lvl() - 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-	 * the rest of them can be uninitialized.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_empty((const struct s2tt_context *)&s2tt_ctx,
-					  pa, level);
+					  pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -369,20 +482,22 @@ void s2tte_create_assigned_empty_tc4(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-	 * the rest of them can be uninitialized.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_empty((const struct s2tt_context *)&s2tt_ctx,
-					  pa, level);
+					  pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -397,10 +512,11 @@ void s2tte_create_assigned_empty_tc5(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_empty((const struct s2tt_context *)NULL,
-					  pa, level);
+					  pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -419,34 +535,51 @@ void s2tte_create_assigned_ram_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-	 * the rest of them can be uninitialized.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* Test for each possible level */
 	for (long i = s2tt_test_helpers_min_block_lvl();
 	     i <= S2TT_TEST_HELPERS_MAX_LVL; i++) {
 		unsigned long pa = s2tt_test_helpers_gen_addr(i, true);
+		unsigned long ap = test_helpers_get_rand_in_range(0UL, ULONG_MAX);
+		unsigned long ap_mask = s2tt_test_generate_ap_mask();
 		unsigned long tte =
 			s2tte_create_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
-						  pa, i);
+						  pa, i, ap);
 		unsigned long attrs = (is_feat_lpa2_4k_2_present() == true) ?
 				S2TTE_ATTRS_LPA2 : S2TTE_ATTRS;
 
 		attrs |= (i == S2TT_TEST_HELPERS_MAX_LVL) ?
 				S2TT_TEST_PAGE_DESC : S2TT_TEST_BLOCK_DESC;
 
+		if (s2tt_ctx.indirect_s2ap) {
+			attrs |= S2TTE_DIRTY_BIT;
+		}
+
 		/* Validate the address */
 		UNSIGNED_LONGS_EQUAL(s2tt_test_helpers_s2tte_to_pa(tte, i), pa);
 
-		/* Validate the attributes */
-		UNSIGNED_LONGS_EQUAL(s2tt_test_helpers_s2tte_to_attrs(tte, false),
-									attrs);
+		/* Validate the attributes, excluding Access Permissions  */
+		UNSIGNED_LONGS_EQUAL((s2tt_test_helpers_s2tte_to_attrs(tte, false) &
+						~s2tt_test_generate_ap_mask()), attrs);
+
+		/* Validate the Access Permissions */
+		if (s2tt_ctx.indirect_s2ap) {
+			UNSIGNED_LONGS_EQUAL(s2tte_get_pi_index(&s2tt_ctx, tte),
+					     S2TTE_DEF_BASE_PERM_IDX);
+			UNSIGNED_LONGS_EQUAL((ap & MASK(S2TTE_PO_INDEX)),
+					     (tte & MASK(S2TTE_PO_INDEX)));
+		} else {
+			UNSIGNED_LONGS_EQUAL((ap & ap_mask), (tte & ap_mask));
+		}
 
 		/* The rest of the fields must be all 0 */
 		UNSIGNED_LONGS_EQUAL((tte & ~(s2tt_test_helpers_s2tte_oa_mask() |
-								attrs)), 0UL);
+							attrs | ap_mask)), 0UL);
 	}
 }
 
@@ -463,6 +596,7 @@ void s2tte_create_assigned_ram_tc2(void)
 			(unsigned long)s2tt_test_helpers_min_block_lvl(),
 			(unsigned long)S2TT_TEST_HELPERS_MAX_LVL);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
+	unsigned long ap = 0UL; /* Valid on any level */
 
 	struct s2tt_context s2tt_ctx;
 
@@ -470,16 +604,17 @@ void s2tte_create_assigned_ram_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-	 * the rest of them can be uninitialized.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	pa += test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
-					pa, level);
+					pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -494,20 +629,22 @@ void s2tte_create_assigned_ram_tc3(void)
 
 	long level = s2tt_test_helpers_min_block_lvl() - 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-	 * the rest of them can be uninitialized.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
-					pa, level);
+					pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -522,20 +659,22 @@ void s2tte_create_assigned_ram_tc4(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-	 * the rest of them can be uninitialized.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
-					pa, level);
+					pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -550,10 +689,11 @@ void s2tte_create_assigned_ram_tc5(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_ram((const struct s2tt_context *)NULL,
-					pa, level);
+					pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -579,15 +719,17 @@ void s2tte_create_assigned_ns_tc1(void)
 		(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 		/*
-		 * Initialize an s2tt_context structure for the test.
-		 * Only 'enable_lpa2' is used by the API, so the rest of fields
-		 * can be left untouched.
+		 * Generate an s2tt context to be used for the test.
+		 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+		 * on this API, so the rest of them can be uninitialized.
 		 */
 		s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+		s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
+
 		unsigned long tte = s2tte_create_assigned_ns(
 				(const struct s2tt_context *)&s2tt_ctx,
 				s2tt_test_helpers_pa_to_s2tte(pa, i) |
-								host_attrs, i);
+							host_attrs, i, 0UL);
 
 		attrs |= (i == S2TT_TEST_HELPERS_MAX_LVL) ?
 				S2TT_TEST_PAGE_DESC : S2TT_TEST_BLOCK_DESC;
@@ -603,10 +745,11 @@ void s2tte_create_assigned_ns_tc1(void)
 		UNSIGNED_LONGS_EQUAL(s2tt_test_helpers_s2tte_to_attrs(tte, true),
 							(attrs | host_attrs));
 
-
 		/* The rest of the fields must be all 0 */
 		UNSIGNED_LONGS_EQUAL((tte & ~(s2tt_test_helpers_s2tte_oa_mask() |
-			S2TTE_NS_ATTR_RMM | S2TT_DESC_TYPE_MASK | S2TTE_NS_ATTR_MASK |
+			S2TTE_NS_ATTR_RMM | S2TT_DESC_TYPE_MASK |
+			S2TTE_NS_ATTR_MASK | s2tt_test_generate_ap_mask() |
+			S2TTE_DIRTY_BIT |
 			(is_feat_lpa2_4k_2_present() ? 0UL : S2TTE_SH_MASK))), 0UL);
 	}
 }
@@ -630,7 +773,7 @@ void s2tte_create_assigned_ns_tc2(void)
 	 * it is safe to just pass a NULL pointer.
 	 */
 	(void)s2tte_create_assigned_ns((const struct s2tt_context *)NULL,
-					pa, level);
+					pa, level, 0UL);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -653,7 +796,7 @@ void s2tte_create_assigned_ns_tc3(void)
 	 * it is safe to just pass a NULL pointer.
 	 */
 	(void)s2tte_create_assigned_ns((const struct s2tt_context *)NULL,
-			s2tt_test_helpers_pa_to_s2tte(pa, level), level);
+			s2tt_test_helpers_pa_to_s2tte(pa, level), level, 0UL);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -673,10 +816,11 @@ void s2tte_create_assigned_unchanged_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * Only the 'enable_lpa2' field is needed for this API
-	 * so we can safely ignore the rest.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL;
@@ -686,14 +830,15 @@ void s2tte_create_assigned_unchanged_tc1(void)
 		     ripas++) {
 			unsigned long pa = s2tt_test_helpers_gen_addr(level,
 								    true);
+			unsigned long ap = s2tt_test_generate_ap(false);
 			unsigned long tte = s2tte_create_assigned_unchanged(
 				(const struct s2tt_context *)&s2tt_ctx,
-				INPLACE(S2TTE_INVALID_RIPAS, ripas),
+				(INPLACE(S2TTE_INVALID_RIPAS, ripas) | ap),
 				pa, level);
 
 			/* Validate the address */
-			UNSIGNED_LONGS_EQUAL(
-				s2tt_test_helpers_s2tte_to_pa(tte, level), pa);
+			UNSIGNED_LONGS_EQUAL(pa,
+				s2tt_test_helpers_s2tte_to_pa(tte, level));
 
 			if (ripas == RIPAS_RAM) {
 				/*
@@ -705,8 +850,8 @@ void s2tte_create_assigned_unchanged_tc1(void)
 				 */
 				unsigned long expected_tte =
 					s2tt_test_helpers_pa_to_s2tte(pa, level) |
-					s2tt_test_helpers_gen_attrs(false, level);
-
+					s2tt_test_helpers_gen_attrs(false, level) |
+					ap;
 				UNSIGNED_LONGS_EQUAL(expected_tte, tte);
 			} else {
 				/* Verify the RIPAS */
@@ -719,6 +864,10 @@ void s2tte_create_assigned_unchanged_tc1(void)
 				UNSIGNED_LONGS_EQUAL(
 					(tte & S2TTE_INVALID_HIPAS_MASK),
 						S2TTE_INVALID_HIPAS_ASSIGNED);
+
+				/* Verify the Access Permissions */
+				UNSIGNED_LONGS_EQUAL(
+					(tte & s2tt_test_generate_ap_mask()), ap);
 
 				/* The Descriptor type must be invalid */
 				UNSIGNED_LONGS_EQUAL(
@@ -745,22 +894,24 @@ void s2tte_create_assigned_unchanged_tc2(void)
 					RIPAS_EMPTY,
 					RIPAS_DESTROYED);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
+	unsigned long ap = 0UL; /* Valid on any level or RIPAS value */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * Only the 'enable_lpa2' field is needed for this API
-	 * so we can safely ignore the rest.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	pa += test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_unchanged((const struct s2tt_context *)&s2tt_ctx,
-					      ripas, pa, level);
+					      (ripas | ap), pa, level);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -778,20 +929,22 @@ void s2tte_create_assigned_unchanged_tc3(void)
 					RIPAS_EMPTY,
 					RIPAS_DESTROYED);
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level or RIPAS value */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * Only the 'enable_lpa2' field is needed for this API
-	 * so we can safely ignore the rest.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_unchanged((const struct s2tt_context *)&s2tt_ctx,
-					      ripas, pa, level);
+					      (ripas | ap), pa, level);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -809,20 +962,22 @@ void s2tte_create_assigned_unchanged_tc4(void)
 					RIPAS_EMPTY,
 					RIPAS_DESTROYED);
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level or RIPAS value */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * Only the 'enable_lpa2' field is needed for this API
-	 * so we can safely ignore the rest.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_unchanged((const struct s2tt_context *)&s2tt_ctx,
-					      ripas, pa, level);
+					      (ripas | ap), pa, level);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -841,20 +996,22 @@ void s2tte_create_assigned_unchanged_tc5(void)
 	unsigned long ripas = INPLACE(S2TTE_INVALID_RIPAS,
 						S2TT_TEST_RIPAS_INVALID);
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level or RIPAS value */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * Only the 'enable_lpa2' field is needed for this API
-	 * so we can safely ignore the rest.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_unchanged((const struct s2tt_context *)&s2tt_ctx,
-					      ripas, pa, level);
+					      (ripas | ap), pa, level);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -874,10 +1031,11 @@ void s2tte_create_assigned_unchanged_tc6(void)
 					RIPAS_EMPTY,
 					RIPAS_DESTROYED);
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level or RIPAS value */
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_assigned_unchanged((const struct s2tt_context *)NULL,
-					      ripas, pa, level);
+					      (ripas | ap), pa, level);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -896,10 +1054,11 @@ void s2tte_create_table_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-	 * the rest of them can be uninitialized.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_table_lvl();
 	     level < S2TT_TEST_HELPERS_MAX_LVL; level++) {
@@ -942,10 +1101,11 @@ void s2tte_create_table_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-	 * the rest of them can be uninitialized.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	pa += test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
 
@@ -971,10 +1131,11 @@ void s2tte_create_table_tc3(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-	 * the rest of them can be uninitialized.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_table((const struct s2tt_context *)&s2tt_ctx, pa, level);
@@ -998,10 +1159,11 @@ void s2tte_create_table_tc4(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 is of use on this API, so
-	 * the rest of them can be uninitialized.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_create_table((const struct s2tt_context *)&s2tt_ctx, pa, level);
@@ -1039,11 +1201,12 @@ void host_ns_s2tte_is_valid_tc1(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
@@ -1074,11 +1237,12 @@ void host_ns_s2tte_is_valid_tc2(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
@@ -1086,9 +1250,10 @@ void host_ns_s2tte_is_valid_tc2(void)
 		/* Generate a NS S2TTE with a set of invalid host attrs */
 		unsigned long host_attrs =
 				s2tt_test_helpers_gen_ns_attrs(true, true);
+		unsigned long ap = 0UL; /* Valid on any level */
 		unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 		unsigned long tte = s2tt_test_helpers_pa_to_s2tte(pa, level) |
-								host_attrs;
+								host_attrs | ap;
 
 		CHECK_FALSE(host_ns_s2tte_is_valid(
 					(const struct s2tt_context *)&s2tt_ctx,
@@ -1107,7 +1272,7 @@ void host_ns_s2tte_is_valid_tc2(void)
 		} while ((host_attrs & ~(S2TTE_NS_ATTR_MASK |
 					 s2tt_test_helpers_s2tte_oa_mask())) == 0UL);
 
-		tte = s2tt_test_helpers_pa_to_s2tte(pa, level) | host_attrs;
+		tte = s2tt_test_helpers_pa_to_s2tte(pa, level) | host_attrs | ap;
 
 		CHECK_FALSE(host_ns_s2tte_is_valid(
 					(const struct s2tt_context *)&s2tt_ctx,
@@ -1131,11 +1296,12 @@ void host_ns_s2tte_is_valid_tc3(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/*
 	 * Generate the tte with an assumed PA == 0, which is aligned to
@@ -1166,11 +1332,12 @@ void host_ns_s2tte_is_valid_tc4(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/*
 	 * Generate the tte with an assumed PA == 0, which is aligned to
@@ -1222,6 +1389,7 @@ void host_ns_s2tte_is_valid_tc6(void)
 	unsigned long tte;
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
+	unsigned long ap = 0UL; /* Valid on any level */
 
 	if (is_feat_lpa2_4k_2_present() == false) {
 		CHECK_TRUE(true);
@@ -1232,7 +1400,7 @@ void host_ns_s2tte_is_valid_tc6(void)
 	host_attrs =
 		s2tt_test_helpers_gen_ns_attrs(true, false);
 	tte = s2tt_test_helpers_pa_to_s2tte(pa, level) |
-		host_attrs;
+		host_attrs | ap;
 
 	CHECK_TRUE(s2tt_test_helpers_s2tte_to_pa(tte, level) >= (1UL << S2TT_MAX_PA_BITS));
 	CHECK_FALSE(host_ns_s2tte_is_valid((const struct s2tt_context *)&s2tt_ctx,
@@ -1254,11 +1422,12 @@ void host_ns_s2tte_tc1(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* Test for each possible level */
 	for (long level = s2tt_test_helpers_min_block_lvl();
@@ -1269,7 +1438,7 @@ void host_ns_s2tte_tc1(void)
 		unsigned long val_tte = s2tte_create_assigned_ns(
 					(const struct s2tt_context *)&s2tt_ctx,
 					s2tt_test_helpers_pa_to_s2tte(pa, level) |
-								host_attrs, level);
+							host_attrs, level, 0UL);
 		unsigned long tte = host_ns_s2tte((const struct s2tt_context *)&s2tt_ctx,
 						   val_tte, level);
 
@@ -1279,7 +1448,8 @@ void host_ns_s2tte_tc1(void)
 
 		/*
 		 * Validate that the rest of the S2TTE (excluding the PA)
-		 * matches the host_attrs (and therefore any other bit is '0')
+		 * matches the host_attrs an AP (and therefore any other
+		 * bit is '0')
 		 */
 		UNSIGNED_LONGS_EQUAL(host_attrs,
 			(tte & ~s2tt_test_helpers_s2tte_oa_mask()));
@@ -1300,11 +1470,12 @@ void host_ns_s2tte_tc2(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/*
 	 * Generate the tte with an assumed PA == 0, which is aligned to
@@ -1312,20 +1483,23 @@ void host_ns_s2tte_tc2(void)
 	 */
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long host_attrs = s2tt_test_helpers_gen_ns_attrs(true,	false);
+	unsigned long ap = 0UL; /* Valid on any level */
 
 	/* s2tte_create_assigned_ns() can receive a NULL s2tt_context pointer */
 	unsigned long tte = s2tte_create_assigned_ns(
 			(const struct s2tt_context *)&s2tt_ctx,
-			0UL | host_attrs, level);
+			0UL | host_attrs, level, ap);
 
 	test_helpers_expect_assert_fail(true);
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
+
 	(void)host_ns_s2tte((const struct s2tt_context *)&s2tt_ctx, tte, level - 1L);
 	test_helpers_fail_if_no_assert_failed();
 }
@@ -1349,19 +1523,22 @@ void host_ns_s2tte_tc3(void)
 	 */
 	long level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long host_attrs = s2tt_test_helpers_gen_ns_attrs(true,	false);
+	unsigned long ap = 0UL; /* Valid on any level */
 
 	/* s2tte_create_assigned_ns() can receive a NULL s2tt_context pointer */
 	unsigned long tte = s2tte_create_assigned_ns(
 			(const struct s2tt_context *)&s2tt_ctx,
-			0UL | host_attrs, level);
+			0UL | host_attrs, level, ap);
 
 	test_helpers_expect_assert_fail(true);
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
+
 	(void)host_ns_s2tte((const struct s2tt_context *)&s2tt_ctx, tte, level + 1L);
 	test_helpers_fail_if_no_assert_failed();
 }
@@ -1379,22 +1556,24 @@ void host_ns_s2tte_tc4(void)
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
 	unsigned long host_attrs = s2tt_test_helpers_gen_ns_attrs(true, false);
+	unsigned long ap = 0UL; /* Valid on any level */
 
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	unsigned long val_tte = s2tte_create_assigned_ns(
 				(const struct s2tt_context *)&s2tt_ctx,
 				s2tt_test_helpers_pa_to_s2tte(pa, level) |
-							host_attrs, level);
+							host_attrs, level, ap);
 	test_helpers_expect_assert_fail(true);
 	(void)host_ns_s2tte((const struct s2tt_context *)NULL, val_tte, level);
 	test_helpers_fail_if_no_assert_failed();
@@ -1413,16 +1592,18 @@ void s2tte_has_ripas_tc1(void)
 	unsigned long ripas[] = {S2TTE_INVALID_RIPAS_EMPTY,
 				 S2TTE_INVALID_RIPAS_RAM,
 				 S2TTE_INVALID_RIPAS_DESTROYED};
+	unsigned long ap = 0UL; /* Valid on any level or RIPAS */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
@@ -1435,14 +1616,14 @@ void s2tte_has_ripas_tc1(void)
 			/* Validate with an assigned S2TTE */
 			tte = s2tt_test_create_assigned(
 					(const struct s2tt_context *)&s2tt_ctx,
-					pa, level, ripas[i]);
+					pa, level, ripas[i], ap);
 			CHECK_TRUE(s2tte_has_ripas((const struct s2tt_context *)&s2tt_ctx,
 						   tte, level) == true);
 
 			/* Validate with an unassigned S2TTE */
 			tte = s2tt_test_create_unassigned((
 					const struct s2tt_context *)&s2tt_ctx,
-					ripas[i]);
+					ripas[i], ap);
 			CHECK_TRUE(s2tte_has_ripas((const struct s2tt_context *)&s2tt_ctx,
 						   tte, level) == true);
 		}
@@ -1466,16 +1647,18 @@ void s2tte_has_ripas_tc2(void)
 	 ***************************************************************/
 
 	unsigned long tte;
+	unsigned long ap = 0UL; /* Valid on any level and RIPAS */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* Generate a set of NS S2TTEs per valid level */
 	for (long level = s2tt_test_helpers_min_block_lvl();
@@ -1486,13 +1669,13 @@ void s2tte_has_ripas_tc2(void)
 									false);
 		tte = s2tte_create_assigned_ns((const struct s2tt_context *)&s2tt_ctx,
 				host_attr | s2tt_test_helpers_pa_to_s2tte(pa, level),
-				level);
+				level, ap);
 		/* Validate with assigned-ns S2TTE */
 		CHECK_TRUE(s2tte_has_ripas((const struct s2tt_context *)&s2tt_ctx,
 					   tte, level) == false);
 
 		/* Validate with unassigned-ns S2TTE */
-		tte = s2tte_create_unassigned_ns((const struct s2tt_context *)&s2tt_ctx);
+		tte = s2tte_create_unassigned_ns((const struct s2tt_context *)&s2tt_ctx, 0UL);
 		CHECK_TRUE(s2tte_has_ripas((const struct s2tt_context *)NULL,
 					   tte, level) == false);
 	}
@@ -1526,20 +1709,34 @@ void s2tte_is_unassigned_tc1(void)
 	/* pickup a random type of unassigned S2TTE to test with */
 	unsigned int ripas_idx = (unsigned int)test_helpers_get_rand_in_range(
 					0UL, ARRAY_SIZE(ripas) - 1UL);
-	unsigned long inv_tte, tte = s2tt_test_create_unassigned(
-			(const struct s2tt_context *)NULL, ripas[ripas_idx]);
+	unsigned long ap = s2tt_test_generate_ap(false);
+	unsigned long inv_tte, tte;
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
+	/*
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
+	 */
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
+
+	tte = s2tt_test_create_unassigned(
+			(const struct s2tt_context *)&s2tt_ctx, ripas[ripas_idx], ap);
 
 	/* Validate s2tt_is_unassigned with an unassigned TTE. */
-	CHECK_TRUE(s2tte_is_unassigned((const struct s2tt_context *)NULL, tte) == true);
+	CHECK_TRUE(s2tte_is_unassigned((const struct s2tt_context *)&s2tt_ctx, tte) == true);
 
 	/* Negative test: Set DESC_TYPE to a valid descriptor */
 	inv_tte = tte | S2TT_TEST_PAGE_DESC;
-	CHECK_TRUE(s2tte_is_unassigned((const struct s2tt_context *)NULL, inv_tte) == false);
+	CHECK_TRUE(s2tte_is_unassigned((const struct s2tt_context *)&s2tt_ctx, inv_tte) == false);
 
 	/* Negative test: Change the HIPAS to ASSIGNED */
 	inv_tte = tte & ~S2TTE_INVALID_HIPAS_MASK;
 	inv_tte |= S2TTE_INVALID_HIPAS_ASSIGNED;
-	CHECK_TRUE(s2tte_is_unassigned((const struct s2tt_context *)NULL, inv_tte) == false);
+	CHECK_TRUE(s2tte_is_unassigned((const struct s2tt_context *)&s2tt_ctx, inv_tte) == false);
 }
 
 void s2tte_is_unassigned_empty_tc1(void)
@@ -1557,26 +1754,44 @@ void s2tte_is_unassigned_empty_tc1(void)
 
 	unsigned int idx;
 	unsigned long inv_tte;
-	unsigned long tte = s2tte_create_unassigned_empty(
-					(const struct s2tt_context *)NULL);
+	unsigned long ap = s2tt_test_generate_ap(false);
+	unsigned long tte;
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
+	/*
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
+	 */
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
+
+	tte = s2tte_create_unassigned_empty(
+					(const struct s2tt_context *)&s2tt_ctx, ap);
 
 	/* Validate s2tt_is_unassigned_empty with an unassigned TTE */
-	CHECK_TRUE(s2tte_is_unassigned_empty((const struct s2tt_context *)NULL, tte) == true);
+	CHECK_TRUE(s2tte_is_unassigned_empty((const struct s2tt_context *)&s2tt_ctx, tte) == true);
 
 	/* Negative test: Set DESC_TYPE to a valid descriptor */
 	inv_tte = tte | S2TT_TEST_PAGE_DESC;
-	CHECK_TRUE(s2tte_is_unassigned_empty((const struct s2tt_context *)NULL, inv_tte) == false);
+	CHECK_TRUE(s2tte_is_unassigned_empty((const struct s2tt_context *)&s2tt_ctx,
+					     inv_tte) == false);
 
 	/* Negative test: Change the HIPAS to ASSIGNED */
 	inv_tte = tte & ~S2TTE_INVALID_HIPAS_MASK;
 	inv_tte |= S2TTE_INVALID_HIPAS_ASSIGNED;
-	CHECK_TRUE(s2tte_is_unassigned_empty((const struct s2tt_context *)NULL, inv_tte) == false);
+	CHECK_TRUE(s2tte_is_unassigned_empty((const struct s2tt_context *)&s2tt_ctx,
+					     inv_tte) == false);
 
 	/* Negative test: Test with a different type of unassigned TTE but having RIPAS */
 	idx = (unsigned int)test_helpers_get_rand_in_range(
 					0UL, ARRAY_SIZE(ripas) - 1UL);
-	inv_tte = s2tt_test_create_unassigned((const struct s2tt_context *)NULL, ripas[idx]);
-	CHECK_TRUE(s2tte_is_unassigned_empty((const struct s2tt_context *)NULL, inv_tte) == false);
+	inv_tte = s2tt_test_create_unassigned((const struct s2tt_context *)&s2tt_ctx,
+					      ripas[idx], ap);
+	CHECK_TRUE(s2tte_is_unassigned_empty((const struct s2tt_context *)&s2tt_ctx,
+					     inv_tte) == false);
 }
 
 void s2tte_is_unassigned_ram_tc1(void)
@@ -1593,26 +1808,44 @@ void s2tte_is_unassigned_ram_tc1(void)
 				 S2TTE_NS};
 	unsigned int idx;
 	unsigned long inv_tte;
-	unsigned long tte = s2tte_create_unassigned_ram(
-					(const struct s2tt_context *)NULL);
+	unsigned long ap = s2tt_test_generate_ap(false);
+	unsigned long tte;
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
+	/*
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
+	 */
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
+
+	tte = s2tte_create_unassigned_ram(
+					(const struct s2tt_context *)&s2tt_ctx, ap);
 
 	/* Validate s2tt_is_unassigned_ram with an unassigned ram TTE */
-	CHECK_TRUE(s2tte_is_unassigned_ram((const struct s2tt_context *)NULL, tte) == true);
+	CHECK_TRUE(s2tte_is_unassigned_ram((const struct s2tt_context *)&s2tt_ctx, tte) == true);
 
 	/* Negative test: Set DESC_TYPE to a valid descriptor */
 	inv_tte = tte | S2TT_TEST_PAGE_DESC;
-	CHECK_TRUE(s2tte_is_unassigned_ram((const struct s2tt_context *)NULL, inv_tte) == false);
+	CHECK_TRUE(s2tte_is_unassigned_ram((const struct s2tt_context *)&s2tt_ctx,
+					   inv_tte) == false);
 
 	/* Negative test: Change the HIPAS to ASSIGNED */
 	inv_tte = tte & ~S2TTE_INVALID_HIPAS_MASK;
 	inv_tte |= S2TTE_INVALID_HIPAS_ASSIGNED;
-	CHECK_TRUE(s2tte_is_unassigned_ram((const struct s2tt_context *)NULL, inv_tte) == false);
+	CHECK_TRUE(s2tte_is_unassigned_ram((const struct s2tt_context *)&s2tt_ctx,
+					    inv_tte) == false);
 
 	/* Negative test: Test with a different type of unassigned TTE */
 	idx = (unsigned int)test_helpers_get_rand_in_range(
 					0UL, ARRAY_SIZE(ripas) - 1UL);
-	inv_tte = s2tt_test_create_unassigned((const struct s2tt_context *)NULL, ripas[idx]);
-	CHECK_TRUE(s2tte_is_unassigned_ram((const struct s2tt_context *)NULL, inv_tte) == false);
+	inv_tte = s2tt_test_create_unassigned((const struct s2tt_context *)&s2tt_ctx,
+					      ripas[idx], ap);
+	CHECK_TRUE(s2tte_is_unassigned_ram((const struct s2tt_context *)&s2tt_ctx,
+					   inv_tte) == false);
 }
 
 void s2tte_is_unassigned_ns_tc1(void)
@@ -1629,26 +1862,44 @@ void s2tte_is_unassigned_ns_tc1(void)
 				 S2TTE_INVALID_RIPAS_RAM};
 	unsigned int idx;
 	unsigned long inv_tte;
-	unsigned long tte = s2tte_create_unassigned_ns((
-					const struct s2tt_context *)NULL);
+	unsigned long ap = s2tt_test_generate_ap(false);
+	unsigned long tte;
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
+	/*
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
+	 */
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
+
+	tte = s2tte_create_unassigned_ns((
+					const struct s2tt_context *)&s2tt_ctx, 0UL);
 
 	/* Validate s2tt_is_unassigned_ns with an unassigned ns TTE */
-	CHECK_TRUE(s2tte_is_unassigned_ns((const struct s2tt_context *)NULL, tte) == true);
+	CHECK_TRUE(s2tte_is_unassigned_ns((const struct s2tt_context *)&s2tt_ctx, tte) == true);
 
 	/* Negative test: Set DESC_TYPE to a valid descriptor */
 	inv_tte = tte | S2TT_TEST_PAGE_DESC;
-	CHECK_TRUE(s2tte_is_unassigned_ns((const struct s2tt_context *)NULL, inv_tte) == false);
+	CHECK_TRUE(s2tte_is_unassigned_ns((const struct s2tt_context *)&s2tt_ctx,
+					  inv_tte) == false);
 
 	/* Negative test: Change the HIPAS to ASSIGNED */
 	inv_tte = tte & ~S2TTE_INVALID_HIPAS_MASK;
 	inv_tte |= S2TTE_INVALID_HIPAS_ASSIGNED;
-	CHECK_TRUE(s2tte_is_unassigned_ns((const struct s2tt_context *)NULL, inv_tte) == false);
+	CHECK_TRUE(s2tte_is_unassigned_ns((const struct s2tt_context *)&s2tt_ctx,
+					  inv_tte) == false);
 
 	/* Negative test: Test with a different type of unassigned TTE */
 	idx = (unsigned int)test_helpers_get_rand_in_range(
 					0UL, ARRAY_SIZE(ripas) - 1UL);
-	inv_tte = s2tt_test_create_unassigned((const struct s2tt_context *)NULL, ripas[idx]);
-	CHECK_TRUE(s2tte_is_unassigned_ns((const struct s2tt_context *)NULL, inv_tte) == false);
+	inv_tte = s2tt_test_create_unassigned((const struct s2tt_context *)&s2tt_ctx,
+					      ripas[idx], ap);
+	CHECK_TRUE(s2tte_is_unassigned_ns((const struct s2tt_context *)&s2tt_ctx,
+					  inv_tte) == false);
 }
 
 void s2tte_is_unassigned_destroyed_tc1(void)
@@ -1666,29 +1917,45 @@ void s2tte_is_unassigned_destroyed_tc1(void)
 				 S2TTE_INVALID_RIPAS_RAM};
 	unsigned int idx;
 	unsigned long inv_tte;
-	unsigned long tte = s2tte_create_unassigned_destroyed(
-					(const struct s2tt_context *)NULL);
+	unsigned long ap = s2tt_test_generate_ap(false);
+	unsigned long tte;
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
+	/*
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
+	 */
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
+
+	tte = s2tte_create_unassigned_destroyed(
+					(const struct s2tt_context *)&s2tt_ctx, ap);
 
 	/* Validate s2tt_is_unassigned_destroyed with an unassigned destroyed TTE */
 	CHECK_TRUE(s2tte_is_unassigned_destroyed(
-				(const struct s2tt_context *)NULL, tte) == true);
+				(const struct s2tt_context *)&s2tt_ctx, tte) == true);
 
 	/* Negative test: Set DESC_TYPE to a valid descriptor */
 	inv_tte = tte | S2TT_TEST_PAGE_DESC;
 	CHECK_TRUE(s2tte_is_unassigned_destroyed(
-				(const struct s2tt_context *)NULL, inv_tte) == false);
+				(const struct s2tt_context *)&s2tt_ctx, inv_tte) == false);
 
 	/* Negative test: Change the HIPAS to ASSIGNED */
 	inv_tte = tte & ~S2TTE_INVALID_HIPAS_MASK;
 	inv_tte |= S2TTE_INVALID_HIPAS_ASSIGNED;
 	CHECK_TRUE(s2tte_is_unassigned_destroyed(
-				(const struct s2tt_context *)NULL, inv_tte) == false);
+				(const struct s2tt_context *)&s2tt_ctx, inv_tte) == false);
 
 	/* Negative test: Test with a different type of unassigned TTE */
 	idx = (unsigned int)test_helpers_get_rand_in_range(
 					0UL, ARRAY_SIZE(ripas) - 1UL);
-	inv_tte = s2tt_test_create_unassigned((const struct s2tt_context *)NULL, ripas[idx]);
-	CHECK_FALSE(s2tte_is_unassigned_destroyed((const struct s2tt_context *)NULL, inv_tte));
+	inv_tte = s2tt_test_create_unassigned((const struct s2tt_context *)&s2tt_ctx,
+					      ripas[idx], ap);
+	CHECK_FALSE(s2tte_is_unassigned_destroyed((const struct s2tt_context *)&s2tt_ctx,
+						  inv_tte));
 }
 
 void s2tte_is_assigned_empty_tc1(void)
@@ -1703,16 +1970,18 @@ void s2tte_is_assigned_empty_tc1(void)
 	unsigned long ripas[] = {S2TTE_NS,
 				 S2TTE_INVALID_RIPAS_RAM,
 				 S2TTE_INVALID_RIPAS_DESTROYED};
+	unsigned long ap = s2tt_test_generate_ap(false);
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
@@ -1721,7 +1990,7 @@ void s2tte_is_assigned_empty_tc1(void)
 		unsigned long inv_tte, tte =
 			s2tte_create_assigned_empty(
 					(const struct s2tt_context *)&s2tt_ctx,
-					pa, level);
+					pa, level, ap);
 
 		/* Validate s2tt_is_assigned_empty with an assigned empty TTE */
 		CHECK_TRUE(s2tte_is_assigned_empty((const struct s2tt_context *)&s2tt_ctx,
@@ -1742,7 +2011,7 @@ void s2tte_is_assigned_empty_tc1(void)
 		idx = (unsigned int)test_helpers_get_rand_in_range(
 					0UL, ARRAY_SIZE(ripas) - 1UL);
 		inv_tte = s2tt_test_create_assigned((const struct s2tt_context *)&s2tt_ctx,
-						pa, level, ripas[idx]);
+						pa, level, ripas[idx], ap);
 		CHECK_TRUE(s2tte_is_assigned_empty((const struct s2tt_context *)&s2tt_ctx,
 					inv_tte, level) == false);
 	}
@@ -1760,16 +2029,18 @@ void s2tte_is_assigned_ns_tc1(void)
 	unsigned long ripas[] = {S2TTE_INVALID_RIPAS_EMPTY,
 				 S2TTE_INVALID_RIPAS_RAM,
 				 S2TTE_INVALID_RIPAS_DESTROYED};
+	unsigned long ap = s2tt_test_generate_ap(false);
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
@@ -1780,7 +2051,7 @@ void s2tte_is_assigned_ns_tc1(void)
 
 		tte = s2tte_create_assigned_ns((const struct s2tt_context *)&s2tt_ctx,
 				s2tt_test_helpers_pa_to_s2tte(pa, level) | tte,
-				level);
+				level, ap);
 
 		/* Validate s2tt_is_assigned_ns with an assigned ns TTE */
 		CHECK_TRUE(s2tte_is_assigned_ns((const struct s2tt_context *)&s2tt_ctx,
@@ -1790,7 +2061,7 @@ void s2tte_is_assigned_ns_tc1(void)
 		 * Negative test: Test using UNASSIGNED_NS TTE
 		 */
 		inv_tte = s2tte_create_unassigned_ns(
-					(const struct s2tt_context *)&s2tt_ctx);
+					(const struct s2tt_context *)&s2tt_ctx, 0UL);
 		CHECK_TRUE(s2tte_is_assigned_ns((const struct s2tt_context *)&s2tt_ctx,
 						inv_tte, level) == false);
 
@@ -1801,7 +2072,7 @@ void s2tte_is_assigned_ns_tc1(void)
 		idx = (unsigned int)test_helpers_get_rand_in_range(
 					0UL, ARRAY_SIZE(ripas) - 1UL);
 		inv_tte = s2tt_test_create_assigned((const struct s2tt_context *)&s2tt_ctx,
-						pa, level, ripas[idx]);
+						pa, level, ripas[idx], ap);
 		CHECK_TRUE(s2tte_is_assigned_ns((const struct s2tt_context *)&s2tt_ctx,
 						inv_tte, level) == false);
 	}
@@ -1817,21 +2088,23 @@ void s2tte_is_assigned_ns_tc2(void)
 	unsigned long pa = 0UL;
 	unsigned long tte = s2tt_test_helpers_gen_ns_attrs(true, false);
 	long level = s2tt_test_helpers_min_block_lvl();
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	tte = s2tte_create_assigned_ns(
 			(const struct s2tt_context *)&s2tt_ctx,
 			s2tt_test_helpers_pa_to_s2tte(pa, level) | tte,
-					level);
+					level, ap);
 
 	/* Validate s2tt_is_assigned_ns with an assigned ns TTE */
 	CHECK_FALSE(s2tte_is_assigned_ns((const struct s2tt_context *)&s2tt_ctx, tte,
@@ -1857,19 +2130,21 @@ void s2tte_is_assigned_ram_tc1(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 		unsigned int idx;
 		unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
+		unsigned long ap = s2tt_test_generate_ap(false);
 		unsigned long inv_tte, tte =
 			s2tte_create_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
-						  pa, level);
+						  pa, level, ap);
 
 		/* Validate s2tt_is_assigned_ram with an assigned ram TTE */
 		CHECK_TRUE(s2tte_is_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
@@ -1882,7 +2157,7 @@ void s2tte_is_assigned_ram_tc1(void)
 		 * up an S2TTE with a HIPAS other than ASSIGNED.
 		 */
 		inv_tte = s2tte_create_unassigned_ram(
-				(const struct s2tt_context *)&s2tt_ctx);
+				(const struct s2tt_context *)&s2tt_ctx, ap);
 		CHECK_TRUE(s2tte_is_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
 						 inv_tte, level) == false);
 
@@ -1890,7 +2165,7 @@ void s2tte_is_assigned_ram_tc1(void)
 		idx = (unsigned int)test_helpers_get_rand_in_range(
 					0UL, ARRAY_SIZE(ripas) - 1UL);
 		inv_tte = s2tt_test_create_assigned((const struct s2tt_context *)&s2tt_ctx,
-						pa, level, ripas[idx]);
+						pa, level, ripas[idx], ap);
 		CHECK_TRUE(s2tte_is_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
 						 inv_tte, level) == false);
 	}
@@ -1905,19 +2180,21 @@ void s2tte_is_assigned_ram_tc2(void)
 	 ***************************************************************/
 	unsigned long pa = 0UL;
 	unsigned long tte;
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	tte = s2tte_create_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
-					pa, s2tt_test_helpers_min_block_lvl());
+					pa, s2tt_test_helpers_min_block_lvl(), ap);
 
 	/* Validate s2tt_is_assigned_ram with an assigned ram TTE */
 	CHECK_FALSE(s2tte_is_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
@@ -1944,20 +2221,22 @@ void s2tte_is_assigned_destroyed_tc1(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 		unsigned int idx;
 		unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
+		unsigned long ap = s2tt_test_generate_ap(false);
 		unsigned long inv_tte, tte =
 			s2tte_create_assigned_destroyed(
 					(const struct s2tt_context *)&s2tt_ctx,
-					pa, level);
+					pa, level, ap);
 
 		/* Validate s2tt_is_assigned_destroyed with an assigned destroyed TTE */
 		CHECK_TRUE(s2tte_is_assigned_destroyed((const struct s2tt_context *)&s2tt_ctx,
@@ -1978,7 +2257,7 @@ void s2tte_is_assigned_destroyed_tc1(void)
 		idx = (unsigned int)test_helpers_get_rand_in_range(
 					0UL, ARRAY_SIZE(ripas) - 1UL);
 		inv_tte = s2tt_test_create_assigned((const struct s2tt_context *)&s2tt_ctx,
-						pa, level, ripas[idx]);
+						pa, level, ripas[idx], ap);
 		CHECK_TRUE(s2tte_is_assigned_destroyed((const struct s2tt_context *)&s2tt_ctx,
 						inv_tte, level) == false);
 	}
@@ -1998,11 +2277,12 @@ void s2tte_is_table_tc1(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_table_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
@@ -2060,16 +2340,19 @@ void s2tte_get_ripas_tc1(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Initialize an s2tt_context structure for the test.
-	 * Only 'enable_lpa2' is used by the API, so the rest of fields
-	 * can be left untouched.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (unsigned int i = 0U; i < ARRAY_SIZE(ripas); i++) {
+		unsigned long ap = s2tt_test_generate_ap(false);
+
 		/* HIPAS = UNASSIGNED */
 		tte = s2tt_test_create_unassigned(
-				(const struct s2tt_context *)&s2tt_ctx, ripas[i]);
+				(const struct s2tt_context *)&s2tt_ctx, ripas[i], ap);
 		UNSIGNED_LONGS_EQUAL((unsigned int)s2tte_get_ripas(
 					(const struct s2tt_context *)&s2tt_ctx, tte),
 				     EXTRACT(S2TTE_INVALID_RIPAS, ripas[i]));
@@ -2080,7 +2363,7 @@ void s2tte_get_ripas_tc1(void)
 			pa = s2tt_test_helpers_gen_addr(level, true);
 			tte = s2tt_test_create_assigned(
 				(const struct s2tt_context *)&s2tt_ctx,
-					pa, level, ripas[i]);
+					pa, level, ripas[i], ap);
 			UNSIGNED_LONGS_EQUAL(
 				(unsigned int)s2tte_get_ripas(
 					(const struct s2tt_context *)&s2tt_ctx, tte),
@@ -2098,8 +2381,24 @@ void s2tte_get_ripas_tc2(void)
 	 * HIPAS.
 	 ***************************************************************/
 
-	unsigned long tte = s2tte_create_unassigned_destroyed(
-					(const struct s2tt_context *)NULL);
+	unsigned long ap = 0UL; /* Valid on any level */
+	unsigned long tte;
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
+	/*
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
+	 */
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
+
+	tte = s2tte_create_unassigned_destroyed(
+				(const struct s2tt_context *)&s2tt_ctx, ap);
+	tte &= ~S2TTE_INVALID_HIPAS_MASK;
+
 	/*
 	 * As per s2tt_pvt_defs.h, HIPAS field is 3 bits wide with only the
 	 * first 2 bits used. Get random invalid HIPAS to test with.
@@ -2124,14 +2423,26 @@ void s2tte_get_ripas_tc3(void)
 	 * HIPAS=RMI_TABLE.
 	 ***************************************************************/
 
-	unsigned long tte = s2tte_create_unassigned_destroyed(
-					(const struct s2tt_context *)NULL);
+	struct s2tt_context s2tt_ctx;
+	unsigned long tte;
 
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
+	/*
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
+	 */
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
+
+	tte = s2tte_create_unassigned_destroyed(
+					(const struct s2tt_context *)&s2tt_ctx, 0UL);
 	tte &= ~S2TTE_INVALID_HIPAS_MASK;
 	tte |= INPLACE(S2TTE_INVALID_HIPAS, RMI_TABLE);
 
 	test_helpers_expect_assert_fail(true);
-	(void)s2tte_get_ripas((const struct s2tt_context *)NULL, tte);
+	(void)s2tte_get_ripas((const struct s2tt_context *)&s2tt_ctx, tte);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2146,19 +2457,31 @@ void s2tt_init_unassigned_empty_tc1(void)
 
 	unsigned long s2tt[S2TTES_PER_S2TT] = { 0UL };
 	unsigned long val_s2tt[S2TTES_PER_S2TT];
+	unsigned long ap = s2tt_test_generate_ap(false);
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
+	/*
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
+	 */
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* Generate the validation table */
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
 		val_s2tt[i] =
 			s2tte_create_unassigned_empty(
-					(const struct s2tt_context *)NULL);
+				(const struct s2tt_context *)&s2tt_ctx, ap);
 	}
 
 	/*
 	 * Generate the test table. Note that s2tt_init_unassigned_empty()
 	 * can take a NULL s2tt_context pointer.
 	 */
-	s2tt_init_unassigned_empty((const struct s2tt_context *)NULL, &s2tt[0]);
+	s2tt_init_unassigned_empty((const struct s2tt_context *)&s2tt_ctx, &s2tt[0], ap);
 
 	/* Validate */
 	MEMCMP_EQUAL(val_s2tt, s2tt, sizeof(s2tt));
@@ -2177,7 +2500,7 @@ void s2tt_init_unassigned_empty_tc2(void)
 	 ***************************************************************/
 
 	test_helpers_expect_assert_fail(true);
-	s2tt_init_unassigned_empty((const struct s2tt_context *)NULL, NULL);
+	s2tt_init_unassigned_empty((const struct s2tt_context *)NULL, NULL, 0UL);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2192,18 +2515,30 @@ void s2tt_init_unassigned_ram_tc1(void)
 
 	unsigned long s2tt[S2TTES_PER_S2TT] = { 0UL };
 	unsigned long val_s2tt[S2TTES_PER_S2TT];
+	unsigned long ap = s2tt_test_generate_ap(false);
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
+	/*
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
+	 */
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* Generate the validation table */
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
 		val_s2tt[i] = s2tte_create_unassigned_ram(
-				(const struct s2tt_context *)NULL);
+				(const struct s2tt_context *)&s2tt_ctx, ap);
 	}
 
 	/*
 	 * Generate the test table. Note that s2tt_init_unassigned_ram()
 	 * can take a NULL pointer to struct s2tt_context.
 	 */
-	s2tt_init_unassigned_ram((const struct s2tt_context *)NULL, &s2tt[0]);
+	s2tt_init_unassigned_ram((const struct s2tt_context *)&s2tt_ctx, &s2tt[0], ap);
 
 	/* Validate */
 	MEMCMP_EQUAL(val_s2tt, s2tt, sizeof(s2tt));
@@ -2221,7 +2556,7 @@ void s2tt_init_unassigned_ram_tc2(void)
 	 ***************************************************************/
 
 	test_helpers_expect_assert_fail(true);
-	s2tt_init_unassigned_ram((const struct s2tt_context *)NULL, NULL);
+	s2tt_init_unassigned_ram((const struct s2tt_context *)NULL, NULL, 0UL);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2240,14 +2575,14 @@ void s2tt_init_unassigned_ns_tc1(void)
 	/* Generate the validation table */
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
 		val_s2tt[i] = s2tte_create_unassigned_ns(
-				(const struct s2tt_context *)NULL);
+				(const struct s2tt_context *)NULL, 0UL);
 	}
 
 	/*
 	 * Generate the test table. Note that s2tt_init_unassigned_ns()
 	 * can take a NULL s2tt_context pointer.
 	 */
-	s2tt_init_unassigned_ns((const struct s2tt_context *)NULL, &s2tt[0]);
+	s2tt_init_unassigned_ns((const struct s2tt_context *)NULL, &s2tt[0], 0UL);
 
 	/* Validate */
 	MEMCMP_EQUAL(val_s2tt, s2tt, sizeof(s2tt));
@@ -2265,7 +2600,7 @@ void s2tt_init_unassigned_ns_tc2(void)
 	 ***************************************************************/
 
 	test_helpers_expect_assert_fail(true);
-	s2tt_init_unassigned_ns((const struct s2tt_context *)NULL, NULL);
+	s2tt_init_unassigned_ns((const struct s2tt_context *)NULL, NULL, 0UL);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2280,20 +2615,32 @@ void s2tt_init_unassigned_destroyed_tc1(void)
 
 	unsigned long s2tt[S2TTES_PER_S2TT] = { 0UL };
 	unsigned long val_s2tt[S2TTES_PER_S2TT];
+	unsigned long ap = s2tt_test_generate_ap(false);
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+
+	/*
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
+	 */
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* Generate the validation table */
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
 		val_s2tt[i] =
 			s2tte_create_unassigned_destroyed(
-					(const struct s2tt_context *)NULL);
+				(const struct s2tt_context *)&s2tt_ctx, ap);
 	}
 
 	/*
 	 * Generate the test table. Note that s2tt_init_unassigned_destroyed()
 	 * can take a NULL s2tt_context pointer.
 	 */
-	s2tt_init_unassigned_destroyed((const struct s2tt_context *)NULL,
-					&s2tt[0]);
+	s2tt_init_unassigned_destroyed((const struct s2tt_context *)&s2tt_ctx,
+					&s2tt[0], ap);
 
 	/* Validate */
 	MEMCMP_EQUAL(val_s2tt, s2tt, sizeof(s2tt));
@@ -2311,7 +2658,7 @@ void s2tt_init_unassigned_destroyed_tc2(void)
 	 ***************************************************************/
 
 	test_helpers_expect_assert_fail(true);
-	s2tt_init_unassigned_destroyed((const struct s2tt_context *)NULL, NULL);
+	s2tt_init_unassigned_destroyed((const struct s2tt_context *)NULL, NULL, 0UL);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2329,20 +2676,23 @@ void s2tt_init_assigned_empty_tc1(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 
 		unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 		unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
+		unsigned long ap = s2tt_test_generate_ap(false);
 
 		/* Generate the table */
 		s2tt_init_assigned_empty((const struct s2tt_context *)&s2tt_ctx,
-					 &s2tt[0], pa, level);
+					 &s2tt[0], pa, level, ap);
 
 		/* Validate the content of the table */
 		for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
@@ -2350,7 +2700,7 @@ void s2tt_init_assigned_empty_tc1(void)
 
 			s2tte =	s2tte_create_assigned_empty(
 					(const struct s2tt_context *)&s2tt_ctx,
-					pa, level);
+					pa, level, ap);
 			pa += s2tte_map_size(level);
 
 			UNSIGNED_LONGS_EQUAL(s2tte, s2tt[i]);
@@ -2370,19 +2720,22 @@ void s2tt_init_assigned_empty_tc2(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_empty((const struct s2tt_context *)&s2tt_ctx,
-				 &s2tt[0U], pa, level);
+				 &s2tt[0U], pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2398,19 +2751,22 @@ void s2tt_init_assigned_empty_tc3(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = s2tt_test_helpers_min_block_lvl() - 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_empty((const struct s2tt_context *)&s2tt_ctx,
-				 &s2tt[0U], pa, level);
+				 &s2tt[0U], pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2424,19 +2780,22 @@ void s2tt_init_assigned_empty_tc4(void)
 
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_empty((const struct s2tt_context *)&s2tt_ctx,
-				 NULL, pa, level);
+				 NULL, pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2454,19 +2813,22 @@ void s2tt_init_assigned_empty_tc5(void)
 					       S2TT_TEST_HELPERS_MAX_LVL);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true) +
 		test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_empty((const struct s2tt_context *)&s2tt_ctx,
-				 &s2tt[0U], pa, level);
+				 &s2tt[0U], pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2480,11 +2842,12 @@ void s2tt_init_assigned_empty_tc6(void)
 	 ***************************************************************/
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = s2tt_test_helpers_min_block_lvl();
+	unsigned long ap = 0UL; /* Valid on any level */
 	unsigned long pa = 0UL; /* Valid for any level */
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_empty((const struct s2tt_context *)NULL,
-				 &s2tt[0U], pa, level);
+				 &s2tt[0U], pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2502,20 +2865,23 @@ void s2tt_init_assigned_ram_tc1(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 
 		unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 		unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
+		unsigned long ap = s2tt_test_generate_ap(false);
 
 		/* Generate the table */
 		s2tt_init_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
-					&s2tt[0], pa, level);
+					&s2tt[0], pa, level, ap);
 
 		/* Validate the content of the table */
 		for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
@@ -2523,7 +2889,7 @@ void s2tt_init_assigned_ram_tc1(void)
 
 			s2tte =	s2tte_create_assigned_ram(
 					(const struct s2tt_context *)&s2tt_ctx,
-					pa, level);
+					pa, level, ap);
 			pa += s2tte_map_size(level);
 
 			UNSIGNED_LONGS_EQUAL(s2tte, s2tt[i]);
@@ -2543,19 +2909,22 @@ void s2tt_init_assigned_ram_tc2(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
-				&s2tt[0U], pa, level);
+				&s2tt[0U], pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2571,19 +2940,22 @@ void s2tt_init_assigned_ram_tc3(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = s2tt_test_helpers_min_block_lvl() - 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
-				&s2tt[0U], pa, level);
+				&s2tt[0U], pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2597,19 +2969,22 @@ void s2tt_init_assigned_ram_tc4(void)
 
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
-				NULL, pa, level);
+				NULL, pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2627,19 +3002,22 @@ void s2tt_init_assigned_ram_tc5(void)
 					       S2TT_TEST_HELPERS_MAX_LVL);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true) +
 		test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
-				&s2tt[0U], pa, level);
+				&s2tt[0U], pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2655,10 +3033,11 @@ void s2tt_init_assigned_ram_tc6(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_ram((const struct s2tt_context *)NULL,
-				&s2tt[0U], pa, level);
+				&s2tt[0U], pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2676,10 +3055,12 @@ void s2tt_init_assigned_ns_tc1(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
@@ -2712,7 +3093,7 @@ void s2tt_init_assigned_ns_tc1(void)
 		 * take a NULL struct s2tt_context pointer.
 		 */
 		s2tt_init_assigned_ns((const struct s2tt_context *)&s2tt_ctx,
-				      &s2tt[0], parent_s2tte, pa, level);
+				      &s2tt[0], parent_s2tte, pa, level, 0UL);
 
 		/* Validate the content of the table */
 		for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
@@ -2721,7 +3102,7 @@ void s2tt_init_assigned_ns_tc1(void)
 
 			s2tte =	s2tte_create_assigned_ns(
 					(const struct s2tt_context *)&s2tt_ctx,
-					s2tte | attrs, level);
+					s2tte | attrs, level, 0UL);
 			pa += s2tte_map_size(level);
 
 			UNSIGNED_LONGS_EQUAL(s2tte, s2tt[i]);
@@ -2744,11 +3125,12 @@ void s2tt_init_assigned_ns_tc2(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	unsigned long attrs = s2tt_test_helpers_gen_ns_attrs(true, false);
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_ns((const struct s2tt_context *)NULL,
-			      &s2tt[0U], attrs, pa, level);
+			      &s2tt[0U], attrs, pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2767,11 +3149,12 @@ void s2tt_init_assigned_ns_tc3(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = s2tt_test_helpers_min_block_lvl() - 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	unsigned long attrs = s2tt_test_helpers_gen_ns_attrs(true, false);
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_ns((const struct s2tt_context *)NULL,
-			      &s2tt[0U], attrs, pa, level);
+			      &s2tt[0U], attrs, pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2788,11 +3171,12 @@ void s2tt_init_assigned_ns_tc4(void)
 
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	unsigned long attrs = s2tt_test_helpers_gen_ns_attrs(true, false);
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_ns((const struct s2tt_context *)NULL,
-			      NULL, attrs, pa, level);
+			      NULL, attrs, pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2814,10 +3198,11 @@ void s2tt_init_assigned_ns_tc5(void)
 					       S2TT_TEST_HELPERS_MAX_LVL);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true) +
 		test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
+	unsigned long ap = 0UL; /* Valid on any level */
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_ns((const struct s2tt_context *)NULL,
-			      &s2tt[0U], attrs, pa, level);
+			      &s2tt[0U], attrs, pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2834,21 +3219,24 @@ void s2tt_init_assigned_destroyed_tc1(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 
 		unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 		unsigned long pa = s2tt_test_helpers_gen_addr(level - 1L, true);
+		unsigned long ap = s2tt_test_generate_ap(false);
 
 		/* Generate the table */
 		s2tt_init_assigned_destroyed(
 				(const struct s2tt_context *)&s2tt_ctx,
-				&s2tt[0], pa, level);
+				&s2tt[0], pa, level, ap);
 
 		/* Validate the content of the table */
 		for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
@@ -2856,7 +3244,7 @@ void s2tt_init_assigned_destroyed_tc1(void)
 
 			s2tte =	s2tte_create_assigned_destroyed(
 					(const struct s2tt_context *)&s2tt_ctx,
-					pa, level);
+					pa, level, ap);
 			pa += s2tte_map_size(level);
 
 			UNSIGNED_LONGS_EQUAL(s2tte, s2tt[i]);
@@ -2876,19 +3264,22 @@ void s2tt_init_assigned_destroyed_tc2(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = S2TT_TEST_HELPERS_MAX_LVL + 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_destroyed((const struct s2tt_context *)&s2tt_ctx,
-				     &s2tt[0U], pa, level);
+				     &s2tt[0U], pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2904,19 +3295,22 @@ void s2tt_init_assigned_destroyed_tc3(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = s2tt_test_helpers_min_block_lvl() - 1L;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_destroyed((const struct s2tt_context *)&s2tt_ctx,
-				     &s2tt[0U], pa, level);
+				     &s2tt[0U], pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2931,19 +3325,22 @@ void s2tt_init_assigned_destroyed_tc4(void)
 
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_destroyed((const struct s2tt_context *)&s2tt_ctx,
-				     NULL, pa, level);
+				     NULL, pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2962,19 +3359,22 @@ void s2tt_init_assigned_destroyed_tc5(void)
 					       S2TT_TEST_HELPERS_MAX_LVL);
 	unsigned long pa = s2tt_test_helpers_gen_addr(level, true) +
 		test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_destroyed((const struct s2tt_context *)&s2tt_ctx,
-				     &s2tt[0U], pa, level);
+				     &s2tt[0U], pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2990,10 +3390,11 @@ void s2tt_init_assigned_destroyed_tc6(void)
 	unsigned long s2tt[S2TTES_PER_S2TT] = {0};
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 
 	test_helpers_expect_assert_fail(true);
 	s2tt_init_assigned_destroyed((const struct s2tt_context *)NULL,
-				     &s2tt[0U], pa, level);
+				     &s2tt[0U], pa, level, ap);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -3014,15 +3415,18 @@ void s2tte_pa_tc1(void)
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_table_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 		unsigned long tte;
 		unsigned long pa = s2tt_test_helpers_gen_addr(level, true);
+		unsigned long ap = s2tt_test_generate_ap(false);
 
 		if (level < s2tt_test_helpers_min_block_lvl()) {
 			tte = s2tte_create_table(
@@ -3039,7 +3443,7 @@ void s2tte_pa_tc1(void)
 
 			tte = s2tt_test_create_assigned(
 					(const struct s2tt_context *)&s2tt_ctx,
-					pa, level, ripas[idx]);
+					pa, level, ripas[idx], ap);
 		}
 
 		/* Verify the address returned by s2tte_pa() */
@@ -3064,21 +3468,24 @@ void s2tte_pa_tc2(void)
 	long level = test_helpers_get_rand_in_range(
 			s2tt_test_helpers_min_block_lvl(),
 			S2TT_TEST_HELPERS_MAX_LVL);
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* pickup a random type of unassigned S2TTE to test with */
 	unsigned int idx = (unsigned int)test_helpers_get_rand_in_range(
 					0UL, ARRAY_SIZE(ripas) - 1UL);
 	unsigned long tte = s2tt_test_create_unassigned(
-			(const struct s2tt_context *)&s2tt_ctx, ripas[idx]);
+			(const struct s2tt_context *)&s2tt_ctx, ripas[idx], ap);
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_pa((const struct s2tt_context *)&s2tt_ctx, tte, level);
@@ -3100,22 +3507,25 @@ void s2tte_pa_tc3(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* pickup a random type of assigned S2TTE to test with */
 	unsigned int idx = (unsigned int)test_helpers_get_rand_in_range(
 					0UL, ARRAY_SIZE(ripas) - 1UL);
 	unsigned long tte = s2tt_test_create_assigned(
 			(const struct s2tt_context *)&s2tt_ctx,
-			pa, level, ripas[idx]);
+			pa, level, ripas[idx], ap);
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_pa((const struct s2tt_context *)&s2tt_ctx, tte, level + 1U);
@@ -3137,22 +3547,25 @@ void s2tte_pa_tc4(void)
 
 	long level = S2TT_TEST_HELPERS_MAX_LVL;
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* pickup a random type of assigned S2TTE to test with */
 	unsigned int idx = (unsigned int)test_helpers_get_rand_in_range(
 					0UL, ARRAY_SIZE(ripas) - 1UL);
 	unsigned long tte = s2tt_test_create_assigned(
 			(const struct s2tt_context *)&s2tt_ctx,
-			pa, level, ripas[idx]);
+			pa, level, ripas[idx], ap);
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_pa((const struct s2tt_context *)&s2tt_ctx,
@@ -3174,22 +3587,25 @@ void s2tte_pa_tc5(void)
 
 	long level = s2tt_test_helpers_min_block_lvl();
 	unsigned long pa = 0UL; /* Valid for any level */
+	unsigned long ap = 0UL; /* Valid on any level */
 	struct s2tt_context s2tt_ctx;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
 	/*
-	 * Generate an s2tt context to be used for the test. Only
-	 * enable_lpa2 field is needed for the current test.
+	 * Generate an s2tt context to be used for the test.
+	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * on this API, so the rest of them can be uninitialized.
 	 */
 	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* pickup a random type of assigned S2TTE to test with */
 	unsigned int idx = (unsigned int)test_helpers_get_rand_in_range(
 					0UL, ARRAY_SIZE(ripas) - 1UL);
 	unsigned long tte = s2tt_test_create_assigned(
 			(const struct s2tt_context *)&s2tt_ctx,
-			pa, level, ripas[idx]);
+			pa, level, ripas[idx], ap);
 
 	test_helpers_expect_assert_fail(true);
 	(void)s2tte_pa((const struct s2tt_context *)NULL,

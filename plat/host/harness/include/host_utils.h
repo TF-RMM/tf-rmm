@@ -174,10 +174,10 @@ unsigned char *host_util_get_el3_rmm_shared_buffer(void);
  * Runs the realm entrypoint as programmed in elr_el2 and resets
  * the esr_el2 before entering the Realm.
  */
-int host_util_rec_run(unsigned long *regs);
+int host_util_rec_run(unsigned long *rec_regs, unsigned long *rec_sp_el0);
 
 /* Prototype for Realm entrypoint */
-typedef int (*realm_entrypoint_t)(unsigned long *);
+typedef int (*realm_entrypoint_t)(unsigned long *, unsigned long *);
 
 /* Helper for invoking RSI calls */
 int host_util_rsi_helper(realm_entrypoint_t ep);

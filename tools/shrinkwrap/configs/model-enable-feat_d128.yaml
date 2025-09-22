@@ -1,0 +1,15 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Overlay to enable FEAT_D128 on FVP at run time.
+
+run:
+  params:
+    # Enable FEAT_D128
+    -C cluster0.has_128_bit_tt_descriptors: 2
+    -C cluster1.has_128_bit_tt_descriptors: 2

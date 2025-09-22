@@ -23,11 +23,13 @@ struct el3_feat_en_status {
  * +--------------------+---------------+
  * | scr_bitmask[59]	| FEAT_FGT2	|
  * +--------------------+---------------+
+ * | scr_bitmask[55]	| FEAT_EINDCP128|
+ * +--------------------+---------------+
  * | scr_bitmask[49]	| FEAT_MEC	|
  * +--------------------+---------------+
  * | scr_bitmask[47]	| FEAT_D128	|
  * +--------------------+---------------+
- * | scr_bitmask[45]	| FEAT_S1PIE	|
+ * | scr_bitmask[45]	| FEAT_SxPxE	|
  * +--------------------+---------------+
  * | scr_bitmask[44]	| FEAT_SCTLR2	|
  * +--------------------+---------------+
@@ -51,9 +53,10 @@ struct el3_feat_en_status {
  * +--------------------+---------------+
  */
 #define SMC_FEAT_SCR_FGT2_SHIFT		U(59)
+#define SMC_FEAT_SCR_ENIDCP128_SHIFT	U(55)
 #define SMC_FEAT_SCR_MEC_SHIFT		U(49)
 #define SMC_FEAT_SCR_D128_SHIFT		U(47)
-#define SMC_FEAT_SCR_S1PIE_SHIFT	U(45)
+#define SMC_FEAT_SCR_SxPxE_SHIFT	U(45)
 #define SMC_FEAT_SCR_SCTLR2_SHIFT	U(44)
 #define SMC_FEAT_SCR_TCR2_SHIFT		U(43)
 #define SMC_FEAT_SCR_SME_SHIFT		U(41)

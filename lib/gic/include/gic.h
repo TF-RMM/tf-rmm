@@ -6,6 +6,7 @@
 #ifndef GIC_H
 #define GIC_H
 
+#include <arch_helpers.h>
 #include <stdbool.h>
 #include <utils_def.h>
 
@@ -164,6 +165,11 @@
 /* Maximum number of Interrupt Controller List Registers */
 #define ICH_MAX_LRS		16U
 
+/* Mask for bits identifying maintenance interrupt that have fired. */
+#define ICH_MISR_EL2_SHIFT	UL(0)
+#define ICH_MISR_EL2_WIDTH	UL(8)
+#define ICH_MISR_EL2_MASK	MASK(ICH_MISR_EL2)
+
 /*******************************************************************************
  * GICv3 and 3.1 definitions
  ******************************************************************************/
@@ -212,12 +218,25 @@ void gic_get_virt_features(void);
 unsigned int gic_vgic_get_num_lrs(void);
 void gic_cpu_state_init(struct gic_cpu_state *gicstate);
 
-void gic_copy_state_from_rec_entry(struct gic_cpu_state *gicstate,
-			  struct rmi_rec_enter *rec_enter);
-void gic_copy_state_to_rec_exit(struct gic_cpu_state *gicstate,
-			  struct rmi_rec_exit *rec_exit);
-bool gic_validate_state(struct rmi_rec_enter *rec_enter);
+void gic_copy_state_from_entry(struct gic_cpu_state *gicstate,
+		unsigned long *gicv3_lrs,
+		unsigned long gicv3_hcr);
+void gic_copy_state_to_exit(struct gic_cpu_state *gicstate,
+	unsigned long *gicv3_lrs,
+	unsigned long *gicv3_hcr,
+	unsigned long *gicv3_misr,
+	unsigned long *gicv3_vmcr);
+void gic_copy_state(struct gic_cpu_state *dst,
+		    struct gic_cpu_state *src);
+bool gic_validate_state(unsigned long gicv3_hcr, unsigned long *gicv3_lrs);
+bool gic_is_interrupt_pending(unsigned long *gicv3_lrs);
+bool gic_is_maint_interrupt_pending(struct gic_cpu_state *gicstate);
 void gic_restore_state(struct gic_cpu_state *gicstate);
 void gic_save_state(struct gic_cpu_state *gicstate);
+
+static inline unsigned long gic_get_ich_vtr(void)
+{
+	return read_ich_vtr_el2();
+}
 
 #endif /* GIC_H */

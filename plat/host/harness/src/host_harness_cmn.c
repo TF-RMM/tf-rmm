@@ -569,9 +569,12 @@ void host_monitor_call_with_res(unsigned long id,
 #endif
 }
 
-int host_run_realm(unsigned long *regs)
+int host_run_realm(unsigned long *rec_regs, unsigned long *rec_sp_el0)
 {
-	return host_util_rec_run(regs);
+	assert(rec_regs != NULL);
+	assert(rec_sp_el0 != NULL);
+
+	return host_util_rec_run(rec_regs, rec_sp_el0);
 }
 
 /* Used by Mbed TLS buffer alloc */

@@ -241,9 +241,16 @@
 #ifdef CBMC
 #define IF_NCBMC(x)
 #define IF_CBMC(x)	x
+/*
+ * Some of the structures inside 'struct rec' don't influence the outcome of
+ * the CBMC tests, so for CBMC build make these a union making their size being
+ * of the largest field, instead of the sum of the fields' sizes.
+ */
+#define STRUCT_TYPE			union
 #else /* CBMC */
 #define IF_NCBMC(x)	x
 #define IF_CBMC(x)
+#define STRUCT_TYPE			struct
 #endif /* CBMC */
 
 /* cppcheck-suppress misra-c2012-20.7 */
@@ -253,6 +260,10 @@
 	/* coverity[integer_overflow:SUPPRESS] */ \
 	/* coverity[return_overflow:SUPPRESS] */ \
 	(unsigned long)(_code)
+
+/* Macros to replace unused arguments when calling functions */
+#define UNUSED_UL		(0UL)
+#define UNUSED_PTR		((void *)NULL)
 
 #endif /* !(defined(__ASSEMBLER__) || defined(__LINKER__)) */
 

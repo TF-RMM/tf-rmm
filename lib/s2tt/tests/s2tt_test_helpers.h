@@ -8,11 +8,19 @@
 
 #include <arch_helpers.h>
 #include <granule_types.h>
+#include <s2tt.h>
+#include <s2tt_ap.h>
+#include <s2tt_pvt_defs.h>
+#include <test_helpers.h>
 #include <utils_def.h>
 
 /* Macros to specify LPA2 status */
 #define LPA2_ENABLED					(true)
 #define LPA2_DISABLED					(false)
+
+/* Macros to specify S2PIE and S2POE status */
+#define S2PIE_ENABLED					(true)
+#define S2PIE_DISABLED					(false)
 
 /*
  * Helper macro definitions.
@@ -56,10 +64,9 @@
 #define S2TTE_TEST_DEV_SH		S2TTE_SH_OS
 
 /*
- * Function to setup the environment for the tests specifying
- * whether FEAT_LPA2 is supported or not.
+ * Function to setup the environment for the tests.
  */
-void s2tt_test_helpers_setup(bool lpa2);
+void s2tt_test_helpers_setup(bool lpa2, bool s2pie);
 
 /* Get the PA mapped into a specific S2TTE */
 unsigned long s2tt_test_helpers_s2tte_to_pa(unsigned long s2tte, long level);
@@ -97,6 +104,9 @@ unsigned long s2tt_test_helpers_s2tte_to_attrs(unsigned long tte, bool ns);
  *		    will be set to RESERVED or not. If 'true' either one
  *		    or both of the fields can be set to RESERVED, which
  *		    will make the descriptor invalid.
+ *
+ * Note that this function always assumes that S2AP is disabled on the
+ * S2 translation context.
  */
 unsigned long s2tt_test_helpers_gen_ns_attrs(bool host, bool reserved);
 
@@ -129,28 +139,36 @@ unsigned long s2tt_test_helpers_get_idx_from_addr(unsigned long addr,
 /* Helper to know whether LPA2 is enabled or not for the current test */
 bool s2tt_test_helpers_lpa2_enabled(void);
 
+/* Helper to know whether S2PIE and S2PO are enabled or not for the current test */
+bool s2tt_test_helpers_s2pie_enabled(void);
+
 /* Helper to create an assigned S2TTE as per the passed parameters */
 unsigned long s2tt_test_create_assigned(const struct s2tt_context *s2tt_ctx,
 					unsigned long pa, long level,
-					unsigned long ripas);
+					unsigned long ripas, unsigned long ap);
 
 /* Helper to create an assigned_dev S2TTE as per the passed parameters */
 unsigned long s2tt_test_create_assigned_dev(const struct s2tt_context *s2tt_ctx,
 					    unsigned long pa, long level,
-					    unsigned long ripas);
+					    unsigned long ripas,
+					    unsigned long ap);
 
 /* Helper to create an assigned_dev_dev S2TTE as per the passed parameters */
 unsigned long s2tt_test_create_assigned_dev_dev(const struct s2tt_context *s2tt_ctx,
-						unsigned long pa, long level);
+						unsigned long pa, long level,
+						unsigned long ap);
 
 /* Helper to init an assigned_dev_dev S2TTE as per the passed parameters */
 void s2tt_test_init_assigned_dev_dev(const struct s2tt_context *s2tt_ctx,
 				     unsigned long *s2tt,
-				     unsigned long pa, long level);
+				     unsigned long pa, long level,
+				     unsigned long ap);
 
 /* Helper to create an unassigned S2TTE as per the passed parameters */
 unsigned long s2tt_test_create_unassigned(const struct s2tt_context *s2tt_ctx,
-					  unsigned long ripas);
+					  unsigned long ripas, unsigned long ap);
+
+unsigned long s2tt_test_generate_ap(bool dev);
 
 /* Helper to modify the state of a granule without making any pre-checks */
 static inline void s2tt_test_granule_set_state(struct granule *g,
@@ -167,6 +185,13 @@ static inline void s2tt_test_granule_set_lock(struct granule *g,
 {
 	g->descriptor = (locked) ?
 		(g->descriptor | GRN_LOCK_BIT) : (g->descriptor & ~GRN_LOCK_BIT);
+}
+
+static inline unsigned long s2tt_test_generate_ap_mask(void)
+{
+	return (s2tt_test_helpers_s2pie_enabled() ?
+			(S2TTE_PI_INDEX_MASK | MASK(S2TTE_PO_INDEX)) :
+			 S2TTE_PERM_MASK);
 }
 
 #endif /* XLAT_TEST_HELPERS_H */

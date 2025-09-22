@@ -141,6 +141,31 @@ void host_rmi_rtt_destroy(void *rd, void *ipa, unsigned int level, struct smc_re
 		      res);
 }
 
+void host_rmi_rtt_aux_create(void *rd, void *rtt, void *ipa, unsigned int level,
+			     unsigned int index, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_RTT_CREATE,
+		(uintptr_t)rd,
+		(uintptr_t)rtt,
+		(uintptr_t)ipa,
+		level,
+		index,
+		0,
+		res);
+}
+
+void host_rmi_rtt_aux_destroy(void *rd, void *ipa, unsigned int level,
+			      unsigned int index, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_RTT_DESTROY,
+		(uintptr_t)rd,
+		(uintptr_t)ipa,
+		level,
+		index,
+		0, 0,
+		res);
+}
+
 void host_rmi_rtt_map_unprotected(void *rd, uintptr_t ipa, uintptr_t level,
 				  uintptr_t desc, struct smc_result *res)
 {

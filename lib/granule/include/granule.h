@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <granule_lock.h>
 #include <memory.h>
+#include <smc-rmi.h>
 #include <stdbool.h>
 #include <utils_def.h>
 
@@ -92,7 +93,7 @@ static inline void __granule_assert_unlocked_invariants(struct granule *g,
 		assert(REFCOUNT(g) <= 1U);
 		break;
 	case GRANULE_STATE_DATA:
-		assert(REFCOUNT(g) == 0U);
+		assert(REFCOUNT(g) < MAX_TOTAL_PLANES);
 		break;
 	case GRANULE_STATE_RTT:
 		/* Refcount cannot be greater than number of entries in an RTT */
@@ -285,7 +286,7 @@ static inline void atomic_granule_get(struct granule *g)
 }
 
 /*
- * Atomically increments the reference counter of the granule by @val.
+ * Atomically decrements the reference counter of the granule by @val.
  *
  * Must be called with granule lock held.
  */

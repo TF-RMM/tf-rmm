@@ -102,15 +102,19 @@ static void update_id_aa64mmfr3_el1(struct cached_idreg_info *ptr)
 
 	/*************************************************************
 	 * Cache and update IDAA64MMFR3_EL1 based on supported features
+	 * Bit[20-23] - S2POE
 	 * Bit[19-16] - S1POE
+	 * Bit[15-12] - S2PIE
 	 * Bit[11-8]  - S1PIE
 	 * Bit[7-4] - SCTLRx
 	 * Bit[3-0] - TCRx
 	 **************************************************************/
 
-	if (EXTRACT_BIT(SMC_FEAT_SCR_S1PIE, value) == 0U) {
+	if (EXTRACT_BIT(SMC_FEAT_SCR_SxPxE, value) == 0U) {
 		ptr->id_aa64mmfr3_el1 &= ~MASK(ID_AA64MMFR3_EL1_S1POE);
 		ptr->id_aa64mmfr3_el1 &= ~MASK(ID_AA64MMFR3_EL1_S1PIE);
+		ptr->id_aa64mmfr3_el1 &= ~MASK(ID_AA64MMFR3_EL1_S2POE);
+		ptr->id_aa64mmfr3_el1 &= ~MASK(ID_AA64MMFR3_EL1_S2PIE);
 	}
 
 	if (EXTRACT_BIT(SMC_FEAT_SCR_SCTLR2, value) == 0U) {
@@ -177,6 +181,25 @@ static void update_id_aa64pfr1_el1(struct cached_idreg_info *ptr)
 	}
 }
 
+static void update_id_aa64isar2_el1(struct cached_idreg_info *ptr)
+{
+
+	assert(ptr != NULL);
+
+	unsigned long value;
+
+	value = READ_EL3_FEAT_EN_STATUS(el3_feat_enb_status, scr_bitmask);
+
+	/*************************************************************
+	 * Cache and update IDAA64ISAR2_EL1 based on supported features
+	 * Bit[35:32] - FEAT_SYSREG128
+	 **************************************************************/
+
+	if (EXTRACT_BIT(SMC_FEAT_SCR_ENIDCP128, value) == 0U) {
+		ptr->id_aa64isar2_el1 &= ~MASK(ID_AA64ISAR2_EL1_SYSREG128);
+	}
+}
+
 /*
  * Update the cached ID registers based on the features supported
  * in EL3. This is determined from the SMCCC_ARCH_FEATURE_AVAILABILITY.
@@ -232,6 +255,8 @@ static void update_cached_idreg_info(void)
 	/* ID_AA64PFR1_EL1: Update cached copy */
 	update_id_aa64pfr1_el1(&cached_idreg);
 
+	/* ID_AA64ISAR2_EL1: Update cached copy */
+	update_id_aa64isar2_el1(&cached_idreg);
 }
 
 void arch_features_query_el3_support(void)

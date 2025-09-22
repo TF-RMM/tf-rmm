@@ -66,8 +66,8 @@ static const struct rsi_handler rsi_logger[] = {
 	RSI_FUNCTION(_RDEV_START, 4U, 0U),		/* 0xC40001AA */
 	RSI_FUNCTION(_RDEV_STOP, 2U, 0U),		/* 0xC40001AB */
 	RSI_FUNCTION(_RDEV_VALIDATE_MAPPING, 6U, 2U),	/* 0xC40001AC */
-	RSI_FUNCTION(_PLANE_REG_READ, 2U, 1U),		/* 0xC40001AE */
-	RSI_FUNCTION(_PLANE_REG_WRITE, 3U, 0U)		/* 0xC40001AF */
+	RSI_FUNCTION(_PLANE_SYSREG_READ, 2U, 1U),	/* 0xC40001AE */
+	RSI_FUNCTION(_PLANE_SYSREG_WRITE, 3U, 0U)	/* 0xC40001AF */
 };
 
 #define RSI_STATUS_STRING(_id)[RSI_##_id] = #_id
@@ -95,7 +95,9 @@ static size_t print_entry(unsigned int id, unsigned long args[],
 	int cnt;
 
 	switch (id) {
-	case SMC_RSI_VERSION ... SMC_RSI_PLANE_REG_WRITE: {
+	case SMC_RSI_VERSION ... SMC_RSI_RDEV_VALIDATE_MAPPING:
+		FALLTHROUGH;
+	case SMC_RSI_PLANE_SYSREG_READ ... SMC_RSI_PLANE_SYSREG_WRITE: {
 		const struct rsi_handler *logger = fid_to_rsi_logger(id);
 
 		num = logger->num_args;
@@ -177,7 +179,9 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 	}
 
 	switch (function_id) {
-	case SMC_RSI_VERSION ... SMC_RSI_PLANE_REG_WRITE: {
+	case SMC_RSI_VERSION ... SMC_RSI_RDEV_VALIDATE_MAPPING:
+		FALLTHROUGH;
+	case SMC_RSI_PLANE_SYSREG_READ ... SMC_RSI_PLANE_SYSREG_WRITE: {
 		const struct rsi_handler *logger =
 				fid_to_rsi_logger(function_id);
 

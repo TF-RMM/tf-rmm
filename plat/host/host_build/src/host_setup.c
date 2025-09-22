@@ -76,9 +76,9 @@ static void *allocate_granule(void)
 	return (void *)granule;
 }
 
-static int realm_continue(unsigned long *regs);
-static int realm_continue_1(unsigned long *regs);
-static int realm_continue_2(unsigned long *regs);
+static int realm_continue(unsigned long *rec_regs, unsigned long *rec_sp_el0);
+static int realm_continue_1(unsigned long *rec_regs, unsigned long *rec_sp_el0);
+static int realm_continue_2(unsigned long *rec_regs, unsigned long *rec_sp_el0);
 
 uintptr_t realm_buffer;
 static size_t token_size;
@@ -94,75 +94,81 @@ static int realm_start(unsigned long *regs)
 	return host_util_rsi_helper(realm_continue);
 }
 
-static int realm_continue(unsigned long *regs)
+static int realm_continue(unsigned long *rec_regs, unsigned long *rec_sp_el0)
 {
-	INFO("RSI Version is 0x%lx : 0x%lx\n", regs[1], regs[2]);
+	(void)rec_sp_el0;
 
-	if (regs[0] != RSI_SUCCESS) {
-		ERROR("RSI_VERSION command failed 0x%lx\n", regs[0]);
+	INFO("RSI Version is 0x%lx : 0x%lx\n", rec_regs[1], rec_regs[2]);
+
+	if (rec_regs[0] != RSI_SUCCESS) {
+		ERROR("RSI_VERSION command failed 0x%lx\n", rec_regs[0]);
 		return 0;
 	}
 
 	srand((int)time(NULL));
 
 	/* Add dummy Realm Attestation RSI calls */
-	regs[0] = SMC_RSI_ATTEST_TOKEN_INIT;
-	regs[1] = rand();
-	regs[2] = rand();
-	regs[3] = rand();
-	regs[4] = rand();
-	regs[5] = rand();
-	regs[6] = rand();
-	regs[7] = rand();
-	regs[8] = rand();
+	rec_regs[0] = SMC_RSI_ATTEST_TOKEN_INIT;
+	rec_regs[1] = rand();
+	rec_regs[2] = rand();
+	rec_regs[3] = rand();
+	rec_regs[4] = rand();
+	rec_regs[5] = rand();
+	rec_regs[6] = rand();
+	rec_regs[7] = rand();
+	rec_regs[8] = rand();
 
 	return host_util_rsi_helper(realm_continue_1);
 }
 
-static int realm_continue_1(unsigned long *regs)
+static int realm_continue_1(unsigned long *rec_regs, unsigned long *rec_sp_el0)
 {
-	if (regs[0] != RSI_SUCCESS) {
-		ERROR("Realm token initialization failed 0x%lx\n", regs[0]);
+	(void)rec_sp_el0;
+
+	if (rec_regs[0] != RSI_SUCCESS) {
+		ERROR("Realm token initialization failed 0x%lx\n", rec_regs[0]);
 		return 0;
 	}
 
-	INFO("Upper bound of attestation token size: 0x%lx\n", regs[1]);
-	assert(regs[1] >= ATTEST_TOKEN_BUFFER_SIZE);
+	INFO("Upper bound of attestation token size: 0x%lx\n", rec_regs[1]);
+	assert(rec_regs[1] >= ATTEST_TOKEN_BUFFER_SIZE);
 
 	/* Pend an IRQ and invoke the RSI which should cause an exit to NS */
 	host_write_sysreg("isr_el1", 0x80);
 
 	/* Continue Realm Attestation RSI calls */
-	regs[0] = SMC_RSI_ATTEST_TOKEN_CONTINUE;
-	regs[1] = REALM_BUFFER_IPA;
-	regs[2] = 0;
-	regs[3] = ATTEST_TOKEN_BUFFER_SIZE;
+	rec_regs[0] = SMC_RSI_ATTEST_TOKEN_CONTINUE;
+	rec_regs[1] = REALM_BUFFER_IPA;
+	rec_regs[2] = 0;
+	rec_regs[3] = ATTEST_TOKEN_BUFFER_SIZE;
 	return host_util_rsi_helper(realm_continue_2);
 }
 
-static int realm_continue_2(unsigned long *regs)
+static int realm_continue_2(unsigned long *rec_regs, unsigned long *rec_sp_el0)
 {
 	static unsigned long offset;
 
-	if (regs[0] == RSI_INCOMPLETE) {
+	(void)rec_sp_el0;
+
+	if (rec_regs[0] == RSI_INCOMPLETE) {
 		INFO("Realm Token Attestation creation is pre-empted by interrupt.\n");
 
-		offset += regs[1];
+		offset += rec_regs[1];
 
 		/* Continue Realm Attestation RSI calls */
-		regs[0] = SMC_RSI_ATTEST_TOKEN_CONTINUE;
-		regs[1] = REALM_BUFFER_IPA;
-		regs[2] = offset;
-		regs[3] = ATTEST_TOKEN_BUFFER_SIZE;
+		rec_regs[0] = SMC_RSI_ATTEST_TOKEN_CONTINUE;
+		rec_regs[1] = REALM_BUFFER_IPA;
+		rec_regs[2] = offset;
+		rec_regs[3] = ATTEST_TOKEN_BUFFER_SIZE;
 		return host_util_rsi_helper(realm_continue_2);
 	}
 
-	if (regs[0] != RSI_SUCCESS) {
+	if (rec_regs[0] != RSI_SUCCESS) {
 		ERROR("Realm Token Attestation continue failed\n");
 		return 0;
 	}
 
-	token_size = offset + regs[1];
+	token_size = offset + rec_regs[1];
 
 	/* Simulate return back to NS due to FIQ */
 	return ARM_EXCEPTION_FIQ_LEL;

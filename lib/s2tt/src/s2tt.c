@@ -10,14 +10,17 @@
 #include <dev_granule.h>
 #include <granule.h>
 #include <ripas.h>
+#include <s2ap_ind.h>
 #include <s2tt.h>
+#include <s2tt_ap.h>
 #include <s2tt_pvt_defs.h>
+#include <smc-rmi.h>
 #include <smc.h>
 #include <stdbool.h>
 #include <stddef.h>
 
 /*
- * Return a mask for the IPA field on a S2TTE
+ * Return a mask for the PA field within a S2TTE
  */
 static unsigned long s2tte_lvl_mask(long level, bool lpa2)
 {
@@ -38,11 +41,37 @@ static unsigned long s2tte_lvl_mask(long level, bool lpa2)
 }
 
 /*
+ * Return an IPA mask for level @level
+ */
+unsigned long s2tte_ipa_lvl_mask(long level, bool lpa2)
+{
+	assert(level <= S2TT_PAGE_LEVEL);
+	assert(level >= S2TT_MIN_STARTING_LEVEL_LPA2);
+
+	unsigned long mask;
+	unsigned long levels = (unsigned long)(S2TT_PAGE_LEVEL - level);
+	unsigned long lsb = (levels * S2TTE_STRIDE) + GRANULE_SHIFT;
+	unsigned long oa_bits = (lpa2 == true) ? S2TTE_OA_BITS_LPA2 :
+						 S2TTE_OA_BITS;
+
+	mask = BIT_MASK_ULL((oa_bits - 1U), lsb);
+
+	return mask;
+}
+
+/*
  * Extracts the PA mapped by an S2TTE, aligned to a given level.
  */
-static unsigned long s2tte_to_pa(unsigned long s2tte, long level, bool lpa2)
+unsigned long s2tte_to_pa(const struct s2tt_context *s2_ctx,
+			  unsigned long s2tte, long level)
 {
-	unsigned long pa = s2tte & s2tte_lvl_mask(level, lpa2);
+	unsigned long pa = s2tte;
+	bool lpa2;
+
+	assert(s2_ctx != NULL);
+
+	lpa2 = s2_ctx->enable_lpa2;
+	pa &= s2tte_lvl_mask(level, lpa2);
 
 	if (lpa2) {
 		pa &= ~MASK(LPA2_S2TTE_51_50);
@@ -53,11 +82,11 @@ static unsigned long s2tte_to_pa(unsigned long s2tte, long level, bool lpa2)
 }
 
 /*
- * Invalidates S2 TLB entries from [ipa, ipa + size] region tagged with `vmid`.
+ * Invalidates S2 TLB entries from [ipa, ipa + size] region tagged with a
+ * VMID for each one passed @vmid_list.
  */
-static void stage2_tlbi_ipa(const struct s2tt_context *s2_ctx,
-			    unsigned long ipa,
-			    unsigned long size)
+static void stage2_tlbi_ipa_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
+				      unsigned long ipa, unsigned long size)
 {
 	/*
 	 * Notes:
@@ -72,39 +101,46 @@ static void stage2_tlbi_ipa(const struct s2tt_context *s2_ctx,
 	 *   - Address range invalidation.
 	 */
 
-	assert(s2_ctx != NULL);
+	assert(vmid_list != NULL);
 
 	/*
 	 * Save the current content of vttb_el2.
 	 */
 	unsigned long old_vttbr_el2 = read_vttbr_el2();
 
-	/*
-	 * Make 'vmid' the `current vmid`. Note that the tlbi instructions
-	 * bellow target the TLB entries that match the `current vmid`.
-	 */
-	write_vttbr_el2(INPLACE(VTTBR_EL2_VMID, s2_ctx->vmid));
-	isb();
+	for (unsigned int i = 0U; i < nvmids; i++) {
+		/*
+		 * Make vmid_list[i] the `current vmid`. Note that the tlbi
+		 * instructions bellow target the TLB entries that match
+		 * the `current vmid`.
+		 */
+		write_vttbr_el2(INPLACE(VTTBR_EL2_VMID, vmid_list[i]));
+		isb();
 
-	/*
-	 * Invalidate entries in S2 TLB caches that
-	 * match both `ipa` & the `current vmid`.
-	 */
-	while (size != 0UL) {
-		tlbiipas2e1is(ipa >> 12);
-		size -= GRANULE_SIZE;
-		ipa += GRANULE_SIZE;
+		/*
+		 * Invalidate entries in S2 TLB caches that
+		 * match both `ipa` & the `current vmid`.
+		 */
+		while (size != 0UL) {
+			tlbiipas2e1is(ipa >> 12);
+			size -= GRANULE_SIZE;
+			ipa += GRANULE_SIZE;
+		}
+		dsb(ish);
+
+		/*
+		 * The architecture does not require TLB invalidation by
+		 * IPA to affect combined Stage-1 + Stage-2 TLBs. Therefore
+		 * we must invalidate all of Stage-1 after invalidating Stage-2.
+		 *
+		 * Bear in mind that as the effective value of
+		 * HCR_EL2.{E2H, TGE} == {1, 1} the current VMID is not taken
+		 * into account for the invalidation.
+		 */
+		tlbivmalle1is();
+		dsb(ish);
+		isb();
 	}
-	dsb(ish);
-
-	/*
-	 * The architecture does not require TLB invalidation by IPA to affect
-	 * combined Stage-1 + Stage-2 TLBs. Therefore we must invalidate all of
-	 * Stage-1 (tagged with the `current vmid`) after invalidating Stage-2.
-	 */
-	tlbivmalle1is();
-	dsb(ish);
-	isb();
 
 	/*
 	 * Restore the old content of vttb_el2.
@@ -146,16 +182,59 @@ static bool s2tte_has_pa(const struct s2tt_context *s2_ctx,
  * Creates a TTE containing only the PA.
  * This function expects 'pa' to be aligned and bounded.
  */
-static unsigned long pa_to_s2tte(unsigned long pa, bool lpa2)
+unsigned long pa_to_s2tte(const struct s2tt_context *s2_ctx, unsigned long pa)
 {
 	unsigned long tte = pa;
 
-	if (lpa2) {
+	assert(s2_ctx != NULL);
+
+	pa &= s2tte_ipa_lvl_mask(S2TT_PAGE_LEVEL, s2_ctx->enable_lpa2);
+
+	if (s2_ctx->enable_lpa2) {
 		tte &= ~MASK(LPA2_OA_51_50);
 		tte |= INPLACE(LPA2_S2TTE_51_50, EXTRACT(LPA2_OA_51_50, pa));
 	}
 
 	return tte;
+}
+
+/*
+ * Get the Access Permissions of a given S2TTE modifying them as follows:
+ *
+ * - If @dev == true and Permission Indirection is enabled:
+ *      + Set the default Permission Indirection Index to S2TTE_DEV_DEF_BASE_PERM_IDX.
+ *      + Preserve the Overlay Index.
+ *
+ * - If @dev == false and Permission Indirection is enabled:
+ *      + Set the default Permission Indirection Index to S2TTE_DEF_BASE_PERM_IDX.
+ *      + Preserve the Overlay Index.
+ *
+ * - If @dev == true and Permission Indirection is disabled:
+ *      + Set eXecution permissions to S2TTE_PERM_XNU_XNP (disable all permissions).
+ *      + Preserve R and W permissions.
+ *
+ * - If @dev == false and Permission Indirection is disabled:
+ *      + Preserve all the access permissions.
+ *
+ * This function also sets the DIRTY BIT if indirect permission is used.
+ */
+static unsigned long s2tte_get_ap(const struct s2tt_context *s2_ctx,
+				  unsigned long s2tte, bool dev)
+{
+	unsigned long s2tte_ap;
+
+	assert(s2_ctx != NULL);
+
+	if (!s2_ctx->indirect_s2ap) {
+		s2tte_ap = s2tte & S2TTE_RW_AP_MASK;
+		return dev ? (s2tte_ap | S2TTE_PERM_XNU_XNP) :
+			     (s2tte_ap | (s2tte & MASK(S2TTE_PERM_XN)));
+	}
+
+	s2tte_ap = (s2tte & MASK(S2TTE_PO_INDEX)) | S2TTE_DIRTY_BIT;
+
+	return s2tte_set_pi_index(s2_ctx, s2tte_ap,
+			(dev ? S2TTE_DEV_DEF_BASE_PERM_IDX : S2TTE_DEF_BASE_PERM_IDX));
 }
 
 /*
@@ -165,7 +244,25 @@ static unsigned long pa_to_s2tte(unsigned long pa, bool lpa2)
  */
 void s2tt_invalidate_page(const struct s2tt_context *s2_ctx, unsigned long addr)
 {
-	stage2_tlbi_ipa(s2_ctx, addr, GRANULE_SIZE);
+	assert(s2_ctx != NULL);
+
+	unsigned int vmid = s2_ctx->vmid;
+
+	stage2_tlbi_ipa_per_vmids(&vmid, 1U, addr, GRANULE_SIZE);
+}
+
+/*
+ * Invalidate S2 TLB entries with "addr" IPA for the list of VMIDS @vmid_list.
+ * Call this function after:
+ * 1.  A L3 page desc has been removed.
+ */
+void s2tt_invalidate_page_per_vmids(const struct s2tt_context *s2_ctx,
+				    unsigned int *vmid_list, unsigned int nvmids,
+				    unsigned long addr)
+{
+	(void)s2_ctx;
+
+	stage2_tlbi_ipa_per_vmids(vmid_list, nvmids, addr, GRANULE_SIZE);
 }
 
 /*
@@ -177,7 +274,27 @@ void s2tt_invalidate_page(const struct s2tt_context *s2_ctx, unsigned long addr)
  */
 void s2tt_invalidate_block(const struct s2tt_context *s2_ctx, unsigned long addr)
 {
-	stage2_tlbi_ipa(s2_ctx, addr, GRANULE_SIZE);
+	assert(s2_ctx != NULL);
+
+	unsigned int vmid = s2_ctx->vmid;
+
+	stage2_tlbi_ipa_per_vmids(&vmid, 1U, addr, GRANULE_SIZE);
+}
+
+/*
+ * Invalidate S2 TLB entries with "addr" IPA for the list of VMIDS @vmid_list.
+ * Call this function after:
+ * 1.  A L2 block desc has been removed, or
+ * 2a. A L2 table desc has been removed, where
+ * 2b. All S2TTEs in L3 table that the L2 table desc was pointed to were invalid.
+ */
+void s2tt_invalidate_block_per_vmids(const struct s2tt_context *s2_ctx,
+				     unsigned int *vmid_list, unsigned int nvmids,
+				     unsigned long addr)
+{
+	(void)s2_ctx;
+
+	stage2_tlbi_ipa_per_vmids(vmid_list, nvmids, addr, GRANULE_SIZE);
 }
 
 /*
@@ -189,7 +306,27 @@ void s2tt_invalidate_block(const struct s2tt_context *s2_ctx, unsigned long addr
 void s2tt_invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
 				    unsigned long addr)
 {
-	stage2_tlbi_ipa(s2_ctx, addr, BLOCK_L2_SIZE);
+	assert(s2_ctx != NULL);
+
+	unsigned int vmid = s2_ctx->vmid;
+
+	stage2_tlbi_ipa_per_vmids(&vmid, 1U, addr, BLOCK_L2_SIZE);
+}
+
+/*
+ * Invalidate S2 TLB entries with "addr" IPA for the list of VMIDS @vmid_list.
+ * Call this function after:
+ * 1a. A L2 table desc has been removed, where
+ * 1b. Some S2TTEs in the table that the L2 table desc was pointed to were valid.
+ */
+void s2tt_invalidate_pages_in_block_per_vmids(const struct s2tt_context *s2_ctx,
+					      unsigned int *vmid_list,
+					      unsigned int nvmids,
+					      unsigned long addr)
+{
+	(void)s2_ctx;
+
+	stage2_tlbi_ipa_per_vmids(vmid_list, nvmids, addr, BLOCK_L2_SIZE);
 }
 
 /*
@@ -260,8 +397,8 @@ static unsigned long table_get_entry(const struct s2tt_context *s2_ctx,
 	return entry;
 }
 
-#define table_entry_to_phys(tte, lpa2)			\
-				s2tte_to_pa(tte, S2TT_PAGE_LEVEL, lpa2)
+#define table_entry_to_phys(ctx, tte)				\
+				s2tte_to_pa(ctx, tte, S2TT_PAGE_LEVEL)
 
 static struct granule *find_next_level_idx(const struct s2tt_context *s2_ctx,
 					   struct granule *g_tbl,
@@ -275,7 +412,7 @@ static struct granule *find_next_level_idx(const struct s2tt_context *s2_ctx,
 		return NULL;
 	}
 
-	return addr_to_granule(table_entry_to_phys(entry, s2_ctx->enable_lpa2));
+	return addr_to_granule(table_entry_to_phys(s2_ctx, entry));
 }
 
 static struct granule *find_lock_next_level(const struct s2tt_context *s2_ctx,
@@ -306,7 +443,7 @@ static struct granule *find_lock_next_level(const struct s2tt_context *s2_ctx,
  * table.
  * The walk stops when either:
  * - The entry found is a leaf entry (not an RTT Table entry), or
- * - Level @level is reached.
+ * - Level @level is reached (in this case, a RTT Table entry can be returned).
  *
  * On return:
  * - s2tt_walk::last_level is the last level that has been reached by the walk.
@@ -393,41 +530,43 @@ out:
 }
 
 /*
- * Creates an unassigned_empty s2tte.
+ * Creates an unassigned_empty s2tte with the given access permissions.
  */
-unsigned long s2tte_create_unassigned_empty(const struct s2tt_context *s2_ctx)
+unsigned long s2tte_create_unassigned_empty(const struct s2tt_context *s2_ctx,
+					    unsigned long s2tte_ap)
 {
-	(void)s2_ctx;
-
-	return (S2TTE_INVALID_HIPAS_UNASSIGNED | S2TTE_INVALID_RIPAS_EMPTY);
+	return s2tte_get_ap(s2_ctx, s2tte_ap, false) |
+		(S2TTE_INVALID_HIPAS_UNASSIGNED | S2TTE_INVALID_RIPAS_EMPTY);
 }
 
 /*
- * Creates an unassigned_ram s2tte.
+ * Creates an unassigned_ram s2tte with the given access permissions.
  */
-unsigned long s2tte_create_unassigned_ram(const struct s2tt_context *s2_ctx)
+unsigned long s2tte_create_unassigned_ram(const struct s2tt_context *s2_ctx,
+					  unsigned long s2tte_ap)
 {
-	(void)s2_ctx;
-
-	return (S2TTE_INVALID_HIPAS_UNASSIGNED | S2TTE_INVALID_RIPAS_RAM);
+	return (S2TTE_INVALID_HIPAS_UNASSIGNED | S2TTE_INVALID_RIPAS_RAM) |
+		s2tte_get_ap(s2_ctx, s2tte_ap, false);
 }
 
 /*
- * Creates an unassigned_destroyed s2tte.
+ * Creates an unassigned_destroyed s2tte with the given access permissions.
  */
-unsigned long s2tte_create_unassigned_destroyed(const struct s2tt_context *s2_ctx)
+unsigned long s2tte_create_unassigned_destroyed(const struct s2tt_context *s2_ctx,
+						unsigned long s2tte_ap)
 {
-	(void)s2_ctx;
-
-	return (S2TTE_INVALID_HIPAS_UNASSIGNED | S2TTE_INVALID_RIPAS_DESTROYED);
+	return s2tte_get_ap(s2_ctx, s2tte_ap, false) |
+		(S2TTE_INVALID_HIPAS_UNASSIGNED | S2TTE_INVALID_RIPAS_DESTROYED);
 }
 
 /*
  * Creates an unassigned_ns s2tte.
  */
-unsigned long s2tte_create_unassigned_ns(const struct s2tt_context *s2_ctx)
+unsigned long s2tte_create_unassigned_ns(const struct s2tt_context *s2_ctx,
+					 unsigned long s2tte_ap)
 {
 	(void)s2_ctx;
+	(void)s2tte_ap;
 
 	return (S2TTE_NS | S2TTE_INVALID_HIPAS_UNASSIGNED);
 }
@@ -448,7 +587,7 @@ static unsigned long s2tte_create_assigned(const struct s2tt_context *s2_ctx,
 	assert(s2tte_ripas <= S2TTE_INVALID_RIPAS_DESTROYED);
 	assert(s2tte_is_addr_lvl_aligned(s2_ctx, pa, level));
 
-	tte = pa_to_s2tte(pa, s2_ctx->enable_lpa2);
+	tte = pa_to_s2tte(s2_ctx, pa);
 
 	if (s2tte_ripas == S2TTE_INVALID_RIPAS_RAM) {
 		unsigned long s2tte_page, s2tte_block;
@@ -472,39 +611,46 @@ static unsigned long s2tte_create_assigned(const struct s2tt_context *s2_ctx,
 
 /*
  * Creates and invalid s2tte with output address @pa, HIPAS=ASSIGNED and
- * RIPAS=DESTROYED at level @level.
+ * RIPAS=DESTROYED at level @level with the given access permissions.
  */
 unsigned long s2tte_create_assigned_destroyed(const struct s2tt_context *s2_ctx,
-					      unsigned long pa, long level)
+					      unsigned long pa, long level,
+					      unsigned long s2tte_ap)
 {
-	return s2tte_create_assigned(s2_ctx, pa, level,
-				     S2TTE_INVALID_RIPAS_DESTROYED);
+	return s2tte_get_ap(s2_ctx, s2tte_ap, false) |
+			s2tte_create_assigned(s2_ctx, pa, level,
+					      S2TTE_INVALID_RIPAS_DESTROYED);
 }
 
 /*
  * Creates an invalid s2tte with output address @pa, HIPAS=ASSIGNED and
- * RIPAS=EMPTY at level @level.
+ * RIPAS=EMPTY at level @level with the given access permission.
  */
 unsigned long s2tte_create_assigned_empty(const struct s2tt_context *s2_ctx,
-					  unsigned long pa, long level)
+					  unsigned long pa, long level,
+					  unsigned long s2tte_ap)
 {
-	return s2tte_create_assigned(s2_ctx, pa, level,
-				     S2TTE_INVALID_RIPAS_EMPTY);
+	return s2tte_get_ap(s2_ctx, s2tte_ap, false) |
+			s2tte_create_assigned(s2_ctx, pa, level,
+					      S2TTE_INVALID_RIPAS_EMPTY);
 }
 
 /*
- * Creates an assigned_ram s2tte with output address @pa.
+ * Creates an assigned_ram s2tte with output address @pa and
+ * access permissions @ap
  */
 unsigned long s2tte_create_assigned_ram(const struct s2tt_context *s2_ctx,
-					unsigned long pa, long level)
+					unsigned long pa, long level,
+					unsigned long s2tte_ap)
 {
 	return s2tte_create_assigned(s2_ctx, pa, level,
-				     S2TTE_INVALID_RIPAS_RAM);
+				     S2TTE_INVALID_RIPAS_RAM) |
+				     s2tte_get_ap(s2_ctx, s2tte_ap, false);
 }
 
 /*
  * Creates an assigned s2tte with output address @pa and the same
- * RIPAS as passed on @s2tte.
+ * RIPAS and access permissions as passed on @s2tte.
  */
 unsigned long s2tte_create_assigned_unchanged(const struct s2tt_context *s2_ctx,
 					      unsigned long s2tte,
@@ -515,7 +661,8 @@ unsigned long s2tte_create_assigned_unchanged(const struct s2tt_context *s2_ctx,
 
 	assert((s2tte & S2TT_DESC_VALID_MASK) == S2TTE_INVALID);
 
-	return s2tte_create_assigned(s2_ctx, pa, level, current_ripas);
+	return s2tte_create_assigned(s2_ctx, pa, level, current_ripas) |
+				     s2tte_get_ap(s2_ctx, s2tte, false);
 }
 
 /*
@@ -537,36 +684,49 @@ static unsigned long s2tte_create_assigned_dev(const struct s2tt_context *s2_ctx
 	assert((s2tte_ripas == S2TTE_INVALID_RIPAS_EMPTY) ||
 	       (s2tte_ripas == S2TTE_INVALID_RIPAS_DESTROYED));
 
-	tte = pa_to_s2tte(pa, s2_ctx->enable_lpa2);
+	tte = pa_to_s2tte(s2_ctx, pa);
 
 	return (tte | S2TTE_INVALID_HIPAS_ASSIGNED_DEV | s2tte_ripas);
 }
 
 /*
- * Creates an invalid s2tte with output address @pa, HIPAS=ASSIGNED_DEV
- * and RIPAS=EMPTY, at level @level.
+ * Creates an invalid s2tte with output address @pa, HIPAS=ASSIGNED_DEV,
+ * RIPAS=EMPTY and the access permissions at @s2tte_ap, at level @level.
+ *
+ * Note that the execution permissions at @s2tte_ap will be overridden
+ * to be disabled.
  */
 unsigned long s2tte_create_assigned_dev_empty(const struct s2tt_context *s2_ctx,
-						unsigned long pa, long level)
+						unsigned long pa, long level,
+						unsigned long s2tte_ap)
 {
-	return s2tte_create_assigned_dev(s2_ctx, pa, level,
+	return s2tte_get_ap(s2_ctx, s2tte_ap, true) |
+		s2tte_create_assigned_dev(s2_ctx, pa, level,
 					 S2TTE_INVALID_RIPAS_EMPTY);
 }
 
 /*
- * Creates an invalid s2tte with output address @pa, HIPAS=ASSIGNED_DEV and
- * RIPAS=DESTROYED, at level @level.
+ * Creates an invalid s2tte with output address @pa, HIPAS=ASSIGNED_DEV,
+ * RIPAS=DESTROYED and the access permissions at @s2tte_ap  at level @level.
+ *
+ * Note that the execution permissions at @s2tte_ap will be overridden
+ * to be disabled.
  */
 unsigned long s2tte_create_assigned_dev_destroyed(const struct s2tt_context *s2_ctx,
-						  unsigned long pa, long level)
+						  unsigned long pa, long level,
+						  unsigned long s2tte_ap)
 {
-	return s2tte_create_assigned_dev(s2_ctx, pa, level,
+	return s2tte_get_ap(s2_ctx, s2tte_ap, true) |
+		s2tte_create_assigned_dev(s2_ctx, pa, level,
 					 S2TTE_INVALID_RIPAS_DESTROYED);
 }
 
 /*
- * Creates an dev_assigned s2tte with output address @pa and the same
- * RIPAS as passed on @s2tte.
+ * Creates an assigned_dev s2tte with output address @pa and the same
+ * RIPAS and access permissions as passed on @s2tte.
+ *
+ * Note that the execution permissions at @s2tte_ap will be overridden
+ * to be disabled.
  */
 unsigned long s2tte_create_assigned_dev_unchanged(const struct s2tt_context *s2_ctx,
 						  unsigned long s2tte,
@@ -577,25 +737,30 @@ unsigned long s2tte_create_assigned_dev_unchanged(const struct s2tt_context *s2_
 
 	assert((s2tte & S2TT_DESC_VALID_MASK) == S2TTE_INVALID);
 
-	return s2tte_create_assigned_dev(s2_ctx, pa, level, current_ripas);
+	return s2tte_create_assigned_dev(s2_ctx, pa, level, current_ripas) |
+		s2tte_get_ap(s2_ctx, s2tte, true);
 }
 
 /*
  * Creates a valid assigned_dev_dev s2tte at @level with attributes passed in
- * @attr.
+ * @attr and the access permissions in @s2tte_ap
+ *
+ * Note that the execution permissions at @s2tte_ap will be overridden
+ * to be disabled.
  */
-static unsigned long create_assigned_dev_dev_attr(unsigned long s2tte,
+static unsigned long create_assigned_dev_dev_attr(const struct s2tt_context *s2_ctx,
+						  unsigned long s2tte,
 						  unsigned long attr, long level,
-						  bool lpa2)
+						  unsigned long s2tte_ap)
 {
 	unsigned long pa, new_s2tte;
 
 	assert(level >= S2TT_MIN_DEV_BLOCK_LEVEL);
 	assert(level <= S2TT_PAGE_LEVEL);
 
-	pa = s2tte_to_pa(s2tte, level, lpa2);
+	pa = s2tte_to_pa(s2_ctx, s2tte, level);
 
-	new_s2tte = attr | pa_to_s2tte(pa, lpa2);
+	new_s2tte = attr | pa_to_s2tte(s2_ctx, pa) | s2tte_get_ap(s2_ctx, s2tte_ap, true);
 
 	if (level == S2TT_PAGE_LEVEL) {
 		return (new_s2tte | S2TTE_L3_PAGE);
@@ -606,37 +771,42 @@ static unsigned long create_assigned_dev_dev_attr(unsigned long s2tte,
 
 /*
  * Creates a valid assigned_dev_dev s2tte at @level with attributes passed in
- * @s2tte.
+ * @s2tte and the access permissions passed in @s2tte_ap.
+ *
+ * Note that the execution permissions at @s2tte_ap will be overridden
+ * to be disabled.
  */
 unsigned long s2tte_create_assigned_dev_dev(const struct s2tt_context *s2_ctx,
-					    unsigned long s2tte, long level)
+					    unsigned long s2tte, long level,
+					    unsigned long s2tte_ap)
 {
 	unsigned long s2tte_mask = (S2TTE_DEV_ATTRS_MASK | S2TTE_MEMATTR_MASK);
 	unsigned long attr;
-	bool lpa2;
 
 	assert(s2_ctx != NULL);
 
-	lpa2 = s2_ctx->enable_lpa2;
-
 	/* Add Shareability bits if FEAT_LPA2 is not enabled */
-	if (!lpa2) {
+	if (!s2_ctx->enable_lpa2) {
 		s2tte_mask |= S2TTE_SH_MASK;
 	}
 
 	/* Get attributes */
 	attr = s2tte & s2tte_mask;
 
-	return create_assigned_dev_dev_attr(s2tte, attr, level, lpa2);
+	return create_assigned_dev_dev_attr(s2_ctx, s2tte, attr, level, s2tte_ap);
 }
 
 /*
  * Creates a valid assigned_dev_dev s2tte at @level with attributes based on
- * device coherency passed in @type.
+ * device coherency passed in @type and the access permissions in @s2tte_ap.
+ *
+ * Note that the execution permissions at @s2tte_ap will be overridden
+ * to be disabled.
  */
 unsigned long s2tte_create_assigned_dev_dev_coh_type(const struct s2tt_context *s2_ctx,
 						     unsigned long s2tte, long level,
-						     enum dev_coh_type type)
+						     enum dev_coh_type type,
+						     unsigned long s2tte_ap)
 {
 	unsigned long attr;
 	bool lpa2;
@@ -664,7 +834,7 @@ unsigned long s2tte_create_assigned_dev_dev_coh_type(const struct s2tt_context *
 		}
 	}
 
-	return create_assigned_dev_dev_attr(s2tte, attr, level, lpa2);
+	return create_assigned_dev_dev_attr(s2_ctx, s2tte, attr, level, s2tte_ap);
 }
 
 /*
@@ -673,16 +843,22 @@ unsigned long s2tte_create_assigned_dev_dev_coh_type(const struct s2tt_context *
  * The following S2 TTE fields are provided through @s2tte argument:
  * - The physical address
  * - MemAttr
- * - S2AP
+ * - Access permissions
+ *   + RW when s2_ctx->indirect_s2ap == false.
+ *   + Base Permission Indirection index when s2_ctx->indirect_s2ap == true.
  */
 unsigned long s2tte_create_assigned_ns(const struct s2tt_context *s2_ctx,
-				       unsigned long s2tte, long level)
+				       unsigned long s2tte, long level,
+				       unsigned long s2tte_ap)
 {
+	(void)s2tte_ap;
+	assert(s2_ctx != NULL);
+
 	/*
 	 * We just mask out the DESC_TYPE below. We assume rest of the
 	 * bits have been setup properly by the caller.
 	 */
-	unsigned long new_s2tte = s2tte & ~S2TT_DESC_TYPE_MASK;
+	unsigned long new_s2tte = s2tte & ~(S2TT_DESC_TYPE_MASK);
 
 	assert(s2_ctx != NULL);
 	assert(level >= S2TT_MIN_BLOCK_LEVEL);
@@ -691,6 +867,17 @@ unsigned long s2tte_create_assigned_ns(const struct s2tt_context *s2_ctx,
 	/* The Shareability bits need to be added if FEAT_LPA2 is not enabled */
 	if (!s2_ctx->enable_lpa2) {
 		new_s2tte |= S2TTE_SH_IS;
+	}
+
+	if (s2_ctx->indirect_s2ap) {
+		assert(s2tte_get_pi_index(s2_ctx, s2tte) <=
+					(unsigned long)S2AP_IND_BASE_PERM_IDX_RW);
+		new_s2tte |= S2TTE_DIRTY_BIT;
+		new_s2tte = s2tte_set_po_index(s2_ctx, new_s2tte,
+					S2TTE_DEF_UNPROT_OVERLAY_IDX);
+	} else {
+		new_s2tte &= ~MASK(S2TTE_PERM_XN);
+		new_s2tte |= S2TTE_PERM_XNU_XNP;
 	}
 
 	if (level == S2TT_PAGE_LEVEL) {
@@ -715,6 +902,12 @@ bool host_ns_s2tte_is_valid(const struct s2tt_context *s2_ctx,
 
 	mask = s2tte_lvl_mask(level, lpa2) | S2TTE_NS_ATTR_MASK;
 
+	if (s2_ctx->indirect_s2ap) {
+		mask |= S2TTE_PI_INDEX_MASK;
+	} else {
+		mask |= S2TTE_RW_AP_MASK;
+	}
+
 	/*
 	 * Test that all fields that are not controlled by the host are zero
 	 * and that the output address is correctly aligned. Note that
@@ -727,6 +920,16 @@ bool host_ns_s2tte_is_valid(const struct s2tt_context *s2_ctx,
 	}
 
 	/*
+	 * check if base perm set by host is valid
+	 * ignore overlay perm, it is overwritten to 15
+	 */
+	if ((s2_ctx->indirect_s2ap) &&
+			!s2ap_is_base_perm_index_valid(
+					s2tte_get_pi_index(s2_ctx, s2tte))) {
+		return false;
+	}
+
+	/*
 	 * Only one value masked by S2TTE_MEMATTR_MASK is invalid/reserved.
 	 */
 	if ((s2tte & S2TTE_MEMATTR_MASK) == S2TTE_MEMATTR_FWB_RESERVED) {
@@ -734,7 +937,7 @@ bool host_ns_s2tte_is_valid(const struct s2tt_context *s2_ctx,
 	}
 
 	/*
-	 * Note that all the values that are masked by S2TTE_AP_MASK are valid.
+	 * Note that all the values that are masked by S2TTE_RW_AP_MASK are valid.
 	 */
 	return true;
 }
@@ -751,6 +954,12 @@ unsigned long host_ns_s2tte(const struct s2tt_context *s2_ctx,
 				| S2TTE_NS_ATTR_MASK;
 
 	assert(level >= S2TT_MIN_BLOCK_LEVEL);
+
+	if (s2_ctx->indirect_s2ap) {
+		mask |= S2TTE_PI_INDEX_MASK;
+	} else {
+		mask |= S2TTE_RW_AP_MASK;
+	}
 
 	return (s2tte & mask);
 }
@@ -773,7 +982,7 @@ unsigned long s2tte_create_table(const struct s2tt_context *s2_ctx,
 	assert(level >= min_starting_level);
 	assert(GRANULE_ALIGNED(pa));
 
-	return (pa_to_s2tte(pa, s2_ctx->enable_lpa2) | S2TTE_TABLE);
+	return (pa_to_s2tte(s2_ctx, pa) | S2TTE_TABLE);
 }
 
 /*
@@ -826,6 +1035,17 @@ static bool s2tte_has_assigned_dev_ripas(unsigned long s2tte, unsigned long ripa
 
 	return ((s2tte & S2TTE_INVALID_RIPAS_MASK) == ripas) &&
 		 s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_ASSIGNED_DEV);
+}
+
+/*
+ * Returns true if @s2tte has HIPAS=ASSIGNED_DEV.
+ */
+bool s2tte_is_assigned_dev(const struct s2tt_context *s2_ctx,
+			   unsigned long s2tte)
+{
+	(void)s2_ctx;
+
+	return s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_ASSIGNED_DEV);
 }
 
 /*
@@ -988,7 +1208,7 @@ bool s2tte_is_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 	lpa2 = s2_ctx->enable_lpa2;
 
 	/*
-	 * Check that NS, XN, S2AP, AF and MemAttr[3:0] match with provided
+	 * Check that NS, AF and MemAttr[3:0] match with provided
 	 * attributes. When LPA2 is not enabled, assert if shareability
 	 * attrubutes are not set correctly.
 	 */
@@ -1077,10 +1297,11 @@ enum ripas s2tte_get_ripas(const struct s2tt_context *s2_ctx, unsigned long s2tt
 		assert((desc_type == S2TTE_L012_BLOCK) ||
 			(desc_type == S2TTE_L3_PAGE));
 		/*
-		 * For device memory check that NS, XN, S2AP, AF and MemAttr[3:0]
+		 * For device memory check that NS, AF and MemAttr[3:0]
 		 * match with S2TTE_DEV_COH_ATTRS or S2TTE_DEV_NCOH_ATTRS
 		 * attributes.
-		 * Assume that shareability attrubutes are set correctly.
+		 * Assume that shareability attributes and access permissions
+		 * are set correctly.
 		 */
 		if ((attr == S2TTE_DEV_COH_ATTRS) ||
 		    (attr == S2TTE_DEV_NCOH_ATTRS)) {
@@ -1101,15 +1322,106 @@ enum ripas s2tte_get_ripas(const struct s2tt_context *s2_ctx, unsigned long s2tt
 }
 
 /*
- * Populates @s2tt with unassigned_empty s2ttes.
+ * Table containing label encodings for Overlay Access Permissions.
+ * For compatibility with the S2AP library based on FEAT_S2PIE and FEAT_S2POE,
+ * the encoded labels are equivalent to the ones on such features.
+ */
+static const struct s2tte_label_encoding ovr_encodings[S2AP_IND_PERM_COUNT] = {
+	/*                     Label	       MRO R  W      EXEC	    */
+	S2TTE_AP_LABEL_ENCODE(NO_ACCESS,	0, 0, 0, S2TTE_PERM_XNU_XNP),
+	S2TTE_AP_LABEL_ENCODE(RESERVED_1,	0, 0, 0, S2TTE_PERM_XNU_XNP),
+	S2TTE_AP_LABEL_ENCODE(MRO,		1, 0, 0, S2TTE_PERM_XNU_XNP),
+	S2TTE_AP_LABEL_ENCODE(MRO_TL1,		1, 0, 0, S2TTE_PERM_XNU_XNP),
+	S2TTE_AP_LABEL_ENCODE(WO,		0, 0, 1, S2TTE_PERM_XNU_XNP),
+	S2TTE_AP_LABEL_ENCODE(RESERVED_5,	0, 0, 0, S2TTE_PERM_XNU_XNP),
+	S2TTE_AP_LABEL_ENCODE(MRO_TL0,		1, 0, 0, S2TTE_PERM_XNU_XNP),
+	S2TTE_AP_LABEL_ENCODE(MRO_TL01,		1, 0, 0, S2TTE_PERM_XNU_XNP),
+	S2TTE_AP_LABEL_ENCODE(RO,		0, 1, 0, S2TTE_PERM_XNU_XNP),
+	S2TTE_AP_LABEL_ENCODE(RO_uX,		0, 1, 0, S2TTE_PERM_XU_XNP),
+	S2TTE_AP_LABEL_ENCODE(RO_pX,		0, 1, 0, S2TTE_PERM_XNU_XP),
+	S2TTE_AP_LABEL_ENCODE(RO_upX,		0, 1, 0, S2TTE_PERM_XU_XP),
+	S2TTE_AP_LABEL_ENCODE(RW,		0, 1, 1, S2TTE_PERM_XNU_XNP),
+	S2TTE_AP_LABEL_ENCODE(RW_uX,		0, 1, 1, S2TTE_PERM_XU_XNP),
+	S2TTE_AP_LABEL_ENCODE(RW_pX,		0, 1, 1, S2TTE_PERM_XNU_XP),
+	S2TTE_AP_LABEL_ENCODE(RW_upX,		0, 1, 1, S2TTE_PERM_XU_XP)
+};
+
+/*
+ * Table containig label encoding for Base Access Permissions as defined
+ * by the RMM specification.
+ * Note that the execution permissions in this table are just a bitmask.
+ */
+static const struct s2tte_label_encoding base_encodings[S2AP_IND_BASE_PERM_IDX_COUNT] = {
+	/*                     Label	       MRO R  W      EXEC	    */
+	S2TTE_AP_LABEL_ENCODE(BASE_NO_ACCESS,	0, 0, 0, MASK(S2TTE_PERM_XN)),
+	S2TTE_AP_LABEL_ENCODE(BASE_RO,		0, 1, 0, MASK(S2TTE_PERM_XN)),
+	S2TTE_AP_LABEL_ENCODE(BASE_WO,		0, 0, 1, MASK(S2TTE_PERM_XN)),
+	S2TTE_AP_LABEL_ENCODE(BASE_RW,		0, 1, 1, MASK(S2TTE_PERM_XN)),
+	S2TTE_AP_LABEL_ENCODE(BASE_RW_upX,	0, 1, 1, MASK(S2TTE_PERM_XN))
+};
+
+/*
+ * Helper to provide the flattened Access Permissions given the base index,
+ * the overlay index and the value for s2por_el2.
+ */
+static unsigned long s2tte_get_flattened_ap(unsigned long s2por_el2,
+					    unsigned int base_idx,
+					    unsigned int ovr_idx)
+{
+	unsigned int ovr_label_idx =
+		(unsigned int)S2AP_IND_GET_PERM_VALUE(s2por_el2, ovr_idx);
+	unsigned long base_ap = base_encodings[base_idx].value;
+	unsigned long ovr_ap = ovr_encodings[ovr_label_idx].value;
+	unsigned long flattened_ap = base_ap & ovr_ap;
+
+	if (base_idx != (unsigned int)S2AP_IND_BASE_PERM_IDX_RW_upX) {
+		/* Reset the base execution flags */
+		flattened_ap &= ~MASK(S2TTE_PERM_XN);
+		flattened_ap |= S2TTE_PERM_XNU_XNP;
+	}
+
+	return flattened_ap;
+}
+
+/*
+ * Update a given S2TTE with the Access Permissions specified by the
+ * value @index and the configuration @s2_ctx->overlay_perm.
+ *
+ * This API assumes that the parent RD is mapped.
+ */
+unsigned long s2tte_update_prot_ap(struct s2tt_context *s2_ctx,
+				   unsigned long s2tte,
+				   unsigned int base_index,
+				   unsigned int overlay_index)
+{
+	unsigned long permissions;
+
+	assert(s2_ctx != NULL);
+	assert(s2ap_is_ovrl_perm_index_valid(overlay_index));
+	assert(s2ap_is_base_perm_index_valid(base_index));
+
+	if (s2_ctx->indirect_s2ap) {
+		s2tte = s2tte_set_pi_index(s2_ctx, s2tte, base_index);
+		return s2tte_set_po_index(s2_ctx, s2tte, overlay_index);
+	}
+
+	permissions = s2tt_ctx_get_overlay_perm_unlocked(s2_ctx);
+
+	return (s2tte & ~S2TTE_PERM_MASK) |
+		s2tte_get_flattened_ap(permissions, base_index, overlay_index);
+}
+
+/*
+ * Populates @s2tt with unassigned_empty s2ttes with the given
+ * access permissions extraced from given s2tte_ap.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
  */
 void s2tt_init_unassigned_empty(const struct s2tt_context *s2_ctx,
-				unsigned long *s2tt)
+				unsigned long *s2tt, unsigned long s2tte_ap)
 {
-	unsigned long s2tte = s2tte_create_unassigned_empty(s2_ctx);
+	unsigned long s2tte = s2tte_create_unassigned_empty(s2_ctx, s2tte_ap);
 
 	assert(s2tt != NULL);
 
@@ -1121,15 +1433,15 @@ void s2tt_init_unassigned_empty(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Populates @s2tt with unassigned_ram s2ttes.
+ * Populates @s2tt with unassigned_ram s2ttes with the access permissions @s2tte_ap.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
  */
 void s2tt_init_unassigned_ram(const struct s2tt_context *s2_ctx,
-			      unsigned long *s2tt)
+			      unsigned long *s2tt, unsigned long s2tte_ap)
 {
-	unsigned long s2tte = s2tte_create_unassigned_ram(s2_ctx);
+	unsigned long s2tte = s2tte_create_unassigned_ram(s2_ctx, s2tte_ap);
 
 	assert(s2tt != NULL);
 
@@ -1141,15 +1453,16 @@ void s2tt_init_unassigned_ram(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Populates @s2tt with unassigned_ns s2ttes.
+ * Populates @s2tt with unassigned_ns s2ttes and the permissions
+ * given by @s2tte_ap.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
  */
 void s2tt_init_unassigned_ns(const struct s2tt_context *s2_ctx,
-			     unsigned long *s2tt)
+			     unsigned long *s2tt, unsigned long s2tte_ap)
 {
-	unsigned long s2tte = s2tte_create_unassigned_ns(s2_ctx);
+	unsigned long s2tte = s2tte_create_unassigned_ns(s2_ctx, s2tte_ap);
 
 	assert(s2tt != NULL);
 
@@ -1161,17 +1474,20 @@ void s2tt_init_unassigned_ns(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Populates @s2tt with s2ttes which have HIPAS=DESTROYED.
+ * Populates @s2tt with s2ttes which have HIPAS=DESTROYED and
+ * the given access permissions @s2tte_ap.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
  */
 void s2tt_init_unassigned_destroyed(const struct s2tt_context *s2_ctx,
-				    unsigned long *s2tt)
+				    unsigned long *s2tt, unsigned long s2tte_ap)
 {
-	unsigned long s2tte = s2tte_create_unassigned_destroyed(s2_ctx);
+	unsigned long s2tte =
+		s2tte_create_unassigned_destroyed(s2_ctx, s2tte_ap);
 
 	assert(s2tt != NULL);
+	assert(s2_ctx != NULL);
 
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
 		s2tt[i] = s2tte;
@@ -1182,7 +1498,8 @@ void s2tt_init_unassigned_destroyed(const struct s2tt_context *s2_ctx,
 
 static void init_assigned(const struct s2tt_context *s2_ctx,
 			  unsigned long *s2tt, unsigned long pa, long level,
-			  const long min_level, create_assigned_fn func)
+			  const long min_level, unsigned long s2tte_ap,
+			  create_assigned_fn func)
 {
 	(void)min_level;
 
@@ -1194,7 +1511,7 @@ static void init_assigned(const struct s2tt_context *s2_ctx,
 	const unsigned long map_size = s2tte_map_size(level);
 
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
-		s2tt[i] = func(s2_ctx, pa, level);
+		s2tt[i] = func(s2_ctx, pa, level, s2tte_ap);
 		pa += map_size;
 	}
 	dsb(ish);
@@ -1202,59 +1519,66 @@ static void init_assigned(const struct s2tt_context *s2_ctx,
 
 /*
  * Populates @s2tt with HIPAS=ASSIGNED, RIPAS=DESTROYED s2ttes that refer to a
- * contiguous memory block starting at @pa, and mapped at level @level.
+ * contiguous memory block starting at @pa, mapped at level @level and with
+ * the given access permissions by @s2tte_ap.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
  */
 void s2tt_init_assigned_destroyed(const struct s2tt_context *s2_ctx,
 				  unsigned long *s2tt, unsigned long pa,
-				  long level)
+				  long level, unsigned long s2tte_ap)
 {
-	init_assigned(s2_ctx, s2tt, pa, level, S2TT_MIN_BLOCK_LEVEL,
+	init_assigned(s2_ctx, s2tt, pa, level, S2TT_MIN_BLOCK_LEVEL, s2tte_ap,
 			s2tte_create_assigned_destroyed);
 }
 
 /*
  * Populates @s2tt with HIPAS=ASSIGNED, RIPAS=EMPTY s2ttes that refer to a
- * contiguous memory block starting at @pa, and mapped at level @level.
+ * contiguous memory block starting at @pa, mapped at level @level and with
+ * the given access permissions by @s2tte_ap.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
  */
 void s2tt_init_assigned_empty(const struct s2tt_context *s2_ctx,
 			      unsigned long *s2tt, unsigned long pa,
-			      long level)
+			      long level, unsigned long s2tte_ap)
 {
-	init_assigned(s2_ctx, s2tt, pa, level, S2TT_MIN_BLOCK_LEVEL,
+	init_assigned(s2_ctx, s2tt, pa, level, S2TT_MIN_BLOCK_LEVEL, s2tte_ap,
 			s2tte_create_assigned_empty);
 }
 
 /*
  * Populates @s2tt with assigned_ram s2ttes that refer to a
- * contiguous memory block starting at @pa, and mapped at level @level.
+ * contiguous memory block starting at @pa, and mapped at level @level with
+ * the access permissions @s2tte_ap.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
  */
 void s2tt_init_assigned_ram(const struct s2tt_context *s2_ctx,
 			    unsigned long *s2tt, unsigned long pa,
-			    long level)
+			    long level, unsigned long s2tte_ap)
 {
-	init_assigned(s2_ctx, s2tt, pa, level, S2TT_MIN_BLOCK_LEVEL,
+	init_assigned(s2_ctx, s2tt, pa, level, S2TT_MIN_BLOCK_LEVEL, s2tte_ap,
 			s2tte_create_assigned_ram);
 }
 
 /*
  * Populates @s2tt with NS attributes @attrs that refer to a
- * contiguous memory block starting at @pa, and mapped at level @level.
+ * contiguous memory block starting at @pa, mapped at level @level.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
+ *
+ * Note that the @s2tte_ap parameter is included in order to make the API consistent
+ * with the rest of s2tt_init_* and passed down to any API that would accept
+ * it, although it is not used for the creation of an assigned NS s2tt.
  */
 void s2tt_init_assigned_ns(const struct s2tt_context *s2_ctx,
 			   unsigned long *s2tt, unsigned long attrs,
-			   unsigned long pa, long level)
+			   unsigned long pa, long level, unsigned long s2tte_ap)
 {
 	assert(s2tt != NULL);
 	assert(level >= S2TT_MIN_BLOCK_LEVEL);
@@ -1262,13 +1586,17 @@ void s2tt_init_assigned_ns(const struct s2tt_context *s2_ctx,
 	assert(s2tte_is_addr_lvl_aligned(s2_ctx, pa, level));
 
 	const unsigned long map_size = s2tte_map_size(level);
+	unsigned long mask = S2TTE_NS_ATTR_MASK;
 
-	attrs &= S2TTE_NS_ATTR_MASK;
+	mask |= (s2_ctx->indirect_s2ap) ?
+		S2TTE_PI_INDEX_MASK : S2TTE_RW_AP_MASK;
+
+	attrs &= mask;
 
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
 		s2tt[i] = s2tte_create_assigned_ns(s2_ctx,
-				attrs | pa_to_s2tte(pa, s2_ctx->enable_lpa2),
-				level);
+				attrs | pa_to_s2tte(s2_ctx, pa),
+				level, s2tte_ap);
 		pa += map_size;
 	}
 
@@ -1277,42 +1605,48 @@ void s2tt_init_assigned_ns(const struct s2tt_context *s2_ctx,
 
 /*
  * Populates @s2tt with HIPAS=ASSIGNED_DEV, RIPAS=EMPTY s2ttes that refer to a
- * contiguous memory block starting at @pa, and mapped at level @level.
+ * contiguous memory block starting at @pa, mapped at level @level and with the
+ * given access permissions extracted from @s2tte_ap.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
  */
 void s2tt_init_assigned_dev_empty(const struct s2tt_context *s2_ctx,
-				  unsigned long *s2tt, unsigned long pa, long level)
+				  unsigned long *s2tt, unsigned long pa, long level,
+				  unsigned long s2tte_ap)
 {
-	init_assigned(s2_ctx, s2tt, pa, level, S2TT_MIN_DEV_BLOCK_LEVEL,
+	init_assigned(s2_ctx, s2tt, pa, level, S2TT_MIN_DEV_BLOCK_LEVEL, s2tte_ap,
 			s2tte_create_assigned_dev_empty);
 }
 
 /*
  * Populates @s2tt with HIPAS=ASSIGNED_DEV, RIPAS=DESTROYED s2ttes that refer to a
- * contiguous memory block starting at @pa, and mapped at level @level.
+ * contiguous memory block starting at @pa, mapped at level @level and with the
+ * given access permissions extracted from @s2tte_ap.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
  */
 void s2tt_init_assigned_dev_destroyed(const struct s2tt_context *s2_ctx,
-					unsigned long *s2tt, unsigned long pa, long level)
+					unsigned long *s2tt, unsigned long pa,
+					long level, unsigned long s2tte_ap)
 {
-	init_assigned(s2_ctx, s2tt, pa, level, S2TT_MIN_DEV_BLOCK_LEVEL,
+	init_assigned(s2_ctx, s2tt, pa, level, S2TT_MIN_DEV_BLOCK_LEVEL, s2tte_ap,
 			s2tte_create_assigned_dev_destroyed);
 }
 
 /*
  * Populates @s2tt with assigned_dev_dev s2ttes that refer to a
- * contiguous memory block starting at @pa, and mapped at level @level.
+ * contiguous memory block starting at @pa, and mapped at level @level with
+ * the access permissions at @s2tte_ap.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
  */
 void s2tt_init_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 				unsigned long *s2tt, unsigned long s2tte,
-				unsigned long pa, long level)
+				unsigned long pa, long level,
+				unsigned long s2tte_ap)
 {
 	unsigned long s2tte_mask = (S2TTE_DEV_ATTRS_MASK | S2TTE_MEMATTR_MASK);
 
@@ -1331,7 +1665,9 @@ void s2tt_init_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 	s2tte &= s2tte_mask;
 
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
-		s2tt[i] = s2tte_create_assigned_dev_dev(s2_ctx, s2tte | pa, level);
+		s2tt[i] = s2tte_create_assigned_dev_dev(s2_ctx,
+							s2tte | pa, level,
+							s2tte_ap);
 		pa += map_size;
 	}
 
@@ -1345,8 +1681,8 @@ void s2tt_init_assigned_dev_dev(const struct s2tt_context *s2_ctx,
  * NOTE: For now, only the RTTE with PA are live.
  * This could change with EXPORT/IMPORT support.
  */
-static bool s2tte_is_live(const struct s2tt_context *s2_ctx,
-			  unsigned long s2tte, long level)
+bool s2tte_is_live(const struct s2tt_context *s2_ctx,
+		   unsigned long s2tte, long level)
 {
 	return s2tte_has_pa(s2_ctx, s2tte, level);
 }
@@ -1355,7 +1691,6 @@ static bool s2tte_is_live(const struct s2tt_context *s2_ctx,
 unsigned long s2tte_pa(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 		       long level)
 {
-	bool lpa2;
 	__unused long min_starting_level;
 
 	assert(s2_ctx != NULL);
@@ -1367,13 +1702,11 @@ unsigned long s2tte_pa(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 	assert(level <= S2TT_PAGE_LEVEL);
 	assert(s2tte_has_pa(s2_ctx, s2tte, level));
 
-	lpa2 = s2_ctx->enable_lpa2;
-
 	if (s2tte_is_table(s2_ctx, s2tte, level)) {
-		return table_entry_to_phys(s2tte, lpa2);
+		return table_entry_to_phys(s2_ctx, s2tte);
 	}
 
-	return s2tte_to_pa(s2tte, level, lpa2);
+	return s2tte_to_pa(s2_ctx, s2tte, level);
 }
 
 bool s2tte_is_addr_lvl_aligned(const struct s2tt_context *s2_ctx,
@@ -1398,15 +1731,41 @@ bool s2tte_is_addr_lvl_aligned(const struct s2tt_context *s2_ctx,
 typedef bool (*s2tte_type_checker)(const struct s2tt_context *s2_ctx,
 				   unsigned long s2tte);
 
-static bool table_is_uniform_block(const struct s2tt_context *s2_ctx,
-				   unsigned long *table,
-				   s2tte_type_checker s2tte_is_x)
+static bool table_is_uniform_unassigned_block(const struct s2tt_context *s2_ctx,
+					      unsigned long *table,
+					      s2tte_type_checker s2tte_is_x,
+					      unsigned long *s2tte_ap)
 {
-	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
-		unsigned long s2tte = s2tte_read(&table[i]);
+	unsigned long s2tte = s2tte_read(&table[0U]);
+	unsigned long ap = 0UL;
+
+	if (!s2tte_is_x(s2_ctx, s2tte)) {
+		return false;
+	}
+
+	if (s2tte_ap != NULL) {
+		ap = s2tte_get_ap(s2_ctx, *s2tte_ap, false);
+
+		/*
+		 * Validate the AP of the first entry against the
+		 * expected value.
+		 */
+		if (ap != s2tte_get_ap(s2_ctx, s2tte, false)) {
+			return false;
+		}
+	}
+
+	for (unsigned int i = 1U; i < S2TTES_PER_S2TT; i++) {
+		s2tte = s2tte_read(&table[i]);
 
 		if (!s2tte_is_x(s2_ctx, s2tte)) {
 			return false;
+		}
+
+		if (s2tte_ap != NULL) {
+			if (ap != s2tte_get_ap(s2_ctx, s2tte, false)) {
+				return false;
+			}
 		}
 	}
 
@@ -1414,48 +1773,60 @@ static bool table_is_uniform_block(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if all s2ttes in @table are unassigned_empty.
+ * Returns true if all s2ttes in @table are unassigned_empty with
+ * a given set of access permissions.
  */
 bool s2tt_is_unassigned_empty_block(const struct s2tt_context *s2_ctx,
-				    unsigned long *table)
+				    unsigned long *table, unsigned long s2tte_ap)
 {
 	assert(table != NULL);
 
-	return table_is_uniform_block(s2_ctx, table, s2tte_is_unassigned_empty);
+	return table_is_uniform_unassigned_block(s2_ctx, table,
+						 s2tte_is_unassigned_empty,
+						 &s2tte_ap);
 }
 
 /*
- * Returns true if all s2ttes in @table are unassigned_ram.
+ * Returns true if all s2ttes in @table are unassigned_ram and the
+ * access permissions @s2tte_ap match the ones on the s2ttes.
  */
 bool s2tt_is_unassigned_ram_block(const struct s2tt_context *s2_ctx,
-				  unsigned long *table)
+				  unsigned long *table, unsigned long s2tte_ap)
 {
 	assert(table != NULL);
 
-	return table_is_uniform_block(s2_ctx, table, s2tte_is_unassigned_ram);
+	return table_is_uniform_unassigned_block(s2_ctx, table,
+						 s2tte_is_unassigned_ram,
+						 &s2tte_ap);
 }
 
 /*
- * Returns true if all s2ttes in @table are unassigned_ns
+ * Returns true if all s2ttes in @table are unassigned_ns.
+ * Note that @s2tte_ap is not used on this function, just used for consistency
+ * with other similar APIs.
  */
 bool s2tt_is_unassigned_ns_block(const struct s2tt_context *s2_ctx,
-				 unsigned long *table)
+				 unsigned long *table, unsigned long s2tte_ap)
 {
+	(void)s2tte_ap;
 	assert(table != NULL);
 
-	return table_is_uniform_block(s2_ctx, table, s2tte_is_unassigned_ns);
+	return table_is_uniform_unassigned_block(s2_ctx, table,
+						 s2tte_is_unassigned_ns, NULL);
 }
 
 /*
- * Returns true if all s2ttes in @table are unassigned_destroyed
+ * Returns true if all s2ttes in @table are unassigned_destroyed and
+ * with the given access permissions.
  */
 bool s2tt_is_unassigned_destroyed_block(const struct s2tt_context *s2_ctx,
-					unsigned long *table)
+					unsigned long *table, unsigned long s2tte_ap)
 {
 	assert(table != NULL);
 
-	return table_is_uniform_block(s2_ctx, table,
-				      s2tte_is_unassigned_destroyed);
+	return table_is_uniform_unassigned_block(s2_ctx, table,
+						 s2tte_is_unassigned_destroyed,
+						 &s2tte_ap);
 }
 
 typedef bool (*s2tte_type_level_checker)(const struct s2tt_context *s2_ctx,
@@ -1465,7 +1836,8 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 			     unsigned long *table,
 			     long level,
 			     s2tte_type_level_checker s2tte_is_x,
-			     bool check_ns_attrs)
+			     bool check_ns_attrs, unsigned long s2tte_ap,
+			     bool dev)
 {
 	assert(table != NULL);
 	assert(s2_ctx != NULL);
@@ -1475,6 +1847,8 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 	unsigned long s2tte = s2tte_read(&table[0]);
 	unsigned long s2tt_ns_attrs;
 	unsigned int i;
+	unsigned long expected_ap = 0UL;
+	unsigned long ns_attr_mask = S2TTE_NS_ATTR_MASK;
 
 	if (s2_ctx->enable_lpa2) {
 		assert(level >= S2TT_MIN_STARTING_LEVEL_LPA2);
@@ -1488,12 +1862,24 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 		return false;
 	}
 
+	expected_ap = s2tte_get_ap(s2_ctx, s2tte_ap, dev);
+
+	/*
+	 * Validate the AP on the first entry against the
+	 * expected one.
+	 */
+	if (s2tte_get_ap(s2_ctx, s2tte, dev) != expected_ap) {
+		return false;
+	}
+
 	base_pa = s2tte_pa(s2_ctx, s2tte, level);
 	if (!s2tte_is_addr_lvl_aligned(s2_ctx, base_pa, level - 1L)) {
 		return false;
 	}
 
-	s2tt_ns_attrs = s2tte & S2TTE_NS_ATTR_MASK;
+	ns_attr_mask |= (s2_ctx->indirect_s2ap) ?
+		S2TTE_PI_INDEX_MASK : S2TTE_RW_AP_MASK;
+	s2tt_ns_attrs = (s2tte & ns_attr_mask);
 
 	for (i = 1U; i < S2TTES_PER_S2TT; i++) {
 		unsigned long expected_pa = base_pa + (i * map_size);
@@ -1508,9 +1894,14 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 			return false;
 		}
 
+		if (!check_ns_attrs) {
+			if (expected_ap != s2tte_get_ap(s2_ctx, s2tte, dev)) {
+				return false;
+			}
+		}
+
 		if (check_ns_attrs) {
-			unsigned long ns_attrs =
-					s2tte & S2TTE_NS_ATTR_MASK;
+			unsigned long ns_attrs = (s2tte & ns_attr_mask);
 
 			/*
 			 * We match all the attributes in the S2TTE
@@ -1526,84 +1917,100 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if all s2ttes are assigned_empty
- * and refer to a contiguous block of granules aligned to @level - 1.
+ * Returns true if all s2ttes are assigned_empty,
+ * refer to a contiguous block of granules aligned to @level - 1
+ * and the access permissions are the same @s2tte_ap
  */
 bool s2tt_maps_assigned_empty_block(const struct s2tt_context *s2_ctx,
-				    unsigned long *table, long level)
+				    unsigned long *table, long level,
+				    unsigned long s2tte_ap)
 {
 	return table_maps_block(s2_ctx, table, level,
-				s2tte_is_assigned_empty, false);
+				s2tte_is_assigned_empty, false, s2tte_ap, false);
 }
 
 /*
  * Returns true if all s2ttes are assigned_ram and
- * refer to a contiguous block of granules aligned to @level - 1.
+ * refer to a contiguous block of granules aligned to @level - 1 and
+ * with access permissions same as @s2tte_ap.
  */
 bool s2tt_maps_assigned_ram_block(const struct s2tt_context *s2_ctx,
-				  unsigned long *table, long level)
+				  unsigned long *table, long level,
+				  unsigned long s2tte_ap)
 {
 	return table_maps_block(s2_ctx, table, level,
-				s2tte_is_assigned_ram, false);
+				s2tte_is_assigned_ram, false, s2tte_ap, false);
 }
 
 /*
  * Returns true if
  *    - all s2ttes in @table are assigned_ns s2ttes and
  *    - they refer to a contiguous block of granules aligned to @level - 1 and
- *    - all the s2tte attributes in @table controlled by the host are identical
+ *    - all the s2tte attributes in @table controlled by the host are identical.
+ *
+ * If @ap is not NULL, the access permissions/PIIIndex on the s2ttes
+ * must match the ones @s2tte_ap.
  *
  * @pre: @table maps IPA outside PAR.
  */
 bool s2tt_maps_assigned_ns_block(const struct s2tt_context *s2_ctx,
-				 unsigned long *table, long level)
+				 unsigned long *table, long level,
+				 unsigned long s2tte_ap)
 {
 	return table_maps_block(s2_ctx, table, level,
-				s2tte_is_assigned_ns, true);
+				s2tte_is_assigned_ns, true, s2tte_ap, false);
 }
 
 /*
- * Returns true if all s2ttes are assigned_destroyed and
- * refer to a contiguous block of granules aligned to @level - 1.
+ * Returns true if all s2ttes are assigned_destroyed,
+ * refer to a contiguous block of granules aligned to @level - 1
+ * and the access permissions are the same @s2tte_ap
  */
 bool s2tt_maps_assigned_destroyed_block(const struct s2tt_context *s2_ctx,
-					unsigned long *table, long level)
+					unsigned long *table, long level,
+					unsigned long s2tte_ap)
 {
 	return table_maps_block(s2_ctx, table, level,
-				s2tte_is_assigned_destroyed, false);
+				s2tte_is_assigned_destroyed, false, s2tte_ap, false);
 }
 
 /*
- * Returns true if all s2ttes are assigned_dev_empty and
- * refer to a contiguous block of granules aligned to @level - 1.
+ * Returns true if all s2ttes are assigned_dev_empty, they refer to a contiguous
+ * block of granules aligned to @level - 1 and the access permissions match
+ * the ones @s2tte_ap.
  */
 bool s2tt_maps_assigned_dev_empty_block(const struct s2tt_context *s2_ctx,
-					unsigned long *table, long level)
+					unsigned long *table, long level,
+					unsigned long s2tte_ap)
 {
 	return table_maps_block(s2_ctx, table, level,
-				s2tte_is_assigned_dev_empty, false);
+				s2tte_is_assigned_dev_empty, false, s2tte_ap, true);
 }
 
 /*
- * Returns true if all s2ttes are assigned_dev_destroyed and
- * refer to a contiguous block of granules aligned to @level - 1.
+ * Returns true if all s2ttes are assigned_dev_destroyed, they refer contiguous
+ * block of granules aligned to @level - 1 and the access permissions match
+ * the ones @s2tte_ap.
  */
 bool s2tt_maps_assigned_dev_destroyed_block(const struct s2tt_context *s2_ctx,
-					   unsigned long *table, long level)
+					   unsigned long *table, long level,
+					   unsigned long s2tte_ap)
 {
 	return table_maps_block(s2_ctx, table, level,
-				s2tte_is_assigned_dev_destroyed, false);
+				s2tte_is_assigned_dev_destroyed, false, s2tte_ap, true);
 }
 
 /*
- * Returns true if all s2ttes are assigned_dev_dev and
- * refer to a contiguous block of granules aligned to @level - 1.
+ * Returns true if all s2ttes are assigned_dev_dev, they refer to a contiguous
+ * block of granules aligned to @level - 1 and the access permissions match the
+ * ones @s2tte_ap.
  */
 bool s2tt_maps_assigned_dev_dev_block(const struct s2tt_context *s2_ctx,
-					unsigned long *table, long level)
+					unsigned long *table, long level,
+					unsigned long s2tte_ap)
 {
 	return table_maps_block(s2_ctx, table, level,
-				s2tte_is_assigned_dev_dev, false);
+				s2tte_is_assigned_dev_dev, false, s2tte_ap, true);
 }
 
 /*
@@ -1671,4 +2078,22 @@ unsigned long s2tt_skip_non_live_entries(const struct s2tt_context *s2_ctx,
 	}
 
 	return (addr + ((i - index) * map_size));
+}
+
+/*
+ * Initializes the s2tt library and any dependency, for the current PE.
+ *
+ * Note that this API musb be called for all the PEs during the warm boot path.
+ */
+void s2tt_init(void)
+{
+	s2ap_ind_perm_init();
+}
+
+/*
+ * Reports whether the s2tt library supports Indirect Access Permissions.
+ */
+bool s2tt_indirect_ap_supported(void)
+{
+	return are_feat_s2pie_and_s2poe_present();
 }

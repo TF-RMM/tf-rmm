@@ -87,8 +87,10 @@ enum rmi_type {
 	set_rmi_type(2, 2),	/* 2 arguments, 2 output values */
 	set_rmi_type(3, 1),	/* 3 arguments, 1 output value */
 	set_rmi_type(3, 2),	/* 3 arguments, 2 output values */
+	set_rmi_type(3, 3),	/* 3 arguments, 3 output values */
 	set_rmi_type(3, 4),	/* 3 arguments, 4 output values */
-	set_rmi_type(4, 1)	/* 4 arguments, 1 output value */
+	set_rmi_type(4, 1),	/* 4 arguments, 1 output value */
+	set_rmi_type(4, 2)	/* 4 arguments, 2 output values */
 };
 
 struct smc_handler {
@@ -105,8 +107,10 @@ struct smc_handler {
 		handler_2_o	f_22;
 		handler_3_o	f_31;
 		handler_3_o	f_32;
+		handler_3_o	f_33;
 		handler_3_o	f_34;
 		handler_4_o	f_41;
+		handler_4_o	f_42;
 		void		*fn_dummy;
 	};
 	enum rmi_type	type;
@@ -154,7 +158,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RTT_UNMAP_UNPROTECTED,	3, 1, smc_rtt_unmap_unprotected, false, false),
 	HANDLER(RTT_DEV_MEM_VALIDATE,	4, 1, NULL,			 false, true),
 	HANDLER(PSCI_COMPLETE,		3, 0, smc_psci_complete,	 true,  true),
-	HANDLER(FEATURES,		1, 1, smc_read_feature_register, true,  true),
+	HANDLER(FEATURES,		1, 1, smc_read_feature_register, false,  true),
 	HANDLER(RTT_FOLD,		3, 1, smc_rtt_fold,		 false, false),
 	HANDLER(REC_AUX_COUNT,		1, 1, smc_rec_aux_count,	 true,  true),
 	HANDLER(RTT_INIT_RIPAS,		3, 1, smc_rtt_init_ripas,	 false, true),
@@ -170,20 +174,20 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PDEV_NOTIFY,		0, 0, NULL,			 true, true),
 	HANDLER(PDEV_SET_PUBKEY,	2, 0, smc_pdev_set_pubkey,	 true, true),
 	HANDLER(PDEV_STOP,		1, 0, smc_pdev_stop,		 true, true),
-	HANDLER(RTT_AUX_CREATE,		0, 0, NULL,			 true, true),
-	HANDLER(RTT_AUX_DESTROY,	0, 0, NULL,			 true, true),
-	HANDLER(RTT_AUX_FOLD,		0, 0, NULL,			 true, true),
-	HANDLER(RTT_AUX_MAP_PROTECTED,	0, 0, NULL,			 true, true),
-	HANDLER(RTT_AUX_MAP_UNPROTECTED, 0, 0, NULL,			 true, true),
-	HANDLER(RTT_AUX_UNMAP_PROTECTED, 0, 0, NULL,			 true, true),
-	HANDLER(RTT_AUX_UNMAP_UNPROTECTED, 0, 0, NULL,			 true, true),
+	HANDLER(RTT_AUX_CREATE,		5, 0, smc_rtt_aux_create,	 false, true),
+	HANDLER(RTT_AUX_DESTROY,	4, 2, smc_rtt_aux_destroy,	 false, true),
+	HANDLER(RTT_AUX_FOLD,		4, 1, smc_rtt_aux_fold,		 false, true),
+	HANDLER(RTT_AUX_MAP_PROTECTED,	3, 4, smc_rtt_aux_map_protected, false, true),
+	HANDLER(RTT_AUX_MAP_UNPROTECTED, 3, 3, smc_rtt_aux_map_unprotected, false, true),
+	HANDLER(RTT_AUX_UNMAP_PROTECTED, 3, 2, smc_rtt_aux_unmap_protected, false, true),
+	HANDLER(RTT_AUX_UNMAP_UNPROTECTED, 3, 2, smc_rtt_aux_unmap_unprotected, false, true),
 	HANDLER(VDEV_ABORT,		0, 0, NULL,			 true, true),
 	HANDLER(VDEV_COMMUNICATE,	0, 0, NULL,			 true, true),
 	HANDLER(VDEV_CREATE,		0, 0, NULL,			 true, true),
 	HANDLER(VDEV_DESTROY,		0, 0, NULL,			 true, true),
 	HANDLER(VDEV_GET_STATE,		0, 0, NULL,			 true, true),
 	HANDLER(VDEV_STOP,		0, 0, NULL,			 true, true),
-	HANDLER(RTT_SET_S2AP,		0, 0, NULL,			 true, true),
+	HANDLER(RTT_SET_S2AP,		4, 1, smc_rtt_set_s2ap,		 false, true),
 	HANDLER(MEC_SET_SHARED,		0, 0, NULL,			 true, true),
 	HANDLER(MEC_SET_PRIVATE,	0, 0, NULL,			 true, true),
 	HANDLER(VDEV_COMPLETE,		0, 0, NULL,			 true, true)
@@ -364,11 +368,17 @@ void handle_ns_smc(unsigned int function_id,
 	case rmi_type_32:
 		handler->f_32(arg0, arg1, arg2, res);
 		break;
+	case rmi_type_33:
+		handler->f_33(arg0, arg1, arg2, res);
+		break;
 	case rmi_type_34:
 		handler->f_34(arg0, arg1, arg2, res);
 		break;
 	case rmi_type_41:
 		handler->f_41(arg0, arg1, arg2, arg3, res);
+		break;
+	case rmi_type_42:
+		handler->f_42(arg0, arg1, arg2, arg3, res);
 		break;
 	default:
 		assert(false);

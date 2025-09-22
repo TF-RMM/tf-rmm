@@ -12,12 +12,15 @@
 #include <measurement.h>
 #include <realm.h>
 #include <s2tt.h>
+#include <s2tt_ap.h>
 #include <simd.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
+#include <utils_def.h>
 #include <vmid.h>
 
 #define RMI_FEATURE_MIN_IPA_SIZE	PARANGE_WIDTH_32BITS
@@ -181,16 +184,17 @@ static unsigned int s2_num_root_rtts(unsigned int ipa_bits, int sl)
  * unassigned_ns type of s2tte.
  * The remaining entries are not initialized.
  */
-static void init_s2_starting_level(struct rd *rd)
+static void init_s2_starting_level(struct rd *rd, unsigned int rtt_index)
 {
 	unsigned long current_ipa = 0U;
-	struct granule *g_rtt = rd->s2_ctx.g_rtt;
+	struct s2tt_context *s2tt_ctx = &rd->s2_ctx[rtt_index];
+	struct granule *g_rtt = s2tt_ctx->g_rtt;
 	unsigned int num_root_rtts;
 	unsigned int s2ttes_per_s2tt = (unsigned int)(
-		(rd->s2_ctx.s2_starting_level == S2TT_MIN_STARTING_LEVEL_LPA2) ?
+		(s2tt_ctx->s2_starting_level == S2TT_MIN_STARTING_LEVEL_LPA2) ?
 			S2TTES_PER_S2TT_LM1 : S2TTES_PER_S2TT);
 	unsigned int levels = (unsigned int)(S2TT_PAGE_LEVEL -
-						rd->s2_ctx.s2_starting_level);
+						s2tt_ctx->s2_starting_level);
 	/*
 	 * The size of the IPA space that is covered by one S2TTE at
 	 * the starting level.
@@ -198,7 +202,7 @@ static void init_s2_starting_level(struct rd *rd)
 	unsigned long sl_entry_map_size =
 			(UL(1)) << U(U(levels * S2TTE_STRIDE) + U(GRANULE_SHIFT));
 
-	num_root_rtts = rd->s2_ctx.num_root_rtts;
+	num_root_rtts = s2tt_ctx->num_root_rtts;
 	for (unsigned int rtt = 0U; rtt < num_root_rtts; rtt++) {
 		unsigned long *s2tt = buffer_granule_map_zeroed(g_rtt, SLOT_RTT);
 
@@ -206,11 +210,18 @@ static void init_s2_starting_level(struct rd *rd)
 
 		for (unsigned int rtte = 0U; rtte < s2ttes_per_s2tt; rtte++) {
 			if (addr_in_par(rd, current_ipa)) {
-				s2tt[rtte] = s2tte_create_unassigned_empty(
-								&(rd->s2_ctx));
+				s2tt[rtte] = s2tte_create_unassigned_empty(s2tt_ctx,
+						s2tte_update_prot_ap(s2tt_ctx, 0UL,
+							S2TTE_DEF_BASE_PERM_IDX,
+							S2TTE_DEF_PROT_OVERLAY_IDX));
 			} else {
-				s2tt[rtte] = s2tte_create_unassigned_ns(
-								&(rd->s2_ctx));
+				/*
+				 * Initialize the entry with an unassigned ns
+				 * descriptor. Note that the @s2tte_ap argument
+				 * of s2tte_create_unassigned_ns() is not used.
+				 */
+				s2tt[rtte] = s2tte_create_unassigned_ns(UNUSED_PTR,
+									UNUSED_UL);
 			}
 
 			current_ipa += sl_entry_map_size;
@@ -231,9 +242,27 @@ static void init_s2_starting_level(struct rd *rd)
 	assert(false);
 }
 
-static bool validate_realm_params(struct rmi_realm_params *p)
+static void free_vmids(unsigned short *vmid_list, unsigned int vmid_cnt)
+{
+	for (unsigned int i = 0U; i < vmid_cnt; i++) {
+		vmid_free(vmid_list[i]);
+	}
+}
+
+/*
+ * Validate realm params and return a VMID list if validation is successful.
+ */
+static bool validate_realm_params(struct rmi_realm_params *p,
+				  unsigned short *vmid,
+				  unsigned int *n_vmids)
 {
 	unsigned long feat_reg0 = get_feature_register_0();
+	unsigned long feat_reg0_plane_rtt __unused =
+		EXTRACT(RMI_FEATURE_REGISTER_0_PLANE_RTT, feat_reg0);
+	unsigned long feat_flags1_rtt_tree_pp __unused =
+		EXTRACT(RMI_REALM_FLAGS1_RTT_TREE_PP, p->flags1);
+	unsigned long feat_flags1_s2ap_enc __unused =
+		EXTRACT(RMI_REALM_FLAGS1_S2AP_ENC, p->flags1);
 
 	/* Validate LPA2 flag */
 	if (is_lpa2_requested(p)  &&
@@ -259,7 +288,7 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 		return false;
 	}
 
-	/* Validate RMI_REALM_FLAGS_SVE flag */
+	/* Validate RMI_REALM_FLAGS0_SVE flag */
 	if (EXTRACT(RMI_REALM_FLAGS0_SVE, p->flags0) == RMI_FEATURE_TRUE) {
 		if (EXTRACT(RMI_FEATURE_REGISTER_0_SVE_EN, feat_reg0) ==
 						      RMI_FEATURE_FALSE) {
@@ -304,6 +333,59 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 		return false;
 	}
 
+	*n_vmids = p->num_aux_planes + 1U;
+	vmid[0] = p->vmid;
+
+#ifdef RMM_V1_1
+	/* Make a local copy of all VMIDs */
+	for (unsigned int i = 0U; i < p->num_aux_planes; i++) {
+		vmid[i + 1U] = p->aux_vmid[i];
+	}
+
+	/* Validate num_aux_planes */
+	if ((p->num_aux_planes) >
+			EXTRACT(RMI_FEATURE_REGISTER_0_MAX_NUM_AUX_PLANES, feat_reg0)) {
+		return false;
+	}
+
+	if (p->num_aux_planes > 0U) {
+		/* Validate that we do not use single tree planes when not allowed */
+		if ((feat_reg0_plane_rtt == RMI_RTT_PLANE_AUX) &&
+		    (feat_flags1_rtt_tree_pp == 0UL)) {
+			return false;
+		}
+
+		/* Validate that we do not use multiple tree planes when not allowed */
+		if ((feat_reg0_plane_rtt == RMI_RTT_PLANE_SINGLE) &&
+		    (feat_flags1_rtt_tree_pp > 0UL)) {
+			return false;
+		}
+
+		/*
+		 * Validate that RMI_REALM_FLAGS1_RTT_TREE_PP and
+		 * RMI_REALM_FLAGS1_S2AP_ENC flags are consistent with each other.
+		 */
+		if (((feat_flags1_rtt_tree_pp > 0UL) &&
+		     (feat_flags1_s2ap_enc == RMI_S2AP_INDIRECT)) ||
+		    ((feat_flags1_rtt_tree_pp == 0UL) &&
+		     (feat_flags1_s2ap_enc == RMI_S2AP_DIRECT))) {
+			return false;
+		}
+	}
+
+	/*
+	 * Validate that we do not use indirect S2AP permissions when
+	 * the feature is not available.
+	 *
+	 * Note that we can use indirect S2AP permissions on a single plane
+	 * realm.
+	 */
+	if ((feat_flags1_s2ap_enc == RMI_S2AP_INDIRECT) &&
+	    (EXTRACT(RMI_FEATURE_REGISTER_0_RTT_S2AP_INDIRECT, feat_reg0) == RMI_FEATURE_FALSE)) {
+		return false;
+	}
+#endif
+
 	/*
 	 * TODO: Check the VMSA configuration which is either static for the
 	 * RMM or per realm with the supplied parameters and store the
@@ -319,10 +401,25 @@ static bool validate_realm_params(struct rmi_realm_params *p)
 		return false;
 	}
 
-	/* Check VMID collision and reserve it atomically if available */
-	return vmid_reserve((unsigned int)p->vmid);
+	/* Reserve the VMIDs for the current realm */
+	for (unsigned int i = 0U; i < *n_vmids; i++) {
+		if (!vmid_reserve(vmid[i])) {
+			/* Free reserved VMID before returning */
+			free_vmids(vmid, i);
+			return false;
+		}
+	}
+
+	return true;
 }
 
+/*
+ * Iterate over all the concatenated RTT granules provided through
+ * @g_rtt and free them by:
+ *
+ *    - Zeroing their content.
+ *    - Transitioning them GRANULE_STATE_DELEGATE
+ */
 static void free_sl_rtts(struct granule *g_rtt, unsigned int num_rtts)
 {
 	for (unsigned int i = 0U; i < num_rtts; i++) {
@@ -334,96 +431,191 @@ static void free_sl_rtts(struct granule *g_rtt, unsigned int num_rtts)
 	}
 }
 
-static bool find_lock_rd_granules(unsigned long rd_addr,
-				  struct granule **p_g_rd,
-				  unsigned long rtt_base_addr,
-				  unsigned int num_rtts,
-				  struct granule **p_g_rtt_base)
+/*
+ * Iterate over all the root translation table granules for all the different
+ * RTT trees that have already beein transitioned to GRANULE_STATE_RTT
+ * and free them.
+ */
+static void revert_sl_rtts(unsigned long *rtt_base,
+			   unsigned int concat_tbl_cnt,
+			   unsigned int rtt_tree_cnt)
 {
-	struct granule *g_rd = NULL, *g_rtt_base = NULL;
-	unsigned int i = 0U;
+	for (unsigned int rtt_tree_id = 0U;
+				rtt_tree_id < rtt_tree_cnt; rtt_tree_id++) {
+		struct granule *g;
 
-	if (rd_addr < rtt_base_addr) {
-		g_rd = find_lock_granule(rd_addr, GRANULE_STATE_DELEGATED);
-		if (g_rd == NULL) {
-			goto out_err;
+		g = find_granule(rtt_base[rtt_tree_id]);
+		assert(g != NULL);
+		free_sl_rtts(g, concat_tbl_cnt);
+	}
+}
+
+
+/*
+ * Iterate over all the available root translation table granules and transition
+ * them to GRANULE_STATE_DELEGATED
+ */
+static bool transition_sl_rtts(unsigned long *rtt_base,
+			       unsigned int concat_tbl_cnt,
+			       unsigned int rtt_tree_cnt)
+{
+	unsigned int i, rtt_tree_id;
+	unsigned long rtt_addr;
+	struct granule *g;
+
+	for (rtt_tree_id = 0U; rtt_tree_id < rtt_tree_cnt; rtt_tree_id++) {
+		rtt_addr = rtt_base[rtt_tree_id];
+		for (i = 0U; i < concat_tbl_cnt; i++) {
+			g = find_lock_granule(rtt_addr, GRANULE_STATE_DELEGATED);
+			if (g == NULL) {
+				goto error_out;
+			}
+			granule_unlock_transition(g, GRANULE_STATE_RTT);
+			rtt_addr += GRANULE_SIZE;
 		}
 	}
-
-	for (; i < num_rtts; i++) {
-		unsigned long rtt_addr = rtt_base_addr + (i * GRANULE_SIZE);
-		struct granule *g_rtt;
-
-		g_rtt = find_lock_granule(rtt_addr, GRANULE_STATE_DELEGATED);
-		if (g_rtt == NULL) {
-			goto out_err;
-		}
-
-		if (i == 0U) {
-			g_rtt_base = g_rtt;
-		}
-	}
-
-	if (g_rd == NULL) {
-		g_rd = find_lock_granule(rd_addr, GRANULE_STATE_DELEGATED);
-		if (g_rd == NULL) {
-			goto out_err;
-		}
-	}
-
-	*p_g_rd = g_rd;
-	*p_g_rtt_base = g_rtt_base;
-
 	return true;
 
-out_err:
-	while (i != 0U) {
-		granule_unlock((struct granule *)((uintptr_t)g_rtt_base +
-						(--i * sizeof(struct granule))));
+error_out:
+	/* Revert partially transitioned root tree. */
+	if (i > 0U) {
+		g = find_granule(rtt_base[rtt_tree_id]);
+		assert(g != NULL);
+		free_sl_rtts(g, i);
 	}
 
-	if (g_rd != NULL) {
-		granule_unlock(g_rd);
-	}
+	/* Revert fully transitioned root trees. */
+	revert_sl_rtts(rtt_base, concat_tbl_cnt, rtt_tree_id);
 
 	return false;
+}
+
+/*
+ * Initialize the fixed Stage 2 Access Permissions:
+ *
+ *   - Overlay permission for all indexes for Plane 0 are set to S2TTE_PERM_LABEL_RW_upX.
+ *   - All Overlay Indexes for Plane N are set to S2TTE_PERM_LABEL_NO_ACCESS.
+ *   - Overlay permission for unprotected IPA is set to S2TTE_PERM_LABEL_RW.
+ *   - Index 0 and Unprotected overlay index are marked as immutable for Plane N.
+ */
+static void init_overlay_permissions(struct rd *rd)
+{
+	rd->overlay_index_lock = 0U;
+
+	for (unsigned int plane_idx = 0U;
+			plane_idx < realm_num_planes(rd); plane_idx++) {
+		unsigned long overlay_perm = 0UL;
+		unsigned int default_perm;
+		struct s2tt_context *s2_ctx = plane_to_s2_context(rd, plane_idx);
+
+		/* Default Access Permissions for Protected IPA space */
+		default_perm = (plane_idx == PLANE_0_ID) ?
+						S2TTE_PERM_LABEL_RW_upX :
+						S2TTE_PERM_LABEL_NO_ACCESS;
+
+		/* Iterate over all the allowed overlay indexes on a protected IPA */
+		for (unsigned int ap_index = 0U;
+		     ap_index < S2TTE_DEF_UNPROT_OVERLAY_IDX;
+		     ap_index++) {
+			/* Configure Access Permission for each index */
+			overlay_perm = s2ap_set_overlay_perm(
+						overlay_perm, ap_index,
+						default_perm);
+		}
+
+		/* Default Unprotected IPA Index has RW permission for all Planes */
+		overlay_perm = s2ap_set_overlay_perm(overlay_perm,
+				S2TTE_DEF_UNPROT_OVERLAY_IDX, S2TTE_PERM_LABEL_RW);
+
+		s2_ctx->overlay_perm = overlay_perm;
+	}
+
+	/* Lock S2TTE_DEF_PROT_OVERLAY_IDX for overlay permission value */
+	set_perm_immutable(rd, S2TTE_DEF_PROT_OVERLAY_IDX);
+
+	/* Lock S2TTE_DEF_UNPROT_OVERLAY_IDX for overlay permission value */
+	set_perm_immutable(rd, S2TTE_DEF_UNPROT_OVERLAY_IDX);
 }
 
 unsigned long smc_realm_create(unsigned long rd_addr,
 			       unsigned long realm_params_addr)
 {
-	struct granule *g_rd, *g_rtt_base;
+	struct granule *g_rd;
 	struct rd *rd;
 	struct rmi_realm_params p;
+	unsigned int vmids_cnt = 0U;
+	unsigned short vmid[MAX_S2_CTXS] = {[0 ... (MAX_S2_CTXS - 1)] = 0U};
+	unsigned long rtt_base[MAX_S2_CTXS] = {[0 ... (MAX_S2_CTXS - 1)] = 0U};
+	unsigned int num_planes, num_rtts;
+	bool rtt_tree_pp;
 
 	if (!get_realm_params(&p, realm_params_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
 	/* coverity[uninit_use_in_call:SUPPRESS] */
-	if (!validate_realm_params(&p)) {
+	if (!validate_realm_params(&p, vmid, &vmids_cnt)) {
+		return RMI_ERROR_INPUT;
+	}
+
+#ifdef RMM_V1_1
+	num_planes = p.num_aux_planes + 1U;
+
+	if ((p.num_aux_planes > 0U) &&
+	    (EXTRACT(RMI_REALM_FLAGS1_RTT_TREE_PP, p.flags1) != 0UL)) {
+		rtt_tree_pp = true;
+		num_rtts = num_planes;
+	} else {
+		rtt_tree_pp = false;
+		num_rtts = 1U;
+	}
+#else
+	num_planes = 1U;
+	num_rtts = 1U;
+	rtt_tree_pp = false;
+#endif
+
+	/* Make a local copy of all the root level RTTs */
+	rtt_base[0U] = p.rtt_base;
+
+	if (rtt_tree_pp) {
+		for (unsigned int i = 1U; i < num_planes; i++) {
+			rtt_base[i] = p.aux_rtt_base[i - 1U];
+		}
+	}
+
+	/*
+	 * Validate that all the root RTTs granules are aligned to the size of
+	 * the concatenated tables.
+	 */
+	for (unsigned int i = 0U; i < num_rtts; i++) {
+		if ((rtt_base[i] & ((p.rtt_num_start * GRANULE_SIZE) - 1UL)) != 0UL) {
+			return RMI_ERROR_INPUT;
+		}
+	}
+
+	/*
+	 * Transition the granules for root RTT for primary and auxiliary trees.
+	 * They are unlocked after the transition, therefore we will not violate
+	 * the locking order when we acquire the lock for the RD granule further
+	 * down.
+	 * This will fail if there is any aliasing among these granules
+	 * because the granule will not be in the expected delegated state.
+	 */
+	if (!transition_sl_rtts(rtt_base, p.rtt_num_start, num_rtts)) {
+		free_vmids(vmid, vmids_cnt);
 		return RMI_ERROR_INPUT;
 	}
 
 	/*
-	 * At this point VMID is reserved for the Realm
-	 *
-	 * Check for aliasing between rd_addr and
-	 * starting level RTT address(es)
+	 * Transition the RD granule. This will fail if there is any aliasing
+	 * between this granule and RTT root granules, because the granule will
+	 * not be in the expected delegated state.
 	 */
-	if (addr_is_contained(p.rtt_base,
-			      p.rtt_base + (p.rtt_num_start * GRANULE_SIZE),
-			      rd_addr)) {
-
-		/* Free reserved VMID before returning */
-		vmid_free((unsigned int)p.vmid);
-		return RMI_ERROR_INPUT;
-	}
-
-	if (!find_lock_rd_granules(rd_addr, &g_rd, p.rtt_base,
-				  p.rtt_num_start, &g_rtt_base)) {
-		/* Free reserved VMID */
-		vmid_free((unsigned int)p.vmid);
+	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_DELEGATED);
+	if (g_rd == NULL) {
+		revert_sl_rtts(rtt_base, p.rtt_num_start, num_planes);
+		free_vmids(vmid, vmids_cnt);
 		return RMI_ERROR_INPUT;
 	}
 
@@ -432,14 +624,46 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 
 	set_rd_state(rd, REALM_NEW);
 	set_rd_rec_count(rd, 0UL);
-	rd->s2_ctx.g_rtt = find_granule(p.rtt_base);
-	rd->s2_ctx.ipa_bits = p.s2sz;
-	rd->s2_ctx.s2_starting_level = (int)p.rtt_level_start;
-	rd->s2_ctx.num_root_rtts = p.rtt_num_start;
-	rd->s2_ctx.enable_lpa2 = is_lpa2_requested(&p);
-	(void)memcpy(&rd->rpv[0], &p.rpv[0], RPV_SIZE);
 
-	rd->s2_ctx.vmid = (unsigned int)p.vmid;
+	rd->num_aux_planes = p.num_aux_planes;
+	rd->rtt_tree_pp = rtt_tree_pp;
+	rd->rtt_s2ap_encoding = (EXTRACT(RMI_REALM_FLAGS1_S2AP_ENC, p.flags1) != 0UL);
+
+	for (unsigned int idx = 0U;
+	     idx < realm_num_s2_contexts(rd);
+	     idx++) {
+		struct s2tt_context *s2tt_ctx = &rd->s2_ctx[idx];
+
+		/*
+		 * s2tt_ctx holds the overlay permissions and points to the
+		 * rtt base. In case there is an RTT tree per plane, then
+		 * rtt_base will point to unique RTT trees. Else, it will
+		 * point to the single RTT tree.
+		 *
+		 * For the mapping between Plane ID and S2 context ID, see
+		 * plane_to_s2_context() implementation.
+		 */
+		s2tt_ctx->g_rtt = find_granule(rd->rtt_tree_pp ? rtt_base[idx] :
+								 rtt_base[0]);
+		s2tt_ctx->ipa_bits = p.s2sz;
+		s2tt_ctx->s2_starting_level = (int)p.rtt_level_start;
+		s2tt_ctx->num_root_rtts = p.rtt_num_start;
+		s2tt_ctx->enable_lpa2 = is_lpa2_requested(&p);
+		s2tt_ctx->indirect_s2ap = rd->rtt_s2ap_encoding;
+	}
+
+	for (unsigned int plane_idx = 0U; plane_idx < realm_num_planes(rd); plane_idx++) {
+		/*
+		 * As the mapping between plane ID and S2 context ID is not
+		 * 1:1, map the corresponding Plane VMID to its S2 context.
+		 */
+		struct s2tt_context *s2tt_ctx =
+					plane_to_s2_context(rd, plane_idx);
+
+		s2tt_ctx->vmid = vmid[plane_idx];
+	}
+
+	(void)memcpy(&rd->rpv[0], &p.rpv[0], RPV_SIZE);
 
 	rd->num_rec_aux = MAX_REC_AUX_GRANULES;
 
@@ -457,7 +681,11 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	rd->pmu_enabled = EXTRACT(RMI_REALM_FLAGS0_PMU, p.flags0) != 0UL;
 	rd->pmu_num_ctrs = p.pmu_num_ctrs;
 
-	init_s2_starting_level(rd);
+	init_overlay_permissions(rd);
+
+	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {
+		init_s2_starting_level(rd, i);
+	}
 
 	measurement_realm_params_measure(rd->measurement[RIM_MEASUREMENT_SLOT],
 					 rd->algorithm,
@@ -465,12 +693,6 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	buffer_unmap(rd);
 
 	granule_unlock_transition(g_rd, GRANULE_STATE_RD);
-
-	for (unsigned int i = 0U; i < p.rtt_num_start; i++) {
-		granule_unlock_transition(
-			(struct granule *)((uintptr_t)g_rtt_base +
-			(i * sizeof(struct granule))), GRANULE_STATE_RTT);
-	}
 
 	return RMI_SUCCESS;
 }
@@ -519,25 +741,38 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
-	g_rtt = rd->s2_ctx.g_rtt;
-	num_rtts = rd->s2_ctx.num_root_rtts;
+	num_rtts = plane_to_s2_context(rd, PLANE_0_ID)->num_root_rtts;
 
-	/* Check if granules are unused */
-	if (total_root_rtt_refcount(g_rtt, num_rtts) != 0UL) {
-		buffer_unmap(rd);
-		granule_unlock(g_rd);
-		return RMI_ERROR_REALM;
+	/* Check that root tables from all RTT trees don't hold any references */
+	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {
+		struct s2tt_context *s2tt_ctx = &rd->s2_ctx[i];
+
+		g_rtt = s2tt_ctx->g_rtt;
+
+		if (total_root_rtt_refcount(g_rtt, num_rtts) != 0UL) {
+			buffer_unmap(rd);
+			granule_unlock(g_rd);
+			return RMI_ERROR_REALM;
+		}
+	}
+
+	/* Free root tables in all RTT trees */
+	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {
+		struct s2tt_context *s2tt_ctx = &rd->s2_ctx[i];
+
+		g_rtt = s2tt_ctx->g_rtt;
+		free_sl_rtts(g_rtt, num_rtts);
 	}
 
 	/*
 	 * All the mappings in the Realm have been removed and the TLB caches
 	 * are invalidated. Therefore, there are no TLB entries tagged with
 	 * this Realm's VMID (in this security state).
-	 * Just release the VMID value so it can be used in another Realm.
+	 * Just release the VMIDs value so they can be used in another Realm.
 	 */
-	vmid_free(rd->s2_ctx.vmid);
-
-	free_sl_rtts(g_rtt, num_rtts);
+	for (unsigned int i = 0U; i < realm_num_s2_contexts(rd); i++) {
+		vmid_free(rd->s2_ctx[i].vmid);
+	}
 
 	buffer_unmap(rd);
 

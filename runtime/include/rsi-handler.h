@@ -27,6 +27,11 @@ struct rmi_rec_exit;
  */
 #define FLAG_STAGE_2_ABORT	4U
 
+/*
+ * If set, handler has changed the active Plane.
+ */
+#define FLAG_PLANE_CHANGED	8U
+
 enum rsi_action {
 	/*
 	 * Update REC registers to values provided by the handler,
@@ -53,7 +58,13 @@ enum rsi_action {
 	 * encountered by the handler.
 	 */
 	STAGE_2_TRANSLATION_FAULT	= FLAG_EXIT_TO_HOST |
-					  FLAG_STAGE_2_ABORT
+					  FLAG_STAGE_2_ABORT,
+
+	/*
+	 * Active Plane in Realm changed and the new Plane GPRS have been
+	 * programmed by the handler.
+	 */
+	PLANE_CHANGED_RETURN_TO_REALM	= FLAG_PLANE_CHANGED
 };
 
 /*
@@ -94,5 +105,13 @@ void handle_rsi_attest_token_continue(struct rec *rec,
 				      struct rsi_result *res);
 void handle_psci(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		 struct rsi_result *res);
+void handle_rsi_mem_get_perm_value(struct rec *rec, struct rsi_result *res);
+void handle_rsi_mem_set_perm_value(struct rec *rec, struct rsi_result *res);
+void handle_rsi_mem_set_perm_index(struct rec *rec,
+				   struct rmi_rec_exit *rec_exit,
+				   struct rsi_result *res);
+void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res);
+void handle_rsi_plane_sysreg_read(struct rec *rec, struct rsi_result *res);
+void handle_rsi_plane_sysreg_write(struct rec *rec, struct rsi_result *res);
 
 #endif /* RSI_HANDLER_H */
