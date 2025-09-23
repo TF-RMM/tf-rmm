@@ -103,4 +103,9 @@ unsigned long host_gtsi_delegate(unsigned long addr);
  */
 unsigned long host_gtsi_undelegate(unsigned long addr);
 
+/*
+ * Fake host wrapper to return the buffer slot corresponding to a VA.
+ */
+unsigned int host_buffer_arch_va_to_slot(void *addr);
+
 #endif /* HOST_HARNESS_H */

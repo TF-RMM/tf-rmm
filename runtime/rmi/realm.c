@@ -10,6 +10,7 @@
 #include <feature.h>
 #include <granule.h>
 #include <measurement.h>
+#include <mec.h>
 #include <realm.h>
 #include <s2tt.h>
 #include <s2tt_ap.h>
@@ -204,7 +205,8 @@ static void init_s2_starting_level(struct rd *rd, unsigned int rtt_index)
 
 	num_root_rtts = s2tt_ctx->num_root_rtts;
 	for (unsigned int rtt = 0U; rtt < num_root_rtts; rtt++) {
-		unsigned long *s2tt = buffer_granule_map_zeroed(g_rtt, SLOT_RTT);
+		unsigned long *s2tt = buffer_granule_mecid_map_zeroed(g_rtt, SLOT_RTT,
+						s2tt_ctx->mecid);
 
 		assert(s2tt != NULL);
 
@@ -424,6 +426,10 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 	default:
 		return false;
 	}
+	/* Check MECID and reserve if allowed */
+	if (!mecid_reserve((unsigned int)p->mecid)) {
+		return false;
+	}
 
 	*n_vmids = p->num_aux_planes + 1U;
 	vmid[0] = p->vmid;
@@ -438,6 +444,7 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 		if (!vmid_reserve(vmid[i])) {
 			/* Free reserved VMID before returning */
 			free_vmids(vmid, i);
+			mecid_free((unsigned int)p->mecid);
 			return false;
 		}
 	}
@@ -600,6 +607,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	 */
 	if (!transition_sl_rtts(rtt_base, p.rtt_num_start, n_rtts)) {
 		free_vmids(vmid, n_vmids);
+		mecid_free((unsigned int)p.mecid);
 		return RMI_ERROR_INPUT;
 	}
 
@@ -612,6 +620,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	if (g_rd == NULL) {
 		revert_sl_rtts(rtt_base, p.rtt_num_start, n_rtts);
 		free_vmids(vmid, n_vmids);
+		mecid_free((unsigned int)p.mecid);
 		return RMI_ERROR_INPUT;
 	}
 
@@ -646,6 +655,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 		s2tt_ctx->num_root_rtts = p.rtt_num_start;
 		s2tt_ctx->enable_lpa2 = is_lpa2_requested(&p);
 		s2tt_ctx->indirect_s2ap = rd->rtt_s2ap_encoding;
+		s2tt_ctx->mecid = (unsigned int)p.mecid;
 	}
 
 	for (unsigned int plane_idx = 0U; plane_idx < realm_num_planes(rd); plane_idx++) {
@@ -719,7 +729,7 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	struct granule *g_rd;
 	struct granule *g_rtt;
 	struct rd *rd;
-	unsigned int num_rtts;
+	unsigned int num_rtts, mecid;
 	int res;
 
 	/* RD should not be destroyed if refcount != 0. */
@@ -738,6 +748,7 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	assert(rd != NULL);
 
 	num_rtts = plane_to_s2_context(rd, PLANE_0_ID)->num_root_rtts;
+	mecid = plane_to_s2_context(rd, PLANE_0_ID)->mecid;
 
 	/* Check that root tables from all RTT trees don't hold any references */
 	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {
@@ -778,5 +789,39 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	 */
 	granule_unlock_transition_to_delegated(g_rd);
 
+	/*
+	 * Note that there are no active S1 nor S2 mappings
+	 * using the Realm MECID and DCCIPoE is completed at this point.
+	 */
+	mecid_free(mecid);
+
 	return RMI_SUCCESS;
+}
+
+unsigned long smc_mec_set_shared(unsigned long mecid)
+{
+#ifndef RMM_V1_1
+	(void)mecid;
+	return SMC_NOT_SUPPORTED;
+#else
+	if (mec_set_shared((unsigned int)mecid) != 0) {
+		return RMI_ERROR_INPUT;
+	}
+
+	return RMI_SUCCESS;
+#endif
+}
+
+unsigned long smc_mec_set_private(unsigned long mecid)
+{
+#ifndef RMM_V1_1
+	(void)mecid;
+	return SMC_NOT_SUPPORTED;
+#else
+	if (mec_set_private((unsigned int)mecid) != 0) {
+		return RMI_ERROR_INPUT;
+	}
+
+	return RMI_SUCCESS;
+#endif
 }

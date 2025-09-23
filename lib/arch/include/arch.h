@@ -158,6 +158,10 @@
 #define TCR_TxSZ_MIN_LPA2	UL(12)
 #define TCR_TxSZ_MAX		UL(48)
 
+/* TCR2_EL2 definitions (EL2) */
+#define TCR2_EL2		S3_4_C2_C0_3
+#define TCR2_EL2_AMEC1		(UL(1) << 13)
+
 /* HCR definitions */
 #define HCR_FWB		(UL(1) << 46)
 #define HCR_TEA		(UL(1) << 37)
@@ -1186,6 +1190,9 @@
 				 SCTLR_ELx_M_BIT	/* MMU enabled */)
 
 /* SCTLR2_ELx Register definitions */
+#define SCTLR2_EL2			S3_4_C1_C0_3
+
+#define SCTLR2_ELx_EMEC_BIT		(UL(1) << 1)
 #define SCTLR2_ELx_NMEA_BIT		(UL(1) << 2)
 #define SCTLR2_ELx_EnADERR_BIT		(UL(1) << 3)
 #define SCTLR2_ELx_EnANERR_BIT		(UL(1) << 4)
@@ -1503,6 +1510,23 @@
  ******************************************************************************/
 #define ID_GCSCR_EL12			S3_5_C2_C5_0
 #define GCSCR_EXLOCK_EN_BIT		(UL(1) << 6)
+
+/*******************************************************************************
+ * FEAT_MEC Registers
+ ******************************************************************************/
+/* MECIDR_EL2 register definitions */
+#define MECIDR_EL2			S3_4_C10_C8_7
+#define MECIDR_MECIDWIDTHM1_SHIFT	UL(0)
+#define MECIDR_MECIDWIDTHM1_WIDTH	UL(4)
+
+#define MECID_P0_EL2			S3_4_C10_C8_0
+#define MECID_A0_EL2			S3_4_C10_C8_1
+
+#define MECID_P1_EL2			S3_4_C10_C8_2
+#define MECID_A1_EL2			S3_4_C10_C8_3
+
+#define VMECID_P_EL2			S3_4_C10_C9_0
+#define VMECID_A_EL2			S3_4_C10_C9_1
 
 /*******************************************************************************
  * Define macros to generate system register IDs to use with msr/mrs

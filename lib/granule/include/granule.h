@@ -204,8 +204,8 @@ static inline void granule_unlock_transition(struct granule *g,
 					     unsigned char new_state)
 {
 	/*
-	 * Restrict this function to non-delegated states. The only
-	 * exception is when transitioning from NS to delegated state.
+	 * Restrict this function for transitions to non-delegated states.
+	 * The only exception is when transitioning from NS to delegated state.
 	 */
 	assert((new_state != GRANULE_STATE_DELEGATED) ||
 		(granule_get_state(g) == GRANULE_STATE_NS));
@@ -229,6 +229,9 @@ bool find_lock_two_granules(unsigned long addr1,
 
 void granule_memzero_mapped(void *buf);
 void granule_dcci_poe(struct granule *g);
+
+void granule_sanitize_mapped(void *buf);
+void granule_sanitize_1_mapped(void *buf);
 
 /*
  * Helper to transition a granule to DELEGATED state. This function

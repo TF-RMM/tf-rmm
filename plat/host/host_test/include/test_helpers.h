@@ -40,6 +40,7 @@ enum cb_ids {
 	CB_ID0 = 0,
 	CB_BUFFER_MAP = CB_ID0,
 	CB_BUFFER_UNMAP,
+	CB_BUFFER_VA_TO_SLOT,
 	CB_IDS
 };
 
@@ -70,9 +71,17 @@ typedef void *(*cb_buffer_map)(unsigned int slot, unsigned long addr);
  */
 typedef void (*cb_buffer_unmap)(void *buf);
 
+/*
+ * Callback ID: CB_BUFFER_VA_TO_SLOT
+ *
+ * Convert a Slot VA to the corresponding Slot enum.
+ */
+typedef unsigned int (*cb_buffer_va_to_slot)(void *buf);
+
 union test_harness_cbs {
 	cb_buffer_map buffer_map;
 	cb_buffer_unmap buffer_unmap;
+	cb_buffer_va_to_slot buffer_va_to_slot;
 };
 
 /*

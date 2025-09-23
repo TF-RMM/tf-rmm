@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <feature.h>
 #include <gic.h>
+#include <mec.h>
 #include <s2tt.h>
 #include <simd.h>
 #include <smc-handler.h>
@@ -113,6 +114,16 @@ unsigned long get_feature_register_0(void)
 	return feat_reg0;
 }
 
+static unsigned long get_feature_register_1(void)
+{
+	unsigned long feat_reg1;
+
+	/* Set support for Number of MEC */
+	feat_reg1 = INPLACE(RMI_FEATURE_REGISTER_1_MAX_MECID, mecid_max());
+
+	return feat_reg1;
+}
+
 void smc_read_feature_register(unsigned long index,
 				struct smc_result *res)
 {
@@ -120,6 +131,8 @@ void smc_read_feature_register(unsigned long index,
 
 	if (index == RMI_FEATURE_REGISTER_0_INDEX) {
 		res->x[1] = get_feature_register_0();
+	} else if (index == RMI_FEATURE_REGISTER_1_INDEX) {
+		res->x[1] = get_feature_register_1();
 	} else {
 		res->x[1] = 0UL;
 	}

@@ -35,6 +35,24 @@ void host_buffer_arch_unmap(void *buf)
 	}
 }
 
+/*
+ * Harness corresponding to CB_BUFFER_VA_TO_SLOT.
+ * This harness searches for a valid pointer to CB_BUFFER_VA_TO_SLOT and calls it.
+ * If there is no valid pointer, the default behavior is to return 0.
+ */
+unsigned int host_buffer_arch_va_to_slot(void *buf)
+{
+	cb_buffer_va_to_slot cb =
+		(cb_buffer_va_to_slot)get_cb(CB_BUFFER_VA_TO_SLOT);
+
+	if (cb != NULL) {
+		return cb(buf);
+	}
+
+	return 0U;
+}
+
+
 unsigned long host_gtsi_delegate(unsigned long addr)
 {
 	(void)addr;

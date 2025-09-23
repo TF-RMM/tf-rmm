@@ -234,12 +234,12 @@ static unsigned long rtt_create(unsigned long rd_addr,
 		goto out_unlock_llt;
 	}
 
-	parent_s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	parent_s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(parent_s2tt != NULL);
 
 	parent_s2tte = s2tte_read(&parent_s2tt[wi.index]);
 	/* No need to memzero as the table creation does not rely on this */
-	s2tt = buffer_granule_map(g_tbl, SLOT_RTT2);
+	s2tt = buffer_granule_mecid_map(g_tbl, SLOT_RTT2, s2_ctx->mecid);
 	assert(s2tt != NULL);
 
 	if (s2tte_is_unassigned_empty(s2_ctx, parent_s2tte)) {
@@ -505,7 +505,7 @@ static bool ipa_is_aux_ref(struct rd *rd, unsigned long ipa)
 
 		s2tt_walk_lock_unlock(aux_ctx, ipa,
 				      aux_ctx->s2_starting_level, &aux_walk);
-		aux_s2tt = buffer_granule_map(aux_walk.g_llt, SLOT_RTT);
+		aux_s2tt = buffer_granule_mecid_map(aux_walk.g_llt, SLOT_RTT2, aux_ctx->mecid);
 
 		assert(aux_s2tt != NULL);
 
@@ -583,7 +583,7 @@ static void rtt_fold(unsigned long rd_addr,
 		goto out_unlock_parent_table;
 	}
 
-	parent_s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT2);
+	parent_s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(parent_s2tt != NULL);
 
 	parent_s2tte = s2tte_read(&parent_s2tt[wi.index]);
@@ -614,7 +614,7 @@ static void rtt_fold(unsigned long rd_addr,
 	 */
 	assert(g_tbl != NULL);
 
-	table = buffer_granule_map(g_tbl, SLOT_RTT);
+	table = buffer_granule_mecid_map(g_tbl, SLOT_RTT2, s2_ctx->mecid);
 	assert(table != NULL);
 
 	s2tte = s2tte_read(&table[0U]);
@@ -768,6 +768,7 @@ static void rtt_fold(unsigned long rd_addr,
 	}
 
 	s2tte_write(&parent_s2tt[wi.index], parent_s2tte);
+
 	buffer_unmap(table);
 	granule_unlock_transition_to_delegated(g_tbl);
 	goto out_unmap_parent_table;
@@ -859,7 +860,7 @@ static void rtt_destroy(unsigned long rd_addr,
 
 	s2tt_walk_lock_unlock(s2_ctx, map_addr, level - 1L, &wi);
 
-	parent_s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT2);
+	parent_s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(parent_s2tt != NULL);
 
 	parent_s2tte = s2tte_read(&parent_s2tt[wi.index]);
@@ -1063,7 +1064,7 @@ static void map_unmap_ns(unsigned long rd_addr,
 		goto out_unlock_llt;
 	}
 
-	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(s2tt != NULL);
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
@@ -1185,7 +1186,7 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 	granule_unlock(g_rd);
 
 	s2tt_walk_lock_unlock(&s2_ctx, map_addr, level, &wi);
-	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx.mecid);
 	assert(s2tt != NULL);
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
@@ -1336,7 +1337,7 @@ static unsigned long data_create(unsigned long rd_addr,
 		goto out_unlock_ll_table;
 	}
 
-	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(s2tt != NULL);
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
@@ -1348,7 +1349,7 @@ static unsigned long data_create(unsigned long rd_addr,
 
 	if (g_src != NULL) {
 		bool ns_access_ok;
-		void *data = buffer_granule_map(g_data, SLOT_REALM);
+		void *data = buffer_granule_mecid_map(g_data, SLOT_REALM, s2_ctx->mecid);
 
 		assert(data != NULL);
 
@@ -1372,7 +1373,7 @@ static unsigned long data_create(unsigned long rd_addr,
 						  S2TT_PAGE_LEVEL, s2tte);
 	} else {
 		/* Map, zero initialize and unmap the data granule */
-		void *data = buffer_granule_map_zeroed(g_data, SLOT_REALM);
+		void *data = buffer_granule_mecid_map_zeroed(g_data, SLOT_REALM, s2_ctx->mecid);
 
 		buffer_unmap(data);
 		s2tte = s2tte_create_assigned_unchanged(s2_ctx, s2tte,
@@ -1466,7 +1467,7 @@ void smc_data_destroy(unsigned long rd_addr,
 	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
 
 	s2tt_walk_lock_unlock(s2_ctx, map_addr, S2TT_PAGE_LEVEL, &wi);
-	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(s2tt != NULL);
 
 	if (wi.last_level != S2TT_PAGE_LEVEL) {
@@ -1682,7 +1683,7 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 
 	s2tt_walk_lock_unlock(s2_ctx, base, S2TT_PAGE_LEVEL, &wi);
 	level = wi.last_level;
-	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(s2tt != NULL);
 
 	map_size = s2tte_map_size(level);
@@ -1959,7 +1960,7 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 		goto out_unlock_llt;
 	}
 
-	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(s2tt != NULL);
 
 	rtt_set_ripas_range(s2_ctx, s2tt, base, top, &wi,
@@ -2057,7 +2058,7 @@ unsigned long smc_dev_mem_map(unsigned long rd_addr,
 		goto out_unlock_ll_table;
 	}
 
-	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx.mecid);
 	assert(s2tt != NULL);
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
@@ -2137,7 +2138,7 @@ void smc_dev_mem_unmap(unsigned long rd_addr,
 	granule_unlock(g_rd);
 
 	s2tt_walk_lock_unlock(&s2_ctx, map_addr, level, &wi);
-	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx.mecid);
 	assert(s2tt != NULL);
 
 	if (wi.last_level != level) {
@@ -2281,7 +2282,7 @@ void smc_rtt_set_s2ap(unsigned long rd_addr, unsigned long rec_addr,
 	}
 
 	map_size = s2tte_map_size(wi.last_level);
-	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(s2tt != NULL);
 
 	/*
@@ -2438,7 +2439,7 @@ void smc_rtt_aux_map_protected(unsigned long rd_addr,
 	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
 
 	s2tt_walk_lock_unlock(s2_ctx, map_addr, S2TT_PAGE_LEVEL, &wi);
-	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(s2tt != NULL);
 
 	primary_s2tte = s2tte_read(&s2tt[wi.index]);
@@ -2482,7 +2483,7 @@ void smc_rtt_aux_map_protected(unsigned long rd_addr,
 	granule_lock(aux_s2_ctx->g_rtt, GRANULE_STATE_RTT);
 
 	s2tt_walk_lock_unlock(aux_s2_ctx, map_addr, S2TT_PAGE_LEVEL, &wi);
-	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, aux_s2_ctx->mecid);
 	assert(s2tt != NULL);
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
@@ -2626,7 +2627,7 @@ void smc_rtt_aux_map_unprotected(unsigned long rd_addr,
 	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
 
 	s2tt_walk_lock_unlock(s2_ctx, map_addr, start_level, &pri_walk);
-	pri_s2tt = buffer_granule_map(pri_walk.g_llt, SLOT_RTT);
+	pri_s2tt = buffer_granule_mecid_map(pri_walk.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(pri_s2tt != NULL);
 
 	pri_s2tte = s2tte_read(&pri_s2tt[pri_walk.index]);
@@ -2650,7 +2651,7 @@ void smc_rtt_aux_map_unprotected(unsigned long rd_addr,
 	/* The auxiliary walk should have stopped at root level */
 	assert(aux_walk.last_level == start_level);
 
-	aux_s2tt = buffer_granule_map(aux_walk.g_llt, SLOT_RTT);
+	aux_s2tt = buffer_granule_mecid_map(aux_walk.g_llt, SLOT_RTT, aux_s2_ctx->mecid);
 	assert(aux_s2tt != NULL);
 
 	aux_s2tte = s2tte_read(&aux_s2tt[aux_walk.index]);
@@ -2728,7 +2729,7 @@ void smc_rtt_aux_unmap_protected(unsigned long rd_addr,
 	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
 
 	s2tt_walk_lock_unlock(s2_ctx, unmap_addr, S2TT_PAGE_LEVEL, &wi);
-	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(s2tt != NULL);
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
@@ -2856,7 +2857,7 @@ void smc_rtt_aux_unmap_unprotected(unsigned long rd_addr,
 	 * level as this API also handles concatenated starting level tables.
 	 */
 	s2tt_walk_lock_unlock(s2_ctx, unmap_addr, start_level, &wi);
-	s2tt = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(s2tt != NULL);
 
 	s2tte = s2tte_read(&s2tt[wi.index]);

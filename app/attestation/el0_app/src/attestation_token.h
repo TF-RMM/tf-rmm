@@ -148,6 +148,7 @@ attest_app_cca_token_create(struct token_sign_cntxt *me,
  * num_measurements	- Number of measurements to add to the token.
  * rpv_buf              - Pointer to the Realm Personalization value
  * rpv_len              - Length of the Realm Personalization value
+ * is_pvt_mecid		- The Realm MEC policy, private or shared
  * ctx			- Token sign context, used for signing.
  * realm_token_buf	- Buffer where to assemble the attestation token.
  * realm_token_buf_size - size of the buffer where to assemble the attestation
@@ -161,6 +162,7 @@ int attest_app_realm_token_create(enum hash_algo algorithm,
 			     unsigned int num_measurements,
 			     const void *rpv_buf,
 			     size_t rpv_len,
+			     bool is_pvt_mecid,
 			     const void *challenge_buf,
 			     size_t challenge_len,
 			     struct token_sign_cntxt *ctx,

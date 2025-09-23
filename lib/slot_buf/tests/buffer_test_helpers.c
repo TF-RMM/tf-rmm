@@ -66,6 +66,9 @@ void *buffer_test_cb_map_access(unsigned int slot, unsigned long addr)
 	return (void *)buffer_test_helpers_slot_to_pa((enum buffer_slot)slot);
 }
 
+/* Global variable to pass slot info from unmap to va_to_slot harness */
+static uintptr_t test_slot_va;
+
 /*
  * Callback to mock aarch64 based slot buffer ummapping to the buffer tests.
  * The function receives a `buf` pointer mapped using
@@ -80,7 +83,28 @@ void buffer_test_cb_unmap_access(void *buf)
 
 	assert(slot_va != NULL);
 
+	/* Write the slot va for the va_to_slot cb to use */
+	test_slot_va = (uintptr_t)slot_va;
+
 	buffer_unmap_internal(slot_va);
+}
+
+/*
+ * Callback to mock VA to slot for buffer tests.
+ * The function receives a `buf` pointer mapped using
+ * buffer_test_cb_map_access(). It needs to find the VA as per aarch64
+ * VMSA based slot buffer and then uses the standard va_to_slot_internal()
+ * helper.
+ */
+unsigned int buffer_test_cb_va_to_slot_access(void *buf)
+{
+	void *slot_va = (void *)test_slot_va;
+
+	(void) buf;
+
+	assert(slot_va != NULL);
+
+	return (unsigned int)va_to_slot_internal(slot_va);
 }
 
 /*
@@ -100,4 +124,13 @@ void *buffer_test_cb_map_aarch64_vmsa(unsigned int slot, unsigned long addr)
 void buffer_test_cb_unmap_aarch64_vmsa(void *buf)
 {
 	buffer_unmap_internal(buf);
+}
+
+/*
+ * Callback to convert VA to slot, given a VA mapped to a slot as per aarch64
+ * vmsa via buffer_test_cb_map_aarch64_vmsa() callback.
+ */
+unsigned int buffer_test_cb_va_to_slot_aarch64_vmsa(void *buf)
+{
+	return (unsigned int)va_to_slot_internal(buf);
 }

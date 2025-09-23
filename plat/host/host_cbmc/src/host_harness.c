@@ -37,3 +37,10 @@ unsigned long host_gtsi_undelegate(unsigned long addr)
 	set_granule_gpt(addr, GPT_NS);
 	return 0UL;
 }
+
+unsigned int host_buffer_arch_va_to_slot(void *addr)
+{
+	(void)addr;
+	/* Return the first slot */
+	return 0U;
+}

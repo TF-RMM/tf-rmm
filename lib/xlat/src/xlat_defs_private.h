@@ -35,6 +35,7 @@
 #define DESC_MASK		UL(0x3)
 
 /* Upper attributes on a TTE */
+#define AMEC			(ULL(1) << 13) /* Enable Alternate MECID */
 #define XN			(ULL(1) << 4)
 #define UXN			(ULL(1) << 4)
 #define PXN			(ULL(1) << 3)
@@ -43,7 +44,7 @@
 #define GP			(ULL(1) << 0)
 
 #define UPPER_ATTRS_SHIFT	(50U)
-#define UPPER_ATTRS_WIDTH	(5U)
+#define UPPER_ATTRS_WIDTH	(14U)
 #define UPPER_ATTRS_MASK	MASK(UPPER_ATTRS)
 #define UPPER_ATTRS(x)		(INPLACE(UPPER_ATTRS, x) & (UPPER_ATTRS_MASK))
 

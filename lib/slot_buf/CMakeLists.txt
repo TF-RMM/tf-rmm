@@ -9,6 +9,7 @@ target_link_libraries(rmm-lib-slot_buf
     PRIVATE rmm-lib-arch
             rmm-lib-common
             rmm-lib-debug
+            rmm-lib-mec
             rmm-lib-xlat)
 
 target_link_libraries(rmm-lib-slot_buf

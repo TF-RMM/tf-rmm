@@ -165,7 +165,8 @@ func rmm_entry
 	 * xlat tables.
 	 */
 	bl	plat_setup
-
+	/* Initialize MEC before MMU is enabled */
+	bl	mec_init_mmu
 	bl	xlat_enable_mmu_el2
 	bl	pauth_init_enable_el2
 
@@ -194,6 +195,8 @@ skip_to_warmboot:
 	 * Carry on with the rest of the RMM warmboot path
 	 */
 	bl	plat_warmboot_setup
+	/* Initialize MEC before MMU is enabled */
+	bl	mec_init_mmu
 	bl	xlat_enable_mmu_el2
 	bl	pauth_init_enable_el2
 

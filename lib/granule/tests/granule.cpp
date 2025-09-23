@@ -128,6 +128,7 @@ TEST_GROUP(granule) {
 		 */
 		(void)test_helpers_unregister_cb(CB_BUFFER_MAP);
 		(void)test_helpers_unregister_cb(CB_BUFFER_UNMAP);
+		(void)test_helpers_unregister_cb(CB_BUFFER_VA_TO_SLOT);
 	}
 };
 

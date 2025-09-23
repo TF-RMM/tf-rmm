@@ -21,7 +21,6 @@ enum buffer_slot {
 	/*
 	 * RMM-private.
 	 */
-	SLOT_DELEGATED,
 	SLOT_RD,
 	SLOT_REC,
 	SLOT_REC2,		/* Some commands access two REC granules at a time*/
@@ -71,6 +70,8 @@ static inline enum buffer_slot safe_cast_to_slot(enum buffer_slot slot, unsigned
 
 bool check_cpu_slots_empty(void);
 void *buffer_granule_map(struct granule *g, enum buffer_slot slot);
+void *buffer_granule_mecid_map(struct granule *g, enum buffer_slot slot,
+			unsigned int mecid);
 void buffer_unmap(void *buf);
 
 bool ns_buffer_read(enum buffer_slot slot,
@@ -125,11 +126,6 @@ void *buffer_rec_aux_granules_map_el3_token_sign_slot(
 void buffer_rec_aux_unmap(void *rec_aux, unsigned int num_aux);
 
 /*
- * Map the granule 'g' to 'slot', zeroes its content and unmaps it.
- */
-void buffer_granule_memzero(struct granule *g, enum buffer_slot slot);
-
-/*
  * Maps the `num_aux` granules at 'g_pdev_aux' to buffer slot starting
  * SLOT_PDEV_AUX0.
  */
@@ -146,9 +142,26 @@ void *buffer_pdev_aux_granules_map_zeroed(struct granule *g_pdev_aux[],
 /* Unmaps the `num_aux` granules from slot starting SLOT_PDEV_AUX0 */
 void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux);
 
+/* Sanitizes the granule based on the sanitize policy configured */
+void buffer_granule_sanitize(struct granule *g);
+
+/* Whether the Slot correspnds to one that is mapped using Realm MECID */
+static inline bool is_realm_mecid_slot(enum buffer_slot slot)
+{
+	return ((slot == SLOT_REALM) || (slot == SLOT_RTT) || (slot == SLOT_RTT2));
+}
+
 static inline void *buffer_granule_map_zeroed(struct granule *g, enum buffer_slot slot)
 {
 	void *buf = buffer_granule_map(g, slot);
+	granule_memzero_mapped(buf);
+	return buf;
+}
+
+static inline void *buffer_granule_mecid_map_zeroed(struct granule *g,
+			enum buffer_slot slot, unsigned int mecid)
+{
+	void *buf = buffer_granule_mecid_map(g, slot, mecid);
 	granule_memzero_mapped(buf);
 	return buf;
 }
@@ -170,5 +183,10 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr);
  * Unmaps the slot buffer corresponding to the VA passed via `buf` argument.
  */
 void buffer_unmap_internal(void *buf);
+
+/*
+ * Returns the slot corresponding to a given VA.
+ */
+enum buffer_slot va_to_slot_internal(void *buf);
 
 #endif /* BUFFER_H */

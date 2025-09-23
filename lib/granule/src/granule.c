@@ -7,7 +7,9 @@
 #include <arch_helpers.h>
 #include <assert.h>
 #include <debug.h>
+#include <entropy.h>
 #include <granule.h>
+#include <memory.h>
 #include <platform_api.h>
 #include <stddef.h>
 #include <utils_def.h>
@@ -260,6 +262,47 @@ void granule_memzero_mapped(void *buf)
 	}
 
 	dsb(ish);
+}
+
+/*
+ * For this sanitize method, we write a sequence of incrementing numbers to
+ * the target granule, starting from a randomly chosen global seed. After the
+ * operation, the global seed is incremented by the total number of values
+ * written. Concurrency or atomicity of the global seed's read/update is not
+ * a concern, as we do not require other CPUs to observe a consistent value
+ * — any global seed value as a starting point is sufficient for scrubbing
+ * purposes.
+ */
+
+# define WORDS_PER_PAGE (GRANULE_SIZE / sizeof(uint64_t))
+
+void granule_sanitize_1_mapped(void *buf)
+{
+	static uint64_t global_scrub_seed;
+	uint64_t *p = (uint64_t *)buf;
+
+	/* cppcheck-suppress misra-c2012-17.3 */
+	if (SCA_READ64(&global_scrub_seed) == 0UL) {
+		/*
+		 * Initialize the seed with a random value if not initialized
+		 * or the value is 0.
+		 */
+		while (!(arch_collect_entropy(&global_scrub_seed))) {
+		}
+	}
+
+	uint64_t local_seed = atomic_load_add_64(&global_scrub_seed, WORDS_PER_PAGE);
+
+	for (size_t i = 0; i < WORDS_PER_PAGE; i++) {
+		p[i] = local_seed;
+		local_seed++;
+	}
+}
+
+void granule_sanitize_mapped(void *buf)
+{
+	/* Zero the buffer */
+	granule_memzero_mapped(buf);
 }
 
 void granule_dcci_poe(struct granule *g)

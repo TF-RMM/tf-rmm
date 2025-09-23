@@ -19,4 +19,9 @@ static void buffer_arch_unmap(void *buf)
 	return host_buffer_arch_unmap(buf);
 }
 
+enum buffer_slot va_to_slot_arch(void *buf)
+{
+	return host_buffer_arch_va_to_slot(buf);
+}
+
 #endif /* SLOT_BUF_ARCH_H */

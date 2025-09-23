@@ -76,6 +76,12 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 					ID_AA64MMFR0_EL1_TGRAN4_2_TGRAN4));
 
 	/*
+	 * Initialize ID_AA64MMFR3_EL1 for FEAT_MEC support
+	 */
+	(void)host_util_set_default_sysreg_cb("id_aa64mmfr3_el1",
+				INPLACE(ID_AA64MMFR3_EL1_MEC, 1UL));
+
+	/*
 	 * Initialize ICH_VTR_EL2 with 6 preemption bits.
 	 * (PREbits is equal number of preemption bits minus one)
 	 */
@@ -121,7 +127,15 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 			INPLACE(DCZID_EL0_BS, 5UL));
 
 	/* Set ISR_EL1 to 0 */
-	ret = host_util_set_default_sysreg_cb("isr_el1", 0UL);
+	(void)host_util_set_default_sysreg_cb("isr_el1", 0UL);
+
+	/* Set MECID registers to 0 */
+	(void)host_util_set_default_sysreg_cb("mecid_p0_el2", 0UL);
+	(void)host_util_set_default_sysreg_cb("mecid_p1_el2", 0UL);
+	(void)host_util_set_default_sysreg_cb("mecid_a0_el2", 0UL);
+	(void)host_util_set_default_sysreg_cb("mecid_a1_el2", 0UL);
+	(void)host_util_set_default_sysreg_cb("vmecid_p_el2", 0UL);
+	ret = host_util_set_default_sysreg_cb("vmecid_a_el2", 0UL);
 
 	/*
 	 * Only check the return value of the last callback setup, to detect

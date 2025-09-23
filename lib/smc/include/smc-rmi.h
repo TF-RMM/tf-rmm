@@ -200,6 +200,10 @@
 #define RMI_FEATURE_REGISTER_0_RTT_S2AP_INDIRECT_SHIFT	UL(49)
 #define RMI_FEATURE_REGISTER_0_RTT_S2AP_INDIRECT_WIDTH	UL(1)
 
+#define RMI_FEATURE_REGISTER_1_INDEX			UL(1)
+#define RMI_FEATURE_REGISTER_1_MAX_MECID_SHIFT		UL(0)
+#define RMI_FEATURE_REGISTER_1_MAX_MECID_WIDTH		UL(64)
+
 /* The RmiRipas enumeration represents realm IPA state */
 
 /* Address where no Realm resources are mapped */

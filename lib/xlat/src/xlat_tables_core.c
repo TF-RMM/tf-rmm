@@ -413,6 +413,11 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, int level)
 		desc |= XLAT_GET_AP_ACCESS_UNPRIV_DESC();
 	}
 
+	/* Setup upper attribute to access using Alternative MECID if specified */
+	if ((attr & MT_AP_AMEC) != 0UL) {
+		desc = desc | XLAT_GET_AMEC_DESC();
+	}
+
 	/*
 	 * Deduce shareability domain and executability of the memory region
 	 * from the memory type of the attributes (MT_TYPE).

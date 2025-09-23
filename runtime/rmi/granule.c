@@ -8,6 +8,7 @@
 #include <debug.h>
 #include <dev_granule.h>
 #include <granule.h>
+#include <mec.h>
 #include <rmm_el3_ifc.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
@@ -132,7 +133,9 @@ unsigned long smc_granule_undelegate(unsigned long addr)
 		}
 
 		/* Scrub any Realm world data before returning granule to NS */
-		buffer_granule_memzero(g, SLOT_DELEGATED);
+		buffer_granule_sanitize(g);
+
+		/* DCCI PoPA as part of undelegate in EL3 will flush to PoE */
 
 		/*
 		 * A delegated memory granule should only be undelegated on request from RMM.

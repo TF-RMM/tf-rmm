@@ -54,7 +54,7 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 
 	s2tt_walk_lock_unlock(s2_ctx, ipa, S2TT_PAGE_LEVEL, &wi);
 
-	ll_table = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	ll_table = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(ll_table != NULL);
 
 	s2tte = s2tte_read(&ll_table[wi.index]);
@@ -127,7 +127,7 @@ enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long start,
 
 	s2tt_walk_lock_unlock(s2_ctx, start, S2TT_PAGE_LEVEL, &wi);
 
-	ll_table = buffer_granule_map(wi.g_llt, SLOT_RTT);
+	ll_table = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(ll_table != NULL);
 
 	map_size = s2tte_map_size((int)wi.last_level);

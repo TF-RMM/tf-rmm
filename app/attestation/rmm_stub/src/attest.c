@@ -266,6 +266,7 @@ enum attest_token_err_t attest_token_sign_ctx_init(struct app_data_cfg *app_data
 enum attest_token_err_t attest_realm_token_create(struct app_data_cfg *app_data,
 			     enum hash_algo algorithm,
 			     unsigned char measurements[][MAX_MEASUREMENT_SIZE],
+			     bool is_pvt_mecid,
 			     const void *rpv_buf,
 			     const void *challenge_buf)
 {
@@ -284,6 +285,7 @@ enum attest_token_err_t attest_realm_token_create(struct app_data_cfg *app_data,
 	(void)memcpy((void *)&(shared_page->challenge),
 	       challenge_buf,
 	       ATTEST_CHALLENGE_SIZE);
+	shared_page->is_pvt_mecid = is_pvt_mecid;
 	ret = (enum attest_token_err_t)app_run(app_data,
 		ATTESTATION_APP_FUNC_ID_REALM_TOKEN_CREATE,
 			(unsigned long)algorithm, 0, 0, 0);

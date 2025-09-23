@@ -1,0 +1,28 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Overlay to enable FEAT_MEC on FVP.
+
+run:
+  params:
+    -C bp.mpe.enable: 1
+    -C bp.mpe.block_size_in_bytes: 4096
+    -C bp.mpe.corruption_strategy: 0
+    -C bp.mpe.ignore_mecid: 0
+    -C bp.mpe.output_attributes_parameter_of_core: "ExtendedID[62:55]=MPAM_PMG,ExtendedID[38]=MPAM_SP[0],ExtendedID[37]=MPAM_SP[1],UserFlags[31:16]=MECID"
+    -C cluster0.output_attributes=ExtendedID[62:55]: "MPAM_PMG,ExtendedID[54:39]=MPAM_PARTID,ExtendedID[38:37]=MPAM_SP,UserFlags[31:16]=MECID"
+    -C cluster1.output_attributes=ExtendedID[62:55]: "MPAM_PMG,ExtendedID[54:39]=MPAM_PARTID,ExtendedID[38:37]=MPAM_SP,UserFlags[31:16]=MECID"
+    -C bp.mpe.non_secure_pas_enc_key: 34
+    -C bp.mpe.realm_pas_enc_key: 136
+    -C bp.mpe.root_pas_enc_key: 68
+    -C bp.mpe.secure_pas_enc_key: 17
+    -C cluster0.mec_support_level: 2
+    -C cluster0.rme_mecid_width: 16
+    -C cluster1.mec_support_level: 2
+    -C cluster1.rme_mecid_width: 16
+

@@ -12,6 +12,7 @@ target_link_libraries(rmm-lib
               rmm-lib-debug
               rmm-lib-gic
               rmm-lib-granule
+              rmm-lib-mec
               rmm-lib-rmm_el3_ifc
               rmm-lib-smc
               rmm-lib-s2tt
@@ -26,6 +27,7 @@ add_subdirectory("debug")
 add_subdirectory("gic")
 add_subdirectory("granule")
 add_subdirectory("mbedtls")
+add_subdirectory("mec")
 add_subdirectory("rmm_el3_ifc")
 add_subdirectory("smc")
 add_subdirectory("s2tt")

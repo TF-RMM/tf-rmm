@@ -494,8 +494,13 @@ DEFINE_CONDITIONAL_SYSREG_RW_FUNCS(tcr2_el12, if_present,		\
  */
 static inline bool is_feat_mec_present(void)
 {
+/* Only support FEAT_MEC in RMM from v1.1 */
+#ifdef RMM_V1_1
 	return (EXTRACT(ID_AA64MMFR3_EL1_MEC,
 		READ_CACHED_REG(id_aa64mmfr3_el1)) != 0UL);
+#else
+	return false;
+#endif
 }
 
 /*

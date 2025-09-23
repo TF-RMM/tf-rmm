@@ -12,6 +12,7 @@
 #include <debug.h>
 #include <errno.h>
 #include <granule.h>
+#include <mec.h>
 #include <slot_buf_arch.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -99,7 +100,8 @@ static inline bool is_ns_slot(enum buffer_slot slot)
 	return slot == SLOT_NS;
 }
 
-static inline bool is_realm_slot(enum buffer_slot slot)
+/* Whether the Slot maps to Realm PAS */
+static inline bool is_realm_pas_slot(enum buffer_slot slot)
 {
 	return (slot != SLOT_NS) && (slot < NR_CPU_SLOTS);
 }
@@ -119,7 +121,8 @@ static inline void ns_buffer_unmap(void *buf)
 
 /*
  * Maps a granule @g into the provided @slot, returning
- * the virtual address.
+ * the virtual address. Note that slots which require Realm MECID
+ * to be programmed should not use this API.
  *
  * The caller must either hold @g::lock or hold a reference.
  */
@@ -127,14 +130,61 @@ void *buffer_granule_map(struct granule *g, enum buffer_slot slot)
 {
 	unsigned long addr = granule_addr(g);
 
-	assert(is_realm_slot(slot));
+	assert(is_realm_pas_slot(slot) && !is_realm_mecid_slot(slot));
 
+	return buffer_arch_map(slot, addr);
+}
+
+/*
+ * Maps a granule @g into the provided @slot, programs
+ * the MECID and returns the virtual address.
+ *
+ * The caller must either hold @g::lock or hold a reference.
+ */
+void *buffer_granule_mecid_map(struct granule *g, enum buffer_slot slot,
+		unsigned int mecid)
+{
+	unsigned long addr = granule_addr(g);
+
+	assert(is_realm_pas_slot(slot) && is_realm_mecid_slot(slot));
+
+	mec_realm_mecid_s1_init(mecid);
 	return buffer_arch_map(slot, addr);
 }
 
 void buffer_unmap(void *buf)
 {
 	buffer_arch_unmap(buf);
+
+	if (is_realm_mecid_slot(va_to_slot_arch(buf))) {
+		mec_realm_mecid_s1_reset();
+	}
+}
+
+void buffer_granule_sanitize(struct granule *g)
+{
+	void *buf;
+
+#if (RMM_MEM_SCRUB_METHOD == 1)
+	/* Any Slot which uses RMM MECID will do, use SLOT_RD for now */
+	buf = buffer_granule_map(g, SLOT_RD);
+	granule_sanitize_1_mapped(buf);
+	buffer_unmap(buf);
+#elif (RMM_MEM_SCRUB_METHOD == 2)
+	/* A Slot which uses Realm MECID needs to be used */
+	unsigned long addr = granule_addr(g);
+
+	mec_init_scrub_mecid_s1();
+	buf = buffer_arch_map(SLOT_REALM, addr);
+	granule_sanitize_mapped(buf);
+	buffer_arch_unmap(buf);
+	mec_reset_scrub_mecid_s1();
+#else
+	/* Any Slot which uses RMM MECID will do, use SLOT_RD for now */
+	buf = buffer_granule_map(g, SLOT_RD);
+	granule_sanitize_mapped(buf);
+	buffer_unmap(buf);
+#endif
 }
 
 /*
@@ -459,19 +509,6 @@ void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux)
 	return buffer_aux_unmap(pdev_aux, num_aux);
 }
 
-void buffer_granule_memzero(struct granule *g, enum buffer_slot slot)
-{
-	unsigned long *buf;
-
-	assert(g != NULL);
-
-	buf = buffer_granule_map(g, slot);
-	assert(buf != NULL);
-
-	granule_memzero_mapped(buf);
-	buffer_unmap(buf);
-}
-
 /******************************************************************************
  * Internal helpers
  ******************************************************************************/
@@ -493,6 +530,16 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr)
 
 	attr |= ((slot == SLOT_NS) ? MT_NS : MT_REALM);
 
+	/*
+	 * SLOT_RTT, SLOT_RTT2 and SLOT_REALM need to be accessed using Realm's
+	 * MECID. Realm MECID will be programmed in MECID_A1_EL2. The rest
+	 * of granules are accessed via RMM MECID programmed in MECID_P1_EL2.
+	 */
+	if (is_feat_mec_present() && is_realm_mecid_slot(slot)) {
+		assert(mec_is_realm_mecid_s1_init() == true);
+		attr |= MT_AP_AMEC;
+	}
+
 	if (xlat_map_memory_page_with_attrs(entry, va,
 					    (uintptr_t)addr, attr) != 0) {
 		/* Error mapping the buffer */
@@ -509,4 +556,15 @@ void buffer_unmap_internal(void *buf)
 
 	ret = xlat_unmap_memory_page(get_cached_llt_info(), (uintptr_t)buf);
 	assert(ret == 0);
+}
+
+enum buffer_slot va_to_slot_internal(void *buf)
+{
+	enum buffer_slot slot;
+
+	slot = (enum buffer_slot)(((uintptr_t)buf - SLOT_VIRT) >> GRANULE_SHIFT); /* NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange) */
+
+	assert(slot < NR_CPU_SLOTS);
+
+	return slot;
 }

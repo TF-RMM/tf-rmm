@@ -89,7 +89,8 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	gr = find_granule(walk_res.pa);
 	assert(gr != NULL);
 
-	run = (struct rsi_plane_run *)buffer_granule_map(gr, SLOT_REALM);
+	run = (struct rsi_plane_run *)buffer_granule_mecid_map(gr, SLOT_REALM,
+				rec->realm_info.primary_s2_ctx.mecid);
 
 	/* Activate plane N */
 	plane_n = rec_activate_plane_n(rec, (unsigned int)plane_idx);

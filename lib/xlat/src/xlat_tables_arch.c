@@ -101,6 +101,10 @@ void xlat_arch_write_mmu_cfg(struct xlat_mmu_cfg *mmu_cfg)
 	write_mair_el2(mmu_cfg->mair);
 	write_tcr_el2(tcr);
 
+	if (is_feat_tcr2_present()) {
+		write_tcr2_el2(mmu_cfg->tcr2);
+	}
+
 	if (mmu_cfg->region == VA_LOW_REGION) {
 		write_ttbr0_el2(mmu_cfg->ttbrx);
 	} else {
@@ -116,6 +120,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx, struct xlat_mmu_cfg *mm
 {
 	uint64_t mair;
 	uint64_t tcr = 0;
+	uint64_t tcr2 = 0;
 	uint64_t ttbrx;
 	uintptr_t va_space_size;
 	struct xlat_ctx_cfg *ctx_cfg;
@@ -194,6 +199,14 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx, struct xlat_mmu_cfg *mm
 	tcr |= pa_size_bits;
 
 	/*
+	 * Enable support for Alternate MECID for TTBR1, in order to access some
+	 * slots through the Realm encryption context.
+	 */
+	if (is_feat_mec_present()) {
+		tcr2 |= TCR2_EL2_AMEC1;
+	}
+
+	/*
 	 * Set TTBR bits as well and enable CnP bit so as to share page
 	 * tables with all PEs.
 	 */
@@ -215,6 +228,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx, struct xlat_mmu_cfg *mm
 	mmu_config->region = ctx_cfg->region;
 	mmu_config->mair = mair;
 	mmu_config->tcr = tcr;
+	mmu_config->tcr2 = tcr2;
 	mmu_config->txsz = txsz;
 	mmu_config->ttbrx = ttbrx;
 

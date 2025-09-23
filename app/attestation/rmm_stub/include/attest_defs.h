@@ -148,6 +148,7 @@ COMPILER_ASSERT(sizeof(struct attest_extend_measurement_return_buffer) == GRANUL
 struct attest_realm_token_create_params {
 	uint8_t measurements[MEASUREMENT_SLOT_NR][MAX_MEASUREMENT_SIZE];
 	uint8_t rpv[RPV_SIZE];
+	bool is_pvt_mecid;
 	uint8_t challenge[ATTEST_CHALLENGE_SIZE];
 };
 COMPILER_ASSERT(sizeof(struct attest_realm_token_create_params) <= GRANULE_SIZE);

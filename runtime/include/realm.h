@@ -89,7 +89,6 @@ struct rd {
 	 */
 	bool rtt_s2ap_encoding;
 
-
 	/*
 	 * This field contains a lock per possible overlay index value
 	 * which indicates whether the permission associated to that index
