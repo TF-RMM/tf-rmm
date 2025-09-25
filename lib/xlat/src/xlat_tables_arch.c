@@ -210,7 +210,12 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx, struct xlat_mmu_cfg *mm
 	 * Set TTBR bits as well and enable CnP bit so as to share page
 	 * tables with all PEs.
 	 */
-	ttbrx = ctx_tbls->base_table_pa;
+	if (is_feat_lpa2_4k_present()) {
+		ttbrx = (ctx_tbls->base_table_pa & MASK(TTBRx_EL2_BADDR));
+		ttbrx = TTBRx_EL2_SET_MSB_LPA2(ctx_tbls->base_table_pa, ttbrx);
+	} else {
+		ttbrx = ctx_tbls->base_table_pa;
+	}
 
 	/*
 	 * The VA region is not common for the HIGH region as it is used
