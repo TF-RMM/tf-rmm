@@ -184,12 +184,13 @@ int dev_assign_cmd_start_session_main(struct dev_assign_info *info)
 	return DEV_ASSIGN_STATUS_ERROR;
 }
 
-/* dev_assign_cmd_get_measurements_main */
-int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
+static libspdm_return_t get_measurements(
+	struct dev_assign_info *info,
+	uint8_t measurement_operation,
+	uint8_t request_attribute)
 {
-	libspdm_return_t status;
-	uint8_t number_of_blocks;
 	uint32_t meas_length;
+	uint8_t number_of_blocks;
 
 	/*
 	 * RMM does not store measurement response in CMA SPDM context, instead
@@ -200,20 +201,75 @@ int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
 	meas_length = LIBSPDM_MAX_MEASUREMENT_RECORD_SIZE;
 
 	/*
-	 * Request all measurements. The output values of meas_length and number
+	 * Request measurement(s). The output values of meas_length and number
 	 * of blocks and the actual measurement records are ignored as RMM does
 	 * not have a copy of the measurements. As part of get_measurements
 	 * callback RMM inform the Host to cache measurements.
 	 */
-	status = libspdm_get_measurement(info->libspdm_ctx,
-					 &info->session_id, /* session_id */
-					 0, /* request_attribute */
-					 0xFF, /* get all measurements */
-					 info->cert_slot_id, /* slot id */
-					 NULL, /* content_changed */
-					 &number_of_blocks,
-					 &meas_length,
-					 NULL /* measurement_record */);
+	return libspdm_get_measurement_ex(info->libspdm_ctx,
+					  &info->session_id, /* session_id */
+					  request_attribute, /* request_attribute */
+					  measurement_operation,
+					  info->cert_slot_id, /* slot id */
+					  NULL, /* content_changed */
+					  &number_of_blocks,
+					  &meas_length,
+					  NULL, /* measurement_record */
+					  info->dev_assign_op_params.meas_params.nonce,
+					  NULL, /* requester_nonce */
+					  NULL, /* responder_nonce */
+					  NULL, /* opaque_data */
+					  NULL);  /* opaque_data_size */
+}
+
+/* dev_assign_cmd_get_measurements_main */
+int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
+{
+	libspdm_return_t status;
+	uint8_t request_attribute = 0U;
+
+	assert(info->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_MEAS);
+
+	if (info->dev_assign_op_params.meas_params.sign) {
+		request_attribute |=
+			(uint8_t)SPDM_GET_MEASUREMENTS_REQUEST_ATTRIBUTES_GENERATE_SIGNATURE;
+	}
+
+	if (info->dev_assign_op_params.meas_params.raw) {
+		request_attribute |=
+			(uint8_t)SPDM_GET_MEASUREMENTS_REQUEST_ATTRIBUTES_RAW_BIT_STREAM_REQUESTED;
+	}
+
+	if (info->dev_assign_op_params.meas_params.all) {
+		/* Request all measurements. */
+		status = get_measurements(info, 0xFFU, request_attribute);
+
+		if (status != LIBSPDM_STATUS_SUCCESS) {
+			return DEV_ASSIGN_STATUS_ERROR;
+		}
+	} else {
+		for (size_t i = 0U; i < RDEV_MEAS_PARAM_INDICES_LEN; ++i) {
+			for (size_t j = 0U; j < BITS_PER_UCHAR; ++j) {
+				if ((info->dev_assign_op_params.meas_params.indices[i] &
+				     (unsigned char)(1U << j)) != 0U) {
+					size_t index = (i * BITS_PER_UCHAR) + j;
+
+					/*
+					 * The lowest and highest indices are
+					 * reserved by specification
+					 */
+					assert((index != 0U) && (index != 255U));
+
+					/* Request a single measurement. */
+					status = get_measurements(
+						info, (uint8_t)index, request_attribute);
+					if (status != LIBSPDM_STATUS_SUCCESS) {
+						return DEV_ASSIGN_STATUS_ERROR;
+					}
+				}
+			}
+		}
+	}
 
 	if (status != LIBSPDM_STATUS_SUCCESS) {
 		return DEV_ASSIGN_STATUS_ERROR;

@@ -225,8 +225,9 @@
 				PRIV_LIBSPDM_MBEDTLS_HEAP_SIZE +	\
 				PRIV_LIBSPDM_CONTEXT_SIZE))
 
-#define CACHE_TYPE_CERT			U(0x1)
-#define CACHE_TYPE_MEAS			U(0x2)
+#define CACHE_TYPE_CERT			((uint8_t)0x1)
+#define CACHE_TYPE_MEAS			((uint8_t)0x2)
+#define CACHE_TYPE_INTERFACE_REPORT	((uint8_t)0x3)
 
 struct dev_assign_info {
 	/* RMI device handle */
@@ -266,6 +267,11 @@ struct dev_assign_info {
 	uint32_t session_id;
 	/* Whether the last request sent was encrypted or not. */
 	bool is_msg_sspdm;
+	/*
+	 * True if hashing is in progress for the current report
+	 * False if finished or not started.
+	 */
+	bool cache_tdisp_if_report;
 
 	/*
 	 * A temporary stash of cached_digest for certificate,
@@ -281,6 +287,12 @@ struct dev_assign_info {
 	uint8_t spdm_cert_chain_digest[64];
 	size_t spdm_cert_chain_digest_length;
 	size_t spdm_cert_chain_len;
+
+	/*
+	 * The parameters passed from Realm for the device operation. There can
+	 * be only one pending device operation.
+	 */
+	struct dev_assign_op_params dev_assign_op_params;
 
 	/*
 	 * The PSA equivalent of the 'rmi_hash_algo'. Tnis value is used by PSA
@@ -305,5 +317,10 @@ int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info);
 int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info);
 
 void dev_assign_unset_pubkey(struct dev_assign_info *info);
+
+int dev_tdisp_lock_main(struct dev_assign_info *info);
+int dev_tdisp_report_main(struct dev_assign_info *info);
+int dev_tdisp_start_main(struct dev_assign_info *info);
+int dev_tdisp_stop_main(struct dev_assign_info *info);
 
 #endif /* DEV_ASSIGN_PRIVATE_H */

@@ -148,27 +148,49 @@ void smc_dev_mem_unmap(unsigned long rd_addr,
 			unsigned long ulevel,
 			struct smc_result *res);
 
-unsigned long smc_pdev_create(unsigned long pdev_ptr,
-			      unsigned long pdev_params_ptr);
+unsigned long smc_pdev_create(unsigned long pdev_addr,
+			      unsigned long pdev_params_addr);
 
 void smc_pdev_aux_count(unsigned long flags, struct smc_result *res);
 
-unsigned long smc_pdev_communicate(unsigned long pdev_ptr,
-				   unsigned long dev_comm_data_ptr);
+unsigned long smc_pdev_communicate(unsigned long pdev_addr,
+				   unsigned long dev_comm_data_addr);
 
-void smc_pdev_get_state(unsigned long pdev_ptr, struct smc_result *res);
+void smc_pdev_get_state(unsigned long pdev_addr, struct smc_result *res);
 
-unsigned long smc_pdev_set_pubkey(unsigned long pdev_ptr,
-				  unsigned long pubkey_params_ptr);
+unsigned long smc_pdev_set_pubkey(unsigned long pdev_addr,
+				  unsigned long pubkey_params_addr);
 
-unsigned long smc_pdev_abort(unsigned long pdev_ptr);
+unsigned long smc_pdev_abort(unsigned long pdev_addr);
 
-unsigned long smc_pdev_stop(unsigned long pdev_ptr);
+unsigned long smc_pdev_stop(unsigned long pdev_addr);
 
-unsigned long smc_pdev_destroy(unsigned long pdev_ptr);
+unsigned long smc_pdev_destroy(unsigned long pdev_addr);
 
 unsigned long smc_mec_set_shared(unsigned long mecid);
 
 unsigned long smc_mec_set_private(unsigned long mecid);
+
+unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
+			      unsigned long vdev_addr,
+			      unsigned long vdev_params_addr);
+
+unsigned long smc_vdev_complete(unsigned long rec_addr, unsigned long vdev_addr);
+
+unsigned long smc_vdev_communicate(unsigned long pdev_addr,
+				   unsigned long vdev_addr,
+				   unsigned long dev_comm_data_addr);
+
+void smc_vdev_get_state(unsigned long vdev_addr, struct smc_result *res);
+
+void smc_vdev_aux_count(unsigned long pdev_flags, unsigned long vdev_flags,
+			struct smc_result *res);
+
+unsigned long smc_vdev_abort(unsigned long vdev_addr);
+
+unsigned long smc_vdev_stop(unsigned long vdev_addr);
+
+unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
+			       unsigned long vdev_addr);
 
 #endif /* SMC_HANDLER_H */

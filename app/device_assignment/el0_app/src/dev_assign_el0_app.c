@@ -8,12 +8,44 @@
 #include <dev_assign_helper.h>
 #include <dev_assign_private.h>
 #include <el0_app_helpers.h>
+#include <industry_standard/pci_tdisp.h>
+#include <industry_standard/pcidoe.h>
 #include <library/spdm_crypt_lib.h>
 #include <mbedtls/memory_buffer_alloc.h>
 #include <psa/crypto.h>
 #include <psa/crypto_struct.h>
 #include <smc-rmi.h>
 #include <string.h>
+
+static void copy_enter_args_from_shared(struct dev_assign_info *info)
+{
+	struct dev_comm_enter_shared *shared = (struct dev_comm_enter_shared *)info->shared_buf;
+
+	assert(shared != NULL);
+	info->enter_args = shared->rmi_dev_comm_enter;
+
+	info->dev_assign_op_params.param_type = shared->dev_assign_op_params.param_type;
+	if (shared->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_TDISP) {
+		struct dev_assign_tdisp_params *shared_tdisp_params =
+			&shared->dev_assign_op_params.tdisp_params;
+		struct dev_assign_tdisp_params *info_tdisp_params =
+			&info->dev_assign_op_params.tdisp_params;
+
+		info_tdisp_params->nonce_ptr_is_valid = shared_tdisp_params->nonce_ptr_is_valid;
+		info_tdisp_params->tdi_id = shared_tdisp_params->tdi_id;
+		if (shared_tdisp_params->nonce_ptr_is_valid &&
+		    (!shared_tdisp_params->nonce_is_output)) {
+			(void)memcpy(info_tdisp_params->start_interface_nonce_buffer,
+				shared_tdisp_params->start_interface_nonce_buffer,
+				RDEV_START_INTERFACE_NONCE_SIZE);
+		}
+	} else if (shared->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_MEAS) {
+		/* Copy over measurement parameters */
+		info->dev_assign_op_params.meas_params = shared->dev_assign_op_params.meas_params;
+	}
+
+	(void)memset(&info->exit_args, 0, sizeof(info->exit_args));
+}
 
 static void copy_back_exit_args_to_shared(struct dev_assign_info *info)
 {
@@ -28,6 +60,21 @@ static void copy_back_exit_args_to_shared(struct dev_assign_info *info)
 		(void)memcpy(shared->cached_digest.value, info->cached_digest.value,
 			     info->cached_digest.len);
 		info->cached_digest.len = 0;
+	}
+
+	shared->dev_assign_op_params.param_type = info->dev_assign_op_params.param_type;
+	if (info->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_TDISP) {
+		struct dev_assign_tdisp_params *shared_tdisp_params =
+			&shared->dev_assign_op_params.tdisp_params;
+		struct dev_assign_tdisp_params *info_tdisp_params =
+			&info->dev_assign_op_params.tdisp_params;
+
+		shared_tdisp_params->nonce_is_output = info_tdisp_params->nonce_is_output;
+		if (info_tdisp_params->nonce_is_output) {
+			(void)memcpy(shared_tdisp_params->start_interface_nonce_buffer,
+				info_tdisp_params->start_interface_nonce_buffer,
+				RDEV_START_INTERFACE_NONCE_SIZE);
+		}
 	}
 }
 
@@ -93,8 +140,7 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 
 	el0_app_yield();
 
-	info->enter_args = *((struct rmi_dev_comm_enter *)info->shared_buf);
-	(void)memset(&info->exit_args, 0, sizeof(info->exit_args));
+	copy_enter_args_from_shared(info);
 
 	if (info->enter_args.status == RMI_DEV_COMM_ENTER_STATUS_ERROR) {
 		return LIBSPDM_STATUS_SEND_FAIL;
@@ -302,6 +348,9 @@ static int dev_assign_dev_comm_set_cache(struct dev_assign_info *info, void *cac
 		info->exit_args.cache_obj_id = (unsigned char)RMI_DEV_COMM_OBJECT_CERTIFICATE;
 	} else if (cache_type == CACHE_TYPE_MEAS) {
 		info->exit_args.cache_obj_id = (unsigned char)RMI_DEV_COMM_OBJECT_MEASUREMENTS;
+	} else if (cache_type == CACHE_TYPE_INTERFACE_REPORT) {
+		info->exit_args.cache_obj_id =
+			(unsigned char)RMI_DEV_COMM_OBJECT_INTERFACE_REPORT;
 	}
 
 	return 0;
@@ -405,7 +454,7 @@ static int cma_spdm_cache_certificate(struct dev_assign_info *info,
 	 * to let NS Host to cache device certificate.
 	 */
 	rc = dev_assign_dev_comm_set_cache(info, cert_rsp, cache_offset,
-				  cache_len, (uint8_t)CACHE_TYPE_CERT, hash_op_flags);
+				  cache_len, CACHE_TYPE_CERT, hash_op_flags);
 
 	info->spdm_cert_chain_len += cert_rsp->portion_length;
 
@@ -439,7 +488,74 @@ static int dev_assign_cache_measurements(struct dev_assign_info *info,
 	info->psa_hash_op = psa_hash_operation_init();
 
 	rc = dev_assign_dev_comm_set_cache(info, meas_rsp, cache_offset,
-				  cache_len, (uint8_t)CACHE_TYPE_MEAS, hash_op_flags);
+				  cache_len, CACHE_TYPE_MEAS, hash_op_flags);
+
+	return rc;
+}
+
+/* Process SPDM VDM response */
+static int cache_spdm_vdm_response(struct dev_assign_info *info,
+				   void *spdm_response,
+				   size_t transport_message_size)
+{
+	pci_doe_spdm_vendor_defined_response_t *doe_vdm_rsp;
+	pci_doe_spdm_vendor_defined_header_t *doe_vdm_hdr;
+	pci_tdisp_device_interface_report_response_t *ifc_rsp;
+	size_t cache_offset, cache_len;
+	uint8_t hash_op_flags;
+	int rc;
+
+	doe_vdm_rsp = (pci_doe_spdm_vendor_defined_response_t *)spdm_response;
+
+	/* Check if VDM is TDISP protocol */
+	doe_vdm_hdr = &doe_vdm_rsp->pci_doe_vendor_header;
+	if ((doe_vdm_hdr->standard_id != (uint16_t)SPDM_STANDARD_ID_PCISIG) ||
+	    (doe_vdm_hdr->vendor_id != (uint16_t)SPDM_VENDOR_ID_PCISIG) ||
+	    (doe_vdm_hdr->pci_protocol.protocol_id != (uint8_t)PCI_PROTOCOL_ID_TDISP)) {
+		ERROR("Invalid DOE VDM header.\n");
+		return 0;
+	}
+
+	ifc_rsp = (pci_tdisp_device_interface_report_response_t *)
+		((uintptr_t)doe_vdm_rsp +
+		 sizeof(pci_doe_spdm_vendor_defined_response_t));
+
+	/* Check if TDISP message is TDISP_DEVICE_INTERFACE_REPORT */
+	if (ifc_rsp->header.message_type != (uint8_t)PCI_TDISP_DEVICE_INTERFACE_REPORT) {
+		return 0;
+	}
+
+	/* Set hash flags based on start of cache response */
+	if (!info->cache_tdisp_if_report) {
+		hash_op_flags = HASH_OP_FLAG_SETUP | HASH_OP_FLAG_UPDATE;
+		info->psa_hash_op = psa_hash_operation_init();
+		info->cache_tdisp_if_report = true;
+	} else {
+		hash_op_flags = HASH_OP_FLAG_UPDATE;
+	}
+
+	if (ifc_rsp->remainder_length == 0U) {
+		hash_op_flags |= HASH_OP_FLAG_FINISH;
+		/*
+		 * Reset the cache_tdisp_if_report to allow a fresh
+		 * get_interface_report
+		 */
+		info->cache_tdisp_if_report = false;
+	}
+
+	cache_offset = sizeof(pci_doe_spdm_vendor_defined_response_t) +
+		sizeof(pci_tdisp_device_interface_report_response_t);
+	cache_len = ifc_rsp->portion_length;
+
+	if ((cache_len > transport_message_size) ||
+	    (cache_offset > (transport_message_size - cache_len))) {
+		ERROR("Invalid cache_offset or cache_len.\n");
+		return -1;
+	}
+
+	rc = dev_assign_dev_comm_set_cache(info, spdm_response, cache_offset,
+				  cache_len, CACHE_TYPE_INTERFACE_REPORT,
+				  hash_op_flags);
 
 	return rc;
 }
@@ -567,6 +683,12 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 
 		meas_rsp = (spdm_measurements_response_t *)spdm_hdr;
 		rc = dev_assign_cache_measurements(info, meas_rsp);
+		if (rc != 0) {
+			return LIBSPDM_STATUS_RECEIVE_FAIL;
+		}
+	} else if (spdm_hdr->request_response_code ==
+		   (uint8_t)SPDM_VENDOR_DEFINED_RESPONSE) {
+		rc = cache_spdm_vdm_response(info, (void *)spdm_hdr, transport_message_size);
 		if (rc != 0) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}
@@ -1089,9 +1211,7 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 		return INT_TO_ULONG(DEV_ASSIGN_STATUS_ERROR);
 	}
 
-	/* Initialize the entry and exit args */
-	info->enter_args = *(struct rmi_dev_comm_enter *)shared_buf;
-	(void)memset(&info->exit_args, 0, sizeof(info->exit_args));
+	copy_enter_args_from_shared(info);
 
 	switch (func_id) {
 	case DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT:
@@ -1105,6 +1225,18 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 		break;
 	case DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS:
 		ret = dev_assign_cmd_get_measurements_main(info);
+		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_LOCK:
+		ret = dev_tdisp_lock_main(info);
+		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_REPORT:
+		ret = dev_tdisp_report_main(info);
+		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_START:
+		ret = dev_tdisp_start_main(info);
+		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP:
+		ret = dev_tdisp_stop_main(info);
 		break;
 	default:
 		assert(false);
@@ -1147,6 +1279,10 @@ unsigned long el0_app_entry_func(
 	case DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION:
 	case DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION:
 	case DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS:
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_LOCK:
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_REPORT:
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_START:
+	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP:
 		return dev_assign_communicate_cmd_cmn(func_id, heap);
 	case DEVICE_ASSIGN_APP_FUNC_SET_PUBLIC_KEY:
 		return (unsigned long)dev_assign_set_pubkey(heap, arg_0);

@@ -193,6 +193,10 @@ bool RealmIsLive(uint64_t rd_addr)
 		}
 	}
 
+	if (rd->num_vdevs > 0U) {
+		return true;
+	}
+
 	return false;
 }
 

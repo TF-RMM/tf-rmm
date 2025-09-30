@@ -342,13 +342,18 @@ bool ns_buffer_write_unaligned(enum buffer_slot slot,
 
 	offset &= (unsigned int)(~GRANULE_MASK);
 
-	dest = (uintptr_t)ns_buffer_granule_map(slot, ns_gr);
-
 	aligned_src = (void *)round_down((uintptr_t)src, 8U);
 	assert((uintptr_t)aligned_src <= (uintptr_t)src);
 	align_diff = (uintptr_t)src - (uintptr_t)aligned_src;
 	assert(align_diff < 8U);
+
+	/*
+	 * Make sure that the byte that are necessary to be written fit inside a
+	 * granule.
+	 */
 	assert((offset + round_up(align_diff + size, 8U)) <= GRANULE_SIZE);
+
+	dest = (uintptr_t)ns_buffer_granule_map(slot, ns_gr);
 
 	if (align_diff > 0U) {
 		size_t unaligned_size = min(size, 8U - align_diff);

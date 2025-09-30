@@ -8,6 +8,7 @@
 
 #include <assert.h>
 #include <atomics.h>
+#include <dev.h>
 #include <measurement.h>
 #include <memory.h>
 #include <planes.h>
@@ -95,6 +96,25 @@ struct rd {
 	 * can be modified or not.
 	 */
 	unsigned long overlay_index_lock;
+
+	/* Whether device assignment is enabled for this Realm */
+	bool da_enabled;
+
+	/* Reference count of VDEVs assigned to this Realm */
+	unsigned long num_vdevs;
+
+	/*
+	 * VDEV instances assigned to this Realm. This is a constantly
+	 * incrementing counter and used to initialize the VDEV instance ID when
+	 * VDEV is assigned to Realm.
+	 */
+	unsigned long vdev_inst_counter;
+
+	/*
+	 * VDEVs assigned to this Realm. Currently support one vdev.
+	 * todo: this will be removed based on spec changes
+	 */
+	struct granule *g_vdev;
 };
 COMPILER_ASSERT((U(offsetof(struct rd, measurement)) & 7U) == 0U);
 COMPILER_ASSERT(sizeof(struct rd) <= GRANULE_SIZE);
@@ -202,6 +222,63 @@ static inline struct s2tt_context *plane_to_s2_context(struct rd *rd,
 
 	index = ((plane_id + 1U) % realm_num_planes(rd));
 	return &rd->s2_ctx[index];
+}
+
+/*
+ * Resets rd->num_vdevs to 0.
+ */
+static inline void rd_vdev_refcount_reset(struct rd *rd)
+{
+	SCA_WRITE64(&rd->num_vdevs, 0UL);
+}
+
+/*
+ * Returns rd->num_vdevs while holding the rd granule lock.
+ */
+static inline unsigned long rd_vdev_refcount_get(struct rd *rd)
+{
+	return SCA_READ64(&rd->num_vdevs);
+}
+
+/*
+ * Increases rd->num_vdevs by 1 while holding the rd granule lock.
+ */
+static inline void rd_vdev_refcount_inc(struct rd *rd)
+{
+	atomic_add_64(&rd->num_vdevs, 1UL);
+}
+
+/*
+ * Decreases rd->num_vdevs by 1 while holding the rd granule lock.
+ */
+static inline void rd_vdev_refcount_dec(struct rd *rd)
+{
+	atomic_add_64(&rd->num_vdevs, (unsigned long)(-1L));
+}
+
+/*
+ * Resets the rd's vdev_inst_counter to 0 while holding the rd granule lock.
+ */
+static inline void rd_vdev_inst_counter_reset(struct rd *rd)
+{
+	SCA_WRITE64(&rd->vdev_inst_counter, VDEV_INST_ID_BASE);
+}
+
+/*
+ * Gets the rd's vdev_inst_counter while holding the rd granule lock.
+ */
+static inline unsigned long get_rd_vdev_inst_counter(struct rd *rd)
+{
+	return SCA_READ64(&rd->vdev_inst_counter);
+}
+
+/*
+ * Increases the rd's vdev_inst_counter by 1 while holding the rd granule lock.
+ * Returns the old value.
+ */
+static inline unsigned long rd_vdev_inst_counter_inc(struct rd *rd)
+{
+	return atomic_load_add_64(&rd->vdev_inst_counter, 1UL);
 }
 
 static inline unsigned long realm_ipa_bits(struct rd *rd)

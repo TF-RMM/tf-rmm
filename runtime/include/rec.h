@@ -90,6 +90,11 @@ COMPILER_ASSERT((sizeof(struct pmu_state) * MAX_TOTAL_PLANES) <= REC_PMU_SIZE);
 #define REC_NUM_PAGES		(1U)
 #endif /* CBMC */
 
+/* Type of REC pending operation. */
+#define REC_PENDING_NONE		U(0) /* No operation is pending */
+#define REC_PENDING_PSCI_COMPLETE	U(1) /* A PSCI operation is pending */
+#define REC_PENDING_VDEV_COMPLETE	U(2) /* A VDEV request is pending */
+
 struct granule;
 
 /*
@@ -247,6 +252,9 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 	unsigned long rec_idx;	/* which REC is this */
 	bool runnable;
 
+	unsigned int pending_op; /* Type of COMPLETE operation pending */
+	bool da_enabled;
+
 	/*
 	 * We keep a local copy of Plane_0 and another one
 	 * for the current Plane_N
@@ -282,6 +290,7 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 	 */
 	struct {
 		struct granule *g_rd;
+		unsigned long cached_rsi_feature_reg0;
 		bool pmu_enabled;
 		unsigned int pmu_num_ctrs;
 		enum hash_algo algorithm;
@@ -292,21 +301,32 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 		bool rtt_s2ap_encoding;
 	} realm_info;
 
+	/* Populated when REC issues RDEV request */
+	struct {
+		/* Virtual device ID */
+		unsigned long id;
+
+		/* Device instance ID */
+		unsigned long inst_id;
+
+		/* VDEV granule cached as part of GET_INSTANCE() flow */
+		struct granule *g_vdev;
+
+		/* PA of the vdev granule */
+		unsigned long vdev_addr;
+
+		/*
+		 * Whether a vdev_communicate flow is in progress.
+		 * vdev_addr set when flag is_comm is true
+		 */
+		bool is_comm;
+
+		/* Whether device instance ID is valid */
+		bool inst_id_valid;
+	} vdev;
+
 	/* Pointer to per-cpu non-secure state */
 	struct ns_state *ns;
-
-	struct {
-		/*
-		 * Set to 'true' when there is a pending PSCI
-		 * command that must be resolved by the host.
-		 * PSCI is an SMC call, which means it will be trapped
-		 * to plane0 and then plane0 will issue it so the
-		 * command is encoded in regs[0] of plane0.
-		 *
-		 * A REC with pending PSCI is not schedulable.
-		 */
-		bool pending;
-	} psci_info;
 
 	/* Number of auxiliary granules */
 	unsigned int num_rec_aux;
@@ -485,6 +505,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit);
 void inject_serror(struct rec *rec, unsigned long vsesr);
 void emulate_stage2_data_abort(struct rmi_rec_exit *rec_exit,
 			       unsigned long rtt_level, unsigned long ipa);
+void rec_set_pending_op(struct rec *rec, unsigned int pending_op);
 
 #endif /* __ASSEMBLER__ */
 #endif /* REC_H */

@@ -1,0 +1,39 @@
+From bbd6c2375ba8f8cc573e076ad803658d4aaa3e33 Mon Sep 17 00:00:00 2001
+From: Mate Toth-Pal <mate.toth-pal@arm.com>
+Date: Fri, 1 Aug 2025 14:41:04 +0200
+Subject: [PATCH] Do not store tdisp_interface_response
+
+CMA SPDM context in RMM do not store the response of TDISP
+GET_INTERFACE_REPORT instead the content is cached by NS host. This
+patch adds support to pass in empty buffer as an argument to
+pci_tdisp_get_interface_report.
+---
+ .../pci_tdisp_req_get_interface_report.c             | 12 ++++++++----
+ 1 file changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/library/pci_tdisp_requester_lib/pci_tdisp_req_get_interface_report.c b/library/pci_tdisp_requester_lib/pci_tdisp_req_get_interface_report.c
+index 5466a1a..3e2d0d1 100644
+--- a/library/pci_tdisp_requester_lib/pci_tdisp_req_get_interface_report.c
++++ b/library/pci_tdisp_requester_lib/pci_tdisp_req_get_interface_report.c
+@@ -100,10 +100,14 @@ libspdm_return_t pci_tdisp_get_interface_report(const void *pci_doe_context,
+                 return LIBSPDM_STATUS_INVALID_MSG_FIELD;
+             }
+         }
+-        libspdm_copy_mem (interface_report + offset,
+-                          *interface_report_size - offset,
+-                          response.report,
+-                          response.portion_length);
++
++        /* RMM do not store interface report, instead it is cached by NS host */
++        if (interface_report != NULL) {
++            libspdm_copy_mem (interface_report + offset,
++                              *interface_report_size - offset,
++                              response.report,
++                              response.portion_length);
++        }
+         offset = offset + response.portion_length;
+         remainder_length = response.remainder_length;
+     } while (remainder_length != 0);
+-- 
+2.34.1
+

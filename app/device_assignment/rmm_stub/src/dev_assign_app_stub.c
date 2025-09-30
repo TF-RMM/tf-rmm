@@ -52,22 +52,56 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 			struct rmi_dev_comm_enter *comm_enter_args,
 			struct rmi_dev_comm_exit *comm_exit_args,
 			struct dev_obj_digest *comm_digest_ptr,
+			struct dev_tdisp_params *tdisp_params,
+			struct dev_meas_params *meas_params,
 			int dev_cmd)
 {
 	int rc;
-	struct rmi_dev_comm_enter *shared;
+	struct dev_comm_enter_shared *shared;
+	struct dev_assign_op_params *shared_op_params;
 	struct dev_comm_exit_shared *shared_ret;
+	struct dev_assign_op_params *shared_ret_op_params;
 
 	assert((dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_RESUME) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION) ||
-		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS));
+		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS) ||
+		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_LOCK) ||
+		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_REPORT) ||
+		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_START) ||
+		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP));
 
 	app_map_shared_page(app_data);
 	assert(app_data->el2_shared_page != NULL);
 	shared = app_data->el2_shared_page;
-	*shared = *comm_enter_args;
+	shared_op_params = &shared->dev_assign_op_params;
+	shared->rmi_dev_comm_enter = *comm_enter_args;
+
+	assert((tdisp_params == NULL) || (meas_params == NULL));
+
+	if (tdisp_params != NULL) {
+		struct dev_assign_tdisp_params *shared_tdisp_params =
+			&shared_op_params->tdisp_params;
+
+		shared_op_params->param_type = DEV_ASSIGN_OP_PARAMS_TDISP;
+		shared_tdisp_params->tdi_id = tdisp_params->tdi_id;
+		/* TODO: Is the nonce size always fixed? */
+		if (tdisp_params->start_interface_nonce != NULL) {
+			(void)memcpy(shared_tdisp_params->start_interface_nonce_buffer,
+				     tdisp_params->start_interface_nonce,
+				     RDEV_START_INTERFACE_NONCE_SIZE);
+			shared_tdisp_params->nonce_ptr_is_valid = true;
+		} else {
+			shared_tdisp_params->nonce_ptr_is_valid = false;
+		}
+	} else if (meas_params != NULL) {
+		shared_op_params->param_type = DEV_ASSIGN_OP_PARAMS_MEAS;
+		/* Copy over measurement parameters */
+		shared_op_params->meas_params = *meas_params;
+	} else {
+		shared_op_params->param_type = DEV_ASSIGN_OP_PARAMS_NONE;
+	}
 
 	if (dev_cmd != DEVICE_ASSIGN_APP_FUNC_ID_RESUME) {
 		rc = (int)app_run(app_data, (unsigned long)dev_cmd,
@@ -82,6 +116,7 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 
 	assert(app_data->el2_shared_page != NULL);
 	shared_ret = app_data->el2_shared_page;
+	shared_ret_op_params = &shared_ret->dev_assign_op_params;
 
 	*comm_exit_args = shared_ret->rmi_dev_comm_exit;
 
@@ -94,6 +129,24 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 			     shared_ret->cached_digest.len);
 		comm_digest_ptr->len = shared_ret->cached_digest.len;
 	}
+
+	if (tdisp_params != NULL) {
+		assert(shared_ret_op_params->param_type == DEV_ASSIGN_OP_PARAMS_TDISP);
+		struct dev_assign_tdisp_params *shared_ret_tdisp_params =
+			&shared_ret_op_params->tdisp_params;
+
+		if ((tdisp_params->start_interface_nonce != NULL) &&
+		    (shared_ret_tdisp_params->nonce_is_output)) {
+			/* TODO: Is the nonce size always fixed? */
+			(void)memcpy(tdisp_params->start_interface_nonce,
+				     shared_ret_tdisp_params->start_interface_nonce_buffer,
+				     RDEV_START_INTERFACE_NONCE_SIZE);
+		}
+	}
+	/*
+	 * In case of get_measurement operation (DEV_ASSIGN_OP_PARAMS_MEAS)
+	 * there's nothing to do on the exit path.
+	 */
 
 	app_unmap_shared_page(app_data);
 

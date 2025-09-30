@@ -72,7 +72,8 @@ struct rmm_rec Rec(uint64_t addr)
 		.ripas_top = rec_ptr->set_ripas.top,
 		.ripas_value = rec_ptr->set_ripas.ripas_val,
 		.ripas_destroyed = rec_ptr->set_ripas.change_destroyed,
-		.host_call_pending = rec_ptr->host_call
+		.host_call_pending = rec_ptr->host_call,
+		.pending_op = rec_ptr->pending_op
 	};
 
 	for (int i = 0; i < rec_ptr->num_rec_aux && i < MAX_REC_AUX_GRANULES; ++i) {

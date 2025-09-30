@@ -161,7 +161,7 @@ static void psci_cpu_on(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	}
 
 	/* Record that a PSCI request is outstanding */
-	rec->psci_info.pending = true;
+	rec_set_pending_op(rec, REC_PENDING_PSCI_COMPLETE);
 
 	/*
 	 * Notify the Host, passing the FID and MPIDR arguments.
@@ -207,7 +207,7 @@ static void psci_affinity_info(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	}
 
 	/* Record that a PSCI request is outstanding */
-	rec->psci_info.pending = true;
+	rec_set_pending_op(rec, REC_PENDING_PSCI_COMPLETE);
 
 	/*
 	 * Notify the Host, passing the FID and MPIDR arguments.
@@ -388,7 +388,7 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 	assert(calling_plane == rec_plane_0(calling_rec));
 	assert(calling_plane->sysregs != NULL);
 
-	if (!calling_rec->psci_info.pending) {
+	if (calling_rec->pending_op != REC_PENDING_PSCI_COMPLETE) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -440,7 +440,7 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 	calling_plane->regs[1] = 0;
 	calling_plane->regs[2] = 0;
 	calling_plane->regs[3] = 0;
-	calling_rec->psci_info.pending = false;
+	rec_set_pending_op(calling_rec, REC_PENDING_NONE);
 
 	return ret;
 }

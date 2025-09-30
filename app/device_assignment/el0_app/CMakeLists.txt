@@ -13,6 +13,7 @@ endif()
 
 add_subdirectory("mbedtls_da")
 add_subdirectory("spdm_requester")
+add_subdirectory("spdm_emu")
 
 include(ArmTargetLinkerScript)
 
@@ -54,6 +55,7 @@ target_link_libraries(rmm-app-dev-assign-elf
     PRIVATE
         rmm-app-common-el0_app
         rmm-app-da-mbedtls
+        rmm-pci_tdisp_requester_lib
         rmm-lib-common
         rmm-lib-debug
         rmm-lib-smc
@@ -90,7 +92,8 @@ target_sources(rmm-app-dev-assign-elf
     PRIVATE
         "src/dev_assign_el0_app.c"
         "src/dev_assign_cmds.c"
-        "src/dev_assign_helper.c")
+        "src/dev_assign_helper.c"
+        "src/dev_tdisp_cmds.c")
 
 if (RMM_ARCH STREQUAL fake_host)
     target_sources(rmm-app-dev-assign-elf
