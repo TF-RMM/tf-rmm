@@ -121,6 +121,9 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 
 	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_TRAP_SIMD) != RSI_NO_TRAP) {
 		SIMD_DISABLE_ALL_CPTR_FLAGS((plane_n->sysregs->cptr_el2));
+	} else {
+		/* Propagate cptr_el2 configuration from P0 to PN */
+		plane_n->sysregs->cptr_el2 = plane_0->sysregs->cptr_el2;
 	}
 
 	plane_n->trap_simd =

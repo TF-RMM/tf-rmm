@@ -359,7 +359,7 @@ static bool handle_simd_exception(struct rec *rec, struct rmi_rec_exit *rec_exit
 	    (rec_active_plane(rec)->trap_simd == (bool)RSI_TRAP)) {
 		/* Trap the exception to Plane 0 */
 		(void)handle_plane_n_exit(rec, rec_exit, ARM_EXCEPTION_SYNC_LEL, true);
-		return false;
+		return true;
 	}
 
 	/*
@@ -393,8 +393,8 @@ static bool handle_simd_exception(struct rec *rec, struct rmi_rec_exit *rec_exit
 	}
 
 	/*
-	 * As REC uses lazy enablement, upon FPU/SVE/SME exception the active
-	 * SIMD context must not be the REC's context
+	 * As REC uses lazy enablement, upon FPU/SVE/SME exception, at this
+	 * point the active SIMD context must not be the REC's context
 	 */
 	assert(rec->active_simd_ctx != rec->aux_data.simd_ctx);
 
@@ -403,8 +403,8 @@ static bool handle_simd_exception(struct rec *rec, struct rmi_rec_exit *rec_exit
 						   rec->aux_data.simd_ctx);
 
 	/*
-	 * As the REC SIMD context is now restored, enable SIMD flags in REC's
-	 * cptr based on REC's SIMD configuration.
+	 * As the REC SIMD context is now restored, enable SIMD flags in the
+	 * plane's cptr based on REC's SIMD configuration.
 	 */
 	assert(rec_active_plane(rec)->sysregs != NULL);
 	SIMD_ENABLE_CPTR_FLAGS(&rec->realm_info.simd_cfg, rec_active_plane(rec)->sysregs->cptr_el2);
@@ -1081,9 +1081,6 @@ out_return_to_plane_0:
 	plane_0->regs[2] = 0UL;
 	plane_0->regs[3] = 0UL;
 
-	/* Deactivate plane 0 */
-	rec_deactivate_plane_n(rec);
-
 	/* Return GIC ownership to Plane 0 if it was owned by the previous plane */
 	if (rec->gic_owner != PLANE_0_ID) {
 		/* We need to save/restore plane_n/plane_0 here */
@@ -1094,6 +1091,17 @@ out_return_to_plane_0:
 
 		rec->gic_owner = PLANE_0_ID;
 	}
+
+	if (!plane_n->trap_simd) {
+		/*
+		 * If SIMD exceptions were not trapped to P0, propagate
+		 * current Plane N cptr_el2 to P0's one.
+		 */
+		plane_0->sysregs->cptr_el2 = plane_n->sysregs->cptr_el2;
+	}
+
+	/* Deactivate plane N */
+	rec_deactivate_plane_n(rec);
 
 	/* Advance the PC on Plane 0 */
 	plane_0->pc = plane_0->pc + 4UL;

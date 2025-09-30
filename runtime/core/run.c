@@ -495,6 +495,9 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		}
 	} while (handle_realm_exit(rec, rec_exit, realm_exception_code));
 
+	/* Active plane can change on each exit */
+	plane = rec_active_plane(rec);
+
 	/*
 	 * Check if FPU/SIMD was used, and if it was, save the realm state,
 	 * restore the NS state.
@@ -504,9 +507,10 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 					  &g_ns_simd_ctx[cpuid]);
 
 		/*
-		 * As the REC SIMD context is now saved, disable all SIMD related
-		 * flags in REC's cptr.
+		 * As the REC SIMD context is now saved, disable all SIMD
+		 * related flags current plane's cptr.
 		 */
+		assert(plane->sysregs != NULL);
 		SIMD_DISABLE_ALL_CPTR_FLAGS(plane->sysregs->cptr_el2);
 	}
 
