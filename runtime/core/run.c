@@ -130,7 +130,7 @@ void save_realm_state(struct rec *rec, struct rec_plane *plane)
 	save_sysreg_state(plane->sysregs);
 
 	plane->pc = read_elr_el2();
-	plane->sysregs->pstate = read_spsr_el2();
+	plane->pstate = read_spsr_el2();
 
 	plane->plane_exit_info.esr = read_esr_el2();
 	plane->plane_exit_info.hpfar = read_hpfar_el2();
@@ -257,7 +257,7 @@ void restore_realm_state(struct rec *rec, struct rec_plane *plane)
 	}
 
 	write_elr_el2(plane->pc);
-	write_spsr_el2(plane->sysregs->pstate);
+	write_spsr_el2(plane->pstate);
 	write_hcr_el2(plane->sysregs->hcr_el2);
 
 	/* Control trapping of accesses to PMU registers */

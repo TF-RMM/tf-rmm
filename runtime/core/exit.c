@@ -927,7 +927,7 @@ static void handle_plane_exit_syndrome(struct rsi_plane_exit *exit,
 	exit->hpfar_el2 = plane->plane_exit_info.hpfar;
 
 	assert(plane->sysregs != NULL);
-	exit->pstate = plane->sysregs->pstate;
+	exit->pstate = plane->pstate;
 
 }
 

@@ -29,7 +29,7 @@ static void copy_state_from_plane_entry(struct rec_plane *plane,
 	assert(plane->sysregs != NULL);
 
 	plane->pc = entry->pc;
-	plane->sysregs->pstate = entry->pstate;
+	plane->pstate = entry->pstate;
 	if (restore_gic) {
 		gic_copy_state_from_entry(&plane->sysregs->gicstate,
 			(unsigned long *)&entry->gicv3_lrs, entry->gicv3_hcr);

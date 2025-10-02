@@ -98,12 +98,12 @@ static void psci_reset_rec(struct rec_plane *plane,
 	assert(plane->sysregs != NULL);
 
 	/* Set execution level to EL1 (AArch64) and mask exceptions */
-	plane->sysregs->pstate = SPSR_EL2_MODE_EL1h |
-				 SPSR_EL2_nRW_AARCH64 |
-				 SPSR_EL2_F_BIT |
-				 SPSR_EL2_I_BIT |
-				 SPSR_EL2_A_BIT |
-				 SPSR_EL2_D_BIT;
+	plane->pstate = SPSR_EL2_MODE_EL1h |
+			SPSR_EL2_nRW_AARCH64 |
+			SPSR_EL2_F_BIT |
+			SPSR_EL2_I_BIT |
+			SPSR_EL2_A_BIT |
+			SPSR_EL2_D_BIT;
 
 	/* Disable stage 1 MMU and caches */
 	plane->sysregs->pp_sysregs.sctlr_el1 = SCTLR_EL1_FLAGS;

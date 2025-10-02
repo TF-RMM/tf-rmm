@@ -179,7 +179,7 @@ static void init_rec_regs(struct rec *rec,
 			plane->pc = rec_params->pc;
 			plane->sysregs = sysregs;
 
-			sysregs->pstate = SPSR_EL2_MODE_EL1h |
+			plane->pstate = SPSR_EL2_MODE_EL1h |
 				  SPSR_EL2_nRW_AARCH64 |
 				  SPSR_EL2_F_BIT |
 				  SPSR_EL2_I_BIT |

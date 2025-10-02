@@ -112,7 +112,6 @@ STRUCT_TYPE sysreg_state {
 	unsigned long cntvoff_el2;
 	unsigned long cntpoff_el2;
 
-	unsigned long pstate;
 	unsigned long vttbr_el2;
 
 	/* GIC Registers */
@@ -207,6 +206,7 @@ struct rec_plane {
 	REG_TYPE regs[RMM_REC_SAVED_GEN_REG_COUNT];
 
 	STRUCT_TYPE sysreg_state *sysregs;
+	unsigned long pstate;
 	unsigned long pc;
 
 	bool trap_hc;
