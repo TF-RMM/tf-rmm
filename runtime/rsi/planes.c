@@ -43,10 +43,8 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	STRUCT_TYPE sysreg_state *sysreg_n;
 	unsigned long plane_idx = plane_0->regs[1];
 	unsigned long run_ipa = plane_0->regs[2];
-	enum s2_walk_status walk_status;
-	struct s2_walk_result walk_res;
-	struct granule *gr;
-	struct rsi_plane_run *run;
+	struct granule *llt = NULL;
+	struct rsi_plane_run *run = NULL;
 	bool restore_gic = true;
 
 	res->action = UPDATE_REC_RETURN_TO_REALM;
@@ -55,27 +53,18 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	assert(rec_is_plane_0_active(rec));
 
 	if ((plane_idx == PLANE_0_ID) ||
-	    (plane_idx >= rec_num_planes(rec))) {
+	    (plane_idx >= rec_num_planes(rec)) ||
+	    (!addr_in_rec_par(rec, run_ipa))) {
 		res->smc_res.x[0] = RSI_ERROR_INPUT;
 		return;
 	}
 
-	walk_status = realm_ipa_to_pa(rec, run_ipa, &walk_res);
-
-	if (walk_status == WALK_INVALID_PARAMS) {
-		res->smc_res.x[0] = RSI_ERROR_INPUT;
+	if (!realm_mem_lock_map(rec, run_ipa, (void **)&run, &llt, res)) {
+		/* In case of failure res is updated */
 		return;
 	}
 
-	if (walk_status == WALK_FAIL) {
-		if (walk_res.ripas_val == RIPAS_EMPTY) {
-			res->smc_res.x[0] = RSI_ERROR_INPUT;
-		} else {
-			res->action = STAGE_2_TRANSLATION_FAULT;
-			res->rtt_level = walk_res.rtt_level;
-		}
-		return;
-	}
+	assert((run != NULL) && (llt != NULL));
 
 	/* Save Plane 0 state to REC */
 	save_realm_state(rec, plane_0, sysreg_0);
@@ -84,13 +73,6 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	 * Check if the primary plane has timers that we need to be notified of
 	 */
 	multiplex_el2_timer(rec);
-
-	/* Map Realm data granule to RMM address space */
-	gr = find_granule(walk_res.pa);
-	assert(gr != NULL);
-
-	run = (struct rsi_plane_run *)buffer_granule_mecid_map(gr, SLOT_REALM,
-				rec->realm_info.primary_s2_ctx.mecid);
 
 	/* Activate plane N */
 	plane_n = rec_activate_plane_n(rec, (unsigned int)plane_idx);
@@ -142,7 +124,7 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	buffer_unmap(run);
 
 	/* Unlock last level RTT */
-	granule_unlock(walk_res.llt);
+	granule_unlock(llt);
 }
 
 /* Bit definitions for the index used for pmvcntr and pvmtyper registers */

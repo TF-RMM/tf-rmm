@@ -169,3 +169,76 @@ enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long start,
 	granule_unlock(wi.g_llt);
 	return ws;
 }
+
+/*
+ * Maps a memory granule in the slot SLOT_REALM in the REC's slot buffer. The
+ * result of the operation is returned in res.
+ * If the mapping is successful, the granule at ipa is mapped, and the llt is
+ * locked. In this case the address of the mapped granule is returned in va, and
+ * llt is returned in llt. llt needs to be unlocked by the caller.
+ * If the mapping is failed, struct rsi_result is updated, and can be returned
+ * by the rsi handler.
+ * The action in rsi_result is set to STAGE_2_TRANSLATION_FAULT in case of
+ * translation fault, and it is set to UPDATE_REC_RETURN_TO_REALM otherwise.
+ * x[0] in rsi_result is set according to return value is action is
+ * UPDATE_REC_RETURN_TO_REALM.
+ *
+ * Arguments:
+ *	- rec: The rec to be used for mapping.
+ *	- ipa: The address of the granule to be mapped (must be granule
+ *		and be part of the REC's PAR).
+ *	- va: The address of the mapped page
+ *	- llt: The address of the last level page table.
+ *	- res: Result of the RSI call.
+ *
+ * Return:
+ *	- true if the mapping was successful
+ *	- false if the mapping failed.
+ */
+bool realm_mem_lock_map(struct rec *rec, unsigned long ipa,
+			void **va, struct granule **llt,
+			struct rsi_result *res)
+{
+	enum s2_walk_status walk_status;
+	struct s2_walk_result walk_res = {0};
+	struct granule *g_ipa;
+
+	assert(GRANULE_ALIGNED(ipa));
+	assert(addr_in_rec_par(rec, ipa));
+
+	walk_status = realm_ipa_to_pa(rec, ipa, &walk_res);
+
+	switch (walk_status) {
+	case WALK_SUCCESS:
+		break;
+	case WALK_FAIL:
+		if (walk_res.ripas_val == RIPAS_EMPTY) {
+			/* Error needs to be reported back to realm */
+			res->action = UPDATE_REC_RETURN_TO_REALM;
+			res->smc_res.x[0] = RSI_ERROR_INPUT;
+		} else {
+			/* Return to the host to act on translation fault */
+			res->action = STAGE_2_TRANSLATION_FAULT;
+			res->rtt_level = walk_res.rtt_level;
+		}
+		return false;
+	case WALK_INVALID_PARAMS:
+	default:
+		assert(false);
+		break;
+	}
+
+	/* Map Realm buffer */
+	g_ipa = find_granule(walk_res.pa);
+	assert(g_ipa != NULL);
+
+	*va = buffer_granule_mecid_map(g_ipa, SLOT_REALM,
+		rec->realm_info.primary_s2_ctx.mecid);
+	assert(*va != NULL);
+	*llt = walk_res.llt;
+	/* Set 'return to realm' in case of success */
+	res->smc_res.x[0] = RSI_SUCCESS;
+	res->action = UPDATE_REC_RETURN_TO_REALM;
+
+	return true;
+}

@@ -13,6 +13,7 @@
 #include <memory.h>
 #include <planes.h>
 #include <rec.h>
+#include <rsi-handler.h>
 #include <s2tt.h>
 
 #define REALM_NEW		0U
@@ -401,4 +402,8 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long start,
 					unsigned long end, unsigned long *top,
 					enum ripas *ripas_ptr);
+bool realm_mem_lock_map(struct rec *rec, unsigned long ipa,
+			void **va, struct granule **llt,
+			struct rsi_result *res);
+
 #endif /* REALM_H */

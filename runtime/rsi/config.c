@@ -16,10 +16,8 @@ void handle_rsi_realm_config(struct rec *rec, struct rsi_result *res)
 {
 	struct rec_plane *plane = rec_active_plane(rec);
 	unsigned long ipa;
-	enum s2_walk_status walk_status;
-	struct s2_walk_result walk_res;
-	struct granule *gr;
-	struct rsi_realm_config *config;
+	struct granule *llt = NULL;
+	struct rsi_realm_config *config = NULL;
 	struct rd *rd;
 
 	assert(plane != NULL);
@@ -33,28 +31,12 @@ void handle_rsi_realm_config(struct rec *rec, struct rsi_result *res)
 		return;
 	}
 
-	walk_status = realm_ipa_to_pa(rec, ipa, &walk_res);
-
-	if (walk_status == WALK_FAIL) {
-		if (walk_res.ripas_val == RIPAS_EMPTY) {
-			res->smc_res.x[0] = RSI_ERROR_INPUT;
-		} else {
-			res->action = STAGE_2_TRANSLATION_FAULT;
-			res->rtt_level = walk_res.rtt_level;
-		}
+	if (!realm_mem_lock_map(rec, ipa, (void **)&config, &llt, res)) {
+		/* In case of failure res is updated */
 		return;
 	}
 
-	if (walk_status == WALK_INVALID_PARAMS) {
-		res->smc_res.x[0] = RSI_ERROR_INPUT;
-		return;
-	}
-
-	/* Map Realm data granule to RMM address space */
-	gr = find_granule(walk_res.pa);
-	config = (struct rsi_realm_config *)buffer_granule_mecid_map(gr,
-					SLOT_REALM, rec->realm_info.primary_s2_ctx.mecid);
-	assert(config != NULL);
+	assert((config != NULL) && (llt != NULL));
 
 	/* Populate config structure */
 	config->ipa_width = rec->realm_info.primary_s2_ctx.ipa_bits;
@@ -81,7 +63,7 @@ void handle_rsi_realm_config(struct rec *rec, struct rsi_result *res)
 	buffer_unmap(config);
 
 	/* Unlock last level RTT */
-	granule_unlock(walk_res.llt);
+	granule_unlock(llt);
 
 	/* Write output values */
 	res->smc_res.x[0] = RSI_SUCCESS;
