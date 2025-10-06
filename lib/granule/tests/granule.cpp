@@ -1855,3 +1855,97 @@ TEST(granule, find_lock_unused_granule_TC5)
 		CHECK_TRUE(granule == NULL);
 	}
 }
+
+TEST(granule, granule_sanitize_1_mapped_TC1)
+{
+	unsigned char buf[GRANULE_SIZE];
+	unsigned char ref[GRANULE_SIZE];
+
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Sanitize a granule using the scrub method 1 (seed).
+	 ******************************************************************/
+
+	memset((void *)buf, 0x0, GRANULE_SIZE);
+	memset((void *)ref, 0x0, GRANULE_SIZE);
+
+	granule_sanitize_1_mapped((void *)buf);
+
+	CHECK_FALSE(memcmp((void *)buf, (void *)ref, GRANULE_SIZE) == 0);
+}
+
+TEST(granule, granule_sanitize_mapped_TC1)
+{
+	unsigned char buf[GRANULE_SIZE];
+	unsigned char ref[GRANULE_SIZE];
+
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Sanitize a granule using the default scrub method 0 (zeroing).
+	 ******************************************************************/
+
+	memset((void *)buf, 0xFF, GRANULE_SIZE);
+	memset((void *)ref, 0x0, GRANULE_SIZE);
+
+	granule_sanitize_mapped((void *)buf);
+
+	MEMCMP_EQUAL((void *)buf, (void *)ref, GRANULE_SIZE);
+}
+
+TEST(granule, granule_dcci_poe_TC1)
+{
+	struct granule *granule;
+	unsigned char ref[GRANULE_SIZE];
+	unsigned long addr;
+	int ret;
+
+	/***************************************************************
+	 * TEST CASE 4:
+	 *
+	 * Perform a DC CIPAE operation on the granule memory.
+	 ***************************************************************/
+	addr = get_rand_granule_addr();
+	ret = find_lock_unused_granule(addr, GRANULE_STATE_NS, &granule);
+
+	CHECK_TRUE(ret == 0);
+	CHECK_TRUE(granule != NULL);
+	CHECK_TRUE(is_granule_locked(granule));
+
+	memset((void *)granule_addr(granule), 0xFF, GRANULE_SIZE);
+	memset((void *)ref, 0xFF, GRANULE_SIZE);
+
+	granule_dcci_poe(granule);
+
+	MEMCMP_EQUAL((void *)granule_addr(granule), (void *)ref, GRANULE_SIZE);
+}
+
+TEST(granule, granule_unlock_transition_to_delegated_TC1)
+{
+	struct granule *granule;
+	unsigned long addr;
+	int ret;
+
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Find and lock a granule, then unlock it transitioning it to
+	 * the DELEGATED state.
+	 ******************************************************************/
+
+	addr = get_rand_granule_addr();
+	ret = find_lock_unused_granule(addr, GRANULE_STATE_NS, &granule);
+
+	__granule_set_state(granule, GRANULE_STATE_RD);
+
+	CHECK_TRUE(ret == 0);
+	CHECK_TRUE(granule != NULL);
+	CHECK_TRUE(is_granule_locked(granule));
+
+	granule_unlock_transition_to_delegated(granule);
+
+	CHECK_FALSE(is_granule_locked(granule));
+	CHECK_EQUAL(GRANULE_STATE_DELEGATED,
+			granule_unlocked_state(granule));
+}
