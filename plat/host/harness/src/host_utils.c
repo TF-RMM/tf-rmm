@@ -79,7 +79,13 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	 * Initialize ID_AA64MMFR3_EL1 for FEAT_MEC support
 	 */
 	(void)host_util_set_default_sysreg_cb("id_aa64mmfr3_el1",
-				INPLACE(ID_AA64MMFR3_EL1_MEC, 1UL));
+				INPLACE(ID_AA64MMFR3_EL1_MEC, 1UL) |
+				INPLACE(ID_AA64MMFR3_EL1_TCRX, 1UL) |
+				INPLACE(ID_AA64MMFR3_EL1_SCTLRX, 1UL));
+
+	/* Initialize the maximum MECID width */
+	(void)host_util_set_default_sysreg_cb("mecidr_el2",
+				INPLACE(MECIDR_MECIDWIDTHM1, 0xFFFF));
 
 	/*
 	 * Initialize ICH_VTR_EL2 with 6 preemption bits.
