@@ -171,7 +171,7 @@ unsigned long smc_pdev_stop(unsigned long pdev_addr);
 
 unsigned long smc_pdev_destroy(unsigned long pdev_addr);
 
-unsigned long smc_pdev_notify(unsigned long pdev_addr, unsigned long ev);
+unsigned long smc_pdev_ide_key_refresh(unsigned long pdev_addr, unsigned long coh);
 
 unsigned long smc_pdev_ide_reset(unsigned long pdev_addr);
 

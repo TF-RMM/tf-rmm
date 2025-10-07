@@ -126,7 +126,7 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 		return LIBSPDM_STATUS_SEND_FAIL;
 	}
 
-	info->exit_args.flags |= RMI_DEV_COMM_EXIT_FLAGS_SEND_BIT;
+	info->exit_args.flags |= RMI_DEV_COMM_EXIT_FLAGS_REQ_SEND_BIT;
 	info->exit_args.timeout = timeout;
 	if (!info->is_msg_sspdm) {
 		info->exit_args.protocol = (unsigned char)RMI_DEV_COMM_PROTOCOL_SPDM;
@@ -341,7 +341,7 @@ static int dev_assign_dev_comm_set_cache(struct dev_assign_info *info, void *cac
 		return -1;
 	}
 
-	info->exit_args.flags |= RMI_DEV_COMM_EXIT_FLAGS_CACHE_RSP_BIT;
+	info->exit_args.flags |= RMI_DEV_COMM_EXIT_FLAGS_RSP_CACHE_BIT;
 	info->exit_args.cache_rsp_offset = ns_buf_cache_offset;
 	info->exit_args.cache_rsp_len = cache_len;
 	if (cache_type == CACHE_TYPE_CERT) {
@@ -1256,6 +1256,26 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 
 	/* Copy back the exit args to shared buf */
 	copy_back_exit_args_to_shared(info);
+
+	if ((info->exit_args.flags &
+		(RMI_DEV_COMM_EXIT_FLAGS_REQ_CACHE_BIT |
+		 RMI_DEV_COMM_EXIT_FLAGS_RSP_CACHE_BIT |
+		 RMI_DEV_COMM_EXIT_FLAGS_REQ_SEND_BIT |
+		 RMI_DEV_COMM_EXIT_FLAGS_RSP_WAIT_BIT |
+		 RMI_DEV_COMM_EXIT_FLAGS_RSP_RESET_BIT)) != 0U) {
+		/*
+		 * In case not all exit flags are zero then do an extra yield
+		 * here, so the app can return with empty flags on the next
+		 * communicate call, signalling to the host that the operation
+		 * is finished
+		 */
+		el0_app_yield();
+		copy_enter_args_from_shared(info);
+		copy_back_exit_args_to_shared(info);
+	}
+
+	assert(info->exit_args.flags == 0U);
+
 	return INT_TO_ULONG(ret);
 }
 

@@ -80,7 +80,7 @@ struct pdev {
 	/* Pointer to this granule */
 	struct granule *g_pdev;
 
-	/* State of this PDEV. RmiPdevState */
+	/* State of this PDEV. RmmPdevState */
 	unsigned long rmi_state;
 
 	/* Flags provided by the Host during PDEV creation. RmiPdevFlags */
@@ -106,7 +106,7 @@ struct pdev {
 	 */
 	struct dev_obj_digest cert_digest;
 
-	/* Device communiction state */
+	/* Device communication state. RmmDevCommState */
 	unsigned int dev_comm_state;
 
 	/* The associated device */

@@ -45,6 +45,11 @@ static int validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
 {
 	(void)pd_params;
 	/*
+	 * TODO_ALP17: Check all the things below (compare with
+	 * RmiPdevParamsIsValid function in spec)
+	 */
+
+	/*
 	 * Check if device identifier, Root Port identifier, IDE stream
 	 * identifier, RID range are valid.
 	 */
@@ -156,17 +161,30 @@ unsigned long smc_pdev_create(unsigned long pdev_addr,
 
 	/*
 	 * Validate RmiPdevFlags. RMM supports PCIE off-chip device represented
-	 * by flags: SPDM=true, IDE=true, COHERENT=false, P2P= false.
+	 * by flags: SPDM=true, NCOH_IDE=true, NCOH_ADDR=*, COH_IDE=false,
+	 *           COH_ADDR=false, P2P=false, TRUST=RMI_TRUST_SEL,
+	 *           CATEGORY=RMI_PDEV_SMEM.
+	 */
+	/* TODO_ALP17: Check whether [n]coh_addr is checked during mem validate */
+	/* TODO_ALP17: Add address range checking if RMI_PDEV_FLAGS_NCOH_ADDR
+	 * is set.
 	 */
 	/* coverity[uninit_use:SUPPRESS] */
 	if ((EXTRACT(RMI_PDEV_FLAGS_SPDM, pdev_params.flags) !=
 	     RMI_PDEV_SPDM_TRUE) ||
-	    (EXTRACT(RMI_PDEV_FLAGS_IDE, pdev_params.flags) !=
+	    (EXTRACT(RMI_PDEV_FLAGS_NCOH_IDE, pdev_params.flags) !=
 	     RMI_PDEV_IDE_TRUE) ||
-	    (EXTRACT(RMI_PDEV_FLAGS_COHERENT, pdev_params.flags) !=
-	     RMI_PDEV_COHERENT_FALSE) ||
+	    (EXTRACT(RMI_PDEV_FLAGS_COH_IDE, pdev_params.flags) !=
+	     RMI_PDEV_IDE_FALSE) ||
+	    (EXTRACT(RMI_PDEV_FLAGS_COH_ADDR, pdev_params.flags) !=
+	     RMI_PDEV_IDE_FALSE) ||
 	    (EXTRACT(RMI_PDEV_FLAGS_P2P, pdev_params.flags) !=
-	     RMI_PDEV_COHERENT_FALSE)) {
+	     RMI_PDEV_COHERENT_FALSE) ||
+	    (EXTRACT(RMI_PDEV_FLAGS_TRUST, pdev_params.flags) !=
+	     RMI_TRUST_SEL) ||
+	    (EXTRACT(RMI_PDEV_FLAGS_CATEGORY, pdev_params.flags) !=
+	     RMI_PDEV_SMEM)
+	) {
 		return RMI_ERROR_NOT_SUPPORTED;
 	}
 
@@ -177,6 +195,11 @@ unsigned long smc_pdev_create(unsigned long pdev_addr,
 	    (pdev_params.num_aux != num_aux_req)) {
 		ERROR("ERROR: PDEV need %ld aux granules, host allocated %ld.\n",
 		      num_aux_req, pdev_params.num_aux);
+		return RMI_ERROR_INPUT;
+	}
+
+	/* coverity[uninit_use:SUPPRESS] */
+	if (pdev_params.ide_sid > 31U) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -239,7 +262,7 @@ unsigned long smc_pdev_create(unsigned long pdev_addr,
 	dparams.rmi_hash_algo = pdev_params.hash_algo;
 	dparams.cert_slot_id = (uint8_t)pdev_params.cert_id;
 
-	if (EXTRACT(RMI_PDEV_FLAGS_IDE, pdev_params.flags) ==
+	if (EXTRACT(RMI_PDEV_FLAGS_NCOH_IDE, pdev_params.flags) ==
 	    RMI_PDEV_IDE_TRUE) {
 		dparams.has_ide = true;
 		dparams.ecam_addr = pdev_params.ecam_addr;
@@ -358,12 +381,6 @@ static unsigned long copyin_and_validate_dev_comm_enter(
 	if ((g_buf == NULL) ||
 	    (granule_unlocked_state(g_buf) != GRANULE_STATE_NS)) {
 		return RMI_ERROR_INPUT;
-	}
-
-	if ((dev_comm_state == DEV_COMM_ACTIVE) &&
-	    ((enter_args->status != RMI_DEV_COMM_ENTER_STATUS_RESPONSE) &&
-	    (enter_args->status != RMI_DEV_COMM_ENTER_STATUS_ERROR))) {
-		return RMI_ERROR_DEVICE;
 	}
 
 	if ((dev_comm_state == DEV_COMM_PENDING) &&
@@ -630,6 +647,8 @@ unsigned long smc_pdev_communicate(unsigned long pdev_addr,
 	if (!GRANULE_ALIGNED(pdev_addr) || !GRANULE_ALIGNED(dev_comm_data_addr)) {
 		return RMI_ERROR_INPUT;
 	}
+
+	/* TODO_ALP17: Ensure PdevIsBusy == False */
 
 	/* Lock pdev granule and map it */
 	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
@@ -1085,12 +1104,13 @@ unsigned long smc_pdev_destroy(unsigned long pdev_addr)
 }
 
 /*
- * Notify the RMM of an event related to a PDEV.
+ * Refresh keys in an IDE connection between the Root Port and the endpoint
+ * device.
  *
  * pdev_addr	- PA of the PDEV
- * ev		- Event type
+ * coh		- Select coherent or non-coherent IDE stream
  */
-unsigned long smc_pdev_notify(unsigned long pdev_addr, unsigned long ev)
+unsigned long smc_pdev_ide_key_refresh(unsigned long pdev_addr, unsigned long coh)
 {
 	struct granule *g_pdev;
 	unsigned long rmi_rc;
@@ -1121,8 +1141,11 @@ unsigned long smc_pdev_notify(unsigned long pdev_addr, unsigned long ev)
 		goto out_pdev_buf_unmap;
 	}
 
-	if (ev != RMI_PDEV_EVENT_IDE_KEY_REFRESH) {
-		rmi_rc = RMI_ERROR_INPUT;
+	if (((coh == RMI_PDEV_COHERENT_FALSE) &&
+		(EXTRACT(RMI_PDEV_FLAGS_NCOH_IDE, pd->rmi_flags) != RMI_PDEV_IDE_TRUE)) ||
+	    ((coh == RMI_PDEV_COHERENT_TRUE) &&
+		(EXTRACT(RMI_PDEV_FLAGS_COH_IDE, pd->rmi_flags) != RMI_PDEV_IDE_TRUE))) {
+		rmi_rc = RMI_ERROR_DEVICE;
 		goto out_pdev_buf_unmap;
 	}
 

@@ -145,7 +145,7 @@ static int vdev_get_info(struct granule *g_vdev, struct rsi_dev_info *rdev_info)
 	}
 
 	/* If IDE is enabled then its independently attested device */
-	if (EXTRACT(RMI_PDEV_FLAGS_IDE, pd->rmi_flags) == RMI_PDEV_IDE_TRUE) {
+	if (EXTRACT(RMI_PDEV_FLAGS_NCOH_IDE, pd->rmi_flags) == RMI_PDEV_IDE_TRUE) {
 		rdev_info->attest_type =
 			RSI_DEV_ATTEST_TYPE_INDEPENDENTLY_ATTESTED;
 	} else {
@@ -283,7 +283,7 @@ void handle_rsi_rdev_get_instance_id(struct rec *rec,
 	rec->vdev.inst_id_valid = false;
 	rec_set_pending_op(rec, REC_PENDING_VDEV_COMPLETE);
 
-	rec_exit->vdev_id = plane->regs[1];
+	rec_exit->vdev_id_1 = plane->regs[1];
 	rec_exit->exit_reason = RMI_EXIT_VDEV_REQUEST;
 	rsi_action = UPDATE_REC_EXIT_TO_HOST;
 
@@ -546,7 +546,7 @@ void handle_rsi_rdev_get_measurements(struct rec *rec,
 	rec->vdev.inst_id_valid = true;
 	rec_set_pending_op(rec, REC_PENDING_VDEV_COMPLETE);
 
-	rec_exit->vdev_id = vdev_id;
+	rec_exit->vdev_id_1 = vdev_id;
 	rec_exit->exit_reason = RMI_EXIT_VDEV_REQUEST;
 	rsi_action = UPDATE_REC_EXIT_TO_HOST;
 
@@ -648,7 +648,7 @@ void handle_rsi_rdev_lock(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	rec->vdev.inst_id_valid = true;
 	rec_set_pending_op(rec, REC_PENDING_VDEV_COMPLETE);
 
-	rec_exit->vdev_id = vdev_id;
+	rec_exit->vdev_id_1 = vdev_id;
 	rec_exit->exit_reason = RMI_EXIT_VDEV_REQUEST;
 	rsi_action = UPDATE_REC_EXIT_TO_HOST;
 
@@ -759,7 +759,7 @@ void handle_rsi_rdev_start(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	rec->vdev.inst_id_valid = true;
 	rec_set_pending_op(rec, REC_PENDING_VDEV_COMPLETE);
 
-	rec_exit->vdev_id = vdev_id;
+	rec_exit->vdev_id_1 = vdev_id;
 	rec_exit->exit_reason = RMI_EXIT_VDEV_REQUEST;
 	rsi_action = UPDATE_REC_EXIT_TO_HOST;
 
@@ -865,7 +865,7 @@ void handle_rsi_rdev_stop(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	rec->vdev.inst_id_valid = true;
 	rec_set_pending_op(rec, REC_PENDING_VDEV_COMPLETE);
 
-	rec_exit->vdev_id = vdev_id;
+	rec_exit->vdev_id_1 = vdev_id;
 	rec_exit->exit_reason = RMI_EXIT_VDEV_REQUEST;
 	rsi_action = UPDATE_REC_EXIT_TO_HOST;
 
@@ -975,7 +975,7 @@ void handle_rsi_rdev_get_interface_report(struct rec *rec,
 	rec->vdev.inst_id_valid = true;
 	rec_set_pending_op(rec, REC_PENDING_VDEV_COMPLETE);
 
-	rec_exit->vdev_id = vdev_id;
+	rec_exit->vdev_id_1 = vdev_id;
 	rec_exit->exit_reason = RMI_EXIT_VDEV_REQUEST;
 	rsi_action = UPDATE_REC_EXIT_TO_HOST;
 
@@ -1168,26 +1168,25 @@ void handle_rsi_rdev_continue(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		goto out_vd_unmap;
 	}
 
+	/* TODO_ALP16: setting vdev_action is removed from below because there
+	 * is no such field in struct rmi_rec_exit anymore, but this part needs
+	 * to be reviewed again.
+	 */
 	switch (rdev->op) {
 	case RDEV_OP_GET_MEASUREMENTS:
 		rsi_action = UPDATE_REC_EXIT_TO_HOST;
-		rec_exit->vdev_action = (unsigned char)RMI_VDEV_ACTION_GET_MEASUREMENTS;
 		break;
 	case RDEV_OP_GET_INTERFACE_REPORT:
 		rsi_action = UPDATE_REC_EXIT_TO_HOST;
-		rec_exit->vdev_action = (unsigned char)RMI_VDEV_ACTION_GET_INTERFACE_REPORT;
 		break;
 	case RDEV_OP_LOCK:
 		rsi_action = UPDATE_REC_EXIT_TO_HOST;
-		rec_exit->vdev_action = (unsigned char)RMI_VDEV_ACTION_LOCK;
 		break;
 	case RDEV_OP_START:
 		rsi_action = UPDATE_REC_EXIT_TO_HOST;
-		rec_exit->vdev_action = (unsigned char)RMI_VDEV_ACTION_START;
 		break;
 	case RDEV_OP_STOP:
 		rsi_action = UPDATE_REC_EXIT_TO_HOST;
-		rec_exit->vdev_action = (unsigned char)RMI_VDEV_ACTION_STOP;
 		break;
 	case RDEV_OP_NONE:
 		rsi_rc = RSI_SUCCESS;
@@ -1202,9 +1201,10 @@ void handle_rsi_rdev_continue(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		/*
 		 * Update REC exit fields to NS host to get the VDEV ptr
 		 * todo: RMM must get this vdev_addr using VDEV request?
+		 * TODO_ALP16: Don't set rec_exit->vdev. Needs to be updated
+		 * according to new flow
 		 */
 		rec_exit->exit_reason = RMI_EXIT_VDEV_COMM;
-		rec_exit->vdev = rdev->vdev_addr;
 
 		/*
 		 * Spec A9.4.3.2 State transitions:
