@@ -410,8 +410,7 @@ static bool handle_simd_exception(struct rec *rec, struct rmi_rec_exit *rec_exit
 	 * As the REC SIMD context is now restored, enable SIMD flags in the
 	 * plane's cptr based on REC's SIMD configuration.
 	 */
-	assert(rec_active_plane(rec)->sysregs != NULL);
-	SIMD_ENABLE_CPTR_FLAGS(&rec->realm_info.simd_cfg, rec_active_plane(rec)->sysregs->cptr_el2);
+	SIMD_ENABLE_CPTR_FLAGS(&rec->realm_info.simd_cfg, rec_active_plane_sysregs(rec)->cptr_el2);
 
 	/*
 	 * Return 'true' indicating that this exception has been handled and
@@ -926,7 +925,6 @@ static void handle_plane_exit_syndrome(struct rsi_plane_exit *exit,
 	exit->far_el2 = plane->plane_exit_info.far;
 	exit->hpfar_el2 = plane->plane_exit_info.hpfar;
 
-	assert(plane->sysregs != NULL);
 	exit->pstate = plane->pstate;
 
 }
@@ -957,16 +955,15 @@ static void copy_timer_state_to_plane_exit(STRUCT_TYPE sysreg_state * sysregs,
 }
 
 static void copy_state_to_plane_exit(struct rec_plane *plane,
+				     STRUCT_TYPE sysreg_state * sysreg,
 				     struct rsi_plane_exit *exit)
 {
 	for (unsigned int i = 0; i < RSI_PLANE_NR_GPRS; i++) {
 		exit->gprs[i] = plane->regs[i];
 	}
 
-	assert(plane->sysregs != NULL);
-
-	copy_timer_state_to_plane_exit(plane->sysregs, exit);
-	gic_copy_state_to_exit(&plane->sysregs->gicstate,
+	copy_timer_state_to_plane_exit(sysreg, exit);
+	gic_copy_state_to_exit(&sysreg->gicstate,
 			(unsigned long *)&exit->gicv3_lrs,
 			&exit->gicv3_hcr,
 			&exit->gicv3_misr,
@@ -1007,6 +1004,7 @@ bool handle_plane_n_exit(struct rec *rec,
 	enum s2_walk_status walk_status;
 	struct s2_walk_result walk_res;
 	struct rec_plane *plane_0, *plane_n;
+	STRUCT_TYPE sysreg_state *sysreg_0, *sysreg_n;
 	unsigned long run_ipa, ret;
 	struct granule *gr;
 	struct rsi_plane_run *run;
@@ -1015,8 +1013,8 @@ bool handle_plane_n_exit(struct rec *rec,
 
 	plane_0 = rec_plane_0(rec);
 	plane_n = rec_active_plane(rec);
-	assert(plane_0->sysregs != NULL);
-	assert(plane_n->sysregs != NULL);
+	sysreg_0 = rec_plane_0_sysregs(rec);
+	sysreg_n = rec_active_plane_sysregs(rec);
 
 	/* RSI_PLANE_ENTER receives the run structure IPA on the second arg */
 	run_ipa = plane_0->regs[2];
@@ -1055,7 +1053,7 @@ bool handle_plane_n_exit(struct rec *rec,
 
 	/* Save Plane N state to REC */
 	if (save_restore_plane_state) {
-		save_realm_state(rec, plane_n);
+		save_realm_state(rec, plane_n, sysreg_n);
 	}
 
 	/* Map rsi_plane_run granule to RMM address space */
@@ -1067,7 +1065,7 @@ bool handle_plane_n_exit(struct rec *rec,
 	(void)memset((void *)&run->exit, 0, sizeof(struct rsi_plane_exit));
 
 	/* Copy target Plane state to exit structure */
-	copy_state_to_plane_exit(plane_n, &run->exit);
+	copy_state_to_plane_exit(plane_n, sysreg_n, &run->exit);
 
 	/* Populate other fields of exit structure */
 	do_handle_plane_exit(exception, &run->exit, plane_n);
@@ -1090,8 +1088,8 @@ out_return_to_plane_0:
 		/* We need to save/restore plane_n/plane_0 here */
 		assert(save_restore_plane_state);
 
-		gic_copy_state(&plane_0->sysregs->gicstate,
-				&plane_n->sysregs->gicstate);
+		gic_copy_state(&sysreg_0->gicstate,
+			       &sysreg_n->gicstate);
 
 		rec->gic_owner = PLANE_0_ID;
 	}
@@ -1101,7 +1099,7 @@ out_return_to_plane_0:
 		 * If SIMD exceptions were not trapped to P0, propagate
 		 * current Plane N cptr_el2 to P0's one.
 		 */
-		plane_0->sysregs->cptr_el2 = plane_n->sysregs->cptr_el2;
+		sysreg_0->cptr_el2 = sysreg_n->cptr_el2;
 	}
 
 	/* Deactivate plane N */
@@ -1112,7 +1110,7 @@ out_return_to_plane_0:
 
 	/* Restore Plane 0 state from REC */
 	if (save_restore_plane_state) {
-		restore_realm_state(rec, plane_0);
+		restore_realm_state(rec, plane_0, sysreg_0);
 		/*
 		 * Since we are returning to P0, we need to undo
 		 * multiplex_el2_timer(), so we restore NS timer.

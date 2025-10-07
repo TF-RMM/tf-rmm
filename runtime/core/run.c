@@ -86,14 +86,10 @@ static void save_sysreg_state(struct sysreg_state *sysregs)
 static void save_pmu(struct rec *rec)
 {
 	if (rec->realm_info.pmu_enabled) {
-		struct rec_plane *plane = rec_active_plane(rec);
-
-		assert(plane->sysregs != NULL);
-
 		/* Save PMU context
 		 * Save number of PMU event counters configured for the realm.
 		 */
-		pmu_save_state(plane->sysregs->pmu,
+		pmu_save_state(rec_active_plane_sysregs(rec)->pmu,
 				rec->realm_info.pmu_num_ctrs);
 	}
 }
@@ -101,15 +97,11 @@ static void save_pmu(struct rec *rec)
 static void restore_pmu(struct rec *rec)
 {
 	if (rec->realm_info.pmu_enabled) {
-		struct rec_plane *plane = rec_active_plane(rec);
-
-		assert(plane->sysregs != NULL);
-
 		/*
 		 * Restore realm PMU context.
 		 * Restore number of PMU counters configured for the realm.
 		 */
-		pmu_restore_state(plane->sysregs->pmu,
+		pmu_restore_state(rec_active_plane_sysregs(rec)->pmu,
 				  rec->realm_info.pmu_num_ctrs);
 	}
 }
@@ -123,11 +115,10 @@ static void report_pmu_state_to_ns(struct rec *rec, struct rmi_rec_exit *rec_exi
 	}
 }
 
-void save_realm_state(struct rec *rec, struct rec_plane *plane)
+void save_realm_state(struct rec *rec, struct rec_plane *plane,
+		      STRUCT_TYPE sysreg_state *sysregs)
 {
-	assert(plane->sysregs != NULL);
-
-	save_sysreg_state(plane->sysregs);
+	save_sysreg_state(sysregs);
 
 	plane->pc = read_elr_el2();
 	plane->pstate = read_spsr_el2();
@@ -137,7 +128,7 @@ void save_realm_state(struct rec *rec, struct rec_plane *plane)
 	plane->plane_exit_info.far = read_far_el2();
 
 	save_pmu(rec);
-	gic_save_state(&plane->sysregs->gicstate);
+	gic_save_state(&sysregs->gicstate);
 
 	mec_realm_mecid_s2_reset();
 }
@@ -220,12 +211,10 @@ static void restore_realm_stage2(struct rec *rec)
 
 	s2_context = plane_to_s2_context(rd, rec->active_plane_id);
 
-	assert(rec_active_plane(rec)->sysregs != NULL);
-
 	/* Program vmec prior to Stage 2 programming */
 	mec_realm_mecid_s2_init(s2_context->mecid);
 	write_vtcr_el2(rec->common_sysregs.vtcr_el2);
-	write_vttbr_el2(rec_active_plane(rec)->sysregs->vttbr_el2);
+	write_vttbr_el2(rec_active_plane_sysregs(rec)->vttbr_el2);
 
 	if (rec->realm_info.rtt_s2ap_encoding == S2AP_INDIRECT_ENC) {
 		s2ap_ind_write_overlay(s2tt_ctx_get_overlay_perm_unlocked(s2_context));
@@ -234,19 +223,18 @@ static void restore_realm_stage2(struct rec *rec)
 	buffer_unmap(rd);
 }
 
-void restore_realm_state(struct rec *rec, struct rec_plane *plane)
+void restore_realm_state(struct rec *rec, struct rec_plane *plane,
+			 STRUCT_TYPE sysreg_state *sysregs)
 {
 	/*
 	 * Restore this early to give time to the timer mask to propagate to
 	 * the GIC.  Issue an ISB to ensure the register write is actually
 	 * performed before doing the remaining work.
 	 */
-	assert(plane->sysregs != NULL);
-
-	write_cnthctl_el2(plane->sysregs->cnthctl_el2);
+	write_cnthctl_el2(sysregs->cnthctl_el2);
 	isb();
 
-	restore_sysreg_state(plane->sysregs);
+	restore_sysreg_state(sysregs);
 
 	/*
 	 * Disable BRBE for R-EL1, BRBE related registers cannot be accessed
@@ -258,13 +246,13 @@ void restore_realm_state(struct rec *rec, struct rec_plane *plane)
 
 	write_elr_el2(plane->pc);
 	write_spsr_el2(plane->pstate);
-	write_hcr_el2(plane->sysregs->hcr_el2);
+	write_hcr_el2(sysregs->hcr_el2);
 
 	/* Control trapping of accesses to PMU registers */
 	write_mdcr_el2(rec->common_sysregs.mdcr_el2);
 
 	restore_pmu(rec);
-	gic_restore_state(&plane->sysregs->gicstate);
+	gic_restore_state(&sysregs->gicstate);
 
 	restore_realm_stage2(rec);
 }
@@ -361,8 +349,7 @@ static void activate_events(struct rec *rec)
 		 * original plane N and not be re-routed to P0. Regardless if
 		 * P0 gets re-scheduled, we need a syndrome to be passed to P0.
 		 */
-		assert(rec_active_plane(rec)->sysregs != NULL);
-		write_hcr_el2(rec_active_plane(rec)->sysregs->hcr_el2 | HCR_VSE);
+		write_hcr_el2(rec_active_plane_sysregs(rec)->hcr_el2 | HCR_VSE);
 		rec->serror_info.inject = false;
 	}
 }
@@ -400,6 +387,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	int realm_exception_code;
 	unsigned int cpuid = my_cpuid();
 	struct rec_plane *plane = rec_active_plane(rec);
+	STRUCT_TYPE sysreg_state *sysregs = rec_active_plane_sysregs(rec);
 	bool skip_timer_report = false;
 
 	assert(cpuid < MAX_CPUS);
@@ -410,7 +398,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	rec->ns = ns_state;
 
 	save_ns_state(rec);
-	restore_realm_state(rec, plane);
+	restore_realm_state(rec, plane, sysregs);
 
 	/*
 	 * The run loop must be entered with active SIMD context set to current
@@ -432,7 +420,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 		/* Active plane can change on each exit */
 		plane = rec_active_plane(rec);
-		assert(plane->sysregs != NULL);
+		sysregs = rec_active_plane_sysregs(rec);
 
 		/*
 		 * We must check the status of the arch timers in every
@@ -440,7 +428,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		 * mask on each entry to the realm and that we report any
 		 * change in output level to the NS caller.
 		 */
-		if (check_pending_timers(plane)) {
+		if (check_pending_timers(sysregs)) {
 			if (!rec_is_plane_0_active(rec)) {
 				bool plane_n_exited;
 
@@ -467,8 +455,8 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		activate_events(rec);
 
 		/* Restore REC's cptr_el2 */
-		if (rmm_cptr_el2 != plane->sysregs->cptr_el2) {
-			write_cptr_el2(plane->sysregs->cptr_el2);
+		if (rmm_cptr_el2 != sysregs->cptr_el2) {
+			write_cptr_el2(sysregs->cptr_el2);
 			isb();
 		}
 
@@ -477,19 +465,19 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		 * There shouldn't be any other function call which uses PAuth
 		 * till the RMM keys are restored.
 		 */
-		pauth_restore_realm_keys(&plane->sysregs->pauth);
+		pauth_restore_realm_keys(&sysregs->pauth);
 
 		realm_exception_code = run_realm(&plane->regs[0],
-						 &plane->sysregs->pp_sysregs.sp_el0);
+						 &sysregs->pp_sysregs.sp_el0);
 
 		/* Save Realm PAuth key. */
-		pauth_save_realm_keys(&plane->sysregs->pauth);
+		pauth_save_realm_keys(&sysregs->pauth);
 
 		/* Restore RMM PAuth key. */
 		pauth_restore_rmm_keys();
 
 		/* Restore RMM's cptr_el2 */
-		if (rmm_cptr_el2 != plane->sysregs->cptr_el2) {
+		if (rmm_cptr_el2 != sysregs->cptr_el2) {
 			write_cptr_el2(rmm_cptr_el2);
 			isb();
 		}
@@ -497,6 +485,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 	/* Active plane can change on each exit */
 	plane = rec_active_plane(rec);
+	sysregs = rec_active_plane_sysregs(rec);
 
 	/*
 	 * Check if FPU/SIMD was used, and if it was, save the realm state,
@@ -510,8 +499,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		 * As the REC SIMD context is now saved, disable all SIMD
 		 * related flags current plane's cptr.
 		 */
-		assert(plane->sysregs != NULL);
-		SIMD_DISABLE_ALL_CPTR_FLAGS(plane->sysregs->cptr_el2);
+		SIMD_DISABLE_ALL_CPTR_FLAGS(sysregs->cptr_el2);
 	}
 
 	/* Clear active simd_context */
@@ -525,7 +513,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	/* Expose PMU Realm state to NS */
 	report_pmu_state_to_ns(rec, rec_exit);
 
-	save_realm_state(rec, plane);
+	save_realm_state(rec, plane, sysregs);
 
 	restore_ns_state(rec);
 

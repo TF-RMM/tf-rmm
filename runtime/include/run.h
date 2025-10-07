@@ -6,9 +6,12 @@
 #ifndef RUN_H
 #define RUN_H
 
+#include <utils_def.h>
+
 struct rec;
 struct rec_plane;
 struct simd_context;
+STRUCT_TYPE sysreg_state;
 
 /*
  * Function to enter Realm with `rec_regs` pointing to GP Regs to be
@@ -25,10 +28,12 @@ void init_all_cpus_ns_simd_context(void);
 /* Returns current CPU's NS world SIMD context */
 struct simd_context *get_cpu_ns_simd_context(void);
 
-/* Restore the state @plane on the current realm */
-void restore_realm_state(struct rec *rec, struct rec_plane *plane);
+/* Restore the state @plane and @sysregs into the current realm */
+void restore_realm_state(struct rec *rec, struct rec_plane *plane,
+			STRUCT_TYPE sysreg_state *sysregs);
 
-/* Save the realm state @plane */
-void save_realm_state(struct rec *rec, struct rec_plane *plane);
+/* Save the realm state into @plane and @sysregs */
+void save_realm_state(struct rec *rec, struct rec_plane *plane,
+			STRUCT_TYPE sysreg_state *sysregs);
 
 #endif /* RUN_H */
