@@ -2080,6 +2080,9 @@ static void validate_ttbrx_el2(struct xlat_ctx *ctx)
 	/* BADDR */
 	expected_ttbrx =
 		(((uint64_t)ctx->tbls->base_table_pa) & MASK(TTBRx_EL2_BADDR));
+	if (is_feat_lpa2_4k_present()) {
+		expected_ttbrx = TTBRx_EL2_SET_MSB_LPA2(ctx->tbls->base_table_pa, expected_ttbrx);
+	}
 	expected_ttbrx |= (INPLACE(TTBRx_EL2_ASID, asid));
 
 	ttbrx = read_ttbr1_el2();
