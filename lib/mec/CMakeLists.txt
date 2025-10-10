@@ -23,3 +23,5 @@ else()
     target_sources(rmm-lib-mec
         PRIVATE "src/mec.c")
 endif()
+
+include (tests/CMakeLists.txt)
