@@ -348,7 +348,7 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 
 /*
  * Handle FPU or SVE or SME exceptions.
- * Returns: true if the exception is handled.
+ * Returns: true if the exception is handled or false if needs to return to NS.
  */
 static bool handle_simd_exception(struct rec *rec, struct rmi_rec_exit *rec_exit,
 				  unsigned long esr)
@@ -357,9 +357,13 @@ static bool handle_simd_exception(struct rec *rec, struct rmi_rec_exit *rec_exit
 
 	if (!rec_is_plane_0_active(rec) &&
 	    (rec_active_plane(rec)->trap_simd == (bool)RSI_TRAP)) {
-		/* Trap the exception to Plane 0 */
-		(void)handle_plane_n_exit(rec, rec_exit, ARM_EXCEPTION_SYNC_LEL, true);
-		return true;
+		/*
+		 * Trap the exception to Plane 0.
+		 * If handle_plane_n_exit() fails, RMM needs to return to host
+		 * for Stage 2 fixup. Once the fixup is done, the SIMD instruction
+		 * can be retried to trigger the exception and try again.
+		 */
+		return handle_plane_n_exit(rec, rec_exit, ARM_EXCEPTION_SYNC_LEL, true);
 	}
 
 	/*
