@@ -384,10 +384,10 @@ int xlat_unmap_memory_page(struct xlat_llt_info * const table,
 	xlat_write_tte_release(tte, TRANSIENT_DESC);
 
 	/* Invalidate any cached copy of this mapping in the TLBs. */
-	xlat_arch_tlbi_va(va);
+	XLAT_ARCH_TLBI_VA(va, nsh);
 
 	/* Ensure completion of the invalidation. */
-	xlat_arch_tlbi_va_sync();
+	XLAT_ARCH_TLBI_SYNC(nsh);
 
 	return 0;
 }

@@ -13,6 +13,63 @@
 #include <xlat_contexts.h>
 
 /*
+ * Invalidate all TLB entries that match the given virtual address.
+ * This functions must be called for every translation table entry
+ * that is modified. It only affects the EL2 Translate regime.
+ * _sh is `ish` or `nsh`.
+ *
+ * Ensure the translation table write has drained into memory
+ * before invalidating the TLB entry. Note that the barrier is scoped
+ * according the _sh parameter and the TLBI is also scoped.
+ */
+
+#define __TLBIVAE2ish tlbivae2is
+#define __TLBIVAE2nsh tlbivae2
+
+#define XLAT_ARCH_TLBI_VA(va, _sh) \
+	do { \
+		dsb(_sh##st); \
+		__TLBIVAE2##_sh(TLBI_ADDR(va)); \
+	} while (false)
+
+/*
+ * A macro that takes start_va, end_va, _sh, and granule_sz as arguments and
+ * issues TLBI for each VA in the range [start_va, end_va):
+ */
+#define XLAT_ARCH_TLBI_VA_RANGE(start_va, end_va, _sh, granule_sz) \
+	do { \
+		dsb(_sh##st); \
+		for (uintptr_t _va = (start_va); _va < (end_va); \
+				_va += (granule_sz)) { \
+			__TLBIVAE2##_sh(TLBI_ADDR(_va)); \
+		} \
+	} while (false)
+
+/*
+ * This macro has to be called at the end of any code that uses
+ * XLAT_ARCH_TLBI_VA(). _sh is `ish` or `nsh`.
+ *
+ * A TLB maintenance instruction can complete at any time after
+ * it is issued, but is only guaranteed to be complete after the
+ * execution of DSB by the PE that executed the TLB maintenance
+ * instruction. After the TLB invalidate instruction is
+ * complete, no new memory accesses using the invalidated TLB
+ * entries will be observed by any observer of the system
+ * domain. See section D4.8.2 of the ARMv8 (issue k), paragraph
+ * "Ordering and completion of TLB maintenance instructions".
+ *
+ * The effects of a completed TLB maintenance instruction are
+ * only guaranteed to be visible on the PE that executed the
+ * instruction after the execution of an ISB instruction by the
+ * PE that executed the TLB maintenance instruction.
+ */
+#define XLAT_ARCH_TLBI_SYNC(_sh) \
+	do { \
+		dsb(_sh); \
+		isb(); \
+	} while (false)
+
+/*
  * Initialize translation tables associated to the current context.
  *
  * This function assumes that the xlat_ctx_cfg field of the context has been
@@ -25,21 +82,6 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx);
 
 /* Determine the physical address space encoded in the 'attr' parameter. */
 uint64_t xlat_arch_get_pas(uint64_t attr);
-
-/*
- * Invalidate all TLB entries that match the given virtual address. This
- * operation applies to all PEs in the same Inner Shareable domain as the PE
- * that executes this function. This functions must be called for every
- * translation table entry that is modified. It only affects the EL2
- * Translate regime
- */
-void xlat_arch_tlbi_va(uintptr_t va);
-
-/*
- * This function has to be called at the end of any code that uses the function
- * xlat_arch_tlbi_va().
- */
-void xlat_arch_tlbi_va_sync(void);
 
 /* Print VA, PA, size and attributes of all regions in the mmap array. */
 void xlat_mmap_print(const struct xlat_ctx *ctx);
