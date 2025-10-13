@@ -57,6 +57,10 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 		base_va = mm[i].base_va;
 		end_pa = base_pa + size - 1UL;
 
+		if (size == 0UL) {
+			return -EINVAL;
+		}
+
 		if (region == VA_LOW_REGION) {
 			if (((base_va & HIGH_REGION_MASK) != 0ULL) ||
 			     (((base_va + size) & HIGH_REGION_MASK) != 0ULL)) {
@@ -224,6 +228,11 @@ static int add_mmap_to_ctx_cfg(struct xlat_ctx_cfg *cfg,
 	cfg->max_mapped_pa = 0ULL;
 	for (unsigned int i = 0U; i < mm_regions; i++) {
 		uintptr_t end_pa;
+
+		assert(mm[i].size != 0UL);
+		if (MT_TYPE(mm[i].attr) == MT_TRANSIENT) {
+			continue;
+		}
 
 		end_pa = mm[i].base_pa + mm[i].size - 1ULL;
 		if (end_pa > cfg->max_mapped_pa) {

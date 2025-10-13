@@ -214,7 +214,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx, struct xlat_mmu_cfg *mm
 		ttbrx = (ctx_tbls->base_table_pa & MASK(TTBRx_EL2_BADDR));
 		ttbrx = TTBRx_EL2_SET_MSB_LPA2(ctx_tbls->base_table_pa, ttbrx);
 	} else {
-		ttbrx = ctx_tbls->base_table_pa;
+		ttbrx = ctx_tbls->base_table_pa & MASK(TTBRx_EL2_BADDR);
 	}
 
 	/*
