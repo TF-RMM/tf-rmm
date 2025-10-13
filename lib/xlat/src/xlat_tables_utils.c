@@ -438,6 +438,63 @@ unsigned long xlat_estimate_num_l3_l2_tables(
 	return total_l3_tables + total_l2_tables;
 }
 
+/*
+ * Function to stitch L1 table from a child context into an existing L1 table
+ * in the parent context.
+ * The block entries in the child L1 table are copied to the corresponding
+ * entries in the parent L1 table.
+ * The child context tables must have been created with xlat_ctx_init() and
+ * must be fully populated with the mappings for the VA range specified.
+ * The VA range must be aligned to L1 block size and contained within a single
+ * L1 table of the parent context.
+ * This function returns 0 on success or an error code otherwise.
+ */
+int xlat_stitch_tables_l1(struct xlat_ctx *parent_ctx, uint64_t *child_l1,
+			uintptr_t va_start, size_t va_size)
+{
+	int ret;
+	struct xlat_llt_info parent_llt;
+	unsigned int l1_idx_start, l1_idx_end;
+
+	assert(!is_mmu_enabled());
+	assert(parent_ctx != NULL);
+	assert(child_l1 != NULL);
+
+	/*
+	 * Check that va_start is aligned to L1 block size and va_size is
+	 * contained in the L1 table.
+	 */
+	assert(ALIGNED(va_start, XLAT_BLOCK_SIZE(1)));
+	assert(ALIGNED(va_size, XLAT_BLOCK_SIZE(1)));
+	assert((round_down(va_start, XLAT_BLOCK_SIZE(0)) + XLAT_BLOCK_SIZE(0))
+						> (va_start + va_size));
+
+	/* Get the L1 table pointer in the parent context for va_start */
+	ret = xlat_get_llt_from_va(&parent_llt, parent_ctx, va_start);
+	if ((ret != 0) || (parent_llt.level != 1)) {
+		ERROR("%s: xlat_get_llt_from_va() failed (%i)\n", __func__, ret);
+		return ret;
+	}
+
+	assert((parent_llt.table != NULL) && (parent_llt.llt_base_va ==
+				round_down(va_start, XLAT_BLOCK_SIZE(0))));
+
+	/* Calculate the index in the L1 table for va_start */
+	l1_idx_start = XLAT_TABLE_IDX(va_start, 1);
+	l1_idx_end = XLAT_TABLE_IDX(va_start + va_size - 1U, 1);
+
+	/* Copy entries from child to parent for the range */
+	for (unsigned int idx = l1_idx_start; idx <= l1_idx_end; ++idx) {
+		/* Assert that parent desc is a TRANSIENT desc */
+		assert(parent_llt.table[idx] == TRANSIENT_DESC);
+		parent_llt.table[idx] = child_l1[idx];
+	}
+
+	inv_dcache_range((uintptr_t)&parent_llt.table[l1_idx_start],
+		(sizeof(uint64_t) * ((uint64_t)((l1_idx_end - l1_idx_start) + 1U))));
+	return 0;
+}
+
 /*****************************************************************************
  * Public part of the utility library for translation tables.
  ****************************************************************************/
