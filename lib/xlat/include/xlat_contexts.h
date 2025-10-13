@@ -151,6 +151,10 @@ struct xlat_ctx {
  *	- mm: List of memory map regions to add to the
  *	      context configuration.
  *	- mm_regions: Number of memory regions in the mm array.
+ *	- partial_va_base: If tables are only being constructed for a part of
+ *	      the VA region, this is the start address of that area. If the
+ *	      tables are being constructed for the whole VA region, this should
+ *	      be 0.
  *	- va_size: Size of the VA space for the current context.
  *	- asid: The Address Space ID associated with this context
  *
@@ -161,6 +165,7 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 		      xlat_addr_region_id_t region,
 		      struct xlat_mmap_region *mm,
 		      unsigned int mm_regions,
+		      uint64_t partial_va_base,
 		      size_t va_size,
 		      uint32_t asid);
 

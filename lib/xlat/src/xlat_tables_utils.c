@@ -135,9 +135,7 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 	       (ctx->tbls != NULL));
 
 	level_size = XLAT_BLOCK_SIZE(level);
-	table_idx_va = (ctx->cfg->region == (VA_LOW_REGION) ?
-			(table_base_va) :
-			(table_base_va + ctx->cfg->base_va));
+	table_idx_va = table_base_va + ctx->cfg->base_va;
 
 	/*
 	 * Keep track of how many invalid or transient descriptors are counted
@@ -232,14 +230,14 @@ void xlat_tables_print(struct xlat_ctx *ctx)
 
 	assert(ctx_cfg != NULL);
 
-	uintptr_t max_mapped_va_offset = (ctx_cfg->region == (VA_LOW_REGION) ?
-			(ctx_cfg->max_mapped_va_offset) :
-			(ctx_cfg->max_mapped_va_offset + ctx_cfg->base_va));
-	uintptr_t max_allowed_va = (ctx_cfg->region == (VA_LOW_REGION) ?
-			(ctx_cfg->max_va_size - 1ULL) :
-			(ctx_cfg->max_va_size + ctx_cfg->base_va - 1ULL));
+	uintptr_t max_mapped_va_offset =
+			(ctx_cfg->max_mapped_va_offset + ctx_cfg->base_va);
+	uintptr_t max_allowed_va =
+			(ctx_cfg->max_va_size + ctx_cfg->base_va - 1ULL);
 
-	VERBOSE("Translation tables state:\n");
+
+	VERBOSE("Translation tables state for %s VA region:\n",
+		(ctx_cfg->region == VA_LOW_REGION) ? "Low" : "High");
 	VERBOSE("  Max allowed PA:  0x%lx\n", xlat_arch_get_max_supported_pa());
 	VERBOSE("  Max allowed VA:  0x%lx\n", max_allowed_va);
 	VERBOSE("  Max mapped PA:   0x%lx", ctx_cfg->max_mapped_pa);

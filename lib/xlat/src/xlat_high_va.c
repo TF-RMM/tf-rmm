@@ -123,6 +123,7 @@ int xlat_high_va_setup(void)
 	ret = xlat_ctx_cfg_init(&high_va_xlat_ctx_cfgs[cpuid], VA_HIGH_REGION,
 				 &mm_regions_array[cpuid][0U],
 				 MMAP_REGION_COUNT,
+				 0UL,
 				 XLAT_HIGH_VA_SIZE,
 				 RMM_ASID);
 	if (!((ret == 0) || (ret == -EALREADY))) {
