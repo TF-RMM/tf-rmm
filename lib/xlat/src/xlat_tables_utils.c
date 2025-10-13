@@ -345,6 +345,99 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 	return NULL;
 }
 
+/* Check if we need to create tables at the given level */
+static bool need_tables_at_lvl(const struct xlat_mmap_region *region,
+		uint64_t parent_lvl_blk_sz)
+{
+	return ((region->granularity < parent_lvl_blk_sz) ||
+		!ALIGNED(region->base_va, parent_lvl_blk_sz) ||
+		!ALIGNED(region->base_va + region->size, parent_lvl_blk_sz) ||
+		((MT_TYPE(region->attr) != MT_TRANSIENT) &&
+			!ALIGNED(region->base_pa, parent_lvl_blk_sz)));
+}
+
+/*
+ * Estimate the number of L3 and L2 tables needed for the given memory regions.
+ * This function assumes that the regions are sorted by ascending base_va.
+ * It also assumes that the regions are at least aligned to PAGE_SIZE
+ * and do not overlap.
+ */
+unsigned long xlat_estimate_num_l3_l2_tables(
+	const struct xlat_mmap_region *regions,
+	unsigned int region_count)
+{
+	unsigned long total_l3_tables = 0UL;
+	unsigned long total_l2_tables = 0UL;
+	uint64_t l3_tbl_sz = XLAT_BLOCK_SIZE(2);
+	uint64_t l2_tbl_sz = XLAT_BLOCK_SIZE(1);
+
+	uint64_t last_l3_va_end = 0UL;
+	uint64_t last_l2_va_end = 0UL;
+	unsigned int i;
+	uint64_t region_va, region_size;
+	uint64_t l3_start, l3_end;
+	unsigned long l3_tables = 0UL;
+	uint64_t l2_start, l2_end;
+	unsigned long l2_tables = 0UL;
+
+	for (i = 0U; i < region_count; ++i) {
+		region_va = regions[i].base_va;
+		region_size = regions[i].size;
+		VERBOSE("Region %u: VA=0x%lx, size=0x%lx, granularity=0x%lx\n",
+			i, region_va, region_size, regions[i].granularity);
+
+		/* L3 tables */
+		l3_start = region_va;
+		l3_end = region_va + region_size;
+		/* If region starts inside last L3 block, skip to next block */
+		if (l3_start < last_l3_va_end) {
+			l3_start = last_l3_va_end;
+		}
+
+		/* Only count L3 tables if needed */
+		if ((need_tables_at_lvl(&regions[i], l3_tbl_sz) != false) &&
+						(l3_start < l3_end)) {
+			l3_tables = (round_up(l3_end, l3_tbl_sz) -
+				round_down(l3_start, l3_tbl_sz)) / l3_tbl_sz;
+
+			total_l3_tables += l3_tables;
+			last_l3_va_end = round_up(l3_end, l3_tbl_sz);
+
+			VERBOSE(" l3_start 0x%lx l3_end 0x%lx last_l3_va_end 0x%lx"
+				" l3_tables %lu total_l3_tables %lu\n",
+				l3_start, l3_end, last_l3_va_end, l3_tables,
+				total_l3_tables);
+		}
+
+		/* L2 tables */
+		l2_start = region_va;
+		l2_end = region_va + region_size;
+		/* If region starts inside last L2 block, skip to next block */
+		if (l2_start < last_l2_va_end) {
+			l2_start = last_l2_va_end;
+		}
+
+		/* Only count L2 tables if needed */
+		if ((need_tables_at_lvl(&regions[i], l2_tbl_sz) != false) &&
+							 (l2_start < l2_end)) {
+			l2_tables = (round_up(l2_end, l2_tbl_sz) -
+				round_down(l2_start, l2_tbl_sz)) / l2_tbl_sz;
+
+			total_l2_tables += l2_tables;
+			last_l2_va_end = round_up(l2_end, l2_tbl_sz);
+
+			VERBOSE(" l2_start 0x%lx l2_end 0x%lx last_l2_va_end 0x%lx"
+				" l2_tables %lu total_l2_tables %lu\n",
+				l2_start, l2_end, last_l2_va_end,
+				l2_tables, total_l2_tables);
+		}
+	}
+
+	VERBOSE("Estimated L3 and L2 tables: %lu\n", total_l3_tables +
+					 total_l2_tables);
+	return total_l3_tables + total_l2_tables;
+}
+
 /*****************************************************************************
  * Public part of the utility library for translation tables.
  ****************************************************************************/
