@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <utils_def.h>
+#include <xlat_cmn_arch.h>
 #include <xlat_contexts.h>
 #include "xlat_defs_private.h"
 #include <xlat_tables.h>
@@ -287,7 +288,7 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 	uintptr_t va_offset;
 	int start_level;
 	uint64_t *ret_table;
-	struct xlat_ctx_tbls *ctx_tbls;
+	struct xlat_ctx_tbls *ctx_tbls __unused;
 	struct xlat_ctx_cfg *ctx_cfg;
 	uintptr_t table_base_va;
 
@@ -296,6 +297,7 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 	assert(ctx->tbls != NULL);
 	assert(out_level != NULL);
 	assert(tt_base_va != NULL);
+	bool mmu_en __unused = is_mmu_enabled();
 
 	if (va < ctx->cfg->base_va) {
 		return NULL;
@@ -312,7 +314,7 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 	ctx_tbls = ctx->tbls;
 	ctx_cfg = ctx->cfg;
 	start_level = ctx_cfg->base_level;
-	ret_table = ctx_tbls->tables;
+	ret_table = remap_table_address(ctx->tbls->tables, ctx_tbls->tbls_va_to_pa_diff, mmu_en);
 	table_base_va = ctx_cfg->base_va;
 
 	for (int level = start_level;
@@ -332,7 +334,8 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 		table_base_va += (XLAT_BLOCK_SIZE(level) * idx);
 
 		/* Get the next table */
-		ret_table = (uint64_t *)xlat_get_oa_from_tte(desc);
+		ret_table = remap_table_address(xlat_get_oa_from_tte(desc),
+					ctx_tbls->tbls_va_to_pa_diff, mmu_en);
 	}
 
 	/*

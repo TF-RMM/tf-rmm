@@ -162,12 +162,13 @@ int xlat_stitch_tables_l1(struct xlat_ctx *parent_ctx, uint64_t *child_l1,
  * _tnum:
  *   Maximum number of tables that can fit in the _tables area.
  */
-#define XLAT_INIT_CTX_TBLS(_tbls, _tables, _tnum, _base_table_pa)	\
+#define XLAT_INIT_CTX_TBLS(_tbls, _tables, _tnum, _base_table_pa, _tbls_va_to_pa_diff)	\
 	{								\
 		(_tbls)->tables = (_tables);				\
 		(_tbls)->tables_num = (_tnum);				\
 		(_tbls)->next_table = 0U;				\
 		(_tbls)->base_table_pa = (_base_table_pa);		\
+		(_tbls)->tbls_va_to_pa_diff = (_tbls_va_to_pa_diff);	\
 		(_tbls)->init = false;					\
 	}
 

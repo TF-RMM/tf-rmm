@@ -307,12 +307,13 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 	return 0;
 }
 
-int xlat_ctx_init(struct xlat_ctx *ctx,
+static int xlat_ctx_init_cmn(struct xlat_ctx *ctx,
 		  struct xlat_ctx_cfg *cfg,
 		  struct xlat_ctx_tbls *tbls_ctx,
 		  uint64_t *tables_ptr,
 		  unsigned int ntables,
-		  uint64_t base_table_pa)
+		  uint64_t base_table_pa,
+		  long tbls_va_pa_diff)
 {
 	if ((ctx == NULL) || (tbls_ctx == NULL) || (cfg == NULL)) {
 		return -EINVAL;
@@ -338,7 +339,7 @@ int xlat_ctx_init(struct xlat_ctx *ctx,
 	ctx->cfg = cfg;
 
 	/* Initialize the tables structure */
-	XLAT_INIT_CTX_TBLS(tbls_ctx, tables_ptr, ntables, base_table_pa);
+	XLAT_INIT_CTX_TBLS(tbls_ctx, tables_ptr, ntables, base_table_pa, tbls_va_pa_diff);
 
 	/* Add the tables to the context */
 	ctx->tbls = tbls_ctx;
@@ -349,4 +350,31 @@ int xlat_ctx_init(struct xlat_ctx *ctx,
 		inv_dcache_range((uintptr_t)cfg, sizeof(struct xlat_ctx_cfg));
 	}
 	return xlat_init_tables_ctx(ctx);
+}
+
+
+int xlat_ctx_init(struct xlat_ctx *ctx,
+		  struct xlat_ctx_cfg *cfg,
+		  struct xlat_ctx_tbls *tbls_ctx,
+		  uint64_t *tables_ptr,
+		  unsigned int ntables,
+		  uint64_t base_table_pa)
+{
+	return xlat_ctx_init_cmn(ctx, cfg, tbls_ctx, tables_ptr, ntables,
+				base_table_pa, 0L);
+}
+
+
+int xlat_ctx_init_remapped_tbls(struct xlat_ctx *ctx,
+		  struct xlat_ctx_cfg *cfg,
+		  struct xlat_ctx_tbls *tbls_ctx,
+		  uint64_t *tables_ptr,
+		  unsigned int ntables,
+		  uint64_t base_table_pa,
+		  uint64_t tbls_array_va)
+{
+	long tbls_va_to_pa_diff = (long)tbls_array_va - (long)base_table_pa;
+
+	return xlat_ctx_init_cmn(ctx, cfg, tbls_ctx, tables_ptr, ntables,
+				base_table_pa, tbls_va_to_pa_diff);
 }
