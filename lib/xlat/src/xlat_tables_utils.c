@@ -517,3 +517,194 @@ uint64_t *xlat_get_tte_ptr(const struct xlat_llt_info * const llt,
 	return (index < XLAT_GET_TABLE_ENTRIES(llt->level)) ?
 			&llt->table[index] : NULL;
 }
+
+/*
+ * Helper to update the descriptor on a level 3 table entry for a given
+ * VA offset.
+ */
+static void xlat_update_level3_descriptor(uintptr_t va_offset,
+					uintptr_t pa,
+					uint64_t *l3_table,
+					uint64_t attr)
+
+{
+	uint64_t desc;
+
+	unsigned int l3_idx = (unsigned int)(va_offset >>
+			XLAT_ADDR_SHIFT(XLAT_TABLE_LEVEL_MAX));
+	assert(l3_idx < XLAT_TABLE_ENTRIES);
+
+	/* Ensure correct mapping and unmapping sequences are followed */
+	assert(/* Unmapping: */
+		((MT_TYPE(attr) == MT_TRANSIENT) &&
+		((l3_table[l3_idx] & (TRANSIENT_DESC | VALID_DESC)) ==
+					(TRANSIENT_DESC | VALID_DESC))) ||
+		/* Mapping: */
+		((MT_TYPE(attr) != MT_TRANSIENT) &&
+		((l3_table[l3_idx] & (TRANSIENT_DESC | VALID_DESC)) ==
+					TRANSIENT_DESC)));
+
+	/* Set VA_ALLOCATED_FLAG when mapping, clear it when unmapping */
+	if (MT_TYPE(attr) == MT_TRANSIENT) {
+		/* Assert that the tte is allocated */
+		assert((l3_table[l3_idx] & VA_ALLOCATED_FLAG) != 0ULL);
+
+		/* Unmapping: clear the allocated flag */
+		desc = TRANSIENT_DESC;
+	} else {
+		/* Mapping: set the allocated flag */
+		desc = xlat_desc(attr, pa, XLAT_TABLE_LEVEL_MAX)
+				| TRANSIENT_DESC | VA_ALLOCATED_FLAG;
+	}
+
+	xlat_write_tte_release(&l3_table[l3_idx], desc);
+}
+
+/*
+ * Function to update level 3 table entries for a VA range.
+ * Continues modifying the same L3 table as long as VA is within its range.
+ * Only walks from base table when a new L3 table is needed.
+ * `next_va` is updated to the next VA after the end of the mapped region.
+ * This function returns 0 on success or a POSIX error code otherwise.
+ */
+static int xlat_tables_update_level3(struct xlat_ctx *ctx,
+				struct xlat_mmap_region *mm, uintptr_t *next_va)
+{
+	assert(ctx != NULL);
+	assert(mm != NULL);
+
+	*next_va = mm->base_va;
+	uintptr_t pa = mm->base_pa;
+	uintptr_t end_va = mm->base_va + mm->size;
+
+	struct xlat_llt_info llt;
+	uintptr_t l3_base_va = 0;
+	uint64_t *l3_table = NULL;
+
+	while (*next_va < end_va) {
+		/*
+		 * If l3_table is not set or VA is outside current L3 table,
+		 * get new L3 table.
+		 */
+		if ((l3_table == NULL) || (*next_va >= (l3_base_va +
+				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+			int ret = xlat_get_llt_from_va(&llt, ctx, *next_va);
+
+			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
+				ERROR("%s: Failed to get L3 table for VA 0x%lx\n",
+				      __func__, *next_va);
+				return -EFAULT;
+			}
+			l3_table = llt.table;
+			l3_base_va = llt.llt_base_va;
+		}
+
+		/* Now at level 3 table */
+		assert(l3_table != NULL);
+
+		xlat_update_level3_descriptor(*next_va - l3_base_va,
+						pa, l3_table, mm->attr);
+		*next_va += XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX);
+
+		/* Only increment PA if not unmapping */
+		if (MT_TYPE(mm->attr) != MT_TRANSIENT) {
+			pa += XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX);
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * Public API to map a region described by 'mm' into the translation
+ * tables in 'ctx'.
+ * Assumes that the tables have been initialized and L3 tables corresponding
+ * to the VA range have been created.
+ * This function returns 0 on success or a POSIX error code otherwise.
+ */
+int xlat_map_l3_region(struct xlat_ctx *ctx, struct xlat_mmap_region *mm,
+						size_t *mapped_size)
+{
+	int ret;
+	uintptr_t next_va = 0;
+
+	assert(ctx != NULL && mm != NULL);
+	assert((ctx->cfg != NULL) && (ctx->cfg->init != false));
+	assert((ctx->tbls != NULL) && (ctx->tbls->init != false));
+	assert(mapped_size != NULL);
+	assert(is_mmu_enabled());
+
+	*mapped_size = 0;
+
+	if (!GRANULE_ALIGNED(mm->base_va) || !GRANULE_ALIGNED(mm->size)
+		|| !GRANULE_ALIGNED(mm->base_pa)) {
+		ERROR("%s: VA/PA/size not aligned to granularity\n", __func__);
+		return -EFAULT;
+	}
+
+	if (mm->granularity != GRANULE_SIZE) {
+		ERROR("%s: Unsupported granularity\n", __func__);
+		return -EFAULT;
+	}
+
+	if (MT_TYPE(mm->attr) == MT_TRANSIENT) {
+		ERROR("%s: Transient attr should not be set.\n", __func__);
+		return -EFAULT;
+	}
+
+	ret = xlat_tables_update_level3(ctx, mm, &next_va);
+	assert(next_va >= mm->base_va);
+
+	*mapped_size = next_va - mm->base_va;
+	if ((ret != 0) || (*mapped_size != mm->size)) {
+		ERROR("%s: Failed to update level 3 tables\n", __func__);
+		return -EFAULT;
+	}
+
+	return 0;
+}
+
+/*
+ * Public API to unmap a region described by 'mm' from the translation tables
+ * in 'ctx'.
+ * Assumes that the tables have been initialized and L3 tables corresponding
+ * to the VA range have been created.
+ * This function returns 0 on success or a POSIX error code otherwise.
+ */
+int xlat_unmap_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t unmap_size)
+{
+	struct xlat_mmap_region mm = {
+		.base_va = va,
+		.size = unmap_size,
+		.base_pa = 0, /* PA is not needed for unmapping */
+		.attr = MT_TRANSIENT, /* Use transient attr to indicate unmapping */
+		.granularity = GRANULE_SIZE,
+	};
+
+	uintptr_t next_va = 0;
+	int ret;
+
+	assert((ctx != NULL) && (unmap_size != 0U));
+	assert((ctx->cfg != NULL) && (ctx->cfg->init != false));
+	assert((ctx->tbls != NULL) && (ctx->tbls->init != false));
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(mm.base_va) || !GRANULE_ALIGNED(unmap_size)) {
+		ERROR("%s: VA/ unmap size not aligned to granularity\n", __func__);
+		return -EFAULT;
+	}
+
+	ret = xlat_tables_update_level3(ctx, &mm, &next_va);
+	assert(next_va >= mm.base_va);
+
+	/* Invalidate TLB for affected VA range */
+	XLAT_ARCH_TLBI_VA_RANGE(mm.base_va, next_va, ish, mm.granularity);
+	XLAT_ARCH_TLBI_SYNC(ish);
+
+	if ((ret != 0) || ((next_va - mm.base_va) != mm.size)) {
+		ERROR("%s: Failed to update level 3 tables\n", __func__);
+		return -EFAULT;
+	}
+
+	return 0;
+}

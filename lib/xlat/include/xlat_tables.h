@@ -370,5 +370,42 @@ static inline uint64_t xlat_get_oa_from_tte(uint64_t tte)
 	return oa;
 }
 
+/*
+ * Maps a memory region described by a xlat_mmap_region structure into the
+ * translation tables of the specified context.
+ *
+ * This function will update the translation tables in the context to map the
+ * virtual address range specified in the region to the corresponding physical
+ * address range with the given attributes.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context to use for mapping.
+ *   - mm:  Pointer to the xlat_mmap_region structure describing the region
+ *          to map (includes base_pa, base_va, size, and attributes).
+ *  - mapped_size: Pointer to a size_t variable where the function will store
+ *                 the size of the mapped region.
+ *
+ * Return:
+ *   - 0 on success, -EFAULT on failure.
+ */
+int xlat_map_l3_region(struct xlat_ctx *ctx, struct xlat_mmap_region *mm,
+				size_t *mapped_size);
+
+/*
+ * Unmaps a memory region starting at the given virtual address and of the
+ * specified size from the translation tables of the given context.
+ * This function will update the translation tables in the context to unmap
+ * the virtual address range specified.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context to use for unmapping.
+ *   - va:  Starting virtual address of the region to unmap.
+ *   - unmap_size: Size of the region to unmap.
+ *
+ * Return:
+ *    - 0 on success, -EFAULT on failure.
+ */
+int xlat_unmap_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t unmap_size);
+
 #endif /*__ASSEMBLER__*/
 #endif /* XLAT_TABLES_H */
