@@ -262,6 +262,7 @@ static void update_cached_idreg_info(void)
 void arch_features_query_el3_support(void)
 {
 	unsigned long val;
+	struct smc_args smc_args = {0};
 	struct smc_result smc_res = {0};
 
 	assert(!is_mmu_enabled());
@@ -272,38 +273,39 @@ void arch_features_query_el3_support(void)
 			      0UL, 0UL, 0UL, 0UL, 0UL);
 
 	if (val != SMC_SUCCESS) {
+		/* cppcheck-suppress misra-c2012-15.2 */
 		goto smc_failed;
 	}
-	monitor_call_with_res(SMCCC_ARCH_FEATURE_AVAILABILITY,
-			      SCR_EL3_OPCODE,
-			      0UL, 0UL, 0UL, 0UL, 0UL,
+	smc_args = SMC_ARGS_1(SCR_EL3_OPCODE);
+	monitor_call_with_arg_res(SMCCC_ARCH_FEATURE_AVAILABILITY,
+			      &smc_args,
 			      &smc_res);
 
 	if (smc_res.x[0] == SMC_SUCCESS) {
 		WRITE_EL3_FEAT_EN_STATUS(el3_feat_enb_status, scr_bitmask, smc_res.x[1]);
 	}
 
-	monitor_call_with_res(SMCCC_ARCH_FEATURE_AVAILABILITY,
-			      CPTR_EL3_OPCODE,
-			      0UL, 0UL, 0UL, 0UL, 0UL,
+	smc_args = SMC_ARGS_1(CPTR_EL3_OPCODE);
+	monitor_call_with_arg_res(SMCCC_ARCH_FEATURE_AVAILABILITY,
+			      &smc_args,
 			      &smc_res);
 
 	if (smc_res.x[0] == SMC_SUCCESS) {
 		WRITE_EL3_FEAT_EN_STATUS(el3_feat_enb_status, cptr_bitmask, smc_res.x[1]);
 	}
 
-	monitor_call_with_res(SMCCC_ARCH_FEATURE_AVAILABILITY,
-			      MDCR_EL3_OPCODE,
-			      0UL, 0UL, 0UL, 0UL, 0UL,
+	smc_args = SMC_ARGS_1(MDCR_EL3_OPCODE);
+	monitor_call_with_arg_res(SMCCC_ARCH_FEATURE_AVAILABILITY,
+			      &smc_args,
 			      &smc_res);
 
 	if (smc_res.x[0] == SMC_SUCCESS) {
 		WRITE_EL3_FEAT_EN_STATUS(el3_feat_enb_status, mdcr_bitmask, smc_res.x[1]);
 	}
 
-	monitor_call_with_res(SMCCC_ARCH_FEATURE_AVAILABILITY,
-			      MPAM3_EL3_OPCODE,
-			      0UL, 0UL, 0UL, 0UL, 0UL,
+	smc_args = SMC_ARGS_1(MPAM3_EL3_OPCODE);
+	monitor_call_with_arg_res(SMCCC_ARCH_FEATURE_AVAILABILITY,
+			      &smc_args,
 			      &smc_res);
 
 	if (smc_res.x[0] == SMC_SUCCESS) {

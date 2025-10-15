@@ -84,11 +84,10 @@ static int rmm_el3_ifc_get_realm_attest_key_internal(uintptr_t buf,
 						     unsigned long smc_fid)
 {
 	struct smc_result smc_res;
+	/* cppcheck-suppress misra-c2012-9.3 */
+	struct smc_args smc_args = SMC_ARGS_3(get_buffer_pa(buf, buflen), buflen, crv);
 
-	monitor_call_with_res(smc_fid,
-			      get_buffer_pa(buf, buflen),
-			      buflen,
-			      crv, 0UL, 0UL, 0UL, &smc_res);
+	monitor_call_with_arg_res(smc_fid, &smc_args, &smc_res);
 
 	/* coverity[uninit_use:SUPPRESS] */
 	if (smc_res.x[0] != 0UL) {
@@ -126,14 +125,12 @@ int rmm_el3_ifc_get_platform_token(uintptr_t buf, size_t buflen,
 {
 	struct smc_result smc_res;
 	unsigned long rmm_el3_ifc_version = rmm_el3_ifc_get_version();
+	/* cppcheck-suppress misra-c2012-9.3 */
+	struct smc_args smc_args = SMC_ARGS_3(get_buffer_pa(buf, buflen), buflen, hash_size);
 
 	/* Get the available space on the buffer after the offset */
 
-	monitor_call_with_res(SMC_RMM_GET_PLAT_TOKEN,
-			      get_buffer_pa(buf, buflen),
-			      buflen,
-			      hash_size,
-			      0UL, 0UL, 0UL, &smc_res);
+	monitor_call_with_arg_res(SMC_RMM_GET_PLAT_TOKEN, &smc_args, &smc_res);
 
 	/* coverity[uninit_use:SUPPRESS] */
 	if ((long)smc_res.x[0] != 0L) {
@@ -165,17 +162,16 @@ int rmm_el3_ifc_push_el3_token_sign_request(
 	const struct el3_token_sign_request *req)
 {
 	struct smc_result smc_res;
+	/* cppcheck-suppress misra-c2012-9.3 */
+	struct smc_args smc_args = SMC_ARGS_3(SMC_RMM_EL3_TOKEN_SIGN_PUSH_REQ_OP,
+				    get_buffer_pa((uintptr_t)req, sizeof(*req)), sizeof(*req));
 
 	if (!rmm_el3_ifc_el3_token_sign_supported()) {
 		ERROR("EL3 does not support token signing\n");
 		return E_RMM_UNK;
 	}
 
-	monitor_call_with_res(SMC_RMM_EL3_TOKEN_SIGN,
-			      SMC_RMM_EL3_TOKEN_SIGN_PUSH_REQ_OP,
-			      get_buffer_pa((uintptr_t)req, sizeof(*req)),
-			      sizeof(*req),
-			      0UL, 0UL, 0UL, &smc_res);
+	monitor_call_with_arg_res(SMC_RMM_EL3_TOKEN_SIGN, &smc_args, &smc_res);
 
 	/* coverity[uninit_use:SUPPRESS] */
 	if (smc_res.x[0] != 0UL) {
@@ -196,17 +192,16 @@ int rmm_el3_ifc_pull_el3_token_sign_response(
 	const struct el3_token_sign_response *resp)
 {
 	struct smc_result smc_res;
+	/* cppcheck-suppress misra-c2012-9.3 */
+	struct smc_args smc_args = SMC_ARGS_3(SMC_RMM_EL3_TOKEN_SIGN_PULL_RESP_OP,
+				    get_buffer_pa((uintptr_t)resp, sizeof(*resp)), sizeof(*resp));
 
 	if (!rmm_el3_ifc_el3_token_sign_supported()) {
 		ERROR("EL3 does not support token signing\n");
 		return E_RMM_UNK;
 	}
 
-	monitor_call_with_res(SMC_RMM_EL3_TOKEN_SIGN,
-			      SMC_RMM_EL3_TOKEN_SIGN_PULL_RESP_OP,
-			      get_buffer_pa((uintptr_t)resp, sizeof(*resp)),
-			      sizeof(*resp),
-			      0UL, 0UL, 0UL, &smc_res);
+	monitor_call_with_arg_res(SMC_RMM_EL3_TOKEN_SIGN, &smc_args, &smc_res);
 
 	/* coverity[uninit_use:SUPPRESS] */
 	if (smc_res.x[0] != 0UL) {
@@ -227,17 +222,16 @@ int rmm_el3_ifc_get_realm_attest_pub_key_from_el3(uintptr_t buf, size_t buflen,
 						  size_t *len, unsigned int crv)
 {
 	struct smc_result smc_res;
+	/* cppcheck-suppress misra-c2012-9.3 */
+	struct smc_args smc_args = SMC_ARGS_4(SMC_RMM_EL3_TOKEN_SIGN_GET_RAK_PUB_OP,
+				     get_buffer_pa(buf, buflen), buflen, crv);
 
 	if (!rmm_el3_ifc_el3_token_sign_supported()) {
 		ERROR("EL3 does not support token signing\n");
 		return E_RMM_UNK;
 	}
 
-	monitor_call_with_res(SMC_RMM_EL3_TOKEN_SIGN,
-			      SMC_RMM_EL3_TOKEN_SIGN_GET_RAK_PUB_OP,
-			      get_buffer_pa(buf, buflen),
-			      buflen,
-			      crv, 0UL, 0UL, &smc_res);
+	monitor_call_with_arg_res(SMC_RMM_EL3_TOKEN_SIGN, &smc_args, &smc_res);
 
 	/* coverity[uninit_use:SUPPRESS] */
 	if (smc_res.x[0] != 0UL) {
@@ -259,6 +253,8 @@ int rmm_el3_ifc_get_realm_attest_pub_key_from_el3(uintptr_t buf, size_t buflen,
 int rmm_el3_ifc_get_feat_register(unsigned int feat_reg_idx, uint64_t *feat_reg)
 {
 	struct smc_result smc_res;
+	/* cppcheck-suppress misra-c2012-9.3 */
+	struct smc_args smc_args = SMC_ARGS_1(feat_reg_idx);
 	unsigned long rmm_el3_ifc_version = rmm_el3_ifc_get_version();
 
 	if ((RMM_EL3_IFC_GET_VERS_MAJOR(rmm_el3_ifc_version) != 0U) ||
@@ -268,9 +264,7 @@ int rmm_el3_ifc_get_feat_register(unsigned int feat_reg_idx, uint64_t *feat_reg)
 		return E_RMM_UNK;
 	}
 
-	monitor_call_with_res(SMC_RMM_EL3_FEATURES,
-			      feat_reg_idx,
-			      0UL, 0UL, 0UL, 0UL, 0UL, &smc_res);
+	monitor_call_with_arg_res(SMC_RMM_EL3_FEATURES, &smc_args, &smc_res);
 
 	/* coverity[uninit_use:SUPPRESS] */
 	if (smc_res.x[0] != 0UL) {
