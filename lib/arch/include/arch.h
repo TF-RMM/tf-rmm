@@ -184,7 +184,7 @@
 
 #define HCR_BSU_SHIFT	10
 #define HCR_BSU_WIDTH	U(2)
-#define HCR_BSU_IS	INPLACE(HCR_BSU, UL(1)) /* Barriers are promoted to IS */
+#define HCR_BSU_IS	(UL(1) << HCR_BSU_SHIFT) /* Barriers are promoted to IS */
 
 #define HCR_FB		(UL(1) << 9)
 #define HCR_VI		(UL(1) << 7)
@@ -195,12 +195,12 @@
 #define HCR_SWIO	(UL(1) << 1)
 #define HCR_VM		(UL(1) << 0)
 
-#define HCR_REALM_FLAGS		(HCR_FWB | HCR_E2H | HCR_RW | HCR_TSC |		\
+#define HCR_EL2_REALM		(HCR_FWB | HCR_E2H | HCR_RW | HCR_TSC |		\
 				HCR_AMO | HCR_BSU_IS | HCR_IMO | HCR_FMO |	\
 				HCR_PTW | HCR_SWIO | HCR_VM | HCR_TID3 |	\
 				HCR_TEA | HCR_API | HCR_APK)
 
-#define HCR_EL2_INIT		(HCR_TGE | HCR_E2H | HCR_TEA)
+#define HCR_EL2_APP		(HCR_TGE | HCR_E2H | HCR_TEA)
 
 /* HCRX_EL2 Register */
 #define HCRX_EL2	S3_4_C1_C2_2
