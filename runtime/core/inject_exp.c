@@ -258,14 +258,14 @@ void inject_sync_idabort_rec(struct rec *rec, unsigned long fsc)
 
 	plane->sysregs->pp_sysregs.far_el1 = plane->last_run_info.far;
 	plane->sysregs->pp_sysregs.elr_el1 = plane->pc;
-	plane->sysregs->pp_sysregs.spsr_el1 = plane->sysregs->pstate;
+	plane->sysregs->pp_sysregs.spsr_el1 = plane->pstate;
 	plane->sysregs->pp_sysregs.esr_el1 =
 		calc_esr_idabort(plane->last_run_info.esr,
-						  plane->sysregs->pstate, fsc);
+						  plane->pstate, fsc);
 	plane->pc = calc_vector_entry(plane->sysregs->pp_sysregs.vbar_el1,
-				      plane->sysregs->pstate, sctlr2_ease_bit);
-	plane->sysregs->pstate =
-		calc_spsr(plane->sysregs->pstate, plane->sysregs->pp_sysregs.sctlr_el1);
+				      plane->pstate, sctlr2_ease_bit);
+	plane->pstate =
+		calc_spsr(plane->pstate, plane->sysregs->pp_sysregs.sctlr_el1);
 
 	INFO("Inject Sync EA into Plane %u of REC 0x%lx FAR_EL1: 0x%lx, ELR_EL1: 0x%lx\n",
 			rec->active_plane_id, (unsigned long)rec,
