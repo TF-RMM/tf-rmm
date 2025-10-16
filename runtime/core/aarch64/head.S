@@ -30,7 +30,7 @@
 	mov_imm	x1, SCTLR_EL2_INIT
 	msr	sctlr_el2, x1
 
-	mov_imm	x2, HCR_EL2_INIT
+	mov_imm	x2, HCR_EL2_REALM
 	msr	hcr_el2, x2
 
 	mov_imm	x3, CPTR_EL2_VHE_INIT

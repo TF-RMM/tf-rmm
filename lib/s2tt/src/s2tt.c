@@ -129,13 +129,10 @@ static void stage2_tlbi_ipa_per_vmids(unsigned int *vmid_list, unsigned int nvmi
 		dsb(ish);
 
 		/*
-		 * The architecture does not require TLB invalidation by
-		 * IPA to affect combined Stage-1 + Stage-2 TLBs. Therefore
+		 * According to Section D8.17.6.1, rule ILRXYX of Arm ARM Version L.b,
 		 * we must invalidate all of Stage-1 after invalidating Stage-2.
-		 *
-		 * Bear in mind that as the effective value of
-		 * HCR_EL2.{E2H, TGE} == {1, 1} the current VMID is not taken
-		 * into account for the invalidation.
+		 * Note that since {E2H, TGE} is {1, 0}, this invalidate applies to
+		 * Stage 1 of current VMID.
 		 */
 		tlbivmalle1is();
 		dsb(ish);

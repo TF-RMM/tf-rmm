@@ -611,7 +611,7 @@ static void app_run_internal(struct app_data_cfg *app_data,
 	unsigned long old_elr_el2 = read_elr_el2();
 	unsigned long old_spsr_el2 = read_spsr_el2();
 
-	write_hcr_el2(HCR_EL2_INIT);
+	write_hcr_el2(HCR_EL2_APP);
 
 	assert(app_reg_ctx != NULL);
 
