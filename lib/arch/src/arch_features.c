@@ -355,6 +355,14 @@ unsigned int arch_feat_get_pa_width(void)
 			PARANGE_WIDTH_52BITS : PARANGE_WIDTH_48BITS);
 	}
 
+	/*
+	 * If PA range > 48 bits and FEAT_LPA2 is not present, limit PA to 48 bits.
+	 * This can heppen when FEAT_LPA is present but FEAT_LPA2 is not.
+	 */
+	if ((pa_range_bits_arr[pa_range] > PARANGE_WIDTH_48BITS) && !is_feat_lpa2_4k_present()) {
+		return PARANGE_WIDTH_48BITS;
+	}
+
 	return pa_range_bits_arr[pa_range];
 }
 #endif
