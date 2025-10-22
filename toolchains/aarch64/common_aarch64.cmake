@@ -41,3 +41,8 @@ function(detect_and_set_march)
 	endforeach()
 	message(FATAL_ERROR "Suitable -march not detected. Please upgrade aarch64 compiler." )
 endfunction()
+
+if (UBSAN)
+	string(APPEND CMAKE_C_FLAGS_INIT "-fsanitize-trap=undefined ")
+	string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fsanitize-trap=undefined ")
+endif()

@@ -33,3 +33,14 @@ if(NOT EXISTS CMAKE_TOOLCHAIN_FILE)
     set(CMAKE_TOOLCHAIN_FILE
         "${CMAKE_SOURCE_DIR}/toolchains/${RMM_ARCH}/${RMM_TOOLCHAIN}.cmake")
 endif()
+
+#
+# Configure whether UBSAN should be enabled for the build.
+# Default is false.
+#
+arm_config_option(
+        NAME UBSAN
+        HELP "Enable Undefined Behavior Sanitizer."
+        BOOL
+        DEFAULT OFF
+)
