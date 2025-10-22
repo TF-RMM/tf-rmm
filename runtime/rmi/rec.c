@@ -67,7 +67,7 @@ static unsigned long realm_vtcr_ps(unsigned int parange)
 	}
 }
 
-static unsigned long realm_vtcr(struct rd *rd)
+unsigned long realm_vtcr(struct rd *rd)
 {
 	unsigned long t0sz, sl0;
 	unsigned long vtcr = is_feat_vmid16_present() ?

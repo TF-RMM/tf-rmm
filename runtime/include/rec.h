@@ -96,6 +96,7 @@ COMPILER_ASSERT((sizeof(struct pmu_state) * MAX_TOTAL_PLANES) <= REC_PMU_SIZE);
 #define REC_PENDING_VDEV_COMPLETE	U(2) /* A VDEV request is pending */
 
 struct granule;
+struct rd;
 
 /*
  * System registers whose contents are specific to a Plane.
@@ -532,6 +533,7 @@ void inject_serror(struct rec *rec, unsigned long vsesr);
 void emulate_stage2_data_abort(struct rmi_rec_exit *rec_exit,
 			       unsigned long rtt_level, unsigned long ipa);
 void rec_set_pending_op(struct rec *rec, unsigned int pending_op);
+unsigned long realm_vtcr(struct rd *rd);
 
 #endif /* __ASSEMBLER__ */
 #endif /* REC_H */

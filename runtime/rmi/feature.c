@@ -14,6 +14,19 @@
 #include <smc-rmi.h>
 #include <utils_def.h>
 
+/*
+ * Indicates whether the DA feature is supported.
+ */
+#ifdef RMM_V1_1
+/*
+ * This is set to 'RMI_FEATURE_FALSE' by rmm_main() calling
+ * feature_da_disable() if SMMUs fail to initialise.
+ */
+static unsigned long feat_da_supported = RMI_FEATURE_TRUE;
+#else
+static unsigned long feat_da_supported = RMI_FEATURE_FALSE;
+#endif
+
 unsigned long get_feature_register_0(void)
 {
 	/* Set S2SZ field */
@@ -95,9 +108,9 @@ unsigned long get_feature_register_0(void)
 	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_MAX_RECS_ORDER,
 				GRN_REFCOUNT_WIDTH);
 
-#ifdef RMM_V1_1
-	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_DA_EN, RMI_FEATURE_TRUE);
+	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_DA_EN, feat_da_supported);
 
+#ifdef RMM_V1_1
 	if (s2tt_indirect_ap_supported()) {
 		feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_PLANE_RTT, RMI_RTT_PLANE_AUX_SINGLE);
 		feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_RTT_S2AP_INDIRECT, RMI_FEATURE_TRUE);
@@ -107,7 +120,6 @@ unsigned long get_feature_register_0(void)
 
 	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_MAX_NUM_AUX_PLANES, MAX_AUX_PLANES);
 #else
-	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_DA_EN, RMI_FEATURE_FALSE);
 	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_RTT_S2AP_INDIRECT, RMI_FEATURE_FALSE);
 #endif
 
@@ -136,4 +148,9 @@ void smc_read_feature_register(unsigned long index,
 	} else {
 		res->x[1] = 0UL;
 	}
+}
+
+void feature_da_disable(void)
+{
+	feat_da_supported = RMI_FEATURE_FALSE;
 }
