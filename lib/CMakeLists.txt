@@ -15,6 +15,7 @@ target_link_libraries(rmm-lib
               rmm-lib-mec
               rmm-lib-rmm_el3_ifc
               rmm-lib-smc
+              rmm-lib-smmuv3
               rmm-lib-s2tt
               rmm-lib-slot_buf
               rmm-lib-stack_protector
@@ -30,6 +31,7 @@ add_subdirectory("mbedtls")
 add_subdirectory("mec")
 add_subdirectory("rmm_el3_ifc")
 add_subdirectory("smc")
+add_subdirectory("smmuv3")
 add_subdirectory("s2tt")
 add_subdirectory("slot_buf")
 add_subdirectory("stack_protector")

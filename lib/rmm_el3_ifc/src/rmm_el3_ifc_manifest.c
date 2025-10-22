@@ -27,8 +27,7 @@ static bool manifest_processed;
 
 void rmm_el3_ifc_process_boot_manifest(void)
 {
-	assert((manifest_processed == (bool)false) &&
-		(is_mmu_enabled() == (bool)false));
+	assert(!manifest_processed && !is_mmu_enabled());
 
 	/*
 	 * The boot manifest is expected to be on the shared area.
@@ -56,7 +55,7 @@ void rmm_el3_ifc_process_boot_manifest(void)
 /* Return the raw value of the received boot manifest */
 unsigned int rmm_el3_ifc_get_manifest_version(void)
 {
-	assert(manifest_processed == (bool)true);
+	assert(manifest_processed);
 
 	return local_core_manifest.version;
 }
@@ -65,8 +64,7 @@ unsigned int rmm_el3_ifc_get_manifest_version(void)
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 uintptr_t rmm_el3_ifc_get_plat_manifest_pa(void)
 {
-	assert((manifest_processed == (bool)true) &&
-		(is_mmu_enabled() == (bool)false));
+	assert(manifest_processed && !is_mmu_enabled());
 
 	return local_core_manifest.plat_data;
 }
@@ -285,8 +283,7 @@ int rmm_el3_ifc_get_console_list_pa(struct console_list **plat_console_list)
 	struct console_list *csl_list;
 	struct console_info *console_ptr;
 
-	assert((manifest_processed == (bool)true) &&
-		(is_mmu_enabled() == (bool)false));
+	assert(manifest_processed && !is_mmu_enabled());
 
 	*plat_console_list = NULL;
 
@@ -378,6 +375,58 @@ int rmm_el3_ifc_get_root_complex_list_pa(struct root_complex_list **plat_rc_list
 	}
 
 	*plat_rc_list = rc_list;
+
+	return E_RMM_BOOT_SUCCESS;
+}
+
+/*
+ * Return validated SMMUv3 list passed in plat_smmu pointer
+ * from the Boot manifest v0.5 onwards.
+ */
+int rmm_el3_ifc_get_smmu_list_pa(struct smmu_list **plat_smmu_list)
+{
+	uint64_t num_smmus, checksum;
+	struct smmu_list *smmus_list;
+	struct smmu_info *smmus_ptr;
+
+	assert(manifest_processed && !is_mmu_enabled());
+
+	*plat_smmu_list = NULL;
+
+	/*
+	 * Validate the Boot Manifest Version
+	 */
+	if (local_core_manifest.version <
+			RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(5))) {
+		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
+	}
+
+	smmus_list = &local_core_manifest.plat_smmu;
+
+	/* Number of SMMUv3 */
+	num_smmus = smmus_list->num_smmus;
+
+	/* Verify number of SMMUv3 */
+	if ((num_smmus == 0UL) || (num_smmus > RMM_MAX_SMMUS)) {
+		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
+	}
+
+	/* Pointer to the SMMUv3 array */
+	smmus_ptr = smmus_list->smmus;
+
+	/* Calculate the checksum of the smmu_list structure */
+	checksum = num_smmus + (uint64_t)smmus_ptr + smmus_list->checksum;
+
+	/* Update checksum */
+	checksum += checksum_calc((uint64_t *)smmus_ptr,
+					sizeof(struct smmu_info) * num_smmus);
+
+	/* Verify the checksum is 0 */
+	if (checksum != 0UL) {
+		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
+	}
+
+	*plat_smmu_list = smmus_list;
 
 	return E_RMM_BOOT_SUCCESS;
 }
