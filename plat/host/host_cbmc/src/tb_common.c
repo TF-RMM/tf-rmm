@@ -14,7 +14,7 @@
 #include "utils_def.h"
 
 /* This array holds information on the injected granule's status in the GPT. */
-static enum granule_gpt granule_gpt_array[RMM_MAX_GRANULES];
+static enum granule_gpt granule_gpt_array[HOST_NR_GRANULES];
 
 /* Declare a nondet function for registers information. */
 struct tb_regs nondet_tb_regs(void);
@@ -56,7 +56,7 @@ struct tb_lock_status __tb_lock_status(void)
 	return r;
 }
 
-extern struct granule granules[RMM_MAX_GRANULES];
+extern struct granule host_granules[HOST_NR_GRANULES];
 bool used_granules_buffer[HOST_NR_GRANULES] = { 0 };
 
 bool valid_pa(uint64_t addr)
@@ -87,10 +87,10 @@ struct granule *pa_to_granule_metadata_ptr(uint64_t addr)
 	uint64_t idx = (addr - (uint64_t)host_dram_buffer)/GRANULE_SIZE;
 
 	__ASSERT(idx >= 0, "internal: `_pa_to_granule_metadata_ptr`, addr is in lower range");
-	__ASSERT(idx < RMM_MAX_GRANULES,
+	__ASSERT(idx < HOST_NR_GRANULES,
 		"internal: `_pa_to_granule_metadata_ptr`, addr is in upper range");
 
-	return &granules[idx];
+	return &host_granules[idx];
 }
 
 void *granule_metadata_ptr_to_buffer_ptr(struct granule *g_ptr)
@@ -98,12 +98,12 @@ void *granule_metadata_ptr_to_buffer_ptr(struct granule *g_ptr)
 	if (!valid_granule_metadata_ptr(g_ptr)) {
 		return NULL;
 	}
-	return host_dram_buffer + (g_ptr - granules) * GRANULE_SIZE;
+	return host_dram_buffer + (g_ptr - host_granules) * GRANULE_SIZE;
 }
 
 uint64_t granule_metadata_ptr_to_pa(struct granule *g_ptr)
 {
-	return (uint64_t)host_dram_buffer + (g_ptr - granules) * GRANULE_SIZE;
+	return (uint64_t)host_dram_buffer + (g_ptr - host_granules) * GRANULE_SIZE;
 }
 
 void *pa_to_granule_buffer_ptr(uint64_t addr)
@@ -125,8 +125,8 @@ void *pa_to_granule_buffer_ptr(uint64_t addr)
 
 bool valid_granule_metadata_ptr(struct granule *p)
 {
-	return p >= granules
-		&& p < granules + RMM_MAX_GRANULES;
+	return p >= host_granules
+		&& p < host_granules + HOST_NR_GRANULES;
 }
 
 /*
@@ -177,10 +177,10 @@ struct granule *inject_granule_at(const struct granule *granule_metadata,
 		granule_gpt_array[index] = GPT_REALM;
 	}
 
-	granules[index] = *granule_metadata;
+	host_granules[index] = *granule_metadata;
 	(void)memcpy(host_dram_buffer + offset, src_page, src_size);
 	used_granules_buffer[index] = true;
-	return &granules[index];
+	return &host_granules[index];
 }
 
 struct granule *inject_granule(const struct granule *granule_metadata,

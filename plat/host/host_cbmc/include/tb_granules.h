@@ -43,7 +43,7 @@ struct SPEC_granule {
  * visible outside their respective files.
  */
 extern unsigned char host_dram_buffer[HOST_DRAM_SIZE];
-extern struct granule granules[RMM_MAX_GRANULES];
+extern struct granule host_granules[HOST_NR_GRANULES];
 
 /*
  * Declare nondet_* functions.
