@@ -34,7 +34,7 @@ struct host_realm {
 	uintptr_t realm_buffer;
 };
 
-uint64_t rmm_main(void);
+uint64_t rmm_main(uint64_t token);
 int realm_start(unsigned long *regs, unsigned long *rec_sp_el0);
 
 unsigned long host_realm_get_realm_buffer(void);

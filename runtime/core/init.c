@@ -76,7 +76,7 @@ static void rmm_arch_init(void)
 
 /* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
-uint64_t rmm_warmboot_main(void)
+uint64_t rmm_warmboot_main(uint64_t token)
 {
 	/*
 	 * Do the rest of RMM architecture init
@@ -108,7 +108,8 @@ uint64_t rmm_warmboot_main(void)
 	 */
 	s2tt_init();
 
-	return 0UL;
+	INFO("RMM warm boot complete. token=%lx\n", token);
+	return token;
 }
 
 /*
@@ -118,7 +119,7 @@ uint64_t rmm_warmboot_main(void)
  */
 /* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
-uint64_t rmm_main(void)
+uint64_t rmm_main(uint64_t token)
 {
 	unsigned int rmm_el3_ifc_version = rmm_el3_ifc_get_version();
 	unsigned int manifest_version = rmm_el3_ifc_get_manifest_version();
@@ -202,5 +203,5 @@ uint64_t rmm_main(void)
 		feature_da_disable();
 	}
 
-	return rmm_warmboot_main();
+	return rmm_warmboot_main(token);
 }

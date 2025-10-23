@@ -22,7 +22,8 @@
 	mov	x21, x1
 	mov	x22, x2
 	mov	x23, x3
-	mov	x24, lr
+	mov	x24, x4
+	mov	x25, lr
 
 	/* Disable DIT */
 	msr	DIT, xzr
@@ -90,6 +91,7 @@
 	mov	x1, x21
 	mov	x2, x22
 	mov	x3, x23
+	mov	x4, x24
 	b	\_warm_boot
 
 2:
@@ -103,7 +105,7 @@
 	 * data must be invalidated, so that upon turning on MMU (and hence enabling
 	 * cacheability), we read updated values.
 	 */
-	mov	x0, x24 /* x24 is the start of RMM image */
+	mov	x0, x25 /* x25 is the start of RMM image */
 	adrp	x2, rmm_end
 	sub	x1, x2, x0
 	bl	inv_dcache_range
@@ -135,7 +137,7 @@
 #if APP_COUNT == 0
 	mov	x0, x1
 #else
-	sub	x0, x24, #4
+	sub	x0, x25, #4
 #endif
 	bl 	app_save_rmm_entry_info
 
@@ -152,6 +154,7 @@
 	mov	x1, x21
 	mov	x2, x22
 	mov	x3, x23
+	mov	x4, x24
 .endm
 
 /*
@@ -178,15 +181,8 @@ func rmm_entry
 	bl	rmm_init_stack_canary
 #endif /* STACK_PROTECTOR_ENABLED */
 
-	/*
-	 * Clear granules memory
-	 */
-	adrp	x0, granules_memory_start
-	adrp	x2, granules_memory_end
-	sub	x2, x2, x0
-	mov	x1, xzr
-	bl	memset
-
+	/* Pass activation_token (in x4) to rmm_main */
+	mov	x0, x24
 	bl	rmm_main
 	b	smc_ret
 
@@ -200,8 +196,16 @@ skip_to_warmboot:
 	bl	xlat_enable_mmu_el2
 	bl	pauth_init_enable_el2
 
+	/* Pass activation_token (in x1) to rmm_warmboot_main */
+	mov	x0, x21
 	bl	rmm_warmboot_main
 smc_ret:
+	/*
+	 * Notify EL3 that RMM boot is complete.
+	 * x0: SMC_RMM_BOOT_COMPLETE
+	 * x1: E_RMM_BOOT_SUCCESS
+	 * x2: activation_token
+	 */
 	mov	x2, x0
 	mov_imm	x0, SMC_RMM_BOOT_COMPLETE
 	mov_imm	x1, E_RMM_BOOT_SUCCESS
