@@ -57,7 +57,10 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 		base_va = mm[i].base_va;
 		end_pa = base_pa + size - 1UL;
 
+		VERBOSE("mm_region : pa 0x%lx, va 0x%lx, size 0x%lx\n",
+			mm[i].base_pa, mm[i].base_va, mm[i].size);
 		if (size == 0UL) {
+			ERROR("mm_region %u size is zero\n", i);
 			return -EINVAL;
 		}
 
@@ -95,6 +98,8 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 
 		if (!IS_PAGE_ALIGNED(base_pa) || !IS_PAGE_ALIGNED(base_va) ||
 				!IS_PAGE_ALIGNED(size)) {
+			ERROR("%s (%u): Base PA, Base VA and size must be page aligned: ",
+						__func__, __LINE__);
 			return -EFAULT;
 		}
 
@@ -102,11 +107,15 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 		    (granularity != XLAT_BLOCK_SIZE(1)) &&
 		    (granularity != XLAT_BLOCK_SIZE(2)) &&
 		    (granularity != XLAT_BLOCK_SIZE(3))) {
+			ERROR("%s (%u): Invalid granularity: ",
+						__func__, __LINE__);
 			return -EINVAL;
 		}
 
 		/* Check for overflows */
 		if ((base_pa > end_pa) || (base_va > end_va)) {
+			ERROR("%s (%u): Memory region overflow detected: ",
+						__func__, __LINE__);
 			return -ERANGE;
 		}
 
@@ -116,16 +125,22 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 		 * max_va_size to ensure we are within the allowed range.
 		 */
 		if (end_va > va_size) {
+			ERROR("%s (%u): End VA exceeds the maximum VA size: ",
+						__func__, __LINE__);
 			return -ERANGE;
 		}
 
 		if (end_pa > xlat_arch_get_max_supported_pa()) {
+			ERROR("%s (%u): End PA exceeds the maximum supported PA: ",
+						__func__, __LINE__);
 			return -ERANGE;
 		}
 
 		if (i > 0U) {
 			if (base_va < mm[i - 1U].base_va) {
 				/* Incorrect order */
+				ERROR("%s (%u): Base VAs are not in ascending order: ",
+							__func__, __LINE__);
 				return -EPERM;
 			}
 
@@ -138,6 +153,8 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 
 			/* No overlaps with VAs of previous regions */
 			if (base_va <= previous_end_va) {
+				ERROR("%s (%u): Base VA overlaps with a previous region: ",
+							__func__, __LINE__);
 				return -EPERM;
 			}
 
@@ -158,11 +175,15 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 
 				if ((end_pa >= mm[j].base_pa) &&
 				    (end_pa <= mm_end_pa)) {
+					ERROR("%s (%u): End PA overlaps with a previous region: ",
+								__func__, __LINE__);
 					return -EPERM;
 				}
 
 				if ((base_pa >= mm[j].base_pa) &&
 				    (base_pa <= mm_end_pa)) {
+					ERROR("%s (%u): Base PA overlaps with a previous region: ",
+								__func__, __LINE__);
 					return -EPERM;
 				}
 			}
@@ -310,7 +331,8 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 
 	if (!is_mmu_enabled()) {
 		inv_dcache_range((uintptr_t)cfg, sizeof(struct xlat_ctx_cfg));
-		inv_dcache_range((uintptr_t)mm, sizeof(struct xlat_mmap_region));
+		inv_dcache_range((uintptr_t)mm, sizeof(struct xlat_mmap_region)
+					* mm_regions);
 	}
 
 	return 0;
