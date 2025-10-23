@@ -9,7 +9,10 @@
 #include <attest_app.h>
 #include <buffer.h>
 #include <debug.h>
+#include <dev_granule.h>
 #include <feature.h>
+#include <glob_data.h>
+#include <platform_api.h>
 #include <random_app.h>
 #include <rmm_el3_ifc.h>
 #include <run.h>
@@ -78,6 +81,8 @@ static void rmm_arch_init(void)
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 uint64_t rmm_warmboot_main(uint64_t token)
 {
+	token = glob_data_init((struct glob_data *)token, 0UL, 0UL);
+
 	/*
 	 * Do the rest of RMM architecture init
 	 */
@@ -125,6 +130,8 @@ uint64_t rmm_main(uint64_t token)
 	unsigned int manifest_version = rmm_el3_ifc_get_manifest_version();
 	unsigned long rmi_revision = rmi_get_highest_supported_version();
 	unsigned long rsi_revision = rsi_get_highest_supported_version();
+	uintptr_t alloc = 0UL;
+	size_t alloc_size;
 
 	/*
 	 * Report project name, version, build type and
@@ -160,6 +167,43 @@ uint64_t rmm_main(uint64_t token)
 	NOTICE("RSI ABI revision v%lu.%lu\n",
 	       RSI_ABI_VERSION_GET_MAJOR(rsi_revision),
 	       RSI_ABI_VERSION_GET_MINOR(rsi_revision));
+
+	unsigned long num_gr = plat_get_num_granules();
+	assert(num_gr != UINT64_MAX);
+
+	unsigned long num_ncoh_gr =
+			plat_get_num_dev_granules(DEV_MEM_NON_COHERENT);
+	if (num_ncoh_gr == UINT64_MAX) {
+		num_ncoh_gr = 0UL;
+	}
+
+	VERBOSE("Max granules: %lu\n", num_gr);
+	VERBOSE("Max non-coherent device granules: %lu\n", num_ncoh_gr);
+
+	token = (uint64_t)glob_data_init((struct glob_data *)token,
+				num_gr, num_ncoh_gr);
+	if (token == 0UL) {
+		ERROR("Cannot initialize global data.\n");
+		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_NO_MEM);
+	}
+
+	alloc = glob_data_get_granules_va(&alloc_size);
+	assert(alloc != 0UL);
+
+	if (granule_init(alloc, alloc_size, num_gr) != 0) {
+		ERROR("Granule array init failed\n");
+		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_NO_MEM);
+	}
+
+	if (num_ncoh_gr > 0UL) {
+		alloc = glob_data_get_dev_granules_va(&alloc_size);
+		assert(alloc != 0UL);
+		if (dev_granule_init(alloc, alloc_size,
+				      num_ncoh_gr) != 0) {
+			ERROR("NCoh Dev granule array not initialized\n");
+			rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_NO_MEM);
+		}
+	}
 
 	app_info_setup();
 	app_framework_setup();
