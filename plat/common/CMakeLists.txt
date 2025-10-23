@@ -34,4 +34,5 @@ target_include_directories(rmm-plat-common
     PRIVATE "src/${RMM_ARCH}")
 
 target_sources(rmm-plat-common
-    PRIVATE "src/plat_common_init.c")
+    PRIVATE "src/plat_common_init.c"
+            "src/plat_compat_mem.c")

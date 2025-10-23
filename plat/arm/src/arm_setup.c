@@ -9,7 +9,9 @@
 #include <debug.h>
 #include <pl011.h>
 #include <plat_common.h>
+#include <plat_compat_mem.h>
 #include <platform_api.h>
+#include <rmm_el3_compat.h>
 #include <rmm_el3_ifc.h>
 #include <sizes.h>
 #include <smmuv3.h>
@@ -20,6 +22,22 @@
 				0UL,				\
 				SZ_4K,				\
 				(MT_DEVICE | MT_RW | MT_REALM))
+
+#ifdef RMM_EL3_COMPAT_RESERVE_MEM
+/* Calculate the size needed for the RMM reserved memory */
+#define COMPAT_RESERVE_MEM_SIZE		\
+	RESERVE_MEM_SIZE(RMM_MAX_GRANULES, RMM_MAX_NCOH_GRANULES, PLAT_CMN_CTX_MAX_XLAT_TABLES)
+
+/*
+ * Space to model the RMM reserved mem, used to emulate EL3 memory allocation.
+ */
+static unsigned char rmm_reserve_memory[COMPAT_RESERVE_MEM_SIZE] __aligned(GRANULE_SIZE);
+
+/* Define the EL3-RMM interface compatibility callbacks */
+static struct rmm_el3_compat_callbacks callbacks = {
+	.reserve_mem_cb = plat_compat_reserve_memory,
+};
+#endif
 
 /*
  * Local platform setup for RMM.
@@ -182,6 +200,19 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3, uint64_t x4)
 		plat_smmus++;
 	}
 
+#ifdef RMM_EL3_COMPAT_RESERVE_MEM
+	if (x4 != 0) {
+		/* No support for LFA in compatibility mode */
+		panic();
+	}
+
+	NOTICE("RMM EL3 compat memory reservation enabled.\n");
+
+	/* Initialize the compatibility memory reservation layer */
+	plat_cmn_compat_reserve_mem_init(&callbacks,
+				rmm_reserve_memory,
+				sizeof(rmm_reserve_memory));
+#endif
 	/*
 	 * Carry on with the rest of the system setup.
 	 * The number of added regions is 2 * num_smmus + 1:

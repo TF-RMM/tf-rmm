@@ -14,6 +14,23 @@ arm_config_option(
 
 add_library(rmm-plat-arm)
 
+#
+# RMM_EL3_COMPAT_RESERVE_MEM. Reserved memory for RMM compatibility.
+# This is used when EL3 does not support RMM_RESERVE_MEMORY SMC.
+# Enabled by default. This option is passed to compiler definitions
+# by rmm-el3-ifc library.
+#
+arm_config_option(
+    NAME RMM_EL3_COMPAT_RESERVE_MEM
+    HELP "Reserved memory for RMM compatibility"
+    TYPE BOOL
+    DEFAULT TRUE)
+
+# Warn that COMPAT_RESERVE_MEM is enabled and LFA is not supported.
+if(RMM_EL3_COMPAT_RESERVE_MEM)
+    message(WARNING "RMM_EL3_COMPAT_RESERVE_MEM is enabled. LFA is not supported.")
+endif()
+
 # RMM_MAX_GRANULES. Maximum number of memory granules supported.
 arm_config_option(
     NAME RMM_MAX_GRANULES

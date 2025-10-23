@@ -9,11 +9,27 @@
 #include <host_utils.h>
 #include <host_utils_pci.h>
 #include <plat_common.h>
+#include <plat_compat_mem.h>
 #include <rmm_el3_ifc.h>
 #include <smc.h>
 #include <stdint.h>
 #include <xlat_tables.h>
 
+/* Number of translation tables for the RMM Low VA static region */
+#define HOST_XLAT_TABLES_LOW_VA		6
+
+#define HOST_RESERVE_MEM_SIZE		\
+	RESERVE_MEM_SIZE(HOST_NR_GRANULES, HOST_NR_NCOH_GRANULES, HOST_XLAT_TABLES_LOW_VA)
+
+/*
+ * Space to model the RMM reserved mem, used to emulate EL3 memory allocation.
+ */
+static unsigned char rmm_reserve_memory[HOST_RESERVE_MEM_SIZE] __aligned(GRANULE_SIZE);
+
+/* Define the EL3-RMM interface compatibility callbacks */
+static struct rmm_el3_compat_callbacks callbacks = {
+	.reserve_mem_cb = plat_compat_reserve_memory,
+};
 
 /*
  * Local platform setup for RMM.
@@ -54,6 +70,11 @@ void plat_setup(uint64_t x0, uint64_t x1,
 	if (rmm_el3_ifc_init(x0, x1, x2, x3, x3) != 0) {
 		panic();
 	}
+
+	/* Initialize the compatibility memory reservation layer */
+	plat_cmn_compat_reserve_mem_init(&callbacks,
+				rmm_reserve_memory,
+				sizeof(rmm_reserve_memory));
 
 	/* Carry on with the rest of the system setup */
 	if (plat_cmn_setup(NULL, 0, x4) != 0) {
