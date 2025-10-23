@@ -294,6 +294,7 @@ The |RMM| build system supports the following CMake build options.
    RMM_HTML_COV_REPORT		,ON | OFF		,ON			,"Enable HTML output report for coverage analysis"
    RMM_CBMC_VIEWER_OUTPUT	,ON | OFF		,OFF			,"Generate report of CBMC results using the tool cbmc-viewer"
    RMM_CBMC_SINGLE_TESTBENCH	,			,OFF			,"Run CBMC on a single testbench instead on all of them"
+   RMM_EL3_COMPAT_RESERVE_MEM	,ON | OFF		,ON			,"Enable compatibility for reserve memory capability from EL3."
    RMM_MEM_SCRUB_METHOD 	,0 - 2			,0			,"Memory Scrub method selection when granule are returned to NS Host."
    RMM_VA_POOL_SIZE		,			,0x40000000		,"Size of the dynamic virtual address pool"
    RMM_V1_1			,ON | OFF		,OFF			,"Enable v1.1 features (experimental)"

@@ -25,4 +25,9 @@ void rmm_el3_ifc_process_boot_manifest(void);
 /* Platform parameter */
 extern uintptr_t rmm_shared_buffer_start_va;
 
+/*
+ * Compatibility function for SMC_RMM_RESERVE_MEMORY
+ */
+void compat_reserve_memory(size_t size, uint64_t arg, struct smc_result *smc_res);
+
 #endif /* RMM_EL3_IFC_PRIV_H */

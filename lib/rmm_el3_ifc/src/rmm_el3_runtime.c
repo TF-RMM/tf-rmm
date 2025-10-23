@@ -304,7 +304,7 @@ unsigned long rmm_el3_ifc_mec_refresh(unsigned short mecid,
 int rmm_el3_ifc_reserve_memory(size_t size, unsigned int flags,
 			       unsigned long alignment, uintptr_t *address)
 {
-	struct smc_args smc_args;
+	struct smc_args smc_args __unused;
 	struct smc_result smc_res;
 	uint64_t flags_align;
 	int ret;
@@ -321,9 +321,13 @@ int rmm_el3_ifc_reserve_memory(size_t size, unsigned int flags,
 	flags_align = INPLACE(RESERVE_MEM_ALIGN, flags_align) |
 		      INPLACE(RESERVE_MEM_FLAGS, flags);
 
+#ifdef RMM_EL3_COMPAT_RESERVE_MEM
+	compat_reserve_memory(size, flags_align, &smc_res);
+#else
 	smc_args = SMC_ARGS_2(size, flags_align);
 	monitor_call_with_arg_res(SMC_RMM_RESERVE_MEMORY,
 			      &smc_args, &smc_res);
+#endif
 
 	/* coverity[uninit_use:SUPPRESS] */
 	ret = (int)smc_res.x[0];
