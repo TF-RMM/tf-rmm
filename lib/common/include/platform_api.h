@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 void plat_warmboot_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3);
-void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3);
+void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3, uint64_t x4);
 
 /*
  * Takes an aligned granule address, validates it and if valid returns the

@@ -46,17 +46,18 @@ void plat_warmboot_setup(uint64_t x0, uint64_t x1,
  * be initialized by this function.
  */
 void plat_setup(uint64_t x0, uint64_t x1,
-		uint64_t x2, uint64_t x3)
+		uint64_t x2, uint64_t x3,
+		uint64_t x4)
 {
 	(void)host_csl_init();
 
-	/* Initialize the RMM-EL3 interface */
-	if (plat_cmn_init_el3_ifc(x0, x1, x2, x3) != 0) {
+	/* Initialize the RMM-EL3 interface*/
+	if (rmm_el3_ifc_init(x0, x1, x2, x3, x3) != 0) {
 		panic();
 	}
 
 	/* Carry on with the rest of the system setup */
-	if (plat_cmn_setup(NULL, 0) != 0) {
+	if (plat_cmn_setup(NULL, 0, x4) != 0) {
 		panic();
 	}
 
@@ -80,6 +81,11 @@ unsigned long plat_granule_idx_to_addr(unsigned long idx)
 	return host_util_get_granule_base() + (idx * GRANULE_SIZE);
 }
 
+unsigned long plat_get_num_granules(void)
+{
+	return HOST_NR_GRANULES;
+}
+
 unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_coh_type *type)
 {
 	if (!(GRANULE_ALIGNED(addr) &&
@@ -100,4 +106,13 @@ unsigned long plat_dev_granule_idx_to_addr(unsigned long idx, enum dev_coh_type 
 	assert(type == DEV_MEM_NON_COHERENT);
 	assert(idx < HOST_NR_NCOH_GRANULES);
 	return host_util_get_dev_granule_base() + (idx * GRANULE_SIZE);
+}
+
+unsigned long plat_get_num_dev_granules(enum dev_coh_type type)
+{
+	if (type == DEV_MEM_NON_COHERENT) {
+		return HOST_NR_NCOH_GRANULES;
+	}
+
+	return UINT64_MAX;
 }

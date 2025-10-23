@@ -21,7 +21,7 @@ endif()
 add_subdirectory("host_el2_el0_cmn")
 add_subdirectory("../common" ${RMM_BINARY_DIR}/plat/common)
 
-# Add the HOST_VARIANT directory before common, so that it has the option
+# Add the HOST_VARIANT directory before harness, so that it has the option
 # to override HOST_DRAM_SIZE
 add_subdirectory("${HOST_VARIANT}")
 add_subdirectory("harness")

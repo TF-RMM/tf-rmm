@@ -14,7 +14,7 @@
 #include <sizes.h>
 #include <smmuv3.h>
 #include <string.h>
-#include <xlat_tables.h>
+#include <xlat_low_va.h>
 
 #define ARM_RMM_UART	MAP_REGION_FLAT(			\
 				0UL,				\
@@ -86,7 +86,7 @@ static void setup_root_complex_list(void)
  * be initialized by this function.
  */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
-void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
+void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3, uint64_t x4)
 {
 	struct memory_info *plat_memory_info;
 	struct console_list *csl_list;
@@ -109,7 +109,7 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 	};
 
 	/* Initialize the RMM-EL3 interface*/
-	ret = plat_cmn_init_el3_ifc(x0, x1, x2, x3);
+	ret = rmm_el3_ifc_init(x0, x1, x2, x3, xlat_low_va_shared_buf_va());
 	if (ret != E_RMM_BOOT_SUCCESS) {
 		rmm_el3_ifc_report_fail_to_el3(ret);
 	}
@@ -188,7 +188,7 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 	 * - 2 regions per each SMMUv3: smmu_base and smmu_r_base;
 	 * - 1 UART region.
 	 */
-	ret = plat_cmn_setup(plat_regions, (num_smmus * 2U) + 1U);
+	ret = plat_cmn_setup(plat_regions, (num_smmus * 2U) + 1U, x4);
 	if (ret != 0) {
 		ERROR("%s (%u): Failed to setup the platform (%i)\n",
 			__func__, __LINE__, ret);
