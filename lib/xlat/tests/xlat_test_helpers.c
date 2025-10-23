@@ -207,6 +207,14 @@ void xlat_test_helpers_rand_mmap_array(struct xlat_mmap_region *mmap,
 							MAX_PAGES_PER_REGION);
 		region_size = region_pages * PAGE_SIZE;
 
+		/*
+		 * Avoid transient mappings for the last region as it makes the max_pa
+		 * calculation more complex.
+		 */
+		if ((i + 1) == size) {
+			allow_transient = false;
+		}
+
 		mmap[i].attr = xlat_test_helpers_rand_mmap_attrs(allow_transient);
 		mmap[i].granularity = XLAT_TESTS_MAX_BLOCK_SIZE;
 		mmap[i].base_va = next_va_start;

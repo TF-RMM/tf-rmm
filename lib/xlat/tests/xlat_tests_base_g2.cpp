@@ -357,7 +357,7 @@ void xlat_ctx_init_tc5(void)
 				/* Initialize the test structure */
 				retval = xlat_ctx_cfg_init(&cfg, va_region,
 							   &init_mmap[0U],
-							   mmap_count, va_size,
+							   mmap_count, 0UL, va_size,
 							   xlat_test_helpers_rand_asid());
 
 				/*
@@ -461,7 +461,7 @@ void xlat_get_llt_from_va_tc1(void)
 
 			retval = xlat_ctx_cfg_init(&cfg, va_region,
 						   &init_mmap[0U],
-						   mmap_count, va_size,
+						   mmap_count, 0UL, va_size,
 						   xlat_test_helpers_rand_asid());
 
 			/* Ensure that so far the test setup is OK */
@@ -602,7 +602,7 @@ void xlat_get_llt_from_va_tc2(void)
 
 			retval = xlat_ctx_cfg_init(&cfg, va_region,
 						   &init_mmap[0U], 3U,
-						   max_va_size,
+						    0UL, max_va_size,
 						   xlat_test_helpers_rand_asid());
 			CHECK_TRUE(retval == 0);
 
@@ -702,7 +702,7 @@ void xlat_get_llt_from_va_tc3(void)
 
 		retval = xlat_ctx_cfg_init(&cfg, va_region,
 					   &init_mmap[0U], 3U,
-					   max_va_size,
+					    0UL, max_va_size,
 					   xlat_test_helpers_rand_asid());
 		CHECK_TRUE(retval == 0);
 
@@ -757,7 +757,7 @@ void xlat_get_llt_from_va_prepare_assertion(struct xlat_ctx *ctx,
 	/* Generate a random mmap area */
 	xlat_test_helpers_rand_mmap_array(init_mmap, 1U, start_va, end_va, true);
 
-	(void)xlat_ctx_cfg_init(cfg, va_region, init_mmap, 1U, max_va_size,
+	(void)xlat_ctx_cfg_init(cfg, va_region, init_mmap, 1U, 0UL, max_va_size,
 		xlat_test_helpers_rand_asid());
 
 	(void)xlat_ctx_init(ctx, cfg, tbls,
@@ -1004,7 +1004,7 @@ void xlat_get_tte_ptr_tc1(void)
 		CHECK_TRUE(retval == 0);
 
 		retval = xlat_ctx_cfg_init(&cfg, va_region, &init_mmap[0U], 3U,
-					   max_va_size,
+					   0UL, max_va_size,
 					   xlat_test_helpers_rand_asid());
 
 		/* Ensure that so far the test setup is OK */
@@ -1253,7 +1253,7 @@ void xlat_unmap_memory_page_tc1(void)
 			/* Initialize the test structure */
 			retval = xlat_ctx_cfg_init(&cfg, va_region,
 						   &init_mmap[0U],
-						   mmap_count, va_size,
+						   mmap_count, 0UL, va_size,
 						   xlat_test_helpers_rand_asid());
 
 			/* Verify that the test setup is correct so far */
@@ -1408,7 +1408,7 @@ void xlat_unmap_memory_page_tc2(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&cfg, va_region, &init_mmap[0U],
-					   mmap_count, va_size,
+					   mmap_count, 0UL, va_size,
 					   xlat_test_helpers_rand_asid());
 
 		/* Verify that the test setup is correct so far */
@@ -1626,7 +1626,7 @@ void xlat_map_memory_page_with_attrs_tc1(void)
 			/* Initialize the test structure */
 			retval = xlat_ctx_cfg_init(&cfg, va_region,
 						   &init_mmap[0U],
-						   mmap_count, va_size,
+						   mmap_count, 0UL, va_size,
 						   xlat_test_helpers_rand_asid());
 
 			/* Verify that the test setup is correct so far */
@@ -1838,7 +1838,7 @@ void xlat_map_memory_page_with_attrs_tc2(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&cfg, va_region, &init_mmap[0U],
-					   mmap_count, va_size,
+					   mmap_count, 0UL, va_size,
 					   xlat_test_helpers_rand_asid());
 
 		/* Verify that the test setup is correct so far */
@@ -2229,7 +2229,7 @@ void xlat_arch_setup_mmu_cfg_tc1(void)
 		xlat_test_helpers_rand_mmap_array(&init_mmap[i], 1U, start_va, end_va, true);
 
 		retval = xlat_ctx_cfg_init(&cfg[i], va_region, &init_mmap[i],
-					   1U, max_va_size,
+					   1U, 0UL, max_va_size,
 					   xlat_test_helpers_rand_asid());
 		CHECK_TRUE(retval == 0);
 
@@ -2296,7 +2296,7 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va, true);
 
 	retval = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &init_mmap,
-					1U, max_va_size,
+					1U, 0UL, max_va_size,
 					xlat_test_helpers_rand_asid());
 	CHECK_TRUE(retval == 0);
 
@@ -2464,7 +2464,7 @@ void xlat_arch_setup_mmu_cfg_tc6(void)
 	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va, true);
 
 	retval = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &init_mmap,
-					1U, max_va_size,
+					1U, 0UL, max_va_size,
 					xlat_test_helpers_rand_asid());
 	CHECK_TRUE(retval == 0);
 

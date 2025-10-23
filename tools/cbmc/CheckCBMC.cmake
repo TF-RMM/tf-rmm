@@ -67,6 +67,7 @@ set(MAX_ROOT_RTT "3")
 set(MAX_UNWIND_FLAGS "")
 
 # Configurations for SMMUv3 driver
+set(RMM_MAX_SMMUS "1")
 set(SMMU_MAX_LOG2_CMDQ_SIZE "3")
 set(SMMU_MAX_LOG2_EVTQ_SIZE "3")
 set(SMMU_MAX_SID_BITS "16")

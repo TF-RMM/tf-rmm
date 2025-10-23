@@ -301,7 +301,7 @@ void xlat_ctx_cfg_init_tc1(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   max_va_size,
 					   asid);
 
@@ -353,7 +353,7 @@ void xlat_ctx_cfg_init_tc2(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(NULL, region, &init_mmap[0],
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   max_va_size,
 					   asid);
 
@@ -386,7 +386,7 @@ void xlat_ctx_cfg_init_tc3(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, NULL,
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   XLAT_TEST_MAX_VA_SIZE(),
 					   asid);
 
@@ -429,7 +429,7 @@ void xlat_ctx_cfg_init_tc4(void)
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, cfg_region,
 					   &init_mmap[0], XLAT_TESTS_MAX_MMAPS,
-					   max_va_size,
+					   0UL, max_va_size,
 					   asid);
 
 		/* Verify the result */
@@ -463,7 +463,7 @@ void xlat_ctx_cfg_init_tc5(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0], 0U,
-				XLAT_TEST_MAX_VA_SIZE(),
+				0UL, XLAT_TEST_MAX_VA_SIZE(),
 				asid);
 
 		/* Verify the result */
@@ -519,7 +519,7 @@ void xlat_ctx_cfg_init_tc6(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   test_va_size,
 					   asid);
 
@@ -535,7 +535,7 @@ void xlat_ctx_cfg_init_tc6(void)
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
 					   XLAT_TESTS_MAX_MMAPS,
-					   test_va_size,
+					   0UL, test_va_size,
 					   asid);
 
 		/* Verify the result */
@@ -550,7 +550,7 @@ void xlat_ctx_cfg_init_tc6(void)
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
 					   XLAT_TESTS_MAX_MMAPS,
-					   test_va_size,
+					   0UL, test_va_size,
 					   asid);
 
 		/* Verify the result */
@@ -588,7 +588,7 @@ void xlat_ctx_cfg_init_tc7(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   max_va_size,
 					   asid);
 
@@ -671,7 +671,7 @@ void xlat_ctx_cfg_init_tc8(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   max_va_size,
 					   asid);
 
@@ -698,7 +698,7 @@ void xlat_ctx_cfg_init_tc8(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   max_va_size,
 					   asid);
 
@@ -733,7 +733,7 @@ void xlat_ctx_cfg_init_tc8(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   max_va_size,
 					   asid);
 
@@ -759,7 +759,7 @@ void xlat_ctx_cfg_init_tc8(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   max_va_size,
 					   asid);
 
@@ -820,7 +820,7 @@ void xlat_ctx_cfg_init_tc9(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   max_va_size,
 					   asid);
 
@@ -849,7 +849,7 @@ void xlat_ctx_cfg_init_tc9(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   max_va_size,
 					   asid);
 
@@ -899,7 +899,7 @@ void xlat_ctx_cfg_init_tc10(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   max_va_size,
 					   asid);
 
@@ -950,7 +950,7 @@ void xlat_ctx_cfg_init_tc11(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   max_va_size,
 					   asid);
 
@@ -996,7 +996,7 @@ void xlat_ctx_cfg_init_tc12(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   max_va_size,
 					   asid);
 
@@ -1047,7 +1047,7 @@ void xlat_ctx_cfg_init_tc13(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
-					   1U, max_va_size,
+					   1U, 0UL, max_va_size,
 					   asid);
 
 		/* Verify the result */
@@ -1087,7 +1087,7 @@ void xlat_ctx_cfg_init_tc14(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&test_cfg, region, &init_mmap[0],
-					   1U, max_va_size,
+					   1U, 0UL, max_va_size,
 					   asid);
 
 		/* Verify the result */
@@ -1138,7 +1138,7 @@ void xlat_ctx_init_tc1(void)
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&cfg, region, &init_mmap[0],
 					   XLAT_TESTS_MAX_MMAPS,
-					   max_va_size,
+					   0UL, max_va_size,
 					   asid);
 
 		/* Verify that the context cfg is properly created */
@@ -1257,7 +1257,7 @@ void xlat_ctx_init_tc3(void)
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&cfg, region, &init_mmap[0],
 					   XLAT_TESTS_MAX_MMAPS,
-					   max_va_size,
+					   0UL, max_va_size,
 					   asid);
 
 		/* Verify that the context cfg is properly created */
@@ -1357,7 +1357,7 @@ void xlat_ctx_init_tc4(void)
 
 		/* Initialize the test structure */
 		retval = xlat_ctx_cfg_init(&cfg, region, &init_mmap[0],
-					   XLAT_TESTS_MAX_MMAPS,
+					   XLAT_TESTS_MAX_MMAPS, 0UL,
 					   max_va_size,
 					   asid);
 

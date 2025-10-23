@@ -52,7 +52,7 @@ static inline uint64_t *xlat_table_get_empty(struct xlat_ctx *ctx)
 	assert(ctx->tbls != NULL);
 	if (ctx->tbls->next_table >= ctx->tbls->tables_num) {
 		ERROR("Maximum number of translation tables reached. "
-			"Increase PLAT_CMN_CTX_MAX_XLAT_TABLE.\n");
+			"Check table allocation.\n");
 
 		assert(false);	/* Required for unit tests */
 		panic();
