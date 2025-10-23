@@ -14,7 +14,6 @@
 #include <stdint.h>
 #include <xlat_tables.h>
 
-COMPILER_ASSERT(RMM_MAX_GRANULES >= HOST_NR_GRANULES);
 
 /*
  * Local platform setup for RMM.

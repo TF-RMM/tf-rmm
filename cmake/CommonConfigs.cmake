@@ -22,33 +22,6 @@ arm_config_option(
     DEFAULT 12)
 
 #
-# RMM_MAX_GRANULES. Maximum number of memory granules supported.
-#
-arm_config_option(
-    NAME RMM_MAX_GRANULES
-    HELP "Maximum number of memory granules supported"
-    TYPE STRING
-    DEFAULT 0x0)
-
-#
-# RMM_MAX_COH_GRANULES. Maximum number of coherent device granules supported.
-#
-arm_config_option(
-    NAME RMM_MAX_COH_GRANULES
-    HELP "Maximum number of coherent device granules supported"
-    TYPE STRING
-    DEFAULT 1)
-
-#
-# RMM_MAX_NCOH_GRANULES. Maximum number of non-coherent device granules supported.
-#
-arm_config_option(
-    NAME RMM_MAX_NCOH_GRANULES
-    HELP "Maximum number of non-coherent device granules supported"
-    TYPE STRING
-    DEFAULT 1)
-
-#
 # RMM_MAX_SMMUS. Maximum number of SMMUv3 supported.
 #
 arm_config_option(
@@ -143,27 +116,6 @@ endif()
 
 target_compile_definitions(rmm-common
     INTERFACE "GRANULE_SHIFT=U(${GRANULE_SHIFT})")
-
-if (RMM_MAX_GRANULES EQUAL 0x0)
-    message (FATAL_ERROR "RMM_MAX_GRANULES not configured")
-endif()
-
-target_compile_definitions(rmm-common
-    INTERFACE "RMM_MAX_GRANULES=U(${RMM_MAX_GRANULES})")
-
-if (RMM_MAX_COH_GRANULES EQUAL 0x0)
-    message (FATAL_ERROR "RMM_MAX_COH_GRANULES cannot be set to 0")
-endif()
-
-target_compile_definitions(rmm-common
-    INTERFACE "RMM_MAX_COH_GRANULES=U(${RMM_MAX_COH_GRANULES})")
-
-if (RMM_MAX_NCOH_GRANULES EQUAL 0x0)
-    message (FATAL_ERROR "RMM_MAX_NCOH_GRANULES cannot be set to 0")
-endif()
-
-target_compile_definitions(rmm-common
-    INTERFACE "RMM_MAX_NCOH_GRANULES=U(${RMM_MAX_NCOH_GRANULES})")
 
 if(RMM_MAX_SMMUS EQUAL 0x0)
     message(FATAL_ERROR "RMM_MAX_SMMUS  cannot be set to 0")
