@@ -11,8 +11,29 @@
 #include <utils_def.h>
 
 /* Non-coherent device granules */
-IF_NCBMC(static) struct dev_granule dev_ncoh_granules[RMM_MAX_NCOH_GRANULES]
-			IF_NCBMC(__section("granules_memory"));
+static struct dev_granule *dev_ncoh_granules;
+static unsigned long max_dev_ncoh_granules;
+
+/* cppcheck-suppress misra-c2012-8.7 */
+int dev_granule_init(uintptr_t alloc, size_t alloc_size,
+	unsigned long max_ncoh_granules)
+{
+	assert(alloc != 0ULL);
+	/* cppcheck-suppress moduloofone */
+	assert(ALIGNED(alloc, sizeof(struct dev_granule)));
+
+	dev_ncoh_granules = (struct dev_granule *)alloc;
+
+	assert(alloc_size != 0U);
+
+	if (max_ncoh_granules > (alloc_size / sizeof(struct dev_granule))) {
+		ERROR("Max dev granules mismatch\n");
+		return -1;
+	}
+
+	max_dev_ncoh_granules = max_ncoh_granules;
+	return 0;
+}
 
 /*
  * Takes a valid pointer to a struct dev_granule, corresponding to device memory
@@ -27,12 +48,14 @@ unsigned long dev_granule_addr(const struct dev_granule *g, enum dev_coh_type ty
 	unsigned long idx;
 
 	assert(g != NULL);
+	assert(dev_ncoh_granules != NULL);
 
 	/* No coherent device granules */
 	assert(type == DEV_MEM_NON_COHERENT);
 
 	idx = ((unsigned long)g - (unsigned long)dev_ncoh_granules) /
 						sizeof(struct dev_granule);
+	assert(idx < max_dev_ncoh_granules);
 	return plat_dev_granule_idx_to_addr(idx, type);
 }
 
@@ -46,9 +69,10 @@ unsigned long dev_granule_addr(const struct dev_granule *g, enum dev_coh_type ty
 static struct dev_granule *dev_granule_from_idx(unsigned long idx, enum dev_coh_type type)
 {
 	(void)type;
+	assert(dev_ncoh_granules != NULL);
 
 	/* No coherent device granules */
-	assert((type == DEV_MEM_NON_COHERENT) && (idx < RMM_MAX_NCOH_GRANULES));
+	assert((type == DEV_MEM_NON_COHERENT) && (idx < max_dev_ncoh_granules));
 
 	return &dev_ncoh_granules[idx];
 }

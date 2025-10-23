@@ -183,6 +183,12 @@ static inline void dev_granule_unlock_transition(struct dev_granule *g,
 }
 
 /*
+ * Initialize the device granule library.
+ */
+int dev_granule_init(uintptr_t alloc, size_t alloc_size,
+		unsigned long max_ncoh_granules);
+
+/*
  * Takes a valid pointer to a struct dev_granule, corresponding to device memory
  * coherency type and returns the dev_granule physical address.
  *
