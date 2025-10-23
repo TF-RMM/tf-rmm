@@ -19,7 +19,8 @@ target_link_libraries(rmm-lib
               rmm-lib-s2tt
               rmm-lib-slot_buf
               rmm-lib-stack_protector
-              rmm-lib-xlat)
+              rmm-lib-xlat
+              rmm-lib-xlat_low_va)
 
 add_subdirectory("arch")
 add_subdirectory("common")
@@ -36,3 +37,4 @@ add_subdirectory("s2tt")
 add_subdirectory("slot_buf")
 add_subdirectory("stack_protector")
 add_subdirectory("xlat")
+add_subdirectory("xlat_low_va")

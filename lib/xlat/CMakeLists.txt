@@ -7,6 +7,7 @@ add_library(rmm-lib-xlat)
 
 target_link_libraries(rmm-lib-xlat
     PRIVATE rmm-lib-common
+            rmm-lib-rmm_el3_ifc
             rmm-lib-libc
             rmm-lib-arch
             rmm-lib-debug)

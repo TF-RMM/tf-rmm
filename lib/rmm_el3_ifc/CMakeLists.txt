@@ -14,7 +14,6 @@ target_link_libraries(rmm-lib-rmm_el3_ifc
         rmm-lib-arch
         rmm-lib-common
         rmm-lib-debug
-        rmm-lib-xlat
     PUBLIC
         rmm-lib-smc)
 
