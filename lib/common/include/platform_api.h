@@ -22,6 +22,12 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3);
 unsigned long plat_granule_addr_to_idx(unsigned long addr);
 
 /*
+ * Returns the number of granules available in the system.
+ * If no granules are available, UINT64_MAX is returned.
+ */
+unsigned long plat_get_num_granules(void);
+
+/*
  * Takes an aligned dev_granule address, validates it and if valid returns the
  * index in the struct dev_granules array or UINT64_MAX in case of an error.
  *
@@ -29,6 +35,12 @@ unsigned long plat_granule_addr_to_idx(unsigned long addr);
  * address and returns device granule coherency type if the addr is valid.
  */
 unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_coh_type *type);
+
+/*
+ * Returns the number of device granules available in the system.
+ * If no granules are available, UINT64_MAX is returned.
+ */
+unsigned long plat_get_num_dev_granules(enum dev_coh_type type);
 
 /*
  * Takes an index in the struct granules array and returns the aligned granule
