@@ -254,15 +254,6 @@ unsigned long monitor_call(unsigned long id,
 
 void monitor_call_with_arg_res(unsigned long fid, struct smc_args *args, struct smc_result *res);
 
-void monitor_call_with_res(unsigned long id,
-			   unsigned long arg0,
-			   unsigned long arg1,
-			   unsigned long arg2,
-			   unsigned long arg3,
-			   unsigned long arg4,
-			   unsigned long arg5,
-			   struct smc_result *res);
-
 #endif /* __ASSEMBLER__ */
 
 #endif /* SMC_H */
