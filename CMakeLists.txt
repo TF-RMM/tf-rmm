@@ -178,7 +178,9 @@ if(NOT RMM_ARCH STREQUAL fake_host)
         DEPENDS rmm_core.img rmm-random-app rmm-attestation-app rmm-dev-assign-app)
 endif()
 
-add_custom_target(rmm ALL DEPENDS rmm_core.img rmm_core.dump rmm_core.elf rmm.elf rmm_core.map ${RMM_IMG} rmm-attestation-app rmm-random-app)
+add_custom_target(rmm ALL DEPENDS
+        rmm_core.img rmm_core.dump rmm_core.elf rmm.elf rmm_core.map
+        ${RMM_IMG} rmm-attestation-app rmm-random-app rmm-dev-assign-app)
 
 #
 # Set up additional tooling.
