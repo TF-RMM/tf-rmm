@@ -15,6 +15,8 @@
 
 .global memcpy_ns_read
 .global memcpy_ns_write
+.global memcpy_ns_read_4
+.global memcpy_ns_write_4
 .global ns_access_ret_0
 
 /*
@@ -72,6 +74,43 @@ ns_write:
 	mov	x0, #1
 	ret
 endfunc memcpy_ns_write
+
+/*
+ * bool memcpy_ns_read_4(void *dest, const void *ns_src);
+ *
+ * Copy 4 bytes from NS memory to Realm. This is used for mmio read 4 bytes.
+ * The function returns 1 if the copy succeeds.
+ * If the access to the NS memory generates a GPF, the exception handler
+ * returns to ns_access_ret_0 and 0 is returned to the caller.
+ *
+ * x0 - The address of buffer in Realm memory to write into
+ * x1 - The address of buffer in NS memory to read from.
+ * All arguments must be aligned to 4 bytes.
+ */
+func memcpy_ns_read_4
+	ldrh	w2, [x1]
+	strh	w2, [x0]
+	mov	x0, #1
+	ret
+endfunc memcpy_ns_read_4
+
+/*
+ * bool memcpy_ns_write_4(void *ns_dest, uint32_t value);
+ *
+ * Copy data from Realm into NS memory.
+ * The function returns 1 if the copy succeeds.
+ * If the access to the NS memory generates a GPF, the exception handler
+ * returns to ns_access_ret_0 and 0 is returned to the caller.
+ *
+ * x0 - The address of buffer in NS memory to write into
+ * w1 - The word to write.
+ * All arguments must be aligned to 4 bytes.
+ */
+func memcpy_ns_write_4
+	strh	w1, [x0]
+	mov	x0, #1
+	ret
+endfunc memcpy_ns_write_4
 
 func ns_access_ret_0
 	mov	x0, #0

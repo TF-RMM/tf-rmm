@@ -573,3 +573,83 @@ enum buffer_slot va_to_slot_internal(void *buf)
 
 	return slot;
 }
+
+void *mmio_map_internal(unsigned long mmio_pa, uint64_t pas_type)
+{
+	uint64_t attr;
+	uintptr_t va;
+	struct xlat_llt_info *entry = get_cached_llt_info();
+
+	attr = XLAT_NG_DEV_ATTR;
+
+	va = slot_to_va(SLOT_NS);
+
+	if (pas_type == MT_REALM) {
+		attr |= MT_REALM;
+	} else {
+		attr |= MT_NS;
+	}
+
+	if (xlat_map_memory_page_with_attrs(entry, va, (uintptr_t)mmio_pa,
+					    attr) != 0) {
+		/* Error mapping the buffer */
+		return NULL;
+	}
+
+	return (void *)va;
+}
+
+/* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
+void mmio_unmap_internal(void *mmio_va)
+{
+	buffer_unmap_internal(mmio_va);
+}
+
+/*
+ * Map address and read mmio space. Used to read NS PCIe config space.
+ */
+bool ns_mmio_read_4(unsigned long mmio_addr, unsigned int offset, uint32_t *dest)
+{
+	void *mmio_va;
+	bool retval;
+
+	assert(GRANULE_ALIGNED(mmio_addr));
+	assert(ALIGNED(offset, 4U));
+	assert(((unsigned long)offset + 4U) <= GRANULE_SIZE);
+	assert(dest != NULL);
+	assert(ALIGNED(dest, 4U));
+
+	mmio_va = mmio_arch_map(mmio_addr, MT_NS);
+	if (mmio_va == NULL) {
+		return false;
+	}
+
+	retval = memcpy_ns_read_4(dest, (void *)((uintptr_t)mmio_va + offset));
+	mmio_arch_unmap(mmio_va);
+
+	return retval;
+}
+
+/*
+ * Map address and write mmio space. Used to write NS PCIe config space.
+ */
+bool realm_mmio_write_4(unsigned long mmio_addr, unsigned int offset,
+				uint32_t data)
+{
+	void *mmio_va;
+	bool retval;
+
+	assert(GRANULE_ALIGNED(mmio_addr));
+	assert(ALIGNED(offset, 4U));
+	assert(((unsigned long)offset + 4U) <= GRANULE_SIZE);
+
+	mmio_va = mmio_arch_map(mmio_addr, MT_REALM);
+	if (mmio_va == NULL) {
+		return false;
+	}
+
+	retval = memcpy_ns_write_4((void *)((uintptr_t)mmio_va + offset), data);
+	mmio_arch_unmap(mmio_va);
+
+	return retval;
+}

@@ -178,6 +178,8 @@
 
 /* Result registers X0-X4 */
 #define SMC_RESULT_REGS		5U
+/* Argument registers X1-X12 */
+#define SMC_ARGS_MAX		12U
 
 /*
  * opcode of system register for SMCCC_ARCH_FEATURE_AVAILABILITY as
@@ -188,10 +190,59 @@
 #define MDCR_EL3_OPCODE		U(0x1E1320)
 #define MPAM3_EL3_OPCODE	U(0x1EA500)
 
+#define SMC_ARG_X1_X2	U(0)
+#define SMC_ARG_X3_X4	U(16)
+#define SMC_ARG_X5_X6	U(32)
+#define SMC_ARG_X7_X8	U(48)
+#define SMC_ARG_X9_X10	U(64)
+#define SMC_ARG_X11_X12	U(80)
+
+#define SMC_RES_X0_X1	U(0)
+#define SMC_RES_X2_X3	U(16)
+#define SMC_RES_X4	U(32)
+
 #ifndef __ASSEMBLER__
+
 struct smc_result {
 	unsigned long x[SMC_RESULT_REGS];
 };
+
+/* Used to pass more than 8 arguments to SMC call */
+struct smc_args {
+	unsigned long v[SMC_ARGS_MAX];
+};
+
+/*
+ * Helper macros for providing full designated initializer for the v array in
+ * the 'v' array of 'struct smc_args'. Using the below macro instead of
+ * providing an incomplete array initializer makes Misra checkers pass.
+ */
+#define SMC_ARGS_1(v1) \
+	((struct smc_args){{(v1), 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U}})
+#define SMC_ARGS_2(v1, v2) \
+	((struct smc_args){{(v1), (v2), 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U}})
+#define SMC_ARGS_3(v1, v2, v3) \
+	((struct smc_args){{(v1), (v2), (v3), 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U}})
+#define SMC_ARGS_4(v1, v2, v3, v4) \
+	((struct smc_args){{(v1), (v2), (v3), (v4), 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U}})
+#define SMC_ARGS_5(v1, v2, v3, v4, v5) \
+	((struct smc_args){{(v1), (v2), (v3), (v4), (v5), 0U, 0U, 0U, 0U, 0U, 0U, 0U}})
+#define SMC_ARGS_6(v1, v2, v3, v4, v5, v6) \
+	((struct smc_args){{(v1), (v2), (v3), (v4), (v5), (v6), 0U, 0U, 0U, 0U, 0U, 0U}})
+#define SMC_ARGS_7(v1, v2, v3, v4, v5, v6, v7) \
+	((struct smc_args){{(v1), (v2), (v3), (v4), (v5), (v6), (v7), 0U, 0U, 0U, 0U, 0U}})
+#define SMC_ARGS_8(v1, v2, v3, v4, v5, v6, v7, v8) \
+	((struct smc_args){{(v1), (v2), (v3), (v4), (v5), (v6), (v7), (v8), 0U, 0U, 0U, 0U}})
+#define SMC_ARGS_9(v1, v2, v3, v4, v5, v6, v7, v8, v9) \
+	((struct smc_args){{(v1), (v2), (v3), (v4), (v5), (v6), (v7), (v8), (v9), 0U, 0U, 0U}})
+#define SMC_ARGS_10(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10) \
+	((struct smc_args){{(v1), (v2), (v3), (v4), (v5), (v6), (v7), (v8), (v9), (v10), 0U, 0U}})
+#define SMC_ARGS_11(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11) \
+	((struct smc_args){{(v1), (v2), (v3), (v4), (v5), (v6), (v7), (v8), (v9), (v10), (v11), \
+		0U}})
+#define SMC_ARGS_12(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12) \
+	((struct smc_args){{(v1), (v2), (v3), (v4), (v5), (v6), (v7), (v8), (v9), (v10), (v11), \
+		(v12)}})
 
 unsigned long monitor_call(unsigned long id,
 			unsigned long arg0,
@@ -200,6 +251,8 @@ unsigned long monitor_call(unsigned long id,
 			unsigned long arg3,
 			unsigned long arg4,
 			unsigned long arg5);
+
+void monitor_call_with_arg_res(unsigned long fid, struct smc_args *args, struct smc_result *res);
 
 void monitor_call_with_res(unsigned long id,
 			   unsigned long arg0,

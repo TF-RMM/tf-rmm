@@ -273,11 +273,32 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 		enum host_response response;
 	} set_ripas;
 
+	/* Populated when the REC issues a RSI_RDEV_VALIDATE_MAPPING */
+	STRUCT_TYPE {
+		/* Base IPA of pending device memory mapping validation */
+		unsigned long base;
+
+		/* Top IPA of pending device memory mapping validation */
+		unsigned long top;
+
+		/* Next IPA to be processed in dev mem mapping validation */
+		unsigned long addr;
+
+		/* PA of device memory */
+		unsigned long pa;
+
+		/* Device memory mapping validation flags */
+		unsigned long flags;
+
+		/* Host response to device memory mapping validation request */
+		enum host_response response;
+	} dev_mem;
+
 	/*
 	 * Populated when the REC issues a request to change
 	 * Overlay Permission Index.
 	 */
-	struct {
+	STRUCT_TYPE {
 		unsigned long top;
 		unsigned long base;
 		unsigned long index;
@@ -308,9 +329,6 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 
 		/* Device instance ID */
 		unsigned long inst_id;
-
-		/* VDEV granule cached as part of GET_INSTANCE() flow */
-		struct granule *g_vdev;
 
 		/* PA of the vdev granule */
 		unsigned long vdev_addr;

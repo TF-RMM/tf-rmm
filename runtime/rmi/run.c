@@ -114,6 +114,40 @@ static void complete_set_ripas(struct rec *rec)
 	rec->set_ripas.top = 0UL;
 }
 
+static void complete_dev_mem_mapping(struct rec *rec,
+				     struct rmi_rec_enter *rec_enter)
+{
+	enum host_response response;
+	struct rec_plane *plane = rec_plane_0(rec);
+
+	/* Is dev mem map in progress */
+	if (rec->dev_mem.base == 0UL) {
+		return;
+	}
+
+	/* Pending request from Realm */
+	plane->regs[0] = RSI_SUCCESS;
+	plane->regs[1] = rec->dev_mem.addr;
+
+	/* Dev memory validate request can only come from Plane 0. */
+	assert(rec_is_plane_0_active(rec));
+
+	if ((rec_enter->flags & REC_ENTRY_FLAG_DEV_MEM_RESPONSE) == 0UL) {
+		response = ACCEPT;
+	} else {
+		response = REJECT;
+	}
+
+	if ((rec->dev_mem.addr != rec->dev_mem.top) && (response == REJECT)) {
+		plane->regs[2] = RSI_REJECT;
+	} else {
+		plane->regs[2] = RSI_ACCEPT;
+	}
+
+	rec->dev_mem.base = 0UL;
+	rec->dev_mem.top = 0UL;
+}
+
 static void complete_set_s2ap(struct rec *rec)
 {
 	struct rec_plane *plane = rec_plane_0(rec);
@@ -456,6 +490,9 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 		((rec_run.enter.flags & REC_ENTRY_FLAG_RIPAS_RESPONSE) == 0UL) ?
 			ACCEPT : REJECT;
 	complete_set_ripas(rec);
+
+	/* Complete REC exit due to DEV_MEM_MAP */
+	complete_dev_mem_mapping(rec, &rec_run.enter);
 
 	rec->set_s2ap.response =
 		((rec_run.enter.flags & REC_ENTRY_FLAG_S2AP_RESPONSE) == 0UL) ?

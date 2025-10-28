@@ -322,3 +322,62 @@ int rmm_el3_ifc_get_console_list_pa(struct console_list **plat_console_list)
 
 	return E_RMM_BOOT_SUCCESS;
 }
+
+/*
+ * Return validated Root Complex list in plat_rc_list pointer from the Boot
+ * manifest v0.5 onwards.
+ */
+int rmm_el3_ifc_get_root_complex_list_pa(struct root_complex_list **plat_rc_list)
+{
+	struct root_complex_list *rc_list;
+	struct root_complex_info *rc_info;
+	uint64_t num_root_complexes;
+	uint64_t total_size;
+	uint64_t checksum;
+
+	assert((manifest_processed == (bool)true) &&
+		(is_mmu_enabled() == (bool)false));
+
+	*plat_rc_list = NULL;
+
+	/* Validate the Boot Manifest Version */
+	if (local_core_manifest.version <
+			RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(5))) {
+		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
+	}
+
+	rc_list = &local_core_manifest.plat_root_complex;
+
+	num_root_complexes = rc_list->num_root_complex;
+	rc_info = rc_list->root_complex;
+
+	/* Calculate the checksum of the rc_list structure */
+	checksum = num_root_complexes + (uint64_t)rc_info + rc_list->checksum;
+
+	/* Calculate all Root complex info size */
+	total_size = num_root_complexes * sizeof(struct root_complex_info);
+
+	for (uint64_t rc_idx = 0UL; rc_idx < num_root_complexes; rc_idx++) {
+		struct root_port_info *rp_info;
+		uint32_t num_root_ports;
+
+		num_root_ports = rc_info[rc_idx].num_root_ports;
+		rp_info = rc_info[rc_idx].root_ports;
+
+		total_size += num_root_ports * sizeof(struct root_port_info);
+		total_size += rp_info->num_bdf_mappings *
+			sizeof(struct bdf_mapping_info);
+	}
+
+	/* Update checksum */
+	checksum += checksum_calc((uint64_t *)rc_info, total_size);
+
+	/* Verify the checksum is 0 */
+	if (checksum != 0UL) {
+		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
+	}
+
+	*plat_rc_list = rc_list;
+
+	return E_RMM_BOOT_SUCCESS;
+}

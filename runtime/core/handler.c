@@ -159,7 +159,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(VDEV_AUX_COUNT,		2, 1, smc_vdev_aux_count,	 true, true),
 	HANDLER(RTT_READ_ENTRY,		3, 4, smc_rtt_read_entry,	 false, true),
 	HANDLER(RTT_UNMAP_UNPROTECTED,	3, 1, smc_rtt_unmap_unprotected, false, false),
-	HANDLER(RTT_DEV_MEM_VALIDATE,	4, 1, NULL,			 false, true),
+	HANDLER(RTT_DEV_MEM_VALIDATE,	4, 1, smc_rtt_dev_mem_validate,  false, true),
 	HANDLER(PSCI_COMPLETE,		3, 0, smc_psci_complete,	 true,  true),
 	HANDLER(FEATURES,		1, 1, smc_read_feature_register, false,  true),
 	HANDLER(RTT_FOLD,		3, 1, smc_rtt_fold,		 false, false),
@@ -173,8 +173,8 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PDEV_CREATE,		2, 0, smc_pdev_create,		 true, true),
 	HANDLER(PDEV_DESTROY,		1, 0, smc_pdev_destroy,		 true, true),
 	HANDLER(PDEV_GET_STATE,		1, 1, smc_pdev_get_state,	 true, true),
-	HANDLER(PDEV_IDE_RESET,		0, 0, NULL,			 true, true),
-	HANDLER(PDEV_NOTIFY,		0, 0, NULL,			 true, true),
+	HANDLER(PDEV_IDE_RESET,		1, 0, smc_pdev_ide_reset,	 true, true),
+	HANDLER(PDEV_NOTIFY,		2, 0, smc_pdev_notify,		 true, true),
 	HANDLER(PDEV_SET_PUBKEY,	2, 0, smc_pdev_set_pubkey,	 true, true),
 	HANDLER(PDEV_STOP,		1, 0, smc_pdev_stop,		 true, true),
 	HANDLER(RTT_AUX_CREATE,		5, 0, smc_rtt_aux_create,	 false, true),
@@ -424,6 +424,8 @@ struct rmm_trap_element {
  */
 extern void *ns_read;
 extern void *ns_write;
+bool memcpy_ns_read_4(void *dest, const void *ns_src);
+bool memcpy_ns_write_4(void *ns_dest, uint32_t value);
 
 /*
  * The new value of the PC when the GPF occurs on a registered location.
@@ -433,6 +435,8 @@ extern void *ns_access_ret_0;
 static struct rmm_trap_element rmm_trap_list[] = {
 	RMM_TRAP_HANDLER(ns_read, ns_access_ret_0),
 	RMM_TRAP_HANDLER(ns_write, ns_access_ret_0),
+	RMM_TRAP_HANDLER(memcpy_ns_read_4, ns_access_ret_0),
+	RMM_TRAP_HANDLER(memcpy_ns_write_4, ns_access_ret_0),
 };
 #define RMM_TRAP_LIST_SIZE (sizeof(rmm_trap_list)/sizeof(struct rmm_trap_element))
 

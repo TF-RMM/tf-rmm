@@ -10,8 +10,12 @@ target_link_libraries(rmm-plat-host_build
             rmm-lib
             rmm-el2-stub)
 
+target_include_directories(rmm-plat-host_build
+    PRIVATE "src")
+
 target_sources(rmm-plat-host_build
     PRIVATE "src/host_setup.c"
-            "src/host_harness.c")
+            "src/host_harness.c"
+            "src/host_realm_attest_rsi.c")
 
 add_library(rmm-platform ALIAS rmm-plat-host_build)

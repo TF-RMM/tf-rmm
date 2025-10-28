@@ -5,6 +5,7 @@
 
 #include <arch_features.h>
 #include <arm_memory.h>
+#include <arm_root_complex.h>
 #include <debug.h>
 #include <pl011.h>
 #include <plat_common.h>
@@ -38,6 +39,41 @@ void plat_warmboot_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 	if (plat_cmn_warmboot_setup() != 0) {
 		panic();
 	}
+}
+
+static void setup_root_complex_list(void)
+{
+	int ret;
+	struct root_complex_list *rc_list;
+
+	/* Get RC list from boot manifest (from version 0.5) */
+	ret = rmm_el3_ifc_get_root_complex_list_pa(&rc_list);
+	if (ret == E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED) {
+		return;
+	}
+
+	/*
+	 * Setup Root Complex only RMM_V1_1=1, this makes RMM boot to continue if
+	 * manifest do not have Root Complex details.
+	 */
+#ifdef RMM_V1_1
+	if ((ret != E_RMM_BOOT_SUCCESS) || (rc_list == NULL) ||
+	    (rc_list->num_root_complex == 0UL))  {
+		/*
+		 * TODO: Report failure to el3 for now.
+		 * The ideal behavior should be, if this rmm-el3_ifc returns
+		 * failure or there are no RPs in the system described, then
+		 * there will no error at this point. When PDEV_CREATE is
+		 * called, then it will fail at that point since validation of
+		 * the info will fail(since RMM does not have any info to
+		 * validate against).
+		 */
+		ERROR("Invalid: Root Complex list\n");
+		rmm_el3_ifc_report_fail_to_el3(ret);
+	}
+
+	arm_set_root_complex_list(rc_list);
+#endif
 }
 
 /*
@@ -147,6 +183,8 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 			arm_set_dev_layout(plat_memory_info, type[i]);
 		}
 	}
+
+	setup_root_complex_list();
 
 	plat_warmboot_setup(x0, x1, x2, x3);
 }

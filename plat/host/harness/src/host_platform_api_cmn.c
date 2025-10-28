@@ -7,6 +7,7 @@
 #include <debug.h>
 #include <host_console.h>
 #include <host_utils.h>
+#include <host_utils_pci.h>
 #include <plat_common.h>
 #include <rmm_el3_ifc.h>
 #include <smc.h>

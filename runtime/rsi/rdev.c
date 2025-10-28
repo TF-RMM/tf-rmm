@@ -178,6 +178,7 @@ void handle_rsi_rdev_get_info(struct rec *rec, struct rsi_result *res)
 	struct s2_walk_result walk_res;
 	struct rsi_dev_info *rdev_info;
 	struct rec_plane *plane;
+	struct rd *rd;
 	uint64_t vdev_id;
 	uint64_t vdev_inst_id;
 	unsigned long buf_ipa;
@@ -206,10 +207,14 @@ void handle_rsi_rdev_get_info(struct rec *rec, struct rsi_result *res)
 	vdev_inst_id = plane->regs[2];
 	buf_ipa = plane->regs[3];
 
+	/* rd granule mapped but not locked */
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	/* Check if IPA is sizeof rsi_dev_info (512) bytes aligned */
 	if (!ALIGNED(buf_ipa, sizeof(struct rsi_dev_info))) {
 		rsi_rc = RSI_ERROR_INPUT;
-		goto out;
+		goto out_rd_unmap;
 	}
 
 	/*
@@ -220,13 +225,18 @@ void handle_rsi_rdev_get_info(struct rec *rec, struct rsi_result *res)
 	    (vdev_id != rec->vdev.id) ||
 	    (vdev_inst_id != rec->vdev.inst_id)) {
 		rsi_rc = RSI_ERROR_STATE;
-		goto out;
+		goto out_rd_unmap;
+	}
+
+	if (rd->g_vdev == NULL) {
+		rsi_rc = RSI_ERROR_STATE;
+		goto out_rd_unmap;
 	}
 
 	buf_va = realm_mem_map(rec, buf_ipa, &walk_res);
 	if (buf_va == 0UL) {
 		rsi_rc = RSI_ERROR_INPUT;
-		goto out;
+		goto out_rd_unmap;
 	/* cppcheck-suppress misra-c2012-10.4 */
 	/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
 	/* coverity[misra_c_2012_rule_10_4_violation:SUPPRESS] */
@@ -234,13 +244,13 @@ void handle_rsi_rdev_get_info(struct rec *rec, struct rsi_result *res)
 		res->action = STAGE_2_TRANSLATION_FAULT;
 		res->rtt_level = walk_res.rtt_level;
 		rsi_rc = RSI_SUCCESS;
-		goto out;
+		goto out_rd_unmap;
 	}
 
 	rdev_info = (struct rsi_dev_info *)buf_va;
 	(void)memset(rdev_info, 0, sizeof(struct rsi_dev_info));
 
-	rc = vdev_get_info(rec->vdev.g_vdev, rdev_info);
+	rc = vdev_get_info(rd->g_vdev, rdev_info);
 	if (rc == 0) {
 		rsi_rc = RSI_SUCCESS;
 	} else {
@@ -248,7 +258,8 @@ void handle_rsi_rdev_get_info(struct rec *rec, struct rsi_result *res)
 	}
 
 	realm_mem_unmap_unlock(buf_va, &walk_res);
-
+out_rd_unmap:
+	buffer_unmap(rd);
 out:
 	res->smc_res.x[0] = rsi_rc;
 }
@@ -287,6 +298,7 @@ void handle_rsi_rdev_get_state(struct rec *rec, struct rsi_result *res)
 {
 	struct vdev *vd;
 	struct rec_plane *plane;
+	struct rd *rd;
 	unsigned long rsi_rc;
 	unsigned long vdev_id;
 	unsigned long vdev_inst_id;
@@ -314,17 +326,22 @@ void handle_rsi_rdev_get_state(struct rec *rec, struct rsi_result *res)
 	vdev_id = plane->regs[1];
 	vdev_inst_id = plane->regs[2];
 
+	/* rd granule mapped but not locked */
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	/*
-	 * For now, assume that g_vdev cached by last smc_vdev_complete() will
-	 * be used here. Return error if g_vdev is not cached. Will be corrected
-	 * in alp14+ implementation
+	 * For now, assume that g_vdev cached by smc_vdev_create() will be used
+	 * here. Return error if g_vdev is not cached. Will be corrected in
+	 * alp14+ implementation
 	 */
-	if (rec->vdev.g_vdev == NULL) {
+	if (rd->g_vdev == NULL) {
 		rsi_rc = RSI_ERROR_INPUT;
-		goto out;
+		goto out_unmap_rd;
 	}
-	granule_lock(rec->vdev.g_vdev, GRANULE_STATE_VDEV);
-	vd = buffer_granule_map(rec->vdev.g_vdev, SLOT_VDEV);
+
+	granule_lock(rd->g_vdev, GRANULE_STATE_VDEV);
+	vd = buffer_granule_map(rd->g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
 	if ((vd->id == vdev_id) && (vd->inst_id == vdev_inst_id)) {
@@ -336,7 +353,9 @@ void handle_rsi_rdev_get_state(struct rec *rec, struct rsi_result *res)
 
 	buffer_unmap(vd);
 
-	granule_unlock(rec->vdev.g_vdev);
+	granule_unlock(rd->g_vdev);
+out_unmap_rd:
+	buffer_unmap(rd);
 out:
 	res->smc_res.x[0] = rsi_rc;
 	res->action = rsi_action;
@@ -375,6 +394,7 @@ void handle_rsi_rdev_get_measurements(struct rec *rec,
 	struct realm_device *rdev;
 	struct vdev *vd;
 	struct rec_plane *plane;
+	struct rd *rd;
 	bool flags_all;
 
 	/* Set default action to return to Realm */
@@ -400,17 +420,21 @@ void handle_rsi_rdev_get_measurements(struct rec *rec,
 		goto out;
 	}
 
+	/* rd granule mapped but not locked */
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	/*
-	 * For now, assume that g_vdev cached by last smc_vdev_complete() will
-	 * be used here. Return error if g_vdev is not cached. Will be corrected
-	 * in alp14+ implementation
+	 * For now, assume that g_vdev cached by smc_vdev_create() will be used
+	 * here. Return error if g_vdev is not cached. Will be corrected in
+	 * alp14+ implementation
 	 */
-	if (rec->vdev.g_vdev == NULL) {
+	if (rd->g_vdev == NULL) {
 		rsi_rc = RSI_ERROR_INPUT;
-		goto out;
+		goto out_rd_unmap;
 	}
-	granule_lock(rec->vdev.g_vdev, GRANULE_STATE_VDEV);
-	vd = buffer_granule_map(rec->vdev.g_vdev, SLOT_VDEV);
+	granule_lock(rd->g_vdev, GRANULE_STATE_VDEV);
+	vd = buffer_granule_map(rd->g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
 	if ((vd->id != vdev_id) || (vd->inst_id != vdev_inst_id)) {
@@ -527,7 +551,9 @@ void handle_rsi_rdev_get_measurements(struct rec *rec,
 
 out_vd_unmap:
 	buffer_unmap(vd);
-	granule_unlock(rec->vdev.g_vdev);
+	granule_unlock(rd->g_vdev);
+out_rd_unmap:
+	buffer_unmap(rd);
 out:
 	if (rsi_action == UPDATE_REC_RETURN_TO_REALM) {
 		res->smc_res.x[0] = rsi_rc;
@@ -546,6 +572,7 @@ void handle_rsi_rdev_lock(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	struct dev_tdisp_params *tdisp_params;
 	struct vdev *vd;
 	struct rec_plane *plane;
+	struct rd *rd;
 
 	/* Set default action to return to Realm */
 	rsi_action = UPDATE_REC_RETURN_TO_REALM;
@@ -565,17 +592,21 @@ void handle_rsi_rdev_lock(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		goto out;
 	}
 
+	/* rd granule mapped but not locked */
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	/*
-	 * For now, assume that g_vdev cached by last smc_vdev_complete() will
-	 * be used here. Return error if g_vdev is not cached. Will be corrected
-	 * in alp14+ implementation
+	 * For now, assume that g_vdev cached by smc_vdev_create() will be used
+	 * here. Return error if g_vdev is not cached. Will be corrected in
+	 * alp14+ implementation
 	 */
-	if (rec->vdev.g_vdev == NULL) {
+	if (rd->g_vdev == NULL) {
 		rsi_rc = RSI_ERROR_INPUT;
-		goto out;
+		goto out_rd_unmap;
 	}
-	granule_lock(rec->vdev.g_vdev, GRANULE_STATE_VDEV);
-	vd = buffer_granule_map(rec->vdev.g_vdev, SLOT_VDEV);
+	granule_lock(rd->g_vdev, GRANULE_STATE_VDEV);
+	vd = buffer_granule_map(rd->g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
 	if ((vd->id != vdev_id) || (vd->inst_id != vdev_inst_id)) {
@@ -622,7 +653,9 @@ void handle_rsi_rdev_lock(struct rec *rec, struct rmi_rec_exit *rec_exit,
 
 out_vd_unmap:
 	buffer_unmap(vd);
-	granule_unlock(rec->vdev.g_vdev);
+	granule_unlock(rd->g_vdev);
+out_rd_unmap:
+	buffer_unmap(rd);
 out:
 	if (rsi_action == UPDATE_REC_RETURN_TO_REALM) {
 		res->smc_res.x[0] = rsi_rc;
@@ -641,6 +674,7 @@ void handle_rsi_rdev_start(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	struct dev_tdisp_params *tdisp_params;
 	struct vdev *vd;
 	struct rec_plane *plane;
+	struct rd *rd;
 
 	/* Set default action to return to Realm */
 	rsi_action = UPDATE_REC_RETURN_TO_REALM;
@@ -665,17 +699,22 @@ void handle_rsi_rdev_start(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		goto out;
 	}
 
+	/* rd granule mapped but not locked */
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	/*
-	 * For now, assume that g_vdev cached by last smc_vdev_complete() will
-	 * be used here. Return error if g_vdev is not cached. Will be corrected
-	 * in alp14+ implementation
+	 * For now, assume that g_vdev cached by smc_vdev_create() will be used
+	 * here. Return error if g_vdev is not cached. Will be corrected in
+	 * alp14+ implementation
 	 */
-	if (rec->vdev.g_vdev == NULL) {
+	if (rd->g_vdev == NULL) {
 		rsi_rc = RSI_ERROR_INPUT;
-		goto out;
+		goto out_rd_unmap;
 	}
-	granule_lock(rec->vdev.g_vdev, GRANULE_STATE_VDEV);
-	vd = buffer_granule_map(rec->vdev.g_vdev, SLOT_VDEV);
+
+	granule_lock(rd->g_vdev, GRANULE_STATE_VDEV);
+	vd = buffer_granule_map(rd->g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
 	if ((vd->id != vdev_id) || (vd->inst_id != vdev_inst_id)) {
@@ -720,7 +759,9 @@ void handle_rsi_rdev_start(struct rec *rec, struct rmi_rec_exit *rec_exit,
 
 out_vd_unmap:
 	buffer_unmap(vd);
-	granule_unlock(rec->vdev.g_vdev);
+	granule_unlock(rd->g_vdev);
+out_rd_unmap:
+	buffer_unmap(rd);
 out:
 	if (rsi_action == UPDATE_REC_RETURN_TO_REALM) {
 		res->smc_res.x[0] = rsi_rc;
@@ -739,6 +780,7 @@ void handle_rsi_rdev_stop(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	struct dev_tdisp_params *tdisp_params;
 	struct vdev *vd;
 	struct rec_plane *plane;
+	struct rd *rd;
 
 	/* Set default action to return to Realm */
 	rsi_action = UPDATE_REC_RETURN_TO_REALM;
@@ -758,17 +800,21 @@ void handle_rsi_rdev_stop(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		goto out;
 	}
 
+	/* rd granule mapped but not locked */
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	/*
-	 * For now, assume that g_vdev cached by last smc_vdev_complete() will
-	 * be used here. Return error if g_vdev is not cached. Will be corrected
-	 * in alp14+ implementation
+	 * For now, assume that g_vdev cached by smc_vdev_create() will be used
+	 * here. Return error if g_vdev is not cached. Will be corrected in
+	 * alp14+ implementation
 	 */
-	if (rec->vdev.g_vdev == NULL) {
+	if (rd->g_vdev == NULL) {
 		rsi_rc = RSI_ERROR_INPUT;
-		goto out;
+		goto out_rd_unmap;
 	}
-	granule_lock(rec->vdev.g_vdev, GRANULE_STATE_VDEV);
-	vd = buffer_granule_map(rec->vdev.g_vdev, SLOT_VDEV);
+	granule_lock(rd->g_vdev, GRANULE_STATE_VDEV);
+	vd = buffer_granule_map(rd->g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
 	if ((vd->id != vdev_id) || (vd->inst_id != vdev_inst_id)) {
@@ -814,7 +860,9 @@ void handle_rsi_rdev_stop(struct rec *rec, struct rmi_rec_exit *rec_exit,
 
 out_vd_unmap:
 	buffer_unmap(vd);
-	granule_unlock(rec->vdev.g_vdev);
+	granule_unlock(rd->g_vdev);
+out_rd_unmap:
+	buffer_unmap(rd);
 out:
 	if (rsi_action == UPDATE_REC_RETURN_TO_REALM) {
 		res->smc_res.x[0] = rsi_rc;
@@ -835,6 +883,7 @@ void handle_rsi_rdev_get_interface_report(struct rec *rec,
 	struct dev_tdisp_params *tdisp_params;
 	struct vdev *vd;
 	struct rec_plane *plane;
+	struct rd *rd;
 
 	/* Set default action to return to Realm */
 	rsi_action = UPDATE_REC_RETURN_TO_REALM;
@@ -856,17 +905,21 @@ void handle_rsi_rdev_get_interface_report(struct rec *rec,
 		goto out;
 	}
 
+	/* rd granule mapped but not locked */
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	/*
-	 * For now, assume that g_vdev cached by last smc_vdev_complete() will
-	 * be used here. Return error if g_vdev is not cached. Will be corrected
-	 * in alp14+ implementation
+	 * For now, assume that g_vdev cached by smc_vdev_create() will be used
+	 * here. Return error if g_vdev is not cached. Will be corrected in
+	 * alp14+ implementation
 	 */
-	if (rec->vdev.g_vdev == NULL) {
+	if (rd->g_vdev == NULL) {
 		rsi_rc = RSI_ERROR_INPUT;
-		goto out;
+		goto out_rd_unmap;
 	}
-	granule_lock(rec->vdev.g_vdev, GRANULE_STATE_VDEV);
-	vd = buffer_granule_map(rec->vdev.g_vdev, SLOT_VDEV);
+	granule_lock(rd->g_vdev, GRANULE_STATE_VDEV);
+	vd = buffer_granule_map(rd->g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
 	if ((vd->id != vdev_id) || (vd->inst_id != vdev_inst_id)) {
@@ -917,7 +970,9 @@ void handle_rsi_rdev_get_interface_report(struct rec *rec,
 
 out_vd_unmap:
 	buffer_unmap(vd);
-	granule_unlock(rec->vdev.g_vdev);
+	granule_unlock(rd->g_vdev);
+out_rd_unmap:
+	buffer_unmap(rd);
 out:
 	if (rsi_action == UPDATE_REC_RETURN_TO_REALM) {
 		res->smc_res.x[0] = rsi_rc;
@@ -931,6 +986,111 @@ out:
 	res->smc_res.x[1] = 0x10; /* PCI_TDISP_MESSAGE_VERSION_10 */
 }
 
+/* Validate Realm device memory mappings */
+void handle_rsi_rdev_validate_mapping(struct rec *rec,
+				      struct rmi_rec_exit *rec_exit,
+				      struct rsi_result *res)
+{
+	struct rd *rd;
+	unsigned long rsi_rc;
+	enum rsi_action rsi_action;
+	unsigned long vdev_id;
+	unsigned long vdev_inst_id;
+	struct realm_device *rdev;
+	struct vdev *vd;
+	struct rec_plane *plane;
+	unsigned long target_ipa_base;
+	unsigned long target_ipa_top;
+	unsigned long target_pa_base;
+	unsigned long mmio_flags;
+
+	/* Set default action to return to Realm */
+	rsi_action = UPDATE_REC_RETURN_TO_REALM;
+
+	/* RSI calls can only be issued by Plane 0 */
+	plane = rec_plane_0(rec);
+
+	/*
+	 * X1: Virtual device identifier
+	 * X2: Device instance identifier
+	 * X3: Base of target IPA region
+	 * X4: Top of target IPA region
+	 * X5: Base of target PA region
+	 * X6: Flags of type RsiDevMemFlags
+	 */
+	vdev_id = plane->regs[1];
+	vdev_inst_id = plane->regs[2];
+	target_ipa_base = plane->regs[3];
+	target_ipa_top = plane->regs[4];
+	target_pa_base = plane->regs[5];
+	mmio_flags = plane->regs[6];
+
+	(void)vdev_id;
+	(void)vdev_inst_id;
+
+	if (!GRANULE_ALIGNED(target_ipa_base) ||
+	    !GRANULE_ALIGNED(target_ipa_top) ||
+	    !GRANULE_ALIGNED(target_pa_base) ||
+	    (target_ipa_top <= target_ipa_base)) {
+		rsi_rc = RSI_ERROR_INPUT;
+		goto out;
+	}
+
+	/* rd granule mapped but not locked */
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	if (!rd->da_enabled) {
+		rsi_rc = RSI_ERROR_STATE;
+		goto out_rd_unmap;
+	}
+
+	/* This will be replaced by rdev_from_inst_id() */
+	if (rd->g_vdev == NULL) {
+		rsi_rc = RSI_ERROR_INPUT;
+		goto out_rd_unmap;
+	}
+	vd = buffer_granule_map(rd->g_vdev, SLOT_VDEV);
+	if (vd == NULL) {
+		rsi_rc = RSI_ERROR_INPUT;
+		goto out_rd_unmap;
+	}
+
+	rdev = &vd->rdev;
+
+	if ((rdev->rsi_state != RSI_RDEV_STATE_LOCKED) &&
+	    (rdev->rsi_state != RSI_RDEV_STATE_STARTED)) {
+		rsi_rc = RSI_ERROR_DEVICE;
+		goto out_vd_unmap;
+	}
+
+	/* Update REC dev_mem */
+	rec->dev_mem.base = target_ipa_base;
+	rec->dev_mem.top = target_ipa_top;
+	rec->dev_mem.addr = target_ipa_base;
+	rec->dev_mem.pa = target_pa_base;
+	rec->dev_mem.flags = mmio_flags;
+
+	/* Update REC exit dev_mem */
+	rec_exit->exit_reason = RMI_EXIT_DEV_MEM_MAP;
+	rec_exit->dev_mem_base = target_ipa_base;
+	rec_exit->dev_mem_top = target_ipa_top;
+	rec_exit->dev_mem_pa = target_pa_base;
+
+	/* Exit to host to process DEV mem mapping */
+	rsi_action = UPDATE_REC_EXIT_TO_HOST;
+
+out_vd_unmap:
+	buffer_unmap(vd);
+out_rd_unmap:
+	buffer_unmap(rd);
+out:
+	if (rsi_action == UPDATE_REC_RETURN_TO_REALM) {
+		res->smc_res.x[0] = rsi_rc;
+	}
+	res->action = rsi_action;
+}
+
 void handle_rsi_rdev_continue(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			      struct rsi_result *res)
 {
@@ -941,6 +1101,7 @@ void handle_rsi_rdev_continue(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	struct realm_device *rdev;
 	struct vdev *vd;
 	struct rec_plane *plane;
+	struct rd *rd;
 
 	/* Set default action to return to Realm */
 	rsi_action = UPDATE_REC_RETURN_TO_REALM;
@@ -964,17 +1125,21 @@ void handle_rsi_rdev_continue(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	(void)vdev_id;
 	(void)vdev_inst_id;
 
+	/* rd granule mapped but not locked */
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
 	/*
-	 * For now, assume that g_vdev cached by last smc_vdev_complete() will
-	 * be used here. Return error if g_vdev is not cached. Will be corrected
-	 * in alp14+ implementation
+	 * For now, assume that g_vdev cached by smc_vdev_create() will be used
+	 * here. Return error if g_vdev is not cached. Will be corrected in
+	 * alp14+ implementation
 	 */
-	if (rec->vdev.g_vdev == NULL) {
+	if (rd->g_vdev == NULL) {
 		rsi_rc = RSI_ERROR_INPUT;
-		goto out;
+		goto out_rd_unmap;
 	}
-	granule_lock(rec->vdev.g_vdev, GRANULE_STATE_VDEV);
-	vd = buffer_granule_map(rec->vdev.g_vdev, SLOT_VDEV);
+	granule_lock(rd->g_vdev, GRANULE_STATE_VDEV);
+	vd = buffer_granule_map(rd->g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
 	if ((vd->id != vdev_id) || (vd->inst_id != vdev_inst_id)) {
@@ -1050,7 +1215,9 @@ void handle_rsi_rdev_continue(struct rec *rec, struct rmi_rec_exit *rec_exit,
 
 out_vd_unmap:
 	buffer_unmap(vd);
-	granule_unlock(rec->vdev.g_vdev);
+	granule_unlock(rd->g_vdev);
+out_rd_unmap:
+	buffer_unmap(rd);
 out:
 	if (rsi_action == UPDATE_REC_RETURN_TO_REALM) {
 		res->smc_res.x[0] = rsi_rc;

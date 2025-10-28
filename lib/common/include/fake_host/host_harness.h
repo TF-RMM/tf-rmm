@@ -64,21 +64,14 @@ bool host_memcpy_ns_write(void *ns_dest, const void *src, unsigned long size);
  */
 int host_run_realm(unsigned long *rec_regs, unsigned long *rec_sp_el0);
 
-/*
- * Fake Host wrapper for monitor_call.
- */
-unsigned long host_monitor_call(unsigned long id, unsigned long arg0,
-		unsigned long arg1, unsigned long arg2, unsigned long arg3,
-		unsigned long arg4, unsigned long arg5);
-
+struct smc_args;
 struct smc_result;
+
 /*
  * Fake Host wrapper for monitor_call_with_res.
  */
-void host_monitor_call_with_res(unsigned long id, unsigned long arg0,
-		unsigned long arg1, unsigned long arg2, unsigned long arg3,
-		unsigned long arg4, unsigned long arg5,
-		struct smc_result *res);
+void host_monitor_call(unsigned long id, struct smc_args *args,
+		       struct smc_result *res);
 
 /*
  * Fake host wrapper to map a given PA.
@@ -92,6 +85,9 @@ void *host_buffer_arch_map(unsigned int slot, unsigned long addr);
  * in `buf`.
  */
 void host_buffer_arch_unmap(void *buf);
+
+void *host_mmio_arch_map(unsigned long addr, uint64_t pas_type);
+void host_mmio_arch_unmap(void *buf);
 
 /*
  * Fake host wrapper to delegate a granule using the Granule Transition Service

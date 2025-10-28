@@ -68,9 +68,10 @@ int dev_tdisp_lock_main(struct dev_assign_info *info)
 
 	/* TODO: Derive parameters according to current platform */
 	/* coverity[uninit_use:SUPPRESS] */
-	lock_param.flags = rsp_caps.lock_interface_flags_supported;
+	lock_param.flags = (uint16_t)(rsp_caps.lock_interface_flags_supported &
+				      ~U(PCI_TDISP_LOCK_INTERFACE_FLAGS_LOCK_MSIX));
 	lock_param.default_stream_id = 0;
-	lock_param.mmio_reporting_offset = 0xD0000000;
+	lock_param.mmio_reporting_offset = 0UL;
 
 	assert(tdisp_params->nonce_ptr_is_valid);
 	status = pci_tdisp_lock_interface(NULL, info->libspdm_ctx,
@@ -147,14 +148,22 @@ int dev_tdisp_report_main(struct dev_assign_info *info)
 
 int dev_tdisp_start_main(struct dev_assign_info *info)
 {
-	libspdm_return_t status;
+	libspdm_return_t status = LIBSPDM_STATUS_SUCCESS;
 	pci_tdisp_interface_id_t tdisp_id;
 	uint8_t tdi_state;
 	struct dev_assign_tdisp_params *tdisp_params = &info->dev_assign_op_params.tdisp_params;
+	int ret = DEV_ASSIGN_STATUS_SUCCESS;
 
 	assert(info->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_TDISP);
 
 	(void)memset(&tdisp_id, 0, sizeof(pci_tdisp_interface_id_t));
+
+	/* Enable TDISP at Root Port DVSEC RME DA control register */
+	if (dvsec_tdisp_enable(info) != 0) {
+		ERROR("%s: dvsec_tdisp_enable failed.\n", __func__);
+		ret = DEV_ASSIGN_STATUS_ERROR;
+		goto out;
+	}
 
 	/* TDISP_START_INTERFACE_REQ */
 	tdisp_id.function_id = tdisp_params->tdi_id;
@@ -169,7 +178,9 @@ int dev_tdisp_start_main(struct dev_assign_info *info)
 	if (status != LIBSPDM_STATUS_SUCCESS) {
 		ERROR("%s: pci_tdisp_get_interface_state failed. tdi_id = %u, status = 0x%x\n",
 			__func__, tdisp_params->tdi_id, status);
-		return DEV_ASSIGN_STATUS_ERROR;
+		status = LIBSPDM_STATUS_INVALID_STATE_PEER;
+		ret = DEV_ASSIGN_STATUS_ERROR;
+		goto out;
 	}
 
 	/* coverity[uninit_use:SUPPRESS] */
@@ -182,7 +193,8 @@ int dev_tdisp_start_main(struct dev_assign_info *info)
 	if (status != LIBSPDM_STATUS_SUCCESS) {
 		ERROR("%s: pci_tdisp_start_interface failed. tdi_id = %u, status = 0x%x\n",
 			__func__, tdisp_params->tdi_id, status);
-		return DEV_ASSIGN_STATUS_ERROR;
+		ret = DEV_ASSIGN_STATUS_ERROR;
+		goto out;
 	}
 
 	tdisp_params->nonce_is_output = false;
@@ -192,20 +204,20 @@ int dev_tdisp_start_main(struct dev_assign_info *info)
 					       info->libspdm_ctx,
 					       &info->session_id, &tdisp_id,
 					       &tdi_state);
-	if (status != LIBSPDM_STATUS_SUCCESS) {
-		ERROR("%s: pci_tdisp_get_interface_state failed. tdi_id = %u, status = 0x%x\n",
-			__func__, tdisp_params->tdi_id, status);
-		return DEV_ASSIGN_STATUS_ERROR;
+
+	if ((status == LIBSPDM_STATUS_SUCCESS) &&
+	    (tdi_state == (uint8_t)PCI_TDISP_INTERFACE_STATE_RUN)) {
+		goto out;
 	}
 
-	if (tdi_state != (uint8_t)PCI_TDISP_INTERFACE_STATE_RUN) {
-		ERROR("%s: TDI not in RUN state. tdi_id = %u\n", __func__, tdisp_params->tdi_id);
-		return DEV_ASSIGN_STATUS_ERROR;
-	}
+	ERROR("%s: pci_tdisp_get_interface_state failed. tdi_id = %u, status = 0x%x\n",
+		__func__, tdisp_params->tdi_id, status);
+	ret = DEV_ASSIGN_STATUS_ERROR;
 
-	INFO("TDISP start successful, tdi_id = %u\n", tdisp_params->tdi_id);
-
-	return DEV_ASSIGN_STATUS_SUCCESS;
+out:
+	INFO("TDISP start: tdi_id = %d, status = 0x%x\n",
+		tdisp_params->tdi_id, status);
+	return ret;
 }
 
 int dev_tdisp_stop_main(struct dev_assign_info *info)
@@ -214,6 +226,7 @@ int dev_tdisp_stop_main(struct dev_assign_info *info)
 	pci_tdisp_interface_id_t tdisp_id;
 	uint8_t tdi_state;
 	struct dev_assign_tdisp_params *tdisp_params = &info->dev_assign_op_params.tdisp_params;
+	int ret = DEV_ASSIGN_STATUS_SUCCESS;
 
 	assert(info->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_TDISP);
 
@@ -227,7 +240,7 @@ int dev_tdisp_stop_main(struct dev_assign_info *info)
 	if (status != LIBSPDM_STATUS_SUCCESS) {
 		ERROR("%s: pci_tdisp_stop_interface failed. tdi_id = %u, status = 0x%x\n",
 			__func__, tdisp_params->tdi_id, status);
-		return DEV_ASSIGN_STATUS_ERROR;
+		goto out_tdisp_disable;
 	}
 
 	/* TDISP_GET_DEVICE_INTERFACE_STATE after stop */
@@ -241,16 +254,19 @@ int dev_tdisp_stop_main(struct dev_assign_info *info)
 		return DEV_ASSIGN_STATUS_ERROR;
 	}
 
-	tdisp_params->nonce_is_output = false;
-
 	/* coverity[uninit_use:SUPPRESS] */
 	if (tdi_state != (uint8_t)PCI_TDISP_INTERFACE_STATE_CONFIG_UNLOCKED) {
-		ERROR("%s: DSM: TDISP: tdi_id = %u state is %d [not CONFIG_UNLOCKED]\n",
-		      __func__, tdisp_params->tdi_id, tdi_state);
-		return DEV_ASSIGN_STATUS_ERROR;
+		ERROR("%s: TDI: %u state is %d [not CONFIG_UNLOCKED]\n",
+		      __func__, tdisp_id.function_id, tdi_state);
+		ret = DEV_ASSIGN_STATUS_ERROR;
 	}
 
-	INFO("TDISP stop successful, tdi_id = %u\n", tdisp_params->tdi_id);
+	INFO("%s: TDI: 0x%x state is CONFIG_UNLOCKED\n", __func__, tdisp_id.function_id);
 
-	return DEV_ASSIGN_STATUS_SUCCESS;
+out_tdisp_disable:
+
+	tdisp_params->nonce_is_output = false;
+
+	INFO("%s: cmd_rc: 0x%x, tdi_id = %u\n", __func__, status, tdisp_params->tdi_id);
+	return ret;
 }

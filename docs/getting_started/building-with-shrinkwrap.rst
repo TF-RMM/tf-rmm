@@ -25,6 +25,8 @@ for development with RME enabled Linux in Normal World, please refer to the
 `3 world configuration`_. In case that the Secure World also needs to be
 included, please refer to the `4 world configuration`_
 
+.. _Setup_local_RMM_with_Shrinkwrap:
+
 Setup local RMM with Shrinkwrap
 _______________________________
 
@@ -94,6 +96,112 @@ To run the demonstrator, use the following command:
     .. code-block:: shell
 
        shrinkwrap run cca-3world.yaml --rtvar=ROOTFS=${SHRINKWRAP_PACKAGE}/cca-3world/rootfs.ext2
+
+3-World testing with CCA DA
+___________________________
+
+Clone TF-RMM repository at branch ``topics/da_alp12``
+
+    .. code-block:: shell
+
+       git clone https://git.trustedfirmware.org/TF-RMM/tf-rmm.git
+
+Follow the instructions in :ref:`Setup_local_RMM_with_Shrinkwrap` to setup the
+local RMM with shrinkwrap.
+
+RMM provides ``cca_da.yaml`` overlay that can be used along with the
+``cca-3world.yaml`` to build a 3 World demonstrator using the ``master`` branch
+of |TF-A|, ``cca/tdisp-upstream-post-v1.3`` branch of Linux kernel,
+kvmtool, and the local clone of RMM repository from ``main`` branch.
+
+As an example, the following command line would build the 3-World demonstrator.
+It assumes that Shrinkwrap is called from within the ``<RMM_ROOT>`` directory
+that was created in the last step:
+
+    .. code-block:: shell
+
+       shrinkwrap build cca-3world.yaml --overlay=cca_da.yaml --btvar GUEST_ROOTFS='${artifact:BUILDROOT}' --btvar RMM_SRC=${PWD} --no-sync=rmm
+
+Follow the steps mentioned in  `3 world configuration`_ documentation to copy
+guest-disk.img, KVMTOOL_EFI.fd and lkvm to the host filesystem.
+
+Shrinkwrap expects the FVP binary (FVP_Base_RevC-2xAEMvA) to be in your
+PATH. The ``runtime=null`` option is used to run the FVP directly from the PATH,
+without using the Docker container. Make sure that the FVP version is **10034** or higher,
+as older FVP versions have issues that prevent this demo from working.
+
+Now you can boot the host, using the rootfs we just modified.
+
+    .. code-block:: shell
+
+       shrinkwrap --runtime=null run cca-3world.yaml --overlay=cca_da.yaml --rtvar ROOTFS=${SHRINKWRAP_PACKAGE}/cca-3world/rootfs.ext2
+
+
+Finally, once the host has booted, log in as “root” (no password). Below are the
+device assignment workflow based on the `DA workflow`_ cover letter from the
+Linux kernel prototype branch.
+
+Connect the device with TSM, this establishes secure session to the device and
+enables IDE in the link.
+
+    .. code-block:: shell
+
+       echo 0000:02:00.0 > /sys/bus/pci/devices/0000:02:00.0/driver/unbind
+       echo vfio-pci > /sys/bus/pci/devices/0000:02:00.0/driver_override
+       echo 0000:02:00.0 > /sys/bus/pci/drivers_probe
+       echo tsm0 > /sys/bus/pci/devices/0000:02:00.0/tsm/connect
+
+Now, launch a realm using kvmtool from the /cca directory (that was created
+above):
+
+    .. code-block:: shell
+
+       cd /cca
+       ./lkvm run --realm -c 2 -m 256 --disk guest-disk.img --kernel Image -p "earlycon=uart,mmio,0x101000000 root=/dev/vda2" --iommufd-vdevice --vfio-pci 0000:02:00.0
+
+
+Be patient while this boots to the shell.
+
+Now in the Realm we follow the below steps on the assigned device to move the
+device to TDISP LOCKED and RUN state. At this step the Realm verifies the
+device attestation evidence that it got from the Host are valid by computing the
+digest and comparing it with the value it got from the RMM.
+
+    .. code-block:: shell
+
+       echo 0000:00:00.0 > /sys/bus/pci/devices/0000:00:00.0/driver/unbind
+       echo tsm0 > /sys/bus/pci/devices/0000:00:00.0/tsm/lock
+       echo 1 > /sys/bus/pci/devices/0000:00:00.0/tsm/accept
+
+Load the driver
+
+    .. code-block:: shell
+
+       echo 0000:00:00.0 > /sys/bus/pci/drivers_probe
+
+
+If everything went well, you should see the driver loading and the following
+lines in the console:
+
+    .. code-block:: console
+
+        ata1: SATA max UDMA/133 abar m8192@0x50006000 port 0x50006100 irq 22 lpm-pol 1
+        ata1: SATA link up 6.0 Gbps (SStatus 133 SControl 300)
+        ata1.00: ATA-10: ahci-disk.img, 0.1.0, max MWDMA2
+        ata1.00: 131072 sectors, multi 0: LBA48 NCQ (depth 1)
+        ata1.00: configured for PIO4
+        scsi 0:0:0:0: Direct-Access     ATA      ahci-disk.img    0    PQ: 0 ANSI: 5
+        sd 0:0:0:0: [sda] 131072 512-byte logical blocks: (67.1 MB/64.0 MiB)
+        sd 0:0:0:0: [sda] Write Protect is off
+        sd 0:0:0:0: [sda] Write cache: disabled, read cache: enabled, doesn't support DPO or FUA
+        sd 0:0:0:0: [sda] Preferred minimum I/O size 512 bytes
+        sd 0:0:0:0: [sda] Attached SCSI disk
+
+
+Also the device should be visible as a device in `/dev` , in this case /dev/sda will be
+visible. You can now partition, format and mount the device as you would do with any other
+block device.
+
 
 Testing RMM with TFTF
 _____________________
@@ -205,3 +313,4 @@ Then you run your tests with
 .. _TF-A-Tests: https://trustedfirmware-a-tests.readthedocs.io/en/latest/index.html
 .. _btvar: https://shrinkwrap.docs.arm.com/en/latest/userguide/configmodel.html#defined-macros
 .. _rtvar: https://shrinkwrap.docs.arm.com/en/latest/userguide/configmodel.html#defined-macros
+.. _DA workflow: https://gitlab.geo.arm.com/software/linux-arm/linux-kernel-aneesh/-/commit/10cee3cb39ee53738fbb722181c9cd2b5f42189d
