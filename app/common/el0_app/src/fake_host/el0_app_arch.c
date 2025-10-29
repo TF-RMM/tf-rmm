@@ -310,9 +310,15 @@ int main(int argc, char **argv)
 		switch (command) {
 		case CREATE_NEW_APP_INSTANCE:
 		{
+			size_t heap_size = 0U;
 			pthread_t thread_id = create_app_instance();
+			struct app_instance_data_t *app_data = get_instance_data(thread_id);
+
+			assert(app_data != NULL);
+			heap_size = app_data->heap_size;
 
 			WRITE_OR_EXIT(process_write_fd, &thread_id, sizeof(thread_id));
+			WRITE_OR_EXIT(process_write_fd, &heap_size, sizeof(heap_size));
 			break;
 		}
 		case RUN_APP_INSTANCE:
