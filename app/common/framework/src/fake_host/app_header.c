@@ -62,5 +62,6 @@ int app_get_header_ptr(unsigned long app_id, struct app_header **app_header)
 size_t app_get_required_granule_count_from_header(struct app_header *app_header)
 {
 	(void)app_header;
-	return 0;
+	/* Require at least 1 granule to satisfy sanity checks in PDEV create */
+	return 1U;
 }

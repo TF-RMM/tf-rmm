@@ -407,8 +407,15 @@ void *app_get_heap_ptr(struct app_data_cfg *app_data)
 
 size_t app_get_required_granule_count(unsigned long app_id)
 {
-	(void)app_id;
-	return 0U;
+	struct app_header *app_header;
+	int ret;
+
+	ret = app_get_header_ptr(app_id, &app_header);
+	if (ret != 0) {
+		return 0UL;
+	}
+
+	return app_get_required_granule_count_from_header(app_header);
 }
 
 /* Used by the Mbed TLS library in case EL3 token signing is active when
