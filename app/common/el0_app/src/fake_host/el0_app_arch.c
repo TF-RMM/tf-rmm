@@ -134,7 +134,7 @@ void el0_app_yield(void)
 	pthread_t thread_id = pthread_self();
 	struct app_instance_data_t *app_data = get_instance_data(thread_id);
 
-	unsigned long reason = APP_SERVICE_CALL;
+	unsigned long reason = APP_YIELD_CALL;
 
 	unsigned long bytes_to_forward =
 		sizeof(unsigned long) +
