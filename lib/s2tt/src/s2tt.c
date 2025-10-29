@@ -60,7 +60,7 @@ unsigned long s2tte_ipa_lvl_mask(long level, bool lpa2)
 }
 
 /*
- * Extracts the PA mapped by an S2TTE, aligned to a given level.
+ * Extracts the PA mapped by @s2tte, aligned to @level.
  */
 unsigned long s2tte_to_pa(const struct s2tt_context *s2_ctx,
 			  unsigned long s2tte, long level)
@@ -82,7 +82,7 @@ unsigned long s2tte_to_pa(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Invalidates S2 TLB entries from [ipa, ipa + size] region tagged with a
+ * Invalidates S2 TLB entries from [@ipa, @ipa + @size) region tagged with a
  * VMID for each one passed @vmid_list.
  */
 static void stage2_tlbi_ipa_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
@@ -158,7 +158,7 @@ static inline bool s2tte_has_hipas(unsigned long s2tte, unsigned long hipas)
 }
 
 /*
- * Returns true if s2tte has 'output address' field, namely, if it is one of:
+ * Returns true if @s2tte has 'output address' field, namely, if it is one of:
  * - valid TTE
  * - HIPAS = assigned
  * - HIPAS = assigned_dev
@@ -176,8 +176,8 @@ static bool s2tte_has_pa(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Creates a TTE containing only the PA.
- * This function expects 'pa' to be aligned and bounded.
+ * Creates a TTE containing only the PA passed through @pa.
+ * This function expects @pa to be aligned and bounded.
  */
 unsigned long pa_to_s2tte(const struct s2tt_context *s2_ctx, unsigned long pa)
 {
@@ -196,7 +196,7 @@ unsigned long pa_to_s2tte(const struct s2tt_context *s2_ctx, unsigned long pa)
 }
 
 /*
- * Get the Access Permissions of a given S2TTE modifying them as follows:
+ * Get the Access Permissions of @s2tte modifying them as follows:
  *
  * - If @dev == true and Permission Indirection is enabled:
  *      + Set the default Permission Indirection Index to S2TTE_DEV_DEF_BASE_PERM_IDX.
@@ -235,7 +235,7 @@ static unsigned long s2tte_get_ap(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Invalidate S2 TLB entries with "addr" IPA.
+ * Invalidate S2 TLB entries with @addr IPA.
  * Call this function after:
  * 1.  A L3 page desc has been removed.
  */
@@ -249,7 +249,7 @@ void s2tt_invalidate_page(const struct s2tt_context *s2_ctx, unsigned long addr)
 }
 
 /*
- * Invalidate S2 TLB entries with "addr" IPA for the list of VMIDS @vmid_list.
+ * Invalidate S2 TLB entries with @addr IPA for the list of VMIDS @vmid_list.
  * Call this function after:
  * 1.  A L3 page desc has been removed.
  */
@@ -263,7 +263,7 @@ void s2tt_invalidate_page_per_vmids(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Invalidate S2 TLB entries with "addr" IPA.
+ * Invalidate S2 TLB entries with @addr IPA.
  * Call this function after:
  * 1.  A L2 block desc has been removed, or
  * 2a. A L2 table desc has been removed, where
@@ -279,7 +279,7 @@ void s2tt_invalidate_block(const struct s2tt_context *s2_ctx, unsigned long addr
 }
 
 /*
- * Invalidate S2 TLB entries with "addr" IPA for the list of VMIDS @vmid_list.
+ * Invalidate S2 TLB entries with @addr IPA for the list of VMIDS @vmid_list.
  * Call this function after:
  * 1.  A L2 block desc has been removed, or
  * 2a. A L2 table desc has been removed, where
@@ -295,7 +295,7 @@ void s2tt_invalidate_block_per_vmids(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Invalidate S2 TLB entries with "addr" IPA.
+ * Invalidate S2 TLB entries with @addr IPA.
  * Call this function after:
  * 1a. A L2 table desc has been removed, where
  * 1b. Some S2TTEs in the table that the L2 table desc was pointed to were valid.
@@ -311,7 +311,7 @@ void s2tt_invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Invalidate S2 TLB entries with "addr" IPA for the list of VMIDS @vmid_list.
+ * Invalidate S2 TLB entries with @addr IPA for the list of VMIDS @vmid_list.
  * Call this function after:
  * 1a. A L2 table desc has been removed, where
  * 1b. Some S2TTEs in the table that the L2 table desc was pointed to were valid.
@@ -351,7 +351,7 @@ static unsigned long s2_addr_to_idx(unsigned long addr, long level)
 
 /*
  * Return the index of the entry describing @addr in the translation table
- * starting level. This may return an index >= S2TTES_PER_S2TT when the
+ * at @start level. This may return an index >= S2TTES_PER_S2TT when the
  * combination of @start_level and @ipa_bits implies concatenated
  * stage 2 tables.
  *
@@ -429,11 +429,12 @@ static struct granule *find_lock_next_level(const struct s2tt_context *s2_ctx,
 
 /*
  * Walk an RTT until level @level using @map_addr.
- * @g_root is the root (level 0/-1) table and must be locked before the call.
- * @start_level is the initial lookup level used for the stage 2 translation
- * tables which may depend on the configuration of the realm, factoring in the
- * IPA size of the realm and the desired starting level (within the limits
- * defined by the Armv8 VMSA including options for stage 2 table concatenation).
+ * @s2_ctx->g_root is the root (level 0/-1) table and must be locked before the call.
+ * @s2_ctx->s2_starting_level is the initial lookup level used for the stage 2
+ * translation tables which may depend on the configuration of the realm,
+ * factoring in the IPA size of the realm and the desired starting level (within
+ * the limits defined by the Armv8 VMSA including options for stage 2
+ * table concatenation).
  * The function uses hand-over-hand locking to avoid race conditions and allow
  * concurrent access to RTT tree which is not part of the current walk; when a
  * next level table is reached it is locked before releasing previously locked
@@ -443,12 +444,12 @@ static struct granule *find_lock_next_level(const struct s2tt_context *s2_ctx,
  * - Level @level is reached (in this case, a RTT Table entry can be returned).
  *
  * On return:
- * - s2tt_walk::last_level is the last level that has been reached by the walk.
- * - s2tt_walk.g_llt points to the TABLE granule at level @s2tt_walk::level.
+ * - s2tt_walk->last_level is the last level that has been reached by the walk.
+ * - s2tt_walk->g_llt points to the TABLE granule at level @s2tt_walk->level.
  *   The granule is locked.
- * - s2tt_walk::index is the entry index at s2tt_walk.g_llt for @map_addr.i
+ * - s2tt_walk->index is the entry index at s2tt_walk->g_llt for @map_addr.
  *
- * NOTE: This function expects that the root table on the s2 context is
+ * NOTE: This function expects that the root table on @s2_ctx->g_rtt  is
  *	 already locked.
  */
 void s2tt_walk_lock_unlock(const struct s2tt_context *s2_ctx,
@@ -704,7 +705,7 @@ unsigned long s2tte_create_assigned_dev_empty(const struct s2tt_context *s2_ctx,
 
 /*
  * Creates an invalid s2tte with output address @pa, HIPAS=ASSIGNED_DEV,
- * RIPAS=DESTROYED and the access permissions at @s2tte_ap  at level @level.
+ * RIPAS=DESTROYED and the access permissions at @s2tte_ap at level @level.
  *
  * Note that the execution permissions at @s2tte_ap will be overridden
  * to be disabled.
@@ -983,7 +984,7 @@ unsigned long s2tte_create_table(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if s2tte has defined RIPAS value, namely if it is one of:
+ * Returns true if @s2tte has defined RIPAS value, namely if it is one of:
  * - unassigned_empty
  * - unassigned_ram
  * - unassigned_destroyed
@@ -1102,7 +1103,7 @@ bool s2tte_is_unassigned_destroyed(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if @s2tte is an assigned_destroyed.
+ * Returns true if @s2tte is assigned_destroyed.
  */
 bool s2tte_is_assigned_destroyed(const struct s2tt_context *s2_ctx,
 				 unsigned long s2tte, long level)
@@ -1118,7 +1119,7 @@ bool s2tte_is_assigned_destroyed(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if @s2tte is an assigned_empty.
+ * Returns true if @s2tte is assigned_empty.
  */
 bool s2tte_is_assigned_empty(const struct s2tt_context *s2_ctx,
 			     unsigned long s2tte, long level)
@@ -1166,7 +1167,7 @@ static bool s2tte_check_assigned_ram_or_ns(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if @s2tte is an assigned_ram.
+ * Returns true if @s2tte is assigned_ram.
  */
 bool s2tte_is_assigned_ram(const struct s2tt_context *s2_ctx,
 			   unsigned long s2tte, long level)
@@ -1175,7 +1176,7 @@ bool s2tte_is_assigned_ram(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if @s2tte is an assigned_ns s2tte.
+ * Returns true if @s2tte is assigned_ns s2tte.
  */
 bool s2tte_is_assigned_ns(const struct s2tt_context *s2_ctx,
 			  unsigned long s2tte, long level)
@@ -1242,7 +1243,7 @@ bool s2tte_is_assigned_dev_empty(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if @s2tte is an dev_assigned_destroyed.
+ * Returns true if @s2tte is dev_assigned_destroyed.
  */
 bool s2tte_is_assigned_dev_destroyed(const struct s2tt_context *s2_ctx,
 					unsigned long s2tte, long level)
@@ -1273,7 +1274,7 @@ bool s2tte_is_table(const struct s2tt_context *s2_ctx, unsigned long s2tte,
  * Returns RIPAS of @s2tte.
  *
  * Caller should ensure that HIPAS=UNASSIGNED, ASSIGNED or ASSIGNED_DEV
- * The s2tte, if valid, should correspond to RIPAS_RAM or RIPAS_DEV.
+ * @s2tte, if valid, should correspond to RIPAS_RAM or RIPAS_DEV.
  */
 enum ripas s2tte_get_ripas(const struct s2tt_context *s2_ctx, unsigned long s2tte)
 {
@@ -1381,8 +1382,9 @@ static unsigned long s2tte_get_flattened_ap(unsigned long s2por_el2,
 }
 
 /*
- * Update a given S2TTE with the Access Permissions specified by the
- * value @index and the configuration @s2_ctx->overlay_perm.
+ * Update @s2tte with the Access Permissions specified by the
+ * value @overlay_index or @base_index
+ * and the configuration @s2_ctx->overlay_perm.
  *
  * This API assumes that the parent RD is mapped.
  */
@@ -1410,7 +1412,7 @@ unsigned long s2tte_update_prot_ap(struct s2tt_context *s2_ctx,
 
 /*
  * Populates @s2tt with unassigned_empty s2ttes with the given
- * access permissions extraced from given s2tte_ap.
+ * access permissions extraced from @s2tte_ap.
  *
  * The granule is populated before it is made a table,
  * hence, don't use s2tte_write for access.
@@ -1672,7 +1674,7 @@ void s2tt_init_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if s2tte is a live RTTE entry. i.e.,
+ * Returns true if @s2tte is a live RTTE entry. i.e.,
  * HIPAS is ASSIGNED.
  *
  * NOTE: For now, only the RTTE with PA are live.
@@ -1684,7 +1686,7 @@ bool s2tte_is_live(const struct s2tt_context *s2_ctx,
 	return s2tte_has_pa(s2_ctx, s2tte, level);
 }
 
-/* Returns physical address of a S2TTE */
+/* Returns physical address of @s2tte aligned at level @level */
 unsigned long s2tte_pa(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 		       long level)
 {
@@ -1914,7 +1916,7 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if all s2ttes are assigned_empty,
+ * Returns true if all s2ttes are assigned_empty in @table
  * refer to a contiguous block of granules aligned to @level - 1
  * and the access permissions are the same @s2tte_ap
  */
@@ -1927,7 +1929,7 @@ bool s2tt_maps_assigned_empty_block(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if all s2ttes are assigned_ram and
+ * Returns true if all s2ttes in @table are assigned_ram and
  * refer to a contiguous block of granules aligned to @level - 1 and
  * with access permissions same as @s2tte_ap.
  */
@@ -1959,7 +1961,7 @@ bool s2tt_maps_assigned_ns_block(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if all s2ttes are assigned_destroyed,
+ * Returns true if all s2ttes in @table are assigned_destroyed,
  * refer to a contiguous block of granules aligned to @level - 1
  * and the access permissions are the same @s2tte_ap
  */
@@ -1972,9 +1974,9 @@ bool s2tt_maps_assigned_destroyed_block(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if all s2ttes are assigned_dev_empty, they refer to a contiguous
- * block of granules aligned to @level - 1 and the access permissions match
- * the ones @s2tte_ap.
+ * Returns true if all s2ttes in @table are assigned_dev_empty, they refer to a
+ * contiguous block of granules aligned to @level - 1 and the access permissions
+ * match the ones @s2tte_ap.
  */
 bool s2tt_maps_assigned_dev_empty_block(const struct s2tt_context *s2_ctx,
 					unsigned long *table, long level,
@@ -1985,9 +1987,9 @@ bool s2tt_maps_assigned_dev_empty_block(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if all s2ttes are assigned_dev_destroyed, they refer contiguous
- * block of granules aligned to @level - 1 and the access permissions match
- * the ones @s2tte_ap.
+ * Returns true if all s2ttes in @table are assigned_dev_destroyed, they refer
+ * contiguous block of granules aligned to @level - 1 and the access permissions
+ * match the ones @s2tte_ap.
  */
 bool s2tt_maps_assigned_dev_destroyed_block(const struct s2tt_context *s2_ctx,
 					   unsigned long *table, long level,
@@ -1998,9 +2000,9 @@ bool s2tt_maps_assigned_dev_destroyed_block(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Returns true if all s2ttes are assigned_dev_dev, they refer to a contiguous
- * block of granules aligned to @level - 1 and the access permissions match the
- * ones @s2tte_ap.
+ * Returns true if all s2ttes in @table are assigned_dev_dev, they refer to a
+ * contiguous block of granules aligned to @level - 1 and the access permissions
+ * match the ones @s2tte_ap.
  */
 bool s2tt_maps_assigned_dev_dev_block(const struct s2tt_context *s2_ctx,
 					unsigned long *table, long level,
@@ -2011,8 +2013,8 @@ bool s2tt_maps_assigned_dev_dev_block(const struct s2tt_context *s2_ctx,
 }
 
 /*
- * Scan the RTT @s2tt (which is @wi.level), from the entry (@wi.index) and
- * skip the non-live entries (i.e., HIPAS=UNASSIGNED).
+ * Scan the RTT @table (which is aliged at @wi->level), from the entry (@wi->index)
+ * and skip the non-live entries (i.e., HIPAS=UNASSIGNED).
  * In other words, the scanning stops when a live RTTE is encountered or we
  * reach the end of this RTT.
  *
@@ -2020,14 +2022,14 @@ bool s2tt_maps_assigned_dev_dev_block(const struct s2tt_context *s2_ctx,
  * NOTE: This would change with EXPORT/IMPORT where we may have metadata stored
  * in the RTTE.
  *
- * @addr is not necessarily aligned to the wi.last_level (e.g., if we were called
+ * @addr is not necessarily aligned to @wi->last_level (e.g., if we were called
  * with RMI_ERROR_RTT).
  *
  * Returns:
  * - If the entry @wi.index is live, returns @addr.
- * - If none of the entries in the @s2tt are "live", returns the address of the
+ * - If none of the entries in the @table are "live", returns the address of the
  *   first entry in the next table.
- * - Otherwise, the address of the first live entry in @s2tt
+ * - Otherwise, the address of the first live entry in @table
  */
 unsigned long s2tt_skip_non_live_entries(const struct s2tt_context *s2_ctx,
 					 unsigned long addr,
