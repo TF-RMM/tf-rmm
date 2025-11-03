@@ -84,6 +84,12 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 	SYSREG_CASE(ISAR1)
 		value = READ_CACHED_REG(id_aa64isar1_el1);
 		break;
+	SYSREG_CASE(ISAR2)
+		value = READ_CACHED_REG(id_aa64isar2_el1);
+		break;
+	SYSREG_CASE(ISAR3)
+		value = READ_CACHED_REG(id_aa64isar3_el1);
+		break;
 	SYSREG_CASE(MMFR0)
 		value = READ_CACHED_REG(id_aa64mmfr0_el1);
 		break;
@@ -147,10 +153,20 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 			value = 0UL;
 		}
 		break;
-	default:
-		/* All other encodings are in the RES0 space */
-		WARN("Accessing unknown ID register.\n");
+	default: {
+		unsigned int __unused op0, op1, crn, crm, op2;
+
+		/* Extract system register encoding */
+		op0 = (unsigned int)EXTRACT(ESR_EL2_SYSREG_TRAP_OP0, idreg);
+		op1 = (unsigned int)EXTRACT(ESR_EL2_SYSREG_TRAP_OP1, idreg);
+		crn = (unsigned int)EXTRACT(ESR_EL2_SYSREG_TRAP_CRN, idreg);
+		crm = (unsigned int)EXTRACT(ESR_EL2_SYSREG_TRAP_CRM, idreg);
+		op2 = (unsigned int)EXTRACT(ESR_EL2_SYSREG_TRAP_OP2, idreg);
+
+		WARN("Accessing unknown ID register S%u_%u_C%u_C%u_%u\n",
+						op0, op1, crn, crm, op2);
 		value = 0UL;
+		}
 	}
 
 	rec_active_plane(rec)->regs[rt] = value;
@@ -298,7 +314,7 @@ bool handle_sysreg_access_trap(struct rec *rec, struct rmi_rec_exit *rec_exit,
 
 	sysreg = esr & ESR_EL2_SYSREG_MASK;
 
-	/* Extract sytem register encoding */
+	/* Extract system register encoding */
 	op0 = (unsigned int)EXTRACT(ESR_EL2_SYSREG_TRAP_OP0, sysreg);
 	op1 = (unsigned int)EXTRACT(ESR_EL2_SYSREG_TRAP_OP1, sysreg);
 	crn = (unsigned int)EXTRACT(ESR_EL2_SYSREG_TRAP_CRN, sysreg);
