@@ -1,0 +1,33 @@
+From 2281b128cd75dff809647451d12c236e06cc4ec2 Mon Sep 17 00:00:00 2001
+From: Soby Mathew <soby.mathew@arm.com>
+Date: Mon, 2 Feb 2026 15:35:13 +0000
+Subject: [PATCH] Skip SPDM-Responder-Validator components
+
+Skip building SPDM-Responder-Validator components that are not needed
+for spdm_responder_emu.
+
+Signed-off-by: Soby Mathew <soby.mathew@arm.com>
+---
+ CMakeLists.txt | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index ac6881d..edddcd3 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -657,9 +657,9 @@ endif()
+     add_subdirectory(spdm_emu/spdm_requester_emu)
+     add_subdirectory(spdm_emu/spdm_responder_emu)
+ 
+-    add_subdirectory(${COMMON_TEST_FRAMEWORK_DIR}/library/common_test_utility_lib out/common_test_utility_lib.out)
+-    add_subdirectory(${SPDM_RESPONDER_VALIDATOR_DIR}/library/spdm_responder_conformance_test_lib out/spdm_responder_conformance_test_lib.out)
+-    add_subdirectory(spdm_emu/spdm_device_validator_sample)
++    #add_subdirectory(${COMMON_TEST_FRAMEWORK_DIR}/library/common_test_utility_lib out/common_test_utility_lib.out)
++    #add_subdirectory(${SPDM_RESPONDER_VALIDATOR_DIR}/library/spdm_responder_conformance_test_lib out/spdm_responder_conformance_test_lib.out)
++    #add_subdirectory(spdm_emu/spdm_device_validator_sample)
+ 
+     add_subdirectory(spdm_emu/spdm_device_attester_sample)
+     endif()
+-- 
+2.34.1
+
