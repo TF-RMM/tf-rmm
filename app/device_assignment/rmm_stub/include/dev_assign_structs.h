@@ -50,6 +50,7 @@ struct dev_obj_digest {
 	size_t len;
 };
 
+/* cppcheck-suppress misra-c2012-2.4 */
 struct dev_assign_params {
 	/* RMI device handle */
 	void *dev_handle;
@@ -67,6 +68,7 @@ struct dev_assign_params {
 };
 
 /* Shared structure on the app heap for SPDM comms */
+/* cppcheck-suppress misra-c2012-2.4 */
 struct dev_assign_spdm_shared {
 	uint8_t sendrecv_buf[GRANULE_SIZE];
 };
@@ -82,6 +84,7 @@ struct dev_assign_tdisp_params {
  * Get measurements operation related parameters passed when command is
  * RDEV_GET_MEASUREMENTS
  */
+/* cppcheck-suppress misra-c2012-2.4 */
 struct dev_meas_params {
 	/* Get all measurements */
 	bool all;
@@ -130,6 +133,7 @@ struct dev_comm_exit_shared {
 };
 COMPILER_ASSERT(sizeof(struct dev_comm_exit_shared) <= GRANULE_SIZE);
 
+/* cppcheck-suppress misra-c2012-2.4 */
 struct dev_tdisp_params {
 	/* Interface ID to lock/start/stop/get_report */
 	uint32_t tdi_id;

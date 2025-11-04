@@ -20,6 +20,7 @@ static struct console *console_head;
  * via the UART driver. Hence we can rely on the arguments being passed at runtime.
  */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
+/* cppcheck-suppress misra-c2012-8.7 */
 int console_register(struct console *csl)
 {
 	assert(csl != NULL);
@@ -34,6 +35,7 @@ int console_register(struct console *csl)
 }
 
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
+/* cppcheck-suppress misra-c2012-8.7 */
 int console_putc(int c)
 {
 	struct console *csl = console_head;
@@ -51,6 +53,7 @@ int console_putc(int c)
 }
 
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
+/* cppcheck-suppress misra-c2012-8.7 */
 void console_flush(void)
 {
 	struct console *csl = console_head;

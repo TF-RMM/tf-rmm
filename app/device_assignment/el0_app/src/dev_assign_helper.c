@@ -26,6 +26,7 @@
  *	hash		- Buffer where the hash is to be written.
  *	hash_length	- Hash length set when op_flags has FINISH
  */
+/* cppcheck-suppress misra-c2012-8.7 */
 int dev_assign_hash_extend(psa_algorithm_t algo, psa_hash_operation_t *op,
 			uint8_t op_flags, const uint8_t *src,
 			size_t src_length, uint8_t *hash, size_t hash_size,

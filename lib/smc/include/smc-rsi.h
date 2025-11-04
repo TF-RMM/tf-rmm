@@ -612,6 +612,7 @@ struct rsi_host_call {
  * Contains device configuration information.
  * Width: 512 (0x200) bytes.
  */
+/* cppcheck-suppress misra-c2012-2.4 */
 struct rsi_dev_info {
 	/* RsiDevFlags: Flags */
 	SET_MEMBER_RSI(unsigned long flags, 0, 0x8);
@@ -677,6 +678,7 @@ struct rsi_dev_info {
  * This structure contains device measurement parameters.
  * Width: 4096 (0x1000) bytes.
  */
+/* cppcheck-suppress misra-c2012-2.4 */
 struct rsi_dev_measure_params {
 	/* RsiDevMeasureFlags: Properties of device measurements */
 	SET_MEMBER_RSI(unsigned long flags, 0, 0x8);

@@ -62,6 +62,7 @@ enum hash_algo {
 #define RIM_MEASUREMENT_SLOT		(0U)
 
 #ifndef CBMC
+/* cppcheck-suppress misra-c2012-2.4 */
 enum attest_token_err_t {
 	/* Success */
 	ATTEST_TOKEN_ERR_SUCCESS = 0,
@@ -126,6 +127,7 @@ static inline size_t measurement_get_size(const enum hash_algo algorithm)
 	return ret;
 }
 
+/* cppcheck-suppress misra-c2012-2.4 */
 struct attest_heap_shared{
 	uint8_t cca_attest_token_buf[ATTEST_TOKEN_BUF_SIZE];
 };

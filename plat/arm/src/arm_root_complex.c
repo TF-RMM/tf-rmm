@@ -7,6 +7,63 @@
 #include <assert.h>
 #include <utils_def.h>
 
+/* todo: these PLAT_ARM_ macros needs to come from build config */
+
+/* Max supported Root Complexes */
+#define PLAT_ARM_ROOT_COMPLEX_MAX		U(1)
+
+/* Max supported Root Ports per Root Complex */
+#define PLAT_ARM_ROOT_PORT_MAX			U(1)
+
+/* Max supported BDF mappings per Root Port */
+#define PLAT_ARM_BDF_MAPPINGS_MAX		U(1)
+
+/* PCIe BDF Mapping Info structure. This is same as struct bdf_mapping_info  */
+struct arm_bdf_mapping_info {
+	/* Base of BDF mapping (inclusive) */
+	uint16_t mapping_base;
+
+	/* Top of BDF mapping (exclusive) */
+	uint16_t mapping_top;
+
+	/* Mapping offset, as per Arm Base System Architecture: */
+	uint16_t mapping_off;
+
+	/* SMMU index in smmu_info[] array */
+	uint16_t smmu_idx;
+};
+
+/* Arm Root Port info */
+struct arm_root_port_info {
+	/* Root Port identifier */
+	uint16_t root_port_id;
+
+	/* Number of valid BDF mapping info structures, initialized during boot */
+	/* cppcheck-suppress unusedStructMember */
+	uint8_t bdf_info_count;
+
+	struct arm_bdf_mapping_info arm_bdf_info[PLAT_ARM_BDF_MAPPINGS_MAX];
+};
+
+/* Arm Root Complex management structures */
+struct arm_root_complex_info {
+	/* ECAM base address */
+	uint64_t ecam_base;
+
+	/* PCIe segment identifier */
+	uint8_t segment;
+
+	/*
+	 * Number of valid PCIe Root Port info structures, initialized during
+	 * boot.
+	 */
+	/* cppcheck-suppress unusedStructMember */
+	uint8_t rp_info_count;
+
+	struct arm_root_port_info arm_rp_info[PLAT_ARM_ROOT_PORT_MAX];
+};
+
+
 /* PCIe Root Complex info structure version */
 static uint32_t gbl_arm_rc_info_version;
 
@@ -54,6 +111,7 @@ static void arm_set_root_complex_info(struct arm_root_complex_info *arm_rc_info,
 }
 
 /* Setup Arm platform Root Complex details from details from Boot manifest */
+/* cppcheck-suppress misra-c2012-8.7 */
 void arm_set_root_complex_list(struct root_complex_list *rc_list)
 {
 	uint32_t rc_idx;

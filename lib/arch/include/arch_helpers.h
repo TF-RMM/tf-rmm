@@ -121,7 +121,7 @@ void inv_dcache_range(uintptr_t addr, size_t size);
  * FPU management
  ******************************************************************************/
 #define is_fpen_enabled() (EXTRACT(CPTR_EL2_VHE_FPEN, read_cptr_el2()) == \
-					CPTR_EL2_VHE_FPEN_NO_TRAP_11)
+			   CPTR_EL2_VHE_FPEN_NO_TRAP_11)
 
 /*******************************************************************************
  * SVE management
@@ -321,6 +321,7 @@ DEFINE_RENAME_SYSREG_RW_FUNCS(zcr_el2, ZCR_EL2)
 DEFINE_RENAME_SYSREG_RW_FUNCS(zcr_el12, ZCR_EL12)
 DEFINE_RENAME_SYSREG_RW_FUNCS(smcr_el2, SMCR_EL2)
 DEFINE_RENAME_SYSREG_RW_FUNCS(svcr, SVCR)
+/* cppcheck-suppress syntaxError */
 DEFINE_RENAME_SYSREG128_RW_FUNCS(ttbr0_el12, TTBR0_EL12)
 DEFINE_RENAME_SYSREG128_RW_FUNCS(ttbr1_el12, TTBR1_EL12)
 DEFINE_SYSREG_RW_FUNCS(ttbr0_el12)

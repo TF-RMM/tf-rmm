@@ -18,6 +18,7 @@ static inline void atomic_add_64(uint64_t *loc, uint64_t val)
 	(void)loc;
 	(void)val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	stadd %[val], %[loc]\n"
 	: [loc] "+Q" (*loc)
@@ -38,6 +39,7 @@ static inline uint64_t atomic_load_add_release_64(uint64_t *loc, uint64_t val)
 	(void)loc;
 	(void)val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldaddl %[val], %[old_val], %[loc]\n"
 	: [loc] "+Q" (*loc),
@@ -57,6 +59,7 @@ static inline void atomic_add_16(uint16_t *loc, uint16_t val)
 	(void)loc;
 	(void)val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	staddh %w[val], %[loc]\n"
 	: [loc] "+Q" (*loc)
@@ -76,6 +79,7 @@ static inline uint16_t atomic_load_add_16(uint16_t *loc, uint16_t val)
 	(void)loc;
 	(void)val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldaddh %w[val], %w[old_val], %[loc]\n"
 	: [loc] "+Q" (*loc),
@@ -98,6 +102,7 @@ static inline uint64_t atomic_load_add_64(uint64_t *loc, uint64_t val)
 	(void)loc;
 	(void)val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldadd %[val], %[old_val], %[loc]\n"
 	: [loc] "+Q" (*loc),
@@ -121,6 +126,7 @@ static inline uint16_t atomic_load_add_release_16(uint16_t *loc, uint16_t val)
 	(void)loc;
 	(void)val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldaddlh %w[val], %w[old_val], %[loc]\n"
 	: [loc] "+Q" (*loc),
@@ -143,6 +149,7 @@ static inline uint8_t atomic_load_add_8(uint8_t *loc, uint8_t val)
 	(void)loc;
 	(void)val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldaddb %w[val], %w[old_val], %[loc]\n"
 	: [loc] "+Q" (*loc),
@@ -166,6 +173,7 @@ static inline uint8_t atomic_load_add_release_8(uint8_t *loc, uint8_t val)
 	(void)loc;
 	(void)val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldaddlb %w[val], %w[old_val], %[loc]\n"
 	: [loc] "+Q" (*loc),
@@ -187,6 +195,7 @@ static inline void atomic_bit_set_release_64(uint64_t *loc, unsigned int bit)
 	(void)loc;
 	(void)bit;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	stsetl %[mask], %[loc]\n"
 	: [loc] "+Q" (*loc)
@@ -206,6 +215,7 @@ static inline void atomic_bit_clear_release_64(uint64_t *loc, unsigned int bit)
 	(void)loc;
 	(void)bit;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	stclrl %[mask], %[loc]\n"
 	: [loc] "+Q" (*loc)
@@ -226,6 +236,7 @@ static inline bool atomic_test_bit_acquire_64(uint64_t *loc, unsigned int bit)
 	(void)loc;
 	(void)bit;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldar %[val], %[loc]\n"
 	: [val] "=r" (val)
@@ -250,6 +261,7 @@ static inline bool atomic_bit_set_acquire_release_64(uint64_t *loc, unsigned int
 	(void)loc;
 	(void)bit;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldsetal %[mask], %[val], %[loc]\n"
 	: [loc] "+Q" (*loc),
@@ -274,6 +286,7 @@ static inline uint16_t atomic_eor_16(uint16_t *loc, uint16_t val)
 	(void)loc;
 	(void)val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldeorh %w[val], %w[old_val], %[loc]\n"
 	: [loc] "+Q" (*loc),
@@ -298,6 +311,7 @@ static inline uint8_t atomic_eor_8(uint8_t *loc, uint8_t val)
 	(void)loc;
 	(void)val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldeorb %w[val], %w[old_val], %[loc]\n"
 	: [loc] "+Q" (*loc),

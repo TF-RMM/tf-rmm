@@ -20,11 +20,13 @@ static const unsigned long rmi_revisions_supported[] = {
 };
 #define RMI_REVISIONS_COUNT	ARRAY_SIZE(rmi_revisions_supported)
 
+/* cppcheck-suppress misra-c2012-17.3 */
 COMPILER_ASSERT(RMI_REVISIONS_COUNT >= 1U);
 
 static bool is_rmi_revision_supported(unsigned long rmi_version)
 {
 	/* cppcheck-suppress misra-c2012-14.2 */
+	/* cppcheck-suppress misra-c2012-17.3 */
 	for (unsigned int i = 0U; i < RMI_REVISIONS_COUNT; i++) {
 		if (rmi_version == rmi_revisions_supported[i]) {
 			return true;
@@ -36,6 +38,7 @@ static bool is_rmi_revision_supported(unsigned long rmi_version)
 
 unsigned long rmi_get_highest_supported_version(void)
 {
+	/* cppcheck-suppress misra-c2012-17.3 */
 	return rmi_revisions_supported[RMI_REVISIONS_COUNT - 1U];
 }
 
@@ -50,6 +53,7 @@ unsigned long rmi_get_highest_supported_version(void)
  * x1		- Lower supported RMI revision
  * x2		- Higher supported RMI revision
  */
+/* cppcheck-suppress misra-c2012-8.7 */
 void smc_version(unsigned long rmi_version, struct smc_result *res)
 {
 	unsigned long rmi_revision_higher;

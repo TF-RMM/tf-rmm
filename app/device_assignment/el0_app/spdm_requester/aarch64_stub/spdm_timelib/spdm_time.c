@@ -13,6 +13,7 @@
  * duration -  The time interval for which execution is to be suspended, in
  *             microseconds.
  */
+/* cppcheck-suppress misra-c2012-8.7 */
 void libspdm_sleep(uint64_t duration)
 {
 	/*
