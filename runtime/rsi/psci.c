@@ -93,10 +93,9 @@ static void psci_cpu_off(struct rec *rec, struct rmi_rec_exit *rec_exit,
 }
 
 static void psci_reset_rec(struct rec_plane *plane,
+			   STRUCT_TYPE sysreg_state *sysregs,
 			   unsigned long caller_sctlr_el1)
 {
-	assert(plane->sysregs != NULL);
-
 	/* Set execution level to EL1 (AArch64) and mask exceptions */
 	plane->pstate = SPSR_EL2_MODE_EL1h |
 			SPSR_EL2_nRW_AARCH64 |
@@ -106,10 +105,10 @@ static void psci_reset_rec(struct rec_plane *plane,
 			SPSR_EL2_D_BIT;
 
 	/* Disable stage 1 MMU and caches */
-	plane->sysregs->pp_sysregs.sctlr_el1 = SCTLR_EL1_FLAGS;
+	sysregs->pp_sysregs.sctlr_el1 = SCTLR_EL1_FLAGS;
 
 	/* Set the endianness of the target to that of the caller */
-	plane->sysregs->pp_sysregs.sctlr_el1 |=
+	sysregs->pp_sysregs.sctlr_el1 |=
 					caller_sctlr_el1 & SCTLR_ELx_EE_BIT;
 }
 
@@ -345,6 +344,8 @@ static unsigned long complete_psci_cpu_on(struct rec *target_rec,
 					  unsigned long status)
 {
 	struct rec_plane *target_plane = rec_plane_0(target_rec);
+	STRUCT_TYPE sysreg_state *target_sysregs =
+					rec_plane_0_sysregs(target_rec);
 
 	if ((granule_refcount_read_acquire(target_rec->g_rec) != 0U) ||
 		target_rec->runnable) {
@@ -359,7 +360,7 @@ static unsigned long complete_psci_cpu_on(struct rec *target_rec,
 		return PSCI_RETURN_DENIED;
 	}
 
-	psci_reset_rec(target_plane, caller_sctlr_el1);
+	psci_reset_rec(target_plane, target_sysregs, caller_sctlr_el1);
 	target_plane->regs[0] = context_id;
 	target_plane->pc = entry_point_address;
 	target_rec->runnable = true;
@@ -382,11 +383,12 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 	unsigned long ret = RMI_SUCCESS;
 	unsigned long rec_ret = PSCI_RETURN_NOT_SUPPORTED;
 	struct rec_plane *calling_plane = rec_active_plane(calling_rec);
+	STRUCT_TYPE sysreg_state *calling_sysregs =
+					rec_active_plane_sysregs(calling_rec);
 	unsigned long mpidr;
 
 	/* PSCI requests can only be done by Plane 0 */
 	assert(calling_plane == rec_plane_0(calling_rec));
-	assert(calling_plane->sysregs != NULL);
 
 	if (calling_rec->pending_op != REC_PENDING_PSCI_COMPLETE) {
 		return RMI_ERROR_INPUT;
@@ -413,7 +415,7 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 		rec_ret = complete_psci_cpu_on(target_rec,
 						calling_plane->regs[2],
 						calling_plane->regs[3],
-						calling_plane->sysregs->pp_sysregs.sctlr_el1,
+						calling_sysregs->pp_sysregs.sctlr_el1,
 						status);
 		/*
 		 * If the target CPU is already running and the Host has denied the

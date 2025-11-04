@@ -205,7 +205,6 @@ struct rec_aux_data {
 struct rec_plane {
 	REG_TYPE regs[RMM_REC_SAVED_GEN_REG_COUNT];
 
-	STRUCT_TYPE sysreg_state *sysregs;
 	unsigned long pstate;
 	unsigned long pc;
 
@@ -352,6 +351,7 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 	/* Addresses of auxiliary granules */
 	struct granule *g_aux[MAX_REC_AUX_GRANULES];
 	struct rec_aux_data aux_data;
+
 	struct {
 		unsigned long vsesr_el2;
 		bool inject;
@@ -407,7 +407,6 @@ static inline struct rec_plane *rec_activate_plane_n(struct rec *rec,
 	rec->active_plane_id = plane_idx;
 
 	assert(rec->aux_data.sysregs != NULL);
-	rec->plane[1].sysregs = &rec->aux_data.sysregs[plane_idx];
 	return &rec->plane[1];
 }
 
@@ -417,7 +416,6 @@ static inline void rec_deactivate_plane_n(struct rec *rec)
 	assert(rec->active_plane_id != PLANE_0_ID);
 
 	rec->active_plane_id = PLANE_0_ID;
-	rec->plane[1].sysregs = NULL;
 }
 
 /*
@@ -448,14 +446,24 @@ static inline struct rec_plane *rec_plane_0(struct rec *rec)
 	return &rec->plane[PLANE_0_ID];
 }
 
+/* Get the sysregs of the Plane 0. */
+static inline STRUCT_TYPE sysreg_state *rec_plane_0_sysregs(struct rec *rec)
+{
+	return REC_GET_SYSREGS_FROM_AUX(rec, PLANE_0_ID);
+}
+
+/* Get the sysregs of the currently active plane. */
+static inline STRUCT_TYPE sysreg_state *rec_active_plane_sysregs(struct rec *rec)
+{
+	assert(rec->active_plane_id < rec_num_planes(rec));
+	return REC_GET_SYSREGS_FROM_AUX(rec, rec->active_plane_id);
+}
+
 /* Get the part of the REC which corresponds to the currently active plane. */
 static inline struct rec_plane *rec_active_plane(struct rec *rec)
 {
 	struct rec_plane *plane =  (rec->active_plane_id == PLANE_0_ID) ?
 						rec_plane_0(rec) : &rec->plane[1];
-
-	assert(plane->sysregs != NULL);
-
 	return plane;
 }
 

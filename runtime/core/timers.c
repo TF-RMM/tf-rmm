@@ -62,31 +62,28 @@ struct report_timer {
  * the Realm happens due to a physical IRQ and we can inject a virtual
  * interrupt again.
  */
-bool check_pending_timers(struct rec_plane *plane)
+bool check_pending_timers(STRUCT_TYPE sysreg_state *sysregs)
 {
 	unsigned long cntv_ctl = read_cntv_ctl_el02();
 	unsigned long cntp_ctl = read_cntp_ctl_el02();
 	unsigned long cnthctl_old;
 
-	assert(plane != NULL);
-	assert(plane->sysregs != NULL);
-
-	cnthctl_old = plane->sysregs->cnthctl_el2;
+	cnthctl_old = sysregs->cnthctl_el2;
 
 	if (TIMER_ASSERTED(cntv_ctl)) {
-		plane->sysregs->cnthctl_el2 |= CNTHCTL_EL2_CNTVMASK;
+		sysregs->cnthctl_el2 |= CNTHCTL_EL2_CNTVMASK;
 	} else {
-		plane->sysregs->cnthctl_el2 &= ~CNTHCTL_EL2_CNTVMASK;
+		sysregs->cnthctl_el2 &= ~CNTHCTL_EL2_CNTVMASK;
 	}
 
 	if (TIMER_ASSERTED(cntp_ctl)) {
-		plane->sysregs->cnthctl_el2 |= CNTHCTL_EL2_CNTPMASK;
+		sysregs->cnthctl_el2 |= CNTHCTL_EL2_CNTPMASK;
 	} else {
-		plane->sysregs->cnthctl_el2 &= ~CNTHCTL_EL2_CNTPMASK;
+		sysregs->cnthctl_el2 &= ~CNTHCTL_EL2_CNTPMASK;
 	}
 
-	if (cnthctl_old != plane->sysregs->cnthctl_el2) {
-		write_cnthctl_el2(plane->sysregs->cnthctl_el2);
+	if (cnthctl_old != sysregs->cnthctl_el2) {
+		write_cnthctl_el2(sysregs->cnthctl_el2);
 		isb();
 	}
 
@@ -101,9 +98,9 @@ bool check_pending_timers(struct rec_plane *plane)
 		unsigned int intid =
 			(unsigned int)EXTRACT(ICC_HPPIR1_EL1_INTID, hppir);
 
-		if (!((((plane->sysregs->cnthctl_el2 & CNTHCTL_EL2_CNTVMASK) != 0UL) &&
+		if (!((((sysregs->cnthctl_el2 & CNTHCTL_EL2_CNTVMASK) != 0UL) &&
 			(intid == EL1_VIRT_TIMER_PPI)) ||
-		      (((plane->sysregs->cnthctl_el2 & CNTHCTL_EL2_CNTPMASK) != 0UL) &&
+		      (((sysregs->cnthctl_el2 & CNTHCTL_EL2_CNTPMASK) != 0UL) &&
 			(intid == EL1_PHYS_TIMER_PPI)))) {
 			break;
 		}
@@ -114,9 +111,9 @@ bool check_pending_timers(struct rec_plane *plane)
 	 * the previously saved timer state at the last Realm exit.
 	 */
 	return (TIMER_ASSERTED(cntv_ctl) !=
-		TIMER_ASSERTED(plane->sysregs->pp_sysregs.cntv_ctl_el0)) ||
+		TIMER_ASSERTED(sysregs->pp_sysregs.cntv_ctl_el0)) ||
 		(TIMER_ASSERTED(cntp_ctl) !=
-		 TIMER_ASSERTED(plane->sysregs->pp_sysregs.cntp_ctl_el0));
+		 TIMER_ASSERTED(sysregs->pp_sysregs.cntp_ctl_el0));
 }
 
 /* Table to determine which EL1 timer to report on REC exit */
@@ -145,7 +142,7 @@ void report_timer_state_to_ns(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		 * On this case, thought, we need to determine which EL1 timer
 		 * to report.
 		 */
-		STRUCT_TYPE sysreg_state *sysregs = rec->plane[PLANE_0_ID].sysregs;
+		STRUCT_TYPE sysreg_state *sysregs = rec_plane_0_sysregs(rec);
 		assert(sysregs != NULL);
 
 		unsigned long p0_cntv_cval = sysregs->pp_sysregs.cntv_cval_el0 -
@@ -219,7 +216,7 @@ bool is_timer_enabled(unsigned long cnt_ctl)
 void multiplex_el2_timer(struct rec *rec)
 {
 	/* Plane 0 time information */
-	STRUCT_TYPE sysreg_state *sysregs = rec->plane[PLANE_0_ID].sysregs;
+	STRUCT_TYPE sysreg_state *sysregs = rec_plane_0_sysregs(rec);
 	struct timer_state *ns_el2_timer_state;
 	unsigned long pp_cnt_cval, ns_cnt_cval, ns_cnt_ctl;
 

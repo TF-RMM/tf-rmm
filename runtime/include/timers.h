@@ -7,10 +7,12 @@
 #define TIMERS_H
 
 #include <arch.h>
+#include <utils_def.h>
 
 struct rec;
 struct rmi_rec_exit;
 struct rec_plane;
+STRUCT_TYPE sysreg_state;
 
 /*
  * Timer context structure.
@@ -24,7 +26,7 @@ struct timer_state {
 	unsigned long virt_cval;
 };
 
-bool check_pending_timers(struct rec_plane *plane);
+bool check_pending_timers(STRUCT_TYPE sysreg_state *sysregs);
 void report_timer_state_to_ns(struct rec *rec, struct rmi_rec_exit *rec_exit);
 void hyp_timer_save_state(struct timer_state *el2_timer);
 void hyp_timer_restore_state(struct timer_state *el2_timer);

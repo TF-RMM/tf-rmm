@@ -314,6 +314,7 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	struct granule *g_run;
 	struct rec *rec;
 	struct rec_plane *plane;
+	STRUCT_TYPE sysreg_state *sysregs;
 	struct rd *rd;
 	struct rmi_rec_run rec_run;
 	unsigned long realm_state, ret;
@@ -444,7 +445,7 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	if (!rec_is_plane_0_active(rec)) {
 		bool report_err = false;
 
-		assert(rec->plane[1].sysregs != NULL);
+		sysregs = rec_active_plane_sysregs(rec);
 
 		/*
 		 * ... and either REC_ENTRY_FLAG_FORCE_P0 or
@@ -466,7 +467,7 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 		 */
 		} else if ((rec->active_plane_id != rec->gic_owner) &&
 			   (gic_is_interrupt_pending(&rec_run.enter.gicv3_lrs[0]) ||
-			   gic_is_maint_interrupt_pending(&rec->plane[1].sysregs->gicstate))) {
+			   gic_is_maint_interrupt_pending(&sysregs->gicstate))) {
 			report_err = !handle_plane_n_exit(rec, &rec_run.exit,
 						ARM_EXCEPTION_IRQ_LEL, false);
 		}
@@ -477,11 +478,15 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 		}
 	}
 
+	/*
+	 * Active plane might have changed due to conditions listed above and
+	 * Pn exit to P0.
+	 */
 	plane = rec_active_plane(rec);
-	assert(plane->sysregs != NULL);
+	sysregs = rec_active_plane_sysregs(rec);
 
 	if (rec->active_plane_id == rec->gic_owner) {
-		gic_copy_state_from_entry(&plane->sysregs->gicstate,
+		gic_copy_state_from_entry(&sysregs->gicstate,
 				(unsigned long *)&rec_run.enter.gicv3_lrs,
 				rec_run.enter.gicv3_hcr);
 	}
@@ -507,12 +512,12 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 
 	reset_last_run_info(plane);
 
-	plane->sysregs->hcr_el2 = rec->common_sysregs.hcr_el2;
+	sysregs->hcr_el2 = rec->common_sysregs.hcr_el2;
 	if ((rec_run.enter.flags & REC_ENTRY_FLAG_TRAP_WFI) != 0UL) {
-		plane->sysregs->hcr_el2 |= HCR_TWI;
+		sysregs->hcr_el2 |= HCR_TWI;
 	}
 	if ((rec_run.enter.flags & REC_ENTRY_FLAG_TRAP_WFE) != 0UL) {
-		plane->sysregs->hcr_el2 |= HCR_TWE;
+		sysregs->hcr_el2 |= HCR_TWE;
 	}
 
 	ret = RMI_SUCCESS;
@@ -520,11 +525,10 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	rec_run_loop(rec, &rec_run.exit);
 
 	/* Active plane might have changed during rec_run_loop() */
-	plane = rec_active_plane(rec);
-	assert(plane->sysregs != NULL);
+	sysregs = rec_active_plane_sysregs(rec);
 
 	if (rec->active_plane_id == rec->gic_owner) {
-		gic_copy_state_to_exit(&plane->sysregs->gicstate,
+		gic_copy_state_to_exit(&sysregs->gicstate,
 					   (unsigned long *)&rec_run.exit.gicv3_lrs,
 					   &rec_run.exit.gicv3_hcr,
 					   &rec_run.exit.gicv3_misr,

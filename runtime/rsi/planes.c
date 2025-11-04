@@ -19,6 +19,7 @@
 #include <utils_def.h>
 
 static void copy_state_from_plane_entry(struct rec_plane *plane,
+					STRUCT_TYPE sysreg_state *sysregs,
 					struct rsi_plane_enter *entry,
 					bool restore_gic)
 {
@@ -26,12 +27,10 @@ static void copy_state_from_plane_entry(struct rec_plane *plane,
 		plane->regs[i] = entry->gprs[i];
 	}
 
-	assert(plane->sysregs != NULL);
-
 	plane->pc = entry->pc;
 	plane->pstate = entry->pstate;
 	if (restore_gic) {
-		gic_copy_state_from_entry(&plane->sysregs->gicstate,
+		gic_copy_state_from_entry(&sysregs->gicstate,
 			(unsigned long *)&entry->gicv3_lrs, entry->gicv3_hcr);
 	}
 }
@@ -39,7 +38,9 @@ static void copy_state_from_plane_entry(struct rec_plane *plane,
 void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 {
 	struct rec_plane *plane_0 = rec_plane_0(rec);
+	STRUCT_TYPE sysreg_state *sysreg_0 = rec_plane_0_sysregs(rec);
 	struct rec_plane *plane_n;
+	STRUCT_TYPE sysreg_state *sysreg_n;
 	unsigned long plane_idx = plane_0->regs[1];
 	unsigned long run_ipa = plane_0->regs[2];
 	enum s2_walk_status walk_status;
@@ -52,7 +53,6 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 
 	/* This command can only be executed from Plane 0 */
 	assert(rec_is_plane_0_active(rec));
-	assert(plane_0->sysregs != NULL);
 
 	if ((plane_idx == PLANE_0_ID) ||
 	    (plane_idx >= rec_num_planes(rec))) {
@@ -78,7 +78,7 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	}
 
 	/* Save Plane 0 state to REC */
-	save_realm_state(rec, plane_0);
+	save_realm_state(rec, plane_0, sysreg_0);
 
 	/*
 	 * Check if the primary plane has timers that we need to be notified of
@@ -94,36 +94,36 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 
 	/* Activate plane N */
 	plane_n = rec_activate_plane_n(rec, (unsigned int)plane_idx);
-	assert(plane_n->sysregs != NULL);
+	sysreg_n = rec_active_plane_sysregs(rec);
 
 	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_OWN_GIC) != 0UL) {
 		rec->gic_owner = (unsigned int)plane_idx;
 
 		/* Transfer the GIC status from Plane 0 to the new owner */
-		gic_copy_state(&plane_n->sysregs->gicstate,
-			       &plane_0->sysregs->gicstate);
+		gic_copy_state(&sysreg_n->gicstate,
+			       &sysreg_0->gicstate);
 		restore_gic = false;
 	}
 
 	/* Copy target Plane state from entry structure to REC */
-	copy_state_from_plane_entry(plane_n, &run->enter, restore_gic);
+	copy_state_from_plane_entry(plane_n, sysreg_n, &run->enter, restore_gic);
 
 	/* Initialize trap control bits */
-	plane_n->sysregs->hcr_el2 = rec->common_sysregs.hcr_el2;
+	sysreg_n->hcr_el2 = rec->common_sysregs.hcr_el2;
 
 	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_TRAP_WFI) != RSI_NO_TRAP) {
-		plane_n->sysregs->hcr_el2 |= HCR_TWI;
+		sysreg_n->hcr_el2 |= HCR_TWI;
 	}
 
 	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_TRAP_WFE) != RSI_NO_TRAP) {
-		plane_n->sysregs->hcr_el2 |= HCR_TWE;
+		sysreg_n->hcr_el2 |= HCR_TWE;
 	}
 
 	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_TRAP_SIMD) != RSI_NO_TRAP) {
-		SIMD_DISABLE_ALL_CPTR_FLAGS((plane_n->sysregs->cptr_el2));
+		SIMD_DISABLE_ALL_CPTR_FLAGS((sysreg_n->cptr_el2));
 	} else {
 		/* Propagate cptr_el2 configuration from P0 to PN */
-		plane_n->sysregs->cptr_el2 = plane_0->sysregs->cptr_el2;
+		sysreg_n->cptr_el2 = sysreg_0->cptr_el2;
 	}
 
 	plane_n->trap_simd =
@@ -136,7 +136,7 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	res->action = PLANE_CHANGED_RETURN_TO_REALM;
 
 	/* Restore target Plane from REC */
-	restore_realm_state(rec, plane_n);
+	restore_realm_state(rec, plane_n, sysreg_n);
 
 	/* Unmap Realm data granule */
 	buffer_unmap(run);

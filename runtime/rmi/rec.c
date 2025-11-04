@@ -169,7 +169,7 @@ static void init_rec_regs(struct rec *rec,
 		STRUCT_TYPE sysreg_state *sysregs = REC_GET_SYSREGS_FROM_AUX(rec, i);
 
 		if (i == PLANE_0_ID) {
-			struct rec_plane *plane = &rec->plane[0];
+			struct rec_plane *plane = rec_plane_0(rec);
 
 			/* Initialize Plane 0 GPRS */
 			for (unsigned int j = 0U; j < REC_CREATE_NR_GPRS; j++) {
@@ -177,7 +177,6 @@ static void init_rec_regs(struct rec *rec,
 			}
 
 			plane->pc = rec_params->pc;
-			plane->sysregs = sysregs;
 
 			plane->pstate = SPSR_EL2_MODE_EL1h |
 				  SPSR_EL2_nRW_AARCH64 |
