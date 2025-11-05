@@ -446,26 +446,6 @@ struct rsi_host_call {
 #define RSI_RDEV_VALIDATE_IO_FLAGS_COH_WIDTH	UL(1)
 
 /*
- * TODO: Remove when vdev communication flow is updated according to alp16
- * spec
- */
-/*
- * RsiDeviceState
- * This enumeration represents state of an assigned Realm device.
- * Width: 64 bits.
- */
-#define RSI_RDEV_STATE_UNLOCKED			U(0)
-#define RSI_RDEV_STATE_UNLOCKED_BUSY		U(1)
-#define RSI_RDEV_STATE_LOCKED			U(2)
-#define RSI_RDEV_STATE_LOCKED_BUSY		U(3)
-#define RSI_RDEV_STATE_STARTED			U(4)
-#define RSI_RDEV_STATE_STARTED_BUSY		U(5)
-#define RSI_RDEV_STATE_STOPPING			U(6)
-#define RSI_RDEV_STATE_STOPPED			U(7) /* unused will be removed */
-#define RSI_RDEV_STATE_ERROR			U(8)
-
-
-/*
  * RsiVdevState
  * This enumeration represents the state of a VDEV.
  * Width: 8 bits.

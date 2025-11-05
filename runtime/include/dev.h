@@ -24,15 +24,6 @@
 #define DEV_COMM_IDLE			U(2)
 #define DEV_COMM_PENDING		U(3)
 
-/* TODO: remove with the rest of RSI_RDEV_* ABIs */
-/* Represents operation being performed by an RDEV */
-#define RDEV_OP_NONE				U(0)
-#define RDEV_OP_GET_MEASUREMENTS		U(1)
-#define RDEV_OP_GET_INTERFACE_REPORT		U(2)
-#define RDEV_OP_LOCK				U(3)
-#define RDEV_OP_START				U(4)
-#define RDEV_OP_STOP				U(5)
-
 /* Represents operation being performed by a VDEV. RmmVdevOperation */
 #define VDEV_OP_GET_MEAS			U(0)
 #define VDEV_OP_GET_REPORT			U(1)
@@ -134,47 +125,6 @@ struct vdev_attest_info {
 	unsigned long report_nonce;
 };
 
-/* Remove when the VDEV flow is updated according to alp16 */
-/*
- * Realm device. An assigned device interface is referred to by the Realm as an
- * RDEV. The underlying state and attributes of an RDEV are stored by the RMM in
- * the corresponding VDEV object.
- */
-struct realm_device {
-	/* RDEV state that is presented to the Realm. RsiDevState */
-	unsigned long rsi_state;
-
-	/*
-	 * Device interface operation that is in progress.
-	 * possible values are RDEV_OP_*
-	 */
-	unsigned long op;
-
-	/*
-	 * The parameters passed from Realm for the device operation. There can
-	 * be only one pending device operation.
-	 */
-	union {
-		/*
-		 * RSI_RDEV_GET_MEASUREMENTS call sets this meas_params. 'op'
-		 * must be RDEV_OP_GET_MEASUREMENTS
-		 */
-		struct dev_meas_params meas_params;
-
-		/*
-		 * RSI_RDEV_{LOCK/START/STOP/GET_INTERFACE_REPORT} call set this
-		 * parameter
-		 */
-		struct dev_tdisp_params tdisp_params;
-	} op_params;
-
-	/* Nonce updated as part of lock interface and used in start interface */
-	uint8_t start_interface_nonce[RDEV_START_INTERFACE_NONCE_SIZE];
-
-	/* PA of VDEV. */
-	unsigned long vdev_addr;
-};
-
 /*
  * VDEV object. Represents the binding between a device function and a Realm. For
  * example, a VDEV can represent a physical function of a PCIe device or a
@@ -261,6 +211,4 @@ COMPILER_ASSERT(sizeof(struct vdev) <= GRANULE_SIZE);
 
 unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
 			      struct granule *g_dev_comm_data);
-void rdev_state_transition(struct realm_device *rdev,
-			   unsigned long dev_comm_state);
 #endif /* DEV_H */

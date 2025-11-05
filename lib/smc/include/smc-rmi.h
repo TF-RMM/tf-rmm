@@ -694,6 +694,11 @@
 
 /*
  * FID: 0xC4000186
+ *
+ * arg0 == PA of the RD
+ * arg1 == PA of the PDEV
+ * arg2 == PA of the VDEV
+ * arg3 == PA of the communication data structure
  */
 #define SMC_RMI_VDEV_COMMUNICATE		SMC64_RMI_FID(U(0x36))
 

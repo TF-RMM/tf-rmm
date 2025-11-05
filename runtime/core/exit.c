@@ -661,9 +661,6 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	case SMC_RSI_RDEV_GET_INFO:
 		handle_rsi_rdev_get_info(rec, &res);
 		break;
-	case SMC_RSI_RDEV_CONTINUE:
-		handle_rsi_rdev_continue(rec, rec_exit, &res);
-		break;
 	case SMC_RSI_RDEV_VALIDATE_MAPPING:
 		handle_rsi_rdev_validate_mapping(rec, rec_exit, &res);
 		break;

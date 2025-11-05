@@ -185,7 +185,8 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 
 unsigned long smc_vdev_complete(unsigned long rec_addr, unsigned long vdev_addr);
 
-unsigned long smc_vdev_communicate(unsigned long pdev_addr,
+unsigned long smc_vdev_communicate(unsigned long rd_addr,
+				   unsigned long pdev_addr,
 				   unsigned long vdev_addr,
 				   unsigned long dev_comm_data_addr);
 

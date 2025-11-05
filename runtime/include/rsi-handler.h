@@ -117,8 +117,6 @@ void handle_rsi_rdev_get_instance_id(struct rec *rec,
 				     struct rmi_rec_exit *rec_exit,
 				     struct rsi_result *res);
 void handle_rsi_rdev_get_info(struct rec *rec, struct rsi_result *res);
-void handle_rsi_rdev_continue(struct rec *rec, struct rmi_rec_exit *rec_exit,
-			      struct rsi_result *res);
 void handle_rsi_rdev_validate_mapping(struct rec *rec,
 				      struct rmi_rec_exit *rec_exit,
 				      struct rsi_result *res);

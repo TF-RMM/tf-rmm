@@ -554,6 +554,23 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 	return rc;
 }
 
+static void set_comm_state(int rc, uint32_t *comm_state)
+{
+	switch (rc) {
+	case DEV_ASSIGN_STATUS_COMM_BLOCKED:
+		*comm_state = DEV_COMM_ACTIVE;
+		break;
+	case DEV_ASSIGN_STATUS_ERROR:
+		*comm_state = DEV_COMM_ERROR;
+		break;
+	case DEV_ASSIGN_STATUS_SUCCESS:
+		*comm_state = DEV_COMM_IDLE;
+		break;
+	default:
+		assert(false);
+	}
+}
+
 unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
 			      struct granule *g_dev_comm_data)
 {
@@ -565,9 +582,16 @@ unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
 
 	assert(pd != NULL);
 
-	if ((pd->dev_comm_state == DEV_COMM_IDLE) ||
-			(pd->dev_comm_state == DEV_COMM_ERROR)) {
-		return RMI_ERROR_DEVICE;
+	if (vd == NULL) {
+		if ((pd->dev_comm_state == DEV_COMM_IDLE) ||
+		    (pd->dev_comm_state == DEV_COMM_ERROR)) {
+			return RMI_ERROR_DEVICE;
+		}
+	} else {
+		if ((vd->comm_state == DEV_COMM_IDLE) ||
+		    (vd->comm_state == DEV_COMM_ERROR)) {
+			return RMI_ERROR_DEVICE;
+		}
 	}
 
 	/* Validate RmiDevCommEnter arguments in DevCommData */
@@ -604,21 +628,12 @@ unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
 	}
 
 	/*
-	 * Based on the device communication results update the device IO state
-	 * and PDEV state.
+	 * Based on the device communication results update the device comm state
 	 */
-	switch (rc) {
-	case DEV_ASSIGN_STATUS_COMM_BLOCKED:
-		pd->dev_comm_state = DEV_COMM_ACTIVE;
-		break;
-	case DEV_ASSIGN_STATUS_ERROR:
-		pd->dev_comm_state = DEV_COMM_ERROR;
-		break;
-	case DEV_ASSIGN_STATUS_SUCCESS:
-		pd->dev_comm_state = DEV_COMM_IDLE;
-		break;
-	default:
-		assert(false);
+	if (vd == NULL) {
+		set_comm_state(rc, &pd->dev_comm_state);
+	} else {
+		set_comm_state(rc, &vd->comm_state);
 	}
 
 	return comm_rc;

@@ -11,6 +11,7 @@
 #include <dev_assign_app.h>
 #include <feature.h>
 #include <granule.h>
+#include <random_app.h>
 #include <realm.h>
 #include <sizes.h>
 #include <smc-handler.h>
@@ -430,20 +431,34 @@ out_unmap_rec:
 	return rmi_rc;
 }
 
+/* Generate random numbers as nonce
+ * Returns 0 on success.
+ */
+static int generate_attest_info_nonce(unsigned long *nonce)
+{
+	struct app_data_cfg *random_app_data = random_app_get_data_cfg();
+
+	assert(nonce != NULL);
+	return random_app_prng_get_random(random_app_data, (uint8_t *)nonce, sizeof(*nonce));
+}
+
 /*
  * smc_vdev_communicate
  *
+ * rd_addr		- PA of the RD
  * pdev_addr		- PA of the PDEV
  * vdev_addr		- PA of the VDEV
  * dev_comm_data_addr	- PA of the communication data structure
  */
-unsigned long smc_vdev_communicate(unsigned long pdev_addr,
+unsigned long smc_vdev_communicate(unsigned long rd_addr,
+				   unsigned long pdev_addr,
 				   unsigned long vdev_addr,
 				   unsigned long dev_comm_data_addr)
 {
 	struct granule *g_pdev = NULL;
 	struct granule *g_vdev = NULL;
 	struct granule *g_dev_comm_data;
+	struct granule *g_rd = NULL;
 	struct pdev *pd = NULL;
 	struct vdev *vd = NULL;
 	unsigned long rmi_rc;
@@ -452,8 +467,15 @@ unsigned long smc_vdev_communicate(unsigned long pdev_addr,
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(pdev_addr) || !GRANULE_ALIGNED(vdev_addr) ||
-	    !GRANULE_ALIGNED(dev_comm_data_addr)) {
+	if (!GRANULE_ALIGNED(rd_addr) || !GRANULE_ALIGNED(pdev_addr) ||
+	    !GRANULE_ALIGNED(vdev_addr) || !GRANULE_ALIGNED(dev_comm_data_addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Check RD */
+	g_rd = find_granule(rd_addr);
+	if ((g_rd == NULL) ||
+	    (granule_unlocked_state(g_rd) != GRANULE_STATE_RD)) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -469,23 +491,30 @@ unsigned long smc_vdev_communicate(unsigned long pdev_addr,
 	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
 	if (g_vdev == NULL) {
 		rmi_rc = RMI_ERROR_INPUT;
-		goto out_error;
+		goto out;
 	}
 
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
-	if (vd->g_pdev != g_pdev) {
+	if (vd->g_rd != g_rd) {
 		rmi_rc = RMI_ERROR_INPUT;
-		goto out_error;
+		goto out;
 	}
 
 	g_dev_comm_data = find_granule(dev_comm_data_addr);
 	if ((g_dev_comm_data == NULL) ||
 		(granule_unlocked_state(g_dev_comm_data) != GRANULE_STATE_NS)) {
 		rmi_rc = RMI_ERROR_INPUT;
-		goto out_error;
+		goto out;
 	}
+
+	if (vd->g_pdev != g_pdev) {
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto out;
+	}
+
+	/* TODO_ALP17: if PdevIsBusy(pdev) then ResultEqual(result, RMI_BUSY) */
 
 	rmi_rc = dev_communicate(pd, vd, g_dev_comm_data);
 	/* Do not return early here in case of error. Instead do the state
@@ -493,16 +522,46 @@ unsigned long smc_vdev_communicate(unsigned long pdev_addr,
 	 */
 
 	/*
-	 * TODO: Implement comm state transition using vdev comm_state
+	 * Transistion VDEV state based on device communication state.
 	 */
+	if (vd->comm_state == DEV_COMM_ERROR) {
+		vd->rmi_state = RMI_VDEV_STATE_ERROR;
+	} else if (vd->comm_state == DEV_COMM_IDLE) {
+		switch (vd->op) {
+		case VDEV_OP_UNLOCK:
+			vd->rmi_state = RMI_VDEV_STATE_UNLOCKED;
+			break;
+		case VDEV_OP_LOCK:
+			vd->rmi_state = RMI_VDEV_STATE_LOCKED;
+			/* coverity[overrun-buffer-val:SUPPRESS] */
+			if (generate_attest_info_nonce(&(vd->attest_info.lock_nonce)) != 0) {
+				vd->rmi_state = RMI_VDEV_STATE_ERROR;
+			}
+			break;
+		case VDEV_OP_START:
+			vd->rmi_state = RMI_VDEV_STATE_STARTED;
+			break;
+		case VDEV_OP_GET_MEAS:
+			/* The get measurement operation doesn't change the VDEV's state */
+			/* coverity[overrun-buffer-val:SUPPRESS] */
+			if (generate_attest_info_nonce(&(vd->attest_info.meas_nonce)) != 0) {
+				vd->rmi_state = RMI_VDEV_STATE_ERROR;
+			}
+			break;
+		case VDEV_OP_GET_REPORT:
+			/* The get if report operation doesn't change the VDEV's state */
+			/* coverity[overrun-buffer-val:SUPPRESS] */
+			if (generate_attest_info_nonce(&(vd->attest_info.report_nonce)) != 0) {
+				vd->rmi_state = RMI_VDEV_STATE_ERROR;
+			}
+			break;
+		default:
+			assert(false);
+		}
+		vd->op = VDEV_OP_NONE;
+	}
 
-	/*
-	 * TODO: Remove this as all the state transition will be handled in
-	 * vdev
-	 */
-	rdev_state_transition(NULL, pd->dev_comm_state);
-
-out_error:
+out:
 	if (vd != NULL) {
 		buffer_unmap(vd);
 	}
