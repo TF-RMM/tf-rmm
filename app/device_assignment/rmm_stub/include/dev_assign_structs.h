@@ -96,10 +96,10 @@ struct dev_meas_params {
 	bool raw;
 
 	/* Bitmap of measurement indices to get when 'all=false' */
-	unsigned char indices[RDEV_MEAS_PARAM_INDICES_LEN];
+	unsigned char indices[VDEV_MEAS_PARAM_INDICES_LEN];
 
 	/* nonce value used in get measurement, when 'sign=true' */
-	unsigned char nonce[RDEV_MEAS_PARAM_NONCE_LEN];
+	unsigned char nonce[VDEV_MEAS_PARAM_NONCE_LEN];
 };
 
 struct dev_assign_op_params {

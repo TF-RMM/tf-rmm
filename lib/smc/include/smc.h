@@ -80,8 +80,13 @@
 #define SMC64_PSCI_FNUM_MIN	(U(0x0))
 #define SMC64_PSCI_FNUM_MAX	(U(0x14))
 
+/*
+ * TODO: This range includes a range that is not a valid RMI func ID. If an
+ * invalid SMC from that range does manage to come through the RMI SMC, RMM
+ * will gracefully handle it.
+ */
 #define SMC64_RMI_FNUM_MIN	(U(0x150))
-#define SMC64_RMI_FNUM_MAX	(U(0x18E))
+#define SMC64_RMI_FNUM_MAX	(U(0x1D3))
 
 #define SMC64_RSI_FNUM_MIN	(U(0x190))
 #define SMC64_RSI_FNUM_MAX	(U(0x1AF))

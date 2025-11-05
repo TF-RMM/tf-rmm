@@ -476,60 +476,63 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 	struct dev_obj_digest *comm_digest_ptr;
 	struct dev_tdisp_params *tdisp_params_ptr;
 
-	/*
-	 * State is already validated in vdev_communicate smc handler, the
-	 * following are just sanity check:
-	 */
-	assert((vd->rmi_state == RMI_VDEV_STATE_COMMUNICATING) ||
-	       (vd->rmi_state == RMI_VDEV_STATE_STOPPING));
-	assert((vd->rmi_state != RMI_VDEV_STATE_COMMUNICATING) ||
-	       (vd->rdev.op != RDEV_OP_NONE));
-
-	if (vd->rdev.op == RDEV_OP_GET_MEASUREMENTS) {
-		meas_params_ptr = &vd->rdev.op_params.meas_params;
+	if (vd->op == VDEV_OP_GET_MEAS) {
+		meas_params_ptr = &vd->op_params.meas_params;
 	} else {
 		meas_params_ptr = NULL;
 	}
 
-	if (vd->rdev.op == RDEV_OP_GET_MEASUREMENTS) {
+	if (vd->op == VDEV_OP_GET_MEAS) {
 		comm_digest_ptr = &vd->meas_digest;
-	} else if (vd->rdev.op == RDEV_OP_GET_INTERFACE_REPORT) {
+	} else if (vd->op == VDEV_OP_GET_REPORT) {
 		comm_digest_ptr = &vd->ifc_report_digest;
 	} else {
 		comm_digest_ptr = NULL;
 	}
 
-	if ((vd->rdev.op == RDEV_OP_LOCK) ||
-	    (vd->rdev.op == RDEV_OP_GET_INTERFACE_REPORT) ||
-	    (vd->rdev.op == RDEV_OP_START) ||
-	    (vd->rdev.op == RDEV_OP_STOP)) {
-		tdisp_params_ptr = &vd->rdev.op_params.tdisp_params;
+	if ((vd->op == VDEV_OP_LOCK) ||
+	    (vd->op == VDEV_OP_GET_REPORT) ||
+	    (vd->op == VDEV_OP_START) ||
+	    (vd->op == VDEV_OP_UNLOCK)) {
+		tdisp_params_ptr = &vd->op_params.tdisp_params;
 	} else {
 		tdisp_params_ptr = NULL;
 	}
 
-	if (pd->dev_comm_state == DEV_COMM_ACTIVE) {
+	if (vd->comm_state == DEV_COMM_ACTIVE) {
 		return dev_assign_dev_communicate(&pd->da_app_data, enter_args, exit_args,
 			comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
 	}
 
-	switch (vd->rdev.op) {
-	case RDEV_OP_GET_MEASUREMENTS:
+	switch (vd->op) {
+	case VDEV_OP_GET_MEAS:
 		/*
-		 * In this RDEV op, the device measurement is retrieved and its
+		 * In this VDEV op, the device measurement is retrieved and its
 		 * hash needs to be calculated during device communication
 		 */
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args, exit_args,
 			comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS);
 		break;
-	case RDEV_OP_LOCK:
+	case VDEV_OP_LOCK:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
 			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_LOCK);
 		break;
-	case RDEV_OP_GET_INTERFACE_REPORT:
+	case VDEV_OP_UNLOCK:
+		if (vd->rmi_state == RMI_VDEV_STATE_NEW) {
+			/* no need to communicate to the device, return success */
+			(void)memset(exit_args, 0, sizeof(*exit_args));
+			rc = DEV_ASSIGN_STATUS_SUCCESS;
+		} else {
+			assert(vd->rmi_state == RMI_VDEV_STATE_STARTED);
+			rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+				exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
+				DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP);
+		}
+		break;
+	case VDEV_OP_GET_REPORT:
 		/*
 		 * In this RDEV op, the device interface report is retrieved and
 		 * its hash needs to be calculated during device communication
@@ -538,15 +541,10 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_REPORT);
 		break;
-	case RDEV_OP_START:
+	case VDEV_OP_START:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
 			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_START);
-		break;
-	case RDEV_OP_STOP:
-		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
-			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP);
 		break;
 	default:
 		assert(false);

@@ -189,11 +189,15 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(VDEV_CREATE,		4, 0, smc_vdev_create,		 true, true),
 	HANDLER(VDEV_DESTROY,		3, 0, smc_vdev_destroy,		 true, true),
 	HANDLER(VDEV_GET_STATE,		1, 1, smc_vdev_get_state,	 true, true),
-	HANDLER(VDEV_STOP,		1, 0, smc_vdev_stop,		 true, true),
+	HANDLER(VDEV_UNLOCK,		3, 0, smc_vdev_unlock,		 true, true),
 	HANDLER(RTT_SET_S2AP,		4, 1, smc_rtt_set_s2ap,		 false, true),
 	HANDLER(MEC_SET_SHARED,		1, 0, smc_mec_set_shared,	 true, true),
 	HANDLER(MEC_SET_PRIVATE,	1, 0, smc_mec_set_private,	 true, true),
-	HANDLER(VDEV_COMPLETE,		2, 0, smc_vdev_complete,	 true, true)
+	HANDLER(VDEV_COMPLETE,		2, 0, smc_vdev_complete,	 true, true),
+	HANDLER(VDEV_GET_INTERFACE_REPORT, 3, 0, smc_vdev_get_interface_report,	 true, true),
+	HANDLER(VDEV_GET_MEASUREMENTS,	4, 0, smc_vdev_get_measurements, true, true),
+	HANDLER(VDEV_LOCK,		3, 0, smc_vdev_lock,		 true, true),
+	HANDLER(VDEV_START,		3, 0, smc_vdev_start,		 true, true)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
@@ -314,7 +318,7 @@ void handle_ns_smc(unsigned int function_id,
 	 * for not implemented 'function_id' calls in SMC RMI range.
 	 */
 	if ((handler == NULL) || (handler->fn_dummy == NULL)) {
-		VERBOSE("[%s] unknown function_id: %x\n",
+		ERROR("[%s] unknown function_id: %x\n",
 			__func__, function_id);
 		res->x[0] = SMC_UNKNOWN;
 		return;

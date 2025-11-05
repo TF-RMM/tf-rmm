@@ -714,8 +714,12 @@
 
 /*
  * FID: 0xC400018A
+ *
+ * arg0 == PA of the RD
+ * arg1 == PA of the PDEV
+ * arg2 == PA of the VDEV
  */
-#define SMC_RMI_VDEV_STOP			SMC64_RMI_FID(U(0x3A))
+#define SMC_RMI_VDEV_UNLOCK			SMC64_RMI_FID(U(0x3A))
 
 /*
  * FID: 0xC400018B
@@ -757,33 +761,45 @@
  *
  * 0xC4000150 - 0xC400018F - RMI FID range1
  * 0xC4000190 - 0xC40001BF - RSI FID range
- * 0xC40001C0 - 0xC40001C3 - RMI FID range2
+ * 0xC40001D0 - 0xC40001D3 - RMI FID range2
+ */
+
+/*
+ * FID: 0xC40001D0
  *
- * TODO: Currently RMM do not support RMI commands in FID range2. And also this
- * FID allocation conflicts with RMM EL3 interface FIDs. Once RMM supports RMI
- * commands in range2 (mainly P2P device communication) the RMI FID range2 will
- * be enabled along with changes to RMM EL3 interface FIDs.
+ * arg0 == PA of the RD
+ * arg1 == PA of the PDEV
+ * arg2 == PA of the VDEV
  */
+#define SMC_RMI_VDEV_GET_INTERFACE_REPORT	SMC64_RMI_FID(U(0x80))
 
 /*
- * FID: 0xC40001C0
+ * FID: 0xC40001D1
+ *
+ * arg0 == PA of the RD
+ * arg1 == PA of the PDEV
+ * arg2 == PA of the VDEV
+ * arg3 == PA of VDEV parameters
  */
-#define SMC_RMI_P2P_STREAM_ADD			SMC64_RMI_FID(U(0x70))
+#define SMC_RMI_VDEV_GET_MEASUREMENTS		SMC64_RMI_FID(U(0x81))
 
 /*
- * FID: 0xC40001C1
+ * FID: 0xC40001D2
+ *
+ * arg0 == PA of the RD
+ * arg1 == PA of the PDEV
+ * arg2 == PA of the VDEV
  */
-#define SMC_RMI_P2P_STREAM_CREATE		SMC64_RMI_FID(U(0x71))
+#define SMC_RMI_VDEV_LOCK			SMC64_RMI_FID(U(0x82))
 
 /*
- * FID: 0xC40001C2
+ * FID: 0xC40001D3
+ *
+ * arg0 == PA of the RD
+ * arg1 == PA of the PDEV
+ * arg2 == PA of the VDEV
  */
-#define SMC_RMI_STREAM_DESTROY			SMC64_RMI_FID(U(0x72))
-
-/*
- * FID: 0xC40001C3
- */
-#define SMC_RMI_STREAM_REMOVE			SMC64_RMI_FID(U(0x73))
+#define SMC_RMI_VDEV_START			SMC64_RMI_FID(U(0x83))
 
 /* Size of Realm Personalization Value */
 #ifndef CBMC
@@ -914,17 +930,6 @@ struct rmi_rec_enter {
 			unsigned long gicv3_lrs[REC_GIC_NUM_LRS];	/* 0x308 */
 		   }, 0x300, 0x800);
 };
-
-/*
- * RmiVdevAction
- * Represents realm action which triggered REC exit due to device communication.
- * Width: 8 bits
- */
-#define RMI_VDEV_ACTION_GET_INTERFACE_REPORT	U(0)
-#define RMI_VDEV_ACTION_GET_MEASUREMENTS	U(1)
-#define RMI_VDEV_ACTION_LOCK			U(2)
-#define RMI_VDEV_ACTION_START			U(3)
-#define RMI_VDEV_ACTION_STOP			U(4)
 
 /*
  * RmiRecExitFlags
@@ -1367,6 +1372,7 @@ struct rmi_public_key_params {
 #define RMI_VDEV_FLAGS_RES0_SHIFT		UL(0)
 #define RMI_VDEV_FLAGS_RES0_WIDTH		UL(63)
 
+/* TODO: Remove when vdev state transition is updated as per alp16 */
 /*
  * RmiVdevState
  * Represents the state of the VDEV
@@ -1376,6 +1382,16 @@ struct rmi_public_key_params {
 #define RMI_VDEV_STATE_COMMUNICATING		U(1)
 #define RMI_VDEV_STATE_STOPPING			U(2)
 #define RMI_VDEV_STATE_STOPPED			U(3)
+
+/*
+ * RmmVdevState
+ * Represents the state of the VDEV
+ * Width: 8 bits
+ */
+#define RMI_VDEV_STATE_NEW			U(0)
+#define RMI_VDEV_STATE_UNLOCKED			U(1)
+#define RMI_VDEV_STATE_LOCKED			U(2)
+#define RMI_VDEV_STATE_STARTED			U(3)
 #define RMI_VDEV_STATE_ERROR			U(4)
 
 /* Maximum number of aux granules paramenter passed to VDEV create */
@@ -1402,6 +1418,44 @@ struct rmi_vdev_params {
 	SET_MEMBER_RMI(unsigned long aux[VDEV_PARAM_AUX_GRANULES_MAX], 0x100,
 		       0x1000);
 };
+
+/*
+ * RmiVdevMeasureFlags
+ * Fieldset contains flags which describe properties of device measurements.
+ * Width: 64 bits
+ */
+/* RmiVdevMeasureSigned */
+#define RMI_VDEV_MEASURE_FLAGS_SIGNED_SHIFT	U(0)
+#define RMI_VDEV_MEASURE_FLAGS_SIGNED_WIDTH	U(1)
+/* RmiVdevMeasureRaw */
+#define RMI_VDEV_MEASURE_FLAGS_RAW_SHIFT	U(1)
+#define RMI_VDEV_MEASURE_FLAGS_RAW_WIDTH	U(1)
+
+#define VDEV_MEAS_PARAM_INDICES_LEN		U(32)
+#define VDEV_MEAS_PARAM_NONCE_LEN		U(32)
+
+/*
+ * RmiVdevMeasureParams
+ * This structure contains device measurement parameters.
+ * Width: 4096 (0x1000) bytes.
+ */
+/* cppcheck-suppress misra-c2012-2.4 */
+struct rmi_vdev_measure_params {
+	/* RmiVdevMeasureFlags: Properties of device measurements */
+	SET_MEMBER_RMI(unsigned long flags, 0, 0x100);
+	/* Bits256: Measurement indices */
+	SET_MEMBER_RMI(unsigned char indices[VDEV_MEAS_PARAM_INDICES_LEN], 0x100, 0x200);
+	/* Bits256: Nonce value used in measurement requests */
+	SET_MEMBER_RMI(unsigned char nonce[VDEV_MEAS_PARAM_NONCE_LEN], 0x200, 0x1000);
+};
+
+/*
+ * RmmVdevDmaState
+ * Represents the state of DMA for a VDEV.
+ * Width: 8 bits
+ */
+#define RMI_VDEV_DMA_DISABLED		U(0)
+#define RMI_VDEV_DMA_ENABLED		U(1)
 
 /* Returns the higher supported RMI ABI revision */
 unsigned long rmi_get_highest_supported_version(void);

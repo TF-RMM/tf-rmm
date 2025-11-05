@@ -244,6 +244,12 @@ int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
 	libspdm_return_t status;
 	uint8_t request_attribute = 0U;
 
+	/* TODO_ALP17: This needs to be updated.
+	 *  - There are 4 flows (all/none, sign/non-signed. Understand those)
+	 *  - Set cache request/response exit attributes needs to be properly set
+	 *  - Sign only should be sent for the last index?
+	 */
+
 	assert(info->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_MEAS);
 
 	if (info->dev_assign_op_params.meas_params.sign) {
@@ -265,7 +271,7 @@ int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
 			return DEV_ASSIGN_STATUS_ERROR;
 		}
 	} else {
-		for (size_t i = 0U; i < RDEV_MEAS_PARAM_INDICES_LEN; ++i) {
+		for (size_t i = 0U; i < VDEV_MEAS_PARAM_INDICES_LEN; ++i) {
 			for (size_t j = 0U; j < BITS_PER_UCHAR; ++j) {
 				if ((info->dev_assign_op_params.meas_params.indices[i] &
 				     (unsigned char)(1U << j)) != 0U) {
@@ -275,7 +281,11 @@ int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
 					 * The lowest and highest indices are
 					 * reserved by specification
 					 */
-					assert((index != 0U) && (index != 255U));
+					/*
+					 * TODO_ALP17: The meaning of the bits in the indices array
+					 * have changed since alp12. Needs to be updated.
+					 */
+					/* assert((index != 0U) && (index != 255U)); */
 
 					/* Request a single measurement. */
 					status = get_measurements(
@@ -286,10 +296,6 @@ int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
 				}
 			}
 		}
-	}
-
-	if (status != LIBSPDM_STATUS_SUCCESS) {
-		return DEV_ASSIGN_STATUS_ERROR;
 	}
 
 	return DEV_ASSIGN_STATUS_SUCCESS;

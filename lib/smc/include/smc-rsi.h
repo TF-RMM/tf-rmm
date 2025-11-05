@@ -274,34 +274,8 @@
 #define SMC_RSI_RDEV_GET_INFO		SMC64_RSI_FID(U(0x15))
 
 /*
- * FID: 0xC40001A6
+ * FID: 0xC40001A6 - 0xC40001AB are not used.
  */
-#define SMC_RSI_RDEV_GET_INTERFACE_REPORT SMC64_RSI_FID(U(0x16))
-
-/*
- * FID: 0xC40001A7
- */
-#define SMC_RSI_RDEV_GET_MEASUREMENTS	SMC64_RSI_FID(U(0x17))
-
-/*
- * FID: 0xC40001A8
- */
-#define SMC_RSI_RDEV_GET_STATE		SMC64_RSI_FID(U(0x18))
-
-/*
- * FID: 0xC40001A9
- */
-#define SMC_RSI_RDEV_LOCK		SMC64_RSI_FID(U(0x19))
-
-/*
- * FID: 0xC40001AA
- */
-#define SMC_RSI_RDEV_START		SMC64_RSI_FID(U(0x1A))
-
-/*
- * FID: 0xC40001AB
- */
-#define SMC_RSI_RDEV_STOP		SMC64_RSI_FID(U(0x1B))
 
 /*
  * FID: 0xC40001AC
@@ -472,6 +446,10 @@ struct rsi_host_call {
 #define RSI_RDEV_VALIDATE_IO_FLAGS_COH_WIDTH	UL(1)
 
 /*
+ * TODO: Remove when vdev communication flow is updated according to alp16
+ * spec
+ */
+/*
  * RsiDeviceState
  * This enumeration represents state of an assigned Realm device.
  * Width: 64 bits.
@@ -485,6 +463,18 @@ struct rsi_host_call {
 #define RSI_RDEV_STATE_STOPPING			U(6)
 #define RSI_RDEV_STATE_STOPPED			U(7) /* unused will be removed */
 #define RSI_RDEV_STATE_ERROR			U(8)
+
+
+/*
+ * RsiVdevState
+ * This enumeration represents the state of a VDEV.
+ * Width: 8 bits.
+ */
+#define RSI_VDEV_STATE_NEW			U(0)
+#define RSI_VDEV_STATE_UNLOCKED			U(1)
+#define RSI_VDEV_STATE_LOCKED			U(2)
+#define RSI_VDEV_STATE_STARTED			U(3)
+#define RSI_VDEV_STATE_ERROR			U(4)
 
 /*
  * RsiDevFlags
@@ -629,64 +619,6 @@ struct rsi_dev_info {
 	SET_MEMBER_RSI(unsigned char meas_digest[64], 0x80, 0xc0);
 	/* Bits512: Interface report digest */
 	SET_MEMBER_RSI(unsigned char report_digest[64], 0xc0, 0x200);
-};
-
-/*
- * RsiDevMeasureAll
- * Represents whether all device measurements should be returned.
- * Width: 1 bit
- */
-#define RSI_DEV_MEASURE_NOT_ALL			U(0)
-#define RSI_DEV_MEASURE_ALL			U(1)
-
-/*
- * RsiDevMeasureSigned
- * Represents whether a device measurement is signed.
- * Width: 1 bit
- */
-#define RSI_DEV_MEASURE_NOT_SIGNED		U(0)
-#define RSI_DEV_MEASURE_SIGNED			U(1)
-
-/*
- * RsiDevMeasureRaw
- * Represents whether a device measurement is a raw bitstream.
- * Width: 1 bit
- */
-#define RSI_DEV_MEASURE_NOT_RAW			U(0)
-#define RSI_DEV_MEASURE_RAW			U(1)
-
-/*
- * RsiDevMeasureFlags
- * Fieldset contains flags which describe properties of device measurements.
- * Width: 64 bits
- */
-/* RsiDevMeasureAll */
-#define RSI_DEV_MEASURE_FLAGS_ALL_SHIFT		U(0)
-#define RSI_DEV_MEASURE_FLAGS_ALL_WIDTH		U(1)
-/* RsiDevMeasureSigned */
-#define RSI_DEV_MEASURE_FLAGS_SIGNED_SHIFT	U(1)
-#define RSI_DEV_MEASURE_FLAGS_SIGNED_WIDTH	U(1)
-/* RsiDevMeasureRaw */
-#define RSI_DEV_MEASURE_FLAGS_RAW_SHIFT		U(2)
-#define RSI_DEV_MEASURE_FLAGS_RAW_WIDTH		U(1)
-
-#define RDEV_MEAS_PARAM_INDICES_LEN		U(32)
-#define RDEV_MEAS_PARAM_NONCE_LEN		U(32)
-
-/*
- * RsiDevMeasureParams
- * This structure contains device measurement parameters.
- * Width: 4096 (0x1000) bytes.
- */
-/* cppcheck-suppress misra-c2012-2.4 */
-struct rsi_dev_measure_params {
-	/* RsiDevMeasureFlags: Properties of device measurements */
-	SET_MEMBER_RSI(unsigned long flags, 0, 0x8);
-
-	/* RsiBoolean[256]: Measurement indices */
-	SET_MEMBER_RSI(unsigned char indices[RDEV_MEAS_PARAM_INDICES_LEN], 0x100, 0x200);
-	/* RsiBoolean[256]: Nonce value used in measurement requests */
-	SET_MEMBER_RSI(unsigned char nonce[RDEV_MEAS_PARAM_NONCE_LEN], 0x200, 0x1000);
 };
 
 /* Returns the higher supported RSI ABI revision */
