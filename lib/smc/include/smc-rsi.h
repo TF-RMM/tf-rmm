@@ -213,12 +213,7 @@
 #define SMC_RSI_VSMMU_ACTIVATE		SMC64_RSI_FID(U(0xB))
 
 /*
- * FID: 0xC400019C
- */
-#define SMC_RSI_RDEV_GET_INSTANCE_ID	SMC64_RSI_FID(U(0xC))
-
-/*
- * FID: 0xC400019D - 0xC400019F are not used.
+ * FID: 0xC400019C - 0xC400019F are not used.
  */
 
 /*
@@ -263,10 +258,10 @@
  * ret0 == Status / error
  */
 #define SMC_RSI_PLANE_ENTER		SMC64_RSI_FID(U(0x13))
+
 /*
- * FID: 0xC40001A4
+ * FID: 0xC40001A4 is not used.
  */
-#define SMC_RSI_RDEV_CONTINUE		SMC64_RSI_FID(U(0x14))
 
 /*
  * FID: 0xC40001A5

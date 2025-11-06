@@ -113,16 +113,6 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		goto out_unmap_rd;
 	}
 
-	/*
-	 * Currently we only support a single VDEV per Realm.
-	 * TODO: Revisit the following condition if multiple VDEV support is
-	 * added.
-	 */
-	if (rd->g_vdev != NULL) {
-		rc = RMI_ERROR_REALM;
-		goto out_unmap_rd;
-	}
-
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
 
@@ -168,7 +158,6 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	vd->attest_info = (struct vdev_attest_info){0u, 0U, 0U};
 
 	/* Update Realm */
-	rd->g_vdev = g_vdev;
 	rd_vdev_refcount_inc(rd);
 
 	/* Update PDEV */
@@ -358,7 +347,6 @@ unsigned long smc_vdev_complete(unsigned long rec_addr, unsigned long vdev_addr)
 	struct granule *g_vdev;
 	struct rec *rec;
 	struct vdev *vd;
-	struct rec_plane *plane;
 	unsigned long rmi_rc;
 
 	if (!is_rmi_feat_da_enabled()) {
@@ -387,39 +375,25 @@ unsigned long smc_vdev_complete(unsigned long rec_addr, unsigned long vdev_addr)
 	assert(vd != NULL);
 
 	/* Check if the REC pending operation is for VDEV request */
-	if ((rec->pending_op != REC_PENDING_VDEV_COMPLETE)) {
+	if ((rec->pending_op != REC_PENDING_VDEV_REQUEST)) {
 		rmi_rc = RMI_ERROR_INPUT;
 		goto out_unmap_vdev;
 	}
 
 	/* Check the Realm owner and the Device ID of the REC and VDEV */
-	if ((rec->realm_info.g_rd != vd->g_rd) || (rec->vdev.id != vd->id)) {
+	if ((rec->realm_info.g_rd != vd->g_rd) || (rec->vdev.vdev_id != vd->id)) {
 		rmi_rc = RMI_ERROR_INPUT;
 		goto out_unmap_vdev;
 	}
 
-	plane = rec_active_plane(rec);
-
-	if (rec->vdev.inst_id_valid) {
-		/* Compare instance id */
-		if (rec->vdev.inst_id == vd->inst_id) {
-			plane->regs[0] = RSI_SUCCESS;
-			/* todo: Update VDEV comm state */
-			rmi_rc = RMI_SUCCESS;
-		} else {
-			rmi_rc = RMI_ERROR_INPUT;
-		}
-	} else {
-		/* Get instance id */
-		plane->regs[0] = RSI_SUCCESS;
-		plane->regs[1] = vd->inst_id;
-		rmi_rc = RMI_SUCCESS;
+	if (vd->comm_state != DEV_COMM_IDLE) {
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto out_unmap_vdev;
 	}
 
-	if (rmi_rc == RMI_SUCCESS) {
-		/* Clear the REC pending request operation */
-		rec_set_pending_op(rec, REC_PENDING_NONE);
-	}
+	rec_update_pending_op(rec, REC_PENDING_VDEV_COMPLETE);
+	rec->vdev.vdev_addr = vdev_addr;
+	rmi_rc = RMI_SUCCESS;
 
 out_unmap_vdev:
 	buffer_unmap(vd);

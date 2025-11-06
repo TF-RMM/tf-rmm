@@ -16,7 +16,6 @@
 #include <realm.h>
 #include <rec.h>
 #include <rsi-host-call.h>
-#include <rsi_rdev_call.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc-rsi.h>
@@ -232,6 +231,54 @@ static void complete_set_s2ap(struct rec *rec)
 	plane->regs[3] = cookie;
 }
 
+/*
+ * Return 'true' if execution should continue in the REC, otherwise return
+ * 'false' to go back to the NS caller.
+ */
+static bool complete_vdev_id_mapping(struct rec *rec,
+				     struct rec_plane *plane,
+				     struct rmi_rec_exit *rec_exit)
+{
+	(void)rec_exit;
+
+	if (rec->pending_op == REC_PENDING_VDEV_REQUEST) {
+		/*
+		 * The host didn't provide any vdev (i.e. didn't call
+		 * RMI_VDEV_COMPLETE, or did the call with an unexpected
+		 * vdev_id).
+		 */
+		rec_set_pending_op(rec, REC_PENDING_NONE);
+		plane->regs[0] = RSI_ERROR_INPUT;
+		return true;
+	}
+	if (rec->pending_op == REC_PENDING_VDEV_COMPLETE) {
+		/*
+		 * Continue the vdev rsi call that had initiated the vdev
+		 * mapping
+		 */
+		unsigned int function_id = (unsigned int)plane->regs[0];
+		bool request_finished = false;
+		bool ret = true;
+
+		/* SVE hints are not used here */
+		function_id &= ~SMC_SVE_HINT;
+
+		plane->regs[0] = RSI_ERROR_INPUT;
+
+		switch (function_id) {
+		default:
+			ERROR("Unknown function ID: 0x%x\n", function_id);
+			assert(false);
+		}
+
+		if (request_finished) {
+			rec_set_pending_op(rec, REC_PENDING_NONE);
+		}
+		return ret;
+	}
+	return true;
+}
+
 static bool complete_sea_insertion(struct rec *rec, struct rmi_rec_enter *rec_enter)
 {
 	struct rec_plane *plane = rec_active_plane(rec);
@@ -398,10 +445,14 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 		goto out_unmap_buffers;
 	}
 
-	/* REC with pending command is not schedulable */
-	if (rec->pending_op != REC_PENDING_NONE) {
-		assert((rec->pending_op == REC_PENDING_PSCI_COMPLETE) ||
-		       (rec->pending_op == REC_PENDING_VDEV_COMPLETE));
+	/*
+	 * Check pending commands. REC_PENDING_VDEV_REQUEST and
+	 * RMI_VDEV_COMPLETE are enabled as they are handled during REC enter.
+	 */
+	if ((rec->pending_op != REC_PENDING_NONE) &&
+	    (rec->pending_op != REC_PENDING_VDEV_REQUEST) &&
+	    (rec->pending_op != REC_PENDING_VDEV_COMPLETE)) {
+		assert(rec->pending_op == REC_PENDING_PSCI_COMPLETE);
 		ret = RMI_ERROR_REC;
 		goto out_unmap_buffers;
 	}
@@ -506,8 +557,14 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 
 	complete_sysreg_emulation(rec, &rec_run.enter);
 
-	if (rec->vdev.is_comm) {
-		handle_rsi_rdev_complete(rec);
+	/* TODO_ALP17: Is this the proper place in this function to call this?
+	 * Can we be sure that calling doesn't overwrite rec return value set
+	 * by earlier functions, or is not reading register values that were set
+	 * by earlier functions?
+	 */
+	if (!complete_vdev_id_mapping(rec, plane, &rec_run.exit)) {
+		ret = RMI_SUCCESS;
+		goto out_unmap_aux_granules;
 	}
 
 	reset_last_run_info(plane);

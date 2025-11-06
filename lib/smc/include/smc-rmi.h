@@ -1377,17 +1377,6 @@ struct rmi_public_key_params {
 #define RMI_VDEV_FLAGS_RES0_SHIFT		UL(0)
 #define RMI_VDEV_FLAGS_RES0_WIDTH		UL(63)
 
-/* TODO: Remove when vdev state transition is updated as per alp16 */
-/*
- * RmiVdevState
- * Represents the state of the VDEV
- * Width: 8 bits
- */
-#define RMI_VDEV_STATE_READY			U(0)
-#define RMI_VDEV_STATE_COMMUNICATING		U(1)
-#define RMI_VDEV_STATE_STOPPING			U(2)
-#define RMI_VDEV_STATE_STOPPED			U(3)
-
 /*
  * RmmVdevState
  * Represents the state of the VDEV

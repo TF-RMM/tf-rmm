@@ -93,7 +93,8 @@ COMPILER_ASSERT((sizeof(struct pmu_state) * MAX_TOTAL_PLANES) <= REC_PMU_SIZE);
 /* Type of REC pending operation. */
 #define REC_PENDING_NONE		U(0) /* No operation is pending */
 #define REC_PENDING_PSCI_COMPLETE	U(1) /* A PSCI operation is pending */
-#define REC_PENDING_VDEV_COMPLETE	U(2) /* A VDEV request is pending */
+#define REC_PENDING_VDEV_REQUEST	U(2) /* A VDEV request is pending */
+#define REC_PENDING_VDEV_COMPLETE	U(3) /* A VDEV request has been completed. */
 
 struct granule;
 struct rd;
@@ -325,22 +326,10 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 	/* Populated when REC issues RDEV request */
 	struct {
 		/* Virtual device ID */
-		unsigned long id;
-
-		/* Device instance ID */
-		unsigned long inst_id;
+		unsigned long vdev_id;
 
 		/* PA of the vdev granule */
 		unsigned long vdev_addr;
-
-		/*
-		 * Whether a vdev_communicate flow is in progress.
-		 * vdev_addr set when flag is_comm is true
-		 */
-		bool is_comm;
-
-		/* Whether device instance ID is valid */
-		bool inst_id_valid;
 	} vdev;
 
 	/* Pointer to per-cpu non-secure state */
@@ -533,6 +522,7 @@ void inject_serror(struct rec *rec, unsigned long vsesr);
 void emulate_stage2_data_abort(struct rmi_rec_exit *rec_exit,
 			       unsigned long rtt_level, unsigned long ipa);
 void rec_set_pending_op(struct rec *rec, unsigned int pending_op);
+void rec_update_pending_op(struct rec *rec, unsigned int pending_op);
 unsigned long realm_vtcr(struct rd *rd);
 
 #endif /* __ASSEMBLER__ */

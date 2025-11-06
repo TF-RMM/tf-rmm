@@ -34,10 +34,6 @@
 #define VDEV_OP_START				U(6)
 #define VDEV_OP_UNLOCK				U(7)
 
-/* VDEV instance ID starting index */
-#define VDEV_INST_ID_INVALID			U(0)
-#define VDEV_INST_ID_BASE			U(1)
-
 /* PCIe device specific details */
 struct pcie_dev {
 	/* Device identifier */
@@ -144,13 +140,6 @@ struct vdev {
 	 * endpoint.
 	 */
 	uint64_t id;
-
-	/*
-	 * TODO: Remove inst_id with the updated Mapping from virtual device
-	 * ID to VDEV object
-	 */
-	/* Instance id of the Realm device that is associated with this VDEV */
-	uint64_t inst_id;
 
 	/*
 	 * Number of Granules of this VDEV’s memory which have been mapped into

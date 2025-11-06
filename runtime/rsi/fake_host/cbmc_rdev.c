@@ -14,16 +14,6 @@ void handle_rsi_rdev_get_info(struct rec *rec, struct rsi_result *res)
 	assert(false);
 }
 
-void handle_rsi_rdev_get_instance_id(struct rec *rec,
-				     struct rmi_rec_exit *rec_exit,
-				     struct rsi_result *res)
-{
-	(void)rec;
-	(void)rec_exit;
-	(void)res;
-	assert(false);
-}
-
 void handle_rsi_rdev_validate_mapping(struct rec *rec,
 				      struct rmi_rec_exit *rec_exit,
 				      struct rsi_result *res)
@@ -31,15 +21,5 @@ void handle_rsi_rdev_validate_mapping(struct rec *rec,
 	(void)rec;
 	(void)rec_exit;
 	(void)res;
-	assert(false);
-}
-
-/*
- * Called from REC enter to check if RDEV communication request is completed by
- * the VDEV
- */
-void handle_rsi_rdev_complete(struct rec *rec)
-{
-	(void)rec;
 	assert(false);
 }
