@@ -239,8 +239,6 @@ static bool complete_vdev_id_mapping(struct rec *rec,
 				     struct rec_plane *plane,
 				     struct rmi_rec_exit *rec_exit)
 {
-	(void)rec_exit;
-
 	if (rec->pending_op == REC_PENDING_VDEV_REQUEST) {
 		/*
 		 * The host didn't provide any vdev (i.e. didn't call
@@ -266,6 +264,12 @@ static bool complete_vdev_id_mapping(struct rec *rec,
 		plane->regs[0] = RSI_ERROR_INPUT;
 
 		switch (function_id) {
+		case SMC_RSI_VDEV_GET_INFO:
+			ret = finish_rsi_vdev_get_info(rec, rec_exit, &request_finished);
+			break;
+		case SMC_RSI_VDEV_VALIDATE_MAPPING:
+			ret = finish_rsi_vdev_validate_mapping(rec, rec_exit, &request_finished);
+			break;
 		default:
 			ERROR("Unknown function ID: 0x%x\n", function_id);
 			assert(false);

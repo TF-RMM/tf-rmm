@@ -136,8 +136,8 @@
 #define RMI_EXIT_SERROR			U(6)
 #define RMI_EXIT_S2AP_CHANGE		U(7)
 #define RMI_EXIT_VDEV_REQUEST		U(8)
-#define RMI_EXIT_VDEV_COMM		U(9)
-#define RMI_EXIT_DEV_MEM_MAP		U(10)
+#define RMI_EXIT_DEV_MEM_MAP		U(9)
+#define RMI_EXIT_VDEV_P2P_BINDING	U(10)
 
 /* RmiRttEntryState represents the state of an RTTE */
 #define RMI_UNASSIGNED		UL(0)

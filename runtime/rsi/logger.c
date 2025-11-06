@@ -52,12 +52,12 @@ static const struct rsi_handler rsi_logger[] = {
 	RSI_FUNCTION(_IPA_STATE_SET, 4U, 2U),		/* 0xC4000197 */
 	RSI_FUNCTION(_IPA_STATE_GET, 2U, 2U),		/* 0xC4000198 */
 	RSI_FUNCTION(_HOST_CALL, 1U, 0U),		/* 0xC4000199 */
+	RSI_FUNCTION(_VDEV_GET_INFO, 2U, 0U),		/* 0xC400019D */
+	RSI_FUNCTION(_VDEV_VALIDATE_MAPPING, 8U, 2U),	/* 0xC400019F */
 	RSI_FUNCTION(_MEM_GET_PERM_VALUE, 2U, 1U),	/* 0xC40001A0 */
 	RSI_FUNCTION(_MEM_SET_PERM_INDEX, 4U, 3U),	/* 0xC40001A1 */
 	RSI_FUNCTION(_MEM_SET_PERM_VALUE, 3U, 0U),	/* 0xC40001A2 */
 	RSI_FUNCTION(_PLANE_ENTER, 2U, 0U),		/* 0xC40001A3 */
-	RSI_FUNCTION(_RDEV_GET_INFO, 3U, 0U),		/* 0xC40001A5 */
-	RSI_FUNCTION(_RDEV_VALIDATE_MAPPING, 6U, 2U),	/* 0xC40001AC */
 	RSI_FUNCTION(_PLANE_SYSREG_READ, 2U, 1U),	/* 0xC40001AE */
 	RSI_FUNCTION(_PLANE_SYSREG_WRITE, 3U, 0U)	/* 0xC40001AF */
 };
@@ -88,7 +88,7 @@ static size_t print_entry(unsigned int id, unsigned long args[],
 	int cnt;
 
 	switch (id) {
-	case SMC_RSI_VERSION ... SMC_RSI_RDEV_VALIDATE_MAPPING:
+	case SMC_RSI_VERSION ... SMC_RSI_PLANE_ENTER:
 		FALLTHROUGH;
 	case SMC_RSI_PLANE_SYSREG_READ ... SMC_RSI_PLANE_SYSREG_WRITE: {
 		const struct rsi_handler *logger = fid_to_rsi_logger(id);
@@ -173,7 +173,7 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 	}
 
 	switch (function_id) {
-	case SMC_RSI_VERSION ... SMC_RSI_RDEV_VALIDATE_MAPPING:
+	case SMC_RSI_VERSION ... SMC_RSI_PLANE_ENTER:
 		FALLTHROUGH;
 	case SMC_RSI_PLANE_SYSREG_READ ... SMC_RSI_PLANE_SYSREG_WRITE: {
 		const struct rsi_handler *logger =
