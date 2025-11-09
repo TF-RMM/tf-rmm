@@ -990,11 +990,10 @@ static void copy_state_to_plane_exit(struct rec_plane *plane,
  *   instruction the next time the Realm is scheduled.
  *
  * @save_restore_plane_state indicates whether the Plane N state needs to be
- * saved and Plane 0 needs to be restored. It is false when this function is
- * invoked from an RMI handler as the Plane N state would have already been
- * saved as part of previous exit and Plane 0 will be directly restored from
- * REC as part of REC_ENTER.
- * It is true, when invoked from an RSI handler.
+ * saved. It is false when this function is invoked from an RMI handler as
+ * the Plane N state would have already been saved as part of previous exit.
+ * It is true, when invoked from an RSI handler or if invoked from rec_enter
+ * after Plane N has been restored.
  *
  * Note that this function expects the PC on Plane N to point to the instruction
  * after the one that caused the exception.
@@ -1088,9 +1087,6 @@ out_return_to_plane_0:
 
 	/* Return GIC ownership to Plane 0 if it was owned by the previous plane */
 	if (rec->gic_owner != PLANE_0_ID) {
-		/* We need to save/restore plane_n/plane_0 here */
-		assert(save_restore_plane_state);
-
 		gic_copy_state(&sysreg_0->gicstate,
 			       &sysreg_n->gicstate);
 

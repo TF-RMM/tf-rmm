@@ -427,10 +427,15 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		 * iteration of the loop to ensure we update the timer
 		 * mask on each entry to the realm and that we report any
 		 * change in output level to the NS caller.
+		 *
+		 * Note that when P0 is not the GIC owner, the P0 timers
+		 * are not expected to be setup by P0.
 		 */
 		if (check_pending_timers(sysregs)) {
-			if (!rec_is_plane_0_active(rec)) {
+			if (rec->gic_owner != rec->active_plane_id) {
 				bool plane_n_exited;
+
+				assert(!rec_is_plane_0_active(rec));
 
 				skip_timer_report = true;
 				report_timer_state_to_ns(rec, rec_exit);
