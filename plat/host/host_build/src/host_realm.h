@@ -35,7 +35,7 @@ struct host_realm {
 };
 
 void rmm_main(void);
-int realm_start(unsigned long *regs);
+int realm_start(unsigned long *regs, unsigned long *rec_sp_el0);
 
 unsigned long host_realm_get_realm_buffer(void);
 
