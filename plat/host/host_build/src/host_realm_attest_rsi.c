@@ -123,8 +123,10 @@ static int realm_continue(unsigned long *rec_regs, unsigned long *rec_sp_el0)
 	return host_util_rsi_helper(realm_continue_1);
 }
 
-int realm_start(unsigned long *regs)
+int realm_start(unsigned long *regs, unsigned long *rec_sp_el0)
 {
+	(void)rec_sp_el0;
+
 	INFO("###########################\n");
 	INFO("# Hello World from a Realm!\n");
 	INFO("###########################\n");
