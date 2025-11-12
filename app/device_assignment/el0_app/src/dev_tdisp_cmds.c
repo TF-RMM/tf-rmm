@@ -8,6 +8,7 @@
 #include <library/pci_tdisp_requester_lib.h>
 #include <string.h>
 
+/* cppcheck-suppress misra-c2012-8.7 */
 int dev_tdisp_lock_main(struct dev_assign_info *info)
 {
 	libspdm_return_t status;
@@ -107,6 +108,7 @@ int dev_tdisp_lock_main(struct dev_assign_info *info)
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 */
 int dev_tdisp_report_main(struct dev_assign_info *info)
 {
 	libspdm_return_t status;
@@ -146,6 +148,7 @@ int dev_tdisp_report_main(struct dev_assign_info *info)
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 */
 int dev_tdisp_start_main(struct dev_assign_info *info)
 {
 	libspdm_return_t status = LIBSPDM_STATUS_SUCCESS;
@@ -220,6 +223,7 @@ out:
 	return ret;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 */
 int dev_tdisp_stop_main(struct dev_assign_info *info)
 {
 	libspdm_return_t status;

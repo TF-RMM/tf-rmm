@@ -15,6 +15,7 @@ static inline void granule_bitlock_acquire(struct granule *g)
 	uint32_t tmp;
 	uint32_t mask = GRN_LOCK_BIT;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"1:	ldsetah	%w[mask], %w[tmp], %[lock]\n"
 	"	tbz	%w[tmp], #%c[bit], 2f\n"
@@ -37,6 +38,7 @@ static inline void granule_bitlock_release(struct granule *g)
 	(void)g;
 	uint32_t mask = GRN_LOCK_BIT;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	stclrlh	%w[mask], %[lock]\n"
 	: [lock] "+Q" (g->descriptor)
@@ -52,6 +54,7 @@ static inline void dev_granule_bitlock_acquire(struct dev_granule *g)
 	uint32_t tmp;
 	uint32_t mask = DEV_GRN_LOCK_BIT;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"1:	ldsetab	%w[mask], %w[tmp], %[lock]\n"
 	"	tbz	%w[tmp], #%c[bit], 2f\n"
@@ -74,6 +77,7 @@ static inline void dev_granule_bitlock_release(struct dev_granule *g)
 	(void)g;
 	uint32_t mask = DEV_GRN_LOCK_BIT;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	stclrlb	%w[mask], %[lock]\n"
 	: [lock] "+Q" (g->descriptor)

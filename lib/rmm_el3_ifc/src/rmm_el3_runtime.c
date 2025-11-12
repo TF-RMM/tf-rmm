@@ -48,6 +48,7 @@ bool rmm_el3_ifc_el3_token_sign_supported(void)
 /*
  * Get and lock a pointer to the start of the RMM<->EL3 shared buffer.
  */
+/* cppcheck-suppress misra-c2012-8.7 */
 uintptr_t rmm_el3_ifc_get_shared_buf_locked(void)
 {
 	spinlock_acquire(&shared_area_lock);
@@ -58,6 +59,7 @@ uintptr_t rmm_el3_ifc_get_shared_buf_locked(void)
 /*
  * Release the RMM <-> EL3 buffer.
  */
+/* cppcheck-suppress misra-c2012-8.7 */
 void rmm_el3_ifc_release_shared_buf(void)
 {
 	spinlock_release(&shared_area_lock);
@@ -106,6 +108,7 @@ static int rmm_el3_ifc_get_realm_attest_key_internal(uintptr_t buf,
  * expected that only the private key is retrieved in raw format.
  */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
+/* cppcheck-suppress misra-c2012-8.7 */
 int rmm_el3_ifc_get_realm_attest_key(uintptr_t buf, size_t buflen, size_t *len,
 				     unsigned int crv)
 {
@@ -118,6 +121,7 @@ int rmm_el3_ifc_get_realm_attest_key(uintptr_t buf, size_t buflen, size_t *len,
  * The caller must have already populated the public hash in `buf` which is an
  * input for platform token computation.
  */
+/* cppcheck-suppress misra-c2012-8.7 */
 int rmm_el3_ifc_get_platform_token(uintptr_t buf, size_t buflen,
 					size_t hash_size,
 					size_t *token_hunk_len,
@@ -158,6 +162,7 @@ int rmm_el3_ifc_get_platform_token(uintptr_t buf, size_t buflen,
  * the EL3 is not ready to accept the request.
  */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
+/* cppcheck-suppress misra-c2012-8.7 */
 int rmm_el3_ifc_push_el3_token_sign_request(
 	const struct el3_token_sign_request *req)
 {
@@ -188,6 +193,7 @@ int rmm_el3_ifc_push_el3_token_sign_request(
  * the EL3 is  not yet ready to provide a response.
  */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
+/* cppcheck-suppress misra-c2012-8.7 */
 int rmm_el3_ifc_pull_el3_token_sign_response(
 	const struct el3_token_sign_response *resp)
 {
@@ -218,6 +224,7 @@ int rmm_el3_ifc_pull_el3_token_sign_response(
  * token signing is done in EL3.
  */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
+/* cppcheck-suppress misra-c2012-8.7 */
 int rmm_el3_ifc_get_realm_attest_pub_key_from_el3(uintptr_t buf, size_t buflen,
 						  size_t *len, unsigned int crv)
 {
@@ -278,6 +285,7 @@ int rmm_el3_ifc_get_feat_register(unsigned int feat_reg_idx, uint64_t *feat_reg)
 	return E_RMM_OK;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 */
 unsigned long rmm_el3_ifc_mec_refresh(unsigned short mecid,
 					bool is_destroy)
 {

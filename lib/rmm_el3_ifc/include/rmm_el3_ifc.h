@@ -772,59 +772,5 @@ int rmm_el3_ifc_rp_ide_key_set_go(unsigned long ecam_addr, unsigned long rp_id,
 int rmm_el3_ifc_rp_ide_key_set_stop(unsigned long ecam_addr, unsigned long rp_id,
 				    unsigned long stream_info);
 
-/* todo: these PLAT_ARM_ macros needs to come from build config */
-
-/* Max supported Root Complexes */
-#define PLAT_ARM_ROOT_COMPLEX_MAX		U(1)
-
-/* Max supported Root Ports per Root Complex */
-#define PLAT_ARM_ROOT_PORT_MAX			U(1)
-
-/* Max supported BDF mappings per Root Port */
-#define PLAT_ARM_BDF_MAPPINGS_MAX		U(1)
-
-/* PCIe BDF Mapping Info structure. This is same as struct bdf_mapping_info  */
-struct arm_bdf_mapping_info {
-	/* Base of BDF mapping (inclusive) */
-	uint16_t mapping_base;
-
-	/* Top of BDF mapping (exclusive) */
-	uint16_t mapping_top;
-
-	/* Mapping offset, as per Arm Base System Architecture: */
-	uint16_t mapping_off;
-
-	/* SMMU index in smmu_info[] array */
-	uint16_t smmu_idx;
-};
-
-/* Arm Root Port info */
-struct arm_root_port_info {
-	/* Root Port identifier */
-	uint16_t root_port_id;
-
-	/* Number of valid BDF mapping info structures, initialized during boot */
-	uint8_t bdf_info_count;
-
-	struct arm_bdf_mapping_info arm_bdf_info[PLAT_ARM_BDF_MAPPINGS_MAX];
-};
-
-/* Arm Root Complex management structures */
-struct arm_root_complex_info {
-	/* ECAM base address */
-	uint64_t ecam_base;
-
-	/* PCIe segment identifier */
-	uint8_t segment;
-
-	/*
-	 * Number of valid PCIe Root Port info structures, initialized during
-	 * boot.
-	 */
-	uint8_t rp_info_count;
-
-	struct arm_root_port_info arm_rp_info[PLAT_ARM_ROOT_PORT_MAX];
-};
-
 #endif /* __ASSEMBLER__ */
 #endif /* RMM_EL3_IFC_H */

@@ -81,6 +81,7 @@ static const char * const rsi_status_string[] = {
 	RSI_STATUS_STRING(ERROR_DEVICE)
 };
 
+/* cppcheck-suppress misra-c2012-17.3 */
 COMPILER_ASSERT(ARRAY_SIZE(rsi_status_string) == RSI_ERROR_COUNT_MAX);
 
 static const struct rsi_handler *fid_to_rsi_logger(unsigned int id)
@@ -160,6 +161,7 @@ static int print_code(char *buf, size_t len, unsigned long res)
 }
 
 /* cppcheck-suppress misra-c2012-8.4 */
+/* cppcheck-suppress misra-c2012-8.7 */
 void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 		     unsigned long regs[], bool ret_to_rec)
 {

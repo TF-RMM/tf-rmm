@@ -23,6 +23,7 @@ static inline void spinlock_acquire(spinlock_t *l)
 	/* To avoid misra-c2012-2.7 warnings */
 	(void)l;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	sevl\n"
 	"	prfm	pstl1keep, %[lock]\n"
@@ -45,6 +46,7 @@ static inline void spinlock_release(spinlock_t *l)
 	/* To avoid misra-c2012-2.7 warnings */
 	(void)l;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	stlr	wzr, %[lock]\n"
 	: [lock] "+Q" (l->val)
@@ -66,6 +68,7 @@ static inline void byte_spinlock_acquire(byte_spinlock_t *l)
 	/* To avoid misra-c2012-2.7 warnings */
 	(void)l;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	sevl\n"
 	"	prfm	pstl1keep, %[lock]\n"
@@ -88,6 +91,7 @@ static inline void byte_spinlock_release(byte_spinlock_t *l)
 	/* To avoid misra-c2012-2.7 warnings */
 	(void)l;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	stlrb	wzr, %[lock]\n"
 	: [lock] "+Q" (l->val)

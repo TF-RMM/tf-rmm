@@ -70,6 +70,7 @@ static void init_connection_cleanup(struct dev_assign_info *info, bool scrub_cer
 }
 
 /* dev_assign_cmd_init_connection_main */
+/* cppcheck-suppress misra-c2012-8.7 */
 int dev_assign_cmd_init_connection_main(struct dev_assign_info *info)
 {
 	size_t cert_chain_size;
@@ -142,6 +143,7 @@ int dev_assign_cmd_init_connection_main(struct dev_assign_info *info)
 }
 
 /* dev_assign_cmd_start_session_main */
+/* cppcheck-suppress misra-c2012-8.7 */
 int dev_assign_cmd_start_session_main(struct dev_assign_info *info)
 {
 	uint32_t session_id = 0U;
@@ -235,6 +237,7 @@ static libspdm_return_t get_measurements(
 					  NULL);  /* opaque_data_size */
 }
 
+/* cppcheck-suppress misra-c2012-8.7 */
 /* dev_assign_cmd_get_measurements_main */
 int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
 {
@@ -253,6 +256,7 @@ int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
 			(uint8_t)SPDM_GET_MEASUREMENTS_REQUEST_ATTRIBUTES_RAW_BIT_STREAM_REQUESTED;
 	}
 
+	/* cppcheck-suppress misra-c2012-7.3 */
 	if (info->dev_assign_op_params.meas_params.all) {
 		/* Request all measurements. */
 		status = get_measurements(info, 0xFFU, request_attribute);
@@ -292,6 +296,7 @@ int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
 }
 
 /* dev_assign_cmd_stop_connection_main */
+/* cppcheck-suppress misra-c2012-8.7 */
 int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info)
 {
 	int rc = DEV_ASSIGN_STATUS_SUCCESS;

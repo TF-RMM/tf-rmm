@@ -35,6 +35,8 @@
 static inline unsigned char dev_granule_refcount_read(struct dev_granule *g)
 {
 	assert(g != NULL);
+
+	/* cppcheck-suppress misra-c2012-17.3 */
 	return DEV_REFCOUNT(g);
 }
 
@@ -45,7 +47,10 @@ static inline unsigned char dev_granule_refcount_read(struct dev_granule *g)
  */
 static inline unsigned char dev_granule_refcount_read_acquire(struct dev_granule *g)
 {
+	/* cppcheck-suppress misra-c2012-17.3 */
 	assert((g != NULL) && DEV_LOCKED(g));
+
+	/* cppcheck-suppress misra-c2012-17.3 */
 	return SCA_READ8_ACQUIRE(&g->descriptor) & DEV_REFCOUNT_MASK;
 }
 
@@ -69,12 +74,15 @@ static inline void __dev_granule_assert_unlocked_invariants(struct dev_granule *
 
 	switch (state) {
 	case DEV_GRANULE_STATE_NS:
+		/* cppcheck-suppress misra-c2012-17.3 */
 		assert(DEV_REFCOUNT(g) == 0U);
 		break;
 	case DEV_GRANULE_STATE_DELEGATED:
+		/* cppcheck-suppress misra-c2012-17.3 */
 		assert(DEV_REFCOUNT(g) == 0U);
 		break;
 	case DEV_GRANULE_STATE_MAPPED:
+		/* cppcheck-suppress misra-c2012-17.3 */
 		assert(DEV_REFCOUNT(g) == 0U);
 		break;
 	default:
@@ -93,15 +101,18 @@ static inline unsigned char dev_granule_unlocked_state(struct granule *g)
 	assert(g != NULL);
 
 	/* NOLINTNEXTLINE(clang-analyzer-core.NullDereference) */
+	/* cppcheck-suppress misra-c2012-17.3 */
 	return DEV_STATE(g);
 }
 
 /* Must be called with dev_granule lock held */
 static inline unsigned char dev_granule_get_state(struct dev_granule *g)
 {
+	/* cppcheck-suppress misra-c2012-17.3 */
 	assert((g != NULL) && DEV_LOCKED(g));
 
 	/* NOLINTNEXTLINE(clang-analyzer-core.NullDereference) */
+	/* cppcheck-suppress misra-c2012-17.3 */
 	return DEV_STATE(g);
 }
 
@@ -110,6 +121,7 @@ static inline void dev_granule_set_state(struct dev_granule *g, unsigned char st
 {
 	unsigned char val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	assert((g != NULL) && DEV_LOCKED(g));
 
 	/* NOLINTNEXTLINE(clang-analyzer-core.NullDereference) */
@@ -266,6 +278,7 @@ static inline void dev_granule_refcount_inc(struct dev_granule *g,
 {
 	uint8_t old_refcount __unused;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	assert((g != NULL) && DEV_LOCKED(g));
 	old_refcount = atomic_load_add_8(&g->descriptor, val) &
 							DEV_REFCOUNT_MASK;
@@ -291,6 +304,7 @@ static inline void dev_granule_refcount_dec(struct dev_granule *g, unsigned char
 {
 	uint8_t old_refcount __unused;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	assert((g != NULL) && DEV_LOCKED(g));
 
 	/* coverity[misra_c_2012_rule_10_1_violation:SUPPRESS] */
@@ -332,6 +346,8 @@ static inline void atomic_dev_granule_put_release(struct dev_granule *g)
 static inline bool is_dev_granule_locked(struct dev_granule *g)
 {
 	assert(g != NULL);
+
+	/* cppcheck-suppress misra-c2012-17.3 */
 	return DEV_LOCKED(g);
 }
 

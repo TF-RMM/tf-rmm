@@ -14,6 +14,7 @@
 #include <string.h>
 #include <utils_def.h>
 
+/* cppcheck-suppress misra-c2012-8.7 */
 unsigned long app_do_hash(enum hash_algo algorithm,
 		    size_t size,
 		    uint8_t *shared)
@@ -55,6 +56,7 @@ unsigned long app_do_hash(enum hash_algo algorithm,
 	return hash_size;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 */
 unsigned long app_do_extend(enum hash_algo algorithm,
 		      size_t extend_measurement_size,
 		      uint8_t *shared)

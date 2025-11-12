@@ -16,6 +16,7 @@ static inline void __sca_write64(uint64_t *ptr, uint64_t val)
 	(void)ptr;
 	(void)val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	str %[val], %[ptr]\n"
 	: [ptr] "=m" (*ptr)
@@ -31,6 +32,7 @@ static inline void __sca_write64_release(uint64_t *ptr, uint64_t val)
 	(void)ptr;
 	(void)val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	stlr %[val], %[ptr]\n"
 	: [ptr] "=Q" (*ptr)
@@ -47,6 +49,7 @@ static inline uint64_t __sca_read64(uint64_t *ptr)
 	/* To avoid misra-c2012-2.7 warnings */
 	(void)ptr;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldr	%[val], %[ptr]\n"
 	: [val] "=r" (val)
@@ -65,6 +68,7 @@ static inline uint64_t __sca_read64_acquire(uint64_t *ptr)
 	/* To avoid misra-c2012-2.7 warnings */
 	(void)ptr;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldar	%[val], %[ptr]\n"
 	: [val] "=r" (val)
@@ -82,6 +86,7 @@ static inline void __sca_write32(uint32_t *ptr, uint32_t val)
 	(void)ptr;
 	(void)val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	str	%w[val], %[ptr]\n"
 	: [ptr] "=m" (*ptr)
@@ -97,6 +102,7 @@ static inline void __sca_write32_release(uint32_t *ptr, uint32_t val)
 	(void)ptr;
 	(void)val;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	stlr	%w[val], %[ptr]\n"
 	: [ptr] "=Q" (*ptr)
@@ -112,7 +118,7 @@ static inline uint32_t __sca_read32(uint32_t *ptr)
 
 	/* To avoid misra-c2012-2.7 warnings */
 	(void)ptr;
-
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldr	%w[val], %[ptr]\n"
 	: [val] "=r" (val)
@@ -131,6 +137,7 @@ static inline uint32_t __sca_read32_acquire(uint32_t *ptr)
 	/* To avoid misra-c2012-2.7 warnings */
 	(void)ptr;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldar	%w[val], %[ptr]\n"
 	: [val] "=r" (val)
@@ -149,6 +156,7 @@ static inline uint16_t __sca_read16(uint16_t *ptr)
 	/* To avoid misra-c2012-2.7 warnings */
 	(void)ptr;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldrh	%w[val], %[ptr]\n"
 	: [val] "=r" (val)
@@ -167,6 +175,7 @@ static inline uint16_t __sca_read16_acquire(uint16_t *ptr)
 	/* To avoid misra-c2012-2.7 warnings */
 	(void)ptr;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldarh	%w[val], %[ptr]\n"
 	: [val] "=r" (val)
@@ -185,6 +194,7 @@ static inline uint8_t __sca_read8(uint8_t *ptr)
 	/* To avoid misra-c2012-2.7 warnings */
 	(void)ptr;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldrb	%w[val], %[ptr]\n"
 	: [val] "=r" (val)
@@ -203,6 +213,7 @@ static inline uint8_t __sca_read8_acquire(uint8_t *ptr)
 	/* To avoid misra-c2012-2.7 warnings */
 	(void)ptr;
 
+	/* cppcheck-suppress misra-c2012-17.3 */
 	asm volatile(
 	"	ldarb	%w[val], %[ptr]\n"
 	: [val] "=r" (val)

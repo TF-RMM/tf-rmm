@@ -12,16 +12,19 @@ static struct arm_memory_layout arm_dram;
 static struct arm_memory_layout arm_dev_ncoh;
 static struct arm_memory_layout arm_dev_coh;
 
+/* cppcheck-suppress misra-c2012-8.7 */
 struct arm_memory_layout *arm_get_dram_layout(void)
 {
 	return &arm_dram;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 */
 struct arm_memory_layout *arm_get_dev_ncoh_layout(void)
 {
 	return &arm_dev_ncoh;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 */
 struct arm_memory_layout *arm_get_dev_coh_layout(void)
 {
 	return &arm_dev_coh;
@@ -69,6 +72,7 @@ static unsigned long granule_addr_to_idx(unsigned long addr,
 	return UINT64_MAX;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 */
 unsigned long plat_granule_addr_to_idx(unsigned long addr)
 {
 	return granule_addr_to_idx(addr, &arm_dram);
@@ -144,6 +148,7 @@ static unsigned long granule_idx_to_addr(unsigned long idx,
 	return addr;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 */
 unsigned long plat_granule_idx_to_addr(unsigned long idx)
 {
 	return granule_idx_to_addr(idx, &arm_dram);

@@ -1209,6 +1209,8 @@ struct rmi_dev_comm_exit {
 #define RMI_DEV_COMM_ENTER_OFFSET		0x0
 #define RMI_DEV_COMM_EXIT_OFFSET		0x800
 #define RMI_DEV_COMM_DATA_SIZE			0x1000
+
+/* cppcheck-suppress misra-c2012-2.4 */
 struct rmi_dev_comm_data {
 	/* RmiDevCommEnter: Entry information */
 	SET_MEMBER_RMI(struct rmi_dev_comm_enter enter,
@@ -1257,6 +1259,7 @@ struct rmi_address_range {
  * This structure contains parameters provided by Host during PDEV creation.
  * Width: 4096 (0x1000) bytes.
  */
+/* cppcheck-suppress misra-c2012-2.4 */
 struct rmi_pdev_params {
 	/* RmiPdevFlags: Flags */
 	SET_MEMBER_RMI(unsigned long flags, 0, 0x8);
@@ -1308,6 +1311,7 @@ struct rmi_pdev_params {
  * This structure contains public key parameters.
  * Width: 4096 (0x1000) bytes.
  */
+/* cppcheck-suppress misra-c2012-2.4 */
 struct rmi_public_key_params {
 	/* Bits8: Key data */
 	SET_MEMBER_RMI(unsigned char key[PUBKEY_PARAM_KEY_LEN_MAX], 0x0, 0x400);
@@ -1350,6 +1354,7 @@ struct rmi_public_key_params {
  * VDEV creation.
  * Width: 4096 (0x1000) bytes.
  */
+/* cppcheck-suppress misra-c2012-2.4 */
 struct rmi_vdev_params {
 	/* RmiVdevFlags: Flags */
 	SET_MEMBER_RMI(unsigned long flags, 0, 0x8);

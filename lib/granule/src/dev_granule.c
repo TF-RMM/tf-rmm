@@ -21,6 +21,7 @@ IF_NCBMC(static) struct dev_granule dev_ncoh_granules[RMM_MAX_NCOH_GRANULES]
  * This is purely a lookup, and provides no guarantees about the attributes of
  * the dev_granule (i.e. whether it is locked, its state or its reference count).
  */
+/* cppcheck-suppress misra-c2012-8.7 */
 unsigned long dev_granule_addr(const struct dev_granule *g, enum dev_coh_type type)
 {
 	unsigned long idx;
@@ -60,6 +61,7 @@ static struct dev_granule *dev_granule_from_idx(unsigned long idx, enum dev_coh_
  * This is purely a lookup, and provides no guarantees about the attributes of
  * the granule (i.e. whether it is locked, its state or its reference count).
  */
+/* cppcheck-suppress misra-c2012-8.7 */
 struct dev_granule *addr_to_dev_granule(unsigned long addr, enum dev_coh_type *type)
 {
 	unsigned long idx;
@@ -153,6 +155,7 @@ struct dev_granule *find_lock_dev_granule(unsigned long addr,
  * have the same coherency memory type.
  * If the function fails, no lock is held.
  */
+/* cppcheck-suppress misra-c2012-8.7 */
 struct dev_granule *find_lock_dev_granules(unsigned long addr,
 					   unsigned char expected_state,
 					   unsigned long n,
