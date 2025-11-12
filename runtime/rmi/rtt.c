@@ -3064,9 +3064,10 @@ static void rtt_dev_mem_set_range(struct s2tt_context *s2_ctx,
 	}
 }
 
-void smc_rtt_dev_mem_validate(unsigned long rd_addr, unsigned long rec_addr,
-			      unsigned long base, unsigned long top,
-			      struct smc_result *res)
+void smc_vdev_validate_mapping(unsigned long rd_addr, unsigned long rec_addr,
+			       unsigned long pdev_addr, unsigned long vdev_addr,
+			       unsigned long base, unsigned long top,
+			       struct smc_result *res)
 {
 	struct granule *g_rd, *g_rec;
 	struct s2tt_context *s2_ctx;
@@ -3076,6 +3077,10 @@ void smc_rtt_dev_mem_validate(unsigned long rd_addr, unsigned long rec_addr,
 	struct rec *rec;
 	struct rd *rd;
 	bool is_coh;
+
+	/* TODO_ALP17: Check the following input parameters */
+	(void)pdev_addr;
+	(void)vdev_addr;
 
 	if ((top <= base) || !GRANULE_ALIGNED(top)) {
 		res->x[0] = RMI_ERROR_INPUT;
@@ -3141,6 +3146,7 @@ void smc_rtt_dev_mem_validate(unsigned long rd_addr, unsigned long rec_addr,
 
 	if (res->x[0] == RMI_SUCCESS) {
 		rec->dev_mem.addr = res->x[1];
+		rec->dev_mem.pa = dev_mem_pa + (res->x[1] - base);
 	}
 
 	buffer_unmap(s2tt);

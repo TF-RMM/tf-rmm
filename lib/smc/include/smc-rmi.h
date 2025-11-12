@@ -416,13 +416,16 @@
 /*
  * FID: 0xC4000163
  *
- * arg0 == RD address
- * arg1 == PA of the RD for the target Realm
- * arg2 == PA of the target REC
- * arg3 == Base of target IPA region
- * arg4 == Top of target IPA region
+ * arg0 == PA of the RD for the target Realm
+ * arg1 == PA of the target REC
+ * arg2 == PA of the PDEV
+ * arg3 == PA of the VDEV
+ * arg4 == Base of target IPA region
+ * arg5 == Top of target IPA region
+ *
+ * ret1 == Top IPA of range whose RIPAS was modified
  */
-#define SMC_RMI_RTT_DEV_MEM_VALIDATE		SMC64_RMI_FID(U(0x13))
+#define SMC_RMI_VDEV_VALIDATE_MAPPING		SMC64_RMI_FID(U(0x13))
 
 /*
  * FID: 0xC4000164

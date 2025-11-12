@@ -20,7 +20,7 @@
 #include <xlat_high_va.h>
 
 /* Maximum number of supported arguments */
-#define MAX_NUM_ARGS		5U
+#define MAX_NUM_ARGS		6U
 
 /* Maximum number of output values */
 #define MAX_NUM_OUTPUT_VALS	4U
@@ -67,6 +67,10 @@ typedef void (*handler_3_o)(unsigned long arg0, unsigned long arg1,
 typedef void (*handler_4_o)(unsigned long arg0, unsigned long arg1,
 			    unsigned long arg2, unsigned long arg3,
 			    struct smc_result *res);
+typedef void (*handler_6_o)(unsigned long arg0, unsigned long arg1,
+			    unsigned long arg2, unsigned long arg3,
+			    unsigned long arg4, unsigned long arg5,
+			    struct smc_result *res);
 
 /*
  * SMC RMI handler type encoding:
@@ -92,7 +96,8 @@ enum rmi_type {
 	set_rmi_type(3, 3),	/* 3 arguments, 3 output values */
 	set_rmi_type(3, 4),	/* 3 arguments, 4 output values */
 	set_rmi_type(4, 1),	/* 4 arguments, 1 output value */
-	set_rmi_type(4, 2)	/* 4 arguments, 2 output values */
+	set_rmi_type(4, 2),	/* 4 arguments, 2 output values */
+	set_rmi_type(6, 1)	/* 6 arguments, 1 output values */
 };
 
 struct smc_handler {
@@ -114,6 +119,7 @@ struct smc_handler {
 		handler_3_o	f_34;
 		handler_4_o	f_41;
 		handler_4_o	f_42;
+		handler_6_o	f_61;
 		void		*fn_dummy;
 	};
 	enum rmi_type	type;
@@ -159,7 +165,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(VDEV_AUX_COUNT,		2, 1, smc_vdev_aux_count,	 true, true),
 	HANDLER(RTT_READ_ENTRY,		3, 4, smc_rtt_read_entry,	 false, true),
 	HANDLER(RTT_UNMAP_UNPROTECTED,	3, 1, smc_rtt_unmap_unprotected, false, false),
-	HANDLER(RTT_DEV_MEM_VALIDATE,	4, 1, smc_rtt_dev_mem_validate,  false, true),
+	HANDLER(VDEV_VALIDATE_MAPPING,	6, 1, smc_vdev_validate_mapping, false, true),
 	HANDLER(PSCI_COMPLETE,		3, 0, smc_psci_complete,	 true,  true),
 	HANDLER(FEATURES,		1, 1, smc_read_feature_register, false,  true),
 	HANDLER(RTT_FOLD,		3, 1, smc_rtt_fold,		 false, false),
@@ -291,13 +297,12 @@ void handle_ns_smc(unsigned int function_id,
 		   unsigned long arg5,
 		   struct smc_result *res)
 {
-	(void)arg5;
 	unsigned int handler_id;
 	const struct smc_handler *handler = NULL;
 	bool restore_ns_simd_state = false;
 	struct simd_context *ns_simd_ctx;
 	bool sve_hint = false;
-	unsigned long args[] __unused = {arg0, arg1, arg2, arg3, arg4};
+	unsigned long args[] __unused = {arg0, arg1, arg2, arg3, arg4, arg5};
 
 	/* Save the SVE hint bit and clear it from the function ID */
 	if ((function_id & SMC_SVE_HINT) != 0U) {
@@ -386,6 +391,9 @@ void handle_ns_smc(unsigned int function_id,
 		break;
 	case rmi_type_42:
 		handler->f_42(arg0, arg1, arg2, arg3, res);
+		break;
+	case rmi_type_61:
+		handler->f_61(arg0, arg1, arg2, arg3, arg4, arg5, res);
 		break;
 	default:
 		assert(false);
