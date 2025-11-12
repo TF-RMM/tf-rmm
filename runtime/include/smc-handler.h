@@ -142,15 +142,17 @@ void smc_rtt_aux_unmap_unprotected(unsigned long rd_addr,
 				   unsigned long index,
 				   struct smc_result *res);
 
-unsigned long smc_dev_mem_map(unsigned long rd_addr,
-				unsigned long map_addr,
-				unsigned long ulevel,
-				unsigned long dev_mem_addr);
+unsigned long smc_vdev_map(unsigned long rd_addr,
+			   unsigned long vdev_addr,
+			   unsigned long map_addr,
+			   unsigned long ulevel,
+			   unsigned long dev_mem_addr);
 
-void smc_dev_mem_unmap(unsigned long rd_addr,
-			unsigned long map_addr,
-			unsigned long ulevel,
-			struct smc_result *res);
+void smc_vdev_unmap(unsigned long rd_addr,
+		   unsigned long vdev_addr,
+		   unsigned long map_addr,
+		   unsigned long ulevel,
+		   struct smc_result *res);
 
 unsigned long smc_pdev_create(unsigned long pdev_addr,
 			      unsigned long pdev_params_addr);

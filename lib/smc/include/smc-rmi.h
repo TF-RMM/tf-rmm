@@ -523,26 +523,27 @@
 /*
  * FID: 0xC4000172
  *
- * arg0 == RD address
- * arg1 == map address
- * arg2 == level
- * arg3 == PA of the target device memory
+ * arg0 == PA of the RD for the target Realm
+ * arg1 == PA of the VDEV
+ * arg2 == IPA at which the memory will be mapped in the target Realm
+ * arg3 == RTT level
+ * arg4 == PA of the target device memory
  */
-#define SMC_RMI_DEV_MEM_MAP			SMC64_RMI_FID(U(0x22))
+#define SMC_RMI_VDEV_MAP			SMC64_RMI_FID(U(0x22))
 
 /*
  * FID: 0xC4000173
  *
- * arg0 == RD address
- * arg1 == map address
- * arg2 == level
+ * arg0 == PA of the RD which owns the target device memory
+ * arg1 == PA of the VDEV
+ * arg2 == IPA at which the memory is mapped in the target Realm
+ * arg3 == RTT level
  *
- * ret1 == Address (PA) of the device memory granule, if ret0 == RMI_SUCCESS
- *         Otherwise, undefined.
- * ret2 == Top of the non-live address region. Only valid
- *         if ret0 == RMI_SUCCESS or ret0 == (RMI_ERROR_RTT, x)
+ * ret1 == PA of the device memory which was unmapped
+ * ret2 == Top IPA of non-live RTT entries, from entry at which the RTT walk
+ *         terminated
  */
-#define SMC_RMI_DEV_MEM_UNMAP			SMC64_RMI_FID(U(0x23))
+#define SMC_RMI_VDEV_UNMAP			SMC64_RMI_FID(U(0x23))
 
 /*
  * FID: 0xC4000174
