@@ -11,6 +11,34 @@
 #include <rsi-handler.h>
 #include <tb_common.h>
 
+void handle_rsi_vdev_dma_enable(struct rec *rec,
+				struct rmi_rec_exit *rec_exit,
+				struct rsi_result *res)
+{
+	ASSERT(false, "handle_rsi_vdev_dma_enable");
+}
+
+bool finish_rsi_vdev_dma_enable(struct rec *rec,
+				bool *request_finished)
+{
+	ASSERT(false, "finish_rsi_vdev_dma_enable");
+	return true;
+}
+
+void handle_rsi_vdev_dma_disable(struct rec *rec,
+				struct rmi_rec_exit *rec_exit,
+				struct rsi_result *res)
+{
+	ASSERT(false, "handle_rsi_vdev_dma_disable");
+}
+
+bool finish_rsi_vdev_dma_disable(struct rec *rec,
+				bool *request_finished)
+{
+	ASSERT(false, "finish_rsi_vdev_dma_disable");
+	return true;
+}
+
 void handle_rsi_vdev_get_info(struct rec *rec,
 			      struct rmi_rec_exit *rec_exit,
 			      struct rsi_result *res)

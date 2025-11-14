@@ -270,6 +270,12 @@ static bool complete_vdev_id_mapping(struct rec *rec,
 		case SMC_RSI_VDEV_VALIDATE_MAPPING:
 			ret = finish_rsi_vdev_validate_mapping(rec, rec_exit, &request_finished);
 			break;
+		case SMC_RSI_VDEV_DMA_ENABLE:
+			ret = finish_rsi_vdev_dma_enable(rec, &request_finished);
+			break;
+		case SMC_RSI_VDEV_DMA_DISABLE:
+			ret = finish_rsi_vdev_dma_disable(rec, &request_finished);
+			break;
 		default:
 			ERROR("Unknown function ID: 0x%x\n", function_id);
 			assert(false);

@@ -7,6 +7,7 @@
 #include <realm.h>
 #include <rec.h>
 #include <rsi-handler.h>
+#include <smmuv3.h>
 
 /*
  * TODO: Currently the pci_tdisp_get_version() call made during RMI_VDEV_LOCK in
@@ -25,6 +26,211 @@ static void initiate_vdev_id_mapping(struct rec *rec,
 	rec_exit->exit_reason = RMI_EXIT_VDEV_REQUEST;
 	rec_exit->vdev_id_1 = vdev_id;
 	*rsi_action = EXIT_TO_HOST;
+}
+
+void handle_rsi_vdev_dma_enable(struct rec *rec,
+				struct rmi_rec_exit *rec_exit,
+				struct rsi_result *res)
+{
+	struct rec_plane *plane;
+	struct rd *rd;
+	enum rsi_action rsi_action;
+	unsigned long rsi_rc;
+	unsigned long vdev_id;
+	unsigned long non_ats_plane;
+
+	/* TODO_ALP17: check ats in flags */
+
+	/* RSI calls can only be issued by Plane 0 */
+	plane = rec_plane_0(rec);
+	assert(rec_is_plane_0_active(rec));
+
+	if ((!rec->da_enabled)) {
+		rsi_action = UPDATE_REC_RETURN_TO_REALM;
+		rsi_rc = RSI_ERROR_STATE;
+		goto set_rsi_action;
+	}
+
+	/* TODO_ALP17: check that vdev_id is not free */
+
+	vdev_id = plane->regs[1];
+	non_ats_plane = plane->regs[3];
+
+	granule_lock(rec->realm_info.g_rd, GRANULE_STATE_RD);
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	if ((rd->num_aux_planes > 0U) &&
+	    ((non_ats_plane == 0U) || (non_ats_plane > rd->num_aux_planes))) {
+		/* TODO_ALP17: Check the above condition in latest spec */
+		rsi_action = UPDATE_REC_RETURN_TO_REALM;
+		rsi_rc = RSI_ERROR_INPUT;
+		goto rd_unmap;
+	}
+
+	initiate_vdev_id_mapping(rec, vdev_id, rec_exit, &rsi_action);
+
+	assert(((unsigned int)rsi_action & FLAG_EXIT_TO_HOST) != 0U);
+	rsi_rc = RSI_SUCCESS;
+
+rd_unmap:
+	buffer_unmap(rd);
+	granule_unlock(rec->realm_info.g_rd);
+
+set_rsi_action:
+	if (rsi_action == UPDATE_REC_RETURN_TO_REALM) {
+		res->smc_res.x[0] = rsi_rc;
+	}
+	res->action = rsi_action;
+}
+
+bool finish_rsi_vdev_dma_enable(struct rec *rec,
+				bool *request_finished)
+{
+	struct rec_plane *plane;
+	struct granule *g_vdev;
+	struct vdev *vd;
+	unsigned long rc;
+	unsigned long lock_nonce;
+	unsigned long meas_nonce;
+	unsigned long report_nonce;
+	unsigned long vdev_addr;
+
+	/* RSI calls can only be issued by Plane 0 */
+	plane = rec_plane_0(rec);
+	assert(rec_is_plane_0_active(rec));
+
+	lock_nonce = plane->regs[4];
+	meas_nonce = plane->regs[5];
+	report_nonce = plane->regs[6];
+
+	/* At this point the mapping from virtual device ID to VDEV object had
+	 * been successful, and the address of the VDEV is stored in the REC by
+	 * RMM
+	 */
+	vdev_addr = rec->vdev.vdev_addr;
+
+	/* Lock the vdev granule and map it */
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		plane->regs[0] = RSI_ERROR_INPUT;
+		goto out;
+	}
+
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	if ((lock_nonce != vd->attest_info.lock_nonce) ||
+	    (meas_nonce != vd->attest_info.meas_nonce) ||
+	    (report_nonce != vd->attest_info.report_nonce)) {
+		plane->regs[0] = RSI_ERROR_DEVICE;
+		goto unmap_vd;
+	}
+
+	rc = RSI_SUCCESS;
+	if (vd->dma_state != RMI_VDEV_DMA_ENABLED) {
+		/* Only call the driver if not already enabled */
+		/* TODO_ALP17: set non_ats_plane in vdev */
+
+		if (smmuv3_enable_ste(SMMU_IDX, (unsigned int)vd->tdi_id) != 0) {
+			rc = RSI_ERROR_DEVICE;
+		} else {
+			vd->dma_state = RMI_VDEV_DMA_ENABLED;
+		}
+	}
+	plane->regs[0] = rc;
+
+unmap_vd:
+	buffer_unmap(vd);
+	granule_unlock(g_vdev);
+
+out:
+	*request_finished = true;
+	return true;
+}
+
+void handle_rsi_vdev_dma_disable(struct rec *rec,
+				 struct rmi_rec_exit *rec_exit,
+				 struct rsi_result *res)
+{
+	struct rec_plane *plane;
+	enum rsi_action rsi_action;
+	unsigned long rsi_rc;
+	unsigned long vdev_id;
+
+	/* RSI calls can only be issued by Plane 0 */
+	plane = rec_plane_0(rec);
+	assert(rec_is_plane_0_active(rec));
+
+	if ((!rec->da_enabled)) {
+		rsi_action = UPDATE_REC_RETURN_TO_REALM;
+		rsi_rc = RSI_ERROR_STATE;
+		goto set_rsi_action;
+	}
+
+	/* TODO_ALP17: check that vdev_id is not free */
+
+	vdev_id = plane->regs[1];
+
+	initiate_vdev_id_mapping(rec, vdev_id, rec_exit, &rsi_action);
+
+	assert(((unsigned int)rsi_action & FLAG_EXIT_TO_HOST) != 0U);
+	rsi_rc = RSI_SUCCESS;
+
+set_rsi_action:
+	if (rsi_action == UPDATE_REC_RETURN_TO_REALM) {
+		res->smc_res.x[0] = rsi_rc;
+	}
+	res->action = rsi_action;
+}
+
+bool finish_rsi_vdev_dma_disable(struct rec *rec,
+				 bool *request_finished)
+{
+	struct rec_plane *plane;
+	struct granule *g_vdev;
+	struct vdev *vd;
+	unsigned long vdev_addr;
+	unsigned long rc;
+
+	/* RSI calls can only be issued by Plane 0 */
+	plane = rec_plane_0(rec);
+	assert(rec_is_plane_0_active(rec));
+
+	/* At this point the mapping from virtual device ID to VDEV object had
+	 * been successful, and the address of the VDEV is stored in the REC by
+	 * RMM
+	 */
+	vdev_addr = rec->vdev.vdev_addr;
+
+	/* Lock the vdev granule and map it */
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		plane->regs[0] = RSI_ERROR_INPUT;
+		goto out;
+	}
+
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	rc = RSI_SUCCESS;
+	if (vd->dma_state != RMI_VDEV_DMA_DISABLED) {
+		/* Only call the driver if not already disabled */
+		if (smmuv3_disable_ste(SMMU_IDX, (unsigned int)vd->tdi_id) != 0) {
+			rc = RSI_ERROR_DEVICE;
+		} else {
+			vd->dma_state = RMI_VDEV_DMA_DISABLED;
+		}
+	}
+
+	plane->regs[0] = rc;
+
+	buffer_unmap(vd);
+	granule_unlock(g_vdev);
+
+out:
+	*request_finished = true;
+	return true;
 }
 
 void handle_rsi_vdev_get_info(struct rec *rec,

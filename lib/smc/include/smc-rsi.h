@@ -213,8 +213,17 @@
 #define SMC_RSI_VSMMU_ACTIVATE		SMC64_RSI_FID(U(0xB))
 
 /*
- * FID: 0xC400019C is not used.
+ * FID: 0xC400019C
+ *
+ * arg0 == Realm device identifier
+ * arg1 == Flags
+ * arg2 == Index of Plane whose stage 2 permissions are observed by non-ATS
+ *         requests from the device
+ * arg3 == Nonce generated on most recent transition to LOCKED state
+ * arg4 == GET_MEASUREMENT request sequence number
+ * arg5 == GET_INTERFACE_REPORT request sequence number
  */
+#define SMC_RSI_VDEV_DMA_ENABLE		SMC64_RSI_FID(U(0xC))
 
 /*
  * FID: 0xC400019D
@@ -289,7 +298,14 @@
 #define SMC_RSI_PLANE_ENTER		SMC64_RSI_FID(U(0x13))
 
 /*
- * FID: 0xC40001A4 - 0xC40001AD are not used.
+ * FID: 0xC40001A4
+ *
+ * arg0 == Realm device identifier
+ */
+#define SMC_RSI_VDEV_DMA_DISABLE	SMC64_RSI_FID(U(0x14))
+
+/*
+ * FID: 0xC40001A5 - 0xC40001AD are not used.
  */
 
 /*
