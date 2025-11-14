@@ -22,8 +22,6 @@ Maintainers
 -----------
 :|M|: Alexei Fedorov <Alexei.Fedorov@arm.com>
 :|G|: `AlexeiFedorov`_
-:|M|: Arunachalam Ganapathy <arunachalam.ganapathy@arm.com>
-:|G|: `arugan02`_
 :|M|: Dan Handley <dan.handley@arm.com>
 :|G|: `danh-arm`_
 :|M|: Javier Almansa Sobrino <javier.almansasobrino@arm.com>
@@ -39,7 +37,6 @@ Maintainers
 .. _danh-arm: https://github.com/danh-arm
 .. _soby-mathew: https://github.com/soby-mathew
 .. _javier-almansasobrino: https://github.com/javieralso-arm/
-.. _arugan02: https://github.com/arugan02
 .. _Máté Tóth-Pál: https://github.com/matetothpal
 .. _raghuncstate: https://github.com/raghuncstate
 
