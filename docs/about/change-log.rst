@@ -6,6 +6,156 @@ Change-log and Release notes
 ############################
 
 ******
+v0.8.0
+******
+
+The following sections have the details on the release candidate. This
+release has been verified with `TF-A v2.14`_ release.
+
+============================
+New features in this release
+============================
+
+- Planes support (RMM v1.1 feature)
+
+  *  Added Plane support across runtime (core, REC, Realm components), RMI/RSI
+     libraries and SMC interface.
+  *  Implemented Plane PMU, timer, interrupt and GIC ownership transfer
+     capabilities.
+  *  Added Plane support to S2TT, S2AP libraries and architectural changes
+     enabling auxiliary granule map/unmap (aligned to alp13/alp14 revisions).
+  *  Added support for FEAT_S1PIE/S1POE, FEAT_S2PIE/S2POE (including unittests).
+  *  Added shrinkwrap overlay to enable FEAT_SxPIE and FEAT_SxPOE for planes.
+  *  Added CBMC and fake_host wrappers for new Plane RMIs.
+
+- Realm Device Assignment support aligned with `RMM v1.1 Alpha 12 specification`_.
+
+  *  Implemented RMI_VDEV ABIs (CREATE, COMMUNICATE, COMPLETE) and related
+     pending operation handling.
+  *  Added PDEV lifecycle and capability commands (CREATE, DESTROY, GET_STATE,
+     COMMUNICATE, ABORT, STOP, AUX_COUNT, SET_PUBKEY, NOTIFY, IDE_RESET,
+     DEV_MEM_VALIDATE).
+  *  Enhanced the device assignment EL0 app with DVSEC discovery, IDE key
+     management, PCI TDISP flows, device measurement retrieval, secure SPDM
+     messaging and non-secure MMIO helpers.
+  *  Introduced Arm and host platform updates plus EL3 SMC handlers to program
+     root port IDE keys and describe PCIe root complex information.
+  *  Added helpers for measurements, secured SPDM messaging, certificate
+     retrieval, caching of device interface reports and public key validation.
+  *  Moved SPDM requester logic into EL0 App; imported required libraries from
+     spdm_emu.
+  *  Added support in S2TT library to support device memory.
+
+- FEAT_MEC (Memory Encryption Context) enablement
+
+  *  Added MEC library/component, MEC policy claims, MECID programming and
+     granule/table updates (XLAT + shared MECID handling).
+  *  Added helpers to reserve, program and sanitize MECIDs plus
+     slot buffer modifications for MEC support.
+  *  Added shrinkwrap overlays for MEC feature stack.
+
+- ID regs management framework in RMM
+
+  *  The new framework queries EL3 capabilities using the ARCH_FEATURE_AVAILABILITY
+     SMC call and RMM sanitizes values of ID regs and caches them at cold boot.
+     Includes forward-looking support for FEAT_IDTE3 in TF-A.
+
+- Additional architectural feature enablement
+
+  *  Added support and enablement for FEAT_TCR2.
+  *  Added FEAT_D128 support for Realms.
+  *  Added 32-bit single-copy-atomics, undefined behavior sanitizer build option,
+     sanitize helpers and ID register caching.
+  *  Updated RSI feature register 0 and feature reporting (RMI/RSI_VERSION).
+
+- Tooling & overlays
+
+  *  Added shrinkwrap overlays for: RMM v1.1 features, DA feature stack, FVP
+     DA testing arguments.
+
+======================================
+Bug fixes/improvements in this release
+======================================
+
+- Mutiple fixes on  Planes:
+
+  *  SIMD trap management between planes
+  *  VMID release on failure
+  *  Exit path correctness
+  *  SEA injection handling
+
+- Refactored the granule scrub flow which was needed for FEAT_MEC
+  support in RMM and also removed some redundant granule zeroing in
+  the Realm Creation flow.
+
+- HCR_EL2 define fixes to better rationalize the init value.
+
+- Device Assignment: numerous fixes to locking, state transitions, random
+  number usage, unaligned buffer writes, key length validation and Coverity
+  reported issues.
+
+- Fix Realm MEC Policy key value in the attestation report.
+
+- Runtime/core: annotation and logging improvements (system_abort, panic,
+  command logging), shortened PSTATE access and NULL pointer checks across
+  subsystems.
+
+- Corrected translation table handling for LPA2, device memory RIPAS updates,
+  slot buffer assertions and S2TT macros.
+
+- Addressed numerous Coverity findings through additional null checks, overflow
+  mitigations and annotations.
+
+- Updated external dependency versions (libspdm 3.6.0, mbedTLS v3.6.2).
+
+==================================
+Build/Testing/Tooling improvements
+==================================
+
+- Enabled Undefined Behavior Sanitizer (UBSAN) support and fixed related
+  issues.
+
+- Added new unittests (S2TT device memory tests, S2PIE/POE support, ns_buffer
+  write alignment cases).
+- Added Shrinkwrap overlays for DA, MEC and Planes features.
+
+- Tooling/static analysis: bumped up cppcheck/clang-tidy versions, fixed
+  Coverity errors; pyelftools bumped to v0.32.
+
+- Improved logging, error reporting and static analysis integration (Coverity,
+  cppcheck, clang-tidy version minimum update).
+
+=========
+Platforms
+=========
+
+- Added Arm platform descriptions for PCIe root complex capabilities to support
+  DA workflows.
+
+============================
+Known issues and limitations
+============================
+
+- Self-hosted debug for Realm is still not implemented (`issue#23`_).
+- Some capabilities from latest RMM specifications remain restricted or
+  experimental.
+
+=================
+Upcoming features
+=================
+
+- Further hardening and performance tuning for Planes, MEC and
+  Device Assignment features.
+- Continued CBMC coverage expansion and static analysis improvements.
+- Fuzz testing leveraging the `fake_host` architecture.
+- Support for Self-hosted debug in Realms.
+- Live Firmware Activation for RMM.
+
+
+.. _TF-A v2.14: https://git.trustedfirmware.org/TF-A/trusted-firmware-a/+/refs/tags/v2.14.0
+.. _RMM v1.1 Alpha 12 specification: https://developer.arm.com/-/cdn-downloads/permalink/Architectures/Armv9/DEN0137_1.1-alp12.zip
+
+******
 v0.7.0
 ******
 
