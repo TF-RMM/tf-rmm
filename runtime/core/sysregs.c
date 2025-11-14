@@ -85,10 +85,20 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 		value = READ_CACHED_REG(id_aa64isar1_el1);
 		break;
 	SYSREG_CASE(ISAR2)
-		value = READ_CACHED_REG(id_aa64isar2_el1);
+		/*
+		 * TODO:
+		 * determine which fields of the register need to be masked
+		 * value = READ_CACHED_REG(id_aa64isar2_el1);
+		 */
+		value = 0UL;
 		break;
 	SYSREG_CASE(ISAR3)
-		value = READ_CACHED_REG(id_aa64isar3_el1);
+		/*
+		 * TODO:
+		 * determine which fields of the register need to be masked
+		 * value = READ_CACHED_REG(id_aa64isar3_el1);
+		 */
+		value = 0UL;
 		break;
 	SYSREG_CASE(MMFR0)
 		value = READ_CACHED_REG(id_aa64mmfr0_el1);
