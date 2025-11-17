@@ -538,9 +538,8 @@
  * FID: 0xC4000173
  *
  * arg0 == PA of the RD which owns the target device memory
- * arg1 == PA of the VDEV
- * arg2 == IPA at which the memory is mapped in the target Realm
- * arg3 == RTT level
+ * arg1 == IPA at which the memory is mapped in the target Realm
+ * arg2 == RTT level
  *
  * ret1 == PA of the device memory which was unmapped
  * ret2 == Top IPA of non-live RTT entries, from entry at which the RTT walk

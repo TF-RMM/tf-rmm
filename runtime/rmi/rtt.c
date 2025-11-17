@@ -2119,16 +2119,18 @@ out_unlock_granules:
 	return ret;
 }
 
+/*
+ * TODO_ALP17: Removed vdev parameter based on discussion in
+ * https://jira.arm.com/browse/FENIMORE-1303
+ * Check the results in latest spec.
+ */
 void smc_vdev_unmap(unsigned long rd_addr,
-		    unsigned long vdev_addr,
 		    unsigned long map_addr,
 		    unsigned long ulevel,
 		    struct smc_result *res)
 {
 	struct granule *g_rd;
-	struct granule *g_vdev;
 	struct rd *rd;
-	struct vdev *vd;
 	struct s2tt_walk wi;
 	struct s2tt_context s2_ctx;
 	unsigned long dev_mem_addr, dev_addr, s2tte, *s2tt, num_granules;
@@ -2152,32 +2154,8 @@ void smc_vdev_unmap(unsigned long rd_addr,
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		buffer_unmap(rd);
-		granule_unlock(g_rd);
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[2] = 0UL;
-		return;
-	}
-
-	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
-	assert(vd != NULL);
-
-	if (vd->g_rd != g_rd) {
-		buffer_unmap(vd);
-		granule_unlock(g_vdev);
-		buffer_unmap(rd);
-		granule_unlock(g_rd);
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[2] = 0UL;
-		return;
-	}
-
 	if (!addr_in_par(rd, map_addr) ||
 	    !validate_map_addr(map_addr, level, rd)) {
-		buffer_unmap(vd);
-		granule_unlock(g_vdev);
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
 		res->x[0] = RMI_ERROR_INPUT;
@@ -2186,8 +2164,6 @@ void smc_vdev_unmap(unsigned long rd_addr,
 	}
 
 	s2_ctx = rd->s2_ctx[PRIMARY_S2_CTX_ID];
-	buffer_unmap(vd);
-	granule_unlock(g_vdev);
 	buffer_unmap(rd);
 
 	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);

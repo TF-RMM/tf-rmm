@@ -150,7 +150,6 @@ unsigned long smc_vdev_map(unsigned long rd_addr,
 			   unsigned long dev_mem_addr);
 
 void smc_vdev_unmap(unsigned long rd_addr,
-		   unsigned long vdev_addr,
 		   unsigned long map_addr,
 		   unsigned long ulevel,
 		   struct smc_result *res);

@@ -173,7 +173,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RTT_INIT_RIPAS,		3, 1, smc_rtt_init_ripas,	 false, true),
 	HANDLER(RTT_SET_RIPAS,		4, 1, smc_rtt_set_ripas,	 false, true),
 	HANDLER(VDEV_MAP,		5, 0, smc_vdev_map,		 false, true),
-	HANDLER(VDEV_UNMAP,		4, 2, smc_vdev_unmap,		 false, true),
+	HANDLER(VDEV_UNMAP,		3, 2, smc_vdev_unmap,		 false, true),
 	HANDLER(PDEV_ABORT,		1, 0, smc_pdev_abort,		 true, true),
 	HANDLER(PDEV_COMMUNICATE,	2, 0, smc_pdev_communicate,	 true, true),
 	HANDLER(PDEV_CREATE,		2, 0, smc_pdev_create,		 true, true),
