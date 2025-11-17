@@ -1,0 +1,32 @@
+From c95a6dccecbaab86fd0b877c83f58c74046fa494 Mon Sep 17 00:00:00 2001
+From: Soby Mathew <soby.mathew@arm.com>
+Date: Sat, 15 Nov 2025 16:39:55 +0000
+Subject: [PATCH] fix undefined behavior for left-shift
+
+When you shift uint16_t values in C, they get promoted to int
+(signed 32-bit). If the uint16_t value has bit 15 set
+(>= 0x8000), it becomes a negative int, and left-shifting a
+negative signed integer is undefined behavior in C. The patch
+casts the  variable to 32 bit to avoid the undefined behavior.
+
+Signed-off-by: Soby Mathew <soby.mathew@arm.com>
+---
+ library/spdm_common_lib/libspdm_com_context_data_session.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/library/spdm_common_lib/libspdm_com_context_data_session.c b/library/spdm_common_lib/libspdm_com_context_data_session.c
+index 60dc5c4..98635df 100644
+--- a/library/spdm_common_lib/libspdm_com_context_data_session.c
++++ b/library/spdm_common_lib/libspdm_com_context_data_session.c
+@@ -216,7 +216,7 @@ void *libspdm_get_secured_message_context_via_session_info(void *spdm_session_in
+ uint32_t libspdm_generate_session_id(uint16_t req_session_id, uint16_t rsp_session_id)
+ {
+     uint32_t session_id;
+-    session_id = (rsp_session_id << 16) | req_session_id;
++    session_id = ((uint32_t)rsp_session_id << 16) | req_session_id;
+     return session_id;
+ }
+ 
+-- 
+2.43.0
+

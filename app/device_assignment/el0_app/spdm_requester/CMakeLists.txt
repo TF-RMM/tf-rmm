@@ -29,6 +29,7 @@ set(LIBSPDM_PATCH_FILES
     "${LIBSPDM_PATCH_DIR}/0003-get_certificate-do-not-store-cert_chain-content.patch"
     "${LIBSPDM_PATCH_DIR}/0004-add-LIBSPDM_DATA_PEER_USED_CERT_CHAIN_PUBLIC_KEY.patch"
     "${LIBSPDM_PATCH_DIR}/0005-get_measurements-do-not-store-measurement-record.patch"
+    "${LIBSPDM_PATCH_DIR}/0006-fix-undefined-behavior-for-left-shift.patch"
     )
 Git_Apply_Patches(${LIBSPDM_DIR} "${LIBSPDM_PATCH_FILES}")
 
