@@ -44,16 +44,27 @@ find_program(A64_GCC
 
 # Get the AArch64 GCC triplet
 execute_process(COMMAND ${A64_GCC} -dumpmachine
-    OUTPUT_VARIABLE A64-GCC-TRIPLET
+    OUTPUT_VARIABLE A64_GCC_TRIPLET
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-# Construct the path to `include` folder of AArch64 GCC toolchain
-get_filename_component(A64_GCC_DIR ${A64_GCC} DIRECTORY)
-set(A64_GCC_INC_DIR "${A64_GCC_DIR}/../${A64-GCC-TRIPLET}/include")
+# Get the path to the glibc headers used by AArch64 gcc
+file(WRITE "${CMAKE_BINARY_DIR}/test_include.c" "#include <assert.h>\n")
+execute_process(
+    COMMAND ${A64_GCC} -E -xc ${CMAKE_BINARY_DIR}/test_include.c
+    OUTPUT_VARIABLE PREPROCESS_OUTPUT
+)
+file(REMOVE "${CMAKE_BINARY_DIR}/test_include.c")
+
+# Parse the preprocessor output to find assert.h path
+string(REGEX MATCH "# [0-9]+ \"([^\"]*assert\\.h)\"" ASSERT_MATCH "${PREPROCESS_OUTPUT}")
+set(GLIBC_HEADER_PATH "${CMAKE_MATCH_1}")
+
+# Extract the directory path from the full file path
+get_filename_component(A64_GCC_INC_DIR "${GLIBC_HEADER_PATH}" DIRECTORY)
 message(STATUS "Using ${A64_GCC_INC_DIR} for std include headers")
 
 foreach(language IN ITEMS ASM C)
-    set(CMAKE_${language}_COMPILER_TARGET "${A64-GCC-TRIPLET}")
+    set(CMAKE_${language}_COMPILER_TARGET "${A64_GCC_TRIPLET}")
     string(APPEND CMAKE_${language}_STANDARD_INCLUDE_DIRECTORIES "${A64_GCC_INC_DIR}")
     string(APPEND CMAKE_${language}_FLAGS_INIT "-Wno-unknown-warning-option ")
     string(APPEND CMAKE_${language}_FLAGS_INIT "-Wno-unused-function ")
