@@ -25,7 +25,7 @@
  *       Remove this TODO once the aarch64 implementation uses a single shared
  *       page as well.
  */
-static char shared_page[GRANULE_SIZE];
+static char shared_page[GRANULE_SIZE] __aligned(GRANULE_SIZE);
 
 /* In case APP_COUNT is 0 or 1 then set a meaningful array size to prevent array
  * subscript <unknown> is outside array bounds warning
