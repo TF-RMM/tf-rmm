@@ -1838,16 +1838,16 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 			     bool check_ns_attrs, unsigned long s2tte_ap,
 			     bool dev)
 {
-	assert(table != NULL);
-	assert(s2_ctx != NULL);
-
 	unsigned long base_pa;
-	unsigned long map_size = s2tte_map_size(level);
-	unsigned long s2tte = s2tte_read(&table[0]);
+	unsigned long map_size;
+	unsigned long s2tte;
 	unsigned long s2tt_ns_attrs;
 	unsigned int i;
 	unsigned long expected_ap = 0UL;
 	unsigned long ns_attr_mask = S2TTE_NS_ATTR_MASK;
+
+	assert(table != NULL);
+	assert(s2_ctx != NULL);
 
 	if (s2_ctx->enable_lpa2) {
 		assert(level >= S2TT_MIN_STARTING_LEVEL_LPA2);
@@ -1856,6 +1856,9 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 	}
 
 	assert(level <= S2TT_PAGE_LEVEL);
+
+	map_size = s2tte_map_size(level);
+	s2tte = s2tte_read(&table[0]);
 
 	if (!s2tte_is_x(s2_ctx, s2tte, level)) {
 		return false;

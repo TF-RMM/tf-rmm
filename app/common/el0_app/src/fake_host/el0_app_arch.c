@@ -15,7 +15,7 @@
 #include <unistd.h>
 #include <utils_def.h>
 
-static uint8_t shared_buffer[GRANULE_SIZE];
+static uint8_t shared_buffer[GRANULE_SIZE] __aligned(GRANULE_SIZE);
 static struct app_instance_data_list_t *instance_list;
 
 struct app_instance_data_t {
