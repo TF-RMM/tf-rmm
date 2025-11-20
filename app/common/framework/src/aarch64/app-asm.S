@@ -81,6 +81,7 @@ func run_app
 	/* Update TTBR register:
 	 * Point ttbr1_el2 to the app's translation table
 	 */
+	dsb	nsh
 	ldr	x1, [x0, #APP_TTBR1_EL2_OFFSET]
 	msr	ttbr1_el2, x1
 
@@ -188,9 +189,19 @@ func back_from_el0
 	msr	vbar_el2, x2
 	isb
 
+	/* get the app ASID from the current TTBR */
+	mrs	x3, ttbr1_el2
+	and	x3, x3, #(~((1 << 48) - 1))
+
 	/* restore TTBR register */
+	dsb	nsh
 	ldr	x2, [x1, #RMM_TTBR1_EL2_OFFSET]
 	msr	ttbr1_el2, x2
+
+	/* Invalidate TLB using app ASID */
+	tlbi	aside1, x3
+	dsb	nsh
+	isb
 
 	mrs	x2, tcr_el2
 	and	x2, x2, #(~TCR_EL2_E0PD1) /* TODO: restore original value instead!!! */
