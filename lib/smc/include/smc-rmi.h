@@ -64,8 +64,29 @@
 /* RTTE in an auxiliary RTT contained an unexpected value */
 #define RMI_ERROR_RTT_AUX		U(7)
 
+/*
+ * A PSMMU Stream Table walk terminated before reaching the target level,
+ * or reached an entry with an unexpected value.
+ */
+#define RMI_ERROR_PSMMU_ST		U(8)
+
+/*
+ * A DPT walk terminated before reaching the target level, or reached an
+ * entry with an unexpected value.
+ */
+#define RMI_ERROR_DPT			U(9)
+
+/*
+ * The command did not result in any observable changes of state, due to
+ * a reason which may be temporary.
+ */
+#define RMI_BUSY			U(10)
+
+/* An attribute of RMM global state does not match the expected value */
+#define RMI_ERROR_GLOBAL		U(11)
+
 /* Max number of RMI Status Errors. */
-#define RMI_ERROR_COUNT_MAX		U(8)
+#define RMI_ERROR_COUNT_MAX		U(12)
 
 /*
  * The number of GPRs (starting from X0) that are
@@ -587,7 +608,7 @@
 /*
  * FID: 0xC400016E
  */
-#define SMC_RMI_PSMMU_MSI_CONFIG		SMC64_RMI_FID(U(0x1E))
+#define SMC_RMI_RMM_CONFIG_SET			SMC64_RMI_FID(U(0x1E))
 
 /*
  * FID: 0xC400016F
@@ -915,6 +936,41 @@
  */
 #define SMC_RMI_PSMMU_ST_L2_DESTROY		SMC64_RMI_FID(U(0x8C))
 
+/*
+ * FID: 0xC40001E1
+ *
+ * arg0 == PA of the tracking region
+ *
+ * ret1 == Memory category (RmiMemCategory)
+ * ret2 == Tracking region state (RmiTrackingRegionState)
+ */
+#define SMC_RMI_GRANULE_TRACKING_GET		SMC64_RMI_FID(U(0x91))
+
+/*
+ * FID: 0xC40001E3
+ *
+ * arg0 == PA of the tracking region
+ * arg1 == Memory category (RmiMemCategory)
+ * arg2 == Tracking region state (RmiTrackingRegionState)
+ */
+#define SMC_RMI_GRANULE_TRACKING_SET		SMC64_RMI_FID(U(0x93))
+
+/*
+ * FID: 0xC40001EC
+ *
+ * arg0 == PA of configuration structure (RmiRmmConfig)
+ */
+#define SMC_RMI_RMM_CONFIG_GET			SMC64_RMI_FID(U(0x9C))
+
+/*
+ * FID: 0xC4000202
+ *
+ * Activate the RMM.
+ * This command may initiate a Stateful RMI Operation.
+ * This command may initiate a memory-transferring RMI Operation.
+ */
+#define SMC_RMI_RMM_ACTIVATE			SMC64_RMI_FID(U(0xB2))
+
 /* Size of Realm Personalization Value */
 #ifndef CBMC
 #define RPV_SIZE		64
@@ -956,6 +1012,44 @@
  * for the next member with specified offset.
  */
 #define SET_MEMBER_RMI	SET_MEMBER
+
+/*
+ * RmiBlockSize enumeration values.
+ */
+#define RMI_BLOCK_SIZE_2M			UL(0)
+#define RMI_BLOCK_SIZE_32M			UL(1)
+#define RMI_BLOCK_SIZE_512M			UL(2)
+#define RMI_BLOCK_SIZE_1G			UL(3)
+#define RMI_BLOCK_SIZE_64G			UL(4)
+#define RMI_BLOCK_SIZE_512G			UL(5)
+#define RMI_BLOCK_SIZE_4T			UL(6)
+
+/*
+ * RmiGranuleSize enumeration values.
+ */
+#define RMI_GRANULE_SIZE_4K			UL(0)
+#define RMI_GRANULE_SIZE_16K			UL(1)
+#define RMI_GRANULE_SIZE_64K			UL(2)
+
+/*
+ * The RmiRmmConfig parameters shared with the Host via
+ * RMI_RMM_CONFIG_GET and RMI_RMM_CONFIG_SET.
+ */
+struct rmi_rmm_config {
+	SET_MEMBER_RMI(unsigned long tracking_size, 0, 0x8);		/* Offset 0 */
+	SET_MEMBER_RMI(unsigned long granule_size, 0x8, 0x1000);	/* Offset 16 */
+};
+
+/* RmiTrackingRegionState type */
+#define RMI_TRACKING_RESERVED		0
+#define RMI_TRACKING_NONE		1
+#define RMI_TRACKING_FINE		2
+#define RMI_TRACKING_COARSE		3
+
+/* RmiMemCategory type */
+#define RMI_MEM_CATEGORY_CONVENTIONAL	0
+#define RMI_MEM_CATEGORY_DEV_NCOH	1
+#define RMI_MEM_CATEGORY_DEV_COH	2
 
 /*
  * The Realm attribute parameters are shared by the Host via
@@ -1609,5 +1703,4 @@ struct rmi_psmmu_params {
 /* Returns the higher supported RMI ABI revision */
 unsigned long rmi_get_highest_supported_version(void);
 #endif /* __ASSEMBLER__ */
-
 #endif /* SMC_RMI_H */

@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <activate.h>
 #include <arch.h>
 #include <arch_helpers.h>
 #include <assert.h>
@@ -36,7 +37,11 @@ static const char * const rmi_status_string[] = {
 	RMI_STATUS_STRING(ERROR_RTT),
 	RMI_STATUS_STRING(ERROR_DEVICE),
 	RMI_STATUS_STRING(ERROR_NOT_SUPPORTED),
-	RMI_STATUS_STRING(ERROR_RTT_AUX)
+	RMI_STATUS_STRING(ERROR_RTT_AUX),
+	RMI_STATUS_STRING(ERROR_PSMMU_ST),
+	RMI_STATUS_STRING(ERROR_DPT),
+	RMI_STATUS_STRING(BUSY),
+	RMI_STATUS_STRING(ERROR_GLOBAL)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(rmi_status_string) == RMI_ERROR_COUNT_MAX);
@@ -208,7 +213,11 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PSMMU_ACTIVATE,		2, 0, smc_psmmu_activate,	 true, true),
 	HANDLER(PSMMU_DEACTIVATE,	1, 0, smc_psmmu_deactivate,	 true, true),
 	HANDLER(PSMMU_ST_L2_CREATE,	2, 0, smc_psmmu_st_l2_create,	 true, true),
-	HANDLER(PSMMU_ST_L2_DESTROY,	2, 0, smc_psmmu_st_l2_destroy,	 true, true)
+	HANDLER(PSMMU_ST_L2_DESTROY,	2, 0, smc_psmmu_st_l2_destroy,	 true, true),
+	HANDLER(GRANULE_TRACKING_GET,	1, 2, smc_granule_tracking_get,	 true, true),
+	HANDLER(RMM_CONFIG_GET,		1, 0, smc_rmm_config_get,	 true, true),
+	HANDLER(RMM_CONFIG_SET,		1, 0, smc_rmm_config_set,	 true, true),
+	HANDLER(RMM_ACTIVATE,		0, 0, smc_rmm_activate,		 true, true)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
@@ -332,6 +341,30 @@ void handle_ns_smc(unsigned int function_id,
 			__func__, function_id);
 		res->x[0] = SMC_UNKNOWN;
 		return;
+	}
+
+	/* Check RMM activation state for the RMIs */
+	switch (function_id) {
+	case SMC_RMI_FEATURES:
+	case SMC_RMI_VERSION:
+	case SMC_RMI_RMM_CONFIG_GET:
+	case SMC_RMI_GRANULE_TRACKING_GET:
+		break;
+	case SMC_RMI_RMM_CONFIG_SET:
+	case SMC_RMI_RMM_ACTIVATE:
+		if (get_rmm_active_state() != RMM_STATE_INIT) {
+			ERROR("RMM is in invalid state\n");
+			res->x[0] = RMI_ERROR_GLOBAL;
+			return;
+		}
+		break;
+	default:
+		if (get_rmm_active_state() != RMM_STATE_ACTIVE) {
+			ERROR("RMM is in invalid state\n");
+			res->x[0] = RMI_ERROR_GLOBAL;
+			return;
+		}
+		break;
 	}
 
 	assert(check_cpu_slots_empty());

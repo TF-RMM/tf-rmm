@@ -114,6 +114,11 @@ static void *ns_buffer_granule_map(enum buffer_slot slot, struct granule *granul
 	return buffer_arch_map(slot, addr);
 }
 
+static void *ns_buffer_map_early(unsigned long addr)
+{
+	return buffer_arch_map(SLOT_NS, addr);
+}
+
 static inline void ns_buffer_unmap(void *buf)
 {
 	buffer_arch_unmap(buf);
@@ -393,6 +398,38 @@ unmap:
 	ns_buffer_unmap((void *)dest);
 
 	*ns_start_offset = align_diff;
+
+	return retval;
+}
+
+/* API to read NS PA before RMM is activated - granule tracking system is ready */
+bool ns_buffer_read_early(unsigned long ns_ptr, size_t size, void *dest)
+{
+	uintptr_t src;
+	bool retval;
+	unsigned long offset = ns_ptr & (GRANULE_SIZE - 1UL);
+
+	ns_ptr &= GRANULE_MASK;
+
+	src = (uintptr_t)ns_buffer_map_early(ns_ptr);
+	retval = memcpy_ns_read(dest, (void *)(src + offset), size);
+	ns_buffer_unmap((void *)src);
+
+	return retval;
+}
+
+/* API to write NS PA before RMM is activated - granule tracking system is ready */
+bool ns_buffer_write_early(unsigned long ns_ptr, size_t size, void *src)
+{
+	uintptr_t dst;
+	bool retval;
+	unsigned long offset = ns_ptr & (GRANULE_SIZE - 1UL);
+
+	ns_ptr &= GRANULE_MASK;
+
+	dst = (uintptr_t)ns_buffer_map_early(ns_ptr);
+	retval = memcpy_ns_write((void *)(dst + offset), src, size);
+	ns_buffer_unmap((void *)dst);
 
 	return retval;
 }

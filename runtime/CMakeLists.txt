@@ -79,7 +79,8 @@ target_sources(rmm-runtime
             "core/log.c")
 
 target_sources(rmm-runtime
-    PRIVATE "rmi/feature.c"
+    PRIVATE "rmi/activate.c"
+            "rmi/feature.c"
             "rmi/granule.c"
             "rmi/pdev.c"
             "rmi/psmmu.c"

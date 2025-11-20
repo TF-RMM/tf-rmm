@@ -154,3 +154,84 @@ unsigned long smc_granule_undelegate(unsigned long addr)
 	/* Undelegate device granule */
 	return dev_granule_undelegate(addr);
 }
+
+/*
+ * For this implementation, the only supported system granularity is
+ * 4KB, thus the valid tracking size can only be 1GB.
+ *
+ * @TODO.This needs to be made dynamic later.
+ */
+#define RMI_GRANULE_SIZE		RMI_GRANULE_SIZE_4K
+#define RMI_BLOCK_SIZE			RMI_BLOCK_SIZE_1G
+#define RMM_BLOCK_SIZE			(1UL << 30UL) /* 1GB */
+
+void smc_granule_tracking_get(unsigned long addr,
+			      struct smc_result *res)
+{
+	struct granule *g;
+	struct dev_granule *dg;
+	enum dev_coh_type type;
+
+	res->x[0] = RMI_ERROR_INPUT;
+	if (!ALIGNED(addr, RMI_BLOCK_SIZE)) {
+		return;
+	}
+
+	g = find_granule(addr);
+	if (g != NULL) {
+		res->x[0] = RMI_SUCCESS;
+		res->x[1] = RMI_TRACKING_FINE;
+		res->x[2] = RMI_MEM_CATEGORY_CONVENTIONAL;
+		return;
+	}
+
+	/* Try to find device granule */
+	dg = find_dev_granule(addr, &type);
+	if (dg) {
+		res->x[0] = RMI_SUCCESS;
+		res->x[1] = RMI_TRACKING_FINE;
+		res->x[2] = (type == DEV_MEM_NON_COHERENT) ?
+				RMI_MEM_CATEGORY_DEV_NCOH :
+				RMI_MEM_CATEGORY_DEV_COH;
+		return;
+	}
+}
+
+unsigned long smc_rmm_config_set(unsigned long config_ptr)
+{
+	struct rmi_rmm_config cfg;
+
+	if (!ALIGNED(config_ptr, SZ_4K)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if (!ns_buffer_read_early(config_ptr, sizeof(cfg), &cfg)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* TODO: At the moment, only 4KB granularity size is supported */
+	if (cfg.granule_size != RMI_GRANULE_SIZE ||
+	    cfg.tracking_size != RMI_BLOCK_SIZE) {
+		return RMI_ERROR_INPUT;
+	}
+
+	return RMI_SUCCESS;
+}
+
+unsigned long smc_rmm_config_get(unsigned long config_ptr)
+{
+	struct rmi_rmm_config cfg = { 0 };
+
+	if (!ALIGNED(config_ptr, SZ_4K)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	cfg.granule_size = RMI_GRANULE_SIZE;
+	cfg.tracking_size = RMI_BLOCK_SIZE;
+
+	if (!ns_buffer_write_early(config_ptr, sizeof(cfg), &cfg)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	return RMI_SUCCESS;
+}

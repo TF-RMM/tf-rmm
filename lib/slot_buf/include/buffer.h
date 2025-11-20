@@ -93,6 +93,10 @@ bool ns_buffer_write_unaligned(enum buffer_slot slot,
 			       void *src,
 			       size_t *ns_start_offset);
 
+/* @TODO add unittests for ABIs */
+bool ns_buffer_read_early(unsigned long ns_ptr, size_t size, void *dest);
+bool ns_buffer_write_early(unsigned long ns_ptr, size_t size, void *src);
+
 /*
  * These helper routines are used to access NS mmio region. These regions do
  * not have any granules and granule state associated with it, as these pages
