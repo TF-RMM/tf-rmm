@@ -411,37 +411,86 @@ static unsigned long copyout_dev_comm_exit(struct granule *g_dev_comm_data,
 	return RMI_SUCCESS;
 }
 
+static int copy_cached_digest(struct dev_comm_exit_shared *shared_ret,
+			      struct dev_obj_digest *comm_digest_ptr)
+{
+	assert(shared_ret->cached_digest.len != 0U);
+	if (shared_ret->cached_digest.len != 0U) {
+		if (comm_digest_ptr == NULL) {
+			return DEV_ASSIGN_STATUS_ERROR;
+		}
+		(void)memcpy(comm_digest_ptr->value, shared_ret->cached_digest.value,
+			     shared_ret->cached_digest.len);
+		comm_digest_ptr->len = shared_ret->cached_digest.len;
+	}
+	return DEV_ASSIGN_STATUS_SUCCESS;
+}
+
+static int copy_pdev_cached_digest(struct pdev *pdev, struct app_data_cfg *app_data)
+{
+	struct dev_comm_exit_shared *shared_ret;
+
+	assert(app_data->el2_shared_page != NULL);
+	shared_ret = app_data->el2_shared_page;
+
+	if (shared_ret->cached_digest_type == CACHE_TYPE_VCA) {
+		return copy_cached_digest(shared_ret, &(pdev->vca_digest));
+	} else if (shared_ret->cached_digest_type == CACHE_TYPE_CERT) {
+		return copy_cached_digest(shared_ret, &(pdev->cert_digest));
+	}
+	assert(shared_ret->cached_digest_type == CACHE_TYPE_NONE);
+	return DEV_ASSIGN_STATUS_SUCCESS;
+}
+
+static int copy_vdev_cached_digest(struct vdev *vdev, struct app_data_cfg *app_data)
+{
+	struct dev_comm_exit_shared *shared_ret;
+
+	assert(app_data->el2_shared_page != NULL);
+	shared_ret = app_data->el2_shared_page;
+
+	if (shared_ret->cached_digest_type == CACHE_TYPE_MEAS) {
+		return copy_cached_digest(shared_ret, &(vdev->meas_digest));
+	} else if (shared_ret->cached_digest_type == CACHE_TYPE_INTERFACE_REPORT) {
+		return copy_cached_digest(shared_ret, &(vdev->ifc_report_digest));
+	}
+	assert(shared_ret->cached_digest_type == CACHE_TYPE_NONE);
+	return DEV_ASSIGN_STATUS_SUCCESS;
+}
+
 static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_args,
 		struct rmi_dev_comm_exit *exit_args)
 {
 	int rc;
-	struct dev_obj_digest *comm_digest_ptr;
 
-	if (pd->rmi_state == RMI_PDEV_STATE_NEW) {
-		comm_digest_ptr = &pd->cert_digest;
-	} else {
-		comm_digest_ptr = NULL;
-	}
+	app_map_shared_page(&pd->da_app_data);
 
 	if (pd->dev_comm_state == DEV_COMM_ACTIVE) {
-		return dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, NULL, DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
+		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+			exit_args, NULL, NULL, DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
+		if (rc == DEV_ASSIGN_STATUS_ERROR) {
+			goto out;
+		}
+		if (copy_pdev_cached_digest(pd, &pd->da_app_data) != DEV_ASSIGN_STATUS_SUCCESS) {
+			rc = DEV_ASSIGN_STATUS_ERROR;
+		}
+		goto out;
 	}
 
 	switch (pd->rmi_state) {
 	case RMI_PDEV_STATE_NEW:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, NULL,
+			exit_args, NULL, NULL,
 			DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT);
 		break;
 	case RMI_PDEV_STATE_HAS_KEY:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, NULL,
+			exit_args, NULL, NULL,
 			DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION);
 		break;
 	case RMI_PDEV_STATE_STOPPING:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, NULL,
+			exit_args, NULL, NULL,
 			DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION);
 		break;
 	case RMI_PDEV_STATE_COMMUNICATING:
@@ -450,12 +499,12 @@ static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_a
 		 * communicating state
 		 */
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, NULL,
+			exit_args, NULL, NULL,
 			DEVICE_ASSIGN_APP_FUNC_ID_IDE_REFRESH);
 		break;
 	case RMI_PDEV_STATE_IDE_RESETTING:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, NULL,
+			exit_args, NULL, NULL,
 			DEVICE_ASSIGN_APP_FUNC_ID_IDE_RESET);
 		break;
 	default:
@@ -463,6 +512,16 @@ static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_a
 		rc = -1;
 	}
 
+	if (rc == DEV_ASSIGN_STATUS_ERROR) {
+		goto out;
+	}
+
+	if (copy_pdev_cached_digest(pd, &pd->da_app_data) != DEV_ASSIGN_STATUS_SUCCESS) {
+		rc = DEV_ASSIGN_STATUS_ERROR;
+	}
+
+out:
+	app_unmap_shared_page(&pd->da_app_data);
 	return rc;
 }
 
@@ -473,21 +532,12 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 {
 	int rc;
 	struct dev_meas_params *meas_params_ptr = NULL;
-	struct dev_obj_digest *comm_digest_ptr;
 	struct dev_tdisp_params *tdisp_params_ptr;
 
 	if (vd->op == VDEV_OP_GET_MEAS) {
 		meas_params_ptr = &vd->op_params.meas_params;
 	} else {
 		meas_params_ptr = NULL;
-	}
-
-	if (vd->op == VDEV_OP_GET_MEAS) {
-		comm_digest_ptr = &vd->meas_digest;
-	} else if (vd->op == VDEV_OP_GET_REPORT) {
-		comm_digest_ptr = &vd->ifc_report_digest;
-	} else {
-		comm_digest_ptr = NULL;
 	}
 
 	if ((vd->op == VDEV_OP_LOCK) ||
@@ -499,10 +549,19 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 		tdisp_params_ptr = NULL;
 	}
 
+	app_map_shared_page(&pd->da_app_data);
+
 	if (vd->comm_state == DEV_COMM_ACTIVE) {
-		return dev_assign_dev_communicate(&pd->da_app_data, enter_args, exit_args,
-			comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
+		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args, exit_args,
+			tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
+		if (rc == DEV_ASSIGN_STATUS_ERROR) {
+			goto out;
+		}
+		if (copy_vdev_cached_digest(vd, &pd->da_app_data) != DEV_ASSIGN_STATUS_SUCCESS) {
+			rc = DEV_ASSIGN_STATUS_ERROR;
+		}
+		goto out;
 	}
 
 	switch (vd->op) {
@@ -512,12 +571,12 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 		 * hash needs to be calculated during device communication
 		 */
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args, exit_args,
-			comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
+			tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS);
 		break;
 	case VDEV_OP_LOCK:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
+			exit_args, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_LOCK);
 		break;
 	case VDEV_OP_UNLOCK:
@@ -528,7 +587,7 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 		} else {
 			assert(vd->rmi_state == RMI_VDEV_STATE_STARTED);
 			rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-				exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
+				exit_args, tdisp_params_ptr, meas_params_ptr,
 				DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP);
 		}
 		break;
@@ -538,12 +597,12 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 		 * its hash needs to be calculated during device communication
 		 */
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
+			exit_args, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_REPORT);
 		break;
 	case VDEV_OP_START:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
+			exit_args, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_START);
 		break;
 	default:
@@ -551,6 +610,16 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 		rc = -1;
 	}
 
+	if (rc == DEV_ASSIGN_STATUS_ERROR) {
+		goto out;
+	}
+
+	if (copy_vdev_cached_digest(vd, &pd->da_app_data) != DEV_ASSIGN_STATUS_SUCCESS) {
+		rc = DEV_ASSIGN_STATUS_ERROR;
+	}
+
+out:
+	app_unmap_shared_page(&pd->da_app_data);
 	return rc;
 }
 

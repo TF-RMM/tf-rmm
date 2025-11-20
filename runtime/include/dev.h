@@ -97,6 +97,9 @@ struct pdev {
 	 */
 	uint8_t rmi_hash_algo;
 
+	/* Digest of VCA (Version, Capabilities, Algorithm)*/
+	struct dev_obj_digest vca_digest;
+
 	/*
 	 * Digest of device certificate. This digest is calculated when RMM
 	 * fetches device certificate. The content of the certificate is cached

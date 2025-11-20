@@ -17,9 +17,19 @@
 #define DEV_ASSIGN_STATUS_ERROR		(-1)
 #define DEV_ASSIGN_STATUS_COMM_BLOCKED	(1)
 
+#ifndef CBMC
 #define DEV_OBJ_DIGEST_MAX		U(64)
+#else
+#define DEV_OBJ_DIGEST_MAX		U(4)
+#endif /* CBMC */
 
 #define RDEV_START_INTERFACE_NONCE_SIZE		64U
+
+#define CACHE_TYPE_VCA			((uint8_t)0x1)
+#define CACHE_TYPE_CERT			((uint8_t)0x2)
+#define CACHE_TYPE_MEAS			((uint8_t)0x3)
+#define CACHE_TYPE_INTERFACE_REPORT	((uint8_t)0x4)
+#define CACHE_TYPE_NONE			((uint8_t)0xFF)
 
 /*
  * App function for initialization. This needs to be invoked for every
@@ -42,8 +52,8 @@ enum dev_assign_op_params_type {
 
 /*
  * RMM maintains digest of device object if its cached by NS host. This device
- * object could be device certificate or device measurement or device interface
- * report
+ * object could be VCA, device certificate or device measurement or device
+ * interface report
  */
 struct dev_obj_digest {
 	uint8_t value[DEV_OBJ_DIGEST_MAX];
@@ -129,6 +139,9 @@ struct dev_comm_exit_shared {
 	struct rmi_dev_comm_exit rmi_dev_comm_exit;
 
 	struct dev_obj_digest cached_digest;
+	/* Type of the cached object (CACHE_TYPE_* defined above) */
+	uint32_t cached_digest_type;
+
 	struct dev_assign_op_params dev_assign_op_params;
 };
 COMPILER_ASSERT(sizeof(struct dev_comm_exit_shared) <= GRANULE_SIZE);

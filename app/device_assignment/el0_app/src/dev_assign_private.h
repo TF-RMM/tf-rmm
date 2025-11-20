@@ -226,9 +226,12 @@
 				PRIV_LIBSPDM_MBEDTLS_HEAP_SIZE +	\
 				PRIV_LIBSPDM_CONTEXT_SIZE))
 
-#define CACHE_TYPE_CERT			((uint8_t)0x1)
-#define CACHE_TYPE_MEAS			((uint8_t)0x2)
-#define CACHE_TYPE_INTERFACE_REPORT	((uint8_t)0x3)
+/* Direction of the communication*/
+#define CACHE_COMM_DIR_REQ			((uint8_t)0x1)
+#define CACHE_COMM_DIR_RESP			((uint8_t)0x2)
+
+/* The length of the longest (unencrypted) request that needs to be cached */
+#define MAX_SPDM_REQUEST_SIZE			U(48)
 
 struct dev_assign_info {
 	/* RMI device handle */
@@ -283,12 +286,20 @@ struct dev_assign_info {
 	bool cache_tdisp_if_report;
 
 	/*
-	 * A temporary stash of cached_digest for certificate,
+	 * A temporary stash of cached_digest for VCA, certificate,
 	 * device_measurements, or interface report. Once the complete digest is
 	 * computed, the info->cached_digest.len will become non-zero and it
 	 * will be copied to the right destination in PDEV or VDEV structs.
 	 */
 	struct dev_obj_digest cached_digest;
+	uint32_t cached_digest_type;
+
+	/*
+	 * A temporal storage of an SPDM request that needs to be sent along
+	 * with the received response
+	 */
+	uint8_t spdm_request[MAX_SPDM_REQUEST_SIZE];
+	size_t spdm_request_len;
 
 	/* spdm_cert_chain digest details */
 	psa_hash_operation_t spdm_cert_chain_hash_op;
@@ -304,7 +315,7 @@ struct dev_assign_info {
 	struct dev_assign_op_params dev_assign_op_params;
 
 	/*
-	 * The PSA equivalent of the 'rmi_hash_algo'. Tnis value is used by PSA
+	 * The PSA equivalent of the 'rmi_hash_algo'. This value is used by PSA
 	 * crypto calls to caclulate hash of cached device objects.
 	 */
 	psa_algorithm_t psa_hash_algo;

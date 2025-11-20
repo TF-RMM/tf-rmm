@@ -280,8 +280,8 @@ set_rsi_action:
 }
 
 /*
- * Copy device info and attestation digest of certificate, public key, device
- * measurements to buffer 'vdev_info'
+ * Copy device info and attestation digest of VCA, certificate, public key,
+ * device measurements to buffer 'vdev_info'
  */
 static void vdev_get_info(struct pdev *pd, struct vdev *vd, struct rsi_vdev_info *vdev_info)
 {
@@ -311,8 +311,8 @@ static void vdev_get_info(struct pdev *pd, struct vdev *vd, struct rsi_vdev_info
 	vdev_info->tdisp_version = PCI_TDISP_MESSAGE_VERSION_10;
 	vdev_info->state = (unsigned char)vd->rmi_state;
 
-	/* TODO_ALP17: Set proper vca_digest */
-	memset(vdev_info->vca_digest, 0, RSI_VDEV_VCA_DIGEST_LEN);
+	(void)memcpy(vdev_info->vca_digest, pd->vca_digest.value,
+		     pd->vca_digest.len);
 	(void)memcpy(vdev_info->cert_digest, pd->cert_digest.value,
 		     pd->cert_digest.len);
 	/* TODO_ALP17: Set proper public_key */
