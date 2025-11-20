@@ -70,7 +70,7 @@ unsigned long host_realm_get_realm_buffer(void)
 static int host_create_realm_and_activate(struct host_realm *realm)
 {
 	struct smc_result result;
-	unsigned long feat_reg0;
+	unsigned long feat_reg2;
 	unsigned int i;
 
 	/* Allocate granules */
@@ -85,9 +85,9 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 	INFO("RMI Version is 0x%lx : 0x%lx\n", result.x[1], result.x[2]);
 
 	/* Check if DA enabled in RMI features */
-	host_rmi_features(RMI_FEATURE_REGISTER_0_INDEX, &result);
+	host_rmi_features(RMI_FEATURE_REGISTER_2_INDEX, &result);
 	CHECK_RMI_RESULT();
-	feat_reg0 = result.x[1];
+	feat_reg2 = result.x[1];
 
 	host_rmi_granule_delegate(realm->rd, &result);
 	CHECK_RMI_RESULT();
@@ -107,7 +107,7 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 	realm->realm_params->num_wps = 1;
 
 	/* Set Realm flags with DA enabled */
-	if (EXTRACT(RMI_FEATURE_REGISTER_0_DA_EN, feat_reg0) ==
+	if (EXTRACT(RMI_FEATURE_REGISTER_2_DA_EN, feat_reg2) ==
 	    RMI_FEATURE_TRUE) {
 		realm->realm_params->flags0 = INPLACE(RMI_REALM_FLAGS0_DA,
 						      RMI_FEATURE_TRUE);

@@ -263,8 +263,10 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 				  unsigned long *ats_plane)
 {
 	unsigned long feat_reg0 = get_feature_register_0();
-	unsigned long feat_reg0_plane_rtt __unused =
-		EXTRACT(RMI_FEATURE_REGISTER_0_PLANE_RTT, feat_reg0);
+	unsigned long feat_reg2 = get_feature_register_2();
+	unsigned long feat_reg3 = get_feature_register_3();
+	unsigned long feat_reg3_plane_rtt __unused =
+		EXTRACT(RMI_FEATURE_REGISTER_3_RTT_PLANE, feat_reg3);
 	unsigned long feat_flags1_rtt_tree_pp __unused =
 		EXTRACT(RMI_REALM_FLAGS1_RTT_TREE_PP, p->flags1);
 	unsigned long feat_flags1_s2ap_enc __unused =
@@ -332,7 +334,7 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 
 	/* Validate if DA feature can be supported for Realm */
 	if ((EXTRACT(RMI_REALM_FLAGS0_DA, p->flags0) == RMI_FEATURE_TRUE) &&
-	    (EXTRACT(RMI_FEATURE_REGISTER_0_DA_EN, feat_reg0) ==
+	    (EXTRACT(RMI_FEATURE_REGISTER_2_DA_EN, feat_reg2) ==
 	     RMI_FEATURE_FALSE)) {
 		return false;
 	}
@@ -349,7 +351,7 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 
 	/* Validate num_aux_planes */
 	if ((p->num_aux_planes) >
-			EXTRACT(RMI_FEATURE_REGISTER_0_MAX_NUM_AUX_PLANES, feat_reg0)) {
+			EXTRACT(RMI_FEATURE_REGISTER_3_MAX_NUM_AUX_PLANES, feat_reg3)) {
 		return false;
 	}
 
@@ -363,13 +365,13 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 
 	if (p->num_aux_planes > 0U) {
 		/* Validate that we do not use single tree planes when not allowed */
-		if ((feat_reg0_plane_rtt == RMI_RTT_PLANE_AUX) &&
+		if ((feat_reg3_plane_rtt == RMI_RTT_PLANE_AUX) &&
 		    (feat_flags1_rtt_tree_pp == 0UL)) {
 			return false;
 		}
 
 		/* Validate that we do not use multiple tree planes when not allowed */
-		if ((feat_reg0_plane_rtt == RMI_RTT_PLANE_SINGLE) &&
+		if ((feat_reg3_plane_rtt == RMI_RTT_PLANE_SINGLE) &&
 		    (feat_flags1_rtt_tree_pp > 0UL)) {
 			return false;
 		}
@@ -394,7 +396,7 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 	 * realm.
 	 */
 	if ((feat_flags1_s2ap_enc == RMI_S2AP_INDIRECT) &&
-	    (EXTRACT(RMI_FEATURE_REGISTER_0_RTT_S2AP_INDIRECT, feat_reg0) == RMI_FEATURE_FALSE)) {
+	    (EXTRACT(RMI_FEATURE_REGISTER_3_RTT_S2AP_INDIRECT, feat_reg3) == RMI_FEATURE_FALSE)) {
 		return false;
 	}
 

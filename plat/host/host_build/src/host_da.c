@@ -884,7 +884,7 @@ out_cleanup:
  */
 int host_pdev_probe_and_setup(void)
 {
-	unsigned long feat_reg0;
+	unsigned long feat_reg2;
 	struct smc_result result;
 	struct host_pdev *pdev;
 	uint8_t public_key_algo;
@@ -893,13 +893,13 @@ int host_pdev_probe_and_setup(void)
 	pdev = &gbl_host_pdev;
 
 	/* Check if DA enabled in RMI features */
-	host_rmi_features(RMI_FEATURE_REGISTER_0_INDEX, &result);
+	host_rmi_features(RMI_FEATURE_REGISTER_2_INDEX, &result);
 	if (!IS_RMI_RESULT_SUCCESS(result)) {
 		return -1;
 	}
-	feat_reg0 = result.x[1];
+	feat_reg2 = result.x[1];
 
-	if (EXTRACT(RMI_FEATURE_REGISTER_0_DA_EN, feat_reg0) ==
+	if (EXTRACT(RMI_FEATURE_REGISTER_2_DA_EN, feat_reg2) ==
 	    RMI_FEATURE_FALSE) {
 		INFO("RMI FEAT DA not enabled. Skipping DA ABIs\n");
 		return 0;

@@ -15,7 +15,7 @@
 static const unsigned long rmi_revisions_supported[] = {
 	MAKE_RMI_REVISION(1UL, 0UL),
 #ifdef RMM_V1_1
-	MAKE_RMI_REVISION(1UL, 1UL)
+	MAKE_RMI_REVISION(2UL, 0UL)
 #endif
 };
 #define RMI_REVISIONS_COUNT	ARRAY_SIZE(rmi_revisions_supported)
