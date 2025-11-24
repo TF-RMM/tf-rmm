@@ -26,7 +26,6 @@ if(NOT RMM_ARCH STREQUAL fake_host)
             "src/printf.c"
             "src/strlen.c"
             "src/strcmp.c"
-            "src/strlcpy.c"
             "src/strncmp.c"
             "src/strnlen.c"
             "src/strchr.c")

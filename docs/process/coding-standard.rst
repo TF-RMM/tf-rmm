@@ -592,8 +592,8 @@ Below is a list of functions that present security risks.
 +------------------------+--------------------------------------+
 |    libc function       | Comments                             |
 +========================+======================================+
-| ``strcpy, wcscpy``,    | use strlcpy instead                  |
-| ``strncpy``            |                                      |
+| ``strcpy, wcscpy``,    | Should not be used                   |
+| ``strncpy, strlcpy``   |                                      |
 +------------------------+--------------------------------------+
 | ``strcat, wcscat``,    | use strlcat instead                  |
 | ``strncat``            |                                      |
