@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <app.h>
 #include <app_header.h>
 #include <arch_helpers.h>
 #include <assert.h>
@@ -198,80 +199,83 @@ static int host_realm_run_attest(struct host_realm *realm)
 
 	return 0;
 }
-void print_help(char *app_name)
-{
-	rmm_log("Run RMM on the host\n\n");
-	rmm_log("Usage: %s [-h|--help] [app_id app_elf [...]]\n\n", app_name);
 
-	rmm_log("Arguments:\n");
-	rmm_log("  -h, --help      print this message and exit.\n");
-	rmm_log("  app_id          Integer value of app id of the app.\n");
-	rmm_log("  app_elf         path to the app's elf file.\n");
-}
-
-void process_command_line_arguments(int argc, char *argv[])
+void initialise_app_headers(int argc, char *argv[])
 {
+	(void) argc;
 	int ret __unused;
-	int i;
-	unsigned int curr_app_index = 0;
-	char *end;
 	struct app_header *app_header;
+	char *base_dir, *base_dir_copy, *lastPtr;
 
-	for (i = 1; i < argc; ++i) {
-		if (strcmp(argv[i], "--help") == 0 ||
-		   strcmp(argv[i], "-h") == 0) {
-			print_help(argv[0]);
-			exit(0);
-		}
-		if (curr_app_index >= APP_COUNT) {
-			ERROR("Too many apps (more than %d).\n", APP_COUNT);
-			exit(1);
-		}
-		if (i+1 >= argc) {
-			ERROR("Invalid number of arguments.\n");
-			exit(1);
-		}
+	/* Define default apps with their metadata */
+	static const struct {
+		unsigned long id;
+		const char *filename;
+	} apps[] = {
+		{ RMM_RANDOM_APP_ID, "rmm_app_random.elf" },
+		{ ATTESTATION_APP_ID, "rmm_app_attestation.elf" }
+		/* Add new Apps here */
+	};
 
-		ret = app_get_header_ptr_at_index(curr_app_index, &app_header);
-		assert(ret == 0);
-		app_header->app_id = strtol(argv[i], &end, 0);
-		if (end != argv[i] + strlen(argv[i])) {
-			ERROR("Invalid app id '%s'.\n", argv[i]);
-			exit(1);
-		}
-		i += 1;
-		app_header->app_elf_name = argv[i];
-		NOTICE("Registering app at idx %u: id=%lu, filename='%s'\n",
-			curr_app_index, app_header->app_id, app_header->app_elf_name);
-
-		/* test opening the image file */
-		FILE *f = fopen(app_header->app_elf_name, "rb");
-
-		if (f == NULL) {
-			ERROR("Failed to open file '%s'\n", app_header->app_elf_name);
-			exit(1);
-		}
-		size_t bytes_read = fread(&ret, 1U, 1U, f);
-
-		if (bytes_read != 1) {
-			ERROR("Failed to read from file '%s'\n", app_header->app_elf_name);
-			exit(1);
-		}
-		ret = fclose(f);
-		if (ret != 0) {
-			ERROR("Failed to close file during read test'%s'\n",
-				app_header->app_elf_name);
-			exit(1);
-		}
-		++curr_app_index;
+	/* Get base directory from argv[0] */
+	base_dir_copy = strdup(argv[0]);
+	if (base_dir_copy == NULL) {
+		ERROR("Failed to allocate memory for base directory\n");
+		exit(1);
 	}
+
+	lastPtr = strrchr(base_dir_copy, '/');
+	if (lastPtr != NULL) {
+		*(lastPtr + 1) = '\0';
+	} else {
+		base_dir_copy[0] = '\0';
+	}
+	base_dir = base_dir_copy;
+
+	/* Register apps with their full paths */
+	for (unsigned int idx = 0; idx < APP_COUNT - 1; idx++) {
+		char *full_path;
+		size_t path_len;
+
+		ret = app_get_header_ptr_at_index(idx, &app_header);
+		assert(ret == 0);
+
+		/* Calculate required buffer size and allocate */
+		path_len = strlen(base_dir) + strlen(apps[idx].filename) + 1;
+		full_path = malloc(path_len);
+		if (full_path == NULL) {
+			ERROR("Failed to allocate memory for app path\n");
+			free(base_dir_copy);
+			exit(1);
+		}
+
+		/* Build full path */
+		snprintf(full_path, path_len, "%s%s", base_dir, apps[idx].filename);
+
+		/* Check if file exists and is readable */
+		FILE *test_file = fopen(full_path, "rb");
+		if (test_file == NULL) {
+			ERROR("App file not found or not readable: %s\n", full_path);
+			free(full_path);
+			free(base_dir_copy);
+			exit(1);
+		}
+		(void) fclose(test_file);
+
+		app_header->app_id = apps[idx].id;
+		app_header->app_elf_name = full_path;
+
+		NOTICE("Registering app: id=%lu, filename='%s'\n",
+			app_header->app_id, full_path);
+	}
+	free(base_dir_copy);
 }
 
 int main(int argc, char *argv[])
 {
 	int rc;
 
-	process_command_line_arguments(argc, argv);
+	initialise_app_headers(argc, argv);
 
 	VERBOSE("RMM: Beginning of Fake Host execution\n");
 
