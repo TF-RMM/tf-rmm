@@ -31,6 +31,9 @@ static void xlat_test_helpers_arch_init(bool lpa2_en)
 	unsigned int retval __unused;
 	uint64_t id_aa64mmfr0_el0 = INPLACE(ID_AA64MMFR0_EL1_TGRAN4_2,
 					    ID_AA64MMFR0_EL1_TGRAN4_2_TGRAN4);
+	uint64_t _id_aa64mmfr3_el1 = INPLACE(ID_AA64MMFR3_EL1_MEC, 1UL) |
+					INPLACE(ID_AA64MMFR3_EL1_TCRX, 1UL) |
+					INPLACE(ID_AA64MMFR3_EL1_SCTLRX, 1UL);
 
 	/* Enable the platform with support for multiple PEs */
 	test_helpers_rmm_start(true);
@@ -53,6 +56,8 @@ static void xlat_test_helpers_arch_init(bool lpa2_en)
 	}
 
 	WRITE_CACHED_REG(id_aa64mmfr0_el1, id_aa64mmfr0_el0);
+
+	WRITE_CACHED_REG(id_aa64mmfr3_el1, _id_aa64mmfr3_el1);
 
 	/* Initialize MMU registers to 0 */
 	retval = host_util_set_default_sysreg_cb("sctlr_el2", 0UL);
@@ -143,6 +148,7 @@ uint64_t xlat_test_helpers_rand_mmap_attrs(bool allow_transient)
 	uint64_t ret_attrs;
 	unsigned int index;
 	size_t allowed_attrs_count = sizeof(attrs);
+	bool use_amec = false;
 
 	if (!allow_transient) {
 		allowed_attrs_count -= 1;
@@ -150,7 +156,6 @@ uint64_t xlat_test_helpers_rand_mmap_attrs(bool allow_transient)
 
 	index = (unsigned int)test_helpers_get_rand_in_range(0UL,
 				(allowed_attrs_count / sizeof(uint64_t)) - 1);
-
 	ret_attrs = attrs[index];
 
 	if (ret_attrs != MT_TRANSIENT) {
@@ -158,6 +163,11 @@ uint64_t xlat_test_helpers_rand_mmap_attrs(bool allow_transient)
 				(sizeof(pas) / sizeof(uint64_t)) - 1);
 		ret_attrs |= pas[index];
 		ret_attrs = (rand() & 0x1) ? (ret_attrs | MT_NG) : ret_attrs;
+
+		if ((ret_attrs & MT_NG) == 0UL) {
+			use_amec = (bool)rand() & 0x1;
+			ret_attrs |= use_amec ? MT_AP_AMEC : 0UL;
+		}
 	}
 
 	return ret_attrs;
@@ -380,6 +390,10 @@ int xlat_test_helpers_gen_attrs(uint64_t *attrs, uint64_t mmap_attrs)
 
 	if (mmap_attrs & MT_NG) {
 		lower_attrs |= XLAT_GET_NG_HINT();
+	}
+
+	if (mmap_attrs & MT_AP_AMEC) {
+		lower_attrs |= XLAT_GET_AMEC_DESC();
 	}
 
 	/* Set AF */
