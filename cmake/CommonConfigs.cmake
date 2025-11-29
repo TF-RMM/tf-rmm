@@ -48,6 +48,15 @@ arm_config_option(
     TYPE STRING
     DEFAULT 1)
 
+#
+# RMM_MAX_SMMUS. Maximum number of SMMUv3 supported.
+#
+arm_config_option(
+    NAME RMM_MAX_SMMUS
+    HELP "Maximum number of SMMUv3 supported"
+    TYPE STRING
+    DEFAULT 0x1)
+
 arm_config_option(
     NAME RMM_NUM_PAGES_PER_STACK
     HELP "Number of pages to use per CPU stack"
@@ -155,6 +164,13 @@ endif()
 
 target_compile_definitions(rmm-common
     INTERFACE "RMM_MAX_NCOH_GRANULES=U(${RMM_MAX_NCOH_GRANULES})")
+
+if(RMM_MAX_SMMUS EQUAL 0x0)
+    message(FATAL_ERROR "RMM_MAX_SMMUS  cannot be set to 0")
+endif()
+
+target_compile_definitions(rmm-common
+    INTERFACE "RMM_MAX_SMMUS=U(${RMM_MAX_SMMUS})")
 
 target_compile_definitions(rmm-common
     INTERFACE "RMM_NUM_PAGES_PER_STACK=UL(${RMM_NUM_PAGES_PER_STACK})")

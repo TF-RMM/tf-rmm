@@ -25,7 +25,7 @@
 
 /* Define the EL3-RMM interface version as set from EL3 */
 #define EL3_IFC_ABI_VERSION		\
-	RMM_EL3_IFC_MAKE_VERSION(RMM_EL3_IFC_VERS_MAJOR, 4)
+	RMM_EL3_IFC_MAKE_VERSION(RMM_EL3_IFC_VERS_MAJOR, RMM_EL3_IFC_VERS_MINOR)
 #define RMM_EL3_MAX_CPUS		(1U)
 
 static struct host_realm g_realm;
@@ -250,7 +250,7 @@ void initialise_app_headers(int argc, char *argv[])
 		}
 
 		/* Build full path */
-		snprintf(full_path, path_len, "%s%s", base_dir, apps[idx].filename);
+		(void) snprintf(full_path, path_len, "%s%s", base_dir, apps[idx].filename);
 
 		/* Check if file exists and is readable */
 		FILE *test_file = fopen(full_path, "rb");

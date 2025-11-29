@@ -180,18 +180,25 @@
  *   enumeration name.
  *
  * For any register field, we define:
- * - INPLACE(<register>_<field>, val)
+ * - INPLACE(32)(<register>_<field>, val)
  *   The in-place value of the field set to val, handling any necessary type
  *   promotion to avoid truncation of val.
- * - MASK(<register>_<field)
+ * - MASK(32)(<register>_<field)
  *   An in-place bitmask covering all bits of the field.
- * - EXTRACT(<register_field> <register_value>)
+ * - EXTRACT(32)(<register>_<field> <register_value>)
  *   A macro to extract the value of a register field shifted down so the
  *   value can be evaluated directly.
- * - EXTRACT_BIT(<register_field> <register_value>)
+ * - COMPOSE(32)(<register>_<field> <val>)
+ *   The in-place value of the field set to val masked with bitmask covering
+ *   all bits of the field.
+ * - EXTRACT_BIT(32)(<register>_<field> <register_value>)
  *   A macro to extract the value of a register bit shifted down so the
  *   value can be evaluated directly.
+ * - BIT(32)(<position>)
+ *   A macro performs a left bitwise shift operation on the number 1 by the
+ *   specified position.
  */
+/* 64-bit variants */
 #define INPLACE(regfield, val) \
 	(((val) + UL(0)) << (regfield##_SHIFT))
 
@@ -201,8 +208,33 @@
 #define EXTRACT(regfield, reg) \
 	(((reg) & MASK(regfield)) >> (regfield##_SHIFT))
 
+#define COMPOSE(regfield, val) \
+	((((val) + UL(0)) & (~0UL >> (64UL - (regfield##_WIDTH)))) << (regfield##_SHIFT))
+
 #define EXTRACT_BIT(regfield, reg) \
 	(((reg) >> (regfield##_SHIFT)) & UL(1))
+
+#define BIT(pos) \
+	(UL(1) << (pos))
+
+/* 32-bit variants */
+#define INPLACE32(regfield, val) \
+	(((val) + U(0)) << (regfield##_SHIFT))
+
+#define MASK32(regfield) \
+	((~0U >> (32U - (regfield##_WIDTH))) << (regfield##_SHIFT))
+
+#define EXTRACT32(regfield, reg) \
+	(((reg) & MASK32(regfield)) >> (regfield##_SHIFT))
+
+#define COMPOSE32(regfield, val) \
+	((((val) + U(0)) & (~0U >> (32U - (regfield##_WIDTH)))) << (regfield##_SHIFT))
+
+#define EXTRACT_BIT32(regfield, reg) \
+	(((reg) >> (regfield##_SHIFT)) & U(1))
+
+#define BIT32(pos) \
+	(U(1) << (pos))
 
 /*
  * Generates an unsigned long long (64-bit) value where the bits @_msb
@@ -264,6 +296,9 @@
 /* Macros to replace unused arguments when calling functions */
 #define UNUSED_UL		(0UL)
 #define UNUSED_PTR		((void *)NULL)
+
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 #endif /* !(defined(__ASSEMBLER__) || defined(__LINKER__)) */
 

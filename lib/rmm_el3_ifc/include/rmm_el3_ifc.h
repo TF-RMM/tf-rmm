@@ -118,7 +118,7 @@
  * The Minor version value for the RMM-EL3 Interface supported by this
  * implementation of RMM.
  */
-#define RMM_EL3_IFC_VERS_MINOR		(U(3))
+#define RMM_EL3_IFC_VERS_MINOR		(U(5))
 
 /*
  * Check if RMM-EL3 Interface is compatible. The Major version should match
@@ -290,7 +290,7 @@ uintptr_t rmm_el3_ifc_get_shared_buf_locked(void);
 void rmm_el3_ifc_release_shared_buf(void);
 
 /*****************************************************************************
- * Boot Manifest definitions, functions and structures (v0.4)
+ * Boot Manifest definitions, functions and structures (v0.5)
  ****************************************************************************/
 
 /* Console info structure */
@@ -384,9 +384,9 @@ struct rmm_core_manifest {
 	uint32_t version;		/* Manifest version */
 	uint32_t padding;		/* RES0 */
 	uintptr_t plat_data;		/* Manifest platform data */
-	/* Platform DRAM data (from v0.2) */
+	/* Platform DRAM data (v0.2) */
 	struct memory_info plat_dram;
-	/* Platform console list (from v0.3) */
+	/* Platform console list (v0.3) */
 	struct console_list plat_console;
 	/* Platform device address ranges (v0.4) */
 	struct memory_info plat_ncoh_region;
@@ -403,10 +403,8 @@ COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_dram)) == 16U)
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_console)) == 40U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_ncoh_region)) == 64U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_coh_region)) == 88U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest,
-				   plat_smmu)) == 112U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest,
-				   plat_root_complex)) == 136U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_smmu)) == 112U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmm_core_manifest, plat_root_complex)) == 136U);
 
 /*
  * Accessors to the Boot Manifest data
@@ -489,6 +487,24 @@ int rmm_el3_ifc_get_console_list_pa(struct console_list **plat_console_list);
 int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
 					   struct memory_info **plat_dev_range_info,
 					   enum dev_coh_type type);
+
+/*
+ * Return validated SMMUv3 list passed in plat_smmu pointer
+ * from the Boot Manifest v0.5 onwards.
+ *
+ * Args:
+ *	- plat_smmu_list:	Return physical address to platform SMMUv3
+				list structure setup by EL3 Firmware,
+ *				or NULL in case of error.
+ *
+ * Return:
+ *	- E_RMM_BOOT_SUCCESS			    Success.
+ *	- E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED Version reported by the
+ *						    Boot Manifest is not
+ *						    supported by this API.
+ *	- E_RMM_BOOT_MANIFEST_DATA_ERROR	    Error parsing data.
+ */
+int rmm_el3_ifc_get_smmu_list_pa(struct smmu_list **plat_smmu_list);
 
 /*
  * Return validated Root Complex list from the Boot Manifest v0.5 onwards.

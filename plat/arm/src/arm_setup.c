@@ -12,11 +12,12 @@
 #include <platform_api.h>
 #include <rmm_el3_ifc.h>
 #include <sizes.h>
+#include <smmuv3.h>
 #include <string.h>
 #include <xlat_tables.h>
 
 #define ARM_RMM_UART	MAP_REGION_FLAT(			\
-				0,				\
+				0UL,				\
 				SZ_4K,				\
 				(MT_DEVICE | MT_RW | MT_REALM))
 
@@ -87,16 +88,24 @@ static void setup_root_complex_list(void)
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 {
-	int ret;
 	struct memory_info *plat_memory_info;
 	struct console_list *csl_list;
 	struct console_info *console_ptr;
+	struct smmu_list *plat_smmu_list;
+	struct smmu_info *plat_smmus;
+	struct xlat_mmap_region *smmu_region;
 	const enum dev_coh_type type[] = {DEV_MEM_COHERENT, DEV_MEM_NON_COHERENT};
+	unsigned int num_smmus;
+	int ret;
 
-	/* TBD Initialize UART for early log */
-	struct xlat_mmap_region plat_regions[] = {
-		ARM_RMM_UART,
-		{0}
+	/*
+	 * TBD Initialize UART for early log.
+	 * Map SMMUv3.
+	 */
+	/* coverity[misra_c_2012_rule_9_3_violation:SUPPRESS] */
+	/* cppcheck-suppress misra-c2012-9.3 */
+	struct xlat_mmap_region plat_regions[(RMM_MAX_SMMUS * 2U) + 1U] = {
+		ARM_RMM_UART
 	};
 
 	/* Initialize the RMM-EL3 interface*/
@@ -136,8 +145,50 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 		plat_regions[0].base_va = uart_base;
 	}
 
-	/* Carry on with the rest of the system setup */
-	ret = plat_cmn_setup(plat_regions, 1U);
+	/* Validate SMMUv3 list */
+	ret = rmm_el3_ifc_get_smmu_list_pa(&plat_smmu_list);
+	if (ret != 0) {
+		/* If smmu_info is not set, skip SMMUv3 setup */
+		plat_smmus = NULL;
+		num_smmus = 0U;
+	} else {
+		plat_smmus = plat_smmu_list->smmus;
+		num_smmus = (unsigned int)plat_smmu_list->num_smmus;
+		smmu_region = &plat_regions[1];
+	}
+
+	/* If smmu_info is present, map SMMUv3 */
+	for (unsigned int i = 0U; i < num_smmus; i++) {
+		uintptr_t smmu_base = plat_smmus->smmu_base;
+		uintptr_t smmu_r_base = plat_smmus->smmu_r_base;
+
+		/* SMMU registers, Page 0 */
+		smmu_region->base_pa = smmu_base;
+		smmu_region->base_va = smmu_base;
+		smmu_region->size = SZ_64K;
+		smmu_region->attr = (MT_DEVICE | MT_RW | MT_NS);
+		smmu_region->granularity = REGION_DEFAULT_GRANULARITY;
+
+		smmu_region++;
+
+		/* Realm registers, Pages 0, 1 */
+		smmu_region->base_pa = smmu_r_base;
+		smmu_region->base_va = smmu_r_base;
+		smmu_region->size = 2U * SZ_64K;
+		smmu_region->attr = (MT_DEVICE | MT_RW | MT_REALM);
+		smmu_region->granularity = REGION_DEFAULT_GRANULARITY;
+
+		smmu_region++;
+		plat_smmus++;
+	}
+
+	/*
+	 * Carry on with the rest of the system setup.
+	 * The number of added regions is 2 * num_smmus + 1:
+	 * - 2 regions per each SMMUv3: smmu_base and smmu_r_base;
+	 * - 1 UART region.
+	 */
+	ret = plat_cmn_setup(plat_regions, (num_smmus * 2U) + 1U);
 	if (ret != 0) {
 		ERROR("%s (%u): Failed to setup the platform (%i)\n",
 			__func__, __LINE__, ret);
@@ -185,6 +236,11 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 	}
 
 	setup_root_complex_list();
+
+	if (num_smmus != 0U) {
+		/* Set up Arm SMMUv3 layout */
+		setup_smmuv3_layout(plat_smmu_list);
+	}
 
 	plat_warmboot_setup(x0, x1, x2, x3);
 }

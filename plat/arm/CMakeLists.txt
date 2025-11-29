@@ -17,7 +17,7 @@ add_library(rmm-plat-arm)
 #
 # Extra memory regions needed by this platform
 #
-arm_config_option_override(NAME PLAT_CMN_EXTRA_MMAP_REGIONS DEFAULT 1)
+arm_config_option_override(NAME PLAT_CMN_EXTRA_MMAP_REGIONS DEFAULT 4)
 
 add_subdirectory("${RMM_SOURCE_DIR}/drivers/pl011" ${RMM_BINARY_DIR}/drivers/pl011)
 add_subdirectory("${RMM_SOURCE_DIR}/plat/common" ${RMM_BINARY_DIR}/plat/common)
