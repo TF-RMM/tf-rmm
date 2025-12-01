@@ -298,7 +298,9 @@ The |RMM| build system supports the following CMake build options.
    PLAT_ARM_MAX_MEM_BANKS	,			,2			,"Maximum possible number of DRAM and COH/NCOH device memory banks allowed in Arm platform layer"
    ATTEST_EL3_TOKEN_SIGN	,ON|OFF			,OFF			,"Use EL3 service to sign realm attestation token."
    STACK_PROTECTOR		,ON | OFF		,OFF			,"Enable the stack protector compiler option."
-   UBSAN			,ON | OFF		,OFF			,"Enable Undefined Behavior Sanitizer."
+   UBSAN			,ON | OFF		,OFF			,"Enable Undefined Behavior Sanitizer. Deprecated: use RMM_SANITIZERS instead."
+   RMM_SANITIZERS		,ALL | UBSAN | ICSAN | LBSAN | NGSAN	,""	,"Sanitizers to enable for the build. ALL enables all sanitizers. ICSAN\, LBSAN and NGSAN are LLVM-only"
+
 
 The below options are deprecated and only available when RMM_EL3_COMPAT_RESERVE_MEM is enabled.
 

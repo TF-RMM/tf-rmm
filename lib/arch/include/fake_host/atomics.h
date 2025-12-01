@@ -58,7 +58,7 @@ static inline uint16_t atomic_load_add_16(uint16_t *loc, uint16_t val)
 {
 	uint16_t old_val = *loc;
 
-	*loc += val;
+	*loc = (uint16_t)(*loc + val);
 	return old_val;
 }
 
@@ -71,7 +71,7 @@ static inline uint16_t atomic_load_add_release_16(uint16_t *loc, uint16_t val)
 {
 	uint16_t old_val = *loc;
 
-	*loc += val;
+	*loc = (uint16_t)(*loc + val);
 	return old_val;
 }
 

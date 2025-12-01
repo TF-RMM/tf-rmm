@@ -28,3 +28,18 @@ endforeach()
 
 string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-Wl,--build-id=none ")
 string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fuse-ld=lld ")
+
+if (ICSAN)
+    string(APPEND CMAKE_C_FLAGS_INIT "-fno-sanitize-recover=implicit-conversion ")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fno-sanitize-recover=implicit-conversion ")
+endif()
+
+if (LBSAN)
+    string(APPEND CMAKE_C_FLAGS_INIT "-fno-sanitize-recover=local-bounds ")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fno-sanitize-recover=local-bounds ")
+endif()
+
+if (NGSAN)
+    string(APPEND CMAKE_C_FLAGS_INIT "-fno-sanitize-recover=nullability ")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fno-sanitize-recover=nullability ")
+endif()
