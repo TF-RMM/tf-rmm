@@ -51,6 +51,7 @@ arm_config_option(
 # Accepts a comma, pipe, plus, or semicolon separated list of:
 #   ALL   - Enable all sanitizers below (case-insensitive)
 #   UBSAN - Undefined Behavior Sanitizer
+#   IOSAN - Unsigned Integer Overflow Sanitizer (LLVM only)
 #   ICSAN - Implicit Conversion Sanitizer (LLVM only)
 #   LBSAN - Local Bounds Sanitizer (LLVM only)
 #   NGSAN - Nullability Group Sanitizer (LLVM only)
@@ -61,7 +62,7 @@ arm_config_option(
 #
 arm_config_option(
     NAME RMM_SANITIZERS
-    HELP "Sanitizers to enable: ALL, UBSAN, ICSAN, LBSAN, NGSAN (separated by , | + or ;)"
+    HELP "Sanitizers to enable: ALL, UBSAN, IOSAN, ICSAN, LBSAN, NGSAN (separated by , | + or ;)"
     TYPE STRING
     DEFAULT "")
 
@@ -72,7 +73,7 @@ string(REPLACE "+" ";" RMM_SANITIZERS "${RMM_SANITIZERS}")
 string(REPLACE " " "" RMM_SANITIZERS "${RMM_SANITIZERS}")
 
 # Case-insensitive normalisation and "ALL" expansion
-set(_valid_sanitizers UBSAN ICSAN LBSAN NGSAN)
+set(_valid_sanitizers UBSAN IOSAN ICSAN LBSAN NGSAN)
 set(_normalized_sanitizers "")
 foreach(_san IN LISTS RMM_SANITIZERS)
     string(TOUPPER "${_san}" _san_upper)
@@ -89,12 +90,12 @@ foreach(_san IN LISTS RMM_SANITIZERS)
     if(NOT _san IN_LIST _valid_sanitizers)
         message(FATAL_ERROR
             "Unknown sanitizer '${_san}' in RMM_SANITIZERS. "
-            "Valid values: ALL, UBSAN, ICSAN, LBSAN, NGSAN")
+            "Valid values: ALL, UBSAN, IOSAN, ICSAN, LBSAN, NGSAN")
     endif()
 endforeach()
 
 # Check toolchain compatibility for LLVM-only sanitizers.
-set(_llvm_only_sanitizers ICSAN LBSAN NGSAN)
+set(_llvm_only_sanitizers IOSAN ICSAN LBSAN NGSAN)
 if(RMM_SANITIZERS)
     string(TOLOWER "${RMM_TOOLCHAIN}" _toolchain_lower)
     if(_toolchain_lower STREQUAL "llvm")

@@ -334,6 +334,19 @@ uintptr_t rmm_el3_ifc_get_plat_manifest_pa(void)
 }
 
 /*
+ * Add two checksum words modulo 2^64. Overflow is expected by the checksum
+ * algorithm, so use the compiler overflow builtin to make that intent explicit
+ * to IOSAN.
+ */
+static uint64_t checksum_add(uint64_t a, uint64_t b)
+{
+	uint64_t result;
+
+	(void)__builtin_add_overflow(a, b, &result);
+	return result;
+}
+
+/*
  * Calculate checksum of 64-bit words @buffer with @size length
  */
 static uint64_t checksum_calc(uint64_t *buffer, size_t size)
@@ -344,7 +357,7 @@ static uint64_t checksum_calc(uint64_t *buffer, size_t size)
 	assert((size & (sizeof(uint64_t) - 1UL)) == 0UL);
 
 	for (unsigned long i = 0UL; i < (size / sizeof(uint64_t)); i++) {
-		sum += buffer[i];
+		sum = checksum_add(sum, buffer[i]);
 	}
 
 	return sum;
@@ -541,11 +554,13 @@ int rmm_el3_ifc_get_console_list_pa(struct console_list **plat_console_list)
 	console_ptr = csl_list->consoles;
 
 	/* Calculate the checksum of the console_list structure */
-	checksum = num_consoles + (uint64_t)console_ptr + csl_list->checksum;
+	checksum = checksum_add(num_consoles, (uint64_t)console_ptr);
+	checksum = checksum_add(checksum, csl_list->checksum);
 
 	/* Update checksum */
-	checksum += checksum_calc((uint64_t *)console_ptr,
-					sizeof(struct console_info) * num_consoles);
+	checksum = checksum_add(checksum,
+			checksum_calc((uint64_t *)console_ptr,
+				sizeof(struct console_info) * num_consoles));
 
 	/* Verify the checksum is 0 */
 	if (checksum != 0UL) {

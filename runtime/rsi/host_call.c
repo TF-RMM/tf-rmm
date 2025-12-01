@@ -56,7 +56,7 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 
 	assert((data != NULL) && (llt != NULL));
 
-	host_call = (struct rsi_host_call *)((uintptr_t)data + ipa - page_ipa);
+	host_call = (struct rsi_host_call *)((uintptr_t)data + (ipa - page_ipa));
 
 	if (rec_exit != NULL) {
 		/* Copy host call arguments to REC exit data structure */

@@ -29,6 +29,11 @@ endforeach()
 string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-Wl,--build-id=none ")
 string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fuse-ld=lld ")
 
+if (IOSAN)
+    string(APPEND CMAKE_C_FLAGS_INIT "-fno-sanitize-recover=unsigned-integer-overflow ")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fno-sanitize-recover=unsigned-integer-overflow ")
+endif()
+
 if (ICSAN)
     string(APPEND CMAKE_C_FLAGS_INIT "-fno-sanitize-recover=implicit-conversion ")
     string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fno-sanitize-recover=implicit-conversion ")
