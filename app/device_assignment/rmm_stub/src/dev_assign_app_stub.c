@@ -26,7 +26,7 @@ int dev_assign_app_init(struct app_data_cfg *app_data, uintptr_t granule_pas[],
 	struct dev_assign_params *shared;
 
 
-	rc = app_init_data(app_data,
+	rc = app_new_instance(app_data,
 				  RMM_DEV_ASSIGN_APP_ID,
 				  granule_pas,
 				  granule_pa_count,
@@ -46,6 +46,12 @@ int dev_assign_app_init(struct app_data_cfg *app_data, uintptr_t granule_pas[],
 	app_unmap_shared_page(app_data);
 
 	return rc;
+}
+
+int dev_assign_app_delete(struct app_data_cfg *app_data)
+{
+	app_delete_instance(app_data);
+	return 0;
 }
 
 int dev_assign_dev_communicate(struct app_data_cfg *app_data,

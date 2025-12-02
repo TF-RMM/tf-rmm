@@ -80,11 +80,13 @@ size_t app_get_required_granule_count(unsigned long app_id);
  * granule_va_start contains the start address of the area where the PAs in the
  * array are mapped.
  */
-int app_init_data(struct app_data_cfg *app_data,
+int app_new_instance(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
 		      size_t granule_count,
 		      void *granule_va_start);
+
+void app_delete_instance(struct app_data_cfg *app_data);
 
 void *app_get_heap_ptr(struct app_data_cfg *app_data);
 

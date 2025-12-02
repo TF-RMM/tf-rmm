@@ -1177,6 +1177,10 @@ unsigned long smc_pdev_destroy(unsigned long pdev_addr)
 	 * delegated.
 	 */
 	pdev_restore_aux_granules_state(pd->g_aux, pd->num_aux);
+
+	/* Clean up the device assignment app instance */
+	(void)dev_assign_app_delete(&pd->da_app_data);
+
 	buffer_unmap(pd);
 
 	/* Move the PDEV granule from PDEV to delegated state */

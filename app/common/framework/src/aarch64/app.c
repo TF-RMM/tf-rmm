@@ -360,7 +360,7 @@ static int init_app_reg_ctx(struct app_data_cfg *app_data)
 	return 0;
 }
 
-int app_init_data(struct app_data_cfg *app_data,
+int app_new_instance(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
 		      size_t granule_count,
@@ -449,6 +449,12 @@ int app_init_data(struct app_data_cfg *app_data,
 unmap_page_table:
 	unmap_page(granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE], page_table);
 	return ret;
+}
+
+/* Stub for function used in fake_host */
+void app_delete_instance(struct app_data_cfg *app_data)
+{
+	(void) app_data;
 }
 
 void *app_get_heap_ptr(struct app_data_cfg *app_data)

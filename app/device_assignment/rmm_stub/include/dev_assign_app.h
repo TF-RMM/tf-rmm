@@ -26,6 +26,11 @@ int dev_assign_app_init(struct app_data_cfg *app_data, uintptr_t granule_pas[],
 	size_t granule_pa_count, void *granule_va_start,
 	struct dev_assign_params *params);
 
+/*
+ * Delete the thread associated with a device assignment app
+ * ONLY A WRAPPER - Ensure correct app_data is specified
+ */
+int dev_assign_app_delete(struct app_data_cfg *app_data);
 
 /*
  * Communicate with device and continue the device command as part of

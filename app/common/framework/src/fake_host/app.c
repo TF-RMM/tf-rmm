@@ -175,7 +175,7 @@ void app_framework_setup(void)
 	srand(time(NULL));
 }
 
-int app_init_data(struct app_data_cfg *app_data,
+int app_new_instance(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
 		      size_t granule_count,
@@ -209,6 +209,36 @@ int app_init_data(struct app_data_cfg *app_data,
 	app_data->app_heap = malloc(heap_size);
 	app_data->heap_size = heap_size;
 	return 0;
+}
+
+/* Forwards the command to EL0 App Process */
+void app_delete_instance(struct app_data_cfg *app_data)
+{
+	int ret;
+	unsigned long command;
+	unsigned long app_id = app_data->app_id;
+	pthread_t thread_id = app_data->thread_id;
+	struct app_process_data *app_process_data;
+
+	command = EXIT_APP_INSTANCE;
+
+	/* Get the app process data */
+	app_process_data = get_app_process_data(app_id);
+	if (app_process_data == NULL) {
+		return;
+	}
+
+	/* Forward the exit command and thread ID to the app process */
+	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &command, sizeof(command));
+	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &thread_id, sizeof(thread_id));
+
+	/* Read the status of exiting app instances */
+	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &ret, sizeof(ret));
+	assert(ret == 0);
+
+	/* Free the heap allocated by app_init_data */
+	free(app_data->app_heap);
+	app_data->app_heap = NULL;
 }
 
 void app_map_shared_page(struct app_data_cfg *app_data)
