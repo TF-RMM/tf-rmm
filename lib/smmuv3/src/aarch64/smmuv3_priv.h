@@ -8,10 +8,24 @@
 #ifndef SMMUV3_PRIV_H
 #define SMMUV3_PRIV_H
 
+#include <debug.h>
 #include <spinlock.h>
 #include <utils_def.h>
 
 typedef __uint128_t	uint128_t;
+
+#if SMMU_LOG
+#define SMMU_DEBUG(...)	INFO(__VA_ARGS__)
+#else
+#define SMMU_DEBUG(...)	VERBOSE(__VA_ARGS__)
+#endif
+
+#define SMMU_ERROR(err, fmt, ...)				\
+	do {							\
+		ERROR("SMMUv3 @0x%lx error %d: ",		\
+			(uintptr_t)smmu->ns_base_addr, err);	\
+		ERROR(fmt, ##__VA_ARGS__);			\
+	} while (false)
 
 /* Registers in Page 0 */
 #define SMMU_IDR0		U(0x00)
@@ -101,8 +115,8 @@ typedef __uint128_t	uint128_t;
 #define FEAT_BTM		BIT32(1)
 #define FEAT_COHACC		BIT32(2)
 #define FEAT_S1P		BIT32(3)
-#define FEAT_ASID16		BIT32(5)
-#define FEAT_VMID16		BIT32(6)
+#define FEAT_ASID16		BIT32(4)
+#define FEAT_VMID16		BIT32(5)
 
 /* SMMU_IDR1 register fields */
 #define IDR1_SIDSIZE_SHIFT	U(0)
@@ -472,5 +486,14 @@ struct smmuv3_driver {
 
 	spinlock_t lock;
 };
+
+extern struct arm_smmu_layout arm_smmu;
+extern struct smmuv3_driver arm_smmu_driver[RMM_MAX_SMMUS];
+extern bool broadcast_tlb;
+
+struct smmuv3_driver *get_by_index(unsigned long smmu_idx, unsigned int sid);
+int prepare_send_command(struct smmuv3_driver *smmu, unsigned long opcode,
+			 unsigned long param0, unsigned long param1);
+int wait_cmdq_empty(struct smmuv3_driver *smmu);
 
 #endif /* SMMUV3_PRIV_H */
