@@ -13,6 +13,7 @@
 #include <rsi-handler.h>
 #include <rsi_rdev_call.h>
 #include <smc-rsi.h>
+#include <smmuv3.h>
 #include <utils_def.h>
 
 /*
@@ -729,6 +730,11 @@ void handle_rsi_rdev_start(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		goto out_vd_unmap;
 	}
 
+	if (smmuv3_enable_ste(SMMU_IDX, (unsigned int)vd->tdi_id) != 0) {
+		rsi_rc = RSI_ERROR_DEVICE;
+		goto out_vd_unmap;
+	}
+
 	rsi_rc = set_dev_state(vd);
 	if (rsi_rc != RSI_SUCCESS) {
 		goto out_vd_unmap;
@@ -828,6 +834,11 @@ void handle_rsi_rdev_stop(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	    (rdev->rsi_state != RSI_RDEV_STATE_LOCKED) &&
 	    (rdev->rsi_state != RSI_RDEV_STATE_STARTED) &&
 	    (rdev->rsi_state != RSI_RDEV_STATE_ERROR)) {
+		rsi_rc = RSI_ERROR_DEVICE;
+		goto out_vd_unmap;
+	}
+
+	if (smmuv3_disable_ste(SMMU_IDX, (unsigned int)vd->tdi_id) != 0) {
 		rsi_rc = RSI_ERROR_DEVICE;
 		goto out_vd_unmap;
 	}
