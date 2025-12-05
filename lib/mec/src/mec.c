@@ -369,3 +369,22 @@ void mec_init_mmu(void)
 
 	write_sctlr2_el2(read_sctlr2_el2() | SCTLR2_ELx_EMEC_BIT);
 }
+
+/*
+ * Test API, only used for unit tests
+ */
+void mec_test_reset(void)
+{
+	/* Reset MEC state to power-on reset values. */
+	mec_state.shared_mec = MECID_DEFAULT_SHARED;
+	mec_state.shared_mec_members = 0U;
+	for (unsigned int i = 0U; i < MECID_ARRAY_SIZE; i++) {
+		mec_state.mec_reserved[i] = 0UL;
+	}
+	mec_state.mec_reserved[MECID_SYSTEM_OFFSET] =
+				MEC_RESERVE_INITALIZER;
+
+	for (unsigned int i = 0U; i < MAX_CPUS; i++) {
+		mecid_pcpcu_refcnt[i] = 0U;
+	}
+}
