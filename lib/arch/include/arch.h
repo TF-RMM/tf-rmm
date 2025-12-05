@@ -180,13 +180,13 @@
 #define HCR_TID3	(UL(1) << 18)
 #define HCR_TWE		(UL(1) << 14)
 #define HCR_TWI		(UL(1) << 13)
-#define HCR_VSE		(UL(1) << 8)
 
 #define HCR_BSU_SHIFT	10
 #define HCR_BSU_WIDTH	U(2)
 #define HCR_BSU_IS	(UL(1) << HCR_BSU_SHIFT) /* Barriers are promoted to IS */
 
 #define HCR_FB		(UL(1) << 9)
+#define HCR_VSE		(UL(1) << 8)
 #define HCR_VI		(UL(1) << 7)
 #define HCR_AMO		(UL(1) << 5)
 #define HCR_IMO		(UL(1) << 4)
@@ -198,7 +198,7 @@
 #define HCR_EL2_REALM		(HCR_FWB | HCR_E2H | HCR_RW | HCR_TSC |		\
 				HCR_AMO | HCR_BSU_IS | HCR_IMO | HCR_FMO |	\
 				HCR_PTW | HCR_SWIO | HCR_VM | HCR_TID3 |	\
-				HCR_TEA | HCR_API | HCR_APK)
+				HCR_TEA | HCR_API | HCR_APK | HCR_FB)
 
 #define HCR_EL2_APP		(HCR_TGE | HCR_E2H | HCR_TEA)
 
