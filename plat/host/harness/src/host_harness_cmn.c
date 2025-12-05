@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
+#include <firme.h>
 #include <host_el3_rp_ide_km.h>
 #include <host_utils.h>
 #ifndef CBMC
@@ -489,6 +490,15 @@ void host_monitor_call(unsigned long id, struct smc_args *args,
 		break;
 	case SMC_RMM_GTSI_UNDELEGATE:
 		res->x[0] = host_gtsi_undelegate(args->v[0]);
+		break;
+	case SMC_FIRME_BASE_VERSION:
+		res->x[0] = host_firme_base_version((unsigned char)args->v[0]);
+		break;
+	case SMC_FIRME_BASE_FEATURES:
+		res->x[0] = host_firme_base_features((unsigned char)args->v[0], (unsigned char)args->v[1], &(res->x[1]));
+		break;
+	case SMC_FIRME_GM_GPI_SET:
+		res->x[0] = host_firme_gm_gpi_set(args->v[0], &args->v[1], args->v[2]);
 		break;
 	case SMCCC_ARCH_FEATURES:
 		/* Always return success */

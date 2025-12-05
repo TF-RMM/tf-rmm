@@ -4,6 +4,7 @@
  */
 
 #include <buffer.h>
+#include <firme.h>
 #include <host_harness.h>
 #include <tb_common.h>
 #include <tb_granules.h>
@@ -47,6 +48,25 @@ unsigned long host_gtsi_undelegate(unsigned long addr)
 
 	set_granule_gpt(addr, GPT_NS);
 	return 0UL;
+}
+
+unsigned long host_firme_base_version(unsigned char service_id)
+{
+	return FIRME_NOT_SUPPORTED;;
+}
+
+unsigned long host_firme_base_features(unsigned char service_id,
+				       unsigned char index,
+				       unsigned long *reg)
+{
+	return FIRME_NOT_SUPPORTED;
+}
+
+unsigned long host_firme_gm_gpi_set(unsigned long base_addr,
+				    unsigned long *granule_count,
+				    unsigned long attributes)
+{
+	return FIRME_NOT_SUPPORTED;
 }
 
 unsigned int host_buffer_arch_va_to_slot(void *addr)

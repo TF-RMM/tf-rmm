@@ -7,6 +7,7 @@
 #include <bitmap.h>
 #include <debug.h>
 #include <errno.h>
+#include <firme.h>
 #include <rmm_el3_ifc.h>
 #include <rmm_el3_ifc_priv.h>
 #include <spinlock.h>
@@ -342,4 +343,30 @@ int rmm_el3_ifc_reserve_memory(size_t size, unsigned int flags,
 
 	*address = smc_res.x[1];
 	return 0;
+}
+
+/* cppcheck-suppress misra-c2012-8.7 */
+unsigned long rmm_el3_ifc_gtsi_delegate(unsigned long addr)
+{
+	if (firme_supports_gpi_set()) {
+		/* Transition 1 NS granule to REALM state. */
+		return monitor_call(SMC_FIRME_GM_GPI_SET, addr, 1, GPT_GPI_REALM,
+					0UL, 0UL, 0UL);
+	} else {
+		return monitor_call(SMC_RMM_GTSI_DELEGATE, addr,
+					0UL, 0UL, 0UL, 0UL, 0UL);
+	}
+}
+
+/* cppcheck-suppress misra-c2012-8.7 */
+unsigned long rmm_el3_ifc_gtsi_undelegate(unsigned long addr)
+{
+	if (firme_supports_gpi_set()) {
+		/* Transition 1 REALM granule to NS state. */
+		return monitor_call(SMC_FIRME_GM_GPI_SET, addr, 1, GPT_GPI_NS,
+					0UL, 0UL, 0UL);
+	} else {
+		return monitor_call(SMC_RMM_GTSI_UNDELEGATE, addr,
+					0UL, 0UL, 0UL, 0UL, 0UL);
+	}
 }

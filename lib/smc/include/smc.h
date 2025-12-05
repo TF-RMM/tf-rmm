@@ -94,6 +94,9 @@
 #define SMC64_RMM_EL3_FNUM_MIN	(U(0x1B0))
 #define SMC64_RMM_EL3_FNUM_MAX	(U(0x1CF))
 
+#define SMC64_FIRME_FNUM_MIN	(U(0x400))
+#define SMC64_FIRME_FNUM_MAX	(U(0x412))
+
 /* Utility macros for FID range values */
 #define SMC32_ARCH_FID(_offset)						   \
 	(SMC_SET_FIELD(SMC_ARCH_CALL_BASE, CC, SMC_CC_SMC32)		|  \

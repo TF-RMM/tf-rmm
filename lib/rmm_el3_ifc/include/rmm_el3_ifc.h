@@ -622,17 +622,9 @@ int rmm_el3_ifc_get_platform_token(uintptr_t buf, size_t buflen,
 unsigned long rmm_el3_ifc_mec_refresh(unsigned short mecid,
 					bool is_destroy);
 
-static inline unsigned long rmm_el3_ifc_gtsi_delegate(unsigned long addr)
-{
-	return monitor_call(SMC_RMM_GTSI_DELEGATE, addr,
-				0UL, 0UL, 0UL, 0UL, 0UL);
-}
+unsigned long rmm_el3_ifc_gtsi_delegate(unsigned long addr);
 
-static inline unsigned long rmm_el3_ifc_gtsi_undelegate(unsigned long addr)
-{
-	return monitor_call(SMC_RMM_GTSI_UNDELEGATE, addr,
-				0UL, 0UL, 0UL, 0UL, 0UL);
-}
+unsigned long rmm_el3_ifc_gtsi_undelegate(unsigned long addr);
 
 /*
  * Reserve RMM private memory from EL3.

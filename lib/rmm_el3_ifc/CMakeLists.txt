@@ -43,7 +43,8 @@ target_sources(rmm-lib-rmm_el3_ifc
             "src/rmm_el3_ifc_manifest.c"
             "src/rmm_el3_runtime.c"
             "src/rmm_el3_rp_ide_km.c"
-            "src/rmm_el3_compat.c")
+            "src/rmm_el3_compat.c"
+            "src/firme.c")
 
 if (NOT RMM_ARCH STREQUAL fake_host)
     target_sources(rmm-lib-rmm_el3_ifc

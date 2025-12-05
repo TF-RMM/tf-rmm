@@ -100,6 +100,19 @@ unsigned long host_gtsi_delegate(unsigned long addr);
 unsigned long host_gtsi_undelegate(unsigned long addr);
 
 /*
+ * Fake host FIRME service.
+ */
+unsigned long host_firme_base_version(unsigned char service_id);
+
+unsigned long host_firme_base_features(unsigned char service_id,
+				       unsigned char index,
+				       unsigned long *reg);
+
+unsigned long host_firme_gm_gpi_set(unsigned long base_addr,
+				    unsigned long *granule_count,
+				    unsigned long attributes);
+
+/*
  * Fake host wrapper to return the buffer slot corresponding to a VA.
  */
 unsigned int host_buffer_arch_va_to_slot(void *addr);
