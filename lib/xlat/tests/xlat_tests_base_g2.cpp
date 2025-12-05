@@ -2277,10 +2277,10 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	 *	- Call xlat_arch_setup_mmu_cfg() with an uninitialized
 	 *	  context configuration.
 	 *	- Call xlat_arch_setup_mmu_cfg() for a CPU which
-	 *	  does not have support for 4KB granularity.
+	 *	  reports no support for LPA2 but with a PA size
+	 *	  of more than 48 bits.
 	 *	- Call xlat_arch_setup_mmu_cfg() for a CPU which
-	 *	  does not support FEAT_LPA2 but reports a PA
-	 *	  size larger than 48 bits.
+	 *	  does not have support for 4KB granularity.
 	 ***************************************************************/
 
 	/* Clean the data structures */
@@ -2292,7 +2292,7 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	start_va = xlat_test_helpers_get_start_va(VA_LOW_REGION, max_va_size);
 	end_va = start_va + max_va_size - 1ULL;
 
-	/* Generate only a single mmap region for each region */
+	/* Generate a single mmap mapping for VA_LOW_REGION*/
 	xlat_test_helpers_rand_mmap_array(&init_mmap, 1U, start_va, end_va, true);
 
 	retval = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &init_mmap,
@@ -2318,28 +2318,37 @@ void xlat_arch_setup_mmu_cfg_tc2(void)
 	/* Restore the context initialized flag */
 	ctx.cfg->init = true;
 
+	/*
+	 * Force the architecture to report 4K granularity available without
+	 * support for LPA2 but with an PA size of more than 48 bits.
+	 * Only run this test if LPA2 is not enabled.
+	 */
+	if (is_feat_lpa2_4k_present() == false) {
+		temp_idval = INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6U) |
+			INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
+			ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED);
+
+		WRITE_CACHED_REG(id_aa64mmfr0_el1, temp_idval);
+
+		/* Try to initialize MMU for the given context */
+		retval = xlat_arch_setup_mmu_cfg(&ctx, &mmu_config);
+		CHECK_TRUE(retval == 0);
+
+		/*
+		 * Verify that TXSZ is configured correctly. We expect support
+		 * for 48 bits, so the expected value should be 64-48 = 16.
+		 */
+		CHECK_EQUAL(mmu_config.txsz, 16UL);
+
+		/* Verify that IPS is configured correctly */
+		CHECK_EQUAL(EXTRACT(TCR_EL2_IPS, mmu_config.tcr),
+			    EXTRACT(TCR_EL2_IPS, TCR_PS_BITS_256TB));
+	}
+
 	/* Force the architecture to report 4K granularity as not available */
 	temp_idval = INPLACE(ID_AA64MMFR0_EL1_PARANGE, 5U) |
 				INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
 				ID_AA64MMFR0_EL1_TGRAN4_NOT_SUPPORTED);
-
-	WRITE_CACHED_REG(id_aa64mmfr0_el1, temp_idval);
-
-	/* Try to initialize MMU for the given context */
-	retval = xlat_arch_setup_mmu_cfg(&ctx, &mmu_config);
-
-	/* Verify that the MMU has failed to be initialized */
-	CHECK_TRUE(retval == -EPERM);
-
-	/*
-	 * Force the architecture to report 4K granularity available without
-	 * support for LPA2 but with an PA size of more than 48 bits.
-	 * Note that this scenario should never happen on the architecture
-	 * however, the library still checks for this.
-	 */
-	temp_idval = INPLACE(ID_AA64MMFR0_EL1_PARANGE, 6U) |
-				INPLACE(ID_AA64MMFR0_EL1_TGRAN4,
-				ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED);
 
 	WRITE_CACHED_REG(id_aa64mmfr0_el1, temp_idval);
 
