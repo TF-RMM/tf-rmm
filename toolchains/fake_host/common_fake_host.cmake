@@ -14,3 +14,8 @@ endforeach()
 # 'march=" option is not applicable for fake_host
 function(detect_and_set_march)
 endfunction()
+
+if (UBSAN)
+    string(APPEND CMAKE_C_FLAGS_INIT "-fno-sanitize-recover=undefined ")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fno-sanitize-recover=undefined ")
+endif()
