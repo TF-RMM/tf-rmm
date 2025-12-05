@@ -177,24 +177,33 @@ void __assert_fail(const char *assertion, const char *file,
 	(void)function;
 
 	asserted = true;
+	char msg[512];
 
 	if (assert_expected == true) {
 		if (strlen(assert_check) > 0U) {
 			if (strncmp(assert_check, assertion,
 				    strlen(assertion)) != 0) {
-				VERBOSE("Assertion mismatch on %s at line %u\n",
+				ERROR("Assertion mismatch on %s at line %u\n",
 					file, line);
-				VERBOSE("Expected assertion \"%s\"\n",
+				ERROR("Expected assertion \"%s\"\n",
 					assert_check);
-				VERBOSE("Received assertion \"%s\"\n",
+				ERROR("Received assertion \"%s\"\n",
 					assertion);
-				utest_exit_fail("Assertion mismatch\n");
+				(void)snprintf(msg, sizeof(msg),
+					 "Assertion mismatch on %s at line %u\n"
+					 "Expected assertion \"%s\"\n"
+					 "Received assertion \"%s\"\n",
+					 file, line, assert_check, assertion);
+				utest_exit_fail(msg);
 			}
 		}
 	} else {
-		VERBOSE("Unexpected assertion \"%s\" on file %s at line %u\n",
+		ERROR("Unexpected assertion \"%s\" on file %s at line %u\n",
 			assertion, file, line);
-		utest_exit_fail("Unexpected assertion\n");
+		(void)snprintf(msg, sizeof(msg),
+			 "Unexpected assertion \"%s\" on file %s at line %u\n",
+			 assertion, file, line);
+		utest_exit_fail(msg);
 	}
 
 	assert_check[0] = '\0';
