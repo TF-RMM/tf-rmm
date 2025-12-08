@@ -297,8 +297,17 @@
 #define UNUSED_UL		(0UL)
 #define UNUSED_PTR		((void *)NULL)
 
-#define MAX(a, b) (((a) > (b)) ? (a) : (b))
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) ({		\
+	typeof(a) _a = (a);	\
+	typeof(b) _b = (b);	\
+	(_a > _b) ? _a : _b;	\
+})
+
+#define MIN(a, b) ({		\
+	typeof(a) _a = (a);	\
+	typeof(b) _b = (b);	\
+	(_a < _b) ? _a : _b;	\
+})
 
 #endif /* !(defined(__ASSEMBLER__) || defined(__LINKER__)) */
 
