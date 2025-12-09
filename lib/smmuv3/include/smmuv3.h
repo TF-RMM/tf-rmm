@@ -25,8 +25,8 @@ struct smmu_stg2_config {
  *
  * Parameters:
  *   plat_smmu_list - Pointer to the platform SMMU list containing SMMU configuration.
- *   out_pa         - Output parameter for the physical address of allocated resources.
- *   out_sz         - Output parameter for the size of allocated resources.
+ *   out_pa	    - Output parameter for the physical address of allocated resources.
+ *   out_sz	    - Output parameter for the size of allocated resources.
  *
  * Return:
  *   Base virtual address of the driver handle on success.
@@ -42,17 +42,17 @@ uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
  * stream tables, and finally enables Realm translation.
  *
  * Parameters:
- *   driv_hdl       - Base VA of the driver handle.
- *   hdl_sz         - Size of the driver handle.
+ *   driv_hdl	- Base VA of the driver handle.
+ *   hdl_sz	- Size of the driver handle.
  *
  * Return:
- *   0          - success.
- *   -EINVAL    - invalid driv_hdl or hdl_sz.
- *   -ENOMEM    - memory mapping or allocation failure.
- *   -ENODEV    - no SMMUs are defined in the layout.
- *   -ENOTSUP   - a required hardware feature is not supported.
- *   -ETIMEDOUT - SMMU command timeout.
- *   -EIO       - internal SMMU error while issuing commands.
+ *   0		- success.
+ *   -EINVAL	- invalid driv_hdl or hdl_sz.
+ *   -ENOMEM	- memory mapping or allocation failure.
+ *   -ENODEV	- no SMMUs are defined in the layout.
+ *   -ENOTSUP	- a required hardware feature is not supported.
+ *   -ETIMEDOUT	- SMMU command timeout.
+ *   -EIO	- internal SMMU error while issuing commands.
  *
  * On -ENODEV and -ENOTSUP error, no STEs are programmed and the driver's
  * internal state remains unchanged.
@@ -63,17 +63,17 @@ int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz);
  * Configure stage-2 translation parameters for a StreamID.
  *
  * Parameters:
- *   smmu_idx  - Index of the SMMU instance in the platform SMMU list.
- *   s2_cfg    - Pointer to stage-2 configuration describing VTCR, VMID, and
- *               the base address of the stage-2 translation table.
- *   sid       - StreamID whose STE must be populated.
+ *   smmu_idx	- Index of the SMMU instance in the platform SMMU list.
+ *   s2_cfg	- Pointer to stage-2 configuration describing VTCR, VMID, and
+ *		  the base address of the stage-2 translation table.
+ *   sid	- StreamID whose STE must be populated.
  *
  * Return:
- *   0          - success.
- *   -EINVAL    - smmu_idx, sid, or s2_cfg is invalid, or STE is already valid.
+ *   0		- success.
+ *   -EINVAL	- smmu_idx, sid, or s2_cfg is invalid, or STE is already valid.
  *                No driver state or STE contents are modified.
- *   -ETIMEDOUT - SMMU command timeout while writing the STE.
- *   -EIO       - SMMU queue or command interface error.
+ *   -ETIMEDOUT	- SMMU command timeout while writing the STE.
+ *   -EIO	- SMMU queue or command interface error.
  *
  * On -EINVAL error, no Stream Table Entries (STEs) are programmed and the
  * driver's internal state remains unchanged.
@@ -87,15 +87,15 @@ int smmuv3_configure_stream(unsigned long smmu_idx,
  * StreamID.
  *
  * Parameters:
- *   smmu_idx  - Index of the SMMU instance.
+ *   smmu_idx	- Index of the SMMU instance.
  *   sid       - StreamID whose STE must be enabled.
  *
  * Return:
- *   0          - success.
- *   -EINVAL    - invalid smmu_idx or sid, or STE is already enabled.
- *                No data structures are modified and no STE update occurs.
- *   -ETIMEDOUT - command timeout while updating the STE.
- *   -EIO       - SMMU queue or command interface error.
+ *   0		- success.
+ *   -EINVAL	- invalid smmu_idx or sid, or STE is already enabled.
+ *		  No data structures are modified and no STE update occurs.
+ *   -ETIMEDOUT	- command timeout while updating the STE.
+ *   -EIO	- SMMU queue or command interface error.
  *
  * On -EINVAL error, no STEs are programmed and the driver's internal state
  * remains unchanged.
@@ -106,15 +106,15 @@ int smmuv3_enable_ste(unsigned long smmu_idx, unsigned int sid);
  * Disable an active Stream Table Entry for the given StreamID.
  *
  * Parameters:
- *   smmu_idx  - Index of the SMMU instance.
- *   sid       - StreamID whose STE must be disabled.
+ *   smmu_idx	- Index of the SMMU instance.
+ *   sid	- StreamID whose STE must be disabled.
  *
  * Return:
- *   0          - success.
- *   -EINVAL    - invalid smmu_idx or sid, or STE is already disabled.
+ *   0		- success.
+ *   -EINVAL	- invalid smmu_idx or sid, or STE is already disabled.
  *                No shared driver structures or STEs are updated.
- *   -ETIMEDOUT - command timeout.
- *   -EIO       - SMMU command or queue interface error.
+ *   -ETIMEDOUT	- command timeout.
+ *   -EIO	- SMMU command or queue interface error.
  *
  * On -EINVAL error, no STEs are programmed and the driver's internal state
  * remains unchanged.
@@ -125,15 +125,15 @@ int smmuv3_disable_ste(unsigned long smmu_idx, unsigned int sid);
  * Allocate the Stream Table Entry for a StreamID.
  *
  * Parameters:
- *   smmu_idx  - Index of the SMMU instance.
- *   sid       - StreamID requiring an STE.
+ *   smmu_idx	- Index of the SMMU instance.
+ *   sid	- StreamID requiring an STE.
  *
  * Return:
- *   0          - success.
- *   -EINVAL    - invalid smmu_idx or sid, driver state not modified.
- *   -ENOMEM    - the StreamID is already allocated or bitmap resources are exhausted.
- *   -ETIMEDOUT - timeout in SMMU invalidation or queue operations.
- *   -EIO       - SMMU command interface error.
+ *   0		- success.
+ *   -EINVAL	- invalid smmu_idx or sid, driver state not modified.
+ *   -ENOMEM	- the StreamID is already allocated or bitmap resources are exhausted.
+ *   -ETIMEDOUT	- timeout in SMMU invalidation or queue operations.
+ *   -EIO	- SMMU command interface error.
  *
  * On -EINVAL and -ENOMEM errors, no STEs are programmed and the driver's
  * internal state remains unchanged.
@@ -147,15 +147,15 @@ int smmuv3_allocate_ste(unsigned long smmu_idx, unsigned int sid);
  * Release a previously allocated Stream Table Entry.
  *
  * Parameters:
- *   smmu_idx  - Index of the SMMU instance.
- *   sid       - StreamID whose STE must be removed.
+ *   smmu_idx	- Index of the SMMU instance.
+ *   sid	- StreamID whose STE must be removed.
  *
  * Return:
- *   0          - success.
- *   -EINVAL    - invalid smmu_idx or sid, STE not allocated, or STE still valid.
+ *   0		- success.
+ *   -EINVAL	- invalid smmu_idx or sid, STE not allocated, or STE still valid.
  *                No driver structures are modified in this case.
- *   -ETIMEDOUT - SMMU invalidation timeout.
- *   -EIO       - command or queue hardware error.
+ *   -ETIMEDOUT	- SMMU invalidation timeout.
+ *   -EIO	- command or queue hardware error.
  *
  * On -EINVAL error, no STEs are programmed and the driver's internal state
  * remains unchanged.
@@ -169,75 +169,66 @@ int smmuv3_release_ste(unsigned long smmu_idx, unsigned int sid);
  * broadcast TLB maintenance.
  *
  * Return:
- *   0          - success, or when broadcast TLB maintenance is supported
+ *   0		- success, or when broadcast TLB maintenance is supported
  *                on all SMMUs and no local invalidation is required.
- *   -ETIMEDOUT - timeout during command processing.
- *   -EIO       - internal SMMU error.
+ *   -ETIMEDOUT	- timeout during command processing.
+ *   -EIO	- internal SMMU error.
  */
 int smmuv3_inv(void);
-
-/*
- * Invalidate a single 4KB page in the stage-2 TLB for a VMID.
- *
- * Parameters:
- *   vmid  - Virtual Machine Identifier.
- *   addr  - Intermediate physical address (IPA) aligned to 4KB.
- *
- * Return:
- *   0          - success, or when broadcast TLB maintenance is supported
- *                on all SMMUs and no local invalidation is required.
- *   -EINVAL    - incorrect addr alignment, no actions taken.
- *   -ETIMEDOUT - timeout in TLB invalidation command.
- *   -EIO       - SMMU command/queue error.
- */
-int smmuv3_inv_page(unsigned int vmid, unsigned long addr);
-
-/*
- * Invalidate a 4KB block of IPA space for a VMID.
- *
- * Parameters:
- *   vmid  - Virtual Machine Identifier.
- *   addr  - Base address of block aligned to 4KB.
- *
- * Return:
- *   0          - success, or when broadcast TLB maintenance is supported
- *                on all SMMUs and no local invalidation is required.
- *   -EINVAL    - incorrect addr alignment, no actions taken.
- *   -ETIMEDOUT - timeout in TLB invalidation command.
- *   -EIO       - SMMU command/queue error.
- */
-int smmuv3_inv_block(unsigned int vmid, unsigned long addr);
-
-/*
- * Invalidate all pages within a 2MB block.
- *
- * Parameters:
- *   vmid  - Virtual Machine Identifier.
- *   addr  - Base address of the block aligned to 2MB.
- *
- * Return:
- *   0          - success, or when broadcast TLB maintenance is supported
- *                on all SMMUs and no local invalidation is required.
- *   -EINVAL    - incorrect addr alignment, no actions taken.
- *   -ETIMEDOUT - timeout in TLB invalidation command.
- *   -EIO       - SMMU command/queue error.
- */
-int smmuv3_inv_pages_in_block(unsigned int vmid, unsigned long addr);
 
 /*
  * Invalidate all TLB entries at all implemented stages for a VMID on a single SMMU.
  *
  * Parameters:
- *   smmu_idx  - Index of SMMU instance.
- *   vmid      - Virtual Machine Identifier.
+ *   smmu_idx	- Index of SMMU instance.
+ *   vmid	- Virtual Machine Identifier.
  *
  * Return:
- *   0          - success, or when broadcast TLB maintenance is supported
+ *   0		- success, or when broadcast TLB maintenance is supported
  *                on SMMU and no local invalidation is required.
- *   -EINVAL    - invalid smmu_idx, no actions taken.
- *   -ETIMEDOUT - timeout during invalidation.
- *   -EIO       - hardware or queue processing error.
+ *   -EINVAL	- invalid smmu_idx, no actions taken.
+ *   -ETIMEDOUT	- timeout during invalidation.
+ *   -EIO	- hardware or queue processing error.
  */
 int smmuv3_inv_entries(unsigned long smmu_idx, unsigned int vmid);
+
+/*
+ * Invalidate @num_entrs TLB entries within a block region for VMID.
+ *
+ * Parameters:
+ *   vmid	- Virtual Machine Identifier.
+ *   addr	- Base address of the block.
+ *   level	- RTT mapped level.
+ *   num_entrs	- Number of entries to invalidate.
+ *   leaf	- If 'true', validate only cached entries
+ *		  for the last level of translation table walk.
+ * Return:
+ *   0		- success, or when broadcast TLB maintenance is supported
+ *		  on all SMMUs and no local invalidation is required.
+ *   -ETIMEDOUT	- timeout in TLB invalidation command.
+ *   -EIO	- SMMU command/queue error.
+ */
+int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
+			unsigned long num_entrs, bool leaf);
+
+/*
+ * Invalidate @num_entrs TLB entries mapped within block entry for a list of VMIDs.
+ *
+ * Parameters:
+ *   vmid_list	- Pointer to an array of VMIDs to invalidate for.
+ *   addr	- Base address of the block.
+ *   level	- RTT mapped level.
+ *   num_entrs	- Number of entries to invalidate.
+ *   leaf	- If 'true', validate only cached entries
+ *		  for the last level of translation table walk.
+ * Return:
+ *   0		- success, or when broadcast TLB maintenance is supported
+ *                on all SMMUs and no local invalidation is required.
+ *   -ETIMEDOUT	- timeout in TLB invalidation command.
+ *   -EIO	- SMMU command or queue error.
+ */
+int smmuv3_inv_at_level_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
+				  unsigned long addr, long level,
+				  unsigned long num_entrs, bool leaf);
 
 #endif /* SMMUV3_H */

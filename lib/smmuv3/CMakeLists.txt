@@ -52,7 +52,7 @@ target_link_libraries(rmm-lib-smmuv3
 
 target_include_directories(rmm-lib-smmuv3
     PUBLIC "include"
-    PRIVATE "src/${RMM_ARCH}")
+    PRIVATE "src")
 
 target_sources(rmm-lib-smmuv3
     PRIVATE "src/${RMM_ARCH}/smmuv3.c"

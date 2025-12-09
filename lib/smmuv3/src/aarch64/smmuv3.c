@@ -452,12 +452,8 @@ int prepare_send_command(struct smmuv3_dev *smmu, unsigned long opcode,
 	case CMD_TLBI_NSNH_ALL:
 		break;
 	case CMD_TLBI_S2_IPA:
-		/* Address[55:12] */
-		param1 >>= ADDRESS_SHIFT;
-		/* TG=0b00 (TTL, TTL128 are RES0), Leaf=0 */
-		cmd |= (uint128_t)(INPLACE(ADDRESS, param1)) << 64;
-		/* TG=0b00 (SCALE, NUM  are RES0) */
-		cmd |= (uint128_t)COMPOSE(VMID, param0);
+		cmd |= (uint128_t)param0;
+		cmd |= (uint128_t)param1 << 64;
 		break;
 	case CMD_TLBI_S12_VMALL:
 		cmd |= (uint128_t)COMPOSE(VMID, param0);
@@ -547,8 +543,6 @@ static int inval_cfg_tlbs(struct smmuv3_dev *smmu)
 {
 	int ret;
 
-	assert(smmu != NULL);
-
 	ret = prepare_send_command(smmu, CMD_CFGI_ALL, 0UL, 0UL);
 	if (ret != 0) {
 		SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "CFGI_ALL");
@@ -580,8 +574,6 @@ static int enable_smmu(struct smmuv3_dev *smmu)
 {
 	uint32_t cr0, cr2 = SMMU_R_CR2_INIT;
 	int ret;
-
-	assert(smmu != NULL);
 
 	write32(SMMU_R_CR1_INIT, (void *)((uintptr_t)smmu->r_base +
 							SMMU_R_CR1));
@@ -645,10 +637,8 @@ static int enable_smmu(struct smmuv3_dev *smmu)
 
 static int get_features(struct smmuv3_dev *smmu)
 {
-	uint32_t aidr, idr0, idr5, r_idr0, r_idr3;
+	uint32_t aidr, idr0, idr3 __unused, idr5, r_idr0, r_idr3;
 	uint32_t val;
-
-	assert(smmu != NULL);
 
 	/* All configuration features are cleared as part of initialisation */
 
@@ -705,7 +695,7 @@ static int get_features(struct smmuv3_dev *smmu)
 	if ((idr0 & IDR0_VMW_BIT) != 0U) {
 		SMMU_DEBUG("\tVMW\n");
 	} else {
-		SMMU_ERROR(smmu, "VMID wildcard-matching is not supported\n");
+		SMMU_ERROR(smmu, "VMID wildcard-matching not supported\n");
 		return -ENOTSUP;
 	}
 
@@ -718,13 +708,24 @@ static int get_features(struct smmuv3_dev *smmu)
 		smmu->config.features |= FEAT_VMID16;
 		SMMU_DEBUG("\t16-bit VMID\n");
 	} else if (is_feat_vmid16_present()) {
-		SMMU_ERROR(smmu, "16-bit VMID is not supported\n");
+		SMMU_ERROR(smmu, "16-bit VMID not supported\n");
 		return -ENOTSUP;
 	}
 
-	idr5 = read32((void *)((uintptr_t)smmu->ns_base + SMMU_IDR5));
-	assert(EXTRACT32(IDR5_VAX, idr5) <= IDR5_VAX_56_MAX);
+	/*
+	 * Range-based invalidation and level hint are mandatory
+	 * for implementations of SMMUv3.2 or later.
+	 */
+	idr3 = read32((void *)((uintptr_t)smmu->ns_base + SMMU_IDR3));
+	assert((idr3 & IDR3_RIL_BIT) != 0U);
 
+	idr5 = read32((void *)((uintptr_t)smmu->ns_base + SMMU_IDR5));
+	if ((idr5 & IDR5_GRAN4K_BIT) == 0U) {
+		SMMU_ERROR(smmu, "4KB translation granule not supported\n");
+		return -ENOTSUP;
+	}
+
+	assert(EXTRACT32(IDR5_VAX, idr5) <= IDR5_VAX_56_MAX);
 	SMMU_DEBUG("\tVirtual Address eXtend %u bits\n",
 			idr5_vax[EXTRACT32(IDR5_VAX, idr5)]);
 
@@ -741,20 +742,32 @@ static int get_features(struct smmuv3_dev *smmu)
 		return -ENOTSUP;
 	}
 
+	/*
+	 * Check that 128-bit VMSAv9-128 descriptors are supported
+	 * by both the PE and the SMMUv3.
+	 */
+	if ((idr5 & IDR5_D128_BIT) != 0U) {
+		smmu->config.features |= FEAT_D128;
+		SMMU_DEBUG("\tD128\n");
+	} else if (is_feat_d128_present()) {
+		SMMU_ERROR(smmu, "VMSAv9-128 descriptors not supported\n");
+		return -ENOTSUP;
+	}
+
 	r_idr0 = read32((void *)((uintptr_t)smmu->r_base + SMMU_R_IDR0));
 	if ((r_idr0 & R_IDR0_ATS_BIT) != 0U) {
 		smmu->config.features |= FEAT_ATS;
-		SMMU_DEBUG("\tPCIe ATS for Realm state\n");
+		SMMU_DEBUG("\tPCIe ATS\n");
 	}
 
 	if ((r_idr0 & R_IDR0_MSI_BIT) != 0U) {
 		smmu->config.features |= FEAT_MSI;
-		SMMU_DEBUG("\tMSIs for Realm state\n");
+		SMMU_DEBUG("\tMSI\n");
 	}
 
 	if ((r_idr0 & R_IDR0_PRI_BIT) != 0U) {
 		smmu->config.features |= FEAT_PRI;
-		SMMU_DEBUG("\tPRI for Realm state\n");
+		SMMU_DEBUG("\tPRI\n");
 	}
 
 	r_idr3 = read32((void *)((uintptr_t)smmu->r_base + SMMU_R_IDR3));
@@ -766,7 +779,7 @@ static int get_features(struct smmuv3_dev *smmu)
 	if ((r_idr3 & R_IDR3_MEC_BIT) != 0U) {
 		SMMU_DEBUG("\tMEC\n");
 	} else if (is_feat_mec_present()) {
-		SMMU_ERROR(smmu, "MEC is not supported\n");
+		SMMU_ERROR(smmu, "MEC not supported\n");
 		return -ENOTSUP;
 	}
 
@@ -804,7 +817,7 @@ static int disable_smmu(struct smmuv3_dev *smmu)
 	write32(cr0, (void *)((uintptr_t)smmu->r_base + SMMU_R_CR0));
 	ret = wait_for_ack(smmu, SMMU_R_CR0ACK, R_CR0ACK_SMMUEN_BIT, cr0);
 	if (ret != 0) {
-		SMMU_ERROR(smmu, "Failed to disable, ret=%d\n", ret);
+		SMMU_ERROR(smmu, "Failed to disable, %d\n", ret);
 	}
 
 	return ret;
