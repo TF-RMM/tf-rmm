@@ -11,6 +11,7 @@
 #include <utils_def.h>
 
 unsigned long get_feature_register_0(void);
+void feature_da_disable(void);
 
 /* Check if DA is enabled in RMI feature register */
 static inline bool is_rmi_feat_da_enabled(void)

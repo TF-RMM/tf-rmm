@@ -9,6 +9,7 @@
 #include <attest_app.h>
 #include <buffer.h>
 #include <debug.h>
+#include <feature.h>
 #include <random_app.h>
 #include <rmm_el3_ifc.h>
 #include <run.h>
@@ -16,6 +17,7 @@
 #include <simd.h>
 #include <smc-rmi.h>
 #include <smc-rsi.h>
+#include <smmuv3.h>
 
 #ifdef NDEBUG
 #define RMM_BUILD_TYPE	"release"
@@ -192,6 +194,11 @@ void rmm_main(void)
 	 */
 	simd_context_restore(get_cpu_ns_simd_context());
 #endif
+	if (smmuv3_init() != 0) {
+		ERROR("SMMUv3: Failed to initialize driver\n");
+		INFO("Realm device assignment is not supported\n");
+		feature_da_disable();
+	}
 
 	rmm_warmboot_main();
 }
