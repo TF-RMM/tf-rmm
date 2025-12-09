@@ -182,12 +182,12 @@ void s2tte_map_size_tc1(void)
 	}
 }
 
-void s2tt_invalidate_page_tc1(void)
+void s2tt_invalidate_page_block_tc1(void)
 {
 	/***************************************************************
 	 * TEST CASE 1:
 	 *
-	 * Invoke s2tt_invalidate_page() with valid parameters.
+	 * Invoke s2tt_invalidate_page_block() with valid parameters.
 	 * Note that this test can only validate the fake_host platform
 	 * implementation.
 	 **************************************************************/
@@ -201,32 +201,31 @@ void s2tt_invalidate_page_tc1(void)
 	s2tt_ctx.vmid = (unsigned int)test_helpers_get_rand_in_range(
 			0UL, (1UL << VTTBR_EL2_VMID_WIDTH) - 1UL);
 
-	s2tt_invalidate_page((const struct s2tt_context *)&s2tt_ctx, ipa);
+	s2tt_invalidate_page_block((const struct s2tt_context *)&s2tt_ctx, ipa, S2TT_PAGE_LEVEL);
 
 	TEST_EXIT;
 }
 
-void s2tt_invalidate_page_tc2(void)
+void s2tt_invalidate_page_block_tc2(void)
 {
-	/***************************************************************
+	/*********************************************************************
 	 * TEST CASE 2:
 	 *
-	 * Invoke s2tt_invalidate_page() with a valid address and a NULL
+	 * Invoke s2tt_invalidate_page_block() with a valid address and a NULL
 	 * s2tt_context.
-	 ***************************************************************/
+	 *********************************************************************/
 
 	test_helpers_expect_assert_fail(true);
-	s2tt_invalidate_page(NULL, 0UL);
+	s2tt_invalidate_page_block(NULL, 0UL, S2TT_PAGE_LEVEL);
 	test_helpers_fail_if_no_assert_failed();
-
 }
 
-void s2tt_invalidate_block_tc1(void)
+void s2tt_invalidate_page_block_tc3(void)
 {
 	/***************************************************************
 	 * TEST CASE 1:
 	 *
-	 * Invoke s2tt_invalidate_block() with valid parameters.
+	 * Invoke s2tt_invalidate_page_block() with valid parameters.
 	 * Note that this test can only validate the fake_host platform
 	 * implementation.
 	 ***************************************************************/
@@ -244,25 +243,24 @@ void s2tt_invalidate_block_tc1(void)
 		s2tt_ctx.vmid = (unsigned int)test_helpers_get_rand_in_range(
 				 2UL, (1UL << VTTBR_EL2_VMID_WIDTH) - 1UL);
 
-		s2tt_invalidate_block((const struct s2tt_context *)&s2tt_ctx, ipa);
+		s2tt_invalidate_page_block((const struct s2tt_context *)&s2tt_ctx, ipa, level);
 	}
 
 	TEST_EXIT;
 }
 
-void s2tt_invalidate_block_tc2(void)
+void s2tt_invalidate_page_block_tc4(void)
 {
-	/***************************************************************
+	/*********************************************************************
 	 * TEST CASE 2:
 	 *
-	 * Invoke s2tt_invalidate_block() with a valid address and a NULL
+	 * Invoke s2tt_invalidate_page_block() with a valid address and a NULL
 	 * s2tt_context.
-	 ***************************************************************/
+	 *********************************************************************/
 
 	test_helpers_expect_assert_fail(true);
-	s2tt_invalidate_block(NULL, 0UL);
+	s2tt_invalidate_page_block(NULL, 0UL, S2TT_MIN_BLOCK_LEVEL);
 	test_helpers_fail_if_no_assert_failed();
-
 }
 
 void s2tt_invalidate_pages_in_block_tc1(void)
@@ -301,7 +299,6 @@ void s2tt_invalidate_pages_in_block_tc2(void)
 	test_helpers_expect_assert_fail(true);
 	s2tt_invalidate_pages_in_block(NULL, 0UL);
 	test_helpers_fail_if_no_assert_failed();
-
 }
 
 void s2tt_is_unassigned_empty_block_tc1(void)

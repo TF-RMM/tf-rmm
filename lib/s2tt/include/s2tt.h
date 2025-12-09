@@ -266,14 +266,11 @@ void s2tt_init_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 				unsigned long *s2tt, unsigned long s2tte,
 				unsigned long pa, long level, unsigned long s2tte_ap);
 
-void s2tt_invalidate_page(const struct s2tt_context *s2_ctx, unsigned long addr);
-void s2tt_invalidate_page_per_vmids(const struct s2tt_context *s2_ctx,
-				    unsigned int *vmid_list, unsigned int nvmids,
-				    unsigned long addr);
-void s2tt_invalidate_block(const struct s2tt_context *s2_ctx, unsigned long addr);
-void s2tt_invalidate_block_per_vmids(const struct s2tt_context *s2_ctx,
-				     unsigned int *vmid_list, unsigned int nvmids,
-				     unsigned long addr);
+void s2tt_invalidate_page_block(const struct s2tt_context *s2_ctx, unsigned long addr,
+				long level);
+void s2tt_invalidate_page_block_per_vmids(const struct s2tt_context *s2_ctx,
+					  unsigned int *vmid_list, unsigned int nvmids,
+					  unsigned long addr, long level);
 void s2tt_invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
 				    unsigned long addr);
 void s2tt_invalidate_pages_in_block_per_vmids(const struct s2tt_context *s2_ctx,
