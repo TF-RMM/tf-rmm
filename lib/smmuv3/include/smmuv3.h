@@ -159,11 +159,12 @@ int smmuv3_release_ste(unsigned long smmu_idx, unsigned int sid);
  * broadcast TLB maintenance.
  *
  * Return:
- *   0          - success.
+ *   0          - success, or when broadcast TLB maintenance is supported
+ *                on all SMMUs and no local invalidation is required.
  *   -ETIMEDOUT - timeout during command processing.
  *   -EIO       - internal SMMU error.
  */
-int smmuv3_invalidate(void);
+int smmuv3_inv(void);
 
 /*
  * Invalidate a single 4KB page in the stage-2 TLB for a VMID.
@@ -173,12 +174,13 @@ int smmuv3_invalidate(void);
  *   addr  - Intermediate physical address (IPA) aligned to 4KB.
  *
  * Return:
- *   0          - success.
+ *   0          - success, or when broadcast TLB maintenance is supported
+ *                on all SMMUs and no local invalidation is required.
  *   -EINVAL    - incorrect addr alignment, no actions taken.
  *   -ETIMEDOUT - timeout in TLB invalidation command.
  *   -EIO       - SMMU command/queue error.
  */
-int smmuv3_invalidate_page(unsigned int vmid, unsigned long addr);
+int smmuv3_inv_page(unsigned int vmid, unsigned long addr);
 
 /*
  * Invalidate a 4KB block of IPA space for a VMID.
@@ -188,12 +190,13 @@ int smmuv3_invalidate_page(unsigned int vmid, unsigned long addr);
  *   addr  - Base address of block aligned to 4KB.
  *
  * Return:
- *   0          - success.
+ *   0          - success, or when broadcast TLB maintenance is supported
+ *                on all SMMUs and no local invalidation is required.
  *   -EINVAL    - incorrect addr alignment, no actions taken.
  *   -ETIMEDOUT - timeout in TLB invalidation command.
  *   -EIO       - SMMU command/queue error.
  */
-int smmuv3_invalidate_block(unsigned int vmid, unsigned long addr);
+int smmuv3_inv_block(unsigned int vmid, unsigned long addr);
 
 /*
  * Invalidate all pages within a 2MB block.
@@ -203,12 +206,13 @@ int smmuv3_invalidate_block(unsigned int vmid, unsigned long addr);
  *   addr  - Base address of the block aligned to 2MB.
  *
  * Return:
- *   0          - success.
+ *   0          - success, or when broadcast TLB maintenance is supported
+ *                on all SMMUs and no local invalidation is required.
  *   -EINVAL    - incorrect addr alignment, no actions taken.
  *   -ETIMEDOUT - timeout in TLB invalidation command.
  *   -EIO       - SMMU command/queue error.
  */
-int smmuv3_invalidate_pages_in_block(unsigned int vmid, unsigned long addr);
+int smmuv3_inv_pages_in_block(unsigned int vmid, unsigned long addr);
 
 /*
  * Invalidate all TLB entries at all implemented stages for a VMID on a single SMMU.
@@ -218,11 +222,12 @@ int smmuv3_invalidate_pages_in_block(unsigned int vmid, unsigned long addr);
  *   vmid      - Virtual Machine Identifier.
  *
  * Return:
- *   0          - success, or no-op if broadcast invalidation is supported.
+ *   0          - success, or when broadcast TLB maintenance is supported
+ *                on SMMU and no local invalidation is required.
  *   -EINVAL    - invalid smmu_idx, no actions taken.
  *   -ETIMEDOUT - timeout during invalidation.
  *   -EIO       - hardware or queue processing error.
  */
-int smmuv3_invalidate_entries(unsigned long smmu_idx, unsigned int vmid);
+int smmuv3_inv_entries(unsigned long smmu_idx, unsigned int vmid);
 
 #endif /* SMMUV3_H */

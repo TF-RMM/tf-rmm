@@ -16,6 +16,7 @@
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc-rsi.h>
+#include <smmuv3.h>
 #include <string.h>
 #include <utils_def.h>
 
@@ -64,13 +65,15 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 			      unsigned long vdev_addr,
 			      unsigned long vdev_params_addr)
 {
-	struct rmi_vdev_params vdev_params; /* this consumes 4k of stack */
+	struct rmi_vdev_params vdev_params; /* this consumes 4KB of stack */
 	struct granule *g_rd;
 	struct granule *g_pdev;
 	struct granule *g_vdev;
 	struct rd *rd;
 	struct pdev *pd;
 	struct vdev *vd;
+	struct s2tt_context *plane_0_s2_context;
+	struct smmu_stg2_config s2_cfg;
 	unsigned long rc;
 
 	if (!is_rmi_feat_da_enabled()) {
@@ -130,6 +133,19 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
+	plane_0_s2_context = plane_to_s2_context(rd, PLANE_0_ID);
+
+	s2_cfg.s2ttb = granule_addr(plane_0_s2_context->g_rtt) & MASK(TTBRx_EL2_BADDR);
+	s2_cfg.vtcr = realm_vtcr(rd);
+	s2_cfg.vmid = plane_0_s2_context->vmid;
+
+	if ((smmuv3_allocate_ste(SMMU_IDX, (unsigned int)vdev_params.tdi_id) != 0) ||
+	    (smmuv3_configure_stream(SMMU_IDX, &s2_cfg,
+					(unsigned int)vdev_params.tdi_id) != 0)) {
+		rc = RMI_ERROR_DEVICE;
+		goto out_unmap_vd;
+	}
+
 	/* Initialize VDEV fields */
 	vd->g_rd = g_rd;
 	vd->g_pdev = g_pdev;
@@ -155,8 +171,9 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	rd_vdev_refcount_inc(rd);
 
 	/* Update PDEV */
-	pd->num_vdevs += 1U;
+	pd->num_vdevs++;
 
+out_unmap_vd:
 	buffer_unmap(vd);
 out_unmap_pd:
 	buffer_unmap(pd);
@@ -604,6 +621,11 @@ unsigned long smc_vdev_stop(unsigned long vdev_addr)
 		goto out_vdev_buf_unmap;
 	}
 
+	if (smmuv3_release_ste(SMMU_IDX, (unsigned int)vd->tdi_id) != 0) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_vdev_buf_unmap;
+	}
+
 	vd->rmi_state = RMI_VDEV_STATE_STOPPING;
 
 	/*
@@ -616,7 +638,6 @@ unsigned long smc_vdev_stop(unsigned long vdev_addr)
 	/* No dev communication state for VDEV */
 	pd->dev_comm_state = DEV_COMM_PENDING;
 	smc_rc = RMI_SUCCESS;
-
 
 out_vdev_buf_unmap:
 	buffer_unmap(vd);
