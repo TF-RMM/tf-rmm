@@ -277,15 +277,15 @@ RMM Fake Host Build
 *******************
 
 In case of the fake host build, the applications are compiled as a standalone
-elf file. The RMM core is compiled to the elf file ``rmm_core.elf``. The path
-to the RMM app elf files are passed to ``rmm_core.elf`` as a command line
-parameter, along with the ID of the RMM apps. The first time the main RMM
-process calls ``app_init_data`` the process is forked, the image of the
-requested RMM app is loaded in the new process, and a named-pipe connection is
-established between the two processes. When the RMM app process is created, for
-each ``app_init_data`` (including the first call) a new thread is created. The
-main thread in the RMM app process is responsible for dispatching the RMM app
-calls and returns between the main RMM process and the RMM app thread.
+elf file. The RMM core is compiled to the elf file ``rmm_core.elf``. RMM core
+expects the app ELF files to reside in the same directory as the RMM core
+executable. The first time the main RMM process calls ``app_init_data`` the
+process is forked, the image of the requested RMM app is loaded in the new
+process, and a named-pipe connection isestablished between the two processes.
+When the RMM app process is created, for each ``app_init_data`` (including the
+first call) a new thread is created. The main thread in the RMM app process is
+responsible for dispatching the RMM app calls and returns between the main RMM
+process and the RMM app thread.
 
 There is no shared memory between the main and the RMM app processes, memory
 sharing is emulated by sending over the content of the main process's "shared
@@ -301,21 +301,17 @@ The help of the main process:
       $ rmm_core.elf --help
       Run RMM on the host
 
-      Usage: rmm_core.elf [-h|--help] [app_id app_elf [...]]
+      Usage: rmm_core.elf [-h|--help]
 
       Arguments:
         -h, --help      print this message and exit.
-        app_id          Integer value of app id of the app.
-        app_elf         path to the app's elf file.
 
 
 An example call:
 
     .. code-block:: bash
 
-      $ Debug/rmm_core.elf \
-            103 Debug/rmm_app_random.elf \
-            211 Debug/rmm_app_attestation.elf
+      $ Debug/rmm_core.elf
 
 *************************
 RMM Apps currently in RMM
