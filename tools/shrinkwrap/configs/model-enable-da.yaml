@@ -1,0 +1,57 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  This overlay enables necessary options and sets up necessary related files
+  for FVP to support Device Assignment (DA) feature based on RMM specification.
+
+build:
+  rmm:
+    build:
+      # Copy sample_keys from libspdm that will be used as device certificates
+      - cp -r ext/libspdm/unit_test/sample_key ${param:builddir}
+      # Copy pci.json to build dir to be used as base for pci_fixedup.json
+      - cp tools/shrinkwrap/pci.json ${param:builddir}
+    artifacts:
+      SAMPLE_KEY: ${param:builddir}/sample_key
+      PCI_HIERARCHY_FILE: ${param:builddir}/pci.json
+
+run:
+  rtvars:
+    SAMPLE_KEY:
+      type: path
+      value: ${artifact:SAMPLE_KEY}
+    PCI_HIERARCHY_FILE_FIXED:
+      type: path
+      value: ${param:packagedir}/pci_fixedup.json
+
+  prerun:
+    # Preprocess pci.json to replace <fixup_path> with actual location.
+    - bash tools/shrinkwrap/fix_pci_json.sh ${param:packagedir}
+
+  params:
+    # Enable access control services
+    -C pci.hierarchy_file_name: ${rtvar:PCI_HIERARCHY_FILE_FIXED}
+    # Set SMMU related parameters
+    -C pci.pci_smmuv3.mmu.SMMU_AIDR: 3
+    -C pci.pci_smmuv3.mmu.SMMU_IDR0: 1234122427
+    -C pci.pci_smmuv3.mmu.SMMU_IDR1: 216481040
+    -C pci.pci_smmuv3.mmu.SMMU_IDR3: 30524
+    -C pci.pci_smmuv3.mmu.SMMU_IDR5: 1141
+    -C pci.pci_smmuv3.mmu.SMMU_S_IDR0: 16777216
+    -C pci.pci_smmuv3.mmu.SMMU_S_IDR1: 2684354562
+    -C pci.pci_smmuv3.mmu.SMMU_S_IDR2: 0
+    -C pci.pci_smmuv3.mmu.SMMU_S_IDR3: 0
+    -C pci.pci_smmuv3.mmu.SMMU_ROOT_IDR0: 8388623
+    -C pci.pci_smmuv3.mmu.SMMU_ROOT_IIDR: 1083
+    -C pci.pci_smmuv3.mmu.SMMU_R_IDR0: 16851968
+    -C pci.pci_smmuv3.mmu.root_register_page_offset: 131072
+    # Below options are workaround for missing TLB invalidates in RMM and TF-A.
+    -C pci.pci_smmuv3.mmu.size_of_tlb: 1
+    -C pci.pci_smmuv3.mmu.size_of_gpttlb: 1
+    # Configure the interconnect before use
+    -C cci550.force_on_from_start: 1
