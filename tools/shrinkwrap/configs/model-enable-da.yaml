@@ -37,19 +37,21 @@ run:
     # Enable access control services
     -C pci.hierarchy_file_name: ${rtvar:PCI_HIERARCHY_FILE_FIXED}
     # Set SMMU related parameters
-    -C pci.pci_smmuv3.mmu.SMMU_AIDR: 3
-    -C pci.pci_smmuv3.mmu.SMMU_IDR0: 1234122427
-    -C pci.pci_smmuv3.mmu.SMMU_IDR1: 216481040
-    -C pci.pci_smmuv3.mmu.SMMU_IDR3: 30524
-    -C pci.pci_smmuv3.mmu.SMMU_IDR5: 1141
-    -C pci.pci_smmuv3.mmu.SMMU_S_IDR0: 16777216
-    -C pci.pci_smmuv3.mmu.SMMU_S_IDR1: 2684354562
-    -C pci.pci_smmuv3.mmu.SMMU_S_IDR2: 0
-    -C pci.pci_smmuv3.mmu.SMMU_S_IDR3: 0
-    -C pci.pci_smmuv3.mmu.SMMU_ROOT_IDR0: 8388623
-    -C pci.pci_smmuv3.mmu.SMMU_ROOT_IIDR: 1083
-    -C pci.pci_smmuv3.mmu.SMMU_R_IDR0: 16851968
-    -C pci.pci_smmuv3.mmu.root_register_page_offset: 131072
+    -C pci.pci_smmuv3.mmu.SMMU_AIDR: 0x3
+    -C pci.pci_smmuv3.mmu.SMMU_IDR0: 0x498F36BB
+    -C pci.pci_smmuv3.mmu.SMMU_IDR1: 0xCE73D10
+    -C pci.pci_smmuv3.mmu.SMMU_IDR3: 0x773C
+    -C pci.pci_smmuv3.mmu.SMMU_IDR5: 0x475
+    -C pci.pci_smmuv3.mmu.SMMU_S_IDR0: 0x1000000
+    -C pci.pci_smmuv3.mmu.SMMU_S_IDR1: 0xA0000002
+    -C pci.pci_smmuv3.mmu.SMMU_S_IDR2: 0x0
+    -C pci.pci_smmuv3.mmu.SMMU_S_IDR3: 0x0
+    -C pci.pci_smmuv3.mmu.SMMU_ROOT_IDR0: 0x80000F
+    -C pci.pci_smmuv3.mmu.SMMU_ROOT_IIDR: 0x43B
+    -C pci.pci_smmuv3.mmu.SMMU_R_IDR0: 0x1012400
+    -C pci.pci_smmuv3.mmu.SMMU_R_IDR3: 0x10000
+    -C pci.pci_smmuv3.mmu.ish_is_osh: 1
+    -C pci.pci_smmuv3.mmu.root_register_page_offset: 0x20000
     # Below options are workaround for missing TLB invalidates in RMM and TF-A.
     -C pci.pci_smmuv3.mmu.size_of_tlb: 1
     -C pci.pci_smmuv3.mmu.size_of_gpttlb: 1
