@@ -188,7 +188,7 @@ static bool access_pmu_pmev_el0(struct rec *rec,
 			if (read) {
 				res->smc_res.x[1] = pmev_regs->pmevcntr_el0;
 			} else {
-				pmev_regs->pmevcntr_el0 = res->smc_res.x[3];
+				pmev_regs->pmevcntr_el0 = plane->regs[3];
 			}
 			return true;
 		}
@@ -197,7 +197,7 @@ static bool access_pmu_pmev_el0(struct rec *rec,
 			if (read) {
 				res->smc_res.x[1] = pmev_regs->pmevtyper_el0;
 			} else {
-				pmev_regs->pmevtyper_el0 = res->smc_res.x[3];
+				pmev_regs->pmevtyper_el0 = plane->regs[3];
 			}
 			return true;
 		}
