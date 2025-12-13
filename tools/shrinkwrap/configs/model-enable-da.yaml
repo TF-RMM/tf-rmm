@@ -34,6 +34,7 @@ run:
     - bash tools/shrinkwrap/fix_pci_json.sh ${param:packagedir}
 
   params:
+    -C pci.enable_device_id_checks: 0
     # Enable access control services
     -C pci.hierarchy_file_name: ${rtvar:PCI_HIERARCHY_FILE_FIXED}
     # Set SMMU related parameters

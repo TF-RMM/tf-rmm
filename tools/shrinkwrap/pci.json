@@ -37,7 +37,6 @@
         "acs_supported" : 1,
         "rmeda_dvsec_enable": 1,
         "ide_supported": 1,
-        "diagnostics_level": 4,
         "__downstream__" : {
             "ahci/ahci1": {
                 "endpoint.device": 0,
@@ -49,7 +48,6 @@
                 "endpoint.certificate_der_filename": "<fixup_path>/sample_key/ecp384/bundle_responder.certchain.der",
                 "endpoint.private_key_filename": "<fixup_path>/sample_key/ecp384/end_responder.key",
                 "endpoint.bit_mask_of_base_asym_alg": 0x80,
-                "endpoint.diagnostics": 4,
                 "image_path": "<fixup_path>/ahci-disk.img"
             }
         }
