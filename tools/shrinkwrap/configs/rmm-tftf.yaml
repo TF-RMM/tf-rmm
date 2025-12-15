@@ -73,6 +73,7 @@ layers:
   - tftf-base.yaml
   - tfa-rme.yaml
   - rmm.yaml
+  - model-enable-da.yaml
 
 concrete: true
 
@@ -112,54 +113,6 @@ run:
 
     # Cache modelling settings
     -C cache_state_modelled: ${rtvar:CACHE_MODEL_ENABLED}
-
-    # Enable DA related parameters on RootPort0: (0:1.0)
-    -C pci.pcie_rc.rootport0.ide_supported: 1
-    -C pci.pcie_rc.rootport0.tee_io_supported: 1
-    -C pci.pcie_rc.rootport0.rmeda_dvsec_enable: 1
-    -C pci.pcie_rc.rootport0.acs_supported: 1
-
-    # Enable DA related parameters on RootPort1: (0:2.0)
-    -C pci.pcie_rc.rootport1.ide_supported: 1
-    -C pci.pcie_rc.rootport1.tee_io_supported: 1
-    -C pci.pcie_rc.rootport1.rmeda_dvsec_enable: 1
-    -C pci.pcie_rc.rootport1.acs_supported: 1
-
-    # Enable DA related parameters on RootPort2: (0:3.0)
-    -C pci.pcie_rc.rootport2.ide_supported: 1
-    -C pci.pcie_rc.rootport2.tee_io_supported: 1
-    -C pci.pcie_rc.rootport2.rmeda_dvsec_enable: 1
-    -C pci.pcie_rc.rootport2.acs_supported: 1
-
-    # Enable DA related parameters on RootPort3: (0:4.0)
-    -C pci.pcie_rc.rootport3.ide_supported: 1
-    -C pci.pcie_rc.rootport3.tee_io_supported: 1
-    -C pci.pcie_rc.rootport3.rmeda_dvsec_enable: 1
-    -C pci.pcie_rc.rootport3.acs_supported: 1
-
-    # Enable DA related parameters on off-chip device: (1:0.0)
-    -C pci.pcie_rc.ahci1.endpoint.doe_supported: 1
-    -C pci.pcie_rc.ahci1.endpoint.ide_supported: 1
-    -C pci.pcie_rc.ahci1.endpoint.tee_io_supported: 1
-    -C pci.pcie_rc.ahci1.endpoint.bit_mask_of_base_asym_alg: 16
-    -C pci.pcie_rc.ahci1.endpoint.certificate_der_filename: ${btvar:RMM_SRC}/ext/libspdm/unit_test/sample_key/ecp256/bundle_responder.certchain.der
-    -C pci.pcie_rc.ahci1.endpoint.private_key_filename: ${btvar:RMM_SRC}/ext/libspdm/unit_test/sample_key/ecp256/end_responder.key
-
-    # Enable DA related parameters on off-chip device: (2:0.0)
-    -C pci.pcie_rc.smmuv3testengine2.endpoint.doe_supported: 1
-    -C pci.pcie_rc.smmuv3testengine2.endpoint.ide_supported: 1
-    -C pci.pcie_rc.smmuv3testengine2.endpoint.tee_io_supported: 1
-    -C pci.pcie_rc.smmuv3testengine2.endpoint.bit_mask_of_base_asym_alg: 128
-    -C pci.pcie_rc.smmuv3testengine2.endpoint.certificate_der_filename: ${btvar:RMM_SRC}/ext/libspdm/unit_test/sample_key/ecp384/bundle_responder.certchain.der
-    -C pci.pcie_rc.smmuv3testengine2.endpoint.private_key_filename: ${btvar:RMM_SRC}/ext/libspdm/unit_test/sample_key/ecp384/end_responder.key
-
-    # Enable DA related parameters on off-chip device: (5:0.0)
-    -C pci.pcie_rc.ahci2.endpoint.doe_supported: 1
-    -C pci.pcie_rc.ahci2.endpoint.ide_supported: 1
-    -C pci.pcie_rc.ahci2.endpoint.tee_io_supported: 1
-    -C pci.pcie_rc.ahci2.endpoint.bit_mask_of_base_asym_alg: 4
-    -C pci.pcie_rc.ahci2.endpoint.certificate_der_filename: ${btvar:RMM_SRC}/ext/libspdm/unit_test/sample_key/rsa3072/bundle_responder.certchain.der
-    -C pci.pcie_rc.ahci2.endpoint.private_key_filename: ${btvar:RMM_SRC}/ext/libspdm/unit_test/sample_key/rsa3072/end_responder.key
 
   terminals:
     bp.terminal_0:

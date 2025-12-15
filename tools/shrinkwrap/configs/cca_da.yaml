@@ -19,22 +19,17 @@ layers:
   - rmm.yaml
   - rmm-debug.yaml
   - rmm-v1_1.yaml
+  - model-enable-da.yaml
 
 build:
   rmm:
     repo:
       revision: main
     build:
-      # Copy sample_keys from libspdm that will be used as device certificates
-      - cp -r ext/libspdm/unit_test/sample_key ${param:builddir}
-      # Copy pci.json to build dir to be used as base for pci_fixedup.json
-      - cp tools/shrinkwrap/pci.json ${param:builddir}
       # Create a sample disk image for AHCI controller
       - dd if=/dev/zero of=${param:builddir}/ahci-disk.img bs=1M count=64 status=none
     artifacts:
-      SAMPLE_KEY: ${param:builddir}/sample_key
       DISK: ${param:builddir}/ahci-disk.img
-      PCI_HIERARCHY_FILE: ${param:builddir}/pci.json
 
   linux:
     repo:
@@ -62,39 +57,3 @@ build:
         revision: v1.6.1
       kvmtool:
         revision: cca/tdisp-upstream-post-v1.3
-
-run:
-  rtvars:
-    SAMPLE_KEY:
-      type: path
-      value: ${artifact:SAMPLE_KEY}
-    PCI_HIERARCHY_FILE_FIXED:
-      type: path
-      value: ${param:packagedir}/pci_fixedup.json
-
-  prerun:
-    # Preprocess pci.json to replace <fixup_path> with actual location.
-    - bash tools/shrinkwrap/fix_pci_json.sh ${param:packagedir}
-
-  params:
-    # Enable access control services
-    -C pci.hierarchy_file_name: ${rtvar:PCI_HIERARCHY_FILE_FIXED}
-    # Set SMMU related parameters
-    -C pci.pci_smmuv3.mmu.SMMU_AIDR: 3
-    -C pci.pci_smmuv3.mmu.SMMU_IDR0: 1234122427
-    -C pci.pci_smmuv3.mmu.SMMU_IDR1: 216481040
-    -C pci.pci_smmuv3.mmu.SMMU_IDR3: 30524
-    -C pci.pci_smmuv3.mmu.SMMU_IDR5: 1141
-    -C pci.pci_smmuv3.mmu.SMMU_S_IDR0: 16777216
-    -C pci.pci_smmuv3.mmu.SMMU_S_IDR1: 2684354562
-    -C pci.pci_smmuv3.mmu.SMMU_S_IDR2: 0
-    -C pci.pci_smmuv3.mmu.SMMU_S_IDR3: 0
-    -C pci.pci_smmuv3.mmu.SMMU_ROOT_IDR0: 8388623
-    -C pci.pci_smmuv3.mmu.SMMU_ROOT_IIDR: 1083
-    -C pci.pci_smmuv3.mmu.SMMU_R_IDR0: 16851968
-    -C pci.pci_smmuv3.mmu.root_register_page_offset: 131072
-    # Below options are workaround for missing TLB invalidates in RMM and TF-A.
-    -C pci.pci_smmuv3.mmu.size_of_tlb: 1
-    -C pci.pci_smmuv3.mmu.size_of_gpttlb: 1
-    # Configure the interconnect before use
-
