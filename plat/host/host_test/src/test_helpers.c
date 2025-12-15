@@ -11,6 +11,7 @@
 #include <granule.h>
 #include <host_utils.h>
 #include <limits.h>
+#include <mec.h>
 #include <platform_api.h>
 #include <rmm_el3_ifc.h>
 #include <stdlib.h>
@@ -54,6 +55,9 @@ static void start_primary_pe(void)
 		   RMM_EL3_IFC_ABI_VERSION,
 		   RMM_EL3_MAX_CPUS,
 		   (uintptr_t)host_util_get_el3_rmm_shared_buffer());
+
+	/* Init MEC */
+	mec_init_mmu();
 
 	/*
 	 * Enable the MMU. This is needed as some initialization code
@@ -118,6 +122,8 @@ void test_helpers_rmm_start(bool secondaries)
 		}
 		initialized = true;
 	} else {
+		mec_test_reset();
+
 		/* Restore the sysreg status */
 		host_util_restore_sysreg_snapshot();
 	}
@@ -177,24 +183,33 @@ void __assert_fail(const char *assertion, const char *file,
 	(void)function;
 
 	asserted = true;
+	char msg[512];
 
 	if (assert_expected == true) {
 		if (strlen(assert_check) > 0U) {
 			if (strncmp(assert_check, assertion,
 				    strlen(assertion)) != 0) {
-				VERBOSE("Assertion mismatch on %s at line %u\n",
+				ERROR("Assertion mismatch on %s at line %u\n",
 					file, line);
-				VERBOSE("Expected assertion \"%s\"\n",
+				ERROR("Expected assertion \"%s\"\n",
 					assert_check);
-				VERBOSE("Received assertion \"%s\"\n",
+				ERROR("Received assertion \"%s\"\n",
 					assertion);
-				utest_exit_fail("Assertion mismatch\n");
+				(void)snprintf(msg, sizeof(msg),
+					 "Assertion mismatch on %s at line %u\n"
+					 "Expected assertion \"%s\"\n"
+					 "Received assertion \"%s\"\n",
+					 file, line, assert_check, assertion);
+				utest_exit_fail(msg);
 			}
 		}
 	} else {
-		VERBOSE("Unexpected assertion \"%s\" on file %s at line %u\n",
+		ERROR("Unexpected assertion \"%s\" on file %s at line %u\n",
 			assertion, file, line);
-		utest_exit_fail("Unexpected assertion\n");
+		(void)snprintf(msg, sizeof(msg),
+			 "Unexpected assertion \"%s\" on file %s at line %u\n",
+			 assertion, file, line);
+		utest_exit_fail(msg);
 	}
 
 	assert_check[0] = '\0';

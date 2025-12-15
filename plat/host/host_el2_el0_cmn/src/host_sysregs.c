@@ -13,6 +13,7 @@ static struct sysreg_data sysregs[SYSREG_MAX_CBS];
 static struct sysreg_data sysregs_snapshot[SYSREG_MAX_CBS];
 struct cached_idreg_info cached_idreg_snapshot = {0};
 static unsigned int installed_cb_idx;
+static unsigned int installed_cb_idx_snapshot;
 static unsigned int current_cpuid;
 
 /*
@@ -88,29 +89,45 @@ int host_util_set_sysreg_cb(char *name, rd_cb_t rd_cb, wr_cb_t wr_cb,
 			    u_register_t init)
 {
 	size_t name_len;
+	unsigned int cb_idx = 0U;
 
-	if (installed_cb_idx < SYSREG_MAX_CBS) {
-		sysregs[installed_cb_idx].callbacks.rd_cb = rd_cb;
-		sysregs[installed_cb_idx].callbacks.wr_cb = wr_cb;
-		sysregs[installed_cb_idx].callbacks.reg =
-							(u_register_t *)NULL;
+	name_len = strlen(&name[0]);
+	if (name_len >= MAX_SYSREG_NAME_LEN) {
+		name_len = MAX_SYSREG_NAME_LEN - 1U;
+	}
+
+	/* Find the callback index that matches the register name */
+	while ((cb_idx < installed_cb_idx) &&
+			(strncmp(name, &sysregs[cb_idx].name[0],
+			MAX_SYSREG_NAME_LEN) != 0)) {
+		cb_idx++;
+	}
+
+	if (cb_idx < SYSREG_MAX_CBS) {
+		sysregs[cb_idx].callbacks.rd_cb = rd_cb;
+		sysregs[cb_idx].callbacks.wr_cb = wr_cb;
+		sysregs[cb_idx].callbacks.reg =	(u_register_t *)NULL;
 
 		for (unsigned int i = 0U; i < MAX_CPUS; i++) {
-			sysregs[installed_cb_idx].value[i] = init;
+			sysregs[cb_idx].value[i] = init;
 		}
 
-		name_len = strlen(&name[0]);
-		if (name_len >= MAX_SYSREG_NAME_LEN) {
-			name_len = MAX_SYSREG_NAME_LEN - 1U;
+		if (cb_idx == installed_cb_idx) {
+			/*
+			 * Callback is being set for the first time, so
+			 * set the register name field for the entry and
+			 * increase the number of callbacks.
+			 */
+
+			(void)memcpy(&(sysregs[cb_idx].name[0]), &name[0], name_len);
+
+			/*
+			 * Add a string termination character.
+			 */
+			sysregs[cb_idx].name[name_len] = '\0';
+
+			++installed_cb_idx;
 		}
-		(void)memcpy(&(sysregs[installed_cb_idx].name[0]), &name[0], name_len);
-
-		/*
-		 * Add a string termination character.
-		 */
-		sysregs[installed_cb_idx].name[name_len] = '\0';
-
-		++installed_cb_idx;
 
 		return 0;
 	}
@@ -128,6 +145,8 @@ void host_util_take_sysreg_snapshot(void)
 {
 	memcpy((void *)&sysregs_snapshot[0], (void *)&sysregs[0],
 		sizeof(struct sysreg_data) * SYSREG_MAX_CBS);
+	installed_cb_idx_snapshot = installed_cb_idx;
+
 	memcpy((void *)&cached_idreg_snapshot,
 	       (void *)&cached_idreg,
 	       sizeof(cached_idreg_snapshot));
@@ -137,6 +156,8 @@ void host_util_restore_sysreg_snapshot(void)
 {
 	memcpy((void *)&sysregs[0], (void *)&sysregs_snapshot[0],
 		sizeof(struct sysreg_data) * SYSREG_MAX_CBS);
+	installed_cb_idx = installed_cb_idx_snapshot;
+
 	memcpy((void *)&cached_idreg,
 	       (void *)&cached_idreg_snapshot,
 	       sizeof(cached_idreg));

@@ -14,6 +14,7 @@ extern "C" {
 #include <granule.h>
 #include <host_harness.h>
 #include <host_utils.h>
+#include <mec.h>
 #include <stdlib.h>
 #include <string.h>
 #include <test_helpers.h>
@@ -76,6 +77,29 @@ static void get_rand_granule_array(uintptr_t *arr, unsigned int count)
 		}
 	}
 
+}
+
+static void get_contiguous_rand_granule_array(uintptr_t *arr,
+					unsigned int count)
+{
+	uintptr_t granule_base = host_util_get_granule_base();
+	unsigned long nr_granules = test_helpers_get_nr_granules();
+	unsigned long max_start_granule;
+	unsigned long start_granule;
+
+	/* Ensure we have enough granules for the requested range */
+	assert(count <= nr_granules);
+
+	/* Calculate the maximum starting granule index */
+	max_start_granule = nr_granules - count;
+
+	/* Generate random start granule within valid range */
+	start_granule = test_helpers_get_rand_in_range(0UL, max_start_granule);
+
+	/* Fill the array with contiguous granule addresses */
+	for (unsigned int i = 0U; i < count; i++) {
+		arr[i] = granule_base + ((start_granule + i) * GRANULE_SIZE);
+	}
 }
 
 TEST_GROUP(slot_buffer) {
@@ -1943,4 +1967,359 @@ IGNORE_TEST(slot_buffer, slot_buf_finish_warmboot_init_TC1)
 	 * slot_buf_finish_warmboot_init() has already been used during
 	 * initialization for all tests, so skip it.
 	 */
+}
+
+TEST(slot_buffer, check_cpu_slots_empty_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Verify that check_cpu_slots_empty() returns true when all
+	 * slots are empty.
+	 ******************************************************************/
+
+	bool ret = check_cpu_slots_empty();
+
+	CHECK_TRUE(ret);
+}
+
+TEST(slot_buffer, check_cpu_slots_empty_TC2)
+{
+	uintptr_t granule_addr;
+	struct granule *test_granule;
+	union test_harness_cbs cb;
+	void *buf;
+
+	/******************************************************************
+	 * TEST CASE 2:
+	 *
+	 * Map a granule and verify that check_cpu_slots_empty() returns
+	 * false.
+	 ******************************************************************/
+
+	/* Register harness callbacks to use by this test */
+	cb.buffer_map = buffer_test_cb_map_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+
+	granule_addr = get_rand_granule_addr();
+	test_granule = addr_to_granule(granule_addr);
+
+	enum buffer_slot slot = (enum buffer_slot)test_helpers_get_rand_in_range(
+		(unsigned long)(SLOT_NS + 1U), (unsigned long)NR_CPU_SLOTS - 1U);
+
+	buf = is_realm_mecid_slot(slot)
+		? buffer_granule_mecid_map(test_granule, slot, rand() % 256)
+		: buffer_granule_map(test_granule, slot);
+
+	bool ret = check_cpu_slots_empty();
+
+	buffer_unmap(buf);
+
+	CHECK_FALSE(ret);
+}
+
+TEST(slot_buffer, buffer_granule_sanitize_TC1)
+{
+	uintptr_t granule_addr;
+	struct granule *test_granule;
+	union test_harness_cbs cb;
+
+	/******************************************************************
+	 * TEST CASE 2:
+	 *
+	 * Sanitize a granule by calling buffer_granule_sanitize().
+	 ******************************************************************/
+
+	/* Register harness callbacks to use by this test */
+	cb.buffer_map = buffer_test_cb_map_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+
+	granule_addr = get_rand_granule_addr();
+	test_granule = addr_to_granule(granule_addr);
+
+	/* Fill the granule with a known pattern */
+	memset((void *)granule_addr, 0xAA, GRANULE_SIZE);
+
+	/* Keep a copy of the original contents */
+	unsigned char before[GRANULE_SIZE];
+	memcpy(before, (void *)granule_addr, GRANULE_SIZE);
+
+	/* Sanitize the granule */
+	buffer_granule_sanitize(test_granule);
+
+	/* Check content changed (not same as before) */
+	CHECK_FALSE(memcmp(before, (void *)granule_addr, (size_t)GRANULE_SIZE) == 0);
+}
+
+static void fill_buffer_with_pattern(void *buffer, size_t size,
+					const unsigned char *pattern,
+					size_t pattern_size)
+{
+	uintptr_t addr = (uintptr_t)buffer;
+	size_t iterations = size / pattern_size;
+	for (size_t i = 0U; i < iterations; i++) {
+		memcpy((void *)(addr + i * pattern_size),
+			   pattern, pattern_size);
+	}
+}
+
+static bool verify_pattern_in_buffer(void *buffer, size_t size,
+					  const unsigned char *pattern,
+					  size_t pattern_size)
+{
+	size_t iterations = size / pattern_size;
+	uintptr_t addr = (uintptr_t)buffer;
+
+	for (size_t i = 0; i < iterations; i++) {
+		if (memcmp((void *)(addr + i * pattern_size),
+			   pattern, pattern_size) != 0) {
+			return false;
+		}
+	}
+	return true;
+}
+
+TEST(slot_buffer, buffer_aux_granules_map_zeroed_TC1)
+{
+	uintptr_t granule_addrs[MAX_REC_AUX_GRANULES];
+	struct granule *granules[MAX_REC_AUX_GRANULES];
+	unsigned char pattern[] = { 0x28, 0x11, 0xa2, 0x5c,
+					0x30, 0xee, 0x9f, 0x58};
+	union test_harness_cbs cb;
+	void *buf_granules;
+	uintptr_t addr;
+	bool zeroed = true;
+
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map and zero an array of REC_AUX granules to SLOT_AUX using
+	 * buffer_aux_granules_map_zeroed() and validate that REC_AUX
+	 * granules are zeroed.
+	 ******************************************************************/
+
+	/* Register harness callbacks to use by this test */
+	cb.buffer_map = buffer_test_cb_map_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+
+	get_contiguous_rand_granule_array(granule_addrs, MAX_REC_AUX_GRANULES);
+
+	for (unsigned int i = 0U; i < MAX_REC_AUX_GRANULES; i++) {
+		granules[i] = addr_to_granule(granule_addrs[i]);
+	}
+
+	for (unsigned int i = 0U; i < MAX_REC_AUX_GRANULES; i++) {
+		fill_buffer_with_pattern((void *)granule_addrs[i], GRANULE_SIZE,
+					 (const unsigned char *)pattern,
+					 sizeof(pattern));
+	}
+
+	buf_granules = buffer_rec_aux_granules_map_zeroed(granules,
+						MAX_REC_AUX_GRANULES);
+
+	memset((void *)pattern, 0, sizeof(pattern));
+
+	addr = (uintptr_t)buf_granules;
+
+	for (unsigned int i = 0U; i < MAX_REC_AUX_GRANULES; i++) {
+		if (!verify_pattern_in_buffer((void *)addr, GRANULE_SIZE,
+						  (const unsigned char *)pattern,
+						  sizeof(pattern))) {
+			zeroed = false;
+			break;
+		}
+		addr += GRANULE_SIZE;
+	}
+
+	buffer_rec_aux_unmap(buf_granules, MAX_REC_AUX_GRANULES);
+
+	CHECK_TRUE(buf_granules != NULL);
+	CHECK_TRUE(zeroed);
+}
+
+TEST(slot_buffer, buffer_aux_granules_map_TC1)
+{
+	uintptr_t granule_addrs[MAX_REC_AUX_GRANULES];
+	struct granule *granules[MAX_REC_AUX_GRANULES];
+	union test_harness_cbs cb;
+	void *buf_granules;
+	unsigned char pattern[] = { 0x28, 0x11, 0xa2, 0x5c,
+					0x30, 0xee, 0x9f, 0x58};
+	uintptr_t addr;
+	bool is_pattern_preserved = true;
+
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map an array of REC_AUX granules to SLOT_AUX using
+	 * buffer_aux_granules_map() and validate that REC_AUX
+	 * granules contents are preserved.
+	 ******************************************************************/
+
+	/* Register harness callbacks to use by this test */
+	cb.buffer_map = buffer_test_cb_map_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+
+	get_contiguous_rand_granule_array(granule_addrs, MAX_REC_AUX_GRANULES);
+
+	for (unsigned int i = 0U; i < MAX_REC_AUX_GRANULES; i++) {
+		addr = granule_addrs[i];
+
+		fill_buffer_with_pattern((void *)addr, GRANULE_SIZE,
+					 (const unsigned char *)pattern,
+					 sizeof(pattern));
+
+		granules[i] = addr_to_granule(addr);
+	}
+
+	buf_granules = buffer_rec_aux_granules_map(granules,
+						MAX_REC_AUX_GRANULES);
+
+	addr = (uintptr_t)buf_granules;
+
+	for (unsigned int i = 0U; i < MAX_REC_AUX_GRANULES; i++) {
+		if (!verify_pattern_in_buffer((void *)addr, GRANULE_SIZE,
+						  (const unsigned char *)pattern,
+						  sizeof(pattern))) {
+			is_pattern_preserved = false;
+			break;
+		}
+		addr += GRANULE_SIZE;
+	}
+
+	buffer_rec_aux_unmap(buf_granules, MAX_REC_AUX_GRANULES);
+
+	CHECK_TRUE(buf_granules != NULL);
+	CHECK_TRUE(is_pattern_preserved);
+}
+
+TEST(slot_buffer, buffer_pdev_aux_granules_map_zeroed_TC1)
+{
+	uintptr_t granule_addrs[PDEV_PARAM_AUX_GRANULES_MAX];
+	struct granule *granules[PDEV_PARAM_AUX_GRANULES_MAX];
+	union test_harness_cbs cb;
+	unsigned char pattern[] = { 0x28, 0x11, 0xa2, 0x5c,
+					0x30, 0xee, 0x9f, 0x58};
+	void *buf_pdev_granules;
+	uintptr_t addr;
+	bool zeroed = true;
+
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map and zero an array of REC_AUX granules to SLOT_PDEV_AUX using
+	 * buffer_pdev_aux_granules_map() and validate that PDEV_AUX
+	 * granules are zeroed.
+	 ******************************************************************/
+
+	/* Register harness callbacks to use by this test */
+	cb.buffer_map = buffer_test_cb_map_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+
+	get_contiguous_rand_granule_array(granule_addrs,
+					PDEV_PARAM_AUX_GRANULES_MAX);
+
+	for (unsigned int i = 0U; i < PDEV_PARAM_AUX_GRANULES_MAX; i++) {
+		granules[i] = addr_to_granule(granule_addrs[i]);
+	}
+
+	for (unsigned int i = 0U; i < PDEV_PARAM_AUX_GRANULES_MAX; i++) {
+		fill_buffer_with_pattern((void *)granule_addrs[i], GRANULE_SIZE,
+					 (const unsigned char *)pattern,
+					 sizeof(pattern));
+	}
+
+	buf_pdev_granules = buffer_pdev_aux_granules_map_zeroed(granules,
+						PDEV_PARAM_AUX_GRANULES_MAX);
+
+
+	memset((void *)pattern, 0, sizeof(pattern));
+
+	addr = (uintptr_t)buf_pdev_granules;
+
+	for (unsigned int i = 0U; i < PDEV_PARAM_AUX_GRANULES_MAX; i++) {
+		if (!verify_pattern_in_buffer((void *)addr, GRANULE_SIZE,
+						  (const unsigned char *)pattern,
+						  sizeof(pattern))) {
+			zeroed = false;
+			break;
+		}
+		addr += GRANULE_SIZE;
+	}
+
+	buffer_pdev_aux_unmap(buf_pdev_granules, PDEV_PARAM_AUX_GRANULES_MAX);
+
+	CHECK_TRUE(buf_pdev_granules != NULL);
+	CHECK_TRUE(zeroed);
+}
+
+TEST(slot_buffer, buffer_pdev_aux_granules_map_TC1)
+{
+	uintptr_t granule_addrs[PDEV_PARAM_AUX_GRANULES_MAX];
+	struct granule *pdev_granules[PDEV_PARAM_AUX_GRANULES_MAX];
+	union test_harness_cbs cb;
+	void *buf_pdev_granules;
+	unsigned char pattern[] = { 0x28, 0x11, 0xa2, 0x5c,
+					0x30, 0xee, 0x9f, 0x58};
+	uintptr_t addr;
+	bool is_pattern_preserved = true;
+
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map an array of REC_AUX granules to SLOT_PDEV_AUX using
+	 * buffer_pdev_aux_granules_map().
+	 ******************************************************************/
+
+	/* Register harness callbacks to use by this test */
+	cb.buffer_map = buffer_test_cb_map_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+
+	get_contiguous_rand_granule_array(granule_addrs,
+					PDEV_PARAM_AUX_GRANULES_MAX);
+
+	for (unsigned int i = 0U; i < PDEV_PARAM_AUX_GRANULES_MAX; i++) {
+		pdev_granules[i] = addr_to_granule(granule_addrs[i]);
+	}
+
+	for (unsigned int i = 0U; i < PDEV_PARAM_AUX_GRANULES_MAX; i++) {
+		addr = granule_addrs[i];
+
+		fill_buffer_with_pattern((void *)addr, GRANULE_SIZE,
+						(const unsigned char *)pattern,
+						sizeof(pattern));
+
+		pdev_granules[i] = addr_to_granule(addr);
+	}
+
+	buf_pdev_granules = buffer_pdev_aux_granules_map(pdev_granules,
+						PDEV_PARAM_AUX_GRANULES_MAX);
+
+	addr = (uintptr_t)buf_pdev_granules;
+	for (unsigned int i = 0U; i < PDEV_PARAM_AUX_GRANULES_MAX; i++) {
+		if (!verify_pattern_in_buffer((void *)addr, GRANULE_SIZE,
+					  (const unsigned char *)pattern,
+					  sizeof(pattern))) {
+			is_pattern_preserved = false;
+			break;
+		}
+		addr += GRANULE_SIZE;
+	}
+
+	buffer_pdev_aux_unmap(buf_pdev_granules, PDEV_PARAM_AUX_GRANULES_MAX);
+
+	CHECK_TRUE(buf_pdev_granules != NULL);
+	CHECK_TRUE(is_pattern_preserved);
 }

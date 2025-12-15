@@ -159,6 +159,16 @@ static inline void mec_reset_scrub_mecid_s1(void)
 		isb();
 	}
 }
-#endif
+#endif /* #if (RMM_MEM_SCRUB_METHOD == 2) */
+
+/*************************************
+ * Test API, only used for unit tests
+ ************************************/
+
+ /*
+  * Reset MEC state to power-on reset values.
+  * Only to be used in unit tests.
+  */
+void mec_test_reset(void);
 
 #endif /* MEC_H */
