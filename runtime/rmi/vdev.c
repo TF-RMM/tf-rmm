@@ -11,6 +11,7 @@
 #include <dev_assign_app.h>
 #include <feature.h>
 #include <granule.h>
+#include <random_app.h>
 #include <realm.h>
 #include <sizes.h>
 #include <smc-handler.h>
@@ -112,20 +113,15 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		goto out_unmap_rd;
 	}
 
-	/*
-	 * Currently we only support a single VDEV per Realm.
-	 * TODO: Revisit the following condition if multiple VDEV support is
-	 * added.
-	 */
-	if (rd->g_vdev != NULL) {
-		rc = RMI_ERROR_REALM;
-		goto out_unmap_rd;
-	}
-
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
 
 	if (pd->rmi_state != RMI_PDEV_STATE_READY) {
+		rc = RMI_ERROR_DEVICE;
+		goto out_unmap_pd;
+	}
+
+	if (EXTRACT(RMI_PDEV_FLAGS_CATEGORY, pd->rmi_flags) != RMI_PDEV_SMEM) {
 		rc = RMI_ERROR_DEVICE;
 		goto out_unmap_pd;
 	}
@@ -150,24 +146,18 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	vd->g_rd = g_rd;
 	vd->g_pdev = g_pdev;
 
+	/* TODO_ALP17: check whether vdev_id and tdi_id are free */
 	vd->id = vdev_params.vdev_id;
 	vd->tdi_id = vdev_params.tdi_id;
 
-	/*
-	 * Get the current VDEV instance id from RD and at the same time update
-	 * the same.
-	 */
-	vd->inst_id = rd_vdev_inst_counter_inc(rd);
-
-	vd->rmi_state = RMI_VDEV_STATE_READY;
-
-	/* Initialize RDEV */
-	vd->rdev.rsi_state = RSI_RDEV_STATE_UNLOCKED;
-	vd->rdev.op = RDEV_OP_NONE;
-	vd->rdev.vdev_addr = vdev_addr;
+	vd->rmi_state = RMI_VDEV_STATE_NEW;
+	vd->dma_state = RMI_VDEV_DMA_DISABLED;
+	vd->op = VDEV_OP_UNLOCK;
+	vd->comm_state = DEV_COMM_PENDING;
+	vd->num_map = 0U;
+	vd->attest_info = (struct vdev_attest_info){0u, 0U, 0U};
 
 	/* Update Realm */
-	rd->g_vdev = g_vdev;
 	rd_vdev_refcount_inc(rd);
 
 	/* Update PDEV */
@@ -192,6 +182,160 @@ out_unmap_rd:
 }
 
 /*
+ * smc_vdev_lock
+ *
+ * rd_addr		- PA of RD
+ * pdev_addr		- PA of the PDEV
+ * vdev_addr		- PA of the VDEV
+ */
+unsigned long smc_vdev_lock(unsigned long rd_addr, unsigned long pdev_addr,
+			      unsigned long vdev_addr)
+{
+	struct granule *g_rd;
+	struct granule *g_pdev;
+	struct granule *g_vdev;
+	struct vdev *vdev;
+	unsigned long rmi_rc;
+	struct dev_tdisp_params *tdisp_params;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(rd_addr) || !GRANULE_ALIGNED(pdev_addr) ||
+	    !GRANULE_ALIGNED(vdev_addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	g_rd = find_granule(rd_addr);
+	if ((g_rd == NULL) ||
+	    (granule_unlocked_state(g_rd) != GRANULE_STATE_RD)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	g_pdev = find_granule(pdev_addr);
+	if ((g_pdev == NULL) ||
+	    (granule_unlocked_state(g_pdev) != GRANULE_STATE_PDEV)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	vdev = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vdev != NULL);
+
+	if (vdev->g_rd != g_rd) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto out;
+	}
+
+	if ((vdev->g_pdev != g_pdev) ||
+	    (vdev->rmi_state != RMI_VDEV_STATE_UNLOCKED) ||
+	    (vdev->comm_state != DEV_COMM_IDLE)) {
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto out;
+	}
+
+	/* Set TDISP parameters */
+	tdisp_params = &vdev->op_params.tdisp_params;
+	(void)memset(tdisp_params, 0, sizeof(struct dev_tdisp_params));
+	(void)memset(vdev->start_interface_nonce, 0,
+		     sizeof(vdev->start_interface_nonce));
+
+	tdisp_params->tdi_id = (uint32_t)(vdev->tdi_id & 0xffffUL);
+	tdisp_params->start_interface_nonce = vdev->start_interface_nonce;
+
+	vdev->op = VDEV_OP_LOCK;
+	vdev->comm_state = DEV_COMM_PENDING;
+	rmi_rc = RMI_SUCCESS;
+
+out:
+	buffer_unmap(vdev);
+	granule_unlock(g_vdev);
+
+	return rmi_rc;
+}
+
+/*
+ * smc_vdev_start
+ *
+ * rd_addr		- PA of RD
+ * pdev_addr		- PA of the PDEV
+ * vdev_addr		- PA of the VDEV
+ */
+unsigned long smc_vdev_start(unsigned long rd_addr, unsigned long pdev_addr,
+			      unsigned long vdev_addr)
+{
+	struct granule *g_rd;
+	struct granule *g_pdev;
+	struct granule *g_vdev;
+	struct vdev *vdev;
+	unsigned long rmi_rc;
+	struct dev_tdisp_params *tdisp_params;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(rd_addr) || !GRANULE_ALIGNED(pdev_addr) ||
+	    !GRANULE_ALIGNED(vdev_addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	g_rd = find_granule(rd_addr);
+	if ((g_rd == NULL) ||
+	    (granule_unlocked_state(g_rd) != GRANULE_STATE_RD)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	g_pdev = find_granule(pdev_addr);
+	if ((g_pdev == NULL) ||
+	    (granule_unlocked_state(g_pdev) != GRANULE_STATE_PDEV)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	vdev = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vdev != NULL);
+
+	if (vdev->g_rd != g_rd) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto out;
+	}
+
+	if ((vdev->g_pdev != g_pdev) ||
+	    (vdev->rmi_state != RMI_VDEV_STATE_LOCKED) ||
+	    (vdev->comm_state != DEV_COMM_IDLE)) {
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto out;
+	}
+
+	/* Set TDISP parameters */
+	tdisp_params = &vdev->op_params.tdisp_params;
+	(void)memset(tdisp_params, 0, sizeof(struct dev_tdisp_params));
+
+	tdisp_params->tdi_id = (uint32_t)(vdev->tdi_id & 0xffffUL);
+	tdisp_params->start_interface_nonce = vdev->start_interface_nonce;
+
+	vdev->op = VDEV_OP_START;
+	vdev->comm_state = DEV_COMM_PENDING;
+	rmi_rc = RMI_SUCCESS;
+
+out:
+	buffer_unmap(vdev);
+	granule_unlock(g_vdev);
+
+	return rmi_rc;
+}
+
+/*
  * Completes a pending VDEV request.
  *
  * rec_addr		- PA of REC
@@ -203,7 +347,6 @@ unsigned long smc_vdev_complete(unsigned long rec_addr, unsigned long vdev_addr)
 	struct granule *g_vdev;
 	struct rec *rec;
 	struct vdev *vd;
-	struct rec_plane *plane;
 	unsigned long rmi_rc;
 
 	if (!is_rmi_feat_da_enabled()) {
@@ -232,39 +375,25 @@ unsigned long smc_vdev_complete(unsigned long rec_addr, unsigned long vdev_addr)
 	assert(vd != NULL);
 
 	/* Check if the REC pending operation is for VDEV request */
-	if ((rec->pending_op != REC_PENDING_VDEV_COMPLETE)) {
+	if ((rec->pending_op != REC_PENDING_VDEV_REQUEST)) {
 		rmi_rc = RMI_ERROR_INPUT;
 		goto out_unmap_vdev;
 	}
 
 	/* Check the Realm owner and the Device ID of the REC and VDEV */
-	if ((rec->realm_info.g_rd != vd->g_rd) || (rec->vdev.id != vd->id)) {
+	if ((rec->realm_info.g_rd != vd->g_rd) || (rec->vdev.vdev_id != vd->id)) {
 		rmi_rc = RMI_ERROR_INPUT;
 		goto out_unmap_vdev;
 	}
 
-	plane = rec_active_plane(rec);
-
-	if (rec->vdev.inst_id_valid) {
-		/* Compare instance id */
-		if (rec->vdev.inst_id == vd->inst_id) {
-			plane->regs[0] = RSI_SUCCESS;
-			/* todo: Update VDEV comm state */
-			rmi_rc = RMI_SUCCESS;
-		} else {
-			rmi_rc = RMI_ERROR_INPUT;
-		}
-	} else {
-		/* Get instance id */
-		plane->regs[0] = RSI_SUCCESS;
-		plane->regs[1] = vd->inst_id;
-		rmi_rc = RMI_SUCCESS;
+	if (vd->comm_state != DEV_COMM_IDLE) {
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto out_unmap_vdev;
 	}
 
-	if (rmi_rc == RMI_SUCCESS) {
-		/* Clear the REC pending request operation */
-		rec_set_pending_op(rec, REC_PENDING_NONE);
-	}
+	rec_update_pending_op(rec, REC_PENDING_VDEV_COMPLETE);
+	rec->vdev.vdev_addr = vdev_addr;
+	rmi_rc = RMI_SUCCESS;
 
 out_unmap_vdev:
 	buffer_unmap(vd);
@@ -276,20 +405,34 @@ out_unmap_rec:
 	return rmi_rc;
 }
 
+/* Generate random numbers as nonce
+ * Returns 0 on success.
+ */
+static int generate_attest_info_nonce(unsigned long *nonce)
+{
+	struct app_data_cfg *random_app_data = random_app_get_data_cfg();
+
+	assert(nonce != NULL);
+	return random_app_prng_get_random(random_app_data, (uint8_t *)nonce, sizeof(*nonce));
+}
+
 /*
  * smc_vdev_communicate
  *
+ * rd_addr		- PA of the RD
  * pdev_addr		- PA of the PDEV
  * vdev_addr		- PA of the VDEV
  * dev_comm_data_addr	- PA of the communication data structure
  */
-unsigned long smc_vdev_communicate(unsigned long pdev_addr,
+unsigned long smc_vdev_communicate(unsigned long rd_addr,
+				   unsigned long pdev_addr,
 				   unsigned long vdev_addr,
 				   unsigned long dev_comm_data_addr)
 {
 	struct granule *g_pdev = NULL;
 	struct granule *g_vdev = NULL;
 	struct granule *g_dev_comm_data;
+	struct granule *g_rd = NULL;
 	struct pdev *pd = NULL;
 	struct vdev *vd = NULL;
 	unsigned long rmi_rc;
@@ -298,8 +441,15 @@ unsigned long smc_vdev_communicate(unsigned long pdev_addr,
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(pdev_addr) || !GRANULE_ALIGNED(vdev_addr) ||
-	    !GRANULE_ALIGNED(dev_comm_data_addr)) {
+	if (!GRANULE_ALIGNED(rd_addr) || !GRANULE_ALIGNED(pdev_addr) ||
+	    !GRANULE_ALIGNED(vdev_addr) || !GRANULE_ALIGNED(dev_comm_data_addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Check RD */
+	g_rd = find_granule(rd_addr);
+	if ((g_rd == NULL) ||
+	    (granule_unlocked_state(g_rd) != GRANULE_STATE_RD)) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -315,33 +465,30 @@ unsigned long smc_vdev_communicate(unsigned long pdev_addr,
 	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
 	if (g_vdev == NULL) {
 		rmi_rc = RMI_ERROR_INPUT;
-		goto out_error;
+		goto out;
 	}
 
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
-	if (vd->g_pdev != g_pdev) {
+	if (vd->g_rd != g_rd) {
 		rmi_rc = RMI_ERROR_INPUT;
-		goto out_error;
+		goto out;
 	}
 
 	g_dev_comm_data = find_granule(dev_comm_data_addr);
 	if ((g_dev_comm_data == NULL) ||
 		(granule_unlocked_state(g_dev_comm_data) != GRANULE_STATE_NS)) {
 		rmi_rc = RMI_ERROR_INPUT;
-		goto out_error;
+		goto out;
 	}
 
-	if (vd->rmi_state == RMI_VDEV_STATE_COMMUNICATING) {
-		if (vd->rdev.op == RDEV_OP_NONE) {
-			rmi_rc = RMI_ERROR_DEVICE;
-			goto out_error;
-		}
-	} else if (vd->rmi_state != RMI_VDEV_STATE_STOPPING) {
+	if (vd->g_pdev != g_pdev) {
 		rmi_rc = RMI_ERROR_DEVICE;
-		goto out_error;
+		goto out;
 	}
+
+	/* TODO_ALP17: if PdevIsBusy(pdev) then ResultEqual(result, RMI_BUSY) */
 
 	rmi_rc = dev_communicate(pd, vd, g_dev_comm_data);
 	/* Do not return early here in case of error. Instead do the state
@@ -349,49 +496,46 @@ unsigned long smc_vdev_communicate(unsigned long pdev_addr,
 	 */
 
 	/*
-	 * Transistion VDEV state based on device communication state. VDEV
-	 * do not have dev_comm state as there is only one session to the device
-	 * which is created and maintained by PDEV. So use PDEV's comm_state to
-	 * update VDEV rmi_state.
+	 * Transistion VDEV state based on device communication state.
 	 */
-	switch (pd->dev_comm_state) {
-	case DEV_COMM_ERROR:
-		if (vd->rmi_state == RMI_VDEV_STATE_STOPPING) {
-			vd->rmi_state = RMI_VDEV_STATE_STOPPED;
-		} else {
-			vd->rmi_state = RMI_VDEV_STATE_ERROR;
+	if (vd->comm_state == DEV_COMM_ERROR) {
+		vd->rmi_state = RMI_VDEV_STATE_ERROR;
+	} else if (vd->comm_state == DEV_COMM_IDLE) {
+		switch (vd->op) {
+		case VDEV_OP_UNLOCK:
+			vd->rmi_state = RMI_VDEV_STATE_UNLOCKED;
+			break;
+		case VDEV_OP_LOCK:
+			vd->rmi_state = RMI_VDEV_STATE_LOCKED;
+			/* coverity[overrun-buffer-val:SUPPRESS] */
+			if (generate_attest_info_nonce(&(vd->attest_info.lock_nonce)) != 0) {
+				vd->rmi_state = RMI_VDEV_STATE_ERROR;
+			}
+			break;
+		case VDEV_OP_START:
+			vd->rmi_state = RMI_VDEV_STATE_STARTED;
+			break;
+		case VDEV_OP_GET_MEAS:
+			/* The get measurement operation doesn't change the VDEV's state */
+			/* coverity[overrun-buffer-val:SUPPRESS] */
+			if (generate_attest_info_nonce(&(vd->attest_info.meas_nonce)) != 0) {
+				vd->rmi_state = RMI_VDEV_STATE_ERROR;
+			}
+			break;
+		case VDEV_OP_GET_REPORT:
+			/* The get if report operation doesn't change the VDEV's state */
+			/* coverity[overrun-buffer-val:SUPPRESS] */
+			if (generate_attest_info_nonce(&(vd->attest_info.report_nonce)) != 0) {
+				vd->rmi_state = RMI_VDEV_STATE_ERROR;
+			}
+			break;
+		default:
+			assert(false);
 		}
-		break;
-	case DEV_COMM_IDLE:
-		/*
-		 * Last device communication is completed, move the PDEV state
-		 * to next state based on the current state.
-		 */
-		if (vd->rmi_state == RMI_VDEV_STATE_COMMUNICATING) {
-			vd->rmi_state = RMI_VDEV_STATE_READY;
-		} else if (vd->rmi_state == RMI_VDEV_STATE_STOPPING) {
-			vd->rmi_state = RMI_VDEV_STATE_STOPPED;
-		} else {
-			/*
-			 * Transition to error as Host can trigger vdev
-			 * communicate in IDLE state.
-			 */
-			vd->rmi_state = RMI_VDEV_STATE_ERROR;
-		}
-		break;
-	case DEV_COMM_ACTIVE:
-		/* No state change required */
-		break;
-	case DEV_COMM_PENDING:
-		ERROR("VDEV Communicate: Dev comm state is Pending due of communication error.\n");
-		break;
-	default:
-		assert(false);
+		vd->op = VDEV_OP_NONE;
 	}
 
-	rdev_state_transition(&vd->rdev, pd->dev_comm_state);
-
-out_error:
+out:
 	if (vd != NULL) {
 		buffer_unmap(vd);
 	}
@@ -523,7 +667,7 @@ unsigned long smc_vdev_abort(unsigned long vdev_addr)
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
-	if (vd->rmi_state != RMI_VDEV_STATE_COMMUNICATING) {
+	if (vd->comm_state == DEV_COMM_IDLE) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_vdev_buf_unmap;
 	}
@@ -554,8 +698,8 @@ unsigned long smc_vdev_abort(unsigned long vdev_addr)
 	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_aux);
 
 vdev_reset_state:
-	vd->rmi_state = RMI_VDEV_STATE_READY;
-	pd->dev_comm_state = DEV_COMM_IDLE;
+	vd->rmi_state = RMI_VDEV_STATE_ERROR;
+	vd->comm_state = DEV_COMM_IDLE;
 	smc_rc = RMI_SUCCESS;
 
 out_vdev_buf_unmap:
@@ -563,88 +707,6 @@ out_vdev_buf_unmap:
 	granule_unlock(g_vdev);
 	buffer_unmap(pd);
 	granule_unlock(g_pdev);
-
-	return smc_rc;
-}
-
-/*
- * smc_vdev_stop
- *
- * vdev_addr	- PA of the VDEV
- */
-unsigned long smc_vdev_stop(unsigned long vdev_addr)
-{
-	struct granule *g_pdev;
-	struct granule *g_vdev;
-	unsigned long smc_rc;
-	struct pdev *pd;
-	struct vdev *vd;
-
-	if (!is_rmi_feat_da_enabled()) {
-		return SMC_NOT_SUPPORTED;
-	}
-
-	if (!GRANULE_ALIGNED(vdev_addr)) {
-		return RMI_ERROR_INPUT;
-	}
-
-	/* Lock the vdev granule and map it, to get the pdev granule address. */
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		return RMI_ERROR_INPUT;
-	}
-
-	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
-	assert(vd != NULL);
-
-	g_pdev = vd->g_pdev;
-
-	/*
-	 * To lock and map pdev, we first need to unlock vdev, and lock the
-	 * granules again in the pdev-vdev order, so locking order is
-	 * maintained.
-	 */
-	buffer_unmap(vd);
-	granule_unlock(g_vdev);
-
-	granule_lock(g_pdev, GRANULE_STATE_PDEV);
-	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
-	assert(pd != NULL);
-
-	granule_lock(g_vdev, GRANULE_STATE_VDEV);
-	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
-	assert(vd != NULL);
-
-	if ((vd->rmi_state != RMI_VDEV_STATE_READY) &&
-	    (vd->rmi_state != RMI_VDEV_STATE_ERROR)) {
-		smc_rc = RMI_ERROR_DEVICE;
-		goto out_vdev_buf_unmap;
-	}
-
-	if (smmuv3_release_ste(SMMU_IDX, (unsigned int)vd->tdi_id) != 0) {
-		smc_rc = RMI_ERROR_DEVICE;
-		goto out_vdev_buf_unmap;
-	}
-
-	vd->rmi_state = RMI_VDEV_STATE_STOPPING;
-
-	/*
-	 * This setup the rdev operation to stop the device. This flow will
-	 * change in alp13.
-	 */
-	vd->rdev.op = RDEV_OP_STOP;
-	vd->rdev.rsi_state = RSI_RDEV_STATE_STOPPING;
-
-	/* No dev communication state for VDEV */
-	pd->dev_comm_state = DEV_COMM_PENDING;
-	smc_rc = RMI_SUCCESS;
-
-out_vdev_buf_unmap:
-	buffer_unmap(vd);
-	granule_unlock(g_vdev);
-	buffer_unmap(pd);
-	granule_unlock(g_pdev);
-
 
 	return smc_rc;
 }
@@ -702,8 +764,22 @@ unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 		goto out_err_input;
 	}
 
-	if (vd->rmi_state != RMI_VDEV_STATE_STOPPED) {
-		smc_rc = RMI_ERROR_INPUT;
+	if ((vd->rmi_state != RMI_VDEV_STATE_NEW) &&
+	    (vd->rmi_state != RMI_VDEV_STATE_UNLOCKED) &&
+	    (vd->rmi_state != RMI_VDEV_STATE_ERROR)) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_err_input;
+	}
+
+	if (vd->dma_state == RMI_VDEV_DMA_ENABLED) {
+		if (smmuv3_disable_ste(SMMU_IDX, (unsigned int)vd->tdi_id) != 0) {
+			smc_rc = RMI_ERROR_DEVICE;
+			goto out_err_input;
+		}
+	}
+
+	if (smmuv3_release_ste(SMMU_IDX, (unsigned int)vd->tdi_id) != 0) {
+		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
 	}
 
@@ -741,6 +817,320 @@ out_err_input:
 	if (rd != NULL) {
 		buffer_unmap(rd);
 	}
+	granule_unlock(g_rd);
+
+	return smc_rc;
+}
+
+static unsigned long validate_vdev_get_measurements_params(
+	unsigned long params_addr,
+	struct rmi_vdev_measure_params *measurement_params,
+	bool *all)
+{
+	struct granule *g_vdev_measurements_params;
+
+	/* Map and copy VDEV parameters */
+	g_vdev_measurements_params = find_granule(params_addr);
+	if ((g_vdev_measurements_params == NULL) ||
+	    (granule_unlocked_state(g_vdev_measurements_params) != GRANULE_STATE_NS)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if (!ns_buffer_read(SLOT_NS, g_vdev_measurements_params, 0U,
+			    sizeof(struct rmi_vdev_measure_params), measurement_params)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* indices bit[255] must be 0. */
+	if ((measurement_params->indices[VDEV_MEAS_PARAM_INDICES_LEN - 1U] & 0x80U) != 0U) {
+		return RMI_ERROR_INPUT;
+	}
+	/* In case bit[254] is 1, bit[253:0] must all be 0 */
+	if ((measurement_params->indices[VDEV_MEAS_PARAM_INDICES_LEN - 1U] & 0x40U) != 0U) {
+		if ((measurement_params->indices[VDEV_MEAS_PARAM_INDICES_LEN - 1U] & 0x3FU) != 0U) {
+			return RMI_ERROR_INPUT;
+		}
+		for (unsigned int i = 0; i < (VDEV_MEAS_PARAM_INDICES_LEN - 2U); ++i) {
+			if (measurement_params->indices[i] != 0U) {
+				return RMI_ERROR_INPUT;
+			}
+		}
+		*all = true;
+	} else {
+		*all = false;
+	}
+
+	/*
+	 * In case bit[255:254] of indices is 0, then any pattern in bit[253:0]
+	 * is valid .
+	 */
+	return RMI_SUCCESS;
+}
+
+unsigned long smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pdev_addr,
+					unsigned long vdev_addr, unsigned long params_addr)
+{
+	struct granule *g_rd = NULL;
+	struct granule *g_pdev = NULL;
+	struct granule *g_vdev = NULL;
+	struct dev_meas_params *spdm_meas_params;
+	struct rmi_vdev_measure_params measurement_params;
+	struct pdev *pd = NULL;
+	struct vdev *vd = NULL;
+	bool all;
+
+	unsigned long smc_rc;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(rd_addr) || !GRANULE_ALIGNED(pdev_addr) ||
+	    !GRANULE_ALIGNED(vdev_addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+				    pdev_addr, GRANULE_STATE_PDEV, &g_pdev)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		smc_rc = RMI_ERROR_INPUT;
+		goto out_err_input;
+	}
+
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	if ((vd->g_rd != g_rd) ||
+	    (vd->g_pdev != g_pdev)) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_err_input;
+	}
+
+	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
+	assert(pd != NULL);
+
+	if (pd->dev_comm_state != DEV_COMM_IDLE) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_err_input;
+	}
+
+	smc_rc = validate_vdev_get_measurements_params(params_addr, &measurement_params, &all);
+	if (smc_rc != RMI_SUCCESS) {
+		goto out_err_input;
+	}
+
+	spdm_meas_params = &vd->op_params.meas_params;
+
+	(void)memset(spdm_meas_params, 0, sizeof(struct dev_meas_params));
+
+	/* TODO_ALP17: In case of signed flag, only the last call should call sig */
+	/* TODO_ALP17: Both request and response must be cached by the Host */
+
+	if (EXTRACT(RMI_VDEV_MEASURE_FLAGS_SIGNED, measurement_params.flags) != 0U) {
+		spdm_meas_params->sign = true;
+		(void)memcpy(spdm_meas_params->nonce, &measurement_params.nonce,
+			     sizeof(spdm_meas_params->nonce));
+	} else {
+		spdm_meas_params->sign = false;
+	}
+
+	if (EXTRACT(RMI_VDEV_MEASURE_FLAGS_RAW, measurement_params.flags) != 0U) {
+		spdm_meas_params->raw = true;
+	} else {
+		spdm_meas_params->raw = false;
+	}
+
+	spdm_meas_params->all = all;
+	if (!all) {
+		(void)memcpy(spdm_meas_params->indices, &measurement_params.indices,
+			     sizeof(spdm_meas_params->indices));
+	}
+
+	vd->op = VDEV_OP_GET_MEAS;
+	vd->comm_state = DEV_COMM_PENDING;
+
+out_err_input:
+	if (vd != NULL) {
+		buffer_unmap(vd);
+	}
+	if (g_vdev != NULL) {
+		granule_unlock(g_vdev);
+	}
+
+	if (pd != NULL) {
+		buffer_unmap(pd);
+	}
+	if (g_pdev != NULL) {
+		granule_unlock(g_pdev);
+	}
+
+	granule_unlock(g_rd);
+
+	return smc_rc;
+}
+
+unsigned long smc_vdev_get_interface_report(unsigned long rd_addr, unsigned long pdev_addr,
+					    unsigned long vdev_addr)
+{
+	struct granule *g_rd = NULL;
+	struct granule *g_pdev = NULL;
+	struct granule *g_vdev = NULL;
+	struct dev_tdisp_params *tdisp_params;
+	struct vdev *vd = NULL;
+
+	unsigned long smc_rc;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(rd_addr) || !GRANULE_ALIGNED(pdev_addr) ||
+	    !GRANULE_ALIGNED(vdev_addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+				    pdev_addr, GRANULE_STATE_PDEV, &g_pdev)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		smc_rc = RMI_ERROR_INPUT;
+		goto out_err_input;
+	}
+
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	if ((vd->g_rd != g_rd) ||
+	    (vd->g_pdev != g_pdev)) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_err_input;
+	}
+
+	if ((vd->rmi_state != RMI_VDEV_STATE_LOCKED) &&
+	    (vd->rmi_state != RMI_VDEV_STATE_STARTED)) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_err_input;
+	}
+
+	if (vd->comm_state != DEV_COMM_IDLE) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_err_input;
+	}
+
+	/* Set TDISP parameters */
+	tdisp_params = &vd->op_params.tdisp_params;
+	(void)memset(tdisp_params, 0, sizeof(struct dev_tdisp_params));
+	tdisp_params->tdi_id = (uint32_t)(vd->tdi_id & 0xffffUL);
+
+	vd->op = VDEV_OP_GET_REPORT;
+	vd->comm_state = DEV_COMM_PENDING;
+
+	smc_rc = RMI_SUCCESS;
+
+out_err_input:
+	if (vd != NULL) {
+		buffer_unmap(vd);
+	}
+	if (g_vdev != NULL) {
+		granule_unlock(g_vdev);
+	}
+
+	if (g_pdev != NULL) {
+		granule_unlock(g_pdev);
+	}
+
+	granule_unlock(g_rd);
+
+	return smc_rc;
+}
+
+unsigned long smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
+				unsigned long vdev_addr)
+{
+	struct granule *g_rd = NULL;
+	struct granule *g_pdev = NULL;
+	struct granule *g_vdev = NULL;
+	struct dev_tdisp_params *tdisp_params;
+	struct vdev *vd = NULL;
+
+	unsigned long smc_rc;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(rd_addr) || !GRANULE_ALIGNED(pdev_addr) ||
+	    !GRANULE_ALIGNED(vdev_addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+				    pdev_addr, GRANULE_STATE_PDEV, &g_pdev)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		smc_rc = RMI_ERROR_INPUT;
+		goto out_err_input;
+	}
+
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	if ((vd->g_rd != g_rd) ||
+	    (vd->g_pdev != g_pdev)) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_err_input;
+	}
+
+	if ((vd->rmi_state != RMI_VDEV_STATE_LOCKED) &&
+	    (vd->rmi_state != RMI_VDEV_STATE_STARTED) &&
+	    (vd->rmi_state != RMI_VDEV_STATE_ERROR)) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_err_input;
+	}
+
+	if (vd->comm_state != DEV_COMM_IDLE) {
+		ERROR("vd(%p)->comm_state(%u) != DEV_COMM_IDLE\n", (void *)vd, vd->comm_state);
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_err_input;
+	}
+
+	if (vd->num_map != 0U) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_err_input;
+	}
+
+	/* Set TDISP parameters */
+	tdisp_params = &vd->op_params.tdisp_params;
+	(void)memset(tdisp_params, 0, sizeof(struct dev_tdisp_params));
+	tdisp_params->tdi_id = (uint32_t)(vd->tdi_id & 0xffffUL);
+
+	vd->op = VDEV_OP_UNLOCK;
+	vd->comm_state = DEV_COMM_PENDING;
+
+	smc_rc = RMI_SUCCESS;
+
+out_err_input:
+	if (vd != NULL) {
+		buffer_unmap(vd);
+	}
+	if (g_vdev != NULL) {
+		granule_unlock(g_vdev);
+	}
+
+	if (g_pdev != NULL) {
+		granule_unlock(g_pdev);
+	}
+
 	granule_unlock(g_rd);
 
 	return smc_rc;

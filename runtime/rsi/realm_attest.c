@@ -24,53 +24,28 @@
 static void attest_token_continue_write_state(struct rec *rec,
 					      struct rsi_result *res)
 {
-	struct granule *gr;
-	uintptr_t realm_att_token;
+	void *realm_att_token = NULL;
 	struct rec_plane *plane = rec_active_plane(rec);
 	unsigned long realm_att_token_ipa = plane->regs[1];
 	unsigned long offset = plane->regs[2];
 	unsigned long size = plane->regs[3];
-	enum s2_walk_status walk_status;
-	struct s2_walk_result walk_res = { 0UL };
 	size_t attest_token_len, length;
 	struct rec_attest_data *attest_data = rec->aux_data.attest_data;
 	enum attest_token_err_t ret;
+	struct granule *llt = NULL;
 
-	/*
-	 * Translate realm granule IPA to PA. If returns with
-	 * WALK_SUCCESS then the last level page table (llt),
-	 * which holds the realm_att_token_buf mapping, is locked.
-	 */
-	walk_status = realm_ipa_to_pa(rec, realm_att_token_ipa, &walk_res);
-
-	/* Walk parameter validity was checked by RSI_ATTESTATION_TOKEN_INIT */
-	assert(walk_status != WALK_INVALID_PARAMS);
-
-	if (walk_status == WALK_FAIL) {
-		if (walk_res.ripas_val == RIPAS_EMPTY) {
-			res->smc_res.x[0] = RSI_ERROR_INPUT;
-		} else {
-			/*
-			 * Translation failed, IPA is not mapped.
-			 * Return to NS host to fix the issue.
-			 */
-			res->action = STAGE_2_TRANSLATION_FAULT;
-			res->rtt_level = walk_res.rtt_level;
-		}
+	if (!realm_mem_lock_map(rec, realm_att_token_ipa, &realm_att_token, &llt, res)) {
+		/* In case of failure res is updated */
 		return;
 	}
+
+	assert((realm_att_token != NULL) && (llt != NULL));
 
 	/* If size of buffer is 0, then return early. */
 	if (size == 0UL) {
 		res->smc_res.x[0] = RSI_INCOMPLETE;
-		goto out_unlock;
+		goto out_unmap;
 	}
-
-	/* Map realm data granule to RMM address space */
-	gr = find_granule(walk_res.pa);
-	realm_att_token = (uintptr_t)buffer_granule_mecid_map(gr, SLOT_REALM,
-					rec->realm_info.primary_s2_ctx.mecid);
-	assert(realm_att_token != 0UL);
 
 	if (attest_data->rmm_cca_token_copied_len == 0UL) {
 		ret = attest_cca_token_create(
@@ -91,7 +66,7 @@ static void attest_token_continue_write_state(struct rec *rec,
 
 	/* Copy attestation token */
 	struct attest_heap_shared *heap_shared = app_get_heap_ptr(&rec->attest_app_data);
-	(void)memcpy((void *)(realm_att_token + offset),
+	(void)memcpy((void *)((uintptr_t)realm_att_token + offset),
 		     (void *)(&heap_shared->cca_attest_token_buf[
 				attest_data->rmm_cca_token_copied_len]),
 		     length);
@@ -113,10 +88,10 @@ static void attest_token_continue_write_state(struct rec *rec,
 
 out_unmap:
 	/* Unmap realm granule */
-	buffer_unmap((void *)realm_att_token);
-out_unlock:
-	/* Unlock last level page table (walk_res.g_llt) */
-	granule_unlock(walk_res.llt);
+	buffer_unmap(realm_att_token);
+
+	/* Unlock last level page table */
+	granule_unlock(llt);
 }
 
 void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)

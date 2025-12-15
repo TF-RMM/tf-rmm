@@ -1982,14 +1982,17 @@ out_unlock_rec_rd:
 	granule_unlock(g_rd);
 }
 
-unsigned long smc_dev_mem_map(unsigned long rd_addr,
-				unsigned long map_addr,
-				unsigned long ulevel,
-				unsigned long dev_mem_addr)
+unsigned long smc_vdev_map(unsigned long rd_addr,
+			   unsigned long vdev_addr,
+			   unsigned long map_addr,
+			   unsigned long ulevel,
+			   unsigned long dev_mem_addr)
 {
 	struct dev_granule *g_dev;
 	struct granule *g_rd;
+	struct granule *g_vdev;
 	struct rd *rd;
+	struct vdev *vd;
 	struct s2tt_walk wi;
 	struct s2tt_context s2_ctx;
 	unsigned long s2tte, *s2tt, num_granules;
@@ -2038,8 +2041,30 @@ unsigned long smc_dev_mem_map(unsigned long rd_addr,
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		buffer_unmap(rd);
+		granule_unlock(g_rd);
+		ret = RMI_ERROR_INPUT;
+		goto out_unlock_granules;
+	}
+
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	if (vd->g_rd != g_rd) {
+		buffer_unmap(vd);
+		granule_unlock(g_vdev);
+		buffer_unmap(rd);
+		granule_unlock(g_rd);
+		ret = RMI_ERROR_INPUT;
+		goto out_unlock_granules;
+	}
+
 	if (!addr_in_par(rd, map_addr) ||
 	    !validate_map_addr(map_addr, level, rd)) {
+		buffer_unmap(vd);
+		granule_unlock(g_vdev);
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
 		ret = RMI_ERROR_INPUT;
@@ -2047,6 +2072,8 @@ unsigned long smc_dev_mem_map(unsigned long rd_addr,
 	}
 
 	s2_ctx = rd->s2_ctx[PRIMARY_S2_CTX_ID];
+	buffer_unmap(vd);
+	granule_unlock(g_vdev);
 	buffer_unmap(rd);
 	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
 	granule_unlock(g_rd);
@@ -2092,10 +2119,15 @@ out_unlock_granules:
 	return ret;
 }
 
-void smc_dev_mem_unmap(unsigned long rd_addr,
-			unsigned long map_addr,
-			unsigned long ulevel,
-			struct smc_result *res)
+/*
+ * TODO_ALP17: Removed vdev parameter based on discussion in
+ * https://jira.arm.com/browse/FENIMORE-1303
+ * Check the results in latest spec.
+ */
+void smc_vdev_unmap(unsigned long rd_addr,
+		    unsigned long map_addr,
+		    unsigned long ulevel,
+		    struct smc_result *res)
 {
 	struct granule *g_rd;
 	struct rd *rd;
@@ -3008,9 +3040,10 @@ static void rtt_dev_mem_set_range(struct s2tt_context *s2_ctx,
 	}
 }
 
-void smc_rtt_dev_mem_validate(unsigned long rd_addr, unsigned long rec_addr,
-			      unsigned long base, unsigned long top,
-			      struct smc_result *res)
+void smc_vdev_validate_mapping(unsigned long rd_addr, unsigned long rec_addr,
+			       unsigned long pdev_addr, unsigned long vdev_addr,
+			       unsigned long base, unsigned long top,
+			       struct smc_result *res)
 {
 	struct granule *g_rd, *g_rec;
 	struct s2tt_context *s2_ctx;
@@ -3020,6 +3053,10 @@ void smc_rtt_dev_mem_validate(unsigned long rd_addr, unsigned long rec_addr,
 	struct rec *rec;
 	struct rd *rd;
 	bool is_coh;
+
+	/* TODO_ALP17: Check the following input parameters */
+	(void)pdev_addr;
+	(void)vdev_addr;
 
 	if ((top <= base) || !GRANULE_ALIGNED(top)) {
 		res->x[0] = RMI_ERROR_INPUT;
@@ -3085,6 +3122,7 @@ void smc_rtt_dev_mem_validate(unsigned long rd_addr, unsigned long rec_addr,
 
 	if (res->x[0] == RMI_SUCCESS) {
 		rec->dev_mem.addr = res->x[1];
+		rec->dev_mem.pa = dev_mem_pa + (res->x[1] - base);
 	}
 
 	buffer_unmap(s2tt);

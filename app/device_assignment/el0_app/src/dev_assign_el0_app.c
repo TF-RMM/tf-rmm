@@ -57,10 +57,15 @@ static void copy_back_exit_args_to_shared(struct dev_assign_info *info)
 	shared->cached_digest.len = info->cached_digest.len;
 
 	if (info->cached_digest.len != 0U) {
+		shared->cached_digest_type = info->cached_digest_type;
+		shared->cached_digest.len = info->cached_digest.len;
 		(void)memcpy(shared->cached_digest.value, info->cached_digest.value,
 			     info->cached_digest.len);
 		info->cached_digest.len = 0;
+	} else {
+		shared->cached_digest_type = CACHE_TYPE_NONE;
 	}
+	info->cached_digest_type = CACHE_TYPE_NONE;
 
 	shared->dev_assign_op_params.param_type = info->dev_assign_op_params.param_type;
 	if (info->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_TDISP) {
@@ -126,7 +131,7 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 		return LIBSPDM_STATUS_SEND_FAIL;
 	}
 
-	info->exit_args.flags |= RMI_DEV_COMM_EXIT_FLAGS_SEND_BIT;
+	info->exit_args.flags |= RMI_DEV_COMM_EXIT_FLAGS_REQ_SEND_BIT;
 	info->exit_args.timeout = timeout;
 	if (!info->is_msg_sspdm) {
 		info->exit_args.protocol = (unsigned char)RMI_DEV_COMM_PROTOCOL_SPDM;
@@ -235,6 +240,201 @@ const libspdm_secured_message_callbacks_t cma_spdm_sec_msg_cbs = {
 	.get_secured_spdm_version = cma_spdm_get_secured_spdm_version,
 };
 
+/*
+ * This function is used to save an spdm request in the app data so that it can
+ * be sent out for caching along with the response.
+ */
+static void save_spdm_req(struct dev_assign_info *info, void *request, size_t request_len)
+{
+	assert(info->spdm_request_len == 0U);
+	assert(request_len <= sizeof(info->spdm_request));
+	(void)memcpy((void *)info->spdm_request, request, request_len);
+	info->spdm_request_len = request_len;
+}
+
+/*
+ * Set cache flags in DevCommExit and compute digest of cached data.
+ *
+ * The function works differently for requests and responses:
+ * Requests:
+ *     - Update the cached digest based on hash_op_flags
+ *     - Save the request in info
+ *
+ * Responses:
+ *     - Update the cached digest based on hash_op_flags
+ *     - if there is a Saved request
+ *       - overwrite the request buffer with it.
+ *       - set req_cache, req_cache_offset, req_cache_len in comm_exit
+ *     - in case of sspdm, overwrite the response buffer with the unencrypted
+ *       response.
+ *     - set rsp_cache, rsp_cache_offset, rsp_cache_len in comm_exit
+ *     - return back to Host early, in case there is request to be cached.
+ */
+static int dev_assign_dev_comm_set_cache(struct dev_assign_info *info, void *cache_buf,
+				  size_t cache_offset, size_t cache_len,
+				  uint8_t cache_type, uint8_t comm_dir, uint8_t hash_op_flags)
+{
+	const size_t digest_size = DEV_OBJ_DIGEST_MAX;
+	size_t ns_rsp_buf_cache_offset;
+	size_t ns_req_buf_cache_offset;
+	void *cache_src;
+	int rc;
+	bool request_host_caching_early = false;
+
+	cache_src = (void *)((unsigned long)cache_buf + cache_offset);
+
+	/*
+	 * If 'is_msg_sspdm' is true, then overwrite the NS response buffer with the
+	 * decrypted data. Else use the existing content to be cached by the
+	 * NS host.
+	 */
+	if (comm_dir == CACHE_COMM_DIR_RESP) {
+		assert(info->cached_digest_type == CACHE_TYPE_NONE);
+		info->cached_digest_type = cache_type;
+
+		if ((info->is_msg_sspdm)) {
+			/*
+			 * In case of secure message the NS buffer is overwritten with
+			 * the decrypted data.
+			 */
+			rc = (int)el0_app_service_call(APP_SERVICE_WRITE_TO_NS_BUF,
+				APP_SERVICE_RW_NS_BUF_HEAP, (uintptr_t)cache_src -
+					(uintptr_t)(info->send_recv_buffer),
+				info->enter_args.resp_addr, cache_len);
+			assert(info->shared_buf != NULL);
+			ns_rsp_buf_cache_offset = *((size_t *)info->shared_buf);
+			assert(ns_rsp_buf_cache_offset < 8U);
+			if (rc != 0) {
+				return -1;
+			}
+		} else {
+			/*
+			 * In case of non-secure message the existing content in the NS
+			 * buffer is used for caching.
+			 */
+			ns_rsp_buf_cache_offset = cache_offset;
+		}
+		info->exit_args.flags |= RMI_DEV_COMM_EXIT_FLAGS_RSP_CACHE_BIT;
+		info->exit_args.cache_rsp_offset = ns_rsp_buf_cache_offset;
+		info->exit_args.cache_rsp_len = cache_len;
+
+		if (cache_type == CACHE_TYPE_VCA) {
+			info->exit_args.cache_obj_id = (unsigned char)RMI_DEV_COMM_OBJECT_VCA;
+		} else if (cache_type == CACHE_TYPE_CERT) {
+			info->exit_args.cache_obj_id =
+				(unsigned char)RMI_DEV_COMM_OBJECT_CERTIFICATE;
+		} else if (cache_type == CACHE_TYPE_MEAS) {
+			info->exit_args.cache_obj_id =
+				(unsigned char)RMI_DEV_COMM_OBJECT_MEASUREMENTS;
+		} else if (cache_type == CACHE_TYPE_INTERFACE_REPORT) {
+			info->exit_args.cache_obj_id =
+				(unsigned char)RMI_DEV_COMM_OBJECT_INTERFACE_REPORT;
+		}
+
+		if (info->spdm_request_len != 0U) {
+			/*
+			 * In case a request is pending for caching, overwrite the request buffer
+			 * with the decrypted data.
+			 */
+			rc = (int)el0_app_service_call(APP_SERVICE_WRITE_TO_NS_BUF,
+				APP_SERVICE_RW_NS_BUF_HEAP, (uintptr_t)info->spdm_request -
+					(uintptr_t)(info->send_recv_buffer),
+				info->enter_args.req_addr, info->spdm_request_len);
+			if (rc != 0) {
+				return -1;
+			}
+			assert(info->shared_buf != NULL);
+			ns_req_buf_cache_offset = *((size_t *)info->shared_buf);
+			assert(ns_req_buf_cache_offset < 8U);
+			info->exit_args.flags |= RMI_DEV_COMM_EXIT_FLAGS_REQ_CACHE_BIT;
+			info->exit_args.cache_req_offset = ns_req_buf_cache_offset;
+			info->exit_args.cache_req_len = info->spdm_request_len;
+			info->spdm_request_len = 0;
+
+			/*
+			 * Return to the host, so if there are further requests
+			 * to be sent they don't overwrite this cached request
+			 * in the request buffer
+			 */
+			request_host_caching_early = true;
+		}
+	} else {
+		assert(comm_dir == CACHE_COMM_DIR_REQ);
+		save_spdm_req(info, cache_src, cache_len);
+	}
+
+	rc = dev_assign_hash_extend(info->psa_hash_algo, &info->psa_hash_op,
+				    hash_op_flags, cache_src, cache_len,
+				    info->cached_digest.value, digest_size,
+				    &info->cached_digest.len);
+	if (rc != 0) {
+		return -1;
+	}
+
+	if (request_host_caching_early) {
+		copy_back_exit_args_to_shared(info);
+		el0_app_yield();
+		copy_enter_args_from_shared(info);
+	}
+
+	return 0;
+}
+
+/* Process device version request */
+static int dev_assign_cache_versions_req(struct dev_assign_info *info,
+					 spdm_get_version_request_t *version_req)
+{
+	size_t cache_offset, cache_len;
+	uint8_t hash_op_flags;
+
+	/* VCA contains the SPDM headers as well */
+	cache_offset = 0U;
+	cache_len = sizeof(spdm_get_version_request_t);
+	/*
+	 * TODO: During RMI_PDEV_STOP libspdm_get_version is called, to reset
+	 * the SPDM connection. This unnecessarily sends a cache request to the
+	 * host. This should not happen.
+	 */
+	hash_op_flags = (HASH_OP_FLAG_SETUP | HASH_OP_FLAG_UPDATE);
+	info->psa_hash_op = psa_hash_operation_init();
+
+	return dev_assign_dev_comm_set_cache(info, version_req, cache_offset,
+				  cache_len, CACHE_TYPE_VCA, CACHE_COMM_DIR_REQ, hash_op_flags);
+}
+
+/* Process device capabilities request */
+static int dev_assign_cache_capabilities_req(struct dev_assign_info *info,
+					     spdm_get_capabilities_request_t *capabilities_req)
+{
+	uint8_t hash_op_flags;
+	size_t cache_offset, cache_len;
+
+	hash_op_flags = HASH_OP_FLAG_UPDATE;
+
+	/* VCA contains the SPDM headers as well */
+	cache_offset = 0U;
+	cache_len = sizeof(spdm_get_capabilities_request_t);
+	return dev_assign_dev_comm_set_cache(info, capabilities_req, cache_offset,
+				  cache_len, CACHE_TYPE_VCA, CACHE_COMM_DIR_REQ, hash_op_flags);
+}
+
+/* Process device algorithms request */
+static int dev_assign_cache_algorithms_req(struct dev_assign_info *info,
+					   spdm_negotiate_algorithms_request_t *algorithms_req)
+{
+	uint8_t hash_op_flags;
+	size_t cache_offset, cache_len;
+
+	/* VCA contains the SPDM headers as well */
+	cache_offset = 0U;
+	cache_len = algorithms_req->length;
+
+	hash_op_flags = (HASH_OP_FLAG_UPDATE);
+
+	return dev_assign_dev_comm_set_cache(info, algorithms_req, cache_offset,
+				  cache_len, CACHE_TYPE_VCA, CACHE_COMM_DIR_REQ, hash_op_flags);
+}
+
 static libspdm_return_t
 spdm_transport_encode_message(void *spdm_context, const uint32_t *session_id,
 				  bool is_app_message, bool is_request_message,
@@ -247,9 +447,30 @@ spdm_transport_encode_message(void *spdm_context, const uint32_t *session_id,
 	uint8_t *sec_msg;
 	size_t sec_msg_size;
 	void *sec_msg_ctx;
+	spdm_message_header_t *spdm_header;
+	int rc;
 
 	(void)is_app_message;
 	info = spdm_to_dev_assign_info(spdm_context);
+
+	spdm_header = message;
+
+	if (spdm_header->request_response_code == U(SPDM_GET_VERSION)) {
+		rc = dev_assign_cache_versions_req(info,
+			(spdm_get_version_request_t *)spdm_header);
+	} else if (spdm_header->request_response_code == U(SPDM_GET_CAPABILITIES)) {
+		rc = dev_assign_cache_capabilities_req(info,
+			(spdm_get_capabilities_request_t *)spdm_header);
+	} else if (spdm_header->request_response_code == U(SPDM_NEGOTIATE_ALGORITHMS)) {
+		rc = dev_assign_cache_algorithms_req(info,
+			(spdm_negotiate_algorithms_request_t *)spdm_header);
+	} else {
+		rc = 0;
+	}
+
+	if (rc != 0) {
+		return LIBSPDM_STATUS_CRYPTO_ERROR;
+	}
 
 	/* Message send outside the secure session */
 	if (session_id == NULL) {
@@ -275,7 +496,7 @@ spdm_transport_encode_message(void *spdm_context, const uint32_t *session_id,
 						&sec_msg_size, sec_msg,
 						&cma_spdm_sec_msg_cbs);
 	if (status != LIBSPDM_STATUS_SUCCESS) {
-		INFO("cma_spdm: encode_secured_message failed\n");
+		ERROR("cma_spdm: encode_secured_message failed\n");
 		return status;
 	}
 
@@ -286,74 +507,6 @@ spdm_transport_encode_message(void *spdm_context, const uint32_t *session_id,
 	*transport_message = (void *)sec_msg;
 
 	return LIBSPDM_STATUS_SUCCESS;
-}
-
-/*
- * Set cache flags in DevCommExit and compute digest of cached data.
- */
-static int dev_assign_dev_comm_set_cache(struct dev_assign_info *info, void *cache_buf,
-				  size_t cache_offset, size_t cache_len,
-				  uint8_t cache_type, uint8_t hash_op_flags)
-{
-	const size_t digest_size = DEV_OBJ_DIGEST_MAX;
-	size_t ns_buf_cache_offset;
-	void *cache_src;
-	int rc;
-
-	cache_src = (void *)((unsigned long)cache_buf + cache_offset);
-
-	/*
-	 * If 'is_msg_sspdm' is true, then overwrite the NS response buffer with the
-	 * decrypted data. Else use the existing content to be cached by the
-	 * NS host.
-	 */
-	if (info->is_msg_sspdm) {
-
-		/*
-		 * In case of secure message the NS buffer is overwritten with
-		 * the decrypted data.
-		 */
-		rc = (int)el0_app_service_call(APP_SERVICE_WRITE_TO_NS_BUF,
-			APP_SERVICE_RW_NS_BUF_HEAP, (uintptr_t)cache_src -
-				(uintptr_t)(info->send_recv_buffer),
-			info->enter_args.resp_addr, cache_len);
-		assert(info->shared_buf != NULL);
-		ns_buf_cache_offset = *((size_t *)info->shared_buf);
-		assert(ns_buf_cache_offset < 8U);
-		if (rc != 0) {
-			return -1;
-		}
-	} else {
-		/*
-		 * In case of non-secure message the existing content in the NS
-		 * buffer is used for caching.
-		 */
-		ns_buf_cache_offset = cache_offset;
-	}
-
-	assert(info->cached_digest.len == 0U);
-
-	rc = dev_assign_hash_extend(info->psa_hash_algo, &info->psa_hash_op,
-				    hash_op_flags, cache_src, cache_len,
-				    info->cached_digest.value, digest_size,
-				    &info->cached_digest.len);
-	if (rc != 0) {
-		return -1;
-	}
-
-	info->exit_args.flags |= RMI_DEV_COMM_EXIT_FLAGS_CACHE_RSP_BIT;
-	info->exit_args.cache_rsp_offset = ns_buf_cache_offset;
-	info->exit_args.cache_rsp_len = cache_len;
-	if (cache_type == CACHE_TYPE_CERT) {
-		info->exit_args.cache_obj_id = (unsigned char)RMI_DEV_COMM_OBJECT_CERTIFICATE;
-	} else if (cache_type == CACHE_TYPE_MEAS) {
-		info->exit_args.cache_obj_id = (unsigned char)RMI_DEV_COMM_OBJECT_MEASUREMENTS;
-	} else if (cache_type == CACHE_TYPE_INTERFACE_REPORT) {
-		info->exit_args.cache_obj_id =
-			(unsigned char)RMI_DEV_COMM_OBJECT_INTERFACE_REPORT;
-	}
-
-	return 0;
 }
 
 static psa_algorithm_t spdm_to_psa_hash_algo(uint32_t spdm_hash_algo)
@@ -454,11 +607,67 @@ static int cma_spdm_cache_certificate(struct dev_assign_info *info,
 	 * to let NS Host to cache device certificate.
 	 */
 	rc = dev_assign_dev_comm_set_cache(info, cert_rsp, cache_offset,
-				  cache_len, CACHE_TYPE_CERT, hash_op_flags);
+				  cache_len, CACHE_TYPE_CERT, CACHE_COMM_DIR_RESP, hash_op_flags);
 
 	info->spdm_cert_chain_len += cert_rsp->portion_length;
 
 	return rc;
+}
+
+/* Process device version response */
+static int dev_assign_cache_versions_rsp(struct dev_assign_info *info,
+					 spdm_version_response_t *version_rsp)
+{
+	size_t version_entry_count = version_rsp->version_number_entry_count;
+	size_t cache_offset, cache_len;
+	uint8_t hash_op_flags;
+
+	if (version_entry_count > (size_t)LIBSPDM_MAX_VERSION_COUNT) {
+		ERROR("Version entry count is larger than expected.\n");
+		return -1;
+	}
+
+	/* VCA contains the SPDM headers as well */
+	cache_offset = 0U;
+	cache_len = sizeof(spdm_version_response_t) +
+		(version_entry_count * sizeof(spdm_version_number_t));
+	hash_op_flags = (HASH_OP_FLAG_UPDATE);
+
+	return dev_assign_dev_comm_set_cache(info, version_rsp, cache_offset,
+				  cache_len, CACHE_TYPE_VCA, CACHE_COMM_DIR_RESP, hash_op_flags);
+}
+
+/* Process device capabilities response */
+static int dev_assign_cache_capabilities_rsp(struct dev_assign_info *info,
+					     spdm_capabilities_response_t *capabilities_rsp)
+{
+	uint8_t hash_op_flags;
+	size_t cache_offset, cache_len;
+
+	hash_op_flags = HASH_OP_FLAG_UPDATE;
+
+	/* VCA contains the SPDM headers as well */
+	cache_offset = 0U;
+	cache_len = sizeof(spdm_capabilities_response_t);
+	return dev_assign_dev_comm_set_cache(info, capabilities_rsp, cache_offset,
+				  cache_len, CACHE_TYPE_VCA, CACHE_COMM_DIR_RESP, hash_op_flags);
+}
+
+/* Process device algorithms response */
+static int dev_assign_cache_algorithms_rsp(struct dev_assign_info *info,
+					    spdm_algorithms_response_t *algorithms_rsp)
+{
+	uint8_t hash_op_flags;
+	size_t cache_offset, cache_len;
+
+	/* VCA contains the SPDM headers as well */
+	cache_offset = 0U;
+	cache_len = algorithms_rsp->length;
+
+	hash_op_flags = (HASH_OP_FLAG_UPDATE | HASH_OP_FLAG_FINISH);
+
+	return dev_assign_dev_comm_set_cache(info, algorithms_rsp, cache_offset,
+				  cache_len, CACHE_TYPE_VCA, CACHE_COMM_DIR_RESP, hash_op_flags);
 }
 
 /* Process device measurements response */
@@ -488,7 +697,7 @@ static int dev_assign_cache_measurements(struct dev_assign_info *info,
 	info->psa_hash_op = psa_hash_operation_init();
 
 	rc = dev_assign_dev_comm_set_cache(info, meas_rsp, cache_offset,
-				  cache_len, CACHE_TYPE_MEAS, hash_op_flags);
+				  cache_len, CACHE_TYPE_MEAS, CACHE_COMM_DIR_RESP, hash_op_flags);
 
 	return rc;
 }
@@ -554,7 +763,7 @@ static int cache_spdm_vdm_response(struct dev_assign_info *info,
 	}
 
 	rc = dev_assign_dev_comm_set_cache(info, spdm_response, cache_offset,
-				  cache_len, CACHE_TYPE_INTERFACE_REPORT,
+				  cache_len, CACHE_TYPE_INTERFACE_REPORT, CACHE_COMM_DIR_RESP,
 				  hash_op_flags);
 
 	return rc;
@@ -656,10 +865,26 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 	spdm_hdr = (spdm_message_header_t *)*message;
 
 	/*
-	 * Cache device objects like certificate, interface_report, measurements
-	 * once the message is decrypted.
+	 * Cache device objects like VCA, certificate, interface_report,
+	 * measurements once the message is decrypted.
 	 */
-	if (spdm_hdr->request_response_code == (uint8_t)SPDM_CERTIFICATE) {
+	if (spdm_hdr->request_response_code == (uint8_t)SPDM_VERSION) {
+		rc = dev_assign_cache_versions_rsp(info, (spdm_version_response_t *)spdm_hdr);
+		if (rc != 0) {
+			return LIBSPDM_STATUS_RECEIVE_FAIL;
+		}
+	} else if (spdm_hdr->request_response_code == (uint8_t)SPDM_CAPABILITIES) {
+		rc = dev_assign_cache_capabilities_rsp(info,
+			(spdm_capabilities_response_t *)spdm_hdr);
+		if (rc != 0) {
+			return LIBSPDM_STATUS_RECEIVE_FAIL;
+		}
+	} else if (spdm_hdr->request_response_code == (uint8_t)SPDM_ALGORITHMS) {
+		rc = dev_assign_cache_algorithms_rsp(info, (spdm_algorithms_response_t *)spdm_hdr);
+		if (rc != 0) {
+			return LIBSPDM_STATUS_RECEIVE_FAIL;
+		}
+	} else if (spdm_hdr->request_response_code == (uint8_t)SPDM_CERTIFICATE) {
 		spdm_certificate_response_t *cert_rsp;
 
 		if (transport_message_size < sizeof(spdm_certificate_response_t)) {
@@ -677,8 +902,7 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 		if (rc != 0) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}
-	} else if (spdm_hdr->request_response_code ==
-		   (uint8_t)SPDM_MEASUREMENTS) {
+	} else if (spdm_hdr->request_response_code == (uint8_t)SPDM_MEASUREMENTS) {
 		spdm_measurements_response_t *meas_rsp;
 
 		meas_rsp = (spdm_measurements_response_t *)spdm_hdr;
@@ -686,8 +910,7 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 		if (rc != 0) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}
-	} else if (spdm_hdr->request_response_code ==
-		   (uint8_t)SPDM_VENDOR_DEFINED_RESPONSE) {
+	} else if (spdm_hdr->request_response_code == (uint8_t)SPDM_VENDOR_DEFINED_RESPONSE) {
 		rc = cache_spdm_vdm_response(info, (void *)spdm_hdr, transport_message_size);
 		if (rc != 0) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
@@ -1024,6 +1247,7 @@ static int dev_assign_init(uintptr_t el0_heap, size_t heap_size, struct dev_assi
 	info->libspdm_ctx = (void *)((uintptr_t)info->mbedtls_heap_buf +
 			PRIV_LIBSPDM_MBEDTLS_HEAP_SIZE);
 	info->cached_digest.len = 0U;
+	info->cached_digest_type = CACHE_TYPE_NONE;
 
 	assert((uintptr_t)spdm_to_dev_assign_info(info->libspdm_ctx) == (uintptr_t)info);
 
@@ -1046,6 +1270,7 @@ static int dev_assign_init(uintptr_t el0_heap, size_t heap_size, struct dev_assi
 		info->ide_sid = params->ide_sid;
 	}
 	info->spdm_cert_chain_digest_length = 0;
+	info->spdm_request_len = 0;
 	info->pk_ctx.initialised = false;
 	info->session_id = 0U;
 
@@ -1256,6 +1481,26 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 
 	/* Copy back the exit args to shared buf */
 	copy_back_exit_args_to_shared(info);
+
+	if ((info->exit_args.flags &
+		(RMI_DEV_COMM_EXIT_FLAGS_REQ_CACHE_BIT |
+		 RMI_DEV_COMM_EXIT_FLAGS_RSP_CACHE_BIT |
+		 RMI_DEV_COMM_EXIT_FLAGS_REQ_SEND_BIT |
+		 RMI_DEV_COMM_EXIT_FLAGS_RSP_WAIT_BIT |
+		 RMI_DEV_COMM_EXIT_FLAGS_RSP_RESET_BIT)) != 0U) {
+		/*
+		 * In case not all exit flags are zero then do an extra yield
+		 * here, so the app can return with empty flags on the next
+		 * communicate call, signalling to the host that the operation
+		 * is finished
+		 */
+		el0_app_yield();
+		copy_enter_args_from_shared(info);
+		copy_back_exit_args_to_shared(info);
+	}
+
+	assert(info->exit_args.flags == 0U);
+
 	return INT_TO_ULONG(ret);
 }
 

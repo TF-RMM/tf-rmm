@@ -45,6 +45,11 @@ static int validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
 {
 	(void)pd_params;
 	/*
+	 * TODO_ALP17: Check all the things below (compare with
+	 * RmiPdevParamsIsValid function in spec)
+	 */
+
+	/*
 	 * Check if device identifier, Root Port identifier, IDE stream
 	 * identifier, RID range are valid.
 	 */
@@ -156,17 +161,30 @@ unsigned long smc_pdev_create(unsigned long pdev_addr,
 
 	/*
 	 * Validate RmiPdevFlags. RMM supports PCIE off-chip device represented
-	 * by flags: SPDM=true, IDE=true, COHERENT=false, P2P= false.
+	 * by flags: SPDM=true, NCOH_IDE=true, NCOH_ADDR=*, COH_IDE=false,
+	 *           COH_ADDR=false, P2P=false, TRUST=RMI_TRUST_SEL,
+	 *           CATEGORY=RMI_PDEV_SMEM.
+	 */
+	/* TODO_ALP17: Check whether [n]coh_addr is checked during mem validate */
+	/* TODO_ALP17: Add address range checking if RMI_PDEV_FLAGS_NCOH_ADDR
+	 * is set.
 	 */
 	/* coverity[uninit_use:SUPPRESS] */
 	if ((EXTRACT(RMI_PDEV_FLAGS_SPDM, pdev_params.flags) !=
 	     RMI_PDEV_SPDM_TRUE) ||
-	    (EXTRACT(RMI_PDEV_FLAGS_IDE, pdev_params.flags) !=
+	    (EXTRACT(RMI_PDEV_FLAGS_NCOH_IDE, pdev_params.flags) !=
 	     RMI_PDEV_IDE_TRUE) ||
-	    (EXTRACT(RMI_PDEV_FLAGS_COHERENT, pdev_params.flags) !=
-	     RMI_PDEV_COHERENT_FALSE) ||
+	    (EXTRACT(RMI_PDEV_FLAGS_COH_IDE, pdev_params.flags) !=
+	     RMI_PDEV_IDE_FALSE) ||
+	    (EXTRACT(RMI_PDEV_FLAGS_COH_ADDR, pdev_params.flags) !=
+	     RMI_PDEV_IDE_FALSE) ||
 	    (EXTRACT(RMI_PDEV_FLAGS_P2P, pdev_params.flags) !=
-	     RMI_PDEV_COHERENT_FALSE)) {
+	     RMI_PDEV_COHERENT_FALSE) ||
+	    (EXTRACT(RMI_PDEV_FLAGS_TRUST, pdev_params.flags) !=
+	     RMI_TRUST_SEL) ||
+	    (EXTRACT(RMI_PDEV_FLAGS_CATEGORY, pdev_params.flags) !=
+	     RMI_PDEV_SMEM)
+	) {
 		return RMI_ERROR_NOT_SUPPORTED;
 	}
 
@@ -177,6 +195,11 @@ unsigned long smc_pdev_create(unsigned long pdev_addr,
 	    (pdev_params.num_aux != num_aux_req)) {
 		ERROR("ERROR: PDEV need %ld aux granules, host allocated %ld.\n",
 		      num_aux_req, pdev_params.num_aux);
+		return RMI_ERROR_INPUT;
+	}
+
+	/* coverity[uninit_use:SUPPRESS] */
+	if (pdev_params.ide_sid > 31U) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -239,7 +262,7 @@ unsigned long smc_pdev_create(unsigned long pdev_addr,
 	dparams.rmi_hash_algo = pdev_params.hash_algo;
 	dparams.cert_slot_id = (uint8_t)pdev_params.cert_id;
 
-	if (EXTRACT(RMI_PDEV_FLAGS_IDE, pdev_params.flags) ==
+	if (EXTRACT(RMI_PDEV_FLAGS_NCOH_IDE, pdev_params.flags) ==
 	    RMI_PDEV_IDE_TRUE) {
 		dparams.has_ide = true;
 		dparams.ecam_addr = pdev_params.ecam_addr;
@@ -360,12 +383,6 @@ static unsigned long copyin_and_validate_dev_comm_enter(
 		return RMI_ERROR_INPUT;
 	}
 
-	if ((dev_comm_state == DEV_COMM_ACTIVE) &&
-	    ((enter_args->status != RMI_DEV_COMM_ENTER_STATUS_RESPONSE) &&
-	    (enter_args->status != RMI_DEV_COMM_ENTER_STATUS_ERROR))) {
-		return RMI_ERROR_DEVICE;
-	}
-
 	if ((dev_comm_state == DEV_COMM_PENDING) &&
 	    (enter_args->status != RMI_DEV_COMM_ENTER_STATUS_NONE)) {
 		return RMI_ERROR_DEVICE;
@@ -394,37 +411,86 @@ static unsigned long copyout_dev_comm_exit(struct granule *g_dev_comm_data,
 	return RMI_SUCCESS;
 }
 
+static int copy_cached_digest(struct dev_comm_exit_shared *shared_ret,
+			      struct dev_obj_digest *comm_digest_ptr)
+{
+	assert(shared_ret->cached_digest.len != 0U);
+	if (shared_ret->cached_digest.len != 0U) {
+		if (comm_digest_ptr == NULL) {
+			return DEV_ASSIGN_STATUS_ERROR;
+		}
+		(void)memcpy(comm_digest_ptr->value, shared_ret->cached_digest.value,
+			     shared_ret->cached_digest.len);
+		comm_digest_ptr->len = shared_ret->cached_digest.len;
+	}
+	return DEV_ASSIGN_STATUS_SUCCESS;
+}
+
+static int copy_pdev_cached_digest(struct pdev *pdev, struct app_data_cfg *app_data)
+{
+	struct dev_comm_exit_shared *shared_ret;
+
+	assert(app_data->el2_shared_page != NULL);
+	shared_ret = app_data->el2_shared_page;
+
+	if (shared_ret->cached_digest_type == CACHE_TYPE_VCA) {
+		return copy_cached_digest(shared_ret, &(pdev->vca_digest));
+	} else if (shared_ret->cached_digest_type == CACHE_TYPE_CERT) {
+		return copy_cached_digest(shared_ret, &(pdev->cert_digest));
+	}
+	assert(shared_ret->cached_digest_type == CACHE_TYPE_NONE);
+	return DEV_ASSIGN_STATUS_SUCCESS;
+}
+
+static int copy_vdev_cached_digest(struct vdev *vdev, struct app_data_cfg *app_data)
+{
+	struct dev_comm_exit_shared *shared_ret;
+
+	assert(app_data->el2_shared_page != NULL);
+	shared_ret = app_data->el2_shared_page;
+
+	if (shared_ret->cached_digest_type == CACHE_TYPE_MEAS) {
+		return copy_cached_digest(shared_ret, &(vdev->meas_digest));
+	} else if (shared_ret->cached_digest_type == CACHE_TYPE_INTERFACE_REPORT) {
+		return copy_cached_digest(shared_ret, &(vdev->ifc_report_digest));
+	}
+	assert(shared_ret->cached_digest_type == CACHE_TYPE_NONE);
+	return DEV_ASSIGN_STATUS_SUCCESS;
+}
+
 static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_args,
 		struct rmi_dev_comm_exit *exit_args)
 {
 	int rc;
-	struct dev_obj_digest *comm_digest_ptr;
 
-	if (pd->rmi_state == RMI_PDEV_STATE_NEW) {
-		comm_digest_ptr = &pd->cert_digest;
-	} else {
-		comm_digest_ptr = NULL;
-	}
+	app_map_shared_page(&pd->da_app_data);
 
 	if (pd->dev_comm_state == DEV_COMM_ACTIVE) {
-		return dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, NULL, DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
+		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+			exit_args, NULL, NULL, DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
+		if (rc == DEV_ASSIGN_STATUS_ERROR) {
+			goto out;
+		}
+		if (copy_pdev_cached_digest(pd, &pd->da_app_data) != DEV_ASSIGN_STATUS_SUCCESS) {
+			rc = DEV_ASSIGN_STATUS_ERROR;
+		}
+		goto out;
 	}
 
 	switch (pd->rmi_state) {
 	case RMI_PDEV_STATE_NEW:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, NULL,
+			exit_args, NULL, NULL,
 			DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT);
 		break;
 	case RMI_PDEV_STATE_HAS_KEY:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, NULL,
+			exit_args, NULL, NULL,
 			DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION);
 		break;
 	case RMI_PDEV_STATE_STOPPING:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, NULL,
+			exit_args, NULL, NULL,
 			DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION);
 		break;
 	case RMI_PDEV_STATE_COMMUNICATING:
@@ -433,12 +499,12 @@ static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_a
 		 * communicating state
 		 */
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, NULL,
+			exit_args, NULL, NULL,
 			DEVICE_ASSIGN_APP_FUNC_ID_IDE_REFRESH);
 		break;
 	case RMI_PDEV_STATE_IDE_RESETTING:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, NULL, NULL,
+			exit_args, NULL, NULL,
 			DEVICE_ASSIGN_APP_FUNC_ID_IDE_RESET);
 		break;
 	default:
@@ -446,6 +512,16 @@ static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_a
 		rc = -1;
 	}
 
+	if (rc == DEV_ASSIGN_STATUS_ERROR) {
+		goto out;
+	}
+
+	if (copy_pdev_cached_digest(pd, &pd->da_app_data) != DEV_ASSIGN_STATUS_SUCCESS) {
+		rc = DEV_ASSIGN_STATUS_ERROR;
+	}
+
+out:
+	app_unmap_shared_page(&pd->da_app_data);
 	return rc;
 }
 
@@ -456,87 +532,112 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 {
 	int rc;
 	struct dev_meas_params *meas_params_ptr = NULL;
-	struct dev_obj_digest *comm_digest_ptr;
 	struct dev_tdisp_params *tdisp_params_ptr;
 
-	/*
-	 * State is already validated in vdev_communicate smc handler, the
-	 * following are just sanity check:
-	 */
-	assert((vd->rmi_state == RMI_VDEV_STATE_COMMUNICATING) ||
-	       (vd->rmi_state == RMI_VDEV_STATE_STOPPING));
-	assert((vd->rmi_state != RMI_VDEV_STATE_COMMUNICATING) ||
-	       (vd->rdev.op != RDEV_OP_NONE));
-
-	if (vd->rdev.op == RDEV_OP_GET_MEASUREMENTS) {
-		meas_params_ptr = &vd->rdev.op_params.meas_params;
+	if (vd->op == VDEV_OP_GET_MEAS) {
+		meas_params_ptr = &vd->op_params.meas_params;
 	} else {
 		meas_params_ptr = NULL;
 	}
 
-	if (vd->rdev.op == RDEV_OP_GET_MEASUREMENTS) {
-		comm_digest_ptr = &vd->meas_digest;
-	} else if (vd->rdev.op == RDEV_OP_GET_INTERFACE_REPORT) {
-		comm_digest_ptr = &vd->ifc_report_digest;
-	} else {
-		comm_digest_ptr = NULL;
-	}
-
-	if ((vd->rdev.op == RDEV_OP_LOCK) ||
-	    (vd->rdev.op == RDEV_OP_GET_INTERFACE_REPORT) ||
-	    (vd->rdev.op == RDEV_OP_START) ||
-	    (vd->rdev.op == RDEV_OP_STOP)) {
-		tdisp_params_ptr = &vd->rdev.op_params.tdisp_params;
+	if ((vd->op == VDEV_OP_LOCK) ||
+	    (vd->op == VDEV_OP_GET_REPORT) ||
+	    (vd->op == VDEV_OP_START) ||
+	    (vd->op == VDEV_OP_UNLOCK)) {
+		tdisp_params_ptr = &vd->op_params.tdisp_params;
 	} else {
 		tdisp_params_ptr = NULL;
 	}
 
-	if (pd->dev_comm_state == DEV_COMM_ACTIVE) {
-		return dev_assign_dev_communicate(&pd->da_app_data, enter_args, exit_args,
-			comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
+	app_map_shared_page(&pd->da_app_data);
+
+	if (vd->comm_state == DEV_COMM_ACTIVE) {
+		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args, exit_args,
+			tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
+		if (rc == DEV_ASSIGN_STATUS_ERROR) {
+			goto out;
+		}
+		if (copy_vdev_cached_digest(vd, &pd->da_app_data) != DEV_ASSIGN_STATUS_SUCCESS) {
+			rc = DEV_ASSIGN_STATUS_ERROR;
+		}
+		goto out;
 	}
 
-	switch (vd->rdev.op) {
-	case RDEV_OP_GET_MEASUREMENTS:
+	switch (vd->op) {
+	case VDEV_OP_GET_MEAS:
 		/*
-		 * In this RDEV op, the device measurement is retrieved and its
+		 * In this VDEV op, the device measurement is retrieved and its
 		 * hash needs to be calculated during device communication
 		 */
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args, exit_args,
-			comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
+			tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS);
 		break;
-	case RDEV_OP_LOCK:
+	case VDEV_OP_LOCK:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
+			exit_args, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_LOCK);
 		break;
-	case RDEV_OP_GET_INTERFACE_REPORT:
+	case VDEV_OP_UNLOCK:
+		if (vd->rmi_state == RMI_VDEV_STATE_NEW) {
+			/* no need to communicate to the device, return success */
+			(void)memset(exit_args, 0, sizeof(*exit_args));
+			rc = DEV_ASSIGN_STATUS_SUCCESS;
+		} else {
+			assert(vd->rmi_state == RMI_VDEV_STATE_STARTED);
+			rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+				exit_args, tdisp_params_ptr, meas_params_ptr,
+				DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP);
+		}
+		break;
+	case VDEV_OP_GET_REPORT:
 		/*
 		 * In this RDEV op, the device interface report is retrieved and
 		 * its hash needs to be calculated during device communication
 		 */
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
+			exit_args, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_REPORT);
 		break;
-	case RDEV_OP_START:
+	case VDEV_OP_START:
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
+			exit_args, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_START);
-		break;
-	case RDEV_OP_STOP:
-		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, comm_digest_ptr, tdisp_params_ptr, meas_params_ptr,
-			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP);
 		break;
 	default:
 		assert(false);
 		rc = -1;
 	}
 
+	if (rc == DEV_ASSIGN_STATUS_ERROR) {
+		goto out;
+	}
+
+	if (copy_vdev_cached_digest(vd, &pd->da_app_data) != DEV_ASSIGN_STATUS_SUCCESS) {
+		rc = DEV_ASSIGN_STATUS_ERROR;
+	}
+
+out:
+	app_unmap_shared_page(&pd->da_app_data);
 	return rc;
+}
+
+static void set_comm_state(int rc, uint32_t *comm_state)
+{
+	switch (rc) {
+	case DEV_ASSIGN_STATUS_COMM_BLOCKED:
+		*comm_state = DEV_COMM_ACTIVE;
+		break;
+	case DEV_ASSIGN_STATUS_ERROR:
+		*comm_state = DEV_COMM_ERROR;
+		break;
+	case DEV_ASSIGN_STATUS_SUCCESS:
+		*comm_state = DEV_COMM_IDLE;
+		break;
+	default:
+		assert(false);
+	}
 }
 
 unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
@@ -550,9 +651,16 @@ unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
 
 	assert(pd != NULL);
 
-	if ((pd->dev_comm_state == DEV_COMM_IDLE) ||
-			(pd->dev_comm_state == DEV_COMM_ERROR)) {
-		return RMI_ERROR_DEVICE;
+	if (vd == NULL) {
+		if ((pd->dev_comm_state == DEV_COMM_IDLE) ||
+		    (pd->dev_comm_state == DEV_COMM_ERROR)) {
+			return RMI_ERROR_DEVICE;
+		}
+	} else {
+		if ((vd->comm_state == DEV_COMM_IDLE) ||
+		    (vd->comm_state == DEV_COMM_ERROR)) {
+			return RMI_ERROR_DEVICE;
+		}
 	}
 
 	/* Validate RmiDevCommEnter arguments in DevCommData */
@@ -589,21 +697,12 @@ unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
 	}
 
 	/*
-	 * Based on the device communication results update the device IO state
-	 * and PDEV state.
+	 * Based on the device communication results update the device comm state
 	 */
-	switch (rc) {
-	case DEV_ASSIGN_STATUS_COMM_BLOCKED:
-		pd->dev_comm_state = DEV_COMM_ACTIVE;
-		break;
-	case DEV_ASSIGN_STATUS_ERROR:
-		pd->dev_comm_state = DEV_COMM_ERROR;
-		break;
-	case DEV_ASSIGN_STATUS_SUCCESS:
-		pd->dev_comm_state = DEV_COMM_IDLE;
-		break;
-	default:
-		assert(false);
+	if (vd == NULL) {
+		set_comm_state(rc, &pd->dev_comm_state);
+	} else {
+		set_comm_state(rc, &vd->comm_state);
 	}
 
 	return comm_rc;
@@ -630,6 +729,8 @@ unsigned long smc_pdev_communicate(unsigned long pdev_addr,
 	if (!GRANULE_ALIGNED(pdev_addr) || !GRANULE_ALIGNED(dev_comm_data_addr)) {
 		return RMI_ERROR_INPUT;
 	}
+
+	/* TODO_ALP17: Ensure PdevIsBusy == False */
 
 	/* Lock pdev granule and map it */
 	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
@@ -1085,12 +1186,13 @@ unsigned long smc_pdev_destroy(unsigned long pdev_addr)
 }
 
 /*
- * Notify the RMM of an event related to a PDEV.
+ * Refresh keys in an IDE connection between the Root Port and the endpoint
+ * device.
  *
  * pdev_addr	- PA of the PDEV
- * ev		- Event type
+ * coh		- Select coherent or non-coherent IDE stream
  */
-unsigned long smc_pdev_notify(unsigned long pdev_addr, unsigned long ev)
+unsigned long smc_pdev_ide_key_refresh(unsigned long pdev_addr, unsigned long coh)
 {
 	struct granule *g_pdev;
 	unsigned long rmi_rc;
@@ -1121,8 +1223,11 @@ unsigned long smc_pdev_notify(unsigned long pdev_addr, unsigned long ev)
 		goto out_pdev_buf_unmap;
 	}
 
-	if (ev != RMI_PDEV_EVENT_IDE_KEY_REFRESH) {
-		rmi_rc = RMI_ERROR_INPUT;
+	if (((coh == RMI_PDEV_COHERENT_FALSE) &&
+		(EXTRACT(RMI_PDEV_FLAGS_NCOH_IDE, pd->rmi_flags) != RMI_PDEV_IDE_TRUE)) ||
+	    ((coh == RMI_PDEV_COHERENT_TRUE) &&
+		(EXTRACT(RMI_PDEV_FLAGS_COH_IDE, pd->rmi_flags) != RMI_PDEV_IDE_TRUE))) {
+		rmi_rc = RMI_ERROR_DEVICE;
 		goto out_pdev_buf_unmap;
 	}
 

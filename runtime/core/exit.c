@@ -655,35 +655,17 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	case SMC_RSI_PLANE_SYSREG_WRITE:
 		handle_rsi_plane_sysreg_write(rec, &res);
 		break;
-	case SMC_RSI_RDEV_GET_INSTANCE_ID:
-		handle_rsi_rdev_get_instance_id(rec, rec_exit, &res);
+	case SMC_RSI_VDEV_DMA_ENABLE:
+		handle_rsi_vdev_dma_enable(rec, rec_exit, &res);
 		break;
-	case SMC_RSI_RDEV_GET_INFO:
-		handle_rsi_rdev_get_info(rec, &res);
+	case SMC_RSI_VDEV_DMA_DISABLE:
+		handle_rsi_vdev_dma_disable(rec, rec_exit, &res);
 		break;
-	case SMC_RSI_RDEV_GET_MEASUREMENTS:
-		handle_rsi_rdev_get_measurements(rec, rec_exit, &res);
+	case SMC_RSI_VDEV_GET_INFO:
+		handle_rsi_vdev_get_info(rec, rec_exit, &res);
 		break;
-	case SMC_RSI_RDEV_GET_STATE:
-		handle_rsi_rdev_get_state(rec, &res);
-		break;
-	case SMC_RSI_RDEV_LOCK:
-		handle_rsi_rdev_lock(rec, rec_exit, &res);
-		break;
-	case SMC_RSI_RDEV_START:
-		handle_rsi_rdev_start(rec, rec_exit, &res);
-		break;
-	case SMC_RSI_RDEV_STOP:
-		handle_rsi_rdev_stop(rec, rec_exit, &res);
-		break;
-	case SMC_RSI_RDEV_GET_INTERFACE_REPORT:
-		handle_rsi_rdev_get_interface_report(rec, rec_exit, &res);
-		break;
-	case SMC_RSI_RDEV_CONTINUE:
-		handle_rsi_rdev_continue(rec, rec_exit, &res);
-		break;
-	case SMC_RSI_RDEV_VALIDATE_MAPPING:
-		handle_rsi_rdev_validate_mapping(rec, rec_exit, &res);
+	case SMC_RSI_VDEV_VALIDATE_MAPPING:
+		handle_rsi_vdev_validate_mapping(rec, rec_exit, &res);
 		break;
 	default:
 		res.action = UPDATE_REC_RETURN_TO_REALM;

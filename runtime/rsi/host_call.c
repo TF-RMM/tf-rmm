@@ -30,13 +30,11 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			 struct rmi_rec_enter *rec_enter,
 			 struct rsi_result *res)
 {
-	enum s2_walk_status walk_status;
-	struct s2_walk_result walk_result;
 	struct rec_plane *plane = rec_active_plane(rec);
 	unsigned long ipa;
 	unsigned long page_ipa;
-	struct granule *gr;
-	uintptr_t data;
+	struct granule *llt = NULL;
+	void *data = NULL;
 	struct rsi_host_call *host_call;
 	unsigned int i;
 
@@ -49,32 +47,15 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	assert((rec_enter != NULL) != (rec_exit != NULL));
 
 	page_ipa = ipa & GRANULE_MASK;
-	walk_status = realm_ipa_to_pa(rec, page_ipa, &walk_result);
 
-	switch (walk_status) {
-	case WALK_SUCCESS:
-		break;
-	case WALK_FAIL:
-		if (walk_result.ripas_val == RIPAS_EMPTY) {
-			res->smc_res.x[0] = RSI_ERROR_INPUT;
-		} else {
-			res->action = STAGE_2_TRANSLATION_FAULT;
-			res->rtt_level = walk_result.rtt_level;
-		}
+	if (!realm_mem_lock_map(rec, page_ipa, &data, &llt, res)) {
+		/* In case of failure res is updated */
 		return;
-	case WALK_INVALID_PARAMS:
-	default:
-		assert(false);
-		break;
 	}
 
-	/* Map Realm data granule to RMM address space */
-	gr = find_granule(walk_result.pa);
-	data = (uintptr_t)buffer_granule_mecid_map(gr, SLOT_REALM,
-						rec->realm_info.primary_s2_ctx.mecid);
-	assert(data != 0UL);
+	assert((data != NULL) && (llt != NULL));
 
-	host_call = (struct rsi_host_call *)(data + ipa - page_ipa);
+	host_call = (struct rsi_host_call *)((uintptr_t)data + ipa - page_ipa);
 
 	if (rec_exit != NULL) {
 		/* Copy host call arguments to REC exit data structure */
@@ -104,10 +85,10 @@ static void do_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	}
 
 	/* Unmap Realm data granule */
-	buffer_unmap((void *)data);
+	buffer_unmap(data);
 
 	/* Unlock last level RTT */
-	granule_unlock(walk_result.llt);
+	granule_unlock(llt);
 }
 
 void handle_rsi_host_call(struct rec *rec, struct rmi_rec_exit *rec_exit,

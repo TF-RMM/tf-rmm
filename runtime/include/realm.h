@@ -13,6 +13,7 @@
 #include <memory.h>
 #include <planes.h>
 #include <rec.h>
+#include <rsi-handler.h>
 #include <s2tt.h>
 
 #define REALM_NEW		0U
@@ -109,12 +110,6 @@ struct rd {
 	 * VDEV is assigned to Realm.
 	 */
 	unsigned long vdev_inst_counter;
-
-	/*
-	 * VDEVs assigned to this Realm. Currently support one vdev.
-	 * todo: this will be removed based on spec changes
-	 */
-	struct granule *g_vdev;
 };
 COMPILER_ASSERT((U(offsetof(struct rd, measurement)) & 7U) == 0U);
 COMPILER_ASSERT(sizeof(struct rd) <= GRANULE_SIZE);
@@ -256,31 +251,6 @@ static inline void rd_vdev_refcount_dec(struct rd *rd)
 	atomic_add_64(&rd->num_vdevs, (unsigned long)(-1L));
 }
 
-/*
- * Resets the rd's vdev_inst_counter to 0 while holding the rd granule lock.
- */
-static inline void rd_vdev_inst_counter_reset(struct rd *rd)
-{
-	SCA_WRITE64(&rd->vdev_inst_counter, VDEV_INST_ID_BASE);
-}
-
-/*
- * Gets the rd's vdev_inst_counter while holding the rd granule lock.
- */
-static inline unsigned long get_rd_vdev_inst_counter(struct rd *rd)
-{
-	return SCA_READ64(&rd->vdev_inst_counter);
-}
-
-/*
- * Increases the rd's vdev_inst_counter by 1 while holding the rd granule lock.
- * Returns the old value.
- */
-static inline unsigned long rd_vdev_inst_counter_inc(struct rd *rd)
-{
-	return atomic_load_add_64(&rd->vdev_inst_counter, 1UL);
-}
-
 static inline unsigned long realm_ipa_bits(struct rd *rd)
 {
 	return plane_to_s2_context(rd, PLANE_0_ID)->ipa_bits;
@@ -401,4 +371,8 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long start,
 					unsigned long end, unsigned long *top,
 					enum ripas *ripas_ptr);
+bool realm_mem_lock_map(struct rec *rec, unsigned long ipa,
+			void **va, struct granule **llt,
+			struct rsi_result *res);
+
 #endif /* REALM_H */

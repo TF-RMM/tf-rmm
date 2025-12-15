@@ -20,7 +20,7 @@
 #include <xlat_high_va.h>
 
 /* Maximum number of supported arguments */
-#define MAX_NUM_ARGS		5U
+#define MAX_NUM_ARGS		6U
 
 /* Maximum number of output values */
 #define MAX_NUM_OUTPUT_VALS	4U
@@ -67,6 +67,10 @@ typedef void (*handler_3_o)(unsigned long arg0, unsigned long arg1,
 typedef void (*handler_4_o)(unsigned long arg0, unsigned long arg1,
 			    unsigned long arg2, unsigned long arg3,
 			    struct smc_result *res);
+typedef void (*handler_6_o)(unsigned long arg0, unsigned long arg1,
+			    unsigned long arg2, unsigned long arg3,
+			    unsigned long arg4, unsigned long arg5,
+			    struct smc_result *res);
 
 /*
  * SMC RMI handler type encoding:
@@ -92,7 +96,8 @@ enum rmi_type {
 	set_rmi_type(3, 3),	/* 3 arguments, 3 output values */
 	set_rmi_type(3, 4),	/* 3 arguments, 4 output values */
 	set_rmi_type(4, 1),	/* 4 arguments, 1 output value */
-	set_rmi_type(4, 2)	/* 4 arguments, 2 output values */
+	set_rmi_type(4, 2),	/* 4 arguments, 2 output values */
+	set_rmi_type(6, 1)	/* 6 arguments, 1 output values */
 };
 
 struct smc_handler {
@@ -114,6 +119,7 @@ struct smc_handler {
 		handler_3_o	f_34;
 		handler_4_o	f_41;
 		handler_4_o	f_42;
+		handler_6_o	f_61;
 		void		*fn_dummy;
 	};
 	enum rmi_type	type;
@@ -159,22 +165,22 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(VDEV_AUX_COUNT,		2, 1, smc_vdev_aux_count,	 true, true),
 	HANDLER(RTT_READ_ENTRY,		3, 4, smc_rtt_read_entry,	 false, true),
 	HANDLER(RTT_UNMAP_UNPROTECTED,	3, 1, smc_rtt_unmap_unprotected, false, false),
-	HANDLER(RTT_DEV_MEM_VALIDATE,	4, 1, smc_rtt_dev_mem_validate,  false, true),
+	HANDLER(VDEV_VALIDATE_MAPPING,	6, 1, smc_vdev_validate_mapping, false, true),
 	HANDLER(PSCI_COMPLETE,		3, 0, smc_psci_complete,	 true,  true),
 	HANDLER(FEATURES,		1, 1, smc_read_feature_register, false,  true),
 	HANDLER(RTT_FOLD,		3, 1, smc_rtt_fold,		 false, false),
 	HANDLER(REC_AUX_COUNT,		1, 1, smc_rec_aux_count,	 true,  true),
 	HANDLER(RTT_INIT_RIPAS,		3, 1, smc_rtt_init_ripas,	 false, true),
 	HANDLER(RTT_SET_RIPAS,		4, 1, smc_rtt_set_ripas,	 false, true),
-	HANDLER(DEV_MEM_MAP,		4, 0, smc_dev_mem_map,		 false, true),
-	HANDLER(DEV_MEM_UNMAP,		3, 2, smc_dev_mem_unmap,	 false, true),
+	HANDLER(VDEV_MAP,		5, 0, smc_vdev_map,		 false, true),
+	HANDLER(VDEV_UNMAP,		3, 2, smc_vdev_unmap,		 false, true),
 	HANDLER(PDEV_ABORT,		1, 0, smc_pdev_abort,		 true, true),
 	HANDLER(PDEV_COMMUNICATE,	2, 0, smc_pdev_communicate,	 true, true),
 	HANDLER(PDEV_CREATE,		2, 0, smc_pdev_create,		 true, true),
 	HANDLER(PDEV_DESTROY,		1, 0, smc_pdev_destroy,		 true, true),
 	HANDLER(PDEV_GET_STATE,		1, 1, smc_pdev_get_state,	 true, true),
 	HANDLER(PDEV_IDE_RESET,		1, 0, smc_pdev_ide_reset,	 true, true),
-	HANDLER(PDEV_NOTIFY,		2, 0, smc_pdev_notify,		 true, true),
+	HANDLER(PDEV_IDE_KEY_REFRESH,	2, 0, smc_pdev_ide_key_refresh,	 true, true),
 	HANDLER(PDEV_SET_PUBKEY,	2, 0, smc_pdev_set_pubkey,	 true, true),
 	HANDLER(PDEV_STOP,		1, 0, smc_pdev_stop,		 true, true),
 	HANDLER(RTT_AUX_CREATE,		5, 0, smc_rtt_aux_create,	 false, true),
@@ -185,15 +191,19 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RTT_AUX_UNMAP_PROTECTED, 3, 2, smc_rtt_aux_unmap_protected, false, true),
 	HANDLER(RTT_AUX_UNMAP_UNPROTECTED, 3, 2, smc_rtt_aux_unmap_unprotected, false, true),
 	HANDLER(VDEV_ABORT,		1, 0, smc_vdev_abort,		 true, true),
-	HANDLER(VDEV_COMMUNICATE,	3, 0, smc_vdev_communicate,	 true, true),
+	HANDLER(VDEV_COMMUNICATE,	4, 0, smc_vdev_communicate,	 true, true),
 	HANDLER(VDEV_CREATE,		4, 0, smc_vdev_create,		 true, true),
 	HANDLER(VDEV_DESTROY,		3, 0, smc_vdev_destroy,		 true, true),
 	HANDLER(VDEV_GET_STATE,		1, 1, smc_vdev_get_state,	 true, true),
-	HANDLER(VDEV_STOP,		1, 0, smc_vdev_stop,		 true, true),
+	HANDLER(VDEV_UNLOCK,		3, 0, smc_vdev_unlock,		 true, true),
 	HANDLER(RTT_SET_S2AP,		4, 1, smc_rtt_set_s2ap,		 false, true),
 	HANDLER(MEC_SET_SHARED,		1, 0, smc_mec_set_shared,	 true, true),
 	HANDLER(MEC_SET_PRIVATE,	1, 0, smc_mec_set_private,	 true, true),
-	HANDLER(VDEV_COMPLETE,		2, 0, smc_vdev_complete,	 true, true)
+	HANDLER(VDEV_COMPLETE,		2, 0, smc_vdev_complete,	 true, true),
+	HANDLER(VDEV_GET_INTERFACE_REPORT, 3, 0, smc_vdev_get_interface_report,	 true, true),
+	HANDLER(VDEV_GET_MEASUREMENTS,	4, 0, smc_vdev_get_measurements, true, true),
+	HANDLER(VDEV_LOCK,		3, 0, smc_vdev_lock,		 true, true),
+	HANDLER(VDEV_START,		3, 0, smc_vdev_start,		 true, true)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
@@ -287,13 +297,12 @@ void handle_ns_smc(unsigned int function_id,
 		   unsigned long arg5,
 		   struct smc_result *res)
 {
-	(void)arg5;
 	unsigned int handler_id;
 	const struct smc_handler *handler = NULL;
 	bool restore_ns_simd_state = false;
 	struct simd_context *ns_simd_ctx;
 	bool sve_hint = false;
-	unsigned long args[] __unused = {arg0, arg1, arg2, arg3, arg4};
+	unsigned long args[] __unused = {arg0, arg1, arg2, arg3, arg4, arg5};
 
 	/* Save the SVE hint bit and clear it from the function ID */
 	if ((function_id & SMC_SVE_HINT) != 0U) {
@@ -314,7 +323,7 @@ void handle_ns_smc(unsigned int function_id,
 	 * for not implemented 'function_id' calls in SMC RMI range.
 	 */
 	if ((handler == NULL) || (handler->fn_dummy == NULL)) {
-		VERBOSE("[%s] unknown function_id: %x\n",
+		ERROR("[%s] unknown function_id: %x\n",
 			__func__, function_id);
 		res->x[0] = SMC_UNKNOWN;
 		return;
@@ -382,6 +391,9 @@ void handle_ns_smc(unsigned int function_id,
 		break;
 	case rmi_type_42:
 		handler->f_42(arg0, arg1, arg2, arg3, res);
+		break;
+	case rmi_type_61:
+		handler->f_61(arg0, arg1, arg2, arg3, arg4, arg5, res);
 		break;
 	default:
 		assert(false);

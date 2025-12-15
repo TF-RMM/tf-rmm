@@ -34,15 +34,13 @@ int dev_assign_app_init(struct app_data_cfg *app_data, uintptr_t granule_pas[],
  * app_data - Pointer to app_data_cfg. This is opaque to caller
  * comm_enter_args - Entry arguments to app
  * comm_exit_args - Exit arguments from app
- * comm_digest_ptr - Pointer to the location where the calculated digest is to
- *                   be copied. Should be NULL if no digest is expected.
  * tdisp_params - TDISP params to be passed to the app function in the shared
  *                buffer
  * meas_params - Measurement params to be passed to the app function in the
  *               shared buffer
  * dev_cmd - Valid device communicate cmds.
  *
- * Note that when this function indicates that the app is yeilded
+ * Note that when this function indicates that the app is yielded
  * then the only valid dev_cmd is DEVICE_ASSIGN_APP_FUNC_ID_RESUME.
  *
  * Returns DEV_ASSIGN_STATUS_SUCCESS if cmd is successful.
@@ -52,7 +50,6 @@ int dev_assign_app_init(struct app_data_cfg *app_data, uintptr_t granule_pas[],
 int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 	struct rmi_dev_comm_enter *comm_enter_args,
 	struct rmi_dev_comm_exit *comm_exit_args,
-	struct dev_obj_digest *comm_digest_ptr,
 	struct dev_tdisp_params *tdisp_params,
 	struct dev_meas_params *meas_params,
 	int dev_cmd);

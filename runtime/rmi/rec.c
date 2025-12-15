@@ -325,6 +325,17 @@ void rec_set_pending_op(struct rec *rec, unsigned int pending_op)
 	rec->pending_op = pending_op;
 }
 
+void rec_update_pending_op(struct rec *rec, unsigned int pending_op)
+{
+	/*
+	 * Make sure that a pending operation is already set, and
+	 * REC_PENDING_NONE is not being set
+	 */
+	assert((pending_op != REC_PENDING_NONE) && (rec->pending_op != REC_PENDING_NONE));
+
+	rec->pending_op = pending_op;
+}
+
 static unsigned long get_rsi_feature_register_0(struct rd *rd)
 {
 	unsigned long rsi_feat_reg0 = 0UL;

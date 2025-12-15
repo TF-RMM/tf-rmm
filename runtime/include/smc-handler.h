@@ -94,9 +94,10 @@ void smc_rtt_unmap_unprotected(unsigned long rd_addr,
 				unsigned long ulevel,
 				struct smc_result *res);
 
-void smc_rtt_dev_mem_validate(unsigned long rd_addr, unsigned long rec_addr,
-			      unsigned long base, unsigned long top,
-			      struct smc_result *res);
+void smc_vdev_validate_mapping(unsigned long rd_addr, unsigned long rec_addr,
+			       unsigned long pdev_addr, unsigned long vdev_addr,
+			       unsigned long base, unsigned long top,
+			       struct smc_result *res);
 
 void smc_rtt_read_entry(unsigned long rd_addr,
 			unsigned long map_addr,
@@ -142,15 +143,16 @@ void smc_rtt_aux_unmap_unprotected(unsigned long rd_addr,
 				   unsigned long index,
 				   struct smc_result *res);
 
-unsigned long smc_dev_mem_map(unsigned long rd_addr,
-				unsigned long map_addr,
-				unsigned long ulevel,
-				unsigned long dev_mem_addr);
+unsigned long smc_vdev_map(unsigned long rd_addr,
+			   unsigned long vdev_addr,
+			   unsigned long map_addr,
+			   unsigned long ulevel,
+			   unsigned long dev_mem_addr);
 
-void smc_dev_mem_unmap(unsigned long rd_addr,
-			unsigned long map_addr,
-			unsigned long ulevel,
-			struct smc_result *res);
+void smc_vdev_unmap(unsigned long rd_addr,
+		   unsigned long map_addr,
+		   unsigned long ulevel,
+		   struct smc_result *res);
 
 unsigned long smc_pdev_create(unsigned long pdev_addr,
 			      unsigned long pdev_params_addr);
@@ -171,7 +173,7 @@ unsigned long smc_pdev_stop(unsigned long pdev_addr);
 
 unsigned long smc_pdev_destroy(unsigned long pdev_addr);
 
-unsigned long smc_pdev_notify(unsigned long pdev_addr, unsigned long ev);
+unsigned long smc_pdev_ide_key_refresh(unsigned long pdev_addr, unsigned long coh);
 
 unsigned long smc_pdev_ide_reset(unsigned long pdev_addr);
 
@@ -185,20 +187,30 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 
 unsigned long smc_vdev_complete(unsigned long rec_addr, unsigned long vdev_addr);
 
-unsigned long smc_vdev_communicate(unsigned long pdev_addr,
+unsigned long smc_vdev_communicate(unsigned long rd_addr,
+				   unsigned long pdev_addr,
 				   unsigned long vdev_addr,
 				   unsigned long dev_comm_data_addr);
 
 void smc_vdev_get_state(unsigned long vdev_addr, struct smc_result *res);
+
+unsigned long smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
+				unsigned long vdev_addr);
 
 void smc_vdev_aux_count(unsigned long pdev_flags, unsigned long vdev_flags,
 			struct smc_result *res);
 
 unsigned long smc_vdev_abort(unsigned long vdev_addr);
 
-unsigned long smc_vdev_stop(unsigned long vdev_addr);
-
 unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 			       unsigned long vdev_addr);
+unsigned long smc_vdev_get_interface_report(unsigned long rd_addr, unsigned long pdev_addr,
+					    unsigned long vdev_addr);
+unsigned long smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pdev_addr,
+					unsigned long vdev_addr, unsigned long params_addr);
+unsigned long smc_vdev_lock(unsigned long rd_addr, unsigned long pdev_addr,
+					unsigned long vdev_addr);
+unsigned long smc_vdev_start(unsigned long rd_addr, unsigned long pdev_addr,
+					unsigned long vdev_addr);
 
 #endif /* SMC_HANDLER_H */

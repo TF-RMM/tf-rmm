@@ -136,8 +136,8 @@
 #define RMI_EXIT_SERROR			U(6)
 #define RMI_EXIT_S2AP_CHANGE		U(7)
 #define RMI_EXIT_VDEV_REQUEST		U(8)
-#define RMI_EXIT_VDEV_COMM		U(9)
-#define RMI_EXIT_DEV_MEM_MAP		U(10)
+#define RMI_EXIT_DEV_MEM_MAP		U(9)
+#define RMI_EXIT_VDEV_P2P_BINDING	U(10)
 
 /* RmiRttEntryState represents the state of an RTTE */
 #define RMI_UNASSIGNED		UL(0)
@@ -416,13 +416,16 @@
 /*
  * FID: 0xC4000163
  *
- * arg0 == RD address
- * arg1 == PA of the RD for the target Realm
- * arg2 == PA of the target REC
- * arg3 == Base of target IPA region
- * arg4 == Top of target IPA region
+ * arg0 == PA of the RD for the target Realm
+ * arg1 == PA of the target REC
+ * arg2 == PA of the PDEV
+ * arg3 == PA of the VDEV
+ * arg4 == Base of target IPA region
+ * arg5 == Top of target IPA region
+ *
+ * ret1 == Top IPA of range whose RIPAS was modified
  */
-#define SMC_RMI_RTT_DEV_MEM_VALIDATE		SMC64_RMI_FID(U(0x13))
+#define SMC_RMI_VDEV_VALIDATE_MAPPING		SMC64_RMI_FID(U(0x13))
 
 /*
  * FID: 0xC4000164
@@ -523,26 +526,26 @@
 /*
  * FID: 0xC4000172
  *
- * arg0 == RD address
- * arg1 == map address
- * arg2 == level
- * arg3 == PA of the target device memory
+ * arg0 == PA of the RD for the target Realm
+ * arg1 == PA of the VDEV
+ * arg2 == IPA at which the memory will be mapped in the target Realm
+ * arg3 == RTT level
+ * arg4 == PA of the target device memory
  */
-#define SMC_RMI_DEV_MEM_MAP			SMC64_RMI_FID(U(0x22))
+#define SMC_RMI_VDEV_MAP			SMC64_RMI_FID(U(0x22))
 
 /*
  * FID: 0xC4000173
  *
- * arg0 == RD address
- * arg1 == map address
- * arg2 == level
+ * arg0 == PA of the RD which owns the target device memory
+ * arg1 == IPA at which the memory is mapped in the target Realm
+ * arg2 == RTT level
  *
- * ret1 == Address (PA) of the device memory granule, if ret0 == RMI_SUCCESS
- *         Otherwise, undefined.
- * ret2 == Top of the non-live address region. Only valid
- *         if ret0 == RMI_SUCCESS or ret0 == (RMI_ERROR_RTT, x)
+ * ret1 == PA of the device memory which was unmapped
+ * ret2 == Top IPA of non-live RTT entries, from entry at which the RTT walk
+ *         terminated
  */
-#define SMC_RMI_DEV_MEM_UNMAP			SMC64_RMI_FID(U(0x23))
+#define SMC_RMI_VDEV_UNMAP			SMC64_RMI_FID(U(0x23))
 
 /*
  * FID: 0xC4000174
@@ -576,8 +579,11 @@
 
 /*
  * FID: 0xC400017A
+ *
+ * arg0 == PA of the PDEV
+ * arg1 == Select coherent or non-coherent IDE stream
  */
-#define SMC_RMI_PDEV_NOTIFY			SMC64_RMI_FID(U(0x2A))
+#define SMC_RMI_PDEV_IDE_KEY_REFRESH		SMC64_RMI_FID(U(0x2A))
 
 /*
  * FID: 0xC400017B
@@ -691,6 +697,11 @@
 
 /*
  * FID: 0xC4000186
+ *
+ * arg0 == PA of the RD
+ * arg1 == PA of the PDEV
+ * arg2 == PA of the VDEV
+ * arg3 == PA of the communication data structure
  */
 #define SMC_RMI_VDEV_COMMUNICATE		SMC64_RMI_FID(U(0x36))
 
@@ -711,8 +722,12 @@
 
 /*
  * FID: 0xC400018A
+ *
+ * arg0 == PA of the RD
+ * arg1 == PA of the PDEV
+ * arg2 == PA of the VDEV
  */
-#define SMC_RMI_VDEV_STOP			SMC64_RMI_FID(U(0x3A))
+#define SMC_RMI_VDEV_UNLOCK			SMC64_RMI_FID(U(0x3A))
 
 /*
  * FID: 0xC400018B
@@ -754,33 +769,45 @@
  *
  * 0xC4000150 - 0xC400018F - RMI FID range1
  * 0xC4000190 - 0xC40001BF - RSI FID range
- * 0xC40001C0 - 0xC40001C3 - RMI FID range2
+ * 0xC40001D0 - 0xC40001D3 - RMI FID range2
+ */
+
+/*
+ * FID: 0xC40001D0
  *
- * TODO: Currently RMM do not support RMI commands in FID range2. And also this
- * FID allocation conflicts with RMM EL3 interface FIDs. Once RMM supports RMI
- * commands in range2 (mainly P2P device communication) the RMI FID range2 will
- * be enabled along with changes to RMM EL3 interface FIDs.
+ * arg0 == PA of the RD
+ * arg1 == PA of the PDEV
+ * arg2 == PA of the VDEV
  */
+#define SMC_RMI_VDEV_GET_INTERFACE_REPORT	SMC64_RMI_FID(U(0x80))
 
 /*
- * FID: 0xC40001C0
+ * FID: 0xC40001D1
+ *
+ * arg0 == PA of the RD
+ * arg1 == PA of the PDEV
+ * arg2 == PA of the VDEV
+ * arg3 == PA of VDEV parameters
  */
-#define SMC_RMI_P2P_STREAM_ADD			SMC64_RMI_FID(U(0x70))
+#define SMC_RMI_VDEV_GET_MEASUREMENTS		SMC64_RMI_FID(U(0x81))
 
 /*
- * FID: 0xC40001C1
+ * FID: 0xC40001D2
+ *
+ * arg0 == PA of the RD
+ * arg1 == PA of the PDEV
+ * arg2 == PA of the VDEV
  */
-#define SMC_RMI_P2P_STREAM_CREATE		SMC64_RMI_FID(U(0x71))
+#define SMC_RMI_VDEV_LOCK			SMC64_RMI_FID(U(0x82))
 
 /*
- * FID: 0xC40001C2
+ * FID: 0xC40001D3
+ *
+ * arg0 == PA of the RD
+ * arg1 == PA of the PDEV
+ * arg2 == PA of the VDEV
  */
-#define SMC_RMI_STREAM_DESTROY			SMC64_RMI_FID(U(0x72))
-
-/*
- * FID: 0xC40001C3
- */
-#define SMC_RMI_STREAM_REMOVE			SMC64_RMI_FID(U(0x73))
+#define SMC_RMI_VDEV_START			SMC64_RMI_FID(U(0x83))
 
 /* Size of Realm Personalization Value */
 #ifndef CBMC
@@ -913,17 +940,6 @@ struct rmi_rec_enter {
 };
 
 /*
- * RmiVdevAction
- * Represents realm action which triggered REC exit due to device communication.
- * Width: 8 bits
- */
-#define RMI_VDEV_ACTION_GET_INTERFACE_REPORT	U(0)
-#define RMI_VDEV_ACTION_GET_MEASUREMENTS	U(1)
-#define RMI_VDEV_ACTION_LOCK			U(2)
-#define RMI_VDEV_ACTION_START			U(3)
-#define RMI_VDEV_ACTION_STOP			U(4)
-
-/*
  * RmiRecExitFlags
  * Fieldset contains flags provided by the RMM during REC exit.
  * Width: 64 bits
@@ -937,7 +953,6 @@ struct rmi_rec_enter {
 struct rmi_rec_exit {
 	/* Exit reason */
 	SET_MEMBER_RMI(unsigned long exit_reason, 0, 0x100);/* Offset 0 */
-	/* RmiRecExitFlags: Flags */
 	SET_MEMBER_RMI(struct {
 			/* Exception Syndrome Register */
 			unsigned long esr;		/* 0x100 */
@@ -985,25 +1000,22 @@ struct rmi_rec_exit {
 			unsigned long s2ap_base; /* 0x520 */
 			/* Top addr of target region for pending S2AP change */
 			unsigned long s2ap_top; /* 0x528 */
-			/* Virtual device ID */
-			unsigned long vdev_id; /* 0x530 */
+			/* Virtual device ID 1 */
+			unsigned long vdev_id_1; /* 0x530 */
+			/* Virtual device ID 2 */
+			unsigned long vdev_id_2; /* 0x538 */
+			/* Base IPA of target region for VDEV mapping validation */
+			unsigned long dev_mem_base; /* 0x540 */
+			/* Top IPA of target region for VDEV mapping validation */
+			unsigned long dev_mem_top; /* 0x548 */
+			/* Base PA of device memory region */
+			unsigned long dev_mem_pa; /* 0x550 */
 		   }, 0x520, 0x600);
 
 	/* Host call immediate value */
 	SET_MEMBER_RMI(unsigned int imm, 0x600, 0x608);
 	/* UInt64: Plane Index */
-	SET_MEMBER_RMI(unsigned long plane, 0x608, 0x610);
-	/* Address: VDEV which triggered REC exit due to device communication */
-	SET_MEMBER_RMI(unsigned long vdev, 0x610, 0x618);
-	/* RmiVdevAction: Action which triggered REC exit due to device comm */
-	SET_MEMBER_RMI(unsigned char vdev_action, 0x618, 0x620);
-	/* Bits64: Base IPA of target region for device mem mapping validation */
-	SET_MEMBER_RMI(unsigned long dev_mem_base, 0x620, 0x628);
-	/* Bits64: Top IPA of target region for device mem mapping validation */
-	SET_MEMBER_RMI(unsigned long dev_mem_top, 0x628, 0x630);
-	/* Address: Base PA of device memory region */
-	SET_MEMBER_RMI(unsigned long dev_mem_pa, 0x630, 0x700);
-
+	SET_MEMBER_RMI(unsigned long plane, 0x608, 0x700);
 	/* PMU overflow status */
 	SET_MEMBER_RMI(unsigned long pmu_ovf_status, 0x700, 0x800);
 };
@@ -1044,6 +1056,22 @@ struct rmi_rec_run {
 #define RMI_PDEV_COHERENT_TRUE			U(1)
 
 /*
+ * RmiPdevTrust
+ * Represents the device trust model.
+ * Width: 1 bit
+ */
+#define RMI_TRUST_SEL				U(0)
+#define RMI_TRUST_COMP				U(1)
+
+/*
+ * RmiPdevCategory
+ * Represents PDEV category.
+ * Width: 2 bits
+ */
+#define RMI_PDEV_SMEM				U(0)
+#define RMI_PDEV_CMEM_CXL			U(1)
+
+/*
  * RmiPdevFlags
  * Fieldset contains flags provided by the Host during PDEV creation
  * Width: 64 bits
@@ -1052,14 +1080,26 @@ struct rmi_rec_run {
 #define RMI_PDEV_FLAGS_SPDM_SHIFT		UL(0)
 #define RMI_PDEV_FLAGS_SPDM_WIDTH		UL(1)
 /* RmiPdevIde: Bit 1 */
-#define RMI_PDEV_FLAGS_IDE_SHIFT		UL(1)
-#define RMI_PDEV_FLAGS_IDE_WIDTH		UL(1)
-/* RmiPdevCoherent: Bit 2 */
-#define RMI_PDEV_FLAGS_COHERENT_SHIFT		UL(2)
-#define RMI_PDEV_FLAGS_COHERENT_WIDTH		UL(1)
-/* RmiFeature: Bit 3 */
-#define RMI_PDEV_FLAGS_P2P_SHIFT		UL(3)
+#define RMI_PDEV_FLAGS_NCOH_IDE_SHIFT		UL(1)
+#define RMI_PDEV_FLAGS_NCOH_IDE_WIDTH		UL(1)
+/* RmiFeature: Bit 2 */
+#define RMI_PDEV_FLAGS_NCOH_ADDR_SHIFT		UL(2)
+#define RMI_PDEV_FLAGS_NCOH_ADDR_WIDTH		UL(1)
+/* RmiPdevIde: Bit 3 */
+#define RMI_PDEV_FLAGS_COH_IDE_SHIFT		UL(3)
+#define RMI_PDEV_FLAGS_COH_IDE_WIDTH		UL(1)
+/* RmiFeature: Bit 4 */
+#define RMI_PDEV_FLAGS_COH_ADDR_SHIFT		UL(4)
+#define RMI_PDEV_FLAGS_COH_ADDR_WIDTH		UL(1)
+/* RmiFeature: Bit 5 */
+#define RMI_PDEV_FLAGS_P2P_SHIFT		UL(5)
 #define RMI_PDEV_FLAGS_P2P_WIDTH		UL(1)
+/* RmiPdevTrust: Bit 6 */
+#define RMI_PDEV_FLAGS_TRUST_SHIFT		UL(6)
+#define RMI_PDEV_FLAGS_TRUST_WIDTH		UL(1)
+/* RmiPdevCategory: Bit 8-7 */
+#define RMI_PDEV_FLAGS_CATEGORY_SHIFT		UL(7)
+#define RMI_PDEV_FLAGS_CATEGORY_WIDTH		UL(2)
 
 /*
  * RmiPdevEvent
@@ -1069,7 +1109,7 @@ struct rmi_rec_run {
 #define RMI_PDEV_EVENT_IDE_KEY_REFRESH		U(0)
 
 /*
- * RmiPdevState
+ * RmmPdevState
  * Represents the state of a PDEV
  * Width: 8 bits
  */
@@ -1123,11 +1163,12 @@ struct rmi_dev_comm_enter {
  * Fieldset contains flags provided by the RMM during a device transaction.
  * Width: 64 bits
  */
-#define RMI_DEV_COMM_EXIT_FLAGS_CACHE_REQ_BIT		UL(1) << 0
-#define RMI_DEV_COMM_EXIT_FLAGS_CACHE_RSP_BIT		UL(1) << 1
-#define RMI_DEV_COMM_EXIT_FLAGS_SEND_BIT		UL(1) << 2
-#define RMI_DEV_COMM_EXIT_FLAGS_WAIT_BIT		UL(1) << 3
-#define RMI_DEV_COMM_EXIT_FLAGS_MULTI_BIT		UL(1) << 4
+#define RMI_DEV_COMM_EXIT_FLAGS_REQ_CACHE_BIT		(UL(1) << 0U)
+#define RMI_DEV_COMM_EXIT_FLAGS_RSP_CACHE_BIT		(UL(1) << 1U)
+#define RMI_DEV_COMM_EXIT_FLAGS_REQ_SEND_BIT		(UL(1) << 2U)
+#define RMI_DEV_COMM_EXIT_FLAGS_RSP_WAIT_BIT		(UL(1) << 3U)
+#define RMI_DEV_COMM_EXIT_FLAGS_RSP_RESET_BIT		(UL(1) << 4U)
+#define RMI_DEV_COMM_EXIT_FLAGS_MULTI_BIT		(UL(1) << 5U)
 
 /*
  * RmiDevCommObject
@@ -1189,15 +1230,20 @@ struct rmi_dev_comm_exit {
 	/* RmiDevCommProtocol: If flags.send is true, type of request */
 	SET_MEMBER_RMI(unsigned char protocol, 0x30, 0x38);
 	/*
+	 * UInt64: If flags.req_send is true, amount of time to wait before
+	 * sending the request, in microseconds.
+	 */
+	SET_MEMBER_RMI(unsigned char req_delay, 0x38, 0x40);
+	/*
 	 * UInt64: If flags.send is true, amount of valid data in request buffer
 	 * in bytes
 	 */
-	SET_MEMBER_RMI(unsigned long req_len, 0x38, 0x40);
+	SET_MEMBER_RMI(unsigned long req_len, 0x40, 0x48);
 	/*
 	 * UInt64: If flags.wait is true, amount of time to wait for device
 	 * response in milliseconds
 	 */
-	SET_MEMBER_RMI(unsigned long timeout, 0x40, 0x100);
+	SET_MEMBER_RMI(unsigned long timeout, 0x48, 0x100);
 };
 
 /*
@@ -1335,14 +1381,14 @@ struct rmi_public_key_params {
 #define RMI_VDEV_FLAGS_RES0_WIDTH		UL(63)
 
 /*
- * RmiVdevState
+ * RmmVdevState
  * Represents the state of the VDEV
  * Width: 8 bits
  */
-#define RMI_VDEV_STATE_READY			U(0)
-#define RMI_VDEV_STATE_COMMUNICATING		U(1)
-#define RMI_VDEV_STATE_STOPPING			U(2)
-#define RMI_VDEV_STATE_STOPPED			U(3)
+#define RMI_VDEV_STATE_NEW			U(0)
+#define RMI_VDEV_STATE_UNLOCKED			U(1)
+#define RMI_VDEV_STATE_LOCKED			U(2)
+#define RMI_VDEV_STATE_STARTED			U(3)
 #define RMI_VDEV_STATE_ERROR			U(4)
 
 /* Maximum number of aux granules paramenter passed to VDEV create */
@@ -1369,6 +1415,44 @@ struct rmi_vdev_params {
 	SET_MEMBER_RMI(unsigned long aux[VDEV_PARAM_AUX_GRANULES_MAX], 0x100,
 		       0x1000);
 };
+
+/*
+ * RmiVdevMeasureFlags
+ * Fieldset contains flags which describe properties of device measurements.
+ * Width: 64 bits
+ */
+/* RmiVdevMeasureSigned */
+#define RMI_VDEV_MEASURE_FLAGS_SIGNED_SHIFT	U(0)
+#define RMI_VDEV_MEASURE_FLAGS_SIGNED_WIDTH	U(1)
+/* RmiVdevMeasureRaw */
+#define RMI_VDEV_MEASURE_FLAGS_RAW_SHIFT	U(1)
+#define RMI_VDEV_MEASURE_FLAGS_RAW_WIDTH	U(1)
+
+#define VDEV_MEAS_PARAM_INDICES_LEN		U(32)
+#define VDEV_MEAS_PARAM_NONCE_LEN		U(32)
+
+/*
+ * RmiVdevMeasureParams
+ * This structure contains device measurement parameters.
+ * Width: 4096 (0x1000) bytes.
+ */
+/* cppcheck-suppress misra-c2012-2.4 */
+struct rmi_vdev_measure_params {
+	/* RmiVdevMeasureFlags: Properties of device measurements */
+	SET_MEMBER_RMI(unsigned long flags, 0, 0x100);
+	/* Bits256: Measurement indices */
+	SET_MEMBER_RMI(unsigned char indices[VDEV_MEAS_PARAM_INDICES_LEN], 0x100, 0x200);
+	/* Bits256: Nonce value used in measurement requests */
+	SET_MEMBER_RMI(unsigned char nonce[VDEV_MEAS_PARAM_NONCE_LEN], 0x200, 0x1000);
+};
+
+/*
+ * RmmVdevDmaState
+ * Represents the state of DMA for a VDEV.
+ * Width: 8 bits
+ */
+#define RMI_VDEV_DMA_DISABLED		U(0)
+#define RMI_VDEV_DMA_ENABLED		U(1)
 
 /* Returns the higher supported RMI ABI revision */
 unsigned long rmi_get_highest_supported_version(void);

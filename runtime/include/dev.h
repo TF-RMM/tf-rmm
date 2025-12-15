@@ -24,17 +24,15 @@
 #define DEV_COMM_IDLE			U(2)
 #define DEV_COMM_PENDING		U(3)
 
-/* Represents operation being performed by an RDEV */
-#define RDEV_OP_NONE				U(0)
-#define RDEV_OP_GET_MEASUREMENTS		U(1)
-#define RDEV_OP_GET_INTERFACE_REPORT		U(2)
-#define RDEV_OP_LOCK				U(3)
-#define RDEV_OP_START				U(4)
-#define RDEV_OP_STOP				U(5)
-
-/* VDEV instance ID starting index */
-#define VDEV_INST_ID_INVALID			U(0)
-#define VDEV_INST_ID_BASE			U(1)
+/* Represents operation being performed by a VDEV. RmmVdevOperation */
+#define VDEV_OP_GET_MEAS			U(0)
+#define VDEV_OP_GET_REPORT			U(1)
+#define VDEV_OP_LOCK				U(2)
+#define VDEV_OP_NONE				U(3)
+#define VDEV_OP_P2P_BIND			U(4)
+#define VDEV_OP_P2P_UNBIND			U(5)
+#define VDEV_OP_START				U(6)
+#define VDEV_OP_UNLOCK				U(7)
 
 /* PCIe device specific details */
 struct pcie_dev {
@@ -80,7 +78,7 @@ struct pdev {
 	/* Pointer to this granule */
 	struct granule *g_pdev;
 
-	/* State of this PDEV. RmiPdevState */
+	/* State of this PDEV. RmmPdevState */
 	unsigned long rmi_state;
 
 	/* Flags provided by the Host during PDEV creation. RmiPdevFlags */
@@ -99,6 +97,9 @@ struct pdev {
 	 */
 	uint8_t rmi_hash_algo;
 
+	/* Digest of VCA (Version, Capabilities, Algorithm)*/
+	struct dev_obj_digest vca_digest;
+
 	/*
 	 * Digest of device certificate. This digest is calculated when RMM
 	 * fetches device certificate. The content of the certificate is cached
@@ -106,7 +107,7 @@ struct pdev {
 	 */
 	struct dev_obj_digest cert_digest;
 
-	/* Device communiction state */
+	/* Device communication state. RmmDevCommState */
 	unsigned int dev_comm_state;
 
 	/* The associated device */
@@ -117,44 +118,10 @@ struct pdev {
 };
 COMPILER_ASSERT(sizeof(struct pdev) <= GRANULE_SIZE);
 
-/*
- * Realm device. An assigned device interface is referred to by the Realm as an
- * RDEV. The underlying state and attributes of an RDEV are stored by the RMM in
- * the corresponding VDEV object.
- */
-struct realm_device {
-	/* RDEV state that is presented to the Realm. RsiDevState */
-	unsigned long rsi_state;
-
-	/*
-	 * Device interface operation that is in progress.
-	 * possible values are RDEV_OP_*
-	 */
-	unsigned long op;
-
-	/*
-	 * The parameters passed from Realm for the device operation. There can
-	 * be only one pending device operation.
-	 */
-	union {
-		/*
-		 * RSI_RDEV_GET_MEASUREMENTS call sets this meas_params. 'op'
-		 * must be RDEV_OP_GET_MEASUREMENTS
-		 */
-		struct dev_meas_params meas_params;
-
-		/*
-		 * RSI_RDEV_{LOCK/START/STOP/GET_INTERFACE_REPORT} call set this
-		 * parameter
-		 */
-		struct dev_tdisp_params tdisp_params;
-	} op_params;
-
-	/* Nonce updated as part of lock interface and used in start interface */
-	uint8_t start_interface_nonce[RDEV_START_INTERFACE_NONCE_SIZE];
-
-	/* PA of VDEV. */
-	unsigned long vdev_addr;
+struct vdev_attest_info {
+	unsigned long lock_nonce;
+	unsigned long meas_nonce;
+	unsigned long report_nonce;
 };
 
 /*
@@ -177,14 +144,23 @@ struct vdev {
 	 */
 	uint64_t id;
 
-	/* Instance id of the Realm device that is associated with this VDEV */
-	uint64_t inst_id;
+	/*
+	 * Number of Granules of this VDEV’s memory which have been mapped into
+	 * the owning Realm’s address space
+	 */
+	uint64_t num_map;
 
 	/* TDI identifier */
 	uint64_t tdi_id;
 
-	/* State of this VDEV. RmiVdevState */
+	/* State of this VDEV. RmmVdevState */
 	uint32_t rmi_state;
+
+	/* State of the VDEV communication. RmmDevCommState */
+	uint32_t comm_state;
+
+	/* DMA state */
+	uint32_t dma_state;
 
 	/*
 	 * Digest of device measurements and interface report. This digest is
@@ -194,16 +170,37 @@ struct vdev {
 	struct dev_obj_digest meas_digest;
 	struct dev_obj_digest ifc_report_digest;
 
+	struct vdev_attest_info attest_info;
+
 	/*
-	 * Interaction between a Realm and the RMM uses RDEV. It is the Realm
-	 * side interface object for this VDEV
+	 * Device interface operation that is in progress. RmmVdevOperation
+	 * possible values are VDEV_OP_*
 	 */
-	struct realm_device rdev;
+	unsigned long op;
+
+	/*
+	 * The parameters passed from Realm for the device operation. There can
+	 * be only one pending device operation.
+	 */
+	union {
+		/*
+		 * RMI_VDEV_GET_MEASUREMENTS(rd, call sets this meas_params. 'op'
+		 * must be VDEV_OP_GET_MEAS
+		 */
+		struct dev_meas_params meas_params;
+
+		/*
+		 * RMI_VDEV_{LOCK/START/GET_INTERFACE_REPORT} call set this
+		 * parameter
+		 */
+		struct dev_tdisp_params tdisp_params;
+	} op_params;
+
+	/* Nonce updated as part of lock interface and used in start interface */
+	uint8_t start_interface_nonce[RDEV_START_INTERFACE_NONCE_SIZE];
 };
 COMPILER_ASSERT(sizeof(struct vdev) <= GRANULE_SIZE);
 
 unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
 			      struct granule *g_dev_comm_data);
-void rdev_state_transition(struct realm_device *rdev,
-			   unsigned long dev_comm_state);
 #endif /* DEV_H */

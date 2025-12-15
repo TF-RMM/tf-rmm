@@ -113,26 +113,26 @@ void handle_rsi_mem_set_perm_index(struct rec *rec,
 void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res);
 void handle_rsi_plane_sysreg_read(struct rec *rec, struct rsi_result *res);
 void handle_rsi_plane_sysreg_write(struct rec *rec, struct rsi_result *res);
-void handle_rsi_rdev_get_instance_id(struct rec *rec,
-				     struct rmi_rec_exit *rec_exit,
-				     struct rsi_result *res);
-void handle_rsi_rdev_get_info(struct rec *rec, struct rsi_result *res);
-void handle_rsi_rdev_get_state(struct rec *rec, struct rsi_result *res);
-void handle_rsi_rdev_get_measurements(struct rec *rec,
-				      struct rmi_rec_exit *rec_exit,
-				      struct rsi_result *res);
-void handle_rsi_rdev_lock(struct rec *rec, struct rmi_rec_exit *rec_exit,
-			  struct rsi_result *res);
-void handle_rsi_rdev_start(struct rec *rec, struct rmi_rec_exit *rec_exit,
-			   struct rsi_result *res);
-void handle_rsi_rdev_stop(struct rec *rec, struct rmi_rec_exit *rec_exit,
-			  struct rsi_result *res);
-void handle_rsi_rdev_get_interface_report(struct rec *rec,
-					  struct rmi_rec_exit *rec_exit,
-					  struct rsi_result *res);
-void handle_rsi_rdev_continue(struct rec *rec, struct rmi_rec_exit *rec_exit,
+void handle_rsi_vdev_dma_enable(struct rec *rec,
+				struct rmi_rec_exit *rec_exit,
+				struct rsi_result *res);
+bool finish_rsi_vdev_dma_enable(struct rec *rec,
+				bool *request_finished);
+void handle_rsi_vdev_dma_disable(struct rec *rec,
+				struct rmi_rec_exit *rec_exit,
+				struct rsi_result *res);
+bool finish_rsi_vdev_dma_disable(struct rec *rec,
+				bool *request_finished);
+void handle_rsi_vdev_get_info(struct rec *rec,
+			      struct rmi_rec_exit *rec_exit,
 			      struct rsi_result *res);
-void handle_rsi_rdev_validate_mapping(struct rec *rec,
+bool finish_rsi_vdev_get_info(struct rec *rec,
+			      struct rmi_rec_exit *rec_exit,
+			      bool *request_finished);
+void handle_rsi_vdev_validate_mapping(struct rec *rec,
 				      struct rmi_rec_exit *rec_exit,
 				      struct rsi_result *res);
+bool finish_rsi_vdev_validate_mapping(struct rec *rec,
+				      struct rmi_rec_exit *rec_exit,
+				      bool *request_finished);
 #endif /* RSI_HANDLER_H */

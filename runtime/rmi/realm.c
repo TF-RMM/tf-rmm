@@ -697,8 +697,6 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	/* Set DA feature flag */
 	rd->da_enabled = EXTRACT(RMI_REALM_FLAGS0_DA, p.flags0) != 0UL;
 	rd_vdev_refcount_reset(rd);
-	rd_vdev_inst_counter_reset(rd);
-	rd->g_vdev = NULL;
 
 	init_overlay_permissions(rd);
 

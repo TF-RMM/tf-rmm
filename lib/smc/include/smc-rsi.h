@@ -214,12 +214,45 @@
 
 /*
  * FID: 0xC400019C
+ *
+ * arg0 == Realm device identifier
+ * arg1 == Flags
+ * arg2 == Index of Plane whose stage 2 permissions are observed by non-ATS
+ *         requests from the device
+ * arg3 == Nonce generated on most recent transition to LOCKED state
+ * arg4 == GET_MEASUREMENT request sequence number
+ * arg5 == GET_INTERFACE_REPORT request sequence number
  */
-#define SMC_RSI_RDEV_GET_INSTANCE_ID	SMC64_RSI_FID(U(0xC))
+#define SMC_RSI_VDEV_DMA_ENABLE		SMC64_RSI_FID(U(0xC))
 
 /*
- * FID: 0xC400019D - 0xC400019F are not used.
+ * FID: 0xC400019D
+ *
+ * arg0 == Realm device identifier
+ * arg1 == IPA to which the configuration data will be written
  */
+#define SMC_RSI_VDEV_GET_INFO		SMC64_RSI_FID(U(0xD))
+
+/*
+ * FID: 0xC400019E is not used.
+ */
+
+/*
+ * FID: 0xC400019F
+ *
+ * arg0 == Realm device identifier
+ * arg1 == Base of target IPA region
+ * arg2 == Top of target IPA region
+ * arg3 == Base of target PA region
+ * arg4 == Flags
+ * arg5 == Nonce generated on most recent transition to LOCKED state
+ * arg6 == GET_MEASUREMENT request sequence number
+ * arg7 == GET_INTERFACE_REPORT request sequence number
+ *
+ * ret1 == Base of IPA region which was not modified by the command
+ * ret2 == Whether the Host accepted or rejected the request
+ */
+#define SMC_RSI_VDEV_VALIDATE_MAPPING	SMC64_RSI_FID(U(0xF))
 
 /*
  * FID: 0xC40001A0
@@ -263,53 +296,16 @@
  * ret0 == Status / error
  */
 #define SMC_RSI_PLANE_ENTER		SMC64_RSI_FID(U(0x13))
+
 /*
  * FID: 0xC40001A4
+ *
+ * arg0 == Realm device identifier
  */
-#define SMC_RSI_RDEV_CONTINUE		SMC64_RSI_FID(U(0x14))
+#define SMC_RSI_VDEV_DMA_DISABLE	SMC64_RSI_FID(U(0x14))
 
 /*
- * FID: 0xC40001A5
- */
-#define SMC_RSI_RDEV_GET_INFO		SMC64_RSI_FID(U(0x15))
-
-/*
- * FID: 0xC40001A6
- */
-#define SMC_RSI_RDEV_GET_INTERFACE_REPORT SMC64_RSI_FID(U(0x16))
-
-/*
- * FID: 0xC40001A7
- */
-#define SMC_RSI_RDEV_GET_MEASUREMENTS	SMC64_RSI_FID(U(0x17))
-
-/*
- * FID: 0xC40001A8
- */
-#define SMC_RSI_RDEV_GET_STATE		SMC64_RSI_FID(U(0x18))
-
-/*
- * FID: 0xC40001A9
- */
-#define SMC_RSI_RDEV_LOCK		SMC64_RSI_FID(U(0x19))
-
-/*
- * FID: 0xC40001AA
- */
-#define SMC_RSI_RDEV_START		SMC64_RSI_FID(U(0x1A))
-
-/*
- * FID: 0xC40001AB
- */
-#define SMC_RSI_RDEV_STOP		SMC64_RSI_FID(U(0x1B))
-
-/*
- * FID: 0xC40001AC
- */
-#define SMC_RSI_RDEV_VALIDATE_MAPPING	SMC64_RSI_FID(U(0x1C))
-
-/*
- * FID: 0xC40001AD is not used.
+ * FID: 0xC40001A5 - 0xC40001AD are not used.
  */
 
 /*
@@ -472,19 +468,15 @@ struct rsi_host_call {
 #define RSI_RDEV_VALIDATE_IO_FLAGS_COH_WIDTH	UL(1)
 
 /*
- * RsiDeviceState
- * This enumeration represents state of an assigned Realm device.
- * Width: 64 bits.
+ * RsiVdevState
+ * This enumeration represents the state of a VDEV.
+ * Width: 8 bits.
  */
-#define RSI_RDEV_STATE_UNLOCKED			U(0)
-#define RSI_RDEV_STATE_UNLOCKED_BUSY		U(1)
-#define RSI_RDEV_STATE_LOCKED			U(2)
-#define RSI_RDEV_STATE_LOCKED_BUSY		U(3)
-#define RSI_RDEV_STATE_STARTED			U(4)
-#define RSI_RDEV_STATE_STARTED_BUSY		U(5)
-#define RSI_RDEV_STATE_STOPPING			U(6)
-#define RSI_RDEV_STATE_STOPPED			U(7) /* unused will be removed */
-#define RSI_RDEV_STATE_ERROR			U(8)
+#define RSI_VDEV_STATE_NEW			U(0)
+#define RSI_VDEV_STATE_UNLOCKED			U(1)
+#define RSI_VDEV_STATE_LOCKED			U(2)
+#define RSI_VDEV_STATE_STARTED			U(3)
+#define RSI_VDEV_STATE_ERROR			U(4)
 
 /*
  * RsiDevFlags
@@ -493,14 +485,6 @@ struct rsi_host_call {
  */
 #define RSI_DEV_FLAGS_P2P_SHIFT			UL(0)
 #define RSI_DEV_FLAGS_P2P_WIDTH			UL(1)
-
-/*
- * RsiDevAttestType
- * This enumeration represents attestation type of a device.
- * Width: 64 bits.
- */
-#define RSI_DEV_ATTEST_TYPE_INDEPENDENTLY_ATTESTED	U(0)
-#define RSI_DEV_ATTEST_TYPE_PLATFORM_ATTESTED		U(1)
 
 /*
  * RsiSysregAddress type definitons.
@@ -607,86 +591,55 @@ struct rsi_host_call {
 #define RSI_SYSREG_PMEVCNTR_MASK		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 14, 8, 0)
 #define RSI_SYSREG_PMEVTYPER_MASK		RSI_SYSREG_ADDR_KVM_OPCODE(3, 3, 14, 12, 0)
 
+#define RSI_VDEV_VCA_DIGEST_LEN			U(64)
+#define RSI_VDEV_CERT_DIGEST_LEN		U(64)
+#define RSI_VDEV_PUBKEY_DIGEST_LEN		U(64)
+#define RSI_VDEV_MEAS_DIGEST_LEN		U(64)
+#define RSI_VDEV_REPORT_DIGEST_LEN		U(64)
+
 /*
- * RsiDevInfo
+ * RsiVdevFlags
+ * Contains flags which describe properties of a device.
+ * Width: 8 bytes
+ */
+#define RSI_VDEV_FLAGS_P2P_ENABLED_SHIFT	U(0)
+#define RSI_VDEV_FLAGS_P2P_ENABLED_WIDTH	U(1)
+#define RSI_VDEV_FLAGS_P2P_BOUND_SHIFT		U(1)
+#define RSI_VDEV_FLAGS_P2P_BOUND_WIDTH		U(1)
+
+/*
+ * RsiVdevInfo
  * Contains device configuration information.
  * Width: 512 (0x200) bytes.
  */
 /* cppcheck-suppress misra-c2012-2.4 */
-struct rsi_dev_info {
+struct rsi_vdev_info {
 	/* RsiDevFlags: Flags */
 	SET_MEMBER_RSI(unsigned long flags, 0, 0x8);
-	/* RsiDevAttestType: Attestation type */
-	SET_MEMBER_RSI(unsigned long attest_type, 0x8, 0x10);
-	/* UInt64: Certificate identifier */
-	SET_MEMBER_RSI(unsigned long cert_id, 0x10, 0x18);
+	/* UInt64: cert_id*/
+	SET_MEMBER_RSI(unsigned long cert_id, 0x8, 0x10);
 	/* RsiHashAlgorithm: Algorithm used to generate device digests */
-	SET_MEMBER_RSI(unsigned char hash_algo, 0x18, 0x40);
-
+	SET_MEMBER_RSI(unsigned char hash_algo, 0x10, 0x18);
+	/* UInt64: Nonce generated on most recent transition to LOCKED state */
+	SET_MEMBER_RSI(unsigned long lock_nonce, 0x18, 0x20);
+	/* UInt64: Nonce generated on most recent GET_MEASUREMENT request */
+	SET_MEMBER_RSI(unsigned long meas_nonce, 0x20, 0x28);
+	/* UInt64: Nonce generated on most recent GET_INTERFACE_REPORT request */
+	SET_MEMBER_RSI(unsigned long report_nonce, 0x28, 0x30);
+	/* UInt64: TDISP version of the device */
+	SET_MEMBER_RSI(unsigned long tdisp_version, 0x30, 0x38);
+	/* RsiVdevState: State of the device */
+	SET_MEMBER_RSI(unsigned char state, 0x38, 0x40);
+	/* Bits512: VCA digest */
+	SET_MEMBER_RSI(unsigned char vca_digest[RSI_VDEV_VCA_DIGEST_LEN], 0x40, 0x80);
 	/* Bits512: Certificate digest */
-	SET_MEMBER_RSI(unsigned char cert_digest[64], 0x40, 0x80);
-	/* Bits512: Measurement block digest */
-	SET_MEMBER_RSI(unsigned char meas_digest[64], 0x80, 0xc0);
+	SET_MEMBER_RSI(unsigned char cert_digest[RSI_VDEV_CERT_DIGEST_LEN], 0x80, 0xc0);
+	/* Bits512: Public key digest */
+	SET_MEMBER_RSI(unsigned char pubkey_digest[RSI_VDEV_PUBKEY_DIGEST_LEN], 0xc0, 0x100);
+	/* Bits512: Measurement digest */
+	SET_MEMBER_RSI(unsigned char meas_digest[RSI_VDEV_MEAS_DIGEST_LEN], 0x100, 0x140);
 	/* Bits512: Interface report digest */
-	SET_MEMBER_RSI(unsigned char report_digest[64], 0xc0, 0x200);
-};
-
-/*
- * RsiDevMeasureAll
- * Represents whether all device measurements should be returned.
- * Width: 1 bit
- */
-#define RSI_DEV_MEASURE_NOT_ALL			U(0)
-#define RSI_DEV_MEASURE_ALL			U(1)
-
-/*
- * RsiDevMeasureSigned
- * Represents whether a device measurement is signed.
- * Width: 1 bit
- */
-#define RSI_DEV_MEASURE_NOT_SIGNED		U(0)
-#define RSI_DEV_MEASURE_SIGNED			U(1)
-
-/*
- * RsiDevMeasureRaw
- * Represents whether a device measurement is a raw bitstream.
- * Width: 1 bit
- */
-#define RSI_DEV_MEASURE_NOT_RAW			U(0)
-#define RSI_DEV_MEASURE_RAW			U(1)
-
-/*
- * RsiDevMeasureFlags
- * Fieldset contains flags which describe properties of device measurements.
- * Width: 64 bits
- */
-/* RsiDevMeasureAll */
-#define RSI_DEV_MEASURE_FLAGS_ALL_SHIFT		U(0)
-#define RSI_DEV_MEASURE_FLAGS_ALL_WIDTH		U(1)
-/* RsiDevMeasureSigned */
-#define RSI_DEV_MEASURE_FLAGS_SIGNED_SHIFT	U(1)
-#define RSI_DEV_MEASURE_FLAGS_SIGNED_WIDTH	U(1)
-/* RsiDevMeasureRaw */
-#define RSI_DEV_MEASURE_FLAGS_RAW_SHIFT		U(2)
-#define RSI_DEV_MEASURE_FLAGS_RAW_WIDTH		U(1)
-
-#define RDEV_MEAS_PARAM_INDICES_LEN		U(32)
-#define RDEV_MEAS_PARAM_NONCE_LEN		U(32)
-
-/*
- * RsiDevMeasureParams
- * This structure contains device measurement parameters.
- * Width: 4096 (0x1000) bytes.
- */
-/* cppcheck-suppress misra-c2012-2.4 */
-struct rsi_dev_measure_params {
-	/* RsiDevMeasureFlags: Properties of device measurements */
-	SET_MEMBER_RSI(unsigned long flags, 0, 0x8);
-
-	/* RsiBoolean[256]: Measurement indices */
-	SET_MEMBER_RSI(unsigned char indices[RDEV_MEAS_PARAM_INDICES_LEN], 0x100, 0x200);
-	/* RsiBoolean[256]: Nonce value used in measurement requests */
-	SET_MEMBER_RSI(unsigned char nonce[RDEV_MEAS_PARAM_NONCE_LEN], 0x200, 0x1000);
+	SET_MEMBER_RSI(unsigned char report_digest[RSI_VDEV_REPORT_DIGEST_LEN], 0x140, 0x200);
 };
 
 /* Returns the higher supported RSI ABI revision */
