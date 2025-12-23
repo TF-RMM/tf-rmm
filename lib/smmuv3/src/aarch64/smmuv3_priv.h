@@ -20,11 +20,11 @@ typedef __uint128_t	uint128_t;
 #define SMMU_DEBUG(...)	VERBOSE(__VA_ARGS__)
 #endif
 
-#define SMMU_ERROR(err, fmt, ...)				\
-	do {							\
-		ERROR("SMMUv3 @0x%lx error %d: ",		\
-			(uintptr_t)smmu->ns_base_addr, err);	\
-		ERROR(fmt, ##__VA_ARGS__);			\
+#define SMMU_ERROR(smmu, fmt, ...)			\
+	do {						\
+		ERROR("SMMUv3 @0x%lx: ",		\
+			(uintptr_t)(smmu)->ns_base_pa);	\
+		ERROR(fmt, ##__VA_ARGS__);		\
 	} while (false)
 
 /* Registers in Page 0 */
@@ -365,49 +365,14 @@ typedef __uint128_t	uint128_t;
 /* Stream Table Entry [255:192] */
 #define STE3_S2TTB_SHIFT	U(4)
 
-/* Command queue maximum size */
-#define CMDQ_MAX_SIZE		((1UL << SMMU_MAX_LOG2_CMDQ_SIZE) * CMD_RECORD_SIZE)
-
-/* Command queue alignment */
-#if (CMDQ_MAX_SIZE > 32UL)
-#define CMDQ_ALIGN		CMDQ_MAX_SIZE
-#else
-#define CMDQ_ALIGN		32UL
-#endif
-
-/* Event queue maximum size */
-#define EVTQ_MAX_SIZE		((1UL << SMMU_MAX_LOG2_EVTQ_SIZE) * EVT_RECORD_SIZE)
-
-/* Event queue alignment */
-#if (EVTQ_MAX_SIZE > 32U)
-#define EVTQ_ALIGN		EVTQ_MAX_SIZE
-#else
-#define EVTQ_ALIGN		32UL
-#endif
-
-/* Maximum number of L1 descriptors */
-#define STRTAB_L1_DESC_MAX	(1UL << (SMMU_MAX_SID_BITS - SMMU_STRTAB_SPLIT))
-
 /* L1 Stream Table Descriptor size */
 #define STRTAB_L1_DESC_SIZE	8U
-
-/* L1 Stream Table size */
-#define STRTAB_L1_MAX_SIZE	(STRTAB_L1_DESC_MAX * STRTAB_L1_DESC_SIZE)
-
-/* L1 Stream Table alignment */
-#if (STRTAB_L1_MAX_SIZE > 64UL)
-#define STRTAB_L1_ALIGN		STRTAB_L1_MAX_SIZE
-#else
-#define STRTAB_L1_ALIGN		64UL
-#endif
 
 /* Maximum number of STEs per L1STD descriptor */
 #define STRTAB_L1_STE_MAX	(UL(1) << SMMU_STRTAB_SPLIT)
 
 /* L2 Stream table size */
 #define STRTAB_L2_SIZE		(STRTAB_L1_STE_MAX * STE_SIZE)
-
-#define SID_BITMAP_MAX_SIZE	((U(1) << SMMU_MAX_SID_BITS) / BITS_PER_UL)
 
 #define MAX_RETRIES		100000U
 
@@ -416,8 +381,6 @@ enum queue_type {
 	EVTQ,
 	PRIQ
 };
-
-struct smmu_info;
 
 /* STE is a 64-byte structure */
 struct ste_entry {
@@ -435,16 +398,20 @@ struct l2tab {
 	struct ste_entry l2tab_entry[STRTAB_L1_STE_MAX];
 } __aligned(STRTAB_L2_SIZE);
 
-/* Array of L2 Stream Tables */
-struct l2tabs {
-	struct l2tab l2tabs_entry[STRTAB_L1_DESC_MAX];
-};
+COMPILER_ASSERT(sizeof(struct l2tab) == GRANULE_SIZE);
 
-struct arm_smmu_layout {
+/*
+ * Top level SMMUv3 driver structure.
+ */
+struct smmuv3_driv {
+	/* Indicates whether all SMMUs support broadcast TLB maintenance */
+	bool broadcast_tlb;
 	/* Number of SMMUv3 */
 	uint64_t num_smmus;
-	/* Array of SMMUv3 Info structures */
-	struct smmu_info arm_smmu_info[RMM_MAX_SMMUS];
+	/* Pointer to dynamically allocated array of smmuv3_dev structs */
+	struct smmuv3_dev *smmuv3_devs;
+	/* Indicates whether the driver is initialized */
+	bool is_init;
 };
 
 struct smmu_config {
@@ -459,41 +426,63 @@ struct smmu_config {
 
 struct smmu_queue {
 	void *q_base;
+	void *q_base_pa;
 	uint32_t rd_idx, wr_idx;
 	uint32_t q_entries;
 	void *cons_reg;
 	void *prod_reg;
 };
 
-struct smmuv3_driver {
-	void *ns_base_addr;
-	void *r_base_addr;
+/*
+ * SMMUv3 device structure. One per SMMUv3 instance.
+ */
+struct smmuv3_dev {
+	void *ns_base;
+	void *ns_base_pa;
+	void *r_base;
+	void *r_base_pa;
 
 	struct smmu_config config;
 	struct smmu_queue cmdq;
 	struct smmu_queue evtq;
 
 	uint64_t *strtab_base;
-	struct l2tabs *l2strtab_base;
+	uint64_t *strtab_base_pa;
+	uint64_t num_l1_ents;
+
+	/*
+	 * Base of contiguously allocated L2 tables. This will be
+	 * removed when L2 tables are donated by NS Host
+	 */
+	struct l2tab *l2strtab_base;
+	struct l2tab *l2strtab_base_pa;
 
 	/* Bitmap for keeping track of allocated SIDs */
-	unsigned long sids[SID_BITMAP_MAX_SIZE];
-	unsigned int num_l1_ents;
+	/* TODO: Use software bits in STE to keep track of allocations */
+	unsigned long *sids;
+	void *sids_pa;
+	unsigned int sids_size;
 
-	/* TODO: statically allocate */
-	void *l1std_l2ptr[STRTAB_L1_DESC_MAX];
-	unsigned short l1std_cnt[STRTAB_L1_DESC_MAX];
+	/* Count of L1 Stream Table Descriptors in L2 table */
+	/* TODO: refcount can be moved to struct granule */
+	unsigned short *l1std_cnt;
+	void *l1std_cnt_pa;
 
 	spinlock_t lock;
+
+	/*
+	 * TODO: currently this is unused, but this will be set
+	 * when this SMMU is activated via PSMMU_ACTIVATE call.
+	 */
+	bool is_active;
 };
 
-extern struct arm_smmu_layout arm_smmu;
-extern struct smmuv3_driver arm_smmu_driver[RMM_MAX_SMMUS];
-extern bool broadcast_tlb;
 
-struct smmuv3_driver *get_by_index(unsigned long smmu_idx, unsigned int sid);
-int prepare_send_command(struct smmuv3_driver *smmu, unsigned long opcode,
+bool get_smmu_broadcast_tlb(void);
+struct smmuv3_driv *get_smmuv3_driver(void);
+struct smmuv3_dev *get_by_index(unsigned long smmu_idx, unsigned int sid);
+int prepare_send_command(struct smmuv3_dev *smmu, unsigned long opcode,
 			 unsigned long param0, unsigned long param1);
-int wait_cmdq_empty(struct smmuv3_driver *smmu);
+int wait_cmdq_empty(struct smmuv3_dev *smmu);
 
 #endif /* SMMUV3_PRIV_H */
