@@ -272,6 +272,7 @@ void initialise_app_headers(int argc, char *argv[])
 }
 
 uint64_t rmm_main(uint64_t token);
+void rmm_arch_init(void);
 
 int main(int argc, char *argv[])
 {
@@ -286,6 +287,8 @@ int main(int argc, char *argv[])
 	host_util_setup_sysreg_and_boot_manifest();
 
 	arch_features_query_el3_support();
+
+	rmm_arch_init();
 
 	plat_setup(0UL,
 		   EL3_IFC_ABI_VERSION,

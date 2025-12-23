@@ -32,7 +32,8 @@
 		toolchain __STRING(major) "." \
 		__STRING(minor) "." __STRING(patch)
 
-static void rmm_arch_init(void)
+/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
+void rmm_arch_init(void)
 {
 	unsigned long hcrx_el2_init = HCRX_INIT;
 
@@ -82,11 +83,6 @@ static void rmm_arch_init(void)
 uint64_t rmm_warmboot_main(uint64_t token)
 {
 	token = glob_data_init((struct glob_data *)token, 0UL, 0UL);
-
-	/*
-	 * Do the rest of RMM architecture init
-	 */
-	rmm_arch_init();
 
 	/*
 	 * Finish initializing the slot buffer mechanism

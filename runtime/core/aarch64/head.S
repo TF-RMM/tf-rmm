@@ -84,6 +84,9 @@
 	ldr	x1, \_is_cold_boot_flag
 	cbnz	x1, 2f
 
+	/* Initialize architecture regs */
+	bl	rmm_arch_init
+
 	/*
 	 * Restore arguments in preparation for the warm boot path
 	 */
@@ -142,10 +145,14 @@
 	bl 	app_save_rmm_entry_info
 
 	/*
-	 * This function has to be called before plat_setup,
-	 * since arch features are queried in plat_setup.
+	 * This function has to be called before plat_setup
+	 * and rmm_arch_init, since arch features are queried
+	 * by them.
 	 */
 	bl	arch_features_query_el3_support
+
+	/* Initialize architecture regs */
+	bl	rmm_arch_init
 
 	/*
 	 * Restore args received from previous BL image

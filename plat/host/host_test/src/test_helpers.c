@@ -44,6 +44,8 @@ static bool asserted;
 
 static uintptr_t callbacks[CB_IDS];
 
+void rmm_arch_init(void);
+
 static void start_primary_pe(void)
 {
 	host_util_set_cpuid(0U);
@@ -52,6 +54,8 @@ static void start_primary_pe(void)
 	write_tpidr_el2(0U);
 
 	arch_features_query_el3_support();
+
+	rmm_arch_init();
 
 	plat_setup(0UL,
 		   RMM_EL3_IFC_ABI_VERSION,
