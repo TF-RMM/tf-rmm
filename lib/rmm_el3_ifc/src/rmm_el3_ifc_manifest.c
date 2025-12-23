@@ -15,9 +15,10 @@
 #include <utils_def.h>
 
 /*
- * Local copy of the core boot manifest to be used during runtime
+ * Local copy of the core Boot Manifest to be used during runtime
  */
-static struct rmm_core_manifest local_core_manifest;
+static uint8_t cached_manifest[GRANULE_SIZE] __aligned(GRANULE_SIZE);
+static struct rmm_core_manifest *local_core_manifest;
 
 /*
  * Manifest status
@@ -28,21 +29,48 @@ void rmm_el3_ifc_process_boot_manifest(void)
 {
 	assert(!manifest_processed && !is_mmu_enabled());
 
+	local_core_manifest = (struct rmm_core_manifest *)&cached_manifest;
+
 	/*
-	 * The boot manifest is expected to be on the shared area.
+	 * The Boot Manifest is expected to be on the shared area.
 	 * Make a local copy of it.
 	 */
-	(void)memcpy((void *)&local_core_manifest,
+	(void)memcpy((void *)local_core_manifest,
 		     (void *)rmm_el3_ifc_get_shared_buf_pa(),
 		     sizeof(struct rmm_core_manifest));
 
-	inv_dcache_range((uintptr_t)&local_core_manifest,
-				sizeof(local_core_manifest));
+	inv_dcache_range((uintptr_t)local_core_manifest,
+				sizeof(struct rmm_core_manifest));
+
+	/*
+	 * Copy the SMMU list data into the cached manifest buffer.
+	 * The SMMU info array needs to be copied separately since it's
+	 * pointed to by the manifest structure.
+	 */
+	if ((local_core_manifest->plat_smmu.num_smmus != 0UL) &&
+	    (local_core_manifest->plat_smmu.smmus != NULL)) {
+		struct smmu_info *smmus_ptr = local_core_manifest->plat_smmu.smmus;
+		size_t smmu_array_size = sizeof(struct smmu_info) *
+					local_core_manifest->plat_smmu.num_smmus;
+		uintptr_t cache_offset = sizeof(struct rmm_core_manifest);
+		void *cached_smmu_array = (void *)((uintptr_t)cached_manifest + cache_offset);
+
+		/* Ensure the SMMU array fits in the cached manifest buffer */
+		assert((cache_offset + smmu_array_size) <= GRANULE_SIZE);
+
+		/* Copy SMMU array to cached buffer */
+		(void)memcpy(cached_smmu_array, (void *)smmus_ptr, smmu_array_size);
+
+		/* Update the pointer in local_core_manifest to point to cached copy */
+		local_core_manifest->plat_smmu.smmus = (struct smmu_info *)cached_smmu_array;
+
+		inv_dcache_range((uintptr_t)cached_smmu_array, smmu_array_size);
+	}
 
 	/*
 	 * Validate the Boot Manifest Version.
 	 */
-	if (!IS_RMM_EL3_MANIFEST_COMPATIBLE(local_core_manifest.version)) {
+	if (!IS_RMM_EL3_MANIFEST_COMPATIBLE(local_core_manifest->version)) {
 		rmm_el3_ifc_report_fail_to_el3(
 					E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED);
 	}
@@ -56,7 +84,7 @@ unsigned int rmm_el3_ifc_get_manifest_version(void)
 {
 	assert(manifest_processed);
 
-	return local_core_manifest.version;
+	return local_core_manifest->version;
 }
 
 /* Return a pointer to the platform manifest */
@@ -65,7 +93,7 @@ uintptr_t rmm_el3_ifc_get_plat_manifest_pa(void)
 {
 	assert(manifest_processed && !is_mmu_enabled());
 
-	return local_core_manifest.plat_data;
+	return local_core_manifest->plat_data;
 }
 
 /*
@@ -197,7 +225,7 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 	/*
 	 * Validate the Boot Manifest Version
 	 */
-	if (local_core_manifest.version <
+	if (local_core_manifest->version <
 		RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(2))) {
 		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
 	}
@@ -205,7 +233,7 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 	VERBOSE("DRAM:\n");
 
 	ret = get_memory_data_validated_pa(max_num_banks, plat_dram_info,
-					   &local_core_manifest.plat_dram);
+					   &local_core_manifest->plat_dram);
 	if (ret != E_RMM_BOOT_SUCCESS) {
 		return ret;
 	}
@@ -235,7 +263,7 @@ int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
 	/*
 	 * Validate the Boot Manifest Version
 	 */
-	if (local_core_manifest.version <
+	if (local_core_manifest->version <
 		RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(4))) {
 		*plat_dev_range_info = NULL;
 		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
@@ -247,9 +275,9 @@ int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
 		(type == DEV_MEM_COHERENT) ? "" : "non-");
 
 	if (type == DEV_MEM_COHERENT) {
-		plat_memory = &local_core_manifest.plat_coh_region;
+		plat_memory = &local_core_manifest->plat_coh_region;
 	} else {
-		plat_memory = &local_core_manifest.plat_ncoh_region;
+		plat_memory = &local_core_manifest->plat_ncoh_region;
 	}
 
 	return get_memory_data_validated_pa(max_num_banks, plat_dev_range_info,
@@ -273,12 +301,12 @@ int rmm_el3_ifc_get_console_list_pa(struct console_list **plat_console_list)
 	/*
 	 * Validate the Boot Manifest Version
 	 */
-	if (local_core_manifest.version <
+	if (local_core_manifest->version <
 			RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(3))) {
 		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
 	}
 
-	csl_list = &local_core_manifest.plat_console;
+	csl_list = &local_core_manifest->plat_console;
 
 	/* Number of consoles */
 	num_consoles = csl_list->num_consoles;
@@ -321,12 +349,12 @@ int rmm_el3_ifc_get_root_complex_list_pa(struct root_complex_list **plat_rc_list
 	*plat_rc_list = NULL;
 
 	/* Validate the Boot Manifest Version */
-	if (local_core_manifest.version <
+	if (local_core_manifest->version <
 			RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(5))) {
 		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
 	}
 
-	rc_list = &local_core_manifest.plat_root_complex;
+	rc_list = &local_core_manifest->plat_root_complex;
 
 	num_root_complexes = rc_list->num_root_complex;
 	rc_info = rc_list->root_complex;
@@ -363,53 +391,36 @@ int rmm_el3_ifc_get_root_complex_list_pa(struct root_complex_list **plat_rc_list
 }
 
 /*
- * Return validated SMMUv3 list passed in plat_smmu pointer
- * from the Boot manifest v0.5 onwards.
+ * Return validated SMMUv3 list passed in plat_smmu pointer cached in RMM.
+ * From the Boot manifest v0.5 onwards.
  */
-int rmm_el3_ifc_get_smmu_list_pa(struct smmu_list **plat_smmu_list)
+int rmm_el3_ifc_get_cached_smmu_list_pa(struct smmu_list **plat_smmu_list)
 {
-	uint64_t num_smmus, checksum;
+	uint64_t num_smmus;
 	struct smmu_list *smmus_list;
-	struct smmu_info *smmus_ptr;
 
-	assert(manifest_processed && !is_mmu_enabled());
+	assert(manifest_processed && is_mmu_enabled());
 
 	*plat_smmu_list = NULL;
 
 	/*
 	 * Validate the Boot Manifest Version
 	 */
-	if (local_core_manifest.version <
+	if (local_core_manifest->version <
 			RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(5))) {
 		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
 	}
 
-	smmus_list = &local_core_manifest.plat_smmu;
+	smmus_list = &local_core_manifest->plat_smmu;
 
 	/* Number of SMMUv3 */
 	num_smmus = smmus_list->num_smmus;
 
 	/* Verify number of SMMUv3 */
-	if ((num_smmus == 0UL) || (num_smmus > RMM_MAX_SMMUS)) {
-		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
-	}
-
-	/* Pointer to the SMMUv3 array */
-	smmus_ptr = smmus_list->smmus;
-
-	/* Calculate the checksum of the smmu_list structure */
-	checksum = num_smmus + (uint64_t)smmus_ptr + smmus_list->checksum;
-
-	/* Update checksum */
-	checksum += checksum_calc((uint64_t *)smmus_ptr,
-					sizeof(struct smmu_info) * num_smmus);
-
-	/* Verify the checksum is 0 */
-	if (checksum != 0UL) {
+	if ((num_smmus == 0UL) || (smmus_list->smmus == NULL)) {
 		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
 	}
 
 	*plat_smmu_list = smmus_list;
-
 	return E_RMM_BOOT_SUCCESS;
 }
