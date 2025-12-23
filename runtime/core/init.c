@@ -237,7 +237,10 @@ uint64_t rmm_main(uint64_t token)
 	 */
 	simd_context_restore(get_cpu_ns_simd_context());
 #endif
-	if (smmuv3_init() != 0) {
+
+	/* Initialize SMMUv3 driver if SMMU list is available */
+	alloc = glob_data_get_smmu_driv_hdl_va(&alloc_size);
+	if (smmuv3_init(alloc, alloc_size) != 0) {
 		ERROR("SMMUv3: Failed to initialize driver\n");
 		INFO("Realm device assignment is not supported\n");
 		feature_da_disable();

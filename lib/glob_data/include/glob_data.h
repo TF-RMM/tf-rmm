@@ -33,6 +33,11 @@ struct glob_data {
 	uintptr_t dev_granules_pa;
 	uintptr_t dev_granules_va;
 	size_t dev_granules_size;
+
+	/* Memory for SMMU driver */
+	uintptr_t smmu_driv_hdl_va;
+	uintptr_t smmu_driv_hdl_pa;
+	size_t smmu_driv_hdl_sz;
 };
 
 uintptr_t glob_data_init(struct glob_data *gl,
@@ -40,5 +45,6 @@ uintptr_t glob_data_init(struct glob_data *gl,
 
 uintptr_t glob_data_get_granules_va(size_t *alloc_size);
 uintptr_t glob_data_get_dev_granules_va(size_t *alloc_size);
+uintptr_t glob_data_get_smmu_driv_hdl_va(size_t *alloc_size);
 
 #endif
