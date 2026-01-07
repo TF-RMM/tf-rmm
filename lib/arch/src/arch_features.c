@@ -102,6 +102,8 @@ static void update_id_aa64mmfr3_el1(struct cached_idreg_info *ptr)
 
 	/*************************************************************
 	 * Cache and update IDAA64MMFR3_EL1 based on supported features
+	 * Bit[39-36] - D128_2
+	 * Bit[35-32] - D128
 	 * Bit[20-23] - S2POE
 	 * Bit[19-16] - S1POE
 	 * Bit[15-12] - S2PIE
@@ -109,6 +111,11 @@ static void update_id_aa64mmfr3_el1(struct cached_idreg_info *ptr)
 	 * Bit[7-4] - SCTLRx
 	 * Bit[3-0] - TCRx
 	 **************************************************************/
+
+	if (EXTRACT_BIT(SMC_FEAT_SCR_D128, value) == 0U) {
+		ptr->id_aa64mmfr3_el1 &= ~MASK(ID_AA64MMFR3_EL1_D128_2);
+		ptr->id_aa64mmfr3_el1 &= ~MASK(ID_AA64MMFR3_EL1_D128);
+	}
 
 	if (EXTRACT_BIT(SMC_FEAT_SCR_SxPxE, value) == 0U) {
 		ptr->id_aa64mmfr3_el1 &= ~MASK(ID_AA64MMFR3_EL1_S1POE);
@@ -195,8 +202,18 @@ static void update_id_aa64isar2_el1(struct cached_idreg_info *ptr)
 	 * Bit[35:32] - FEAT_SYSREG128
 	 **************************************************************/
 
-	if (EXTRACT_BIT(SMC_FEAT_SCR_ENIDCP128, value) == 0U) {
+	/*
+	 * Arm ARM states that if FEAT_D128 is implemented, then
+	 * FEAT_SYSREG128 and FEAT_SYSINSTR128 are implemented.
+	 * Hence if EL3 disabled FEAT_D128, disable FEAT_SYSREG128
+	 * and FEAT_SYSINSTR128 from ID Reg.
+	 */
+	if (EXTRACT_BIT(SMC_FEAT_SCR_D128, value) == 0U) {
 		ptr->id_aa64isar2_el1 &= ~MASK(ID_AA64ISAR2_EL1_SYSREG128);
+		ptr->id_aa64isar2_el1 &= ~MASK(ID_AA64ISAR2_EL1_SYSINSTR128);
+	} else {
+		assert(EXTRACT(ID_AA64ISAR2_EL1_SYSREG128, read_id_aa64isar2_el1()) != 0UL);
+		assert(EXTRACT(ID_AA64ISAR2_EL1_SYSINSTR128, read_id_aa64isar2_el1()) != 0UL);
 	}
 }
 
