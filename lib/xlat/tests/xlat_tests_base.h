@@ -65,4 +65,28 @@ void xlat_arch_setup_mmu_cfg_tc7(void);
 
 void xlat_get_oa_from_tte_tc1(void);
 
+/* xlat_map_l3_region and xlat_unmap_l3_region tests */
+void xlat_map_l3_region_basic_tc1(void);
+void xlat_map_l3_region_basic_tc2(void);
+void xlat_map_l3_region_basic_tc3(void);
+void xlat_map_l3_region_errors_tc1(void);
+void xlat_map_l3_region_errors_tc2(void);
+void xlat_unmap_l3_region_basic_tc1(void);
+void xlat_unmap_l3_region_basic_tc2(void);
+void xlat_unmap_l3_region_basic_tc3(void);
+void xlat_unmap_l3_region_errors_tc1(void);
+void xlat_va_alloc_boundaries_tc1(void);
+void xlat_va_alloc_boundaries_tc2(void);
+void xlat_va_alloc_boundaries_tc3(void);
+
+/* VA allocation validation tests */
+void xlat_va_alloc_flag_propagation_tc1(void);
+void xlat_va_alloc_multi_l2_tc1(void);
+void xlat_va_alloc_table_shape_tc1(void);
+void xlat_va_alloc_multi_region_tc1(void);
+void xlat_va_alloc_multi_region_tc2(void);
+void xlat_va_alloc_search_reset_tc1(void);
+void xlat_va_alloc_exhaust_va_space_tc1(void);
+void xlat_va_alloc_va_end_boundary_tc1(void);
+
 #endif /* XLAT_TESTS_BASE */

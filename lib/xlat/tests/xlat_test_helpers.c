@@ -300,25 +300,25 @@ int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,
 			return -ERANGE;
 		}
 
+		/* Check for transient descriptors as it is not a valid Block or Page descriptor */
 		if (XLAT_TESTS_IS_TRANSIENT_DESC(ctte)) {
-			*tte = ctte;
-			*level = i;
-			*index = tindex;
-			if (table_ptr != NULL) {
-				*table_ptr = table;
+			/* For transient descriptors, return only if it's not a table descriptor */
+			if (!XLAT_TESTS_IS_DESC(ctte, TABLE_DESC)) {
+				*tte = ctte;
+				*level = i;
+				*index = tindex;
+				if (table_ptr != NULL) {
+					*table_ptr = table;
+				}
+				return 0;
 			}
-			return 0;
+			/* Otherwise, continue walking through the transient table descriptor */
 		}
 
 		switch (i) {
 		case -1:
 			/* Only table descriptors allowed here */
 			if (!XLAT_TESTS_IS_DESC(ctte, TABLE_DESC)) {
-				return -EINVAL;
-			}
-
-			if (EXTRACT(UPPER_ATTRS, ctte) != 0ULL) {
-				/* Table attributes are expected to be 0x0 */
 				return -EINVAL;
 			}
 
@@ -362,6 +362,90 @@ int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,
 		default:
 			return -EINVAL;
 		}
+	}
+
+	/* We should never get here */
+	return -EINVAL;
+}
+
+int xlat_test_helpers_get_tte_at_level(struct xlat_ctx *ctx,
+					uint64_t va,
+					int target_level,
+					uint64_t *tte,
+					uint64_t **table_ptr,
+					unsigned int *index)
+{
+	struct xlat_ctx_cfg *cfg;
+	struct xlat_ctx_tbls *tbls;
+	uint64_t ctte;
+	uint64_t *table;
+
+	assert(ctx != NULL);
+	assert(ctx->tbls != NULL);
+	assert(ctx->cfg != NULL);
+	assert(tte != NULL);
+
+	cfg = ctx->cfg;
+	tbls = ctx->tbls;
+
+	if (!tbls->init) {
+		return -EINVAL;
+	}
+
+	if (!cfg->init) {
+		return -EINVAL;
+	}
+
+	if ((tbls->tables == NULL) || (tbls->tables_num == 0U)) {
+		return -EINVAL;
+	}
+
+	if (target_level < cfg->base_level || target_level > XLAT_TABLE_LEVEL_MAX) {
+		return -EINVAL;
+	}
+
+	if (va > cfg->base_va + cfg->max_mapped_va_offset) {
+		return -ERANGE;
+	}
+
+	/* Base table is the first table of the array */
+	table = &tbls->tables[0U];
+	for (int i = cfg->base_level; i <= target_level; i++) {
+		uint64_t tte_oa;
+		unsigned int tindex =
+			(unsigned int)(va >> XLAT_ADDR_SHIFT(i)) &
+						XLAT_GET_TABLE_ENTRIES_MASK(i);
+
+		if (tindex >= XLAT_GET_TABLE_ENTRIES(i)) {
+			return -ERANGE;
+		}
+
+		ctte = table[tindex];
+		if (ctte == INVALID_DESC) {
+			return -ERANGE;
+		}
+
+		/* If we've reached the target level, return the descriptor */
+		if (i == target_level) {
+			*tte = ctte;
+			if (table_ptr != NULL) {
+				*table_ptr = table;
+			}
+			if (index != NULL) {
+				*index = tindex;
+			}
+			return 0;
+		}
+
+		/* Not at target level yet, must be a table descriptor to continue */
+		if (!XLAT_TESTS_IS_DESC(ctte, TABLE_DESC)) {
+			/* Found a block/page descriptor before reaching target level */
+			return -EINVAL;
+		}
+
+		/* Descend to next level */
+		tte_oa = xlat_get_oa_from_tte(ctte);
+		table = (uint64_t *)tte_oa;
 	}
 
 	/* We should never get here */

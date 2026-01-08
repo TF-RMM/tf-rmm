@@ -10,6 +10,7 @@ if(RMM_UNITTESTS)
         target_sources(rmm-lib-xlat
                 PRIVATE "tests/xlat_tests_base_g1.cpp"
                         "tests/xlat_tests_base_g2.cpp"
+                        "tests/xlat_tests_va_alloc.cpp"
                         "tests/xlat_test_helpers.c")
 endif()
 

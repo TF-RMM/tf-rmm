@@ -310,3 +310,103 @@ IGNORE_TEST(xlat_tests_no_LPA2, xlat_enable_mmu_el2_TC1)
 
 	TEST_EXIT;
 }
+
+/* VA allocation tests */
+TEST(xlat_tests_no_LPA2, xlat_map_l3_region_basic_TC1)
+{
+	xlat_map_l3_region_basic_tc1();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_map_l3_region_basic_TC2)
+{
+	xlat_map_l3_region_basic_tc2();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_map_l3_region_basic_TC3)
+{
+	xlat_map_l3_region_basic_tc3();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_map_l3_region_errors_TC1)
+{
+	xlat_map_l3_region_errors_tc1();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_map_l3_region_errors_TC2)
+{
+	xlat_map_l3_region_errors_tc2();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_unmap_l3_region_basic_TC1)
+{
+	xlat_unmap_l3_region_basic_tc1();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_unmap_l3_region_basic_TC2)
+{
+	xlat_unmap_l3_region_basic_tc2();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_unmap_l3_region_basic_TC3)
+{
+	xlat_unmap_l3_region_basic_tc3();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_unmap_l3_region_errors_TC1)
+{
+	xlat_unmap_l3_region_errors_tc1();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_va_alloc_boundaries_TC1)
+{
+	xlat_va_alloc_boundaries_tc1();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_va_alloc_boundaries_TC2)
+{
+	xlat_va_alloc_boundaries_tc2();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_va_alloc_boundaries_TC3)
+{
+	xlat_va_alloc_boundaries_tc3();
+}
+TEST(xlat_tests_no_LPA2, xlat_va_alloc_flag_propagation_TC1)
+{
+	xlat_va_alloc_flag_propagation_tc1();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_va_alloc_multi_l2_TC1)
+{
+	xlat_va_alloc_multi_l2_tc1();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_va_alloc_table_shape_TC1)
+{
+	xlat_va_alloc_table_shape_tc1();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_va_alloc_multi_region_TC1)
+{
+	xlat_va_alloc_multi_region_tc1();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_va_alloc_multi_region_TC2)
+{
+	xlat_va_alloc_multi_region_tc2();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_va_alloc_search_reset_TC1)
+{
+	xlat_va_alloc_search_reset_tc1();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_va_alloc_exhaust_va_space_TC1)
+{
+	xlat_va_alloc_exhaust_va_space_tc1();
+}
+
+TEST(xlat_tests_no_LPA2, xlat_va_alloc_va_end_boundary_TC1)
+{
+	xlat_va_alloc_va_end_boundary_tc1();
+}
