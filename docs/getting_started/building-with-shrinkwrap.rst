@@ -100,19 +100,11 @@ To run the demonstrator, use the following command:
 3-World testing with CCA DA
 ___________________________
 
-Clone TF-RMM repository at branch ``topics/da_alp12``
-
-    .. code-block:: shell
-
-       git clone https://git.trustedfirmware.org/TF-RMM/tf-rmm.git
-
 Follow the instructions in :ref:`Setup_local_RMM_with_Shrinkwrap` to setup the
 local RMM with shrinkwrap.
 
 RMM provides ``cca_da.yaml`` overlay that can be used along with the
-``cca-3world.yaml`` to build a 3 World demonstrator using the ``master`` branch
-of |TF-A|, ``cca/tdisp-upstream-post-v1.3`` branch of Linux kernel,
-kvmtool, and the local clone of RMM repository from ``main`` branch.
+``cca-3world.yaml`` to build a 3 World demonstrator.
 
 As an example, the following command line would build the 3-World demonstrator.
 It assumes that Shrinkwrap is called from within the ``<RMM_ROOT>`` directory
@@ -123,18 +115,13 @@ that was created in the last step:
        shrinkwrap build cca-3world.yaml --overlay=cca_da.yaml --btvar GUEST_ROOTFS='${artifact:BUILDROOT}' --btvar RMM_SRC=${PWD} --no-sync=rmm
 
 Follow the steps mentioned in  `3 world configuration`_ documentation to copy
-guest-disk.img, KVMTOOL_EFI.fd and lkvm to the host filesystem.
-
-Shrinkwrap expects the FVP binary (FVP_Base_RevC-2xAEMvA) to be in your
-PATH. The ``runtime=null`` option is used to run the FVP directly from the PATH,
-without using the Docker container. Make sure that the FVP version is **10034** or higher,
-as older FVP versions have issues that prevent this demo from working.
+guest-disk.img, Image, KVMTOOL_EFI.fd and lkvm to the host filesystem.
 
 Now you can boot the host, using the rootfs we just modified.
 
     .. code-block:: shell
 
-       shrinkwrap --runtime=null run cca-3world.yaml --overlay=cca_da.yaml --rtvar ROOTFS=${SHRINKWRAP_PACKAGE}/cca-3world/rootfs.ext2
+       shrinkwrap run cca-3world.yaml --overlay=cca_da.yaml --rtvar ROOTFS=${SHRINKWRAP_PACKAGE}/cca-3world/rootfs.ext2
 
 
 Finally, once the host has booted, log in as “root” (no password). Below are the

@@ -33,7 +33,8 @@ build:
 
   linux:
     repo:
-      revision: cca/tdisp-upstream-post-v1.3
+      remote: https://gitlab.arm.com/linux-arm/linux-cca.git
+      revision: cca/topics/cca-tdisp-integration-v2
     prebuild:
       - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_PCI_TSM
       - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_PCI_DOE
@@ -54,6 +55,8 @@ build:
   kvmtool:
     repo:
       dtc:
-        revision: v1.6.1
+        remote: https://git.kernel.org/pub/scm/utils/dtc/dtc.git
+        revision: v1.7.2
       kvmtool:
-        revision: cca/tdisp-upstream-post-v1.3
+        remote: https://gitlab.arm.com/linux-arm/kvmtool-cca.git
+        revision: cca/topics/cca-tdisp-integration-v2
