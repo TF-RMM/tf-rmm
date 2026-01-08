@@ -73,4 +73,10 @@ uintptr_t xlat_low_va_shared_buf_va(void);
 /* Get the Low VA information */
 struct xlat_low_va_info *xlat_get_low_va_info(void);
 
+/* Allocate VA and map memory */
+uintptr_t xlat_low_va_map(size_t size, uint64_t attr, uintptr_t in_pa, bool clear_memory);
+
+/* Get dynamic VA base */
+uintptr_t xlat_low_va_get_dyn_va_base(void);
+
 #endif /* XLAT_LOW_VA_H */
