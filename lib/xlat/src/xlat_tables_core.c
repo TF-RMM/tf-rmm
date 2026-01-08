@@ -315,6 +315,11 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 			table_base[table_idx] =
 				TABLE_DESC | (uintptr_t)subtable;
 
+			if ((MT_TYPE(mm->attr) == MT_TRANSIENT)) {
+				/* Transient entry requested. */
+				table_base[table_idx] |= TRANSIENT_DESC;
+			}
+
 			/* Recurse to write into subtable */
 			/* cppcheck-suppress misra-c2012-17.2 */
 			end_va = xlat_tables_map_region(ctx, mm, table_idx_va,

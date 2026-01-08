@@ -103,20 +103,6 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, int level);
 uintptr_t xlat_arch_get_max_supported_pa(void);
 
 /*
- * Estimate the number of page tables needed for the given regions.
- * Assumes regions are aligned to PAGE_SIZE, are sorted by VA and do not
- * overlap.
- * Also assumes that the regions are mapped to L3 granularity.
- */
-unsigned long xlat_estimate_num_l3_l2_tables(
-	const struct xlat_mmap_region *regions,
-	unsigned int region_count);
-
-/* Stitch child L1 table into an existing L1 table in the parent context */
-int xlat_stitch_tables_l1(struct xlat_ctx *parent_ctx, uint64_t *child_l1,
-			uintptr_t va_start, size_t va_size);
-
-/*
  * Return the unprivileged execute-never mask that will prevent instruction
  * fetch by EL0 at the EL2&0 translation regime.
  */
