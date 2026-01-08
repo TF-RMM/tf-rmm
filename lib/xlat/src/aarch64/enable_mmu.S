@@ -13,6 +13,8 @@
 	.global	xlat_enable_mmu_el2
 
 	func xlat_enable_mmu_el2
+		dsb	ish
+
 		/* Invalidate all TLB entries */
 		TLB_INVALIDATE(alle2)
 
