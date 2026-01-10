@@ -6,19 +6,15 @@
 #include <arch_features.h>
 #include <assert.h>
 #include <atomics.h>
-#include <sizes.h>
 #include <utils_def.h>
 #include <vmid.h>
 
-#define VMID8_COUNT		(U(1) << 8)
-#define VMID16_COUNT		(U(1) << 16)
-#define MAX_VMID_COUNT		VMID16_COUNT
-#define VMID_ARRAY_LONG_SIZE	(MAX_VMID_COUNT / BITS_PER_UL)
-
-/*
- * The bitmap for the reserved/used VMID values.
- */
-IF_NCBMC(static) unsigned long vmids[VMID_ARRAY_LONG_SIZE];
+#ifndef CBMC
+static unsigned long *vmids;
+#else
+/* For CBMC, keep as an array */
+unsigned long vmids[VMID_ARRAY_LONG_SIZE];
+#endif
 
 /*
  * Marks the VMID value to be in use. It returns:
@@ -66,4 +62,15 @@ void vmid_free(unsigned int vmid)
 	vmid %= BITS_PER_UL;
 
 	atomic_bit_clear_release_64(&vmids[offset], vmid);
+}
+
+void vmid_init(uintptr_t alloc, size_t alloc_size)
+{
+	(void)alloc_size;
+
+#ifndef CBMC
+	vmids = (unsigned long *)alloc;
+	assert(vmids != NULL);
+	assert(alloc_size >= (VMID_ARRAY_LONG_SIZE * sizeof(unsigned long)));
+#endif
 }

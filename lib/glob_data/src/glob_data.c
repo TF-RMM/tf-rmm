@@ -56,6 +56,20 @@ uintptr_t glob_data_get_smmu_driv_hdl_va(size_t *alloc_size)
 	return MAPPED_VA_ARCH(glob->smmu_driv_hdl_va, glob->smmu_driv_hdl_pa);
 }
 
+uintptr_t glob_data_get_vmids_va(size_t *alloc_size)
+{
+	if (glob == NULL) {
+		ERROR("Global data not initialized\n");
+		return 0UL;
+	}
+
+	if (alloc_size != NULL) {
+		*alloc_size = VMID_ARRAY_LONG_SIZE * sizeof(unsigned long);
+	}
+
+	return (uintptr_t)glob->vmid_bitmap;
+}
+
 uintptr_t glob_data_init(struct glob_data *gl,
 		unsigned long max_gr, unsigned long max_dev_gr)
 {
