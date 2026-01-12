@@ -471,11 +471,10 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	rec_aux = buffer_rec_aux_granules_map(rec->g_aux, rec->num_rec_aux);
 
 	/*
-	 * Check GIC state after checking other conditions but before doing
+	 * Check vGIC state after checking other conditions but before doing
 	 * anything which may have side effects.
 	 */
-	if (!gic_validate_state(rec_run.enter.gicv3_hcr,
-				&rec_run.enter.gicv3_lrs[0])) {
+	if (!gic_validate_vgic()) {
 		ret = RMI_ERROR_REC;
 		goto out_unmap_aux_granules;
 	}
@@ -506,8 +505,6 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	if (!rec_is_plane_0_active(rec)) {
 		bool report_err = false;
 
-		sysregs = rec_active_plane_sysregs(rec);
-
 		/*
 		 * ... and either REC_ENTRY_FLAG_FORCE_P0 or
 		 * REC_ENTRY_FLAG_INJECT_SEA are set, then exit the plane
@@ -525,10 +522,10 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 		 * Note, in both cases, that we do not need to save PN context
 		 * back to the REC, as it was already saved when RMM first
 		 * received the interrupt and exited to NS.
+		 * GIC state is preserved
 		 */
 		} else if ((rec->active_plane_id != rec->gic_owner) &&
-			   (gic_is_interrupt_pending(&rec_run.enter.gicv3_lrs[0]) ||
-			   gic_is_maint_interrupt_pending(&sysregs->gicstate))) {
+			   gic_is_any_interrupt_pending()) {
 			report_err = !handle_plane_n_exit(rec, &rec_run.exit,
 						ARM_EXCEPTION_IRQ_LEL, false);
 		}
@@ -545,12 +542,6 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	 */
 	plane = rec_active_plane(rec);
 	sysregs = rec_active_plane_sysregs(rec);
-
-	if (rec->active_plane_id == rec->gic_owner) {
-		gic_copy_state_from_entry(&sysregs->gicstate,
-				(unsigned long *)&rec_run.enter.gicv3_lrs,
-				rec_run.enter.gicv3_hcr);
-	}
 
 	rec->set_ripas.response =
 		((rec_run.enter.flags & REC_ENTRY_FLAG_RIPAS_RESPONSE) == 0UL) ?
@@ -590,17 +581,6 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	ret = RMI_SUCCESS;
 
 	rec_run_loop(rec, &rec_run.exit);
-
-	/* Active plane might have changed during rec_run_loop() */
-	sysregs = rec_active_plane_sysregs(rec);
-
-	if (rec->active_plane_id == rec->gic_owner) {
-		gic_copy_state_to_exit(&sysregs->gicstate,
-					   (unsigned long *)&rec_run.exit.gicv3_lrs,
-					   &rec_run.exit.gicv3_hcr,
-					   &rec_run.exit.gicv3_misr,
-					   &rec_run.exit.gicv3_vmcr);
-	}
 
 out_unmap_aux_granules:
 	/* Unmap auxiliary granules */

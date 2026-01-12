@@ -187,22 +187,6 @@ static bool handle_icc_el1_sysreg_trap(struct rec *rec,
 	(void)rec;
 	(void)skip_adv_pc;
 
-	/*
-	 * We should only have configured ICH_HCR_EL2 to trap on DIR and we
-	 * always trap on the SGIRs following the architecture, so make sure
-	 * we're not accidentally trapping on some other register here.
-	 */
-	assert((sysreg == ESR_EL2_SYSREG_ICC_DIR) ||
-	       (sysreg == ESR_EL2_SYSREG_ICC_SGI1R_EL1) ||
-	       (sysreg == ESR_EL2_SYSREG_ICC_SGI0R_EL1));
-
-	/*
-	 * The registers above should only trap to EL2 for writes, read
-	 * instructions are not defined and should cause an Undefined exception
-	 * at EL1.
-	 */
-	assert(ESR_EL2_SYSREG_IS_WRITE(esr));
-
 	rec_exit->exit_reason = RMI_EXIT_SYNC;
 	rec_exit->esr = esr;
 	return false;

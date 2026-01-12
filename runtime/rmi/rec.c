@@ -187,7 +187,6 @@ static void init_rec_regs(struct rec *rec,
 		}
 
 		init_rec_sysregs(sysregs, rec_params->mpidr);
-		gic_cpu_state_init(&(sysregs->gicstate));
 	}
 
 	init_common_sysregs(rec, rd);

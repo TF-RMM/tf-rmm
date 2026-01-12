@@ -127,7 +127,6 @@ void save_realm_state(struct rec *rec, struct rec_plane *plane,
 	plane->plane_exit_info.far = read_far_el2();
 
 	save_pmu(rec);
-	gic_save_state(&sysregs->gicstate);
 
 	mec_realm_mecid_s2_reset();
 }
@@ -261,7 +260,6 @@ void restore_realm_state(struct rec *rec, struct rec_plane *plane,
 	write_mdcr_el2(rec->common_sysregs.mdcr_el2);
 
 	restore_pmu(rec);
-	gic_restore_state(&sysregs->gicstate);
 
 	restore_realm_stage2(rec);
 }
@@ -410,6 +408,19 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	restore_realm_state(rec, plane, sysregs);
 
 	/*
+	 * If current plane is not GIC owner, restore the gic state from
+	 * saved context. If current plane is GIC owner, skip this and allow
+	 * NS programmed vGIC for the plane.
+	 */
+	if (rec->active_plane_id != rec->gic_owner) {
+		/* Save Host GIC registers in NS State */
+		gic_save_state(&rec->ns->sysregs.gicstate);
+
+		/* Restore previous state */
+		gic_restore_state(&sysregs->gicstate);
+	}
+
+	/*
 	 * The run loop must be entered with active SIMD context set to current
 	 * CPU's NS SIMD context
 	 */
@@ -528,9 +539,19 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	report_pmu_state_to_ns(rec, rec_exit);
 
 	save_realm_state(rec, plane, sysregs);
-
 	restore_ns_state(rec);
 
+	/*
+	 * If current plane is not GIC owner, save the gic state for plane
+	 * and restore the vGIC state for NS.
+	 */
+	if (rec->active_plane_id != rec->gic_owner) {
+		gic_save_state(&sysregs->gicstate);
+		/* Restore NS vGIC State */
+		gic_restore_state(&rec->ns->sysregs.gicstate);
+	}
+
+	gic_disable_virtual_cpuif();
 	/*
 	 * Clear NS pointer since that struct is local to this function.
 	 */

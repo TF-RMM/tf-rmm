@@ -37,9 +37,6 @@
 	mov_imm	x3, CPTR_EL2_VHE_INIT
 	msr	cptr_el2, x3
 
-	mov_imm	x4, ICC_SRE_EL2_INIT
-	msr	ICC_SRE_EL2, x4
-
 	isb
 
 	ldr	x1, \_is_cold_boot_flag

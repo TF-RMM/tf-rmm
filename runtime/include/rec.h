@@ -101,6 +101,7 @@ struct rd;
 
 /*
  * System registers whose contents are specific to a Plane.
+ * This struct is also used to store sysreg state in NS context.
  */
 STRUCT_TYPE sysreg_state {
 	/*
@@ -118,11 +119,9 @@ STRUCT_TYPE sysreg_state {
 
 	/* GIC Registers */
 	/*
-	 * TODO: It might be possible to break the gic_cpu_state structure
-	 * into two different halves, one containing the per-realm GIC
-	 * configuration and other once containing the per-plane GIC one.
-	 * This way, we would only need to care about saving/restoring the
-	 * affected half only.
+	 * This field is only used for PN. When PN is not the GIC owner,
+	 * this field in NS context is used to save the vGIC state and the
+	 * field in PN sysreg state is initialized with P0 provided values.
 	 */
 	struct gic_cpu_state gicstate;
 
@@ -447,6 +446,14 @@ static inline STRUCT_TYPE sysreg_state *rec_active_plane_sysregs(struct rec *rec
 {
 	assert(rec->active_plane_id < rec_num_planes(rec));
 	return REC_GET_SYSREGS_FROM_AUX(rec, rec->active_plane_id);
+}
+
+/* Get the sysregs of given plane. */
+static inline STRUCT_TYPE sysreg_state *rec_plane_sysregs_by_id(struct rec *rec,
+								unsigned int plane_id)
+{
+	assert(plane_id < rec_num_planes(rec));
+	return REC_GET_SYSREGS_FROM_AUX(rec, plane_id);
 }
 
 /* Get the part of the REC which corresponds to the currently active plane. */
