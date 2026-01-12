@@ -188,7 +188,7 @@
 
 /*
  * opcode of system register for SMCCC_ARCH_FEATURE_AVAILABILITY as
- * defined by opcode = (op0 « 19) | (op1 « 16) | (CRn « 12) | (CRm « 8) | (op2 « 5)
+ * defined by opcode = (op0 << 19) | (op1 << 16) | (CRn << 12) | (CRm << 8) | (op2 << 5)
  */
 #define SCR_EL3_OPCODE		U(0x1E1100)
 #define CPTR_EL3_OPCODE		U(0x1E1140)

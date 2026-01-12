@@ -141,9 +141,9 @@ purposes:
    High VA region, while the RMM core's VA space is not yet available. To switch
    back to RMM Core High VA space, the general purpose registers need to be
    backed up beforehand. To enable this, the app context page is mapped at the
-   beginning of the app’s VA space (without UNPRIV access). This fixed mapping
+   beginning of the app's VA space (without UNPRIV access). This fixed mapping
    allows the context switch code to use a hardcoded address for the register
-   backup. Consequently, the EL0 app’s accessible address space begins at a 4KB
+   backup. Consequently, the EL0 app's accessible address space begins at a 4KB
    offset from the start of the High VA region
 
 2. A memory page that is used to exchange RMM app specific data between the

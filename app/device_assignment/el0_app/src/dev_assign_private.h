@@ -37,7 +37,7 @@
 
 /*
  * Responders must implement a Cryptographic Timeout (CT), as defined by SPDM
- * specification, of not more than 2^23 μs.
+ * specification, of not more than 2^23 us.
  */
 #define CMA_SPDM_GET_CAPABILITY_CT_EXPONENT		20
 

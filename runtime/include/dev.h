@@ -145,8 +145,8 @@ struct vdev {
 	uint64_t id;
 
 	/*
-	 * Number of Granules of this VDEV’s memory which have been mapped into
-	 * the owning Realm’s address space
+	 * Number of Granules of this VDEV's memory which have been mapped into
+	 * the owning Realm's address space
 	 */
 	uint64_t num_map;
 

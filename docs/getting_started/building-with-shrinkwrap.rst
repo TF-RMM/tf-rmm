@@ -124,7 +124,7 @@ Now you can boot the host, using the rootfs we just modified.
        shrinkwrap run cca-3world.yaml --overlay=cca_da.yaml --rtvar ROOTFS=${SHRINKWRAP_PACKAGE}/cca-3world/rootfs.ext2
 
 
-Finally, once the host has booted, log in as “root” (no password). Below are the
+Finally, once the host has booted, log in as "root" (no password). Below are the
 device assignment workflow based on the `DA workflow`_ cover letter from the
 Linux kernel prototype branch.
 

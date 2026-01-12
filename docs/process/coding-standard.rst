@@ -506,10 +506,10 @@ Macros and Enums
 
 .. code:: c
 
-	/* Common C usage​ */
+	/* Common C usage */
 	#define MY_MACRO 4UL
 
-	/* If used in C and ASM (included from a .S file)​ */
+	/* If used in C and ASM (included from a .S file) */
 	#define MY_MACRO UL(4)
 
 - Expressions resulting from the expansion of macro parameters must be enclosed

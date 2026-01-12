@@ -270,7 +270,7 @@ void granule_memzero_mapped(void *buf)
  * operation, the global seed is incremented by the total number of values
  * written. Concurrency or atomicity of the global seed's read/update is not
  * a concern, as we do not require other CPUs to observe a consistent value
- * — any global seed value as a starting point is sufficient for scrubbing
+ * - any global seed value as a starting point is sufficient for scrubbing
  * purposes.
  */
 
