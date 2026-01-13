@@ -110,6 +110,12 @@ struct rd {
 	 * VDEV is assigned to Realm.
 	 */
 	unsigned long vdev_inst_counter;
+
+	/*
+	 * Index of Plane whose stage 2 permissions are observed by ATS
+	 * request from devices assigned to the Realm.
+	 */
+	unsigned long ats_plane;
 };
 COMPILER_ASSERT((U(offsetof(struct rd, measurement)) & 7U) == 0U);
 COMPILER_ASSERT(sizeof(struct rd) <= GRANULE_SIZE);
