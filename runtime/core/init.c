@@ -208,6 +208,9 @@ uint64_t rmm_main(uint64_t token)
 	alloc = glob_data_get_vmids_va(&alloc_size);
 	vmid_init(alloc, alloc_size);
 
+	alloc = glob_data_get_mec_state_va(&alloc_size);
+	mec_init_state(alloc, alloc_size);
+
 	/* Initialize the NS SIMD context for all CPUs */
 	init_all_cpus_ns_simd_context();
 

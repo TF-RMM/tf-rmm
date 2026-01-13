@@ -70,6 +70,19 @@ uintptr_t glob_data_get_vmids_va(size_t *alloc_size)
 	return (uintptr_t)glob->vmid_bitmap;
 }
 
+uintptr_t glob_data_get_mec_state_va(size_t *alloc_size)
+{
+	if (glob == NULL) {
+		ERROR("Global data not initialized\n");
+		return 0UL;
+	}
+
+	if (alloc_size != NULL) {
+		*alloc_size = sizeof(struct mec_state_s);
+	}
+	return (uintptr_t)&glob->mec_state;
+}
+
 uintptr_t glob_data_init(struct glob_data *gl,
 		unsigned long max_gr, unsigned long max_dev_gr)
 {

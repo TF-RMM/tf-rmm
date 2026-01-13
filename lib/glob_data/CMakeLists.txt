@@ -10,6 +10,7 @@ target_link_libraries(rmm-lib-glob_data
            rmm-lib-common
     PRIVATE rmm-lib-debug
             rmm-lib-granule
+            rmm-lib-mec
             rmm-lib-xlat_low_va
             rmm-lib-rmm_el3_ifc
             rmm-lib-smmuv3)

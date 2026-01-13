@@ -6,6 +6,7 @@
 #ifndef GLOBDATA_H
 #define GLOBDATA_H
 
+#include <mec.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <utils_def.h>
@@ -42,6 +43,9 @@ struct glob_data {
 
 	/* Memory for VMID bitmap */
 	unsigned long vmid_bitmap[VMID_ARRAY_LONG_SIZE];
+
+	/* Memory for MEC state */
+	struct mec_state_s mec_state;
 };
 
 uintptr_t glob_data_init(struct glob_data *gl,
@@ -51,5 +55,6 @@ uintptr_t glob_data_get_granules_va(size_t *alloc_size);
 uintptr_t glob_data_get_dev_granules_va(size_t *alloc_size);
 uintptr_t glob_data_get_smmu_driv_hdl_va(size_t *alloc_size);
 uintptr_t glob_data_get_vmids_va(size_t *alloc_size);
+uintptr_t glob_data_get_mec_state_va(size_t *alloc_size);
 
-#endif
+#endif /* GLOBDATA_H */

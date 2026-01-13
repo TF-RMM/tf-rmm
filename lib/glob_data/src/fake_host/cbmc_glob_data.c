@@ -40,3 +40,9 @@ uintptr_t glob_data_get_vmids_va(size_t *alloc_size)
 	ASSERT(false, "glob_data_get_vmids_va");
 	return 0UL;
 }
+
+uintptr_t glob_data_get_mec_state_va(size_t *alloc_size)
+{
+	ASSERT(false, "glob_data_get_mec_state_va");
+	return 0UL;
+}
