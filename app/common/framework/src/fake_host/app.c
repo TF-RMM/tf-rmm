@@ -183,6 +183,7 @@ int app_init_data(struct app_data_cfg *app_data,
 {
 	struct app_process_data *app_process_data;
 	unsigned long command;
+	size_t heap_size;
 
 	(void)granule_pas;
 	(void)granule_count;
@@ -202,10 +203,11 @@ int app_init_data(struct app_data_cfg *app_data,
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &command, sizeof(command));
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &app_data->thread_id,
 		sizeof(app_data->thread_id));
+	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &heap_size, sizeof(heap_size));
 	app_data->el2_shared_page = NULL;
 	app_data->app_id = app_id;
-	app_data->app_heap = NULL;
-	app_data->heap_size = 0;
+	app_data->app_heap = malloc(heap_size);
+	app_data->heap_size = heap_size;
 	return 0;
 }
 
@@ -266,12 +268,7 @@ static unsigned long app_run_internal(struct app_data_cfg *app_data,
 				shared_page, GRANULE_SIZE);
 			READ_OR_EXIT(app_process_data->fd_app_process_to_rmm,
 				&app_heap_size, sizeof(app_heap_size));
-			if (app_data->heap_size == 0) {
-				app_data->app_heap = malloc(app_heap_size);
-				app_data->heap_size = app_heap_size;
-			} else {
-				assert(app_data->heap_size == app_heap_size);
-			}
+			assert(app_data->heap_size == app_heap_size);
 			READ_OR_EXIT(app_process_data->fd_app_process_to_rmm,
 				app_data->app_heap, app_heap_size);
 
@@ -312,12 +309,7 @@ static unsigned long app_run_internal(struct app_data_cfg *app_data,
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, shared_page, GRANULE_SIZE);
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm,
 		&app_heap_size, sizeof(app_heap_size));
-	if (app_data->heap_size == 0) {
-		app_data->app_heap = malloc(app_heap_size);
-		app_data->heap_size = app_heap_size;
-	} else {
-		assert(app_data->heap_size == app_heap_size);
-	}
+	assert(app_data->heap_size == app_heap_size);
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, app_data->app_heap, app_heap_size);
 
 	return retval;
@@ -407,8 +399,15 @@ void *app_get_heap_ptr(struct app_data_cfg *app_data)
 
 size_t app_get_required_granule_count(unsigned long app_id)
 {
-	(void)app_id;
-	return 0U;
+	struct app_header *app_header;
+	int ret;
+
+	ret = app_get_header_ptr(app_id, &app_header);
+	if (ret != 0) {
+		return 0UL;
+	}
+
+	return app_get_required_granule_count_from_header(app_header);
 }
 
 /* Used by the Mbed TLS library in case EL3 token signing is active when
