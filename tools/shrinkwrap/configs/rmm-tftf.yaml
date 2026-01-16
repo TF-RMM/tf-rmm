@@ -74,6 +74,7 @@ layers:
   - tfa-rme.yaml
   - rmm.yaml
   - model-enable-da.yaml
+  - debug/tftf.yaml  # Always build TFTF in Debug mode, can be made a btvar if needed.
 
 concrete: true
 
