@@ -30,7 +30,7 @@
 	mov_imm	x1, SCTLR_EL2_INIT
 	msr	sctlr_el2, x1
 
-	mov_imm	x2, HCR_EL2_REALM
+	mov_imm	x2, HCR_EL2_APP
 	msr	hcr_el2, x2
 
 	mov_imm	x3, CPTR_EL2_VHE_INIT
@@ -103,7 +103,7 @@
 	 * data must be invalidated, so that upon turning on MMU (and hence enabling
 	 * cacheability), we read updated values.
 	 */
-	adrp	x0, rmm_base
+	mov	x0, x25 /* x25 is the start of RMM image */
 	adrp	x2, rmm_end
 	sub	x1, x2, x0
 	bl	inv_dcache_range
