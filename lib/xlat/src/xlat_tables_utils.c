@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <utils_def.h>
+#include <xlat_cmn_arch.h>
 #include <xlat_contexts.h>
 #include "xlat_defs_private.h"
 #include <xlat_tables.h>
@@ -135,9 +136,7 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 	       (ctx->tbls != NULL));
 
 	level_size = XLAT_BLOCK_SIZE(level);
-	table_idx_va = (ctx->cfg->region == (VA_LOW_REGION) ?
-			(table_base_va) :
-			(table_base_va + ctx->cfg->base_va));
+	table_idx_va = table_base_va + ctx->cfg->base_va;
 
 	/*
 	 * Keep track of how many invalid or transient descriptors are counted
@@ -232,14 +231,14 @@ void xlat_tables_print(struct xlat_ctx *ctx)
 
 	assert(ctx_cfg != NULL);
 
-	uintptr_t max_mapped_va_offset = (ctx_cfg->region == (VA_LOW_REGION) ?
-			(ctx_cfg->max_mapped_va_offset) :
-			(ctx_cfg->max_mapped_va_offset + ctx_cfg->base_va));
-	uintptr_t max_allowed_va = (ctx_cfg->region == (VA_LOW_REGION) ?
-			(ctx_cfg->max_va_size - 1ULL) :
-			(ctx_cfg->max_va_size + ctx_cfg->base_va - 1ULL));
+	uintptr_t max_mapped_va_offset =
+			(ctx_cfg->max_mapped_va_offset + ctx_cfg->base_va);
+	uintptr_t max_allowed_va =
+			(ctx_cfg->max_va_size + ctx_cfg->base_va - 1ULL);
 
-	VERBOSE("Translation tables state:\n");
+
+	VERBOSE("Translation tables state for %s VA region:\n",
+		(ctx_cfg->region == VA_LOW_REGION) ? "Low" : "High");
 	VERBOSE("  Max allowed PA:  0x%lx\n", xlat_arch_get_max_supported_pa());
 	VERBOSE("  Max allowed VA:  0x%lx\n", max_allowed_va);
 	VERBOSE("  Max mapped PA:   0x%lx", ctx_cfg->max_mapped_pa);
@@ -289,7 +288,7 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 	uintptr_t va_offset;
 	int start_level;
 	uint64_t *ret_table;
-	struct xlat_ctx_tbls *ctx_tbls;
+	struct xlat_ctx_tbls *ctx_tbls __unused;
 	struct xlat_ctx_cfg *ctx_cfg;
 	uintptr_t table_base_va;
 
@@ -298,6 +297,7 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 	assert(ctx->tbls != NULL);
 	assert(out_level != NULL);
 	assert(tt_base_va != NULL);
+	bool mmu_en __unused = is_mmu_enabled();
 
 	if (va < ctx->cfg->base_va) {
 		return NULL;
@@ -314,7 +314,7 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 	ctx_tbls = ctx->tbls;
 	ctx_cfg = ctx->cfg;
 	start_level = ctx_cfg->base_level;
-	ret_table = ctx_tbls->tables;
+	ret_table = remap_table_address(ctx->tbls->tables, ctx_tbls->tbls_va_to_pa_diff, mmu_en);
 	table_base_va = ctx_cfg->base_va;
 
 	for (int level = start_level;
@@ -334,7 +334,8 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 		table_base_va += (XLAT_BLOCK_SIZE(level) * idx);
 
 		/* Get the next table */
-		ret_table = (uint64_t *)xlat_get_oa_from_tte(desc);
+		ret_table = remap_table_address(xlat_get_oa_from_tte(desc),
+					ctx_tbls->tbls_va_to_pa_diff, mmu_en);
 	}
 
 	/*
@@ -343,6 +344,156 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 	 * but we need this to avoid MISRA problems.
 	 */
 	return NULL;
+}
+
+/* Check if we need to create tables at the given level */
+static bool need_tables_at_lvl(const struct xlat_mmap_region *region,
+		uint64_t parent_lvl_blk_sz)
+{
+	return ((region->granularity < parent_lvl_blk_sz) ||
+		!ALIGNED(region->base_va, parent_lvl_blk_sz) ||
+		!ALIGNED(region->base_va + region->size, parent_lvl_blk_sz) ||
+		((MT_TYPE(region->attr) != MT_TRANSIENT) &&
+			!ALIGNED(region->base_pa, parent_lvl_blk_sz)));
+}
+
+/*
+ * Estimate the number of L3 and L2 tables needed for the given memory regions.
+ * This function assumes that the regions are sorted by ascending base_va.
+ * It also assumes that the regions are at least aligned to PAGE_SIZE
+ * and do not overlap.
+ */
+unsigned long xlat_estimate_num_l3_l2_tables(
+	const struct xlat_mmap_region *regions,
+	unsigned int region_count)
+{
+	unsigned long total_l3_tables = 0UL;
+	unsigned long total_l2_tables = 0UL;
+	uint64_t l3_tbl_sz = XLAT_BLOCK_SIZE(2);
+	uint64_t l2_tbl_sz = XLAT_BLOCK_SIZE(1);
+
+	uint64_t last_l3_va_end = 0UL;
+	uint64_t last_l2_va_end = 0UL;
+	unsigned int i;
+	uint64_t region_va, region_size;
+	uint64_t l3_start, l3_end;
+	unsigned long l3_tables = 0UL;
+	uint64_t l2_start, l2_end;
+	unsigned long l2_tables = 0UL;
+
+	for (i = 0U; i < region_count; ++i) {
+		region_va = regions[i].base_va;
+		region_size = regions[i].size;
+		VERBOSE("Region %u: VA=0x%lx, size=0x%lx, granularity=0x%lx\n",
+			i, region_va, region_size, regions[i].granularity);
+
+		/* L3 tables */
+		l3_start = region_va;
+		l3_end = region_va + region_size;
+		/* If region starts inside last L3 block, skip to next block */
+		if (l3_start < last_l3_va_end) {
+			l3_start = last_l3_va_end;
+		}
+
+		/* Only count L3 tables if needed */
+		if ((need_tables_at_lvl(&regions[i], l3_tbl_sz) != false) &&
+						(l3_start < l3_end)) {
+			l3_tables = (round_up(l3_end, l3_tbl_sz) -
+				round_down(l3_start, l3_tbl_sz)) / l3_tbl_sz;
+
+			total_l3_tables += l3_tables;
+			last_l3_va_end = round_up(l3_end, l3_tbl_sz);
+
+			VERBOSE(" l3_start 0x%lx l3_end 0x%lx last_l3_va_end 0x%lx"
+				" l3_tables %lu total_l3_tables %lu\n",
+				l3_start, l3_end, last_l3_va_end, l3_tables,
+				total_l3_tables);
+		}
+
+		/* L2 tables */
+		l2_start = region_va;
+		l2_end = region_va + region_size;
+		/* If region starts inside last L2 block, skip to next block */
+		if (l2_start < last_l2_va_end) {
+			l2_start = last_l2_va_end;
+		}
+
+		/* Only count L2 tables if needed */
+		if ((need_tables_at_lvl(&regions[i], l2_tbl_sz) != false) &&
+							 (l2_start < l2_end)) {
+			l2_tables = (round_up(l2_end, l2_tbl_sz) -
+				round_down(l2_start, l2_tbl_sz)) / l2_tbl_sz;
+
+			total_l2_tables += l2_tables;
+			last_l2_va_end = round_up(l2_end, l2_tbl_sz);
+
+			VERBOSE(" l2_start 0x%lx l2_end 0x%lx last_l2_va_end 0x%lx"
+				" l2_tables %lu total_l2_tables %lu\n",
+				l2_start, l2_end, last_l2_va_end,
+				l2_tables, total_l2_tables);
+		}
+	}
+
+	VERBOSE("Estimated L3 and L2 tables: %lu\n", total_l3_tables +
+					 total_l2_tables);
+	return total_l3_tables + total_l2_tables;
+}
+
+/*
+ * Function to stitch L1 table from a child context into an existing L1 table
+ * in the parent context.
+ * The block entries in the child L1 table are copied to the corresponding
+ * entries in the parent L1 table.
+ * The child context tables must have been created with xlat_ctx_init() and
+ * must be fully populated with the mappings for the VA range specified.
+ * The VA range must be aligned to L1 block size and contained within a single
+ * L1 table of the parent context.
+ * This function returns 0 on success or an error code otherwise.
+ */
+int xlat_stitch_tables_l1(struct xlat_ctx *parent_ctx, uint64_t *child_l1,
+			uintptr_t va_start, size_t va_size)
+{
+	int ret;
+	struct xlat_llt_info parent_llt;
+	unsigned int l1_idx_start, l1_idx_end;
+
+	assert(!is_mmu_enabled());
+	assert(parent_ctx != NULL);
+	assert(child_l1 != NULL);
+
+	/*
+	 * Check that va_start is aligned to L1 block size and va_size is
+	 * contained in the L1 table.
+	 */
+	assert(ALIGNED(va_start, XLAT_BLOCK_SIZE(1)));
+	assert(ALIGNED(va_size, XLAT_BLOCK_SIZE(1)));
+	assert((round_down(va_start, XLAT_BLOCK_SIZE(0)) + XLAT_BLOCK_SIZE(0))
+						> (va_start + va_size));
+
+	/* Get the L1 table pointer in the parent context for va_start */
+	ret = xlat_get_llt_from_va(&parent_llt, parent_ctx, va_start);
+	if ((ret != 0) || (parent_llt.level != 1)) {
+		ERROR("%s: xlat_get_llt_from_va() failed (%i)\n", __func__, ret);
+		return ret;
+	}
+
+	assert((parent_llt.table != NULL) && (parent_llt.llt_base_va ==
+				round_down(va_start, XLAT_BLOCK_SIZE(0))));
+
+	/* Calculate the index in the L1 table for va_start */
+	l1_idx_start = XLAT_TABLE_IDX(va_start, 1);
+	l1_idx_end = XLAT_TABLE_IDX(va_start + va_size - 1U, 1);
+
+	/* Copy entries from child to parent for the range */
+	for (unsigned int idx = l1_idx_start; idx <= l1_idx_end; ++idx) {
+		/* Assert that parent desc is a TRANSIENT desc */
+		assert(parent_llt.table[idx] == TRANSIENT_DESC);
+		parent_llt.table[idx] = child_l1[idx];
+	}
+
+	inv_dcache_range((uintptr_t)&parent_llt.table[l1_idx_start],
+		(sizeof(uint64_t) * ((uint64_t)((l1_idx_end - l1_idx_start) + 1U))));
+	return 0;
 }
 
 /*****************************************************************************
@@ -384,10 +535,10 @@ int xlat_unmap_memory_page(struct xlat_llt_info * const table,
 	xlat_write_tte_release(tte, TRANSIENT_DESC);
 
 	/* Invalidate any cached copy of this mapping in the TLBs. */
-	xlat_arch_tlbi_va(va);
+	XLAT_ARCH_TLBI_VA(va, nsh);
 
 	/* Ensure completion of the invalidation. */
-	xlat_arch_tlbi_va_sync();
+	XLAT_ARCH_TLBI_SYNC(nsh);
 
 	return 0;
 }
@@ -516,4 +667,447 @@ uint64_t *xlat_get_tte_ptr(const struct xlat_llt_info * const llt,
 	assert(llt->table != NULL);
 	return (index < XLAT_GET_TABLE_ENTRIES(llt->level)) ?
 			&llt->table[index] : NULL;
+}
+
+/*
+ * Helper to update the descriptor on a level 3 table entry for a given
+ * VA offset.
+ */
+static void xlat_update_level3_descriptor(uintptr_t va_offset,
+					uintptr_t pa,
+					uint64_t *l3_table,
+					uint64_t attr)
+
+{
+	uint64_t desc;
+
+	unsigned int l3_idx = (unsigned int)(va_offset >>
+			XLAT_ADDR_SHIFT(XLAT_TABLE_LEVEL_MAX));
+	assert(l3_idx < XLAT_TABLE_ENTRIES);
+
+	/* Ensure correct mapping and unmapping sequences are followed */
+	assert(/* Unmapping: */
+		((MT_TYPE(attr) == MT_TRANSIENT) &&
+		((l3_table[l3_idx] & (TRANSIENT_DESC | VALID_DESC)) ==
+					(TRANSIENT_DESC | VALID_DESC))) ||
+		/* Mapping: */
+		((MT_TYPE(attr) != MT_TRANSIENT) &&
+		((l3_table[l3_idx] & (TRANSIENT_DESC | VALID_DESC)) ==
+					TRANSIENT_DESC)));
+
+	/* Set VA_ALLOCATED_FLAG when mapping, clear it when unmapping */
+	if (MT_TYPE(attr) == MT_TRANSIENT) {
+		/* Assert that the tte is allocated */
+		assert((l3_table[l3_idx] & VA_ALLOCATED_FLAG) != 0ULL);
+
+		/* Unmapping: clear the allocated flag */
+		desc = TRANSIENT_DESC;
+	} else {
+		/* Mapping: set the allocated flag */
+		desc = xlat_desc(attr, pa, XLAT_TABLE_LEVEL_MAX)
+				| TRANSIENT_DESC | VA_ALLOCATED_FLAG;
+	}
+
+	xlat_write_tte_release(&l3_table[l3_idx], desc);
+}
+
+/*
+ * Helper to check if all entries in a table have VA_ALLOCATED_FLAG set.
+ * Returns true if all entries are fully allocated, false otherwise.
+ */
+static bool is_table_fully_allocated(uint64_t *table, int level)
+{
+	unsigned int num_entries = XLAT_GET_TABLE_ENTRIES(level);
+
+	for (unsigned int i = 0; i < num_entries; i++) {
+		uint64_t desc = xlat_read_tte(&table[i]);
+
+		if ((desc & TRANSIENT_DESC) == 0ULL) {
+			/*
+			 * Not a dynamic region. For the purpose of checking
+			 * fully allocated tables, skip this entry.
+			 */
+			continue;
+		}
+
+		/* Check if this entry has VA_ALLOCATED_FLAG set */
+		if ((desc & VA_ALLOCATED_FLAG) == 0ULL) {
+			return false;
+		}
+		/*
+		 * If we reach here, then it is TRANSIENT and Allocated.
+		 * So it must be a Valid page or table descriptor.
+		 */
+		assert((desc & VALID_DESC) != 0UL);
+	}
+
+	return true;
+}
+
+/*
+ * Helper to update parent table flags after allocation/deallocation.
+ * Walks up the table hierarchy and sets/clears VA_ALLOCATED_FLAG based on
+ * whether all child entries are allocated.
+ */
+static void update_parent_flags(struct xlat_ctx *ctx, uintptr_t va, bool allocating)
+{
+	assert(ctx != NULL);
+	assert(ctx->cfg != NULL);
+	assert(ctx->tbls != NULL);
+
+	struct xlat_ctx_tbls *ctx_tbls __unused = ctx->tbls;
+	struct xlat_ctx_cfg *ctx_cfg = ctx->cfg;
+	uintptr_t va_offset = va - ctx_cfg->base_va;
+	int start_level = ctx_cfg->base_level;
+	bool mmu_en __unused = is_mmu_enabled();
+
+	/* Walk from L2 up to base level to update parent flags */
+	for (int level = 2; level >= start_level; level--) {
+		uint64_t *table = remap_table_address(ctx->tbls->tables,
+						      ctx_tbls->tbls_va_to_pa_diff, mmu_en);
+
+		/* Walk to the table at this level */
+		for (int l = start_level; l < level; l++) {
+			unsigned int idx = XLAT_TABLE_IDX(va_offset, l);
+
+			assert(idx < XLAT_GET_TABLE_ENTRIES(l));
+
+			uint64_t desc = table[idx];
+
+			/* Must be a valid table descriptor */
+			assert((desc & DESC_MASK) == TABLE_DESC);
+
+			table = remap_table_address(xlat_get_oa_from_tte(desc),
+						   ctx_tbls->tbls_va_to_pa_diff, mmu_en);
+		}
+
+		/* Get child table to check */
+		unsigned int child_idx = XLAT_TABLE_IDX(va_offset, level);
+		uint64_t parent_desc = table[child_idx];
+
+		/* Must be a valid table descriptor */
+		assert((parent_desc & DESC_MASK) == TABLE_DESC);
+
+		/* Get the child table */
+		uint64_t *child_table = remap_table_address(xlat_get_oa_from_tte(parent_desc),
+							   ctx_tbls->tbls_va_to_pa_diff, mmu_en);
+
+		/* Check if all child entries are allocated */
+		bool fully_allocated = is_table_fully_allocated(child_table, level + 1);
+
+		/* Update the parent table descriptor flag */
+		uint64_t new_desc = parent_desc;
+
+		if (fully_allocated && allocating) {
+			new_desc |= VA_ALLOCATED_FLAG;
+		} else {
+			new_desc &= ~VA_ALLOCATED_FLAG;
+		}
+
+		if (new_desc != parent_desc) {
+			xlat_write_tte(&table[child_idx], new_desc);
+		}
+	}
+}
+
+/*
+ * Function to update level 3 table entries for a VA range.
+ * Continues modifying the same L3 table as long as VA is within its range.
+ * Only walks from base table when a new L3 table is needed.
+ * `next_va` is updated to the next VA after the end of the mapped region.
+ * This function returns 0 on success or a POSIX error code otherwise.
+ */
+static int xlat_tables_update_level3(struct xlat_ctx *ctx,
+				struct xlat_mmap_region *mm, uintptr_t *next_va)
+{
+	assert(ctx != NULL);
+	assert(mm != NULL);
+
+	*next_va = mm->base_va;
+	uintptr_t pa = mm->base_pa;
+	uintptr_t end_va = mm->base_va + mm->size;
+
+	struct xlat_llt_info llt;
+	uintptr_t l3_base_va = 0;
+	uint64_t *l3_table = NULL;
+	uintptr_t prev_l3_base_va = 0;
+	bool allocating = (MT_TYPE(mm->attr) != MT_TRANSIENT);
+
+	while (*next_va < end_va) {
+		/*
+		 * If l3_table is not set or VA is outside current L3 table,
+		 * get new L3 table.
+		 */
+		if ((l3_table == NULL) || (*next_va >= (l3_base_va +
+				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+			/* Update parent flags for the previous L3 table before moving to next */
+			if (l3_table != NULL) {
+				update_parent_flags(ctx, prev_l3_base_va, allocating);
+			}
+
+			int ret = xlat_get_llt_from_va(&llt, ctx, *next_va);
+
+			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
+				ERROR("%s: Failed to get L3 table for VA 0x%lx\n",
+				      __func__, *next_va);
+				return -EFAULT;
+			}
+			l3_table = llt.table;
+			l3_base_va = llt.llt_base_va;
+			prev_l3_base_va = l3_base_va;
+		}
+
+		/* Now at level 3 table */
+		assert(l3_table != NULL);
+
+		xlat_update_level3_descriptor(*next_va - l3_base_va,
+						pa, l3_table, mm->attr);
+		*next_va += XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX);
+
+		/* Only increment PA if not unmapping */
+		if (MT_TYPE(mm->attr) != MT_TRANSIENT) {
+			pa += XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX);
+		}
+	}
+
+	/* Update parent table flags for the last L3 table processed */
+	if (l3_table != NULL) {
+		update_parent_flags(ctx, prev_l3_base_va, allocating);
+	}
+
+	return 0;
+}
+
+/*
+ * Optimized hierarchical VA search using VA_ALLOCATED_FLAG at all levels.
+ * Searches L1 → L2 → L3, skipping fully allocated subtrees.
+ * Processes entire L3 tables at once to avoid redundant table walks.
+ * Handles consecutive free pages across L3 table boundaries.
+ * Returns 0 on success with *out_mapped_va set, or -ENOMEM if no space found.
+ */
+static int find_available_va(struct xlat_ctx *ctx, size_t size,
+			     uintptr_t *out_mapped_va)
+{
+	assert(ctx != NULL);
+	assert(ctx->cfg != NULL);
+	assert(ctx->tbls != NULL);
+
+	struct xlat_ctx_tbls *ctx_tbls __unused = ctx->tbls;
+	struct xlat_ctx_cfg *ctx_cfg = ctx->cfg;
+	uintptr_t va_base = ctx_cfg->base_va;
+	uintptr_t va_end __unused = va_base + ctx_cfg->max_va_size;
+
+	size_t num_pages = size / GRANULE_SIZE;
+	int start_level = ctx_cfg->base_level;
+	bool mmu_en __unused = is_mmu_enabled();
+	size_t l3_table_size = XLAT_BLOCK_SIZE(2); /* 2MB - size covered by one L3 table */
+	/* Track consecutive free pages across L3 boundaries */
+	size_t consecutive_free = 0;
+	uintptr_t candidate_va = va_base;
+
+	assert((start_level >= XLAT_TABLE_LEVEL_MIN) &&
+	       (start_level <= XLAT_TABLE_LEVEL_MAX));
+
+
+	/* Iterate through VA space L3 table by L3 table */
+	uintptr_t va_offset = 0;
+	while (va_offset < ctx_cfg->max_va_size) {
+
+		/* Walk through levels to get the L3 table for this VA range */
+		uint64_t *table = remap_table_address(ctx->tbls->tables,
+						     ctx_tbls->tbls_va_to_pa_diff, mmu_en);
+		uintptr_t table_base_va_offset = 0;
+		bool skip_subtree = false;
+		size_t skip_size = 0;
+
+		for (int level = start_level; level <= XLAT_TABLE_LEVEL_MAX; level++) {
+			unsigned int idx = XLAT_TABLE_IDX(va_offset - table_base_va_offset, level);
+
+			assert(idx < XLAT_GET_TABLE_ENTRIES(level));
+
+			uint64_t desc = xlat_read_tte(&table[idx]);
+
+			/* Check if this subtree is fully allocated or if it is not TRANSIENT */
+			if (((desc & VA_ALLOCATED_FLAG) != 0ULL) ||
+			    ((desc & TRANSIENT_DESC) == 0ULL)) {
+				/* Skip this entire subtree */
+				skip_subtree = true;
+				skip_size = XLAT_BLOCK_SIZE(level);
+				break;
+			}
+
+			/* If we're at L3, scan all entries in this table */
+			if (level == XLAT_TABLE_LEVEL_MAX) {
+				unsigned int num_entries = XLAT_GET_TABLE_ENTRIES(level);
+				uintptr_t l3_base_va = va_base + (va_offset & ~(l3_table_size - 1U));
+
+				/* Scan through all entries in this L3 table */
+				for (unsigned int i = idx; i < num_entries; i++) {
+					uint64_t page_desc = xlat_read_tte(&table[i]);
+					uintptr_t page_va = l3_base_va + (i * GRANULE_SIZE);
+
+					/* Check if we've exceeded the VA space */
+					assert(page_va < va_end);
+
+					if ((page_desc & VA_ALLOCATED_FLAG) == 0ULL) {
+						/* This page is free */
+						consecutive_free++;
+						if (consecutive_free >= num_pages) {
+							*out_mapped_va = candidate_va;
+							return 0;
+						}
+					} else {
+						/* Page is allocated, reset search */
+						consecutive_free = 0;
+						candidate_va = page_va + GRANULE_SIZE;
+					}
+				}
+
+				/* Move to next L3 table - will walk from base again */
+				va_offset = round_up(va_offset + 1U, l3_table_size);
+				break;
+			}
+
+			/* Not at L3 yet, assert that it's a table descriptor at lower level. */
+			assert((desc & DESC_MASK) == TABLE_DESC);
+
+			/* Descend to next level */
+			table_base_va_offset += (XLAT_BLOCK_SIZE(level) * idx);
+			table = remap_table_address(xlat_get_oa_from_tte(desc),
+						   ctx_tbls->tbls_va_to_pa_diff, mmu_en);
+
+		}
+
+		/* If we need to skip a subtree, reset consecutive count and jump */
+		if (skip_subtree) {
+			consecutive_free = 0;
+			va_offset = round_up(va_offset + 1U, skip_size);
+			candidate_va = va_base + va_offset;
+		}
+	}
+
+	return -ENOMEM;
+}
+
+/*
+ * Public API to map a region by searching for available VA space.
+ * This function searches for a contiguous free VA range and maps the given
+ * PA at that location.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context to use for mapping.
+ *   - pa: Physical address to map
+ *   - size: Size of the region to map
+ *   - attr: Memory attributes for the mapping
+ *   - mapped_va: Output pointer where the mapped VA will be stored
+ *
+ * Returns:
+ *   - 0 on success, negative error code on failure.
+ *   - On success, *mapped_va contains the virtual address where PA was mapped.
+ */
+int xlat_map_l3_region(struct xlat_ctx *ctx, uintptr_t pa, size_t size,
+				uint64_t attr, uintptr_t *mapped_va)
+{
+	int ret;
+	uintptr_t va;
+	uintptr_t next_va = 0;
+	struct xlat_mmap_region mm;
+
+	assert(ctx != NULL);
+	assert((ctx->cfg != NULL) && (ctx->cfg->init != false));
+	assert((ctx->tbls != NULL) && (ctx->tbls->init != false));
+	assert(mapped_va != NULL);
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(size) || !GRANULE_ALIGNED(pa)) {
+		ERROR("%s: PA/size not aligned to granularity\n", __func__);
+		return -EFAULT;
+	}
+
+	if (size == 0U) {
+		ERROR("%s: Invalid size\n", __func__);
+		return -EINVAL;
+	}
+
+	if (MT_TYPE(attr) == MT_TRANSIENT) {
+		ERROR("%s: Transient attr should not be set.\n", __func__);
+		return -EFAULT;
+	}
+
+	/* Find available VA space */
+	ret = find_available_va(ctx, size, &va);
+	if (ret != 0) {
+		ERROR("%s: No available VA space for size 0x%zx\n", __func__, size);
+		return ret;
+	}
+
+	/* Set up mmap region for mapping */
+	mm.base_pa = pa;
+	mm.base_va = va;
+	mm.size = size;
+	mm.granularity = GRANULE_SIZE;
+	mm.attr = attr;
+
+	/* Perform the actual mapping */
+	ret = xlat_tables_update_level3(ctx, &mm, &next_va);
+	if (ret != 0) {
+		ERROR("%s: Failed to update level 3 tables\n", __func__);
+		return -EFAULT;
+	}
+
+	assert(next_va >= mm.base_va);
+	size_t mapped_size = next_va - mm.base_va;
+	if (mapped_size != size) {
+		ERROR("%s: Partial mapping (expected 0x%zx, got 0x%zx)\n",
+			__func__, size, mapped_size);
+		return -EFAULT;
+	}
+
+	*mapped_va = va;
+	return 0;
+}
+
+/*
+ * Public API to unmap a region described by 'mm' from the translation tables
+ * in 'ctx'.
+ * Assumes that the tables have been initialized and L3 tables corresponding
+ * to the VA range have been created.
+ * This function returns 0 on success or a POSIX error code otherwise.
+ */
+int xlat_unmap_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t unmap_size)
+{
+	struct xlat_mmap_region mm = {
+		.base_va = va,
+		.size = unmap_size,
+		.base_pa = 0, /* PA is not needed for unmapping */
+		.attr = MT_TRANSIENT, /* Use transient attr to indicate unmapping */
+		.granularity = GRANULE_SIZE,
+	};
+
+	uintptr_t next_va = 0;
+	int ret;
+
+	assert((ctx != NULL) && (unmap_size != 0U));
+	assert((ctx->cfg != NULL) && (ctx->cfg->init != false));
+	assert((ctx->tbls != NULL) && (ctx->tbls->init != false));
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(mm.base_va) || !GRANULE_ALIGNED(unmap_size)) {
+		ERROR("%s: VA/ unmap size not aligned to granularity\n", __func__);
+		return -EFAULT;
+	}
+
+	ret = xlat_tables_update_level3(ctx, &mm, &next_va);
+	assert(next_va >= mm.base_va);
+
+	/* Invalidate TLB for affected VA range */
+	XLAT_ARCH_TLBI_VA_RANGE(mm.base_va, next_va, ish, mm.granularity);
+	XLAT_ARCH_TLBI_SYNC(ish);
+
+	if ((ret != 0) || ((next_va - mm.base_va) != mm.size)) {
+		ERROR("%s: Failed to update level 3 tables\n", __func__);
+		return -EFAULT;
+	}
+
+	return 0;
 }

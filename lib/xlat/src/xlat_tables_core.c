@@ -52,7 +52,7 @@ static inline uint64_t *xlat_table_get_empty(struct xlat_ctx *ctx)
 	assert(ctx->tbls != NULL);
 	if (ctx->tbls->next_table >= ctx->tbls->tables_num) {
 		ERROR("Maximum number of translation tables reached. "
-			"Increase PLAT_CMN_CTX_MAX_XLAT_TABLE.\n");
+			"Check table allocation.\n");
 
 		assert(false);	/* Required for unit tests */
 		panic();
@@ -86,7 +86,7 @@ static uintptr_t xlat_tables_find_start_va(struct xlat_mmap_region *mm,
 /*
  * Function that returns table index for the given VA and level arguments.
  */
-static inline unsigned int  xlat_tables_va_to_index(const uintptr_t table_base_va,
+static inline unsigned int xlat_tables_va_to_index(const uintptr_t table_base_va,
 						    const uintptr_t va,
 						    const int level)
 {
@@ -315,6 +315,11 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 			table_base[table_idx] =
 				TABLE_DESC | (uintptr_t)subtable;
 
+			if ((MT_TYPE(mm->attr) == MT_TRANSIENT)) {
+				/* Transient entry requested. */
+				table_base[table_idx] |= TRANSIENT_DESC;
+			}
+
 			/* Recurse to write into subtable */
 			/* cppcheck-suppress misra-c2012-17.2 */
 			end_va = xlat_tables_map_region(ctx, mm, table_idx_va,
@@ -502,9 +507,10 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 	for (unsigned int j = 0; j < ctx_tbls->tables_num; j++) {
 		for (unsigned int i = 0U; i < XLAT_TABLE_ENTRIES; i++) {
 			ctx_tbls->tables[(j * XLAT_TABLE_ENTRIES) + i] =
-								INVALID_DESC;
+							INVALID_DESC;
 		}
 	}
+
 
 	/*
 	 * Use the first table as table base and setup the
@@ -512,8 +518,12 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 	 */
 	ctx_tbls->next_table++;
 	for (unsigned int i = 0U; i < ctx_cfg->mmap_regions; i++) {
-		uintptr_t end_va = xlat_tables_map_region(ctx,
-						&ctx_cfg->mmap[i], 0U,
+		uintptr_t end_va;
+
+		assert(ctx_cfg->mmap[i].size != 0ULL);
+
+		end_va = xlat_tables_map_region(ctx,
+						&ctx_cfg->mmap[i], 0UL,
 						ctx_tbls->tables,
 						XLAT_GET_TABLE_ENTRIES(ctx_cfg->base_level),
 						ctx_cfg->base_level);

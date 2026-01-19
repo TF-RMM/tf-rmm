@@ -587,6 +587,7 @@ void app_framework_setup(void)
 		ret = xlat_ctx_cfg_init(&app_id_data->app_va_xlat_ctx_cfg_base, VA_HIGH_REGION,
 					app_id_data->mm_regions_array,
 					RMM_APP_MMAP_REGION_COUNT,
+					0UL,
 					XLAT_HIGH_VA_SIZE,
 					app_header->app_id);
 		if (ret != 0) {

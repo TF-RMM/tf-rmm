@@ -214,7 +214,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx, struct xlat_mmu_cfg *mm
 		ttbrx = (ctx_tbls->base_table_pa & MASK(TTBRx_EL2_BADDR));
 		ttbrx = TTBRx_EL2_SET_MSB_LPA2(ctx_tbls->base_table_pa, ttbrx);
 	} else {
-		ttbrx = ctx_tbls->base_table_pa;
+		ttbrx = ctx_tbls->base_table_pa & MASK(TTBRx_EL2_BADDR);
 	}
 
 	/*
@@ -243,44 +243,6 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx, struct xlat_mmu_cfg *mm
 uintptr_t xlat_arch_get_max_supported_pa(void)
 {
 	return (1UL << arch_feat_get_pa_width()) - 1UL;
-}
-
-void xlat_arch_tlbi_va(uintptr_t va)
-{
-	/*
-	 * Ensure the translation table write has drained into memory before
-	 * invalidating the TLB entry. Note that the barrier is scoped to
-	 * the local core (non-shareable) and the TLBI is local (not
-	 * broadcast), and is expected to be used only for per core mapping.
-	 */
-	dsb(nshst);
-
-	tlbivae2(TLBI_ADDR(va));
-}
-
-void xlat_arch_tlbi_va_sync(void)
-{
-	/*
-	 * A TLB maintenance instruction can complete at any time after
-	 * it is issued, but is only guaranteed to be complete after the
-	 * execution of DSB by the PE that executed the TLB maintenance
-	 * instruction. After the TLB invalidate instruction is
-	 * complete, no new memory accesses using the invalidated TLB
-	 * entries will be observed by any observer of the system
-	 * domain. See section D4.8.2 of the ARMv8 (issue k), paragraph
-	 * "Ordering and completion of TLB maintenance instructions".
-	 * Note that the barrier is scoped to the local core (non-shareable)
-	 * and this is expected to be used only for per core mapping.
-	 */
-	dsb(nsh);
-
-	/*
-	 * The effects of a completed TLB maintenance instruction are
-	 * only guaranteed to be visible on the PE that executed the
-	 * instruction after the execution of an ISB instruction by the
-	 * PE that executed the TLB maintenance instruction.
-	 */
-	isb();
 }
 
 /*

@@ -13,7 +13,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <utils_def.h>
-#include <xlat_defs.h>
 
 /*
  * Local copy of the core boot manifest to be used during runtime
@@ -96,10 +95,9 @@ static uint64_t checksum_calc(uint64_t *buffer, size_t size)
  */
 static int get_memory_data_validated_pa(unsigned long max_num_banks,
 					struct memory_info **memory_info,
-					struct memory_info *plat_memory,
-					unsigned int max_granules)
+					struct memory_info *plat_memory)
 {
-	uint64_t num_banks, checksum, num_granules = 0UL;
+	uint64_t num_banks, checksum;
 	uintptr_t end = 0UL;
 	struct memory_bank *bank_ptr;
 
@@ -142,7 +140,7 @@ static int get_memory_data_validated_pa(unsigned long max_num_banks,
 
 		/* Base address, size of bank and alignments */
 		if ((start == 0UL) || (size == 0UL) ||
-		    (((start | size) & PAGE_SIZE_MASK) != 0UL)) {
+		    (!GRANULE_ALIGNED(start | size))) {
 			return E_RMM_BOOT_MANIFEST_DATA_ERROR;
 		}
 
@@ -165,9 +163,6 @@ static int get_memory_data_validated_pa(unsigned long max_num_banks,
 			return E_RMM_BOOT_MANIFEST_DATA_ERROR;
 		}
 
-		/* Total number of granules */
-		num_granules += (size / GRANULE_SIZE);
-
 		VERBOSE(" 0x%lx-0x%lx\n", start, end);
 
 		bank_ptr++;
@@ -180,13 +175,6 @@ static int get_memory_data_validated_pa(unsigned long max_num_banks,
 
 	/* Checksum must be 0 */
 	if (checksum != 0UL) {
-		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
-	}
-
-	/* Check for the maximum number of granules supported */
-	if (num_granules > max_granules) {
-		ERROR("Number of granules %lu exceeds maximum of %u\n",
-			num_granules, max_granules);
 		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
 	}
 
@@ -217,8 +205,7 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 	VERBOSE("DRAM:\n");
 
 	ret = get_memory_data_validated_pa(max_num_banks, plat_dram_info,
-					   &local_core_manifest.plat_dram,
-					   RMM_MAX_GRANULES);
+					   &local_core_manifest.plat_dram);
 	if (ret != E_RMM_BOOT_SUCCESS) {
 		return ret;
 	}
@@ -244,7 +231,6 @@ int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
 					   enum dev_coh_type type)
 {
 	struct memory_info *plat_memory;
-	unsigned int max_granules;
 
 	/*
 	 * Validate the Boot Manifest Version
@@ -262,15 +248,12 @@ int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
 
 	if (type == DEV_MEM_COHERENT) {
 		plat_memory = &local_core_manifest.plat_coh_region;
-		max_granules = RMM_MAX_COH_GRANULES;
 	} else {
 		plat_memory = &local_core_manifest.plat_ncoh_region;
-		max_granules = RMM_MAX_NCOH_GRANULES;
 	}
 
 	return get_memory_data_validated_pa(max_num_banks, plat_dev_range_info,
-					    plat_memory,
-					    max_granules);
+					    plat_memory);
 }
 
 /*

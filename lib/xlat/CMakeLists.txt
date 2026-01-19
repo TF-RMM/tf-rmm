@@ -15,7 +15,8 @@ target_include_directories(rmm-lib-xlat
     PUBLIC "include")
 
 target_include_directories(rmm-lib-xlat
-    PRIVATE "src")
+    PRIVATE "src"
+            "src/${RMM_ARCH}")
 
 arm_config_option(
     NAME XLAT_GRANULARITY_SIZE_SHIFT

@@ -22,6 +22,7 @@ static inline unsigned long bitmap_find_next_set_bit(unsigned long bitmap,
 	if (start < BITS_PER_UL) {
 		bitmap &= ~0UL << start;
 		if (bitmap != 0UL) {
+			/* cppcheck-suppress [misra-c2012-17.3] */
 			return (unsigned long)(__builtin_ffsl((long)bitmap) - 1);
 		}
 	}
@@ -29,9 +30,9 @@ static inline unsigned long bitmap_find_next_set_bit(unsigned long bitmap,
 }
 
 #define bitmap_for_each_set_bit(_bit, _bitmap, _max)		\
-	for ((_bit) = find_next_set_bit((_bitmap), 0);		\
+	for ((_bit) = bitmap_find_next_set_bit((_bitmap), 0);		\
 	     (_bit) < (_max);					\
-	     (_bit) = find_next_set_bit((_bitmap), (_bit) + 1))
+	     (_bit) = bitmap_find_next_set_bit((_bitmap), (_bit) + 1))
 
 /*
  * Returns the index of the first bit clear in @bitmap from @start inclusive.
@@ -44,6 +45,7 @@ static inline unsigned long bitmap_find_next_clear_bit(unsigned long bitmap,
 	if (start < BITS_PER_UL) {
 		bitmap &= ~0UL << start;
 		if (bitmap != ~0UL) {
+			/* cppcheck-suppress [misra-c2012-17.3] */
 			return (unsigned long)(__builtin_ctzl((long)~bitmap));
 		}
 	}

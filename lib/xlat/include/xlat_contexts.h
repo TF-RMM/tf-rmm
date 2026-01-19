@@ -44,6 +44,14 @@ struct xlat_ctx_tbls {
 	 */
 	uint64_t base_table_pa;
 
+	/*
+	 * Difference between virtual and physical addresses
+	 * for the translation tables when the MMU is enabled.
+	 * This is used to translate a table PA to a VA when
+	 * the MMU is on.
+	 */
+	long tbls_va_to_pa_diff;
+
 	/* Set to true when the translation tables are initialized. */
 	bool init;
 }  __aligned(CACHE_WRITEBACK_GRANULE);
@@ -151,6 +159,10 @@ struct xlat_ctx {
  *	- mm: List of memory map regions to add to the
  *	      context configuration.
  *	- mm_regions: Number of memory regions in the mm array.
+ *	- partial_va_base: If tables are only being constructed for a part of
+ *	      the VA region, this is the start address of that area. If the
+ *	      tables are being constructed for the whole VA region, this should
+ *	      be 0.
  *	- va_size: Size of the VA space for the current context.
  *	- asid: The Address Space ID associated with this context
  *
@@ -161,6 +173,7 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 		      xlat_addr_region_id_t region,
 		      struct xlat_mmap_region *mm,
 		      unsigned int mm_regions,
+		      uint64_t partial_va_base,
 		      size_t va_size,
 		      uint32_t asid);
 
@@ -194,6 +207,24 @@ int xlat_ctx_init(struct xlat_ctx *ctx,
 		  uint64_t *tables_ptr,
 		  unsigned int ntables,
 		  uint64_t base_table_pa);
+
+/*
+ * Similar to xlat_ctx_init() but allows to create translation tables for
+ * a context where the tables are not identity mapped and tables are created
+ * with MMU disabled. The `tbls_array_va` argument specifies the VA of the
+ * tables array, i.e., where the tbls themselves are mapped in the VA space.
+ * This will be used when the tables need to be walked when MMU is enabled.
+ *
+ * The tables are assumed to allocated as a block and mapped as a single
+ * block in the VA space.
+ */
+int xlat_ctx_init_remapped_tbls(struct xlat_ctx *ctx,
+		  struct xlat_ctx_cfg *cfg,
+		  struct xlat_ctx_tbls *tbls_ctx,
+		  uint64_t *tables_ptr,
+		  unsigned int ntables,
+		  uint64_t base_table_pa,
+		  uint64_t tbls_array_va);
 
 #endif /*__ASSEMBLER__*/
 #endif /* XLAT_CONTEXTS_H */

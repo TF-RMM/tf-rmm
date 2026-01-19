@@ -133,6 +133,32 @@ int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,
 				 unsigned int *index);
 
 /*
+ * Helper function to get a descriptor at a specific level for a given VA.
+ * This function walks the translation tables and returns the descriptor
+ * at the requested level. The descriptor can be a table, block, or page
+ * descriptor depending on the level and configuration.
+ *
+ * Arguments:
+ *   ctx: Translation context
+ *   va: Virtual address to look up
+ *   target_level: The level at which to retrieve the descriptor (1, 2, or 3)
+ *   tte: Output pointer for the descriptor
+ *   table_ptr: Output pointer to the table containing the descriptor (can be NULL)
+ *   index: Output pointer for the index within the table (can be NULL)
+ *
+ * Returns:
+ *   0 on success
+ *   -EINVAL if parameters are invalid
+ *   -ERANGE if VA is out of range
+ */
+int xlat_test_helpers_get_tte_at_level(struct xlat_ctx *ctx,
+					uint64_t va,
+					int target_level,
+					uint64_t *tte,
+					uint64_t **table_ptr,
+					unsigned int *index);
+
+/*
  * Helper function to generate the lower and upper attributes as expected
  * to be in a block/page tte given the `mmap_attrs` field of a mmap region.
  * The generated attributes are returned via the `attrs` parameter.

@@ -66,6 +66,7 @@
 #define E_RMM_BOOT_INVALID_SHARED_BUFFER		(-5)
 #define E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED	(-6)
 #define E_RMM_BOOT_MANIFEST_DATA_ERROR			(-7)
+#define E_RMM_BOOT_NO_MEM				(-8)
 
 /* Starting RMM-EL3 interface version 0.4 */
 					/* 0xc40001b4 */
@@ -89,6 +90,14 @@
 
 					/* 0xc40001ba */
 #define SMC_RMM_RP_IDE_KM_POLL		SMC64_STD_FID(RMM_EL3, U(10))
+
+					/* 0xc40001bb */
+#define SMC_RMM_RESERVE_MEMORY		SMC64_STD_FID(RMM_EL3, U(11))
+
+#define RESERVE_MEM_ALIGN_SHIFT		56UL
+#define RESERVE_MEM_ALIGN_WIDTH		8UL
+#define RESERVE_MEM_FLAGS_SHIFT		0UL
+#define RESERVE_MEM_FLAGS_WIDTH		56UL
 
 /************************
  * Version related macros
@@ -227,6 +236,11 @@ COMPILER_ASSERT(U(offsetof(struct el3_token_sign_response, signature_buf)) == 0x
 	 INPLACE(EL3_IFC_IDE_STREAM_INFO_KEY_DIRECTION, (_kdir)) | \
 	 INPLACE(EL3_IFC_IDE_STREAM_INFO_KEY_SUBSTREAM, (_ksubstream)) | \
 	 INPLACE(EL3_IFC_IDE_STREAM_INFO_ID, (_id)))
+
+/***************************************************************************
+ * SMC_RMM_RESERVE_MEMORY related definitions
+ ***************************************************************************/
+#define RESERVE_MEM_FLAG_LOCAL		(1UL << 0)
 
 /***************************************************************************
  * RMM-EL3 Interface related functions
@@ -618,6 +632,29 @@ static inline unsigned long rmm_el3_ifc_gtsi_undelegate(unsigned long addr)
 	return monitor_call(SMC_RMM_GTSI_UNDELEGATE, addr,
 				0UL, 0UL, 0UL, 0UL, 0UL);
 }
+
+/*
+ * Reserve RMM private memory from EL3.
+ * available from the RMM-EL3 interface v0.7 onwards.
+ *
+ * Args:
+ *	- size:		Size of memory to be reserved, in bytes.
+ *	- flags:	Properties of the memory reservation.
+ *			bit 0: reserve memory close to the calling MPIDR
+ *	- alignment:	Alignment requirement, in bytes. Can be 1 for the
+ *			smallest (byte) alignment, or 4096 for granule
+ *			alignment. Must be a power of 2.
+ *	- address:	Buffer to receive the physical address of the reserved
+ *			memory region.
+ *
+ * Return:
+ *	- E_RMM_OK	success
+ *	- E_RMM_UNK	memory reservation call not available (interface < v0.7)
+ *	- E_RMM_NOMEM	not enough memory available
+ *	- E_RMM_INVAL	unsupported flag
+ */
+int rmm_el3_ifc_reserve_memory(size_t size, unsigned int flags,
+			       unsigned long alignment, uintptr_t *address);
 
 /*
  * Abort the boot process and return to EL3 FW reporting

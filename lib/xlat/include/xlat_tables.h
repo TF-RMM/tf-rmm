@@ -97,6 +97,13 @@
 #define TRANSIENT_DESC		INPLACE(TRANSIENT_FLAG, 1UL)
 
 /*
+ * Use bit 56 (second software-available bit in upper attributes) to track
+ * whether a VA has been allocated. This is used by the VA allocator to
+ * find free VAs without needing a separate bitmap.
+ */
+#define VA_ALLOCATED_FLAG	BIT(56U)
+
+/*
  * Shifts and masks to access fields of an mmap attribute
  */
 #define MT_TYPE_SHIFT		U(0)
@@ -369,6 +376,76 @@ static inline uint64_t xlat_get_oa_from_tte(uint64_t tte)
 	}
 	return oa;
 }
+
+/*
+ * Estimate the number of page tables needed for the given regions.
+ * This function calculates the number of L2 and L3 page tables required
+ * to map the specified memory regions. The estimation is used for pre-
+ * allocating translation table storage.
+ *
+ * Assumes regions are aligned to PAGE_SIZE, are sorted by VA and do not
+ * overlap. Also assumes that the regions are mapped to L3 granularity.
+ *
+ * Arguments:
+ *   - regions: Pointer to array of memory map regions to estimate for.
+ *   - region_count: Number of regions in the array.
+ *
+ * Return:
+ *   - Number of L2 and L3 page tables needed to map all regions.
+ */
+unsigned long xlat_estimate_num_l3_l2_tables(const struct xlat_mmap_region *regions,
+	unsigned int region_count);
+
+/*
+ * Stitch a child L1 translation table into an existing L1 table in parent context.
+ * This function copies block entries from a child L1 table into the parent L1 table.
+ *
+ * Arguments:
+ *   - parent_ctx: Pointer to the parent translation context.
+ *   - child_l1: Pointer to the child L1 translation table to stitch in.
+ *   - va_start: Starting virtual address of the region covered by child table.
+ *   - va_size: Size of the virtual address range covered by the child table.
+ *
+ * Return:
+ *   - 0 on success, negative error code on failure.
+ */
+int xlat_stitch_tables_l1(struct xlat_ctx *parent_ctx, uint64_t *child_l1,
+			uintptr_t va_start, size_t va_size);
+
+/*
+ * Maps a memory region by automatically finding available VA space.
+ * This function searches for a contiguous free virtual address range and maps
+ * the specified physical address at that location with the given attributes.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context to use for mapping.
+ *   - pa:  Physical address to map.
+ *   - size: Size of the region to map (must be GRANULE_SIZE aligned).
+ *   - attr: Memory attributes for the mapping.
+ *   - mapped_va: Output pointer where the mapped virtual address will be stored.
+ *
+ * Return:
+ *   - 0 on success with *mapped_va set to the base VA of the mapping.
+ *   - Negative error code on failure (-EFAULT, -EINVAL, -ENOMEM).
+ */
+int xlat_map_l3_region(struct xlat_ctx *ctx, uintptr_t pa, size_t size,
+				uint64_t attr, uintptr_t *mapped_va);
+
+/*
+ * Unmaps a memory region starting at the given virtual address and of the
+ * specified size from the translation tables of the given context.
+ * This function will update the translation tables in the context to unmap
+ * the virtual address range specified.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context to use for unmapping.
+ *   - va:  Starting virtual address of the region to unmap.
+ *   - unmap_size: Size of the region to unmap.
+ *
+ * Return:
+ *    - 0 on success, -EFAULT on failure.
+ */
+int xlat_unmap_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t unmap_size);
 
 #endif /*__ASSEMBLER__*/
 #endif /* XLAT_TABLES_H */
