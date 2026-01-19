@@ -110,6 +110,8 @@ void xlat_arch_write_mmu_cfg(struct xlat_mmu_cfg *mmu_cfg)
 	} else {
 		write_ttbr1_el2(mmu_cfg->ttbrx);
 	}
+
+	isb();
 }
 
 /*
