@@ -109,11 +109,6 @@ static inline unsigned long s2ap_set_overlay_perm(unsigned long reg,
 	return reg | perm;
 }
 
-static inline void s2ap_ind_write_overlay(unsigned long overlay_perms)
-{
-	write_s2por_el1(overlay_perms);
-}
-
 /*
  * Initialize the fixed Base Stage 2 Access Permissions.
  */
