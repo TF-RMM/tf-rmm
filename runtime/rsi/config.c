@@ -53,6 +53,8 @@ void handle_rsi_realm_config(struct rec *rec, struct rsi_result *res)
 	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
 	assert(rd != NULL);
 
+	config->ats_plane = rd->ats_plane;
+
 	/* Populate Realm Personalization Value */
 	(void)memcpy(config->rpv, rd->rpv, RSI_RPV_SIZE);
 

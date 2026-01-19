@@ -259,7 +259,8 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 				  unsigned int *n_vmids,
 				  unsigned int *n_rtts,
 				  bool *rtt_tree_pp,
-				  unsigned long *rtt_base)
+				  unsigned long *rtt_base,
+				  unsigned long *ats_plane)
 {
 	unsigned long feat_reg0 = get_feature_register_0();
 	unsigned long feat_reg0_plane_rtt __unused =
@@ -351,6 +352,14 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 			EXTRACT(RMI_FEATURE_REGISTER_0_MAX_NUM_AUX_PLANES, feat_reg0)) {
 		return false;
 	}
+
+	/* Validate ats_plane */
+	/* @TODO: validate this check against the spec */
+	if (p->ats_plane > p->num_aux_planes) {
+		return false;
+	}
+
+	*ats_plane = p->ats_plane;
 
 	if (p->num_aux_planes > 0U) {
 		/* Validate that we do not use single tree planes when not allowed */
@@ -592,6 +601,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	unsigned short vmid[MAX_S2_CTXS] = {[0 ... (MAX_S2_CTXS - 1)] = 0U};
 	unsigned long rtt_base[MAX_S2_CTXS] = {[0 ... (MAX_S2_CTXS - 1)] = 0U};
 	unsigned int n_vmids = 0U, n_rtts = 0U;
+	unsigned long ats_plane;
 	bool rtt_tree_pp;
 
 	if (!get_realm_params(&p, realm_params_addr)) {
@@ -600,7 +610,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 
 	/* coverity[uninit_use_in_call:SUPPRESS] */
 	if (!validate_realm_params(&p, vmid, &n_vmids, &n_rtts,
-				   &rtt_tree_pp, rtt_base)) {
+				   &rtt_tree_pp, rtt_base, &ats_plane)) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -693,6 +703,8 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 
 	rd->pmu_enabled = EXTRACT(RMI_REALM_FLAGS0_PMU, p.flags0) != 0UL;
 	rd->pmu_num_ctrs = p.pmu_num_ctrs;
+
+	rd->ats_plane = ats_plane;
 
 	/* Set DA feature flag */
 	rd->da_enabled = EXTRACT(RMI_REALM_FLAGS0_DA, p.flags0) != 0UL;
