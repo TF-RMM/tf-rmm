@@ -12,6 +12,6 @@
  */
 #define IMPORT_SYM(type, sym, name) \
 	extern unsigned long (sym);\
-	static const __attribute__((unused)) type name = (type) (void *)(&(sym))
+	static const __attribute__((unused)) type name = (type)(&(sym))
 
 #endif /* IMPORT_SYM_H */
