@@ -103,7 +103,7 @@
 	 * data must be invalidated, so that upon turning on MMU (and hence enabling
 	 * cacheability), we read updated values.
 	 */
-	mov	x0, x25 /* x25 is the start of RMM image */
+	mov	x0, x24 /* x24 is the start of RMM image */
 	adrp	x2, rmm_end
 	sub	x1, x2, x0
 	bl	inv_dcache_range
