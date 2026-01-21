@@ -18,12 +18,6 @@
 		/* Invalidate all TLB entries */
 		TLB_INVALIDATE(alle2)
 
-		/* Set HCR_EL2.E2H to 1 to enable Realm EL2&0 Regime. */
-		mrs	x5, hcr_el2
-		mov_imm x4, HCR_RW
-		orr	x5, x5, x4
-		msr	hcr_el2, x5
-
 		/*
 		 * Ensure all translation table writes have drained into memory, the TLB
 		 * invalidation is complete, and translation register writes are

@@ -16,7 +16,6 @@
 #include <realm.h>
 #include <rec.h>
 #include <run.h>
-#include <s2ap_ind.h>
 #include <s2tt.h>
 #include <simd.h>
 #include <smc-rmi.h>
@@ -217,7 +216,7 @@ static void restore_realm_stage2(struct rec *rec)
 	write_vttbr_el2(rec_active_plane_sysregs(rec)->vttbr_el2);
 
 	if (rec->realm_info.rtt_s2ap_encoding == S2AP_INDIRECT_ENC) {
-		write_s2pir_el2(s2tt_ctx_get_overlay_perm_unlocked(s2_context));
+		write_s2por_el1(s2tt_ctx_get_overlay_perm_unlocked(s2_context));
 	}
 
 	buffer_unmap(rd);
