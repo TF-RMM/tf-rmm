@@ -19,6 +19,7 @@
 #include <utils_def.h>
 
 static void copy_state_from_plane_entry(struct rec_plane *plane,
+					STRUCT_TYPE sysreg_state *sysreg_n,
 					struct rsi_plane_enter *entry)
 {
 	for (unsigned int i = 0; i < RSI_PLANE_NR_GPRS; i++) {
@@ -27,6 +28,7 @@ static void copy_state_from_plane_entry(struct rec_plane *plane,
 
 	plane->pc = entry->pc;
 	plane->pstate = entry->pstate;
+	sysreg_n->pp_sysregs.elr_el1 = entry->elr_el1;
 }
 
 void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
@@ -59,12 +61,16 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 
 	assert((run != NULL) && (llt != NULL));
 
+	/* AArch32 execution is not supported */
+	if ((run->enter.pstate & SPSR_EL2_nRW_AARCH32) != 0UL) {
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		goto unmap;
+	}
+
 	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_OWN_GIC) == 0UL) {
 		if (gic_validate_lrs((unsigned long *)&run->enter.gicv3_lrs) == false) {
 			res->smc_res.x[0] = RSI_ERROR_INPUT;
-			buffer_unmap(run);
-			granule_unlock(llt);
-			return;
+			goto unmap;
 		}
 	}
 
@@ -93,7 +99,7 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	}
 
 	/* Copy target Plane state from entry structure to REC */
-	copy_state_from_plane_entry(plane_n, &run->enter);
+	copy_state_from_plane_entry(plane_n, sysreg_n, &run->enter);
 
 	/* Initialize trap control bits */
 	sysreg_n->hcr_el2 = rec->common_sysregs.hcr_el2;
@@ -125,6 +131,7 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	/* Restore target Plane from REC */
 	restore_realm_state(rec, plane_n, sysreg_n);
 
+unmap:
 	/* Unmap Realm data granule */
 	buffer_unmap(run);
 

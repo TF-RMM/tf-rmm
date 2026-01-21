@@ -28,7 +28,7 @@ static struct ns_state g_ns_data[MAX_CPUS];
 static struct simd_context g_ns_simd_ctx[MAX_CPUS]
 			__aligned(CACHE_WRITEBACK_GRANULE);
 
-static void save_sysreg_state(struct sysreg_state *sysregs)
+static void save_sysreg_state(STRUCT_TYPE sysreg_state * sysregs)
 {
 	sysregs->pp_sysregs.sp_el1 = read_sp_el1();
 	sysregs->pp_sysregs.elr_el1 = read_elr_el12();
@@ -125,13 +125,20 @@ void save_realm_state(struct rec *rec, struct rec_plane *plane,
 	plane->plane_exit_info.esr = read_esr_el2();
 	plane->plane_exit_info.hpfar = read_hpfar_el2();
 	plane->plane_exit_info.far = read_far_el2();
+	plane->plane_exit_info.sctlr_el1 = sysregs->pp_sysregs.sctlr_el1;
+	plane->plane_exit_info.vbar_el1 = sysregs->pp_sysregs.vbar_el1;
+	plane->plane_exit_info.elr_el1 = sysregs->pp_sysregs.elr_el1;
+	plane->plane_exit_info.pmu_ovf_status =
+		(rec->realm_info.pmu_enabled && pmu_is_ovf_set()) ?
+		RSI_PMU_OVERFLOW_STATUS_ACTIVE :
+		RSI_PMU_OVERFLOW_STATUS_NOT_ACTIVE;
 
 	save_pmu(rec);
 
 	mec_realm_mecid_s2_reset();
 }
 
-static void restore_sysreg_state(struct sysreg_state *sysregs)
+static void restore_sysreg_state(STRUCT_TYPE sysreg_state * sysregs)
 {
 	write_sp_el1(sysregs->pp_sysregs.sp_el1);
 	write_elr_el12(sysregs->pp_sysregs.elr_el1);

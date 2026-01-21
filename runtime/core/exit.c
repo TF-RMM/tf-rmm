@@ -913,7 +913,10 @@ static void handle_plane_exit_syndrome(struct rsi_plane_exit *exit,
 	exit->hpfar_el2 = plane->plane_exit_info.hpfar;
 
 	exit->pstate = plane->pstate;
-
+	exit->sctlr_el1 = plane->plane_exit_info.sctlr_el1;
+	exit->vbar_el1 = plane->plane_exit_info.vbar_el1;
+	exit->elr_el1 = plane->plane_exit_info.elr_el1;
+	exit->pmu_ovf_status = plane->plane_exit_info.pmu_ovf_status;
 }
 
 static void do_handle_plane_exit(int exception, struct rsi_plane_exit *exit,

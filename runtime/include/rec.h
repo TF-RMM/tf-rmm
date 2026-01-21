@@ -226,13 +226,19 @@ struct rec_plane {
 
 	STRUCT_TYPE {
 		/*
-		 * The contents of the *_EL2 system registers at the last time
-		 * Plane N exited to Plane 0.
-		 * These values are used to populate the rsi_plane_exit structure.
+		 * The contents of the *_EL2 system registers, *_EL1 system
+		 * registers, and PMU overflow info at the last time Plane N
+		 * exited to Plane 0.
+		 * These values are used to populate the rsi_plane_exit
+		 * structure.
 		 */
 		unsigned long esr;
 		unsigned long hpfar;
 		unsigned long far;
+		unsigned long sctlr_el1;
+		unsigned long vbar_el1;
+		unsigned long elr_el1;
+		unsigned char pmu_ovf_status;
 	} plane_exit_info;
 };
 
