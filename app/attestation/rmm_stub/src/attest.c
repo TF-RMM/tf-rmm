@@ -43,13 +43,13 @@ static unsigned long global_init_attest_app(struct app_data_cfg *app_data)
 	return ret;
 }
 
-int attest_app_init(
+int attest_app_new(
 	struct app_data_cfg *app_data,
 	uintptr_t granule_pas[],
 	size_t granule_pa_count,
 	void *granule_va_start)
 {
-	return app_init_data(app_data,
+	return app_new_instance(app_data,
 				ATTESTATION_APP_ID,
 				granule_pas,
 				granule_pa_count,
@@ -73,7 +73,7 @@ int attest_app_global_init(void)
 		granule_pas[i] = (uintptr_t)rmm_attest_app_pages[cpuid][i];
 	}
 
-	ret = app_init_data(&app_data,
+	ret = app_new_instance(&app_data,
 				ATTESTATION_APP_ID,
 				granule_pas,
 				ARRAY_SIZE(granule_pas),
@@ -83,6 +83,9 @@ int attest_app_global_init(void)
 	}
 
 	uret = global_init_attest_app(&app_data);
+
+	/* Clean up the temporary app instance */
+	(void)attest_app_delete(&app_data);
 
 	/* Restore the per-cpu instance pages to the state they were */
 	(void)memset((void *)&(rmm_attest_app_pages[cpuid][0]), 0,
@@ -123,7 +126,7 @@ void attest_app_init_per_cpu_instance(void)
 		granule_pas[i] = (uintptr_t)&rmm_attest_app_pages[cpuid][i][0];
 	}
 
-	ret = attest_app_init(&rmm_attest_app_datas[cpuid],
+	ret = attest_app_new(&rmm_attest_app_datas[cpuid],
 			granule_pas,
 			ATTESTATION_APP_PAGE_COUNT,
 			&rmm_attest_app_pages[cpuid][0][0]);
@@ -207,6 +210,12 @@ void attest_do_extend(struct app_data_cfg *app_data,
 	assert(hash_size <= out_size);
 	(void)memcpy(out, &(shared_page_ret->measurement_buf), hash_size);
 	app_unmap_shared_page(app_data);
+}
+
+int attest_app_delete(struct app_data_cfg *app_data)
+{
+	app_delete_instance(app_data);
+	return 0;
 }
 
 enum attest_token_err_t attest_realm_token_sign(

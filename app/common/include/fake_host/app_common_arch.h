@@ -8,6 +8,7 @@
 
 #define CREATE_NEW_APP_INSTANCE		13
 #define RUN_APP_INSTANCE		21
+#define EXIT_APP_INSTANCE		31
 
 #define OP_OR_EXIT(op, fd, buf, count, error_on_eof)                                               \
 	do {                                                                                       \

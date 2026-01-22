@@ -209,7 +209,7 @@ to be mapped dynamically using slot-buffer framework, a new slot is added to the
 slot buffer. When initialising such pages, the page under initialisation is
 mapped into this new slot, and unmapped after initialising.
 
-The ``app_init_data`` function receives an array of physical addresses of
+The ``app_new_instance`` function receives an array of physical addresses of
 the pages to be used for the RMM app. In case of initialisation the code checks
 whether the PA is in the range of the RMM core's rw PA range. If so, it can
 write to it directly. If not, the slot buffer mechanism is used as described
@@ -279,10 +279,10 @@ RMM Fake Host Build
 In case of the fake host build, the applications are compiled as a standalone
 elf file. The RMM core is compiled to the elf file ``rmm_core.elf``. RMM core
 expects the app ELF files to reside in the same directory as the RMM core
-executable. The first time the main RMM process calls ``app_init_data`` the
+executable. The first time the main RMM process calls ``app_new_instance`` the
 process is forked, the image of the requested RMM app is loaded in the new
 process, and a named-pipe connection isestablished between the two processes.
-When the RMM app process is created, for each ``app_init_data`` (including the
+When the RMM app process is created, for each ``app_new_instance`` (including the
 first call) a new thread is created. The main thread in the RMM app process is
 responsible for dispatching the RMM app calls and returns between the main RMM
 process and the RMM app thread.

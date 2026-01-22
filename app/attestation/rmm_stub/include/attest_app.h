@@ -34,10 +34,17 @@ int attest_app_global_init(void);
 void attest_app_init_per_cpu_instance(void);
 
 /* Iniialise a new app instance in the app_data object */
-int attest_app_init(struct app_data_cfg *app_data,
+int attest_app_new(struct app_data_cfg *app_data,
 	uintptr_t granule_pas[],
 	size_t granule_pa_count,
 	void *granule_va_start);
+
+/*
+ * Delete the thread associated with an attestation app
+ * ONLY A WRAPPER - Ensure correct app_data is specified
+ */
+int attest_app_delete(struct app_data_cfg *app_data);
+
 enum attest_token_err_t attest_realm_token_sign(
 			struct app_data_cfg *app_data,
 			size_t *realm_token_len);

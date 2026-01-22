@@ -301,7 +301,7 @@ static void rec_aux_granules_init(struct rec *r)
 		granule_pas[i] = granule_addr(r->g_aux[used_aux_pages + i]);
 	}
 
-	ret = attest_app_init(&r->attest_app_data,
+	ret = attest_app_new(&r->attest_app_data,
 		granule_pas,
 		granule_pa_count,
 		(void *)(SLOT_VIRT +
@@ -536,6 +536,9 @@ unsigned long smc_rec_destroy(unsigned long rec_addr)
 	assert(rec != NULL);
 
 	g_rd = rec->realm_info.g_rd;
+
+	/* Clean up the attestation app spawned by the REC */
+	(void)attest_app_delete(&rec->attest_app_data);
 
 	/* Free and scrub the auxiliary granules */
 	free_rec_aux_granules(rec->g_aux, rec->num_rec_aux);

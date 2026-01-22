@@ -16,7 +16,7 @@ void app_framework_setup(void)
 {
 }
 
-int app_init_data(struct app_data_cfg *app_data,
+int app_new_instance(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
 		      size_t granule_count,
@@ -27,6 +27,11 @@ int app_init_data(struct app_data_cfg *app_data,
 	(void)granule_count;
 	(void)granule_va_start;
 	return 0;
+}
+
+void app_delete_instance(struct app_data_cfg *app_data)
+{
+	(void) app_data;
 }
 
 unsigned long app_run(struct app_data_cfg *app_data,

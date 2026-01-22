@@ -169,6 +169,12 @@ void *app_instance_main(void *args)
 		size_t heap_size;
 
 		READ_OR_EXIT(app_data->read_from_main_fd, &app_func_id, sizeof(app_func_id));
+
+		/* If exiting app instance, there is no need to read other parameters */
+		if (app_func_id == EXIT_APP_INSTANCE) {
+			pthread_exit(NULL);
+		}
+
 		READ_OR_EXIT(app_data->read_from_main_fd, &arg0, sizeof(arg0));
 		READ_OR_EXIT(app_data->read_from_main_fd, &arg1, sizeof(arg1));
 		READ_OR_EXIT(app_data->read_from_main_fd, &arg2, sizeof(arg2));
@@ -202,9 +208,6 @@ void *app_instance_main(void *args)
 
 static pthread_t create_app_instance(void)
 {
-	/* TODO: The app instances are leaked, because there is no way currently
-	 * to get notification of the main process about an app being destroyed.
-	 */
 	struct app_instance_data_list_t *instance_list_new;
 	int ret;
 
@@ -277,9 +280,49 @@ void run_app_instance(int process_read_fd, int process_write_fd, pthread_t threa
 	}
 }
 
+int exit_app_instances(pthread_t thread_id)
+{
+	struct app_instance_data_list_t *prev = NULL;
+	struct app_instance_data_list_t *curr = instance_list;
+	unsigned long command = EXIT_APP_INSTANCE;
+	int ret;
+
+	/* Find the app instance with the given thread ID */
+	while (curr != NULL) {
+		if (curr->thread_id == thread_id) {
+			/* Send the EXIT command to the thread */
+			WRITE_OR_EXIT(curr->write_to_instance_fd, &command, sizeof(command));
+
+			/* Wait for the thread to exit before cleaning up */
+			ret = pthread_join(thread_id, NULL);
+
+			/* Remove the instance from list */
+			if (prev == NULL) {
+				instance_list = curr->next;
+			} else {
+				prev->next = curr->next;
+			}
+
+			/* Clean up the instance */
+			close(curr->read_from_instance_fd);
+			close(curr->write_to_instance_fd);
+			close(curr->data.read_from_main_fd);
+			close(curr->data.write_to_main_fd);
+			free(curr->data.heap_start);
+			free(curr);
+
+			return ret;
+		}
+		prev = curr;
+		curr = curr->next;
+	}
+	return 1;
+}
+
 int main(int argc, char **argv)
 {
 	char *end;
+	int ret;
 	int process_read_fd;
 	int process_write_fd;
 
@@ -327,6 +370,19 @@ int main(int argc, char **argv)
 
 			READ_OR_EXIT(process_read_fd, &thread_id, sizeof(thread_id));
 			run_app_instance(process_read_fd, process_write_fd, thread_id);
+			break;
+		}
+		case EXIT_APP_INSTANCE:
+		{
+			pthread_t thread_id;
+
+			/* Read the thread ID and exit the thread */
+			READ_OR_EXIT(process_read_fd, &thread_id, sizeof(thread_id));
+			ret = exit_app_instances(thread_id);
+
+			/* Write back status of exiting app instances */
+			WRITE_OR_EXIT(process_write_fd, &ret, sizeof(ret));
+
 			break;
 		}
 		default:
