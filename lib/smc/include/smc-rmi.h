@@ -1390,6 +1390,8 @@ struct rmi_public_key_params {
 #define RMI_VDEV_STATE_LOCKED			U(2)
 #define RMI_VDEV_STATE_STARTED			U(3)
 #define RMI_VDEV_STATE_ERROR			U(4)
+#define RMI_VDEV_STATE_KEY_REFRESH		U(5)
+#define RMI_VDEV_STATE_KEY_PURGE		U(6)
 
 /* Maximum number of aux granules paramenter passed to VDEV create */
 #define VDEV_PARAM_AUX_GRANULES_MAX		U(32)

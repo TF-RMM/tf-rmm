@@ -210,7 +210,7 @@
 /*
  * FID: 0xC400019B
  */
-#define SMC_RSI_VSMMU_ACTIVATE		SMC64_RSI_FID(U(0xB))
+#define SMC_RSI_ARCH_DEV_ACTIVATE	SMC64_RSI_FID(U(0xB))
 
 /*
  * FID: 0xC400019C
@@ -472,11 +472,10 @@ struct rsi_host_call {
  * This enumeration represents the state of a VDEV.
  * Width: 8 bits.
  */
-#define RSI_VDEV_STATE_NEW			U(0)
-#define RSI_VDEV_STATE_UNLOCKED			U(1)
-#define RSI_VDEV_STATE_LOCKED			U(2)
-#define RSI_VDEV_STATE_STARTED			U(3)
-#define RSI_VDEV_STATE_ERROR			U(4)
+#define RSI_VDEV_STATE_UNLOCKED			((unsigned char)0)
+#define RSI_VDEV_STATE_LOCKED			((unsigned char)1)
+#define RSI_VDEV_STATE_STARTED			((unsigned char)2)
+#define RSI_VDEV_STATE_ERROR			((unsigned char)3)
 
 /*
  * RsiDevFlags
@@ -606,6 +605,8 @@ struct rsi_host_call {
 #define RSI_VDEV_FLAGS_P2P_ENABLED_WIDTH	U(1)
 #define RSI_VDEV_FLAGS_P2P_BOUND_SHIFT		U(1)
 #define RSI_VDEV_FLAGS_P2P_BOUND_WIDTH		U(1)
+#define RSI_VDEV_FLAGS_VSMMU_SHIFT		U(2)
+#define RSI_VDEV_FLAGS_VSMMU_WIDTH		U(1)
 
 /*
  * RsiVdevInfo
@@ -639,7 +640,17 @@ struct rsi_vdev_info {
 	/* Bits512: Measurement digest */
 	SET_MEMBER_RSI(unsigned char meas_digest[RSI_VDEV_MEAS_DIGEST_LEN], 0x100, 0x140);
 	/* Bits512: Interface report digest */
-	SET_MEMBER_RSI(unsigned char report_digest[RSI_VDEV_REPORT_DIGEST_LEN], 0x140, 0x200);
+	SET_MEMBER_RSI(unsigned char report_digest[RSI_VDEV_REPORT_DIGEST_LEN], 0x140, 0x180);
+	/*
+	 * Address: Base IPA of the VSMMU which is associated with this device.
+	 * This field is valid only if flags.vsmmu == RSI_FEATURE_TRUE.
+	 */
+	SET_MEMBER_RSI(unsigned long vsmmu_addr, 0x180, 0x188);
+	/*
+	 * UInt64: Virtual Stream ID.
+	 * This field is valid only if flags.vsmmu == RSI_FEATURE_TRUE.
+	 */
+	SET_MEMBER_RSI(unsigned long vsmmu_vsid, 0x188, 0x200);
 };
 
 /* Returns the higher supported RSI ABI revision */

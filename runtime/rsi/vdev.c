@@ -120,7 +120,8 @@ bool finish_rsi_vdev_dma_enable(struct rec *rec,
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
-	if ((lock_nonce != vd->attest_info.lock_nonce) ||
+	if ((vd->rmi_state != RMI_VDEV_STATE_STARTED) ||
+	    (lock_nonce != vd->attest_info.lock_nonce) ||
 	    (meas_nonce != vd->attest_info.meas_nonce) ||
 	    (report_nonce != vd->attest_info.report_nonce)) {
 		plane->regs[0] = RSI_ERROR_DEVICE;
@@ -279,6 +280,22 @@ set_rsi_action:
 	res->action = rsi_action;
 }
 
+static unsigned char vdev_state_to_rsi(uint32_t vdev_rmi_state)
+{
+	switch (vdev_rmi_state) {
+	case RMI_VDEV_STATE_NEW: return RSI_VDEV_STATE_UNLOCKED;
+	case RMI_VDEV_STATE_UNLOCKED: return RSI_VDEV_STATE_UNLOCKED;
+	case RMI_VDEV_STATE_LOCKED: return RSI_VDEV_STATE_LOCKED;
+	case RMI_VDEV_STATE_STARTED: return RSI_VDEV_STATE_STARTED;
+	case RMI_VDEV_STATE_ERROR: return RSI_VDEV_STATE_ERROR;
+	case RMI_VDEV_STATE_KEY_REFRESH: return RSI_VDEV_STATE_STARTED;
+	case RMI_VDEV_STATE_KEY_PURGE: return RSI_VDEV_STATE_STARTED;
+	default:
+		assert(false);
+		return RSI_VDEV_STATE_ERROR;
+	}
+}
+
 /*
  * Copy device info and attestation digest of VCA, certificate, public key,
  * device measurements to buffer 'vdev_info'
@@ -309,7 +326,7 @@ static void vdev_get_info(struct pdev *pd, struct vdev *vd, struct rsi_vdev_info
 	vdev_info->report_nonce = vd->attest_info.report_nonce;
 
 	vdev_info->tdisp_version = PCI_TDISP_MESSAGE_VERSION_10;
-	vdev_info->state = (unsigned char)vd->rmi_state;
+	vdev_info->state = vdev_state_to_rsi(vd->rmi_state);
 
 	(void)memcpy(vdev_info->vca_digest, pd->vca_digest.value,
 		     pd->vca_digest.len);
