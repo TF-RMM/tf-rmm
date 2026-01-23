@@ -368,7 +368,7 @@
  * arg3 == SRC address
  * arg4 == flags
  */
-#define SMC_RMI_DATA_CREATE			SMC64_RMI_FID(U(0x3))
+#define SMC_RMI_RTT_DATA_MAP_INIT		SMC64_RMI_FID(U(0x3))
 
 /*
  * FID: 0xC4000154
@@ -983,6 +983,19 @@
 #define SMC_RMI_GRANULE_RANGE_UNDELEGATE	SMC64_RMI_FID(U(0xA2))
 
 /*
+ * FID: 0xC40001F5
+ *
+ * arg0 == RD address
+ * arg1 == Base of target IPA range
+ * arg2 == Top of target IPA range
+ * arg3 == flags
+ * arg4 == Output address
+ *
+ * ret1 == Next IPA to process
+ */
+#define SMC_RMI_RTT_DATA_MAP			SMC64_RMI_FID(U(0xA5))
+
+/*
  * FID: 0xC40001F6
  *
  * arg0 == RD address
@@ -1075,6 +1088,11 @@
 #define RMI_GRANULE_SIZE_4K			UL(0)
 #define RMI_GRANULE_SIZE_16K			UL(1)
 #define RMI_GRANULE_SIZE_64K			UL(2)
+
+/* RmiRttAddrType - Address descriptor type */
+#define RMI_ADDR_TYPE_NONE		UL(0)
+#define RMI_ADDR_TYPE_SINGLE		UL(1)
+#define RMI_ADDR_TYPE_LIST		UL(2)
 
 /*
  * The RmiRmmConfig parameters shared with the Host via

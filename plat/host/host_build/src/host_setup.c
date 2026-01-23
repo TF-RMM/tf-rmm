@@ -185,7 +185,12 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 				&result);
 	CHECK_RMI_RESULT();
 
-	host_rmi_data_create_unknown(realm->rd, realm->realm_buffer, REALM_BUFFER_IPA, &result);
+	host_rmi_rtt_data_map(realm->rd,
+			      REALM_BUFFER_IPA,
+			      REALM_BUFFER_IPA + GRANULE_SIZE,
+			      0x1UL,
+			      realm->realm_buffer,
+			      &result);
 	CHECK_RMI_RESULT();
 
 	host_rmi_rec_aux_count(realm->rd, &result);

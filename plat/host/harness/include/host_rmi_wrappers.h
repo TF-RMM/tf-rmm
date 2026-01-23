@@ -16,7 +16,7 @@ void host_rmi_granule_range_delegate(void *granule_start, void *granule_end,
 void host_rmi_granule_range_undelegate(void *granule_start, void *granule_end,
 				       struct smc_result *res);
 void host_rmi_granule_undelegate(void *granule_address, struct smc_result *res);
-void host_rmi_data_create(void *rd, void *data, uintptr_t ipa, void *src,
+void host_rmi_rtt_data_map_init(void *rd, void *data, uintptr_t ipa, void *src,
 		uint64_t flags, struct smc_result *res);
 void host_rmi_data_create_unknown(void *rd, uintptr_t data, uintptr_t ipa, struct smc_result *res);
 void host_rmi_data_destroy(void *rd, uintptr_t ipa, struct smc_result *res);
@@ -48,6 +48,8 @@ void host_rmi_rtt_read_entry(void *rd, uintptr_t ipa, uintptr_t level, struct sm
 void host_rmi_rtt_unmap_unprotected(void *rd, uintptr_t ipa, uintptr_t level,
 		struct smc_result *res);
 void host_rmi_rtt_data_unmap(void *rd, uintptr_t base, uintptr_t top,
+		unsigned long flags, uintptr_t oaddr, struct smc_result *res);
+void host_rmi_rtt_data_map(void *rd, uintptr_t base, uintptr_t top,
 		unsigned long flags, uintptr_t oaddr, struct smc_result *res);
 
 void host_rmi_psci_complete(void *calling_rec, void *target_rec, uintptr_t status,

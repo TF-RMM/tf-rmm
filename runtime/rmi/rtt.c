@@ -1610,7 +1610,7 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
 	(void)oaddr;
 
 	/* Only support RMI_ADDR_TYPE_SINGLE */
-	if (flags != 0x1UL) {
+	if (flags != RMI_ADDR_TYPE_SINGLE) {
 		res->x[0] = RMI_ERROR_INPUT;
 		res->x[1] = 0UL;
 		res->x[2] = 0UL;
@@ -1634,6 +1634,47 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
 			(destroy_res.x[1] | 0x4U) : 0UL; /* Only one L3 block is unmapped */
 
 	res->x[3] = 0UL;
+}
+
+void smc_rtt_data_map(unsigned long rd_addr,
+		      unsigned long base,
+		      unsigned long top,
+		      unsigned long flags,
+		      unsigned long oaddr,
+		      struct smc_result *res)
+{
+	unsigned long data_addr;
+	unsigned long ret;
+
+	/* Only support RMI_ADDR_TYPE_SINGLE */
+	if (flags != 0x1UL) {
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
+		return;
+	}
+
+	if ((top < base) || ((top - base) < GRANULE_SIZE)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
+		return;
+	}
+
+	/* Extract physical address from bits [51:12] */
+	data_addr = oaddr & ((BIT(40) - 1UL) << 12);
+
+	ret = smc_data_create_unknown(rd_addr, data_addr, base);
+
+	res->x[0] = ret;
+	res->x[1] = base + GRANULE_SIZE;
+}
+
+unsigned long smc_rtt_data_map_init(unsigned long rd_addr,
+		     unsigned long data_addr,
+		     unsigned long map_addr,
+		     unsigned long src_addr,
+		     unsigned long flags)
+{
+	return smc_data_create(rd_addr, data_addr, map_addr, src_addr, flags);
 }
 
 /*

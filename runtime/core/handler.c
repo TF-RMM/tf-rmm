@@ -106,6 +106,7 @@ enum rmi_type {
 	set_rmi_type(3, 4),	/* 3 arguments, 4 output values */
 	set_rmi_type(4, 1),	/* 4 arguments, 1 output value */
 	set_rmi_type(4, 2),	/* 4 arguments, 2 output values */
+	set_rmi_type(5, 1),	/* 5 arguments, 1 output value */
 	set_rmi_type(5, 3),	/* 5 arguments, 3 output values */
 	set_rmi_type(6, 1)	/* 6 arguments, 1 output values */
 };
@@ -129,6 +130,7 @@ struct smc_handler {
 		handler_3_o	f_34;
 		handler_4_o	f_41;
 		handler_4_o	f_42;
+		handler_5_o	f_51;
 		handler_5_o	f_53;
 		handler_6_o	f_61;
 		void		*fn_dummy;
@@ -162,7 +164,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(GRANULE_RANGE_DELEGATE,	2, 1, smc_granule_range_delegate,	 false, true),
 	HANDLER(GRANULE_RANGE_UNDELEGATE, 2, 1, smc_granule_range_undelegate,	 false, true),
 	HANDLER(GRANULE_UNDELEGATE,	1, 0, smc_granule_undelegate,	 false, true),
-	HANDLER(DATA_CREATE,		5, 0, smc_data_create,		 false, false),
+	HANDLER(RTT_DATA_MAP_INIT,	5, 0, smc_rtt_data_map_init,	 false, false),
 	HANDLER(DATA_CREATE_UNKNOWN,	3, 0, smc_data_create_unknown,	 false, false),
 	HANDLER(DATA_DESTROY,		2, 2, smc_data_destroy,		 false, true),
 	HANDLER(PDEV_AUX_COUNT,		1, 1, smc_pdev_aux_count,	 true, true),
@@ -185,6 +187,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(REC_AUX_COUNT,		1, 1, smc_rec_aux_count,	 true,  true),
 	HANDLER(RTT_INIT_RIPAS,		3, 1, smc_rtt_init_ripas,	 false, true),
 	HANDLER(RTT_SET_RIPAS,		4, 1, smc_rtt_set_ripas,	 false, true),
+	HANDLER(RTT_DATA_MAP,		5, 1, smc_rtt_data_map,	 	 false, true),
 	HANDLER(RTT_DATA_UNMAP,		5, 3, smc_rtt_data_unmap,	 false, true),
 	HANDLER(VDEV_MAP,		5, 0, smc_vdev_map,		 false, true),
 	HANDLER(VDEV_UNMAP,		3, 2, smc_vdev_unmap,		 false, true),
@@ -233,7 +236,7 @@ COMPILER_ASSERT(ARRAY_SIZE(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
 static inline bool rmi_handler_needs_fpu(unsigned int id)
 {
 #ifdef RMM_FPU_USE_AT_REL2
-	if ((id == SMC_RMI_REALM_CREATE) || (id == SMC_RMI_DATA_CREATE) ||
+	if ((id == SMC_RMI_REALM_CREATE) || (id == SMC_RMI_RTT_DATA_MAP_INIT) ||
 	    (id == SMC_RMI_REC_CREATE) || (id == SMC_RMI_RTT_INIT_RIPAS)) {
 		return true;
 	}
@@ -440,6 +443,9 @@ void handle_ns_smc(unsigned int function_id,
 		break;
 	case rmi_type_42:
 		handler->f_42(arg0, arg1, arg2, arg3, res);
+		break;
+	case rmi_type_51:
+		handler->f_51(arg0, arg1, arg2, arg3, arg4, res);
 		break;
 	case rmi_type_53:
 		handler->f_53(arg0, arg1, arg2, arg3, arg4, res);

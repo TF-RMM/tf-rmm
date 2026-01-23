@@ -21,8 +21,14 @@ unsigned long smc_data_create(unsigned long rd_addr,
 			      unsigned long flags);
 
 unsigned long smc_data_create_unknown(unsigned long rd_addr,
-				      unsigned long data_addr,
-				      unsigned long map_addr);
+			      unsigned long data_addr,
+			      unsigned long map_addr);
+
+unsigned long smc_rtt_data_map_init(unsigned long rd_addr,
+			     unsigned long data_addr,
+			     unsigned long map_addr,
+			     unsigned long src_addr,
+			     unsigned long flags);
 
 void smc_data_destroy(unsigned long rd_addr,
 		      unsigned long map_addr,
@@ -133,6 +139,13 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
 			unsigned long flags,
 			unsigned long oaddr,
 			struct smc_result *res);
+
+void smc_rtt_data_map(unsigned long rd_addr,
+		      unsigned long base,
+		      unsigned long top,
+		      unsigned long flags,
+		      unsigned long oaddr,
+		      struct smc_result *res);
 
 void smc_rtt_set_s2ap(unsigned long rd_addr, unsigned long rec_addr,
 		      unsigned long base, unsigned long top,

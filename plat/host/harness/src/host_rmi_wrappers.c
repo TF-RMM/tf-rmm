@@ -66,10 +66,10 @@ void host_rmi_granule_undelegate(void *granule_address, struct smc_result *res)
 		      res);
 }
 
-void host_rmi_data_create(void *rd, void *data, uintptr_t ipa, void *src,
+void host_rmi_rtt_data_map_init(void *rd, void *data, uintptr_t ipa, void *src,
 			  uint64_t flags, struct smc_result *res)
 {
-	handle_ns_smc(SMC_RMI_DATA_CREATE,
+	handle_ns_smc(SMC_RMI_RTT_DATA_MAP_INIT,
 		      (uintptr_t)rd,
 		      (uintptr_t)data, ipa,
 		      (uintptr_t)src, flags, 0,
@@ -230,6 +230,20 @@ void host_rmi_rtt_data_unmap(void *rd, uintptr_t base, uintptr_t top,
 			     struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMI_RTT_DATA_UNMAP,
+		      (uintptr_t)rd,
+		      base,
+		      top,
+		      flags,
+		      oaddr,
+		      0,
+		      res);
+}
+
+void host_rmi_rtt_data_map(void *rd, uintptr_t base, uintptr_t top,
+			   unsigned long flags, uintptr_t oaddr,
+			   struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_RTT_DATA_MAP,
 		      (uintptr_t)rd,
 		      base,
 		      top,
