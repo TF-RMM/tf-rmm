@@ -236,8 +236,14 @@ static int host_destroy_realm(struct host_realm *realm)
 		}
 	}
 
-	host_rmi_data_destroy(realm->rd, REALM_BUFFER_IPA, &result);
+	host_rmi_rtt_data_unmap(realm->rd,
+				REALM_BUFFER_IPA,
+				REALM_BUFFER_IPA + GRANULE_SIZE,
+				0x1UL,
+				0UL,
+				&result);
 	CHECK_RMI_RESULT();
+
 	if (undelegate_granule_range((void *)realm->realm_buffer,
 				     (void *)(realm->realm_buffer + GRANULE_SIZE)) != 0) {
 		return -1;

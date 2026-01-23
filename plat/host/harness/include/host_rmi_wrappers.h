@@ -47,6 +47,8 @@ void host_rmi_rtt_map_unprotected(void *rd, uintptr_t ipa, uintptr_t level,
 void host_rmi_rtt_read_entry(void *rd, uintptr_t ipa, uintptr_t level, struct smc_result *res);
 void host_rmi_rtt_unmap_unprotected(void *rd, uintptr_t ipa, uintptr_t level,
 		struct smc_result *res);
+void host_rmi_rtt_data_unmap(void *rd, uintptr_t base, uintptr_t top,
+		unsigned long flags, uintptr_t oaddr, struct smc_result *res);
 
 void host_rmi_psci_complete(void *calling_rec, void *target_rec, uintptr_t status,
 		struct smc_result *res);

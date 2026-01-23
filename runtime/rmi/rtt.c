@@ -1598,6 +1598,44 @@ out_unmap_ll_table:
 	granule_unlock(wi.g_llt);
 }
 
+/* @TODO Enhance implementation later */
+void smc_rtt_data_unmap(unsigned long rd_addr,
+			unsigned long base,
+			unsigned long top,
+			unsigned long flags,
+			unsigned long oaddr,
+			struct smc_result *res)
+{
+	struct smc_result destroy_res = {0};
+	(void)oaddr;
+
+	/* Only support RMI_ADDR_TYPE_SINGLE */
+	if (flags != 0x1UL) {
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
+		res->x[2] = 0UL;
+		res->x[3] = 0UL;
+		return;
+	}
+
+	if ((top < base) || ((top - base) < GRANULE_SIZE)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
+		res->x[2] = 0UL;
+		res->x[3] = 0UL;
+		return;
+	}
+
+	smc_data_destroy(rd_addr, base, &destroy_res);
+
+	res->x[0] = destroy_res.x[0];
+	res->x[1] = destroy_res.x[2];
+	res->x[2] = (destroy_res.x[0] == RMI_SUCCESS) ?
+			(destroy_res.x[1] | 0x4U) : 0UL; /* Only one L3 block is unmapped */
+
+	res->x[3] = 0UL;
+}
+
 /*
  * Update the ripas value for the entry pointed by @s2ttep.
  *

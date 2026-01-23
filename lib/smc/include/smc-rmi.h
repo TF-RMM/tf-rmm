@@ -616,7 +616,7 @@
 #define SMC_RMI_PSMMU_IRQ_NOTIFY		SMC64_RMI_FID(U(0x1F))
 
 /*
- * FID: 0xC4000170 and 0xC4000171 are not used.
+ * FID: 0xC4000171 is not used.
  */
 
 /*
@@ -981,6 +981,31 @@
  * ret1 == address (PA) of the next granule after the undelegated one
  */
 #define SMC_RMI_GRANULE_RANGE_UNDELEGATE	SMC64_RMI_FID(U(0xA2))
+
+/*
+ * FID: 0xC40001F6
+ *
+ * arg0 == RD address
+ * arg1 == Base of target IPA range
+ * arg2 == Top of target IPA range
+ * arg3 == flags
+ * arg4 == Output address
+ *
+ * ret1 == Top IPA of range which has been mapped
+ * ret2 == RmiAddrRangeDesc - Output address range.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_SINGLE then this
+ *         describes a contiguous PA range which has been unmapped
+ *         from the target IPA range.
+ *         If flags.oaddr_type != RMI_ADDR_TYPE_SINGLE then this
+ *         value is zero.
+ * ret3 == Number of entries in output address list.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_LIST then this is
+ *         the number of entries which have been written to the
+ *         output address list.
+ *         If flags.oaddr_type != RMI_ADDR_TYPE_LIST then this
+ *         value is zero.
+ */
+#define SMC_RMI_RTT_DATA_UNMAP			SMC64_RMI_FID(U(0xA6))
 
 /*
  * FID: 0xC4000202

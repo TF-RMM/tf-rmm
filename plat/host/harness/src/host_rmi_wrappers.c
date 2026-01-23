@@ -225,8 +225,22 @@ void host_rmi_rtt_unmap_unprotected(void *rd, uintptr_t ipa, uintptr_t level,
 		      res);
 }
 
+void host_rmi_rtt_data_unmap(void *rd, uintptr_t base, uintptr_t top,
+			     unsigned long flags, uintptr_t oaddr,
+			     struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_RTT_DATA_UNMAP,
+		      (uintptr_t)rd,
+		      base,
+		      top,
+		      flags,
+		      oaddr,
+		      0,
+		      res);
+}
+
 void host_rmi_psci_complete(void *calling_rec, void *target_rec, uintptr_t status,
-			    struct smc_result *res)
+		struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMI_PSCI_COMPLETE,
 		      (uintptr_t)calling_rec,

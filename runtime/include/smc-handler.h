@@ -122,9 +122,16 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 			struct smc_result *res);
 
 void smc_rtt_set_ripas(unsigned long rd_addr,
-			unsigned long rec_addr,
+		    unsigned long rec_addr,
+		    unsigned long base,
+		    unsigned long top,
+		    struct smc_result *res);
+
+void smc_rtt_data_unmap(unsigned long rd_addr,
 			unsigned long base,
 			unsigned long top,
+			unsigned long flags,
+			unsigned long oaddr,
 			struct smc_result *res);
 
 void smc_rtt_set_s2ap(unsigned long rd_addr, unsigned long rec_addr,
