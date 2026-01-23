@@ -9,7 +9,10 @@
 #include <smc-rmi.h>
 
 void host_rmi_version(unsigned long rmi_version, struct smc_result *res);
+void host_rmm_activate(struct smc_result *res);
 void host_rmi_granule_delegate(void *granule_address, struct smc_result *res);
+void host_rmi_granule_range_delegate(void *granule_start, void *granule_end,
+				     struct smc_result *res);
 void host_rmi_granule_undelegate(void *granule_address, struct smc_result *res);
 void host_rmi_data_create(void *rd, void *data, uintptr_t ipa, void *src,
 		uint64_t flags, struct smc_result *res);

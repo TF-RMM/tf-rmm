@@ -30,6 +30,10 @@ void smc_data_destroy(unsigned long rd_addr,
 
 unsigned long smc_granule_delegate(unsigned long addr);
 
+void smc_granule_range_delegate(unsigned long addr,
+				unsigned long end_addr,
+				struct smc_result *res);
+
 unsigned long smc_granule_undelegate(unsigned long addr);
 
 unsigned long smc_realm_activate(unsigned long rd_addr);

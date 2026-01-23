@@ -122,6 +122,27 @@ unsigned long smc_granule_delegate(unsigned long addr)
 	return dev_granule_delegate(addr);
 }
 
+/* @TODO Enhance implementation later */
+void smc_granule_range_delegate(unsigned long addr,
+				unsigned long end_addr,
+				struct smc_result *res)
+{
+	res->x[0] = RMI_ERROR_INPUT;
+	res->x[1] = addr;
+
+	/* Simplified implementation delegates exactly one granule. */
+	if (!ALIGNED(addr, GRANULE_SIZE) ||
+	    !ALIGNED(end_addr, GRANULE_SIZE) ||
+	    (end_addr < (addr + GRANULE_SIZE))) {
+		return;
+	}
+
+	res->x[0] = smc_granule_delegate(addr);
+	if (res->x[0] == RMI_SUCCESS) {
+		res->x[1] = addr + GRANULE_SIZE;
+	}
+}
+
 unsigned long smc_granule_undelegate(unsigned long addr)
 {
 	/* Try to find memory granule */

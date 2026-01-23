@@ -67,6 +67,24 @@ unsigned long host_realm_get_realm_buffer(void)
 	return (unsigned long)g_realm.realm_buffer;
 }
 
+static int delegate_granule_range(void *start_addr, void *end_addr)
+{
+	struct smc_result result;
+	void *start = start_addr;
+	void *end = end_addr;
+
+	while ((uintptr_t)start < (uintptr_t)end) {
+		host_rmi_granule_range_delegate(start, end, &result);
+		CHECK_RMI_RESULT();
+		start = (void *)result.x[1];
+		if ((uintptr_t)start == 0UL) {
+			break;
+		}
+	}
+
+	return 0;
+}
+
 static int host_create_realm_and_activate(struct host_realm *realm)
 {
 	struct smc_result result;
@@ -87,16 +105,29 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 	/* Check if DA enabled in RMI features */
 	host_rmi_features(RMI_FEATURE_REGISTER_2_INDEX, &result);
 	CHECK_RMI_RESULT();
-	feat_reg2 = result.x[1];
 
-	host_rmi_granule_delegate(realm->rd, &result);
+	feat_reg2 = result.x[1];
+	host_rmm_activate(&result);
 	CHECK_RMI_RESULT();
-	host_rmi_granule_delegate(realm->rec, &result);
-	CHECK_RMI_RESULT();
+
+	/* Delegate rd */
+	if (delegate_granule_range(realm->rd, (void *)((uintptr_t)realm->rd + GRANULE_SIZE)) != 0) {
+		return -1;
+	}
+
+	/* Delegate rec */
+	if (delegate_granule_range(realm->rec, (void *)((uintptr_t)realm->rec + GRANULE_SIZE)) != 0) {
+		return -1;
+	}
+	/* Allocate all RTT granules first */
 	for (i = 0; i < RTT_COUNT; ++i) {
 		realm->rtts[i] = allocate_granule();
-		host_rmi_granule_delegate(realm->rtts[i], &result);
-		CHECK_RMI_RESULT();
+	}
+
+	/* Delegate all RTT granules as a range */
+	if (delegate_granule_range(realm->rtts[0],
+				   (void *)((uintptr_t)realm->rtts[RTT_COUNT - 1] + GRANULE_SIZE)) != 0) {
+		return -1;
 	}
 
 	memset(realm->realm_params, 0, sizeof(*realm->realm_params));
@@ -126,8 +157,10 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 	}
 
 	realm->realm_buffer = (uintptr_t)allocate_granule();
-	host_rmi_granule_delegate((void *)realm->realm_buffer, &result);
-	CHECK_RMI_RESULT();
+	if (delegate_granule_range((void *)realm->realm_buffer,
+				   (void *)(realm->realm_buffer + GRANULE_SIZE)) != 0) {
+		return -1;
+	}
 
 	host_rmi_rtt_init_ripas(realm->rd, REALM_BUFFER_IPA,
 				REALM_BUFFER_IPA + GRANULE_SIZE,
@@ -145,11 +178,16 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 	INFO("A rec requires %lu rec aux pages\n", realm->rec_aux_count);
 
 	memset(realm->rec_params, 0, sizeof(*realm->rec_params));
+	/* Allocate all rec_aux granules first */
 	for (i = 0; i < realm->rec_aux_count; ++i) {
 		realm->rec_aux_granules[i] = allocate_granule();
 		realm->rec_params->aux[i] = (uintptr_t)realm->rec_aux_granules[i];
-		host_rmi_granule_delegate(realm->rec_aux_granules[i], &result);
-		CHECK_RMI_RESULT();
+	}
+
+	/* Delegate all rec_aux granules as a range */
+	if (delegate_granule_range(realm->rec_aux_granules[0],
+				   (void *)((uintptr_t)realm->rec_aux_granules[realm->rec_aux_count - 1] + GRANULE_SIZE)) != 0) {
+		return -1;
 	}
 	realm->rec_params->num_aux = realm->rec_aux_count;
 	realm->rec_params->flags |= REC_PARAMS_FLAG_RUNNABLE;
