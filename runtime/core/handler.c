@@ -155,6 +155,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(VERSION,		1, 2, smc_version,		 true,  true),
 	HANDLER(GRANULE_DELEGATE,	1, 0, smc_granule_delegate,	 false, true),
 	HANDLER(GRANULE_RANGE_DELEGATE,	2, 1, smc_granule_range_delegate,	 false, true),
+	HANDLER(GRANULE_RANGE_UNDELEGATE, 2, 1, smc_granule_range_undelegate,	 false, true),
 	HANDLER(GRANULE_UNDELEGATE,	1, 0, smc_granule_undelegate,	 false, true),
 	HANDLER(DATA_CREATE,		5, 0, smc_data_create,		 false, false),
 	HANDLER(DATA_CREATE_UNKNOWN,	3, 0, smc_data_create_unknown,	 false, false),

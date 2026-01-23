@@ -85,6 +85,24 @@ static int delegate_granule_range(void *start_addr, void *end_addr)
 	return 0;
 }
 
+static int undelegate_granule_range(void *start_addr, void *end_addr)
+{
+	struct smc_result result;
+	void *start = start_addr;
+	void *end = end_addr;
+
+	while ((uintptr_t)start < (uintptr_t)end) {
+		host_rmi_granule_range_undelegate(start, end, &result);
+		CHECK_RMI_RESULT();
+		start = (void *)result.x[1];
+		if ((uintptr_t)start == 0UL) {
+			break;
+		}
+	}
+
+	return 0;
+}
+
 static int host_create_realm_and_activate(struct host_realm *realm)
 {
 	struct smc_result result;
@@ -211,29 +229,41 @@ static int host_destroy_realm(struct host_realm *realm)
 	host_rmi_rec_destroy(realm->rec, &result);
 	CHECK_RMI_RESULT();
 
-	for (i = 0; i < realm->rec_aux_count; ++i) {
-		host_rmi_granule_undelegate(realm->rec_aux_granules[i], &result);
-		CHECK_RMI_RESULT();
+	if (realm->rec_aux_count > 0UL) {
+		if (undelegate_granule_range(realm->rec_aux_granules[0],
+					     (void *)((uintptr_t)realm->rec_aux_granules[realm->rec_aux_count - 1] + GRANULE_SIZE)) != 0) {
+			return -1;
+		}
 	}
 
 	host_rmi_data_destroy(realm->rd, REALM_BUFFER_IPA, &result);
 	CHECK_RMI_RESULT();
-	host_rmi_granule_undelegate((void *)realm->realm_buffer, &result);
-	CHECK_RMI_RESULT();
+	if (undelegate_granule_range((void *)realm->realm_buffer,
+				     (void *)(realm->realm_buffer + GRANULE_SIZE)) != 0) {
+		return -1;
+	}
 
 	for (i = RTT_COUNT - 1; i >= 1; --i) {
 		host_rmi_rtt_destroy(realm->rd, 0, i, &result);
 		CHECK_RMI_RESULT();
-		host_rmi_granule_undelegate(realm->rtts[i], &result);
-		CHECK_RMI_RESULT();
+	}
+
+	/* Undelegate all RTT granules as a range */
+	if (undelegate_granule_range(realm->rtts[1],
+				     (void *)((uintptr_t)realm->rtts[RTT_COUNT - 1] + GRANULE_SIZE)) != 0) {
+		return -1;
 	}
 
 	host_rmi_realm_destroy(realm->rd, &result);
 	CHECK_RMI_RESULT();
-	host_rmi_granule_undelegate(realm->rd, &result);
-	CHECK_RMI_RESULT();
-	host_rmi_granule_undelegate(realm->rec, &result);
-	CHECK_RMI_RESULT();
+	if (undelegate_granule_range(realm->rd,
+				     (void *)((uintptr_t)realm->rd + GRANULE_SIZE)) != 0) {
+		return -1;
+	}
+	if (undelegate_granule_range(realm->rec,
+				     (void *)((uintptr_t)realm->rec + GRANULE_SIZE)) != 0) {
+		return -1;
+	}
 
 	return 0;
 }

@@ -973,6 +973,16 @@
 #define SMC_RMI_GRANULE_RANGE_DELEGATE		SMC64_RMI_FID(U(0xA1))
 
 /*
+ * FID: 0xC40001F2
+ *
+ * arg0 == start address (PA) of the granule range
+ * arg1 == end address (PA) of the granule range
+ *
+ * ret1 == address (PA) of the next granule after the undelegated one
+ */
+#define SMC_RMI_GRANULE_RANGE_UNDELEGATE	SMC64_RMI_FID(U(0xA2))
+
+/*
  * FID: 0xC4000202
  *
  * Activate the RMM.
