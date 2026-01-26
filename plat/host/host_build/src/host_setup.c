@@ -46,25 +46,25 @@ static void enable_fake_host_mmu(void)
 	write_sctlr_el2(SCTLR_ELx_WXN_BIT | SCTLR_ELx_M_BIT);
 }
 
-void *allocate_granule(void)
+void *allocate_granule(unsigned int num_granules)
 {
 	static unsigned int next_granule_index;
 	unsigned long granule;
 
-	if (next_granule_index >= HOST_NR_GRANULES) {
+	if ((next_granule_index + num_granules) > HOST_NR_GRANULES) {
 		panic();
 	}
 
 	granule = host_util_get_granule_base() +
 		  next_granule_index * GRANULE_SIZE;
-	++next_granule_index;
+	next_granule_index += num_granules;
 
 	return (void *)granule;
 }
 
-unsigned long host_realm_get_realm_buffer(void)
+unsigned long host_realm_get_realm_data_1(void)
 {
-	return (unsigned long)g_realm.realm_buffer;
+	return (unsigned long)g_realm.realm_data_1;
 }
 
 static int delegate_granule_range(void *start_addr, void *end_addr)
@@ -103,6 +103,59 @@ static int undelegate_granule_range(void *start_addr, void *end_addr)
 	return 0;
 }
 
+static int rtt_data_map_range(void *rd, uintptr_t base_ipa, uintptr_t top_ipa, uintptr_t base_pa)
+{
+	struct smc_result result;
+	uintptr_t current_ipa = base_ipa;
+	uintptr_t current_pa = base_pa;
+
+	while (current_ipa < top_ipa) {
+		host_rmi_rtt_data_map(rd,
+				      current_ipa,
+				      top_ipa,
+				      0x1UL,
+				      current_pa,
+				      &result);
+		CHECK_RMI_RESULT();
+
+		/* Update IPA for next iteration */
+		current_ipa = result.x[1];
+		if (current_ipa >= top_ipa) {
+			break;
+		}
+
+		/* Calculate corresponding PA */
+		current_pa = base_pa + (current_ipa - base_ipa);
+	}
+
+	return 0;
+}
+
+static int rtt_data_unmap_range(void *rd, uintptr_t base_ipa, uintptr_t top_ipa)
+{
+	struct smc_result result;
+	uintptr_t current_ipa = base_ipa;
+
+	while (current_ipa < top_ipa) {
+		host_rmi_rtt_data_unmap(rd,
+					current_ipa,
+					top_ipa,
+					0x1UL,
+					0UL,
+					&result);
+		CHECK_RMI_RESULT();
+		/* RMM only unmaps one granule at a time currently */
+		assert((current_ipa + GRANULE_SIZE) == result.x[1]);
+		/* Update IPA for next iteration */
+		current_ipa = result.x[1];
+		if (current_ipa >= top_ipa) {
+			break;
+		}
+	}
+
+	return 0;
+}
+
 static int host_create_realm_and_activate(struct host_realm *realm)
 {
 	struct smc_result result;
@@ -110,11 +163,11 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 	unsigned int i;
 
 	/* Allocate granules */
-	realm->rd = allocate_granule();
-	realm->rec = allocate_granule();
-	realm->rec_params = allocate_granule();
-	realm->rec_run = allocate_granule();
-	realm->realm_params = allocate_granule();
+	realm->rd = allocate_granule(1);
+	realm->rec = allocate_granule(1);
+	realm->rec_params = allocate_granule(1);
+	realm->rec_run = allocate_granule(1);
+	realm->realm_params = allocate_granule(1);
 
 	host_rmi_version(MAKE_RMI_REVISION(1, 0), &result);
 	CHECK_RMI_RESULT();
@@ -139,7 +192,7 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 	}
 	/* Allocate all RTT granules first */
 	for (i = 0; i < RTT_COUNT; ++i) {
-		realm->rtts[i] = allocate_granule();
+		realm->rtts[i] = allocate_granule(1);
 	}
 
 	/* Delegate all RTT granules as a range */
@@ -174,24 +227,24 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 		CHECK_RMI_RESULT();
 	}
 
-	realm->realm_buffer = (uintptr_t)allocate_granule();
-	if (delegate_granule_range((void *)realm->realm_buffer,
-				   (void *)(realm->realm_buffer + GRANULE_SIZE)) != 0) {
+	realm->realm_data_1 = (uintptr_t)allocate_granule(3);
+	realm->realm_data_1_num_gr = 3;
+	if (delegate_granule_range((void *)realm->realm_data_1,
+				   (void *)(realm->realm_data_1 + 3 * GRANULE_SIZE)) != 0) {
 		return -1;
 	}
 
-	host_rmi_rtt_init_ripas(realm->rd, REALM_BUFFER_IPA,
-				REALM_BUFFER_IPA + GRANULE_SIZE,
+	host_rmi_rtt_init_ripas(realm->rd, REALM_BUFFER_IPA_1,
+				REALM_BUFFER_IPA_1 + (realm->realm_data_1_num_gr * GRANULE_SIZE),
 				&result);
 	CHECK_RMI_RESULT();
 
-	host_rmi_rtt_data_map(realm->rd,
-			      REALM_BUFFER_IPA,
-			      REALM_BUFFER_IPA + GRANULE_SIZE,
-			      0x1UL,
-			      realm->realm_buffer,
-			      &result);
-	CHECK_RMI_RESULT();
+	/* Map data granules as a range */
+	if (rtt_data_map_range(realm->rd, REALM_BUFFER_IPA_1,
+			       REALM_BUFFER_IPA_1 + (realm->realm_data_1_num_gr * GRANULE_SIZE),
+			       realm->realm_data_1) != 0) {
+		return -1;
+	}
 
 	host_rmi_rec_aux_count(realm->rd, &result);
 	CHECK_RMI_RESULT();
@@ -203,7 +256,7 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 	memset(realm->rec_params, 0, sizeof(*realm->rec_params));
 	/* Allocate all rec_aux granules first */
 	for (i = 0; i < realm->rec_aux_count; ++i) {
-		realm->rec_aux_granules[i] = allocate_granule();
+		realm->rec_aux_granules[i] = allocate_granule(1);
 		realm->rec_params->aux[i] = (uintptr_t)realm->rec_aux_granules[i];
 	}
 
@@ -236,21 +289,21 @@ static int host_destroy_realm(struct host_realm *realm)
 
 	if (realm->rec_aux_count > 0UL) {
 		if (undelegate_granule_range(realm->rec_aux_granules[0],
-					     (void *)((uintptr_t)realm->rec_aux_granules[realm->rec_aux_count - 1] + GRANULE_SIZE)) != 0) {
+			(void *)((uintptr_t)realm->rec_aux_granules[realm->rec_aux_count - 1] +
+				GRANULE_SIZE)) != 0) {
 			return -1;
 		}
 	}
 
-	host_rmi_rtt_data_unmap(realm->rd,
-				REALM_BUFFER_IPA,
-				REALM_BUFFER_IPA + GRANULE_SIZE,
-				0x1UL,
-				0UL,
-				&result);
-	CHECK_RMI_RESULT();
+	/* Unmap data granules as a range */
+	if (rtt_data_unmap_range(realm->rd, REALM_BUFFER_IPA_1,
+				 REALM_BUFFER_IPA_1 +
+				 (realm->realm_data_1_num_gr * GRANULE_SIZE)) != 0) {
+		return -1;
+	}
 
-	if (undelegate_granule_range((void *)realm->realm_buffer,
-				     (void *)(realm->realm_buffer + GRANULE_SIZE)) != 0) {
+	if (undelegate_granule_range((void *)realm->realm_data_1,
+		(void *)(realm->realm_data_1 + (realm->realm_data_1_num_gr * GRANULE_SIZE))) != 0) {
 		return -1;
 	}
 
@@ -261,7 +314,8 @@ static int host_destroy_realm(struct host_realm *realm)
 
 	/* Undelegate all RTT granules as a range */
 	if (undelegate_granule_range(realm->rtts[1],
-				     (void *)((uintptr_t)realm->rtts[RTT_COUNT - 1] + GRANULE_SIZE)) != 0) {
+				     (void *)((uintptr_t)realm->rtts[RTT_COUNT - 1] +
+					     GRANULE_SIZE)) != 0) {
 		return -1;
 	}
 

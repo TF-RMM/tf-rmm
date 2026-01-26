@@ -13,6 +13,8 @@
 
 #define REALM_BUFFER_IPA		0x1000
 #define HOST_DA_VDEV_ID			0U
+#define REALM_BUFFER_IPA_1		0x1000
+#define REALM_BUFFER_IPA_2		0x10000
 
 #define CHECK_RMI_RESULT() \
 ({  \
@@ -32,11 +34,15 @@ struct host_realm {
 	struct rmi_realm_params *realm_params;
 	struct rmi_rec_params *rec_params;
 	struct rmi_rec_run *rec_run;
-	uintptr_t realm_buffer;
+	uintptr_t realm_data_1;
+	size_t realm_data_1_num_gr;
+	uintptr_t realm_data_2;
+	size_t realm_data_2_num_gr;
 };
 
 uint64_t rmm_main(uint64_t token);
 int realm_start(unsigned long *regs, unsigned long *rec_sp_el0);
+unsigned long host_realm_get_realm_data_1(void);
 
 int host_realm_da_rsi_main(unsigned long *rec_regs, unsigned long *rec_sp_el0);
 
