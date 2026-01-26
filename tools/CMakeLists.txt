@@ -27,6 +27,19 @@ add_custom_target(checkpatch
   )
 
 #
+# Rules for checkbannedapi
+#
+add_custom_target(checkbannedapi-codebase
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+  COMMAND ${CMAKE_COMMAND} -DCHECKBANNEDAPI_CODEBASE=1 -P ${CMAKE_SOURCE_DIR}/tools/checkbannedapi/CheckBannedApi.cmake
+)
+
+add_custom_target(checkbannedapi-patch
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+  COMMAND ${CMAKE_COMMAND} -DCHECKBANNEDAPI_PATCH=1 -P ${CMAKE_SOURCE_DIR}/tools/checkbannedapi/CheckBannedApi.cmake
+)
+
+#
 # Rules for checking license and copyright headers
 #
 add_custom_target(checkspdx-codebase

@@ -122,7 +122,7 @@ static analysis.
 
 10. Perform a checkpatch analysis:
 
-Run checkpatch on commits in the current branch against BASE_COMMIT (default origin/master):
+Run checkpatch on commits in the current branch against BASE_COMMIT (default origin/main):
 
 .. code-block:: bash
 
@@ -138,7 +138,7 @@ Run checkpatch on entire codebase:
 
 11. Perform a checkspdx analysis:
 
-Run checkspdx on commits in the current branch against BASE_COMMIT (default origin/master):
+Run checkspdx on commits in the current branch against BASE_COMMIT (default origin/main):
 
 .. code-block:: bash
 
@@ -154,7 +154,7 @@ Run checkspdx on entire codebase:
 
 13. Check header file include order:
 
-Run checkincludes-patch on commits in the current branch against BASE_COMMIT (default origin/master):
+Run checkincludes-patch on commits in the current branch against BASE_COMMIT (default origin/main):
 
 .. code-block:: bash
 
@@ -171,7 +171,7 @@ Run checkincludes on entire codebase:
 14. Perform a clang-tidy analysis:
 
 Run clang-tidy on commits in the current branch against BASE_COMMIT (default
-origin/master):
+origin/main):
 
 .. code-block:: bash
 
@@ -188,7 +188,24 @@ Run clang-tidy on entire codebase:
 Note that clang-tidy will work with all configurations. It will only check the
 source files that are used for the specified configuration.
 
-15. Perform unit tests on development host:
+15. Perform a checkbannedapi analysis:
+
+Run checkbannedapi on commits in the current branch against BASE_COMMIT (default
+origin/main):
+
+.. code-block:: bash
+
+    cmake -DRMM_CONFIG=fvp_defcfg -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
+    cmake --build ${RMM_BUILD_DIR} -- checkbannedapi-patch
+
+Run checkbannedapi on entire codebase:
+
+.. code-block:: bash
+
+    cmake -DRMM_CONFIG=fvp_defcfg -S ${RMM_SOURCE_DIR} -B ${RMM_BUILD_DIR}
+    cmake --build ${RMM_BUILD_DIR} -- checkbannedapi-codebase
+
+16. Perform unit tests on development host:
 
 Build and run unit tests on host platform. It is recommended to enable the
 Debug build of RMM.
@@ -206,7 +223,7 @@ Run unittests for a specific test group(s) (e.g. unittests whose group starts wi
     cmake --build ${RMM_BUILD_DIR} -- build -j
     ${RMM_BUILD_DIR}/Debug/rmm_core.elf -gxlat -v -r${NUMBER_OF_TEST_ITERATIONS}
 
-16. Generate Coverage Report.
+17. Generate Coverage Report.
 
 It is possible to generate a coverage report for a last execution of the host
 platform (whichever the variant) by using the `run-coverage` build target.
@@ -240,7 +257,7 @@ The above commands will automatically generate the HTML coverage report in folde
 `build/Debug/coverage` within the build directory. The HTML generation can be
 disabled by setting `RMM_HTML_COV_REPORT=OFF`.
 
-17. Run CBMC analysis:
+18. Run CBMC analysis:
 
 Run ``COVERAGE``, ``ANALYSIS`` and ``ASSERT`` targets for CBMC. The results
 are generated in ``${RMM_BUILD_DIR}/tools/cbmc/cbmc_coverage_results``.

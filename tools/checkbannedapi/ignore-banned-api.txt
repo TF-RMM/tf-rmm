@@ -1,0 +1,4 @@
+plat/host/common/src/host_utils.c
+plat/host/host_test/src/test_helpers.c
+runtime/rsi/logger.c
+lib/libc/src/printf.c
