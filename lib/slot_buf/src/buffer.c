@@ -106,7 +106,7 @@ static inline bool is_realm_pas_slot(enum buffer_slot slot)
 	return (slot != SLOT_NS) && (slot < NR_CPU_SLOTS);
 }
 
-static void *ns_buffer_granule_map(enum buffer_slot slot, struct granule *granule)
+void *ns_buffer_granule_map(enum buffer_slot slot, struct granule *granule)
 {
 	unsigned long addr = granule_addr(granule);
 
@@ -119,7 +119,7 @@ static void *ns_buffer_map_early(unsigned long addr)
 	return buffer_arch_map(SLOT_NS, addr);
 }
 
-static inline void ns_buffer_unmap(void *buf)
+void ns_buffer_unmap(void *buf)
 {
 	buffer_arch_unmap(buf);
 }

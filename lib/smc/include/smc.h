@@ -86,7 +86,7 @@
  * will gracefully handle it.
  */
 #define SMC64_RMI_FNUM_MIN	(U(0x150))
-#define SMC64_RMI_FNUM_MAX	(U(0x202))
+#define SMC64_RMI_FNUM_MAX	(U(0x20A))
 
 #define SMC64_RSI_FNUM_MIN	(U(0x190))
 #define SMC64_RSI_FNUM_MAX	(U(0x1AF))
@@ -145,6 +145,12 @@
 /* Gets the offset in a range. Inputs must be pre-verified */
 #define SMC64_FID_OFFSET_FROM_RANGE_MIN(_range, _fid)			   \
 	(SMC_GET_FIELD(_fid, FNUM) - SMC64_##_range##_FNUM_MIN)
+
+/*
+ * Get handler ID from FID
+ * Precondition: FID is an RMI call
+ */
+#define RMI_HANDLER_ID(_id)	SMC64_FID_OFFSET_FROM_RANGE_MIN(RMI, _id)
 
 /* Implementation defined FID values */
 					/* 0x18F */

@@ -235,4 +235,19 @@ unsigned long smc_rmm_config_set(unsigned long config_ptr);
 
 void smc_gpt_l1_create(unsigned long addr, struct smc_result *res);
 
+void smc_op_mem_donate(unsigned long handle,
+			unsigned long list_addr,
+			unsigned long list_count,
+			struct smc_result *res);
+void smc_op_mem_reclaim(unsigned long handle,
+			unsigned long list_addr,
+			unsigned long list_count,
+			struct smc_result *res);
+void smc_op_continue(unsigned long flags,
+		     unsigned long handle,
+		     struct smc_result *res);
+void smc_op_cancel(unsigned long flags,
+		     unsigned long handle,
+		     struct smc_result *res);
+
 #endif /* SMC_HANDLER_H */

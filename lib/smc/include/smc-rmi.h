@@ -1078,7 +1078,7 @@ enum rmm_state {
 #define SMC_RMI_OP_MEM_RECLAIM			SMC64_RMI_FID(U(0xB9))
 
 /*
- * FID: 0XC400020A
+ * FID: 0xC400020A
  *
  * arg0 == Handle which identifies the operation to cancel.
  *
@@ -1123,6 +1123,73 @@ enum rmm_state {
 /* Possible values for RmiRttS2APEncoding flag */
 #define RMI_S2AP_DIRECT				UL(0)
 #define RMI_S2AP_INDIRECT			UL(1)
+
+/* RmiOpMemDonateReq type definitions */
+#define RMI_OP_DONATE_BLK_SIZE_WIDTH	2U
+#define RMI_OP_DONATE_BLK_SIZE_SHIFT	0UL
+
+#define RMI_OP_DONATE_BLK_COUNT_WIDTH	14U
+#define RMI_OP_DONATE_BLK_COUNT_SHIFT	2UL
+
+#define RMI_OP_DONATE_MEM_CONTIG_WIDTH	1U
+#define RMI_OP_DONATE_MEM_CONTIG_SHIFT	16L
+
+#define RMI_OP_DONATE_MEM_STATE_WIDTH	1U
+#define RMI_OP_DONATE_MEM_STATE_SHIFT	17L
+
+/* Values for RMI_ADDR_BLK_SIZE */
+#define RMI_PAGE_L3			0UL
+#define RMI_BLOCK_L2			1UL
+#define RMI_BLOCK_L1			2UL
+#define RMI_BLOCK_L0			3UL
+
+/* Values for RMI_OP MEM_DONATE CONTIG */
+#define RMI_OP_MEM_NON_CONTIG		0UL
+#define RMI_OP_MEM_CONTIG		1UL
+
+/* RmiOpMemReclaimFlags type definitions */
+#define RMI_OP_RECLAIM_MEM_STATE	BIT(0)
+
+/*
+ * Values for RMI_OP_DONATE_MEM_STATE and
+ * RMI_OP_RECLAIM_MEM_STATE.
+ */
+#define RMI_OP_MEM_DELEGATE		0UL
+#define RMI_OP_MEM_UNDELEGATE		1UL
+
+/* RmiContinueFlags type definitionns */
+#define RMI_CONTINUE_BEYOND_FLAG	BIT(0)
+#define RMI_CONTINUE_KEEP_GOING		0UL
+#define RMI_CONTINUE_STOP		1UL
+
+/* Bitfields for RmiResultDataIncomplete type */
+#define RMI_OP_MEM_REQ_SHIFT		(8UL)
+#define RMI_OP_MEM_REQ_WIDTH		(2)
+
+#define RMI_OP_CAN_CANCEL_BIT_SHIFT	(10UL)
+#define RMI_OP_CAN_CANCEL_BIT_WIDTH	(1)
+
+/* RmiOpMemReq type encoding */
+#define RMI_OP_MEM_REQ_NONE		(0UL)
+#define RMI_OP_MEM_REQ_DONATE		(1UL)
+#define RMI_OP_MEM_REQ_RECLAIM		(2UL)
+
+/* RmiOpCanCancel type encoding */
+#define RMI_OP_CANNOT_CANCEL		(0UL)
+#define RMI_OP_CAN_CANCEL		(1UL)
+
+/* RmiAddrRangeDesc4KB type encoding */
+#define RMI_ADDR_RDESC_4K_SZ_SHIFT	(0UL)
+#define RMI_ADDR_RDESC_4K_SZ_WIDTH	(2)
+#define RMI_ADDR_RDESC_4K_CNT_SHIFT	(2UL)
+#define RMI_ADDR_RDESC_4K_CNT_WIDTH	(10)
+#define RMI_ADDR_RDESC_4K_ADDR_SHIFT	(12UL)
+#define RMI_ADDR_RDESC_4K_ADDR_WIDTH	(40)
+#define RMI_ADDR_RDESC_4K_ST_SHIFT	(63UL)
+#define RMI_ADDR_RDESC_4K_ST_WIDTH	(1)
+
+#define RMI_ADDR_RDESC_4K_GET_ADDR(x)				\
+		(EXTRACT(RMI_ADDR_RDESC_4K_ADDR, (x)) << GRANULE_SHIFT)
 
 #ifndef __ASSEMBLER__
 /*

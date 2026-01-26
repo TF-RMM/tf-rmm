@@ -144,12 +144,6 @@ struct smc_handler {
 	bool		log_error;	/* print in case of error status */
 };
 
-/*
- * Get handler ID from FID
- * Precondition: FID is an RMI call
- */
-#define RMI_HANDLER_ID(_id)	SMC64_FID_OFFSET_FROM_RANGE_MIN(RMI, _id)
-
 #define HANDLER(_id, _in, _out, _fn, _exec, _error)[RMI_HANDLER_ID(SMC_RMI_##_id)] = { \
 	.fn_name = (#_id),				\
 	.type = (enum rmi_type)RMI_TYPE(_in, _out),	\
@@ -227,7 +221,11 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(GPT_L1_CREATE,		1, 1, smc_gpt_l1_create,	 false, true),
 	HANDLER(RMM_CONFIG_GET,		1, 0, smc_rmm_config_get,	 true, true),
 	HANDLER(RMM_CONFIG_SET,		1, 0, smc_rmm_config_set,	 true, true),
-	HANDLER(RMM_ACTIVATE,		0, 0, smc_rmm_activate,		 true, true)
+	HANDLER(RMM_ACTIVATE,		0, 0, smc_rmm_activate,		 true, true),
+	HANDLER(OP_CANCEL,		2, 1, smc_op_cancel,		 true, true),
+	HANDLER(OP_CONTINUE,		2, 2, smc_op_continue,		 true, true),
+	HANDLER(OP_MEM_DONATE,		3, 3, smc_op_mem_donate,	 true, true),
+	HANDLER(OP_MEM_RECLAIM,		3, 2, smc_op_mem_reclaim,	 true, true)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
@@ -268,7 +266,14 @@ static void rmi_log_on_exit(unsigned int handler_id,
 		 * RSI handler function SMC_RSI_RDEV_GET_INTERFACE_REPORT has
 		 * maximum name length of 33 chars excluding the null terminator.
 		 */
-		INFO("SMC_RMI_%-25s", handler->fn_name);
+		if ((function_id == SMC_RMI_OP_CONTINUE) ||
+		    (function_id == SMC_RMI_OP_CANCEL) ||
+		    (function_id == SMC_RMI_OP_MEM_DONATE) ||
+		    (function_id == SMC_RMI_OP_MEM_RECLAIM)) {
+			INFO("      SMC_RMI_%-19s", handler->fn_name);
+		} else {
+			INFO("SMC_RMI_%-25s", handler->fn_name);
+		}
 
 		/* Print arguments */
 		num = (unsigned int)handler->type & 0xFFU;
