@@ -78,6 +78,16 @@ unsigned long plat_granule_addr_to_idx(unsigned long addr)
 	return granule_addr_to_idx(addr, &arm_dram);
 }
 
+/* cppcheck-suppress misra-c2012-8.7 */
+unsigned long plat_get_num_granules(void)
+{
+	if (arm_dram.num_granules == 0UL) {
+		return UINT64_MAX;
+	}
+
+	return arm_dram.num_granules;
+}
+
 unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_coh_type *type)
 {
 	unsigned long ret;
@@ -100,6 +110,26 @@ unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_coh_type
 			*type = DEV_MEM_COHERENT;
 			return ret;
 		}
+	}
+
+	return UINT64_MAX;
+}
+
+/* cppcheck-suppress misra-c2012-8.7 */
+unsigned long plat_get_num_dev_granules(enum dev_coh_type type)
+{
+	if (type == DEV_MEM_NON_COHERENT) {
+		if (arm_dev_ncoh.num_granules == 0UL) {
+			return UINT64_MAX;
+		}
+		return arm_dev_ncoh.num_granules;
+	}
+
+	if (type == DEV_MEM_COHERENT) {
+		if (arm_dev_coh.num_granules == 0UL) {
+			return UINT64_MAX;
+		}
+		return arm_dev_coh.num_granules;
 	}
 
 	return UINT64_MAX;

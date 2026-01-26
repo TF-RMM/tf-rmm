@@ -278,15 +278,10 @@ The |RMM| build system supports the following CMake build options.
    LOG_LEVEL			,0 - 50			,40(Debug) 20(Release)	,"Log level to apply for RMM (0 - 50)."
    RMM_STATIC_ANALYSIS		,			,			,"Enable static analysis checkers"
    PL011_GENERIC_SBSA_UART	,ON | OFF		,OFF			,"Enable Generic (SBSA Compliant) PL011. This a subset of PL011 UART"
-   PLAT_CMN_CTX_MAX_XLAT_TABLES ,			,0			,"Maximum number of translation tables used by the runtime context"
-   PLAT_CMN_EXTRA_MMAP_REGIONS	,			,0			,"Extra platform mmap regions that need to be mapped in S1 xlat tables"
    PLAT_CMN_VIRT_ADDR_SPACE_WIDTH,			,38			,"Stage 1 Virtual address space width in bits for this platform"
    RMM_NUM_PAGES_PER_STACK	,			,5			,"Number of pages to use per CPU stack"
    MBEDTLS_ECP_MAX_OPS		,248 -			,1000			,"Number of max operations per ECC signing iteration"
    RMM_FPU_USE_AT_REL2		,ON | OFF		,OFF(fake_host) ON(aarch64),"Enable FPU/SIMD usage in RMM."
-   RMM_MAX_GRANULES		,			,0			,"Maximum number of memory granules available to the system"
-   RMM_MAX_COH_GRANULES		,			,1			,"Maximum number of coherent device granules available to the system"
-   RMM_MAX_NCOH_GRANULES	,			,1			,"Maximum number of non-coherent device granules available to the system"
    HOST_VARIANT			,host_build | host_test | host_cbmc	,host_build	,"Variant to build for the host platform. Only available when RMM_PLATFORM=host"
    HOST_DRAM_SIZE		,			,0x20000000		,"Host memory size that will be used as physical DRAM"
    HOST_NCOH_DEV_SIZE		,			,0xA000			,"Host memory size that will be used as non-coherent device granules"
@@ -294,13 +289,25 @@ The |RMM| build system supports the following CMake build options.
    RMM_HTML_COV_REPORT		,ON | OFF		,ON			,"Enable HTML output report for coverage analysis"
    RMM_CBMC_VIEWER_OUTPUT	,ON | OFF		,OFF			,"Generate report of CBMC results using the tool cbmc-viewer"
    RMM_CBMC_SINGLE_TESTBENCH	,			,OFF			,"Run CBMC on a single testbench instead on all of them"
+   RMM_EL3_COMPAT_RESERVE_MEM	,ON | OFF		,ON			,"Enable compatibility for reserve memory capability from EL3."
    RMM_MEM_SCRUB_METHOD 	,0 - 2			,0			,"Memory Scrub method selection when granule are returned to NS Host."
+   RMM_VA_POOL_SIZE		,			,0x40000000		,"Size of the dynamic virtual address pool"
    RMM_V1_1			,ON | OFF		,OFF			,"Enable v1.1 features (experimental)"
    ATTEST_PLAT_TOKEN_SIZE	,			,0x1000			,"Maximum size in bytes expected for the Attestation platform token"
    PLAT_ARM_MAX_MEM_BANKS	,			,2			,"Maximum possible number of DRAM and COH/NCOH device memory banks allowed in Arm platform layer"
    ATTEST_EL3_TOKEN_SIGN	,ON|OFF			,OFF			,"Use EL3 service to sign realm attestation token."
    STACK_PROTECTOR		,ON | OFF		,OFF			,"Enable the stack protector compiler option."
    UBSAN			,ON | OFF		,OFF			,"Enable Undefined Behavior Sanitizer."
+
+The below options are deprecated and only available when RMM_EL3_COMPAT_RESERVE_MEM is enabled.
+
+.. csv-table:: Deprecated CMake Options Table
+   :header: "Option", "Valid values", "Default", "Description"
+
+   RMM_MAX_GRANULES		,			,0			,"Maximum number of memory granules available to the system"
+   RMM_MAX_COH_GRANULES		,			,1			,"Maximum number of coherent device granules available to the system"
+   RMM_MAX_NCOH_GRANULES	,			,1			,"Maximum number of non-coherent device granules available to the system"
+   PLAT_CMN_CTX_MAX_XLAT_TABLES ,			,0			,"Maximum number of translation tables used by the runtime context"
 
 .. _llvm_build:
 

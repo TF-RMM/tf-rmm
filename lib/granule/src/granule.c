@@ -14,8 +14,24 @@
 #include <stddef.h>
 #include <utils_def.h>
 
-IF_NCBMC(static) struct granule granules[RMM_MAX_GRANULES]
-			IF_NCBMC(__section("granules_memory"));
+static struct granule *granules;
+static unsigned long max_granules;
+
+int granule_init(uintptr_t alloc, size_t alloc_size,
+	unsigned long max_gr)
+{
+	granules = (struct granule *)alloc;
+
+	assert(alloc_size != 0U);
+
+	if (max_gr > (alloc_size / sizeof(struct granule))) {
+		ERROR("Max granules mismatch\n");
+		return -1;
+	}
+
+	max_granules = max_gr;
+	return 0;
+}
 
 /*
  * Takes a granule index, and returns a pointer to the struct granule.
@@ -25,7 +41,7 @@ IF_NCBMC(static) struct granule granules[RMM_MAX_GRANULES]
  */
 static struct granule *granule_from_idx(unsigned long idx)
 {
-	assert(idx < RMM_MAX_GRANULES);
+	assert(idx < max_granules);
 	return &granules[idx];
 }
 
@@ -89,7 +105,7 @@ struct granule *find_granule(unsigned long addr)
 	}
 
 	idx = plat_granule_addr_to_idx(addr);
-	if (idx >= RMM_MAX_GRANULES) {
+	if (idx >= max_granules) {
 		return NULL;
 	}
 

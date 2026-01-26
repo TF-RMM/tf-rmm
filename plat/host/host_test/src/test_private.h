@@ -14,7 +14,7 @@
 uintptr_t get_cb(enum cb_ids id);
 
 /* Implemented in init.c and needed in test_helpers.c */
-uint64_t rmm_warmboot_main(void);
-uint64_t rmm_main(void);
+uint64_t rmm_warmboot_main(uint64_t token);
+uint64_t rmm_main(uint64_t token);
 
 #endif /* TEST_PRIVATE_H */

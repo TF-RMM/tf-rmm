@@ -15,20 +15,6 @@ arm_config_option_override(NAME RMM_TOOLCHAIN DEFAULT "gnu")
 arm_config_option_override(NAME RMM_MAX_SIZE DEFAULT 0x01800000)
 
 #
-# Maximum number of translation tables allocated by the runtime context
-# for the translation library.
+# Disable RMM_EL3_COMPAT_RESERVE_MEM
 #
-arm_config_option_override(NAME PLAT_CMN_CTX_MAX_XLAT_TABLES DEFAULT 13)
-
-#
-# Maximum number of granules supported, enough to cover
-# (2GB - 64MB) of DRAM0 and 2GB of DRAM1. We overprovision
-# for the case that DT has not catered for the 64 MB carveout.
-#
-arm_config_option_override(NAME RMM_MAX_GRANULES DEFAULT 0x100000)
-
-#
-# Maximum number of non-coherent device granules supported, enough to cover
-# 256MB of PCIe memory region 1 and 3GB of region 2.
-#
-arm_config_option_override(NAME RMM_MAX_NCOH_GRANULES DEFAULT 0xd0000)
+arm_config_option_override(NAME RMM_EL3_COMPAT_RESERVE_MEM DEFAULT FALSE)

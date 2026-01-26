@@ -32,5 +32,5 @@ struct granule *init_rtt_root_page(unsigned int num_root_rtts)
 		char rtt_content[GRANULE_SIZE] = { 0 };
 		inject_granule_at(&g, rtt_content, sizeof(rtt_content), i);
 	}
-	return &granules[index];
+	return &host_granules[index];
 }

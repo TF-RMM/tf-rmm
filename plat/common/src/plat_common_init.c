@@ -13,212 +13,43 @@
 #include <debug.h>
 #include <errno.h>
 #include <gic.h>
-#include <plat_cmn_arch.h>
+#include <glob_data.h>
 #include <plat_common.h>
 #include <rmm_el3_ifc.h>
 #include <sizes.h>
 #include <stdint.h>
-#include <string.h>
 #include <xlat_contexts.h>
 #include <xlat_high_va.h>
-#include <xlat_tables.h>
-
-
-IMPORT_SYM(uintptr_t, rmm_text_start, RMM_CODE_START); /* NOLINT */
-IMPORT_SYM(uintptr_t, rmm_text_end, RMM_CODE_END); /* NOLINT */
-IMPORT_SYM(uintptr_t, rmm_ro_start, RMM_RO_START); /* NOLINT */
-IMPORT_SYM(uintptr_t, rmm_ro_end, RMM_RO_END); /* NOLINT */
-IMPORT_SYM(uintptr_t, rmm_rw_start, RMM_RW_START); /* NOLINT */
-IMPORT_SYM(uintptr_t, rmm_rw_end, RMM_RW_END); /* NOLINT */
-
-enum map_regions {
-#if APP_COUNT != 0
-	MAP_REGION_APP,
-#endif
-	MAP_REGION_CODE,
-	MAP_REGION_RO,
-	MAP_REGION_RW,
-	MAP_REGION_SHARED,
-	NR_MAP_REGIONS
-};
-/* MISRA insists on an unsigned type for the number of regions. */
-#define COMMON_REGIONS	((unsigned int)NR_MAP_REGIONS)
-
-/*
- * Memory map REGIONS used for the RMM runtime (static mappings)
- */
-#define RMM_CODE_SIZE		(RMM_CODE_END - RMM_CODE_START)
-#define RMM_RO_SIZE		(RMM_RO_END - RMM_RO_START)
-#define RMM_RW_SIZE		(RMM_RW_END - RMM_RW_START)
-
-/* Map the application binary data as RO. This is necessary so that the RMM can
- * simply access the app header structures. Execution is not enabled as RMM is
- * never intended to run app code in EL2. Write is not enabled as data pages
- * might only be written from EL0, and for that purpose a separate mapping is
- * created.
- */
-#if APP_COUNT != 0
-#define RMM_APP			MAP_REGION_FLAT(			\
-					0,				\
-					0,				\
-					(MT_RO_DATA | MT_REALM))
-#endif
-
-#define RMM_CODE		MAP_REGION_FLAT(			\
-					RMM_CODE_START,			\
-					RMM_CODE_SIZE,			\
-					(MT_CODE | MT_REALM))
-
-#define RMM_RO			MAP_REGION_FLAT(			\
-					RMM_RO_START,			\
-					RMM_RO_SIZE,			\
-					(MT_RO_DATA | MT_REALM))
-
-#define RMM_RW			MAP_REGION_FLAT(			\
-					RMM_RW_START,			\
-					RMM_RW_SIZE,			\
-					(MT_RW_DATA | MT_REALM))
-
-/*
- * Leave an invalid page between the end of RMM memory and the beginning
- * of the shared buffer VA. This will help to detect any memory access
- * underflow by RMM.
- */
-#define RMM_SHARED_BUFFER_START	(RMM_RW_END + SZ_4K)
-
-/*
- * Some of the fields for the RMM_SHARED region will be populated
- * at runtime.
- */
-#define RMM_SHARED		MAP_REGION(				\
-					0U,				\
-					RMM_SHARED_BUFFER_START,	\
-					0U,				\
-					(MT_RW_DATA | MT_REALM))
-
-/* RMM supports only a single console */
-#define RMM_CSL			MAP_REGION_FLAT(			\
-					0U,				\
-					0U,				\
-					(MT_DEVICE | MT_RW | MT_REALM))
-
-/* Total number of memory mapping regions */
-#define TOTAL_MMAP_REGIONS	(COMMON_REGIONS + PLAT_CMN_EXTRA_MMAP_REGIONS)
-
-/* Memory mapping regions for the system runtime */
-static struct xlat_mmap_region static_regions[TOTAL_MMAP_REGIONS];
-
-/*
- * Allocate the runtime translation tables.
- * Although a base table at level -1 when FEAT_LPA2 is enabled only has
- * 16 entries, all tables are allocated a page for simplicity.
- */
-static uint64_t static_s1tt[XLAT_TABLE_ENTRIES * PLAT_CMN_CTX_MAX_XLAT_TABLES]
-					__aligned(XLAT_TABLES_ALIGNMENT)
-					__section("xlat_static_tables");
-
-/* Structures to hold the runtime translation context information  */
-static struct xlat_ctx_tbls runtime_tbls;
-static struct xlat_ctx_cfg runtime_xlat_ctx_cfg;
-static struct xlat_ctx runtime_xlat_ctx;
-
-int plat_cmn_init_el3_ifc(unsigned long x0, unsigned long x1,
-			   unsigned long x2, unsigned long x3)
-{
-	/* Initialize the RMM <-> EL3 interface */
-	return rmm_el3_ifc_init(x0, x1, x2, x3, get_shared_buf_va(x3));
-}
+#include <xlat_low_va.h>
 
 /*
  * Platform common cold boot setup for RMM.
  *
  * This function should only be invoked once during cold boot
  * and is expected to setup architecture and platform components
- * common for all PEs executing RMM. The rmm_el3_ifc, the xlat tables
+ * common for all PEs executing RMM. The low VA xlat tables
  * and GIC driver are initialized by this function.
  */
 int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
-		   unsigned int nregions)
+		   unsigned int nregions, uint64_t token)
 {
 	int ret;
-	unsigned int plat_offset, cmn_offset;
-#if APP_COUNT != 0
-	uint64_t rmm_img_start = app_get_rmm_start();
-#endif
-
-	/* Common regions sorted by ascending VA */
-	struct xlat_mmap_region regions[COMMON_REGIONS] = {
-#if APP_COUNT != 0
-		[MAP_REGION_APP] = RMM_APP,
-#endif
-		[MAP_REGION_CODE] = RMM_CODE,
-		[MAP_REGION_RO] = RMM_RO,
-		[MAP_REGION_RW] = RMM_RW,
-		[MAP_REGION_SHARED] = RMM_SHARED,
-	};
-
-	if (nregions > PLAT_CMN_EXTRA_MMAP_REGIONS) {
-		return -ERANGE;
-	}
+	struct xlat_low_va_info *va_info = NULL;
 
 	if ((nregions != 0U) && (plat_regions == NULL)) {
 		return -EINVAL;
 	}
 
-#if APP_COUNT != 0
-	/* setup the parameters for the application binary data */
-	regions[MAP_REGION_APP].base_pa = rmm_img_start;
-	regions[MAP_REGION_APP].base_va = rmm_img_start;
-	regions[MAP_REGION_APP].size = RMM_CODE_START - rmm_img_start;
-#endif
-
-	/* Setup the parameters of the shared area */
-	regions[MAP_REGION_SHARED].base_pa = get_shared_buf_pa();
-	regions[MAP_REGION_SHARED].size = rmm_el3_ifc_get_shared_buf_size();
-
-	plat_offset = COMMON_REGIONS;
-	cmn_offset = 0U;
-	if (nregions != 0U) {
-		/*
-		 * Combine the common memory regions with the platform ones
-		 * in an array where they are sorted as per VA.
-		 */
-		if (plat_regions[0].base_va < RMM_CODE_START) {
-			plat_offset = 0U;
-			cmn_offset = nregions;
-		}
-		(void)memcpy((void *)&static_regions[plat_offset],
-			     (void *)&plat_regions[0U],
-			     sizeof(struct xlat_mmap_region) * nregions);
+	if (token != 0UL) {
+		va_info = &(((struct glob_data *)token)->low_va_info);
 	}
 
-	(void)memcpy((void *)&static_regions[cmn_offset], (void *)&regions[0U],
-		     sizeof(struct xlat_mmap_region) * COMMON_REGIONS);
-
-	ret = xlat_ctx_cfg_init(&runtime_xlat_ctx_cfg, VA_LOW_REGION,
-				&static_regions[0], nregions + COMMON_REGIONS,
-				0UL, PLAT_CMN_VIRT_ADDR_SPACE_SIZE,
-				RMM_ASID);
-
+	/* Initialize the low VA region for RMM */
+	ret = xlat_low_va_setup(plat_regions, nregions, app_get_rmm_start(),
+						va_info);
 	if (ret != 0) {
-		ERROR("%s (%u): %s (%i)\n",
-			__func__, __LINE__,
-			"Failed to initialize the xlat ctx within the xlat library ",
-			ret);
-		return ret;
-	}
-
-	ret = xlat_ctx_init(&runtime_xlat_ctx, &runtime_xlat_ctx_cfg,
-			    &runtime_tbls,
-			    &static_s1tt[0],
-			    PLAT_CMN_CTX_MAX_XLAT_TABLES,
-			    (uint64_t)&static_s1tt[0]);
-
-	if (ret != 0) {
-		ERROR("%s (%u): %s (%i)\n",
-			__func__, __LINE__,
-			"Failed to create the xlat ctx within the xlat library ",
-			ret);
+		ERROR("%s: Failed to setup Low VA xlat tables (%i)\n",
+			__func__, ret);
 		return ret;
 	}
 
@@ -238,24 +69,19 @@ int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
 int plat_cmn_warmboot_setup(void)
 {
 	int ret;
-	struct xlat_mmu_cfg mmu_config;
 
-
-	/* Setup the MMU cfg for the low region (runtime context) */
-	ret = xlat_arch_setup_mmu_cfg(&runtime_xlat_ctx, &mmu_config);
+	ret = xlat_low_va_mmu_cfg();
 	if (ret != 0) {
-		ERROR("%s (%u): Failed to setup xlat tables for CPU[%u]\n",
-			__func__, __LINE__, my_cpuid());
+		ERROR("%s: Failed to configure MMU (%i)\n",
+			__func__, ret);
 		return ret;
 	}
-
-	xlat_arch_write_mmu_cfg(&mmu_config);
 
 	/* Perform warm boot initialization of the high VA region */
 	ret = xlat_high_va_setup();
 	if (ret != 0) {
-		ERROR("%s (%u): Failed to setup high VA for CPU[%u]\n",
-			__func__, __LINE__, my_cpuid());
+		ERROR("%s: Failed to setup high VA for CPU[%u]\n",
+			__func__, my_cpuid());
 		return ret;
 	}
 

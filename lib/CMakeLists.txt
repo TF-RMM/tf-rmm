@@ -11,6 +11,7 @@ target_link_libraries(rmm-lib
               rmm-lib-console
               rmm-lib-debug
               rmm-lib-gic
+              rmm-lib-glob_data
               rmm-lib-granule
               rmm-lib-mec
               rmm-lib-rmm_el3_ifc
@@ -19,7 +20,8 @@ target_link_libraries(rmm-lib
               rmm-lib-s2tt
               rmm-lib-slot_buf
               rmm-lib-stack_protector
-              rmm-lib-xlat)
+              rmm-lib-xlat
+              rmm-lib-xlat_low_va)
 
 add_subdirectory("arch")
 add_subdirectory("common")
@@ -27,6 +29,7 @@ add_subdirectory("console")
 add_subdirectory("debug")
 add_subdirectory("gic")
 add_subdirectory("granule")
+add_subdirectory("glob_data")
 add_subdirectory("mbedtls")
 add_subdirectory("mec")
 add_subdirectory("rmm_el3_ifc")
@@ -36,3 +39,4 @@ add_subdirectory("s2tt")
 add_subdirectory("slot_buf")
 add_subdirectory("stack_protector")
 add_subdirectory("xlat")
+add_subdirectory("xlat_low_va")

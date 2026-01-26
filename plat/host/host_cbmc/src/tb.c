@@ -13,6 +13,8 @@
 #include "tb_granules.h"
 #include "tb_realm.h"
 
+struct granule host_granules[HOST_NR_GRANULES] = {0};
+
 void __init_global_state(unsigned long cmd)
 {
 	REACHABLE;
@@ -21,6 +23,7 @@ void __init_global_state(unsigned long cmd)
 	/* Set up all the system register */
 	host_util_setup_sysreg_and_boot_manifest();
 	arch_features_query_el3_support();
+	granule_init((uintptr_t)host_granules, sizeof(host_granules), HOST_NR_GRANULES);
 
 	switch (cmd) {
 	case SMC_RMI_GRANULE_DELEGATE:

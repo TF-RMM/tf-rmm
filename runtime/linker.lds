@@ -38,17 +38,7 @@ SECTIONS
 		rmm_got_start = .;
 		*(.got)
 		rmm_got_end = .;
-	} >RAM
-
-	/*
-	 * The xlat_static_table section is for full, aligned page tables.
-	 * The static tables must not change once the MMU is enabled, so
-	 * allocate them on the RO area to keep them protected from writing.
-	 *
-	 * The memory will be cleared by the xlat library during start up.
-	 */
-	xlat_table ALIGN(GRANULE_SIZE) : {
-		*(xlat_static_tables)
+		. = ALIGN(GRANULE_SIZE);
 	} >RAM
 
 	rmm_ro_end = .;
@@ -75,13 +65,6 @@ SECTIONS
 		bss_start = .;
 		*(.bss*)
 		bss_end = .;
-	} >RAM
-
-	.granules_memory ALIGN(GRANULE_SIZE) (NOLOAD) : {
-		granules_memory_start = .;
-		*(granules_memory)
-		. = ALIGN(GRANULE_SIZE);
-		granules_memory_end = .;
 	} >RAM
 
 	. = ALIGN(GRANULE_SIZE);

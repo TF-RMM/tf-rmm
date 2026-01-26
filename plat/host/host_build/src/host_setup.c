@@ -271,7 +271,8 @@ void initialise_app_headers(int argc, char *argv[])
 	free(base_dir_copy);
 }
 
-uint64_t rmm_main(void);
+uint64_t rmm_main(uint64_t token);
+void rmm_arch_init(void);
 
 int main(int argc, char *argv[])
 {
@@ -287,10 +288,13 @@ int main(int argc, char *argv[])
 
 	arch_features_query_el3_support();
 
+	rmm_arch_init();
+
 	plat_setup(0UL,
 		   EL3_IFC_ABI_VERSION,
 		   RMM_EL3_MAX_CPUS,
-		   (uintptr_t)host_util_get_el3_rmm_shared_buffer());
+		   (uintptr_t)host_util_get_el3_rmm_shared_buffer(),
+		   0UL);
 
 	/*
 	 * Enable the MMU. This is needed as some initialization code
@@ -299,7 +303,7 @@ int main(int argc, char *argv[])
 	enable_fake_host_mmu();
 
 	/* Start RMM */
-	(void)rmm_main();
+	(void)rmm_main(0UL);
 
 	/* Create a realm and a rec */
 	if (host_create_realm_and_activate(&g_realm) != 0) {

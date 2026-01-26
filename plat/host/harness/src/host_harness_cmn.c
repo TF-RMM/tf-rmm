@@ -12,13 +12,18 @@
 #include <host_utils.h>
 #ifndef CBMC
 #include <mbedtls/memory_buffer_alloc.h>
+#endif
+#include <plat_compat_mem.h>
+#ifndef CBMC
 #include <psa/crypto.h>
 #endif
+
 #include <rmm_el3_ifc.h>
 #include <spinlock.h>
 #include <string.h>
 
 #ifndef CBMC
+
 #define ATTEST_PLAT_TOKEN_HUNK_LEN	100
 
 /*
@@ -557,6 +562,13 @@ void host_monitor_call(unsigned long id, struct smc_args *args,
 		break;
 	}
 #endif
+	case SMC_RMM_RESERVE_MEMORY:
+	{
+		/* Use the compatibility layer for memory reservation */
+		res->x[0] = plat_compat_reserve_memory(args->v[0], &args->v[1]);
+		res->x[1] = args->v[1];
+		break;
+	}
 	default:
 		VERBOSE("Unimplemented monitor call id %lx\n", id);
 		res->x[0] = ~0LU;

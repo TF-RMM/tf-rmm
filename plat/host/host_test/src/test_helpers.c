@@ -44,6 +44,8 @@ static bool asserted;
 
 static uintptr_t callbacks[CB_IDS];
 
+void rmm_arch_init(void);
+
 static void start_primary_pe(void)
 {
 	host_util_set_cpuid(0U);
@@ -53,10 +55,13 @@ static void start_primary_pe(void)
 
 	arch_features_query_el3_support();
 
+	rmm_arch_init();
+
 	plat_setup(0UL,
 		   RMM_EL3_IFC_ABI_VERSION,
 		   RMM_EL3_MAX_CPUS,
-		   (uintptr_t)host_util_get_el3_rmm_shared_buffer());
+		   (uintptr_t)host_util_get_el3_rmm_shared_buffer(),
+		   0UL);
 
 	/* Init MEC */
 	mec_init_mmu();
@@ -72,7 +77,7 @@ static void start_primary_pe(void)
 	 *
 	 * Note: It is expected that the attestation init will fail.
 	 */
-	per_cpu_token[0] = rmm_main();
+	per_cpu_token[0] = rmm_main(per_cpu_token[0]);
 }
 
 static void start_secondary_pe(unsigned int cpuid)
@@ -99,7 +104,7 @@ static void start_secondary_pe(unsigned int cpuid)
 	 * Finalize the warmboot path.
 	 * This enables the slot buffer mechanism.
 	 */
-	per_cpu_token[cpuid] = rmm_warmboot_main();
+	per_cpu_token[cpuid] = rmm_warmboot_main(per_cpu_token[cpuid]);
 }
 
 void test_helpers_rmm_start(bool secondaries)

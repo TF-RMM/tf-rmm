@@ -9,17 +9,35 @@
 #include <debug.h>
 #include <pl011.h>
 #include <plat_common.h>
+#include <plat_compat_mem.h>
 #include <platform_api.h>
+#include <rmm_el3_compat.h>
 #include <rmm_el3_ifc.h>
 #include <sizes.h>
 #include <smmuv3.h>
 #include <string.h>
-#include <xlat_tables.h>
+#include <xlat_low_va.h>
 
 #define ARM_RMM_UART	MAP_REGION_FLAT(			\
 				0UL,				\
 				SZ_4K,				\
 				(MT_DEVICE | MT_RW | MT_REALM))
+
+#ifdef RMM_EL3_COMPAT_RESERVE_MEM
+/* Calculate the size needed for the RMM reserved memory */
+#define COMPAT_RESERVE_MEM_SIZE		\
+	RESERVE_MEM_SIZE(RMM_MAX_GRANULES, RMM_MAX_NCOH_GRANULES, PLAT_CMN_CTX_MAX_XLAT_TABLES)
+
+/*
+ * Space to model the RMM reserved mem, used to emulate EL3 memory allocation.
+ */
+static unsigned char rmm_reserve_memory[COMPAT_RESERVE_MEM_SIZE] __aligned(GRANULE_SIZE);
+
+/* Define the EL3-RMM interface compatibility callbacks */
+static struct rmm_el3_compat_callbacks callbacks = {
+	.reserve_mem_cb = plat_compat_reserve_memory,
+};
+#endif
 
 /*
  * Local platform setup for RMM.
@@ -86,7 +104,7 @@ static void setup_root_complex_list(void)
  * be initialized by this function.
  */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
-void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
+void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3, uint64_t x4)
 {
 	struct memory_info *plat_memory_info;
 	struct console_list *csl_list;
@@ -109,7 +127,7 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 	};
 
 	/* Initialize the RMM-EL3 interface*/
-	ret = plat_cmn_init_el3_ifc(x0, x1, x2, x3);
+	ret = rmm_el3_ifc_init(x0, x1, x2, x3, xlat_low_va_shared_buf_va());
 	if (ret != E_RMM_BOOT_SUCCESS) {
 		rmm_el3_ifc_report_fail_to_el3(ret);
 	}
@@ -182,13 +200,26 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 		plat_smmus++;
 	}
 
+#ifdef RMM_EL3_COMPAT_RESERVE_MEM
+	if (x4 != 0) {
+		/* No support for LFA in compatibility mode */
+		panic();
+	}
+
+	NOTICE("RMM EL3 compat memory reservation enabled.\n");
+
+	/* Initialize the compatibility memory reservation layer */
+	plat_cmn_compat_reserve_mem_init(&callbacks,
+				rmm_reserve_memory,
+				sizeof(rmm_reserve_memory));
+#endif
 	/*
 	 * Carry on with the rest of the system setup.
 	 * The number of added regions is 2 * num_smmus + 1:
 	 * - 2 regions per each SMMUv3: smmu_base and smmu_r_base;
 	 * - 1 UART region.
 	 */
-	ret = plat_cmn_setup(plat_regions, (num_smmus * 2U) + 1U);
+	ret = plat_cmn_setup(plat_regions, (num_smmus * 2U) + 1U, x4);
 	if (ret != 0) {
 		ERROR("%s (%u): Failed to setup the platform (%i)\n",
 			__func__, __LINE__, ret);

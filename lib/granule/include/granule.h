@@ -214,6 +214,12 @@ static inline void granule_unlock_transition(struct granule *g,
 	granule_unlock(g);
 }
 
+/*
+ * Initialize the granule library.
+ */
+int granule_init(uintptr_t alloc, size_t alloc_size,
+				unsigned long max_gr);
+
 unsigned long granule_addr(const struct granule *g);
 struct granule *addr_to_granule(unsigned long addr);
 struct granule *find_granule(unsigned long addr);

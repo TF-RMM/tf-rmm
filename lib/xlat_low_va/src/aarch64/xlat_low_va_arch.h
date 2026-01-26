@@ -3,12 +3,12 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#ifndef PLAT_CMN_ARCH_H
-#define PLAT_CMN_ARCH_H
+#ifndef XLAT_LOW_VA_ARCH_H
+#define XLAT_LOW_VA_ARCH_H
 
 #include <import_sym.h>
+#include <mapped_va_arch.h>
 
-#define get_shared_buf_va(x)	RMM_SHARED_BUFFER_START
 #define get_shared_buf_pa()	rmm_el3_ifc_get_shared_buf_pa()
 
-#endif /* PLAT_CMN_ARCH_H */
+#endif /* XLAT_LOW_VA_ARCH_H */
