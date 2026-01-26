@@ -1076,23 +1076,24 @@
  */
 #define SET_MEMBER_RMI	SET_MEMBER
 
-/*
- * RmiBlockSize enumeration values.
- */
-#define RMI_BLOCK_SIZE_2M			UL(0)
-#define RMI_BLOCK_SIZE_32M			UL(1)
-#define RMI_BLOCK_SIZE_512M			UL(2)
-#define RMI_BLOCK_SIZE_1G			UL(3)
-#define RMI_BLOCK_SIZE_64G			UL(4)
-#define RMI_BLOCK_SIZE_512G			UL(5)
-#define RMI_BLOCK_SIZE_4T			UL(6)
+
+/* Tracking Region Size with GRANULE_SIZE = 4KB */
+#define RMI_GRAN_4KB_TRACKING_REGION_SIZE_1GB		UL(0)
+
+/* Tracking Region Size with GRANULE_SIZE = 16KB */
+#define RMI_GRAN_16KB_TRACKING_REGION_SIZE_32MB		UL(0)
+#define RMI_GRAN_16KB_TRACKING_REGION_SIZE_64GB		UL(1)
+
+/* Tracking Region Size with GRANULE_SIZE = 64KB */
+#define RMI_GRAN_64KB_TRACKING_REGION_SIZE_512MB	UL(0)
+#define RMI_GRAN_64KB_TRACKING_REGION_SIZE_4TB		UL(1)
 
 /*
  * RmiGranuleSize enumeration values.
  */
-#define RMI_GRANULE_SIZE_4K			UL(0)
-#define RMI_GRANULE_SIZE_16K			UL(1)
-#define RMI_GRANULE_SIZE_64K			UL(2)
+#define RMI_GRANULE_SIZE_4KB			UL(0)
+#define RMI_GRANULE_SIZE_16KB			UL(1)
+#define RMI_GRANULE_SIZE_64KB			UL(2)
 
 /* RmiRttAddrType - Address descriptor type */
 #define RMI_ADDR_TYPE_NONE		UL(0)
@@ -1104,8 +1105,8 @@
  * RMI_RMM_CONFIG_GET and RMI_RMM_CONFIG_SET.
  */
 struct rmi_rmm_config {
-	SET_MEMBER_RMI(unsigned long tracking_size, 0, 0x8);		/* Offset 0 */
-	SET_MEMBER_RMI(unsigned long granule_size, 0x8, 0x1000);	/* Offset 16 */
+	SET_MEMBER_RMI(unsigned long tracking_region_size, 0, 0x8);	/* Offset 0 */
+	SET_MEMBER_RMI(unsigned long rmi_granule_size, 0x8, 0x1000);	/* Offset 16 */
 };
 
 /* RmiTrackingRegionState type */

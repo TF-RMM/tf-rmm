@@ -203,9 +203,11 @@ unsigned long smc_granule_undelegate(unsigned long addr)
  *
  * @TODO.This needs to be made dynamic later.
  */
-#define RMI_GRANULE_SIZE		RMI_GRANULE_SIZE_4K
-#define RMI_BLOCK_SIZE			RMI_BLOCK_SIZE_1G
-#define RMM_BLOCK_SIZE			(1UL << 30UL) /* 1GB */
+/* RMI interface defined value for the Granule and TrackingRegion Sizes we use */
+#define RMI_GRANULE_SIZE		RMI_GRANULE_SIZE_4KB
+#define RMI_TRACKING_REGION_SIZE	RMI_GRAN_4KB_TRACKING_REGION_SIZE_1GB
+/* Internal only symbol for the size */
+#define RMM_INTERNAL_TRACKING_REGION_SIZE	(1UL << 30UL) /* 1GB */
 
 void smc_granule_tracking_get(unsigned long addr,
 			      struct smc_result *res)
@@ -213,17 +215,25 @@ void smc_granule_tracking_get(unsigned long addr,
 	struct granule *g;
 	struct dev_granule *dg;
 	enum dev_coh_type type;
+	unsigned int pasz = arch_feat_get_pa_width();
+	unsigned long max_pa = ((1UL << pasz) - 1UL);
 
 	res->x[0] = RMI_ERROR_INPUT;
-	if (!ALIGNED(addr, RMI_BLOCK_SIZE)) {
+
+	/* Reject addresses beyond implemented PA size */
+	if (addr > max_pa) {
+		return;
+	}
+
+	if (!ALIGNED(addr, RMM_INTERNAL_TRACKING_REGION_SIZE)) {
 		return;
 	}
 
 	g = find_granule(addr);
 	if (g != NULL) {
 		res->x[0] = RMI_SUCCESS;
-		res->x[1] = RMI_TRACKING_FINE;
-		res->x[2] = RMI_MEM_CATEGORY_CONVENTIONAL;
+		res->x[1] = RMI_MEM_CATEGORY_CONVENTIONAL;
+		res->x[2] = RMI_TRACKING_FINE;
 		return;
 	}
 
@@ -231,12 +241,20 @@ void smc_granule_tracking_get(unsigned long addr,
 	dg = find_dev_granule(addr, &type);
 	if (dg) {
 		res->x[0] = RMI_SUCCESS;
-		res->x[1] = RMI_TRACKING_FINE;
-		res->x[2] = (type == DEV_MEM_NON_COHERENT) ?
+		res->x[2] = RMI_TRACKING_FINE;
+		res->x[1] = (type == DEV_MEM_NON_COHERENT) ?
 				RMI_MEM_CATEGORY_DEV_NCOH :
 				RMI_MEM_CATEGORY_DEV_COH;
 		return;
 	}
+
+	/*
+	 * Aligned region with no granule or device mapped: report
+	 * that the region is valid but currently untracked.
+	 */
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = RMI_MEM_CATEGORY_CONVENTIONAL;
+	res->x[2] = RMI_TRACKING_NONE;
 }
 
 unsigned long smc_rmm_config_set(unsigned long config_ptr)
@@ -252,8 +270,8 @@ unsigned long smc_rmm_config_set(unsigned long config_ptr)
 	}
 
 	/* TODO: At the moment, only 4KB granularity size is supported */
-	if (cfg.granule_size != RMI_GRANULE_SIZE ||
-	    cfg.tracking_size != RMI_BLOCK_SIZE) {
+	if (cfg.rmi_granule_size != RMI_GRANULE_SIZE ||
+	    cfg.tracking_region_size != RMI_TRACKING_REGION_SIZE) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -268,8 +286,8 @@ unsigned long smc_rmm_config_get(unsigned long config_ptr)
 		return RMI_ERROR_INPUT;
 	}
 
-	cfg.granule_size = RMI_GRANULE_SIZE;
-	cfg.tracking_size = RMI_BLOCK_SIZE;
+	cfg.rmi_granule_size = RMI_GRANULE_SIZE;
+	cfg.tracking_region_size = RMI_TRACKING_REGION_SIZE;
 
 	if (!ns_buffer_write_early(config_ptr, sizeof(cfg), &cfg)) {
 		return RMI_ERROR_INPUT;
