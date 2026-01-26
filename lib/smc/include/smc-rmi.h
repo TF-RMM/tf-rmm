@@ -76,14 +76,32 @@
  */
 #define RMI_ERROR_DPT			U(9)
 
-/*
- * The command did not result in any observable changes of state, due to
- * a reason which may be temporary.
+/* The command failed to make progress for an Implementation Defined
+ * reason. The reason for the lack of progress may be temporary and may
+ * be resolved without requiring any action to be taken by the Host.
+ * The command did not result in any changes of system state.
  */
 #define RMI_BUSY			U(10)
 
 /* An attribute of RMM global state does not match the expected value */
 #define RMI_ERROR_GLOBAL		U(11)
+
+/* The state of a tracking region does not match the expected value */
+#define RMI_ERROR_TRACKING		U(12)
+
+/*
+ * The command initiated a state transition but did not complete, leaving
+ * an object in an intermediate state. The target object cannot be subject
+ * to any other RMI command until this one has been completed.
+ */
+#define RMI_INCOMPLETE			U(13)
+
+/*
+ * The command failed to make progress due to a target object being in
+ * intermediate state. An incomplete operation must be completed before this
+ * one can proceed. The command did not result in any changes of system state.
+ */
+#define RMI_BLOCKED			U(14)
 
 /* A GPT walk reached an entry with unexpected level */
 #define RMI_ERROR_GPT			U(15)
@@ -1022,6 +1040,51 @@ enum rmm_state {
 	RMM_STATE_INTERMEDIATE,
 	RMM_STATE_ACTIVE
 };
+
+/*
+ * FID: 0xC4000203
+ *
+ * arg0 == Handle which identifies the operation.
+ * arg1 == Flags.
+ *
+ * ret0 == Command result.
+ * ret2 == Memory donation requirements.
+ */
+#define SMC_RMI_OP_CONTINUE			SMC64_RMI_FID(U(0xB3))
+
+/*
+ * FID: 0xC4000208
+ *
+ * arg0 == Handle which identifies the operation.
+ * arg1 == PA of RMI Address List.
+ * arg2 == Number of entries in RMI Address List.
+ *
+ * ret0 == Command result.
+ * ret1 == Number of Granules consumed from RMI Address List.
+ * ret2 == Memory donation requirements.
+ */
+#define SMC_RMI_OP_MEM_DONATE			SMC64_RMI_FID(U(0xB8))
+
+/*
+ * FID: 0xC4000209
+ *
+ * arg0 == Handle which identifies the operation.
+ * arg1 == PA of RMI Address List.
+ * arg2 == Number of entries in RMI Address List.
+ *
+ * ret0 == Command result.
+ * ret1 == Number of entries written to RMI Address List.
+ */
+#define SMC_RMI_OP_MEM_RECLAIM			SMC64_RMI_FID(U(0xB9))
+
+/*
+ * FID: 0XC400020A
+ *
+ * arg0 == Handle which identifies the operation to cancel.
+ *
+ * ret0 == Command result.
+ */
+#define SMC_RMI_OP_CANCEL			SMC64_RMI_FID(U(0xBA))
 
 /* Size of Realm Personalization Value */
 #ifndef CBMC
