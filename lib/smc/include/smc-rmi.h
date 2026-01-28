@@ -535,13 +535,6 @@
 #define SMC_RMI_RTT_FOLD			SMC64_RMI_FID(U(0x16))
 
 /*
- * FID: 0xC4000167
- *
- * arg0 == RD address
- */
-#define SMC_RMI_REC_AUX_COUNT			SMC64_RMI_FID(U(0x17))
-
-/*
  * FID: 0xC4000168
  *
  * arg0 == RD address
@@ -1300,13 +1293,7 @@ struct rmi_rec_params {
 	/* Program counter */
 	SET_MEMBER_RMI(unsigned long pc, 0x200, 0x300);	/* 0x200 */
 	/* General-purpose registers */
-	SET_MEMBER_RMI(unsigned long gprs[REC_CREATE_NR_GPRS], 0x300, 0x800); /* 0x300 */
-	SET_MEMBER_RMI(struct {
-			/* Number of auxiliary Granules */
-			unsigned long num_aux;			/* 0x800 */
-			/* Addresses of auxiliary Granules */
-			unsigned long aux[MAX_REC_AUX_GRANULES];/* 0x808 */
-		   }, 0x800, 0x1000);
+	SET_MEMBER_RMI(unsigned long gprs[REC_CREATE_NR_GPRS], 0x300, 0x1000); /* 0x300 */
 };
 
 /*

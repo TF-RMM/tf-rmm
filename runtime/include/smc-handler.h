@@ -39,17 +39,15 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 
 unsigned long smc_realm_destroy(unsigned long rd_addr);
 
-unsigned long smc_rec_create(unsigned long rd_addr,
-			     unsigned long rec_addr,
-			     unsigned long rec_params_addr);
+void smc_rec_create(unsigned long rd_addr,
+		    unsigned long rec_addr,
+		    unsigned long rec_params_addr,
+		    struct smc_result *res);
 
-unsigned long smc_rec_destroy(unsigned long rec_addr);
+void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res);
 
 unsigned long smc_rec_enter(unsigned long rec_addr,
 			    unsigned long rec_run_addr);
-
-void smc_rec_aux_count(unsigned long rd_addr,
-			struct smc_result *res);
 
 unsigned long smc_rtt_create(unsigned long rd_addr,
 			     unsigned long rtt_addr,

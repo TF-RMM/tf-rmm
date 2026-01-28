@@ -43,6 +43,31 @@ typedef void(*sro_handle_cb)(struct smc_args *arg, struct smc_result *res);
 /* Macro to define an invalid RmiResult value */
 #define SRO_INVALID_RESULT	(ULONG_MAX)
 
+/*
+ * Data structure with the information to continue a REC related operation.
+ */
+struct sro_rec_ctx {
+	/* Index of the callback to invoke */
+	unsigned int cb_id;
+
+	/* Parameters for REC creation */
+	unsigned long rd_addr;
+	unsigned long rec_addr;
+	unsigned long rec_params_addr;
+
+	/* Error condition in case REC_CREATE fails */
+	unsigned long ret_err;
+
+	/* List of PAs for the auxiliary granules donated by the host */
+	uintptr_t aux_granules_pa[MAX_REC_AUX_GRANULES];
+
+	/* Number of granules requested */
+	unsigned long requested_aux_granules;
+
+	/* Number of granules donated or reclaimed so far */
+	unsigned long total_transferred;
+};
+
 struct sro_context {
 	/* Initiating RMI command */
 	unsigned long init_command;
@@ -91,8 +116,10 @@ struct sro_context {
 	/* Previous expected FID for the reclaim operation */
 	unsigned long prev_exp_fid;
 
-	/* Union with an structure for all the possible SRO commands */
-	union{};
+	/* Union with a structure for all the possible SRO commands */
+	union{
+		struct sro_rec_ctx rec_ctx;
+	};
 };
 
 /*

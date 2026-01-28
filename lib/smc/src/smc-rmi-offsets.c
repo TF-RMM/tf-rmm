@@ -27,8 +27,6 @@ COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_params, flags)) == 0U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_params, mpidr)) == 0x100U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_params, pc)) == 0x200U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_params, gprs)) == 0x300U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_params, num_aux)) == 0x800U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_params, aux)) == 0x808U);
 
 COMPILER_ASSERT_NO_CBMC(sizeof(struct rmi_rec_enter) == 0x300UL);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_enter, flags)) == 0U);

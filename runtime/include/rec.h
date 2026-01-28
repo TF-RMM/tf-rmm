@@ -537,6 +537,7 @@ void emulate_stage2_data_abort(struct rmi_rec_exit *rec_exit,
 void rec_set_pending_op(struct rec *rec, unsigned int pending_op);
 void rec_update_pending_op(struct rec *rec, unsigned int pending_op);
 unsigned long realm_vtcr(struct rd *rd);
+void rec_continue_handler(struct smc_args *args, struct smc_result *res);
 
 #endif /* __ASSEMBLER__ */
 #endif /* REC_H */

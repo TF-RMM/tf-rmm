@@ -28,7 +28,8 @@ struct rmi_handles {
 }
 
 struct rmi_handles sro_handles[] = {
-	{NULL}
+	SRO_HANDLE(REC_CREATE, rec_continue_handler),
+	SRO_HANDLE(REC_DESTROY, rec_continue_handler)
 };
 COMPILER_ASSERT(ARRAY_SIZE(sro_handles) <= SMC64_NUM_FIDS_IN_RANGE(RMI));
 
