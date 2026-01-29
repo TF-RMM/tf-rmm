@@ -21,6 +21,7 @@ add_subdirectory("mbedtls_host")
 
 target_link_libraries(rmm-host-harness
     PRIVATE rmm-lib
+            rmm-el2-stub
             rmm-host-el2-el0-cmn
             rmm-plat-common
             rmm-platform
@@ -28,7 +29,8 @@ target_link_libraries(rmm-host-harness
     )
 
 target_sources(rmm-host-harness
-    PRIVATE "src/host_console.c"
+    PRIVATE "src/host_app_init.c"
+            "src/host_console.c"
             "src/host_harness_cmn.c"
             "src/host_platform_api_cmn.c"
             "src/host_rmi_wrappers.c"

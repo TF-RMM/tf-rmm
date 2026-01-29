@@ -13,7 +13,11 @@
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
+#include <signal.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/prctl.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -128,6 +132,12 @@ static struct app_process_data *create_app_process(unsigned long app_id)
 		 */
 		close(fds_rmm_to_app_process[1]);
 		close(fds_app_process_to_rmm[0]);
+		/*
+		 * Tell the kernel to automatically SIGKILL the app process
+		 * when its parent rmm.elf dies — regardless of how the parent
+		 * was killed. This avoids orphaned process during AFL fuzzing.
+		 */
+		prctl(PR_SET_PDEATHSIG, SIGKILL);
 		start_app_process(app_id, fds_rmm_to_app_process[0], fds_app_process_to_rmm[1]);
 		/* The function above should never return */
 		assert(false);
@@ -173,6 +183,18 @@ void app_framework_setup(void)
 	 * one time initialisation
 	 */
 	srand(time(NULL));
+}
+
+void app_processes_cleanup(void)
+{
+	for (size_t i = 0; i < initialised_app_process_data_count; i++) {
+		kill(app_process_datas[i].pid, SIGKILL);
+		waitpid(app_process_datas[i].pid, NULL, 0);
+		close(app_process_datas[i].fd_rmm_to_app_process);
+		close(app_process_datas[i].fd_app_process_to_rmm);
+	}
+	initialised_app_process_data_count = 0;
+	memset(app_process_datas, 0, sizeof(app_process_datas));
 }
 
 int app_new_instance(struct app_data_cfg *app_data,

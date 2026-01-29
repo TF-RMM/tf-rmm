@@ -182,4 +182,26 @@ typedef int (*realm_entrypoint_t)(unsigned long *, unsigned long *);
 /* Helper for invoking RSI calls */
 int host_util_rsi_helper(realm_entrypoint_t ep);
 
+/*
+ * Returns a heap-allocated string with the directory portion of path
+ * (up to and including the last '/').  Caller must free() the result.
+ */
+char *host_util_get_base_dir(const char *path);
+
+/*
+ * Register all app headers (paths to ELF binaries) needed at runtime.
+ */
+void host_util_initialise_app_headers(int argc, char *argv[]);
+
+/*
+ * Launch the SPDM responder emulator from the given base directory.
+ */
+void host_util_launch_spdm_responder_emu(char *base_dir);
+
+/*
+ * Stop the SPDM responder process if it was launched by
+ * host_util_launch_spdm_responder_emu().
+ */
+void host_util_stop_spdm_responder(void);
+
 #endif /* HOST_UTILS_H */

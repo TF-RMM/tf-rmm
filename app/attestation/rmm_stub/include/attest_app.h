@@ -94,4 +94,11 @@ int attest_el3_token_write_response_to_ctx(struct app_data_cfg *app_data, uintpt
  */
 int attest_el3_token_sign_pull_response_from_el3(uintptr_t *cookie);
 
+/*
+ * ONLY FOR TESTING PURPOSES.
+ * Reset all per-cpu attest app instance state. Must be called after
+ * app_processes_cleanup() to prevent stale FDs/thread IDs being used.
+ */
+void attest_reset_app_state(void);
+
 #endif /* ATTEST_APP_H */

@@ -54,6 +54,16 @@ void sro_ctx_init(uintptr_t va, size_t sz)
 	pool->init = true;
 }
 
+void sro_ctx_reset(void)
+{
+	/* Clear per-CPU context references */
+	(void)memset(cpu_sro_ctx, 0, sizeof(cpu_sro_ctx));
+
+	/* Reset pool pointer so sro_ctx_init() can re-initialize after the
+	 * caller zeroes the backing glob_data memory. */
+	pool = NULL;
+}
+
 /*
  * Assigns a command context to the current CPU
  * It returns:
