@@ -584,6 +584,7 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 			/* no need to communicate to the device, return success */
 			(void)memset(exit_args, 0, sizeof(*exit_args));
 			rc = DEV_ASSIGN_STATUS_SUCCESS;
+			goto out;
 		} else {
 			assert(vd->rmi_state == RMI_VDEV_STATE_STARTED);
 			rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
