@@ -38,7 +38,8 @@ int app_console_putc(int character, const struct console *console)
 static void app_console_flush(const struct console *console)
 {
 	(void)console;
-	/* Do nothing */
+
+	(void)el0_app_service_call(APP_SERVICE_PRINT, 0U, 1U, 0U, 0U);
 }
 
 void init_console(void)

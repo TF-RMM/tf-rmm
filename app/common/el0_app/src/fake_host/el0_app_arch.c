@@ -33,6 +33,18 @@ struct app_instance_data_list_t {
 	struct app_instance_data_list_t *next;
 };
 
+/* Logging for RMM Fake Host EL0 apps */
+void rmm_log(const char *fmt, ...)
+{
+	va_list args;
+
+	va_start(args, fmt);
+	(void)vprintf(fmt, args);
+	va_end(args);
+
+	(void)fflush(stdout);
+}
+
 void *get_shared_mem_start(void)
 {
 	return shared_buffer;
