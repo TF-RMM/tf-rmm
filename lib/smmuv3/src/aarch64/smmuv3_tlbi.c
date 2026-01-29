@@ -15,6 +15,7 @@ static void spinlock_all(bool acquire)
 	struct smmuv3_driv *driv = get_smmuv3_driver();
 
 	assert(driv != NULL);
+
 	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
 		acquire ? spinlock_acquire(&driv->smmuv3_devs[i].lock) :
 			  spinlock_release(&driv->smmuv3_devs[i].lock);

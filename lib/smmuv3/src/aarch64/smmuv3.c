@@ -20,16 +20,16 @@
 /* Index to point STE in Level 2 table */
 #define L2_IDX(sid)	((sid) & ((U(1) << SMMU_STRTAB_SPLIT) - 1U))
 
-/* Log2 of max command record size */
-#define MAX_LOG2_CMD_RECORD_SIZE	8U
+/* Log2 of max command queue size */
+#define MAX_LOG2_CMD_QUEUE_SIZE	8U
 
-COMPILER_ASSERT(MAX_LOG2_CMD_RECORD_SIZE == \
+COMPILER_ASSERT(MAX_LOG2_CMD_QUEUE_SIZE == \
 		(GRANULE_SHIFT - (unsigned int)__builtin_ctz(CMD_RECORD_SIZE)));
 
-/* Log2 of max event record size */
-#define MAX_LOG2_EVT_RECORD_SIZE	7U
+/* Log2 of max event queue size */
+#define MAX_LOG2_EVT_QUEUE_SIZE	7U
 
-COMPILER_ASSERT(MAX_LOG2_EVT_RECORD_SIZE == \
+COMPILER_ASSERT(MAX_LOG2_EVT_QUEUE_SIZE == \
 		(GRANULE_SHIFT - (unsigned int)__builtin_ctz(EVT_RECORD_SIZE)));
 
 static struct smmuv3_driv *g_driver;
@@ -235,8 +235,8 @@ static int init_config(struct smmuv3_dev *smmu)
 	log2size = EXTRACT32(IDR1_CMDQS, idr1);
 
 	/* Restrict to 4KB command queue (256 entries) */
-	if (log2size > MAX_LOG2_CMD_RECORD_SIZE) {
-		log2size = MAX_LOG2_CMD_RECORD_SIZE;
+	if (log2size > MAX_LOG2_CMD_QUEUE_SIZE) {
+		log2size = MAX_LOG2_CMD_QUEUE_SIZE;
 	}
 
 	/* Use hardware-detected value bounded by max */
@@ -248,8 +248,8 @@ static int init_config(struct smmuv3_dev *smmu)
 	log2size = EXTRACT32(IDR1_EVTQS, idr1);
 
 	/* Restrict to 4KB event queue (128 entries) */
-	if (log2size > MAX_LOG2_EVT_RECORD_SIZE) {
-		log2size = MAX_LOG2_EVT_RECORD_SIZE;
+	if (log2size > MAX_LOG2_EVT_QUEUE_SIZE) {
+		log2size = MAX_LOG2_EVT_QUEUE_SIZE;
 	}
 
 	/* Use hardware-detected value bounded by max */
