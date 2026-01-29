@@ -15,7 +15,6 @@
 #include <gic.h>
 #include <glob_data.h>
 #include <plat_common.h>
-#include <rmm_el3_ifc.h>
 #include <sizes.h>
 #include <stdint.h>
 #include <xlat_contexts.h>

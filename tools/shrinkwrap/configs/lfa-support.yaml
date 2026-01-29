@@ -1,0 +1,23 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  This overlay enables LFA (Live Firmware Activation) testing for RMM.
+  It configures TF-A to enable LFA support and loads RMM at the
+  appropriate address (0xFDF00000) which needs to match with
+  RMM_BANK_SIZE + RMM_BASE expected by TF-A.
+
+build:
+  tfa:
+    params:
+      LFA_SUPPORT: 1
+
+run:
+  params:
+    # Load LFA RMM at 0xFDF00000. This needs to match with
+    # RMM_BANK_SIZE + RMM_BASE expected by TF-A
+    --data cluster0.cpu0: ${artifact:RMM}@'Physical Memory (Realm)':0xFDF00000

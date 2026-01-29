@@ -234,6 +234,7 @@ the ``--overlay`` keyword, as follows:
     .. code-block:: shell
 
       shrinkwrap build rmm-tftf.yaml --btvar=RMM_SRC=${PWD} --overlay=<OVERLAY_FILE_NAME> --no-sync=rmm
+      shrinkwrap run rmm-tftf.yaml --overlay=<OVERLAY_FILE_NAME>
 
 The path to the overlay can be relative to where Shrinkwrap is called from and you
 can use as many ``--overlay`` statements as needed.
@@ -247,6 +248,7 @@ The available Overlays are sumarized in the next table
    :header: "Overlay", "Description"
    :widths: 2 8
 
+   lfa-support.yaml,Overlay to build |TF-A| with LFA support enabled and load LFA RMM at expected address.
    model-enable-lpa2.yaml,Overlay used to enable ``FEAT_LPA2`` on the |FVP| model at run time. In addition this overlay also sets the ``PA_SIZE`` on the model to 52
    model-enable-mec.yaml,Overlay used to enable ``FEAT_MEC`` on the |FVP| model at run time.
    model-wait-debugger.yaml,Overlay to configure the |FVP| model to listen for Iris connections on port 7100 and make it wait until a debugger is connected before starting execution
@@ -281,6 +283,19 @@ Then you run your tests with
     .. code-block:: shell
 
        shrinkwrap --runtime=null run rmm-tftf.yaml
+
+To test |RMM| Live Firmware Activation (LFA) support, you can use the
+``lfa-support.yaml`` overlay along with other overlays as needed:
+
+    .. code-block:: shell
+
+       shrinkwrap build --btvar=RMM_SRC=${PWD} --overlay=rmm-debug.yaml --overlay rmm-v1_1.yaml --overlay=lfa-support.yaml rmm-tftf.yaml --no-sync-all
+
+To run the tests with MEC enabled :
+
+    .. code-block:: shell
+
+       shrinkwrap run --overlay model-enable-mec.yaml --overlay=lfa-support.yaml rmm-tftf.yaml
 
 .. note::
 

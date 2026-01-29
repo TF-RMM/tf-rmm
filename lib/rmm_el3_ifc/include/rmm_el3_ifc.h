@@ -504,7 +504,8 @@ int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
 
 /*
  * Return validated SMMUv3 list passed in plat_smmu pointer
- * from the Boot Manifest v0.5 onwards.
+ * from the Boot Manifest v0.5 onwards. Note that the SMMUv3 list
+ * is cached in RMM after processing the Boot Manifest.
  *
  * Args:
  *	- plat_smmu_list:	Return physical address to platform SMMUv3
@@ -518,7 +519,7 @@ int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
  *						    supported by this API.
  *	- E_RMM_BOOT_MANIFEST_DATA_ERROR	    Error parsing data.
  */
-int rmm_el3_ifc_get_smmu_list_pa(struct smmu_list **plat_smmu_list);
+int rmm_el3_ifc_get_cached_smmu_list_pa(struct smmu_list **plat_smmu_list);
 
 /*
  * Return validated Root Complex list from the Boot Manifest v0.5 onwards.

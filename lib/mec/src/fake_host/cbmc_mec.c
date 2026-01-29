@@ -4,12 +4,19 @@
  */
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 /* Stubs for CBMC analysis */
 
 void mec_init_mmu(void)
 {
 	return;
+}
+
+void mec_init_state(uintptr_t state, size_t state_size)
+{
+    return;
 }
 
 unsigned int mecid_max(void)

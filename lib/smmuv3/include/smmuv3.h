@@ -20,25 +20,34 @@ struct smmu_stg2_config {
 };
 
 /*
- * Set up the SMMU layout for the platform.
+ * Set up the SMMU driver and allocate resources for the SMMU instances.
  *
  * Parameters:
- * plat_smmu_list - pointer to 'smmu_list' structure which describes all SMMUs
- *		    that are to be managed by the driver.
+ *   plat_smmu_list - Pointer to the platform SMMU list containing SMMU configuration.
+ *   out_pa         - Output parameter for the physical address of allocated resources.
+ *   out_sz         - Output parameter for the size of allocated resources.
  *
- * This function must be called before smmuv3_init().
+ * Return:
+ *   Base virtual address of the driver handle on success.
  */
-void setup_smmuv3_layout(struct smmu_list *plat_smmu_list);
+uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
+		uintptr_t *out_pa, size_t *out_sz);
 
 /*
- * Initialise all platform SMMUs.
+ * Initialize all SMMU instances.
  *
- * This function walks the SMMU layout installed by setup_smmuv3_layout(),
- * disables each SMMU, probes capabilities, initialises queues, creates
+ * This function walks the SMMU layout installed by smmuv3_driver_setup(),
+ * disables each SMMU, probes capabilities, initializes queues, creates
  * stream tables, and finally enables Realm translation.
+ *
+ * Parameters:
+ *   driv_hdl       - Base VA of the driver handle.
+ *   hdl_sz         - Size of the driver handle.
  *
  * Return:
  *   0          - success.
+ *   -EINVAL    - invalid driv_hdl or hdl_sz.
+ *   -ENOMEM    - memory mapping or allocation failure.
  *   -ENODEV    - no SMMUs are defined in the layout.
  *   -ENOTSUP   - a required hardware feature is not supported.
  *   -ETIMEDOUT - SMMU command timeout.
@@ -47,7 +56,7 @@ void setup_smmuv3_layout(struct smmu_list *plat_smmu_list);
  * On -ENODEV and -ENOTSUP error, no STEs are programmed and the driver's
  * internal state remains unchanged.
  */
-int smmuv3_init(void);
+int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz);
 
 /*
  * Configure stage-2 translation parameters for a StreamID.

@@ -9,6 +9,7 @@
 #include <granule_types.h>
 #include <mapped_va_arch.h>
 #include <rmm_el3_ifc.h>
+#include <smmuv3.h>
 #include <xlat_low_va.h>
 
 static struct glob_data *glob;
@@ -17,7 +18,7 @@ uintptr_t glob_data_get_granules_va(size_t *alloc_size)
 {
 	if (glob == NULL) {
 		ERROR("Global data not initialized\n");
-		return 0ULL;
+		return 0UL;
 	}
 
 	if (alloc_size != NULL) {
@@ -31,7 +32,7 @@ uintptr_t glob_data_get_dev_granules_va(size_t *alloc_size)
 {
 	if (glob == NULL) {
 		ERROR("Global data not initialized\n");
-		return 0ULL;
+		return 0UL;
 	}
 
 	if (alloc_size != NULL) {
@@ -41,12 +42,54 @@ uintptr_t glob_data_get_dev_granules_va(size_t *alloc_size)
 	return MAPPED_VA_ARCH(glob->dev_granules_va, glob->dev_granules_pa);
 }
 
+uintptr_t glob_data_get_smmu_driv_hdl_va(size_t *alloc_size)
+{
+	if (glob == NULL) {
+		ERROR("Global data not initialized\n");
+		return 0UL;
+	}
+
+	if (alloc_size != NULL) {
+		*alloc_size = glob->smmu_driv_hdl_sz;
+	}
+
+	return MAPPED_VA_ARCH(glob->smmu_driv_hdl_va, glob->smmu_driv_hdl_pa);
+}
+
+uintptr_t glob_data_get_vmids_va(size_t *alloc_size)
+{
+	if (glob == NULL) {
+		ERROR("Global data not initialized\n");
+		return 0UL;
+	}
+
+	if (alloc_size != NULL) {
+		*alloc_size = VMID_ARRAY_LONG_SIZE * sizeof(unsigned long);
+	}
+
+	return (uintptr_t)glob->vmid_bitmap;
+}
+
+uintptr_t glob_data_get_mec_state_va(size_t *alloc_size)
+{
+	if (glob == NULL) {
+		ERROR("Global data not initialized\n");
+		return 0UL;
+	}
+
+	if (alloc_size != NULL) {
+		*alloc_size = sizeof(struct mec_state_s);
+	}
+	return (uintptr_t)&glob->mec_state;
+}
+
 uintptr_t glob_data_init(struct glob_data *gl,
 		unsigned long max_gr, unsigned long max_dev_gr)
 {
 	int ret;
 	uintptr_t buf_pa, va;
 	struct glob_data *new_gl;
+	struct smmu_list *plat_smmu_list;
 
 	if (glob != NULL) {
 		return glob->glob_data_pa;
@@ -76,13 +119,13 @@ uintptr_t glob_data_init(struct glob_data *gl,
 	ret = rmm_el3_ifc_reserve_memory(GLOB_DATA_MAX_SIZE, 0, GRANULE_SIZE, &buf_pa);
 	if (ret != 0) {
 		ERROR("Failed to reserve memory for glob_data\n");
-		return 0ULL;
+		return 0UL;
 	}
 
 	va = xlat_low_va_map(GLOB_DATA_MAX_SIZE, MT_RW_DATA | MT_REALM, buf_pa, true);
 	if (va == 0U) {
 		ERROR("Failed to allocate VA for glob_data\n");
-		return 0ULL;
+		return 0UL;
 	}
 
 	assert(va == xlat_low_va_get_dyn_va_base());
@@ -104,7 +147,7 @@ uintptr_t glob_data_init(struct glob_data *gl,
 					 &new_gl->granules_pa);
 	if (ret != 0) {
 		ERROR("Failed to reserve memory for granules array\n");
-		return 0ULL;
+		return 0UL;
 	}
 
 	new_gl->granules_va = xlat_low_va_map(new_gl->granules_size,
@@ -113,7 +156,7 @@ uintptr_t glob_data_init(struct glob_data *gl,
 					      true);
 	if (new_gl->granules_va == 0U) {
 		ERROR("Failed to allocate VA for granules array\n");
-		return 0ULL;
+		return 0UL;
 	}
 
 	/* Allocate VA for dev_granules array */
@@ -126,7 +169,7 @@ uintptr_t glob_data_init(struct glob_data *gl,
 						 &new_gl->dev_granules_pa);
 		if (ret != 0) {
 			ERROR("Failed to reserve memory for dev_granules array\n");
-			return 0ULL;
+			return 0UL;
 		}
 
 		new_gl->dev_granules_va =
@@ -135,11 +178,29 @@ uintptr_t glob_data_init(struct glob_data *gl,
 					new_gl->dev_granules_pa, true);
 		if (new_gl->dev_granules_va == 0U) {
 			ERROR("Failed to allocate VA for dev_granules array\n");
-			return 0ULL;
+			return 0UL;
 		}
 	}
 
+	/* Set up SMMU layout */
+	ret = rmm_el3_ifc_get_cached_smmu_list_pa(&plat_smmu_list);
+	if (ret == 0) {
+		new_gl->smmu_driv_hdl_va = smmuv3_driver_setup(plat_smmu_list,
+				&new_gl->smmu_driv_hdl_pa,
+				&new_gl->smmu_driv_hdl_sz);
+
+		if (new_gl->smmu_driv_hdl_va == 0UL) {
+			ERROR("Failed to set up SMMU driver\n");
+			return 0UL;
+		}
+	} else {
+		INFO("No SMMU list available\n");
+	}
+
 	glob = new_gl;
+
+	/* Flush global data itself as it may be accessed in next RMM with MMU off */
+	flush_dcache_range((uintptr_t)new_gl, sizeof(struct glob_data));
 
 	return new_gl->glob_data_pa;
 }

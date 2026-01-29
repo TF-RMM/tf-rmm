@@ -524,7 +524,7 @@ void app_framework_setup(void)
 			section_start_pa((uintptr_t)app_header, app_header->section_text_offset),
 			app_header->section_text_va,
 			app_header->section_text_size,
-			MT_CODE | MT_REALM | MT_EXEC_UNPRIV | MT_NG,
+			MT_CODE | MT_REALM | MT_EXEC_UNPRIV | MT_AP_UNPRIV | MT_NG,
 			PAGE_SIZE
 		};
 		app_id_data->mm_regions_array[RMM_APP_TEXT_MMAP_IDX] = region_text;

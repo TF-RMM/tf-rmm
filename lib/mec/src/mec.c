@@ -11,14 +11,6 @@
 #include <mec.h>
 #include <memory.h>
 #include <rmm_el3_ifc.h>
-#include <sizes.h>
-#include <spinlock.h>
-
-#define MECID_WIDTH	U(16)
-#define MEC_MAX_COUNT	(U(1) << MECID_WIDTH)
-#define MECID_INVALID	U(-1)
-
-#define MECID_ARRAY_SIZE	((MEC_MAX_COUNT) / BITS_PER_UL)
 
 #define MECID_SYSTEM_BIT	(1U << (RESERVED_MECID_SYSTEM % BITS_PER_UL))
 #define MECID_SYSTEM_OFFSET	(RESERVED_MECID_SYSTEM / BITS_PER_UL)
@@ -40,37 +32,7 @@ COMPILER_ASSERT(MECID_SYSTEM_OFFSET == 0U);
 
 #define MEC_RESERVE_INITALIZER		(MECID_DEFAULT_SHARED_BIT | MECID_SYSTEM_BIT)
 
-struct mec_state_s {
-	/*
-	 * Together, the mec_reserved array and the shared_mec value define the
-	 * state of all MECs in the system.
-	 *
-	 * For a given mecid:
-	 *
-	 * if mecid == shared_mec
-	 *     MEC state is SHARED
-	 *
-	 * if mec_reserved[mecid] == true
-	 *     MEC state is PRIVATE_ASSIGNED or SHARED or RESERVED.
-	 * else
-	 *     MEC state is PRIVATE_UNASSIGNED
-	 */
-	unsigned long shared_mec_members;
-	unsigned int shared_mec;
-
-	spinlock_t shared_mecid_spinlock;
-
-	/* The bitmap for the reserved/used MECID values.*/
-	unsigned long mec_reserved[MECID_ARRAY_SIZE];
-};
-
-/* coverity[misra_c_2012_rule_9_3_violation:SUPPRESS] */
-static struct mec_state_s mec_state = { /* cppcheck-suppress misra-c2012-8.4 */
-	/* cppcheck-suppress misra-c2012-13.4 */
-	.shared_mec = MECID_DEFAULT_SHARED,
-	.mec_reserved = { [0] = MEC_RESERVE_INITALIZER, /* MECID_SYSTEM_OFFSET */
-		 [1 ... (MECID_ARRAY_SIZE - 1)] = 0 }
-};
+static struct mec_state_s *g_mec_state;
 
 static uint64_t mecid_pcpcu_refcnt[MAX_CPUS];
 
@@ -136,7 +98,7 @@ static bool mec_reserve(unsigned int mecid)
 	offset = mecid / BITS_PER_UL;
 	bit = mecid % BITS_PER_UL;
 
-	if (!atomic_bit_set_acquire_release_64(&mec_state.mec_reserved[offset],
+	if (!atomic_bit_set_acquire_release_64(&g_mec_state->mec_reserved[offset],
 						bit)) {
 		/*
 		 * Tweak the key associated with the MECID. This function
@@ -166,7 +128,7 @@ static void mec_release(unsigned int mecid)
 	 * is called before releasing the MECID.
 	 */
 	(void)rmm_el3_ifc_mec_refresh((unsigned short)mecid, true);
-	atomic_bit_clear_release_64(&mec_state.mec_reserved[offset], bit);
+	atomic_bit_clear_release_64(&g_mec_state->mec_reserved[offset], bit);
 }
 
 /*
@@ -183,16 +145,16 @@ int mec_set_shared(unsigned int mecid)
 		return ret;
 	}
 
-	spinlock_acquire(&mec_state.shared_mecid_spinlock);
+	spinlock_acquire(&g_mec_state->shared_mecid_spinlock);
 	/* cppcheck-suppress misra-c2012-17.3 */
-	if ((SCA_READ32(&mec_state.shared_mec) == MECID_INVALID) &&
+	if ((SCA_READ32(&g_mec_state->shared_mec) == MECID_INVALID) &&
 			mec_reserve(mecid)) {
-		assert(mec_state.shared_mec_members == 0U);
+		assert(g_mec_state->shared_mec_members == 0U);
 		/* To match with read-acquire when read outside spinlock */
-		SCA_WRITE32_RELEASE(&mec_state.shared_mec, mecid);
+		SCA_WRITE32_RELEASE(&g_mec_state->shared_mec, mecid);
 		ret = 0;
 	}
-	spinlock_release(&mec_state.shared_mecid_spinlock);
+	spinlock_release(&g_mec_state->shared_mecid_spinlock);
 
 	return ret;
 }
@@ -215,18 +177,18 @@ int mec_set_private(unsigned int mecid)
 		return -1;
 	}
 
-	spinlock_acquire(&mec_state.shared_mecid_spinlock);
+	spinlock_acquire(&g_mec_state->shared_mecid_spinlock);
 
-	if ((mec_state.shared_mec_members == 0U) &&
-		(mecid == SCA_READ32(&mec_state.shared_mec))) { /* cppcheck-suppress misra-c2012-17.3 */
+	if ((g_mec_state->shared_mec_members == 0U) &&
+		(mecid == SCA_READ32(&g_mec_state->shared_mec))) { /* cppcheck-suppress misra-c2012-17.3 */
 		mec_release(mecid);
 		/* To match with read-acquire when read outside spinlock */
 		/* cppcheck-suppress misra-c2012-17.3 */
-		SCA_WRITE32_RELEASE(&mec_state.shared_mec, MECID_INVALID);
-		spinlock_release(&mec_state.shared_mecid_spinlock);
+		SCA_WRITE32_RELEASE(&g_mec_state->shared_mec, MECID_INVALID);
+		spinlock_release(&g_mec_state->shared_mecid_spinlock);
 		return 0;
 	}
-	spinlock_release(&mec_state.shared_mecid_spinlock);
+	spinlock_release(&g_mec_state->shared_mecid_spinlock);
 
 	return -1;
 }
@@ -252,19 +214,19 @@ bool mecid_reserve(unsigned int mecid)
 
 	assert(read_mecid_a1_el2() == RESERVED_MECID_SYSTEM);
 
-	spinlock_acquire(&mec_state.shared_mecid_spinlock);
-	if (mecid == SCA_READ32(&mec_state.shared_mec)) { /* cppcheck-suppress misra-c2012-17.3 */
+	spinlock_acquire(&g_mec_state->shared_mecid_spinlock);
+	if (mecid == SCA_READ32(&g_mec_state->shared_mec)) { /* cppcheck-suppress misra-c2012-17.3 */
 		bool ret;
-		if (mec_state.shared_mec_members < UINT64_MAX) {
-			mec_state.shared_mec_members++;
+		if (g_mec_state->shared_mec_members < UINT64_MAX) {
+			g_mec_state->shared_mec_members++;
 			ret = true;
 		} else {
 			ret = false;
 		}
-		spinlock_release(&mec_state.shared_mecid_spinlock);
+		spinlock_release(&g_mec_state->shared_mecid_spinlock);
 		return ret;
 	}
-	spinlock_release(&mec_state.shared_mecid_spinlock);
+	spinlock_release(&g_mec_state->shared_mecid_spinlock);
 	return mec_reserve(mecid);
 }
 
@@ -285,15 +247,15 @@ void mecid_free(unsigned int mecid)
 	/* The MECID is already validated during assign */
 	assert(IS_MEC_VALID(mecid));
 
-	spinlock_acquire(&mec_state.shared_mecid_spinlock);
+	spinlock_acquire(&g_mec_state->shared_mecid_spinlock);
 	/* cppcheck-suppress misra-c2012-17.3 */
-	if (mecid == SCA_READ32(&mec_state.shared_mec)) {
-		assert(mec_state.shared_mec_members > 0U);
-		mec_state.shared_mec_members--;
-		spinlock_release(&mec_state.shared_mecid_spinlock);
+	if (mecid == SCA_READ32(&g_mec_state->shared_mec)) {
+		assert(g_mec_state->shared_mec_members > 0U);
+		g_mec_state->shared_mec_members--;
+		spinlock_release(&g_mec_state->shared_mecid_spinlock);
 		return;
 	}
-	spinlock_release(&mec_state.shared_mecid_spinlock);
+	spinlock_release(&g_mec_state->shared_mecid_spinlock);
 	mec_release(mecid);
 }
 
@@ -316,7 +278,7 @@ bool mec_is_realm_mecid_s2_pvt(void)
 	 * is only updated under the `shared_mecid_spinlock`. Read
 	 * with ACQUIRE semantics.
 	 */
-	return (mecid != SCA_READ32_ACQUIRE(&mec_state.shared_mec));
+	return (mecid != SCA_READ32_ACQUIRE(&g_mec_state->shared_mec));
 }
 
 #if (RMM_MEM_SCRUB_METHOD == 1)
@@ -340,8 +302,6 @@ void mec_init_mmu(void)
 	 * update any global data.
 	 */
 	assert(!is_mmu_enabled());
-
-	INFO(SCRUB_METHOD_STRING);
 
 	/* cppcheck-suppress knownConditionTrueFalse */
 	if ((!is_feat_sctlr2x_present()) || (!is_feat_mec_present())) {
@@ -371,18 +331,51 @@ void mec_init_mmu(void)
 }
 
 /*
+ * Initialize MEC state values to default/reset state.
+ */
+static void mec_state_init_values(void)
+{
+	g_mec_state->shared_mec = MECID_DEFAULT_SHARED;
+	g_mec_state->shared_mec_members = 0U;
+
+	for (unsigned int i = 0U; i < MECID_ARRAY_SIZE; i++) {
+		g_mec_state->mec_reserved[i] = 0UL;
+	}
+	g_mec_state->mec_reserved[MECID_SYSTEM_OFFSET] = MEC_RESERVE_INITALIZER;
+}
+
+/*
+ * Initialize MEC state structure. Skip initialization if already done.
+ */
+void mec_init_state(uintptr_t state, size_t state_size)
+{
+	assert(state != 0UL);
+
+	(void)state_size;
+
+	g_mec_state = (struct mec_state_s *)state;
+	assert(state_size >= sizeof(struct mec_state_s));
+
+	INFO(SCRUB_METHOD_STRING);
+
+	if (g_mec_state->is_init == true) {
+		/* Use mec_state from previous RMM */
+		return;
+	}
+
+	/* Initialize mec_state with default values */
+	mec_state_init_values();
+
+	g_mec_state->is_init = true;
+}
+
+/*
  * Test API, only used for unit tests
  */
 void mec_test_reset(void)
 {
 	/* Reset MEC state to power-on reset values. */
-	mec_state.shared_mec = MECID_DEFAULT_SHARED;
-	mec_state.shared_mec_members = 0U;
-	for (unsigned int i = 0U; i < MECID_ARRAY_SIZE; i++) {
-		mec_state.mec_reserved[i] = 0UL;
-	}
-	mec_state.mec_reserved[MECID_SYSTEM_OFFSET] =
-				MEC_RESERVE_INITALIZER;
+	mec_state_init_values();
 
 	for (unsigned int i = 0U; i < MAX_CPUS; i++) {
 		mecid_pcpcu_refcnt[i] = 0U;

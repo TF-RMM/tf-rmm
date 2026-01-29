@@ -10,6 +10,8 @@
 #include <arch_features.h>
 #include <arch_helpers.h>
 #include <assert.h>
+#include <sizes.h>
+#include <spinlock.h>
 #include <stdint.h>
 
 /*
@@ -48,9 +50,43 @@
  */
 #define INTERNAL_MECID(id)	((id) + RESERVED_IDS)
 
+#define MECID_WIDTH	U(16)
+#define MEC_MAX_COUNT	(U(1) << MECID_WIDTH)
+#define MECID_INVALID	U(-1)
+
+#define MECID_ARRAY_SIZE	((MEC_MAX_COUNT) / BITS_PER_UL)
+
+struct mec_state_s {
+	/*
+	 * Together, the mec_reserved array and the shared_mec value define the
+	 * state of all MECs in the system.
+	 *
+	 * For a given mecid:
+	 *
+	 * if mecid == shared_mec
+	 *     MEC state is SHARED
+	 *
+	 * if mec_reserved[mecid] == true
+	 *     MEC state is PRIVATE_ASSIGNED or SHARED or RESERVED.
+	 * else
+	 *     MEC state is PRIVATE_UNASSIGNED
+	 */
+	unsigned long shared_mec_members;
+	unsigned int shared_mec;
+
+	spinlock_t shared_mecid_spinlock;
+
+	/* The bitmap for the reserved/used MECID values.*/
+	unsigned long mec_reserved[MECID_ARRAY_SIZE];
+
+	/* Indicates whether the mec_state has been initialized */
+	bool is_init;
+};
+
 /* MEC helper functions */
 
 void mec_init_mmu(void);
+void mec_init_state(uintptr_t state, size_t state_size);
 unsigned int mecid_max(void);
 int mec_set_private(unsigned int mecid);
 int mec_set_shared(unsigned int mecid);

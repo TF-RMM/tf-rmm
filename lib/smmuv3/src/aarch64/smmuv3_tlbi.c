@@ -12,17 +12,25 @@
 /* Acquire/release all SMMUs' locks */
 static void spinlock_all(bool acquire)
 {
-	for (unsigned long i = 0UL; i < arm_smmu.num_smmus; i++) {
-		acquire ? spinlock_acquire(&arm_smmu_driver[i].lock) :
-			  spinlock_release(&arm_smmu_driver[i].lock);
+	struct smmuv3_driv *driv = get_smmuv3_driver();
+
+	assert(driv != NULL);
+
+	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
+		acquire ? spinlock_acquire(&driv->smmuv3_devs[i].lock) :
+			  spinlock_release(&driv->smmuv3_devs[i].lock);
 	}
 }
 
 /* Wait for completion of the last command on all SMMUs */
 static int wait_cmdq_all(void)
 {
-	for (unsigned long i = 0UL; i < arm_smmu.num_smmus; i++) {
-		struct smmuv3_driver *smmu = &arm_smmu_driver[i];
+	struct smmuv3_driv *driv = get_smmuv3_driver();
+
+	assert(driv != NULL);
+
+	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
+		struct smmuv3_dev *smmu = &driv->smmuv3_devs[i];
 
 		/* Check if SMMU participates in broadcast TLB maintenance */
 		if ((smmu->config.features & FEAT_BTM) == 0U) {
@@ -37,7 +45,7 @@ static int wait_cmdq_all(void)
 	return 0;
 }
 
-static int tlbi_ipa_single(struct smmuv3_driver *smmu,
+static int tlbi_ipa_single(struct smmuv3_dev *smmu,
 			   unsigned int vmid,
 			   unsigned long addr,
 			   unsigned long size)
@@ -53,7 +61,7 @@ static int tlbi_ipa_single(struct smmuv3_driver *smmu,
 					   vmid,
 					   addr);
 		if (ret != 0) {
-			SMMU_ERROR(ret, "Failed to send CMD_%s\n", "TLBI_S2_IPA");
+			SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "TLBI_S2_IPA");
 			return ret;
 		}
 
@@ -67,7 +75,7 @@ static int tlbi_ipa_single(struct smmuv3_driver *smmu,
 	 */
 	ret = prepare_send_command(smmu, CMD_SYNC, 0UL, 0UL);
 	if (ret != 0) {
-		SMMU_ERROR(ret, "Failed to send CMD_%s\n", "SYNC");
+		SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "SYNC");
 	}
 	return ret;
 }
@@ -76,13 +84,16 @@ static int tlbi_ipa(unsigned int vmid, unsigned long addr,
 		    unsigned long size)
 {
 	int ret;
+	struct smmuv3_driv *driv = get_smmuv3_driver();
+
+	assert(driv != NULL);
 
 	if (!ALIGNED(addr, size)) {
 		return -EINVAL;
 	}
 
 	/* Broadcast TLB maintenance is supported on all SMMUs */
-	if (broadcast_tlb) {
+	if (get_smmu_broadcast_tlb()) {
 		return 0;
 	}
 
@@ -92,8 +103,8 @@ static int tlbi_ipa(unsigned int vmid, unsigned long addr,
 	 */
 	spinlock_all(true);
 
-	for (unsigned long i = 0UL; i < arm_smmu.num_smmus; i++) {
-		struct smmuv3_driver *smmu = &arm_smmu_driver[i];
+	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
+		struct smmuv3_dev *smmu = &driv->smmuv3_devs[i];
 
 		/* Check if SMMU participates in broadcast TLB maintenance */
 		if ((smmu->config.features & FEAT_BTM) == 0U) {
@@ -113,20 +124,20 @@ static int tlbi_ipa(unsigned int vmid, unsigned long addr,
 	return ret;
 }
 
-static int tlbi_single(struct smmuv3_driver *smmu)
+static int tlbi_single(struct smmuv3_dev *smmu)
 {
 	int ret;
 
 	ret = prepare_send_command(smmu, CMD_TLBI_NSNH_ALL, 0UL, 0UL);
 	if (ret != 0) {
-		SMMU_ERROR(ret, "Failed to send CMD_%s\n", "TLBI_NSNH_ALL");
+		SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "TLBI_NSNH_ALL");
 		return ret;
 	}
 
 	/* Caller will wait for completion */
 	ret = prepare_send_command(smmu, CMD_SYNC, 0UL, 0UL);
 	if (ret != 0) {
-		SMMU_ERROR(ret, "Failed to send CMD_%s\n", "SYNC");
+		SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "SYNC");
 	}
 	return ret;
 }
@@ -149,9 +160,12 @@ int smmuv3_inv_pages_in_block(unsigned int vmid, unsigned long addr)
 int smmuv3_inv(void)
 {
 	int ret;
+	struct smmuv3_driv *driv = get_smmuv3_driver();
+
+	assert(driv != NULL);
 
 	/* Broadcast TLB maintenance is supported on all SMMUs */
-	if (broadcast_tlb) {
+	if (get_smmu_broadcast_tlb()) {
 		return 0;
 	}
 
@@ -161,8 +175,8 @@ int smmuv3_inv(void)
 	 */
 	spinlock_all(true);
 
-	for (unsigned long i = 0UL; i < arm_smmu.num_smmus; i++) {
-		struct smmuv3_driver *smmu = &arm_smmu_driver[i];
+	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
+		struct smmuv3_dev *smmu = &driv->smmuv3_devs[i];
 
 		/* Check if SMMU participates in broadcast TLB maintenance */
 		if ((smmu->config.features & FEAT_BTM) == 0U) {
@@ -184,7 +198,7 @@ int smmuv3_inv(void)
 
 int smmuv3_inv_entries(unsigned long smmu_idx, unsigned int vmid)
 {
-	struct smmuv3_driver *smmu;
+	struct smmuv3_dev *smmu;
 	int ret;
 
 	smmu = get_by_index(smmu_idx, 0U);
@@ -208,13 +222,13 @@ int smmuv3_inv_entries(unsigned long smmu_idx, unsigned int vmid)
 
 	ret = prepare_send_command(smmu, CMD_TLBI_S12_VMALL, vmid, 0UL);
 	if (ret != 0) {
-		SMMU_ERROR(ret, "Failed to send CMD_%s\n", "TLBI_S12_VMALL");
+		SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "TLBI_S12_VMALL");
 		goto out_invalidate;
 	}
 
 	ret = prepare_send_command(smmu, CMD_SYNC, 0UL, 0UL);
 	if (ret != 0) {
-		SMMU_ERROR(ret, "Failed to send CMD_%s\n", "SYNC");
+		SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "SYNC");
 		goto out_invalidate;
 	}
 
@@ -225,4 +239,3 @@ out_invalidate:
 	spinlock_release(&smmu->lock);
 	return ret;
 }
-
