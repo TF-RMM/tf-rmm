@@ -88,10 +88,8 @@ struct mec_state_s {
 void mec_init_mmu(void);
 void mec_init_state(uintptr_t state, size_t state_size);
 unsigned int mecid_max(void);
-int mec_set_private(unsigned int mecid);
-int mec_set_shared(unsigned int mecid);
-bool mecid_reserve(unsigned int mecid);
 void mecid_free(unsigned int mecid);
+bool mecid_alloc(unsigned int *mecid, unsigned int mec_policy);
 
 void _mecid_s1_get(unsigned int mecid);
 void _mecid_s1_put(void);

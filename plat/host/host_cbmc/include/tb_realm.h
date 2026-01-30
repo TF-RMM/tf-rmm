@@ -47,7 +47,6 @@ struct rmi_realm_params_buffer {
 	uint8_t pmu_num_ctrs;
 	uint8_t hash_algo;
 	uint8_t rpv[RPV_SIZE];
-	uint16_t vmid;
 	uint64_t rtt_base;
 	int64_t rtt_level_start;
 	uint32_t rtt_num_start;

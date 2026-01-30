@@ -16,8 +16,8 @@
 /* The long int array size for VMID bitmap */
 #define VMID_ARRAY_LONG_SIZE	(MAX_VMID_COUNT / BITS_PER_UL)
 
-bool vmid_reserve(unsigned int vmid);
 void vmid_free(unsigned int vmid);
 void vmid_init(uintptr_t alloc, size_t alloc_size);
+bool vmid_alloc(unsigned int *vmid);
 
 #endif /* VMID_H */

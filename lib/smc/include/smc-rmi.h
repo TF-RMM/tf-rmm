@@ -839,14 +839,16 @@
 #define SMC_RMI_RTT_SET_S2AP			SMC64_RMI_FID(U(0x3B))
 
 /*
- * FID: 0xC400018C
+ * The MEC protects memory owned by multiple Realms. A MEC with this policy
+ * may be referred to as a Shared MEC.
  */
-#define SMC_RMI_MEC_SET_SHARED			SMC64_RMI_FID(U(0x3C))
+#define RMI_MEC_POLICY_SHARED			U(0)
 
 /*
- * FID: 0xC400018D
+ * The MEC protects memory owned by a single Realm. A MEC with this policy
+ * may be referred to as a Private MEC.
  */
-#define SMC_RMI_MEC_SET_PRIVATE			SMC64_RMI_FID(U(0x3D))
+#define RMI_MEC_POLICY_PRIVATE			U(1)
 
 /*
  * FID: 0xC400018E
@@ -1041,17 +1043,20 @@
 #endif
 
 /* RmiRealmFlags0 format */
-#define RMI_REALM_FLAGS0_LPA2_SHIFT	UL(0)
-#define RMI_REALM_FLAGS0_LPA2_WIDTH	UL(1)
+#define RMI_REALM_FLAGS0_LPA2_SHIFT		UL(0)
+#define RMI_REALM_FLAGS0_LPA2_WIDTH		UL(1)
 
-#define RMI_REALM_FLAGS0_SVE_SHIFT	UL(1)
-#define RMI_REALM_FLAGS0_SVE_WIDTH	UL(1)
+#define RMI_REALM_FLAGS0_SVE_SHIFT		UL(1)
+#define RMI_REALM_FLAGS0_SVE_WIDTH		UL(1)
 
-#define RMI_REALM_FLAGS0_PMU_SHIFT	UL(2)
-#define RMI_REALM_FLAGS0_PMU_WIDTH	UL(1)
+#define RMI_REALM_FLAGS0_PMU_SHIFT		UL(2)
+#define RMI_REALM_FLAGS0_PMU_WIDTH		UL(1)
 
-#define RMI_REALM_FLAGS0_DA_SHIFT	UL(3)
-#define RMI_REALM_FLAGS0_DA_WIDTH	UL(1)
+#define RMI_REALM_FLAGS0_DA_SHIFT		UL(3)
+#define RMI_REALM_FLAGS0_DA_WIDTH		UL(1)
+
+#define RMI_REALM_FLAGS0_MEC_POLICY_SHIFT	UL(7)
+#define RMI_REALM_FLAGS0_MEC_POLICY_WIDTH	UL(2)
 
 /* RmiRealmFlags1 format */
 #define RMI_REALM_FLAGS1_RTT_TREE_PP_SHIFT	UL(0)
@@ -1142,24 +1147,18 @@ struct rmi_realm_params {
 	 * If ATS is enabled, determines the stage 2 translation used by devices
 	 * assigned to the Realm.
 	 */
-	SET_MEMBER_RMI(unsigned long ats_plane, 0x440, 0x800);		/* 0x440 */
+	SET_MEMBER_RMI(unsigned long ats_plane, 0x440, 0x808);		/* 0x440 */
 
 	SET_MEMBER_RMI(struct {
-			/* Virtual Machine Identifier */
-			unsigned short vmid;				/* 0x800 */
 			/* Realm Translation Table base */
 			unsigned long rtt_base;				/* 0x808 */
 			/* RTT starting level */
 			long rtt_level_start;				/* 0x810 */
 			/* Number of starting level RTTs */
 			unsigned int rtt_num_start;			/* 0x818 */
-		   }, 0x800, 0x820);
+		   }, 0x808, 0x820);
 	/* RmiRealmFlags1 */
-	SET_MEMBER_RMI(unsigned long flags1, 0x820, 0x828);		/* 0x820 */
-	/* MECID */
-	SET_MEMBER_RMI(long mecid, 0x828, 0xF00);			/* 0x828 */
-	/* Auxiliary Virtual Machine Identifiers */
-	SET_MEMBER_RMI(unsigned short aux_vmid[3], 0xF00, 0xF80);	/* 0xF00 */
+	SET_MEMBER_RMI(unsigned long flags1, 0x820, 0xF80);		/* 0x820 */
 	/* Base address of auxiliary RTTs */
 	SET_MEMBER_RMI(unsigned long aux_rtt_base[3], 0xF80, 0x1000);	/* 0xF80 */
 };

@@ -11,6 +11,7 @@
 #include <mec.h>
 #include <memory.h>
 #include <rmm_el3_ifc.h>
+#include <smc-rmi.h>
 
 #define MECID_SYSTEM_BIT	(1U << (RESERVED_MECID_SYSTEM % BITS_PER_UL))
 #define MECID_SYSTEM_OFFSET	(RESERVED_MECID_SYSTEM / BITS_PER_UL)
@@ -132,74 +133,12 @@ static void mec_release(unsigned int mecid)
 }
 
 /*
- * Helper to set a MECID as shared. Check that there is no shared MECID
- * and if MECID reservation is successful, then sets the MECID as shared.
- */
-int mec_set_shared(unsigned int mecid)
-{
-	int ret = -EINVAL;
-
-	mecid = INTERNAL_MECID(mecid);
-
-	if (!(IS_MEC_VALID(mecid))) {
-		return ret;
-	}
-
-	spinlock_acquire(&g_mec_state->shared_mecid_spinlock);
-	/* cppcheck-suppress misra-c2012-17.3 */
-	if ((SCA_READ32(&g_mec_state->shared_mec) == MECID_INVALID) &&
-			mec_reserve(mecid)) {
-		assert(g_mec_state->shared_mec_members == 0U);
-		/* To match with read-acquire when read outside spinlock */
-		SCA_WRITE32_RELEASE(&g_mec_state->shared_mec, mecid);
-		ret = 0;
-	}
-	spinlock_release(&g_mec_state->shared_mecid_spinlock);
-
-	return ret;
-}
-
-/*
- * Helper to set a Shared MECID as Private. If there are no Realms
- * using the Shared MECID and if the MECID was Shared, then
- * release the MECID reservation.
- */
-int mec_set_private(unsigned int mecid)
-{
-	mecid = INTERNAL_MECID(mecid);
-
-	/* cppcheck-suppress knownConditionTrueFalse */
-	if (!is_feat_mec_present()) {
-		return -1;
-	}
-
-	if (!(IS_MEC_VALID(mecid))) {
-		return -1;
-	}
-
-	spinlock_acquire(&g_mec_state->shared_mecid_spinlock);
-
-	if ((g_mec_state->shared_mec_members == 0U) &&
-		(mecid == SCA_READ32(&g_mec_state->shared_mec))) { /* cppcheck-suppress misra-c2012-17.3 */
-		mec_release(mecid);
-		/* To match with read-acquire when read outside spinlock */
-		/* cppcheck-suppress misra-c2012-17.3 */
-		SCA_WRITE32_RELEASE(&g_mec_state->shared_mec, MECID_INVALID);
-		spinlock_release(&g_mec_state->shared_mecid_spinlock);
-		return 0;
-	}
-	spinlock_release(&g_mec_state->shared_mecid_spinlock);
-
-	return -1;
-}
-
-/*
  * Assign a MECID for a particular Realm. Reserve
  * the MECID if it is not Shared. If Shared, increment
  * the use count.
  * Returns true if successful, else returns false.
  */
-bool mecid_reserve(unsigned int mecid)
+static bool mecid_reserve(unsigned int mecid)
 {
 	/* cppcheck-suppress knownConditionTrueFalse */
 	if (!is_feat_mec_present()) {
@@ -257,6 +196,90 @@ void mecid_free(unsigned int mecid)
 	}
 	spinlock_release(&g_mec_state->shared_mecid_spinlock);
 	mec_release(mecid);
+}
+
+/*
+ * Returns a starting position for allocation search by scanning all bitmap
+ * words for the first free MECID.
+ */
+static unsigned int mecid_hint(void)
+{
+	/* cppcheck-suppress knownConditionTrueFalse */
+	if (!is_feat_mec_present()) {
+		return 0U;
+	}
+
+	for (unsigned int i = 0U; i < MECID_ARRAY_SIZE; i++) {
+		unsigned long word_val = g_mec_state->mec_reserved[i];
+
+		if (word_val != ~0UL) {
+			return i * BITS_PER_UL +
+				(unsigned int)__builtin_ctzl(~word_val);
+		}
+	}
+
+	return 0U;
+}
+
+/*
+ * Allocates a free MECID from the available pool.
+ * @mec_policy: MEC policy (RMI_MEC_POLICY_SHARED or RMI_MEC_POLICY_PRIVATE)
+ * Returns:
+ * - True, on success and sets mecid to the allocated value
+ *   or FEAT_MEC is not present
+ * - False, if no free MECID is available or invalid policy
+ */
+bool mecid_alloc(unsigned int *mecid, unsigned int mec_policy)
+{
+	unsigned int max_mecid;
+	unsigned int mecid_count;
+	unsigned int i;
+	unsigned int start_hint;
+
+	/* set mecid to 0, it is converted to INTERNAL_MECID later */
+	/* cppcheck-suppress knownConditionTrueFalse */
+	if (!is_feat_mec_present()) {
+		*mecid = 0U;
+		return true;
+	}
+
+	/* Handle policy-based allocation */
+	if (mec_policy == RMI_MEC_POLICY_SHARED) {
+		if (!mecid_reserve(0U)) {
+			return false;
+		}
+		*mecid = 0U;
+		return true;
+	} else if (mec_policy != RMI_MEC_POLICY_PRIVATE) {
+		/* Invalid policy */
+		return false;
+	}
+
+	/* Allocate new MECID for private policy */
+	max_mecid = mecid_max();
+	mecid_count = max_mecid + 1U;
+
+	/* Get hint for where to start searching */
+	start_hint = mecid_hint();
+	if (start_hint >= mecid_count) {
+		start_hint = 0U;
+	}
+
+	/* Search for a free MECID in the bitmap, in two phases */
+	for (i = start_hint; i < mecid_count; i++) {
+		if (mecid_reserve(i)) {
+			*mecid = i;
+			return true;
+		}
+	}
+	for (i = 0U; i < start_hint; i++) {
+		if (mecid_reserve(i)) {
+			*mecid = i;
+			return true;
+		}
+	}
+
+	return false;
 }
 
 /*

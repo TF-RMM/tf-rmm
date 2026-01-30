@@ -16,13 +16,10 @@ COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, pmu_num_ctrs)) == 0x
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, algorithm)) == 0x30U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, num_aux_planes)) == 0x38U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, rpv)) == 0x400U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, vmid)) == 0x800U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, rtt_base)) == 0x808U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, rtt_level_start)) == 0x810U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, rtt_num_start)) == 0x818U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, flags1)) == 0x820U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, mecid)) == 0x828U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, aux_vmid)) == 0xF00U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, aux_rtt_base)) == 0xF80U);
 
 COMPILER_ASSERT_NO_CBMC(sizeof(struct rmi_rec_params) == 0x1000UL);
