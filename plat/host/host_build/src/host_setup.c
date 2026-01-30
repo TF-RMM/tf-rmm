@@ -169,7 +169,8 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 	realm->rec_run = allocate_granule(1);
 	realm->realm_params = allocate_granule(1);
 
-	host_rmi_version(MAKE_RMI_REVISION(1, 0), &result);
+	host_rmi_version(MAKE_RMI_REVISION(2, 0), &result);
+
 	CHECK_RMI_RESULT();
 	INFO("RMI Version is 0x%lx : 0x%lx\n", result.x[1], result.x[2]);
 
@@ -178,6 +179,30 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 	CHECK_RMI_RESULT();
 
 	feat_reg2 = result.x[1];
+
+	/* Query all 4 RMI feature registers */
+	for (unsigned int i = 0; i < 5; i++) {
+		host_rmi_features(i, &result);
+		CHECK_RMI_RESULT();
+		INFO("RMI_FEATURES(%u) = 0x%lx\n", i, result.x[1]);
+	}
+
+	/* Test RMI_GRANULE_TRACKING_GET */
+	host_rmi_granule_tracking_get(0, &result);
+	CHECK_RMI_RESULT();
+	INFO("RMI_GRANULE_TRACKING_GET: category=0x%lx, tracking=0x%lx\n",
+	     result.x[1], result.x[2]);
+
+	/* Test RMI_RMM_CONFIG_GET and RMI_RMM_CONFIG_SET */
+	void *config_buf = allocate_granule(1);
+	host_rmi_rmm_config_get((unsigned long)config_buf, &result);
+	CHECK_RMI_RESULT();
+	INFO("RMI_RMM_CONFIG_GET succeeded\n");
+
+	host_rmi_rmm_config_set((unsigned long)config_buf, &result);
+	CHECK_RMI_RESULT();
+	INFO("RMI_RMM_CONFIG_SET succeeded\n");
+
 	host_rmm_activate(&result);
 	CHECK_RMI_RESULT();
 

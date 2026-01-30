@@ -419,3 +419,27 @@ void host_rmi_vdev_destroy(void *rd, void *pdev, void *vdev,
 	handle_ns_smc(SMC_RMI_VDEV_DESTROY, (uintptr_t)rd, (uintptr_t)pdev,
 		      (uintptr_t)vdev, 0, 0, 0, res);
 }
+
+void host_rmi_granule_tracking_get(unsigned long addr, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_GRANULE_TRACKING_GET,
+		      addr,
+		      0, 0, 0, 0, 0,
+		      res);
+}
+
+void host_rmi_rmm_config_get(unsigned long config_ptr, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_RMM_CONFIG_GET,
+		      config_ptr,
+		      0, 0, 0, 0, 0,
+		      res);
+}
+
+void host_rmi_rmm_config_set(unsigned long config_ptr, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_RMM_CONFIG_SET,
+		      config_ptr,
+		      0, 0, 0, 0, 0,
+		      res);
+}
