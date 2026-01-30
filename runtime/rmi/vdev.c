@@ -824,8 +824,7 @@ out_err_input:
 
 static unsigned long validate_vdev_get_measurements_params(
 	unsigned long params_addr,
-	struct rmi_vdev_measure_params *measurement_params,
-	bool *all)
+	struct rmi_vdev_measure_params *measurement_params)
 {
 	struct granule *g_vdev_measurements_params;
 
@@ -841,29 +840,6 @@ static unsigned long validate_vdev_get_measurements_params(
 		return RMI_ERROR_INPUT;
 	}
 
-	/* indices bit[255] must be 0. */
-	if ((measurement_params->indices[VDEV_MEAS_PARAM_INDICES_LEN - 1U] & 0x80U) != 0U) {
-		return RMI_ERROR_INPUT;
-	}
-	/* In case bit[254] is 1, bit[253:0] must all be 0 */
-	if ((measurement_params->indices[VDEV_MEAS_PARAM_INDICES_LEN - 1U] & 0x40U) != 0U) {
-		if ((measurement_params->indices[VDEV_MEAS_PARAM_INDICES_LEN - 1U] & 0x3FU) != 0U) {
-			return RMI_ERROR_INPUT;
-		}
-		for (unsigned int i = 0; i < (VDEV_MEAS_PARAM_INDICES_LEN - 2U); ++i) {
-			if (measurement_params->indices[i] != 0U) {
-				return RMI_ERROR_INPUT;
-			}
-		}
-		*all = true;
-	} else {
-		*all = false;
-	}
-
-	/*
-	 * In case bit[255:254] of indices is 0, then any pattern in bit[253:0]
-	 * is valid .
-	 */
 	return RMI_SUCCESS;
 }
 
@@ -877,7 +853,6 @@ unsigned long smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pde
 	struct rmi_vdev_measure_params measurement_params;
 	struct pdev *pd = NULL;
 	struct vdev *vd = NULL;
-	bool all;
 
 	unsigned long smc_rc;
 
@@ -918,7 +893,7 @@ unsigned long smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pde
 		goto out_err_input;
 	}
 
-	smc_rc = validate_vdev_get_measurements_params(params_addr, &measurement_params, &all);
+	smc_rc = validate_vdev_get_measurements_params(params_addr, &measurement_params);
 	if (smc_rc != RMI_SUCCESS) {
 		goto out_err_input;
 	}
@@ -927,27 +902,10 @@ unsigned long smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pde
 
 	(void)memset(spdm_meas_params, 0, sizeof(struct dev_meas_params));
 
-	/* TODO_ALP17: In case of signed flag, only the last call should call sig */
-	/* TODO_ALP17: Both request and response must be cached by the Host */
-
-	if (EXTRACT(RMI_VDEV_MEASURE_FLAGS_SIGNED, measurement_params.flags) != 0U) {
-		spdm_meas_params->sign = true;
-		(void)memcpy(spdm_meas_params->nonce, &measurement_params.nonce,
-			     sizeof(spdm_meas_params->nonce));
-	} else {
-		spdm_meas_params->sign = false;
-	}
-
 	if (EXTRACT(RMI_VDEV_MEASURE_FLAGS_RAW, measurement_params.flags) != 0U) {
 		spdm_meas_params->raw = true;
 	} else {
 		spdm_meas_params->raw = false;
-	}
-
-	spdm_meas_params->all = all;
-	if (!all) {
-		(void)memcpy(spdm_meas_params->indices, &measurement_params.indices,
-			     sizeof(spdm_meas_params->indices));
 	}
 
 	vd->op = VDEV_OP_GET_MEAS;

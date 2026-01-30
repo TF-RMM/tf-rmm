@@ -96,17 +96,8 @@ struct dev_assign_tdisp_params {
  */
 /* cppcheck-suppress misra-c2012-2.4 */
 struct dev_meas_params {
-	/* Get all measurements */
-	bool all;
-
-	/* Get signed measurement */
-	bool sign;
-
 	/* Get measurement in a raw bitstream */
 	bool raw;
-
-	/* Bitmap of measurement indices to get when 'all=false' */
-	unsigned char indices[VDEV_MEAS_PARAM_INDICES_LEN];
 
 	/* nonce value used in get measurement, when 'sign=true' */
 	unsigned char nonce[VDEV_MEAS_PARAM_NONCE_LEN];

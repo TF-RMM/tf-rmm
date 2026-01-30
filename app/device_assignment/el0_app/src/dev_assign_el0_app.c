@@ -281,6 +281,8 @@ static int dev_assign_dev_comm_set_cache(struct dev_assign_info *info, void *cac
 	int rc;
 	bool request_host_caching_early = false;
 
+	assert(cache_len > 0U);
+
 	cache_src = (void *)((unsigned long)cache_buf + cache_offset);
 
 	/*
@@ -301,12 +303,12 @@ static int dev_assign_dev_comm_set_cache(struct dev_assign_info *info, void *cac
 				APP_SERVICE_RW_NS_BUF_HEAP, (uintptr_t)cache_src -
 					(uintptr_t)(info->send_recv_buffer),
 				info->enter_args.resp_addr, cache_len);
-			assert(info->shared_buf != NULL);
-			ns_rsp_buf_cache_offset = *((size_t *)info->shared_buf);
-			assert(ns_rsp_buf_cache_offset < 8U);
 			if (rc != 0) {
 				return -1;
 			}
+			assert(info->shared_buf != NULL);
+			ns_rsp_buf_cache_offset = *((size_t *)info->shared_buf);
+			assert(ns_rsp_buf_cache_offset < 8U);
 		} else {
 			/*
 			 * In case of non-secure message the existing content in the NS
@@ -435,6 +437,25 @@ static int dev_assign_cache_algorithms_req(struct dev_assign_info *info,
 				  cache_len, CACHE_TYPE_VCA, CACHE_COMM_DIR_REQ, hash_op_flags);
 }
 
+/* Process device get_measurements request */
+static int dev_assign_cache_measurements_req(struct dev_assign_info *info,
+					     spdm_get_measurements_request_t *get_measurement_req)
+{
+	uint8_t hash_op_flags;
+	size_t cache_offset, cache_len;
+
+	assert(info->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_MEAS);
+
+	hash_op_flags = HASH_OP_FLAG_SETUP | HASH_OP_FLAG_UPDATE;
+	info->psa_hash_op = psa_hash_operation_init();
+
+	/* cache SPDM headers as well */
+	cache_offset = 0U;
+	cache_len = sizeof(spdm_get_measurements_request_t);
+	return dev_assign_dev_comm_set_cache(info, get_measurement_req, cache_offset,
+				  cache_len, CACHE_TYPE_MEAS, CACHE_COMM_DIR_REQ, hash_op_flags);
+}
+
 static libspdm_return_t
 spdm_transport_encode_message(void *spdm_context, const uint32_t *session_id,
 				  bool is_app_message, bool is_request_message,
@@ -464,6 +485,9 @@ spdm_transport_encode_message(void *spdm_context, const uint32_t *session_id,
 	} else if (spdm_header->request_response_code == U(SPDM_NEGOTIATE_ALGORITHMS)) {
 		rc = dev_assign_cache_algorithms_req(info,
 			(spdm_negotiate_algorithms_request_t *)spdm_header);
+	} else if (spdm_header->request_response_code == U(SPDM_GET_MEASUREMENTS)) {
+		rc = dev_assign_cache_measurements_req(info,
+			(spdm_get_measurements_request_t *)spdm_header);
 	} else {
 		rc = 0;
 	}
@@ -672,34 +696,22 @@ static int dev_assign_cache_algorithms_rsp(struct dev_assign_info *info,
 
 /* Process device measurements response */
 static int dev_assign_cache_measurements(struct dev_assign_info *info,
-					 spdm_measurements_response_t *meas_rsp)
+					 spdm_measurements_response_t *meas_rsp,
+					 size_t message_size)
 {
 	size_t cache_offset, cache_len;
-	uint8_t hash_op_flags;
-	int rc;
+	uint8_t hash_op_flags = HASH_OP_FLAG_UPDATE | HASH_OP_FLAG_FINISH;
 
 	/*
-	 * Measurement length is a three byte wide integer represented as a 3
-	 * bytes array, index 0 being the least significant byte. Reconstruct
-	 * the value cache_len.
+	 * TODO: Here we are using the size of the message as it was reported by
+	 * libspdm to the decode callback, instead of calculating the expected
+	 * size based in the request parameters.
 	 */
-	/* coverity[misra_c_2012_rule_12_2_violation:SUPPRESS] */
-	cache_len = ((size_t)meas_rsp->measurement_record_length[0]) |
-		    ((size_t)meas_rsp->measurement_record_length[1] << 8U) |
-		    ((size_t)meas_rsp->measurement_record_length[2] << 16U);
-	if (cache_len > (size_t)LIBSPDM_MAX_MEASUREMENT_RECORD_SIZE) {
-		return -1;
-	}
+	cache_offset = 0U;
+	cache_len = message_size;
 
-	cache_offset = sizeof(spdm_measurements_response_t);
-	hash_op_flags = (HASH_OP_FLAG_SETUP | HASH_OP_FLAG_UPDATE |
-			 HASH_OP_FLAG_FINISH);
-	info->psa_hash_op = psa_hash_operation_init();
-
-	rc = dev_assign_dev_comm_set_cache(info, meas_rsp, cache_offset,
+	return dev_assign_dev_comm_set_cache(info, meas_rsp, cache_offset,
 				  cache_len, CACHE_TYPE_MEAS, CACHE_COMM_DIR_RESP, hash_op_flags);
-
-	return rc;
 }
 
 /* Process SPDM VDM response */
@@ -906,7 +918,7 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 		spdm_measurements_response_t *meas_rsp;
 
 		meas_rsp = (spdm_measurements_response_t *)spdm_hdr;
-		rc = dev_assign_cache_measurements(info, meas_rsp);
+		rc = dev_assign_cache_measurements(info, meas_rsp, transport_message_size);
 		if (rc != 0) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}

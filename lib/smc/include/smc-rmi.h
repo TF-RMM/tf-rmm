@@ -1423,14 +1423,10 @@ struct rmi_vdev_params {
  * Fieldset contains flags which describe properties of device measurements.
  * Width: 64 bits
  */
-/* RmiVdevMeasureSigned */
-#define RMI_VDEV_MEASURE_FLAGS_SIGNED_SHIFT	U(0)
-#define RMI_VDEV_MEASURE_FLAGS_SIGNED_WIDTH	U(1)
 /* RmiVdevMeasureRaw */
-#define RMI_VDEV_MEASURE_FLAGS_RAW_SHIFT	U(1)
+#define RMI_VDEV_MEASURE_FLAGS_RAW_SHIFT	U(0)
 #define RMI_VDEV_MEASURE_FLAGS_RAW_WIDTH	U(1)
 
-#define VDEV_MEAS_PARAM_INDICES_LEN		U(32)
 #define VDEV_MEAS_PARAM_NONCE_LEN		U(32)
 
 /*
@@ -1442,10 +1438,8 @@ struct rmi_vdev_params {
 struct rmi_vdev_measure_params {
 	/* RmiVdevMeasureFlags: Properties of device measurements */
 	SET_MEMBER_RMI(unsigned long flags, 0, 0x100);
-	/* Bits256: Measurement indices */
-	SET_MEMBER_RMI(unsigned char indices[VDEV_MEAS_PARAM_INDICES_LEN], 0x100, 0x200);
 	/* Bits256: Nonce value used in measurement requests */
-	SET_MEMBER_RMI(unsigned char nonce[VDEV_MEAS_PARAM_NONCE_LEN], 0x200, 0x1000);
+	SET_MEMBER_RMI(unsigned char nonce[VDEV_MEAS_PARAM_NONCE_LEN], 0x100, 0x1000);
 };
 
 /*

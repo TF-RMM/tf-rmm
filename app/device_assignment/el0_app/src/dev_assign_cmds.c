@@ -242,60 +242,20 @@ static libspdm_return_t get_measurements(
 int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
 {
 	libspdm_return_t status;
-	uint8_t request_attribute = 0U;
-
-	/* TODO_ALP17: This needs to be updated.
-	 *  - There are 4 flows (all/none, sign/non-signed. Understand those)
-	 *  - Set cache request/response exit attributes needs to be properly set
-	 *  - Sign only should be sent for the last index?
-	 */
+	uint8_t request_attribute =
+		(uint8_t)SPDM_GET_MEASUREMENTS_REQUEST_ATTRIBUTES_GENERATE_SIGNATURE;
 
 	assert(info->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_MEAS);
-
-	if (info->dev_assign_op_params.meas_params.sign) {
-		request_attribute |=
-			(uint8_t)SPDM_GET_MEASUREMENTS_REQUEST_ATTRIBUTES_GENERATE_SIGNATURE;
-	}
 
 	if (info->dev_assign_op_params.meas_params.raw) {
 		request_attribute |=
 			(uint8_t)SPDM_GET_MEASUREMENTS_REQUEST_ATTRIBUTES_RAW_BIT_STREAM_REQUESTED;
 	}
 
-	/* cppcheck-suppress misra-c2012-7.3 */
-	if (info->dev_assign_op_params.meas_params.all) {
-		/* Request all measurements. */
-		status = get_measurements(info, 0xFFU, request_attribute);
-
-		if (status != LIBSPDM_STATUS_SUCCESS) {
-			return DEV_ASSIGN_STATUS_ERROR;
-		}
-	} else {
-		for (size_t i = 0U; i < VDEV_MEAS_PARAM_INDICES_LEN; ++i) {
-			for (size_t j = 0U; j < BITS_PER_UCHAR; ++j) {
-				if ((info->dev_assign_op_params.meas_params.indices[i] &
-				     (unsigned char)(1U << j)) != 0U) {
-					size_t index = (i * BITS_PER_UCHAR) + j;
-
-					/*
-					 * The lowest and highest indices are
-					 * reserved by specification
-					 */
-					/*
-					 * TODO_ALP17: The meaning of the bits in the indices array
-					 * have changed since alp12. Needs to be updated.
-					 */
-					/* assert((index != 0U) && (index != 255U)); */
-
-					/* Request a single measurement. */
-					status = get_measurements(
-						info, (uint8_t)index, request_attribute);
-					if (status != LIBSPDM_STATUS_SUCCESS) {
-						return DEV_ASSIGN_STATUS_ERROR;
-					}
-				}
-			}
-		}
+	/* Request all measurements. */
+	status = get_measurements(info, 0xFFU, request_attribute);
+	if (status != LIBSPDM_STATUS_SUCCESS) {
+		return DEV_ASSIGN_STATUS_ERROR;
 	}
 
 	return DEV_ASSIGN_STATUS_SUCCESS;
