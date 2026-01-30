@@ -371,6 +371,9 @@ void handle_ns_smc(unsigned int function_id,
 	case rmi_type_12:
 		handler->f_12(arg0, res);
 		break;
+	case rmi_type_21:
+		handler->f_21(arg0, arg1, res);
+		break;
 	case rmi_type_22:
 		handler->f_22(arg0, arg1, res);
 		break;
