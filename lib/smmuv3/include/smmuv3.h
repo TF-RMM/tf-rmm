@@ -17,6 +17,7 @@ struct smmu_stg2_config {
 	unsigned long s2ttb;
 	unsigned long vtcr;
 	unsigned int vmid;
+	unsigned int mecid;
 };
 
 /*

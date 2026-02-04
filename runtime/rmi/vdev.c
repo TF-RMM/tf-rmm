@@ -134,6 +134,7 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	s2_cfg.s2ttb = granule_addr(plane_0_s2_context->g_rtt) & MASK(TTBRx_EL2_BADDR);
 	s2_cfg.vtcr = realm_vtcr(rd);
 	s2_cfg.vmid = plane_0_s2_context->vmid;
+	s2_cfg.mecid = plane_0_s2_context->mecid;
 
 	if ((smmuv3_allocate_ste(SMMU_IDX, (unsigned int)vdev_params.tdi_id) != 0) ||
 	    (smmuv3_configure_stream(SMMU_IDX, &s2_cfg,

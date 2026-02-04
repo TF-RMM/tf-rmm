@@ -132,7 +132,23 @@ typedef __uint128_t	uint128_t;
 #define IDR1_QUEUES_PRESET_BIT	BIT32(29)
 #define IDR1_TABLES_PRESET_BIT	BIT32(30)
 
-/* SMMU_AIDR */
+
+/* SMMU_IDR5 register features */
+#define IDR5_OAS_SHIFT		U(0)
+#define IDR5_OAS_WIDTH		U(3)
+#define IDR5_GRAN4K_BIT		BIT32(4)
+#define IDR5_DS_BIT		BIT32(7)
+#define IDR5_D128_BIT		BIT32(8)
+#define IDR5_VAX_SHIFT		U(10)
+#define IDR5_VAX_WIDTH		U(2)
+
+#define IDR5_OAS_48		U(5)
+#define IDR5_OAS_52		U(6)
+#define IDR5_OAS_56		U(7)
+
+#define IDR5_VAX_56_MAX		U(2)
+
+/* SMMU_AIDR register fields */
 #define AIDR_ARCH_MINOR_REV_SHIFT	U(0)
 #define AIDR_ARCH_MINOR_REV_WIDTH	U(4)
 #define AIDR_ARCH_MAJOR_REV_SHIFT	U(4)
@@ -143,21 +159,29 @@ typedef __uint128_t	uint128_t;
 #define R_IDR0_MSI_BIT		BIT32(13)
 #define R_IDR0_PRI_BIT		BIT32(16)
 
-/* R_IDR0 realm_features bitmap */
-#define FEAT_R_ATS		BIT32(0)
-#define FEAT_R_MSI		BIT32(1)
-#define FEAT_R_PRI		BIT32(2)
-
 /* SMMU_R_IDR3 features */
 #define R_IDR3_DPT_BIT		BIT32(15)
 #define R_IDR3_MEC_BIT		BIT32(16)
 
-/* R_IDR3 realm_features bitmap */
-#define FEAT_R_MEC		BIT32(3)
-#define FEAT_R_DPT		BIT32(4)
+/* SMMU_R_MECIDR register field */
+#define SMMU_R_MECIDR_MECIDSIZE_SHIFT	U(0)
+#define SMMU_R_MECIDR_MECIDSIZE_WIDTH	U(4)
 
-#define TTF_SHIFT		U(2)
-#define TTF_WIDTH		U(2)
+/* SMMU features bitmap */
+#define FEAT_2_LVL_STRTAB	BIT32(0)
+#define FEAT_BTM		BIT32(1)
+#define FEAT_COHACC		BIT32(2)
+#define FEAT_S1P		BIT32(3)
+#define FEAT_ASID16		BIT32(4)
+#define FEAT_VMID16		BIT32(5)
+#define FEAT_RIL		BIT32(6)
+#define FEAT_DS			BIT32(7)
+#define FEAT_D128		BIT32(8)
+#define FEAT_ATS		BIT32(9)
+#define FEAT_MSI		BIT32(10)
+#define FEAT_PRI		BIT32(11)
+#define FEAT_MEC		BIT32(12)
+#define FEAT_DPT		BIT32(13)
 
 /* Log2 of maximum number of Command and Event queues entries */
 #define QUEUE_SIZE_MAX		U(19)
@@ -355,15 +379,21 @@ typedef __uint128_t	uint128_t;
 /* Stream Table Entry [191:128] */
 #define STE2_S2VMID_SHIFT	U(0)
 #define STE2_S2VMID_WIDTH	U(16)
+
+/* VTCR_EL2[18:0]: PS, TG0, SH0, ORGN0 IRGN0, SL0, T0SZ */
 #define STE2_VTCR_SHIFT		U(32)
 #define STE2_VTCR_WIDTH		U(19)
 #define STE2_S2AA64_BIT		BIT(51)
-#define STE2_S2ENDI_BIT		BIT(52)
 #define STE2_S2PTW_BIT		BIT(54)
 #define STE2_S2R_BIT		BIT(58)
 
 /* Stream Table Entry [255:192] */
+#define STE3_S2SL0_2_SHIFT	U(2)
+#define STE3_S2DS_SHIFT		U(3)
 #define STE3_S2TTB_SHIFT	U(4)
+
+/* Stream Table Entry [319:256] */
+#define STE4_MECID_SHIFT	U(48)
 
 /* L1 Stream Table Descriptor size */
 #define STRTAB_L1_DESC_SIZE	8U
@@ -417,7 +447,6 @@ struct smmuv3_driv {
 struct smmu_config {
 	unsigned int minor_rev;
 	unsigned int features;
-	unsigned int realm_features;
 	unsigned int cmdq_log2size;
 	unsigned int evtq_log2size;
 	unsigned int substreamid_bits;
