@@ -247,4 +247,6 @@ unsigned long smc_rmm_activate(void);
 unsigned long smc_rmm_config_get(unsigned long config_ptr);
 unsigned long smc_rmm_config_set(unsigned long config_ptr);
 
+void smc_gpt_l1_create(unsigned long addr, struct smc_result *res);
+
 #endif /* SMC_HANDLER_H */

@@ -295,3 +295,21 @@ unsigned long smc_rmm_config_get(unsigned long config_ptr)
 
 	return RMI_SUCCESS;
 }
+
+/* FIXME: This should come from FIRME ABI */
+#define RMM_L0GPTSZ	SZ_1G
+void smc_gpt_l1_create(unsigned long addr, struct smc_result *res)
+{
+	if (!ALIGNED(addr, RMM_L0GPTSZ)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	/*
+	 * FIXME:  We have statically created L1 GPTs, thus return ERROR_GPT.
+	 * For Dynamic GPT, we need the SRO and request memory
+	 * from the Host, once we have walked the GPT and if a table is
+	 * really required.
+	 */
+	res->x[0] = RMI_ERROR_GPT;
+}

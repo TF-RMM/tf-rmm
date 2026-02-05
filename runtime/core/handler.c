@@ -41,7 +41,8 @@ static const char * const rmi_status_string[] = {
 	RMI_STATUS_STRING(ERROR_PSMMU_ST),
 	RMI_STATUS_STRING(ERROR_DPT),
 	RMI_STATUS_STRING(BUSY),
-	RMI_STATUS_STRING(ERROR_GLOBAL)
+	RMI_STATUS_STRING(ERROR_GLOBAL),
+	RMI_STATUS_STRING(ERROR_GPT)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(rmi_status_string) == RMI_ERROR_COUNT_MAX);
@@ -224,6 +225,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PSMMU_ST_L2_CREATE,	2, 0, smc_psmmu_st_l2_create,	 true, true),
 	HANDLER(PSMMU_ST_L2_DESTROY,	2, 0, smc_psmmu_st_l2_destroy,	 true, true),
 	HANDLER(GRANULE_TRACKING_GET,	1, 2, smc_granule_tracking_get,	 true, true),
+	HANDLER(GPT_L1_CREATE,		1, 1, smc_gpt_l1_create,	 false, true),
 	HANDLER(RMM_CONFIG_GET,		1, 0, smc_rmm_config_get,	 true, true),
 	HANDLER(RMM_CONFIG_SET,		1, 0, smc_rmm_config_set,	 true, true),
 	HANDLER(RMM_ACTIVATE,		0, 0, smc_rmm_activate,		 true, true)

@@ -85,8 +85,11 @@
 /* An attribute of RMM global state does not match the expected value */
 #define RMI_ERROR_GLOBAL		U(11)
 
+/* A GPT walk reached an entry with unexpected level */
+#define RMI_ERROR_GPT			U(15)
+
 /* Max number of RMI Status Errors. */
-#define RMI_ERROR_COUNT_MAX		U(12)
+#define RMI_ERROR_COUNT_MAX		U(16)
 
 /*
  * The number of GPRs (starting from X0) that are
@@ -983,6 +986,20 @@
  * ret1 == address (PA) of the next granule after the undelegated one
  */
 #define SMC_RMI_GRANULE_RANGE_UNDELEGATE	SMC64_RMI_FID(U(0xA2))
+
+/*
+ * FID: 0xC40001F3
+ *
+ * arg0 = PA of the region aligned to L0GPTSZ
+ */
+#define SMC_RMI_GPT_L1_CREATE			SMC64_RMI_FID(U(0xA3))
+
+/*
+ * FID: 0xC40001F4
+ *
+ * arg0 = PA of the region aligned to L0GPTSZ
+ */
+#define SMC_RMI_GPT_L1_DESTROY			SMC64_RMI_FID(U(0xA4))
 
 /*
  * FID: 0xC40001F5
