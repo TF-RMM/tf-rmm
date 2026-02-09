@@ -555,6 +555,14 @@ uintptr_t xlat_low_va_map(size_t size, uint64_t attr, uintptr_t in_pa, bool clea
 	return va;
 }
 
+int xlat_low_va_unmap(uintptr_t va, size_t size)
+{
+	assert((va != 0UL) && (ALIGNED(va, GRANULE_SIZE)));
+	assert(ALIGNED(size, GRANULE_SIZE));
+
+	return xlat_unmap_l3_region(&(xlat_get_low_va_info()->dyn_va_ctx), va, size);
+}
+
 uintptr_t xlat_low_va_get_dyn_va_base(void)
 {
 	return g_va_info.dyn_va_pool_base;

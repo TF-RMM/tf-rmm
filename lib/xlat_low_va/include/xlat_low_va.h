@@ -76,6 +76,14 @@ struct xlat_low_va_info *xlat_get_low_va_info(void);
 /* Allocate VA and map memory */
 uintptr_t xlat_low_va_map(size_t size, uint64_t attr, uintptr_t in_pa, bool clear_memory);
 
+/*
+ * Unmap VA and free the allocated VA space. The caller should ensure that the VA has been mapped
+ * with xlat_low_va_map() before calling this function. This function does not check if the VA is
+ * currently mapped or not. There is an assertion in the implementation that will fail if the VA
+ * is not currently mapped.
+ */
+int xlat_low_va_unmap(uintptr_t va, size_t size);
+
 /* Get dynamic VA base */
 uintptr_t xlat_low_va_get_dyn_va_base(void);
 
