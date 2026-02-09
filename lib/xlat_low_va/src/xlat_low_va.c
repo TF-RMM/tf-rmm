@@ -15,6 +15,7 @@
 #include <utils_def.h>
 #include <xlat_low_va.h>
 #include <xlat_low_va_arch.h>
+#include <xlat_low_va_pvt.h>
 #include <xlat_tables.h>
 
 
@@ -106,7 +107,7 @@ uintptr_t xlat_low_va_shared_buf_va(void)
 	return RMM_SHARED_BUFFER_START;
 }
 
-static void sort_mmap_region_array(struct xlat_mmap_region *regions,
+void sort_mmap_region_array(struct xlat_mmap_region *regions,
 			unsigned int region_count)
 {
 	for (unsigned int i = 1; i < region_count; ++i) {
@@ -119,6 +120,16 @@ static void sort_mmap_region_array(struct xlat_mmap_region *regions,
 		}
 		regions[j + 1] = key;
 	}
+
+	/* Assert no duplicate base_va entries exist in the sorted array */
+	for (unsigned int i = 1; i < region_count; ++i) {
+		assert(regions[i - 1U].base_va != regions[i].base_va);
+	}
+
+	/* Assert no overlapping regions exist in the sorted array */
+	for (unsigned int i = 1; i < region_count; ++i) {
+		assert((regions[i - 1U].base_va + regions[i - 1U].size) <= regions[i].base_va);
+	}
 }
 
 /*
@@ -130,7 +141,7 @@ static void sort_mmap_region_array(struct xlat_mmap_region *regions,
  * - Pool fits within a single L1 table
  * - Minimum address of 1GB (SZ_1G)
  */
-static uintptr_t find_va_pool_base(struct xlat_mmap_region *regions,
+uintptr_t find_va_pool_base(struct xlat_mmap_region *regions,
 				   unsigned int region_count)
 {
 	uintptr_t l1_block_size = XLAT_BLOCK_SIZE(1);
@@ -421,7 +432,7 @@ static int xlat_low_va_dyn_setup(void)
  * is done during Live Firmware Activation when the new RMM instance can reuse
  * the dynamic Low VA tables created by the previous RMM.
  */
-static int xlat_low_va_dyn_fixup(struct xlat_low_va_info *va_info)
+int xlat_low_va_dyn_fixup(struct xlat_low_va_info *va_info)
 {
 	int ret;
 

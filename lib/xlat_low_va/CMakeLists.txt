@@ -39,7 +39,8 @@ target_link_libraries(rmm-lib-xlat_low_va
 
 target_include_directories(rmm-lib-xlat_low_va
     PUBLIC "include"
-    PRIVATE "src/${RMM_ARCH}")
+    PRIVATE "src"
+        "src/${RMM_ARCH}")
 
 if(HOST_VARIANT STREQUAL "host_cbmc")
     target_sources(rmm-lib-xlat_low_va
