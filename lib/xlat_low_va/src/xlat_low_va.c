@@ -19,8 +19,6 @@
 #include <xlat_tables.h>
 
 
-#define XLAT_LOW_VIRT_ADDR_SPACE_SIZE	(1UL << 41U)	/* 64TB */
-
 IMPORT_SYM(uintptr_t, rmm_text_start, RMM_CODE_START);
 IMPORT_SYM(uintptr_t, rmm_text_end, RMM_CODE_END);
 IMPORT_SYM(uintptr_t, rmm_ro_start, RMM_RO_START);

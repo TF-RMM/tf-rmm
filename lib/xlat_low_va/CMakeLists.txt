@@ -52,3 +52,5 @@ endif()
 
 target_sources(rmm-lib-xlat_low_va
     PRIVATE "src/xlat_low_va.c")
+
+include(tests/CMakeLists.txt)

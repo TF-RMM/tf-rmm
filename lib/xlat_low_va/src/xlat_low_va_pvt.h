@@ -6,6 +6,9 @@
 #ifndef XLAT_LOW_VA_PVT_H
 #define XLAT_LOW_VA_PVT_H
 
+
+#define XLAT_LOW_VIRT_ADDR_SPACE_SIZE	(1UL << 41U)	/* 64TB */
+
 /*
  * These funtions are internal to xlat_low_va and are declared in this
  * to enable unit-testing.
