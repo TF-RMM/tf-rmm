@@ -12,6 +12,7 @@ if(RMM_UNITTESTS)
                         "tests/xlat_tests_base_g2.cpp"
                         "tests/xlat_tests_va_alloc.cpp"
                         "tests/xlat_tests_stitch.cpp"
+                        "tests/xlat_tests_estimate_tables.cpp"
                         "tests/xlat_test_helpers.c")
 endif()
 
@@ -27,3 +28,9 @@ rmm_build_unittest(NAME xlat_tests_no_LPA2
                    TARGET rmm-lib-xlat
                    SOURCES "tests/xlat_tests_no_lpa2.cpp"
                    ITERATIONS 10)
+
+rmm_build_unittest(NAME xlat_tests_estimate
+                   LIBRARIES rmm-platform
+                   TARGET rmm-lib-xlat
+                   SOURCES "tests/xlat_tests_estimate_tables.cpp"
+                   ITERATIONS 1)
