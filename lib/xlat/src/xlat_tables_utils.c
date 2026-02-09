@@ -468,7 +468,7 @@ int xlat_stitch_tables_l1(struct xlat_ctx *parent_ctx, uint64_t *child_l1,
 	assert(ALIGNED(va_start, XLAT_BLOCK_SIZE(1)));
 	assert(ALIGNED(va_size, XLAT_BLOCK_SIZE(1)));
 	assert((round_down(va_start, XLAT_BLOCK_SIZE(0)) + XLAT_BLOCK_SIZE(0))
-						> (va_start + va_size));
+						>= (va_start + va_size));
 
 	/* Get the L1 table pointer in the parent context for va_start */
 	ret = xlat_get_llt_from_va(&parent_llt, parent_ctx, va_start);
