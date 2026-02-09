@@ -354,3 +354,23 @@ TEST(xlat_tests_LPA2, xlat_va_alloc_va_end_boundary_TC1)
 {
 	xlat_va_alloc_va_end_boundary_tc1();
 }
+
+TEST(xlat_tests_LPA2, xlat_stitch_l1_success_TC1)
+{
+	xlat_stitch_l1_success_tc1();
+}
+
+TEST(xlat_tests_LPA2, xlat_stitch_l1_multiple_blocks_TC1)
+{
+	xlat_stitch_l1_multiple_blocks_tc1();
+}
+
+ASSERT_TEST(xlat_tests_LPA2, xlat_stitch_l1_verify_transient_TC1)
+{
+	xlat_stitch_l1_verify_transient_tc1();
+}
+
+TEST(xlat_tests_LPA2, xlat_stitch_l1_at_boundaries_TC1)
+{
+	xlat_stitch_l1_at_boundaries_tc1();
+}
