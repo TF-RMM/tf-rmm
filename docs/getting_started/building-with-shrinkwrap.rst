@@ -251,6 +251,7 @@ The available Overlays are sumarized in the next table
    lfa-support.yaml,Overlay to build |TF-A| with LFA support enabled and load LFA RMM at expected address.
    model-enable-lpa2.yaml,Overlay used to enable ``FEAT_LPA2`` on the |FVP| model at run time. In addition this overlay also sets the ``PA_SIZE`` on the model to 52
    model-enable-mec.yaml,Overlay used to enable ``FEAT_MEC`` on the |FVP| model at run time.
+   model-enable-mops.yaml,Overlay used to enable ``FEAT_MOPS`` on the |FVP| model at run time.
    model-wait-debugger.yaml,Overlay to configure the |FVP| model to listen for Iris connections on port 7100 and make it wait until a debugger is connected before starting execution
    model-enable-s2pie-s2poe.yaml,Overlay to enable ``FEAT_S2PIE`` and ``FEAT_S2POE`` on the |FVP| model at run time.
    model-enable-feat_d128.yaml,Overlay used to enable ``FEAT_D128`` on the |FVP| model at runtime.

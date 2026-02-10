@@ -208,6 +208,9 @@
 #define HCRX_EL2	S3_4_C1_C2_2
 
 /* HCRX_EL2 definitions */
+#define HCRX_MCE2	(UL(1) << 10)
+#define HCRX_MSCEN	(UL(1) << 11)
+
 #define HCRX_TCR2EN	(UL(1) << 14)
 #define HCRX_SCTLR2EN	(UL(1) << 15)
 
@@ -911,6 +914,8 @@
 /******************************************************
  * ID_AA64ISAR2_EL1 definitions
  ******************************************************/
+#define ID_AA64ISAR2_EL1_FEAT_MOPS_SHIFT	UL(16)
+#define ID_AA64ISAR2_EL1_FEAT_MOPS_WIDTH	UL(4)
 #define ID_AA64ISAR2_EL1_SYSREG128_SHIFT	UL(32)
 #define ID_AA64ISAR2_EL1_SYSREG128_WIDTH	UL(4)
 
@@ -1140,6 +1145,7 @@
 #define SCTLR_ELx_nTLSMD_BIT		(UL(1) << 28)
 #define SCTLR_ELx_LSMAOE_BIT		(UL(1) << 29)
 #define SCTLR_ELx_EnIA_BIT		(UL(1) << 31)
+#define SCTLR_ELx_MSCEn_BIT		(UL(1) << 33)
 #define SCTLR_ELx_BT0_BIT		(UL(1) << 35)
 #define SCTLR_ELx_BT1_BIT		(UL(1) << 36)
 #define SCTLR_ELx_DSSBS_BIT		(UL(1) << 44)

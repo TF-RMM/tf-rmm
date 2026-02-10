@@ -65,6 +65,13 @@ void rmm_arch_init(void)
 		hcrx_el2_init |= HCRX_SCTLR2EN;
 	}
 
+	/* Enable FEAT_MOPS, if present, in R-EL2 and R-EL1 */
+	if (is_feat_mops_present()) {
+		hcrx_el2_init |= HCRX_MSCEN;
+		hcrx_el2_init &= ~HCRX_MCE2;
+		write_sctlr_el2(read_sctlr_el2() | SCTLR_ELx_MSCEn_BIT);
+	}
+
 	write_hcrx_el2(hcrx_el2_init);
 
 	/* Disable BRBE at R-EL2 and prevent access to BRBE regs from R-EL1 */
