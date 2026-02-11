@@ -387,7 +387,6 @@ static pid_t spdm_responder_pid __unused = -1;
 
 static void launch_spdm_responder_emu(char *base_dir)
 {
-#ifdef RMM_V1_1
 	pid_t pid;
 	static const char *rel_bin = "spdm_emu/spdm_responder_emu";
 	static const char *rel_keys = "spdm_emu/keys";
@@ -455,9 +454,6 @@ static void launch_spdm_responder_emu(char *base_dir)
 
 	/* Give the server more time to start listening and stabilize */
 	usleep(1000000); /* 1 second */
-#else
-	(void)base_dir;
-#endif
 }
 
 void initialise_app_headers(int argc, char *argv[])
@@ -543,7 +539,6 @@ void rmm_arch_init(void);
  */
 static void stop_spdm_responder(void)
 {
-#ifdef RMM_V1_1
 	int status;
 
 	if (spdm_responder_pid > 0) {
@@ -554,7 +549,6 @@ static void stop_spdm_responder(void)
 		waitpid(spdm_responder_pid, &status, 0);
 		spdm_responder_pid = -1;
 	}
-#endif
 }
 
 int main(int argc, char *argv[])

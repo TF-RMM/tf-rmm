@@ -17,15 +17,11 @@
 /*
  * Indicates whether the DA feature is supported.
  */
-#ifdef RMM_V1_1
 /*
  * This is set to 'RMI_FEATURE_FALSE' by rmm_main() calling
  * feature_da_disable() if SMMUs fail to initialise.
  */
 static unsigned long feat_da_supported = RMI_FEATURE_TRUE;
-#else
-static unsigned long feat_da_supported = RMI_FEATURE_FALSE;
-#endif
 
 unsigned long get_feature_register_0(void)
 {
@@ -135,7 +131,6 @@ unsigned long get_feature_register_3(void)
 {
 	unsigned long feat_reg3 = 0;
 
-#ifdef RMM_V1_1
 	if (s2tt_indirect_ap_supported()) {
 		feat_reg3 |= INPLACE(RMI_FEATURE_REGISTER_3_RTT_PLANE, RMI_RTT_PLANE_AUX_SINGLE);
 		feat_reg3 |= INPLACE(RMI_FEATURE_REGISTER_3_RTT_S2AP_INDIRECT, RMI_FEATURE_TRUE);
@@ -144,7 +139,6 @@ unsigned long get_feature_register_3(void)
 	}
 
 	feat_reg3 |= INPLACE(RMI_FEATURE_REGISTER_3_MAX_NUM_AUX_PLANES, MAX_AUX_PLANES);
-#endif
 
 	return feat_reg3;
 }

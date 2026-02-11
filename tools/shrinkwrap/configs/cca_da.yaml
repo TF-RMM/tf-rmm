@@ -18,7 +18,6 @@ layers:
   # Include layers from RMM repo
   - rmm.yaml
   - rmm-debug.yaml
-  - rmm-v1_1.yaml
   - model-enable-da.yaml
 
 build:

@@ -3,8 +3,7 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
-# Make this library as an empty interface library when RMM_V1_1 is not set or
-# for CBMC build
+# Make this library as an empty interface library for CBMC build
 if(RMM_CBMC_STATIC_ANALYSIS)
     add_library(rmm-pci_tdisp_requester_lib INTERFACE)
     return()
@@ -20,7 +19,7 @@ set(SPDM_EMU_PATCH_FILES
 
 Git_Apply_Patches(${SPDM_EMU_SOURCE_DIR} "${SPDM_EMU_PATCH_FILES}")
 
-if(RMM_ARCH STREQUAL fake_host AND RMM_V1_1)
+if(RMM_ARCH STREQUAL fake_host)
     # Initialize spdm-emu submodules (only libspdm, not SPDM-Responder-Validator)
     execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --depth 1 libspdm
             WORKING_DIRECTORY ${SPDM_EMU_SOURCE_DIR}

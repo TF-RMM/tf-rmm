@@ -256,7 +256,6 @@ The available Overlays are sumarized in the next table
    model-enable-s2pie-s2poe.yaml,Overlay to enable ``FEAT_S2PIE`` and ``FEAT_S2POE`` on the |FVP| model at run time.
    model-enable-feat_d128.yaml,Overlay used to enable ``FEAT_D128`` on the |FVP| model at runtime.
    rmm-debug.yaml,Overlay to build |RMM| (as well as |TF-A|) in debug mode
-   rmm-v1_1.yaml,Overlay to build |RMM| with v1.1 features
    clean.yaml,Overlay used to avoid an exception with ``Shrinkwrap clean`` in which a path with a valid format needs to be specified for |RMM|
 
 Example of use
@@ -272,13 +271,6 @@ repositories:
 
        shrinkwrap --runtime=null build rmm-tftf.yaml --overlay=model-enable-lpa2.yaml --btvar=RMM_SRC=${PWD} --no-sync-all
 
-Similarly you can use overlay rmm-v1_1.yaml to enable RMM v1.1 features along
-with rmm-debug.yaml to enable debug build.
-
-    .. code-block:: shell
-
-       shrinkwrap --runtime=null build rmm-tftf.yaml --overlay=rmm-v1_1.yaml --overlay=rmm-debug.yaml --btvar=RMM_SRC=${PWD} --no-sync-all
-
 Then you run your tests with
 
     .. code-block:: shell
@@ -290,7 +282,7 @@ To test |RMM| Live Firmware Activation (LFA) support, you can use the
 
     .. code-block:: shell
 
-       shrinkwrap build --btvar=RMM_SRC=${PWD} --overlay=rmm-debug.yaml --overlay rmm-v1_1.yaml --overlay=lfa-support.yaml rmm-tftf.yaml --no-sync-all
+       shrinkwrap build --btvar=RMM_SRC=${PWD} --overlay=rmm-debug.yaml --overlay=lfa-support.yaml rmm-tftf.yaml --no-sync-all
 
 To run the tests with MEC enabled :
 
@@ -305,7 +297,6 @@ To run the tests with MEC enabled :
       the appropriate FVP (FVP_Base_RevC-2xAEMvA) needs to be present in the
       system ${PATH}.
 
-      FVP version must be >= ``11.29.27`` when rmm-v1_1.yaml overlay is used.
 
 -----
 

@@ -14,7 +14,6 @@
 #include <smc-rmi.h>
 #include <smc.h>
 
-#ifdef RMM_V1_1
 static unsigned long dev_granule_delegate(unsigned long addr)
 {
 	enum dev_coh_type type;
@@ -73,21 +72,6 @@ static unsigned long dev_granule_undelegate(unsigned long addr)
 	dev_granule_unlock(g);
 	return RMI_SUCCESS;
 }
-#else
-static unsigned long dev_granule_delegate(unsigned long addr)
-{
-	(void)addr;
-
-	return RMI_ERROR_INPUT;
-}
-
-static unsigned long dev_granule_undelegate(unsigned long addr)
-{
-	(void)addr;
-
-	return RMI_ERROR_INPUT;
-}
-#endif /* RMM_V1_1 */
 
 unsigned long smc_granule_delegate(unsigned long addr)
 {
