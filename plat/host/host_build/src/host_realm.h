@@ -12,6 +12,7 @@
 #define RTT_COUNT 4
 
 #define REALM_BUFFER_IPA		0x1000
+#define HOST_DA_VDEV_ID			0U
 
 #define CHECK_RMI_RESULT() \
 ({  \
@@ -37,6 +38,13 @@ struct host_realm {
 uint64_t rmm_main(uint64_t token);
 int realm_start(unsigned long *regs, unsigned long *rec_sp_el0);
 
+int host_realm_da_rsi_main(unsigned long *rec_regs, unsigned long *rec_sp_el0);
+
 unsigned long host_realm_get_realm_buffer(void);
+int host_pdev_probe_and_setup(void);
+int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id);
+int host_realm_run_da(struct host_realm *realm);
+int host_pdev_reclaim(int host_pdev_id);
+int host_vdev_reclaim(struct host_realm *realm, int host_vdev_id);
 
 #endif /* HOST_REALM_H */

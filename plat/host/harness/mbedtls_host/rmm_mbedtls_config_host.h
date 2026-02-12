@@ -99,3 +99,14 @@ void mbedtls_exit_panic(unsigned int reason);
 #define MBEDTLS_SHA256_USE_A64_CRYPTO_ONLY
 #define MBEDTLS_SHA512_USE_A64_CRYPTO_ONLY
 #endif
+
+/* Enable the RSA public-key cryptosystem. */
+#define MBEDTLS_PKCS1_V21
+#define MBEDTLS_RSA_C
+
+/* Enable X.509 certificate parsing. */
+#define MBEDTLS_OID_C
+#define MBEDTLS_PK_C
+#define MBEDTLS_PK_PARSE_C
+#define MBEDTLS_X509_USE_C
+#define MBEDTLS_X509_CRT_PARSE_C

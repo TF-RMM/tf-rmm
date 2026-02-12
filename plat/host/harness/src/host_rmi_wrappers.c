@@ -256,3 +256,111 @@ void host_rmi_rtt_set_ripas(void *rd, void *rec, uintptr_t base, uintptr_t top,
 		      0, 0,
 		      res);
 }
+
+void host_rmi_pdev_create(void *pdev, void *pdev_params_ptr,
+			  struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_PDEV_CREATE, (uintptr_t)pdev,
+		      (uintptr_t)pdev_params_ptr, 0, 0, 0, 0, res);
+}
+
+void host_rmi_pdev_aux_count(unsigned long pdev_flags, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_PDEV_AUX_COUNT, (uintptr_t)pdev_flags,
+		      0, 0, 0, 0, 0, res);
+}
+
+void host_rmi_pdev_communicate(void *pdev, void *io_data_ptr,
+			       struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_PDEV_COMMUNICATE, (uintptr_t)pdev,
+		      (uintptr_t)io_data_ptr, 0, 0, 0, 0, res);
+}
+
+void host_rmi_pdev_get_state(void *pdev, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_PDEV_GET_STATE, (uintptr_t)pdev,
+		      0, 0, 0, 0, 0, res);
+}
+
+void host_rmi_pdev_set_pubkey(void *pdev, void *pubkey_params_ptr,
+			      struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_PDEV_SET_PUBKEY, (uintptr_t)pdev,
+		      (uintptr_t)pubkey_params_ptr, 0, 0, 0, 0, res);
+}
+
+void host_rmi_pdev_abort(void *pdev, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_PDEV_ABORT, (uintptr_t)pdev, 0, 0, 0, 0, 0, res);
+}
+
+void host_rmi_pdev_stop(void *pdev, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_PDEV_STOP, (uintptr_t)pdev, 0, 0, 0, 0, 0, res);
+}
+
+void host_rmi_pdev_destroy(void *pdev, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_PDEV_DESTROY, (uintptr_t)pdev, 0, 0, 0, 0, 0, res);
+}
+
+void host_rmi_pdev_ide_key_refresh(void *pdev, unsigned long ev, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_PDEV_IDE_KEY_REFRESH, (uintptr_t)pdev, (uintptr_t)ev, 0, 0,
+		      0, 0, res);
+}
+
+void host_rmi_pdev_ide_reset(void *pdev, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_PDEV_IDE_RESET, (uintptr_t)pdev, 0, 0, 0, 0, 0,
+		      res);
+}
+
+void host_rmi_vdev_create(void *rd, void *pdev_ptr, void *vdev_ptr,
+			  void *vdev_params_ptr, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_VDEV_CREATE, (uintptr_t)rd, (uintptr_t)pdev_ptr,
+		      (uintptr_t)vdev_ptr, (uintptr_t)vdev_params_ptr, 0, 0,
+		      res);
+}
+
+void host_rmi_vdev_communicate(void *rd, void *pdev_ptr, void *vdev_ptr,
+			       void *data_ptr, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_VDEV_COMMUNICATE, (uintptr_t) rd, (uintptr_t)pdev_ptr,
+		      (uintptr_t)vdev_ptr, (uintptr_t)data_ptr, 0, 0, res);
+}
+
+void host_rmi_vdev_complete(void *rec_ptr, void *vdev_ptr,
+			    struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_VDEV_COMPLETE, (uintptr_t)rec_ptr,
+		      (uintptr_t)vdev_ptr, 0, 0, 0, 0, res);
+}
+
+void host_rmi_vdev_get_state(void *vdev, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_VDEV_GET_STATE, (uintptr_t)vdev,
+		      0, 0, 0, 0, 0, res);
+}
+
+void host_rmi_vdev_abort(void *vdev, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_VDEV_ABORT, (uintptr_t)vdev,
+		      0, 0, 0, 0, 0, res);
+}
+
+void host_rmi_vdev_unlock(void *rd, void *pdev, void *vdev,
+			  struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_VDEV_UNLOCK, (uintptr_t)rd,
+		(uintptr_t)pdev, (uintptr_t)vdev, 0, 0, 0, res);
+}
+
+void host_rmi_vdev_destroy(void *rd, void *pdev, void *vdev,
+			   struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_VDEV_DESTROY, (uintptr_t)rd, (uintptr_t)pdev,
+		      (uintptr_t)vdev, 0, 0, 0, res);
+}

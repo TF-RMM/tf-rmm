@@ -52,7 +52,7 @@ target_compile_definitions(rmm-host-mbedtls INTERFACE
     "-DMBEDTLS_CONFIG_FILE=<rmm_mbedtls_config_host.h>")
 
 # Include targets mbedcrypto
-set(MBEDTLS_LIBS mbedcrypto)
+set(MBEDTLS_LIBS mbedcrypto mbedx509)
 
 foreach(MBEDTLS_LIB IN ITEMS ${MBEDTLS_LIBS})
     target_include_directories(${MBEDTLS_TARGET_PREFIX}${MBEDTLS_LIB} PUBLIC

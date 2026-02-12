@@ -22,9 +22,10 @@ add_subdirectory("mbedtls_host")
 target_link_libraries(rmm-host-harness
     PRIVATE rmm-lib
             rmm-host-el2-el0-cmn
-            rmm-host-mbedtls # MbedTLS is added for host emulating signing in EL3
             rmm-plat-common
-            rmm-platform)
+            rmm-platform
+    PUBLIC  rmm-host-mbedtls # MbedTLS is added for host emulating signing in EL3
+    )
 
 target_sources(rmm-host-harness
     PRIVATE "src/host_console.c"
