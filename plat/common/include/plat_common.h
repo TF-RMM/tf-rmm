@@ -10,7 +10,7 @@
 struct xlat_mmap_region;
 
 int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
-		   unsigned int nregions, uint64_t token);
+		   unsigned int nregions);
 int plat_cmn_warmboot_setup(void);
 
 #endif /* PLAT_COMMON_H */

@@ -13,7 +13,9 @@
 #include <rmm_el3_compat.h>
 #include <rmm_el3_ifc.h>
 #include <sizes.h>
+#include <stdint.h>
 #include <string.h>
+#include <utils_def.h>
 #include <xlat_low_va.h>
 
 #define ARM_RMM_UART	MAP_REGION_FLAT(			\
@@ -67,7 +69,8 @@ void plat_warmboot_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
  * be initialized by this function.
  */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
-void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3, uint64_t x4)
+void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3,
+		uint64_t x4 __unused)
 {
 	struct memory_info *plat_memory_info;
 	struct console_list *csl_list;
@@ -141,7 +144,7 @@ void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3, uint64_t x4)
 	 * - 2 regions per each SMMUv3: smmu_base and smmu_r_base;
 	 * - 1 UART region.
 	 */
-	ret = plat_cmn_setup(plat_regions, 1U, x4);
+	ret = plat_cmn_setup(plat_regions, 1U);
 	if (ret != 0) {
 		ERROR("%s (%u): Failed to setup the platform (%i)\n",
 			__func__, __LINE__, ret);

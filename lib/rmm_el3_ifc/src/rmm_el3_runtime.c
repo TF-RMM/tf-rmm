@@ -4,7 +4,6 @@
  */
 
 #include <assert.h>
-#include <bitmap.h>
 #include <debug.h>
 #include <errno.h>
 #include <firme.h>
@@ -14,6 +13,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <utils_def.h>
 
 #define MEC_REFRESH_MECID_SHIFT		U(32)
 #define MEC_REFRESH_MECID_WIDTH		UL(16)
@@ -308,43 +308,51 @@ unsigned long rmm_el3_ifc_mec_refresh(unsigned short mecid,
 }
 
 /* cppcheck-suppress misra-c2012-8.7 */
-int rmm_el3_ifc_reserve_memory(size_t size, unsigned int flags,
+int rmm_el3_ifc_reserve_memory(size_t required_size, unsigned int flags,
 			       unsigned long alignment, uintptr_t *address)
 {
 	struct smc_args smc_args __unused;
 	struct smc_result smc_res;
-	uint64_t flags_align;
-	int ret;
 
 	if (alignment < 1UL) {
 		return -EINVAL;
 	}
 
-	/* alignment needs to be a power of 2 */
-	flags_align = bitmap_find_next_set_bit(alignment, 0);
-	assert((1UL << flags_align) == alignment);
+	/*
+	 * Alignment needs to be a power of 2. We extract the exponent required for such
+	 * an alignment.
+	 */
+	assert(IS_POWER_OF_TWO(alignment));
+	uint64_t alignment_exponent = (unsigned long)__builtin_ctzl(alignment);
 
-	/* The flags and the alignment go into the second argument. */
-	flags_align = INPLACE(RESERVE_MEM_ALIGN, flags_align) |
-		      INPLACE(RESERVE_MEM_FLAGS, flags);
+	/*
+	 * The flags and the alignment go into register X2 (the "args" part of the input
+	 * to the SMC call). Bit[0] is the local CPU flag and the remaining flags are in
+	 * bits[31:1].
+	 */
+	uint64_t args_value = INPLACE(RESERVE_MEM_ALIGN, alignment_exponent) |
+			      ((uint64_t)flags & RESERVE_MEM_FLAG_LOCAL_CPU) |
+			      INPLACE(RESERVE_MEM_FLAGS,
+				      ((uint64_t)flags >> RESERVE_MEM_FLAGS_SHIFT));
 
 #ifdef RMM_EL3_COMPAT_RESERVE_MEM
-	compat_reserve_memory(size, flags_align, &smc_res);
+	compat_reserve_memory(required_size, args_value, &smc_res);
 #else
-	smc_args = SMC_ARGS_2(size, flags_align);
+	smc_args = SMC_ARGS_2(required_size, args_value);
 	monitor_call_with_arg_res(SMC_RMM_RESERVE_MEMORY,
 			      &smc_args, &smc_res);
 #endif
 
 	/* coverity[uninit_use:SUPPRESS] */
-	ret = (int)smc_res.x[0];
-	if (ret < 0) {
-		ERROR("Failed to reserve memory: %d\n", ret);
-		return ret;
+	int smc_return_status = (int)smc_res.x[0];
+	if (smc_return_status < 0) {
+		ERROR("Failed to reserve memory: %d\n", smc_return_status);
+		return smc_return_status;
 	}
 
 	INFO("Reserve mem: %lu pages at PA: 0x%lx (alignment 0x%lx)\n",
-			(unsigned long)(size / GRANULE_SIZE), smc_res.x[1], alignment);
+			(unsigned long)(required_size / GRANULE_SIZE),
+			smc_res.x[1], alignment);
 
 	*address = smc_res.x[1];
 	return 0;

@@ -6,6 +6,8 @@
 #include <app.h>
 #include <app_header.h>
 #include <arch_features.h>
+#include <arch_helpers.h>
+#include <assert.h>
 #include <attest_app.h>
 #include <buffer.h>
 #include <debug.h>
@@ -13,6 +15,7 @@
 #include <feature.h>
 #include <firme.h>
 #include <glob_data.h>
+#include <pcpu_data.h>
 #include <platform_api.h>
 #include <random_app.h>
 #include <rmm_el3_ifc.h>
@@ -96,9 +99,14 @@ void rmm_arch_init(void)
 
 /* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
-uint64_t rmm_warmboot_main(uint64_t token)
+uint64_t rmm_warmboot_main(void)
 {
-	token = glob_data_init((struct glob_data *)token, 0UL, 0UL);
+	uintptr_t glob_data_pa;
+	uint64_t token;
+
+	/* Initialize glob_data_pa in the current CPU's metadata page. */
+	glob_data_pa = glob_data_init(NULL, 0UL, 0UL);
+	pcpu_set_glob_data_pa(glob_data_pa);
 
 	/*
 	 * Finish initializing the slot buffer mechanism
@@ -121,10 +129,11 @@ uint64_t rmm_warmboot_main(uint64_t token)
 	attest_app_init_per_cpu_instance();
 
 	/*
-	 * Stage 2 translation library initializaton.
+	 * Stage 2 translation library initialization.
 	 */
 	s2tt_init();
 
+	token = pcpu_get_region_base_pa();
 	INFO("RMM warm boot complete. token=%lx\n", token);
 	return token;
 }
@@ -136,13 +145,14 @@ uint64_t rmm_warmboot_main(uint64_t token)
  */
 /* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
-uint64_t rmm_main(uint64_t token)
+uint64_t rmm_main(void)
 {
 	unsigned int rmm_el3_ifc_version = rmm_el3_ifc_get_version();
 	unsigned int manifest_version = rmm_el3_ifc_get_manifest_version();
 	unsigned long rmi_revision = rmi_get_highest_supported_version();
 	unsigned long rsi_revision = rsi_get_highest_supported_version();
 	uintptr_t alloc = 0UL;
+	uintptr_t glob_data_pa;
 	size_t alloc_size;
 
 	/*
@@ -197,12 +207,13 @@ uint64_t rmm_main(uint64_t token)
 	VERBOSE("Max granules: %lu\n", num_gr);
 	VERBOSE("Max non-coherent device granules: %lu\n", num_ncoh_gr);
 
-	token = (uint64_t)glob_data_init((struct glob_data *)token,
-				num_gr, num_ncoh_gr);
-	if (token == 0UL) {
+	glob_data_pa = glob_data_init((struct glob_data *)pcpu_get_glob_data_pa(),
+				      num_gr, num_ncoh_gr);
+	if (glob_data_pa == 0UL) {
 		ERROR("Cannot initialize global data.\n");
 		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_NO_MEM);
 	}
+	pcpu_set_glob_data_pa(glob_data_pa);
 
 	alloc = glob_data_get_granules_va(&alloc_size);
 	assert(alloc != 0UL);
@@ -275,5 +286,5 @@ uint64_t rmm_main(uint64_t token)
 		feature_da_disable();
 	}
 
-	return rmm_warmboot_main(token);
+	return rmm_warmboot_main();
 }

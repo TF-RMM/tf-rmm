@@ -11,6 +11,7 @@
 #include <cpuid.h>
 #include <debug.h>
 #include <mec.h>
+#include <pcpu_data.h>
 #include <psmmu.h>
 #include <run.h>
 #include <simd.h>
@@ -21,7 +22,6 @@
 /* coverity[unnecessary_header:SUPPRESS] */
 #include <string.h>
 #include <utils_def.h>
-#include <xlat_high_va.h>
 
 /* Maximum number of supported arguments */
 #define MAX_NUM_ARGS		7U
@@ -481,9 +481,9 @@ __dead2 static void fatal_abort(dump_regs_t *regs)
 	INFO("LR:\t\t0x%016lx\n", lr);
 	INFO("SP_EL0:\t\t0x%016lx\n", sp_el0);
 	INFO("SP_EL2:\t\t0x%016lx%c (0x%016lx-0x%016lx)\n", sp_el2,
-		((sp_el2 < CPU_STACK_VIRT) ||
-		 (sp_el2 >= RMM_CPU_STACK_END_VA)) ? '*' : ' ',
-		CPU_STACK_VIRT, (RMM_CPU_STACK_END_VA - 1UL));
+		((sp_el2 < STACK_BASE_VA) ||
+		 (sp_el2 >= STACK_TOP_VA)) ? '*' : ' ',
+		STACK_BASE_VA, (STACK_TOP_VA - 1UL));
 	INFO("ESR_EL2:\t0x%016lx\n", read_esr_el2());
 	INFO("ELR_EL2:\t0x%016lx\n", read_elr_el2());
 	INFO("FAR_EL2:\t0x%016lx\n", read_far_el2());

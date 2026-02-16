@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <granule.h>
 #include <mec.h>
+#include <pcpu_data.h>
 #include <slot_buf_arch.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -30,7 +31,7 @@ uintptr_t slot_to_va(enum buffer_slot slot)
 {
 	assert(slot < NR_CPU_SLOTS);
 
-	return (SLOT_VIRT + (GRANULE_SIZE * (unsigned long)slot));
+	return (SLOT_BUFFER_BASE_VA + (GRANULE_SIZE * (unsigned long)slot));
 }
 
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
@@ -604,7 +605,7 @@ enum buffer_slot va_to_slot_internal(void *buf)
 {
 	enum buffer_slot slot;
 
-	slot = (enum buffer_slot)(((uintptr_t)buf - SLOT_VIRT) >> GRANULE_SHIFT); /* NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange) */
+	slot = (enum buffer_slot)(((uintptr_t)buf - SLOT_BUFFER_BASE_VA) >> GRANULE_SHIFT); /* NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange) */
 
 	assert(slot < NR_CPU_SLOTS);
 

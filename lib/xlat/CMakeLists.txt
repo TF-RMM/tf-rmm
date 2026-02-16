@@ -42,8 +42,7 @@ if(RMM_ARCH STREQUAL fake_host)
                 "src/fake_host/xlat_helpers.c")
 else()
     target_sources(rmm-lib-xlat
-        PRIVATE "src/aarch64/enable_mmu.S"
-                "src/aarch64/xlat_helper.S")
+        PRIVATE "src/aarch64/enable_mmu.S")
 endif()
 
 if(HOST_VARIANT STREQUAL "host_cbmc")

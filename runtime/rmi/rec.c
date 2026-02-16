@@ -11,6 +11,7 @@
 #include <gic.h>
 #include <granule.h>
 #include <measurement.h>
+#include <pcpu_data.h>
 #include <planes.h>
 #include <psci.h>
 #include <realm.h>
@@ -23,7 +24,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
-#include <xlat_high_va.h>
 
 static void init_rec_sysregs(STRUCT_TYPE sysreg_state *sysregs,
 			     unsigned long mpidr)
@@ -299,7 +299,7 @@ static void rec_aux_granules_init(struct rec *r)
 		ATTESTATION_APP_ID,
 		granule_pas,
 		granule_pa_count,
-		(void *)(SLOT_VIRT +
+		(void *)(SLOT_BUFFER_BASE_VA +
 			(((unsigned long)SLOT_REC_AUX0 + used_aux_pages) * GRANULE_SIZE)),
 		0);
 	if (ret != 0) {

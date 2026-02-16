@@ -9,6 +9,7 @@
 #include <host_realm.h>
 #include <host_rmi_wrappers.h>
 #include <host_utils.h>
+#include <pcpu_data.h>
 #include <platform_api.h>
 #include <rmm_el3_ifc.h>
 #include <s2tt.h>
@@ -417,6 +418,12 @@ int main(int argc, char *argv[])
 	host_util_set_realm_entry(realm_start);
 
 	host_util_setup_sysreg_and_boot_manifest();
+
+	/*
+	 * Fake-host builds do not execute the EL2 assembly entry path, so set up
+	 * the current CPU's metadata page here instead.
+	 */
+	pcpu_fake_host_setup(0U, 0UL);
 
 	arch_features_query_el3_support();
 
