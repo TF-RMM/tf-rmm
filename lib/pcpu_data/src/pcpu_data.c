@@ -5,15 +5,22 @@
 
 #include <arch_helpers.h>
 #include <assert.h>
+#include <errno.h>
 #include <pcpu_data.h>
-#include <stddef.h>
+/* coverity[unnecessary_header:SUPPRESS] */
+#include <string.h>
 #include <utils_def.h>
-#include <xlat_high_va.h>
+#include <xlat_contexts.h>
+#include <xlat_tables.h>
 
 /*
  * The layout of each per-CPU region in physical memory
  * (region base PA == metadata page PA)
  *
+ * +----------------------+
+ * |                      |
+ * |   High VA tables     |  HIGH_VA_TBLS_PAGES
+ * |                      |
  * +----------------------+
  * |                      |
  * |   RMM exception      |
@@ -61,8 +68,11 @@ void pcpu_metadata_early_init(unsigned long pcpu_metadata_pa,
 
 	assert(!is_mmu_enabled()); /* Ensure MMU is not enabled yet */
 
-	assert(cpu_index <= (GRANULE_SIZE - 1UL)); /* Ensure CPU index fits in 12 bits */
-	assert(ALIGNED(pcpu_metadata_pa, GRANULE_SIZE)); /* Ensure PA is aligned to 4KB (last 12 bits are 0) */
+	/* Ensure CPU index fits in 12 bits */
+	assert(cpu_index <= (GRANULE_SIZE - 1UL));
+
+	/* Ensure PA is aligned to 4KB (last 12 bits are 0) */
+	assert(ALIGNED(pcpu_metadata_pa, GRANULE_SIZE));
 
 	/* Encode CPU index in the last 12 bits of the metadata PA */
 	tpidr_value |= cpu_index;
@@ -75,8 +85,10 @@ void pcpu_metadata_early_init(unsigned long pcpu_metadata_pa,
 		return;
 	}
 
-	pcpu_metadata_ptr->version = 1; /* Set version */
-	pcpu_metadata_ptr->glob_data_pa = 0UL; /* Initialize global data PA to 0, will be set later */
+	/* Set version */
+	pcpu_metadata_ptr->version = 1;
+	/* Initialize global data PA to 0, will be set later */
+	pcpu_metadata_ptr->glob_data_pa = 0UL;
 
 	/*
 	 * Record the physical layout of this CPU's region. The metadata page is
@@ -94,7 +106,13 @@ void pcpu_metadata_early_init(unsigned long pcpu_metadata_pa,
 	pcpu_metadata_ptr->eh_stack_top_pa = pcpu_metadata_ptr->eh_stack_base_pa +
 					(EH_STACK_PAGES * GRANULE_SIZE);
 
-	assert((pcpu_metadata_ptr->eh_stack_top_pa) ==
+	pcpu_metadata_ptr->high_va_tbls_base_pa = pcpu_metadata_ptr->eh_stack_top_pa;
+	pcpu_metadata_ptr->high_va_tbls_top_pa =
+				pcpu_metadata_ptr->high_va_tbls_base_pa +
+				(HIGH_VA_TBLS_PAGES * GRANULE_SIZE);
+
+	(void)memset(&pcpu_metadata_ptr->high_va_xlat_ctx, 0, sizeof(struct xlat_ctx));
+	assert((pcpu_metadata_ptr->high_va_tbls_top_pa) ==
 		(pcpu_metadata_pa + (PCPU_REGION_PAGES * GRANULE_SIZE)));
 
 	/* No need to invalidate the entire struct, only the size of the initialized fields */
@@ -134,7 +152,7 @@ void pcpu_set_glob_data_pa(uintptr_t glob_data_pa)
 
 /* This mapping is used for the metadata page (`struct pcpu_metadata`). */
 #define RMM_PCPU_METADATA_MMAP_IDX	0U
-#define RMM_PCPU_METADATA_MMAP	MAP_REGION_FULL_SPEC(				\
+#define RMM_PCPU_METADATA_MMAP	MAP_REGION_FULL_SPEC(					\
 					0UL, /* PA is different for each CPU */		\
 					PCPU_METADATA_BASE_VA,			\
 					(PCPU_METADATA_PAGES * GRANULE_SIZE),	\
@@ -159,22 +177,32 @@ void pcpu_set_glob_data_pa(uintptr_t glob_data_pa)
 					XLAT_NG_DATA_ATTR,				\
 					GRANULE_SIZE)
 
+/* This mapping is used for the per-CPU high-VA page tables. */
+#define RMM_HIGH_VA_TBLS_MMAP_IDX	3U
+#define RMM_HIGH_VA_TBLS_MMAP	MAP_REGION_FULL_SPEC(					\
+					0UL, /* PA is different for each CPU */			\
+					HIGH_VA_TBLS_BASE_VA,					\
+					(HIGH_VA_TBLS_PAGES * GRANULE_SIZE),		\
+					XLAT_NG_DATA_ATTR,					\
+					GRANULE_SIZE)
+
 /*
  * The Slot buffers are mapped/unmapped dynamically (they have a fixed, reserved VA range,
  * but they don't have fixed physical pages associated).
  * Hence define TRANSIENT mmap region.
  */
-#define RMM_SLOT_BUF_MMAP_IDX	3U
-#define RMM_SLOT_BUF_MMAP	MAP_REGION_TRANSIENT(			\
-					SLOT_BUFFER_BASE_VA,		\
-					RMM_SLOT_BUF_SIZE,		\
+#define RMM_SLOT_BUF_MMAP_IDX	4U
+#define RMM_SLOT_BUF_MMAP	MAP_REGION_TRANSIENT(		\
+					SLOT_BUFFER_BASE_VA,	\
+					RMM_SLOT_BUF_SIZE,	\
 					GRANULE_SIZE)
 
-#define MMAP_REGION_COUNT	4U
+#define MMAP_REGION_COUNT	5U
 
 /*
- * A single L3 page is used to map the slot buffers as well as the stack, so
- * enforce here that they fit within that L3 page.
+ * A single L3 page is used to map the full per-CPU high-VA layout, including
+ * the metadata page, stacks, page tables, and slot buffers, so enforce here
+ * that they fit within that L3 page.
  */
 COMPILER_ASSERT_NO_CBMC((PCPU_REGION_TOTAL_VA_PAGES + XLAT_HIGH_VA_SLOT_NUM) <=
 					XLAT_TABLE_ENTRIES);
@@ -190,7 +218,15 @@ COMPILER_ASSERT_NO_CBMC((PCPU_REGION_TOTAL_VA_PAGES + XLAT_HIGH_VA_SLOT_NUM) <=
  * |                      |
  * +----------------------+
  * |                      |
- * |   EH stack guard     |  EH_STACK_GAP_VIRTUAL_PAGE Unmapped
+ * | High VA PT guard     |  PCPU_GUARD_GAP_PAGES Unmapped
+ * |                      |
+ * +----------------------+
+ * |                      |
+ * |   High VA tables     |  HIGH_VA_TBLS_PAGES Mapped
+ * |                      |
+ * +----------------------+
+ * |                      |
+ * |   EH stack guard     |  PCPU_GUARD_GAP_PAGES Unmapped
  * |                      |
  * +----------------------+
  * |                      |
@@ -199,7 +235,7 @@ COMPILER_ASSERT_NO_CBMC((PCPU_REGION_TOTAL_VA_PAGES + XLAT_HIGH_VA_SLOT_NUM) <=
  * |                      |
  * +----------------------+
  * |                      |
- * |    Stack guard       |  STACK_GAP_VIRTUAL_PAGE Unmapped
+ * |    Stack guard       |  PCPU_GUARD_GAP_PAGES Unmapped
  * |                      |
  * +----------------------+
  * |                      |
@@ -207,7 +243,7 @@ COMPILER_ASSERT_NO_CBMC((PCPU_REGION_TOTAL_VA_PAGES + XLAT_HIGH_VA_SLOT_NUM) <=
  * |                      |
  * +----------------------+
  * |                      |
- * | Per-CPU metadata     |  PCPU_METADATA_GAP_VIRTUAL_PAGE Unmapped
+ * | Per-CPU metadata     |  PCPU_GUARD_GAP_PAGES Unmapped
  * |       guard          |
  * |                      |
  * +----------------------+
@@ -222,11 +258,15 @@ COMPILER_ASSERT_NO_CBMC((PCPU_REGION_TOTAL_VA_PAGES + XLAT_HIGH_VA_SLOT_NUM) <=
  */
 int pcpu_high_va_setup(void)
 {
+	struct xlat_mmu_cfg mmu_config;
+	int ret;
+
 	/* Allocate xlat_mmap_region for high VA mappings which will be specific to PEs */
 	struct xlat_mmap_region mm_regions_array[MMAP_REGION_COUNT] = {
 		[RMM_PCPU_METADATA_MMAP_IDX] = RMM_PCPU_METADATA_MMAP,
 		[RMM_STACK_MMAP_IDX]	= RMM_STACK_MMAP,
 		[RMM_EH_STACK_MMAP_IDX]	= RMM_EH_STACK_MMAP,
+		[RMM_HIGH_VA_TBLS_MMAP_IDX] = RMM_HIGH_VA_TBLS_MMAP,
 		[RMM_SLOT_BUF_MMAP_IDX]	= RMM_SLOT_BUF_MMAP
 	};
 
@@ -238,12 +278,47 @@ int pcpu_high_va_setup(void)
 
 	/*
 	 * Install the current CPU's physical per-CPU region into the fixed high-VA
-	 * layout. Every CPU uses the same metadata/stack VAs, but those VAs resolve
-	 * to the current CPU's own metadata page and stacks.
+	 * layout. Every CPU uses the same metadata/stack/page-table VAs, but those
+	 * VAs resolve to the current CPU's own metadata page, stacks, and page
+	 * tables.
 	 */
-	mm_regions_array[RMM_PCPU_METADATA_MMAP_IDX].base_pa = pcpu_metadata_ptr->metadata_base_pa;
-	mm_regions_array[RMM_STACK_MMAP_IDX].base_pa = pcpu_metadata_ptr->stack_base_pa;
-	mm_regions_array[RMM_EH_STACK_MMAP_IDX].base_pa = pcpu_metadata_ptr->eh_stack_base_pa;
+	mm_regions_array[RMM_PCPU_METADATA_MMAP_IDX].base_pa =
+		pcpu_metadata_ptr->metadata_base_pa;
+	mm_regions_array[RMM_STACK_MMAP_IDX].base_pa =
+		pcpu_metadata_ptr->stack_base_pa;
+	mm_regions_array[RMM_EH_STACK_MMAP_IDX].base_pa =
+		pcpu_metadata_ptr->eh_stack_base_pa;
+	mm_regions_array[RMM_HIGH_VA_TBLS_MMAP_IDX].base_pa =
+		pcpu_metadata_ptr->high_va_tbls_base_pa;
 
-	return xlat_high_va_setup(mm_regions_array, MMAP_REGION_COUNT);
+	/* Initialize the context configuration for this CPU */
+	ret = xlat_ctx_cfg_init(&pcpu_metadata_ptr->high_va_xlat_ctx, VA_HIGH_REGION,
+				 mm_regions_array, MMAP_REGION_COUNT,
+				 0UL, XLAT_HIGH_VA_SIZE, RMM_ASID);
+	if ((ret != 0) && (ret != -EALREADY)) {
+		return ret;
+	}
+
+	/*
+	 * Initialize the translation tables for the current context.
+	 * This is done on the first boot of each PE.
+	 */
+	ret = xlat_ctx_init_remapped_tbls(&pcpu_metadata_ptr->high_va_xlat_ctx,
+				(uint64_t *)pcpu_metadata_ptr->high_va_tbls_base_pa,
+				HIGH_VA_TBLS_PAGES,
+				pcpu_metadata_ptr->high_va_tbls_base_pa,
+				HIGH_VA_TBLS_BASE_VA);
+
+	if ((ret != 0) && (ret != -EALREADY)) {
+		return ret;
+	}
+
+	/* Configure MMU registers */
+	ret = xlat_arch_setup_mmu_cfg(&pcpu_metadata_ptr->high_va_xlat_ctx, &mmu_config);
+
+	if (ret == 0) {
+		xlat_arch_write_mmu_cfg(&mmu_config);
+	}
+
+	return ret;
 }

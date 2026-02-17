@@ -17,6 +17,7 @@
 #include <glob_data.h>
 #include <granule.h>
 #include <import_sym.h>
+#include <string.h>
 #include <utils_def.h>
 #include <xlat_contexts.h>
 #include <xlat_tables.h>

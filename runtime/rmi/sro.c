@@ -20,6 +20,7 @@
 #include <status.h>
 #include <stdbool.h>
 #include <stddef.h>
+/* coverity[unnecessary_header:SUPPRESS] */
 #include <string.h>
 #include <utils_def.h>
 #include <xlat_defs.h>

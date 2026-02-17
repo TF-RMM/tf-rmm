@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <simd.h>
+#include <string.h>
 
 /*
  * The number of pages that is allocated in the .bss for each per-cpu attest app

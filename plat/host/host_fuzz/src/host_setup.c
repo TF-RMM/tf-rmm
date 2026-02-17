@@ -17,6 +17,7 @@
 #include <host_utils.h>
 #define MINICORO_IMPL
 #include <minicoro.h>
+#include <pcpu_data.h>
 #include <platform_api.h>
 #include <random_app.h>
 #include <rmm_el3_ifc.h>
@@ -309,7 +310,7 @@ static int realm_fin(unsigned long *regs, unsigned long *sp_el0)
 
 
 
-uint64_t rmm_main(uint64_t token);
+uint64_t rmm_main(void);
 void rmm_arch_init(void);
 
 void handle_ns_smc(unsigned long function_id,
@@ -337,6 +338,12 @@ void init(void)
 
 	host_util_setup_sysreg_and_boot_manifest();
 
+	/*
+	 * Fake-host builds do not execute the EL2 assembly entry path, so set up
+	 * the current CPU's metadata page here instead.
+	 */
+	pcpu_fake_host_setup(0U, 0UL);
+
 	arch_features_query_el3_support();
 
 	rmm_arch_init();
@@ -354,7 +361,7 @@ void init(void)
 	enable_fake_host_mmu();
 
 	/* Start RMM */
-	(void)rmm_main(0UL);
+	(void)rmm_main();
 
 	/*
 	 * Activate RMM: allocate an NS granule to use as the config buffer,

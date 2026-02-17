@@ -5,7 +5,7 @@
 
 #include <sizes.h>
 #include <utils_def.h>
-#include <xlat_high_va.h>
+#include <pcpu_data.h>
 
 #if (GRANULE_SIZE == 0)
 #error "Required config options not set for the linker script."

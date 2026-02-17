@@ -9,6 +9,7 @@
 #include <rsi-handler.h>
 #include <rsi-host-call.h>
 #include <smc-rsi.h>
+/* coverity[unnecessary_header:SUPPRESS] */
 #include <string.h>
 
 /*

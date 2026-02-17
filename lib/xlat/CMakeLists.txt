@@ -38,8 +38,7 @@ include (tests/CMakeLists.txt)
 
 if(RMM_ARCH STREQUAL fake_host)
     target_sources(rmm-lib-xlat
-        PRIVATE "src/fake_host/enable_mmu.c"
-                "src/fake_host/xlat_helpers.c")
+        PRIVATE "src/fake_host/enable_mmu.c")
 else()
     target_sources(rmm-lib-xlat
         PRIVATE "src/aarch64/enable_mmu.S")
@@ -47,8 +46,7 @@ endif()
 
 if(HOST_VARIANT STREQUAL "host_cbmc")
     target_sources(rmm-lib-xlat
-        PRIVATE "src/fake_host/cbmc_xlat_tables_utils.c"
-                "src/fake_host/cbmc_xlat_high_va.c")
+        PRIVATE "src/fake_host/cbmc_xlat_tables_utils.c")
     # In case of 'host_cbmc' variant no further source files are added to
     # the build.
     return()
@@ -58,5 +56,4 @@ target_sources(rmm-lib-xlat
     PRIVATE "src/xlat_tables_core.c"
             "src/xlat_tables_utils.c"
             "src/xlat_tables_arch.c"
-            "src/xlat_contexts.c"
-            "src/xlat_high_va.c")
+            "src/xlat_contexts.c")

@@ -14,6 +14,9 @@
 #if !(defined(__ASSEMBLER__) || defined(__LINKER__))
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <utils_def.h>
 #include <xlat_defs.h>
 
 /* Enumerator to identify the right address space within a context */

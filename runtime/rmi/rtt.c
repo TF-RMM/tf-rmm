@@ -24,6 +24,7 @@
 #include <smmuv3.h>
 #include <status.h>
 #include <stddef.h>
+/* coverity[unnecessary_header:SUPPRESS] */
 #include <string.h>
 #include <xlat_defs.h>
 #include <xlat_tables.h>

@@ -7,6 +7,7 @@
  #include <assert.h>
  #include <dev_assign_app.h>
  #include <dev_assign_structs.h>
+ #include <string.h>
 
 /* Add declaration to prevent static checker error */
 void dev_assign_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);

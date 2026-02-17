@@ -8,6 +8,7 @@
 #include <rec.h>
 #include <rsi-handler.h>
 #include <smmuv3.h>
+#include <string.h>
 
 /*
  * TODO: Currently the pci_tdisp_get_version() call made during RMI_VDEV_LOCK in

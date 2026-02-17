@@ -12,6 +12,7 @@
 #include <dev_assign_app.h>
 #include <feature.h>
 #include <granule.h>
+#include <pcpu_data.h>
 #include <rmm_el3_ifc.h>
 #include <sizes.h>
 #include <smc-handler.h>
@@ -19,7 +20,6 @@
 #include <sro_context.h>
 #include <string.h>
 #include <utils_def.h>
-#include <xlat_high_va.h>
 
 #define RMI_PDEV_FLAGS_VALID_MASK  (MASK(RMI_PDEV_FLAGS_SPDM) | MASK(RMI_PDEV_FLAGS_CATEGORY))
 #define PCIE_BDF_VALID_MASK		((unsigned long)UINT16_MAX)

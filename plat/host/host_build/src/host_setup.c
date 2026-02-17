@@ -393,7 +393,7 @@ static int host_realm_run_attest(struct host_realm *realm)
 	return -1;
 }
 
-uint64_t rmm_main(uint64_t token);
+uint64_t rmm_main(void);
 void rmm_arch_init(void);
 
 int main(int argc, char *argv[])
@@ -442,7 +442,7 @@ int main(int argc, char *argv[])
 	enable_fake_host_mmu();
 
 	/* Start RMM */
-	(void)rmm_main(0UL);
+	(void)rmm_main();
 
 	/* Create a realm and a rec */
 	if (host_create_realm_and_activate(&g_realm) != 0) {
