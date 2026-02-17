@@ -65,9 +65,7 @@ COMPILER_ASSERT(U(offsetof(struct app_reg_ctx, sp_el0)) == SP_EL0_OFFSET);
 
 struct app_data_cfg {
 	/* Structures for setting up and storing app translation related data */
-	struct xlat_ctx_cfg app_va_xlat_ctx_cfg;
 	struct xlat_ctx app_va_xlat_ctx;
-	struct xlat_ctx_tbls app_va_tbls;
 	struct xlat_mmu_cfg mmu_config;
 	struct xlat_llt_info cached_app_llt_info;
 	uintptr_t app_reg_ctx_pa;

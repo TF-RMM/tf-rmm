@@ -49,8 +49,7 @@ typedef enum {
 /* Returns a pointer to the first empty translation table. */
 static inline uint64_t *xlat_table_get_empty(struct xlat_ctx *ctx)
 {
-	assert(ctx->tbls != NULL);
-	if (ctx->tbls->next_table >= ctx->tbls->tables_num) {
+	if (ctx->tbls.next_table >= ctx->tbls.tables_num) {
 		ERROR("Maximum number of translation tables reached. "
 			"Check table allocation.\n");
 
@@ -58,8 +57,8 @@ static inline uint64_t *xlat_table_get_empty(struct xlat_ctx *ctx)
 		panic();
 	}
 
-	return &ctx->tbls->tables[(size_t)XLAT_TABLE_ENTRIES *
-					ctx->tbls->next_table++];
+	return &ctx->tbls.tables[(size_t)XLAT_TABLE_ENTRIES *
+					ctx->tbls.next_table++];
 }
 
 /*
@@ -264,9 +263,8 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 
 	assert(mm != NULL);
 	assert(ctx != NULL);
-	ctx_cfg = ctx->cfg;
+	ctx_cfg = &ctx->cfg;
 
-	assert(ctx_cfg != NULL);
 	assert((level >= ctx_cfg->base_level) &&
 	       (level <= XLAT_TABLE_LEVEL_MAX));
 	assert(table_entries <= XLAT_GET_TABLE_ENTRIES(level));
@@ -491,10 +489,8 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 	struct xlat_ctx_cfg *ctx_cfg;
 	struct xlat_ctx_tbls *ctx_tbls;
 
-	assert(ctx->cfg != NULL);
-	assert(ctx->tbls != NULL);
-	ctx_cfg = ctx->cfg;
-	ctx_tbls = ctx->tbls;
+	ctx_cfg = &ctx->cfg;
+	ctx_tbls = &ctx->tbls;
 
 	xlat_mmap_print(ctx);
 
@@ -547,10 +543,12 @@ int xlat_init_tables_ctx(struct xlat_ctx *ctx)
 	}
 
 	ctx_tbls->init = true;
+	/* Since the tables are now initialized, the mmap array is no longer needed */
+	ctx_cfg->mmap = NULL;
 
 	if (!is_mmu_enabled()) {
-		inv_dcache_range((uintptr_t)ctx_tbls,
-				   sizeof(struct xlat_ctx_tbls));
+		inv_dcache_range((uintptr_t)ctx,
+				   sizeof(struct xlat_ctx));
 	}
 	xlat_tables_print(ctx);
 

@@ -112,15 +112,15 @@ struct xlat_ctx_cfg {
 
 /*
  * Struct that holds the context itself, composed of
- * a pointer to the context config and a pointer to the
- * translation tables associated to it.
+ * the context config and the translation tables associated
+ * to it, embedded directly.
  *
  * Aligned on cacheline size as this data can be accessed on
  * secondaries with MMU off.
  */
 struct xlat_ctx {
-	struct xlat_ctx_cfg *cfg;
-	struct xlat_ctx_tbls *tbls;
+	struct xlat_ctx_cfg cfg;
+	struct xlat_ctx_tbls tbls;
 } __aligned(CACHE_WRITEBACK_GRANULE);
 
 /*
@@ -138,22 +138,12 @@ struct xlat_ctx {
 		XLAT_ADDR_SHIFT(GET_XLAT_TABLE_LEVEL_BASE(addr_space_size)))
 
 /*
- * Macro to check if the xlat_ctx_cfg part of a context is valid.
- */
-#define XLAT_TABLES_CTX_CFG_VALID(_ctx)	((_ctx)->cfg != NULL)
-
-/*
- * Macro to check if the xlat_ctx_tbls part of a context is valid.
- */
-#define XLAT_TABLES_CTX_TBL_VALID(_ctx)	((_ctx)->tbls != NULL)
-
-/*
  * Function to initialize the configuration structure for a
  * translation context. This function must be called before
  * the MMU is enabled.
  *
  * Arguments:
- *	- cfg: Pointer to a xlat_ctx_cfg structure to initialize.
+ *	- ctx: Pointer to a xlat_ctx structure whose cfg will be initialized.
  *	- region: xlat_addr_region_id_t descriptor indicating the memory
  *		  region for the configured context.
  *	- mm: List of memory map regions to add to the
@@ -169,7 +159,7 @@ struct xlat_ctx {
  * Return:
  *	- 0 on success or a negative POSIX error otherwise.
  */
-int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
+int xlat_ctx_cfg_init(struct xlat_ctx *ctx,
 		      xlat_addr_region_id_t region,
 		      struct xlat_mmap_region *mm,
 		      unsigned int mm_regions,
@@ -178,18 +168,15 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
 		      uint32_t asid);
 
 /*
- * Initializes the translation context (xlat_ctx) and the xlat_ctx_tbls with
- * the given xlat_ctx_cfg. The tables are created according to the memory
- * map description available in the latter and stored in the tables area
- * pointed by `tables_ptr`.
+ * Initializes the translation context (xlat_ctx) tables according to
+ * the context configuration. The cfg must have already been initialized
+ * via xlat_ctx_cfg_init(). The tables are created according to the memory
+ * map description and stored in the tables area pointed by `tables_ptr`.
  * Must be called before the MMU is enabled.
  *
  * Arguments:
  *	- ctx: Pointer to the xlat_ctx structure to initialize.
- *	- cfg: Pointer to the structure containing the context configuration.
- *	       This must have already been initialized via xlat_ctx_cfg_init().
- *	- tbls_ctx: Pointer to a xlat_ctx_tbls structure to configure the
- *		    associated table data for the translation context.
+ *	       The cfg must have already been initialized via xlat_ctx_cfg_init().
  *	- tables_ptr: Pointer to the memory for the translation tables,
  *		      the memory provided must be page aligned and multiple
  *		      of page size.
@@ -198,12 +185,10 @@ int xlat_ctx_cfg_init(struct xlat_ctx_cfg *cfg,
  *
  * Return:
  *	- 0 on success.
- *	- -EALREADY if tbls_ctx is already initialized.
+ *	- -EALREADY if tbls is already initialized.
  *	- Negative POSIX error codes on all other errors.
  */
 int xlat_ctx_init(struct xlat_ctx *ctx,
-		  struct xlat_ctx_cfg *cfg,
-		  struct xlat_ctx_tbls *tbls_ctx,
 		  uint64_t *tables_ptr,
 		  unsigned int ntables,
 		  uint64_t base_table_pa);
@@ -219,8 +204,6 @@ int xlat_ctx_init(struct xlat_ctx *ctx,
  * block in the VA space.
  */
 int xlat_ctx_init_remapped_tbls(struct xlat_ctx *ctx,
-		  struct xlat_ctx_cfg *cfg,
-		  struct xlat_ctx_tbls *tbls_ctx,
 		  uint64_t *tables_ptr,
 		  unsigned int ntables,
 		  uint64_t base_table_pa,

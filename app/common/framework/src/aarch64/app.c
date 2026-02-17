@@ -37,7 +37,7 @@
 #define ASID_SIZE_NO_FEAT_ASID16	8U
 
 struct app_id_data {
-	struct xlat_ctx_cfg app_va_xlat_ctx_cfg_base;
+	struct xlat_ctx app_va_xlat_ctx_base;
 	struct xlat_mmap_region mm_regions_array[RMM_APP_MMAP_REGION_COUNT];
 	uintptr_t el0_shared_page_va;
 	uintptr_t heap_va;
@@ -147,7 +147,7 @@ static int init_app_translation(size_t app_id,
 	/* Copy the prepared base config into the app instance's own config */
 	/* coverity[deadcode:SUPPRESS] */
 	/* coverity[misra_c_2012_rule_14_3_violation:SUPPRESS] */
-	app_data->app_va_xlat_ctx_cfg = app_id_data_array[app_index].app_va_xlat_ctx_cfg_base;
+	app_data->app_va_xlat_ctx.cfg = app_id_data_array[app_index].app_va_xlat_ctx_base.cfg;
 	app_data->el0_shared_page_va = app_id_data_array[app_index].el0_shared_page_va;
 	app_data->heap_va = app_id_data_array[app_index].heap_va;
 	app_data->stack_buf_start_va = app_id_data_array[app_index].stack_buf_start_va;
@@ -156,8 +156,6 @@ static int init_app_translation(size_t app_id,
 	 * Initialize the translation tables for the APP.
 	 */
 	ret = xlat_ctx_init(&app_data->app_va_xlat_ctx,
-				&app_data->app_va_xlat_ctx_cfg,
-				&app_data->app_va_tbls,
 				page_table,
 				APP_XLAT_TABLE_COUNT,
 				page_table_pa);
@@ -590,7 +588,7 @@ void app_framework_setup(void)
 		 * range, so that we can skip setting up other registers than ttbrx_el2
 		 * for mmu setup.
 		 */
-		ret = xlat_ctx_cfg_init(&app_id_data->app_va_xlat_ctx_cfg_base, VA_HIGH_REGION,
+		ret = xlat_ctx_cfg_init(&app_id_data->app_va_xlat_ctx_base, VA_HIGH_REGION,
 					app_id_data->mm_regions_array,
 					RMM_APP_MMAP_REGION_COUNT,
 					0UL,

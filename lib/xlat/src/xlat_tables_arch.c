@@ -133,19 +133,15 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx, struct xlat_mmu_cfg *mm
 	assert(ctx != NULL);
 	assert(mmu_config != NULL);
 
-	ctx_cfg = ctx->cfg;
-	ctx_tbls = ctx->tbls;
-
-	assert(ctx_cfg != NULL);
-	assert(ctx_tbls != NULL);
+	ctx_cfg = &ctx->cfg;
+	ctx_tbls = &ctx->tbls;
 
 	/* Only 4K Granularity is supported */
 	if (xlat_arch_is_granule_size_supported(SZ_4K) == false) {
 		return -EPERM;
 	}
 
-	assert(ctx->cfg != NULL);
-	if (!ctx->cfg->init) {
+	if (!ctx->cfg.init || !ctx->tbls.init) {
 		return -EINVAL;
 	}
 
@@ -188,7 +184,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx, struct xlat_mmu_cfg *mm
 	 */
 	if (is_feat_lpa2_4k_present() == true) {
 		tcr |= TCR_EL2_DS_LPA2_EN;
-		tcr |= SET_TCR_SH(ctx->cfg->region, ISH);
+		tcr |= SET_TCR_SH(ctx->cfg.region, ISH);
 	}
 
 	/*
