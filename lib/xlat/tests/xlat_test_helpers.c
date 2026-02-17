@@ -116,8 +116,8 @@ void xlat_test_helpers_init_ctx(struct xlat_ctx *ctx,
 				struct xlat_ctx_cfg *cfg,
 				struct xlat_ctx_tbls *tbls)
 {
-	ctx->cfg = cfg;
-	ctx->tbls = tbls;
+	ctx->cfg = *cfg;
+	ctx->tbls = *tbls;
 }
 
 void xlat_test_setup(bool lpa2)
@@ -258,14 +258,12 @@ int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,
 	uint64_t *table;
 
 	assert(ctx != NULL);
-	assert(ctx->tbls != NULL);
-	assert(ctx->cfg != NULL);
 	assert(tte != NULL);
 	assert(level != NULL);
 	assert(index != NULL);
 
-	cfg = ctx->cfg;
-	tbls = ctx->tbls;
+	cfg = &ctx->cfg;
+	tbls = &ctx->tbls;
 
 	if (!tbls->init) {
 		return -EINVAL;
@@ -381,12 +379,10 @@ int xlat_test_helpers_get_tte_at_level(struct xlat_ctx *ctx,
 	uint64_t *table;
 
 	assert(ctx != NULL);
-	assert(ctx->tbls != NULL);
-	assert(ctx->cfg != NULL);
 	assert(tte != NULL);
 
-	cfg = ctx->cfg;
-	tbls = ctx->tbls;
+	cfg = &ctx->cfg;
+	tbls = &ctx->tbls;
 
 	if (!tbls->init) {
 		return -EINVAL;
@@ -511,26 +507,29 @@ int xlat_test_helpers_gen_attrs(uint64_t *attrs, uint64_t mmap_attrs)
 
 int xlat_test_helpers_get_attrs_for_va(struct xlat_ctx *ctx,
 					uint64_t va,
-					uint64_t *attrs)
+					uint64_t *attrs,
+					struct xlat_mmap_region *mmap,
+					unsigned int mmap_regions)
 {
 	uint64_t mmap_attrs = 0ULL;
 	unsigned int i;
 
 	assert(attrs != NULL);
+	assert(mmap != NULL);
 
-	for (i = 0; i < ctx->cfg->mmap_regions; i++) {
+	for (i = 0; i < mmap_regions; i++) {
 		uint64_t mmap_min_va =
-			ctx->cfg->base_va + ctx->cfg->mmap[i].base_va;
+			ctx->cfg.base_va + mmap[i].base_va;
 		uint64_t mmap_max_va = mmap_min_va +
-					    ctx->cfg->mmap[i].size - 1ULL;
+					    mmap[i].size - 1ULL;
 
 		if ((va >= mmap_min_va) && (va <= mmap_max_va)) {
-			mmap_attrs = ctx->cfg->mmap[i].attr;
+			mmap_attrs = mmap[i].attr;
 			break;
 		}
 	}
 
-	if (i >= ctx->cfg->mmap_regions) {
+	if (i >= mmap_regions) {
 		/* VA not found */
 		return -EINVAL;
 	}

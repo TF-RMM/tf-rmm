@@ -247,16 +247,6 @@ ASSERT_TEST(xlat_tests_no_LPA2, xlat_arch_setup_mmu_cfg_TC3)
 	xlat_arch_setup_mmu_cfg_tc3();
 }
 
-ASSERT_TEST(xlat_tests_no_LPA2, xlat_arch_setup_mmu_cfg_TC4)
-{
-	xlat_arch_setup_mmu_cfg_tc4();
-}
-
-ASSERT_TEST(xlat_tests_no_LPA2, xlat_arch_setup_mmu_cfg_TC5)
-{
-	xlat_arch_setup_mmu_cfg_tc5();
-}
-
 ASSERT_TEST(xlat_tests_no_LPA2, xlat_arch_setup_mmu_cfg_TC6)
 {
 	xlat_arch_setup_mmu_cfg_tc6();

@@ -179,7 +179,9 @@ int xlat_test_helpers_gen_attrs(uint64_t *attrs, uint64_t mmap_attrs);
  */
 int xlat_test_helpers_get_attrs_for_va(struct xlat_ctx *ctx,
 					uint64_t va,
-					uint64_t *attrs);
+					uint64_t *attrs,
+					struct xlat_mmap_region *mmap,
+					unsigned int mmap_regions);
 
 /*
  * Return a pointer to the memory allocated for the xlat tables.
