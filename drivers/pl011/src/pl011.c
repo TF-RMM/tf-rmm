@@ -28,6 +28,8 @@
 /* Flag reg bits */
 
 /* Control reg bits */
+#define PL011_UARTCR_CTSEN	(U(1) << 15)	/* CTS hardware flow control enable */
+#define PL011_UARTCR_RTSEN	(U(1) << 14)	/* RTS hardware flow control enable */
 #define PL011_UARTCR_RXE	(U(1) << 9)	/* Receive enable */
 #define PL011_UARTCR_TXE	(U(1) << 8)	/* Transmit enable */
 #define PL011_UARTCR_UARTEN	(U(1) << 0)	/* UART Enable */
@@ -110,8 +112,11 @@ int pl011_init(uintptr_t base_addr,
 
 #ifndef PL011_GENERIC_SBSA_UART
 	/* Enable Tx, Rx, and UART overall */
-	write32(PL011_UARTCR_RXE | PL011_UARTCR_TXE | PL011_UARTCR_UARTEN,
-		(void *)((base_addr) + UARTCR));
+	uint32_t cr = PL011_UARTCR_RXE | PL011_UARTCR_TXE | PL011_UARTCR_UARTEN;
+#ifdef PL011_HW_FLOW_CONTROL
+	cr |= PL011_UARTCR_CTSEN | PL011_UARTCR_RTSEN;
+#endif
+	write32(cr, (void *)((base_addr) + UARTCR));
 #endif /* PL011_GENERIC_SBSA_UART */
 
 	pl011_csl.base = base_addr;

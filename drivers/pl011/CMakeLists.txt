@@ -13,6 +13,12 @@ arm_config_option(
 	STRINGS "ON" "OFF"
 	DEFAULT "OFF")
 
+arm_config_option(
+	NAME PL011_HW_FLOW_CONTROL
+	HELP "Enable Hardware Flow Control (RTS/CTS) for PL011 UART"
+	STRINGS "ON" "OFF"
+	DEFAULT "OFF")
+
 add_library(rmm-driver-pl011)
 
 target_link_libraries(rmm-driver-pl011
@@ -21,6 +27,11 @@ target_link_libraries(rmm-driver-pl011
 if(PL011_GENERIC_SBSA_UART)
     target_compile_definitions(rmm-driver-pl011
         PUBLIC "PL011_GENERIC_SBSA_UART=1")
+endif()
+
+if(PL011_HW_FLOW_CONTROL)
+    target_compile_definitions(rmm-driver-pl011
+        PUBLIC "PL011_HW_FLOW_CONTROL=1")
 endif()
 
 target_include_directories(rmm-driver-pl011
