@@ -760,7 +760,7 @@ unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 
 	if ((vd->g_rd != g_rd) ||
 	    (vd->g_pdev != g_pdev)) {
-		smc_rc = RMI_ERROR_INPUT;
+		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
 	}
 
