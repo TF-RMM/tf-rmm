@@ -94,7 +94,7 @@ static unsigned int pcie_find_arm_dvsec(struct dev_assign_info *info,
 		}
 
 		next_cap_offset = (uint16_t)EXTRACT(PCIE_ECH_NEXT_CAP_OFFSET, ech);
-		dvsec_offset += next_cap_offset;
+		dvsec_offset = next_cap_offset;
 	} while ((next_cap_offset != 0U) && (dvsec_offset < PCIE_ECAP_END));
 
 	return 0U;
