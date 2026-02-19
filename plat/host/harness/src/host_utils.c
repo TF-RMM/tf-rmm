@@ -81,7 +81,8 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	(void)host_util_set_default_sysreg_cb("id_aa64mmfr3_el1",
 				INPLACE(ID_AA64MMFR3_EL1_MEC, 1UL) |
 				INPLACE(ID_AA64MMFR3_EL1_TCRX, 1UL) |
-				INPLACE(ID_AA64MMFR3_EL1_SCTLRX, 1UL));
+				INPLACE(ID_AA64MMFR3_EL1_SCTLRX, 1UL) |
+				INPLACE(ID_AA64MMFR3_EL1_D128, 1UL));
 
 	/* Initialize the maximum MECID width */
 	(void)host_util_set_default_sysreg_cb("mecidr_el2",
@@ -106,6 +107,11 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	/* ID_AA64ISAR0.RNDR is reset to 1 */
 	(void)host_util_set_default_sysreg_cb("id_aa64isar0_el1",
 				INPLACE(ID_AA64ISAR0_EL1_RNDR, 1UL));
+
+	/* Enable FEAT_SYSREG128 */
+	(void)host_util_set_default_sysreg_cb("id_aa64isar2_el1",
+				(INPLACE(ID_AA64ISAR2_EL1_SYSREG128, 1UL) |
+				 INPLACE(ID_AA64ISAR2_EL1_SYSINSTR128, 1UL)));
 
 	/*
 	 * Add callback to elr_el2 so that the realm entry point can be accessed

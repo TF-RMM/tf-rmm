@@ -255,6 +255,7 @@ static bool sysreg_access(struct rsi_result *res, unsigned long *sysreg,
 
 	if (read) {
 		res->smc_res.x[1] = *sysreg;
+		res->smc_res.x[2] = 0UL;
 	} else {
 		*sysreg = val->lo;
 	}
@@ -263,24 +264,27 @@ static bool sysreg_access(struct rsi_result *res, unsigned long *sysreg,
 }
 
 /*
- * This helper function is intended for regisers that are 128 bits wide when
- * FEAT_SYSREG128 is implemented and 64 bits otherwise.
+ * Helper function to access 128-bit registers either as 128-bit or 64-bit
+ * wide registers.
  *
- * If FEAT_SYSREG128 is not implemented, the function will write 0 to the
- * upper 64 bits of the register in the sysreg sctructre, since @val->hi
- * is initialized to 0.
+ * As per the spec, a 64-bit access to a register will not alter its
+ * 64MSBs. A 64-bit read will return 0 on the MSBs.
  *
- * When reading the register, the upper 64 bits will already be 0, ensuring
- * the expected value is returned.
+ * It is the caller responsibility to validate that is_128 is never 'true'
+ * if FEAT_SYSREG128 is not supported.
  */
-static bool sysreg_access_d128(struct rsi_result *res, struct reg128 *sysreg,
-			       struct reg128 *val, bool read)
+static bool sysreg_access_128b(struct rsi_result *res, struct reg128 *sysreg,
+			       struct reg128 *val, bool read, bool is_128b)
 {
+	/* 128-bit access only allowed if FEAT_SYSREG128 is present */
+	assert(is_feat_sysreg128_present() || !is_128b);
+
 	if (read) {
 		res->smc_res.x[1] = sysreg->lo;
-		res->smc_res.x[2] = sysreg->hi;
+		res->smc_res.x[2] = ((is_128b) ? sysreg->hi : 0UL);
 	} else {
-		sysreg->hi = val->hi;
+		/* sysreg->hi will only be updated for 128-Bit access */
+		sysreg->hi = ((is_128b) ? val->hi : sysreg->hi);
 		sysreg->lo = val->lo;
 	}
 
@@ -304,17 +308,14 @@ static bool access_plane_sysreg(struct rec *rec,
 	bool is_128b = (EXTRACT(RSI_SYSREG_ADDR_KVM_SYSREG128, sysreg) != 0UL);
 	struct reg128 val;
 
+	if (!is_feat_sysreg128_present() && is_128b) {
+		return false;
+	}
+
 	/* Remove the SYSREG128 bitflag from the sysreg ID */
 	sysreg &= ~MASK(RSI_SYSREG_ADDR_KVM_SYSREG128);
 
-	/*
-	 * Get the 64 msbs on a 128-bit register in case the operation is
-	 * a write.
-	 *
-	 * Note that all the 128-bit registers accessed here are only
-	 * available when FEAT_D128 is available.
-	 */
-	val.hi = ((is_feat_sysreg128_present()) ? plane->regs[4] : 0UL);
+	val.hi = plane->regs[4];
 	val.lo = plane->regs[3];
 
 /* cppcheck-suppress misra-c2012-20.7 */
@@ -326,8 +327,8 @@ static bool access_plane_sysreg(struct rec *rec,
 /* cppcheck-suppress misra-c2012-20.7 */
 #define SYSREG128_ACCESS_CASE(_group, _sysreg)					\
 	case RSI_SYSREG_KVM_ID_##_sysreg:					\
-		return sysreg_access_d128(res, &sysregs->_group._sysreg,	\
-					  &val, read)
+		return sysreg_access_128b(res, &sysregs->_group._sysreg,	\
+					  &val, read, is_128b)
 
 	switch (sysreg) {
 		SYSREG_ACCESS_CASE(pp_sysregs, cntp_ctl_el0);

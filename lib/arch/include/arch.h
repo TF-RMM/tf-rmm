@@ -72,6 +72,8 @@
 /* TCR2_EL12 register */
 #define TCR2_EL12		S3_5_C2_C0_3
 
+#define TCR2_EL1_D128_BIT	BIT(5)
+
 /* Permission Indirection Registers*/
 #define PIRE0_EL2		S3_4_C10_C2_2
 #define PIRE0_EL12		S3_5_C10_C2_2
@@ -911,6 +913,9 @@
  ******************************************************/
 #define ID_AA64ISAR2_EL1_SYSREG128_SHIFT	UL(32)
 #define ID_AA64ISAR2_EL1_SYSREG128_WIDTH	UL(4)
+
+#define ID_AA64ISAR2_EL1_SYSINSTR128_SHIFT	UL(36)
+#define ID_AA64ISAR2_EL1_SYSINSTR128_WIDTH	UL(4)
 
 /* SME Feature ID register 0 */
 #define ID_AA64SMFR0_EL1		S3_0_C0_C4_5
