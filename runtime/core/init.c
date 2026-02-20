@@ -21,6 +21,7 @@
 #include <smc-rmi.h>
 #include <smc-rsi.h>
 #include <smmuv3.h>
+#include <sro_context.h>
 
 #ifdef NDEBUG
 #define RMM_BUILD_TYPE	"release"
@@ -217,6 +218,9 @@ uint64_t rmm_main(uint64_t token)
 
 	alloc = glob_data_get_mec_state_va(&alloc_size);
 	mec_init_state(alloc, alloc_size);
+
+	alloc = glob_data_get_sro_ctx_va(&alloc_size);
+	sro_ctx_init(alloc, alloc_size);
 
 	/* Initialize the NS SIMD context for all CPUs */
 	init_all_cpus_ns_simd_context();

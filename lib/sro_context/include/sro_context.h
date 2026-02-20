@@ -40,8 +40,22 @@ typedef void(*sro_handle_cb)(struct smc_args *arg, struct smc_result *res);
  */
 #define SRO_MAX_LIST_ENTRIES		(GRANULE_SIZE / sizeof(unsigned long))
 
+/*
+ * As the SRO contexts may remain allocated when RMI handler exits
+ * to host, this should be considerable larger than CPU count.
+ */
+#define SRO_CTX_PER_CPU		(10UL)
+
 /* Macro to define an invalid RmiResult value */
 #define SRO_INVALID_RESULT	(ULONG_MAX)
+
+/*
+ * Total allocation size required for the sro_ctx_pool:
+ * the pool header followed immediately by the sro_context array.
+ */
+#define SRO_CTX_POOL_SIZE \
+	(sizeof(struct sro_ctx_pool) + \
+	 (sizeof(struct sro_context) * (MAX_CPUS * SRO_CTX_PER_CPU)))
 
 /*
  * Data structure with the information to continue a REC related operation.
@@ -68,7 +82,22 @@ struct sro_rec_ctx {
 	unsigned long total_transferred;
 };
 
+/* State of an SRO context */
+enum sro_state {
+	/* SRO is available */
+	SRO_STATE_FREE,
+
+	/* SRO is in used by a running RMI handler */
+	SRO_STATE_RESERVED,
+
+	/* SRO is reserved after exit to Host */
+	SRO_STATE_SEALED
+};
+
 struct sro_context {
+	/* State of this context */
+	enum sro_state state;
+
 	/* Initiating RMI command */
 	unsigned long init_command;
 
@@ -120,6 +149,31 @@ struct sro_context {
 	union{
 		struct sro_rec_ctx rec_ctx;
 	};
+};
+
+/*
+ * Pool of SRO contexts managed by the sro_context library.
+ */
+struct sro_ctx_pool {
+	/* Whether the pool has been initialized */
+	bool init;
+
+	/* Number of contexts in the pool */
+	unsigned long ctx_count;
+
+	/* Pointer to the array of SRO contexts */
+	struct sro_context *ctxs;
+};
+
+/*
+ * Per_cpu reference to command context that is currently used by the CPU.
+ */
+struct cpu_sro_ctx {
+	/* NULL if no SRO context is assigned to the CPU */
+	struct sro_context *ctx;
+
+	/* The unique identifier of a CPU' SRO context */
+	unsigned int op_handler;
 };
 
 /*
@@ -177,7 +231,16 @@ struct sro_context *my_sro_ctx(void);
 void sro_ctx_next_cmd(unsigned long fid);
 
 /*
- * Helper macro that reads the `is_contig` flag of a given sro context
+ * Initialize the sro_context library.
+ *
+ * Args:
+ *      - va: VA of the memory block allocated for the library.
+ *      - sz: Size of the allocated memory block.
+ */
+void sro_ctx_init(uintptr_t va, size_t sz);
+
+/*
+ * Heelper macro that reads the `is_contig` flag of a given sro context
  * passed by refrence and returns the contig RMI flag value to be used
  * on an rmiOpMemDonateReq type.
  */
@@ -191,6 +254,5 @@ void sro_ctx_next_cmd(unsigned long fid);
  */
 #define SRO_CAN_CANCEL_FLAG(_sro)			\
 	(((_sro)->can_cancel) ? RMI_OP_CAN_CANCEL : RMI_OP_CANNOT_CANCEL)
-
 
 #endif /* SRO_CONTEXT_H */

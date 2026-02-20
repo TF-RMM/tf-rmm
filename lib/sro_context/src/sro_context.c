@@ -10,54 +10,48 @@
 #include <sro_context.h>
 #include <string.h>
 
-/*
- * Per_cpu reference to command context that is currently used by the CPU.
- */
-struct cpu_sro_ctx {
-	/* NULL if no SRO context is assigned to the CPU */
-	struct sro_context *ctx;
-
-	/* The unique identifier of a CPU' SRO context */
-	unsigned int op_handle;
-};
-
-/* @FIXME: This memory will need to be provided by EL3 */
+static struct sro_ctx_pool *pool;
 static struct cpu_sro_ctx cpu_sro_ctx[MAX_CPUS];
-
-/*
- * The number of SRO contexts.
- * As a SRO context may remain allocated when RMI handle exits to host,
- * this should be considerably larger than cpu count.*/
-#define SRO_CTX_COUNT	(8 * MAX_CPUS)
-
-/* @FIXME: This memory will need to be provided by EL3 */
-static struct sro_context sro_ctx[SRO_CTX_COUNT];
-
-/* State of an SRO context */
-enum sro_state {
-	/* SRO is available */
-	SRO_STATE_FREE,
-
-	/* SRO is in used by a running RMI handle */
-	SRO_STATE_RESERVED,
-
-	/* SRO is reserved after exit to Host */
-	SRO_STATE_SEALED
-};
-
-/* @TODO: This might be embedded inside sro_context */
-static enum sro_state sro_state[SRO_CTX_COUNT];
-
 static spinlock_t sro_spinlock;
 
 static inline void sro_ctx_zero(unsigned int cpuid)
 {
-	struct sro_context *ctx = cpu_sro_ctx[cpuid].ctx;
+	struct sro_context *ctx = (cpu_sro_ctx + cpuid)->ctx;
 
 	assert(cpuid < MAX_CPUS);
 	assert(ctx != NULL);
 
 	memset((void *)ctx, 0, sizeof(struct sro_context));
+}
+
+void sro_ctx_init(uintptr_t va, size_t sz)
+{
+	assert(pool == NULL);
+	assert(va != 0UL);
+	assert(sz != 0);
+
+	(void)sz;
+
+	pool = (struct sro_ctx_pool *)va;
+
+	/* Check is already initialized. This happens for LFA init */
+	if (pool->init) {
+		return;
+	}
+
+	pool->ctx_count = MAX_CPUS * SRO_CTX_PER_CPU;
+
+	/* The sro_context array follows the pool header in memory */
+	pool->ctxs = (struct sro_context *)(va + sizeof(*pool));
+
+	assert((uintptr_t)(pool->ctxs + pool->ctx_count) <= (va + sz));
+
+	/* Initialize all context states to free */
+	for (unsigned long i = 0UL; i < pool->ctx_count; i++) {
+		pool->ctxs[i].state = SRO_STATE_FREE;
+	}
+
+	pool->init = true;
 }
 
 /*
@@ -74,30 +68,31 @@ unsigned long sro_ctx_reserve(unsigned long command, unsigned long xfer,
 	unsigned int cpuid = my_cpuid();
 	unsigned long ret = RMI_BUSY;
 
+	assert((pool != NULL) && pool->init);
 	assert (cpu_sro_ctx[cpuid].ctx == NULL);
 
 	spinlock_acquire(&sro_spinlock);
 
-	for (unsigned int i = 0U; i < SRO_CTX_COUNT; i++) {
-		if (sro_state[i] == SRO_STATE_FREE) {
-			sro_state[i] = SRO_STATE_RESERVED;
-			cpu_sro_ctx[cpuid].ctx = &sro_ctx[i];
-			cpu_sro_ctx[cpuid].op_handle = i;
+	for (unsigned long i = 0UL; i < pool->ctx_count; i++) {
+		if (pool->ctxs[i].state == SRO_STATE_FREE) {
+			(cpu_sro_ctx + cpuid)->ctx = pool->ctxs + i;
+			(cpu_sro_ctx + cpuid)->op_handler = (unsigned int)i;
 			sro_ctx_zero(cpuid);
-			sro_ctx[i].init_command = command;
-			sro_ctx[i].can_cancel = can_cancel;
-			sro_ctx[i].is_contig = is_contig;
-			sro_ctx[i].transfer_req = xfer;
-			sro_ctx[i].reclaim_res = SRO_INVALID_RESULT;
-			sro_ctx[i].pend_entries = 0UL;
+			pool->ctxs[i].state = SRO_STATE_RESERVED;
+			pool->ctxs[i].init_command = command;
+			pool->ctxs[i].can_cancel = can_cancel;
+			pool->ctxs[i].is_contig = is_contig;
+			pool->ctxs[i].transfer_req = xfer;
+			pool->ctxs[i].reclaim_res = SRO_INVALID_RESULT;
+			pool->ctxs[i].pend_entries = 0UL;
 			ret = RMI_SUCCESS;
 			break;
-		} else if (sro_state[i] == SRO_STATE_SEALED) {
+		} else if (pool->ctxs[i].state == SRO_STATE_SEALED) {
 			sealed++;
 		}
 	}
 
-	if (sealed == SRO_CTX_COUNT) {
+	if ((unsigned long)sealed == pool->ctx_count) {
 		ret = RMI_BLOCKED;
 	}
 
@@ -112,19 +107,21 @@ unsigned long sro_ctx_reserve(unsigned long command, unsigned long xfer,
 unsigned int sro_ctx_seal(void)
 {
 	unsigned int index, cpuid = my_cpuid();
+	struct cpu_sro_ctx *current_cpu_ctx = (cpu_sro_ctx + cpuid);
 
-	assert (cpu_sro_ctx[cpuid].ctx != NULL);
-	index = cpu_sro_ctx[cpuid].op_handle;
+	assert((pool != NULL) && pool->init);
+	assert(current_cpu_ctx->ctx != NULL);
+	index = current_cpu_ctx->op_handler;
 
 	spinlock_acquire(&sro_spinlock);
-	assert(sro_state[index] != SRO_STATE_FREE);
+	assert(pool->ctxs[index].state != SRO_STATE_FREE);
 
-	sro_state[index] = SRO_STATE_SEALED;
+	pool->ctxs[index].state = SRO_STATE_SEALED;
 	spinlock_release(&sro_spinlock);
 
-	cpu_sro_ctx[cpuid].ctx = NULL;
+	current_cpu_ctx->ctx = NULL;
 
-	return cpu_sro_ctx[cpuid].op_handle;
+	return current_cpu_ctx->op_handler;
 }
 
 /*
@@ -136,25 +133,26 @@ bool sro_ctx_find(unsigned int op_handle)
 {
 	bool ret;
 	unsigned int cpuid = my_cpuid();
+	struct cpu_sro_ctx *current_cpu_ctx = (cpu_sro_ctx + cpuid);
 
-	assert(cpu_sro_ctx[cpuid].ctx == NULL);
+	assert((pool != NULL) && pool->init);
 
 	spinlock_acquire(&sro_spinlock);
 
-	if (op_handle >= SRO_CTX_COUNT) {
+	if (op_handle >= pool->ctx_count) {
 		ret = false;
 		goto out;
 
 	}
 
-	if (sro_state[op_handle] != SRO_STATE_SEALED) {
+	if (pool->ctxs[op_handle].state != SRO_STATE_SEALED) {
 		ret = false;
 		goto out;
 	}
 
-	sro_state[op_handle] = SRO_STATE_RESERVED;
-	cpu_sro_ctx[cpuid].ctx = &sro_ctx[op_handle];
-	cpu_sro_ctx[cpuid].op_handle = op_handle;
+	pool->ctxs[op_handle].state = SRO_STATE_RESERVED;
+	current_cpu_ctx->ctx = (pool->ctxs + op_handle);
+	current_cpu_ctx->op_handler = op_handle;
 	ret = true;
 out:
 	spinlock_release(&sro_spinlock);
@@ -168,8 +166,9 @@ struct sro_context *my_sro_ctx(void)
 {
 	unsigned int cpuid = my_cpuid();
 
-	assert(cpu_sro_ctx[cpuid].ctx != NULL);
-	return cpu_sro_ctx[cpuid].ctx;
+	assert((pool != NULL) && pool->init);
+	assert((cpu_sro_ctx + cpuid)->ctx != NULL);
+	return (cpu_sro_ctx + cpuid)->ctx;
 }
 
 /*
@@ -178,16 +177,19 @@ struct sro_context *my_sro_ctx(void)
 void sro_ctx_release(void)
 {
 	unsigned int index, cpuid = my_cpuid();
+	struct cpu_sro_ctx *current_cpu_ctx = (cpu_sro_ctx + cpuid);
 
-	assert(cpu_sro_ctx[cpuid].ctx);
-	index = cpu_sro_ctx[cpuid].op_handle;
+	assert((pool != NULL) && pool->init);
+	assert(current_cpu_ctx->ctx != NULL);
+
+	index = current_cpu_ctx->op_handler;
 
 	spinlock_acquire(&sro_spinlock);
 
-	assert(sro_state[index] == SRO_STATE_RESERVED);
+	assert(pool->ctxs[index].state == SRO_STATE_RESERVED);
 
-	sro_state[index] = SRO_STATE_FREE;
-	cpu_sro_ctx[cpuid].ctx = NULL;
+	pool->ctxs[index].state = SRO_STATE_FREE;
+	current_cpu_ctx->ctx = NULL;
 
 	spinlock_release(&sro_spinlock);
 }
@@ -199,6 +201,7 @@ void sro_ctx_next_cmd(unsigned long fid)
 {
 	struct sro_context *sro = my_sro_ctx();
 
+	assert((pool != NULL) && pool->init);
 	assert((fid == SMC_RMI_OP_CONTINUE) || ((fid >= SMC_RMI_OP_MEM_DONATE) &&
 						(fid <= SMC_RMI_OP_CANCEL)));
 	sro->expected_fid = fid;

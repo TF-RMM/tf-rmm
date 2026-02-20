@@ -11,6 +11,7 @@
 #include <rmm_el3_ifc.h>
 #include <smc-rmi.h>
 #include <smmuv3.h>
+#include <sro_context.h>
 #include <xlat_low_va.h>
 
 static struct glob_data *glob;
@@ -102,6 +103,20 @@ void glob_data_set_rmm_state(enum rmm_state state)
 	}
 
 	glob->rmm_state = state;
+}
+
+uintptr_t glob_data_get_sro_ctx_va(size_t *alloc_size)
+{
+	if (glob == NULL) {
+		ERROR("Global data not initialized\n");
+		return 0UL;
+	}
+
+	if (alloc_size != NULL) {
+		*alloc_size = glob->sro_ctxs_sz;
+	}
+
+	return MAPPED_VA_ARCH(glob->sro_ctxs_va, glob->sro_ctxs_pa);
 }
 
 uintptr_t glob_data_init(struct glob_data *gl,
@@ -219,6 +234,29 @@ uintptr_t glob_data_init(struct glob_data *gl,
 		}
 	} else {
 		INFO("No SMMU list available\n");
+	}
+
+	/*
+	 * Allocate space to store the sro_ctx_pool header followed by
+	 * the array of sro_context entries.
+	 */
+	new_gl->sro_ctxs_sz = SRO_CTX_POOL_SIZE;
+	new_gl->sro_ctxs_sz = round_up(new_gl->sro_ctxs_sz, GRANULE_SIZE);
+	ret = rmm_el3_ifc_reserve_memory(new_gl->sro_ctxs_sz, 0,
+					 GRANULE_SIZE,
+					 &new_gl->sro_ctxs_pa);
+	if (ret != 0) {
+		ERROR("Failed to reserve memory for SRO contexts\n");
+		return 0UL;
+	}
+
+	new_gl->sro_ctxs_va = xlat_low_va_map(new_gl->sro_ctxs_sz,
+					      MT_RW_DATA | MT_REALM,
+					      new_gl->sro_ctxs_pa,
+					      true);
+	if (new_gl->sro_ctxs_va == 0U) {
+		ERROR("Failed to allocate VA for SRO contexts\n");
+		return 0UL;
 	}
 
 	glob = new_gl;
