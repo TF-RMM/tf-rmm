@@ -88,8 +88,8 @@ endfunc memcpy_ns_write
  * All arguments must be aligned to 4 bytes.
  */
 func memcpy_ns_read_4
-	ldrh	w2, [x1]
-	strh	w2, [x0]
+	ldr	w2, [x1]
+	str	w2, [x0]
 	mov	x0, #1
 	ret
 endfunc memcpy_ns_read_4
@@ -107,7 +107,7 @@ endfunc memcpy_ns_read_4
  * All arguments must be aligned to 4 bytes.
  */
 func memcpy_ns_write_4
-	strh	w1, [x0]
+	str	w1, [x0]
 	mov	x0, #1
 	ret
 endfunc memcpy_ns_write_4
