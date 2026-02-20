@@ -278,6 +278,7 @@ The |RMM| build system supports the following CMake build options.
    LOG_LEVEL			,0 - 50			,40(Debug) 20(Release)	,"Log level to apply for RMM (0 - 50)."
    RMM_STATIC_ANALYSIS		,			,			,"Enable static analysis checkers"
    PL011_GENERIC_SBSA_UART	,ON | OFF		,OFF			,"Enable Generic (SBSA Compliant) PL011. This a subset of PL011 UART"
+   PL011_HW_FLOW_CONTROL	,ON | OFF		,OFF			,"Enable HW flow control for PL011 UART"
    PLAT_CMN_VIRT_ADDR_SPACE_WIDTH,			,38			,"Stage 1 Virtual address space width in bits for this platform"
    RMM_NUM_PAGES_PER_STACK	,			,5			,"Number of pages to use per CPU stack"
    MBEDTLS_ECP_MAX_OPS		,248 -			,1000			,"Number of max operations per ECC signing iteration"
