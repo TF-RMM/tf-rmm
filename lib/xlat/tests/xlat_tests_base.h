@@ -87,4 +87,11 @@ void xlat_va_alloc_search_reset_tc1(void);
 void xlat_va_alloc_exhaust_va_space_tc1(void);
 void xlat_va_alloc_va_end_boundary_tc1(void);
 
+/* Stitch table tests */
+void xlat_stitch_l1_success_tc1(void);
+void xlat_stitch_l1_single_block_tc1(void);
+void xlat_stitch_l1_multiple_blocks_tc1(void);
+void xlat_stitch_l1_verify_transient_tc1(void);
+void xlat_stitch_l1_at_boundaries_tc1(void);
+
 #endif /* XLAT_TESTS_BASE */

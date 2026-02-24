@@ -295,3 +295,72 @@ IGNORE_TEST(xlat_tests_LPA2, xlat_enable_mmu_el2_TC1)
 
 	TEST_EXIT;
 }
+
+TEST(xlat_tests_LPA2, xlat_va_alloc_boundaries_TC2)
+{
+	xlat_va_alloc_boundaries_tc2();
+}
+
+TEST(xlat_tests_LPA2, xlat_va_alloc_boundaries_TC3)
+{
+	xlat_va_alloc_boundaries_tc3();
+}
+TEST(xlat_tests_LPA2, xlat_va_alloc_flag_propagation_TC1)
+{
+	xlat_va_alloc_flag_propagation_tc1();
+}
+
+TEST(xlat_tests_LPA2, xlat_va_alloc_multi_l2_TC1)
+{
+	xlat_va_alloc_multi_l2_tc1();
+}
+
+TEST(xlat_tests_LPA2, xlat_va_alloc_table_shape_TC1)
+{
+	xlat_va_alloc_table_shape_tc1();
+}
+
+TEST(xlat_tests_LPA2, xlat_va_alloc_multi_region_TC1)
+{
+	xlat_va_alloc_multi_region_tc1();
+}
+
+TEST(xlat_tests_LPA2, xlat_va_alloc_multi_region_TC2)
+{
+	xlat_va_alloc_multi_region_tc2();
+}
+
+TEST(xlat_tests_LPA2, xlat_va_alloc_search_reset_TC1)
+{
+	xlat_va_alloc_search_reset_tc1();
+}
+
+TEST(xlat_tests_LPA2, xlat_va_alloc_exhaust_va_space_TC1)
+{
+	xlat_va_alloc_exhaust_va_space_tc1();
+}
+
+TEST(xlat_tests_LPA2, xlat_va_alloc_va_end_boundary_TC1)
+{
+	xlat_va_alloc_va_end_boundary_tc1();
+}
+
+TEST(xlat_tests_LPA2, xlat_stitch_l1_success_TC1)
+{
+	xlat_stitch_l1_success_tc1();
+}
+
+TEST(xlat_tests_LPA2, xlat_stitch_l1_multiple_blocks_TC1)
+{
+	xlat_stitch_l1_multiple_blocks_tc1();
+}
+
+ASSERT_TEST(xlat_tests_LPA2, xlat_stitch_l1_verify_transient_TC1)
+{
+	xlat_stitch_l1_verify_transient_tc1();
+}
+
+TEST(xlat_tests_LPA2, xlat_stitch_l1_at_boundaries_TC1)
+{
+	xlat_stitch_l1_at_boundaries_tc1();
+}
