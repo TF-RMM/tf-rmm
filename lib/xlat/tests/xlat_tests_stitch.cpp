@@ -25,8 +25,6 @@ extern "C" {
 }
 
 static struct xlat_ctx parent_ctx, child_ctx;
-static struct xlat_ctx_cfg parent_cfg, child_cfg;
-static struct xlat_ctx_tbls parent_tbls, child_tbls;
 
 /* Reserve some memory to be used for the translation tables */
 static uint64_t child_xlat_tables[XLAT_TABLE_ENTRIES * 514U]
@@ -49,15 +47,13 @@ static int xlat_stitch_test_helper(uintptr_t va_start, size_t va_size,
 
 	/* Setup parent context with TRANSIENT region */
 	memset(&parent_ctx, 0, sizeof(parent_ctx));
-	memset(&parent_cfg, 0, sizeof(parent_cfg));
-	memset(&parent_tbls, 0, sizeof(parent_tbls));
 
 	/* Configure parent with TRANSIENT mapping */
 	parent_mmap[0] = MAP_REGION_TRANSIENT(va_start, va_size, XLAT_BLOCK_SIZE(1));
 	parent_mmap[1] = (struct xlat_mmap_region){0, 0, 0, 0, 0};
 
 	/* Initialize parent context with VA space */
-	ret = xlat_ctx_cfg_init(&parent_cfg, VA_LOW_REGION, &parent_mmap[0], 1U,
+	ret = xlat_ctx_cfg_init(&parent_ctx, VA_LOW_REGION, &parent_mmap[0], 1U,
 				0U, XLAT_TEST_MAX_VA_SIZE(), 0UL);
 	if (ret != 0) {
 		ERROR("parent xlat_ctx_cfg_init failed with ret=%d, va_start=0x%lx, va_size=0x%lx\n",
@@ -65,8 +61,8 @@ static int xlat_stitch_test_helper(uintptr_t va_start, size_t va_size,
 		return ret;
 	}
 
-	ret = xlat_ctx_init(&parent_ctx, &parent_cfg, &parent_tbls,
-			    xlat_test_helpers_tbls(), XLAT_TESTS_MAX_TABLES, 0UL);
+	ret = xlat_ctx_init(&parent_ctx, xlat_test_helpers_tbls(),
+			    XLAT_TESTS_MAX_TABLES, 0UL);
 	if (ret != 0) {
 		ERROR("parent xlat_ctx_init failed: ret=%d\n", ret);
 		return ret;
@@ -74,8 +70,6 @@ static int xlat_stitch_test_helper(uintptr_t va_start, size_t va_size,
 
 	/* Setup child context with normal mapping */
 	memset(&child_ctx, 0, sizeof(child_ctx));
-	memset(&child_cfg, 0, sizeof(child_cfg));
-	memset(&child_tbls, 0, sizeof(child_tbls));
 
 	/* Child has same VA mapping but with actual memory */
 	child_mmap[0].base_pa = 0x80000000UL;
@@ -86,7 +80,7 @@ static int xlat_stitch_test_helper(uintptr_t va_start, size_t va_size,
 	child_mmap[1] = (struct xlat_mmap_region){0, 0, 0, 0, 0};
 
 	/* Initialize child context with VA space that fits in L1 (single L0 block) */
-	ret = xlat_ctx_cfg_init(&child_cfg, VA_LOW_REGION, &child_mmap[0], 1U,
+	ret = xlat_ctx_cfg_init(&child_ctx, VA_LOW_REGION, &child_mmap[0], 1U,
 				0U, XLAT_BLOCK_SIZE(0), 0UL);
 	if (ret != 0) {
 		ERROR("child xlat_ctx_cfg_init failed with ret=%d, va_start=0x%lx, va_size=0x%lx\n",
@@ -94,8 +88,7 @@ static int xlat_stitch_test_helper(uintptr_t va_start, size_t va_size,
 		return ret;
 	}
 
-	ret = xlat_ctx_init(&child_ctx, &child_cfg, &child_tbls,
-			    child_tables, num_child_tables, 0UL);
+	ret = xlat_ctx_init(&child_ctx, child_tables, num_child_tables, 0UL);
 	if (ret != 0) {
 		ERROR("child xlat_ctx_init failed with ret=%d, va_start=0x%lx, va_size=0x%lx, num_tables=%u\n",
 		      ret, va_start, va_size, num_child_tables);
@@ -112,8 +105,8 @@ static int xlat_stitch_test_helper(uintptr_t va_start, size_t va_size,
 	}
 
 	/* Confirm that child table start at level 1 */
-	if (child_cfg.base_level != 1) {
-		ERROR("child base_level is not 1: base_level=%d\n", child_cfg.base_level);
+	if (child_ctx.cfg.base_level != 1) {
+		ERROR("child base_level is not 1: base_level=%d\n", child_ctx.cfg.base_level);
 		return -1;
 	}
 
@@ -136,7 +129,7 @@ static int xlat_stitch_test_helper(uintptr_t va_start, size_t va_size,
 	}
 
 	/* Get child L1 table pointer */
-	uint64_t *child_l1 = (uint64_t *)child_ctx.tbls->tables;
+	uint64_t *child_l1 = (uint64_t *)child_ctx.tbls.tables;
 	if (child_l1 == NULL) {
 		ERROR("child L1 table pointer is NULL\n");
 		return -1;
@@ -248,8 +241,6 @@ void xlat_stitch_l1_at_boundaries_tc1(void)
 void xlat_stitch_l1_verify_transient_tc1(void)
 {
 	struct xlat_ctx parent_ctx, child_ctx;
-	struct xlat_ctx_cfg parent_cfg, child_cfg;
-	struct xlat_ctx_tbls parent_tbls, child_tbls;
 	struct xlat_mmap_region parent_mmap[2];
 	struct xlat_mmap_region child_mmap[2];
 	uintptr_t va_start;
@@ -264,8 +255,6 @@ void xlat_stitch_l1_verify_transient_tc1(void)
 
 	/* Setup parent context with NORMAL mapping (not TRANSIENT) */
 	memset(&parent_ctx, 0, sizeof(parent_ctx));
-	memset(&parent_cfg, 0, sizeof(parent_cfg));
-	memset(&parent_tbls, 0, sizeof(parent_tbls));
 
 	/* Use a normal mapping instead of TRANSIENT */
 	parent_mmap[0].base_pa = 0x40000000UL;
@@ -276,18 +265,16 @@ void xlat_stitch_l1_verify_transient_tc1(void)
 	parent_mmap[1] = (struct xlat_mmap_region){0, 0, 0, 0, 0};
 
 	/* Parent context must start at 0 to cover the entire L0 block */
-	ret = xlat_ctx_cfg_init(&parent_cfg, VA_LOW_REGION, &parent_mmap[0], 1U,
+	ret = xlat_ctx_cfg_init(&parent_ctx, VA_LOW_REGION, &parent_mmap[0], 1U,
 				0UL, XLAT_TEST_MAX_VA_SIZE(), 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&parent_ctx, &parent_cfg, &parent_tbls,
-			    xlat_test_helpers_tbls(), XLAT_TESTS_MAX_TABLES, 0UL);
+	ret = xlat_ctx_init(&parent_ctx, xlat_test_helpers_tbls(),
+			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
 	/* Setup child context with normal mapping */
 	memset(&child_ctx, 0, sizeof(child_ctx));
-	memset(&child_cfg, 0, sizeof(child_cfg));
-	memset(&child_tbls, 0, sizeof(child_tbls));
 
 	child_mmap[0].base_pa = 0x80000000UL;
 	child_mmap[0].base_va = va_start;
@@ -297,15 +284,14 @@ void xlat_stitch_l1_verify_transient_tc1(void)
 	child_mmap[1] = (struct xlat_mmap_region){0, 0, 0, 0, 0};
 
 	/* Initialize child context with VA space that fits in L1 (single L0 block) */	/* Child context must also start at 0 to match parent */
-	ret = xlat_ctx_cfg_init(&child_cfg, VA_LOW_REGION, &child_mmap[0], 1U,
+	ret = xlat_ctx_cfg_init(&child_ctx, VA_LOW_REGION, &child_mmap[0], 1U,
 				0UL, XLAT_BLOCK_SIZE(0), 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&child_ctx, &child_cfg, &child_tbls,
-			    &child_xlat_tables[0], 514U, 0UL);
+	ret = xlat_ctx_init(&child_ctx, &child_xlat_tables[0], 514U, 0UL);
 	CHECK_EQUAL(0, ret);
 	/* Check that the child tables base is at level 1 */
-	CHECK_EQUAL(1, child_ctx.cfg->base_level);
+	CHECK_EQUAL(1, child_ctx.cfg.base_level);
 
 	/*
 	 * Attempting to stitch should fail because parent doesn't have TRANSIENT
@@ -325,7 +311,7 @@ void xlat_stitch_l1_verify_transient_tc1(void)
 	CHECK_TRUE(parent_llt.table[l1_idx] != TRANSIENT_DESC);
 
 	/* Now try to stitch, we should hit an assert */
-	uint64_t *child_l1 = (uint64_t *)child_ctx.tbls->tables;
+	uint64_t *child_l1 = (uint64_t *)child_ctx.tbls.tables;
 
 	test_helpers_expect_assert_fail(true);
 	ret = xlat_stitch_tables_l1(&parent_ctx, child_l1, va_start, va_size);

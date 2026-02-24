@@ -271,7 +271,7 @@ TEST(xlat_low_va_setup, xlat_low_va_lfa_va_pool_mismatch_TC1)
 	 * not match the newly calculated values.
 	 *
 	 * This tests the failure path in xlat_low_va_dyn_fixup():
-	 *   if ((va_info->dyn_va_ctx_cfg.base_va !=
+	 *   if ((va_info->dyn_va_ctx.cfg.base_va !=
 	 *        round_down(g_va_info.dyn_va_pool_base, XLAT_BLOCK_SIZE(0))) ||
 	 *       (va_info->dyn_va_pool_size != RMM_VA_POOL_SIZE))
 	 *
@@ -299,9 +299,9 @@ TEST(xlat_low_va_setup, xlat_low_va_lfa_va_pool_mismatch_TC1)
 	memcpy(&prev_low_va_info, info, sizeof(struct xlat_low_va_info));
 
 	/* Intentionally corrupt the VA pool base in prev_low_va_info */
-	uintptr_t original_base = prev_low_va_info.dyn_va_ctx_cfg.base_va;
+	uintptr_t original_base = prev_low_va_info.dyn_va_ctx.cfg.base_va;
 	uintptr_t base_offset = (uintptr_t)((rand() % MAX_RAND_BLOCKS_NUM) + 1U) * XLAT_BLOCK_SIZE(0);
-	prev_low_va_info.dyn_va_ctx_cfg.base_va = original_base + base_offset;
+	prev_low_va_info.dyn_va_ctx.cfg.base_va = original_base + base_offset;
 
 	/* Disable MMU */
 	write_sctlr_el2(read_sctlr_el2() & ~SCTLR_ELx_M_BIT);
