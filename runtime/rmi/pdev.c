@@ -586,7 +586,9 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 			rc = DEV_ASSIGN_STATUS_SUCCESS;
 			goto out;
 		} else {
-			assert(vd->rmi_state == RMI_VDEV_STATE_STARTED);
+			assert((vd->rmi_state == RMI_VDEV_STATE_STARTED) ||
+			       (vd->rmi_state == RMI_VDEV_STATE_LOCKED) ||
+			       (vd->rmi_state == RMI_VDEV_STATE_ERROR));
 			rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
 				exit_args, tdisp_params_ptr, meas_params_ptr,
 				DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP);
