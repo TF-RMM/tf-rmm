@@ -42,22 +42,22 @@ void xlat_mmap_print(const struct xlat_ctx *ctx)
 {
 	VERBOSE("mmap:\n");
 
-	for (unsigned int i = 0U; i < ctx->cfg->mmap_regions; i++) {
+	for (unsigned int i = 0U; i < ctx->cfg.mmap_regions; i++) {
 		uintptr_t base_va;
 
-		base_va = ((ctx->cfg->region == VA_LOW_REGION) ?
-				ctx->cfg->mmap[i].base_va :
-				(ctx->cfg->mmap[i].base_va
-					+ ctx->cfg->base_va));
-		if (MT_TYPE(ctx->cfg->mmap[i].attr) != MT_TRANSIENT) {
+		base_va = ((ctx->cfg.region == VA_LOW_REGION) ?
+				ctx->cfg.mmap[i].base_va :
+				(ctx->cfg.mmap[i].base_va
+					+ ctx->cfg.base_va));
+		if (MT_TYPE(ctx->cfg.mmap[i].attr) != MT_TRANSIENT) {
 			VERBOSE(" VA:0x%lx  PA:0x%lx  size:0x%zx  attr:0x%lx  granularity:0x%zx\n",
-			       base_va, ctx->cfg->mmap[i].base_pa,
-			       ctx->cfg->mmap[i].size, ctx->cfg->mmap[i].attr,
-			       ctx->cfg->mmap[i].granularity);
+			       base_va, ctx->cfg.mmap[i].base_pa,
+			       ctx->cfg.mmap[i].size, ctx->cfg.mmap[i].attr,
+			       ctx->cfg.mmap[i].granularity);
 		} else {
 			VERBOSE(" VA:0x%lx  PA: TRANSIENT  size:0x%zx  granularity:0x%zx\n",
-			       base_va, ctx->cfg->mmap[i].size,
-			       ctx->cfg->mmap[i].granularity);
+			       base_va, ctx->cfg.mmap[i].size,
+			       ctx->cfg.mmap[i].granularity);
 		}
 	};
 	VERBOSE("\n");
@@ -131,12 +131,10 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 		panic();
 	}
 
-	assert((ctx != NULL) &&
-	       (ctx->cfg != NULL) &&
-	       (ctx->tbls != NULL));
+	assert(ctx != NULL);
 
 	level_size = XLAT_BLOCK_SIZE(level);
-	table_idx_va = table_base_va + ctx->cfg->base_va;
+	table_idx_va = table_base_va + ctx->cfg.base_va;
 
 	/*
 	 * Keep track of how many invalid or transient descriptors are counted
@@ -227,7 +225,7 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 void xlat_tables_print(struct xlat_ctx *ctx)
 {
 	unsigned int used_page_tables;
-	struct xlat_ctx_cfg *ctx_cfg = ctx->cfg;
+	struct xlat_ctx_cfg *ctx_cfg = &ctx->cfg;
 
 	assert(ctx_cfg != NULL);
 
@@ -242,7 +240,7 @@ void xlat_tables_print(struct xlat_ctx *ctx)
 	VERBOSE("  Max allowed PA:  0x%lx\n", xlat_arch_get_max_supported_pa());
 	VERBOSE("  Max allowed VA:  0x%lx\n", max_allowed_va);
 	VERBOSE("  Max mapped PA:   0x%lx", ctx_cfg->max_mapped_pa);
-	for (unsigned int i = 0U; i < ctx->cfg->mmap_regions; i++) {
+	for (unsigned int i = 0U; i < ctx->cfg.mmap_regions; i++) {
 		if (ctx_cfg->mmap[i].attr == MT_TRANSIENT) {
 			/*
 			 * If there is a transient region on this context, we
@@ -258,12 +256,12 @@ void xlat_tables_print(struct xlat_ctx *ctx)
 
 	VERBOSE("  Initial lookup level: %i\n", ctx_cfg->base_level);
 
-	used_page_tables = ctx->tbls->next_table;
+	used_page_tables = ctx->tbls.next_table;
 	VERBOSE("  Used %d tables out of %d (spare: %d)\n",
-				used_page_tables, ctx->tbls->tables_num,
-				ctx->tbls->tables_num - used_page_tables);
+				used_page_tables, ctx->tbls.tables_num,
+				ctx->tbls.tables_num - used_page_tables);
 
-	xlat_tables_print_internal(ctx, 0U, ctx->tbls->tables,
+	xlat_tables_print_internal(ctx, 0U, ctx->tbls.tables,
 				   ctx_cfg->base_level);
 }
 
@@ -288,33 +286,31 @@ static uint64_t *find_xlat_last_table(uintptr_t va,
 	uintptr_t va_offset;
 	int start_level;
 	uint64_t *ret_table;
-	struct xlat_ctx_tbls *ctx_tbls __unused;
-	struct xlat_ctx_cfg *ctx_cfg;
+	const struct xlat_ctx_tbls *ctx_tbls __unused;
+	const struct xlat_ctx_cfg *ctx_cfg;
 	uintptr_t table_base_va;
 
 	assert(ctx != NULL);
-	assert(ctx->cfg != NULL);
-	assert(ctx->tbls != NULL);
 	assert(out_level != NULL);
 	assert(tt_base_va != NULL);
 	bool mmu_en __unused = is_mmu_enabled();
 
-	if (va < ctx->cfg->base_va) {
+	if (va < ctx->cfg.base_va) {
 		return NULL;
 	}
 
 	/* Extract the base_va from the given VA */
-	va_offset = va - ctx->cfg->base_va;
+	va_offset = va - ctx->cfg.base_va;
 	va_offset &= ~PAGE_SIZE_MASK; /* Page address of the VA address passed. */
 
-	if (va_offset >= ctx->cfg->max_va_size) {
+	if (va_offset >= ctx->cfg.max_va_size) {
 		return NULL;
 	}
 
-	ctx_tbls = ctx->tbls;
-	ctx_cfg = ctx->cfg;
+	ctx_tbls = &ctx->tbls;
+	ctx_cfg = &ctx->cfg;
 	start_level = ctx_cfg->base_level;
-	ret_table = remap_table_address(ctx->tbls->tables, ctx_tbls->tbls_va_to_pa_diff, mmu_en);
+	ret_table = remap_table_address(ctx->tbls.tables, ctx_tbls->tbls_va_to_pa_diff, mmu_en);
 	table_base_va = ctx_cfg->base_va;
 
 	for (int level = start_level;
@@ -615,11 +611,9 @@ int xlat_get_llt_from_va(struct xlat_llt_info * const llt,
 	int level;
 
 	assert(ctx != NULL);
-	assert(ctx->cfg != NULL);
-	assert(ctx->tbls != NULL);
 	assert(llt != NULL);
-	assert(ctx->tbls->init);
-	assert(ctx->cfg->init);
+	assert(ctx->tbls.init);
+	assert(ctx->cfg.init);
 
 	table = find_xlat_last_table(va, ctx, &level, &tt_base_va);
 
@@ -752,18 +746,16 @@ static bool is_table_fully_allocated(uint64_t *table, int level)
 static void update_parent_flags(struct xlat_ctx *ctx, uintptr_t va, bool allocating)
 {
 	assert(ctx != NULL);
-	assert(ctx->cfg != NULL);
-	assert(ctx->tbls != NULL);
 
-	struct xlat_ctx_tbls *ctx_tbls __unused = ctx->tbls;
-	struct xlat_ctx_cfg *ctx_cfg = ctx->cfg;
+	struct xlat_ctx_tbls *ctx_tbls __unused = &ctx->tbls;
+	struct xlat_ctx_cfg *ctx_cfg = &ctx->cfg;
 	uintptr_t va_offset = va - ctx_cfg->base_va;
 	int start_level = ctx_cfg->base_level;
 	bool mmu_en __unused = is_mmu_enabled();
 
 	/* Walk from L2 up to base level to update parent flags */
 	for (int level = 2; level >= start_level; level--) {
-		uint64_t *table = remap_table_address(ctx->tbls->tables,
+		uint64_t *table = remap_table_address(ctx->tbls.tables,
 						      ctx_tbls->tbls_va_to_pa_diff, mmu_en);
 
 		/* Walk to the table at this level */
@@ -889,11 +881,9 @@ static int find_available_va(struct xlat_ctx *ctx, size_t size,
 			     uintptr_t *out_mapped_va)
 {
 	assert(ctx != NULL);
-	assert(ctx->cfg != NULL);
-	assert(ctx->tbls != NULL);
 
-	struct xlat_ctx_tbls *ctx_tbls __unused = ctx->tbls;
-	struct xlat_ctx_cfg *ctx_cfg = ctx->cfg;
+	struct xlat_ctx_tbls *ctx_tbls __unused = &ctx->tbls;
+	struct xlat_ctx_cfg *ctx_cfg = &ctx->cfg;
 	uintptr_t va_base = ctx_cfg->base_va;
 	uintptr_t va_end __unused = va_base + ctx_cfg->max_va_size;
 
@@ -914,7 +904,7 @@ static int find_available_va(struct xlat_ctx *ctx, size_t size,
 	while (va_offset < ctx_cfg->max_va_size) {
 
 		/* Walk through levels to get the L3 table for this VA range */
-		uint64_t *table = remap_table_address(ctx->tbls->tables,
+		uint64_t *table = remap_table_address(ctx->tbls.tables,
 						     ctx_tbls->tbls_va_to_pa_diff, mmu_en);
 		uintptr_t table_base_va_offset = 0;
 		bool skip_subtree = false;
@@ -1014,8 +1004,8 @@ int xlat_map_l3_region(struct xlat_ctx *ctx, uintptr_t pa, size_t size,
 	struct xlat_mmap_region mm;
 
 	assert(ctx != NULL);
-	assert((ctx->cfg != NULL) && (ctx->cfg->init != false));
-	assert((ctx->tbls != NULL) && (ctx->tbls->init != false));
+	assert((ctx->cfg.init != false));
+	assert((ctx->tbls.init != false));
 	assert(mapped_va != NULL);
 	assert(is_mmu_enabled());
 
@@ -1088,8 +1078,8 @@ int xlat_unmap_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t unmap_size)
 	int ret;
 
 	assert((ctx != NULL) && (unmap_size != 0U));
-	assert((ctx->cfg != NULL) && (ctx->cfg->init != false));
-	assert((ctx->tbls != NULL) && (ctx->tbls->init != false));
+	assert((ctx->cfg.init != false));
+	assert((ctx->tbls.init != false));
 	assert(is_mmu_enabled());
 
 	if (!GRANULE_ALIGNED(mm.base_va) || !GRANULE_ALIGNED(unmap_size)) {

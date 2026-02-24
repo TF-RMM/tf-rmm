@@ -142,8 +142,6 @@ void xlat_map_l3_region_basic_tc1(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_va;
 	int ret;
@@ -154,15 +152,13 @@ void xlat_map_l3_region_basic_tc1(void)
 
 	/* Initialize context */
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
 	/* Initialize context */
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -174,8 +170,8 @@ void xlat_map_l3_region_basic_tc1(void)
 	CHECK_EQUAL(0, ret);
 
 	/* Verify the VA is in valid range */
-	CHECK_TRUE(mapped_va >= cfg.base_va);
-	CHECK_TRUE(mapped_va < (cfg.base_va + cfg.max_va_size));
+	CHECK_TRUE(mapped_va >= ctx.cfg.base_va);
+	CHECK_TRUE(mapped_va < (ctx.cfg.base_va + ctx.cfg.max_va_size));
 
 	/* Verify alignment */
 	CHECK_EQUAL(0UL, mapped_va & (GRANULE_SIZE - 1UL));
@@ -192,8 +188,6 @@ void xlat_map_l3_region_basic_tc2(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_vas[10];
 	int ret;
@@ -205,14 +199,12 @@ void xlat_map_l3_region_basic_tc2(void)
 
 	/* Initialize context */
 	 memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	 memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	 memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -246,8 +238,6 @@ void xlat_map_l3_region_basic_tc3(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_va;
 	int ret;
@@ -258,14 +248,12 @@ void xlat_map_l3_region_basic_tc3(void)
 
 	/* Initialize context */
 	 memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	 memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	 memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -281,8 +269,8 @@ void xlat_map_l3_region_basic_tc3(void)
 	CHECK_EQUAL(0UL, mapped_va & (GRANULE_SIZE - 1UL));
 
 	/* Verify the VA range is valid */
-	CHECK_TRUE(mapped_va >= cfg.base_va);
-	CHECK_TRUE((mapped_va + alloc_size) <= (cfg.base_va + cfg.max_va_size));
+	CHECK_TRUE(mapped_va >= ctx.cfg.base_va);
+	CHECK_TRUE((mapped_va + alloc_size) <= (ctx.cfg.base_va + ctx.cfg.max_va_size));
 
 	write_sctlr_el2(read_sctlr_el2() & ~SCTLR_ELx_M_BIT);
 }
@@ -296,8 +284,6 @@ void xlat_map_l3_region_errors_tc1(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_va;
 	int ret;
@@ -308,14 +294,12 @@ void xlat_map_l3_region_errors_tc1(void)
 
 	/* Initialize context */
 	 memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	 memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	 memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -348,8 +332,6 @@ void xlat_map_l3_region_errors_tc2(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_va;
 	int ret;
@@ -363,14 +345,12 @@ void xlat_map_l3_region_errors_tc2(void)
 
 	/* Initialize context */
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -405,8 +385,6 @@ void xlat_unmap_l3_region_basic_tc1(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_va, mapped_va2;
 	int ret;
@@ -417,14 +395,12 @@ void xlat_unmap_l3_region_basic_tc1(void)
 
 	/* Clean the data structures */
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -455,8 +431,6 @@ void xlat_unmap_l3_region_basic_tc2(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_vas[5];
 	int ret;
@@ -467,14 +441,12 @@ void xlat_unmap_l3_region_basic_tc2(void)
 
 	/* Clean the data structures */
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -514,8 +486,6 @@ void xlat_unmap_l3_region_basic_tc3(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_va, mapped_va2;
 	int ret;
@@ -525,14 +495,12 @@ void xlat_unmap_l3_region_basic_tc3(void)
 	mmap[1] = (struct xlat_mmap_region){0, 0, 0, 0, 0};
 	/* Clean the data structures */
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -564,8 +532,6 @@ void xlat_unmap_l3_region_errors_tc1(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_va;
 	int ret;
@@ -576,14 +542,12 @@ void xlat_unmap_l3_region_errors_tc1(void)
 
 	/* Clean the data structures */
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -614,8 +578,6 @@ void xlat_va_alloc_boundaries_tc1(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_va;
 	int ret;
@@ -626,14 +588,12 @@ void xlat_va_alloc_boundaries_tc1(void)
 
 	/* Clean the data structures */
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -659,8 +619,6 @@ void xlat_va_alloc_boundaries_tc2(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_vas[10];
 	int ret;
@@ -671,14 +629,12 @@ void xlat_va_alloc_boundaries_tc2(void)
 
 	/* Clean the data structures */
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -719,8 +675,6 @@ void xlat_va_alloc_boundaries_tc3(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_va;
 	int ret;
@@ -734,14 +688,12 @@ void xlat_va_alloc_boundaries_tc3(void)
 
 	/* Clean the data structures */
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -778,8 +730,6 @@ void xlat_va_alloc_flag_propagation_tc1(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_vas[512];
 	int ret;
@@ -790,14 +740,12 @@ void xlat_va_alloc_flag_propagation_tc1(void)
 	mmap[1] = (struct xlat_mmap_region){0, 0, 0, 0, 0};
 
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -872,8 +820,6 @@ void xlat_va_alloc_multi_l2_tc1(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_va;
 	int ret;
@@ -884,14 +830,12 @@ void xlat_va_alloc_multi_l2_tc1(void)
 	mmap[1] = (struct xlat_mmap_region){0, 0, 0, 0, 0};
 
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -963,8 +907,6 @@ void xlat_va_alloc_table_shape_tc1(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_va1;
 	int ret;
@@ -975,14 +917,12 @@ void xlat_va_alloc_table_shape_tc1(void)
 	mmap[1] = (struct xlat_mmap_region){0, 0, 0, 0, 0};
 
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -1062,8 +1002,6 @@ void xlat_va_alloc_multi_region_tc1(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[4];
 	uintptr_t mapped_va1, mapped_va2, mapped_va3;
 	int ret;
@@ -1076,14 +1014,12 @@ void xlat_va_alloc_multi_region_tc1(void)
 	mmap[3] = (struct xlat_mmap_region){0, 0, 0, 0, 0};
 
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 3U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 3U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -1187,8 +1123,6 @@ void xlat_va_alloc_multi_region_tc2(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[3];
 	uintptr_t mapped_vas[600];
 	int ret;
@@ -1201,14 +1135,12 @@ void xlat_va_alloc_multi_region_tc2(void)
 	mmap[2] = (struct xlat_mmap_region){0, 0, 0, 0, 0};
 
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 2U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 2U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -1269,8 +1201,6 @@ void xlat_va_alloc_search_reset_tc1(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_va1, mapped_va2, mapped_va3;
 	int ret;
@@ -1281,14 +1211,12 @@ void xlat_va_alloc_search_reset_tc1(void)
 	mmap[1] = (struct xlat_mmap_region){0, 0, 0, 0, 0};
 
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -1379,8 +1307,6 @@ void xlat_va_alloc_exhaust_va_space_tc1(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_va;
 	int ret;
@@ -1391,15 +1317,13 @@ void xlat_va_alloc_exhaust_va_space_tc1(void)
 	mmap[1] = (struct xlat_mmap_region){0, 0, 0, 0, 0};
 
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
 	/* Set max_va_size to match the TRANSIENT region size exactly */
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				va_space_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 
@@ -1479,8 +1403,6 @@ void xlat_va_alloc_va_end_boundary_tc1(void)
 	 ***********************************************************************/
 
 	struct xlat_ctx ctx;
-	struct xlat_ctx_cfg cfg;
-	struct xlat_ctx_tbls tbls;
 	struct xlat_mmap_region mmap[2];
 	uintptr_t mapped_va;
 	int ret;
@@ -1492,15 +1414,13 @@ void xlat_va_alloc_va_end_boundary_tc1(void)
 	mmap[1] = (struct xlat_mmap_region){0, 0, 0, 0, 0};
 
 	memset((void *)&ctx, 0, sizeof(struct xlat_ctx));
-	memset((void *)&cfg, 0, sizeof(struct xlat_ctx_cfg));
-	memset((void *)&tbls, 0, sizeof(struct xlat_ctx_tbls));
 
 	/* Set max_va_size larger than TRANSIENT region */
-	ret = xlat_ctx_cfg_init(&cfg, VA_LOW_REGION, &mmap[0], 1U, 0UL,
+	ret = xlat_ctx_cfg_init(&ctx, VA_LOW_REGION, &mmap[0], 1U, 0UL,
 				max_va_size, 0UL);
 	CHECK_EQUAL(0, ret);
 
-	ret = xlat_ctx_init(&ctx, &cfg, &tbls, xlat_test_helpers_tbls(),
+	ret = xlat_ctx_init(&ctx, xlat_test_helpers_tbls(),
 			    XLAT_TESTS_MAX_TABLES, 0UL);
 	CHECK_EQUAL(0, ret);
 

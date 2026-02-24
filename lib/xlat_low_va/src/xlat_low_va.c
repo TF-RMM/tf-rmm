@@ -268,15 +268,15 @@ static int xlat_low_va_static_setup(struct xlat_mmap_region *plat_regions,
 	 * allocated.
 	 */
 	if ((va_info != NULL)) {
-		if (va_info->low_va_tbls.tables_num < num_tbls) {
+		if (va_info->low_va_ctx.tbls.tables_num < num_tbls) {
 			ERROR("Insufficient static tables in previous low va info\n");
 			ERROR("Expected: %u, Found: %u\n",
 				num_tbls,
-				va_info->low_va_tbls.tables_num);
+				va_info->low_va_ctx.tbls.tables_num);
 			return -ENOMEM;
 		}
-		num_tbls = va_info->low_va_tbls.tables_num;
-		tbl_pa = va_info->low_va_tbls.base_table_pa;
+		num_tbls = va_info->low_va_ctx.tbls.tables_num;
+		tbl_pa = va_info->low_va_ctx.tbls.base_table_pa;
 	} else {
 		/*
 		 * Add a margin such that the same static table pool will be
@@ -298,7 +298,7 @@ static int xlat_low_va_static_setup(struct xlat_mmap_region *plat_regions,
 	inv_dcache_range(tbl_pa, num_tbls * sizeof(uint64_t) * XLAT_TABLE_ENTRIES);
 
 	/* Initialize the translation context */
-	ret = xlat_ctx_cfg_init(&g_va_info.low_va_ctx_cfg, VA_LOW_REGION,
+	ret = xlat_ctx_cfg_init(&g_va_info.low_va_ctx, VA_LOW_REGION,
 				&g_va_info.low_va_regions[0], nregions + COMMON_REGIONS,
 				0UL,
 				XLAT_LOW_VIRT_ADDR_SPACE_SIZE,
@@ -308,8 +308,7 @@ static int xlat_low_va_static_setup(struct xlat_mmap_region *plat_regions,
 		return ret;
 	}
 
-	ret = xlat_ctx_init(&g_va_info.low_va_ctx, &g_va_info.low_va_ctx_cfg,
-			&g_va_info.low_va_tbls,
+	ret = xlat_ctx_init(&g_va_info.low_va_ctx,
 			(uint64_t *)tbl_pa,
 			num_tbls,
 			(uint64_t)tbl_pa);
@@ -319,7 +318,7 @@ static int xlat_low_va_static_setup(struct xlat_mmap_region *plat_regions,
 	}
 
 	INFO("Static Low VA initialized. xlat tables allocated: %u used: %u\n",
-				num_tbls, g_va_info.low_va_ctx.tbls->next_table);
+				num_tbls, g_va_info.low_va_ctx.tbls.next_table);
 
 	return 0;
 }
@@ -386,7 +385,7 @@ static int xlat_low_va_dyn_setup(void)
 	dyn_regions[1].granularity = GRANULE_SIZE;
 
 	/* Initialize the dynamic translation context */
-	ret = xlat_ctx_cfg_init(&g_va_info.dyn_va_ctx_cfg, VA_LOW_REGION,
+	ret = xlat_ctx_cfg_init(&g_va_info.dyn_va_ctx, VA_LOW_REGION,
 				&dyn_regions[0], 2U,
 				round_down(g_va_info.dyn_va_pool_base, XLAT_BLOCK_SIZE(0)),
 				va_size,
@@ -397,12 +396,11 @@ static int xlat_low_va_dyn_setup(void)
 	}
 
 	/* Check the base level is L1 for dyn_va_ctx */
-	assert(g_va_info.dyn_va_ctx_cfg.base_level == 1);
+	assert(g_va_info.dyn_va_ctx.cfg.base_level == 1);
 
 	/* Create dynamic xlat tables at Level 1 corresponding to the VA pool address */
 	ret = xlat_ctx_init_remapped_tbls(
-			&g_va_info.dyn_va_ctx, &g_va_info.dyn_va_ctx_cfg,
-			&g_va_info.dyn_va_tbls,
+			&g_va_info.dyn_va_ctx,
 			(uint64_t *)tbl_pa,
 			num_tbls,
 			tbl_pa,
@@ -414,7 +412,7 @@ static int xlat_low_va_dyn_setup(void)
 	}
 
 	/* Now stitch up with static table. */
-	ret = xlat_stitch_tables_l1(&g_va_info.low_va_ctx, g_va_info.dyn_va_ctx.tbls->tables,
+	ret = xlat_stitch_tables_l1(&g_va_info.low_va_ctx, g_va_info.dyn_va_ctx.tbls.tables,
 			g_va_info.dyn_va_pool_base, RMM_VA_POOL_SIZE);
 	if (ret != 0) {
 		ERROR("%s: xlat_stitch_tables() failed (%i)\n", __func__, ret);
@@ -422,7 +420,7 @@ static int xlat_low_va_dyn_setup(void)
 	}
 
 	INFO("Dynamic Low VA initialized. xlat tables allocated: %u used: %u\n",
-		num_tbls, g_va_info.dyn_va_ctx.tbls->next_table);
+		num_tbls, g_va_info.dyn_va_ctx.tbls.next_table);
 
 	return 0;
 }
@@ -437,7 +435,7 @@ int xlat_low_va_dyn_fixup(struct xlat_low_va_info *va_info)
 	int ret;
 
 	/* Compare the VA pool base and size with the dynamic tables */
-	if ((va_info->dyn_va_ctx_cfg.base_va !=
+	if ((va_info->dyn_va_ctx.cfg.base_va !=
 		round_down(g_va_info.dyn_va_pool_base, XLAT_BLOCK_SIZE(0))) ||
 	    (va_info->dyn_va_pool_size != RMM_VA_POOL_SIZE)) {
 		ERROR("%s: VA pool mismatch\n", __func__);
@@ -445,15 +443,13 @@ int xlat_low_va_dyn_fixup(struct xlat_low_va_info *va_info)
 	}
 
 	/* Check the base level is L1 for dyn_va_ctx */
-	if (va_info->dyn_va_ctx_cfg.base_level != 1) {
+	if (va_info->dyn_va_ctx.cfg.base_level != 1) {
 		ERROR("%s: Invalid base level in previous low va info\n",
 						__func__);
 		return -EINVAL;
 	}
 
 	/* Copy over the dynamic low va info */
-	g_va_info.dyn_va_tbls = va_info->dyn_va_tbls;
-	g_va_info.dyn_va_ctx_cfg = va_info->dyn_va_ctx_cfg;
 	g_va_info.dyn_va_ctx = va_info->dyn_va_ctx;
 	g_va_info.dyn_va_pool_size = va_info->dyn_va_pool_size;
 	g_va_info.dyn_va_pool_base = va_info->dyn_va_pool_base;
@@ -462,13 +458,12 @@ int xlat_low_va_dyn_fixup(struct xlat_low_va_info *va_info)
 	 * Flush the dynamic low VA tables as it maybe modified for dynamic mappings
 	 * after MMU is enabled in previous RMM.
 	 */
-	flush_dcache_range((uintptr_t)va_info->dyn_va_tbls.tables,
-		sizeof(uint64_t) * (unsigned long)va_info->dyn_va_tbls.tables_num
+	flush_dcache_range((uintptr_t)va_info->dyn_va_ctx.tbls.tables,
+		sizeof(uint64_t) * (unsigned long)va_info->dyn_va_ctx.tbls.tables_num
 						* XLAT_TABLE_ENTRIES);
 
-	assert(g_va_info.dyn_va_ctx.tbls != NULL);
 	/* Now stitch up with static table. */
-	ret = xlat_stitch_tables_l1(&g_va_info.low_va_ctx, g_va_info.dyn_va_ctx.tbls->tables,
+	ret = xlat_stitch_tables_l1(&g_va_info.low_va_ctx, g_va_info.dyn_va_ctx.tbls.tables,
 			g_va_info.dyn_va_pool_base, RMM_VA_POOL_SIZE);
 	if (ret != 0) {
 		ERROR("%s: xlat_stitch_tables() failed (%i)\n", __func__, ret);

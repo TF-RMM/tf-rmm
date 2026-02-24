@@ -92,10 +92,6 @@ struct xlat_ctx *xlat_get_high_va_xlat_ctx(void)
  */
 int xlat_high_va_setup(void)
 {
-	/* Allocate xlat_ctx_cfg for high VA which will be specific to PEs */
-	static struct xlat_ctx_cfg high_va_xlat_ctx_cfgs[MAX_CPUS];
-	/* Allocate per-cpu xlat_ctx_tbls */
-	static struct xlat_ctx_tbls high_va_tbls[MAX_CPUS];
 	/* Allocate xlat_mmap_region for high VA mappings which will be specific to PEs */
 	static struct xlat_mmap_region mm_regions_array[MAX_CPUS][MMAP_REGION_COUNT] = {
 		[0 ... MAX_CPUS-1] = {RMM_EH_STACK_MMAP, RMM_STACK_MMAP, RMM_SLOT_BUF_MMAP}};
@@ -120,7 +116,7 @@ int xlat_high_va_setup(void)
 		rmm_get_my_stack(cpuid) - RMM_CPU_STACK_SIZE;
 
 	/* Initialize the context configuration for this CPU */
-	ret = xlat_ctx_cfg_init(&high_va_xlat_ctx_cfgs[cpuid], VA_HIGH_REGION,
+	ret = xlat_ctx_cfg_init(&high_va_xlat_ctx[cpuid], VA_HIGH_REGION,
 				 &mm_regions_array[cpuid][0U],
 				 MMAP_REGION_COUNT,
 				 0UL,
@@ -136,8 +132,6 @@ int xlat_high_va_setup(void)
 	 */
 	tables_ptr = &high_va_tts[(size_t)XLAT_TABLE_ENTRIES * cpuid];
 	ret = xlat_ctx_init(&high_va_xlat_ctx[cpuid],
-				&high_va_xlat_ctx_cfgs[cpuid],
-				&high_va_tbls[cpuid],
 				tables_ptr, 1U,
 				(uint64_t)tables_ptr);
 

@@ -36,8 +36,6 @@ enum map_regions {
 /* NOLINTNEXTLINE(clang-analyzer-optin.performance.Padding) as fields are in logical order*/
 struct xlat_low_va_info {
 	/* Structures to hold the Static Low VA translation context information */
-	struct xlat_ctx_tbls low_va_tbls;
-	struct xlat_ctx_cfg low_va_ctx_cfg;
 	struct xlat_ctx low_va_ctx;
 	struct xlat_mmap_region low_va_regions[TOTAL_MMAP_REGIONS];
 
@@ -47,8 +45,6 @@ struct xlat_low_va_info {
 
 	/* The below fields are copied over from previous RMM in case of LFA */
 	/* Structures to hold the dynamic Low VA translation context info */
-	struct xlat_ctx_tbls dyn_va_tbls;
-	struct xlat_ctx_cfg dyn_va_ctx_cfg;
 	struct xlat_ctx dyn_va_ctx;
 
 	/* Size of the dynamic VA pool */

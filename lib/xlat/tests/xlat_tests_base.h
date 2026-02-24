@@ -58,8 +58,6 @@ void xlat_map_memory_page_with_attrs_tc3(void);
 void xlat_arch_setup_mmu_cfg_tc1(void);
 void xlat_arch_setup_mmu_cfg_tc2(void);
 void xlat_arch_setup_mmu_cfg_tc3(void);
-void xlat_arch_setup_mmu_cfg_tc4(void);
-void xlat_arch_setup_mmu_cfg_tc5(void);
 void xlat_arch_setup_mmu_cfg_tc6(void);
 void xlat_arch_setup_mmu_cfg_tc7(void);
 
