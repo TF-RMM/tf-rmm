@@ -121,13 +121,13 @@
  * The Major version value for the RMM-EL3 Interface supported by this
  * implementation of RMM.
  */
-#define RMM_EL3_IFC_VERS_MAJOR		(U(0))
+#define RMM_EL3_IFC_VERS_MAJOR		(U(2))
 
 /*
  * The Minor version value for the RMM-EL3 Interface supported by this
  * implementation of RMM.
  */
-#define RMM_EL3_IFC_VERS_MINOR		(U(5))
+#define RMM_EL3_IFC_VERS_MINOR		(U(0))
 
 /*
  * Check if RMM-EL3 Interface is compatible. The Major version should match
@@ -135,7 +135,7 @@
  */
 #define IS_RMM_EL3_IFC_COMPATIBLE(_version)				\
 	((RMM_EL3_IFC_GET_VERS_MAJOR(_version) == RMM_EL3_IFC_VERS_MAJOR) && \
-	 (RMM_EL3_IFC_GET_VERS_MINOR(_version) >= RMM_EL3_IFC_VERS_MINOR))
+	 ((RMM_EL3_IFC_GET_VERS_MINOR(_version) + 1U) > RMM_EL3_IFC_VERS_MINOR))
 
 
 #define RMM_EL3_MANIFEST_GET_VERS_MAJOR					\
@@ -163,7 +163,7 @@
  */
 #define IS_RMM_EL3_MANIFEST_COMPATIBLE(_version)				\
 	((RMM_EL3_MANIFEST_GET_VERS_MAJOR(_version) == RMM_EL3_MANIFEST_VERS_MAJOR) && \
-	 (RMM_EL3_MANIFEST_GET_VERS_MINOR(_version) >= RMM_EL3_MANIFEST_VERS_MINOR))
+	 ((RMM_EL3_MANIFEST_GET_VERS_MINOR(_version) + 1U) > RMM_EL3_MANIFEST_VERS_MINOR))
 
 #ifndef __ASSEMBLER__
 
