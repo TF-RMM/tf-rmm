@@ -1,0 +1,14 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Overlay to enable FEAT_MOPS on FVP.
+
+run:
+  params:
+    -C cluster0.has_mops_option: 2
+    -C cluster1.has_mops_option: 2

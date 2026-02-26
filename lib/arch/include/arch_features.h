@@ -591,6 +591,18 @@ static inline bool is_feat_sysreg128_present(void)
 			READ_CACHED_REG(id_aa64isar2_el1)) != 0UL);
 }
 
+/*
+ * Check if FEAT_MOPS is implemented
+ * ID_AA64ISAR2_EL1.MOPS, BITS [19:16]:
+ * 0b0000 MOPS instructions are not implemented.
+ * 0b0001 MOPS instructions are implemented.
+ */
+static inline bool is_feat_mops_present(void)
+{
+	return(EXTRACT(ID_AA64ISAR2_EL1_FEAT_MOPS,
+			READ_CACHED_REG(id_aa64isar2_el1)) != 0UL);
+}
+
 unsigned int arch_feat_get_pa_width(void);
 
 #endif /* ARCH_FEATURES_H */
