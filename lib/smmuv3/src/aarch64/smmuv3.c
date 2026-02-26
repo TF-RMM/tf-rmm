@@ -8,6 +8,7 @@
 #include <bitmap.h>
 #include <errno.h>
 #include <glob_data.h>
+#include <mec.h>
 #include <mmio.h>
 #include <rmm_el3_ifc.h>
 #include <smmuv3.h>
@@ -31,6 +32,12 @@ COMPILER_ASSERT(MAX_LOG2_CMD_QUEUE_SIZE == \
 
 COMPILER_ASSERT(MAX_LOG2_EVT_QUEUE_SIZE == \
 		(GRANULE_SHIFT - (unsigned int)__builtin_ctz(EVT_RECORD_SIZE)));
+
+/*
+ * SMMU_IDR5.VAX, bits [11:10].
+ * The value 0b11 is reserved; therefore, the last entry is a dummy.
+ */
+static const unsigned int idr5_vax[] = {48U, 52U, 56U, 0U};
 
 static struct smmuv3_driv *g_driver;
 static struct smmuv3_dev *g_smmus;
@@ -492,6 +499,9 @@ static int configure_ste(struct smmuv3_dev *smmu, unsigned int sid,
 			 struct ste_entry *ste_ptr,
 			 const struct smmu_stg2_config *s2_cfg)
 {
+	unsigned long ds = EXTRACT(VTCR_DS, s2_cfg->vtcr);
+	unsigned long sl2 = EXTRACT(VTCR_SL2, s2_cfg->vtcr);
+
 	assert((ste_ptr->ste[0] & STE0_V_BIT) == 0UL);
 
 	/*
@@ -507,10 +517,26 @@ static int configure_ste(struct smmuv3_dev *smmu, unsigned int sid,
 	ste_ptr->ste[1] = INPLACE(STE1_SHCFG, STE1_SHCFG_INCOMING);
 	/* STE[191:128] */
 	ste_ptr->ste[2] = INPLACE(STE2_S2VMID, s2_cfg->vmid) |
+			/*
+			 * Program STE[178:160] fields:
+			 *   S2PS, S2TG, S2SH0, S2OR0, S2IR0, S2SL0, S2T0SZ
+			 * using the corresponding VTCR_EL2[18:0] fields:
+			 *   PS, TG0, SH0, ORGN0, IRGN0, SL0, T0SZ.
+			 */
 			  COMPOSE(STE2_VTCR, s2_cfg->vtcr) |
 			  STE2_S2PTW_BIT | STE2_S2AA64_BIT | STE2_S2R_BIT;
 	/* STE[255:192] */
-	ste_ptr->ste[3] = INPLACE(STE3_S2TTB, s2_cfg->s2ttb >> STE3_S2TTB_SHIFT);
+	ste_ptr->ste[3] = INPLACE(STE3_S2SL0_2, sl2) | INPLACE(STE3_S2DS, ds) |
+			  INPLACE(STE3_S2TTB, s2_cfg->s2ttb >> STE3_S2TTB_SHIFT);
+	/* STE[319:256] */
+	if ((smmu->config.features & FEAT_MEC) != 0U) {
+		ste_ptr->ste[4] = INPLACE(STE4_MECID,
+					(unsigned long)INTERNAL_MECID(s2_cfg->mecid));
+	}
+
+	SMMU_DEBUG("STE[319:0] %lx:%lx:%lx:%lx:%lx\n",
+			ste_ptr->ste[4], ste_ptr->ste[3],
+			ste_ptr->ste[2], ste_ptr->ste[1], ste_ptr->ste[0]);
 	dsb(ish);
 
 	/* Invalidate configuration structure */
@@ -569,6 +595,16 @@ static int enable_smmu(struct smmuv3_dev *smmu)
 	}
 	write32(cr2, (void *)((uintptr_t)smmu->r_base + SMMU_R_CR2));
 
+	/*
+	 * Configure the MECID value for global SMMU-originated accesses to
+	 * the Realm PA space, if MEC for the Realm programming interface is
+	 * supported.
+	 */
+	if ((smmu->config.features & FEAT_MEC) != 0U) {
+		write32(RESERVED_MECID_SYSTEM, (void *)((uintptr_t)smmu->r_base +
+								SMMU_R_GMECID));
+	}
+
 	cr0 = SMMU_R_CR0_INIT | R_CR0_CMDQEN_BIT;
 
 	/* Initialise and enable the Command queue */
@@ -609,7 +645,7 @@ static int enable_smmu(struct smmuv3_dev *smmu)
 
 static int get_features(struct smmuv3_dev *smmu)
 {
-	uint32_t aidr, idr0, r_idr0, r_idr3;
+	uint32_t aidr, idr0, idr5, r_idr0, r_idr3;
 	uint32_t val;
 
 	assert(smmu != NULL);
@@ -686,34 +722,72 @@ static int get_features(struct smmuv3_dev *smmu)
 		return -ENOTSUP;
 	}
 
+	idr5 = read32((void *)((uintptr_t)smmu->ns_base + SMMU_IDR5));
+	assert(EXTRACT32(IDR5_VAX, idr5) <= IDR5_VAX_56_MAX);
+
+	SMMU_DEBUG("\tVirtual Address eXtend %u bits\n",
+			idr5_vax[EXTRACT32(IDR5_VAX, idr5)]);
+
+	if ((idr5 & IDR5_DS_BIT) != 0U) {
+		smmu->config.features |= FEAT_DS;
+		SMMU_DEBUG("\tDS\n");
+	}
+
+	if (((smmu->config.features & FEAT_DS) != 0U) &&
+		(EXTRACT32(IDR5_OAS, idr5) >= IDR5_OAS_52)) {
+		SMMU_DEBUG("\t52-bit address sizes supported\n");
+	} else if (is_feat_lpa2_4k_2_present()) {
+		SMMU_ERROR(smmu, "52-bit address sizes not supported\n");
+		return -ENOTSUP;
+	}
+
 	r_idr0 = read32((void *)((uintptr_t)smmu->r_base + SMMU_R_IDR0));
 	if ((r_idr0 & R_IDR0_ATS_BIT) != 0U) {
-		smmu->config.realm_features |= FEAT_R_ATS;
+		smmu->config.features |= FEAT_ATS;
 		SMMU_DEBUG("\tPCIe ATS for Realm state\n");
 	}
 
 	if ((r_idr0 & R_IDR0_MSI_BIT) != 0U) {
-		smmu->config.realm_features |= FEAT_R_MSI;
+		smmu->config.features |= FEAT_MSI;
 		SMMU_DEBUG("\tMSIs for Realm state\n");
 	}
 
 	if ((r_idr0 & R_IDR0_PRI_BIT) != 0U) {
-		smmu->config.realm_features |= FEAT_R_PRI;
+		smmu->config.features |= FEAT_PRI;
 		SMMU_DEBUG("\tPRI for Realm state\n");
 	}
 
 	r_idr3 = read32((void *)((uintptr_t)smmu->r_base + SMMU_R_IDR3));
 	if ((r_idr3 & R_IDR3_DPT_BIT) != 0U) {
-		smmu->config.realm_features |= FEAT_R_DPT;
+		smmu->config.features |= FEAT_DPT;
 		SMMU_DEBUG("\tDPT\n");
 	}
 
 	if ((r_idr3 & R_IDR3_MEC_BIT) != 0U) {
-		smmu->config.realm_features |= FEAT_R_MEC;
+		smmu->config.features |= FEAT_MEC;
 		SMMU_DEBUG("\tMEC\n");
 	} else if (is_feat_mec_present()) {
 		SMMU_ERROR(smmu, "MEC is not supported\n");
 		return -ENOTSUP;
+	}
+
+	if (is_feat_mec_present()) {
+		uint32_t r_mecidr = read32((void *)((uintptr_t)smmu->r_base +
+							SMMU_R_MECIDR));
+		unsigned int mecidwidth = (unsigned int)EXTRACT(MECIDR_MECIDWIDTHM1,
+							read_mecidr_el2());
+		unsigned int smmu_mecidwidth = EXTRACT32(SMMU_R_MECIDR_MECIDSIZE, r_mecidr);
+
+		/*
+		 * Check that MECID bit width supported by the SMMU matches
+		 * or exceeds the width supported by the PEs in the system.
+		 */
+		if (smmu_mecidwidth < mecidwidth) {
+			SMMU_ERROR(smmu,
+				"SMMU_R_MECIDR.MECIDSIZE %u < MECIDR_EL2.MECIDWidthm1 %u\n",
+				smmu_mecidwidth, mecidwidth);
+			return -ENOTSUP;
+		}
 	}
 
 	return 0;
@@ -900,6 +974,7 @@ int smmuv3_release_ste(unsigned long smmu_idx, unsigned int sid)
 	ste_ptr->ste[1] = 0UL;
 	ste_ptr->ste[2] = 0UL;
 	ste_ptr->ste[3] = 0UL;
+	ste_ptr->ste[4] = 0UL;
 	dsb(ish);
 
 	if (--smmu->l1std_cnt[l1_idx] == 0U) {
@@ -940,8 +1015,9 @@ int smmuv3_configure_stream(unsigned long smmu_idx,
 
 	assert(s2_cfg != NULL);
 
-	SMMU_DEBUG("%s(0x%x) s2ttb 0x%lx vtcr 0x%lx vmid 0x%x\n",
-		__func__, sid, s2_cfg->s2ttb, s2_cfg->vtcr, s2_cfg->vmid);
+	SMMU_DEBUG("%s(0x%x) s2ttb 0x%lx vtcr 0x%lx vmid 0x%x mecid 0x%x\n",
+			__func__, sid, s2_cfg->s2ttb, s2_cfg->vtcr,
+			s2_cfg->vmid, s2_cfg->mecid);
 
 	smmu = get_by_index(smmu_idx, sid);
 	if (smmu == NULL) {
