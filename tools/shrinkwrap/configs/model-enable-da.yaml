@@ -19,6 +19,7 @@ build:
     artifacts:
       SAMPLE_KEY: ${param:builddir}/sample_key
       PCI_HIERARCHY_FILE: ${param:builddir}/pci.json
+      FIX_PCI_JSON_FILE: ${param:sourcedir}/tools/shrinkwrap/fix_pci_json.sh
 
 run:
   rtvars:
@@ -31,7 +32,7 @@ run:
 
   prerun:
     # Preprocess pci.json to replace <fixup_path> with actual location.
-    - bash tools/shrinkwrap/fix_pci_json.sh ${param:packagedir}
+    - bash ${artifact:FIX_PCI_JSON_FILE} ${param:packagedir}
 
   params:
     -C pci.enable_device_id_checks: 0
