@@ -4,6 +4,10 @@
  */
 
 #include <smmuv3.h>
+#include <stdint.h>
+
+struct smmu_list;
+struct smmu_stg2_config;
 
 /* Dummy SMMUv3 library functions */
 
@@ -34,14 +38,6 @@ int smmuv3_enable_ste(unsigned long smmu_idx, unsigned int sid)
 }
 
 int smmuv3_disable_ste(unsigned long smmu_idx, unsigned int sid)
-{
-	(void)smmu_idx;
-	(void)sid;
-
-	return 0;
-}
-
-int smmuv3_allocate_ste(unsigned long smmu_idx, unsigned int sid)
 {
 	(void)smmu_idx;
 	(void)sid;

@@ -809,6 +809,37 @@
  */
 #define SMC_RMI_VDEV_START			SMC64_RMI_FID(U(0x83))
 
+/*
+ * FID: 0xC40001D7
+ *
+ * arg0 == PA of PSMMU
+ * arg1 == PA of PSMMU parameters
+ */
+#define SMC_RMI_PSMMU_ACTIVATE			SMC64_RMI_FID(U(0x87))
+
+/*
+ * FID: 0xC40001D8
+ *
+ * arg0 == PA of PSMMU
+ */
+#define SMC_RMI_PSMMU_DEACTIVATE		SMC64_RMI_FID(U(0x88))
+
+/*
+ * FID: 0xC40001DB
+ *
+ * arg0 == PA of PSMMU
+ * sid	== Base of StreamID range described by the Level 2 Stream Table
+ */
+#define SMC_RMI_PSMMU_ST_L2_CREATE		SMC64_RMI_FID(U(0x8B))
+
+/*
+ * FID: 0xC40001DC
+ *
+ * arg0 == PA of PSMMU
+ * sid	== Base of StreamID range described by the Level 2 Stream Table
+ */
+#define SMC_RMI_PSMMU_ST_L2_DESTROY		SMC64_RMI_FID(U(0x8C))
+
 /* Size of Realm Personalization Value */
 #ifndef CBMC
 #define RPV_SIZE		64
@@ -1449,6 +1480,56 @@ struct rmi_vdev_measure_params {
  */
 #define RMI_VDEV_DMA_DISABLED		U(0)
 #define RMI_VDEV_DMA_ENABLED		U(1)
+
+/* The members of the RmiPsmmuParams structure */
+struct psmmu_params {
+	/* Flags */
+	SET_MEMBER(unsigned long flags, 0, 0x8);		/* Offset 0 */
+	/* Physical MSI address of the GERROR interrupt */
+	SET_MEMBER(unsigned long gerr_addr, 0x8, 0x10);		/* 0x8 */
+	/* Physical MSI data of the GERROR interrupt */
+	SET_MEMBER(unsigned long gerr_data, 0x10, 0x18);	/* 0x10 */
+	/* Physical MSI address of the EVENTQ interrupt */
+	SET_MEMBER(unsigned long eventq_addr, 0x18, 0x20);	/* 0x18 */
+	/* Physical MSI data of the EVENTQ interrupt */
+	SET_MEMBER(unsigned long eventq_data, 0x20, 0x28);	/* 0x20 */
+	/* Physical MSI address of the PRIQ interrupt */
+	SET_MEMBER(unsigned long priq_addr, 0x28, 0x30);	/* 0x28 */
+	/* Physical MSI data of the PRIQ interrupt */
+	SET_MEMBER(unsigned long priq_data, 0x30, 0x38);	/* 0x30 */
+};
+
+/*
+ * RmiPsmmuParams
+ * This structure contains PSMMU parameters.
+ * Width: 4096 (0x1000) bytes.
+ */
+#define RESERVED_NUM	(0x1000UL - sizeof(struct psmmu_params))
+
+/* cppcheck-suppress misra-c2012-2.4 */
+struct rmi_psmmu_params {
+	struct psmmu_params params;
+	unsigned char reserved[RESERVED_NUM];
+};
+
+/*
+ * RmmPsmmuState
+ * Represents the state of a PSMMU.
+ */
+#define PSMMU_INACTIVE	U(0)
+#define PSMMU_ACTIVE	U(1)
+
+/*
+ * RmiPsmmuFlags
+ * Contains flags provided by the Host during PSMMU activation.
+ * Width: 64 bits
+ */
+#define RMI_PSMMU_FLAGS_MSI_SHIFT	U(0)
+#define RMI_PSMMU_FLAGS_MSI_WIDTH	U(1)
+#define RMI_PSMMU_FLAGS_ATS_SHIFT	U(1)
+#define RMI_PSMMU_FLAGS_ATS_WIDTH	U(1)
+#define RMI_PSMMU_FLAGS_PRI_SHIFT	U(2)
+#define RMI_PSMMU_FLAGS_PRI_WIDTH	U(1)
 
 /* Returns the higher supported RMI ABI revision */
 unsigned long rmi_get_highest_supported_version(void);

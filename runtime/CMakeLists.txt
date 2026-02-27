@@ -81,13 +81,14 @@ target_sources(rmm-runtime
 target_sources(rmm-runtime
     PRIVATE "rmi/feature.c"
             "rmi/granule.c"
+            "rmi/pdev.c"
+            "rmi/psmmu.c"
             "rmi/realm.c"
             "rmi/rec.c"
             "rmi/rtt.c"
             "rmi/run.c"
-            "rmi/version.c"
-            "rmi/pdev.c"
-            "rmi/vdev.c")
+            "rmi/vdev.c"
+            "rmi/version.c")
 
 if(HOST_VARIANT STREQUAL "host_cbmc")
     target_sources(rmm-runtime

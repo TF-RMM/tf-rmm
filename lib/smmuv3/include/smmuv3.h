@@ -32,7 +32,7 @@ struct smmu_stg2_config {
  *   Base virtual address of the driver handle on success.
  */
 uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
-		uintptr_t *out_pa, size_t *out_sz);
+				uintptr_t *out_pa, size_t *out_sz);
 
 /*
  * Initialize all SMMU instances.
@@ -120,28 +120,6 @@ int smmuv3_enable_ste(unsigned long smmu_idx, unsigned int sid);
  * remains unchanged.
  */
 int smmuv3_disable_ste(unsigned long smmu_idx, unsigned int sid);
-
-/*
- * Allocate the Stream Table Entry for a StreamID.
- *
- * Parameters:
- *   smmu_idx	- Index of the SMMU instance.
- *   sid	- StreamID requiring an STE.
- *
- * Return:
- *   0		- success.
- *   -EINVAL	- invalid smmu_idx or sid, driver state not modified.
- *   -ENOMEM	- the StreamID is already allocated or bitmap resources are exhausted.
- *   -ETIMEDOUT	- timeout in SMMU invalidation or queue operations.
- *   -EIO	- SMMU command interface error.
- *
- * On -EINVAL and -ENOMEM errors, no STEs are programmed and the driver's
- * internal state remains unchanged.
- * This function initialises Level 1 Stream Table Descriptor if it has not yet
- * been set.
- * No STE content is written until the allocation succeeds.
- */
-int smmuv3_allocate_ste(unsigned long smmu_idx, unsigned int sid);
 
 /*
  * Release a previously allocated Stream Table Entry.

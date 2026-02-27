@@ -20,6 +20,9 @@ typedef __uint128_t	uint128_t;
 #define SMMU_DEBUG(...)	VERBOSE(__VA_ARGS__)
 #endif
 
+#define FAILED_MAP	"Failed to map %s"
+#define FAILED_RESERVE	"Failed to reserve memory for %s"
+
 #define SMMU_ERROR(smmu, fmt, ...)			\
 	do {						\
 		ERROR("SMMUv3 @0x%lx: ",		\
@@ -412,6 +415,12 @@ typedef __uint128_t	uint128_t;
 /* L2 Stream table size */
 #define STRTAB_L2_SIZE		(STRTAB_L1_STE_MAX * STE_SIZE)
 
+/* Compute index within the L1 table for the given SID */
+#define L1STD_IDX(sid)		((sid) >> SMMU_STRTAB_SPLIT)
+
+/* Index to point STE in Level 2 table */
+#define L2STE_IDX(sid)		((sid) & ((U(1) << SMMU_STRTAB_SPLIT) - 1U))
+
 #define MAX_RETRIES		100000U
 
 enum queue_type {
@@ -434,9 +443,71 @@ struct l2tab {
 	 * aligned based on the strtab span configuration.
 	 */
 	struct ste_entry l2tab_entry[STRTAB_L1_STE_MAX];
-} __aligned(STRTAB_L2_SIZE);
+};
 
 COMPILER_ASSERT(sizeof(struct l2tab) == GRANULE_SIZE);
+
+struct smmu_config {
+	unsigned int minor_rev;
+	unsigned int features;
+	unsigned int cmdq_log2size;
+	unsigned int evtq_log2size;
+	unsigned int substreamid_bits;
+	unsigned int streamid_bits;
+	unsigned int pa_size;
+};
+
+struct smmu_queue {
+	uintptr_t q_base;
+	uintptr_t q_base_pa;
+	void *cons_reg;
+	void *prod_reg;
+	uint32_t rd_idx;
+	uint32_t wr_idx;
+	uint32_t q_entries;
+};
+
+/*
+ * SMMUv3 device structure. One per SMMUv3 instance.
+ */
+struct smmuv3_dev {
+	uintptr_t ns_base;
+	uintptr_t ns_base_pa;
+	uintptr_t r_base;
+	uintptr_t r_base_pa;
+
+	struct smmu_config config;
+	struct smmu_queue cmdq;
+	struct smmu_queue evtq;
+	struct psmmu_params params;
+
+	uint64_t *strtab_base;
+	uintptr_t strtab_base_pa;
+	uint64_t num_l1_ents;
+
+	/*
+	 * Base of contiguously allocated L2 tables.
+	 * This will be removed when L2 tables are donated by NS Host.
+	 */
+	struct l2tab *l2strtab_base;
+	struct l2tab *l2strtab_base_pa;
+
+	/*
+	 * Array containing the number of allocated STEs
+	 * in each L2 stream table.
+	 * Number of elements num_l1_ents.
+	 * Maximum number of allocated STEs 2^SMMU_STRTAB_SPLIT.
+	 */
+	unsigned short *l2ste_cnt;
+	uintptr_t l2ste_cnt_pa;
+
+	unsigned int state;
+
+	/* Number of L1 Stream Table Descriptors in use */
+	unsigned int l1std_cnt;
+
+	spinlock_t lock;
+};
 
 /*
  * Top level SMMUv3 driver structure.
@@ -446,74 +517,11 @@ struct smmuv3_driv {
 	bool broadcast_tlb;
 	/* Number of SMMUv3 */
 	uint64_t num_smmus;
-	/* Pointer to dynamically allocated array of smmuv3_dev structs */
+	/* Pointer to dynamically allocated array of smmuv3_dev structures */
 	struct smmuv3_dev *smmuv3_devs;
 	/* Indicates whether the driver is initialized */
 	bool is_init;
 };
-
-struct smmu_config {
-	unsigned int minor_rev;
-	unsigned int features;
-	unsigned int cmdq_log2size;
-	unsigned int evtq_log2size;
-	unsigned int substreamid_bits;
-	unsigned int streamid_bits;
-};
-
-struct smmu_queue {
-	void *q_base;
-	void *q_base_pa;
-	uint32_t rd_idx, wr_idx;
-	uint32_t q_entries;
-	void *cons_reg;
-	void *prod_reg;
-};
-
-/*
- * SMMUv3 device structure. One per SMMUv3 instance.
- */
-struct smmuv3_dev {
-	void *ns_base;
-	void *ns_base_pa;
-	void *r_base;
-	void *r_base_pa;
-
-	struct smmu_config config;
-	struct smmu_queue cmdq;
-	struct smmu_queue evtq;
-
-	uint64_t *strtab_base;
-	uint64_t *strtab_base_pa;
-	uint64_t num_l1_ents;
-
-	/*
-	 * Base of contiguously allocated L2 tables. This will be
-	 * removed when L2 tables are donated by NS Host
-	 */
-	struct l2tab *l2strtab_base;
-	struct l2tab *l2strtab_base_pa;
-
-	/* Bitmap for keeping track of allocated SIDs */
-	/* TODO: Use software bits in STE to keep track of allocations */
-	unsigned long *sids;
-	void *sids_pa;
-	unsigned int sids_size;
-
-	/* Count of L1 Stream Table Descriptors in L2 table */
-	/* TODO: refcount can be moved to struct granule */
-	unsigned short *l1std_cnt;
-	void *l1std_cnt_pa;
-
-	spinlock_t lock;
-
-	/*
-	 * TODO: currently this is unused, but this will be set
-	 * when this SMMU is activated via PSMMU_ACTIVATE call.
-	 */
-	bool is_active;
-};
-
 
 bool get_smmu_broadcast_tlb(void);
 struct smmuv3_driv *get_smmuv3_driver(void);
@@ -521,6 +529,9 @@ struct smmuv3_dev *get_by_index(unsigned long smmu_idx, unsigned int sid);
 int prepare_send_command(struct smmuv3_dev *smmu, unsigned long opcode,
 			 unsigned long param0, unsigned long param1);
 int wait_cmdq_empty(struct smmuv3_dev *smmu);
+int enable_smmu(struct smmuv3_dev *smmu);
+int disable_smmu(struct smmuv3_dev *smmu);
+int inval_cached_ste(struct smmuv3_dev *smmu, unsigned long sid, bool leaf_only);
 
 /*
  * Calculate SCALE and NUM for one CMD_TLBI_S2_IPA range invalidation command.

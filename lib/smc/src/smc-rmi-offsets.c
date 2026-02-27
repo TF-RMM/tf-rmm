@@ -71,3 +71,14 @@ COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_exit, pmu_ovf_status)) == 0x70
 COMPILER_ASSERT(sizeof(struct rmi_rec_run) <= GRANULE_SIZE);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_run, enter)) == 0U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_run, exit)) == 0x800U);
+
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct psmmu_params, flags)) == 0x0U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct psmmu_params, gerr_addr)) == 0x8U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct psmmu_params, gerr_data)) == 0x10U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct psmmu_params, eventq_addr)) == 0x18U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct psmmu_params, eventq_data)) == 0x20U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct psmmu_params, priq_addr)) == 0x28U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct psmmu_params, priq_data)) == 0x30U);
+
+COMPILER_ASSERT_NO_CBMC(sizeof(struct rmi_psmmu_params) == 0x1000UL);
+

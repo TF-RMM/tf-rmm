@@ -4,6 +4,8 @@
  */
 
 #include <smmuv3.h>
+#include <stdbool.h>
+#include <stdint.h>
 
 /* Dummy SMMUv3 library functions */
 
