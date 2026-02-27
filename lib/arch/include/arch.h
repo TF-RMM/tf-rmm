@@ -914,8 +914,16 @@
 /******************************************************
  * ID_AA64ISAR2_EL1 definitions
  ******************************************************/
+#define ID_AA64ISAR2_EL1_WFxT_SHIFT		UL(0)
+#define ID_AA64ISAR2_EL1_WFxT_WIDTH		UL(4)
+#define ID_AA64ISAR2_EL1_GPA3_SHIFT		UL(8)
+#define ID_AA64ISAR2_EL1_GPA3_WIDTH		UL(4)
+#define ID_AA64ISAR2_EL1_APA3_SHIFT		UL(12)
+#define ID_AA64ISAR2_EL1_APA3_WIDTH		UL(4)
 #define ID_AA64ISAR2_EL1_FEAT_MOPS_SHIFT	UL(16)
 #define ID_AA64ISAR2_EL1_FEAT_MOPS_WIDTH	UL(4)
+#define ID_AA64ISAR2_EL1_PAC_frac_SHIFT		UL(24)
+#define ID_AA64ISAR2_EL1_PAC_frac_WIDTH		UL(4)
 #define ID_AA64ISAR2_EL1_SYSREG128_SHIFT	UL(32)
 #define ID_AA64ISAR2_EL1_SYSREG128_WIDTH	UL(4)
 
