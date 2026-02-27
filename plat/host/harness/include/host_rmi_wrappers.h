@@ -20,7 +20,6 @@ void host_rmi_rtt_data_map_init(void *rd, void *data, uintptr_t ipa, void *src,
 void host_rmi_realm_activate(void *rd, struct smc_result *res);
 void host_rmi_realm_create(void *rd, void *params_ptr, struct smc_result *res);
 void host_rmi_realm_destroy(void *rd, struct smc_result *res);
-void host_rmi_rec_create(void *rd, void *rec, void *params_ptr, struct smc_result *res);
 void host_rmi_rtt_create(void *rd, void *rtt, void *ipa,
 			 unsigned int level, struct smc_result *res);
 void host_rmi_rtt_aux_create(void *rd, void *rtt, void *ipa, unsigned int level,
@@ -29,10 +28,10 @@ void host_rmi_rtt_destroy(void *rd, void *ipa, unsigned int level,
 			  struct smc_result *res);
 void host_rmi_rtt_aux_destroy(void *rd, void *ipa, unsigned int level,
 			      unsigned int index, struct smc_result *res);
-void host_rmi_rec_aux_count(void *rd, struct smc_result *res);
 void host_rmi_rec_create(void *rd, void *rec, void *params_ptr,
+			 void *handle, void *donate_req,
 			 struct smc_result *res);
-void host_rmi_rec_destroy(void *rec, struct smc_result *res);
+void host_rmi_rec_destroy(void *rec, void *destroy_handle, struct smc_result *res);
 void host_rmi_rec_enter(void *rec, void *run_ptr, struct smc_result *res);
 void host_rmi_rtt_create(void *rd, void *rtt, void *ipa,
 		unsigned int level, struct smc_result *res);
@@ -52,7 +51,6 @@ void host_rmi_psci_complete(void *calling_rec, void *target_rec, uintptr_t statu
 		struct smc_result *res);
 void host_rmi_features(unsigned long index, struct smc_result *res);
 void host_rmi_rtt_fold(void *rd, uintptr_t ipa, uintptr_t level, struct smc_result *res);
-void host_rmi_rec_aux_count(void *rd, struct smc_result *res);
 void host_rmi_rtt_init_ripas(void *rd, uintptr_t base, uintptr_t top, struct smc_result *res);
 void host_rmi_rtt_set_ripas(void *rd, void *rec, uintptr_t base, uintptr_t top,
 		struct smc_result *res);
@@ -84,5 +82,16 @@ void host_rmi_vdev_destroy(void *rd, void *pdev, void *vdev,
 void host_rmi_granule_tracking_get(unsigned long addr, struct smc_result *res);
 void host_rmi_rmm_config_get(unsigned long config_ptr, struct smc_result *res);
 void host_rmi_rmm_config_set(unsigned long config_ptr, struct smc_result *res);
+void host_rmi_op_mem_donate(unsigned long handle, void *list_addr,
+			    unsigned long list_count,
+			    void *donation_req, void *cosumend_entries,
+			    struct smc_result *res);
+void host_rmi_op_mem_reclaim(unsigned long handle, void *list_addr,
+			     unsigned long list_count, void *consumed_entries,
+			     struct smc_result *res);
+void host_rmi_op_continue(void *handle, unsigned long flags,
+			  void *donate_req, struct smc_result *res);
+void host_rmi_op_cancel(unsigned long handle, unsigned long flags,
+			struct smc_result *res);
 
 #endif /* HOST_RMI_WRAPPERS_H */

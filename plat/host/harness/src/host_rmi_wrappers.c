@@ -86,22 +86,34 @@ void host_rmi_realm_destroy(void *rd, struct smc_result *res)
 		      0, res);
 }
 
-void host_rmi_rec_create(void *rd, void *rec, void *params_ptr, struct smc_result *res)
+void host_rmi_rec_create(void *rd, void *rec, void *params_ptr,
+			 void *handle, void *donate_req,
+			 struct smc_result *res)
 {
+	unsigned long *handle_ptr = (unsigned long *)handle;
+	unsigned long *req_ptr = (unsigned long *)donate_req;
+
 	handle_ns_smc(SMC_RMI_REC_CREATE,
 		      (uintptr_t)rd,
 		      (uintptr_t)rec,
 		      (uintptr_t)params_ptr,
 		      0, 0, 0, 0,
 		      res);
+
+	*handle_ptr = res->x[1];
+	*req_ptr = res->x[2];
 }
 
-void host_rmi_rec_destroy(void *rec, struct smc_result *res)
+void host_rmi_rec_destroy(void *rec, void *handle, struct smc_result *res)
 {
+	unsigned long *handle_ptr = (unsigned long *)handle;
+
 	handle_ns_smc(SMC_RMI_REC_DESTROY,
 		      (uintptr_t)rec,
 		      0, 0, 0, 0, 0, 0,
 		      res);
+
+	*handle_ptr = res->x[1];
 }
 
 void host_rmi_rec_enter(void *rec, void *run_ptr, struct smc_result *res)
@@ -249,14 +261,6 @@ void host_rmi_rtt_fold(void *rd, uintptr_t ipa, uintptr_t level,
 		      ipa,
 		      level,
 		      0, 0, 0,
-		      0, res);
-}
-
-void host_rmi_rec_aux_count(void *rd, struct smc_result *res)
-{
-	handle_ns_smc(SMC_RMI_REC_AUX_COUNT,
-		      (uintptr_t)rd,
-		      0, 0, 0, 0, 0,
 		      0, res);
 }
 
@@ -410,5 +414,67 @@ void host_rmi_rmm_config_set(unsigned long config_ptr, struct smc_result *res)
 	handle_ns_smc(SMC_RMI_RMM_CONFIG_SET,
 		      config_ptr,
 		      0, 0, 0, 0, 0, 0,
+		      res);
+}
+
+void host_rmi_op_mem_donate(unsigned long handle, void *list_addr,
+			    unsigned long list_count,
+			    void *donation_req, void *consumed_entries,
+			    struct smc_result *res)
+{
+	unsigned long *req = (unsigned long *)donation_req;
+	unsigned long *consumed = (unsigned long *)consumed_entries;;
+
+	handle_ns_smc(SMC_RMI_OP_MEM_DONATE,
+		      handle,
+		      (uintptr_t)list_addr,
+		      list_count,
+		      0, 0, 0, 0,
+		      res);
+
+	*consumed = res->x[1];
+	*req = res->x[2];
+}
+
+void host_rmi_op_mem_reclaim(unsigned long handle, void *list_addr,
+			     unsigned long list_count,
+			     void *consumed_entries,
+			     struct smc_result *res)
+{
+	unsigned long *entries = (unsigned long *)consumed_entries;
+
+	handle_ns_smc(SMC_RMI_OP_MEM_RECLAIM,
+		      handle,
+		      (uintptr_t)list_addr,
+		      list_count,
+		      0, 0, 0, 0,
+		      res);
+
+	*entries = res->x[1];
+}
+
+void host_rmi_op_continue(void *handle, unsigned long flags,
+			  void *donate_req, struct smc_result *res)
+{
+	unsigned long *req = (unsigned long *)donate_req;
+	unsigned long *hdlr = (unsigned long *)handle;
+
+	handle_ns_smc(SMC_RMI_OP_CONTINUE,
+		      *hdlr,
+		      flags,
+		      0, 0, 0, 0, 0,
+		      res);
+
+	*hdlr = res->x[1];
+	*req = res->x[2];
+}
+
+void host_rmi_op_cancel(unsigned long handle, unsigned long flags,
+			struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_OP_CANCEL,
+		      flags,
+		      handle,
+		      0, 0, 0, 0, 0,
 		      res);
 }

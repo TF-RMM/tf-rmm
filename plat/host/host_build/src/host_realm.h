@@ -28,12 +28,12 @@
 struct host_realm {
 	void *rd;
 	void *rec;
-	unsigned long rec_aux_count;
 	void *rtts[RTT_COUNT];
-	void *rec_aux_granules[MAX_REC_AUX_GRANULES];
 	struct rmi_realm_params *realm_params;
 	struct rmi_rec_params *rec_params;
 	struct rmi_rec_run *rec_run;
+	uintptr_t *sro_addr_list;
+	size_t sro_addr_list_entries;
 	uintptr_t realm_data_1;
 	size_t realm_data_1_num_gr;
 	uintptr_t realm_data_2;

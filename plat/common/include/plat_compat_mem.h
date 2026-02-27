@@ -9,6 +9,7 @@
 #include <glob_data.h>
 #include <granule_types.h>
 #include <rmm_el3_compat.h>
+#include <sro_context.h>
 
 /* Platform header for RMM EL3 compatibility */
 
@@ -46,13 +47,13 @@
 			round_up((UL(1) << ((streamid_bits) - (split))) * 2U, GRANULE_SIZE))) /* l1std_cnt */ \
 		: 0UL)
 
-/* This macro calculates pages needed based on RMM_VA_POOL_SIZE */
 #define RESERVE_MEM_SIZE(nr_gr, nr_ncoh_gr, cmn_xlat)			\
 	(round_up((nr_gr) * sizeof(struct granule), GRANULE_SIZE) + \
 	round_up((nr_ncoh_gr) * sizeof(struct dev_granule), GRANULE_SIZE) + \
 	(((RMM_VA_POOL_SIZE / UL(0x40000000)) * 513U + 1U) * GRANULE_SIZE) + /* VA space pages: (GB * 513) + 1 */ \
 	(((cmn_xlat) + 5U) * GRANULE_SIZE) + \
 	GLOB_DATA_MAX_SIZE + /* glob_data granule */ \
+	round_up(SRO_CTX_POOL_SIZE, GRANULE_SIZE) + /* SRO context related data */ \
 	SMMU_MEM_SIZE(RMM_MAX_SMMUS, 16U, SMMU_STRTAB_SPLIT)) /* SMMU allocations */
 
 /* Reserve memory for RMM compatibility */
