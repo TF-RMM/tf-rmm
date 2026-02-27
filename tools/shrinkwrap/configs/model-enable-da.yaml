@@ -43,7 +43,7 @@ run:
     -C pci.pci_smmuv3.mmu.SMMU_IDR0: 0x498F36BB
     -C pci.pci_smmuv3.mmu.SMMU_IDR1: 0xCE73D10
     -C pci.pci_smmuv3.mmu.SMMU_IDR3: 0x773C
-    -C pci.pci_smmuv3.mmu.SMMU_IDR5: 0x475
+    -C pci.pci_smmuv3.mmu.SMMU_IDR5: 0x4F6
     -C pci.pci_smmuv3.mmu.SMMU_S_IDR0: 0x1000000
     -C pci.pci_smmuv3.mmu.SMMU_S_IDR1: 0xA0000002
     -C pci.pci_smmuv3.mmu.SMMU_S_IDR2: 0x0
@@ -52,10 +52,15 @@ run:
     -C pci.pci_smmuv3.mmu.SMMU_ROOT_IIDR: 0x43B
     -C pci.pci_smmuv3.mmu.SMMU_R_IDR0: 0x1012400
     -C pci.pci_smmuv3.mmu.SMMU_R_IDR3: 0x10000
+    -C pci.pci_smmuv3.mmu.SMMU_R_MECIDR: 0xF
     -C pci.pci_smmuv3.mmu.ish_is_osh: 1
     -C pci.pci_smmuv3.mmu.root_register_page_offset: 0x20000
     # Below options are workaround for missing TLB invalidates in RMM and TF-A.
     -C pci.pci_smmuv3.mmu.size_of_tlb: 1
     -C pci.pci_smmuv3.mmu.size_of_gpttlb: 1
+    # Below options are for passing MECID.
+    -C pci.pci_smmuv3.mmu.mec_attribute_transform: "UserFlags[31:16]=MECID,UserFlags[15:0]=0,ExtendedID=0"
+    -C pci.pci_smmuv3.mmu.mpam_attribute_transform: "ExtendedID[62:55]=MPAM_PMG,ExtendedID[54:39]=MPAM_PARTID,ExtendedID[38:37]=MPAM_SP"
+    -C pci.pci_smmuv3.mmu.output_attribute_transform: "ExtendedID[31:0]=DeviceID"
     # Configure the interconnect before use
     -C cci550.force_on_from_start: 1
