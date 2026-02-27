@@ -25,4 +25,3 @@ run:
     -C cluster0.rme_mecid_width: 16
     -C cluster1.mec_support_level: 2
     -C cluster1.rme_mecid_width: 16
-
