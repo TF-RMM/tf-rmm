@@ -28,3 +28,18 @@ if (UBSAN)
     string(APPEND CMAKE_C_FLAGS_INIT "-fsanitize=undefined ")
     string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fsanitize=undefined ")
 endif()
+
+if (ICSAN)
+    string(APPEND CMAKE_C_FLAGS_INIT "-fsanitize=implicit-conversion ")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fsanitize=implicit-conversion ")
+endif()
+
+if (LBSAN)
+    string(APPEND CMAKE_C_FLAGS_INIT "-fsanitize=local-bounds ")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fsanitize=local-bounds ")
+endif()
+
+if (NGSAN)
+    string(APPEND CMAKE_C_FLAGS_INIT "-fsanitize=nullability ")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fsanitize=nullability ")
+endif()

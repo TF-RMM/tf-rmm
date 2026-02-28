@@ -3,6 +3,8 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
+include(${CMAKE_SOURCE_DIR}/cmake/Sanitizers.cmake)
+
 set (MBEDTLS_TARGET_PREFIX "da_")
 
 # The Mbed TLS library is not included in the CBMC analysis
@@ -20,8 +22,11 @@ set(MBEDTLS_BIN_DIR "${CMAKE_CURRENT_BINARY_DIR}/mbedtls_da")
 function(link_to_source base_name)
 endfunction(link_to_source)
 
+set(BACKUP_C_FLAGS "${CMAKE_C_FLAGS}")
+strip_sanitizer_flags()
 add_subdirectory("${MBEDTLS_SRC_DIR}/library" "${MBEDTLS_BIN_DIR}/library"
                     EXCLUDE_FROM_ALL)
+set(CMAKE_C_FLAGS "${BACKUP_C_FLAGS}")
 
 add_library(rmm-app-da-mbedtls INTERFACE)
 

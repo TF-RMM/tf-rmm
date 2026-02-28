@@ -76,3 +76,18 @@ endforeach()
 # Use lld as default linker
 string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fuse-ld=lld ")
 string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-Wl,--apply-dynamic-relocs ")
+
+if (ICSAN)
+    string(APPEND CMAKE_C_FLAGS_INIT "-fsanitize-trap=implicit-conversion ")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fsanitize-trap=implicit-conversion ")
+endif()
+
+if (LBSAN)
+    string(APPEND CMAKE_C_FLAGS_INIT "-fsanitize-trap=local-bounds ")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fsanitize-trap=local-bounds ")
+endif()
+
+if (NGSAN)
+    string(APPEND CMAKE_C_FLAGS_INIT "-fsanitize-trap=nullability ")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fsanitize-trap=nullability ")
+endif()

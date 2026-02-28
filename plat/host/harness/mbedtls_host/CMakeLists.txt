@@ -3,6 +3,8 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
+include(${CMAKE_SOURCE_DIR}/cmake/Sanitizers.cmake)
+
 set (MBEDTLS_TARGET_PREFIX "host_")
 
 # The Mbed TLS library is not included in the CBMC analysis
@@ -29,14 +31,17 @@ if(RMM_FPU_USE_AT_REL2)
     # Enable using crypto and sha instructions
     string(REGEX REPLACE "(march=[^\\ ]*)" "\\1+sha3+crypto+nosve" CMAKE_C_FLAGS
         ${CMAKE_C_FLAGS})
-
+    strip_sanitizer_flags()
     add_subdirectory("${MBEDTLS_SRC_DIR}/library" "${MBEDTLS_BIN_DIR}/library"
         EXCLUDE_FROM_ALL)
 
     set(CMAKE_C_FLAGS "${BACKUP_C_FLAGS}")
 else()
+    set(BACKUP_C_FLAGS "${CMAKE_C_FLAGS}")
+    strip_sanitizer_flags()
     add_subdirectory("${MBEDTLS_SRC_DIR}/library" "${MBEDTLS_BIN_DIR}/library"
         EXCLUDE_FROM_ALL)
+    set(CMAKE_C_FLAGS "${BACKUP_C_FLAGS}")
 endif()
 
 add_library(rmm-host-mbedtls INTERFACE)

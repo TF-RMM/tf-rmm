@@ -3,6 +3,8 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
+include(${CMAKE_SOURCE_DIR}/cmake/Sanitizers.cmake)
+
 #
 # This compiles libraries in ext/libspdm project to add SPDM requester protocol
 # support in RMM.
@@ -71,9 +73,10 @@ else()
         ${LIBSPDM_DIR}/os_stub/platform_lib)
 endif()
 
-# Disable -Wstrict-overflow for libspdm
+# Disable -Wstrict-overflow for libspdm and strip sanitizer flags
 set(BACKUP_C_FLAGS "${CMAKE_C_FLAGS}")
 string(REPLACE "-Wstrict-overflow" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
+strip_sanitizer_flags()
 
 # Add all source directories
 foreach(SOURCE_DIR IN LISTS SOURCE_DIRS)
