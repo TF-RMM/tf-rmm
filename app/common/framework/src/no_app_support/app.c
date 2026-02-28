@@ -6,7 +6,6 @@
 
 #include <app.h>
 #include <app_header.h>
-#include <app_services.h>
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>

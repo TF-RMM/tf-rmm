@@ -75,7 +75,8 @@ target_sources(rmm-runtime
             "core/init.c"
             "core/inject_exp.c"
             "core/sysregs.c"
-            "core/timers.c")
+            "core/timers.c"
+            "core/log.c")
 
 target_sources(rmm-runtime
     PRIVATE "rmi/feature.c"

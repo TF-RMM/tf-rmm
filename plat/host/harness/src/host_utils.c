@@ -147,7 +147,14 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	(void)host_util_set_default_sysreg_cb("mecid_a0_el2", 0UL);
 	(void)host_util_set_default_sysreg_cb("mecid_a1_el2", 0UL);
 	(void)host_util_set_default_sysreg_cb("vmecid_p_el2", 0UL);
-	ret = host_util_set_default_sysreg_cb("vmecid_a_el2", 0UL);
+	(void)host_util_set_default_sysreg_cb("vmecid_a_el2", 0UL);
+
+	/*
+	 * Fake host runs the RMM code in an EL2 context. Set CurrentEL to EL2
+	 * (bits [3:2] == 0b10).
+	 */
+	ret = host_util_set_default_sysreg_cb("CurrentEl",
+					    INPLACE(CurrentEL_EL, 2UL));
 
 	/*
 	 * Only check the return value of the last callback setup, to detect

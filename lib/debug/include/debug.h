@@ -91,14 +91,8 @@
 	} while (true)
 
 __attribute__((__format__(__printf__, 1, 2)))
-static inline void rmm_log(const char *fmt, ...)
-{
-	va_list args;
-
-	va_start(args, fmt);
-	(void)vprintf(fmt, args);
-	va_end(args);
-}
+/* coverity[misra_c_2012_rule_5_8_violation:SUPPRESS] */
+void rmm_log(const char *fmt, ...);
 
 void backtrace(uintptr_t frame_pointer);
 

@@ -10,6 +10,7 @@
 #include <attest_services.h>
 #include <buffer.h>
 #include <console.h>
+#include <cpuid.h>
 #include <debug.h>
 #include <errno.h>
 #include <random_app.h>
@@ -26,20 +27,81 @@ struct ns_rw_data {
 	struct granule *ns_granule;
 };
 
+/* Save messages for logging to prevent interleaving */
+struct log_message_buf {
+	size_t len;
+	char message[GRANULE_SIZE - sizeof(size_t)];
+};
+
+COMPILER_ASSERT(sizeof(struct log_message_buf) == GRANULE_SIZE);
+static struct log_message_buf log_messages[MAX_CPUS];
+
+
+/*
+ * This service buffers the characters in a per-cpu basis until
+ * a terminating character, newline character or the flush flag
+ * is set. Then the contents are flushed to the console. If the
+ * flush flag is set, content in arg0 is ignored.
+ *
+ * Arguments:
+ *  - arg0: The character to be printed/buffered
+ *  - arg1: Flag to flush the buffered message
+*/
 static uint64_t app_service_print(struct app_data_cfg *app_data,
 			  unsigned long arg0,
 			  unsigned long arg1,
 			  unsigned long arg2,
 			  unsigned long arg3)
 {
-	int character = (int)arg0;
+	char character = (char)arg0;
+	unsigned int cpuid = my_cpuid();
+	struct log_message_buf *buf = &log_messages[cpuid];
+	size_t message_max = sizeof(buf->message);
 
 	(void)app_data;
-	(void)arg1;
 	(void)arg2;
 	(void)arg3;
 
-	(void)console_putc(character);
+	/* Flush buffer if flag is set or terminating character */
+	if ((arg1 != 0U) || (character == '\0') || (character == '\n')) {
+		/* Check if buffer is empty */
+		if ((buf->len == 0U) && (character != '\n')) {
+			return 0;
+		}
+
+		/* Append the newline character if exists */
+		if ((character == '\n') && (buf->len < (message_max - 2U))) {
+			buf->message[buf->len] = '\n';
+			buf->len++;
+		}
+
+		/* Null terminate the message */
+		buf->message[buf->len] = '\0';
+
+		/* Flush the buffered message to console */
+		rmm_log("%s", buf->message);
+
+		/* Clear the buffer for next message */
+		buf->len = 0;
+		return 0;
+	}
+
+	/* Only continue writing the message if under buffer size */
+	if (buf->len < (message_max - 1U)) {
+		buf->message[buf->len] = character;
+		buf->len++;
+	} else {
+		/*
+		 * Dump truncated message on first overflow, then mark buffer
+		 * as overflowed (len == message_max) to suppress repeated
+		 * truncation messages for subsequent characters.
+		 */
+		if (buf->len == (message_max - 1U)) {
+			buf->message[buf->len] = '\0';
+			rmm_log("Message truncated on CPU %u: %s\n", cpuid, buf->message);
+			buf->len = message_max;
+		}
+	}
 	return 0;
 }
 
@@ -613,4 +675,3 @@ uint64_t call_app_service(unsigned long service_id,
 
 	return service_functions[service_id](app_data, arg0, arg1, arg2, arg3);
 }
-

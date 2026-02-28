@@ -62,6 +62,10 @@
 /* RNDR definition */
 #define RNDR			S3_3_C2_C4_0
 
+/* CurrentEL Definitions */
+#define CurrentEL_EL_SHIFT	U(2)
+#define CurrentEL_EL_WIDTH	U(2)
+
 /* Data Independent Timing Registers */
 #define DIT			S3_3_C4_C2_5
 #define DIT_BIT			(UL(1) << 24)
