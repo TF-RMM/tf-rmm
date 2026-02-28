@@ -382,78 +382,19 @@ static int dev_assign_dev_comm_set_cache(struct dev_assign_info *info, void *cac
 	return 0;
 }
 
-/* Process device version request */
-static int dev_assign_cache_versions_req(struct dev_assign_info *info,
-					 spdm_get_version_request_t *version_req)
+static int dev_assign_cache_spdm_req(struct dev_assign_info *info,
+				     uint8_t cache_type,
+				     uint8_t hash_op_flags,
+				     void *req_message,
+				     size_t message_size)
 {
-	size_t cache_offset, cache_len;
-	uint8_t hash_op_flags;
+	if ((hash_op_flags & HASH_OP_FLAG_SETUP) != 0U) {
+		info->psa_hash_op = psa_hash_operation_init();
+	}
 
-	/* VCA contains the SPDM headers as well */
-	cache_offset = 0U;
-	cache_len = sizeof(spdm_get_version_request_t);
-	/*
-	 * TODO: During RMI_PDEV_STOP libspdm_get_version is called, to reset
-	 * the SPDM connection. This unnecessarily sends a cache request to the
-	 * host. This should not happen.
-	 */
-	hash_op_flags = (HASH_OP_FLAG_SETUP | HASH_OP_FLAG_UPDATE);
-	info->psa_hash_op = psa_hash_operation_init();
+	return dev_assign_dev_comm_set_cache(info, req_message, 0U,
+				  message_size, cache_type, CACHE_COMM_DIR_REQ, hash_op_flags);
 
-	return dev_assign_dev_comm_set_cache(info, version_req, cache_offset,
-				  cache_len, CACHE_TYPE_VCA, CACHE_COMM_DIR_REQ, hash_op_flags);
-}
-
-/* Process device capabilities request */
-static int dev_assign_cache_capabilities_req(struct dev_assign_info *info,
-					     spdm_get_capabilities_request_t *capabilities_req)
-{
-	uint8_t hash_op_flags;
-	size_t cache_offset, cache_len;
-
-	hash_op_flags = HASH_OP_FLAG_UPDATE;
-
-	/* VCA contains the SPDM headers as well */
-	cache_offset = 0U;
-	cache_len = sizeof(spdm_get_capabilities_request_t);
-	return dev_assign_dev_comm_set_cache(info, capabilities_req, cache_offset,
-				  cache_len, CACHE_TYPE_VCA, CACHE_COMM_DIR_REQ, hash_op_flags);
-}
-
-/* Process device algorithms request */
-static int dev_assign_cache_algorithms_req(struct dev_assign_info *info,
-					   spdm_negotiate_algorithms_request_t *algorithms_req)
-{
-	uint8_t hash_op_flags;
-	size_t cache_offset, cache_len;
-
-	/* VCA contains the SPDM headers as well */
-	cache_offset = 0U;
-	cache_len = algorithms_req->length;
-
-	hash_op_flags = (HASH_OP_FLAG_UPDATE);
-
-	return dev_assign_dev_comm_set_cache(info, algorithms_req, cache_offset,
-				  cache_len, CACHE_TYPE_VCA, CACHE_COMM_DIR_REQ, hash_op_flags);
-}
-
-/* Process device get_measurements request */
-static int dev_assign_cache_measurements_req(struct dev_assign_info *info,
-					     spdm_get_measurements_request_t *get_measurement_req)
-{
-	uint8_t hash_op_flags;
-	size_t cache_offset, cache_len;
-
-	assert(info->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_MEAS);
-
-	hash_op_flags = HASH_OP_FLAG_SETUP | HASH_OP_FLAG_UPDATE;
-	info->psa_hash_op = psa_hash_operation_init();
-
-	/* cache SPDM headers as well */
-	cache_offset = 0U;
-	cache_len = sizeof(spdm_get_measurements_request_t);
-	return dev_assign_dev_comm_set_cache(info, get_measurement_req, cache_offset,
-				  cache_len, CACHE_TYPE_MEAS, CACHE_COMM_DIR_REQ, hash_op_flags);
 }
 
 static libspdm_return_t
@@ -477,17 +418,26 @@ spdm_transport_encode_message(void *spdm_context, const uint32_t *session_id,
 	spdm_header = message;
 
 	if (spdm_header->request_response_code == U(SPDM_GET_VERSION)) {
-		rc = dev_assign_cache_versions_req(info,
-			(spdm_get_version_request_t *)spdm_header);
+		/*
+		 * TODO: During RMI_PDEV_STOP libspdm_get_version is called, to
+		 * reset the SPDM connection. This unnecessarily sends a cache
+		 * request to the host. This should not happen.
+		 */
+		rc = dev_assign_cache_spdm_req(info, CACHE_TYPE_VCA,
+					     HASH_OP_FLAG_SETUP | HASH_OP_FLAG_UPDATE,
+					     spdm_header, message_size);
 	} else if (spdm_header->request_response_code == U(SPDM_GET_CAPABILITIES)) {
-		rc = dev_assign_cache_capabilities_req(info,
-			(spdm_get_capabilities_request_t *)spdm_header);
+		rc = dev_assign_cache_spdm_req(info, CACHE_TYPE_VCA,
+					     HASH_OP_FLAG_UPDATE,
+					     spdm_header, message_size);
 	} else if (spdm_header->request_response_code == U(SPDM_NEGOTIATE_ALGORITHMS)) {
-		rc = dev_assign_cache_algorithms_req(info,
-			(spdm_negotiate_algorithms_request_t *)spdm_header);
+		rc = dev_assign_cache_spdm_req(info, CACHE_TYPE_VCA,
+					     HASH_OP_FLAG_UPDATE,
+					     spdm_header, message_size);
 	} else if (spdm_header->request_response_code == U(SPDM_GET_MEASUREMENTS)) {
-		rc = dev_assign_cache_measurements_req(info,
-			(spdm_get_measurements_request_t *)spdm_header);
+		rc = dev_assign_cache_spdm_req(info, CACHE_TYPE_MEAS,
+					     HASH_OP_FLAG_SETUP | HASH_OP_FLAG_UPDATE,
+					     spdm_header, message_size);
 	} else {
 		rc = 0;
 	}
