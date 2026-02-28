@@ -3,6 +3,10 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
+if(HOST_VARIANT STREQUAL "host_cbmc")
+    return()
+endif()
+
 add_library(rmm-app-cmn-svc)
 
 target_link_libraries(rmm-app-cmn-svc
