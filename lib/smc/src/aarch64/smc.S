@@ -51,6 +51,7 @@ func monitor_call_with_arg_res
 	/* Fill the smc_result structure */
 	stp x0, x1, [x11, #SMC_RES_X0_X1]
 	stp x2, x3, [x11, #SMC_RES_X2_X3]
-	str x4, [x11, #SMC_RES_X4]
+	stp x4, x5, [x11, #SMC_RES_X4_X5]
+	stp x6, x7, [x11, #SMC_RES_X6_X7]
 	ret
 endfunc monitor_call_with_arg_res

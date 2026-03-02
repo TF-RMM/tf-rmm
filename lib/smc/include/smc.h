@@ -181,8 +181,10 @@
 
 #define SMC_UNKNOWN		(unsigned long)(-1)
 
-/* Result registers X0-X4 */
-#define SMC_RESULT_REGS		5U
+/* Result registers X0-X7 */
+#define SMC_RESULT_REGS		8UL
+/* Size of smc_result in bytes */
+#define SMC_RESULT_SIZE		(SMC_RESULT_REGS * U(8))
 /* Argument registers X1-X12 */
 #define SMC_ARGS_MAX		12U
 
@@ -204,7 +206,8 @@
 
 #define SMC_RES_X0_X1	U(0)
 #define SMC_RES_X2_X3	U(16)
-#define SMC_RES_X4	U(32)
+#define SMC_RES_X4_X5	U(32)
+#define SMC_RES_X6_X7	U(48)
 
 #ifndef __ASSEMBLER__
 

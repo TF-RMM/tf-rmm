@@ -16,8 +16,10 @@ COMPILER_ASSERT((U(offsetof(struct smc_args, v)) + U(64)) == SMC_ARG_X9_X10);
 COMPILER_ASSERT((U(offsetof(struct smc_args, v)) + U(80)) == SMC_ARG_X11_X12);
 COMPILER_ASSERT(sizeof(((struct smc_args *)NULL)->v) == SMC_ARG_X11_X12 + U(16));
 
-COMPILER_ASSERT(sizeof(struct smc_result) == (sizeof(unsigned long) * 5U));
+COMPILER_ASSERT(sizeof(struct smc_result) == (sizeof(unsigned long) * U(8)));
+COMPILER_ASSERT(sizeof(struct smc_result) == SMC_RESULT_SIZE);
 COMPILER_ASSERT(U(offsetof(struct smc_result, x)) == SMC_RES_X0_X1);
 COMPILER_ASSERT((U(offsetof(struct smc_result, x)) + U(16)) == SMC_RES_X2_X3);
-COMPILER_ASSERT((U(offsetof(struct smc_result, x)) + U(32)) == SMC_RES_X4);
-COMPILER_ASSERT(sizeof(((struct smc_result *)NULL)->x) == SMC_RES_X4 + U(8));
+COMPILER_ASSERT((U(offsetof(struct smc_result, x)) + U(32)) == SMC_RES_X4_X5);
+COMPILER_ASSERT((U(offsetof(struct smc_result, x)) + U(48)) == SMC_RES_X6_X7);
+COMPILER_ASSERT(sizeof(((struct smc_result *)NULL)->x) == SMC_RES_X6_X7 + U(16));

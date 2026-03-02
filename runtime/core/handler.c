@@ -22,10 +22,10 @@
 #include <xlat_high_va.h>
 
 /* Maximum number of supported arguments */
-#define MAX_NUM_ARGS		6U
+#define MAX_NUM_ARGS		7U
 
 /* Maximum number of output values */
-#define MAX_NUM_OUTPUT_VALS	4U
+#define MAX_NUM_OUTPUT_VALS	7U
 
 #define RMI_STATUS_STRING(_id)[RMI_##_id] = #_id
 
@@ -49,12 +49,12 @@ COMPILER_ASSERT(ARRAY_SIZE(rmi_status_string) == RMI_ERROR_COUNT_MAX);
 
 /*
  * At this level (in handle_ns_smc) we distinguish the RMI calls only on:
- * - The number of input arguments [0..5], and whether
- * - The function returns up to three output values in addition
+ * - The number of input arguments [0..7], and whether
+ * - The function returns up to seven output values in addition
  *   to the return status code.
  * Hence, the naming syntax is:
- * - `*_[0..5]` when no output values are returned, and
- * - `*_[0..3]_o` when the function returns some output values.
+ * - `*_[0..7]` when no output values are returned, and
+ * - `*_[0..7]_o` when the function returns some output values.
  */
 typedef unsigned long (*handler_0)(void);
 typedef unsigned long (*handler_1)(unsigned long arg0);
@@ -320,6 +320,7 @@ void handle_ns_smc(unsigned int function_id,
 		   unsigned long arg3,
 		   unsigned long arg4,
 		   unsigned long arg5,
+		   unsigned long arg6,
 		   struct smc_result *res)
 {
 	unsigned int handler_id;
@@ -327,7 +328,7 @@ void handle_ns_smc(unsigned int function_id,
 	bool restore_ns_simd_state = false;
 	struct simd_context *ns_simd_ctx;
 	bool sve_hint = false;
-	unsigned long args[] __unused = {arg0, arg1, arg2, arg3, arg4, arg5};
+	unsigned long args[] __unused = {arg0, arg1, arg2, arg3, arg4, arg5, arg6};
 
 	/* Save the SVE hint bit and clear it from the function ID */
 	if ((function_id & SMC_SVE_HINT) != 0U) {
