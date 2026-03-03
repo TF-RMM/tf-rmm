@@ -13,6 +13,7 @@
 #
 find_package(Git REQUIRED)
 find_package(Perl REQUIRED)
+find_package(Python3 REQUIRED)
 find_program(CHECKPATCH_EXECUTABLE "checkpatch.pl"
   PATHS ${CMAKE_SOURCE_DIR}
   PATH_SUFFIXES tools/checkpatch
@@ -24,6 +25,12 @@ find_program(COMMITMSGCHECK_EXECUTABLE "checkcommitmsg.py"
   PATH_SUFFIXES tools/checkpatch
   DOC "Path to checkcommitmsg.py"
 )
+
+find_program(CHECKASCII_EXECUTABLE "checkascii.py"
+  PATHS ${CMAKE_SOURCE_DIR}
+  PATH_SUFFIXES tools/checkpatch
+  DOC "Path to checkascii.py"
+  )
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")
 include(GitUtils)
@@ -46,7 +53,7 @@ set(total_errors "0")
 set(total_warnings "0")
 
 # Check if pre-reqs met
-if(PERL_NOT_FOUND OR NOT EXISTS ${CHECKPATCH_EXECUTABLE})
+if(PERL_NOT_FOUND OR Python3_NOT_FOUND OR NOT EXISTS ${CHECKPATCH_EXECUTABLE} OR NOT EXISTS ${CHECKASCII_EXECUTABLE})
   message(FATAL_ERROR "required dependencies not found")
 endif()
 
@@ -138,6 +145,21 @@ if(CHECKCODEBASE_RUN)
       checkpatch_get_stats("${checkpatch_output}" errors warnings)
       MATH(EXPR total_errors "${total_errors}+${errors}")
       MATH(EXPR total_warnings "${total_warnings}+${warnings}")
+    endif()
+
+    # Run checkascii.
+    execute_process(
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      COMMAND ${CHECKASCII_EXECUTABLE} ${source_file}
+      OUTPUT_VARIABLE checkascii_output
+      RESULT_VARIABLE checkascii_rc
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      )
+
+    if(${checkascii_rc} GREATER 0)
+      message(${checkascii_output})
+      checkpatch_get_stats("${checkascii_output}" errors 0)
+      MATH(EXPR total_errors "${total_errors}+${errors}")
     endif()
   endforeach()
 
@@ -236,6 +258,21 @@ if(CHECKPATCH_RUN)
       commitmsg_errors commitmsg_warnings)
     MATH(EXPR total_errors "${total_errors} + ${commitmsg_errors}")
     MATH(EXPR total_warnings "${total_warnings} + ${commitmsg_warnings}")
+
+    # Run checkascii.
+    execute_process(
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      COMMAND ${CHECKASCII_EXECUTABLE} ${source_files}
+      OUTPUT_VARIABLE checkascii_output
+      RESULT_VARIABLE checkascii_rc
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      )
+
+    if(${checkascii_rc} GREATER 0)
+      message(${checkascii_output})
+      checkpatch_get_stats("${checkascii_output}" errors 0)
+      MATH(EXPR total_errors "${total_errors}+${errors}")
+    endif()
   endforeach()
 
   print_stats_and_exit("checkpatch" ${total_errors}, ${total_warnings})
