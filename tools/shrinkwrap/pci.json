@@ -16,6 +16,7 @@
                 "endpoint.tee_io_supported": 1,
                 "endpoint.certificate_der_filename": "<fixup_path>/sample_key/ecp384/bundle_responder.certchain.der",
                 "endpoint.private_key_filename": "<fixup_path>/sample_key/ecp384/end_responder.key",
+                "endpoint.measurement_block_filename": "<fixup_path>/measurements.json",
                 "endpoint.bit_mask_of_base_asym_alg": 0x80
             },
             "smmuv3testengine/smmuv3testengine2": {
@@ -25,6 +26,7 @@
                 "endpoint.tee_io_supported": 1,
                 "endpoint.certificate_der_filename": "<fixup_path>/sample_key/ecp384/bundle_responder.certchain.der",
                 "endpoint.private_key_filename": "<fixup_path>/sample_key/ecp384/end_responder.key",
+                "endpoint.measurement_block_filename": "<fixup_path>/measurements.json",
                 "endpoint.bit_mask_of_base_asym_alg": 0x80
             }
         }
@@ -47,6 +49,7 @@
                 "endpoint.tee_io_supported": 1,
                 "endpoint.certificate_der_filename": "<fixup_path>/sample_key/ecp384/bundle_responder.certchain.der",
                 "endpoint.private_key_filename": "<fixup_path>/sample_key/ecp384/end_responder.key",
+                "endpoint.measurement_block_filename": "<fixup_path>/measurements.json",
                 "endpoint.bit_mask_of_base_asym_alg": 0x80,
                 "image_path": "<fixup_path>/ahci-disk.img"
             }

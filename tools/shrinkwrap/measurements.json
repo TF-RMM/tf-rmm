@@ -1,0 +1,9 @@
+{
+    "measurement_blocks" :[
+        {
+            "index": 1,
+            "dmtf_spec_measurement_value_type": 0x85,
+            "dmtf_spec_measurement_value": "10000000100000003000000020000000"
+        }
+    ]
+}

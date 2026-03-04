@@ -16,9 +16,12 @@ build:
       - cp -r ext/libspdm/unit_test/sample_key ${param:builddir}
       # Copy pci.json to build dir to be used as base for pci_fixedup.json
       - cp tools/shrinkwrap/pci.json ${param:builddir}
+      # Copy measurements.json to build dir to be used by pci_fixedup.json
+      - cp tools/shrinkwrap/measurements.json ${param:builddir}
     artifacts:
       SAMPLE_KEY: ${param:builddir}/sample_key
       PCI_HIERARCHY_FILE: ${param:builddir}/pci.json
+      PCI_MEASUREMENTS_FILE: ${param:builddir}/measurements.json
       FIX_PCI_JSON_FILE: ${param:sourcedir}/tools/shrinkwrap/fix_pci_json.sh
 
 run:
@@ -51,7 +54,6 @@ run:
     -C pci.pci_smmuv3.mmu.SMMU_ROOT_IDR0: 0x80000F
     -C pci.pci_smmuv3.mmu.SMMU_ROOT_IIDR: 0x43B
     -C pci.pci_smmuv3.mmu.SMMU_R_IDR0: 0x1012400
-    -C pci.pci_smmuv3.mmu.SMMU_R_IDR3: 0x10000
     -C pci.pci_smmuv3.mmu.SMMU_R_MECIDR: 0xF
     -C pci.pci_smmuv3.mmu.ish_is_osh: 1
     -C pci.pci_smmuv3.mmu.root_register_page_offset: 0x20000
