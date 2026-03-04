@@ -304,8 +304,9 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 		 * The SEA is injected back to Plane 0 if:
 		 *	- The fetch was from 'empty' memory
 		 *	- The fetch was from outside PAR
+		 *	- There is a permission fault due to memory being RIPAS_DEV
 		 */
-		if (empty_ipa || !in_par) {
+		if (abort_is_permission_fault(esr) || empty_ipa || !in_par) {
 			inject_sync_idabort(ESR_EL2_ABORT_FSC_SEA);
 			return true;
 		}
@@ -314,7 +315,8 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 		 * Instruction aborts from Plane N to Plane 0 are
 		 * reported when:
 		 *	- The fetch was from outside PAR
-		 *	- There is a permission fault
+		 *	- There is a permission fault, with the memory being RIPAS_DEV
+		 *	  or permissions not being set by P0 for that address.
 		 *	- The fetch was from an 'empty' memory.
 		 */
 		if (abort_is_permission_fault(esr) || empty_ipa || !in_par) {
