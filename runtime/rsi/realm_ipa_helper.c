@@ -32,9 +32,10 @@
  * WALK_INVALID_PARAMS	Parameter 'ipa' is unaligned to granule size or is not
  *			a Protected IPA, 's2_walk' structure is not updated.
  * WALK_FAIL		Mapping is not in the page table (either hipas is not
- *			RMI_ASSIGNED or ripas is not RIPAS_RAM).
- *			Only 's2_walk.rtt_level' and 's2_walk.ripas' are
- *			updated. NS Host needs to fix.
+ *			RMI_ASSIGNED or ripas is not RIPAS_RAM), or the IPA maps
+ *			to device memory (ripas is RIPAS_DEV).
+ *			Only 's2_walk.rtt_level' and 's2_walk.ripas_val' are
+ *			updated. NS Host needs to fix (non-device case).
  */
 enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 				    unsigned long ipa,
@@ -69,20 +70,7 @@ enum s2_walk_status realm_ipa_to_pa(struct rec *rec,
 		s2_walk->ripas_val = RIPAS_RAM;
 		walk_status = WALK_SUCCESS;
 	} else {
-		if (s2tte_is_unassigned_destroyed(s2_ctx, s2tte) ||
-		    s2tte_is_assigned_destroyed(s2_ctx,
-						s2tte, wi.last_level)) {
-			s2_walk->ripas_val = RIPAS_DESTROYED;
-		} else if (s2tte_is_unassigned_ram(s2_ctx, s2tte)) {
-			s2_walk->ripas_val = RIPAS_RAM;
-		} else {
-			/*
-			 * Only unassigned_empty & assigned_empty
-			 * are left as an option.
-			 */
-			s2_walk->ripas_val = RIPAS_EMPTY;
-		}
-
+		s2_walk->ripas_val = s2tte_get_ripas(s2_ctx, s2tte);
 		granule_unlock(wi.g_llt);
 		walk_status = WALK_FAIL;
 	}
@@ -212,7 +200,8 @@ bool realm_mem_lock_map(struct rec *rec, unsigned long ipa,
 	case WALK_SUCCESS:
 		break;
 	case WALK_FAIL:
-		if (walk_res.ripas_val == RIPAS_EMPTY) {
+		if ((walk_res.ripas_val == RIPAS_EMPTY) ||
+		    (walk_res.ripas_val == RIPAS_DEV)) {
 			/* Error needs to be reported back to realm */
 			res->action = UPDATE_REC_RETURN_TO_REALM;
 			res->smc_res.x[0] = RSI_ERROR_INPUT;

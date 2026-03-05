@@ -304,8 +304,9 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 		 * The SEA is injected back to Plane 0 if:
 		 *	- The fetch was from 'empty' memory
 		 *	- The fetch was from outside PAR
+		 *	- There is a permission fault due to memory being RIPAS_DEV
 		 */
-		if (empty_ipa || !in_par) {
+		if (abort_is_permission_fault(esr) || empty_ipa || !in_par) {
 			inject_sync_idabort(ESR_EL2_ABORT_FSC_SEA);
 			return true;
 		}
@@ -314,7 +315,8 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 		 * Instruction aborts from Plane N to Plane 0 are
 		 * reported when:
 		 *	- The fetch was from outside PAR
-		 *	- There is a permission fault
+		 *	- There is a permission fault, with the memory being RIPAS_DEV
+		 *	  or permissions not being set by P0 for that address.
 		 *	- The fetch was from an 'empty' memory.
 		 */
 		if (abort_is_permission_fault(esr) || empty_ipa || !in_par) {
@@ -1015,17 +1017,18 @@ bool handle_plane_n_exit(struct rec *rec,
 	 */
 	assert(walk_status != WALK_INVALID_PARAMS);
 
-	if (walk_res.ripas_val == RIPAS_EMPTY) {
+	if ((walk_res.ripas_val == RIPAS_EMPTY) ||
+	    (walk_res.ripas_val == RIPAS_DEV)) {
 		/*
 		 * Plane 0 has set the ripas of `rsi_plane_run` granule
-		 * to "empty".
+		 * to "empty" or device memory.
 		 * Exit to Plane 0 with error. The content of
 		 * Plane N will be lost.
 		 */
 		ret = RSI_ERROR_INPUT;
 		goto out_return_to_plane_0;
 	} else if (walk_status == WALK_FAIL) {
-		/* `rsi_plane_run` page is either destroyed or unassigned_ram s2tte */
+		/* `rsi_plane_run` page is destroyed or unassigned_ram s2tte */
 		emulate_stage2_data_abort(rec_exit, walk_res.rtt_level, run_ipa);
 
 		return false;
