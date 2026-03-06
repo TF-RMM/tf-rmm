@@ -16,13 +16,11 @@ void s2tte_is_addr_lvl_aligned_tc5(void);
 /* s2tte_map_size() */
 void s2tte_map_size_tc1(void);
 
-/* s2tt_invalidate_page() */
-void s2tt_invalidate_page_tc1(void);
-void s2tt_invalidate_page_tc2(void);
-
-/* s2tt_invalidate_block() */
-void s2tt_invalidate_block_tc1(void);
-void s2tt_invalidate_block_tc2(void);
+/* s2tt_invalidate_page_block() */
+void s2tt_invalidate_page_block_tc1(void);
+void s2tt_invalidate_page_block_tc2(void);
+void s2tt_invalidate_page_block_tc3(void);
+void s2tt_invalidate_page_block_tc4(void);
 
 /* s2tt_invalidate_pages_in_block() */
 void s2tt_invalidate_pages_in_block_tc1(void);

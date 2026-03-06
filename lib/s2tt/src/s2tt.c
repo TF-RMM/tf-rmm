@@ -238,9 +238,15 @@ static unsigned long s2tte_get_ap(const struct s2tt_context *s2_ctx,
  * Invalidate S2 TLB entries with @addr IPA.
  * Call this function after:
  * 1.  A L3 page desc has been removed.
+ * 2.  A L2 block desc has been removed, or
+ * 2a. A L2 table desc has been removed, where
+ * 2b. All S2TTEs in L3 table that the L2 table desc was pointing to were invalid.
  */
-void s2tt_invalidate_page(const struct s2tt_context *s2_ctx, unsigned long addr)
+void s2tt_invalidate_page_block(const struct s2tt_context *s2_ctx, unsigned long addr,
+				long level)
 {
+	(void)level;
+
 	assert(s2_ctx != NULL);
 
 	unsigned int vmid = s2_ctx->vmid;
@@ -252,44 +258,16 @@ void s2tt_invalidate_page(const struct s2tt_context *s2_ctx, unsigned long addr)
  * Invalidate S2 TLB entries with @addr IPA for the list of VMIDS @vmid_list.
  * Call this function after:
  * 1.  A L3 page desc has been removed.
- */
-void s2tt_invalidate_page_per_vmids(const struct s2tt_context *s2_ctx,
-				    unsigned int *vmid_list, unsigned int nvmids,
-				    unsigned long addr)
-{
-	(void)s2_ctx;
-
-	stage2_tlbi_ipa_per_vmids(vmid_list, nvmids, addr, GRANULE_SIZE);
-}
-
-/*
- * Invalidate S2 TLB entries with @addr IPA.
- * Call this function after:
- * 1.  A L2 block desc has been removed, or
+ * 2.  A L2 block desc has been removed, or
  * 2a. A L2 table desc has been removed, where
  * 2b. All S2TTEs in L3 table that the L2 table desc was pointed to were invalid.
  */
-void s2tt_invalidate_block(const struct s2tt_context *s2_ctx, unsigned long addr)
-{
-	assert(s2_ctx != NULL);
-
-	unsigned int vmid = s2_ctx->vmid;
-
-	stage2_tlbi_ipa_per_vmids(&vmid, 1U, addr, GRANULE_SIZE);
-}
-
-/*
- * Invalidate S2 TLB entries with @addr IPA for the list of VMIDS @vmid_list.
- * Call this function after:
- * 1.  A L2 block desc has been removed, or
- * 2a. A L2 table desc has been removed, where
- * 2b. All S2TTEs in L3 table that the L2 table desc was pointed to were invalid.
- */
-void s2tt_invalidate_block_per_vmids(const struct s2tt_context *s2_ctx,
-				     unsigned int *vmid_list, unsigned int nvmids,
-				     unsigned long addr)
+void s2tt_invalidate_page_block_per_vmids(const struct s2tt_context *s2_ctx,
+					  unsigned int *vmid_list, unsigned int nvmids,
+					  unsigned long addr, long level)
 {
 	(void)s2_ctx;
+	(void)level;
 
 	stage2_tlbi_ipa_per_vmids(vmid_list, nvmids, addr, GRANULE_SIZE);
 }

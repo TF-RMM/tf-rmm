@@ -110,14 +110,6 @@ typedef __uint128_t	uint128_t;
 #define AARCH64_TTF		U(2)
 #define AARCH32_64_TTF		U(3)
 
-/* IR0 features bitmap */
-#define FEAT_2_LVL_STRTAB	BIT32(0)
-#define FEAT_BTM		BIT32(1)
-#define FEAT_COHACC		BIT32(2)
-#define FEAT_S1P		BIT32(3)
-#define FEAT_ASID16		BIT32(4)
-#define FEAT_VMID16		BIT32(5)
-
 /* SMMU_IDR1 register fields */
 #define IDR1_SIDSIZE_SHIFT	U(0)
 #define IDR1_SIDSIZE_WIDTH	U(6)
@@ -132,6 +124,8 @@ typedef __uint128_t	uint128_t;
 #define IDR1_QUEUES_PRESET_BIT	BIT32(29)
 #define IDR1_TABLES_PRESET_BIT	BIT32(30)
 
+/* SMMU_IDR3 register fields */
+#define IDR3_RIL_BIT		BIT32(10)
 
 /* SMMU_IDR5 register features */
 #define IDR5_OAS_SHIFT		U(0)
@@ -322,12 +316,27 @@ typedef __uint128_t	uint128_t;
 #define CS_SHIFT		U(12)
 #define CS_WIDTH		U(2)
 
-/* CMD_TLBI_S2_IPA, CMD_TLBI_S12_VMALL */
+/* CMD_TLBI_S2_IPA[63:0], CMD_TLBI_S12_VMALL */
 #define VMID_SHIFT		U(32)
 #define VMID_WIDTH		U(16)
 
-/* CMD_TLBI_S2_IPA */
-#define ADDRESS_SHIFT		U(12)
+/* CMD_TLBI_S2_IPA[63:0] */
+#define NUM_SHIFT		U(12)
+#define NUM_WIDTH		U(5)
+#define SCALE_SHIFT		U(20)
+
+/* CMD_TLBI_S2_IPA[127:64] */
+#define LEAF_BIT		BIT(0)
+#define TTL128_BIT		BIT(7)
+#define TTL_SHIFT		U(8)
+#define TTL_WIDTH		U(2)
+#define TG_SHIFT		U(10)
+#define TG_WIDTH		U(2)
+
+/* TG Translation Granule */
+#define TG_4KB			UL(1)
+#define TG_16KB			UL(2)
+#define TG_64KB			UL(3)
 
 /* SMMU_CMDQ_CONS error codes and fields */
 #define CMDQ_CONS_ERR_SHIFT	U(24)
@@ -512,5 +521,62 @@ struct smmuv3_dev *get_by_index(unsigned long smmu_idx, unsigned int sid);
 int prepare_send_command(struct smmuv3_dev *smmu, unsigned long opcode,
 			 unsigned long param0, unsigned long param1);
 int wait_cmdq_empty(struct smmuv3_dev *smmu);
+
+/*
+ * Calculate SCALE and NUM for one CMD_TLBI_S2_IPA range invalidation command.
+ *
+ * The SMMUv3 spec defines the range covered by a single command as:
+ *   Range = ((NUM + 1) * 2^SCALE) * GRANULE_SIZE
+ *
+ * This function computes SCALE and NUM (as a raw count, encoded in the command
+ * as NUM - 1) such that the command covers as many granules as possible from the
+ * remaining @num_grans, without exceeding that count.
+ *
+ * @num_grans	- Remaining granules to invalidate. Must be non-zero.
+ * @scale_max	- Architectural maximum for SCALE:
+ *		  31 (5-bit SCALE field, FEAT_DS absent)
+ *		  39 (6-bit SCALE field, FEAT_DS present)
+ * @scale_out	- Output: the SCALE field value.
+ * @num_out	- Output: the raw count (encode in CMD as NUM = *num_out - 1).
+ *
+ * Returns	- Number of granules covered: (*num_out << *scale_out).
+ *		  This is always > 0 and <= @num_grans.
+ */
+static inline unsigned long calc_tlbi_range(unsigned long num_grans,
+					    unsigned int scale_max,
+					    unsigned int *scale_out,
+					    unsigned long *num_out)
+{
+	/*
+	 * Set SCALE to the position of the least significant set bit of
+	 * num_grans. This ensures that num_grans is divisible by 2^SCALE,
+	 * so NUM = num_grans >> SCALE is an integer with its LSB always set.
+	 */
+	unsigned int scale = (unsigned int)__builtin_ffsl((long)num_grans) - 1U;
+	unsigned long num;
+
+	if (scale <= scale_max) {
+		/*
+		 * SCALE is within the architectural limit.
+		 * Take as many (2^SCALE) granule groups as fit in NUM_WIDTH bits.
+		 */
+		num = (num_grans >> scale) & ((1UL << NUM_WIDTH) - 1UL);
+	} else {
+		/*
+		 * SCALE exceeds the architectural limit; clamp to scale_max.
+		 * Adjust NUM so that (num << scale_max) still covers the same
+		 * or fewer granules as in the unclamped case.
+		 */
+		num = 1UL << (scale - scale_max);
+		if (num > (1UL << NUM_WIDTH)) {
+			num = 1UL << NUM_WIDTH;
+		}
+		scale = scale_max;
+	}
+
+	*scale_out = scale;
+	*num_out = num;
+	return (num << scale);
+}
 
 #endif /* SMMUV3_PRIV_H */
