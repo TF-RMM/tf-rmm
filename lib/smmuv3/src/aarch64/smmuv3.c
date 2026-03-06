@@ -529,7 +529,7 @@ static int configure_ste(struct smmuv3_dev *smmu, unsigned int sid,
 	ste_ptr->ste[3] = INPLACE(STE3_S2SL0_2, sl2) | INPLACE(STE3_S2DS, ds) |
 			  INPLACE(STE3_S2TTB, s2_cfg->s2ttb >> STE3_S2TTB_SHIFT);
 	/* STE[319:256] */
-	if ((smmu->config.features & FEAT_MEC) != 0U) {
+	if (is_feat_mec_present()) {
 		ste_ptr->ste[4] = INPLACE(STE4_MECID,
 					(unsigned long)INTERNAL_MECID(s2_cfg->mecid));
 	}
@@ -600,7 +600,7 @@ static int enable_smmu(struct smmuv3_dev *smmu)
 	 * the Realm PA space, if MEC for the Realm programming interface is
 	 * supported.
 	 */
-	if ((smmu->config.features & FEAT_MEC) != 0U) {
+	if (is_feat_mec_present()) {
 		write32(RESERVED_MECID_SYSTEM, (void *)((uintptr_t)smmu->r_base +
 								SMMU_R_GMECID));
 	}
@@ -764,7 +764,6 @@ static int get_features(struct smmuv3_dev *smmu)
 	}
 
 	if ((r_idr3 & R_IDR3_MEC_BIT) != 0U) {
-		smmu->config.features |= FEAT_MEC;
 		SMMU_DEBUG("\tMEC\n");
 	} else if (is_feat_mec_present()) {
 		SMMU_ERROR(smmu, "MEC is not supported\n");
