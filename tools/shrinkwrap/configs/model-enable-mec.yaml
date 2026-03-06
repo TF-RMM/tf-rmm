@@ -25,3 +25,6 @@ run:
     -C cluster0.rme_mecid_width: 16
     -C cluster1.mec_support_level: 2
     -C cluster1.rme_mecid_width: 16
+    # TODO: currently Linux Guest probe of device fails if this is specified.
+    # Hence move here temporarily.
+    -C pci.pci_smmuv3.mmu.SMMU_R_IDR3: 0x10000
