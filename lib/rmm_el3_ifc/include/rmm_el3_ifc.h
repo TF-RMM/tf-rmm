@@ -503,8 +503,8 @@ int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
 					   enum dev_coh_type type);
 
 /*
- * Return validated SMMUv3 list passed in plat_smmu pointer
- * from the Boot Manifest v0.5 onwards. Note that the SMMUv3 list
+ * Return SMMUv3 list passed in plat_smmu pointer from
+ * the Boot Manifest v0.5 onwards. Note that the SMMUv3 list
  * is cached in RMM after processing the Boot Manifest.
  *
  * Args:
@@ -520,20 +520,6 @@ int rmm_el3_ifc_get_dev_range_validated_pa(unsigned long max_num_banks,
  *	- E_RMM_BOOT_MANIFEST_DATA_ERROR	    Error parsing data.
  */
 int rmm_el3_ifc_get_cached_smmu_list_pa(struct smmu_list **plat_smmu_list);
-
-/*
- * Return validated Root Complex list from the Boot Manifest v0.5 onwards.
- *
- * Args:
- *	- plat_rc_list:	Pointer to return Root Complext list
- * Return:
- *	- E_RMM_BOOT_SUCCESS			    Success.
- *	- E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED Version reported by the
- *						    Boot Manifest is not
- *						    supported by this API.
- *	- E_RMM_BOOT_MANIFEST_DATA_ERROR	    Error parsing data.
- */
-int rmm_el3_ifc_get_root_complex_list_pa(struct root_complex_list **plat_rc_list);
 
 /****************************************************************************
  * RMM-EL3 Runtime interface APIs
@@ -802,7 +788,7 @@ int rmm_el3_ifc_rp_ide_key_set_go(unsigned long ecam_addr, unsigned long rp_id,
  * Stream.
  *
  * Args:
- *	- ecam_addr	Identify the root complex (RC).
+ *	- ecam_addr	Identify the Root Complex (RC).
  *	- rp_id		Identify the RP within the RC
  *	- stream_info	IDE selective stream information
  *
@@ -817,6 +803,35 @@ int rmm_el3_ifc_rp_ide_key_set_go(unsigned long ecam_addr, unsigned long rp_id,
  */
 int rmm_el3_ifc_rp_ide_key_set_stop(unsigned long ecam_addr, unsigned long rp_id,
 				    unsigned long stream_info);
+
+/*
+ * Resolve a PCIe device BDF to an SMMU index and StreamID using the
+ * cached Root Complex topology from the Boot Manifest.
+ *
+ * The lookup first matches @ecam_addr against the Root Complex ECAM base
+ * addresses, then walks the Root Port → BDF Mapping hierarchy within the
+ * matching Root Complex to find the mapping entry that covers @bdf.
+ * The StreamID is computed as specified in the Arm Base System Architecture:
+ *
+ *   StreamID = zero_extend(RequesterID[N-1:0]) + (1 << N) * Constant_B
+ *
+ * which simplifies to  StreamID = bdf + mapping_off.
+ *
+ * Args:
+ *	- ecam_addr	ECAM base address identifying the Root Complex.
+ *	- bdf		PCIe Bus/Device/Function identifier to look up.
+ *	- smmu_idx	Pointer to return the SMMU instance index that
+ *			the device is wired to.
+ *	- sid		Pointer to return the computed StreamID on that
+ *			SMMU instance.
+ *
+ * Return:
+ *	- E_RMM_OK	On success.
+ *	- E_RMM_INVAL	If @ecam_addr does not match any Root Complex or
+ *			@bdf is not covered by any BDF mapping entry.
+ */
+int rmm_el3_ifc_bdf_to_smmu(unsigned long ecam_addr, unsigned int bdf,
+			    unsigned int *smmu_idx, unsigned int *sid);
 
 #endif /* __ASSEMBLER__ */
 #endif /* RMM_EL3_IFC_H */
