@@ -54,6 +54,7 @@ run:
     -C pci.pci_smmuv3.mmu.SMMU_ROOT_IDR0: 0x80000F
     -C pci.pci_smmuv3.mmu.SMMU_ROOT_IIDR: 0x43B
     -C pci.pci_smmuv3.mmu.SMMU_R_IDR0: 0x1012400
+    -C pci.pci_smmuv3.mmu.SMMU_R_IDR3: 0x10000
     -C pci.pci_smmuv3.mmu.SMMU_R_MECIDR: 0xF
     -C pci.pci_smmuv3.mmu.ish_is_osh: 1
     -C pci.pci_smmuv3.mmu.root_register_page_offset: 0x20000
@@ -61,7 +62,7 @@ run:
     -C pci.pci_smmuv3.mmu.size_of_tlb: 1
     -C pci.pci_smmuv3.mmu.size_of_gpttlb: 1
     # Below options are for passing MECID.
-    -C pci.pci_smmuv3.mmu.mec_attribute_transform: "UserFlags[31:16]=MECID,UserFlags[15:0]=0,ExtendedID=0"
+    -C pci.pci_smmuv3.mmu.mec_attribute_transform: "UserFlags[31:16]=MECID"
     -C pci.pci_smmuv3.mmu.mpam_attribute_transform: "ExtendedID[62:55]=MPAM_PMG,ExtendedID[54:39]=MPAM_PARTID,ExtendedID[38:37]=MPAM_SP"
     -C pci.pci_smmuv3.mmu.output_attribute_transform: "ExtendedID[31:0]=DeviceID"
     # Configure the interconnect before use
