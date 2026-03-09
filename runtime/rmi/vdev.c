@@ -75,6 +75,7 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	struct vdev *vd;
 	struct s2tt_context *plane_0_s2_context;
 	struct smmu_stg2_config s2_cfg;
+	unsigned int sid, smmu_idx;
 	unsigned long rc;
 
 	if (!is_rmi_feat_da_enabled()) {
@@ -136,8 +137,9 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	s2_cfg.vmid = plane_0_s2_context->vmid;
 	s2_cfg.mecid = plane_0_s2_context->mecid;
 
-	if (smmuv3_configure_stream(SMMU_IDX, &s2_cfg,
-					(unsigned int)vdev_params.tdi_id) != 0) {
+	if (smmuv3_configure_stream(pd->dev.ecam_addr,
+				   (unsigned int)vdev_params.tdi_id,
+				   &s2_cfg, &sid, &smmu_idx) != 0) {
 		rc = RMI_ERROR_DEVICE;
 		goto out_unmap_vd;
 	}
@@ -154,6 +156,9 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	vd->dma_state = RMI_VDEV_DMA_DISABLED;
 	vd->op = VDEV_OP_UNLOCK;
 	vd->comm_state = DEV_COMM_PENDING;
+
+	vd->sid = sid;
+	vd->smmu_idx = smmu_idx;
 
 	/* Update Realm */
 	rd_vdev_refcount_inc(rd);
@@ -770,13 +775,13 @@ unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	}
 
 	if (vd->dma_state == RMI_VDEV_DMA_ENABLED) {
-		if (smmuv3_disable_ste(SMMU_IDX, (unsigned int)vd->tdi_id) != 0) {
+		if (smmuv3_disable_ste(vd->smmu_idx, vd->sid) != 0) {
 			smc_rc = RMI_ERROR_DEVICE;
 			goto out_err_input;
 		}
 	}
 
-	if (smmuv3_release_ste(SMMU_IDX, (unsigned int)vd->tdi_id) != 0) {
+	if (smmuv3_release_ste(vd->smmu_idx, vd->sid) != 0) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
 	}

@@ -18,18 +18,20 @@ int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz)
 	return 0;
 }
 
-int smmuv3_configure_stream(unsigned long smmu_idx,
+int smmuv3_configure_stream(unsigned long ecam_addr, unsigned int tdi_id,
 			    struct smmu_stg2_config *s2_cfg,
-			    unsigned int sid)
+			    unsigned int *sid_ptr, unsigned int *idx_ptr)
 {
-	(void)smmu_idx;
+	(void)ecam_addr;
+	(void)tdi_id;
 	(void)s2_cfg;
-	(void)sid;
+	(void)sid_ptr;
+	(void)idx_ptr;
 
 	return 0;
 }
 
-int smmuv3_enable_ste(unsigned long smmu_idx, unsigned int sid)
+int smmuv3_enable_ste(unsigned int smmu_idx, unsigned int sid)
 {
 	(void)smmu_idx;
 	(void)sid;
@@ -37,7 +39,7 @@ int smmuv3_enable_ste(unsigned long smmu_idx, unsigned int sid)
 	return 0;
 }
 
-int smmuv3_disable_ste(unsigned long smmu_idx, unsigned int sid)
+int smmuv3_disable_ste(unsigned int smmu_idx, unsigned int sid)
 {
 	(void)smmu_idx;
 	(void)sid;
@@ -45,7 +47,7 @@ int smmuv3_disable_ste(unsigned long smmu_idx, unsigned int sid)
 	return 0;
 }
 
-int smmuv3_release_ste(unsigned long smmu_idx, unsigned int sid)
+int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid)
 {
 	(void)smmu_idx;
 	(void)sid;
@@ -53,8 +55,8 @@ int smmuv3_release_ste(unsigned long smmu_idx, unsigned int sid)
 	return 0;
 }
 
-uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list, uintptr_t *out_pa,
-				size_t *out_sz)
+uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
+				uintptr_t *out_pa, size_t *out_sz)
 {
 	(void)plat_smmu_list;
 	(void)out_pa;

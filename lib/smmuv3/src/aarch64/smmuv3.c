@@ -92,29 +92,46 @@ struct smmuv3_driv *get_smmuv3_driver(void)
  *                                                           (GRANULE_SIZE bytes)
  *
  * Note: sizeof(struct smmuv3_driv) + num_smmus * sizeof(struct smmuv3_dev)
- *       must be <= GRANULE_SIZE (typically 4KB)
+ *	 must be <= GRANULE_SIZE (typically 4KB).
  */
 
 /* cppcheck-suppress misra-c2012-8.7 */
-uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list, uintptr_t *out_pa,
-				size_t *out_sz)
+uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
+				uintptr_t *out_pa, size_t *out_sz)
 {
-	uintptr_t va;
-	size_t size;
 	struct smmuv3_dev *smmu;
 	struct smmuv3_driv *driver;
+	uintptr_t va;
+	size_t devs_size, size;
 	int ret;
 
 	assert(plat_smmu_list != NULL);
 	assert(out_pa != NULL);
 	assert(out_sz != NULL);
 
-	/* Ensure the driver structure and all device records fit in one granule */
-	size = plat_smmu_list->num_smmus * sizeof(struct smmuv3_dev);
-	if ((size + sizeof(struct smmuv3_driv)) > GRANULE_SIZE) {
+	/*
+	 * Allow driver setup to proceed even if 'num_smmus' is zero.
+	 *
+	 * In that case, smmuv3_init() will detect the invalid configuration,
+	 * return an error, and disable DA accordingly.
+	 */
+	assert((plat_smmu_list->num_smmus == 0UL) ||
+				(plat_smmu_list->smmus != NULL));
+
+	/* Size of SMMUv3 device records */
+	devs_size = plat_smmu_list->num_smmus * sizeof(struct smmuv3_dev);
+
+	/*
+	 * Ensure the driver structure and all SMMUv3 device records
+	 * fit in one granule.
+	 */
+	size = devs_size + sizeof(struct smmuv3_driv);
+
+	if (size > GRANULE_SIZE) {
 		*out_pa = 0UL;
 		*out_sz = 0UL;
-		ERROR("Not enough space to allocate smmuv3_dev array\n");
+		ERROR("Not enough space to allocate SMMUv3 data of 0x%lx bytes\n",
+			size);
 		return 0UL;
 	}
 
@@ -141,7 +158,6 @@ uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list, uintptr_t *out_p
 
 	/* Set number of SMMUs */
 	driver->num_smmus = plat_smmu_list->num_smmus;
-	assert((plat_smmu_list->num_smmus == 0UL) || (plat_smmu_list->smmus != NULL));
 
 	/* Setup smmuv3_dev array after `smmuv3_driver` */
 	driver->smmuv3_devs = (struct smmuv3_dev *)((uintptr_t)driver +
@@ -834,15 +850,15 @@ int disable_smmu(struct smmuv3_dev *smmu)
 	return ret;
 }
 
-struct smmuv3_dev *get_by_index(unsigned long smmu_idx, unsigned int sid)
+struct smmuv3_dev *get_by_index(unsigned int smmu_idx, unsigned int sid)
 {
 	struct smmuv3_dev *smmu;
 
 	assert(g_driver != NULL);
 
 	/* The caller is responsible to ensure that SMMU index and SID are valid */
-	if (smmu_idx >= g_driver->num_smmus) {
-		SMMU_DEBUG("SMMUv3: Illegal SMMU ID %lu\n", smmu_idx);
+	if (smmu_idx >= (unsigned int)g_driver->num_smmus) {
+		SMMU_DEBUG("SMMUv3: Illegal SMMU ID %u\n", smmu_idx);
 		return NULL;
 	}
 
@@ -857,7 +873,7 @@ struct smmuv3_dev *get_by_index(unsigned long smmu_idx, unsigned int sid)
 	return smmu;
 }
 
-static int change_ste(unsigned long smmu_idx, unsigned int sid, bool enable)
+static int change_ste(unsigned int smmu_idx, unsigned int sid, bool enable)
 {
 	struct smmuv3_dev *smmu;
 	struct ste_entry *ste_ptr;
@@ -904,7 +920,7 @@ static int change_ste(unsigned long smmu_idx, unsigned int sid, bool enable)
 	return ret;
 }
 
-int smmuv3_release_ste(unsigned long smmu_idx, unsigned int sid)
+int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid)
 {
 	struct smmuv3_dev *smmu;
 	struct ste_entry *ste_ptr;
@@ -967,34 +983,41 @@ int smmuv3_release_ste(unsigned long smmu_idx, unsigned int sid)
 	return ret;
 }
 
-int smmuv3_enable_ste(unsigned long smmu_idx, unsigned int sid)
+int smmuv3_enable_ste(unsigned int smmu_idx, unsigned int sid)
 {
 	SMMU_DEBUG("%s(0x%x)\n", __func__, sid);
 
 	return change_ste(smmu_idx, sid, true);
 }
 
-int smmuv3_disable_ste(unsigned long smmu_idx, unsigned int sid)
+int smmuv3_disable_ste(unsigned int smmu_idx, unsigned int sid)
 {
 	SMMU_DEBUG("%s(0x%x)\n", __func__, sid);
 
 	return change_ste(smmu_idx, sid, false);
 }
 
-int smmuv3_configure_stream(unsigned long smmu_idx,
+int smmuv3_configure_stream(unsigned long ecam_addr, unsigned int tdi_id,
 			    struct smmu_stg2_config *s2_cfg,
-			    unsigned int sid)
+			    unsigned int *sid_ptr, unsigned int *idx_ptr)
 {
 	struct smmuv3_dev *smmu;
 	struct ste_entry *ste_ptr;
-	unsigned int l1_idx;
+	unsigned int l1_idx, smmu_idx, sid;
 	int ret;
 
 	assert(s2_cfg != NULL);
+	assert(sid_ptr != NULL);
+	assert(idx_ptr != NULL);
 
-	SMMU_DEBUG("%s(0x%x) s2ttb 0x%lx vtcr 0x%lx vmid 0x%x mecid 0x%x\n",
-			__func__, sid, s2_cfg->s2ttb, s2_cfg->vtcr,
+	SMMU_DEBUG("%s(0x%lx, 0x%x) s2ttb 0x%lx vtcr 0x%lx vmid 0x%x mecid 0x%x\n",
+			__func__, ecam_addr, tdi_id, s2_cfg->s2ttb, s2_cfg->vtcr,
 			s2_cfg->vmid, s2_cfg->mecid);
+
+	if (rmm_el3_ifc_bdf_to_smmu(ecam_addr, tdi_id, &smmu_idx, &sid) != E_RMM_OK) {
+		ERROR("TDI id 0x%x not found\n", tdi_id);
+		return -EINVAL;
+	}
 
 	smmu = get_by_index(smmu_idx, sid);
 	if (smmu == NULL) {
@@ -1004,7 +1027,7 @@ int smmuv3_configure_stream(unsigned long smmu_idx,
 	assert((s2_cfg->vmid < (U(1) << 8)) ||
 		((smmu->config.features & FEAT_VMID16) != 0U));
 
-	/* L1STD index of L2 table */
+	/* L1STD index in L1 table */
 	l1_idx = L1STD_IDX(sid);
 
 	spinlock_acquire(&smmu->lock);
@@ -1029,6 +1052,9 @@ int smmuv3_configure_stream(unsigned long smmu_idx,
 	if (ret == 0) {
 		/* Increment number of allocated STEs */
 		smmu->l2ste_cnt[l1_idx]++;
+
+		*sid_ptr = sid;
+		*idx_ptr = smmu_idx;
 	}
 
 	spinlock_release(&smmu->lock);
@@ -1159,8 +1185,8 @@ static int allocate_resources(struct smmuv3_dev *smmu)
 
 int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz)
 {
-	unsigned long num_smmus;
 	struct smmuv3_dev *smmu;
+	unsigned long num_smmus;
 	int ret;
 
 	if ((driv_hdl == 0U) || (hdl_sz < sizeof(struct smmuv3_driv))) {
@@ -1171,22 +1197,23 @@ int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz)
 	assert(g_driver == NULL);
 
 	g_driver = (struct smmuv3_driv *)driv_hdl;
-	g_smmus = g_driver->smmuv3_devs;
-
-	/* No SMMUs in the system */
-	if (g_driver->num_smmus == 0UL) {
-		return -ENODEV;
-	}
 
 	if (g_driver->is_init) {
 		SMMU_DEBUG("SMMUv3 driver already initialized\n");
 		return 0;
 	}
 
+	num_smmus = g_driver->num_smmus;
+
+	/* No SMMUs in the system */
+	if (num_smmus == 0UL) {
+		return -ENODEV;
+	}
+
 	/* Initialize broadcast_tlb to true, will be set to false if any SMMU doesn't support it */
 	g_driver->broadcast_tlb = true;
 
-	num_smmus = g_driver->num_smmus;
+	g_smmus = g_driver->smmuv3_devs;
 	assert(g_smmus != NULL);
 
 	/* Init the SMMUv3 instances */

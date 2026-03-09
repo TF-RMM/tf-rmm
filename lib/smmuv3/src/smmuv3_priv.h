@@ -525,7 +525,7 @@ struct smmuv3_driv {
 
 bool get_smmu_broadcast_tlb(void);
 struct smmuv3_driv *get_smmuv3_driver(void);
-struct smmuv3_dev *get_by_index(unsigned long smmu_idx, unsigned int sid);
+struct smmuv3_dev *get_by_index(unsigned int smmu_idx, unsigned int sid);
 int prepare_send_command(struct smmuv3_dev *smmu, unsigned long opcode,
 			 unsigned long param0, unsigned long param1);
 int wait_cmdq_empty(struct smmuv3_dev *smmu);

@@ -197,7 +197,7 @@ int smmuv3_inv(void)
 	return ret;
 }
 
-int smmuv3_inv_entries(unsigned long smmu_idx, unsigned int vmid)
+int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid)
 {
 	struct smmuv3_dev *smmu;
 	int ret;

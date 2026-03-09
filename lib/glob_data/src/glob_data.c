@@ -238,10 +238,10 @@ uintptr_t glob_data_init(struct glob_data *gl,
 	/* Set up SMMU layout */
 	ret = rmm_el3_ifc_get_cached_smmu_list_pa(&plat_smmu_list);
 	if (ret == 0) {
-		new_gl->smmu_driv_hdl_va = smmuv3_driver_setup(plat_smmu_list,
-				&new_gl->smmu_driv_hdl_pa,
-				&new_gl->smmu_driv_hdl_sz);
-
+		new_gl->smmu_driv_hdl_va = smmuv3_driver_setup(
+						plat_smmu_list,
+						&new_gl->smmu_driv_hdl_pa,
+						&new_gl->smmu_driv_hdl_sz);
 		if (new_gl->smmu_driv_hdl_va == 0UL) {
 			ERROR("Failed to set up SMMU driver\n");
 			return 0UL;
