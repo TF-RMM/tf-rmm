@@ -1098,6 +1098,8 @@ out_return_to_plane_0:
 	if (save_restore_plane_state) {
 		restore_realm_state(rec, plane_0, sysreg_0);
 
+		assert(rec->ns != NULL);
+
 		/* Restore NS vGIC state if PN did not own gic */
 		if (PLANE_0_ID == rec->gic_owner) {
 			gic_restore_state(&rec->ns->sysregs.gicstate);
@@ -1108,7 +1110,6 @@ out_return_to_plane_0:
 		 * Since we are returning to P0, we need to undo
 		 * multiplex_el2_timer(), so we restore NS timer.
 		 */
-		assert(rec->ns != NULL);
 		hyp_timer_restore_state(&rec->ns->el2_timer);
 	}
 

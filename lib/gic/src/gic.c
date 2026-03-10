@@ -120,6 +120,7 @@ void gic_get_virt_features(void)
 		nr_pri_bits, gic_virt_feature.pri_res0_mask);
 }
 
+/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 void gic_copy_state_from_plane_entry(struct gic_cpu_state *gicstate,
 			    unsigned long *gicv3_lrs,
 			    unsigned long gicv3_hcr)
@@ -135,6 +136,7 @@ void gic_copy_state_from_plane_entry(struct gic_cpu_state *gicstate,
 	gicstate->ich_hcr_el2 = gicv3_hcr;
 }
 
+/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 void gic_copy_state(struct gic_cpu_state *dst,
 		    struct gic_cpu_state *src)
 {

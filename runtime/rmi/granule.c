@@ -239,7 +239,7 @@ void smc_granule_tracking_get(unsigned long addr,
 
 	/* Try to find device granule */
 	dg = find_dev_granule(addr, &type);
-	if (dg) {
+	if (dg != NULL) {
 		res->x[0] = RMI_SUCCESS;
 		res->x[2] = RMI_TRACKING_FINE;
 		res->x[1] = (type == DEV_MEM_NON_COHERENT) ?
@@ -259,7 +259,7 @@ void smc_granule_tracking_get(unsigned long addr,
 
 unsigned long smc_rmm_config_set(unsigned long config_ptr)
 {
-	struct rmi_rmm_config cfg;
+	struct rmi_rmm_config cfg = { 0 };
 
 	if (!ALIGNED(config_ptr, SZ_4K)) {
 		return RMI_ERROR_INPUT;
@@ -270,8 +270,8 @@ unsigned long smc_rmm_config_set(unsigned long config_ptr)
 	}
 
 	/* TODO: At the moment, only 4KB granularity size is supported */
-	if (cfg.rmi_granule_size != RMI_GRANULE_SIZE ||
-	    cfg.tracking_region_size != RMI_TRACKING_REGION_SIZE) {
+	if ((cfg.rmi_granule_size != RMI_GRANULE_SIZE) ||
+	    (cfg.tracking_region_size != RMI_TRACKING_REGION_SIZE)) {
 		return RMI_ERROR_INPUT;
 	}
 

@@ -213,7 +213,7 @@ static unsigned int mecid_hint(void)
 		unsigned long word_val = g_mec_state->mec_reserved[i];
 
 		if (word_val != ~0UL) {
-			return i * BITS_PER_UL +
+			return (i * BITS_PER_UL) +
 				(unsigned int)__builtin_ctzl(~word_val);
 		}
 	}

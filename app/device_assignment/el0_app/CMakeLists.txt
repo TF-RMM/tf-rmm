@@ -45,6 +45,7 @@ add_el0_app(
         "src/rme_dvsec.c"
     LINK_LIBRARIES
         rmm-app-da-mbedtls
+        rmm-lib-arch
         rmm-lib-common
         rmm-lib-debug
         rmm-lib-smc

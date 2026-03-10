@@ -85,7 +85,7 @@ static unsigned int vmid_hint(void)
 		unsigned long word_val = vmids[i];
 
 		if (word_val != ~0UL) {
-			return i * BITS_PER_UL +
+			return (i * BITS_PER_UL) +
 				(unsigned int)__builtin_ctzl(~word_val);
 		}
 	}

@@ -1121,21 +1121,22 @@
  * The RmiRmmConfig parameters shared with the Host via
  * RMI_RMM_CONFIG_GET and RMI_RMM_CONFIG_SET.
  */
+/* cppcheck-suppress misra-c2012-2.4 */
 struct rmi_rmm_config {
 	SET_MEMBER_RMI(unsigned long tracking_region_size, 0, 0x8);	/* Offset 0 */
 	SET_MEMBER_RMI(unsigned long rmi_granule_size, 0x8, 0x1000);	/* Offset 16 */
 };
 
 /* RmiTrackingRegionState type */
-#define RMI_TRACKING_RESERVED		0
-#define RMI_TRACKING_NONE		1
-#define RMI_TRACKING_FINE		2
-#define RMI_TRACKING_COARSE		3
+#define RMI_TRACKING_RESERVED		U(0)
+#define RMI_TRACKING_NONE		U(1)
+#define RMI_TRACKING_FINE		U(2)
+#define RMI_TRACKING_COARSE		U(3)
 
 /* RmiMemCategory type */
-#define RMI_MEM_CATEGORY_CONVENTIONAL	0
-#define RMI_MEM_CATEGORY_DEV_NCOH	1
-#define RMI_MEM_CATEGORY_DEV_COH	2
+#define RMI_MEM_CATEGORY_CONVENTIONAL	U(0)
+#define RMI_MEM_CATEGORY_DEV_NCOH	U(1)
+#define RMI_MEM_CATEGORY_DEV_COH	U(2)
 
 /*
  * The Realm attribute parameters are shared by the Host via

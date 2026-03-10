@@ -186,6 +186,7 @@ static bool handle_icc_el1_sysreg_trap(struct rec *rec,
 
 	(void)rec;
 	(void)skip_adv_pc;
+	(void)sysreg;
 
 	rec_exit->exit_reason = RMI_EXIT_SYNC;
 	rec_exit->esr = esr;

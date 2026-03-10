@@ -85,6 +85,7 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 		/* Reflect NS programmed vGIC state */
 	} else {
 		/* Save current vGIC state to NS context */
+		assert(rec->ns != NULL);
 		gic_save_state(&rec->ns->sysregs.gicstate);
 		/* Init vGIC state from `enter` structure */
 		gic_init_vgic_state(&sysreg_n->gicstate,

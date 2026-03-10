@@ -433,8 +433,8 @@ void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 	 * words than available result slots (e.g. SHA-256 / 4 words) will
 	 * only fill what they have; the remaining slots stay zero.
 	 */
-	res_words = (cnt < (SMC_RESULT_REGS - 1U)) ?
-					cnt : (SMC_RESULT_REGS - 1U);
+	res_words = (cnt < U(SMC_RESULT_REGS - 1UL)) ?
+					cnt : U(SMC_RESULT_REGS - 1UL);
 
 	/* Copy the part of the measurement to res->smc_res.x[] */
 	for (i = 0U; i < res_words; i++) {
