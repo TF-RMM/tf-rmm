@@ -344,20 +344,6 @@
  */
 #define SMC_RMI_VERSION				SMC64_RMI_FID(U(0x0))
 
-/*
- * FID: 0xC4000151
- *
- * arg0 == target granule address
- */
-#define SMC_RMI_GRANULE_DELEGATE		SMC64_RMI_FID(U(0x1))
-
-/*
- * FID: 0xC4000152
- *
- * arg0 == target granule address
- */
-#define SMC_RMI_GRANULE_UNDELEGATE		SMC64_RMI_FID(U(0x2))
-
 /* RmiDataMeasureContent type */
 #define RMI_NO_MEASURE_CONTENT	U(0)
 #define RMI_MEASURE_CONTENT	U(1)
@@ -372,28 +358,6 @@
  * arg4 == flags
  */
 #define SMC_RMI_RTT_DATA_MAP_INIT		SMC64_RMI_FID(U(0x3))
-
-/*
- * FID: 0xC4000154
- *
- * arg0 == RD address
- * arg1 == data address
- * arg2 == map address
- */
-#define SMC_RMI_DATA_CREATE_UNKNOWN		SMC64_RMI_FID(U(0x4))
-
-/*
- * FID: 0xC4000155
- *
- * arg0 == RD address
- * arg1 == map address
- *
- * ret1 == Address(PA) of the DATA granule, if ret0 == RMI_SUCCESS.
- *         Otherwise, undefined.
- * ret2 == Top of the non-live address region. Only valid
- *         if ret0 == RMI_SUCCESS or ret0 == (RMI_ERROR_RTT, x)
- */
-#define SMC_RMI_DATA_DESTROY			SMC64_RMI_FID(U(0x5))
 
 /*
  * FID: 0xC4000156

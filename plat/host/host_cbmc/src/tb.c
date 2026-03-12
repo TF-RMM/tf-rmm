@@ -26,14 +26,8 @@ void __init_global_state(unsigned long cmd)
 	granule_init((uintptr_t)host_granules, sizeof(host_granules), HOST_NR_GRANULES);
 
 	switch (cmd) {
-	case SMC_RMI_GRANULE_DELEGATE:
-	case SMC_RMI_GRANULE_UNDELEGATE: {
-			init_granule_and_page();
-			return;
-		}
 	case SMC_RMI_REALM_ACTIVATE:
-	case SMC_RMI_REALM_DESTROY:
-	case SMC_RMI_REC_AUX_COUNT: {
+	case SMC_RMI_REALM_DESTROY: {
 			init_realm_descriptor_page();
 			return;
 		}
@@ -65,11 +59,13 @@ void tb_handle_smc(struct tb_regs *config)
 	struct smc_result res;
 
 	switch (config->X0) {
-	case SMC_RMI_GRANULE_DELEGATE:
-		result = smc_granule_delegate(config->X1);
+	case SMC_RMI_GRANULE_RANGE_DELEGATE:
+		smc_granule_range_delegate(config->X1, config->X2, &res);
+		result = res.x[0];
 		break;
-	case SMC_RMI_GRANULE_UNDELEGATE:
-		result = smc_granule_undelegate(config->X1);
+	case SMC_RMI_GRANULE_RANGE_UNDELEGATE:
+		smc_granule_range_undelegate(config->X1, config->X2, &res);
+		result = res.x[0];
 		break;
 	case SMC_RMI_REALM_ACTIVATE:
 		result = smc_realm_activate(config->X1);

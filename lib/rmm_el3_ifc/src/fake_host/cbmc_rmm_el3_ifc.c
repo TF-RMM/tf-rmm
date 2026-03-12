@@ -62,4 +62,10 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 	return 0;
 }
 
+unsigned int rmm_el3_ifc_get_total_cpus(void)
+{
+	ASSERT(false, "rmm_el3_ifc_get_total_cpus");
+	return 0;
+}
+
 #endif /* CBMC */

@@ -46,3 +46,20 @@ uintptr_t glob_data_get_mec_state_va(size_t *alloc_size)
 	ASSERT(false, "glob_data_get_mec_state_va");
 	return 0UL;
 }
+
+enum rmm_state glob_data_get_rmm_state(void)
+{
+	ASSERT(false, "glob_data_get_rmm_state");
+	return RMM_STATE_INIT;
+}
+
+void glob_data_set_rmm_state(enum rmm_state state)
+{
+	ASSERT(false, "glob_data_set_rmm_state");
+}
+
+uintptr_t glob_data_get_sro_ctx_va(size_t *alloc_size)
+{
+	ASSERT(false, "glob_data_get_sro_ctx_va");
+	return 0UL;
+}

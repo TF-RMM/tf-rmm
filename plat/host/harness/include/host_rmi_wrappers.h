@@ -10,16 +10,12 @@
 
 void host_rmi_version(unsigned long rmi_version, struct smc_result *res);
 void host_rmm_activate(struct smc_result *res);
-void host_rmi_granule_delegate(void *granule_address, struct smc_result *res);
 void host_rmi_granule_range_delegate(void *granule_start, void *granule_end,
 				     struct smc_result *res);
 void host_rmi_granule_range_undelegate(void *granule_start, void *granule_end,
 				       struct smc_result *res);
-void host_rmi_granule_undelegate(void *granule_address, struct smc_result *res);
 void host_rmi_rtt_data_map_init(void *rd, void *data, uintptr_t ipa, void *src,
 		uint64_t flags, struct smc_result *res);
-void host_rmi_data_create_unknown(void *rd, uintptr_t data, uintptr_t ipa, struct smc_result *res);
-void host_rmi_data_destroy(void *rd, uintptr_t ipa, struct smc_result *res);
 
 void host_rmi_realm_activate(void *rd, struct smc_result *res);
 void host_rmi_realm_create(void *rd, void *params_ptr, struct smc_result *res);

@@ -161,13 +161,9 @@ struct smc_handler {
  */
 static const struct smc_handler smc_handlers[] = {
 	HANDLER(VERSION,		1, 2, smc_version,		 true,  true),
-	HANDLER(GRANULE_DELEGATE,	1, 0, smc_granule_delegate,	 false, true),
 	HANDLER(GRANULE_RANGE_DELEGATE,	2, 1, smc_granule_range_delegate,	 false, true),
 	HANDLER(GRANULE_RANGE_UNDELEGATE, 2, 1, smc_granule_range_undelegate,	 false, true),
-	HANDLER(GRANULE_UNDELEGATE,	1, 0, smc_granule_undelegate,	 false, true),
 	HANDLER(RTT_DATA_MAP_INIT,	5, 0, smc_rtt_data_map_init,	 false, false),
-	HANDLER(DATA_CREATE_UNKNOWN,	3, 0, smc_data_create_unknown,	 false, false),
-	HANDLER(DATA_DESTROY,		2, 2, smc_data_destroy,		 false, true),
 	HANDLER(PDEV_AUX_COUNT,		1, 1, smc_pdev_aux_count,	 true, true),
 	HANDLER(REALM_ACTIVATE,		1, 0, smc_realm_activate,	 true,  true),
 	HANDLER(REALM_CREATE,		2, 0, smc_realm_create,		 true,  true),
@@ -296,7 +292,6 @@ static void rmi_log_on_exit(unsigned int handler_id,
 		if ((rc.status == RMI_SUCCESS) ||
 		   ((rc.status == RMI_ERROR_RTT) &&
 		   ((function_id == SMC_RMI_RTT_DESTROY)  ||
-		    (function_id == SMC_RMI_DATA_DESTROY) ||
 		    (function_id == SMC_RMI_RTT_UNMAP_UNPROTECTED)))) {
 			/* Print output values */
 			num = ((unsigned int)handler->type >> 8) & 0xFFU;

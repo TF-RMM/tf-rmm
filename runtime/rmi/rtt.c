@@ -1322,10 +1322,10 @@ static unsigned long validate_data_create(unsigned long map_addr,
 }
 
 /*
- * Implements both RMI_DATA_CREATE and RMI_DATA_CREATE_UNKNOWN
+ * Implements both smc_data_create and smc_data_create_unknown.
  *
- * if @g_src == NULL, implements RMI_DATA_CREATE_UNKNOWN
- * and RMI_DATA_CREATE otherwise.
+ * if @g_src == NULL, implements smc_data_create_unknown
+ * and smc_data_create otherwise.
  */
 static unsigned long data_create(unsigned long rd_addr,
 				 unsigned long data_addr,
@@ -1448,7 +1448,7 @@ out_unmap_rd:
 	return ret;
 }
 
-unsigned long smc_data_create(unsigned long rd_addr,
+static unsigned long smc_data_create(unsigned long rd_addr,
 			      unsigned long data_addr,
 			      unsigned long map_addr,
 			      unsigned long src_addr,
@@ -1470,14 +1470,14 @@ unsigned long smc_data_create(unsigned long rd_addr,
 	return data_create(rd_addr, data_addr, map_addr, g_src, flags);
 }
 
-unsigned long smc_data_create_unknown(unsigned long rd_addr,
+static unsigned long smc_data_create_unknown(unsigned long rd_addr,
 				      unsigned long data_addr,
 				      unsigned long map_addr)
 {
 	return data_create(rd_addr, data_addr, map_addr, NULL, 0);
 }
 
-void smc_data_destroy(unsigned long rd_addr,
+static void smc_data_destroy(unsigned long rd_addr,
 		      unsigned long map_addr,
 		      struct smc_result *res)
 {

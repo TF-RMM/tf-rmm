@@ -14,25 +14,11 @@ void smc_version(unsigned long rmi_version,
 void smc_read_feature_register(unsigned long index,
 				struct smc_result *res);
 
-unsigned long smc_data_create(unsigned long rd_addr,
-			      unsigned long data_addr,
-			      unsigned long map_addr,
-			      unsigned long src_addr,
-			      unsigned long flags);
-
-unsigned long smc_data_create_unknown(unsigned long rd_addr,
-			      unsigned long data_addr,
-			      unsigned long map_addr);
-
 unsigned long smc_rtt_data_map_init(unsigned long rd_addr,
 			     unsigned long data_addr,
 			     unsigned long map_addr,
 			     unsigned long src_addr,
 			     unsigned long flags);
-
-void smc_data_destroy(unsigned long rd_addr,
-		      unsigned long map_addr,
-		      struct smc_result *res);
 
 unsigned long smc_granule_delegate(unsigned long addr);
 
