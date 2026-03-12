@@ -9,6 +9,7 @@
 #include <granule_types.h>
 #include <mapped_va_arch.h>
 #include <rmm_el3_ifc.h>
+#include <smc-rmi.h>
 #include <smmuv3.h>
 #include <xlat_low_va.h>
 
@@ -83,6 +84,26 @@ uintptr_t glob_data_get_mec_state_va(size_t *alloc_size)
 	return (uintptr_t)&glob->mec_state;
 }
 
+enum rmm_state glob_data_get_rmm_state(void)
+{
+	if (glob == NULL) {
+		ERROR("Global data not initialized\n");
+		return RMM_STATE_INIT;
+	}
+
+	return glob->rmm_state;
+}
+
+void glob_data_set_rmm_state(enum rmm_state state)
+{
+	if (glob == NULL) {
+		ERROR("Global data not initialized\n");
+		return;
+	}
+
+	glob->rmm_state = state;
+}
+
 uintptr_t glob_data_init(struct glob_data *gl,
 		unsigned long max_gr, unsigned long max_dev_gr)
 {
@@ -135,6 +156,9 @@ uintptr_t glob_data_init(struct glob_data *gl,
 	new_gl->version = GLOBDATA_VERSION;
 	/* Copy Low VA information */
 	new_gl->low_va_info = *(xlat_get_low_va_info());
+
+	/* Initialize RMM state */
+	new_gl->rmm_state = RMM_STATE_INIT;
 
 	new_gl->glob_data_pa = buf_pa;
 	new_gl->glob_data_va = va;

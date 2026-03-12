@@ -4,10 +4,9 @@
  */
 #include <activate.h>
 #include <debug.h>
+#include <glob_data.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
-
-static enum rmm_state rmm_state = RMM_STATE_INIT;
 
 /*
  * smc_rmm_activate
@@ -23,17 +22,17 @@ static enum rmm_state rmm_state = RMM_STATE_INIT;
 unsigned long smc_rmm_activate(void)
 {
 	/* Validate the RMM state */
-	if (rmm_state != RMM_STATE_INIT) {
+	if (glob_data_get_rmm_state() != RMM_STATE_INIT) {
 		ERROR("RMM is in invalid state\n");
 		return RMI_ERROR_GLOBAL;
 	}
 
-	rmm_state = RMM_STATE_ACTIVE;
+	glob_data_set_rmm_state(RMM_STATE_ACTIVE);
 	return RMI_SUCCESS;
 }
 
 /* cppcheck-suppress misra-c2012-8.7 */
 enum rmm_state get_rmm_active_state(void)
 {
-	return rmm_state;
+	return glob_data_get_rmm_state();
 }
