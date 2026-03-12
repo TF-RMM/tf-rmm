@@ -23,6 +23,8 @@
 #define APP_SAVED_REGS_OFFSET		UL(56)
 #define SP_EL0_OFFSET			UL(304)
 
+#define APP_MAX_PAGES				U(32)
+
 #ifndef __ASSEMBLER__
 
 /* This structure must always be aligned to page boundary as it is mapped into
@@ -84,6 +86,15 @@ struct app_data_cfg {
 
 	bool app_entered;
 	uint32_t exit_flag; /* App Exit Flag */
+
+	unsigned long app_id;
+
+	/* Sequence of the firmware image used to initialize the app */
+	unsigned long app_fw_img_sequence;
+
+	uintptr_t granule_pas[APP_MAX_PAGES];
+	size_t granule_pa_count;
+	void *granule_va_start;
 };
 COMPILER_ASSERT((XLAT_TABLE_ENTRIES * APP_XLAT_TABLE_COUNT) <= GRANULE_SIZE);
 

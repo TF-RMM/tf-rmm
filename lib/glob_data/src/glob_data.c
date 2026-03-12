@@ -117,6 +117,17 @@ uintptr_t glob_data_get_sro_ctx_va(size_t *alloc_size)
 	}
 
 	return MAPPED_VA_ARCH(glob->sro_ctxs_va, glob->sro_ctxs_pa);
+
+}
+
+unsigned long glob_data_get_fw_img_sequence(void)
+{
+	if (glob == NULL) {
+		ERROR("Global data not initialized\n");
+		return 0UL;
+	}
+
+	return glob->fw_img_sequence;
 }
 
 uintptr_t glob_data_init(struct glob_data *gl,
@@ -147,6 +158,9 @@ uintptr_t glob_data_init(struct glob_data *gl,
 		/* Flush in case any CPUs access this with MMU off */
 		flush_dcache_range((uintptr_t)&glob->low_va_info,
 			sizeof(struct xlat_low_va_info));
+
+		/* Increment firmware activation sequence */
+		glob->fw_img_sequence++;
 
 		return (uintptr_t)gl;
 	}
@@ -258,6 +272,9 @@ uintptr_t glob_data_init(struct glob_data *gl,
 		ERROR("Failed to allocate VA for SRO contexts\n");
 		return 0UL;
 	}
+
+	/* Initialize the firmware image sequence at 1 for the first image */
+	new_gl->fw_img_sequence = 1UL;
 
 	glob = new_gl;
 

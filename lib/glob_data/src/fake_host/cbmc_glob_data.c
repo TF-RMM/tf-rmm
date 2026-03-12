@@ -22,6 +22,12 @@ uintptr_t glob_data_get_dev_granules_va(size_t *alloc_size)
 	return 0UL;
 }
 
+unsigned long glob_data_get_fw_img_sequence(void)
+{
+	ASSERT(false, "glob_data_get_fw_img_sequence");
+	return 0UL;
+}
+
 uintptr_t glob_data_init(struct glob_data *gl,
 		unsigned long max_granules, unsigned long max_dev_granules)
 {
