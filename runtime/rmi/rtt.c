@@ -1628,9 +1628,25 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
 
 	smc_data_destroy(rd_addr, base, &destroy_res);
 
-	res->x[0] = destroy_res.x[0];
-	res->x[1] = destroy_res.x[2];
-	res->x[2] = (destroy_res.x[0] == RMI_SUCCESS) ?
+	return_code_t rc = unpack_return_code(destroy_res.x[0]);
+
+	if (rc.status == RMI_ERROR_RTT && destroy_res.x[2] == base) {
+		/*
+		 * The block entry at 'base' needs to be unfolded before the
+		 * operation can proceed; return the error back to the Host so
+		 * it can unfold at required level first.
+		 */
+		res->x[0] = destroy_res.x[0];
+		assert(rc.index < S2TT_PAGE_LEVEL);
+	} else if (rc.status == RMI_ERROR_RTT) {
+		/* Other ERROR_RTT (walk completed past base) */
+		res->x[0] = RMI_SUCCESS;
+	} else {
+		/* ERROR_INPUT, ERROR_AUX_RTT, or any other error: propagate as-is */
+		res->x[0] = destroy_res.x[0];
+	}
+	res->x[1] = MIN(destroy_res.x[2], top);
+	res->x[2] = (rc.status == RMI_SUCCESS) ?
 			(destroy_res.x[1] | 0x4U) : 0UL; /* Only one L3 block is unmapped */
 
 	res->x[3] = 0UL;
