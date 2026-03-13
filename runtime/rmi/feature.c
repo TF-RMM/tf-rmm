@@ -67,7 +67,8 @@ unsigned long get_feature_register_0(void)
 
 	/* RMM supports PMUv3p7+ */
 	assert(read_pmu_version() >= ID_AA64DFR0_EL1_PMUv3p7);
-
+	/* TODO: disable PMU temporarily for v2.0 */
+#if 0
 	/* Set support for PMUv3 */
 	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_PMU_EN,
 				RMI_FEATURE_TRUE);
@@ -75,6 +76,7 @@ unsigned long get_feature_register_0(void)
 	/* Set number of PMU counters available */
 	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_PMU_NUM_CTRS,
 				EXTRACT(PMCR_EL0_N, read_pmcr_el0()));
+#endif
 
 	/* Set number of breakpoints and watchpoints supported, minus 1 */
 	feat_reg0 |= (INPLACE(RMI_FEATURE_REGISTER_0_NUM_BPS, num_bps) |

@@ -128,6 +128,15 @@ static void init_common_sysregs(struct rec *rec, struct rd *rd)
 		mdcr_el2_val |= INPLACE(MDCR_EL2_HPMN, rd->pmu_num_ctrs);
 	} else {
 		mdcr_el2_val |= (MDCR_EL2_TPM_BIT | MDCR_EL2_TPMCR_BIT);
+
+		/*
+		 * Set HPMN to 0 so all counters are in the second
+		 * (host-owned) range, making none visible to the
+		 * Realm. HPMN=0 requires FEAT_HPMN0.
+		 */
+		if (is_feat_hpmn0_present()) {
+			mdcr_el2_val &= ~MASK(MDCR_EL2_HPMN);
+		}
 	}
 
 	rec->common_sysregs.mdcr_el2 = mdcr_el2_val;

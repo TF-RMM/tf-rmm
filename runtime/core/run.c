@@ -298,6 +298,15 @@ static void save_ns_state(struct rec *rec)
 		 */
 		pmu_save_state(&ns_state->pmu,
 				(unsigned int)EXTRACT(PMCR_EL0_N, read_pmcr_el0()));
+	} else {
+		/*
+		 * Even when PMU is disabled for the Realm, the NS host
+		 * may have left counters enabled (PMCR_EL0.E=1). Save
+		 * NS PMCR_EL0 and disable counting so that host PMU
+		 * counters do not observe Realm execution.
+		 */
+		ns_state->pmu.pmcr_el0 = read_pmcr_el0();
+		write_pmcr_el0(ns_state->pmu.pmcr_el0 & ~PMCR_EL0_E_BIT);
 	}
 
 	hyp_timer_save_state(&ns_state->el2_timer);
@@ -337,6 +346,9 @@ static void restore_ns_state(struct rec *rec)
 		 */
 		pmu_restore_state(&ns_state->pmu,
 				  (unsigned int)EXTRACT(PMCR_EL0_N, read_pmcr_el0()));
+	} else {
+		/* Restore NS PMCR_EL0 (re-enables counting if host had it on) */
+		write_pmcr_el0(ns_state->pmu.pmcr_el0);
 	}
 
 	hyp_timer_restore_state(&ns_state->el2_timer);
