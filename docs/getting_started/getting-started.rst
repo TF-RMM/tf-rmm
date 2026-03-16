@@ -71,8 +71,8 @@ build environment.
 
 Currently, the following compilers are supported:
 
-- GCC (aarch64-none-elf-) >= 11.2-2022.02 (from the `Arm GNU Toolchain downloads`_)
-- Clang+LLVM >= 14.0.0 (from the `LLVM Releases website`_)
+- GCC (aarch64-none-elf-) >= 13.3 (from the `Arm GNU Toolchain downloads`_)
+- Clang+LLVM >= 18.1.0 (from the `LLVM Releases website`_)
 
 The respective compiler binary must be found in the shell's search path.
 Be sure to add the bin/ directory if you have downloaded a binary version.
