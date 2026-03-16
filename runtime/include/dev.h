@@ -34,6 +34,34 @@
 #define VDEV_OP_START				U(6)
 #define VDEV_OP_UNLOCK				U(7)
 
+/* Represents the state of a PDEV stream. RmmPdevStreamState */
+#define PDEV_STREAM_CONNECTED			U(0)
+#define PDEV_STREAM_CONNECTING			U(1)
+#define PDEV_STREAM_DISCONNECTED		U(2)
+#define PDEV_STREAM_DISCONNECTING		U(3)
+#define PDEV_STREAM_KEY_PURGING			U(4)
+#define PDEV_STREAM_KEY_REFRESHING		U(5)
+
+enum stream_op_state {
+	STREAM_OP_STATE_NONE,
+	STREAM_OP_STATE_START,
+	STREAM_OP_STATE_RP_READY,
+	STREAM_OP_STATE_EP_READY,
+	STREAM_OP_STATE_RP_CONNECTED
+};
+
+/* A PDEV Stream object. */
+struct pdev_stream {
+	unsigned long pd1_addr;
+	unsigned long pd2_addr;
+	unsigned long state; /* RmmPdevStreamState */
+	enum stream_op_state op_state;
+	unsigned long ide_sid;
+	unsigned long num_addr_range;
+	struct rmi_address_range addr_range[RMI_PDEV_STREAM_ADDR_RANGE_CNT];
+	bool taken;
+};
+
 /* PCIe device specific details */
 struct pcie_dev {
 	/* Device identifier */

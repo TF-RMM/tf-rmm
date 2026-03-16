@@ -191,7 +191,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PDEV_CREATE,		2, 0, smc_pdev_create,		 true, true),
 	HANDLER(PDEV_DESTROY,		1, 0, smc_pdev_destroy,		 true, true),
 	HANDLER(PDEV_GET_STATE,		1, 1, smc_pdev_get_state,	 true, true),
-	HANDLER(PDEV_IDE_KEY_REFRESH,	2, 0, smc_pdev_ide_key_refresh,	 true, true),
+	HANDLER(PDEV_STREAM_KEY_REFRESH, 3, 0, smc_pdev_stream_key_refresh, true, true),
 	HANDLER(PDEV_SET_PUBKEY,	2, 0, smc_pdev_set_pubkey,	 true, true),
 	HANDLER(PDEV_STOP,		1, 0, smc_pdev_stop,		 true, true),
 	HANDLER(RTT_AUX_CREATE,		5, 0, smc_rtt_aux_create,	 false, true),
@@ -224,6 +224,10 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RMM_ACTIVATE,		0, 0, smc_rmm_activate,		 true, true),
 	HANDLER(OP_CANCEL,		1, 1, smc_op_cancel,		 true, true),
 	HANDLER(OP_CONTINUE,		2, 2, smc_op_continue,		 true, true),
+	HANDLER(PDEV_STREAM_CONNECT,	1, 1, smc_pdev_stream_connect,	 true, true),
+	HANDLER(PDEV_STREAM_DISCONNECT,	3, 0, smc_pdev_stream_disconnect, true, true),
+	HANDLER(PDEV_STREAM_COMPLETE,	3, 0, smc_pdev_stream_complete,	 true, true),
+	HANDLER(PDEV_STREAM_KEY_PURGE,	3, 0, smc_pdev_stream_key_purge, true, true),
 	HANDLER(OP_MEM_DONATE,		3, 2, smc_op_mem_donate,	 true, true),
 	HANDLER(OP_MEM_RECLAIM,		3, 1, smc_op_mem_reclaim,	 true, true)
 };

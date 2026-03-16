@@ -34,6 +34,30 @@ static void pdev_restore_aux_granules_state(struct granule *pdev_aux[],
 	}
 }
 
+static inline unsigned long pack_stream_handle(unsigned long pd1_addr,
+					       unsigned char stream_type) {
+	assert(GRANULE_ALIGNED(pd1_addr));
+	assert(stream_type < RMI_PDEV_STREAM_TYPE_COUNT);
+	return pd1_addr + stream_type;
+}
+
+/* Returns false on unpack failure. Returns true on success. */
+static inline bool unpack_stream_handle(unsigned long handle,
+					unsigned long *pd1_addr,
+					unsigned char *stream_type) {
+	unsigned long st;
+
+	st = handle & (~GRANULE_MASK);
+
+	if (st >= RMI_PDEV_STREAM_TYPE_COUNT) {
+		return false;
+	}
+
+	*pd1_addr = handle & GRANULE_MASK;
+	*stream_type = (unsigned char)st;
+
+	return true;
+}
 /*
  * todo:
  * Validate device specific PDEV parameters by traversing all previously created
@@ -1199,59 +1223,459 @@ unsigned long smc_pdev_destroy(unsigned long pdev_addr)
 }
 
 /*
- * Refresh keys in an IDE connection between the Root Port and the endpoint
- * device.
+ * Initiate key refresh of a PDEV stream.
  *
- * pdev_addr	- PA of the PDEV
- * coh		- Select coherent or non-coherent IDE stream
+ * pdev1_addr		- PA of the first PDEV object
+ * pdev2_addr		- PA of the second PDEV object
+ * stream_handle	- Stream handle
  */
-unsigned long smc_pdev_ide_key_refresh(unsigned long pdev_addr, unsigned long coh)
+unsigned long smc_pdev_stream_key_refresh(unsigned long pdev1_addr,
+					  unsigned long pdev2_addr,
+					  unsigned long stream_handle)
 {
-	struct granule *g_pdev;
+	struct granule *g_pdev1;
+	struct granule *g_pdev2;
+	struct pdev_stream *stream;
+	struct pdev *pd1;
+	struct pdev *pd2;
 	unsigned long rmi_rc;
-	struct pdev *pd;
+	unsigned char stream_type = RMI_PDEV_STREAM_TYPE_COUNT;
+	unsigned long handle_pdev1_addr;
 
 	if (!is_rmi_feat_da_enabled()) {
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(pdev_addr)) {
+	if (!GRANULE_ALIGNED(pdev1_addr) ||
+	    !GRANULE_ALIGNED(pdev2_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
-	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
-	if (g_pdev == NULL) {
+	if (!find_lock_two_granules(pdev1_addr,
+				GRANULE_STATE_PDEV,
+				&g_pdev1,
+				pdev2_addr,
+				GRANULE_STATE_PDEV,
+				&g_pdev2)) {
 		return RMI_ERROR_INPUT;
 	}
 
-	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
-	if (pd == NULL) {
-		granule_unlock(g_pdev);
-		return RMI_ERROR_INPUT;
+	pd1 = buffer_granule_map(g_pdev1, SLOT_PDEV);
+	if (pd1 == NULL) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto unlock_pdevs;
 	}
 
-	if (pd->rmi_state != RMI_PDEV_STATE_READY) {
+	pd2 = buffer_granule_map(g_pdev2, SLOT_PDEV2);
+	if (pd2 == NULL) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto ununmap_pdev1;
+	}
+
+	/* TODO: Check pdev properties */
+
+	if ((!unpack_stream_handle(stream_handle, &handle_pdev1_addr, &stream_type)) ||
+	    (handle_pdev1_addr != pdev1_addr)) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto ununmap_pdev2;
+	}
+
+	/* TODO: Lock and map stream object */
+	struct pdev_stream dummy_stream_obj = {0};
+	stream = &dummy_stream_obj;
+
+	if (!stream->taken) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto unmap_pd1_aux;
+	}
+
+	if ((stream_type == RMI_PDEV_STREAM_NCOH_SYS) ||
+	    (stream_type == RMI_PDEV_STREAM_COH_SYS) ||
+	    (stream->state != PDEV_STREAM_CONNECTED)) {
 		rmi_rc = RMI_ERROR_DEVICE;
-		goto out_pdev_buf_unmap;
+		goto unmap_pd1_aux;
 	}
 
-	if (((coh == RMI_PDEV_COHERENT_FALSE) &&
-		(EXTRACT(RMI_PDEV_FLAGS_NCOH_IDE, pd->rmi_flags) != RMI_PDEV_IDE_TRUE)) ||
-	    ((coh == RMI_PDEV_COHERENT_TRUE) &&
-		(EXTRACT(RMI_PDEV_FLAGS_COH_IDE, pd->rmi_flags) != RMI_PDEV_IDE_TRUE))) {
-		rmi_rc = RMI_ERROR_DEVICE;
-		goto out_pdev_buf_unmap;
-	}
+	stream->state = PDEV_STREAM_KEY_REFRESHING;
+	stream->op_state = STREAM_OP_STATE_START;
+	/* TODO: Update pdev state */
 
-	pd->rmi_state = RMI_PDEV_STATE_COMMUNICATING;
-	pd->dev_comm_state = DEV_COMM_PENDING;
 	rmi_rc = RMI_SUCCESS;
 
-out_pdev_buf_unmap:
-	buffer_unmap(pd);
+unmap_pd1_aux:
+	/* TODO: Unmap and unlock stream granule */
+ununmap_pdev2:
+	buffer_unmap(pd2);
+ununmap_pdev1:
+	buffer_unmap(pd1);
 
-	granule_unlock(g_pdev);
+unlock_pdevs:
+	granule_unlock(g_pdev1);
+	granule_unlock(g_pdev2);
 
 	return rmi_rc;
 }
+
+static unsigned long validate_pdev_stream_params(struct rmi_pdev_stream_params *stream_params)
+{
+	if (stream_params->num_addr_range > RMI_PDEV_STREAM_ADDR_RANGE_CNT) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if (stream_params->stream_type != RMI_PDEV_STREAM_NCOH) {
+		return RMI_ERROR_NOT_SUPPORTED;
+	}
+
+	/* TODO: Check:
+	 *
+	 * - The IDE stream identifier is valid
+	 * - The base and top of every address range is aligned to the size of a Granule
+	 * - Every address range falls within a memory range permitted by the system
+	 * - None of the address ranges overlaps another address range for this PDEV stream
+	 * - None of the address ranges overlaps an address range of any other PDEV stream
+	 * - A stream between the specified PDEV(s) is supported by the implementation
+	 */
+
+	return RMI_SUCCESS;
+}
+
+/*
+ * Initiate connection of a PDEV stream.
+ *
+ * stream_params_addr	- PA of PDEV stream parameters
+ *
+ * ret1			- PDEV stream handle
+ */
+void smc_pdev_stream_connect(unsigned long stream_params_addr, struct smc_result *res)
+{
+	struct granule *g_stream_params;
+	struct granule *g_pdev1;
+	struct granule *g_pdev2;
+	struct rmi_pdev_stream_params stream_params;
+	struct pdev *pd1;
+	struct pdev *pd2;
+	struct pdev_stream *stream;
+	bool ns_access_ok;
+	unsigned long params_res;
+
+	if (!is_rmi_feat_da_enabled()) {
+		res->x[0] = SMC_NOT_SUPPORTED;
+		return;
+	}
+
+	if (!GRANULE_ALIGNED(stream_params_addr)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	/* Map and copy Stream parameters */
+	g_stream_params = find_granule(stream_params_addr);
+	if ((g_stream_params == NULL) ||
+	    (granule_unlocked_state(g_stream_params) != GRANULE_STATE_NS)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	ns_access_ok = ns_buffer_read(SLOT_NS, g_stream_params, 0U,
+				      sizeof(struct rmi_pdev_stream_params),
+				      &stream_params);
+	if (!ns_access_ok) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	/* coverity[uninit_use:SUPPRESS] */
+	params_res = validate_pdev_stream_params(&stream_params);
+	if (params_res != RMI_SUCCESS) {
+		res->x[0] = params_res;
+		return;
+	}
+
+	if (!GRANULE_ALIGNED(stream_params.pdev_1) ||
+	    !GRANULE_ALIGNED(stream_params.pdev_2)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	if (!find_lock_two_granules(stream_params.pdev_1,
+				GRANULE_STATE_PDEV,
+				&g_pdev1,
+				stream_params.pdev_2,
+				GRANULE_STATE_PDEV,
+				&g_pdev2)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	pd1 = buffer_granule_map(g_pdev1, SLOT_PDEV);
+	if (pd1 == NULL) {
+		res->x[0] = RMI_ERROR_INPUT;
+		goto unlock_pdevs;
+	}
+
+	pd2 = buffer_granule_map(g_pdev2, SLOT_PDEV2);
+	if (pd2 == NULL) {
+		res->x[0] = RMI_ERROR_INPUT;
+		goto ununmap_pdev1;
+	}
+
+	/* TODO: Check pdev properties */
+
+	/* TODO: Lock and map stream object */
+	struct pdev_stream dummy_stream_obj = {0};
+	stream = &dummy_stream_obj;
+
+	if (stream->taken) {
+		res->x[0] = RMI_ERROR_INPUT;
+		goto ununmap_pdev2;
+	}
+
+	/* TODO: Update pdev state */
+
+	/* Set stream properties */
+	stream->state = PDEV_STREAM_CONNECTING;
+	stream->ide_sid = stream_params.ide_sid;
+	stream->num_addr_range = stream_params.num_addr_range;
+	stream->pd1_addr = stream_params.pdev_1;
+	stream->pd2_addr = stream_params.pdev_2;
+	stream->op_state = STREAM_OP_STATE_START;
+	(void)memcpy(stream->addr_range,
+		     stream_params.addr_range,
+		     stream->num_addr_range * sizeof(struct rmi_address_range));
+	stream->taken = true;
+
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = pack_stream_handle(stream_params.pdev_1, stream_params.stream_type);
+ununmap_pdev2:
+	/* TODO: Unmap and unlock stream granule */
+	buffer_unmap(pd2);
+ununmap_pdev1:
+	buffer_unmap(pd1);
+
+unlock_pdevs:
+	granule_unlock(g_pdev1);
+	granule_unlock(g_pdev2);
+}
+
+/*
+ * Initiate disconnection of a PDEV stream.
+ *
+ * pdev1_addr		- PA of the first PDEV object
+ * pdev2_addr		- PA of the second PDEV object
+ * stream_handle	- Stream handle
+ */
+unsigned long smc_pdev_stream_disconnect(unsigned long pdev1_addr,
+					 unsigned long pdev2_addr,
+					 unsigned long stream_handle)
+{
+	struct granule *g_pdev1;
+	struct granule *g_pdev2;
+	struct pdev_stream *stream;
+	struct pdev *pd1;
+	struct pdev *pd2;
+	unsigned long rmi_rc;
+	unsigned char stream_type = RMI_PDEV_STREAM_TYPE_COUNT;
+	unsigned long handle_pdev1_addr;
+
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(pdev1_addr) ||
+	    !GRANULE_ALIGNED(pdev2_addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if ((!unpack_stream_handle(stream_handle, &handle_pdev1_addr, &stream_type)) ||
+	    (handle_pdev1_addr != pdev1_addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if (!find_lock_two_granules(pdev1_addr,
+				GRANULE_STATE_PDEV,
+				&g_pdev1,
+				pdev2_addr,
+				GRANULE_STATE_PDEV,
+				&g_pdev2)) {
+		return RMI_ERROR_INPUT;
+
+	}
+
+	pd1 = buffer_granule_map(g_pdev1, SLOT_PDEV);
+	if (pd1 == NULL) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto unlock_pdevs;
+	}
+
+	pd2 = buffer_granule_map(g_pdev2, SLOT_PDEV2);
+	if (pd2 == NULL) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto ununmap_pdev1;
+	}
+
+	if (((pd1->rmi_state != RMI_PDEV_STATE_READY) &&
+	     (pd1->rmi_state != RMI_PDEV_STATE_ERROR)) ||
+	    (pd1->dev_comm_state != DEV_COMM_IDLE) ||
+	    ((pd2->rmi_state != RMI_PDEV_STATE_READY) &&
+	     (pd2->rmi_state != RMI_PDEV_STATE_ERROR)) ||
+	    (pd2->dev_comm_state != DEV_COMM_IDLE)) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto ununmap_pdev2;
+	}
+
+	if (pd1->num_vdevs != 0U) {
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto ununmap_pdev2;
+	}
+
+	/* TODO: Lock and map stream object */
+	struct pdev_stream dummy_stream_obj = {0};
+	stream = &dummy_stream_obj;
+
+	if (stream->state != PDEV_STREAM_CONNECTED) {
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto unlock_stream;
+	}
+
+	stream->state = PDEV_STREAM_DISCONNECTING;
+	stream->op_state = STREAM_OP_STATE_START;
+	/* TODO: Update pdev state */
+
+	rmi_rc = RMI_SUCCESS;
+
+unlock_stream:
+	/* TODO: Unmap and unlock stream granule */
+ununmap_pdev2:
+	buffer_unmap(pd2);
+ununmap_pdev1:
+	buffer_unmap(pd1);
+
+unlock_pdevs:
+	granule_unlock(g_pdev1);
+	granule_unlock(g_pdev2);
+
+	return rmi_rc;
+}
+
+/*
+ * Complete an operation on a PDEV stream.
+ *
+ * pdev1_addr		- PA of the first PDEV object
+ * pdev2_addr		- PA of the second PDEV object
+ * stream_handle	- Stream handle
+ */
+unsigned long smc_pdev_stream_complete(unsigned long pdev1_addr,
+				       unsigned long pdev2_addr,
+				       unsigned long stream_handle)
+{
+	struct granule *g_pdev1;
+	struct granule *g_pdev2;
+	struct pdev_stream *stream;
+	struct pdev *pd1;
+	struct pdev *pd2;
+	unsigned long rmi_rc;
+	unsigned long pdev1_addr_handle = 0UL;
+	unsigned char stream_type = RMI_PDEV_STREAM_TYPE_COUNT;
+
+	if (!is_rmi_feat_da_enabled()) {
+		return SMC_NOT_SUPPORTED;
+	}
+
+	if (!GRANULE_ALIGNED(pdev1_addr) ||
+	    !GRANULE_ALIGNED(pdev2_addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if ((!unpack_stream_handle(stream_handle, &pdev1_addr_handle, &stream_type)) ||
+	    (pdev1_addr_handle != pdev1_addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if (!find_lock_two_granules(pdev1_addr,
+				GRANULE_STATE_PDEV,
+				&g_pdev1,
+				pdev2_addr,
+				GRANULE_STATE_PDEV,
+				&g_pdev2)) {
+		return RMI_ERROR_INPUT;
+
+	}
+
+	pd1 = buffer_granule_map(g_pdev1, SLOT_PDEV);
+	if (pd1 == NULL) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto unlock_pdevs;
+	}
+
+	pd2 = buffer_granule_map(g_pdev2, SLOT_PDEV2);
+	if (pd2 == NULL) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto ununmap_pdev1;
+	}
+
+	if ((pd1->rmi_state != RMI_PDEV_STATE_READY) ||
+	    (pd1->dev_comm_state != DEV_COMM_IDLE) ||
+	    (pd2->rmi_state != RMI_PDEV_STATE_READY) ||
+	    (pd2->dev_comm_state != DEV_COMM_IDLE)) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto ununmap_pdev2;
+	}
+
+	/* TODO: Check pdev properties */
+
+	/* TODO: Lock and map stream object */
+	struct pdev_stream dummy_stream_obj = {0};
+	stream = &dummy_stream_obj;
+
+	switch (stream->state) {
+	case PDEV_STREAM_CONNECTING:
+	case PDEV_STREAM_KEY_PURGING:
+	case PDEV_STREAM_KEY_REFRESHING:
+		stream->state = PDEV_STREAM_CONNECTED;
+		break;
+	case PDEV_STREAM_DISCONNECTING:
+		stream->state = PDEV_STREAM_DISCONNECTED;
+		stream->taken = false;
+		break;
+	default:
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto unlock_stream;
+	}
+
+	stream->op_state = STREAM_OP_STATE_NONE;
+	/* TODO: Update pdev state */
+
+	rmi_rc = RMI_SUCCESS;
+
+unlock_stream:
+	/* TODO: Unmap and unlock stream granule */
+ununmap_pdev2:
+	buffer_unmap(pd2);
+ununmap_pdev1:
+	buffer_unmap(pd1);
+
+unlock_pdevs:
+	granule_unlock(g_pdev1);
+	granule_unlock(g_pdev2);
+
+	return rmi_rc;
+}
+
+/*
+ * Initiate purge of inactive keys from a PDEV stream.
+ *
+ * pdev1_addr		- PA of the first PDEV object
+ * pdev2_addr		- PA of the second PDEV object
+ * stream_handle	- Stream handle
+ */
+unsigned long smc_pdev_stream_key_purge(unsigned long pdev1_addr,
+					unsigned long pdev2_addr,
+					unsigned long stream_handle)
+{
+	(void)pdev1_addr;
+	(void)pdev2_addr;
+	(void)stream_handle;
+	return RMI_ERROR_NOT_SUPPORTED;
+}
+

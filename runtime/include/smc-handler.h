@@ -185,8 +185,6 @@ unsigned long smc_pdev_stop(unsigned long pdev_addr);
 
 unsigned long smc_pdev_destroy(unsigned long pdev_addr);
 
-unsigned long smc_pdev_ide_key_refresh(unsigned long pdev_addr, unsigned long coh);
-
 unsigned long smc_mec_set_shared(unsigned long mecid);
 
 unsigned long smc_mec_set_private(unsigned long mecid);
@@ -222,6 +220,24 @@ unsigned long smc_vdev_lock(unsigned long rd_addr, unsigned long pdev_addr,
 					unsigned long vdev_addr);
 unsigned long smc_vdev_start(unsigned long rd_addr, unsigned long pdev_addr,
 					unsigned long vdev_addr);
+
+void smc_pdev_stream_connect(unsigned long stream_params_addr, struct smc_result *res);
+
+unsigned long smc_pdev_stream_disconnect(unsigned long pdev1_addr,
+					 unsigned long pdev2_addr,
+					 unsigned long stream_handle);
+
+unsigned long smc_pdev_stream_complete(unsigned long pdev1_addr,
+				       unsigned long pdev2_addr,
+				       unsigned long stream_handle);
+
+unsigned long smc_pdev_stream_key_refresh(unsigned long pdev1_addr,
+					  unsigned long pdev2_addr,
+					  unsigned long stream_handle);
+
+unsigned long smc_pdev_stream_key_purge(unsigned long pdev1_addr,
+					unsigned long pdev2_addr,
+					unsigned long stream_handle);
 
 void smc_granule_tracking_get(unsigned long addr,
 			      struct smc_result *res);

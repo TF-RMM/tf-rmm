@@ -36,6 +36,7 @@ enum buffer_slot {
 				 * is present.
 				 */
 	SLOT_PDEV,		/* Slot for Physical device object */
+	SLOT_PDEV2,		/* Slot for 2nd Physical device object */
 	SLOT_PDEV_AUX0,		/* Slots for PDEV auxiliary granules */
 	SLOT_VDEV = U(SLOT_PDEV_AUX0) + PDEV_PARAM_AUX_GRANULES_MAX,
 	SLOT_VDEV_AUX0,		/* Slots for VDEV auxiliary granules */

@@ -653,10 +653,11 @@
 /*
  * FID: 0xC400017A
  *
- * arg0 == PA of the PDEV
- * arg1 == Select coherent or non-coherent IDE stream
+ * arg0 == PA of the first PDEV object
+ * arg1 == PA of the second PDEV object
+ * arg2 == Stream handle
  */
-#define SMC_RMI_PDEV_IDE_KEY_REFRESH		SMC64_RMI_FID(U(0x2A))
+#define SMC_RMI_PDEV_STREAM_KEY_REFRESH		SMC64_RMI_FID(U(0x2A))
 
 /*
  * FID: 0xC400017B
@@ -1043,6 +1044,42 @@ enum rmm_state {
  * ret2 == Memory donation requirements.
  */
 #define SMC_RMI_OP_CONTINUE			SMC64_RMI_FID(U(0xB3))
+
+/*
+ * FID: 0xC4000204
+ *
+ * arg0 == PA of PDEV stream parameters
+ *
+ * ret1 == PDEV stream handle
+ */
+#define SMC_RMI_PDEV_STREAM_CONNECT		SMC64_RMI_FID(U(0xB4))
+
+/*
+ * FID: 0xC4000205
+ *
+ * arg0 == PA of the first PDEV object
+ * arg1 == PA of the second PDEV object
+ * arg2 == Stream handle
+ */
+#define SMC_RMI_PDEV_STREAM_DISCONNECT		SMC64_RMI_FID(U(0xB5))
+
+/*
+ * FID: 0xC4000206
+ *
+ * arg0 == PA of the first PDEV object
+ * arg1 == PA of the second PDEV object
+ * arg2 == Stream handle
+ */
+#define SMC_RMI_PDEV_STREAM_COMPLETE		SMC64_RMI_FID(U(0xB6))
+
+/*
+ * FID: 0xC4000207
+ *
+ * arg0 == PA of the first PDEV object
+ * arg1 == PA of the second PDEV object
+ * arg2 == Stream handle
+ */
+#define SMC_RMI_PDEV_STREAM_KEY_PURGE		SMC64_RMI_FID(U(0xB7))
 
 /*
  * FID: 0xC4000208
@@ -1856,6 +1893,49 @@ struct rmi_psmmu_params {
 #define RMI_PSMMU_FLAGS_ATS_WIDTH	U(1)
 #define RMI_PSMMU_FLAGS_PRI_SHIFT	U(2)
 #define RMI_PSMMU_FLAGS_PRI_WIDTH	U(1)
+
+/*
+ * RmiPdevStreamFlags
+ * Flags provided by the Host during PDEV stream creation
+ * Width: 64 bits
+ */
+
+/*
+ * RmiPdevStreamType
+ * Type of a PDEV stream
+ * Width: 8 bits
+ */
+#define RMI_PDEV_STREAM_NON_TEE			0U
+#define RMI_PDEV_STREAM_NCOH			1U
+#define RMI_PDEV_STREAM_COH			2U
+#define RMI_PDEV_STREAM_NCOH_SYS		3U
+#define RMI_PDEV_STREAM_COH_SYS			4U
+#define RMI_PDEV_STREAM_TYPE_COUNT		5U
+
+#define RMI_PDEV_STREAM_ADDR_RANGE_CNT		U(16)
+
+/*
+ * RmiPdevStreamParams
+ * Parameters provided by the Host during PDEV stream creation
+ * Width: 4096 (0x1000) bytes.
+ */
+struct rmi_pdev_stream_params {
+	/* RmiPdevStreamFlags: Flags */
+	SET_MEMBER_RMI(unsigned long flags, 0x0, 0x8);
+	/* RmiPdevStreamType: Stream type */
+	SET_MEMBER_RMI(unsigned char stream_type, 0x8, 0x10);
+	/* Address: Address of first PDEV. */
+	SET_MEMBER_RMI(unsigned long pdev_1, 0x10, 0x18);
+	/* Address: Address of second PDEV */
+	SET_MEMBER_RMI(unsigned long pdev_2, 0x18, 0x20);
+	/* UInt64: IDE stream ID */
+	SET_MEMBER_RMI(unsigned long ide_sid, 0x20, 0x28);
+	/* UInt64: Number of device address ranges */
+	SET_MEMBER_RMI(unsigned long num_addr_range, 0x28, 0x100);
+	/* RmiAddrRange: Device address range */
+	SET_MEMBER_RMI(struct rmi_address_range addr_range[RMI_PDEV_STREAM_ADDR_RANGE_CNT],
+		0x100, 0x1000);
+};
 
 /* Returns the higher supported RMI ABI revision */
 unsigned long rmi_get_highest_supported_version(void);
