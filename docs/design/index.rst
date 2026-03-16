@@ -11,8 +11,8 @@ Design
     locking
     memory-management
     file-org-and-config
+    pdev_aux_granules
     fake-host-architecture
     cold-and-warm-boot-design
     el0-app
     el0-app-tlb-asid
-
