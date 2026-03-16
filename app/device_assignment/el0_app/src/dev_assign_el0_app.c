@@ -1153,6 +1153,21 @@ static int dev_assign_deinit(uintptr_t heap)
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }
 
+static int
+dev_assign_set_pdev_stream_data(uintptr_t heap, unsigned long ide_sid, unsigned long rp_id)
+{
+	struct dev_assign_info *info;
+
+	if (rp_id > (unsigned long)(UINT16_MAX)) {
+		return DEV_ASSIGN_STATUS_ERROR;
+	}
+
+	info = heap_start_to_dev_assign_info(heap);
+	info->ide_sid = ide_sid;
+	info->rp_id = (uint16_t)rp_id;
+	return DEV_ASSIGN_STATUS_SUCCESS;
+}
+
 /*
  * Assigns buffers to various objects as mentioned in the below mapping starting
  * from start of EL0 heap. Note that send_recv_buffer must be first and
@@ -1228,10 +1243,10 @@ static int dev_assign_init(uintptr_t el0_heap, size_t heap_size, struct dev_assi
 	info->dev_handle = params->dev_handle;
 	info->cert_slot_id = params->cert_slot_id;
 	info->has_ide = params->has_ide;
+	info->bdf = params->bdf;
 	if (info->has_ide) {
 		info->ecam_addr = params->ecam_addr;
-		info->rp_id = params->rp_id;
-		info->ide_sid = params->ide_sid;
+		/* Rootport ID and IDE SID is set on pdev stream connect */
 	}
 	info->spdm_cert_chain_digest_length = 0;
 	info->spdm_request_len = 0;
@@ -1409,6 +1424,12 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 	case DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION:
 		ret = dev_assign_cmd_start_session_main(info);
 		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_IDE_SETUP:
+		ret = dev_assign_cmd_ide_setup(info);
+		break;
+	case DEVICE_ASSIGN_APP_FUNC_ID_IDE_DISCONNECT:
+		ret = dev_assign_cmd_ide_disconnect(info);
+		break;
 	case DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION:
 		ret = dev_assign_cmd_stop_connection_main(info);
 		break;
@@ -1455,12 +1476,13 @@ static unsigned long dev_assign_communicate_cmd_cmn(unsigned long func_id, uintp
 		 * communicate call, signalling to the host that the operation
 		 * is finished
 		 */
+		assert((info->exit_args.flags & (RMI_DEV_COMM_EXIT_FLAGS_STREAM_WAIT_BIT)) == 0U);
 		el0_app_yield();
 		copy_enter_args_from_shared(info);
 		copy_back_exit_args_to_shared(info);
 	}
 
-	assert(info->exit_args.flags == 0U);
+	assert((info->exit_args.flags & (~RMI_DEV_COMM_EXIT_FLAGS_STREAM_WAIT_BIT)) == 0U);
 
 	return INT_TO_ULONG(ret);
 }
@@ -1489,6 +1511,8 @@ unsigned long el0_app_entry_func(
 	}
 	case DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT:
 	case DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION:
+	case DEVICE_ASSIGN_APP_FUNC_ID_IDE_SETUP:
+	case DEVICE_ASSIGN_APP_FUNC_ID_IDE_DISCONNECT:
 	case DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION:
 	case DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS:
 	case DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_LOCK:
@@ -1501,6 +1525,8 @@ unsigned long el0_app_entry_func(
 		return (unsigned long)dev_assign_set_pubkey(heap, arg_0);
 	case DEVICE_ASSIGN_APP_FUNC_ID_DEINIT:
 		return (unsigned long)dev_assign_deinit(heap);
+	case DEVICE_ASSIGN_APP_FUNC_SET_PDEV_STREAM_DATA:
+		return (unsigned long)dev_assign_set_pdev_stream_data(heap, arg_0, arg_1);
 	default:
 		assert(false);
 		return (unsigned long)DEV_ASSIGN_STATUS_ERROR;

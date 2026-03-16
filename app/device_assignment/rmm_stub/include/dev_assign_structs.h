@@ -13,9 +13,14 @@
 #include <stdint.h>
 #include <utils_def.h>
 
-#define DEV_ASSIGN_STATUS_SUCCESS	(0)
-#define DEV_ASSIGN_STATUS_ERROR		(-1)
-#define DEV_ASSIGN_STATUS_COMM_BLOCKED	(1)
+#define DEV_ASSIGN_STATUS_SUCCESS			(0)
+#define DEV_ASSIGN_STATUS_ERROR				(-1)
+#define DEV_ASSIGN_STATUS_COMM_BLOCKED_APP_YIELD	(1)
+#define DEV_ASSIGN_STATUS_COMM_BLOCKED_NO_APP_YIELD	(2)
+
+#define IS_DEV_ASSIGN_STATUS_COMM_BLOCKED(status)			\
+	(((status) == DEV_ASSIGN_STATUS_COMM_BLOCKED_APP_YIELD) ||	\
+	 ((status) == DEV_ASSIGN_STATUS_COMM_BLOCKED_NO_APP_YIELD))
 
 #ifndef CBMC
 #define DEV_OBJ_DIGEST_MAX		U(64)
@@ -71,10 +76,7 @@ struct dev_assign_params {
 	bool has_ide;
 	/* Identify the root complex (RC). */
 	uint64_t ecam_addr;
-	/* Identify the RP within the RC. RootPort PCI BDF */
-	uint16_t rp_id;
-	/* IDE stream ID */
-	uint64_t ide_sid;
+	uint64_t bdf;
 };
 
 /* Shared structure on the app heap for SPDM comms */
@@ -208,6 +210,13 @@ struct dev_tdisp_params {
 #define DEVICE_ASSIGN_APP_FUNC_ID_DEINIT		4
 
 /*
+ * App function ID to set the IDE stream ID and rootport BDF for a connection
+ *
+ * ret0 == The session ID
+ */
+#define DEVICE_ASSIGN_APP_FUNC_SET_PDEV_STREAM_DATA	7
+
+/*
  * App function ID to start a libspdm session
  *
  * ret0 == DEV_ASSIGN_STATUS_SUCCESS if the session is started successfully.
@@ -224,6 +233,21 @@ struct dev_tdisp_params {
  */
 #define DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS	12
 
+/*
+ * App function ID to set up IDE connection
+ *
+ * ret0 == DEV_ASSIGN_STATUS_SUCCESS if the connection is set up successfully.
+ *         DEV_ASSIGN_STATUS_ERROR if libspdm returned error.
+ */
+#define DEVICE_ASSIGN_APP_FUNC_ID_IDE_SETUP		13
+
+/*
+ * App function ID tear down IDE connection
+ *
+ * ret0 == DEV_ASSIGN_STATUS_SUCCESS if the connection is torn down successfully.
+ *         DEV_ASSIGN_STATUS_ERROR if libspdm returned error.
+ */
+#define DEVICE_ASSIGN_APP_FUNC_ID_IDE_DISCONNECT	14
 /*
  * App function ID to stop the libspdm session that is associated with this app
  * instance.

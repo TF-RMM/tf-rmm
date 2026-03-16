@@ -128,6 +128,21 @@ enum sro_state {
 	SRO_STATE_SEALED
 };
 
+/*
+ * Data structure with the information to continue a PDEV related operation.
+ */
+struct sro_pdev_ctx {
+	/* Parameters for PDEV creation */
+	unsigned long flags;
+	unsigned long pdev_id;
+	uint16_t routing_id;
+	unsigned long id_index;
+	unsigned int rid_base;
+	unsigned int rid_top;
+	unsigned char hash_algo;
+	unsigned long max_vdevs_order;
+};
+
 struct sro_context {
 	/* State of this context */
 	enum sro_state state;
@@ -186,6 +201,7 @@ struct sro_context {
 	union {
 		struct sro_rec_ctx rec_ctx;
 		struct sro_psmmu_ctx psmmu_ctx;
+		struct sro_pdev_ctx pdev_ctx;
 	};
 };
 

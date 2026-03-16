@@ -71,6 +71,8 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_CONNECT_INIT) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION) ||
+		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_IDE_SETUP) ||
+		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_IDE_DISCONNECT) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_GET_MEASUREMENTS) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_LOCK) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_REPORT) ||
@@ -116,7 +118,7 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 	}
 
 	if (app_data->exit_flag == APP_EXIT_SVC_YIELD_FLAG) {
-		rc = DEV_ASSIGN_STATUS_COMM_BLOCKED;
+		rc = DEV_ASSIGN_STATUS_COMM_BLOCKED_APP_YIELD;
 	}
 
 	assert(app_data->el2_shared_page != NULL);
@@ -151,6 +153,13 @@ int dev_assign_abort_app_operation(struct app_data_cfg *app_data)
 {
 	unsigned long rc __unused;
 	struct rmi_dev_comm_enter *shared;
+
+	/*
+	 * If the app isn't in yielded state, then there's nothing to do here.
+	 */
+	if (app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG) {
+		return DEV_ASSIGN_STATUS_SUCCESS;
+	}
 
 	/*
 	 * The app copies the enter_args from the shared page. So set the status

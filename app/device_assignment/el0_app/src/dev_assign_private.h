@@ -246,7 +246,13 @@ struct dev_assign_info {
 	/* Identify the root complex (RC). */
 	uint64_t ecam_addr;
 
-	/* Identify the RP within the RC. RootPort PCI BDF */
+	unsigned long bdf;
+
+	/*
+	 * TODO: Temporarily we emulate the new pdev_sream connect behaviour
+	 * with the old dev assign app structure. So rp_id is going to be filled
+	 * by the pdev_stream_connect RMI call.
+	 */
 	uint16_t rp_id;
 
 	/* IDE stream ID */
@@ -255,7 +261,14 @@ struct dev_assign_info {
 	/* Current IDE key slot in use */
 	uint8_t ide_kslot_cur;
 
-	/* This device Root Port DVSEC address in ECAM space */
+	/* If this pdev is rootport, the DVSEC address in ECAM space */
+	uint32_t dvsec_offset;
+
+	/*
+	 * TODO: Temporarily we emulate the new pdev_sream connect behaviour
+	 * with the old dev assign app structure. So these fields are going to
+	 * be calculated inside the ep pdev.
+	 */
 	uint64_t rp_ecam_addr;
 	uint32_t rp_dvsec_offset;
 
@@ -333,7 +346,9 @@ struct dev_assign_info {
 
 int dev_assign_cmd_init_connection_main(struct dev_assign_info *info);
 int dev_assign_cmd_start_session_main(struct dev_assign_info *info);
+int dev_assign_cmd_ide_setup(struct dev_assign_info *info);
 int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info);
+int dev_assign_cmd_ide_disconnect(struct dev_assign_info *info);
 int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info);
 
 void dev_assign_unset_pubkey(struct dev_assign_info *info);

@@ -122,11 +122,6 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		goto out_unmap_pd;
 	}
 
-	if (EXTRACT(RMI_PDEV_FLAGS_CATEGORY, pd->rmi_flags) != RMI_PDEV_SMEM) {
-		rc = RMI_ERROR_DEVICE;
-		goto out_unmap_pd;
-	}
-
 	vd = buffer_granule_map_zeroed(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
@@ -687,7 +682,7 @@ unsigned long smc_vdev_abort(unsigned long vdev_addr)
 
 	/* Map PDEV aux granules */
 	/* coverity[overrun-buffer-val:SUPPRESS] */
-	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
+	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_app_aux, pd->num_app_aux);
 	assert(aux_mapped_addr != NULL);
 
 	/*
@@ -698,7 +693,7 @@ unsigned long smc_vdev_abort(unsigned long vdev_addr)
 	assert(rc == 0);
 
 	/* Unmap all PDEV aux granules */
-	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_aux);
+	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_app_aux);
 
 vdev_reset_state:
 	vd->rmi_state = RMI_VDEV_STATE_ERROR;

@@ -34,6 +34,15 @@
 #define VDEV_OP_START				U(6)
 #define VDEV_OP_UNLOCK				U(7)
 
+/* Represents operation performed on a PDEV. RmmPdevOperation */
+#define PDEV_OP_CONNECT				U(0)
+#define PDEV_OP_DISCONNECT			U(1)
+#define PDEV_OP_KEY_PURGE			U(2)
+#define PDEV_OP_KEY_REFRESH			U(3)
+#define PDEV_OP_NONE				U(4)
+#define PDEV_OP_STOP				U(5)
+#define PDEV_OP_STREAM_COMPLETE			U(6)
+
 /* Represents the state of a PDEV stream. RmmPdevStreamState */
 #define PDEV_STREAM_CONNECTED			U(0)
 #define PDEV_STREAM_CONNECTING			U(1)
@@ -41,6 +50,31 @@
 #define PDEV_STREAM_DISCONNECTING		U(3)
 #define PDEV_STREAM_KEY_PURGING			U(4)
 #define PDEV_STREAM_KEY_REFRESHING		U(5)
+
+/* The following macros return RmiPdevCategory */
+#define PDEV_CATEGORY_FROM_FLAGS(flags)		(EXTRACT(RMI_PDEV_FLAGS_CATEGORY, flags))
+#define PDEV_CATEGORY(pd_ptr)			(PDEV_CATEGORY_FROM_FLAGS((pd_ptr)->rmi_flags))
+
+/*
+ * PDEV aux granules:
+ * idx 0: The granule containing the stream objects associated with this ep_pdev
+ * idx 1 - PDEV_PARAM_AUX_GRANULES_MAX: used for app
+ */
+#define PDEV_STREAM_AUX_GRANULE_IDX		0U /* The stream objects */
+#define NON_APP_PDEV_AUX_GRANULES		1U
+/* start idx of Apps Aux pages */
+#define PDEV_APP_AUX_GRANULE_IDX		NON_APP_PDEV_AUX_GRANULES
+
+#ifndef CBMC
+/*
+ * Can be increased as necessary, until the granule size limit in `struct pdev`
+ * is reached. After that the vdev_range_slots array needs to be moved to 1 or
+ * more pdev AUX page(s)
+ */
+#define MAX_VDEVS_ORDER				UL(4)
+#else /* CBMC */
+#define MAX_VDEVS_ORDER				UL(2)
+#endif /* CBMC */
 
 enum stream_op_state {
 	STREAM_OP_STATE_NONE,
@@ -70,38 +104,41 @@ struct pcie_dev {
 	/* PCIe Segment identifier of the Root Port and endpoint. */
 	uint16_t segment_id;
 
-	/*
-	 * Physical PCIe routing identifier of the Root Port to which the
-	 * endpoint is connected.
-	 */
-	uint16_t root_id;
-
 	/* ECAM base address of the PCIe configuration space */
 	uint64_t ecam_addr;
 
 	/* Certificate slot identifier */
 	uint64_t cert_slot_id;
 
-	/* IDE stream ID */
-	uint64_t ide_sid;
-
 	/*
 	 * Base and top of requester ID range (inclusive). The value is in
 	 * PCI BDF format.
 	 */
-	uint64_t rid_base;
-	uint64_t rid_top;
+	unsigned int rid_base;
+	unsigned int rid_top;
+};
 
-	/* Device non-coherent address range and its range */
-	struct rmi_address_range
-			ncoh_addr_range[PDEV_PARAM_NCOH_ADDR_RANGE_MAX];
-	uint64_t ncoh_num_addr_range;
+struct pdev_op {
+	/*
+	 * Device interface operation that is in progress. RmmPdevOperation
+	 * possible values are PDEV_OP_*
+	 */
+	unsigned long curr;
+	/*
+	 * if there is an operation in progress (i.e. op != PDEV_OP_NONE), the
+	 * type of the stream that the operation is happening on.
+	 */
+	unsigned char op_stream_type;
+
+	/* state of the current stream op during pdev communicate */
+	enum stream_op_state stream_op_state;
 };
 
 /*
  * PDEV object. Represents a communication channel between the RMM and a
  * physical device, for example a PCIe device.
  */
+/* NOLINTNEXTLINE(clang-analyzer-optin.performance.Padding) as fields are in logical order */
 struct pdev {
 	/* Pointer to this granule */
 	struct granule *g_pdev;
@@ -114,10 +151,11 @@ struct pdev {
 
 	/* Number of VDEVs associated with this PDEV */
 	uint32_t num_vdevs;
+	uint32_t max_num_vdevs;
 
-	/* Number and addresses of PDEV auxiliary granules */
-	struct granule *g_aux[PDEV_PARAM_AUX_GRANULES_MAX];
-	unsigned int num_aux;
+	/* Number and addresses of PDEV app auxiliary granules */
+	struct granule *g_app_aux[PDEV_PARAM_AUX_GRANULES_MAX - NON_APP_PDEV_AUX_GRANULES];
+	unsigned int num_app_aux;
 
 	/*
 	 * Algorithm used to generate device digests. This value is returned to
@@ -138,11 +176,28 @@ struct pdev {
 	/* Device communication state. RmmDevCommState */
 	unsigned int dev_comm_state;
 
+	struct pdev_op op;
+
+	/*
+	 * The number of streams that are associated with this pdev. (i.e.
+	 * there is a stream operation in progress on this pdev or there is a
+	 * stream in state PDEV_STREAM_CONNECTED where one of the pdevs is this
+	 * object). This can be used to prevent pdev_destroy while a stream
+	 * is associated with this pdev.
+	 */
+	unsigned long associated_stream_count;
+	/*
+	 * The granule containing the streams of the endpoint participating in
+	 * this stream. Set when op changes from PDEV_OP_NONE to something else.
+	 */
+	struct granule *g_stream_aux;
+
 	/* The associated device */
 	struct pcie_dev dev;
 
 	/* DA app cfg */
 	struct app_data_cfg da_app_data;
+	bool da_app_yielded;
 };
 COMPILER_ASSERT(sizeof(struct pdev) <= GRANULE_SIZE);
 
@@ -237,4 +292,10 @@ COMPILER_ASSERT(sizeof(struct vdev) <= GRANULE_SIZE);
 
 unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
 			      struct granule *g_dev_comm_data);
+struct pdev_stream *pdev_stream_granules_lock_map(struct granule *g_streams,
+						  unsigned char stream_type);
+void pdev_stream_granules_unmap_unlock(struct granule *g_streams,
+				       struct pdev_stream *stream,
+				       unsigned char stream_type);
+void pdev_continue_handler(unsigned long fid, struct smc_result *res);
 #endif /* DEV_H */

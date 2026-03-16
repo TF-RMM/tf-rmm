@@ -15,24 +15,21 @@
 #include <sizes.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
+#include <sro_context.h>
 #include <string.h>
 #include <utils_def.h>
+#include <xlat_high_va.h>
 
-/*
- * This function will only be invoked when the PDEV create fails or when PDEV is
- * being destroyed. Hence the PDEV will not be in use when this function is
- * called and therefore no lock is acquired before its invocation.
- */
-static void pdev_restore_aux_granules_state(struct granule *pdev_aux[],
-					    unsigned int cnt)
-{
-	for (unsigned int i = 0U; i < cnt; i++) {
-		struct granule *g_pdev_aux = pdev_aux[i];
+#define PDEV_ID_BDF_WIDTH		28U /* 256 MB */
+#define PDEV_ID_BDF_SHIFT		0U
+#define PDEV_ID_ECAM_ADDR_WIDTH		(64U - PDEV_ID_BDF_WIDTH)
+#define PDEV_ID_ECAM_ADDR_SHIFT		PDEV_ID_BDF_WIDTH
 
-		granule_lock(g_pdev_aux, GRANULE_STATE_PDEV_AUX);
-		granule_unlock_transition_to_delegated(g_pdev_aux);
-	}
-}
+#define RMI_PDEV_FLAGS_VALID_MASK  (MASK(RMI_PDEV_FLAGS_SPDM) | MASK(RMI_PDEV_FLAGS_CATEGORY))
+
+struct pdev_stream_aux {
+	struct pdev_stream streams[RMI_PDEV_STREAM_TYPE_COUNT];
+};
 
 static inline unsigned long pack_stream_handle(unsigned long pd1_addr,
 					       unsigned char stream_type) {
@@ -58,49 +55,108 @@ static inline bool unpack_stream_handle(unsigned long handle,
 
 	return true;
 }
+
+struct pdev_stream *pdev_stream_granules_lock_map(struct granule *g_streams,
+						  unsigned char stream_type)
+{
+	struct pdev_stream_aux *stream_aux;
+
+	assert(g_streams != NULL);
+	granule_lock(g_streams, GRANULE_STATE_PDEV_AUX);
+
+	stream_aux = buffer_granule_map(g_streams, SLOT_PDEV_STREAM);
+	if (stream_aux == NULL) {
+		granule_unlock(g_streams);
+		return NULL;
+	}
+
+	assert(stream_type < RMI_PDEV_STREAM_TYPE_COUNT);
+
+	return &(stream_aux->streams[stream_type]);
+}
+
+void pdev_stream_granules_unmap_unlock(struct granule *g_streams,
+				       struct pdev_stream *stream,
+				       unsigned char stream_type)
+{
+	struct pdev_stream_aux *stream_aux;
+	uintptr_t pdev_streams_addr;
+
+	assert(stream_type < RMI_PDEV_STREAM_TYPE_COUNT);
+	assert(stream != NULL);
+
+	pdev_streams_addr = (uintptr_t)stream - (stream_type * sizeof(struct pdev_stream));
+
+	stream_aux = (struct pdev_stream_aux *)(
+		pdev_streams_addr - offsetof(struct pdev_stream_aux, streams));
+
+	assert(GRANULE_ALIGNED(stream_aux));
+
+	buffer_unmap(stream_aux);
+	granule_unlock(g_streams);
+}
+
 /*
  * todo:
  * Validate device specific PDEV parameters by traversing all previously created
  * PDEVs and check against current PDEV parameters. This implements
  * RmiPdevParamsIsValid of RMM specification.
  */
-static int validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
+static unsigned long validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
 
 {
-	(void)pd_params;
+	if ((pd_params->flags & ~RMI_PDEV_FLAGS_VALID_MASK) != 0U) {
+		return RMI_ERROR_INPUT;
+	}
+
 	/*
-	 * TODO_ALP17: Check all the things below (compare with
-	 * RmiPdevParamsIsValid function in spec)
+	 * Validate RmiPdevFlags. RMM supports PCIE off-chip device represented
+	 */
+	/* TODO_ALP17: Check whether [n]coh_addr is checked during mem validate */
+	/* TODO_ALP17: Add address range checking if RMI_PDEV_FLAGS_NCOH_ADDR
+	 * is set.
+	 */
+	/*
+	 * Only off-chip end point devices are supported for now.
+	 * They are expect to be selective trust devices supporting SPDM.
+	 * For Rootports we don't have any flag requirements.
+	 */
+	/* coverity[uninit_use:SUPPRESS] */
+	if ((PDEV_CATEGORY_FROM_FLAGS(pd_params->flags) == RMI_PDEV_ENDPOINT_ACCEL_OFF_CHIP)) {
+		if ((EXTRACT(RMI_PDEV_FLAGS_SPDM, pd_params->flags) != RMI_PDEV_SPDM_TRUE)) {
+			return RMI_ERROR_NOT_SUPPORTED;
+		}
+	} else if (PDEV_CATEGORY_FROM_FLAGS(pd_params->flags) != RMI_PDEV_ROOTPORT) {
+		return RMI_ERROR_NOT_SUPPORTED;
+	}
+
+	/* Validate hash algorithm */
+	/* coverity[uninit_use:SUPPRESS] */
+	if ((pd_params->hash_algo != RMI_HASH_SHA_256) &&
+	    (pd_params->hash_algo != RMI_HASH_SHA_512) &&
+	    (pd_params->hash_algo != RMI_HASH_SHA_384)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	if ((pd_params->max_vdevs_order > MAX_VDEVS_ORDER) ||
+	    (pd_params->routing_id > (unsigned long)(UINT16_MAX))) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/*
+	 * TODO: Check if device identifier is valid.
 	 */
 
 	/*
-	 * Check if device identifier, Root Port identifier, IDE stream
-	 * identifier, RID range are valid.
+	 * TODO: Check if device identifier is not equal to the device
+	 * identifier of another PDEV
 	 */
 
-	/*
-	 * Check if device identifier is not equal to the device identifier of
-	 * another PDEV
-	 */
-
-	/* Whether RID range does not overlap the RID range of another PDEV */
-
-	/*
-	 * Every address range falls within an MMIO range permitted by the system
-	 */
-
-	/*
-	 * None of the address ranges overlaps another address range for this
-	 * PDEV
-	 */
-
-	return 0;
+	return RMI_SUCCESS;
 }
 
 static unsigned long pdev_get_aux_count_from_flags(unsigned long pdev_flags)
 {
-	unsigned long aux_count;
-
 	(void)pdev_flags;
 
 	/*
@@ -115,33 +171,13 @@ static unsigned long pdev_get_aux_count_from_flags(unsigned long pdev_flags)
 	 * does not depend on the flags set in pdev_flags. The worst case
 	 * (i.e., the most granules) is assumed.
 	 */
-	aux_count = app_get_required_granule_count(RMM_DEV_ASSIGN_APP_ID);
-	assert(aux_count <= PDEV_PARAM_AUX_GRANULES_MAX);
-
-	return aux_count;
+	return app_get_required_granule_count(RMM_DEV_ASSIGN_APP_ID);
 }
 
-/*
- * smc_pdev_aux_count
- *
- * Get number of auxiliary Granules required for a PDEV.
- *
- * flags	- PDEV flags
- * res		- SMC result
- */
-void smc_pdev_aux_count(unsigned long flags, struct smc_result *res)
-{
-	if (is_rmi_feat_da_enabled()) {
-		if (EXTRACT(RMI_PDEV_FLAGS_SPDM, flags) != RMI_PDEV_SPDM_TRUE) {
-			res->x[0] = RMI_ERROR_INPUT;
-			return;
-		}
-		res->x[0] = RMI_SUCCESS;
-		res->x[1] = pdev_get_aux_count_from_flags(flags);
-	} else {
-		res->x[0] = SMC_NOT_SUPPORTED;
-	}
-}
+static unsigned long
+pdev_create_continue_rp(unsigned long pdev_addr, struct rmi_pdev_params *pdev_params);
+
+static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res);
 
 /*
  * smc_pdev_create
@@ -149,123 +185,166 @@ void smc_pdev_aux_count(unsigned long flags, struct smc_result *res)
  * pdev_addr		- PA of the PDEV
  * pdev_params_addr	- PA of PDEV parameters
  */
-unsigned long smc_pdev_create(unsigned long pdev_addr,
-			      unsigned long pdev_params_addr)
+void smc_pdev_create(unsigned long pdev_addr,
+		     unsigned long pdev_params_addr,
+		     struct smc_result *res)
 {
-	struct granule *g_pdev;
+	struct sro_context *sro;
 	struct granule *g_pdev_params;
-	struct pdev *pd;
+	struct granule *gr;
 	struct rmi_pdev_params pdev_params; /* this consumes 4k of stack */
-	struct granule *pdev_aux_granules[PDEV_PARAM_AUX_GRANULES_MAX];
-	unsigned long num_aux_req;
 	bool ns_access_ok;
-	void *aux_mapped_addr;
-	struct dev_assign_params dparams;
-	unsigned long smc_rc;
-	int rc;
+	unsigned long ret;
 
 	if (!is_rmi_feat_da_enabled()) {
-		return SMC_NOT_SUPPORTED;
+		res->x[0] = SMC_NOT_SUPPORTED;
+		return;
 	}
 
 	if (!GRANULE_ALIGNED(pdev_addr) ||
 	    !GRANULE_ALIGNED(pdev_params_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/* Map and copy PDEV parameters */
 	g_pdev_params = find_granule(pdev_params_addr);
 	if ((g_pdev_params == NULL) ||
 	    (granule_unlocked_state(g_pdev_params) != GRANULE_STATE_NS)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	ns_access_ok = ns_buffer_read(SLOT_NS, g_pdev_params, 0U,
 				      sizeof(struct rmi_pdev_params),
 				      &pdev_params);
 	if (!ns_access_ok) {
-		return RMI_ERROR_INPUT;
-	}
-
-	/*
-	 * Validate RmiPdevFlags. RMM supports PCIE off-chip device represented
-	 * by flags: SPDM=true, NCOH_IDE=true, NCOH_ADDR=*, COH_IDE=false,
-	 *           COH_ADDR=false, P2P=false, TRUST=RMI_TRUST_SEL,
-	 *           CATEGORY=RMI_PDEV_SMEM.
-	 */
-	/* TODO_ALP17: Check whether [n]coh_addr is checked during mem validate */
-	/* TODO_ALP17: Add address range checking if RMI_PDEV_FLAGS_NCOH_ADDR
-	 * is set.
-	 */
-	/* coverity[uninit_use:SUPPRESS] */
-	if ((EXTRACT(RMI_PDEV_FLAGS_SPDM, pdev_params.flags) !=
-	     RMI_PDEV_SPDM_TRUE) ||
-	    (EXTRACT(RMI_PDEV_FLAGS_NCOH_IDE, pdev_params.flags) !=
-	     RMI_PDEV_IDE_TRUE) ||
-	    (EXTRACT(RMI_PDEV_FLAGS_COH_IDE, pdev_params.flags) !=
-	     RMI_PDEV_IDE_FALSE) ||
-	    (EXTRACT(RMI_PDEV_FLAGS_COH_ADDR, pdev_params.flags) !=
-	     RMI_PDEV_IDE_FALSE) ||
-	    (EXTRACT(RMI_PDEV_FLAGS_P2P, pdev_params.flags) !=
-	     RMI_PDEV_COHERENT_FALSE) ||
-	    (EXTRACT(RMI_PDEV_FLAGS_TRUST, pdev_params.flags) !=
-	     RMI_TRUST_SEL) ||
-	    (EXTRACT(RMI_PDEV_FLAGS_CATEGORY, pdev_params.flags) !=
-	     RMI_PDEV_SMEM)
-	) {
-		return RMI_ERROR_NOT_SUPPORTED;
-	}
-
-	/* Validate PDEV parameters num_aux */
-	num_aux_req = pdev_get_aux_count_from_flags(pdev_params.flags);
-	/* coverity[uninit_use:SUPPRESS] */
-	if ((pdev_params.num_aux == 0U) ||
-	    (pdev_params.num_aux != num_aux_req)) {
-		ERROR("ERROR: PDEV need %ld aux granules, host allocated %ld.\n",
-		      num_aux_req, pdev_params.num_aux);
-		return RMI_ERROR_INPUT;
-	}
-
-	/* coverity[uninit_use:SUPPRESS] */
-	if (pdev_params.ide_sid > 31U) {
-		return RMI_ERROR_INPUT;
-	}
-
-	/* Validate PDEV parameters ncoh_num_addr_range. */
-	/* coverity[uninit_use:SUPPRESS] */
-	if (pdev_params.ncoh_num_addr_range > PDEV_PARAM_NCOH_ADDR_RANGE_MAX) {
-		return RMI_ERROR_INPUT;
-	}
-
-	/* Validate hash algorithm */
-	/* coverity[uninit_use:SUPPRESS] */
-	if ((pdev_params.hash_algo != RMI_HASH_SHA_256) &&
-	    (pdev_params.hash_algo != RMI_HASH_SHA_512)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/* cppcheck-suppress knownConditionTrueFalse */
-	if (validate_rmi_pdev_params(&pdev_params) != 0) {
-		return RMI_ERROR_INPUT;
+	/* coverity[uninit_use_in_call:SUPPRESS] */
+	ret = validate_rmi_pdev_params(&pdev_params);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
+		return;
 	}
 
-	/* Loop through pdev_aux_granules and transit them */
-	for (unsigned int i = 0U; i < pdev_params.num_aux; i++) {
-		struct granule *g_pdev_aux;
+	/* No SRO is needed in case of rootport */
+	if ((PDEV_CATEGORY_FROM_FLAGS(pdev_params.flags) == RMI_PDEV_ROOTPORT)) {
+		res->x[0] = pdev_create_continue_rp(pdev_addr, &pdev_params);
+		return;
+	}
 
-		/* coverity[uninit_use_in_call:SUPPRESS] */
-		g_pdev_aux = find_lock_granule(pdev_params.aux[i],
-					       GRANULE_STATE_DELEGATED);
-		if (g_pdev_aux == NULL) {
-			pdev_restore_aux_granules_state(pdev_aux_granules, i);
-			return RMI_ERROR_INPUT;
-		}
-		granule_unlock_transition(g_pdev_aux, GRANULE_STATE_PDEV_AUX);
-		pdev_aux_granules[i] = g_pdev_aux;
+	/*
+	 * Granules for the app plus a page for the stream objects associated
+	 * with this EP PDEV.
+	 * Initiate SRO to get the required amount of memory.
+	 */
+	const size_t aux_count = pdev_get_aux_count_from_flags(pdev_params.flags) +
+		NON_APP_PDEV_AUX_GRANULES;
+	if (aux_count > PDEV_PARAM_AUX_GRANULES_MAX) {
+		/*
+		 * The PDEV cannot hold enough granules for this configuration.
+		 * Increase PDEV_PARAM_AUX_GRANULES_MAX
+		 */
+		ERROR("PDEV object can hold at most %u aux granules (%lu required)\n",
+			PDEV_PARAM_AUX_GRANULES_MAX, aux_count);
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
+		return;
+	}
+
+	gr = find_lock_granule(pdev_addr, GRANULE_STATE_DELEGATED);
+	if (gr == NULL) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	ret = sro_ctx_reserve(SMC_RMI_PDEV_CREATE, aux_count * GRANULE_SIZE,
+			      false, false, SMC_RMI_OP_MEM_DONATE);
+	if (ret != RMI_SUCCESS) {
+		granule_unlock(gr);
+		res->x[0] = ret;
+		return;
+	}
+
+	sro = my_sro_ctx();
+	assert(sro != NULL);
+
+
+	/*
+	 * The first step of PDEV_CREATE will be to request memory for
+	 * the aux granules.
+	 */
+	/* Initialize the sro context for the command */
+	sro->pdev_ctx.flags = pdev_params.flags;
+	sro->pdev_ctx.pdev_id = pdev_params.pdev_id;
+	sro->pdev_ctx.routing_id = (uint16_t)pdev_params.routing_id;
+	sro->pdev_ctx.id_index = pdev_params.id_index;
+	sro->pdev_ctx.rid_base = pdev_params.rid_base;
+	sro->pdev_ctx.rid_top = pdev_params.rid_top;
+	sro->pdev_ctx.hash_algo = pdev_params.hash_algo;
+	sro->pdev_ctx.max_vdevs_order = pdev_params.max_vdevs_order;
+
+	granule_unlock_transition(gr, GRANULE_STATE_PARTIAL);
+
+	sro_aux_op_init_donate(sro, res, pdev_addr,
+			       aux_count,
+			       GRANULE_STATE_PDEV_AUX);
+}
+
+static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
+{
+	struct granule *g_pdev;
+	struct granule *all_aux_granules[PDEV_PARAM_AUX_GRANULES_MAX];
+	uintptr_t *all_aux_granule_pas;
+	struct pdev *pd;
+	struct sro_pdev_ctx *sro_ctx;
+	unsigned long ecam_addr;
+	unsigned long bdf;
+	struct dev_assign_params dparams;
+	unsigned long smc_rc;
+	int rc;
+	unsigned int num_aux_granules;
+	void *aux_mapped_addr;
+	struct sro_context *sro = my_sro_ctx();
+	unsigned int num_app_aux_granules;
+
+	/* TODO: check max vdev count */
+
+	assert(sro != NULL);
+	assert(fid == SMC_RMI_OP_CONTINUE);
+
+	(void)fid;
+
+	/* Ensure all requested aux granules have been transferred */
+	assert(sro->aux_op_ctx.total_transferred ==
+		sro->aux_op_ctx.requested_aux_granules);
+
+	sro_ctx = &sro->pdev_ctx;
+	num_aux_granules = (unsigned int)sro->aux_op_ctx.requested_aux_granules;
+	all_aux_granule_pas = sro->aux_op_ctx.aux_granules_pa;
+	num_app_aux_granules = num_aux_granules - NON_APP_PDEV_AUX_GRANULES;
+	assert(num_app_aux_granules < (PDEV_PARAM_AUX_GRANULES_MAX - NON_APP_PDEV_AUX_GRANULES));
+
+	if (num_aux_granules < NON_APP_PDEV_AUX_GRANULES) {
+		smc_rc = RMI_ERROR_INPUT;
+		goto out_restore_pdev_aux_granule_state;
+	}
+
+	for (unsigned int i = 0U; i < num_aux_granules; i++) {
+		unsigned long addr = all_aux_granule_pas[i];
+
+		all_aux_granules[i] = find_granule(addr);
+
+		/* The granules should have been transitioned during donation */
+		assert(all_aux_granules[i] != NULL);
+		assert(granule_unlocked_state(all_aux_granules[i]) == GRANULE_STATE_PDEV_AUX);
 	}
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_DELEGATED);
+	g_pdev = find_lock_granule(sro->aux_op_ctx.obj_addr, GRANULE_STATE_PARTIAL);
 	if (g_pdev == NULL) {
 		smc_rc = RMI_ERROR_INPUT;
 		goto out_restore_pdev_aux_granule_state;
@@ -274,82 +353,84 @@ unsigned long smc_pdev_create(unsigned long pdev_addr,
 	pd = buffer_granule_map_zeroed(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
 
-	/* Map all PDEV aux granules to slot starting SLOT_PDEV_AUX0 */
-	/* coverity[overrun-buffer-val:SUPPRESS] */
-	aux_mapped_addr = buffer_pdev_aux_granules_map_zeroed(pdev_aux_granules,
-						       (unsigned int)pdev_params.num_aux);
-	if (aux_mapped_addr == NULL) {
-		buffer_unmap(pd);
-		granule_unlock(g_pdev);
-		smc_rc = RMI_ERROR_INPUT;
-		goto out_restore_pdev_aux_granule_state;
-	}
+	ecam_addr = sro_ctx->pdev_id & MASK(PDEV_ID_ECAM_ADDR);
+	bdf = sro_ctx->pdev_id & MASK(PDEV_ID_BDF);
 
 	/* Call init routine to initialize device class specific state */
 	dparams.dev_handle = (void *)pd;
-	dparams.rmi_hash_algo = pdev_params.hash_algo;
-	dparams.cert_slot_id = (uint8_t)pdev_params.cert_id;
+	dparams.rmi_hash_algo = sro_ctx->hash_algo;
+	dparams.cert_slot_id = (uint8_t)sro_ctx->id_index;
+	dparams.bdf = bdf;
 
-	if (EXTRACT(RMI_PDEV_FLAGS_NCOH_IDE, pdev_params.flags) ==
-	    RMI_PDEV_IDE_TRUE) {
+	if (PDEV_CATEGORY_FROM_FLAGS(sro_ctx->flags) == RMI_PDEV_ENDPOINT_ACCEL_OFF_CHIP) {
 		dparams.has_ide = true;
-		dparams.ecam_addr = pdev_params.ecam_addr;
-		dparams.rp_id = pdev_params.root_id;
-		dparams.ide_sid = pdev_params.ide_sid;
+		dparams.ecam_addr = ecam_addr;
 	} else {
 		dparams.has_ide = false;
 	}
-	/* Use the PDEV aux pages for the DA app */
-	uintptr_t granule_pas[PDEV_PARAM_AUX_GRANULES_MAX];
 
-	for (unsigned int i = 0; i < pdev_params.num_aux; ++i) {
-		granule_pas[i] = granule_addr(pdev_aux_granules[i]);
-	}
+	/* Map and initialise the stream granule */
+	aux_mapped_addr = buffer_granule_map_zeroed(
+				all_aux_granules[PDEV_STREAM_AUX_GRANULE_IDX],
+				SLOT_PDEV_STREAM);
+	assert(aux_mapped_addr != NULL);
+
+	buffer_unmap(aux_mapped_addr);
+
+	/*
+	 * Map app aux granules separately from the reserved aux granules so
+	 * they occupy SLOT_PDEV_AUX0 and above, matching the VA layout used
+	 * during app execution.
+	 */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
+	aux_mapped_addr = buffer_pdev_aux_granules_map_zeroed(
+				&all_aux_granules[PDEV_APP_AUX_GRANULE_IDX],
+				num_app_aux_granules);
+	assert(aux_mapped_addr != NULL);
 
 	rc = dev_assign_app_init(&pd->da_app_data,
-		granule_pas,
-		pdev_params.num_aux,
-		aux_mapped_addr, &dparams);
+		&all_aux_granule_pas[PDEV_APP_AUX_GRANULE_IDX],
+		num_app_aux_granules,
+		aux_mapped_addr,
+		&dparams);
 
 	if (rc == DEV_ASSIGN_STATUS_SUCCESS) {
 		/* Initialize PDEV */
+		pd->da_app_yielded = false;
+		pd->op.stream_op_state = STREAM_OP_STATE_NONE;
 		pd->g_pdev = g_pdev;
 		pd->rmi_state = RMI_PDEV_STATE_NEW;
-		pd->rmi_flags = pdev_params.flags;
+		pd->op.curr = PDEV_OP_NONE;
+		pd->rmi_flags = sro_ctx->flags;
 		pd->num_vdevs = 0;
-		pd->rmi_hash_algo = pdev_params.hash_algo;
-		pd->num_aux = (unsigned int)pdev_params.num_aux;
-		(void)memcpy((void *)pd->g_aux, (void *)pdev_aux_granules, pdev_params.num_aux *
-			     sizeof(struct granule *));
+		pd->max_num_vdevs = (1U << sro_ctx->max_vdevs_order) - 1U;
+		pd->rmi_hash_algo = sro_ctx->hash_algo;
+		pd->num_app_aux = num_app_aux_granules;
+		(void)memcpy((void *)pd->g_app_aux,
+			     (void *)(&all_aux_granules[PDEV_APP_AUX_GRANULE_IDX]),
+			     pd->num_app_aux * sizeof(struct granule *));
+		pd->g_stream_aux = all_aux_granules[PDEV_STREAM_AUX_GRANULE_IDX];
 
 		/* Initialize PDEV communication state */
 		pd->dev_comm_state = DEV_COMM_PENDING;
 
 		/* Initialize PDEV pcie device */
-		pd->dev.bdf = pdev_params.pdev_id;
-		pd->dev.segment_id = pdev_params.segment_id;
-		pd->dev.ecam_addr = pdev_params.ecam_addr;
-		pd->dev.root_id = pdev_params.root_id;
-		pd->dev.cert_slot_id = pdev_params.cert_id;
-		pd->dev.ide_sid = pdev_params.ide_sid;
-		pd->dev.rid_base = pdev_params.rid_base;
-		pd->dev.rid_top = pdev_params.rid_top;
-		pd->dev.ncoh_num_addr_range = pdev_params.ncoh_num_addr_range;
-		(void)memcpy(&pd->dev.ncoh_addr_range,
-			     &pdev_params.ncoh_addr_range,
-			     (sizeof(struct rmi_address_range) *
-			      pdev_params.ncoh_num_addr_range));
+		pd->dev.bdf = bdf;
+		pd->dev.segment_id = sro_ctx->routing_id;
+		pd->dev.ecam_addr = ecam_addr;
+		pd->dev.cert_slot_id = sro_ctx->id_index;
+		pd->dev.rid_base = sro_ctx->rid_base;
+		pd->dev.rid_top = sro_ctx->rid_top;
 
 		smc_rc = RMI_SUCCESS;
 	} else {
 		smc_rc = RMI_ERROR_INPUT;
 	}
 
-	/* Unmap all PDEV aux granules */
-	buffer_pdev_aux_unmap(aux_mapped_addr, (unsigned int)pdev_params.num_aux);
+	buffer_pdev_aux_unmap(aux_mapped_addr, num_app_aux_granules);
 
 	/*
-	 * Unlock and transit the PDEV granule state to GRANULE_STATE_PDEV.
+	 * Unlock and transit the PDEV granule state to GRANULE_STATE_PARTIAL.
 	 */
 	buffer_unmap(pd);
 
@@ -362,16 +443,90 @@ unsigned long smc_pdev_create(unsigned long pdev_addr,
 out_restore_pdev_aux_granule_state:
 	if (smc_rc != RMI_SUCCESS) {
 		/*
-		 * Transit all PDEV AUX granule state back to
-		 * GRANULE_STATE_DELEGATED
+		 * The command failed, so request the host to reclaim the
+		 * donated memory and return.
 		 */
-		pdev_restore_aux_granules_state(pdev_aux_granules,
-				(unsigned int)pdev_params.num_aux);
+		sro_aux_op_start_reclaim(sro, res,
+					 sro->aux_op_ctx.obj_addr,
+					 false,
+					 smc_rc,
+					 sro->aux_op_ctx.total_transferred,
+					 GRANULE_STATE_PDEV_AUX);
+	} else {
+		/* Finish the command with SUCCESS */
+		res->x[0] = smc_rc;
+		assert(res->x[2] == 0UL);
+		assert(res->x[1] == 0UL);
 	}
-
-	return smc_rc;
 }
 
+static unsigned long pdev_create_continue_rp(unsigned long pdev_addr,
+					     struct rmi_pdev_params *pdev_params)
+{
+	struct granule *g_pdev;
+	struct pdev *pd;
+	unsigned long ecam_addr;
+	unsigned long bdf;
+
+	/* Lock pdev granule and map it */
+	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_DELEGATED);
+	if (g_pdev == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	pd = buffer_granule_map_zeroed(g_pdev, SLOT_PDEV);
+	assert(pd != NULL);
+
+	ecam_addr = pdev_params->pdev_id & MASK(PDEV_ID_ECAM_ADDR);
+	bdf = pdev_params->pdev_id & MASK(PDEV_ID_BDF);
+
+	/* Initialize PDEV */
+	pd->da_app_yielded = false;
+	pd->op.stream_op_state = STREAM_OP_STATE_NONE;
+	pd->g_pdev = g_pdev;
+	pd->rmi_state = RMI_PDEV_STATE_NEW;
+	pd->op.curr = PDEV_OP_NONE;
+	pd->rmi_flags = pdev_params->flags;
+	pd->num_vdevs = 0;
+	pd->max_num_vdevs = (1U << pdev_params->max_vdevs_order) - 1U;
+	pd->rmi_hash_algo = pdev_params->hash_algo;
+
+	/* Initialize PDEV communication state */
+	pd->dev_comm_state = DEV_COMM_PENDING;
+
+	/* Initialize PDEV pcie device */
+	pd->dev.bdf = bdf;
+	pd->dev.segment_id = (uint16_t)pdev_params->routing_id;
+	pd->dev.ecam_addr = ecam_addr;
+	pd->dev.cert_slot_id = pdev_params->id_index;
+	pd->dev.rid_base = pdev_params->rid_base;
+	pd->dev.rid_top = pdev_params->rid_top;
+
+	/*
+	 * Unlock and transit the PDEV granule state to GRANULE_STATE_PDEV.
+	 */
+	buffer_unmap(pd);
+	granule_unlock_transition(g_pdev, GRANULE_STATE_PDEV);
+
+	return RMI_SUCCESS;
+}
+
+void pdev_continue_handler(unsigned long fid, struct smc_result *res)
+{
+	/* List of handlers that can be invoked from here */
+	const sro_handle_cb sro_callbacks[] = {
+		[SRO_OBJ_MEM_RECLAIM] = sro_obj_memory_reclaim,
+		[SRO_OBJ_MEM_DONATE] = sro_obj_memory_donate,
+		[SRO_OBJ_CREATE_CONTINUE] = pdev_create_continue_ep,
+		[SRO_OBJ_DESTROY_FINISH] = sro_aux_op_reclaim_finish
+	};
+	struct sro_context *sro = my_sro_ctx();
+
+	assert(sro != NULL);
+	assert((size_t)(sro->aux_op_ctx.cb_id) < ARRAY_SIZE(sro_callbacks));
+
+	sro_callbacks[sro->aux_op_ctx.cb_id](fid, res);
+}
 
 /* Validate RmiDevCommData.RmiDevCommEnter argument passed by Host */
 static unsigned long copyin_and_validate_dev_comm_enter(
@@ -493,23 +648,121 @@ static int copy_vdev_cached_digest(struct vdev *vdev, struct app_data_cfg *app_d
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }
 
-static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_args,
+
+static int pdev_dispatch_cmd_ready_rp(struct pdev *pd,
+	struct rmi_dev_comm_enter *enter_args, struct rmi_dev_comm_exit *exit_args)
+{
+	(void)enter_args;
+
+	/*
+	 * Assert that we have an active stream operation in progress (not NONE
+	 * or already RP_CONNECTED).
+	 */
+	assert((pd->op.stream_op_state != STREAM_OP_STATE_NONE) &&
+	       (pd->op.stream_op_state != STREAM_OP_STATE_RP_CONNECTED));
+
+	if (pd->op.stream_op_state == STREAM_OP_STATE_START) {
+		/*
+		 * RP_PDEV is first, but nothing to do so set ready, and wait
+		 * for EP_PDEV.
+		 */
+		pd->op.stream_op_state = STREAM_OP_STATE_RP_READY;
+		exit_args->flags |= RMI_DEV_COMM_EXIT_FLAGS_STREAM_WAIT_BIT;
+		return DEV_ASSIGN_STATUS_COMM_BLOCKED_NO_APP_YIELD;
+	} else if (pd->op.stream_op_state == STREAM_OP_STATE_RP_READY) {
+		/* If RP_PDEV is ready, wait for EP_PDEV. */
+		exit_args->flags |= RMI_DEV_COMM_EXIT_FLAGS_STREAM_WAIT_BIT;
+		return DEV_ASSIGN_STATUS_COMM_BLOCKED_NO_APP_YIELD;
+	} else if (pd->op.stream_op_state == STREAM_OP_STATE_EP_READY) {
+		/*
+		 * If EP_PDEV is ready, return success to allow the RP_PDEV op
+		 * change to PDEV_OP_STREAM_COMPLETE.
+		 */
+		pd->op.stream_op_state = STREAM_OP_STATE_RP_CONNECTED;
+		return DEV_ASSIGN_STATUS_SUCCESS;
+	}
+
+	assert(false);
+	return DEV_ASSIGN_STATUS_ERROR;
+}
+
+static int pdev_dispatch_cmd_ready_ep(struct pdev *pd, struct rmi_dev_comm_enter *enter_args,
+		struct rmi_dev_comm_exit *exit_args)
+{
+	/* Following are not possible EP_PDEV comm_state should be idle */
+	assert((pd->op.stream_op_state != STREAM_OP_STATE_NONE));
+
+	if ((pd->op.stream_op_state == STREAM_OP_STATE_START) ||
+	    (pd->op.stream_op_state == STREAM_OP_STATE_EP_READY)) {
+		/* wait for RP_PDEV to be ready/complete. */
+		(void)memset(exit_args, 0, sizeof(*exit_args));
+		exit_args->flags |= RMI_DEV_COMM_EXIT_FLAGS_STREAM_WAIT_BIT;
+		return DEV_ASSIGN_STATUS_COMM_BLOCKED_NO_APP_YIELD;
+	}
+
+	if (pd->op.stream_op_state == STREAM_OP_STATE_RP_READY) {
+		if (pd->op.curr == PDEV_OP_CONNECT) {
+			return dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+				exit_args, NULL, NULL,
+				DEVICE_ASSIGN_APP_FUNC_ID_IDE_SETUP);
+		} else if (pd->op.curr == PDEV_OP_DISCONNECT) {
+			return dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+				exit_args, NULL, NULL,
+				DEVICE_ASSIGN_APP_FUNC_ID_IDE_DISCONNECT);
+		} else if (pd->op.curr == PDEV_OP_KEY_REFRESH) {
+			return dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+				exit_args, NULL, NULL,
+				DEVICE_ASSIGN_APP_FUNC_ID_IDE_REFRESH);
+		}
+		assert(false);
+	}
+
+	if (pd->op.stream_op_state == STREAM_OP_STATE_RP_CONNECTED) {
+		/*
+		 * If RP_PDEV is complete, return success to allow the EP_PDEV
+		 * op change to PDEV_OP_STREAM_COMPLETE.
+		 */
+		(void)memset(exit_args, 0, sizeof(*exit_args));
+		return DEV_ASSIGN_STATUS_SUCCESS;
+	}
+
+	assert(false);
+	return DEV_ASSIGN_STATUS_ERROR;
+}
+
+static int pdev_dispatch_cmd_ep(struct pdev *pd, struct rmi_dev_comm_enter *enter_args,
 		struct rmi_dev_comm_exit *exit_args)
 {
 	int rc;
+	bool copy_cached_digest_if_any = true;
 
 	app_map_shared_page(&pd->da_app_data);
 
-	if (pd->dev_comm_state == DEV_COMM_ACTIVE) {
+	if (pd->da_app_yielded) {
 		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
 			exit_args, NULL, NULL, DEVICE_ASSIGN_APP_FUNC_ID_RESUME);
-		if (rc == DEV_ASSIGN_STATUS_ERROR) {
-			goto out;
+		/* Make the pdev stream_op_state step to
+		 * STREAM_OP_STATE_EP_READY once the app run is finished for
+		 * EP_PDEV. (This code only runs for the EP PDEV for now, as the
+		 * RP_PDEV doesn't call the DA app.)
+		 */
+		if ((rc == DEV_ASSIGN_STATUS_SUCCESS) &&
+		    (pd->rmi_state == RMI_PDEV_STATE_READY) &&
+		    (pd->op.curr != PDEV_OP_NONE) &&
+		    (pd->op.stream_op_state == STREAM_OP_STATE_RP_READY)) {
+			exit_args->flags |= RMI_DEV_COMM_EXIT_FLAGS_STREAM_WAIT_BIT;
+			rc = DEV_ASSIGN_STATUS_COMM_BLOCKED_NO_APP_YIELD;
+			pd->op.stream_op_state = STREAM_OP_STATE_EP_READY;
 		}
-		if (copy_pdev_cached_digest(pd, &pd->da_app_data) != DEV_ASSIGN_STATUS_SUCCESS) {
-			rc = DEV_ASSIGN_STATUS_ERROR;
-		}
-		goto out;
+		goto out_handle_app_ret;
+	}
+
+	if (pd->op.curr == PDEV_OP_STOP) {
+		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+			exit_args, NULL, NULL,
+			DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION);
+		goto out_handle_app_ret;
+
 	}
 
 	switch (pd->rmi_state) {
@@ -523,36 +776,56 @@ static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_a
 			exit_args, NULL, NULL,
 			DEVICE_ASSIGN_APP_FUNC_ID_SECURE_SESSION);
 		break;
-	case RMI_PDEV_STATE_STOPPING:
-		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, NULL, NULL,
-			DEVICE_ASSIGN_APP_FUNC_ID_STOP_CONNECTION);
-		break;
-	case RMI_PDEV_STATE_COMMUNICATING:
-		/*
-		 * Currently only PDEV_NOTIFY.IDE_REFRESH event move the PDEV to
-		 * communicating state
-		 */
-		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, NULL, NULL,
-			DEVICE_ASSIGN_APP_FUNC_ID_IDE_REFRESH);
+	case RMI_PDEV_STATE_READY:
+		rc = pdev_dispatch_cmd_ready_ep(pd, enter_args, exit_args);
+		copy_cached_digest_if_any = false;
 		break;
 	default:
 		assert(false);
 		rc = -1;
 	}
 
+out_handle_app_ret:
 	if (rc == DEV_ASSIGN_STATUS_ERROR) {
 		goto out;
 	}
 
-	if (copy_pdev_cached_digest(pd, &pd->da_app_data) != DEV_ASSIGN_STATUS_SUCCESS) {
+	pd->da_app_yielded = rc == DEV_ASSIGN_STATUS_COMM_BLOCKED_APP_YIELD;
+	if (copy_cached_digest_if_any &&
+	    (copy_pdev_cached_digest(pd, &pd->da_app_data) != DEV_ASSIGN_STATUS_SUCCESS)) {
 		rc = DEV_ASSIGN_STATUS_ERROR;
 	}
 
 out:
 	app_unmap_shared_page(&pd->da_app_data);
 	return rc;
+}
+
+static int pdev_dispatch_cmd_rp(struct pdev *pd, struct rmi_dev_comm_enter *enter_args,
+		struct rmi_dev_comm_exit *exit_args)
+{
+	(void)memset(exit_args, 0, sizeof(*exit_args));
+
+	if (pd->op.curr == PDEV_OP_STOP) {
+		/* Nothing to do in this case. */
+		return DEV_ASSIGN_STATUS_SUCCESS;
+	}
+
+	if (pd->rmi_state == RMI_PDEV_STATE_READY) {
+		return pdev_dispatch_cmd_ready_rp(pd, enter_args, exit_args);
+	}
+
+	assert(pd->rmi_state == RMI_PDEV_STATE_NEW);
+	return DEV_ASSIGN_STATUS_SUCCESS;
+}
+
+static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_args,
+		struct rmi_dev_comm_exit *exit_args)
+{
+	if (PDEV_CATEGORY(pd) == RMI_PDEV_ROOTPORT) {
+		return pdev_dispatch_cmd_rp(pd, enter_args, exit_args);
+	}
+	return pdev_dispatch_cmd_ep(pd, enter_args, exit_args);
 }
 
 /* Dispatch a command to VDEV based on the VDEV state */
@@ -658,29 +931,25 @@ out:
 
 static void set_comm_state(int rc, uint32_t *comm_state)
 {
-	switch (rc) {
-	case DEV_ASSIGN_STATUS_COMM_BLOCKED:
+	if (IS_DEV_ASSIGN_STATUS_COMM_BLOCKED(rc)) {
 		*comm_state = DEV_COMM_ACTIVE;
-		break;
-	case DEV_ASSIGN_STATUS_ERROR:
+	} else if (rc == DEV_ASSIGN_STATUS_ERROR) {
 		*comm_state = DEV_COMM_ERROR;
-		break;
-	case DEV_ASSIGN_STATUS_SUCCESS:
+	} else if (rc == DEV_ASSIGN_STATUS_SUCCESS) {
 		*comm_state = DEV_COMM_IDLE;
-		break;
-	default:
+	} else {
 		assert(false);
 	}
 }
 
-unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
-			      struct granule *g_dev_comm_data)
+unsigned long dev_communicate(struct pdev *pd,
+			      struct vdev *vd, struct granule *g_dev_comm_data)
 {
 	struct rmi_dev_comm_enter enter_args;
 	struct rmi_dev_comm_exit exit_args;
-	void *aux_mapped_addr;
 	unsigned long comm_rc;
 	int rc;
+	void *aux_mapped_addr = NULL;
 
 	assert(pd != NULL);
 
@@ -704,10 +973,11 @@ unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
 		return comm_rc;
 	}
 
-	/* Map PDEV aux granules */
+	/* Map app PDEV aux granules to slot starting SLOT_PDEV_AUX0 */
 	/* coverity[overrun-buffer-val:SUPPRESS] */
-	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
-	assert(aux_mapped_addr != NULL);
+	if (pd->num_app_aux > 0U) {
+		aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_app_aux, pd->num_app_aux);
+	}
 
 	if (vd == NULL) {
 		rc = pdev_dispatch_cmd(pd, &enter_args, &exit_args);
@@ -715,8 +985,9 @@ unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
 		rc = vdev_dispatch_cmd(pd, vd, &enter_args, &exit_args);
 	}
 
-	/* Unmap all PDEV aux granules */
-	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_aux);
+	if (aux_mapped_addr != NULL) {
+		buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_app_aux);
+	}
 
 	comm_rc = copyout_dev_comm_exit(g_dev_comm_data,
 				       &exit_args);
@@ -753,7 +1024,9 @@ unsigned long smc_pdev_communicate(unsigned long pdev_addr,
 	struct granule *g_pdev;
 	struct granule *g_dev_comm_data;
 	struct pdev *pd;
+	struct pdev_stream *stream = NULL;
 	unsigned long rmi_rc;
+	bool update_stream_op_state = false;
 
 	if (!is_rmi_feat_da_enabled()) {
 		return SMC_NOT_SUPPORTED;
@@ -772,10 +1045,7 @@ unsigned long smc_pdev_communicate(unsigned long pdev_addr,
 	}
 
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
-	if (pd == NULL) {
-		granule_unlock(g_pdev);
-		return RMI_ERROR_INPUT;
-	}
+	assert(pd != NULL);
 
 	g_dev_comm_data = find_granule(dev_comm_data_addr);
 	if ((g_dev_comm_data == NULL) ||
@@ -786,41 +1056,54 @@ unsigned long smc_pdev_communicate(unsigned long pdev_addr,
 
 	assert(pd->g_pdev == g_pdev);
 
+	if ((pd->op.curr == PDEV_OP_CONNECT) ||
+	    (pd->op.curr == PDEV_OP_DISCONNECT) ||
+	    (pd->op.curr == PDEV_OP_STREAM_COMPLETE) ||
+	    (pd->op.curr == PDEV_OP_KEY_PURGE) ||
+	    (pd->op.curr == PDEV_OP_KEY_REFRESH)) {
+		stream = pdev_stream_granules_lock_map(pd->g_stream_aux, pd->op.op_stream_type);
+		assert(stream != NULL);
+		pd->op.stream_op_state = stream->op_state;
+		update_stream_op_state = true;
+	}
+
 	rmi_rc = dev_communicate(pd, NULL, g_dev_comm_data);
 
 	/*
 	 * Based on the device communication results update the device IO state
 	 * and PDEV state.
 	 */
-	switch (pd->dev_comm_state) {
-	case DEV_COMM_ERROR:
-		if (pd->rmi_state == RMI_PDEV_STATE_STOPPING) {
+	if (pd->dev_comm_state == DEV_COMM_ERROR) {
+		pd->rmi_state =  RMI_PDEV_STATE_ERROR;
+	} else if (pd->dev_comm_state == DEV_COMM_IDLE) {
+		if (pd->op.curr == PDEV_OP_STOP) {
 			pd->rmi_state = RMI_PDEV_STATE_STOPPED;
+			pd->op.curr = PDEV_OP_NONE;
+			pd->op.stream_op_state = STREAM_OP_STATE_NONE;
 		} else {
-			pd->rmi_state = RMI_PDEV_STATE_ERROR;
+			if (pd->rmi_state == RMI_PDEV_STATE_NEW) {
+				if (PDEV_CATEGORY(pd) != RMI_PDEV_ROOTPORT) {
+					pd->rmi_state = RMI_PDEV_STATE_NEEDS_KEY;
+				} else {
+					pd->rmi_state = RMI_PDEV_STATE_READY;
+				}
+			} else if (pd->rmi_state == RMI_PDEV_STATE_HAS_KEY) {
+				pd->rmi_state = RMI_PDEV_STATE_READY;
+			}
+
+			if ((pd->op.curr == PDEV_OP_CONNECT) ||
+			   (pd->op.curr == PDEV_OP_DISCONNECT) ||
+			   (pd->op.curr == PDEV_OP_KEY_REFRESH)) {
+				pd->op.curr = PDEV_OP_STREAM_COMPLETE;
+			} else {
+				pd->op.curr = PDEV_OP_NONE;
+			}
 		}
-		break;
-	case DEV_COMM_IDLE:
-		if (pd->rmi_state == RMI_PDEV_STATE_NEW) {
-			pd->rmi_state = RMI_PDEV_STATE_NEEDS_KEY;
-		} else if ((pd->rmi_state == RMI_PDEV_STATE_HAS_KEY) ||
-			   (pd->rmi_state == RMI_PDEV_STATE_IDE_RESETTING) ||
-			   (pd->rmi_state == RMI_PDEV_STATE_COMMUNICATING)) {
-			pd->rmi_state = RMI_PDEV_STATE_READY;
-		} else if (pd->rmi_state == RMI_PDEV_STATE_STOPPING) {
-			pd->rmi_state = RMI_PDEV_STATE_STOPPED;
-		} else {
-			pd->rmi_state = RMI_PDEV_STATE_ERROR;
-		}
-		break;
-	case DEV_COMM_ACTIVE:
-		/* No state change required */
-		break;
-	case DEV_COMM_PENDING:
-		ERROR("PDEV Communicate: Dev comm state is Pending due of communication error.\n");
-		break;
-	default:
-		assert(false);
+	}
+
+	if (update_stream_op_state) {
+		stream->op_state = pd->op.stream_op_state;
+		pdev_stream_granules_unmap_unlock(pd->g_stream_aux, stream, pd->op.op_stream_type);
 	}
 
 out_pdev_buf_unmap:
@@ -910,7 +1193,6 @@ unsigned long smc_pdev_set_pubkey(unsigned long pdev_addr,
 {
 	struct granule *g_pdev;
 	struct granule *g_pubkey_params;
-	void *aux_mapped_addr;
 	bool ns_access_ok;
 	struct pdev *pd;
 	struct rmi_public_key_params pubkey_params;
@@ -984,11 +1266,6 @@ unsigned long smc_pdev_set_pubkey(unsigned long pdev_addr,
 		goto out_pdev_buf_unmap;
 	}
 
-	/* Map PDEV aux granules */
-	/* coverity[overrun-buffer-val:SUPPRESS] */
-	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
-	assert(aux_mapped_addr != NULL);
-
 	rc = dev_assign_set_public_key(&pd->da_app_data, &pubkey_params);
 	if (rc == DEV_ASSIGN_STATUS_SUCCESS) {
 		pd->dev_comm_state = DEV_COMM_PENDING;
@@ -997,9 +1274,6 @@ unsigned long smc_pdev_set_pubkey(unsigned long pdev_addr,
 	} else {
 		smc_rc = RMI_ERROR_DEVICE;
 	}
-
-	/* Unmap all PDEV aux granules */
-	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_aux);
 
 out_pdev_buf_unmap:
 	buffer_unmap(pd);
@@ -1041,19 +1315,14 @@ unsigned long smc_pdev_stop(unsigned long pdev_addr)
 		return RMI_ERROR_INPUT;
 	}
 
-	if ((pd->rmi_state == RMI_PDEV_STATE_COMMUNICATING) ||
-	    (pd->rmi_state == RMI_PDEV_STATE_STOPPING) ||
-	    (pd->rmi_state == RMI_PDEV_STATE_STOPPED)) {
+	if ((pd->dev_comm_state != DEV_COMM_IDLE) ||
+	    (pd->associated_stream_count > 0U) ||
+	    (pd->num_vdevs != 0U)) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_pdev_buf_unmap;
 	}
 
-	if (pd->num_vdevs != 0U) {
-		smc_rc = RMI_ERROR_DEVICE;
-		goto out_pdev_buf_unmap;
-	}
-
-	pd->rmi_state = RMI_PDEV_STATE_STOPPING;
+	pd->op.curr = PDEV_OP_STOP;
 	pd->dev_comm_state = DEV_COMM_PENDING;
 	smc_rc = RMI_SUCCESS;
 
@@ -1074,9 +1343,9 @@ unsigned long smc_pdev_abort(unsigned long pdev_addr)
 {
 	int rc __unused;
 	struct granule *g_pdev;
-	void *aux_mapped_addr;
 	unsigned long smc_rc;
 	struct pdev *pd;
+	void *aux_mapped_addr;
 
 	if (!is_rmi_feat_da_enabled()) {
 		return SMC_NOT_SUPPORTED;
@@ -1098,51 +1367,28 @@ unsigned long smc_pdev_abort(unsigned long pdev_addr)
 		return RMI_ERROR_INPUT;
 	}
 
-	if ((pd->rmi_state != RMI_PDEV_STATE_NEW) &&
-	    (pd->rmi_state != RMI_PDEV_STATE_HAS_KEY) &&
-	    (pd->rmi_state != RMI_PDEV_STATE_COMMUNICATING)) {
+	if (pd->dev_comm_state == DEV_COMM_IDLE) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_pdev_buf_unmap;
 	}
 
-	/*
-	 * If there is no active device communication, then mapping aux
-	 * granules and cancelling an existing communication is not required.
-	 */
-	if (pd->dev_comm_state != DEV_COMM_ACTIVE) {
-		goto pdev_reset_state;
+	if (pd->num_app_aux > 0U) {
+		/* Map app PDEV aux granules to slot starting SLOT_PDEV_AUX0 */
+		/* coverity[overrun-buffer-val:SUPPRESS] */
+		aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_app_aux, pd->num_app_aux);
+
+		/*
+		 * This will resume the blocked CMA SPDM command and the recv callback
+		 * handler will return error and abort the command.
+		 */
+		rc = dev_assign_abort_app_operation(&pd->da_app_data);
+		assert(rc == 0);
+
+		buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_app_aux);
 	}
 
-	/* Map PDEV aux granules */
-	/* coverity[overrun-buffer-val:SUPPRESS] */
-	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
-	assert(aux_mapped_addr != NULL);
+	pd->dev_comm_state = DEV_COMM_IDLE;
 
-	/*
-	 * This will resume the blocked CMA SPDM command and the recv callback
-	 * handler will return error and abort the command.
-	 */
-	rc = dev_assign_abort_app_operation(&pd->da_app_data);
-	assert(rc == 0);
-
-	/* Unmap all PDEV aux granules */
-	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_aux);
-
-pdev_reset_state:
-	/*
-	 * As the device communication is aborted, if the PDEV is in
-	 * communicating state then set the state to READY state.
-	 *
-	 * For other PDEV states, transition the comm_state to PENDING
-	 * indicating RMM has device request which is ready to be sent to the
-	 * device.
-	 */
-	if (pd->rmi_state == RMI_PDEV_STATE_COMMUNICATING) {
-		pd->rmi_state = RMI_PDEV_STATE_READY;
-		pd->dev_comm_state = DEV_COMM_IDLE;
-	} else {
-		pd->dev_comm_state = DEV_COMM_PENDING;
-	}
 	smc_rc = RMI_SUCCESS;
 
 out_pdev_buf_unmap:
@@ -1159,67 +1405,90 @@ out_pdev_buf_unmap:
  *
  * pdev_addr	- PA of the PDEV
  */
-unsigned long smc_pdev_destroy(unsigned long pdev_addr)
+void smc_pdev_destroy(unsigned long pdev_addr, struct smc_result *res)
 {
 	int rc __unused;
 	struct granule *g_pdev;
-	void *aux_mapped_addr;
 	struct pdev *pd;
+	struct sro_context *sro;
+	unsigned long ret;
 
 	if (!is_rmi_feat_da_enabled()) {
-		return SMC_NOT_SUPPORTED;
+		res->x[0] = SMC_NOT_SUPPORTED;
+		return;
 	}
 
 	if (!GRANULE_ALIGNED(pdev_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/* Lock pdev granule and map it */
 	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
 	if (g_pdev == NULL) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
-	if (pd == NULL) {
-		granule_unlock(g_pdev);
-		return RMI_ERROR_INPUT;
-	}
+	assert(pd != NULL);
 
-	if (pd->rmi_state != RMI_PDEV_STATE_STOPPED) {
+	if ((pd->rmi_state != RMI_PDEV_STATE_STOPPED)) {
 		buffer_unmap(pd);
 		granule_unlock(g_pdev);
-		return RMI_ERROR_DEVICE;
+		res->x[0] = RMI_ERROR_DEVICE;
+		return;
 	}
 
-	/* Map PDEV aux granules and map PDEV heap */
-	/* coverity[overrun-buffer-val:SUPPRESS] */
-	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
-	assert(aux_mapped_addr != NULL);
+	/* No SRO is needed in case of rootport */
+	if ((PDEV_CATEGORY(pd) == RMI_PDEV_ROOTPORT)) {
+		buffer_unmap(pd);
+		/* Move the PDEV granule from PDEV to delegated state */
+		granule_unlock_transition_to_delegated(g_pdev);
+		res->x[0] = RMI_SUCCESS;
+		return;
+	}
+
+	ret = sro_ctx_reserve(SMC_RMI_PDEV_DESTROY, 0UL, false, false, SMC_RMI_OP_MEM_RECLAIM);
+	if (ret != RMI_SUCCESS) {
+		buffer_unmap(pd);
+		granule_unlock(g_pdev);
+		res->x[0] = ret;
+		return;
+	}
 
 	/* Deinit the DSM context state */
 	rc = (int)app_run(&pd->da_app_data, DEVICE_ASSIGN_APP_FUNC_ID_DEINIT,
 				0, 0, 0, 0);
 	assert(rc == DEV_ASSIGN_STATUS_SUCCESS);
 
-	/* Unmap all PDEV aux granules and heap */
-	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_aux);
-
-	/*
-	 * Scrub PDEV AUX granules and move its state from PDEV_AUX to
-	 * delegated.
-	 */
-	pdev_restore_aux_granules_state(pd->g_aux, pd->num_aux);
-
 	/* Clean up the device assignment app instance */
 	(void)dev_assign_app_delete(&pd->da_app_data);
 
+	/* Memory to reclaim */
+	sro = my_sro_ctx();
+	assert(sro != NULL);
+
+	sro->aux_op_ctx.aux_granules_pa[PDEV_STREAM_AUX_GRANULE_IDX] =
+		granule_addr(pd->g_stream_aux);
+	for (unsigned int i = 0U; i < pd->num_app_aux; i++) {
+		sro->aux_op_ctx.aux_granules_pa[PDEV_APP_AUX_GRANULE_IDX + i] =
+			granule_addr(pd->g_app_aux[i]);
+	}
+	sro->aux_op_ctx.requested_aux_granules =
+		(unsigned long)(NON_APP_PDEV_AUX_GRANULES + pd->num_app_aux);
+
 	buffer_unmap(pd);
 
-	/* Move the PDEV granule from PDEV to delegated state */
-	granule_unlock_transition_to_delegated(g_pdev);
+	granule_unlock_transition(g_pdev, GRANULE_STATE_PARTIAL);
 
-	return RMI_SUCCESS;
+	/* Inform the host that can request a memory reclaim for the aux granules */
+	sro_aux_op_start_reclaim(sro, res,
+				 pdev_addr,
+				 true,
+				 RMI_SUCCESS,
+				 sro->aux_op_ctx.requested_aux_granules,
+				 GRANULE_STATE_PDEV_AUX);
 }
 
 /*
@@ -1266,47 +1535,65 @@ unsigned long smc_pdev_stream_key_refresh(unsigned long pdev1_addr,
 		goto unlock_pdevs;
 	}
 
-	pd2 = buffer_granule_map(g_pdev2, SLOT_PDEV2);
-	if (pd2 == NULL) {
-		rmi_rc = RMI_ERROR_INPUT;
-		goto ununmap_pdev1;
-	}
-
-	/* TODO: Check pdev properties */
-
 	if ((!unpack_stream_handle(stream_handle, &handle_pdev1_addr, &stream_type)) ||
 	    (handle_pdev1_addr != pdev1_addr)) {
 		rmi_rc = RMI_ERROR_INPUT;
-		goto ununmap_pdev2;
+		goto unmap_pdev1;
 	}
 
-	/* TODO: Lock and map stream object */
-	struct pdev_stream dummy_stream_obj = {0};
-	stream = &dummy_stream_obj;
+	stream = pdev_stream_granules_lock_map(pd1->g_stream_aux, stream_type);
+	assert(stream != NULL);
 
 	if (!stream->taken) {
 		rmi_rc = RMI_ERROR_INPUT;
 		goto unmap_pd1_aux;
 	}
 
+	if (stream->pd2_addr != pdev2_addr) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto unmap_pd1_aux;
+	}
+
+	pd2 = buffer_granule_map(g_pdev2, SLOT_PDEV2);
+	if (pd2 == NULL) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto unmap_pd1_aux;
+	}
+
+	if ((pd1->rmi_state != RMI_PDEV_STATE_READY) ||
+	    (pd1->op.curr != PDEV_OP_NONE) ||
+	    (pd1->dev_comm_state != DEV_COMM_IDLE) ||
+	    (pd2->rmi_state != RMI_PDEV_STATE_READY) ||
+	    (pd2->op.curr != PDEV_OP_NONE) ||
+	    (pd2->dev_comm_state != DEV_COMM_IDLE)) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto unmap_pdev2;
+	}
+
 	if ((stream_type == RMI_PDEV_STREAM_NCOH_SYS) ||
 	    (stream_type == RMI_PDEV_STREAM_COH_SYS) ||
 	    (stream->state != PDEV_STREAM_CONNECTED)) {
 		rmi_rc = RMI_ERROR_DEVICE;
-		goto unmap_pd1_aux;
+		goto unmap_pdev2;
 	}
 
 	stream->state = PDEV_STREAM_KEY_REFRESHING;
 	stream->op_state = STREAM_OP_STATE_START;
-	/* TODO: Update pdev state */
+	pd1->op.curr = PDEV_OP_KEY_REFRESH;
+	pd1->dev_comm_state = DEV_COMM_PENDING;
+	pd1->op.op_stream_type = stream_type;
+	pd2->op.curr = PDEV_OP_KEY_REFRESH;
+	pd2->dev_comm_state = DEV_COMM_PENDING;
+	pd2->g_stream_aux = pd1->g_stream_aux;
+	pd2->op.op_stream_type = stream_type;
 
 	rmi_rc = RMI_SUCCESS;
 
-unmap_pd1_aux:
-	/* TODO: Unmap and unlock stream granule */
-ununmap_pdev2:
+unmap_pdev2:
 	buffer_unmap(pd2);
-ununmap_pdev1:
+unmap_pd1_aux:
+	pdev_stream_granules_unmap_unlock(pd1->g_stream_aux, stream, stream_type);
+unmap_pdev1:
 	buffer_unmap(pd1);
 
 unlock_pdevs:
@@ -1357,6 +1644,7 @@ void smc_pdev_stream_connect(unsigned long stream_params_addr, struct smc_result
 	struct pdev_stream *stream;
 	bool ns_access_ok;
 	unsigned long params_res;
+	__unused int rc;
 
 	if (!is_rmi_feat_da_enabled()) {
 		res->x[0] = SMC_NOT_SUPPORTED;
@@ -1391,6 +1679,7 @@ void smc_pdev_stream_connect(unsigned long stream_params_addr, struct smc_result
 		return;
 	}
 
+	/* coverity[uninit_use:SUPPRESS] */
 	if (!GRANULE_ALIGNED(stream_params.pdev_1) ||
 	    !GRANULE_ALIGNED(stream_params.pdev_2)) {
 		res->x[0] = RMI_ERROR_INPUT;
@@ -1416,21 +1705,42 @@ void smc_pdev_stream_connect(unsigned long stream_params_addr, struct smc_result
 	pd2 = buffer_granule_map(g_pdev2, SLOT_PDEV2);
 	if (pd2 == NULL) {
 		res->x[0] = RMI_ERROR_INPUT;
-		goto ununmap_pdev1;
+		goto unmap_pdev1;
 	}
 
-	/* TODO: Check pdev properties */
+	if ((((PDEV_CATEGORY(pd1) != RMI_PDEV_ENDPOINT_ACCEL_OFF_CHIP))) ||
+	    (pd1->rmi_state != RMI_PDEV_STATE_READY) ||
+	    (pd1->op.curr != PDEV_OP_NONE) ||
+	    (pd1->dev_comm_state != DEV_COMM_IDLE) ||
+	    (PDEV_CATEGORY(pd2) != RMI_PDEV_ROOTPORT) ||
+	    (pd2->rmi_state != RMI_PDEV_STATE_READY) ||
+	    (pd2->op.curr != PDEV_OP_NONE) ||
+	    (pd2->dev_comm_state != DEV_COMM_IDLE)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		goto unmap_pdev2;
+	}
 
-	/* TODO: Lock and map stream object */
-	struct pdev_stream dummy_stream_obj = {0};
-	stream = &dummy_stream_obj;
+	stream = pdev_stream_granules_lock_map(pd1->g_stream_aux, stream_params.stream_type);
+	assert(stream != NULL);
 
 	if (stream->taken) {
 		res->x[0] = RMI_ERROR_INPUT;
-		goto ununmap_pdev2;
+		goto unmap_pd1_aux;
 	}
 
-	/* TODO: Update pdev state */
+	pd1->op.curr = PDEV_OP_CONNECT;
+	pd1->dev_comm_state = DEV_COMM_PENDING;
+	pd1->op.op_stream_type = stream_params.stream_type;
+	pd1->associated_stream_count += 1U;
+	pd2->op.curr = PDEV_OP_CONNECT;
+	pd2->dev_comm_state = DEV_COMM_PENDING;
+	pd2->op.op_stream_type = stream_params.stream_type;
+	pd2->associated_stream_count += 1U;
+	pd2->g_stream_aux = pd1->g_stream_aux;
+
+	rc = (int)app_run(&pd1->da_app_data, DEVICE_ASSIGN_APP_FUNC_SET_PDEV_STREAM_DATA,
+		      stream_params.ide_sid, pd2->dev.bdf, 0, 0);
+	assert(rc == DEV_ASSIGN_STATUS_SUCCESS);
 
 	/* Set stream properties */
 	stream->state = PDEV_STREAM_CONNECTING;
@@ -1446,10 +1756,11 @@ void smc_pdev_stream_connect(unsigned long stream_params_addr, struct smc_result
 
 	res->x[0] = RMI_SUCCESS;
 	res->x[1] = pack_stream_handle(stream_params.pdev_1, stream_params.stream_type);
-ununmap_pdev2:
-	/* TODO: Unmap and unlock stream granule */
+unmap_pd1_aux:
+	pdev_stream_granules_unmap_unlock(pd1->g_stream_aux, stream, stream_params.stream_type);
+unmap_pdev2:
 	buffer_unmap(pd2);
-ununmap_pdev1:
+unmap_pdev1:
 	buffer_unmap(pd1);
 
 unlock_pdevs:
@@ -1499,7 +1810,6 @@ unsigned long smc_pdev_stream_disconnect(unsigned long pdev1_addr,
 				GRANULE_STATE_PDEV,
 				&g_pdev2)) {
 		return RMI_ERROR_INPUT;
-
 	}
 
 	pd1 = buffer_granule_map(g_pdev1, SLOT_PDEV);
@@ -1508,10 +1818,28 @@ unsigned long smc_pdev_stream_disconnect(unsigned long pdev1_addr,
 		goto unlock_pdevs;
 	}
 
+	stream = pdev_stream_granules_lock_map(pd1->g_stream_aux, stream_type);
+	assert(stream != NULL);
+
+	if (!stream->taken) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto unlock_stream;
+	}
+
+	if (stream->state != PDEV_STREAM_CONNECTED) {
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto unlock_stream;
+	}
+
+	if (stream->pd2_addr != pdev2_addr) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto unlock_stream;
+	}
+
 	pd2 = buffer_granule_map(g_pdev2, SLOT_PDEV2);
 	if (pd2 == NULL) {
 		rmi_rc = RMI_ERROR_INPUT;
-		goto ununmap_pdev1;
+		goto unlock_stream;
 	}
 
 	if (((pd1->rmi_state != RMI_PDEV_STATE_READY) &&
@@ -1521,34 +1849,30 @@ unsigned long smc_pdev_stream_disconnect(unsigned long pdev1_addr,
 	     (pd2->rmi_state != RMI_PDEV_STATE_ERROR)) ||
 	    (pd2->dev_comm_state != DEV_COMM_IDLE)) {
 		rmi_rc = RMI_ERROR_INPUT;
-		goto ununmap_pdev2;
+		goto unmap_pdev2;
 	}
 
 	if (pd1->num_vdevs != 0U) {
 		rmi_rc = RMI_ERROR_DEVICE;
-		goto ununmap_pdev2;
-	}
-
-	/* TODO: Lock and map stream object */
-	struct pdev_stream dummy_stream_obj = {0};
-	stream = &dummy_stream_obj;
-
-	if (stream->state != PDEV_STREAM_CONNECTED) {
-		rmi_rc = RMI_ERROR_DEVICE;
-		goto unlock_stream;
+		goto unmap_pdev2;
 	}
 
 	stream->state = PDEV_STREAM_DISCONNECTING;
 	stream->op_state = STREAM_OP_STATE_START;
-	/* TODO: Update pdev state */
+	pd1->op.curr = PDEV_OP_DISCONNECT;
+	pd1->dev_comm_state = DEV_COMM_PENDING;
+	pd1->op.op_stream_type = stream_type;
+	pd2->op.curr = PDEV_OP_DISCONNECT;
+	pd2->dev_comm_state = DEV_COMM_PENDING;
+	pd2->op.op_stream_type = stream_type;
+	pd2->g_stream_aux = pd1->g_stream_aux;
 
 	rmi_rc = RMI_SUCCESS;
 
-unlock_stream:
-	/* TODO: Unmap and unlock stream granule */
-ununmap_pdev2:
+unmap_pdev2:
 	buffer_unmap(pd2);
-ununmap_pdev1:
+unlock_stream:
+	pdev_stream_granules_unmap_unlock(pd1->g_stream_aux, stream, stream_type);
 	buffer_unmap(pd1);
 
 unlock_pdevs:
@@ -1608,10 +1932,23 @@ unsigned long smc_pdev_stream_complete(unsigned long pdev1_addr,
 		goto unlock_pdevs;
 	}
 
+	stream = pdev_stream_granules_lock_map(pd1->g_stream_aux, stream_type);
+	assert(stream != NULL);
+
+	if (!stream->taken) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto unlock_stream;
+	}
+
+	if (stream->pd2_addr != pdev2_addr) {
+		rmi_rc = RMI_ERROR_INPUT;
+		goto unlock_stream;
+	}
+
 	pd2 = buffer_granule_map(g_pdev2, SLOT_PDEV2);
 	if (pd2 == NULL) {
 		rmi_rc = RMI_ERROR_INPUT;
-		goto ununmap_pdev1;
+		goto unlock_stream;
 	}
 
 	if ((pd1->rmi_state != RMI_PDEV_STATE_READY) ||
@@ -1619,14 +1956,14 @@ unsigned long smc_pdev_stream_complete(unsigned long pdev1_addr,
 	    (pd2->rmi_state != RMI_PDEV_STATE_READY) ||
 	    (pd2->dev_comm_state != DEV_COMM_IDLE)) {
 		rmi_rc = RMI_ERROR_INPUT;
-		goto ununmap_pdev2;
+		goto unmap_pdev2;
 	}
 
-	/* TODO: Check pdev properties */
-
-	/* TODO: Lock and map stream object */
-	struct pdev_stream dummy_stream_obj = {0};
-	stream = &dummy_stream_obj;
+	if ((pd1->op.curr != PDEV_OP_STREAM_COMPLETE) ||
+	    (pd2->op.curr != PDEV_OP_STREAM_COMPLETE)) {
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto unmap_pdev2;
+	}
 
 	switch (stream->state) {
 	case PDEV_STREAM_CONNECTING:
@@ -1637,22 +1974,25 @@ unsigned long smc_pdev_stream_complete(unsigned long pdev1_addr,
 	case PDEV_STREAM_DISCONNECTING:
 		stream->state = PDEV_STREAM_DISCONNECTED;
 		stream->taken = false;
+		pd1->associated_stream_count -= 1U;
+		pd2->associated_stream_count -= 1U;
 		break;
 	default:
 		rmi_rc = RMI_ERROR_DEVICE;
-		goto unlock_stream;
+		goto unmap_pdev2;
 	}
 
 	stream->op_state = STREAM_OP_STATE_NONE;
-	/* TODO: Update pdev state */
+	pd1->op.curr = PDEV_OP_NONE;
+	pd2->op.curr = PDEV_OP_NONE;
+	pd2->g_stream_aux = NULL;
 
 	rmi_rc = RMI_SUCCESS;
 
-unlock_stream:
-	/* TODO: Unmap and unlock stream granule */
-ununmap_pdev2:
+unmap_pdev2:
 	buffer_unmap(pd2);
-ununmap_pdev1:
+unlock_stream:
+	pdev_stream_granules_unmap_unlock(pd1->g_stream_aux, stream, stream_type);
 	buffer_unmap(pd1);
 
 unlock_pdevs:
@@ -1678,4 +2018,3 @@ unsigned long smc_pdev_stream_key_purge(unsigned long pdev1_addr,
 	(void)stream_handle;
 	return RMI_ERROR_NOT_SUPPORTED;
 }
-

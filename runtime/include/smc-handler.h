@@ -166,10 +166,9 @@ void smc_vdev_unmap(unsigned long rd_addr,
 		   unsigned long ulevel,
 		   struct smc_result *res);
 
-unsigned long smc_pdev_create(unsigned long pdev_addr,
-			      unsigned long pdev_params_addr);
-
-void smc_pdev_aux_count(unsigned long flags, struct smc_result *res);
+void smc_pdev_create(unsigned long pdev_addr,
+		     unsigned long pdev_params_addr,
+		     struct smc_result *res);
 
 unsigned long smc_pdev_communicate(unsigned long pdev_addr,
 				   unsigned long dev_comm_data_addr);
@@ -183,7 +182,7 @@ unsigned long smc_pdev_abort(unsigned long pdev_addr);
 
 unsigned long smc_pdev_stop(unsigned long pdev_addr);
 
-unsigned long smc_pdev_destroy(unsigned long pdev_addr);
+void smc_pdev_destroy(unsigned long pdev_addr, struct smc_result *res);
 
 unsigned long smc_mec_set_shared(unsigned long mecid);
 

@@ -50,7 +50,9 @@ int dev_assign_app_delete(struct app_data_cfg *app_data);
  *
  * Returns DEV_ASSIGN_STATUS_SUCCESS if cmd is successful.
  *         DEV_ASSIGN_STATUS_ERROR if cmd is unsuccessful
- *         DEV_ASSIGN_STATUS_COMM_BLOCKED if the app is yielded.
+ *         DEV_ASSIGN_STATUS_COMM_BLOCKED_APP_YIELD if the app is yielded.
+ *         DEV_ASSIGN_STATUS_COMM_BLOCKED_NO_APP_YIELD if the communication is
+ *             blocked due to other reasons.
  */
 int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 	struct rmi_dev_comm_enter *comm_enter_args,
