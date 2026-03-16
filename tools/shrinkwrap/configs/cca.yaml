@@ -1,0 +1,53 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Brings together a software stack to demonstrate Arm CCA running on FVP in a
+  three-world configuration based on RMMv2.0 specification.
+  This overlay enables necessary config options for RMM, TF-A and Linux.
+
+layers:
+  # Include layers from shrinkwrap repo
+  - buildroot.yaml
+  # Include layers from RMM repo
+  - rmm.yaml
+  - rmm-debug.yaml
+
+build:
+  rmm:
+    repo:
+      revision: main
+
+  linux:
+    repo:
+      remote: https://gitlab.arm.com/linux-arm/linux-cca
+      revision: cca-host/v13
+    prebuild:
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_PCI_TSM
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_PCI_DOE
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_ARM_CCA_GUEST
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_TSM_GUEST
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_TSM_REPORTS
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_TSM_MEASUREMENTS
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_ARM_CCA_HOST
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_TSM
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_IOMMUFD
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_ARM_SMMU_V3_IOMMUFD
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_IOMMUFD_DRIVER_CORE
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_IOMMUFD_VFIO_CONTAINER
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_IOMMUFD_DRIVER
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_VFIO_DEVICE_CDEV
+      - ./scripts/config --file ${param:builddir}/.config --disable CONFIG_VFIO_CONTAINER
+
+  kvmtool:
+    repo:
+      dtc:
+        remote: https://git.kernel.org/pub/scm/utils/dtc/dtc.git
+        revision: v1.7.2
+      kvmtool:
+        remote: https://gitlab.arm.com/linux-arm/kvmtool-cca
+        revision: cca/v11
