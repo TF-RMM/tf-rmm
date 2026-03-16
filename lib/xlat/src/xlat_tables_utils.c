@@ -241,7 +241,7 @@ void xlat_tables_print(struct xlat_ctx *ctx)
 	VERBOSE("  Max allowed VA:  0x%lx\n", max_allowed_va);
 	VERBOSE("  Max mapped PA:   0x%lx", ctx_cfg->max_mapped_pa);
 	for (unsigned int i = 0U; i < ctx->cfg.mmap_regions; i++) {
-		if (ctx_cfg->mmap[i].attr == MT_TRANSIENT) {
+		if (ctx_cfg->mmap && ctx_cfg->mmap[i].attr == MT_TRANSIENT) {
 			/*
 			 * If there is a transient region on this context, we
 			 * do not know what will be the highest PA, so print a
