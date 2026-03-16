@@ -525,22 +525,3 @@ int dev_assign_ide_refresh_main(struct dev_assign_info *info)
 
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }
-
-/* Reset IDE link at Endpoint and at RootPort and reset DVSEC */
-int dev_assign_ide_reset_main(struct dev_assign_info *info)
-{
-	__unused libspdm_return_t status;
-	int ret = DEV_ASSIGN_STATUS_SUCCESS;
-
-	if (!info->has_ide) {
-		return DEV_ASSIGN_STATUS_ERROR;
-	}
-
-	status = dev_assing_ide_teardown(info);
-	if (status == LIBSPDM_STATUS_SUCCESS) {
-		status = dev_assign_ide_setup(info);
-	}
-
-	INFO("%s: ret: 0x%x\n", __func__, status);
-	return ret;
-}

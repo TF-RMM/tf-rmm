@@ -513,11 +513,6 @@ static int pdev_dispatch_cmd(struct pdev *pd, struct rmi_dev_comm_enter *enter_a
 			exit_args, NULL, NULL,
 			DEVICE_ASSIGN_APP_FUNC_ID_IDE_REFRESH);
 		break;
-	case RMI_PDEV_STATE_IDE_RESETTING:
-		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-			exit_args, NULL, NULL,
-			DEVICE_ASSIGN_APP_FUNC_ID_IDE_RESET);
-		break;
 	default:
 		assert(false);
 		rc = -1;
@@ -1250,60 +1245,6 @@ unsigned long smc_pdev_ide_key_refresh(unsigned long pdev_addr, unsigned long co
 	}
 
 	pd->rmi_state = RMI_PDEV_STATE_COMMUNICATING;
-	pd->dev_comm_state = DEV_COMM_PENDING;
-	rmi_rc = RMI_SUCCESS;
-
-out_pdev_buf_unmap:
-	buffer_unmap(pd);
-
-	granule_unlock(g_pdev);
-
-	return rmi_rc;
-}
-
-/*
- * Reset the IDE link of a PDEV.
- *
- * pdev_addr	- PA of the PDEV
- */
-unsigned long smc_pdev_ide_reset(unsigned long pdev_addr)
-{
-	struct granule *g_pdev;
-	unsigned long rmi_rc;
-	struct pdev *pd;
-
-	if (!is_rmi_feat_da_enabled()) {
-		return SMC_NOT_SUPPORTED;
-	}
-
-	if (!GRANULE_ALIGNED(pdev_addr)) {
-		return RMI_ERROR_INPUT;
-	}
-
-	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
-	if (g_pdev == NULL) {
-		return RMI_ERROR_INPUT;
-	}
-
-	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
-	if (pd == NULL) {
-		granule_unlock(g_pdev);
-		return RMI_ERROR_INPUT;
-	}
-
-	if (pd->rmi_state != RMI_PDEV_STATE_READY) {
-		rmi_rc = RMI_ERROR_DEVICE;
-		goto out_pdev_buf_unmap;
-	}
-
-	/* vdevs shouldn't be associated when IDE_RESET command is issued */
-	if (pd->num_vdevs != 0U) {
-		rmi_rc = RMI_ERROR_DEVICE;
-		goto out_pdev_buf_unmap;
-	}
-
-	pd->rmi_state = RMI_PDEV_STATE_IDE_RESETTING;
 	pd->dev_comm_state = DEV_COMM_PENDING;
 	rmi_rc = RMI_SUCCESS;
 

@@ -76,7 +76,6 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_REPORT) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_START) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP) ||
-		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_IDE_RESET) ||
 		(dev_cmd == DEVICE_ASSIGN_APP_FUNC_ID_IDE_REFRESH));
 
 	assert(app_data->el2_shared_page != NULL);

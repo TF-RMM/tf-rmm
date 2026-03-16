@@ -279,6 +279,4 @@ struct dev_tdisp_params {
 
 #define DEVICE_ASSIGN_APP_FUNC_ID_IDE_REFRESH		0x200
 
-#define DEVICE_ASSIGN_APP_FUNC_ID_IDE_RESET		0x201
-
 #endif /* DEV_ASSIGN_STRUCTS_H */

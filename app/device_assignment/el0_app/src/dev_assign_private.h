@@ -346,7 +346,6 @@ int dev_tdisp_stop_main(struct dev_assign_info *info);
 libspdm_return_t dev_assign_ide_setup(struct dev_assign_info *info);
 libspdm_return_t dev_assing_ide_teardown(struct dev_assign_info *info);
 int dev_assign_ide_refresh_main(struct dev_assign_info *info);
-int dev_assign_ide_reset_main(struct dev_assign_info *info);
 
 
 #endif /* DEV_ASSIGN_PRIVATE_H */

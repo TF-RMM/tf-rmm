@@ -647,9 +647,8 @@
 #define SMC_RMI_PDEV_GET_STATE			SMC64_RMI_FID(U(0x28))
 
 /*
- * FID: 0xC4000179
+ * FID: 0xC4000179 is not used.
  */
-#define SMC_RMI_PDEV_IDE_RESET			SMC64_RMI_FID(U(0x29))
 
 /*
  * FID: 0xC400017A
