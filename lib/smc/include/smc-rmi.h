@@ -466,9 +466,8 @@
 #define SMC_RMI_RTT_MAP_UNPROTECTED		SMC64_RMI_FID(U(0xF))
 
 /*
- * FID: 0xC4000160
+ * FID: 0xC4000160 is not used.
  */
-#define SMC_RMI_VDEV_AUX_COUNT			SMC64_RMI_FID(U(0x10))
 
 /*
  * FID: 0xC4000161
@@ -509,7 +508,7 @@
  *
  * ret1 == Top IPA of range whose RIPAS was modified
  */
-#define SMC_RMI_VDEV_VALIDATE_MAPPING		SMC64_RMI_FID(U(0x13))
+#define SMC_RMI_RTT_DEV_VALIDATE		SMC64_RMI_FID(U(0x13))
 
 /*
  * FID: 0xC4000164

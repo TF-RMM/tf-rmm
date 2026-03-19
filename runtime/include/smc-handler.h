@@ -92,10 +92,10 @@ void smc_rtt_unmap_unprotected(unsigned long rd_addr,
 				unsigned long ulevel,
 				struct smc_result *res);
 
-void smc_vdev_validate_mapping(unsigned long rd_addr, unsigned long rec_addr,
-			       unsigned long pdev_addr, unsigned long vdev_addr,
-			       unsigned long base, unsigned long top,
-			       struct smc_result *res);
+void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
+			   unsigned long pdev_addr, unsigned long vdev_addr,
+			   unsigned long base, unsigned long top,
+			   struct smc_result *res);
 
 void smc_rtt_read_entry(unsigned long rd_addr,
 			unsigned long map_addr,
@@ -208,10 +208,9 @@ void smc_vdev_get_state(unsigned long vdev_addr, struct smc_result *res);
 void smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 		     unsigned long vdev_addr, struct smc_result *res);
 
-void smc_vdev_aux_count(unsigned long pdev_flags, unsigned long vdev_flags,
-			struct smc_result *res);
-
-unsigned long smc_vdev_abort(unsigned long vdev_addr);
+unsigned long smc_vdev_abort(unsigned long rd_addr,
+			     unsigned long pdev_addr,
+			     unsigned long vdev_addr);
 
 unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 			       unsigned long vdev_addr);

@@ -27,10 +27,10 @@
 /* Represents operation being performed by a VDEV. RmmVdevOperation */
 #define VDEV_OP_GET_MEAS			U(0)
 #define VDEV_OP_GET_REPORT			U(1)
-#define VDEV_OP_LOCK				U(2)
-#define VDEV_OP_NONE				U(3)
-#define VDEV_OP_P2P_BIND			U(4)
-#define VDEV_OP_P2P_UNBIND			U(5)
+#define VDEV_OP_KEY_PURGE			U(2)
+#define VDEV_OP_KEY_REFRESH			U(3)
+#define VDEV_OP_LOCK				U(4)
+#define VDEV_OP_NONE				U(5)
 #define VDEV_OP_START				U(6)
 #define VDEV_OP_UNLOCK				U(7)
 
@@ -226,12 +226,6 @@ struct vdev {
 	 * endpoint.
 	 */
 	uint64_t id;
-
-	/*
-	 * Number of Granules of this VDEV's memory which have been mapped into
-	 * the owning Realm's address space
-	 */
-	uint64_t num_map;
 
 	/* TDI identifier */
 	uint64_t tdi_id;
