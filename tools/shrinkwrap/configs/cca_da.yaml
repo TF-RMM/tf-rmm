@@ -34,7 +34,7 @@ build:
   linux:
     repo:
       remote: https://gitlab.arm.com/linux-arm/linux-cca.git
-      revision: cca/topics/cca-tdisp-integration-v2
+      revision: cca/topics/cca-tdisp-integration-v4
     prebuild:
       - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_PCI_TSM
       - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_PCI_DOE
@@ -59,4 +59,4 @@ build:
         revision: v1.7.2
       kvmtool:
         remote: https://gitlab.arm.com/linux-arm/kvmtool-cca.git
-        revision: cca/topics/cca-tdisp-integration-v2
+        revision: cca/topics/cca-tdisp-integration-v4
