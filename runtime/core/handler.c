@@ -183,8 +183,6 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RTT_SET_RIPAS,		4, 1, smc_rtt_set_ripas,	 false, true),
 	HANDLER(RTT_DATA_MAP,		5, 1, smc_rtt_data_map,	 	 false, true),
 	HANDLER(RTT_DATA_UNMAP,		5, 3, smc_rtt_data_unmap,	 false, true),
-	HANDLER(VDEV_MAP,		5, 0, smc_vdev_map,		 false, true),
-	HANDLER(VDEV_UNMAP,		3, 2, smc_vdev_unmap,		 false, true),
 	HANDLER(PDEV_ABORT,		1, 0, smc_pdev_abort,		 true, true),
 	HANDLER(PDEV_COMMUNICATE,	2, 0, smc_pdev_communicate,	 true, true),
 	HANDLER(PDEV_CREATE,		2, 1, smc_pdev_create,		 true, true),
@@ -228,7 +226,9 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PDEV_STREAM_COMPLETE,	3, 0, smc_pdev_stream_complete,	 true, true),
 	HANDLER(PDEV_STREAM_KEY_PURGE,	3, 0, smc_pdev_stream_key_purge, true, true),
 	HANDLER(OP_MEM_DONATE,		3, 2, smc_op_mem_donate,	 true, true),
-	HANDLER(OP_MEM_RECLAIM,		3, 1, smc_op_mem_reclaim,	 true, true)
+	HANDLER(OP_MEM_RECLAIM,		3, 1, smc_op_mem_reclaim,	 true, true),
+	HANDLER(RTT_DEV_MAP,		6, 1, smc_rtt_dev_map,		 false, true),
+	HANDLER(RTT_DEV_UNMAP,		5, 3, smc_rtt_dev_unmap,	 false, true)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));

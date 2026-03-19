@@ -594,32 +594,8 @@
 #define SMC_RMI_PSMMU_IRQ_NOTIFY		SMC64_RMI_FID(U(0x1F))
 
 /*
- * FID: 0xC4000171 is not used.
+ * FIDs: 0xC4000170 - 0xC4000173 are not used.
  */
-
-/*
- * FID: 0xC4000172
- *
- * arg0 == PA of the RD for the target Realm
- * arg1 == PA of the VDEV
- * arg2 == IPA at which the memory will be mapped in the target Realm
- * arg3 == RTT level
- * arg4 == PA of the target device memory
- */
-#define SMC_RMI_VDEV_MAP			SMC64_RMI_FID(U(0x22))
-
-/*
- * FID: 0xC4000173
- *
- * arg0 == PA of the RD which owns the target device memory
- * arg1 == IPA at which the memory is mapped in the target Realm
- * arg2 == RTT level
- *
- * ret1 == PA of the device memory which was unmapped
- * ret2 == Top IPA of non-live RTT entries, from entry at which the RTT walk
- *         terminated
- */
-#define SMC_RMI_VDEV_UNMAP			SMC64_RMI_FID(U(0x23))
 
 /*
  * FID: 0xC4000174
@@ -1013,6 +989,55 @@
  *         value is zero.
  */
 #define SMC_RMI_RTT_DATA_UNMAP			SMC64_RMI_FID(U(0xA6))
+
+/*
+ * FID: 0xC40001F7
+ *
+ * arg0 == PA of the RD for the target Realm
+ * arg1 == PA of the VDEV
+ * arg2 == Base of the target IPA range
+ * arg3 == Top of the target IPA range
+ * arg4 == Flags
+ * arg5 == Output address set descriptor.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_SINGLE then this describes a
+ *         contiguous PA range which will be mapped into the target IPA range.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_LIST then this is the PA of a
+ *         Granule that holds an RMI Address List.
+ *         This describes a list of PA regions which will be mapped into the
+ *         target IPA range.
+ *
+ * ret1 == Top IPA of range which has been mapped
+ */
+#define SMC_RMI_RTT_DEV_MAP			SMC64_RMI_FID(U(0xA7))
+
+/*
+ * FID: 0xC40001F8
+ *
+ * arg0 == PA of the RD for the target Realm
+ * arg1 == Base of the target IPA range
+ * arg2 == Top of the target IPA range
+ * arg3 == Flags
+ * arg4 == Output address set descriptor.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_SINGLE then this describes a
+ *         contiguous PA range which has been unmapped from the target IPA
+ *         range.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_LIST then this is the PA of a
+ *         Granule that holds an RMI Address List.
+ *         This describes a list of PA regions which have been unmapped from the
+ *         target IPA range.
+ *
+ * ret1 == Top IPA of range which has been mapped
+ * ret2 == Output address range.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_SINGLE then this describes a
+ *         contiguous PA range which has been unmapped from the target IPA
+ *         range.
+ *         If flags.oaddr_type != RMI_ADDR_TYPE_SINGLE then this value is zero.
+ * ret3 == Number of entries in output address list.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_LIST then this is the number of
+ *         entries which have been written to the output address list.
+ *         If flags.oaddr_type != RMI_ADDR_TYPE_LIST then this value is zero.
+ */
+#define SMC_RMI_RTT_DEV_UNMAP			SMC64_RMI_FID(U(0xA8))
 
 /*
  * FID: 0xC4000202
