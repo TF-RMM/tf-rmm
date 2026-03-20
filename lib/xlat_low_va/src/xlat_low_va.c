@@ -132,18 +132,21 @@ void sort_mmap_region_array(struct xlat_mmap_region *regions,
 
 /*
  * Find a suitable base address for the VA pool region.
- * The pool is placed after all existing regions with:
- * - A gap of 1 L1 block entry between the pool and other regions
- * - Alignment to L1 block size boundary
- * - Pool occupies separate L1 block entries (not shared with other regions)
- * - Pool fits within a single L1 table
- * - Minimum address of 1GB (SZ_1G)
+ * The pool base is always aligned to an L0 block boundary (512GB) so that
+ * the dynamic xlat context covers exactly one complete L0 block.  This
+ * guarantees that xlat_ctx_cfg_init always derives base_level=1 for the
+ * dynamic context, independently of where earlier regions are placed, and
+ * allows RMM_VA_POOL_SIZE to be up to 512GB minus the table overhead.
+ *
+ * Placement rules:
+ * - Find the highest end address of all existing regions.
+ * - Round up to the next 512GB (L0 block) boundary.
+ * - Minimum address of 1GB (SZ_1G).
  */
 uintptr_t find_va_pool_base(struct xlat_mmap_region *regions,
 				   unsigned int region_count)
 {
-	uintptr_t l1_block_size = XLAT_BLOCK_SIZE(1);
-	uintptr_t l1_table_size = l1_block_size * XLAT_TABLE_ENTRIES;
+	uintptr_t l0_block_size = XLAT_BLOCK_SIZE(0);
 	uintptr_t min_address = SZ_1G;
 	uintptr_t highest_end = min_address;
 
@@ -157,27 +160,11 @@ uintptr_t find_va_pool_base(struct xlat_mmap_region *regions,
 	}
 
 	/*
-	 * Round up to next L1 block boundary to ensure the pool doesn't
-	 * share L2/L3 tables with other regions
+	 * Align up to the next L0 block (512GB) boundary.  This ensures the
+	 * pool occupies its own complete L0 block, with no shared L1 tables
+	 * with other regions and no partial-block constraints on pool size.
 	 */
-	uintptr_t candidate_base = round_up(highest_end, l1_block_size);
-
-	/* Add 1 L1 block as a gap */
-	candidate_base += l1_block_size;
-
-	/*
-	 * Ensure the pool fits within a single L1 table.
-	 * If it doesn't fit, move to the next L1 table boundary.
-	 */
-	uintptr_t l1_table_start = round_down(candidate_base, l1_table_size);
-	uintptr_t l1_table_end = l1_table_start + l1_table_size;
-
-	if ((candidate_base + RMM_VA_POOL_SIZE) > l1_table_end) {
-		/* Pool doesn't fit in current L1 table, move to next one */
-		candidate_base = l1_table_end;
-	}
-
-	return candidate_base;
+	return round_up(highest_end, l0_block_size);
 }
 
 static int xlat_low_va_static_setup(struct xlat_mmap_region *plat_regions,
@@ -248,6 +235,8 @@ static int xlat_low_va_static_setup(struct xlat_mmap_region *plat_regions,
 
 	INFO("Dynamic VA pool base address: 0x%lx\n", va_pool_base);
 
+	/* find_va_pool_base() must return a 512GB-aligned address */
+	assert(ALIGNED(va_pool_base, XLAT_BLOCK_SIZE(0)));
 	assert((va_pool_base + RMM_VA_POOL_SIZE) <= XLAT_LOW_VIRT_ADDR_SPACE_SIZE);
 
 	/* Sort the regions based on base_va */
@@ -371,7 +360,14 @@ static int xlat_low_va_dyn_setup(void)
 	/* Calculate the size and virtual address size needed for the dynamic tables */
 	dyn_tbl_sz = num_tbls * GRANULE_SIZE;
 	dyn_tbls_va = (g_va_info.dyn_va_pool_base + RMM_VA_POOL_SIZE) - dyn_tbl_sz;
-	va_size = round_up(dyn_tbls_va, XLAT_BLOCK_SIZE(0));
+
+	/*
+	 * Use a full L0 block (512GB) as the VA size so that xlat_ctx_cfg_init
+	 * always selects base_level=1 for the dynamic context, regardless of
+	 * the absolute pool base address.  The pool itself occupies only
+	 * RMM_VA_POOL_SIZE bytes starting at offset 0 within this context.
+	 */
+	va_size = XLAT_BLOCK_SIZE(0);
 
 	/* Adjust the size of first dynamic region to remove the dynamic tables area */
 	dyn_regions[0].size = RMM_VA_POOL_SIZE - dyn_tbl_sz;
@@ -385,7 +381,7 @@ static int xlat_low_va_dyn_setup(void)
 	/* Initialize the dynamic translation context */
 	ret = xlat_ctx_cfg_init(&g_va_info.dyn_va_ctx, VA_LOW_REGION,
 				&dyn_regions[0], 2U,
-				round_down(g_va_info.dyn_va_pool_base, XLAT_BLOCK_SIZE(0)),
+				g_va_info.dyn_va_pool_base,
 				va_size,
 				RMM_ASID);
 	if (ret != 0) {
@@ -395,6 +391,11 @@ static int xlat_low_va_dyn_setup(void)
 
 	/* Check the base level is L1 for dyn_va_ctx */
 	assert(g_va_info.dyn_va_ctx.cfg.base_level == 1);
+
+	INFO("dyn_va_ctx: base_va=0x%lx base_level=%d max_va_size=0x%lx\n",
+		g_va_info.dyn_va_ctx.cfg.base_va,
+		g_va_info.dyn_va_ctx.cfg.base_level,
+		g_va_info.dyn_va_ctx.cfg.max_va_size);
 
 	/* Create dynamic xlat tables at Level 1 corresponding to the VA pool address */
 	ret = xlat_ctx_init_remapped_tbls(
@@ -433,8 +434,7 @@ int xlat_low_va_dyn_fixup(struct xlat_low_va_info *va_info)
 	int ret;
 
 	/* Compare the VA pool base and size with the dynamic tables */
-	if ((va_info->dyn_va_ctx.cfg.base_va !=
-		round_down(g_va_info.dyn_va_pool_base, XLAT_BLOCK_SIZE(0))) ||
+	if ((va_info->dyn_va_ctx.cfg.base_va != g_va_info.dyn_va_pool_base) ||
 	    (va_info->dyn_va_pool_size != RMM_VA_POOL_SIZE)) {
 		ERROR("%s: VA pool mismatch\n", __func__);
 		return -EINVAL;
@@ -550,6 +550,9 @@ uintptr_t xlat_low_va_map(size_t size, uint64_t attr, uintptr_t in_pa, bool clea
 		ERROR("Failed to map memory for %zu granules\n", size/GRANULE_SIZE);
 		return 0ULL;
 	}
+
+	INFO("xlat_low_va_map: pa=0x%lx size=0x%zx -> va=0x%lx (pool_base=0x%lx)\n",
+		in_pa, size, va, xlat_get_low_va_info()->dyn_va_pool_base);
 
 	/* Clear the memory if requested */
 	if (clear_memory) {
