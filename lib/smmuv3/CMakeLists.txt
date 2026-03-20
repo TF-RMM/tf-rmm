@@ -48,14 +48,21 @@ target_compile_definitions(rmm-lib-smmuv3
 endif()
 
 target_link_libraries(rmm-lib-smmuv3
-    PRIVATE rmm-lib)
+    PRIVATE rmm-lib-arch
+            rmm-lib-mec
+            rmm-lib-rmm_el3_ifc
+            rmm-lib-s2tt
+            rmm-lib-smc
+            rmm-lib-xlat
+            rmm-lib-xlat_low_va)
 
 target_include_directories(rmm-lib-smmuv3
     PUBLIC "include"
     PRIVATE "src")
 
 target_sources(rmm-lib-smmuv3
-    PRIVATE "src/${RMM_ARCH}/smmuv3.c"
+    PRIVATE "src/${RMM_ARCH}/psmmuv3.c"
+            "src/${RMM_ARCH}/smmuv3.c"
             "src/${RMM_ARCH}/smmuv3_tlbi.c")
 
 include("tests/CMakeLists.txt")

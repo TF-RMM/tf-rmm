@@ -136,9 +136,8 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	s2_cfg.vmid = plane_0_s2_context->vmid;
 	s2_cfg.mecid = plane_0_s2_context->mecid;
 
-	if ((smmuv3_allocate_ste(SMMU_IDX, (unsigned int)vdev_params.tdi_id) != 0) ||
-	    (smmuv3_configure_stream(SMMU_IDX, &s2_cfg,
-					(unsigned int)vdev_params.tdi_id) != 0)) {
+	if (smmuv3_configure_stream(SMMU_IDX, &s2_cfg,
+					(unsigned int)vdev_params.tdi_id) != 0) {
 		rc = RMI_ERROR_DEVICE;
 		goto out_unmap_vd;
 	}

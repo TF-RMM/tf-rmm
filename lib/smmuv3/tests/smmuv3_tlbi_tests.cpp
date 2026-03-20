@@ -37,6 +37,7 @@
 
 extern "C" {
 #include <debug.h>
+#include <smc-rmi.h>
 #include <smmuv3_priv.h>
 #include <test_helpers.h>
 }

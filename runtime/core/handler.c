@@ -10,6 +10,7 @@
 #include <cpuid.h>
 #include <debug.h>
 #include <mec.h>
+#include <psmmu.h>
 #include <run.h>
 #include <simd.h>
 #include <smc-handler.h>
@@ -203,7 +204,11 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(VDEV_GET_INTERFACE_REPORT, 3, 0, smc_vdev_get_interface_report,	 true, true),
 	HANDLER(VDEV_GET_MEASUREMENTS,	4, 0, smc_vdev_get_measurements, true, true),
 	HANDLER(VDEV_LOCK,		3, 0, smc_vdev_lock,		 true, true),
-	HANDLER(VDEV_START,		3, 0, smc_vdev_start,		 true, true)
+	HANDLER(VDEV_START,		3, 0, smc_vdev_start,		 true, true),
+	HANDLER(PSMMU_ACTIVATE,		2, 0, smc_psmmu_activate,	 true, true),
+	HANDLER(PSMMU_DEACTIVATE,	1, 0, smc_psmmu_deactivate,	 true, true),
+	HANDLER(PSMMU_ST_L2_CREATE,	2, 0, smc_psmmu_st_l2_create,	 true, true),
+	HANDLER(PSMMU_ST_L2_DESTROY,	2, 0, smc_psmmu_st_l2_destroy,	 true, true)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));

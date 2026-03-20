@@ -8,10 +8,10 @@ add_library(rmm-lib-glob_data)
 target_link_libraries(rmm-lib-glob_data
     PUBLIC rmm-lib-xlat
            rmm-lib-common
+           rmm-lib-mec
+           rmm-lib-xlat_low_va
     PRIVATE rmm-lib-debug
             rmm-lib-granule
-            rmm-lib-mec
-            rmm-lib-xlat_low_va
             rmm-lib-rmm_el3_ifc
             rmm-lib-smmuv3)
 
