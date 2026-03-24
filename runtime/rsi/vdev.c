@@ -14,7 +14,7 @@
  * the DA app mandates that the version is 0x10. It would be better if that
  * function returned the version and it could be saved in the vdev.
  */
-#define PCI_TDISP_MESSAGE_VERSION_10 0x10
+#define PCI_TDISP_MESSAGE_VERSION_10			UL(0x10)
 #define PCI_TDISP_MESSAGE_VERSION PCI_TDISP_MESSAGE_VERSION_10
 
 #define PCI_TDISP_MESSAGE_VERSION_MINOR_SHIFT		U(0)

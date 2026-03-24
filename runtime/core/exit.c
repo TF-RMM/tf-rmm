@@ -906,7 +906,7 @@ static void handle_plane_exit_syndrome(struct rsi_plane_exit *exit,
 				       unsigned long exit_reason)
 {
 	/* Get the most recent value for pstate */
-	exit->reason = exit_reason;
+	exit->reason = (unsigned char)exit_reason;
 	exit->elr_el2 = plane->pc;
 	exit->esr_el2 = plane->plane_exit_info.esr;
 	exit->far_el2 = plane->plane_exit_info.far;

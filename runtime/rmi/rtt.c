@@ -1630,14 +1630,14 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
 
 	return_code_t rc = unpack_return_code(destroy_res.x[0]);
 
-	if (rc.status == RMI_ERROR_RTT && destroy_res.x[2] == base) {
+	if ((rc.status == RMI_ERROR_RTT) && (destroy_res.x[2] == base)) {
 		/*
 		 * The block entry at 'base' needs to be unfolded before the
 		 * operation can proceed; return the error back to the Host so
 		 * it can unfold at required level first.
 		 */
 		res->x[0] = destroy_res.x[0];
-		assert(rc.index < S2TT_PAGE_LEVEL);
+		assert(rc.index < (unsigned int)S2TT_PAGE_LEVEL);
 	} else if (rc.status == RMI_ERROR_RTT) {
 		/* Other ERROR_RTT (walk completed past base) */
 		res->x[0] = RMI_SUCCESS;
