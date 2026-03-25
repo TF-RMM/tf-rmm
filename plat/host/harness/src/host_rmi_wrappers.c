@@ -423,7 +423,7 @@ void host_rmi_op_mem_donate(unsigned long handle, void *list_addr,
 			    struct smc_result *res)
 {
 	unsigned long *req = (unsigned long *)donation_req;
-	unsigned long *consumed = (unsigned long *)consumed_entries;;
+	unsigned long *consumed = (unsigned long *)consumed_entries;
 
 	handle_ns_smc(SMC_RMI_OP_MEM_DONATE,
 		      handle,

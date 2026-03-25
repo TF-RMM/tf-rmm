@@ -1157,10 +1157,10 @@ enum rmm_state {
 
 /* Bitfields for RmiResultDataIncomplete type */
 #define RMI_OP_MEM_REQ_SHIFT		(8UL)
-#define RMI_OP_MEM_REQ_WIDTH		(2)
+#define RMI_OP_MEM_REQ_WIDTH		(2UL)
 
 #define RMI_OP_CAN_CANCEL_BIT_SHIFT	(10UL)
-#define RMI_OP_CAN_CANCEL_BIT_WIDTH	(1)
+#define RMI_OP_CAN_CANCEL_BIT_WIDTH	(1UL)
 
 /* RmiOpMemReq type encoding */
 #define RMI_OP_MEM_REQ_NONE		(0UL)
@@ -1173,13 +1173,13 @@ enum rmm_state {
 
 /* RmiAddrRangeDesc4KB type encoding */
 #define RMI_ADDR_RDESC_4K_SZ_SHIFT	(0UL)
-#define RMI_ADDR_RDESC_4K_SZ_WIDTH	(2)
+#define RMI_ADDR_RDESC_4K_SZ_WIDTH	(2UL)
 #define RMI_ADDR_RDESC_4K_CNT_SHIFT	(2UL)
-#define RMI_ADDR_RDESC_4K_CNT_WIDTH	(10)
+#define RMI_ADDR_RDESC_4K_CNT_WIDTH	(10UL)
 #define RMI_ADDR_RDESC_4K_ADDR_SHIFT	(12UL)
-#define RMI_ADDR_RDESC_4K_ADDR_WIDTH	(40)
+#define RMI_ADDR_RDESC_4K_ADDR_WIDTH	(40UL)
 #define RMI_ADDR_RDESC_4K_ST_SHIFT	(63UL)
-#define RMI_ADDR_RDESC_4K_ST_WIDTH	(1)
+#define RMI_ADDR_RDESC_4K_ST_WIDTH	(1UL)
 
 #define RMI_ADDR_RDESC_4K_GET_ADDR(x)				\
 		(EXTRACT(RMI_ADDR_RDESC_4K_ADDR, (x)) << GRANULE_SHIFT)

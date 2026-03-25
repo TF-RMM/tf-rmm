@@ -11,24 +11,24 @@
 #include <string.h>
 
 static struct sro_ctx_pool *pool;
-static struct cpu_sro_ctx cpu_sro_ctx[MAX_CPUS];
+static struct sro_cpu_ctx_ref cpu_sro_ctx[MAX_CPUS];
 static spinlock_t sro_spinlock;
 
 static inline void sro_ctx_zero(unsigned int cpuid)
 {
-	struct sro_context *ctx = (cpu_sro_ctx + cpuid)->ctx;
+	struct sro_context *ctx = cpu_sro_ctx[cpuid].ctx;
 
 	assert(cpuid < MAX_CPUS);
 	assert(ctx != NULL);
 
-	memset((void *)ctx, 0, sizeof(struct sro_context));
+	(void)memset((void *)ctx, 0, sizeof(struct sro_context));
 }
 
 void sro_ctx_init(uintptr_t va, size_t sz)
 {
 	assert(pool == NULL);
 	assert(va != 0UL);
-	assert(sz != 0);
+	assert(sz != (size_t)0);
 
 	(void)sz;
 
@@ -44,7 +44,7 @@ void sro_ctx_init(uintptr_t va, size_t sz)
 	/* The sro_context array follows the pool header in memory */
 	pool->ctxs = (struct sro_context *)(va + sizeof(*pool));
 
-	assert((uintptr_t)(pool->ctxs + pool->ctx_count) <= (va + sz));
+	assert((uintptr_t)(&pool->ctxs[pool->ctx_count]) <= (va + sz));
 
 	/* Initialize all context states to free */
 	for (unsigned long i = 0UL; i < pool->ctx_count; i++) {
@@ -75,8 +75,8 @@ unsigned long sro_ctx_reserve(unsigned long command, unsigned long xfer,
 
 	for (unsigned long i = 0UL; i < pool->ctx_count; i++) {
 		if (pool->ctxs[i].state == SRO_STATE_FREE) {
-			(cpu_sro_ctx + cpuid)->ctx = pool->ctxs + i;
-			(cpu_sro_ctx + cpuid)->op_handler = (unsigned int)i;
+			cpu_sro_ctx[cpuid].ctx = &pool->ctxs[i];
+			cpu_sro_ctx[cpuid].op_handler = (unsigned int)i;
 			sro_ctx_zero(cpuid);
 			pool->ctxs[i].state = SRO_STATE_RESERVED;
 			pool->ctxs[i].init_command = command;
@@ -107,7 +107,7 @@ unsigned long sro_ctx_reserve(unsigned long command, unsigned long xfer,
 unsigned int sro_ctx_seal(void)
 {
 	unsigned int index, cpuid = my_cpuid();
-	struct cpu_sro_ctx *current_cpu_ctx = (cpu_sro_ctx + cpuid);
+	struct sro_cpu_ctx_ref *current_cpu_ctx = &cpu_sro_ctx[cpuid];
 
 	assert((pool != NULL) && pool->init);
 	assert(current_cpu_ctx->ctx != NULL);
@@ -129,11 +129,11 @@ unsigned int sro_ctx_seal(void)
  * from SRO_STATE_SEALED to SRO_STATE_RESERVED and assign it to the
  * current CPU.
  */
-bool sro_ctx_find(unsigned int op_handle)
+bool sro_ctx_find(unsigned long op_handle)
 {
 	bool ret;
 	unsigned int cpuid = my_cpuid();
-	struct cpu_sro_ctx *current_cpu_ctx = (cpu_sro_ctx + cpuid);
+	struct sro_cpu_ctx_ref *current_cpu_ctx = &cpu_sro_ctx[cpuid];
 
 	assert((pool != NULL) && pool->init);
 
@@ -151,8 +151,8 @@ bool sro_ctx_find(unsigned int op_handle)
 	}
 
 	pool->ctxs[op_handle].state = SRO_STATE_RESERVED;
-	current_cpu_ctx->ctx = (pool->ctxs + op_handle);
-	current_cpu_ctx->op_handler = op_handle;
+	current_cpu_ctx->ctx = &pool->ctxs[op_handle];
+	current_cpu_ctx->op_handler = (unsigned int)op_handle;
 	ret = true;
 out:
 	spinlock_release(&sro_spinlock);
@@ -167,8 +167,8 @@ struct sro_context *my_sro_ctx(void)
 	unsigned int cpuid = my_cpuid();
 
 	assert((pool != NULL) && pool->init);
-	assert((cpu_sro_ctx + cpuid)->ctx != NULL);
-	return (cpu_sro_ctx + cpuid)->ctx;
+	assert(cpu_sro_ctx[cpuid].ctx != NULL);
+	return cpu_sro_ctx[cpuid].ctx;
 }
 
 /*
@@ -177,7 +177,7 @@ struct sro_context *my_sro_ctx(void)
 void sro_ctx_release(void)
 {
 	unsigned int index, cpuid = my_cpuid();
-	struct cpu_sro_ctx *current_cpu_ctx = (cpu_sro_ctx + cpuid);
+	struct sro_cpu_ctx_ref *current_cpu_ctx = &cpu_sro_ctx[cpuid];
 
 	assert((pool != NULL) && pool->init);
 	assert(current_cpu_ctx->ctx != NULL);

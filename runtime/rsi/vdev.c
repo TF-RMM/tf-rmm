@@ -332,7 +332,7 @@ static void vdev_get_info(struct pdev *pd, struct vdev *vd, struct rsi_vdev_info
 	vdev_info->report_nonce = vd->attest_info.report_nonce;
 
 	/* Return hardcoded format type */
-	vdev_info->format_type = RSI_VDEV_REPORT_FORMAT_TDISP;
+	vdev_info->format_type = (unsigned char)RSI_VDEV_REPORT_FORMAT_TDISP;
 	vdev_info->format_version = VDEV_INFO_FORMAT_VERSION(
 		EXTRACT(PCI_TDISP_MESSAGE_VERSION_MAJOR, PCI_TDISP_MESSAGE_VERSION),
 		EXTRACT(PCI_TDISP_MESSAGE_VERSION_MINOR, PCI_TDISP_MESSAGE_VERSION));

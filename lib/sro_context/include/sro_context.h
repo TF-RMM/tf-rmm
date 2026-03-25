@@ -6,7 +6,6 @@
 #ifndef SRO_CONTEXT_H
 #define SRO_CONTEXT_H
 
-#include <limits.h>
 #include <smc-rmi.h>
 #include <smc.h>
 
@@ -24,7 +23,7 @@
  * - sro_ctx_find(handle): Used by continuing operations (rmi_op_xxx) to find and
  *                         assign SRO context to the running CPU.
  * - my_sro_ctx(): Returns pointer to the SRO context that is assigned to the
- *   		    running CPU.
+ *		   running CPU.
  *
  * Note that the library is agnostic to the actual content of the objects as
  * the content is very specific to each command (or, to a family of commands).
@@ -47,7 +46,7 @@ typedef void(*sro_handle_cb)(struct smc_args *arg, struct smc_result *res);
 #define SRO_CTX_PER_CPU		(10UL)
 
 /* Macro to define an invalid RmiResult value */
-#define SRO_INVALID_RESULT	(ULONG_MAX)
+#define SRO_INVALID_RESULT	(~0UL)
 
 /*
  * Total allocation size required for the sro_ctx_pool:
@@ -119,7 +118,7 @@ struct sro_context {
 	unsigned long transfer_req;
 
 	/*
-	 * Amount of memory being transfered by the RMI_OP_MEM_DONATE/RECLAIM.
+	 * Amount of memory being transferred by the RMI_OP_MEM_DONATE/RECLAIM.
 	 * This takes into account all the entries on the current RMI Address List.
 	 */
 	unsigned long current_transfer;
@@ -168,7 +167,7 @@ struct sro_ctx_pool {
 /*
  * Per_cpu reference to command context that is currently used by the CPU.
  */
-struct cpu_sro_ctx {
+struct sro_cpu_ctx_ref {
 	/* NULL if no SRO context is assigned to the CPU */
 	struct sro_context *ctx;
 
@@ -180,19 +179,19 @@ struct cpu_sro_ctx {
  * Reserve an SRO context for a given command.
  *
  * Args:
- * 	- command: Command to associate to the SRO context.
- * 	- xfer: The amount of memory that will be transferred by the
+ *	- command: Command to associate to the SRO context.
+ *	- xfer: The amount of memory that will be transferred by the
  *		ongoing operation.
- * 	- can_cancel: Whether the command can be canceled.
- * 	- is_contig: Whether the requested memory is contiguous or not.
+ *	- can_cancel: Whether the command can be canceled.
+ *	- is_contig: Whether the requested memory is contiguous or not.
  *
  * Return:
- * 	- One of the following return codes:
- * 		- RMI_BLOCKED: All SRO contexts are sealed.
- * 		- RMI_BUSY: Some SRO contexts are reserved and the rest are
- * 			    sealed.
- * 		- RMI_SUCCESS: An SRO context has been assigned to the
- * 			       current CPU.
+ *	- One of the following return codes:
+ *		- RMI_BLOCKED: All SRO contexts are sealed.
+ *		- RMI_BUSY: Some SRO contexts are reserved and the rest are
+ *			    sealed.
+ *		- RMI_SUCCESS: An SRO context has been assigned to the
+ *			       current CPU.
  */
 unsigned long sro_ctx_reserve(unsigned long command, unsigned long xfer,
 			      bool can_cancel, bool is_contig);
@@ -212,7 +211,7 @@ unsigned int sro_ctx_seal(void);
  *
  * Returns true if the SRO op handle is found and not sealed, false otherwise.
  */
-bool sro_ctx_find(unsigned int op_handle);
+bool sro_ctx_find(unsigned long op_handle);
 
 /*
  * Return a pointer to the SRO context currently assigned to the calling CPU.
@@ -240,8 +239,8 @@ void sro_ctx_next_cmd(unsigned long fid);
 void sro_ctx_init(uintptr_t va, size_t sz);
 
 /*
- * Heelper macro that reads the `is_contig` flag of a given sro context
- * passed by refrence and returns the contig RMI flag value to be used
+ * Helper macro that reads the `is_contig` flag of a given sro context
+ * passed by reference and returns the contig RMI flag value to be used
  * on an rmiOpMemDonateReq type.
  */
 #define SRO_CONTIG_FLAG(_sro)				\
@@ -249,7 +248,7 @@ void sro_ctx_init(uintptr_t va, size_t sz);
 
 /*
  * Helper macro that reads the `can_cancel` flag of a given sro context
- * passed by refrence and returns the can cancel RMI flag value to be used
+ * passed by reference and returns the can cancel RMI flag value to be used
  * on an rmiResultDataIncomplete type.
  */
 #define SRO_CAN_CANCEL_FLAG(_sro)			\

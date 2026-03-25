@@ -8,7 +8,9 @@
 #include <debug.h>
 #include <granule.h>
 #include <granule_types.h>
+#include <limits.h>
 #include <rec.h>
+#include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
 #include <sro_context.h>
@@ -27,7 +29,7 @@ struct rmi_handles {
 	.cb = (_cb)							\
 }
 
-struct rmi_handles sro_handles[] = {
+static struct rmi_handles sro_handles[] = {
 	SRO_HANDLE(REC_CREATE, rec_continue_handler),
 	SRO_HANDLE(REC_DESTROY, rec_continue_handler)
 };
@@ -36,21 +38,25 @@ COMPILER_ASSERT(ARRAY_SIZE(sro_handles) <= SMC64_NUM_FIDS_IN_RANGE(RMI));
 /* Return the size requested by an entry on the RmiAddrRangeDesc4KB list */
 static unsigned long calc_entry_size(unsigned long entry)
 {
-	unsigned long blk_size = EXTRACT(RMI_ADDR_RDESC_4K_SZ, entry);
+	int blk_size = (int)EXTRACT(RMI_ADDR_RDESC_4K_SZ, entry);
 
-	return ((XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX - blk_size)) *
-				EXTRACT(RMI_ADDR_RDESC_4K_CNT, entry));
+	/*
+	 * The block size encoding coincides with the xlat level encoding for
+	 * a block of the same size.
+	 */
+	blk_size = XLAT_TABLE_LEVEL_MAX - blk_size;
+	return (XLAT_BLOCK_SIZE(blk_size) * EXTRACT(RMI_ADDR_RDESC_4K_CNT, entry));
 }
 
 /* Return the amount of memory requested in a donate operation */
-static unsigned long calc_total_mem(unsigned long *list, unsigned int count)
+static unsigned long calc_total_mem(const unsigned long *list, unsigned long count)
 {
 	unsigned long size = 0UL;
 
-	assert(count > 0U);
+	assert(count > 0UL);
 
-	for (unsigned int i = 0U; i < count; i++) {
-		size += calc_entry_size(*(list + i));
+	for (unsigned long i = 0UL; i < count; i++) {
+		size += calc_entry_size(list[i]);
 	}
 
 	return size;
@@ -73,7 +79,7 @@ static bool copy_list_to_ns(unsigned long list_gr_ipa,
 	}
 
 	if (!ns_buffer_write(SLOT_NS, list_gr,
-			     (list_offset * sizeof(unsigned long)),
+			     (unsigned int)(list_offset * sizeof(unsigned long)),
 			     (list_count * sizeof(unsigned long)),
 			     src_buf)) {
 		return false;
@@ -87,7 +93,7 @@ static void rmi_op_dispatch(struct smc_args *args,
 {
 	struct sro_context *sro = my_sro_ctx();
 	unsigned long fid = args->v[0];
-	unsigned int handle_id;
+	unsigned long  handle_id;
 
 	assert(sro != NULL);
 
@@ -124,7 +130,7 @@ static void rmi_op_dispatch(struct smc_args *args,
 		if (mem_op == RMI_OP_MEM_REQ_DONATE) {
 			unsigned long blk_size = EXTRACT(RMI_OP_DONATE_BLK_SIZE, res->x[2]);
 
-			sro->transfer_req = ((XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX - blk_size)) *
+			sro->transfer_req = ((XLAT_BLOCK_SIZE((int)(XLAT_TABLE_LEVEL_MAX - (int)blk_size))) *
 						EXTRACT(RMI_OP_DONATE_BLK_COUNT, res->x[2]));
 			sro->is_contig =
 				(EXTRACT(RMI_OP_DONATE_MEM_CONTIG, res->x[2]) ==
@@ -133,7 +139,7 @@ static void rmi_op_dispatch(struct smc_args *args,
 			/* TODO, store the state of memory and validate against incoming list */
 		}
 
-		if (mem_op == RMI_OP_MEM_REQ_RECLAIM ||
+		if ((mem_op == RMI_OP_MEM_REQ_RECLAIM) ||
 			((fid == SMC_RMI_OP_MEM_RECLAIM) &&
 			(res->x[1] > 0UL))) {
 			/*
@@ -182,17 +188,22 @@ static void do_rmi_mem_op(unsigned long fid,
  * an address and a sized field.
  * The size field indicates how large a memory region that entry describes
  * (e.g. a 4KB page, a 2MB block or a 1GB block). The minimum alignment is
- * the biggest block size found accross all entries. For instance, if one
+ * the biggest block size found across all entries. For instance, if one
  * entry describes a 2MB block and another describes a 4KB page, the minimum
  * alignment would be 2MB.
  */
-static unsigned long min_alignment_req(unsigned long *list, unsigned int count)
+static unsigned long min_alignment_req(const unsigned long *list, unsigned long count)
 {
 	unsigned long alignment = XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX);
 
-	for (unsigned int i = 0U; i < count; i++) {
-		unsigned long new_alignment = XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX -
-					EXTRACT(RMI_ADDR_RDESC_4K_SZ, list[i]));
+	for (unsigned long i = 0UL; i < count; i++) {
+		/*
+		 * The block size encoding coincides with the xlat level encoding for
+		 * a block of the same size.
+		 */
+		int blk_size = (int)EXTRACT(RMI_ADDR_RDESC_4K_SZ, list[i]);
+		unsigned long new_alignment =
+			XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX - blk_size);
 
 		if (new_alignment > alignment) {
 			/* Required alignment is larger than the current one */
@@ -236,7 +247,7 @@ void smc_op_mem_donate(unsigned long handle,
 	 * Calculate the offset of the first entry with regards to the start
 	 * of the granule where the list is.
 	 */
-	list_offset = ((list_addr & ~GRANULE_MASK) >> 3U);
+	list_offset = (list_addr & ~GRANULE_MASK) >> 3UL;
 
 	/*
 	 * Limit the number of entries to not cross granules.
@@ -266,7 +277,7 @@ void smc_op_mem_donate(unsigned long handle,
 	}
 
 	if (!ns_buffer_read(SLOT_NS, list_gr,
-			    (list_offset * sizeof(unsigned long)),
+			    (unsigned int)(list_offset * sizeof(unsigned long)),
 			    (list_count * sizeof(unsigned long)),
 			    (void *)&(sro->list_buffer[0]))) {
 		res->x[0] = RMI_ERROR_INPUT;
@@ -319,7 +330,7 @@ void smc_op_mem_reclaim(unsigned long handle,
 	 * of the granule where the list is. We will use this to find out if
 	 * we can cross granules when walking the list.
 	 */
-	list_offset = ((list_addr & ~GRANULE_MASK) >> 3U);
+	list_offset = (list_addr & ~GRANULE_MASK) >> 3UL;
 
 	/*
 	 * Limit the number of entries to not cross granules.
@@ -403,8 +414,9 @@ void smc_op_continue(unsigned long flags,
 {
 	struct smc_args args;
 	struct sro_context *sro __unused;
+	bool found;
 
-	bool found = sro_ctx_find(handle);
+	found = sro_ctx_find(handle);
 
 	if (found == false) {
 		res->x[0] = RMI_ERROR_INPUT;
@@ -432,8 +444,9 @@ void smc_op_cancel(unsigned long flags,
 {
 	struct smc_args args;
 	struct sro_context *sro;
-	bool found = sro_ctx_find(handle);
+	bool found;
 
+	found = sro_ctx_find(handle);
 	if (found == false) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;

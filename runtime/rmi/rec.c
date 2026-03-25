@@ -220,9 +220,9 @@ static void init_rec_regs(struct rec *rec,
  * use when this function is called and therefore no lock is
  * acquired before its invocation.
  */
-static void free_rec_aux_granule(unsigned long granule_addr)
+static void free_rec_aux_granule(unsigned long granule_pa)
 {
-	struct granule *gr = find_lock_granule(granule_addr, GRANULE_STATE_REC_AUX);
+	struct granule *gr = find_lock_granule(granule_pa, GRANULE_STATE_REC_AUX);
 
 	assert(gr != NULL);
 	granule_unlock_transition_to_delegated(gr);
@@ -402,7 +402,7 @@ static void rec_memory_reclaim(struct smc_args *args, struct smc_result *res)
 
 	to_reclaim = MIN(sro->rec_ctx.requested_aux_granules, list_count);
 
-	for (unsigned int i = 0U; i < to_reclaim; i++) {
+	for (unsigned long i = 0UL; i < to_reclaim; i++) {
 		/* Create an entry for each granule to return */
 		unsigned long granule_idx = i + sro->rec_ctx.total_transferred;
 		unsigned long granule_pa = sro->rec_ctx.aux_granules_pa[granule_idx];
@@ -435,13 +435,13 @@ static void rec_memory_reclaim(struct smc_args *args, struct smc_result *res)
 		res->x[0] |= INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE);
 
 		/* Setup the callback for the next stage */
-		sro->rec_ctx.cb_id = SRO_REC_FINISH;
+		sro->rec_ctx.cb_id = (unsigned int)SRO_REC_FINISH;
 		sro_ctx_next_cmd(SMC_RMI_OP_CONTINUE);
 	} else {
 		res->x[0] |= INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_RECLAIM);
 
 		/* Setup the callback for the next stage */
-		sro->rec_ctx.cb_id = SRO_REC_MEM_RECLAIM;
+		sro->rec_ctx.cb_id = (unsigned int)SRO_REC_MEM_RECLAIM;
 		sro_ctx_next_cmd(SMC_RMI_OP_MEM_RECLAIM);
 	}
 
@@ -466,7 +466,7 @@ static void rec_start_memory_reclaim(unsigned long err_code,
 	sro->rec_ctx.total_transferred = 0;
 
 	/* Setup the callback for the next stage */
-	sro->rec_ctx.cb_id = SRO_REC_MEM_RECLAIM;
+	sro->rec_ctx.cb_id = (unsigned int)SRO_REC_MEM_RECLAIM;
 	sro_ctx_next_cmd(SMC_RMI_OP_MEM_RECLAIM);
 
 	/* Log the error code from REC_CREATE */
@@ -621,7 +621,7 @@ static void rec_create_continue(struct smc_args *args, struct smc_result *res)
 
 	/* Copy addresses of auxiliary granules */
 	(void)memcpy((void *)rec->g_aux, (const void *)rec_aux_granules,
-			num_rec_aux * sizeof(struct granule *));
+			(size_t)(num_rec_aux * sizeof(struct granule *)));
 
 	rec->runnable = (rec_params.flags & REC_PARAMS_FLAG_RUNNABLE) != 0UL;
 	if (rec->runnable) {
@@ -750,7 +750,7 @@ static void rec_create_request_aux_mem(struct smc_args *args,
 			     INPLACE(RMI_OP_DONATE_MEM_CONTIG, SRO_CONTIG_FLAG(sro)) |
 			     INPLACE(RMI_OP_DONATE_MEM_STATE, RMI_OP_MEM_DELEGATE));
 
-		sro->rec_ctx.cb_id = SRO_REC_REQUEST_AUX_MEM;
+		sro->rec_ctx.cb_id = (unsigned int)SRO_REC_REQUEST_AUX_MEM;
 		sro_ctx_next_cmd(SMC_RMI_OP_MEM_DONATE);
 	} else {
 		/* All the memory has been donated */
@@ -763,7 +763,7 @@ static void rec_create_request_aux_mem(struct smc_args *args,
 		res->x[2] = 0UL;
 
 		/* Setup the callback for the next stage */
-		sro->rec_ctx.cb_id = SRO_REC_CREATE_CONTINUE;
+		sro->rec_ctx.cb_id = (unsigned int)SRO_REC_CREATE_CONTINUE;
 		sro_ctx_next_cmd(SMC_RMI_OP_CONTINUE);
 	}
 
@@ -782,7 +782,7 @@ void rec_continue_handler(struct smc_args *args, struct smc_result *res)
 	struct sro_context *sro = my_sro_ctx();
 
 	assert(sro != NULL);
-	assert(sro->rec_ctx.cb_id < SRO_REC_NUM_STATES);
+	assert(sro->rec_ctx.cb_id < (unsigned int)SRO_REC_NUM_STATES);
 
 	sro_callbacks[sro->rec_ctx.cb_id](args, res);
 }
@@ -815,15 +815,15 @@ void smc_rec_create(unsigned long rd_addr,
 	 * The first step of REC_CREATE will be to request memory for
 	 * the aux granules.
 	 */
-	sro->rec_ctx.cb_id = SRO_REC_REQUEST_AUX_MEM;
+	sro->rec_ctx.cb_id = (unsigned int)SRO_REC_REQUEST_AUX_MEM;
 	sro_ctx_next_cmd(SMC_RMI_OP_MEM_DONATE);
 
 	/* Initialize the sro context for the command */
 	sro->rec_ctx.rd_addr = rd_addr;
 	sro->rec_ctx.rec_addr = rec_addr;
 	sro->rec_ctx.rec_params_addr = rec_params_addr;
-	sro->rec_ctx.requested_aux_granules = MAX_REC_AUX_GRANULES;
-	sro->rec_ctx.total_transferred = 0U;
+	sro->rec_ctx.requested_aux_granules = (unsigned long)MAX_REC_AUX_GRANULES;
+	sro->rec_ctx.total_transferred = 0UL;
 
 	/* RmiResult with RmiResultDataIncomplete */
 	res->x[0] = (RMI_INCOMPLETE |

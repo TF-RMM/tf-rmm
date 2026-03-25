@@ -144,6 +144,7 @@ static unsigned long host_handle_rec_sro(struct host_realm *realm,
 	unsigned long ret_status = result->x[0];
 
 	return_code_t rc = unpack_return_code(ret_status);
+
 	while (rc.status == RMI_INCOMPLETE) {
 		unsigned long mem_req = EXTRACT(RMI_OP_MEM_REQ, ret_status);
 		unsigned long consumed_entries __unused = 0UL;
@@ -168,7 +169,7 @@ static unsigned long host_handle_rec_sro(struct host_realm *realm,
 			/* Populate the list. Add one block (page) per entry */
 			for (unsigned int i = 0U; i < count; i++) {
 				uintptr_t base_addr = base + (i * GRANULE_SIZE);
-				realm->sro_addr_list[i]  =
+				realm->sro_addr_list[i] =
 					encode_rmi_addr_desc(base_addr, 1UL, RMI_OP_MEM_DELEGATE);
 			}
 
@@ -189,7 +190,7 @@ static unsigned long host_handle_rec_sro(struct host_realm *realm,
 			/* Expect one entry per aux block (of granule size) */
 			assert(consumed_entries == MAX_REC_AUX_GRANULES);
 
-			for (unsigned int i = 0UL; i < consumed_entries; i++) {
+			for (unsigned int i = 0U; i < consumed_entries; i++) {
 				unsigned long entry =
 					(unsigned long)realm->sro_addr_list[i];
 				uintptr_t granule_ptr;
@@ -205,7 +206,7 @@ static unsigned long host_handle_rec_sro(struct host_realm *realm,
 
 				granule_ptr = EXTRACT(RMI_ADDR_RDESC_4K_ADDR, entry) <<
 							GRANULE_SHIFT;
-				delegated = !!(EXTRACT(RMI_ADDR_RDESC_4K_ST, entry));
+				delegated = (EXTRACT(RMI_ADDR_RDESC_4K_ST, entry) != 0UL);
 
 				rec_free_aux(granule_ptr, block_count, delegated);
 			}
