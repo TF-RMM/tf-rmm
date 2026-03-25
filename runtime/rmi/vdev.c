@@ -21,6 +21,22 @@
 #include <string.h>
 #include <utils_def.h>
 
+static bool rmi_addr_ranges_valid(struct rmi_address_range *addr_range, size_t addr_range_cnt)
+{
+	unsigned long last_top = 0U;
+	size_t i;
+
+	for (i = 0; i < addr_range_cnt; ++i) {
+
+		if ((addr_range[i].base >= addr_range[i].top) ||
+		    (addr_range[i].base < last_top)) {
+			return false;
+		}
+		last_top = addr_range[i].top;
+	}
+	return true;
+}
+
 static unsigned long validate_vdev_params(
 	unsigned long vdev_params_addr,
 	struct rmi_vdev_params *vdev_params)
@@ -39,13 +55,13 @@ static unsigned long validate_vdev_params(
 		return RMI_ERROR_INPUT;
 	}
 
-	if (vdev_params->num_aux != 0U) {
+	if ((vdev_params->flags != 0U) ||
+	    (vdev_params->num_addr_range > RMI_VDEV_PARAMS_ADDR_RANGE_MAX) ||
+	    !rmi_addr_ranges_valid(vdev_params->addr_range, vdev_params->num_addr_range)) {
 		return RMI_ERROR_INPUT;
 	}
 
-	if (vdev_params->flags != 0U) {
-		return RMI_ERROR_INPUT;
-	}
+	/* TODO: Verify VSMMU related parameters */
 
 	/* TODO: Verify tdi_id is unique for the associated PDEV segment */
 
@@ -69,7 +85,7 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	struct rmi_vdev_params vdev_params; /* this consumes 4KB of stack */
 	struct granule *g_rd;
 	struct granule *g_pdev;
-	struct granule *g_vdev;
+	struct granule *g_vdev = NULL;
 	struct rd *rd;
 	struct pdev *pd;
 	struct vdev *vd;
@@ -77,6 +93,7 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	struct smmu_stg2_config s2_cfg;
 	unsigned int sid, smmu_idx;
 	unsigned long rc;
+	struct pdev_stream *stream;
 
 	if (!is_rmi_feat_da_enabled()) {
 		return SMC_NOT_SUPPORTED;
@@ -98,14 +115,6 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		return RMI_ERROR_INPUT;
 	}
 
-	/* Lock vdev granule and map it */
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_DELEGATED);
-	if (g_vdev == NULL) {
-		granule_unlock(g_rd);
-		granule_unlock(g_pdev);
-		return RMI_ERROR_INPUT;
-	}
-
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
@@ -117,9 +126,32 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
 
-	if (pd->rmi_state != RMI_PDEV_STATE_READY) {
+	if ((PDEV_CATEGORY(pd) != RMI_PDEV_ENDPOINT_ACCEL_OFF_CHIP) &&
+	    (PDEV_CATEGORY(pd) != RMI_PDEV_ENDPOINT_ACCEL_ON_CHIP)) {
 		rc = RMI_ERROR_DEVICE;
 		goto out_unmap_pd;
+	}
+
+	if ((pd->rmi_state != RMI_PDEV_STATE_READY) ||
+	    (pd->max_num_vdevs == pd->num_vdevs)) {
+		rc = RMI_ERROR_DEVICE;
+		goto out_unmap_pd;
+	}
+
+	stream = pdev_stream_granules_lock_map(pd->g_stream_aux, RMI_PDEV_STREAM_NCOH);
+	assert(stream != NULL);
+
+	if (!stream->taken ||
+	    (stream->state != PDEV_STREAM_CONNECTED)) {
+		rc = RMI_ERROR_DEVICE;
+		goto out_unmap_stream;
+	}
+
+	/* Lock vdev granule and map it */
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_DELEGATED);
+	if (g_vdev == NULL) {
+		rc = RMI_ERROR_INPUT;
+		goto out_unmap_stream;
 	}
 
 	vd = buffer_granule_map_zeroed(g_vdev, SLOT_VDEV);
@@ -155,6 +187,16 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	vd->sid = sid;
 	vd->smmu_idx = smmu_idx;
 
+	/*
+	 * TODO: Check if the vdev granules are not overlapping with other vdevs
+	 * from the same pdev. We need to avoid host creating overlapping vdev
+	 * ranges from the same PDEV and assigning it to different realms.
+	 */
+	vd->num_addr_range = vdev_params.num_addr_range;
+	(void)memcpy(vd->addr_range,
+		     vdev_params.addr_range,
+		     vdev_params.num_addr_range * sizeof(vdev_params.addr_range[0]));
+
 	/* Update Realm */
 	rd_vdev_refcount_inc(rd);
 
@@ -163,14 +205,17 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 
 out_unmap_vd:
 	buffer_unmap(vd);
+out_unmap_stream:
+	pdev_stream_granules_unmap_unlock(pd->g_stream_aux, stream, RMI_PDEV_STREAM_NCOH);
 out_unmap_pd:
 	buffer_unmap(pd);
 out_unmap_rd:
 	buffer_unmap(rd);
 
 	if (rc == RMI_SUCCESS) {
+		assert(g_vdev != NULL);
 		granule_unlock_transition(g_vdev, GRANULE_STATE_VDEV);
-	} else {
+	} else if (g_vdev != NULL) {
 		granule_unlock(g_vdev);
 	}
 	granule_unlock(g_pdev);

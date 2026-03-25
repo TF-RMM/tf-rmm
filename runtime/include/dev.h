@@ -287,6 +287,11 @@ struct vdev {
 
 	/* Nonce updated as part of lock interface and used in start interface */
 	uint8_t start_interface_nonce[RDEV_START_INTERFACE_NONCE_SIZE];
+
+	/* Device address ranges */
+	size_t num_addr_range;
+	struct rmi_address_range addr_range[RMI_VDEV_PARAMS_ADDR_RANGE_MAX];
+
 };
 COMPILER_ASSERT(sizeof(struct vdev) <= GRANULE_SIZE);
 

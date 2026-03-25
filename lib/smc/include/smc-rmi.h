@@ -1710,11 +1710,12 @@ struct rmi_public_key_params {
 
 /*
  * RmiVdevFlags
- * Fieldset contains flags provided by the Host during VDEV creation.
+ * Flags provided by the Host during VDEV creation
  * Width: 64 bits
  */
-#define RMI_VDEV_FLAGS_RES0_SHIFT		UL(0)
-#define RMI_VDEV_FLAGS_RES0_WIDTH		UL(63)
+/* RmiFeature: Whether device uses a VSMMU */
+#define RMI_VDEV_FLAGS_VSMMU_SHIFT		UL(0)
+#define RMI_VDEV_FLAGS_VSMMU_WIDTH		UL(1)
 
 /*
  * RmmVdevState
@@ -1732,26 +1733,34 @@ struct rmi_public_key_params {
 /* Maximum number of aux granules paramenter passed to VDEV create */
 #define VDEV_PARAM_AUX_GRANULES_MAX		U(32)
 
+#ifndef CBMC
+#define RMI_VDEV_PARAMS_ADDR_RANGE_MAX 8U
+#else /* CBMC */
+#define RMI_VDEV_PARAMS_ADDR_RANGE_MAX 1U
+#endif /* CBMC */
+
 /*
  * RmiVdevParams
- * The RmiVdevParams structure contains parameters provided by the Host during
- * VDEV creation.
+ * Parameters provided by the Host during VDEV creation
  * Width: 4096 (0x1000) bytes.
  */
 /* cppcheck-suppress misra-c2012-2.4 */
 struct rmi_vdev_params {
 	/* RmiVdevFlags: Flags */
-	SET_MEMBER_RMI(unsigned long flags, 0, 0x8);
+	SET_MEMBER_RMI(unsigned long flags, 0x0, 0x8);
 	/* Bits64: Virtual device identifier */
 	SET_MEMBER_RMI(unsigned long vdev_id, 0x8, 0x10);
 	/* Bits64: TDI identifier */
-	SET_MEMBER_RMI(unsigned long tdi_id, 0x10, 0x18);
-	/* UInt64: Number of auxiliary granules */
-	SET_MEMBER_RMI(unsigned long num_aux, 0x18, 0x100);
-
-	/* Address: Addresses of auxiliary granules */
-	SET_MEMBER_RMI(unsigned long aux[VDEV_PARAM_AUX_GRANULES_MAX], 0x100,
-		       0x1000);
+	SET_MEMBER_RMI(unsigned long tdi_id, 0x10, 0x20);
+	/* Address: PA of VSMMU. */
+	SET_MEMBER_RMI(unsigned long vsmmu_addr, 0x20, 0x28);
+	/* Bits64: Virtual Stream Identifier. */
+	SET_MEMBER_RMI(unsigned long vsid, 0x28, 0x30);
+	/* UInt64: Number of device address ranges. */
+	SET_MEMBER_RMI(unsigned long num_addr_range, 0x30, 0x200);
+	/* RmiAddrRange: Device address ranges. */
+	SET_MEMBER_RMI(struct rmi_address_range addr_range[RMI_VDEV_PARAMS_ADDR_RANGE_MAX],
+		0x200, 0x1000);
 };
 
 /*
