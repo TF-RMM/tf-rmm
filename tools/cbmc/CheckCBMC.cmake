@@ -139,6 +139,7 @@ set(cbmc_analysis_flags_list
 set(cbmc_flags_list
   "--timestamp;wall"
   "--verbosity;9"
+  "--object-bits;14"
   # Optimisation flags:
   "--drop-unused-functions"
   "--reachability-slice"
