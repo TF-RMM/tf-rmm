@@ -5,6 +5,7 @@
 
 #include <arch_features.h>
 #include <assert.h>
+#include <debug.h>
 #include <errno.h>
 #include <host_utils.h>
 #include <stdlib.h>
@@ -278,23 +279,37 @@ int xlat_test_helpers_table_walk(struct xlat_ctx *ctx,
 	}
 
 	if (va > cfg->base_va + cfg->max_mapped_va_offset) {
+		ERROR("%s: va=0x%lx out of range [base=0x%lx, max_mapped_va_offset=0x%lx]\n",
+		      __func__, (unsigned long)va, (unsigned long)cfg->base_va,
+		      (unsigned long)cfg->max_mapped_va_offset);
 		return -ERANGE;
 	}
+
+	/* Walk uses VA offset from base_va so that non-zero base_va contexts work */
+	uintptr_t va_offset = va - cfg->base_va;
 
 	/* Base table is the first table of the array */
 	table = &tbls->tables[0U];
 	for (int i = cfg->base_level; i <= XLAT_TABLE_LEVEL_MAX; i++) {
 		uint64_t tte_oa;
 		unsigned int tindex =
-			(unsigned int)(va >> XLAT_ADDR_SHIFT(i)) &
+			(unsigned int)(va_offset >> XLAT_ADDR_SHIFT(i)) &
 						XLAT_GET_TABLE_ENTRIES_MASK(i);
 
 		if (tindex >= XLAT_GET_TABLE_ENTRIES(i)) {
+			ERROR("%s: level=%d tindex=%u >= entries=%u (va=0x%lx va_offset=0x%lx base_va=0x%lx)\n",
+			      __func__, i, tindex, XLAT_GET_TABLE_ENTRIES(i),
+			      (unsigned long)va, (unsigned long)va_offset,
+			      (unsigned long)cfg->base_va);
 			return -ERANGE;
 		}
 
 		ctte = table[tindex];
 		if (ctte == INVALID_DESC) {
+			ERROR("%s: level=%d tindex=%u INVALID_DESC (va=0x%lx va_offset=0x%lx base_va=0x%lx)\n",
+			      __func__, i, tindex,
+			      (unsigned long)va, (unsigned long)va_offset,
+			      (unsigned long)cfg->base_va);
 			return -ERANGE;
 		}
 
