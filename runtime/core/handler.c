@@ -37,8 +37,8 @@ static const char * const rmi_status_string[] = {
 	RMI_STATUS_STRING(ERROR_REALM),
 	RMI_STATUS_STRING(ERROR_REC),
 	RMI_STATUS_STRING(ERROR_RTT),
-	RMI_STATUS_STRING(ERROR_DEVICE),
 	RMI_STATUS_STRING(ERROR_NOT_SUPPORTED),
+	RMI_STATUS_STRING(ERROR_DEVICE),
 	RMI_STATUS_STRING(ERROR_RTT_AUX),
 	RMI_STATUS_STRING(ERROR_PSMMU_ST),
 	RMI_STATUS_STRING(ERROR_DPT),
@@ -47,7 +47,8 @@ static const char * const rmi_status_string[] = {
 	RMI_STATUS_STRING(ERROR_TRACKING),
 	RMI_STATUS_STRING(INCOMPLETE),
 	RMI_STATUS_STRING(BLOCKED),
-	RMI_STATUS_STRING(ERROR_GPT)
+	RMI_STATUS_STRING(ERROR_GPT),
+	RMI_STATUS_STRING(ERROR_GRANULE)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(rmi_status_string) == RMI_ERROR_COUNT_MAX);
@@ -203,7 +204,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(VDEV_CREATE,		4, 0, smc_vdev_create,		 true, true),
 	HANDLER(VDEV_DESTROY,		3, 0, smc_vdev_destroy,		 true, true),
 	HANDLER(VDEV_GET_STATE,		1, 1, smc_vdev_get_state,	 true, true),
-	HANDLER(VDEV_UNLOCK,		3, 0, smc_vdev_unlock,		 true, true),
+	HANDLER(VDEV_UNLOCK,		3, 1, smc_vdev_unlock,		 true, true),
 	HANDLER(RTT_SET_S2AP,		4, 1, smc_rtt_set_s2ap,		 false, true),
 	HANDLER(VDEV_COMPLETE,		2, 0, smc_vdev_complete,	 true, true),
 	HANDLER(VDEV_GET_INTERFACE_REPORT, 3, 0, smc_vdev_get_interface_report,	 true, true),

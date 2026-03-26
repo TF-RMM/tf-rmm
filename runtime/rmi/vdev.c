@@ -9,6 +9,7 @@
 #include <debug.h>
 #include <dev.h>
 #include <dev_assign_app.h>
+#include <dev_granule.h>
 #include <feature.h>
 #include <granule.h>
 #include <random_app.h>
@@ -814,12 +815,12 @@ unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 		goto out_err_input;
 	}
 
-	if (vd->dma_state == RMI_VDEV_DMA_ENABLED) {
-		if (smmuv3_disable_ste(vd->smmu_idx, vd->sid) != 0) {
-			smc_rc = RMI_ERROR_DEVICE;
-			goto out_err_input;
-		}
-	}
+	/*
+	 * The VDEV state machine enforces DMA-off before reaching a destroyable
+	 * state. In particular, smc_vdev_unlock() disables the STE before the
+	 * VDEV can transition to RMI_VDEV_STATE_UNLOCKED.
+	 */
+	assert(vd->dma_state == RMI_VDEV_DMA_DISABLED);
 
 	if (smmuv3_release_ste(vd->smmu_idx, vd->sid) != 0) {
 		smc_rc = RMI_ERROR_DEVICE;
@@ -1052,8 +1053,8 @@ out_err_input:
 	return smc_rc;
 }
 
-unsigned long smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
-				unsigned long vdev_addr)
+void smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
+		     unsigned long vdev_addr, struct smc_result *res)
 {
 	struct granule *g_rd = NULL;
 	struct granule *g_pdev = NULL;
@@ -1061,26 +1062,31 @@ unsigned long smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 	struct dev_tdisp_params *tdisp_params;
 	struct vdev *vd = NULL;
 
-	unsigned long smc_rc;
-
 	if (!is_rmi_feat_da_enabled()) {
-		return SMC_NOT_SUPPORTED;
+		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[1] = 0U;
+		return;
 	}
 
 	if (!GRANULE_ALIGNED(rd_addr) || !GRANULE_ALIGNED(pdev_addr) ||
 	    !GRANULE_ALIGNED(vdev_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0U;
+		return;
 	}
 
 	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
 				    pdev_addr, GRANULE_STATE_PDEV, &g_pdev)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0U;
+		return;
 	}
 
 	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
 	if (g_vdev == NULL) {
-		smc_rc = RMI_ERROR_INPUT;
-		goto out_err_input;
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0U;
+		goto out_unlock;
 	}
 
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
@@ -1088,26 +1094,64 @@ unsigned long smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 
 	if ((vd->g_rd != g_rd) ||
 	    (vd->g_pdev != g_pdev)) {
-		smc_rc = RMI_ERROR_DEVICE;
-		goto out_err_input;
+		res->x[0] = RMI_ERROR_DEVICE;
+		res->x[1] = 0U;
+		goto out_unlock;
 	}
 
 	if ((vd->rmi_state != RMI_VDEV_STATE_LOCKED) &&
 	    (vd->rmi_state != RMI_VDEV_STATE_STARTED) &&
 	    (vd->rmi_state != RMI_VDEV_STATE_ERROR)) {
-		smc_rc = RMI_ERROR_DEVICE;
-		goto out_err_input;
+		res->x[0] = RMI_ERROR_DEVICE;
+		res->x[1] = 0U;
+		goto out_unlock;
 	}
 
 	if (vd->comm_state != DEV_COMM_IDLE) {
 		ERROR("vd(%p)->comm_state(%u) != DEV_COMM_IDLE\n", (void *)vd, vd->comm_state);
-		smc_rc = RMI_ERROR_DEVICE;
-		goto out_err_input;
+		res->x[0] = RMI_ERROR_DEVICE;
+		res->x[1] = 0U;
+		goto out_unlock;
 	}
 
-	if (vd->num_map != 0U) {
-		smc_rc = RMI_ERROR_DEVICE;
-		goto out_err_input;
+	/*
+	 * Make sure that no dev granules are mapped in the address ranges of
+	 * this VDEV
+	 */
+	for (size_t i = 0U; i < vd->num_addr_range; ++i) {
+		unsigned long base = vd->addr_range[i].base;
+		unsigned long top = vd->addr_range[i].top;
+
+		for (unsigned long addr = base; addr < top; addr += GRANULE_SIZE) {
+			enum dev_coh_type type;
+			struct dev_granule *g =
+				find_lock_dev_granule(addr, DEV_GRANULE_STATE_MAPPED, &type);
+
+			/*
+			 * If the granule is in DEV_GRANULE_STATE_MAPPED state,
+			 * then the unlocking of the VDEV cannot be continued
+			 */
+			if (g != NULL) {
+				dev_granule_unlock(g);
+				res->x[0] = RMI_ERROR_GRANULE;
+				res->x[1] = addr;
+				goto out_unlock;
+			}
+		}
+	}
+
+	/*
+	 * Disable the STE (CFGI_STE and CMD_SYNC) early on to stop device from
+	 * DMAing to realm memory. This is especially important when we
+	 * implement the forced-refresh as part of the UNLOCK().
+	 */
+	if (vd->dma_state == RMI_VDEV_DMA_ENABLED) {
+		if (smmuv3_disable_ste(vd->smmu_idx, vd->sid) != 0) {
+			res->x[0] = RMI_ERROR_DEVICE;
+			res->x[1] = 0U;
+			goto out_unlock;
+		}
+		vd->dma_state = RMI_VDEV_DMA_DISABLED;
 	}
 
 	/* Set TDISP parameters */
@@ -1118,9 +1162,10 @@ unsigned long smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 	vd->op = VDEV_OP_UNLOCK;
 	vd->comm_state = DEV_COMM_PENDING;
 
-	smc_rc = RMI_SUCCESS;
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = 0U;
 
-out_err_input:
+out_unlock:
 	if (vd != NULL) {
 		buffer_unmap(vd);
 	}
@@ -1133,6 +1178,4 @@ out_err_input:
 	}
 
 	granule_unlock(g_rd);
-
-	return smc_rc;
 }

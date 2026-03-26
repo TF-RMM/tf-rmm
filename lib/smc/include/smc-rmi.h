@@ -106,8 +106,11 @@
 /* A GPT walk reached an entry with unexpected level */
 #define RMI_ERROR_GPT			U(15)
 
+/* An attribute of a Granule does not match the expected value */
+#define RMI_ERROR_GRANULE		U(16)
+
 /* Max number of RMI Status Errors. */
-#define RMI_ERROR_COUNT_MAX		U(16)
+#define RMI_ERROR_COUNT_MAX		U(17)
 
 /*
  * The number of GPRs (starting from X0) that are
@@ -776,6 +779,8 @@
  * arg0 == PA of the RD
  * arg1 == PA of the PDEV
  * arg2 == PA of the VDEV
+ *
+ * ret1 == Address of assigned Granule
  */
 #define SMC_RMI_VDEV_UNLOCK			SMC64_RMI_FID(U(0x3A))
 

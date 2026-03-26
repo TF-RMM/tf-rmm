@@ -205,8 +205,8 @@ unsigned long smc_vdev_communicate(unsigned long rd_addr,
 
 void smc_vdev_get_state(unsigned long vdev_addr, struct smc_result *res);
 
-unsigned long smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
-				unsigned long vdev_addr);
+void smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
+		     unsigned long vdev_addr, struct smc_result *res);
 
 void smc_vdev_aux_count(unsigned long pdev_flags, unsigned long vdev_flags,
 			struct smc_result *res);
