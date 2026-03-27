@@ -55,6 +55,7 @@
 /* RsiHashAlgorithm */
 #define RSI_HASH_SHA_256	0U
 #define RSI_HASH_SHA_512	1U
+#define RSI_HASH_SHA_384	2U
 
 /*
  * RsiRipasChangeDestroyed:
@@ -361,6 +362,7 @@
 #define RSI_PLANE_ENTER_FLAGS_TRAP_HC	U(1UL << 2)
 #define RSI_PLANE_ENTER_FLAGS_OWN_GIC	U(1UL << 3)
 #define RSI_PLANE_ENTER_FLAGS_TRAP_SIMD	U(1UL << 4)
+#define RSI_PLANE_ENTER_FLAGS_TRAP_DBG	U(1UL << 5)
 
 /*
  * Possible values for RsiTrap type *
@@ -601,12 +603,16 @@ struct rsi_host_call {
  * Contains flags which describe properties of a device.
  * Width: 8 bytes
  */
-#define RSI_VDEV_FLAGS_P2P_ENABLED_SHIFT	U(0)
-#define RSI_VDEV_FLAGS_P2P_ENABLED_WIDTH	U(1)
-#define RSI_VDEV_FLAGS_P2P_BOUND_SHIFT		U(1)
-#define RSI_VDEV_FLAGS_P2P_BOUND_WIDTH		U(1)
-#define RSI_VDEV_FLAGS_VSMMU_SHIFT		U(2)
+#define RSI_VDEV_FLAGS_VSMMU_SHIFT		U(0)
 #define RSI_VDEV_FLAGS_VSMMU_WIDTH		U(1)
+
+/*
+ * RsiVdevReportFormatType
+ * Represents device report format type.
+ * Width: 1 byte
+ */
+#define RSI_VDEV_REPORT_FORMAT_IMPDEF		U(0)
+#define RSI_VDEV_REPORT_FORMAT_TDISP		U(1)
 
 /*
  * RsiVdevInfo
@@ -627,44 +633,53 @@ struct rsi_vdev_info {
 	SET_MEMBER_RSI(unsigned long meas_nonce, 0x20, 0x28);
 	/* UInt64: Nonce generated on most recent GET_INTERFACE_REPORT request */
 	SET_MEMBER_RSI(unsigned long report_nonce, 0x28, 0x30);
-	/* UInt64: TDISP version of the device */
-	SET_MEMBER_RSI(unsigned long tdisp_version, 0x30, 0x38);
+	/* RsiVdevReportFormatType: Report format type */
+	SET_MEMBER_RSI(unsigned char format_type, 0x30, 0x38);
+	/*
+	 * UInt64: Report format version.
+	 * If format_type is RSI_VDEV_REPORT_FORMAT_TDISP then this field
+	 * specifies the TDISP version, encoded as follows: bits[31:16]: major
+	 * version bits[15:0]: minor version
+	 */
+	SET_MEMBER_RSI(unsigned long format_version, 0x38, 0x40);
 	/* RsiVdevState: State of the device */
-	SET_MEMBER_RSI(unsigned char state, 0x38, 0x40);
+	SET_MEMBER_RSI(unsigned char state, 0x40, 0x80);
 	/* Bits512: VCA digest */
-	SET_MEMBER_RSI(unsigned char vca_digest[RSI_VDEV_VCA_DIGEST_LEN], 0x40, 0x80);
+	SET_MEMBER_RSI(unsigned char vca_digest[RSI_VDEV_VCA_DIGEST_LEN], 0x80, 0xc0);
 	/* Bits512: Certificate digest */
-	SET_MEMBER_RSI(unsigned char cert_digest[RSI_VDEV_CERT_DIGEST_LEN], 0x80, 0xc0);
+	SET_MEMBER_RSI(unsigned char cert_digest[RSI_VDEV_CERT_DIGEST_LEN], 0xc0, 0x100);
 	/* Bits512: Public key digest */
-	SET_MEMBER_RSI(unsigned char pubkey_digest[RSI_VDEV_PUBKEY_DIGEST_LEN], 0xc0, 0x100);
+	SET_MEMBER_RSI(unsigned char pubkey_digest[RSI_VDEV_PUBKEY_DIGEST_LEN], 0x100, 0x140);
 	/* Bits512: Measurement digest */
-	SET_MEMBER_RSI(unsigned char meas_digest[RSI_VDEV_MEAS_DIGEST_LEN], 0x100, 0x140);
+	SET_MEMBER_RSI(unsigned char meas_digest[RSI_VDEV_MEAS_DIGEST_LEN], 0x140, 0x180);
 	/* Bits512: Interface report digest */
-	SET_MEMBER_RSI(unsigned char report_digest[RSI_VDEV_REPORT_DIGEST_LEN], 0x140, 0x180);
+	SET_MEMBER_RSI(unsigned char report_digest[RSI_VDEV_REPORT_DIGEST_LEN], 0x180, 0x1c0);
 	/*
 	 * Address: Base IPA of the VSMMU which is associated with this device.
 	 * This field is valid only if flags.vsmmu == RSI_FEATURE_TRUE.
 	 */
-	SET_MEMBER_RSI(unsigned long vsmmu_addr, 0x180, 0x188);
+	SET_MEMBER_RSI(unsigned long vsmmu_addr, 0x1c0, 0x1c8);
 	/*
 	 * UInt64: Virtual Stream ID.
 	 * This field is valid only if flags.vsmmu == RSI_FEATURE_TRUE.
 	 */
-	SET_MEMBER_RSI(unsigned long vsmmu_vsid, 0x188, 0x200);
+	SET_MEMBER_RSI(unsigned long vsmmu_vsid, 0x1c8, 0x200);
 };
 
 /* Returns the higher supported RSI ABI revision */
 unsigned long rsi_get_highest_supported_version(void);
 
 /*
+ * RsiPlaneEnter
  * Data passed from Plane 0 to the RMM on entry to Plane N.
+ * Width: 2048 (0x800) bytes.
  */
 struct rsi_plane_enter {
 	/* RsiPlaneEnterFlags - Offset 0x0 */
-	SET_MEMBER_RSI(unsigned long flags, 0, 0x8);
+	SET_MEMBER_RSI(unsigned long flags, 0x0, 0x8);
 	/* Program counter - Offset 0x8 */
 	SET_MEMBER_RSI(unsigned long pc, 0x8, 0x10);
-	/* PSTATE_value  - Offset 0x10 */
+	/* PSTATE value - Offset 0x10 */
 	SET_MEMBER_RSI(unsigned long pstate, 0x10, 0x100);
 	/* General purpose registers - Offset 0x100 */
 	SET_MEMBER_RSI(unsigned long gprs[RSI_PLANE_NR_GPRS], 0x100, 0x200);
@@ -675,31 +690,47 @@ struct rsi_plane_enter {
 			unsigned long gicv3_hcr;
 			/* GICv3 List Registers - Offset 0x208 */
 			unsigned long gicv3_lrs[RSI_PLANE_GIC_NUM_LRS];
-		}, 0x200, 0x300);
+		}, 0x200, 0x400);
+	/* EL1 system registers */
+	SET_MEMBER_RSI(
+		struct {
+			/* ELR_EL1 value - Offset 0x400 */
+			unsigned long elr_el1;
+		}, 0x400, 0x800);
 };
 
 /*
+ * RsiPmuOverflowStatus
+ * PMU overflow status.
+ * Width: 8 bytes
+ */
+#define RSI_PMU_OVERFLOW_STATUS_NOT_ACTIVE	((unsigned char)0)
+#define RSI_PMU_OVERFLOW_STATUS_ACTIVE		((unsigned char)1)
+
+/*
+ * RsiPlaneExit
  * Data passed from the RMM to Plane 0 on exit from Plane N.
+ * Width: 2048 (0x800) bytes.
  */
 struct rsi_plane_exit {
 	/* RsiPlaneExitReason - Offset 0x0 */
-	SET_MEMBER_RSI(unsigned long reason, 0x0, 0x100);
+	SET_MEMBER_RSI(unsigned char reason, 0x0, 0x8);
+	/* Exception Link Register - Offset 0x8 */
+	SET_MEMBER_RSI(unsigned long elr_el2, 0x8, 0x10);
+	/* PSTATE value - Offset 0x10 */
+	SET_MEMBER_RSI(unsigned long pstate, 0x10, 0x100);
+	/* General purpose registers - Offset 0x200 */
+	SET_MEMBER_RSI(unsigned long gprs[RSI_PLANE_NR_GPRS], 0x100, 0x200);
 	/* EL2 system registers */
 	SET_MEMBER_RSI(
 		struct {
-			/* Exception Link Register - Offset 0x100 */
-			unsigned long elr_el2;
-			/* Exception Syndrome Register - Offset 0x108 */
+			/* Exception Syndrome Register - Offset 0x200 */
 			unsigned long esr_el2;
-			/* Fault Address Register - Offset 0x110 */
+			/* Fault Address Register - Offset 0x208 */
 			unsigned long far_el2;
-			/* Hypervisor IPA Fault Address register - Offset 0x118 */
+			/* Hypervisor IPA Fault Address register - Offset 0x210 */
 			unsigned long hpfar_el2;
-			/* PSTATE Value - Offset 0x120 */
-			unsigned long pstate;
-		}, 0x100, 0x200);
-	/* General purpose registers - Offset 0x200 */
-	SET_MEMBER_RSI(unsigned long gprs[RSI_PLANE_NR_GPRS], 0x200, 0x300);
+		}, 0x200, 0x300);
 	/* GICv3 registers */
 	SET_MEMBER_RSI(
 		struct {
@@ -715,7 +746,7 @@ struct rsi_plane_exit {
 	/* Timer registers */
 	SET_MEMBER_RSI(
 		struct {
-			/* Physical Timer Control Register Value - Offstet 0x400 */
+			/* Physical Timer Control Register Value - Offset 0x400 */
 			unsigned long cntp_ctl;
 			/* Physical Timer Compare Value Register - Offset 0x408 */
 			unsigned long cntp_cval;
@@ -724,6 +755,22 @@ struct rsi_plane_exit {
 			/* Virtual Timer Compare Value Register - Offset 0x418 */
 			unsigned long cntv_cval;
 		}, 0x400, 0x500);
+	/* EL1 system registers */
+	SET_MEMBER_RSI(
+		struct {
+			/* SCTLR_EL1 value - Offset 0x500 */
+			unsigned long sctlr_el1;
+			/* VBAR_EL1 value - Offset 0x508 */
+			unsigned long vbar_el1;
+			/* ELR_EL1 value - Offset 0x510 */
+			unsigned long elr_el1;
+		}, 0x500, 0x600);
+	/* PMU */
+	SET_MEMBER_RSI(
+		struct {
+			/* PMU overflow status - Offset 0x600 */
+			unsigned char pmu_ovf_status;
+		}, 0x600, 0x800);
 };
 
 /*

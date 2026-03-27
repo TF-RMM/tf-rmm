@@ -44,6 +44,12 @@ void mecid_free(unsigned int mecid)
     /* No operation */
 }
 
+bool mecid_alloc(unsigned int *mecid, unsigned int mec_policy)
+{
+	*mecid = 0U;
+	return true;
+}
+
 void _mecid_s1_get(unsigned int mecid)
 {
     /* No operation */

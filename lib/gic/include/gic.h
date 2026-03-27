@@ -145,18 +145,6 @@
 #define ICH_LR_STATE_PENDING_ACTIVE	INPLACE(ICH_LR_STATE, UL(3))
 
 /*
- * A `_ns` mask defines bits that can be set/cleared by the NS hypervisor.
- */
-#define ICH_HCR_EL2_NS_MASK			  \
-		(ICH_HCR_EL2_UIE_BIT		| \
-		 ICH_HCR_EL2_LRENPIE_BIT	| \
-		 ICH_HCR_EL2_NPIE_BIT		| \
-		 ICH_HCR_EL2_VGRP0EIE_BIT	| \
-		 ICH_HCR_EL2_VGRP0DIE_BIT	| \
-		 ICH_HCR_EL2_VGRP1EIE_BIT	| \
-		 ICH_HCR_EL2_VGRP1DIE_BIT	| \
-		 ICH_HCR_EL2_TDIR_BIT)
-/*
  * Maximum number of Interrupt Controller
  * Hyp Active Priorities Group 0/1 Registers [0..3]
  */
@@ -170,45 +158,20 @@
 #define ICH_MISR_EL2_WIDTH	UL(8)
 #define ICH_MISR_EL2_MASK	MASK(ICH_MISR_EL2)
 
-/*******************************************************************************
- * GICv3 and 3.1 definitions
- ******************************************************************************/
-#define MIN_SGI_ID		U(0)
-#define MIN_SEC_SGI_ID		U(8)
-
-/* PPIs INTIDs 16-31 */
-#define MIN_PPI_ID		U(16)
-#define MAX_PPI_ID		U(31)
-
-/* SPIs INTIDs 32-1019 */
-#define MIN_SPI_ID		U(32)
-#define MAX_SPI_ID		U(1019)
-
-/* GICv3.1 extended PPIs INTIDs 1056-1119 */
-#define MIN_EPPI_ID		U(1056)
-#define MAX_EPPI_ID		U(1119)
-
-/* GICv3.1 extended SPIs INTIDs 4096 - 5119 */
-#define MIN_ESPI_ID		U(4096)
-#define MAX_ESPI_ID		U(5119)
-
-/* Constant to categorize LPI interrupt */
-#define MIN_LPI_ID		U(8192)
-
 struct gic_cpu_state {
 	/* Interrupt Controller Hyp Active Priorities Group 0 Registers */
 	unsigned long ich_ap0r_el2[ICH_MAX_APRS];
 	/* Interrupt Controller Hyp Active Priorities Group 1 Registers */
 	unsigned long ich_ap1r_el2[ICH_MAX_APRS];
 	/* GICv3 Virtual Machine Control Register */
-	unsigned long ich_vmcr_el2;		/* RecRun out */
+	unsigned long ich_vmcr_el2;		/* PlaneRun in/out */
 	/* Interrupt Controller Hyp Control Register */
-	unsigned long ich_hcr_el2;		/* RecRun in/out */
+	unsigned long ich_hcr_el2;		/* PlaneRun in/out */
 
 	/* GICv3 List Registers */
-	unsigned long ich_lr_el2[ICH_MAX_LRS];	/* RecRun in/out */
+	unsigned long ich_lr_el2[ICH_MAX_LRS];	/* PlaneRun in/out */
 	/* GICv3 Maintenance Interrupt State Register */
-	unsigned long ich_misr_el2;		/* RecRun out */
+	unsigned long ich_misr_el2;		/* PlaneRun out */
 };
 
 struct rmi_rec_enter;
@@ -216,23 +179,50 @@ struct rmi_rec_exit;
 
 void gic_get_virt_features(void);
 unsigned int gic_vgic_get_num_lrs(void);
-void gic_cpu_state_init(struct gic_cpu_state *gicstate);
 
-void gic_copy_state_from_entry(struct gic_cpu_state *gicstate,
-		unsigned long *gicv3_lrs,
-		unsigned long gicv3_hcr);
-void gic_copy_state_to_exit(struct gic_cpu_state *gicstate,
+void gic_copy_state_to_plane_exit(struct gic_cpu_state *gicstate,
 	unsigned long *gicv3_lrs,
 	unsigned long *gicv3_hcr,
 	unsigned long *gicv3_misr,
 	unsigned long *gicv3_vmcr);
-void gic_copy_state(struct gic_cpu_state *dst,
-		    struct gic_cpu_state *src);
-bool gic_validate_state(unsigned long gicv3_hcr, unsigned long *gicv3_lrs);
-bool gic_is_interrupt_pending(unsigned long *gicv3_lrs);
-bool gic_is_maint_interrupt_pending(struct gic_cpu_state *gicstate);
+
+/*
+ * Validate the GICv3 List Registers supplied by the Host.
+ *
+ * For every active (non-invalid) entry in @gicv3_lrs the following
+ * constraints are checked:
+ *   - HW == '0': the RMM Specification forbids hardware-backed virtual
+ *     interrupts.
+ *   - No two active entries may carry the same vINTID: having duplicate
+ *     vINTIDs across List Registers produces UNPREDICTABLE behaviour.
+ *
+ * Returns true if all constraints are satisfied, false otherwise.
+ */
+bool gic_validate_lrs(unsigned long *gicv3_lrs);
+
+/*
+ * Validate the GICv3 List Registers supplied by the Host, as read from the
+ * hardware registers.
+ */
+bool gic_validate_vgic(void);
+
+bool gic_is_any_interrupt_pending(void);
 void gic_restore_state(struct gic_cpu_state *gicstate);
 void gic_save_state(struct gic_cpu_state *gicstate);
+void gic_disable_virtual_cpuif(void);
+
+/*
+ * Initialise the vGIC state for a Plane entry.
+ *
+ * Copies @gicv3_lrs and @gicv3_hcr into @gicstate
+ * then unconditionally sets the
+ * VSGIEEOICOUNT and DVIM bits in ICH_HCR_EL2 to disable virtual SGI
+ * end-of-interrupt counting and direct-injection of virtual interrupts,
+ * before writing the resulting state to the hardware registers.
+ */
+void gic_init_vgic_state(struct gic_cpu_state *gicstate,
+			unsigned long *gicv3_lrs,
+			unsigned long gicv3_hcr);
 
 static inline unsigned long gic_get_ich_vtr(void)
 {

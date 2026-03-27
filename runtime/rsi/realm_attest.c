@@ -392,7 +392,7 @@ void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 {
 	struct rd *rd;
 	unsigned long idx;
-	unsigned int i, cnt;
+	unsigned int i, cnt, res_words;
 	unsigned long *measurement_value_part;
 	struct rec_plane *plane;
 
@@ -424,11 +424,20 @@ void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 	cnt = (unsigned int)(measurement_get_size(rd->algorithm) /
 						sizeof(unsigned long));
 
-	assert(cnt >= (SMC_RESULT_REGS - 1U));
+	assert(cnt >= 1U);
 	assert(cnt < (unsigned int)ARRAY_SIZE(plane->regs));
 
+	/*
+	 * Copy up to (SMC_RESULT_REGS - 1) measurement words into the
+	 * smc_result output registers (x[1..]).  Algorithms with fewer
+	 * words than available result slots (e.g. SHA-256 / 4 words) will
+	 * only fill what they have; the remaining slots stay zero.
+	 */
+	res_words = (cnt < U(SMC_RESULT_REGS - 1UL)) ?
+					cnt : U(SMC_RESULT_REGS - 1UL);
+
 	/* Copy the part of the measurement to res->smc_res.x[] */
-	for (i = 0U; i < (SMC_RESULT_REGS - 1U); i++) {
+	for (i = 0U; i < res_words; i++) {
 		measurement_value_part = (unsigned long *)
 			&(rd->measurement[idx][i * sizeof(unsigned long)]);
 		res->smc_res.x[i + 1U] = *measurement_value_part;

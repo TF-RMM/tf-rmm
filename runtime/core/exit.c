@@ -906,14 +906,17 @@ static void handle_plane_exit_syndrome(struct rsi_plane_exit *exit,
 				       unsigned long exit_reason)
 {
 	/* Get the most recent value for pstate */
-	exit->reason = exit_reason;
+	exit->reason = (unsigned char)exit_reason;
 	exit->elr_el2 = plane->pc;
 	exit->esr_el2 = plane->plane_exit_info.esr;
 	exit->far_el2 = plane->plane_exit_info.far;
 	exit->hpfar_el2 = plane->plane_exit_info.hpfar;
 
 	exit->pstate = plane->pstate;
-
+	exit->sctlr_el1 = plane->plane_exit_info.sctlr_el1;
+	exit->vbar_el1 = plane->plane_exit_info.vbar_el1;
+	exit->elr_el1 = plane->plane_exit_info.elr_el1;
+	exit->pmu_ovf_status = plane->plane_exit_info.pmu_ovf_status;
 }
 
 static void do_handle_plane_exit(int exception, struct rsi_plane_exit *exit,
@@ -950,7 +953,7 @@ static void copy_state_to_plane_exit(struct rec_plane *plane,
 	}
 
 	copy_timer_state_to_plane_exit(sysreg, exit);
-	gic_copy_state_to_exit(&sysreg->gicstate,
+	gic_copy_state_to_plane_exit(&sysreg->gicstate,
 			(unsigned long *)&exit->gicv3_lrs,
 			&exit->gicv3_hcr,
 			&exit->gicv3_misr,
@@ -1041,6 +1044,11 @@ bool handle_plane_n_exit(struct rec *rec,
 	/* Save Plane N state to REC */
 	if (save_restore_plane_state) {
 		save_realm_state(rec, plane_n, sysreg_n);
+		/*
+		 * Save the gic state regardless of whether the PN owned gic or not.
+		 * This makes it easier to reflect the gic_state to plane_exit params.
+		 */
+		gic_save_state(&sysreg_n->gicstate);
 	}
 
 	/* Map rsi_plane_run granule to RMM address space */
@@ -1072,9 +1080,6 @@ out_return_to_plane_0:
 
 	/* Return GIC ownership to Plane 0 if it was owned by the previous plane */
 	if (rec->gic_owner != PLANE_0_ID) {
-		gic_copy_state(&sysreg_0->gicstate,
-			       &sysreg_n->gicstate);
-
 		rec->gic_owner = PLANE_0_ID;
 	}
 
@@ -1095,11 +1100,19 @@ out_return_to_plane_0:
 	/* Restore Plane 0 state from REC */
 	if (save_restore_plane_state) {
 		restore_realm_state(rec, plane_0, sysreg_0);
+
+		assert(rec->ns != NULL);
+
+		/* Restore NS vGIC state if PN did not own gic */
+		if (PLANE_0_ID == rec->gic_owner) {
+			gic_restore_state(&rec->ns->sysregs.gicstate);
+		}
+		/* If PN was gic owner, retain vGIC state */
+
 		/*
 		 * Since we are returning to P0, we need to undo
 		 * multiplex_el2_timer(), so we restore NS timer.
 		 */
-		assert(rec->ns != NULL);
 		hyp_timer_restore_state(&rec->ns->el2_timer);
 	}
 

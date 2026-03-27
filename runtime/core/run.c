@@ -28,7 +28,7 @@ static struct ns_state g_ns_data[MAX_CPUS];
 static struct simd_context g_ns_simd_ctx[MAX_CPUS]
 			__aligned(CACHE_WRITEBACK_GRANULE);
 
-static void save_sysreg_state(struct sysreg_state *sysregs)
+static void save_sysreg_state(STRUCT_TYPE sysreg_state * sysregs)
 {
 	sysregs->pp_sysregs.sp_el1 = read_sp_el1();
 	sysregs->pp_sysregs.elr_el1 = read_elr_el12();
@@ -125,14 +125,20 @@ void save_realm_state(struct rec *rec, struct rec_plane *plane,
 	plane->plane_exit_info.esr = read_esr_el2();
 	plane->plane_exit_info.hpfar = read_hpfar_el2();
 	plane->plane_exit_info.far = read_far_el2();
+	plane->plane_exit_info.sctlr_el1 = sysregs->pp_sysregs.sctlr_el1;
+	plane->plane_exit_info.vbar_el1 = sysregs->pp_sysregs.vbar_el1;
+	plane->plane_exit_info.elr_el1 = sysregs->pp_sysregs.elr_el1;
+	plane->plane_exit_info.pmu_ovf_status =
+		(rec->realm_info.pmu_enabled && pmu_is_ovf_set()) ?
+		RSI_PMU_OVERFLOW_STATUS_ACTIVE :
+		RSI_PMU_OVERFLOW_STATUS_NOT_ACTIVE;
 
 	save_pmu(rec);
-	gic_save_state(&sysregs->gicstate);
 
 	mec_realm_mecid_s2_reset();
 }
 
-static void restore_sysreg_state(struct sysreg_state *sysregs)
+static void restore_sysreg_state(STRUCT_TYPE sysreg_state * sysregs)
 {
 	write_sp_el1(sysregs->pp_sysregs.sp_el1);
 	write_elr_el12(sysregs->pp_sysregs.elr_el1);
@@ -261,7 +267,6 @@ void restore_realm_state(struct rec *rec, struct rec_plane *plane,
 	write_mdcr_el2(rec->common_sysregs.mdcr_el2);
 
 	restore_pmu(rec);
-	gic_restore_state(&sysregs->gicstate);
 
 	restore_realm_stage2(rec);
 }
@@ -300,6 +305,15 @@ static void save_ns_state(struct rec *rec)
 		 */
 		pmu_save_state(&ns_state->pmu,
 				(unsigned int)EXTRACT(PMCR_EL0_N, read_pmcr_el0()));
+	} else {
+		/*
+		 * Even when PMU is disabled for the Realm, the NS host
+		 * may have left counters enabled (PMCR_EL0.E=1). Save
+		 * NS PMCR_EL0 and disable counting so that host PMU
+		 * counters do not observe Realm execution.
+		 */
+		ns_state->pmu.pmcr_el0 = read_pmcr_el0();
+		write_pmcr_el0(ns_state->pmu.pmcr_el0 & ~PMCR_EL0_E_BIT);
 	}
 
 	hyp_timer_save_state(&ns_state->el2_timer);
@@ -339,6 +353,9 @@ static void restore_ns_state(struct rec *rec)
 		 */
 		pmu_restore_state(&ns_state->pmu,
 				  (unsigned int)EXTRACT(PMCR_EL0_N, read_pmcr_el0()));
+	} else {
+		/* Restore NS PMCR_EL0 (re-enables counting if host had it on) */
+		write_pmcr_el0(ns_state->pmu.pmcr_el0);
 	}
 
 	hyp_timer_restore_state(&ns_state->el2_timer);
@@ -408,6 +425,19 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 	save_ns_state(rec);
 	restore_realm_state(rec, plane, sysregs);
+
+	/*
+	 * If current plane is not GIC owner, restore the gic state from
+	 * saved context. If current plane is GIC owner, skip this and allow
+	 * NS programmed vGIC for the plane.
+	 */
+	if (rec->active_plane_id != rec->gic_owner) {
+		/* Save Host GIC registers in NS State */
+		gic_save_state(&rec->ns->sysregs.gicstate);
+
+		/* Restore previous state */
+		gic_restore_state(&sysregs->gicstate);
+	}
 
 	/*
 	 * The run loop must be entered with active SIMD context set to current
@@ -528,9 +558,19 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	report_pmu_state_to_ns(rec, rec_exit);
 
 	save_realm_state(rec, plane, sysregs);
-
 	restore_ns_state(rec);
 
+	/*
+	 * If current plane is not GIC owner, save the gic state for plane
+	 * and restore the vGIC state for NS.
+	 */
+	if (rec->active_plane_id != rec->gic_owner) {
+		gic_save_state(&sysregs->gicstate);
+		/* Restore NS vGIC State */
+		gic_restore_state(&rec->ns->sysregs.gicstate);
+	}
+
+	gic_disable_virtual_cpuif();
 	/*
 	 * Clear NS pointer since that struct is local to this function.
 	 */

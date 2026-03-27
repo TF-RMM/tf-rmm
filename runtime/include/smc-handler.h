@@ -14,21 +14,21 @@ void smc_version(unsigned long rmi_version,
 void smc_read_feature_register(unsigned long index,
 				struct smc_result *res);
 
-unsigned long smc_data_create(unsigned long rd_addr,
-			      unsigned long data_addr,
-			      unsigned long map_addr,
-			      unsigned long src_addr,
-			      unsigned long flags);
-
-unsigned long smc_data_create_unknown(unsigned long rd_addr,
-				      unsigned long data_addr,
-				      unsigned long map_addr);
-
-void smc_data_destroy(unsigned long rd_addr,
-		      unsigned long map_addr,
-		      struct smc_result *res);
+unsigned long smc_rtt_data_map_init(unsigned long rd_addr,
+			     unsigned long data_addr,
+			     unsigned long map_addr,
+			     unsigned long src_addr,
+			     unsigned long flags);
 
 unsigned long smc_granule_delegate(unsigned long addr);
+
+void smc_granule_range_delegate(unsigned long addr,
+				unsigned long end_addr,
+				struct smc_result *res);
+
+void smc_granule_range_undelegate(unsigned long addr,
+				  unsigned long end_addr,
+				  struct smc_result *res);
 
 unsigned long smc_granule_undelegate(unsigned long addr);
 
@@ -39,17 +39,15 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 
 unsigned long smc_realm_destroy(unsigned long rd_addr);
 
-unsigned long smc_rec_create(unsigned long rd_addr,
-			     unsigned long rec_addr,
-			     unsigned long rec_params_addr);
+void smc_rec_create(unsigned long rd_addr,
+		    unsigned long rec_addr,
+		    unsigned long rec_params_addr,
+		    struct smc_result *res);
 
-unsigned long smc_rec_destroy(unsigned long rec_addr);
+void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res);
 
 unsigned long smc_rec_enter(unsigned long rec_addr,
 			    unsigned long rec_run_addr);
-
-void smc_rec_aux_count(unsigned long rd_addr,
-			struct smc_result *res);
 
 unsigned long smc_rtt_create(unsigned long rd_addr,
 			     unsigned long rtt_addr,
@@ -114,10 +112,24 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 			struct smc_result *res);
 
 void smc_rtt_set_ripas(unsigned long rd_addr,
-			unsigned long rec_addr,
+		    unsigned long rec_addr,
+		    unsigned long base,
+		    unsigned long top,
+		    struct smc_result *res);
+
+void smc_rtt_data_unmap(unsigned long rd_addr,
 			unsigned long base,
 			unsigned long top,
+			unsigned long flags,
+			unsigned long oaddr,
 			struct smc_result *res);
+
+void smc_rtt_data_map(unsigned long rd_addr,
+		      unsigned long base,
+		      unsigned long top,
+		      unsigned long flags,
+		      unsigned long oaddr,
+		      struct smc_result *res);
 
 void smc_rtt_set_s2ap(unsigned long rd_addr, unsigned long rec_addr,
 		      unsigned long base, unsigned long top,
@@ -212,5 +224,28 @@ unsigned long smc_vdev_lock(unsigned long rd_addr, unsigned long pdev_addr,
 					unsigned long vdev_addr);
 unsigned long smc_vdev_start(unsigned long rd_addr, unsigned long pdev_addr,
 					unsigned long vdev_addr);
+
+void smc_granule_tracking_get(unsigned long addr,
+			      struct smc_result *res);
+unsigned long smc_rmm_activate(void);
+unsigned long smc_rmm_config_get(unsigned long config_ptr);
+unsigned long smc_rmm_config_set(unsigned long config_ptr);
+
+void smc_gpt_l1_create(unsigned long addr, struct smc_result *res);
+
+void smc_op_mem_donate(unsigned long handle,
+			unsigned long list_addr,
+			unsigned long list_count,
+			struct smc_result *res);
+void smc_op_mem_reclaim(unsigned long handle,
+			unsigned long list_addr,
+			unsigned long list_count,
+			struct smc_result *res);
+void smc_op_continue(unsigned long flags,
+		     unsigned long handle,
+		     struct smc_result *res);
+void smc_op_cancel(unsigned long flags,
+		     unsigned long handle,
+		     struct smc_result *res);
 
 #endif /* SMC_HANDLER_H */

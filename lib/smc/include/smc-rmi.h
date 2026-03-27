@@ -64,8 +64,50 @@
 /* RTTE in an auxiliary RTT contained an unexpected value */
 #define RMI_ERROR_RTT_AUX		U(7)
 
+/*
+ * A PSMMU Stream Table walk terminated before reaching the target level,
+ * or reached an entry with an unexpected value.
+ */
+#define RMI_ERROR_PSMMU_ST		U(8)
+
+/*
+ * A DPT walk terminated before reaching the target level, or reached an
+ * entry with an unexpected value.
+ */
+#define RMI_ERROR_DPT			U(9)
+
+/* The command failed to make progress for an Implementation Defined
+ * reason. The reason for the lack of progress may be temporary and may
+ * be resolved without requiring any action to be taken by the Host.
+ * The command did not result in any changes of system state.
+ */
+#define RMI_BUSY			U(10)
+
+/* An attribute of RMM global state does not match the expected value */
+#define RMI_ERROR_GLOBAL		U(11)
+
+/* The state of a tracking region does not match the expected value */
+#define RMI_ERROR_TRACKING		U(12)
+
+/*
+ * The command initiated a state transition but did not complete, leaving
+ * an object in an intermediate state. The target object cannot be subject
+ * to any other RMI command until this one has been completed.
+ */
+#define RMI_INCOMPLETE			U(13)
+
+/*
+ * The command failed to make progress due to a target object being in
+ * intermediate state. An incomplete operation must be completed before this
+ * one can proceed. The command did not result in any changes of system state.
+ */
+#define RMI_BLOCKED			U(14)
+
+/* A GPT walk reached an entry with unexpected level */
+#define RMI_ERROR_GPT			U(15)
+
 /* Max number of RMI Status Errors. */
-#define RMI_ERROR_COUNT_MAX		U(8)
+#define RMI_ERROR_COUNT_MAX		U(16)
 
 /*
  * The number of GPRs (starting from X0) that are
@@ -150,7 +192,7 @@
 #define RMI_FEATURE_FALSE	UL(0)
 #define RMI_FEATURE_TRUE	UL(1)
 
-/* RmiFeatureRegister0 format */
+/* RmiFeatureRegister0 */
 #define RMI_FEATURE_REGISTER_0_INDEX			UL(0)
 
 #define RMI_FEATURE_REGISTER_0_S2SZ_SHIFT		UL(0)
@@ -177,32 +219,78 @@
 #define RMI_FEATURE_REGISTER_0_PMU_NUM_CTRS_SHIFT	UL(27)
 #define RMI_FEATURE_REGISTER_0_PMU_NUM_CTRS_WIDTH	UL(5)
 
-#define RMI_FEATURE_REGISTER_0_HASH_SHA_256_SHIFT	UL(32)
-#define RMI_FEATURE_REGISTER_0_HASH_SHA_256_WIDTH	UL(1)
-
-#define RMI_FEATURE_REGISTER_0_HASH_SHA_512_SHIFT	UL(33)
-#define RMI_FEATURE_REGISTER_0_HASH_SHA_512_WIDTH	UL(1)
-
-#define RMI_FEATURE_REGISTER_0_GICV3_NUM_LRS_SHIFT	UL(34)
-#define RMI_FEATURE_REGISTER_0_GICV3_NUM_LRS_WIDTH	UL(4)
-
-#define RMI_FEATURE_REGISTER_0_MAX_RECS_ORDER_SHIFT	UL(38)
-#define RMI_FEATURE_REGISTER_0_MAX_RECS_ORDER_WIDTH	UL(4)
-
-#define RMI_FEATURE_REGISTER_0_DA_EN_SHIFT		UL(42)
-#define RMI_FEATURE_REGISTER_0_DA_EN_WIDTH		UL(1)
-#define RMI_FEATURE_REGISTER_0_PLANE_RTT_SHIFT		UL(43)
-#define RMI_FEATURE_REGISTER_0_PLANE_RTT_WIDTH		UL(2)
-
-#define RMI_FEATURE_REGISTER_0_MAX_NUM_AUX_PLANES_SHIFT UL(45)
-#define RMI_FEATURE_REGISTER_0_MAX_NUM_AUX_PLANES_WIDTH UL(4)
-
-#define RMI_FEATURE_REGISTER_0_RTT_S2AP_INDIRECT_SHIFT	UL(49)
-#define RMI_FEATURE_REGISTER_0_RTT_S2AP_INDIRECT_WIDTH	UL(1)
-
+/* RmiFeatureRegister1 */
 #define RMI_FEATURE_REGISTER_1_INDEX			UL(1)
-#define RMI_FEATURE_REGISTER_1_MAX_MECID_SHIFT		UL(0)
-#define RMI_FEATURE_REGISTER_1_MAX_MECID_WIDTH		UL(64)
+
+#define RMI_FEATURE_REGISTER_1_RMI_GRAN_SZ_4K_SHIFT	UL(0)
+#define RMI_FEATURE_REGISTER_1_RMI_GRAN_SZ_4K_WIDTH	UL(1)
+
+#define RMI_FEATURE_REGISTER_1_RMI_GRAN_SZ_16K_SHIFT	UL(1)
+#define RMI_FEATURE_REGISTER_1_RMI_GRAN_SZ_16K_WIDTH	UL(1)
+
+#define RMI_FEATURE_REGISTER_1_RMI_GRAN_SZ_64K_SHIFT	UL(2)
+#define RMI_FEATURE_REGISTER_1_RMI_GRAN_SZ_64K_WIDTH	UL(1)
+
+#define RMI_FEATURE_REGISTER_1_HASH_SHA_256_SHIFT	UL(3)
+#define RMI_FEATURE_REGISTER_1_HASH_SHA_256_WIDTH	UL(1)
+
+#define RMI_FEATURE_REGISTER_1_HASH_SHA_384_SHIFT	UL(4)
+#define RMI_FEATURE_REGISTER_1_HASH_SHA_384_WIDTH	UL(1)
+
+#define RMI_FEATURE_REGISTER_1_HASH_SHA_512_SHIFT	UL(5)
+#define RMI_FEATURE_REGISTER_1_HASH_SHA_512_WIDTH	UL(1)
+
+#define RMI_FEATURE_REGISTER_1_MAX_RECS_ORDER_SHIFT	UL(6)
+#define RMI_FEATURE_REGISTER_1_MAX_RECS_ORDER_WIDTH	UL(4)
+
+#define RMI_FEATURE_REGISTER_1_L0GPTSZ_SHIFT		UL(10)
+#define RMI_FEATURE_REGISTER_1_L0GPTSZ_WIDTH		UL(4)
+
+#define RMI_FEATURE_REGISTER_1_PPS_SHIFT		UL(14)
+#define RMI_FEATURE_REGISTER_1_PPS_WIDTH		UL(3)
+
+/* RmiFeatureRegister2 */
+#define RMI_FEATURE_REGISTER_2_INDEX			UL(2)
+
+#define RMI_FEATURE_REGISTER_2_DA_EN_SHIFT		UL(0)
+#define RMI_FEATURE_REGISTER_2_DA_EN_WIDTH		UL(1)
+
+#define RMI_FEATURE_REGISTER_2_DA_COH_SHIFT		UL(1)
+#define RMI_FEATURE_REGISTER_2_DA_COH_WIDTH		UL(1)
+
+#define RMI_FEATURE_REGISTER_2_VSMMU_SHIFT		UL(2)
+#define RMI_FEATURE_REGISTER_2_VSMMU_WIDTH		UL(1)
+
+#define RMI_FEATURE_REGISTER_2_ATS_SHIFT		UL(3)
+#define RMI_FEATURE_REGISTER_2_ATS_WIDTH		UL(1)
+
+#define RMI_FEATURE_REGISTER_2_MAX_VDEVS_ORDER_SHIFT	UL(4)
+#define RMI_FEATURE_REGISTER_2_MAX_VDEVS_ORDER_WIDTH	UL(4)
+
+#define RMI_FEATURE_REGISTER_2_VDEV_KROU_SHIFT		UL(8)
+#define RMI_FEATURE_REGISTER_2_VDEV_KROU_WIDTH		UL(1)
+
+#define RMI_FEATURE_REGISTER_2_NON_TEE_STREAM_SHIFT	UL(9)
+#define RMI_FEATURE_REGISTER_2_NON_TEE_STREAM_WIDTH	UL(1)
+
+/* RmiFeatureRegister3 */
+#define RMI_FEATURE_REGISTER_3_INDEX			UL(3)
+
+#define RMI_FEATURE_REGISTER_3_MAX_NUM_AUX_PLANES_SHIFT UL(0)
+#define RMI_FEATURE_REGISTER_3_MAX_NUM_AUX_PLANES_WIDTH UL(4)
+
+#define RMI_FEATURE_REGISTER_3_RTT_PLANE_SHIFT		UL(4)
+#define RMI_FEATURE_REGISTER_3_RTT_PLANE_WIDTH		UL(2)
+
+#define RMI_FEATURE_REGISTER_3_RTT_S2AP_INDIRECT_SHIFT	UL(6)
+#define RMI_FEATURE_REGISTER_3_RTT_S2AP_INDIRECT_WIDTH	UL(1)
+
+/* RmiFeatureRegister4 */
+#define RMI_FEATURE_REGISTER_4_INDEX			UL(4)
+
+#define RMI_FEATURE_REGISTER_4_MEC_COUNT_SHIFT		UL(0)
+#define RMI_FEATURE_REGISTER_4_MEC_COUNT_WIDTH		UL(64)
+
 
 /* The RmiRipas enumeration represents realm IPA state */
 
@@ -227,6 +315,35 @@
 #define RMI_RTT_PLANE_AUX_SINGLE	UL(1)
 #define RMI_RTT_PLANE_SINGLE		UL(2)
 
+/* Possible values for RMI_GRAN_SZ */
+#define RMI_GRAN_SZ_4KB			UL(0)
+#define RMI_GRAN_SZ_16KB		UL(1)
+#define RMI_GRAN_SZ_64KB		UL(2)
+
+/*
+ * Value of Level 0 GPT entry size as encoded in GPCCR_EL3.L0GPTSZ
+ * and used by RMI_FEATURE_REGISTER_0_L0GPTSZ.
+ */
+#define RMI_L0GPTSZ_30BITS		UL(0x0)
+#define RMI_L0GPTSZ_34BITS		UL(0x4)
+#define RMI_L0GPTSZ_36BITS		UL(0x6)
+#define RMI_L0GPTSZ_39BITS		UL(0x9)
+
+/*
+ * Value of Physical Granule size as encoded in GPCCR_EL3.PGS and used by
+ * RMI_FEATURE_REGISTER_0_PGS.
+ */
+#define RMI_PGS_4KB			UL(0)
+#define RMI_PGS_64KB			UL(1)
+#define RMI_PGS_16KB			UL(2)
+
+/*
+ * Value of Protected Physical Address Size as encoded in GPCCR_EL3.PPS
+ * and used by RMI_FEATURE_REGISTER_0_PPS
+ */
+#define RMI_PPS_48BITS			UL(0x5)
+#define RMI_PPS_52BITS			UL(0x6)
+
 /*
  * RmiResponse enumeration represents whether the Host accepted
  * or rejected a Realm request
@@ -245,20 +362,6 @@
  */
 #define SMC_RMI_VERSION				SMC64_RMI_FID(U(0x0))
 
-/*
- * FID: 0xC4000151
- *
- * arg0 == target granule address
- */
-#define SMC_RMI_GRANULE_DELEGATE		SMC64_RMI_FID(U(0x1))
-
-/*
- * FID: 0xC4000152
- *
- * arg0 == target granule address
- */
-#define SMC_RMI_GRANULE_UNDELEGATE		SMC64_RMI_FID(U(0x2))
-
 /* RmiDataMeasureContent type */
 #define RMI_NO_MEASURE_CONTENT	U(0)
 #define RMI_MEASURE_CONTENT	U(1)
@@ -272,29 +375,7 @@
  * arg3 == SRC address
  * arg4 == flags
  */
-#define SMC_RMI_DATA_CREATE			SMC64_RMI_FID(U(0x3))
-
-/*
- * FID: 0xC4000154
- *
- * arg0 == RD address
- * arg1 == data address
- * arg2 == map address
- */
-#define SMC_RMI_DATA_CREATE_UNKNOWN		SMC64_RMI_FID(U(0x4))
-
-/*
- * FID: 0xC4000155
- *
- * arg0 == RD address
- * arg1 == map address
- *
- * ret1 == Address(PA) of the DATA granule, if ret0 == RMI_SUCCESS.
- *         Otherwise, undefined.
- * ret2 == Top of the non-live address region. Only valid
- *         if ret0 == RMI_SUCCESS or ret0 == (RMI_ERROR_RTT, x)
- */
-#define SMC_RMI_DATA_DESTROY			SMC64_RMI_FID(U(0x5))
+#define SMC_RMI_RTT_DATA_MAP_INIT		SMC64_RMI_FID(U(0x3))
 
 /*
  * FID: 0xC4000156
@@ -454,13 +535,6 @@
 #define SMC_RMI_RTT_FOLD			SMC64_RMI_FID(U(0x16))
 
 /*
- * FID: 0xC4000167
- *
- * arg0 == RD address
- */
-#define SMC_RMI_REC_AUX_COUNT			SMC64_RMI_FID(U(0x17))
-
-/*
  * FID: 0xC4000168
  *
  * arg0 == RD address
@@ -512,7 +586,7 @@
 /*
  * FID: 0xC400016E
  */
-#define SMC_RMI_PSMMU_MSI_CONFIG		SMC64_RMI_FID(U(0x1E))
+#define SMC_RMI_RMM_CONFIG_SET			SMC64_RMI_FID(U(0x1E))
 
 /*
  * FID: 0xC400016F
@@ -520,7 +594,7 @@
 #define SMC_RMI_PSMMU_IRQ_NOTIFY		SMC64_RMI_FID(U(0x1F))
 
 /*
- * FID: 0xC4000170 and 0xC4000171 are not used.
+ * FID: 0xC4000171 is not used.
  */
 
 /*
@@ -743,14 +817,16 @@
 #define SMC_RMI_RTT_SET_S2AP			SMC64_RMI_FID(U(0x3B))
 
 /*
- * FID: 0xC400018C
+ * The MEC protects memory owned by multiple Realms. A MEC with this policy
+ * may be referred to as a Shared MEC.
  */
-#define SMC_RMI_MEC_SET_SHARED			SMC64_RMI_FID(U(0x3C))
+#define RMI_MEC_POLICY_SHARED			U(0)
 
 /*
- * FID: 0xC400018D
+ * The MEC protects memory owned by a single Realm. A MEC with this policy
+ * may be referred to as a Private MEC.
  */
-#define SMC_RMI_MEC_SET_PRIVATE			SMC64_RMI_FID(U(0x3D))
+#define RMI_MEC_POLICY_PRIVATE			U(1)
 
 /*
  * FID: 0xC400018E
@@ -840,6 +916,169 @@
  */
 #define SMC_RMI_PSMMU_ST_L2_DESTROY		SMC64_RMI_FID(U(0x8C))
 
+/*
+ * FID: 0xC40001E1
+ *
+ * arg0 == PA of the tracking region
+ *
+ * ret1 == Memory category (RmiMemCategory)
+ * ret2 == Tracking region state (RmiTrackingRegionState)
+ */
+#define SMC_RMI_GRANULE_TRACKING_GET		SMC64_RMI_FID(U(0x91))
+
+/*
+ * FID: 0xC40001E3
+ *
+ * arg0 == PA of the tracking region
+ * arg1 == Memory category (RmiMemCategory)
+ * arg2 == Tracking region state (RmiTrackingRegionState)
+ */
+#define SMC_RMI_GRANULE_TRACKING_SET		SMC64_RMI_FID(U(0x93))
+
+/*
+ * FID: 0xC40001EC
+ *
+ * arg0 == PA of configuration structure (RmiRmmConfig)
+ */
+#define SMC_RMI_RMM_CONFIG_GET			SMC64_RMI_FID(U(0x9C))
+
+/*
+ * FID: 0xC40001F1
+ *
+ * arg0 == start address (PA) of the granule range
+ * arg1 == end address (PA) of the granule range
+ *
+ * ret1 == address (PA) of the next granule after the delegated one
+ */
+#define SMC_RMI_GRANULE_RANGE_DELEGATE		SMC64_RMI_FID(U(0xA1))
+
+/*
+ * FID: 0xC40001F2
+ *
+ * arg0 == start address (PA) of the granule range
+ * arg1 == end address (PA) of the granule range
+ *
+ * ret1 == address (PA) of the next granule after the undelegated one
+ */
+#define SMC_RMI_GRANULE_RANGE_UNDELEGATE	SMC64_RMI_FID(U(0xA2))
+
+/*
+ * FID: 0xC40001F3
+ *
+ * arg0 = PA of the region aligned to L0GPTSZ
+ */
+#define SMC_RMI_GPT_L1_CREATE			SMC64_RMI_FID(U(0xA3))
+
+/*
+ * FID: 0xC40001F4
+ *
+ * arg0 = PA of the region aligned to L0GPTSZ
+ */
+#define SMC_RMI_GPT_L1_DESTROY			SMC64_RMI_FID(U(0xA4))
+
+/*
+ * FID: 0xC40001F5
+ *
+ * arg0 == RD address
+ * arg1 == Base of target IPA range
+ * arg2 == Top of target IPA range
+ * arg3 == flags
+ * arg4 == Output address
+ *
+ * ret1 == Next IPA to process
+ */
+#define SMC_RMI_RTT_DATA_MAP			SMC64_RMI_FID(U(0xA5))
+
+/*
+ * FID: 0xC40001F6
+ *
+ * arg0 == RD address
+ * arg1 == Base of target IPA range
+ * arg2 == Top of target IPA range
+ * arg3 == flags
+ * arg4 == Output address
+ *
+ * ret1 == Top IPA of range which has been mapped
+ * ret2 == RmiAddrRangeDesc - Output address range.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_SINGLE then this
+ *         describes a contiguous PA range which has been unmapped
+ *         from the target IPA range.
+ *         If flags.oaddr_type != RMI_ADDR_TYPE_SINGLE then this
+ *         value is zero.
+ * ret3 == Number of entries in output address list.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_LIST then this is
+ *         the number of entries which have been written to the
+ *         output address list.
+ *         If flags.oaddr_type != RMI_ADDR_TYPE_LIST then this
+ *         value is zero.
+ */
+#define SMC_RMI_RTT_DATA_UNMAP			SMC64_RMI_FID(U(0xA6))
+
+/*
+ * FID: 0xC4000202
+ *
+ * Activate the RMM.
+ * This command may initiate a Stateful RMI Operation.
+ * This command may initiate a memory-transferring RMI Operation.
+ */
+#define SMC_RMI_RMM_ACTIVATE			SMC64_RMI_FID(U(0xB2))
+
+/*
+ * Possible states of the RMM. Note that some SMCs can only be
+ * dispatched when state is RMM_STATE_ACTIVE.
+ */
+/* cppcheck-suppress misra-c2012-2.4 */
+enum rmm_state {
+	RMM_STATE_INIT,
+	RMM_STATE_INTERMEDIATE,
+	RMM_STATE_ACTIVE
+};
+
+/*
+ * FID: 0xC4000203
+ *
+ * arg0 == Handle which identifies the operation.
+ * arg1 == Flags.
+ *
+ * ret0 == Command result.
+ * ret2 == Memory donation requirements.
+ */
+#define SMC_RMI_OP_CONTINUE			SMC64_RMI_FID(U(0xB3))
+
+/*
+ * FID: 0xC4000208
+ *
+ * arg0 == Handle which identifies the operation.
+ * arg1 == PA of RMI Address List.
+ * arg2 == Number of entries in RMI Address List.
+ *
+ * ret0 == Command result.
+ * ret1 == Number of Granules consumed from RMI Address List.
+ * ret2 == Memory donation requirements.
+ */
+#define SMC_RMI_OP_MEM_DONATE			SMC64_RMI_FID(U(0xB8))
+
+/*
+ * FID: 0xC4000209
+ *
+ * arg0 == Handle which identifies the operation.
+ * arg1 == PA of RMI Address List.
+ * arg2 == Number of entries in RMI Address List.
+ *
+ * ret0 == Command result.
+ * ret1 == Number of entries written to RMI Address List.
+ */
+#define SMC_RMI_OP_MEM_RECLAIM			SMC64_RMI_FID(U(0xB9))
+
+/*
+ * FID: 0xC400020A
+ *
+ * arg0 == Handle which identifies the operation to cancel.
+ *
+ * ret0 == Command result.
+ */
+#define SMC_RMI_OP_CANCEL			SMC64_RMI_FID(U(0xBA))
+
 /* Size of Realm Personalization Value */
 #ifndef CBMC
 #define RPV_SIZE		64
@@ -852,17 +1091,20 @@
 #endif
 
 /* RmiRealmFlags0 format */
-#define RMI_REALM_FLAGS0_LPA2_SHIFT	UL(0)
-#define RMI_REALM_FLAGS0_LPA2_WIDTH	UL(1)
+#define RMI_REALM_FLAGS0_LPA2_SHIFT		UL(0)
+#define RMI_REALM_FLAGS0_LPA2_WIDTH		UL(1)
 
-#define RMI_REALM_FLAGS0_SVE_SHIFT	UL(1)
-#define RMI_REALM_FLAGS0_SVE_WIDTH	UL(1)
+#define RMI_REALM_FLAGS0_SVE_SHIFT		UL(1)
+#define RMI_REALM_FLAGS0_SVE_WIDTH		UL(1)
 
-#define RMI_REALM_FLAGS0_PMU_SHIFT	UL(2)
-#define RMI_REALM_FLAGS0_PMU_WIDTH	UL(1)
+#define RMI_REALM_FLAGS0_PMU_SHIFT		UL(2)
+#define RMI_REALM_FLAGS0_PMU_WIDTH		UL(1)
 
-#define RMI_REALM_FLAGS0_DA_SHIFT	UL(3)
-#define RMI_REALM_FLAGS0_DA_WIDTH	UL(1)
+#define RMI_REALM_FLAGS0_DA_SHIFT		UL(3)
+#define RMI_REALM_FLAGS0_DA_WIDTH		UL(1)
+
+#define RMI_REALM_FLAGS0_MEC_POLICY_SHIFT	UL(7)
+#define RMI_REALM_FLAGS0_MEC_POLICY_WIDTH	UL(2)
 
 /* RmiRealmFlags1 format */
 #define RMI_REALM_FLAGS1_RTT_TREE_PP_SHIFT	UL(0)
@@ -875,12 +1117,124 @@
 #define RMI_S2AP_DIRECT				UL(0)
 #define RMI_S2AP_INDIRECT			UL(1)
 
+/* RmiOpMemDonateReq type definitions */
+#define RMI_OP_DONATE_BLK_SIZE_WIDTH	2U
+#define RMI_OP_DONATE_BLK_SIZE_SHIFT	0UL
+
+#define RMI_OP_DONATE_BLK_COUNT_WIDTH	14U
+#define RMI_OP_DONATE_BLK_COUNT_SHIFT	2UL
+
+#define RMI_OP_DONATE_MEM_CONTIG_WIDTH	1U
+#define RMI_OP_DONATE_MEM_CONTIG_SHIFT	16L
+
+#define RMI_OP_DONATE_MEM_STATE_WIDTH	1U
+#define RMI_OP_DONATE_MEM_STATE_SHIFT	17L
+
+/* Values for RMI_ADDR_BLK_SIZE */
+#define RMI_PAGE_L3			0UL
+#define RMI_BLOCK_L2			1UL
+#define RMI_BLOCK_L1			2UL
+#define RMI_BLOCK_L0			3UL
+
+/* Values for RMI_OP MEM_DONATE CONTIG */
+#define RMI_OP_MEM_NON_CONTIG		0UL
+#define RMI_OP_MEM_CONTIG		1UL
+
+/* RmiOpMemReclaimFlags type definitions */
+#define RMI_OP_RECLAIM_MEM_STATE	BIT(0)
+
+/*
+ * Values for RMI_OP_DONATE_MEM_STATE and
+ * RMI_OP_RECLAIM_MEM_STATE.
+ */
+#define RMI_OP_MEM_DELEGATE		0UL
+#define RMI_OP_MEM_UNDELEGATE		1UL
+
+/* RmiContinueFlags type definitionns */
+#define RMI_CONTINUE_BEYOND_FLAG	BIT(0)
+#define RMI_CONTINUE_KEEP_GOING		0UL
+#define RMI_CONTINUE_STOP		1UL
+
+/* Bitfields for RmiResultDataIncomplete type */
+#define RMI_OP_MEM_REQ_SHIFT		(8UL)
+#define RMI_OP_MEM_REQ_WIDTH		(2UL)
+
+#define RMI_OP_CAN_CANCEL_BIT_SHIFT	(10UL)
+#define RMI_OP_CAN_CANCEL_BIT_WIDTH	(1UL)
+
+/* RmiOpMemReq type encoding */
+#define RMI_OP_MEM_REQ_NONE		(0UL)
+#define RMI_OP_MEM_REQ_DONATE		(1UL)
+#define RMI_OP_MEM_REQ_RECLAIM		(2UL)
+
+/* RmiOpCanCancel type encoding */
+#define RMI_OP_CANNOT_CANCEL		(0UL)
+#define RMI_OP_CAN_CANCEL		(1UL)
+
+/* RmiAddrRangeDesc4KB type encoding */
+#define RMI_ADDR_RDESC_4K_SZ_SHIFT	(0UL)
+#define RMI_ADDR_RDESC_4K_SZ_WIDTH	(2UL)
+#define RMI_ADDR_RDESC_4K_CNT_SHIFT	(2UL)
+#define RMI_ADDR_RDESC_4K_CNT_WIDTH	(10UL)
+#define RMI_ADDR_RDESC_4K_ADDR_SHIFT	(12UL)
+#define RMI_ADDR_RDESC_4K_ADDR_WIDTH	(40UL)
+#define RMI_ADDR_RDESC_4K_ST_SHIFT	(63UL)
+#define RMI_ADDR_RDESC_4K_ST_WIDTH	(1UL)
+
+#define RMI_ADDR_RDESC_4K_GET_ADDR(x)				\
+		(EXTRACT(RMI_ADDR_RDESC_4K_ADDR, (x)) << GRANULE_SHIFT)
+
 #ifndef __ASSEMBLER__
 /*
  * Defines member of structure and reserves space
  * for the next member with specified offset.
  */
 #define SET_MEMBER_RMI	SET_MEMBER
+
+
+/* Tracking Region Size with GRANULE_SIZE = 4KB */
+#define RMI_GRAN_4KB_TRACKING_REGION_SIZE_1GB		UL(0)
+
+/* Tracking Region Size with GRANULE_SIZE = 16KB */
+#define RMI_GRAN_16KB_TRACKING_REGION_SIZE_32MB		UL(0)
+#define RMI_GRAN_16KB_TRACKING_REGION_SIZE_64GB		UL(1)
+
+/* Tracking Region Size with GRANULE_SIZE = 64KB */
+#define RMI_GRAN_64KB_TRACKING_REGION_SIZE_512MB	UL(0)
+#define RMI_GRAN_64KB_TRACKING_REGION_SIZE_4TB		UL(1)
+
+/*
+ * RmiGranuleSize enumeration values.
+ */
+#define RMI_GRANULE_SIZE_4KB			UL(0)
+#define RMI_GRANULE_SIZE_16KB			UL(1)
+#define RMI_GRANULE_SIZE_64KB			UL(2)
+
+/* RmiRttAddrType - Address descriptor type */
+#define RMI_ADDR_TYPE_NONE		UL(0)
+#define RMI_ADDR_TYPE_SINGLE		UL(1)
+#define RMI_ADDR_TYPE_LIST		UL(2)
+
+/*
+ * The RmiRmmConfig parameters shared with the Host via
+ * RMI_RMM_CONFIG_GET and RMI_RMM_CONFIG_SET.
+ */
+/* cppcheck-suppress misra-c2012-2.4 */
+struct rmi_rmm_config {
+	SET_MEMBER_RMI(unsigned long tracking_region_size, 0, 0x8);	/* Offset 0 */
+	SET_MEMBER_RMI(unsigned long rmi_granule_size, 0x8, 0x1000);	/* Offset 16 */
+};
+
+/* RmiTrackingRegionState type */
+#define RMI_TRACKING_RESERVED		U(0)
+#define RMI_TRACKING_NONE		U(1)
+#define RMI_TRACKING_FINE		U(2)
+#define RMI_TRACKING_COARSE		U(3)
+
+/* RmiMemCategory type */
+#define RMI_MEM_CATEGORY_CONVENTIONAL	U(0)
+#define RMI_MEM_CATEGORY_DEV_NCOH	U(1)
+#define RMI_MEM_CATEGORY_DEV_COH	U(2)
 
 /*
  * The Realm attribute parameters are shared by the Host via
@@ -910,24 +1264,18 @@ struct rmi_realm_params {
 	 * If ATS is enabled, determines the stage 2 translation used by devices
 	 * assigned to the Realm.
 	 */
-	SET_MEMBER_RMI(unsigned long ats_plane, 0x440, 0x800);		/* 0x440 */
+	SET_MEMBER_RMI(unsigned long ats_plane, 0x440, 0x808);		/* 0x440 */
 
 	SET_MEMBER_RMI(struct {
-			/* Virtual Machine Identifier */
-			unsigned short vmid;				/* 0x800 */
 			/* Realm Translation Table base */
 			unsigned long rtt_base;				/* 0x808 */
 			/* RTT starting level */
 			long rtt_level_start;				/* 0x810 */
 			/* Number of starting level RTTs */
 			unsigned int rtt_num_start;			/* 0x818 */
-		   }, 0x800, 0x820);
+		   }, 0x808, 0x820);
 	/* RmiRealmFlags1 */
-	SET_MEMBER_RMI(unsigned long flags1, 0x820, 0x828);		/* 0x820 */
-	/* MECID */
-	SET_MEMBER_RMI(long mecid, 0x828, 0xF00);			/* 0x828 */
-	/* Auxiliary Virtual Machine Identifiers */
-	SET_MEMBER_RMI(unsigned short aux_vmid[3], 0xF00, 0xF80);	/* 0xF00 */
+	SET_MEMBER_RMI(unsigned long flags1, 0x820, 0xF80);		/* 0x820 */
 	/* Base address of auxiliary RTTs */
 	SET_MEMBER_RMI(unsigned long aux_rtt_base[3], 0xF80, 0x1000);	/* 0xF80 */
 };
@@ -945,13 +1293,7 @@ struct rmi_rec_params {
 	/* Program counter */
 	SET_MEMBER_RMI(unsigned long pc, 0x200, 0x300);	/* 0x200 */
 	/* General-purpose registers */
-	SET_MEMBER_RMI(unsigned long gprs[REC_CREATE_NR_GPRS], 0x300, 0x800); /* 0x300 */
-	SET_MEMBER_RMI(struct {
-			/* Number of auxiliary Granules */
-			unsigned long num_aux;			/* 0x800 */
-			/* Addresses of auxiliary Granules */
-			unsigned long aux[MAX_REC_AUX_GRANULES];/* 0x808 */
-		   }, 0x800, 0x1000);
+	SET_MEMBER_RMI(unsigned long gprs[REC_CREATE_NR_GPRS], 0x300, 0x1000); /* 0x300 */
 };
 
 /*
@@ -962,12 +1304,6 @@ struct rmi_rec_enter {
 	SET_MEMBER_RMI(unsigned long flags, 0, 0x200);	/* Offset 0 */
 	/* General-purpose registers */
 	SET_MEMBER_RMI(unsigned long gprs[REC_EXIT_NR_GPRS], 0x200, 0x300); /* 0x200 */
-	SET_MEMBER_RMI(struct {
-			/* GICv3 Hypervisor Control Register */
-			unsigned long gicv3_hcr;			/* 0x300 */
-			/* GICv3 List Registers */
-			unsigned long gicv3_lrs[REC_GIC_NUM_LRS];	/* 0x308 */
-		   }, 0x300, 0x800);
 };
 
 /*
@@ -997,17 +1333,7 @@ struct rmi_rec_exit {
 			long rtt_level;			/* 0x120 */
 		   }, 0x100, 0x200);
 	/* General-purpose registers */
-	SET_MEMBER_RMI(unsigned long gprs[REC_EXIT_NR_GPRS], 0x200, 0x300); /* 0x200 */
-	SET_MEMBER_RMI(struct {
-			/* GICv3 Hypervisor Control Register */
-			unsigned long gicv3_hcr;	/* 0x300 */
-			/* GICv3 List Registers */
-			unsigned long gicv3_lrs[REC_GIC_NUM_LRS]; /* 0x308 */
-			/* GICv3 Maintenance Interrupt State Register */
-			unsigned long gicv3_misr;	/* 0x388 */
-			/* GICv3 Virtual Machine Control Register */
-			unsigned long gicv3_vmcr;	/* 0x390 */
-		   }, 0x300, 0x400);
+	SET_MEMBER_RMI(unsigned long gprs[REC_EXIT_NR_GPRS], 0x200, 0x400); /* 0x200 */
 	SET_MEMBER_RMI(struct {
 			/* Counter-timer Physical Timer Control Register */
 			unsigned long cntp_ctl;		/* 0x400 */
@@ -1534,5 +1860,4 @@ struct rmi_psmmu_params {
 /* Returns the higher supported RMI ABI revision */
 unsigned long rmi_get_highest_supported_version(void);
 #endif /* __ASSEMBLER__ */
-
 #endif /* SMC_RMI_H */

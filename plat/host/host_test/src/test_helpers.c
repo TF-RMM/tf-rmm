@@ -21,8 +21,8 @@
 #include <utest_exit.h>
 #include <xlat_tables.h>
 
-#define HOST_RMM_EL3_IFC_VERS_MAJOR		(0U)
-#define HOST_RMM_EL3_IFC_VERS_MINOR		(5U)
+#define HOST_RMM_EL3_IFC_VERS_MAJOR		(2U)
+#define HOST_RMM_EL3_IFC_VERS_MINOR		(0U)
 
 /*
  * Define and set the Boot Interface arguments.

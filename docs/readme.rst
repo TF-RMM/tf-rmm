@@ -72,8 +72,7 @@ Third Party Projects
 The `TF-RMM`_ project requires to be linked with certain other 3rd party
 projects and they are to be cloned from their repositories into ``ext`` folder
 before building. The projects are `MbedTLS`_, `t_cose`_, `QCBOR`_,
-`CppUTest`_ and `libspdm`_. `libspdm`_ repository is fetched during config phase
-when RMM_V1_1 build option is enabled.
+`CppUTest`_ and `libspdm`_. `libspdm`_ repository is fetched during config phase.
 
 The project also contains files which are imported from other projects
 into the source tree and may have a different license. Such files with
@@ -115,7 +114,7 @@ To report a bug, please file an `issue on Github`_
 -----------------
 
 .. |Realm VM| image:: ./about/diagrams/cca_software_arch.png
-.. _Realm Management Monitor (RMM) Specification: https://developer.arm.com/documentation/den0137/1-0eac5/?lang=en
+.. _Realm Management Monitor (RMM) Specification: https://developer.arm.com/documentation/den0137/latest/
 .. _Arm CCA: https://www.arm.com/architecture/security-features/arm-confidential-compute-architecture
 .. _Arm CCA Software Stack Guide: https://developer.arm.com/documentation/den0127/0100/Overview
 .. _TF-A: https://www.trustedfirmware.org/projects/tf-a/

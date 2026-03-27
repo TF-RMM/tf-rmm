@@ -252,10 +252,9 @@ static void free_vmids(unsigned short *vmid_list, unsigned int vmid_cnt)
 }
 
 /*
- * Validate realm params and return a VMID list if validation is successful.
+ * Validate realm params.
  */
 static bool validate_realm_params(struct rmi_realm_params *p,
-				  unsigned short *vmid,
 				  unsigned int *n_vmids,
 				  unsigned int *n_rtts,
 				  bool *rtt_tree_pp,
@@ -263,12 +262,15 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 				  unsigned long *ats_plane)
 {
 	unsigned long feat_reg0 = get_feature_register_0();
-	unsigned long feat_reg0_plane_rtt __unused =
-		EXTRACT(RMI_FEATURE_REGISTER_0_PLANE_RTT, feat_reg0);
+	unsigned long feat_reg2 = get_feature_register_2();
+	unsigned long feat_reg3 = get_feature_register_3();
+	unsigned long feat_reg3_plane_rtt __unused =
+		EXTRACT(RMI_FEATURE_REGISTER_3_RTT_PLANE, feat_reg3);
 	unsigned long feat_flags1_rtt_tree_pp __unused =
 		EXTRACT(RMI_REALM_FLAGS1_RTT_TREE_PP, p->flags1);
 	unsigned long feat_flags1_s2ap_enc __unused =
 		EXTRACT(RMI_REALM_FLAGS1_S2AP_ENC, p->flags1);
+	unsigned long mec_policy;
 	unsigned int n_planes;
 
 	/* Validate LPA2 flag */
@@ -332,8 +334,15 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 
 	/* Validate if DA feature can be supported for Realm */
 	if ((EXTRACT(RMI_REALM_FLAGS0_DA, p->flags0) == RMI_FEATURE_TRUE) &&
-	    (EXTRACT(RMI_FEATURE_REGISTER_0_DA_EN, feat_reg0) ==
+	    (EXTRACT(RMI_FEATURE_REGISTER_2_DA_EN, feat_reg2) ==
 	     RMI_FEATURE_FALSE)) {
+		return false;
+	}
+
+	/* Validate MEC policy */
+	mec_policy = EXTRACT(RMI_REALM_FLAGS0_MEC_POLICY, p->flags0);
+	if ((mec_policy != RMI_MEC_POLICY_SHARED) &&
+	    (mec_policy != RMI_MEC_POLICY_PRIVATE)) {
 		return false;
 	}
 
@@ -349,7 +358,7 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 
 	/* Validate num_aux_planes */
 	if ((p->num_aux_planes) >
-			EXTRACT(RMI_FEATURE_REGISTER_0_MAX_NUM_AUX_PLANES, feat_reg0)) {
+			EXTRACT(RMI_FEATURE_REGISTER_3_MAX_NUM_AUX_PLANES, feat_reg3)) {
 		return false;
 	}
 
@@ -363,13 +372,13 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 
 	if (p->num_aux_planes > 0U) {
 		/* Validate that we do not use single tree planes when not allowed */
-		if ((feat_reg0_plane_rtt == RMI_RTT_PLANE_AUX) &&
+		if ((feat_reg3_plane_rtt == RMI_RTT_PLANE_AUX) &&
 		    (feat_flags1_rtt_tree_pp == 0UL)) {
 			return false;
 		}
 
 		/* Validate that we do not use multiple tree planes when not allowed */
-		if ((feat_reg0_plane_rtt == RMI_RTT_PLANE_SINGLE) &&
+		if ((feat_reg3_plane_rtt == RMI_RTT_PLANE_SINGLE) &&
 		    (feat_flags1_rtt_tree_pp > 0UL)) {
 			return false;
 		}
@@ -394,7 +403,7 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 	 * realm.
 	 */
 	if ((feat_flags1_s2ap_enc == RMI_S2AP_INDIRECT) &&
-	    (EXTRACT(RMI_FEATURE_REGISTER_0_RTT_S2AP_INDIRECT, feat_reg0) == RMI_FEATURE_FALSE)) {
+	    (EXTRACT(RMI_FEATURE_REGISTER_3_RTT_S2AP_INDIRECT, feat_reg3) == RMI_FEATURE_FALSE)) {
 		return false;
 	}
 
@@ -442,28 +451,8 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 	default:
 		return false;
 	}
-	/* Check MECID and reserve if allowed */
-	if (!mecid_reserve((unsigned int)p->mecid)) {
-		return false;
-	}
 
 	*n_vmids = p->num_aux_planes + 1U;
-	vmid[0] = p->vmid;
-
-	/* Make a local copy of all VMIDs */
-	for (unsigned int i = 0U; i < p->num_aux_planes; i++) {
-		vmid[i + 1U] = p->aux_vmid[i];
-	}
-
-	/* Reserve the VMIDs for the current realm */
-	for (unsigned int i = 0U; i < *n_vmids; i++) {
-		if (!vmid_reserve(vmid[i])) {
-			/* Free reserved VMID before returning */
-			free_vmids(vmid, i);
-			mecid_free((unsigned int)p->mecid);
-			return false;
-		}
-	}
 
 	return true;
 }
@@ -601,6 +590,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	unsigned short vmid[MAX_S2_CTXS] = {[0 ... (MAX_S2_CTXS - 1)] = 0U};
 	unsigned long rtt_base[MAX_S2_CTXS] = {[0 ... (MAX_S2_CTXS - 1)] = 0U};
 	unsigned int n_vmids = 0U, n_rtts = 0U;
+	unsigned int mecid = 0U;
 	unsigned long ats_plane;
 	bool rtt_tree_pp;
 
@@ -609,9 +599,30 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	}
 
 	/* coverity[uninit_use_in_call:SUPPRESS] */
-	if (!validate_realm_params(&p, vmid, &n_vmids, &n_rtts,
+	if (!validate_realm_params(&p, &n_vmids, &n_rtts,
 				   &rtt_tree_pp, rtt_base, &ats_plane)) {
 		return RMI_ERROR_INPUT;
+	}
+
+	/* Allocate VMIDs for all planes in the realm */
+	for (unsigned int i = 0U; i < n_vmids; i++) {
+		unsigned int allocated_vmid;
+
+		if (!vmid_alloc(&allocated_vmid)) {
+			/* Free allocated VMIDs before returning */
+			free_vmids(vmid, i);
+			return RMI_ERROR_GLOBAL;
+		}
+		vmid[i] = (unsigned short)allocated_vmid;
+	}
+
+	/* Allocate MECID for the realm */
+	if (!mecid_alloc(&mecid,
+			 (unsigned int)EXTRACT(RMI_REALM_FLAGS0_MEC_POLICY,
+					       p.flags0))) {
+		/* Free allocated VMIDs before returning */
+		free_vmids(vmid, n_vmids);
+		return RMI_ERROR_GLOBAL;
 	}
 
 	/*
@@ -624,7 +635,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	 */
 	if (!transition_sl_rtts(rtt_base, p.rtt_num_start, n_rtts)) {
 		free_vmids(vmid, n_vmids);
-		mecid_free((unsigned int)p.mecid);
+		mecid_free(mecid);
 		return RMI_ERROR_INPUT;
 	}
 
@@ -637,7 +648,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	if (g_rd == NULL) {
 		revert_sl_rtts(rtt_base, p.rtt_num_start, n_rtts);
 		free_vmids(vmid, n_vmids);
-		mecid_free((unsigned int)p.mecid);
+		mecid_free(mecid);
 		return RMI_ERROR_INPUT;
 	}
 
@@ -672,7 +683,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 		s2tt_ctx->num_root_rtts = p.rtt_num_start;
 		s2tt_ctx->enable_lpa2 = is_lpa2_requested(&p);
 		s2tt_ctx->indirect_s2ap = rd->rtt_s2ap_encoding;
-		s2tt_ctx->mecid = (unsigned int)p.mecid;
+		s2tt_ctx->mecid = mecid;
 	}
 
 	for (unsigned int plane_idx = 0U; plane_idx < realm_num_planes(rd); plane_idx++) {
@@ -820,32 +831,4 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	mecid_free(mecid);
 
 	return RMI_SUCCESS;
-}
-
-unsigned long smc_mec_set_shared(unsigned long mecid)
-{
-#ifndef RMM_V1_1
-	(void)mecid;
-	return SMC_NOT_SUPPORTED;
-#else
-	if (mec_set_shared((unsigned int)mecid) != 0) {
-		return RMI_ERROR_INPUT;
-	}
-
-	return RMI_SUCCESS;
-#endif
-}
-
-unsigned long smc_mec_set_private(unsigned long mecid)
-{
-#ifndef RMM_V1_1
-	(void)mecid;
-	return SMC_NOT_SUPPORTED;
-#else
-	if (mec_set_private((unsigned int)mecid) != 0) {
-		return RMI_ERROR_INPUT;
-	}
-
-	return RMI_SUCCESS;
-#endif
 }

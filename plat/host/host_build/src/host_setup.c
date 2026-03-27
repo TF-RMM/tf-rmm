@@ -18,6 +18,7 @@
 #include <s2tt.h>
 #include <signal.h>
 #include <smc-rmi.h>
+#include <status.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +39,22 @@
 
 static struct host_realm g_realm;
 
+void *allocate_granule(unsigned int num_granules)
+{
+	static unsigned int next_granule_index;
+	unsigned long granule;
+
+	if ((next_granule_index + num_granules) > HOST_NR_GRANULES) {
+		panic();
+	}
+
+	granule = host_util_get_granule_base() +
+		  next_granule_index * GRANULE_SIZE;
+	next_granule_index += num_granules;
+
+	return (void *)granule;
+}
+
 /*
  * Function to emulate the MMU enablement for the fake_host architecture.
  */
@@ -46,57 +63,308 @@ static void enable_fake_host_mmu(void)
 	write_sctlr_el2(SCTLR_ELx_WXN_BIT | SCTLR_ELx_M_BIT);
 }
 
-void *allocate_granule(void)
+static inline uintptr_t encode_rmi_addr_desc(uintptr_t base, unsigned long count,
+					     unsigned long state)
 {
-	static unsigned int next_granule_index;
-	unsigned long granule;
-
-	if (next_granule_index >= HOST_NR_GRANULES) {
-		panic();
-	}
-
-	granule = host_util_get_granule_base() +
-		  next_granule_index * GRANULE_SIZE;
-	++next_granule_index;
-
-	return (void *)granule;
+	return INPLACE(RMI_ADDR_RDESC_4K_SZ, RMI_PAGE_L3) |
+	       INPLACE(RMI_ADDR_RDESC_4K_CNT, count) |
+	       INPLACE(RMI_ADDR_RDESC_4K_ADDR,
+		       base >> GRANULE_SHIFT) |
+	       INPLACE(RMI_ADDR_RDESC_4K_ST, state);
 }
 
-unsigned long host_realm_get_realm_buffer(void)
+static int delegate_granule_range(void *start_addr, void *end_addr)
 {
-	return (unsigned long)g_realm.realm_buffer;
+	struct smc_result result;
+	void *start = start_addr;
+	void *end = end_addr;
+
+	while ((uintptr_t)start < (uintptr_t)end) {
+		host_rmi_granule_range_delegate(start, end, &result);
+		CHECK_RMI_RESULT();
+		start = (void *)result.x[1];
+		if ((uintptr_t)start == 0UL) {
+			break;
+		}
+	}
+
+	return 0;
+}
+
+static int undelegate_granule_range(void *start_addr, void *end_addr)
+{
+	struct smc_result result;
+	void *start = start_addr;
+	void *end = end_addr;
+
+	while ((uintptr_t)start < (uintptr_t)end) {
+		host_rmi_granule_range_undelegate(start, end, &result);
+		CHECK_RMI_RESULT();
+		start = (void *)result.x[1];
+		if ((uintptr_t)start == 0UL) {
+			break;
+		}
+	}
+
+	return 0;
+}
+
+static uintptr_t rec_allocate_aux(unsigned long granules, bool delegate)
+{
+
+	uintptr_t aux = (uintptr_t)allocate_granule(granules);
+
+	/* Delegate all rec_aux granules as a range if needed */
+	if (delegate) {
+		(void)delegate_granule_range((void *)aux,
+					   (void *)(aux + (granules * GRANULE_SIZE)));
+	}
+
+	return aux;
+}
+
+static void rec_free_aux(uintptr_t granules_ptr, unsigned long granules, bool delegated)
+{
+	if (delegated) {
+		bool undelegated __unused;
+
+	       /* undelegate all the aux granules */
+		undelegated = undelegate_granule_range((void *)granules_ptr,
+					 (void *)(granules_ptr + (granules * GRANULE_SIZE)));
+
+		assert(undelegated);
+	}
+}
+
+static unsigned long host_handle_rec_sro(struct host_realm *realm,
+					 struct smc_result *result,
+					 unsigned long *handle,
+					 unsigned long *donate_req)
+{
+	unsigned long ret_status = result->x[0];
+
+	return_code_t rc = unpack_return_code(ret_status);
+
+	while (rc.status == RMI_INCOMPLETE) {
+		unsigned long mem_req = EXTRACT(RMI_OP_MEM_REQ, ret_status);
+		unsigned long consumed_entries __unused = 0UL;
+
+		switch (mem_req) {
+		case RMI_OP_MEM_REQ_DONATE: {
+			unsigned long count = EXTRACT(RMI_OP_DONATE_BLK_COUNT, *donate_req);
+			unsigned long delegate = (*donate_req & MASK(RMI_OP_DONATE_MEM_STATE)) ?
+					RMI_OP_MEM_UNDELEGATE : RMI_OP_MEM_DELEGATE;
+			uintptr_t base;
+
+			if ((count == 0UL) || (count > MAX_REC_AUX_GRANULES) ||
+			    (realm->sro_addr_list_entries == 0UL)) {
+				ERROR("Invalid REC aux donate request: count=%lu\n", count);
+				return -1;
+			}
+
+			/* Ensure we request block of L3 size */
+			assert(EXTRACT(RMI_OP_DONATE_BLK_SIZE, *donate_req) == RMI_PAGE_L3);
+			base = rec_allocate_aux(count, (delegate == RMI_OP_MEM_DELEGATE));
+
+			/* Populate the list. Add one block (page) per entry */
+			for (unsigned int i = 0U; i < count; i++) {
+				uintptr_t base_addr = base + (i * GRANULE_SIZE);
+				realm->sro_addr_list[i] =
+					encode_rmi_addr_desc(base_addr, 1UL, RMI_OP_MEM_DELEGATE);
+			}
+
+			host_rmi_op_mem_donate(*handle, realm->sro_addr_list, count,
+					       donate_req, &consumed_entries,
+					       result);
+
+			/* We expect to have consumed all the entries */
+			assert(consumed_entries == count);
+			break;
+		}
+		case RMI_OP_MEM_REQ_RECLAIM:
+			host_rmi_op_mem_reclaim(*handle, realm->sro_addr_list,
+						realm->sro_addr_list_entries,
+						&consumed_entries,
+						result);
+
+			/* Expect one entry per aux block (of granule size) */
+			assert(consumed_entries == MAX_REC_AUX_GRANULES);
+
+			for (unsigned int i = 0U; i < consumed_entries; i++) {
+				unsigned long entry =
+					(unsigned long)realm->sro_addr_list[i];
+				uintptr_t granule_ptr;
+				unsigned long block_count;
+				bool delegated;
+
+				/* Expect the block size to be L3 block */
+				assert(EXTRACT(RMI_ADDR_RDESC_4K_SZ, entry) ==
+									RMI_PAGE_L3);
+
+				block_count = EXTRACT(RMI_ADDR_RDESC_4K_CNT, entry);
+				assert(block_count == 1UL);
+
+				granule_ptr = EXTRACT(RMI_ADDR_RDESC_4K_ADDR, entry) <<
+							GRANULE_SHIFT;
+				delegated = (EXTRACT(RMI_ADDR_RDESC_4K_ST, entry) != 0UL);
+
+				rec_free_aux(granule_ptr, block_count, delegated);
+			}
+			break;
+		case RMI_OP_MEM_REQ_NONE:
+		default:
+			host_rmi_op_continue(handle, 0UL, donate_req, result);
+			break;
+		}
+
+		if ((rc.status != RMI_INCOMPLETE) && (rc.status != RMI_BUSY)) {
+			/*
+			 * The memory operation failed, issue a RMI_OP_CONTINUE
+			 * to inform the host.
+			 */
+			ret_status = result->x[0];
+			unpack_return_code(ret_status);
+
+			host_rmi_op_continue(handle, 0UL, donate_req, result);
+		}
+
+		ret_status = result->x[0];
+		rc = unpack_return_code(ret_status);
+	}
+
+	return result->x[0];
+}
+
+unsigned long host_realm_get_realm_data_1(void)
+{
+	return (unsigned long)g_realm.realm_data_1;
+}
+
+static int rtt_data_map_range(void *rd, uintptr_t base_ipa, uintptr_t top_ipa, uintptr_t base_pa)
+{
+	struct smc_result result;
+	uintptr_t current_ipa = base_ipa;
+	uintptr_t current_pa = base_pa;
+
+	while (current_ipa < top_ipa) {
+		host_rmi_rtt_data_map(rd,
+				      current_ipa,
+				      top_ipa,
+				      0x1UL,
+				      current_pa,
+				      &result);
+		CHECK_RMI_RESULT();
+
+		/* Update IPA for next iteration */
+		current_ipa = result.x[1];
+		if (current_ipa >= top_ipa) {
+			break;
+		}
+
+		/* Calculate corresponding PA */
+		current_pa = base_pa + (current_ipa - base_ipa);
+	}
+
+	return 0;
+}
+
+static int rtt_data_unmap_range(void *rd, uintptr_t base_ipa, uintptr_t top_ipa)
+{
+	struct smc_result result;
+	uintptr_t current_ipa = base_ipa;
+
+	while (current_ipa < top_ipa) {
+		host_rmi_rtt_data_unmap(rd,
+					current_ipa,
+					top_ipa,
+					0x1UL,
+					0UL,
+					&result);
+		CHECK_RMI_RESULT();
+
+		/* Update IPA for next iteration */
+		current_ipa = result.x[1];
+		if (current_ipa >= top_ipa) {
+			break;
+		}
+	}
+
+	return 0;
 }
 
 static int host_create_realm_and_activate(struct host_realm *realm)
 {
 	struct smc_result result;
-	unsigned long feat_reg0;
+	unsigned long feat_reg2;
 	unsigned int i;
+	u_register_t create_handle = 0UL;
+	u_register_t donate_req = 0UL;
 
 	/* Allocate granules */
-	realm->rd = allocate_granule();
-	realm->rec = allocate_granule();
-	realm->rec_params = allocate_granule();
-	realm->rec_run = allocate_granule();
-	realm->realm_params = allocate_granule();
+	realm->rd = allocate_granule(1);
+	realm->rec = allocate_granule(1);
+	realm->rec_params = allocate_granule(1);
+	realm->rec_run = allocate_granule(1);
+	realm->realm_params = allocate_granule(1);
+	realm->sro_addr_list = allocate_granule(1);
+	realm->sro_addr_list_entries = GRANULE_SIZE / sizeof(uintptr_t);
+	memset(realm->sro_addr_list, 0, GRANULE_SIZE);
 
-	host_rmi_version(MAKE_RMI_REVISION(1, 0), &result);
+	host_rmi_version(MAKE_RMI_REVISION(2, 0), &result);
+
 	CHECK_RMI_RESULT();
 	INFO("RMI Version is 0x%lx : 0x%lx\n", result.x[1], result.x[2]);
 
 	/* Check if DA enabled in RMI features */
-	host_rmi_features(RMI_FEATURE_REGISTER_0_INDEX, &result);
+	host_rmi_features(RMI_FEATURE_REGISTER_2_INDEX, &result);
 	CHECK_RMI_RESULT();
-	feat_reg0 = result.x[1];
 
-	host_rmi_granule_delegate(realm->rd, &result);
-	CHECK_RMI_RESULT();
-	host_rmi_granule_delegate(realm->rec, &result);
-	CHECK_RMI_RESULT();
-	for (i = 0; i < RTT_COUNT; ++i) {
-		realm->rtts[i] = allocate_granule();
-		host_rmi_granule_delegate(realm->rtts[i], &result);
+	feat_reg2 = result.x[1];
+
+	/* Query all 4 RMI feature registers */
+	for (unsigned int i = 0; i < 5; i++) {
+		host_rmi_features(i, &result);
 		CHECK_RMI_RESULT();
+		INFO("RMI_FEATURES(%u) = 0x%lx\n", i, result.x[1]);
+	}
+
+	/* Test RMI_GRANULE_TRACKING_GET */
+	host_rmi_granule_tracking_get(0, &result);
+	CHECK_RMI_RESULT();
+	INFO("RMI_GRANULE_TRACKING_GET: category=0x%lx, tracking=0x%lx\n",
+	     result.x[1], result.x[2]);
+
+	/* Test RMI_RMM_CONFIG_GET and RMI_RMM_CONFIG_SET */
+	void *config_buf = allocate_granule(1);
+	host_rmi_rmm_config_get((unsigned long)config_buf, &result);
+	CHECK_RMI_RESULT();
+	INFO("RMI_RMM_CONFIG_GET succeeded\n");
+
+	host_rmi_rmm_config_set((unsigned long)config_buf, &result);
+	CHECK_RMI_RESULT();
+	INFO("RMI_RMM_CONFIG_SET succeeded\n");
+
+	host_rmm_activate(&result);
+	CHECK_RMI_RESULT();
+
+	/* Delegate rd */
+	if (delegate_granule_range(realm->rd, (void *)((uintptr_t)realm->rd + GRANULE_SIZE)) != 0) {
+		return -1;
+	}
+
+	/* Delegate rec */
+	if (delegate_granule_range(realm->rec, (void *)((uintptr_t)realm->rec + GRANULE_SIZE)) != 0) {
+		return -1;
+	}
+	/* Allocate all RTT granules first */
+	for (i = 0; i < RTT_COUNT; ++i) {
+		realm->rtts[i] = allocate_granule(1);
+	}
+
+	/* Delegate all RTT granules as a range */
+	if (delegate_granule_range(realm->rtts[0],
+				   (void *)((uintptr_t)realm->rtts[RTT_COUNT - 1] + GRANULE_SIZE)) != 0) {
+		return -1;
 	}
 
 	memset(realm->realm_params, 0, sizeof(*realm->realm_params));
@@ -107,7 +375,7 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 	realm->realm_params->num_wps = 1;
 
 	/* Set Realm flags with DA enabled */
-	if (EXTRACT(RMI_FEATURE_REGISTER_0_DA_EN, feat_reg0) ==
+	if (EXTRACT(RMI_FEATURE_REGISTER_2_DA_EN, feat_reg2) ==
 	    RMI_FEATURE_TRUE) {
 		realm->realm_params->flags0 = INPLACE(RMI_REALM_FLAGS0_DA,
 						      RMI_FEATURE_TRUE);
@@ -125,37 +393,33 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 		CHECK_RMI_RESULT();
 	}
 
-	realm->realm_buffer = (uintptr_t)allocate_granule();
-	host_rmi_granule_delegate((void *)realm->realm_buffer, &result);
-	CHECK_RMI_RESULT();
+	realm->realm_data_1 = (uintptr_t)allocate_granule(3);
+	realm->realm_data_1_num_gr = 3;
+	if (delegate_granule_range((void *)realm->realm_data_1,
+				   (void *)(realm->realm_data_1 + 3 * GRANULE_SIZE)) != 0) {
+		return -1;
+	}
 
-	host_rmi_rtt_init_ripas(realm->rd, REALM_BUFFER_IPA,
-				REALM_BUFFER_IPA + GRANULE_SIZE,
+	host_rmi_rtt_init_ripas(realm->rd, REALM_BUFFER_IPA_1,
+				REALM_BUFFER_IPA_1 + (realm->realm_data_1_num_gr * GRANULE_SIZE),
 				&result);
 	CHECK_RMI_RESULT();
 
-	host_rmi_data_create_unknown(realm->rd, realm->realm_buffer, REALM_BUFFER_IPA, &result);
-	CHECK_RMI_RESULT();
-
-	host_rmi_rec_aux_count(realm->rd, &result);
-	CHECK_RMI_RESULT();
-	realm->rec_aux_count = result.x[1];
-
-	assert(realm->rec_aux_count == MAX_REC_AUX_GRANULES);
-	INFO("A rec requires %lu rec aux pages\n", realm->rec_aux_count);
-
-	memset(realm->rec_params, 0, sizeof(*realm->rec_params));
-	for (i = 0; i < realm->rec_aux_count; ++i) {
-		realm->rec_aux_granules[i] = allocate_granule();
-		realm->rec_params->aux[i] = (uintptr_t)realm->rec_aux_granules[i];
-		host_rmi_granule_delegate(realm->rec_aux_granules[i], &result);
-		CHECK_RMI_RESULT();
+	/* Map data granules as a range */
+	if (rtt_data_map_range(realm->rd, REALM_BUFFER_IPA_1,
+			       REALM_BUFFER_IPA_1 + (realm->realm_data_1_num_gr * GRANULE_SIZE),
+			       realm->realm_data_1) != 0) {
+		return -1;
 	}
-	realm->rec_params->num_aux = realm->rec_aux_count;
+
 	realm->rec_params->flags |= REC_PARAMS_FLAG_RUNNABLE;
 	realm->rec_params->pc = (uintptr_t)realm_start;
 
-	host_rmi_rec_create(realm->rd, realm->rec, realm->rec_params, &result);
+	host_rmi_rec_create(realm->rd, realm->rec, realm->rec_params,
+			    &create_handle, &donate_req, &result);
+	if (host_handle_rec_sro(realm, &result, &create_handle, &donate_req) != 0) {
+		return -1;
+	}
 	CHECK_RMI_RESULT();
 	host_rmi_realm_activate(realm->rd, &result);
 	CHECK_RMI_RESULT();
@@ -167,35 +431,51 @@ static int host_destroy_realm(struct host_realm *realm)
 {
 	struct smc_result result;
 	unsigned long i;
+	u_register_t destroy_handle = 0UL;
+	u_register_t donate_req = 0UL;
 
 	assert(realm != NULL);
 
-	host_rmi_rec_destroy(realm->rec, &result);
+	host_rmi_rec_destroy(realm->rec, (void *)&destroy_handle, &result);
+	if (host_handle_rec_sro(realm, &result, &destroy_handle, &donate_req) != 0) {
+		return -1;
+	}
 	CHECK_RMI_RESULT();
 
-	for (i = 0; i < realm->rec_aux_count; ++i) {
-		host_rmi_granule_undelegate(realm->rec_aux_granules[i], &result);
-		CHECK_RMI_RESULT();
+	/* Unmap data granules as a range */
+	if (rtt_data_unmap_range(realm->rd, REALM_BUFFER_IPA_1,
+				 REALM_BUFFER_IPA_1 +
+				 (realm->realm_data_1_num_gr * GRANULE_SIZE)) != 0) {
+		return -1;
 	}
 
-	host_rmi_data_destroy(realm->rd, REALM_BUFFER_IPA, &result);
-	CHECK_RMI_RESULT();
-	host_rmi_granule_undelegate((void *)realm->realm_buffer, &result);
-	CHECK_RMI_RESULT();
+	if (undelegate_granule_range((void *)realm->realm_data_1,
+		(void *)(realm->realm_data_1 + (realm->realm_data_1_num_gr * GRANULE_SIZE))) != 0) {
+		return -1;
+	}
 
 	for (i = RTT_COUNT - 1; i >= 1; --i) {
 		host_rmi_rtt_destroy(realm->rd, 0, i, &result);
 		CHECK_RMI_RESULT();
-		host_rmi_granule_undelegate(realm->rtts[i], &result);
-		CHECK_RMI_RESULT();
+	}
+
+	/* Undelegate all RTT granules as a range */
+	if (undelegate_granule_range(realm->rtts[1],
+				     (void *)((uintptr_t)realm->rtts[RTT_COUNT - 1] +
+					     GRANULE_SIZE)) != 0) {
+		return -1;
 	}
 
 	host_rmi_realm_destroy(realm->rd, &result);
 	CHECK_RMI_RESULT();
-	host_rmi_granule_undelegate(realm->rd, &result);
-	CHECK_RMI_RESULT();
-	host_rmi_granule_undelegate(realm->rec, &result);
-	CHECK_RMI_RESULT();
+	if (undelegate_granule_range(realm->rd,
+				     (void *)((uintptr_t)realm->rd + GRANULE_SIZE)) != 0) {
+		return -1;
+	}
+	if (undelegate_granule_range(realm->rec,
+				     (void *)((uintptr_t)realm->rec + GRANULE_SIZE)) != 0) {
+		return -1;
+	}
 
 	return 0;
 }
@@ -228,7 +508,6 @@ static pid_t spdm_responder_pid __unused = -1;
 
 static void launch_spdm_responder_emu(char *base_dir)
 {
-#ifdef RMM_V1_1
 	pid_t pid;
 	static const char *rel_bin = "spdm_emu/spdm_responder_emu";
 	static const char *rel_keys = "spdm_emu/keys";
@@ -296,9 +575,6 @@ static void launch_spdm_responder_emu(char *base_dir)
 
 	/* Give the server more time to start listening and stabilize */
 	usleep(1000000); /* 1 second */
-#else
-	(void)base_dir;
-#endif
 }
 
 void initialise_app_headers(int argc, char *argv[])
@@ -384,7 +660,6 @@ void rmm_arch_init(void);
  */
 static void stop_spdm_responder(void)
 {
-#ifdef RMM_V1_1
 	int status;
 
 	if (spdm_responder_pid > 0) {
@@ -395,7 +670,6 @@ static void stop_spdm_responder(void)
 		waitpid(spdm_responder_pid, &status, 0);
 		spdm_responder_pid = -1;
 	}
-#endif
 }
 
 int main(int argc, char *argv[])

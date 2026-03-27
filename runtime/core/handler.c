@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <activate.h>
 #include <arch.h>
 #include <arch_helpers.h>
 #include <assert.h>
@@ -21,10 +22,10 @@
 #include <xlat_high_va.h>
 
 /* Maximum number of supported arguments */
-#define MAX_NUM_ARGS		6U
+#define MAX_NUM_ARGS		7U
 
 /* Maximum number of output values */
-#define MAX_NUM_OUTPUT_VALS	4U
+#define MAX_NUM_OUTPUT_VALS	7U
 
 #define RMI_STATUS_STRING(_id)[RMI_##_id] = #_id
 
@@ -36,19 +37,27 @@ static const char * const rmi_status_string[] = {
 	RMI_STATUS_STRING(ERROR_RTT),
 	RMI_STATUS_STRING(ERROR_DEVICE),
 	RMI_STATUS_STRING(ERROR_NOT_SUPPORTED),
-	RMI_STATUS_STRING(ERROR_RTT_AUX)
+	RMI_STATUS_STRING(ERROR_RTT_AUX),
+	RMI_STATUS_STRING(ERROR_PSMMU_ST),
+	RMI_STATUS_STRING(ERROR_DPT),
+	RMI_STATUS_STRING(BUSY),
+	RMI_STATUS_STRING(ERROR_GLOBAL),
+	RMI_STATUS_STRING(ERROR_TRACKING),
+	RMI_STATUS_STRING(INCOMPLETE),
+	RMI_STATUS_STRING(BLOCKED),
+	RMI_STATUS_STRING(ERROR_GPT)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(rmi_status_string) == RMI_ERROR_COUNT_MAX);
 
 /*
  * At this level (in handle_ns_smc) we distinguish the RMI calls only on:
- * - The number of input arguments [0..5], and whether
- * - The function returns up to three output values in addition
+ * - The number of input arguments [0..7], and whether
+ * - The function returns up to seven output values in addition
  *   to the return status code.
  * Hence, the naming syntax is:
- * - `*_[0..5]` when no output values are returned, and
- * - `*_[0..3]_o` when the function returns some output values.
+ * - `*_[0..7]` when no output values are returned, and
+ * - `*_[0..7]_o` when the function returns some output values.
  */
 typedef unsigned long (*handler_0)(void);
 typedef unsigned long (*handler_1)(unsigned long arg0);
@@ -68,6 +77,9 @@ typedef void (*handler_3_o)(unsigned long arg0, unsigned long arg1,
 typedef void (*handler_4_o)(unsigned long arg0, unsigned long arg1,
 			    unsigned long arg2, unsigned long arg3,
 			    struct smc_result *res);
+typedef void (*handler_5_o)(unsigned long arg0, unsigned long arg1,
+			    unsigned long arg2, unsigned long arg3,
+			    unsigned long arg4, struct smc_result *res);
 typedef void (*handler_6_o)(unsigned long arg0, unsigned long arg1,
 			    unsigned long arg2, unsigned long arg3,
 			    unsigned long arg4, unsigned long arg5,
@@ -98,6 +110,8 @@ enum rmi_type {
 	set_rmi_type(3, 4),	/* 3 arguments, 4 output values */
 	set_rmi_type(4, 1),	/* 4 arguments, 1 output value */
 	set_rmi_type(4, 2),	/* 4 arguments, 2 output values */
+	set_rmi_type(5, 1),	/* 5 arguments, 1 output value */
+	set_rmi_type(5, 3),	/* 5 arguments, 3 output values */
 	set_rmi_type(6, 1)	/* 6 arguments, 1 output values */
 };
 
@@ -120,6 +134,8 @@ struct smc_handler {
 		handler_3_o	f_34;
 		handler_4_o	f_41;
 		handler_4_o	f_42;
+		handler_5_o	f_51;
+		handler_5_o	f_53;
 		handler_6_o	f_61;
 		void		*fn_dummy;
 	};
@@ -127,12 +143,6 @@ struct smc_handler {
 	bool		log_exec;	/* print handler execution */
 	bool		log_error;	/* print in case of error status */
 };
-
-/*
- * Get handler ID from FID
- * Precondition: FID is an RMI call
- */
-#define RMI_HANDLER_ID(_id)	SMC64_FID_OFFSET_FROM_RANGE_MIN(RMI, _id)
 
 #define HANDLER(_id, _in, _out, _fn, _exec, _error)[RMI_HANDLER_ID(SMC_RMI_##_id)] = { \
 	.fn_name = (#_id),				\
@@ -148,17 +158,15 @@ struct smc_handler {
  */
 static const struct smc_handler smc_handlers[] = {
 	HANDLER(VERSION,		1, 2, smc_version,		 true,  true),
-	HANDLER(GRANULE_DELEGATE,	1, 0, smc_granule_delegate,	 false, true),
-	HANDLER(GRANULE_UNDELEGATE,	1, 0, smc_granule_undelegate,	 false, true),
-	HANDLER(DATA_CREATE,		5, 0, smc_data_create,		 false, false),
-	HANDLER(DATA_CREATE_UNKNOWN,	3, 0, smc_data_create_unknown,	 false, false),
-	HANDLER(DATA_DESTROY,		2, 2, smc_data_destroy,		 false, true),
+	HANDLER(GRANULE_RANGE_DELEGATE,	2, 1, smc_granule_range_delegate,	 false, true),
+	HANDLER(GRANULE_RANGE_UNDELEGATE, 2, 1, smc_granule_range_undelegate,	 false, true),
+	HANDLER(RTT_DATA_MAP_INIT,	5, 0, smc_rtt_data_map_init,	 false, false),
 	HANDLER(PDEV_AUX_COUNT,		1, 1, smc_pdev_aux_count,	 true, true),
 	HANDLER(REALM_ACTIVATE,		1, 0, smc_realm_activate,	 true,  true),
 	HANDLER(REALM_CREATE,		2, 0, smc_realm_create,		 true,  true),
 	HANDLER(REALM_DESTROY,		1, 0, smc_realm_destroy,	 true,  true),
-	HANDLER(REC_CREATE,		3, 0, smc_rec_create,		 true,  true),
-	HANDLER(REC_DESTROY,		1, 0, smc_rec_destroy,		 true,  true),
+	HANDLER(REC_CREATE,		3, 1, smc_rec_create,		 true,  true),
+	HANDLER(REC_DESTROY,		1, 1, smc_rec_destroy,		 true,  true),
 	HANDLER(REC_ENTER,		2, 0, smc_rec_enter,		 false, true),
 	HANDLER(RTT_CREATE,		4, 0, smc_rtt_create,		 false, true),
 	HANDLER(RTT_DESTROY,		3, 2, smc_rtt_destroy,		 false, true),
@@ -170,9 +178,10 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PSCI_COMPLETE,		3, 0, smc_psci_complete,	 true,  true),
 	HANDLER(FEATURES,		1, 1, smc_read_feature_register, false,  true),
 	HANDLER(RTT_FOLD,		3, 1, smc_rtt_fold,		 false, false),
-	HANDLER(REC_AUX_COUNT,		1, 1, smc_rec_aux_count,	 true,  true),
 	HANDLER(RTT_INIT_RIPAS,		3, 1, smc_rtt_init_ripas,	 false, true),
 	HANDLER(RTT_SET_RIPAS,		4, 1, smc_rtt_set_ripas,	 false, true),
+	HANDLER(RTT_DATA_MAP,		5, 1, smc_rtt_data_map,	 	 false, true),
+	HANDLER(RTT_DATA_UNMAP,		5, 3, smc_rtt_data_unmap,	 false, true),
 	HANDLER(VDEV_MAP,		5, 0, smc_vdev_map,		 false, true),
 	HANDLER(VDEV_UNMAP,		3, 2, smc_vdev_unmap,		 false, true),
 	HANDLER(PDEV_ABORT,		1, 0, smc_pdev_abort,		 true, true),
@@ -198,8 +207,6 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(VDEV_GET_STATE,		1, 1, smc_vdev_get_state,	 true, true),
 	HANDLER(VDEV_UNLOCK,		3, 0, smc_vdev_unlock,		 true, true),
 	HANDLER(RTT_SET_S2AP,		4, 1, smc_rtt_set_s2ap,		 false, true),
-	HANDLER(MEC_SET_SHARED,		1, 0, smc_mec_set_shared,	 true, true),
-	HANDLER(MEC_SET_PRIVATE,	1, 0, smc_mec_set_private,	 true, true),
 	HANDLER(VDEV_COMPLETE,		2, 0, smc_vdev_complete,	 true, true),
 	HANDLER(VDEV_GET_INTERFACE_REPORT, 3, 0, smc_vdev_get_interface_report,	 true, true),
 	HANDLER(VDEV_GET_MEASUREMENTS,	4, 0, smc_vdev_get_measurements, true, true),
@@ -208,7 +215,16 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PSMMU_ACTIVATE,		2, 0, smc_psmmu_activate,	 true, true),
 	HANDLER(PSMMU_DEACTIVATE,	1, 0, smc_psmmu_deactivate,	 true, true),
 	HANDLER(PSMMU_ST_L2_CREATE,	2, 0, smc_psmmu_st_l2_create,	 true, true),
-	HANDLER(PSMMU_ST_L2_DESTROY,	2, 0, smc_psmmu_st_l2_destroy,	 true, true)
+	HANDLER(PSMMU_ST_L2_DESTROY,	2, 0, smc_psmmu_st_l2_destroy,	 true, true),
+	HANDLER(GRANULE_TRACKING_GET,	1, 2, smc_granule_tracking_get,	 true, true),
+	HANDLER(GPT_L1_CREATE,		1, 1, smc_gpt_l1_create,	 false, true),
+	HANDLER(RMM_CONFIG_GET,		1, 0, smc_rmm_config_get,	 true, true),
+	HANDLER(RMM_CONFIG_SET,		1, 0, smc_rmm_config_set,	 true, true),
+	HANDLER(RMM_ACTIVATE,		0, 0, smc_rmm_activate,		 true, true),
+	HANDLER(OP_CANCEL,		2, 1, smc_op_cancel,		 true, true),
+	HANDLER(OP_CONTINUE,		2, 2, smc_op_continue,		 true, true),
+	HANDLER(OP_MEM_DONATE,		3, 3, smc_op_mem_donate,	 true, true),
+	HANDLER(OP_MEM_RECLAIM,		3, 2, smc_op_mem_reclaim,	 true, true)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
@@ -216,7 +232,7 @@ COMPILER_ASSERT(ARRAY_SIZE(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
 static inline bool rmi_handler_needs_fpu(unsigned int id)
 {
 #ifdef RMM_FPU_USE_AT_REL2
-	if ((id == SMC_RMI_REALM_CREATE) || (id == SMC_RMI_DATA_CREATE) ||
+	if ((id == SMC_RMI_REALM_CREATE) || (id == SMC_RMI_RTT_DATA_MAP_INIT) ||
 	    (id == SMC_RMI_REC_CREATE) || (id == SMC_RMI_RTT_INIT_RIPAS)) {
 		return true;
 	}
@@ -249,7 +265,14 @@ static void rmi_log_on_exit(unsigned int handler_id,
 		 * RSI handler function SMC_RSI_RDEV_GET_INTERFACE_REPORT has
 		 * maximum name length of 33 chars excluding the null terminator.
 		 */
-		INFO("SMC_RMI_%-25s", handler->fn_name);
+		if ((function_id == SMC_RMI_OP_CONTINUE) ||
+		    (function_id == SMC_RMI_OP_CANCEL) ||
+		    (function_id == SMC_RMI_OP_MEM_DONATE) ||
+		    (function_id == SMC_RMI_OP_MEM_RECLAIM)) {
+			INFO("      SMC_RMI_%-19s", handler->fn_name);
+		} else {
+			INFO("SMC_RMI_%-25s", handler->fn_name);
+		}
 
 		/* Print arguments */
 		num = (unsigned int)handler->type & 0xFFU;
@@ -276,7 +299,6 @@ static void rmi_log_on_exit(unsigned int handler_id,
 		if ((rc.status == RMI_SUCCESS) ||
 		   ((rc.status == RMI_ERROR_RTT) &&
 		   ((function_id == SMC_RMI_RTT_DESTROY)  ||
-		    (function_id == SMC_RMI_DATA_DESTROY) ||
 		    (function_id == SMC_RMI_RTT_UNMAP_UNPROTECTED)))) {
 			/* Print output values */
 			num = ((unsigned int)handler->type >> 8) & 0xFFU;
@@ -300,6 +322,7 @@ void handle_ns_smc(unsigned int function_id,
 		   unsigned long arg3,
 		   unsigned long arg4,
 		   unsigned long arg5,
+		   unsigned long arg6,
 		   struct smc_result *res)
 {
 	unsigned int handler_id;
@@ -307,7 +330,7 @@ void handle_ns_smc(unsigned int function_id,
 	bool restore_ns_simd_state = false;
 	struct simd_context *ns_simd_ctx;
 	bool sve_hint = false;
-	unsigned long args[] __unused = {arg0, arg1, arg2, arg3, arg4, arg5};
+	unsigned long args[] __unused = {arg0, arg1, arg2, arg3, arg4, arg5, arg6};
 
 	/* Save the SVE hint bit and clear it from the function ID */
 	if ((function_id & SMC_SVE_HINT) != 0U) {
@@ -332,6 +355,30 @@ void handle_ns_smc(unsigned int function_id,
 			__func__, function_id);
 		res->x[0] = SMC_UNKNOWN;
 		return;
+	}
+
+	/* Check RMM activation state for the RMIs */
+	switch (function_id) {
+	case SMC_RMI_FEATURES:
+	case SMC_RMI_VERSION:
+	case SMC_RMI_RMM_CONFIG_GET:
+	case SMC_RMI_GRANULE_TRACKING_GET:
+		break;
+	case SMC_RMI_RMM_CONFIG_SET:
+	case SMC_RMI_RMM_ACTIVATE:
+		if (get_rmm_active_state() != RMM_STATE_INIT) {
+			ERROR("RMM is in invalid state\n");
+			res->x[0] = RMI_ERROR_GLOBAL;
+			return;
+		}
+		break;
+	default:
+		if (get_rmm_active_state() != RMM_STATE_ACTIVE) {
+			ERROR("RMM is in invalid state\n");
+			res->x[0] = RMI_ERROR_GLOBAL;
+			return;
+		}
+		break;
 	}
 
 	assert(check_cpu_slots_empty());
@@ -399,6 +446,12 @@ void handle_ns_smc(unsigned int function_id,
 		break;
 	case rmi_type_42:
 		handler->f_42(arg0, arg1, arg2, arg3, res);
+		break;
+	case rmi_type_51:
+		handler->f_51(arg0, arg1, arg2, arg3, arg4, res);
+		break;
+	case rmi_type_53:
+		handler->f_53(arg0, arg1, arg2, arg3, arg4, res);
 		break;
 	case rmi_type_61:
 		handler->f_61(arg0, arg1, arg2, arg3, arg4, arg5, res);

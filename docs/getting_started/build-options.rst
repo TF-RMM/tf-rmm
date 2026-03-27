@@ -293,7 +293,6 @@ The |RMM| build system supports the following CMake build options.
    RMM_EL3_COMPAT_RESERVE_MEM	,ON | OFF		,ON			,"Enable compatibility for reserve memory capability from EL3."
    RMM_MEM_SCRUB_METHOD 	,0 - 2			,0			,"Memory Scrub method selection when granule are returned to NS Host."
    RMM_VA_POOL_SIZE		,			,0x40000000		,"Size of the dynamic virtual address pool"
-   RMM_V1_1			,ON | OFF		,OFF			,"Enable v1.1 features (experimental)"
    ATTEST_PLAT_TOKEN_SIZE	,			,0x1000			,"Maximum size in bytes expected for the Attestation platform token"
    PLAT_ARM_MAX_MEM_BANKS	,			,2			,"Maximum possible number of DRAM and COH/NCOH device memory banks allowed in Arm platform layer"
    ATTEST_EL3_TOKEN_SIGN	,ON|OFF			,OFF			,"Use EL3 service to sign realm attestation token."

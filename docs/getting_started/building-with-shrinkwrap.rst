@@ -77,7 +77,7 @@ _______________
 
 |RMM| provides a number of overlays that can be used in conjunction with some
 of the configs provided by Shrinkwrap. One of the overlays, specifically
-``rmm.yaml``, can be used along with the ``cca-3world.yaml`` to
+``cca.yaml``, can be used along with the ``cca-3world.yaml`` to
 build a 3 World demonstrator using the ``master`` branch of |TF-A| and the
 local |RMM| repository.
 
@@ -86,7 +86,7 @@ It assumes that Shrinkwrap is called from within the ``<RMM_ROOT>`` directory:
 
     .. code-block:: shell
 
-       shrinkwrap build cca-3world.yaml --overlay=buildroot.yaml --overlay=rmm.yaml --btvar=GUEST_ROOTFS='${artifact:BUILDROOT}' --btvar=RMM_SRC=${PWD} --no-sync=rmm
+       shrinkwrap build cca-3world.yaml --overlay=cca.yaml --btvar=GUEST_ROOTFS='${artifact:BUILDROOT}' --btvar=RMM_SRC=${PWD} --no-sync=rmm
 
 You can find further instructions on how to build and package the filesystem
 and required binaries in the `3 world configuration`_ documentation.
@@ -95,10 +95,15 @@ To run the demonstrator, use the following command:
 
     .. code-block:: shell
 
-       shrinkwrap run cca-3world.yaml --rtvar=ROOTFS=${SHRINKWRAP_PACKAGE}/cca-3world/rootfs.ext2
+       shrinkwrap run cca-3world.yaml --overlay=cca.yaml --rtvar=ROOTFS=${SHRINKWRAP_PACKAGE}/cca-3world/rootfs.ext2
 
-3-World testing with CCA DA
-___________________________
+3-World testing with CCA DA (RMMv1.x)
+_____________________________________
+
+    .. note::
+
+       The instructions in this section are relevant for testing CCA software aligned to
+       RMMv1.x specification. Please checkout an RMMv1.x compatible TF-RMM branch.
 
 Follow the instructions in :ref:`Setup_local_RMM_with_Shrinkwrap` to setup the
 local RMM with shrinkwrap.
@@ -248,6 +253,8 @@ The available Overlays are sumarized in the next table
    :header: "Overlay", "Description"
    :widths: 2 8
 
+   cca.yaml,Overlay to build and run RMM in a 3-World CCA demonstrator configuration using the local RMM repository and TF-A master branch.
+   cca_da.yaml,Overlay to build and run RMM in a 3-World CCA demonstrator configuration with Device Assignment (DA) support for RMM v1.x branches.
    lfa-support.yaml,Overlay to build |TF-A| with LFA support enabled and load LFA RMM at expected address.
    model-enable-lpa2.yaml,Overlay used to enable ``FEAT_LPA2`` on the |FVP| model at run time. In addition this overlay also sets the ``PA_SIZE`` on the model to 52
    model-enable-mec.yaml,Overlay used to enable ``FEAT_MEC`` on the |FVP| model at run time.
@@ -256,7 +263,6 @@ The available Overlays are sumarized in the next table
    model-enable-s2pie-s2poe.yaml,Overlay to enable ``FEAT_S2PIE`` and ``FEAT_S2POE`` on the |FVP| model at run time.
    model-enable-feat_d128.yaml,Overlay used to enable ``FEAT_D128`` on the |FVP| model at runtime.
    rmm-debug.yaml,Overlay to build |RMM| (as well as |TF-A|) in debug mode
-   rmm-v1_1.yaml,Overlay to build |RMM| with v1.1 features
    clean.yaml,Overlay used to avoid an exception with ``Shrinkwrap clean`` in which a path with a valid format needs to be specified for |RMM|
 
 Example of use
@@ -272,13 +278,6 @@ repositories:
 
        shrinkwrap --runtime=null build rmm-tftf.yaml --overlay=model-enable-lpa2.yaml --btvar=RMM_SRC=${PWD} --no-sync-all
 
-Similarly you can use overlay rmm-v1_1.yaml to enable RMM v1.1 features along
-with rmm-debug.yaml to enable debug build.
-
-    .. code-block:: shell
-
-       shrinkwrap --runtime=null build rmm-tftf.yaml --overlay=rmm-v1_1.yaml --overlay=rmm-debug.yaml --btvar=RMM_SRC=${PWD} --no-sync-all
-
 Then you run your tests with
 
     .. code-block:: shell
@@ -290,7 +289,7 @@ To test |RMM| Live Firmware Activation (LFA) support, you can use the
 
     .. code-block:: shell
 
-       shrinkwrap build --btvar=RMM_SRC=${PWD} --overlay=rmm-debug.yaml --overlay rmm-v1_1.yaml --overlay=lfa-support.yaml rmm-tftf.yaml --no-sync-all
+       shrinkwrap build --btvar=RMM_SRC=${PWD} --overlay=rmm-debug.yaml --overlay=lfa-support.yaml rmm-tftf.yaml --no-sync-all
 
 To run the tests with MEC enabled :
 
@@ -305,7 +304,6 @@ To run the tests with MEC enabled :
       the appropriate FVP (FVP_Base_RevC-2xAEMvA) needs to be present in the
       system ${PATH}.
 
-      FVP version must be >= ``11.29.27`` when rmm-v1_1.yaml overlay is used.
 
 -----
 

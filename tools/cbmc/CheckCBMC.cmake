@@ -87,8 +87,8 @@ set(cbmc_unwinds_list
   "--unwindset;init_rec.0:${MAX_AUX_REC}"
   "--unwindset;init_rtt_root_page.0:${MAX_ROOT_RTT}"
   "--unwindset;init_walk_path.0:${MAX_RTT_UNWIND}"
-  "--unwindset;lock_order_invariable.0:21"
-  "--unwindset;lock_order_invariable.1:11"
+  "--unwindset;lock_order_invariable.0:11"
+  "--unwindset;lock_order_invariable.1:4"
   "--unwindset;lock_order_invariable.2:"
   "--unwindset;RealmIsLive.0:${MAX_ROOT_RTT}"
   "--unwindset;RealmIsLive.2:${MAX_ROOT_RTT}"
@@ -139,6 +139,7 @@ set(cbmc_analysis_flags_list
 set(cbmc_flags_list
   "--timestamp;wall"
   "--verbosity;9"
+  "--object-bits;14"
   # Optimisation flags:
   "--drop-unused-functions"
   "--reachability-slice"

@@ -17,15 +17,11 @@
 /*
  * Indicates whether the DA feature is supported.
  */
-#ifdef RMM_V1_1
 /*
  * This is set to 'RMI_FEATURE_FALSE' by rmm_main() calling
  * feature_da_disable() if SMMUs fail to initialise.
  */
 static unsigned long feat_da_supported = RMI_FEATURE_TRUE;
-#else
-static unsigned long feat_da_supported = RMI_FEATURE_FALSE;
-#endif
 
 unsigned long get_feature_register_0(void)
 {
@@ -64,14 +60,11 @@ unsigned long get_feature_register_0(void)
 			INPLACE(RMI_FEATURE_REGISTER_0_LPA2, RMI_FEATURE_TRUE);
 	}
 
-	/* Set support for SHA256 and SHA512 hash algorithms */
-	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_HASH_SHA_256,
-						RMI_FEATURE_TRUE) |
-		     INPLACE(RMI_FEATURE_REGISTER_0_HASH_SHA_512, RMI_FEATURE_TRUE);
 
 	/* RMM supports PMUv3p7+ */
 	assert(read_pmu_version() >= ID_AA64DFR0_EL1_PMUv3p7);
-
+	/* TODO: disable PMU temporarily for v2.0 */
+#if 0
 	/* Set support for PMUv3 */
 	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_PMU_EN,
 				RMI_FEATURE_TRUE);
@@ -79,6 +72,7 @@ unsigned long get_feature_register_0(void)
 	/* Set number of PMU counters available */
 	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_PMU_NUM_CTRS,
 				EXTRACT(PMCR_EL0_N, read_pmcr_el0()));
+#endif
 
 	/* Set number of breakpoints and watchpoints supported, minus 1 */
 	feat_reg0 |= (INPLACE(RMI_FEATURE_REGISTER_0_NUM_BPS, num_bps) |
@@ -93,10 +87,20 @@ unsigned long get_feature_register_0(void)
 				     simd_cfg.sve_vq);
 	}
 
-	/* Set number of List registers implemented, minus 1 */
-	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_GICV3_NUM_LRS,
-				gic_vgic_get_num_lrs());
+	return feat_reg0;
+}
 
+unsigned long get_feature_register_1(void)
+{
+	unsigned long feat_reg1;
+
+	/* We only support 4K */
+	feat_reg1 = INPLACE(RMI_FEATURE_REGISTER_1_RMI_GRAN_SZ_4K, RMI_FEATURE_TRUE);
+	/* Set support for SHA256 and SHA512 hash algorithms */
+	feat_reg1 |= INPLACE(RMI_FEATURE_REGISTER_1_HASH_SHA_256,
+			    RMI_FEATURE_TRUE) |
+			INPLACE(RMI_FEATURE_REGISTER_1_HASH_SHA_512,
+			    RMI_FEATURE_TRUE);
 	/*
 	 * Set the order of the maximum number of RECs which
 	 * can be created per Realm.
@@ -105,35 +109,52 @@ unsigned long get_feature_register_0(void)
 	 * The maximum number of RECs is computed as follows:
 	 * MAX_RECS = (2 ^ GRN_REFCOUNT_WIDTH) - 1.
 	 */
-	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_MAX_RECS_ORDER,
+	feat_reg1 |= INPLACE(RMI_FEATURE_REGISTER_1_MAX_RECS_ORDER,
 				GRN_REFCOUNT_WIDTH);
 
-	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_DA_EN, feat_da_supported);
-
-#ifdef RMM_V1_1
-	if (s2tt_indirect_ap_supported()) {
-		feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_PLANE_RTT, RMI_RTT_PLANE_AUX_SINGLE);
-		feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_RTT_S2AP_INDIRECT, RMI_FEATURE_TRUE);
-	} else {
-		feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_PLANE_RTT, RMI_RTT_PLANE_AUX);
-	}
-
-	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_MAX_NUM_AUX_PLANES, MAX_AUX_PLANES);
-#else
-	feat_reg0 |= INPLACE(RMI_FEATURE_REGISTER_0_RTT_S2AP_INDIRECT, RMI_FEATURE_FALSE);
-#endif
-
-	return feat_reg0;
-}
-
-static unsigned long get_feature_register_1(void)
-{
-	unsigned long feat_reg1;
-
-	/* Set support for Number of MEC */
-	feat_reg1 = INPLACE(RMI_FEATURE_REGISTER_1_MAX_MECID, mecid_max());
+	/* FIXME: These values may need to come from FIRME ABI */
+	feat_reg1 |= INPLACE(RMI_FEATURE_REGISTER_1_L0GPTSZ, RMI_L0GPTSZ_30BITS);
+	feat_reg1 |= INPLACE(RMI_FEATURE_REGISTER_1_PPS, RMI_PPS_48BITS);
 
 	return feat_reg1;
+}
+
+unsigned long get_feature_register_2(void)
+{
+	unsigned long feat_reg2 = 0UL;
+
+	feat_reg2 |= INPLACE(RMI_FEATURE_REGISTER_2_DA_EN, feat_da_supported);
+	return feat_reg2;
+}
+
+unsigned long get_feature_register_3(void)
+{
+	unsigned long feat_reg3 = 0;
+
+	if (s2tt_indirect_ap_supported()) {
+		feat_reg3 |= INPLACE(RMI_FEATURE_REGISTER_3_RTT_PLANE, RMI_RTT_PLANE_AUX_SINGLE);
+		feat_reg3 |= INPLACE(RMI_FEATURE_REGISTER_3_RTT_S2AP_INDIRECT, RMI_FEATURE_TRUE);
+	} else {
+		feat_reg3 |= INPLACE(RMI_FEATURE_REGISTER_3_RTT_PLANE, RMI_RTT_PLANE_AUX);
+	}
+
+	feat_reg3 |= INPLACE(RMI_FEATURE_REGISTER_3_MAX_NUM_AUX_PLANES, MAX_AUX_PLANES);
+
+	return feat_reg3;
+}
+
+unsigned long get_feature_register_4(void)
+{
+	unsigned long feat_reg4 = 0UL;
+	unsigned int mec_count;
+
+	/* Get the maximum number of MECs supported by the hardware */
+	mec_count = mecid_max();
+
+	/* Report the MEC count (the full 64-bit field is used for MEC_COUNT) */
+	feat_reg4 = (unsigned long)mec_count;
+
+	return feat_reg4;
 }
 
 void smc_read_feature_register(unsigned long index,
@@ -145,6 +166,12 @@ void smc_read_feature_register(unsigned long index,
 		res->x[1] = get_feature_register_0();
 	} else if (index == RMI_FEATURE_REGISTER_1_INDEX) {
 		res->x[1] = get_feature_register_1();
+	} else if (index == RMI_FEATURE_REGISTER_2_INDEX) {
+		res->x[1] = get_feature_register_2();
+	} else if (index == RMI_FEATURE_REGISTER_3_INDEX) {
+		res->x[1] = get_feature_register_3();
+	} else if (index == RMI_FEATURE_REGISTER_4_INDEX) {
+		res->x[1] = get_feature_register_4();
 	} else {
 		res->x[1] = 0UL;
 	}

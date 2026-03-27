@@ -79,7 +79,8 @@ target_sources(rmm-runtime
             "core/log.c")
 
 target_sources(rmm-runtime
-    PRIVATE "rmi/feature.c"
+    PRIVATE "rmi/activate.c"
+            "rmi/feature.c"
             "rmi/granule.c"
             "rmi/pdev.c"
             "rmi/psmmu.c"
@@ -87,8 +88,10 @@ target_sources(rmm-runtime
             "rmi/rec.c"
             "rmi/rtt.c"
             "rmi/run.c"
+            "rmi/sro.c"
             "rmi/vdev.c"
-            "rmi/version.c")
+            "rmi/version.c"
+            "rmi/pdev.c")
 
 if(HOST_VARIANT STREQUAL "host_cbmc")
     target_sources(rmm-runtime

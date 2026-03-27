@@ -71,10 +71,9 @@ static void setup_root_complex_list(void)
 	}
 
 	/*
-	 * Setup Root Complex only RMM_V1_1=1, this makes RMM boot to continue if
+	 * Setup Root Complex, this makes RMM boot to continue if
 	 * manifest do not have Root Complex details.
 	 */
-#ifdef RMM_V1_1
 	if ((ret != E_RMM_BOOT_SUCCESS) || (rc_list == NULL) ||
 	    (rc_list->num_root_complex == 0UL))  {
 		/*
@@ -91,7 +90,6 @@ static void setup_root_complex_list(void)
 	}
 
 	arm_set_root_complex_list(rc_list);
-#endif
 }
 
 /*

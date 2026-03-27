@@ -49,3 +49,5 @@ build:
   tfa:
     repo:
       revision: ${btvar:TFA_REVISION}
+    params:
+      RMM_V1_COMPAT: 0

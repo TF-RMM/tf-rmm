@@ -22,7 +22,7 @@ unsigned long vmids[VMID_ARRAY_LONG_SIZE];
  * - False, if the vmid is out of range,
  *   or if it was already reserved (in use).
  */
-bool vmid_reserve(unsigned int vmid)
+static bool vmid_reserve(unsigned int vmid)
 {
 	unsigned int offset;
 	unsigned int vmid_count;
@@ -73,4 +73,60 @@ void vmid_init(uintptr_t alloc, size_t alloc_size)
 	assert(vmids != NULL);
 	assert(alloc_size >= (VMID_ARRAY_LONG_SIZE * sizeof(unsigned long)));
 #endif
+}
+
+/*
+ * Returns a starting position for allocation search by scanning all bitmap
+ * words for the first free VMID.
+ */
+static unsigned int vmid_hint(void)
+{
+	for (unsigned int i = 0U; i < VMID_ARRAY_LONG_SIZE; i++) {
+		unsigned long word_val = vmids[i];
+
+		if (word_val != ~0UL) {
+			return (i * BITS_PER_UL) +
+				(unsigned int)__builtin_ctzl(~word_val);
+		}
+	}
+
+	return 0U;
+}
+
+/*
+ * Allocates a free VMID from the available pool.
+ * Returns:
+ * - True, on success and sets vmid to the allocated value
+ * - False, if no free VMID is available
+ */
+bool vmid_alloc(unsigned int *vmid)
+{
+	unsigned int vmid_count;
+	unsigned int i;
+	unsigned int start_hint;
+
+	/* Number of supported VMID values */
+	vmid_count = is_feat_vmid16_present() ? VMID16_COUNT : VMID8_COUNT;
+
+	/* Get hint for where to start searching */
+	start_hint = vmid_hint();
+	if (start_hint >= vmid_count) {
+		start_hint = 0U;
+	}
+
+	/* Search for a free VMID in the bitmap, in two phases */
+	for (i = start_hint; i < vmid_count; i++) {
+		if (vmid_reserve(i)) {
+			*vmid = i;
+			return true;
+		}
+	}
+	for (i = 0U; i < start_hint; i++) {
+		if (vmid_reserve(i)) {
+			*vmid = i;
+			return true;
+		}
+	}
+
+	return false;
 }

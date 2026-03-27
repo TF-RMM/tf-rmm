@@ -13,7 +13,8 @@ target_link_libraries(rmm-lib-glob_data
     PRIVATE rmm-lib-debug
             rmm-lib-granule
             rmm-lib-rmm_el3_ifc
-            rmm-lib-smmuv3)
+            rmm-lib-smmuv3
+            rmm-lib-sro_context)
 
 target_include_directories(rmm-lib-glob_data
     PUBLIC "include"

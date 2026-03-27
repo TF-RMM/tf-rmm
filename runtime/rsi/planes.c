@@ -19,9 +19,8 @@
 #include <utils_def.h>
 
 static void copy_state_from_plane_entry(struct rec_plane *plane,
-					STRUCT_TYPE sysreg_state *sysregs,
-					struct rsi_plane_enter *entry,
-					bool restore_gic)
+					STRUCT_TYPE sysreg_state *sysreg_n,
+					struct rsi_plane_enter *entry)
 {
 	for (unsigned int i = 0; i < RSI_PLANE_NR_GPRS; i++) {
 		plane->regs[i] = entry->gprs[i];
@@ -29,10 +28,7 @@ static void copy_state_from_plane_entry(struct rec_plane *plane,
 
 	plane->pc = entry->pc;
 	plane->pstate = entry->pstate;
-	if (restore_gic) {
-		gic_copy_state_from_entry(&sysregs->gicstate,
-			(unsigned long *)&entry->gicv3_lrs, entry->gicv3_hcr);
-	}
+	sysreg_n->pp_sysregs.elr_el1 = entry->elr_el1;
 }
 
 void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
@@ -45,7 +41,6 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	unsigned long run_ipa = plane_0->regs[2];
 	struct granule *llt = NULL;
 	struct rsi_plane_run *run = NULL;
-	bool restore_gic = true;
 
 	res->action = UPDATE_REC_RETURN_TO_REALM;
 
@@ -66,6 +61,19 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 
 	assert((run != NULL) && (llt != NULL));
 
+	/* AArch32 execution is not supported */
+	if ((run->enter.pstate & SPSR_EL2_nRW_AARCH32) != 0UL) {
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		goto unmap;
+	}
+
+	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_OWN_GIC) == 0UL) {
+		if (gic_validate_lrs((unsigned long *)&run->enter.gicv3_lrs) == false) {
+			res->smc_res.x[0] = RSI_ERROR_INPUT;
+			goto unmap;
+		}
+	}
+
 	/* Save Plane 0 state to REC */
 	save_realm_state(rec, plane_0, sysreg_0);
 
@@ -80,15 +88,18 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 
 	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_OWN_GIC) != 0UL) {
 		rec->gic_owner = (unsigned int)plane_idx;
-
-		/* Transfer the GIC status from Plane 0 to the new owner */
-		gic_copy_state(&sysreg_n->gicstate,
-			       &sysreg_0->gicstate);
-		restore_gic = false;
+		/* Reflect NS programmed vGIC state */
+	} else {
+		/* Save current vGIC state to NS context */
+		assert(rec->ns != NULL);
+		gic_save_state(&rec->ns->sysregs.gicstate);
+		/* Init vGIC state from `enter` structure */
+		gic_init_vgic_state(&sysreg_n->gicstate,
+			(unsigned long *)&run->enter.gicv3_lrs, run->enter.gicv3_hcr);
 	}
 
 	/* Copy target Plane state from entry structure to REC */
-	copy_state_from_plane_entry(plane_n, sysreg_n, &run->enter, restore_gic);
+	copy_state_from_plane_entry(plane_n, sysreg_n, &run->enter);
 
 	/* Initialize trap control bits */
 	sysreg_n->hcr_el2 = rec->common_sysregs.hcr_el2;
@@ -120,6 +131,7 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	/* Restore target Plane from REC */
 	restore_realm_state(rec, plane_n, sysreg_n);
 
+unmap:
 	/* Unmap Realm data granule */
 	buffer_unmap(run);
 

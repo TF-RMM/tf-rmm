@@ -19,6 +19,7 @@ target_link_libraries(rmm-lib
               rmm-lib-smmuv3
               rmm-lib-s2tt
               rmm-lib-slot_buf
+              rmm-lib-sro_context
               rmm-lib-stack_protector
               rmm-lib-xlat
               rmm-lib-xlat_low_va)
@@ -37,6 +38,7 @@ add_subdirectory("smc")
 add_subdirectory("smmuv3")
 add_subdirectory("s2tt")
 add_subdirectory("slot_buf")
+add_subdirectory("sro_context")
 add_subdirectory("stack_protector")
 add_subdirectory("xlat")
 add_subdirectory("xlat_low_va")

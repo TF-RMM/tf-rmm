@@ -101,6 +101,7 @@ struct rd;
 
 /*
  * System registers whose contents are specific to a Plane.
+ * This struct is also used to store sysreg state in NS context.
  */
 STRUCT_TYPE sysreg_state {
 	/*
@@ -118,11 +119,9 @@ STRUCT_TYPE sysreg_state {
 
 	/* GIC Registers */
 	/*
-	 * TODO: It might be possible to break the gic_cpu_state structure
-	 * into two different halves, one containing the per-realm GIC
-	 * configuration and other once containing the per-plane GIC one.
-	 * This way, we would only need to care about saving/restoring the
-	 * affected half only.
+	 * This field is only used for PN. When PN is not the GIC owner,
+	 * this field in NS context is used to save the vGIC state and the
+	 * field in PN sysreg state is initialized with P0 provided values.
 	 */
 	struct gic_cpu_state gicstate;
 
@@ -227,13 +226,19 @@ struct rec_plane {
 
 	STRUCT_TYPE {
 		/*
-		 * The contents of the *_EL2 system registers at the last time
-		 * Plane N exited to Plane 0.
-		 * These values are used to populate the rsi_plane_exit structure.
+		 * The contents of the *_EL2 system registers, *_EL1 system
+		 * registers, and PMU overflow info at the last time Plane N
+		 * exited to Plane 0.
+		 * These values are used to populate the rsi_plane_exit
+		 * structure.
 		 */
 		unsigned long esr;
 		unsigned long hpfar;
 		unsigned long far;
+		unsigned long sctlr_el1;
+		unsigned long vbar_el1;
+		unsigned long elr_el1;
+		unsigned char pmu_ovf_status;
 	} plane_exit_info;
 };
 
@@ -449,6 +454,14 @@ static inline STRUCT_TYPE sysreg_state *rec_active_plane_sysregs(struct rec *rec
 	return REC_GET_SYSREGS_FROM_AUX(rec, rec->active_plane_id);
 }
 
+/* Get the sysregs of given plane. */
+static inline STRUCT_TYPE sysreg_state *rec_plane_sysregs_by_id(struct rec *rec,
+								unsigned int plane_id)
+{
+	assert(plane_id < rec_num_planes(rec));
+	return REC_GET_SYSREGS_FROM_AUX(rec, plane_id);
+}
+
 /* Get the part of the REC which corresponds to the currently active plane. */
 static inline struct rec_plane *rec_active_plane(struct rec *rec)
 {
@@ -524,6 +537,7 @@ void emulate_stage2_data_abort(struct rmi_rec_exit *rec_exit,
 void rec_set_pending_op(struct rec *rec, unsigned int pending_op);
 void rec_update_pending_op(struct rec *rec, unsigned int pending_op);
 unsigned long realm_vtcr(struct rd *rd);
+void rec_continue_handler(struct smc_args *args, struct smc_result *res);
 
 #endif /* __ASSEMBLER__ */
 #endif /* REC_H */

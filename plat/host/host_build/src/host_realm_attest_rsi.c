@@ -16,7 +16,7 @@
 #include <unistd.h>
 
 #define ATTEST_TOKEN_BUFFER_SIZE	0x100
-#define REALM_BUFFER_IPA		0x1000
+#define REALM_BUFFER_IPA		0x1000  /* This has to match a valid IPA in host_setup.c */
 
 static void print_buf(const unsigned char *buf, size_t size)
 {
@@ -66,7 +66,7 @@ static int realm_continue_2(unsigned long *rec_regs, unsigned long *rec_sp_el0)
 	 * As the realm buffer is allocated by host_setup, use a helper to get
 	 * the realm buffer address that is delegated to the Realm
 	 */
-	print_buf((const unsigned char *)host_realm_get_realm_buffer(),
+	print_buf((const unsigned char *)host_realm_get_realm_data_1(),
 		  token_size);
 
 	/* Simulate return back to NS due to FIQ */

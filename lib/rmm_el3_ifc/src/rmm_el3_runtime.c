@@ -264,7 +264,8 @@ int rmm_el3_ifc_get_feat_register(unsigned int feat_reg_idx, uint64_t *feat_reg)
 	struct smc_args smc_args = SMC_ARGS_1(feat_reg_idx);
 	unsigned long rmm_el3_ifc_version = rmm_el3_ifc_get_version();
 
-	if ((RMM_EL3_IFC_GET_VERS_MAJOR(rmm_el3_ifc_version) != 0U) ||
+	/* SMC_RMM_EL3_FEATURES is available from 0.4 */
+	if ((RMM_EL3_IFC_GET_VERS_MAJOR(rmm_el3_ifc_version) == 0U) &&
 		(RMM_EL3_IFC_GET_VERS_MINOR(rmm_el3_ifc_version) < 4U)) {
 		ERROR("Feature register access not supported by this version 0x%lx\n",
 			rmm_el3_ifc_version);

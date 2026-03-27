@@ -86,7 +86,7 @@
  * will gracefully handle it.
  */
 #define SMC64_RMI_FNUM_MIN	(U(0x150))
-#define SMC64_RMI_FNUM_MAX	(U(0x1DC))
+#define SMC64_RMI_FNUM_MAX	(U(0x20A))
 
 #define SMC64_RSI_FNUM_MIN	(U(0x190))
 #define SMC64_RSI_FNUM_MAX	(U(0x1AF))
@@ -146,6 +146,12 @@
 #define SMC64_FID_OFFSET_FROM_RANGE_MIN(_range, _fid)			   \
 	(SMC_GET_FIELD(_fid, FNUM) - SMC64_##_range##_FNUM_MIN)
 
+/*
+ * Get handler ID from FID
+ * Precondition: FID is an RMI call
+ */
+#define RMI_HANDLER_ID(_id)	SMC64_FID_OFFSET_FROM_RANGE_MIN(RMI, _id)
+
 /* Implementation defined FID values */
 					/* 0x18F */
 #define SMC_RMM_REQ_COMPLETE		SMC64_STD_FID(RMI, U(0x3F))
@@ -181,8 +187,10 @@
 
 #define SMC_UNKNOWN		(unsigned long)(-1)
 
-/* Result registers X0-X4 */
-#define SMC_RESULT_REGS		5U
+/* Result registers X0-X7 */
+#define SMC_RESULT_REGS		8UL
+/* Size of smc_result in bytes */
+#define SMC_RESULT_SIZE		(SMC_RESULT_REGS * U(8))
 /* Argument registers X1-X12 */
 #define SMC_ARGS_MAX		12U
 
@@ -204,7 +212,8 @@
 
 #define SMC_RES_X0_X1	U(0)
 #define SMC_RES_X2_X3	U(16)
-#define SMC_RES_X4	U(32)
+#define SMC_RES_X4_X5	U(32)
+#define SMC_RES_X6_X7	U(48)
 
 #ifndef __ASSEMBLER__
 

@@ -97,6 +97,7 @@ build:
     params:
       BL33: ${artifact:TFTF_BIN}
       ENABLE_FEAT_D128: 2
+      RMM_V1_COMPAT: 0
 
 run:
   rtvars:

@@ -60,12 +60,6 @@ arm_config_option(
     DEFAULT 1)
 
 arm_config_option(
-    NAME RMM_V1_1
-    HELP "Enable v1.1 features in RMM (experimental)"
-    TYPE BOOL
-    DEFAULT OFF)
-
-arm_config_option(
     NAME ATTEST_EL3_TOKEN_SIGN
     HELP "Use EL3 service to sign realm attestation token."
     TYPE BOOL
@@ -173,11 +167,5 @@ Git_Get_Commit_Info(COMMIT_INFO)
 
 target_compile_definitions(rmm-common
     INTERFACE "COMMIT_INFO=\"${COMMIT_INFO}\"")
-
-if(RMM_V1_1)
-    message(WARNING "RMM v1.1 features are experimental")
-    target_compile_definitions(rmm-common
-        INTERFACE "RMM_V1_1=1")
-endif()
 
 link_libraries(rmm-common)

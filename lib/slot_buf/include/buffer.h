@@ -93,6 +93,10 @@ bool ns_buffer_write_unaligned(enum buffer_slot slot,
 			       void *src,
 			       size_t *ns_start_offset);
 
+/* @TODO add unittests for ABIs */
+bool ns_buffer_read_early(unsigned long ns_ptr, size_t size, void *dest);
+bool ns_buffer_write_early(unsigned long ns_ptr, size_t size, void *src);
+
 /*
  * These helper routines are used to access NS mmio region. These regions do
  * not have any granules and granule state associated with it, as these pages
@@ -165,6 +169,12 @@ void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux);
 
 /* Sanitizes the granule based on the sanitize policy configured */
 void buffer_granule_sanitize(struct granule *g);
+
+/* Maps a NS granule */
+void *ns_buffer_granule_map(enum buffer_slot slot, struct granule *granule);
+
+/* Unmaps a NS granule */
+void ns_buffer_unmap(void *buf);
 
 /* Whether the Slot correspnds to one that is mapped using Realm MECID */
 static inline bool is_realm_mecid_slot(enum buffer_slot slot)

@@ -1374,15 +1374,6 @@
 /* VMPIDR bit [31] = RES1 */
 #define VMPIDR_EL2_RES1		(UL(1) << 31)
 
-/* ICC_SRE_EL2 defintions */
-#define ICC_SRE_EL2_ENABLE	(UL(1) << 3)	/* Enable lower EL access to ICC_SRE_EL1 */
-#define ICC_SRE_EL2_DIB		(UL(1) << 2)	/* Disable IRQ bypass   */
-#define ICC_SRE_EL2_DFB		(UL(1) << 1)	/* Disable FIQ bypass   */
-#define ICC_SRE_EL2_SRE		(UL(1) << 0)	/* Enable sysreg access */
-
-#define ICC_SRE_EL2_INIT	(ICC_SRE_EL2_ENABLE | ICC_SRE_EL2_DIB | \
-				 ICC_SRE_EL2_DFB | ICC_SRE_EL2_SRE)
-
 #define PMSCR_EL2_INIT		0x0
 
 #define SYSREG_TRAP_OPCODE(op0, op1, crn, crm, op2) \

@@ -16,13 +16,10 @@ COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, pmu_num_ctrs)) == 0x
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, algorithm)) == 0x30U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, num_aux_planes)) == 0x38U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, rpv)) == 0x400U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, vmid)) == 0x800U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, rtt_base)) == 0x808U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, rtt_level_start)) == 0x810U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, rtt_num_start)) == 0x818U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, flags1)) == 0x820U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, mecid)) == 0x828U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, aux_vmid)) == 0xF00U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_realm_params, aux_rtt_base)) == 0xF80U);
 
 COMPILER_ASSERT_NO_CBMC(sizeof(struct rmi_rec_params) == 0x1000UL);
@@ -30,14 +27,10 @@ COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_params, flags)) == 0U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_params, mpidr)) == 0x100U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_params, pc)) == 0x200U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_params, gprs)) == 0x300U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_params, num_aux)) == 0x800U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_params, aux)) == 0x808U);
 
-COMPILER_ASSERT_NO_CBMC(sizeof(struct rmi_rec_enter) == 0x800UL);
+COMPILER_ASSERT_NO_CBMC(sizeof(struct rmi_rec_enter) == 0x300UL);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_enter, flags)) == 0U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_enter, gprs)) == 0x200U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_enter, gicv3_hcr)) == 0x300U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_enter, gicv3_lrs)) == 0x308U);
 
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_exit, exit_reason)) == 0U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_exit, esr)) == 0x100U);
@@ -46,10 +39,6 @@ COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_exit, hpfar)) == 0x110U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_exit, rtt_tree)) == 0x118U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_exit, rtt_level)) == 0x120U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_exit, gprs)) == 0x200U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_exit, gicv3_hcr)) == 0x300U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_exit, gicv3_lrs)) == 0x308U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_exit, gicv3_misr)) == 0x388U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_exit, gicv3_vmcr)) == 0x390U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_exit, cntp_ctl)) == 0x400U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_exit, cntp_cval)) == 0x408U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_rec_exit, cntv_ctl)) == 0x410U);

@@ -11,10 +11,25 @@
 
 /*
  * TODO: Currently the pci_tdisp_get_version() call made during RMI_VDEV_LOCK in
- * the DA app mandates that the version in 0x10. It would be better if that
+ * the DA app mandates that the version is 0x10. It would be better if that
  * function returned the version and it could be saved in the vdev.
  */
-#define PCI_TDISP_MESSAGE_VERSION_10 0x10
+#define PCI_TDISP_MESSAGE_VERSION_10			UL(0x10)
+#define PCI_TDISP_MESSAGE_VERSION PCI_TDISP_MESSAGE_VERSION_10
+
+#define PCI_TDISP_MESSAGE_VERSION_MINOR_SHIFT		U(0)
+#define PCI_TDISP_MESSAGE_VERSION_MINOR_WIDTH		U(4)
+#define PCI_TDISP_MESSAGE_VERSION_MAJOR_SHIFT		U(4)
+#define PCI_TDISP_MESSAGE_VERSION_MAJOR_WIDTH		U(4)
+
+#define VDEV_INFO_FORMAT_VERSION_MINOR_SHIFT		U(0)
+#define VDEV_INFO_FORMAT_VERSION_MINOR_WIDTH		U(16)
+#define VDEV_INFO_FORMAT_VERSION_MAJOR_SHIFT		U(16)
+#define VDEV_INFO_FORMAT_VERSION_MAJOR_WIDTH		U(16)
+#define VDEV_INFO_FORMAT_VERSION(major, minor) \
+	(COMPOSE(VDEV_INFO_FORMAT_VERSION_MAJOR, major) | \
+	 COMPOSE(VDEV_INFO_FORMAT_VERSION_MINOR, minor))
+
 
 static void initiate_vdev_id_mapping(struct rec *rec,
 				     unsigned long vdev_id,
@@ -302,17 +317,8 @@ static unsigned char vdev_state_to_rsi(uint32_t vdev_rmi_state)
  */
 static void vdev_get_info(struct pdev *pd, struct vdev *vd, struct rsi_vdev_info *vdev_info)
 {
-	/* Set P2P feature flag */
-	if (EXTRACT(RMI_PDEV_FLAGS_P2P, pd->rmi_flags) == RMI_FEATURE_TRUE) {
-		vdev_info->flags = INPLACE(RSI_VDEV_FLAGS_P2P_ENABLED, RSI_FEATURE_TRUE);
-	} else {
-		vdev_info->flags = INPLACE(RSI_VDEV_FLAGS_P2P_ENABLED, RSI_FEATURE_FALSE);
-	}
-
-	/*
-	 * vdev.p2p_bound is always false by specification, so
-	 * RSI_VDEV_FLAGS_P2P_BOUND flag is never set
-	 */
+	/* TODO: Set in flags whether this device is associated with a VSMMU */
+	vdev_info->flags = 0U;
 
 	/*
 	 * Set certificate slot id and RMI hash algorithm. RMI and RSI hash
@@ -325,7 +331,11 @@ static void vdev_get_info(struct pdev *pd, struct vdev *vd, struct rsi_vdev_info
 	vdev_info->meas_nonce = vd->attest_info.meas_nonce;
 	vdev_info->report_nonce = vd->attest_info.report_nonce;
 
-	vdev_info->tdisp_version = PCI_TDISP_MESSAGE_VERSION_10;
+	/* Return hardcoded format type */
+	vdev_info->format_type = (unsigned char)RSI_VDEV_REPORT_FORMAT_TDISP;
+	vdev_info->format_version = VDEV_INFO_FORMAT_VERSION(
+		EXTRACT(PCI_TDISP_MESSAGE_VERSION_MAJOR, PCI_TDISP_MESSAGE_VERSION),
+		EXTRACT(PCI_TDISP_MESSAGE_VERSION_MINOR, PCI_TDISP_MESSAGE_VERSION));
 	vdev_info->state = vdev_state_to_rsi(vd->rmi_state);
 
 	(void)memcpy(vdev_info->vca_digest, pd->vca_digest.value,
