@@ -556,6 +556,15 @@ static inline unsigned long mpidr_to_rec_idx(unsigned long mpidr)
 }
 
 /*
+ * Convert MPIDR_EL1 register type value to RmiRecMpidr format through the
+ * canonical REC linear index representation.
+ */
+static inline unsigned long mpidr_to_rec_mpidr(unsigned long mpidr)
+{
+	return rec_idx_to_mpidr(mpidr_to_rec_idx(mpidr));
+}
+
+/*
  * Convert mpidr of RmiRecMpidr type
  * Aff3[31:24]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0]
  * to MPIDR_EL1 register type value

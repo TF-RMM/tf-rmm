@@ -171,11 +171,16 @@ static void psci_cpu_on(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	res->action = EXIT_TO_HOST;
 }
 
-static void psci_affinity_info(struct rec *rec, struct rmi_rec_exit *rec_exit,
+static void psci_affinity_info(struct rec *rec,
 			       struct rsi_result *res)
 {
 	struct rec_plane *plane = rec_active_plane(rec);
+	struct granule *g_target_rec;
+	struct rd *rd;
+	struct rec *target_rec;
+	struct rd_aux *rd_aux;
 	unsigned long target_affinity = plane->regs[1];
+	unsigned long target_rec_mpidr;
 	unsigned long lowest_affinity_level = plane->regs[2];
 	unsigned long target_rec_idx;
 
@@ -205,17 +210,54 @@ static void psci_affinity_info(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		return;
 	}
 
-	/* Record that a PSCI request is outstanding */
-	rec_set_pending_op(rec, REC_PENDING_PSCI_COMPLETE);
+	granule_lock(rec->realm_info.g_rd, GRANULE_STATE_RD);
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
 
-	/*
-	 * Notify the Host, passing the FID and MPIDR arguments.
-	 * Leave REC registers unchanged; these will be read and updated
-	 * by psci_complete_request.
-	 */
-	forward_args_to_host(2U, plane, rec_exit);
+	rd_aux = buffer_rd_aux_granules_map(
+		&rd->aux_granules[0], rd->num_rd_aux);
+	assert(rd_aux != NULL);
 
-	res->action = EXIT_TO_HOST;
+	target_rec_mpidr = mpidr_to_rec_mpidr(target_affinity);
+	g_target_rec = map_mpidr_to_rec(&rd_aux->mpidr_rec_map, target_rec_mpidr);
+
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+	buffer_unmap(rd);
+	granule_unlock(rec->realm_info.g_rd);
+
+	if (g_target_rec == NULL) {
+		res->smc_res.x[0] = PSCI_AFFINITY_INFO_OFF;
+		return;
+	}
+
+	if (!granule_lock_on_state_match(g_target_rec, GRANULE_STATE_REC)) {
+		/* A REC has been destroyed. Permanently turned OFF */
+		res->smc_res.x[0] = PSCI_AFFINITY_INFO_OFF;
+		return;
+	}
+
+	target_rec = buffer_granule_map(g_target_rec, SLOT_REC2);
+	assert(target_rec != NULL);
+
+	if (target_rec->realm_info.g_rd != rec->realm_info.g_rd) {
+		/*
+		 * A REC has been destroyed, and recreated in a separate realm.
+		 * Permanently turned OFF.
+		 */
+		res->smc_res.x[0] = PSCI_AFFINITY_INFO_OFF;
+		goto out_unlock_target;
+	}
+
+	if ((granule_refcount_read_acquire(g_target_rec) != 0U) ||
+		target_rec->runnable) {
+		res->smc_res.x[0] = PSCI_AFFINITY_INFO_ON;
+	} else {
+		res->smc_res.x[0] = PSCI_AFFINITY_INFO_OFF;
+	}
+
+out_unlock_target:
+	buffer_unmap(target_rec);
+	granule_unlock(g_target_rec);
 }
 
 /*
@@ -307,7 +349,7 @@ void handle_psci(struct rec *rec,
 		break;
 	case SMC32_PSCI_AFFINITY_INFO:
 	case SMC64_PSCI_AFFINITY_INFO:
-		psci_affinity_info(rec, rec_exit, res);
+		psci_affinity_info(rec, res);
 		break;
 	case SMC32_PSCI_SYSTEM_OFF:
 	case SMC32_PSCI_SYSTEM_RESET:
