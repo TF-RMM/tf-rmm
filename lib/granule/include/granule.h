@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <utils_def.h>
 
+#ifndef CBMC
 /* Maximum number of entries in an RTT */
 #define RTT_REFCOUNT_MAX	(unsigned short)	\
 					(GRANULE_SIZE / sizeof(uint64_t))
@@ -25,6 +26,11 @@
 /* Maximum value defined by the 'refcount' field width in granule descriptor */
 #define REFCOUNT_MAX		(unsigned short)	\
 					((U(1) << GRN_REFCOUNT_WIDTH) - U(1))
+#else /* CBMC */
+#define RTT_REFCOUNT_MAX		((unsigned short)2)
+#define PSMMU_ST_L2_REFCOUNT_MAX	((unsigned short)2)
+#define REFCOUNT_MAX			((unsigned short)2)
+#endif /* CBMC */
 
 /* RTT_REFCOUNT_MAX can't exceed REFCOUNT_MAX */
 COMPILER_ASSERT(RTT_REFCOUNT_MAX <= REFCOUNT_MAX);

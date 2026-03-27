@@ -621,6 +621,10 @@ static void init_obj_map(struct rd_aux *rd_aux)
 				   rd_aux->vdev_map_mem,
 				   sizeof(rd_aux->vdev_map_mem));
 	assert(hnd != NULL);
+	hnd = sarray_init_rec_map(&rd_aux->mpidr_rec_map.rec_map_hnd,
+				   rd_aux->mpidr_rec_map.rec_map_mem,
+				   sizeof(rd_aux->mpidr_rec_map.rec_map_mem));
+	assert(hnd != NULL);
 }
 
 static void rd_init_aux_granules(struct rd *rd)
@@ -650,6 +654,8 @@ static void realm_destroy_cleanup(struct rd *rd, struct rd_aux *rd_aux)
 
 	assert(sarray_num_elems(&rd_aux->vdev_map_hnd) == 0U);
 	sarray_destroy(&rd_aux->vdev_map_hnd);
+	assert(sarray_num_elems(&rd_aux->mpidr_rec_map.rec_map_hnd) == 0U);
+	sarray_destroy(&rd_aux->mpidr_rec_map.rec_map_hnd);
 
 	/* Free root tables in all RTT trees */
 	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {

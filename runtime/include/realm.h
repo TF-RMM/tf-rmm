@@ -42,6 +42,8 @@ struct rd_aux {
 	/* vdev_id to VDEV mapping array */
 	struct sarray_hdr vdev_map_hnd;
 	struct vdev_map vdev_map_mem[RD_MAX_VDEVS(MAX_VDEVS_ORDER_PER_RD)];
+
+	struct mpidr_rec_map mpidr_rec_map;
 };
 
 COMPILER_ASSERT(MAX_RD_AUX_GRANULES >=

@@ -344,6 +344,28 @@ static unsigned long get_rsi_feature_register_0(struct rd *rd)
 	return rsi_feat_reg0;
 }
 
+static bool rec_mpidr_taken(struct mpidr_rec_map *mpidr_rec_map, unsigned long mpidr)
+{
+	return map_mpidr_to_rec(mpidr_rec_map, mpidr) != NULL;
+}
+
+static void rd_add_rec(struct rd *rd, struct rmi_rec_params *p,
+			uintptr_t rec_addr, struct rd_aux *rd_aux)
+{
+	unsigned long rec_count = get_rd_rec_count_locked(rd);
+	int ret __unused;
+	unsigned long mpidr = p->mpidr;
+	struct rec_map rec_map;
+
+	rec_map.rec = rec_addr;
+
+	ret = sarray_insert_rec_map(&rd_aux->mpidr_rec_map.rec_map_hnd, mpidr, &rec_map);
+	assert(ret == 0);
+
+	inc_rd_obj_map_epoch(rd);
+	set_rd_rec_count(rd, rec_count + 1);
+}
+
 /*
  * SRO handle callback for RMI_OP_CONTINUE during RMI_REC_CREATE.
  *
@@ -358,12 +380,12 @@ static void rec_create_continue(unsigned long fid, struct smc_result *res)
 	struct rec *rec;
 	struct rd *rd;
 	struct rmi_rec_params rec_params;
-	unsigned long rec_idx;
 	unsigned long ret;
 	bool ns_access_ok;
 	unsigned int num_rec_aux;
 	unsigned long rd_addr, rec_addr, rec_params_addr;
 	struct sro_context *sro = my_sro_ctx();
+	struct rd_aux *rd_aux = NULL;
 
 	assert(sro != NULL);
 	assert(fid == SMC_RMI_OP_CONTINUE);
@@ -448,10 +470,12 @@ static void rec_create_continue(unsigned long fid, struct smc_result *res)
 		ret = RMI_ERROR_REALM;
 		goto out_unmap;
 	}
+	rd_aux = buffer_rd_aux_granules_map(&rd->aux_granules[0],
+						rd->num_rd_aux);
+	assert(rd_aux != NULL);
 
-	rec_idx = get_rd_rec_count_locked(rd);
 	if (!rec_mpidr_is_valid(rec_params.mpidr) ||
-	   (rec_idx != rec_mpidr_to_idx(rec_params.mpidr))) {
+	    rec_mpidr_taken(&(rd_aux->mpidr_rec_map), rec_params.mpidr)) {
 		ret = RMI_ERROR_INPUT;
 		goto out_unmap;
 	}
@@ -466,7 +490,7 @@ static void rec_create_continue(unsigned long fid, struct smc_result *res)
 	assert(rec != NULL);
 
 	rec->g_rec = g_rec;
-	rec->rec_idx = rec_idx;
+	rec->rec_idx = rec_mpidr_to_idx(rec_params.mpidr);
 
 	rec->realm_info.num_aux_planes = rd->num_aux_planes;
 
@@ -514,13 +538,16 @@ static void rec_create_continue(unsigned long fid, struct smc_result *res)
 	/* Initialize system registers */
 	init_rec_regs(rec, &rec_params, rd);
 
-	set_rd_rec_count(rd, rec_idx + 1U);
+	rd_add_rec(rd, &rec_params, rec_addr, rd_aux);
 
 	buffer_unmap(rec);
 
 	ret = RMI_SUCCESS;
 
 out_unmap:
+	if (rd_aux != NULL) {
+		buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+	}
 	buffer_unmap(rd);
 
 out_unlock:
@@ -620,7 +647,10 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 	struct granule *g_rec;
 	struct granule *g_rd;
 	struct rec *rec;
+	struct rd *rd;
+	struct rd_aux *rd_aux;
 	struct sro_context *sro;
+	unsigned long mpidr;
 	int ret;
 	unsigned long ctx_reserved;
 
@@ -661,6 +691,7 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 	assert(rec != NULL);
 
 	g_rd = rec->realm_info.g_rd;
+	mpidr = rec_idx_to_mpidr(rec->rec_idx);
 
 	/* Clean up the attestation app spawned by the REC */
 	(void)attest_app_delete(&rec->attest_app_data);
@@ -678,6 +709,29 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 	buffer_unmap(rec);
 
 	granule_unlock_transition(g_rec, GRANULE_STATE_PARTIAL);
+
+	/*
+	 * REC is now unlocked, but the RD refcount for it is still held. So we
+	 * can be sure that the RD we are locking here is the same that
+	 * the REC was created in.
+	 */
+	granule_lock(g_rd, GRANULE_STATE_RD);
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	rd_aux = buffer_rd_aux_granules_map(
+		&rd->aux_granules[0], rd->num_rd_aux);
+	assert(rd_aux != NULL);
+
+	/* NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores) */
+	ret = sarray_delete_rec_map(&rd_aux->mpidr_rec_map.rec_map_hnd,
+				    mpidr, NULL);
+	assert(ret == 0);
+
+	inc_rd_obj_map_epoch(rd);
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+	buffer_unmap(rd);
+	granule_unlock(g_rd);
 
 	/*
 	 * Decrement refcount. The refcount should be balanced before

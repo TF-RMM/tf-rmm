@@ -11,11 +11,13 @@
 #include <arch.h>
 #include <attest_app.h>
 #include <gic.h>
+#include <granule.h>
 #include <pauth.h>
 #include <planes.h>
 #include <pmu.h>
 #include <ripas.h>
 #include <s2tt.h>
+#include <sarray.h>
 #include <simd.h>
 #include <sizes.h>
 #include <smc-rmi.h>
@@ -240,6 +242,35 @@ struct rec_plane {
 	} plane_exit_info;
 };
 
+struct rec_map {
+	SARRAY_EMBED_KEY();	/* mpidr_id is the key */
+	uintptr_t rec;		/* REC granule */
+};
+/* coverity[misra_c_2012_directive_12_3_violation:SUPPRESS] */
+/* coverity[misra_c_2012_rule_20_7_violation:SUPPRESS] */
+DEFINE_SARRAY(rec_map, struct rec_map);
+
+struct mpidr_rec_map {
+	/* mpidr to REC mapping array */
+	struct sarray_hdr rec_map_hnd;
+	struct rec_map rec_map_mem[REFCOUNT_MAX];
+};
+
+static inline struct granule *map_mpidr_to_rec(struct mpidr_rec_map *mpidr_rec_map,
+					       unsigned long mpidr)
+{
+	const struct rec_map *rec_map;
+
+	assert(mpidr_rec_map != NULL);
+	rec_map = sarray_lookup_rec_map(&mpidr_rec_map->rec_map_hnd, mpidr);
+
+	if (rec_map == NULL) {
+		return NULL;
+	}
+
+	return find_granule(rec_map->rec);
+}
+
 /*
  * The RmmRecResponse enumeration represents whether the Host accepted
  * or rejected a Realm request.
@@ -249,6 +280,14 @@ struct rec_plane {
 enum host_response {
 	ACCEPT = RMI_ACCEPT,	/* Host accepted Realm request */
 	REJECT = RMI_REJECT	/* Host rejected Realm request */
+};
+
+struct rec_rd_rec_lock_set {
+	struct granule *g_rd;
+	struct rd *rd;
+	struct rd_aux *rd_aux;
+	struct granule *g_rec;
+	struct rec *rec;
 };
 
 struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in logical order */
@@ -490,6 +529,18 @@ static inline unsigned long rec_mpidr_to_idx(unsigned long rec_mpidr)
 		RMI_MPIDR_AFF(1, rec_mpidr) |
 		RMI_MPIDR_AFF(2, rec_mpidr) |
 		RMI_MPIDR_AFF(3, rec_mpidr));
+}
+
+/*
+ * Convert a REC linear index to RmiRecMpidr format.
+ * Aff3[27:20]:Aff2[19:12]:Aff1[11:4]:Aff0[3:0]
+ * -> Aff3[31:24]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0].
+ */
+static inline unsigned long rec_idx_to_mpidr(unsigned long rec_idx)
+{
+	return ((rec_idx & MASK(RMI_MPIDR_AFF0)) |
+		((rec_idx & ~MASK(RMI_MPIDR_AFF0)) <<
+		 (RMI_MPIDR_AFF1_SHIFT - RMI_MPIDR_AFF0_WIDTH)));
 }
 
 /*
