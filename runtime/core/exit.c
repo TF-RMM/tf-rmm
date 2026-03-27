@@ -531,26 +531,19 @@ static bool handle_rsi_from_pn(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	 *
 	 * The only exception to this rule is when SMC_RSI_HOST_CALL is
 	 * invoked with plane->trap_hc == RSI_NO_TRAP, hence, filter this call.
+	 *
+	 * Note: RMM does not advance PC for PN,
+	 * it is upto P0 to handle SMC and advance PC.
 	 */
-	if (!(function_id == SMC_RSI_HOST_CALL) &&
-			(plane->trap_hc != (bool)RSI_TRAP)) {
-		advance_pc();
-		*p0_return = handle_plane_n_exit(rec, rec_exit,
-						 ARM_EXCEPTION_SYNC_LEL, true);
-
-		/*
-		 * If handle_plane_n_exit() returned false, RMM needs to return
-		 * to Host for Stage 2 fixup. Once the fixup is doen, RMM must
-		 * retry the same instruction again.
-		 */
-		if (!(*p0_return)) {
-			reverse_pc();
-		}
-
-		return true;
+	if ((function_id == SMC_RSI_HOST_CALL) &&
+			(plane->trap_hc == (bool)RSI_NO_TRAP)) {
+		return false;
 	}
 
-	return false;
+	*p0_return = handle_plane_n_exit(rec, rec_exit,
+					 ARM_EXCEPTION_SYNC_LEL, true);
+
+	return true;
 }
 
 /*
