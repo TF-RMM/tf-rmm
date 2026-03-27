@@ -106,9 +106,6 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 	/* Process the Boot Manifest */
 	rmm_el3_ifc_process_boot_manifest();
 
-	/* Initialize FIRME interface if present. */
-	(void)firme_init();
-
 	return 0;
 }
 

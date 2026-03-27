@@ -67,32 +67,3 @@ unsigned long host_gtsi_undelegate(unsigned long addr)
 
 	return 0;
 }
-
-unsigned long host_firme_base_version(unsigned char service_id)
-{
-	(void)service_id;
-
-	return 0x10000;
-}
-
-unsigned long host_firme_base_features(unsigned char service_id,
-				       unsigned char index,
-				       unsigned long *reg)
-{
-	(void)service_id;
-	(void)index;
-	*reg = 0;
-
-	return FIRME_SUCCESS;
-}
-
-unsigned long host_firme_gm_gpi_set(unsigned long base_addr,
-				    unsigned long *granule_count,
-				    unsigned long attributes)
-{
-	(void)base_addr;
-	(void)granule_count;
-	(void)attributes;
-
-	return FIRME_SUCCESS;
-}
