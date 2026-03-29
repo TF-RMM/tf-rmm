@@ -25,7 +25,8 @@ target_link_libraries(rmm-lib
               rmm-lib-sro_context
               rmm-lib-stack_protector
               rmm-lib-xlat
-              rmm-lib-xlat_low_va)
+              rmm-lib-xlat_low_va
+              rmm-lib-sarray)
 
 add_subdirectory("addr_list")
 add_subdirectory("arch")
@@ -48,3 +49,4 @@ add_subdirectory("sro_context")
 add_subdirectory("stack_protector")
 add_subdirectory("xlat")
 add_subdirectory("xlat_low_va")
+add_subdirectory("sarray")
