@@ -74,6 +74,13 @@ void rmm_arch_init(void)
 		write_sctlr_el2(read_sctlr_el2() | SCTLR_ELx_MSCEn_BIT);
 	}
 
+	/*
+	 * The PSTATE.PAN bit will be set automatically by the HW every time RMM deals with
+	 * an exception from EL0 (because SCTLR_EL2_SPAN = 0). The bit is currently unset
+	 * (EL0 has never been reached yet), so we have to manually set it.
+	 */
+	enable_pan();
+
 	write_hcrx_el2(hcrx_el2_init);
 
 	/* Disable BRBE at R-EL2 and prevent access to BRBE regs from R-EL1 */

@@ -140,11 +140,18 @@ void inv_dcache_range(uintptr_t addr, size_t size);
  ******************************************************************************/
 #define write_daifclr(val) SYSREG_WRITE_CONST(daifclr, val)
 #define write_daifset(val) SYSREG_WRITE_CONST(daifset, val)
+#define write_pan(val) SYSREG_WRITE_CONST(pan, val)
 
 DEFINE_SYSOP_FUNC(wfi)
 DEFINE_SYSOP_FUNC(wfe)
 DEFINE_SYSOP_FUNC(sev)
 DEFINE_SYSOP_FUNC(isb)
+
+static inline void enable_pan(void)
+{
+	COMPILER_BARRIER();
+	write_pan(UL(1));
+}
 
 /*******************************************************************************
  * Stack Pointer Select

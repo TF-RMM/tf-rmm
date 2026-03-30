@@ -1152,6 +1152,10 @@
 #define SCTLR_ELx_WXN_BIT		(UL(1) << 19)
 #define SCTLR_ELx_TSCXT_BIT		(UL(1) << 20)
 #define SCTLR_ELx_EIS_BIT		(UL(1) << 22)
+/*
+ * The RME only exists since ARMv9.2, which corresponds to ARMv8.7 in terms of mandatory
+ * features. FEAT_PAN is mandatory since ARMv8.1, any system running RMM has this bit.
+ */
 #define SCTLR_ELx_SPAN_BIT		(UL(1) << 23)
 #define SCTLR_ELx_EE_BIT		(UL(1) << 25)
 #define SCTLR_ELx_UCI_BIT		(UL(1) << 26)
@@ -1162,6 +1166,11 @@
 #define SCTLR_ELx_BT0_BIT		(UL(1) << 35)
 #define SCTLR_ELx_BT1_BIT		(UL(1) << 36)
 #define SCTLR_ELx_DSSBS_BIT		(UL(1) << 44)
+/*
+ * The RME only exists since ARMv9.2, which corresponds to ARMv8.7 in terms of mandatory
+ * features. FEAT_PAN3 is mandatory since ARMv8.7, any system running RMM has this bit.
+ */
+#define SCTLR_ELx_EPAN_BIT		(UL(1) << 57)
 #define SCTLR_ELx_SPINTMASK_BIT		(UL(1) << 62)
 
 #define SCTLR_EL1_FLAGS (SCTLR_ELx_SPAN_BIT | SCTLR_ELx_EIS_BIT | SCTLR_ELx_nTWE_BIT | \
@@ -1192,12 +1201,17 @@
 				 SCTLR_ELx_nTWE_BIT	/* Don't trap WFE from EL0 to EL2 */ | \
 				 SCTLR_ELx_WXN_BIT	/* W implies XN */ | \
 				 SCTLR_ELx_TSCXT_BIT	/* Trap EL0 accesss to SCXTNUM_EL0 */ | \
+				 SCTLR_ELx_EPAN_BIT	/* Ensure PAN applies also applies to
+							 * execute-only EL0 pages (FEAT_PAN3).
+							 * Also see runtime/core/init.c. */ | \
 							/* SCTLR_EL2_EIS EL2 exception is context
 							 * synchronizing
 							 */ \
 				 SCTLR_ELx_RES1_BIT	| \
-							/* SCTLR_EL2_SPAN = 0 (Set PSTATE.PAN = 1 on
-							 * exceptions to EL2)) */ \
+							/* SCTLR_EL2_SPAN = 0. The hardware will
+							 * automatically set PSTATE.PAN = 1 on
+							 * exceptions to EL2.
+							 * Also see runtime/core/init.c. */ \
 				 SCTLR_ELx_UCI_BIT	/* Allow cache maintenance
 							 * instructions at EL0 */ | \
 				 SCTLR_ELx_nTLSMD_BIT	/* A32/T32 only */ | \
