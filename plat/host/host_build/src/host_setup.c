@@ -520,12 +520,14 @@ static void launch_spdm_responder_emu(char *base_dir)
 	char keys_abs[PATH_MAX];
 	char cmd[PATH_MAX * 2];
 
+	/* BANNED-API-CHECK[IGNORE] */
 	if (snprintf(bin_path, sizeof(bin_path), "%s%s", base_dir, rel_bin) >=
 	    (int)sizeof(bin_path)) {
 		ERROR("spdm-emu responder path is too long\n");
 		exit(1);
 	}
 
+	/* BANNED-API-CHECK[IGNORE] */
 	if (snprintf(keys_path, sizeof(keys_path), "%s%s", base_dir, rel_keys) >=
 	    (int)sizeof(keys_path)) {
 		ERROR("spdm-emu keys path is too long\n");
@@ -550,6 +552,7 @@ static void launch_spdm_responder_emu(char *base_dir)
 
 	if (pid == 0) {
 #if ENABLE_SPDM_EMU_DEBUG
+		/* BANNED-API-CHECK[IGNORE] */
 		if (snprintf(cmd, sizeof(cmd),
 			     "cd '%s' && '%s' --trans PCI_DOE 2>&1 | "
 			     "awk '{print \"%s[SPDM-EMU] \" $0 \"%s\"; fflush()}'",
@@ -558,6 +561,7 @@ static void launch_spdm_responder_emu(char *base_dir)
 			_exit(1);
 		}
 #else
+		/* BANNED-API-CHECK[IGNORE] */
 		if (snprintf(cmd, sizeof(cmd),
 			     "cd '%s' && '%s' --trans PCI_DOE > /dev/null 2>&1",
 			     keys_abs, bin_abs) >= (int)sizeof(cmd)) {
@@ -629,7 +633,8 @@ void initialise_app_headers(int argc, char *argv[])
 		}
 
 		/* Build full path */
-		(void)snprintf(full_path, path_len, "%s%s", base_dir, apps[idx].filename);
+		/* BANNED-API-CHECK[IGNORE] */
+		(void) snprintf(full_path, path_len, "%s%s", base_dir, apps[idx].filename);
 
 		/* Check if file exists and is readable */
 		FILE *test_file = fopen(full_path, "rb");

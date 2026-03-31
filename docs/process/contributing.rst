@@ -57,7 +57,7 @@ Making Changes
 
       cd $rmm_root
       cmake -DRMM_CONFIG=fvp_defcfg -S . -B build -DRMM_TOOLCHAIN=llvm -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-      cmake --build build -- checkpatch checkspdx-patch checkincludes-patch clang-tidy-patch cppcheck-misra
+      cmake --build build -- checkpatch checkspdx-patch checkincludes-patch clang-tidy-patch checkbannedapi-patch cppcheck-misra
 
 -  Where appropriate, please update the documentation.
 
