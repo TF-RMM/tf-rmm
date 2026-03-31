@@ -29,12 +29,29 @@
 
 #define HOST_VDEV_IFC_REPORT_LEN_MAX	(8U * 1024U)
 
+/* PCIe endpoint at 00:01.0 behind the root port 00:00.0. */
+#define HOST_PDEV_SEGMENT_ID		0U
+#define HOST_PDEV_BUS			1U
+#define HOST_PDEV_DEV			0U
+#define HOST_PDEV_FUNC			0U
+#define HOST_ROOT_PORT_ID		0U
+#define HOST_PDEV_IDE_SID		0U
+
+#define HOST_CREATE_BDF(_bus, _dev, _func) \
+	((((unsigned long)(_bus) & 0xffUL) << 8U) | \
+	 (((unsigned long)(_dev) & 0x1fUL) << 3U) | \
+	 ((unsigned long)(_func) & 0x7UL))
+
 struct host_pdev {
 	/* PDEV related fields */
 	void *pdev_ptr;
 
-	/* PDEV id. SPDM responder_emu ID */
+	/* SPDM responder transport handle */
+	int spdm_rsp_id;
+
+	/* PCIe device identity exposed to RMM/Realm */
 	unsigned long pdev_id;
+	uint16_t segment_id;
 	unsigned long pdev_flags;
 	void *pdev_aux[PDEV_PARAM_AUX_GRANULES_MAX];
 	uint32_t pdev_aux_num;
@@ -57,6 +74,9 @@ struct host_pdev {
 
 	/* Root Port ID and ECAM_SPACE */
 	uint16_t root_id;
+	uint16_t rid_base;
+	uint16_t rid_top;
+	uint8_t ide_sid;
 	unsigned long ecam_addr;
 };
 
@@ -95,14 +115,15 @@ struct host_vdev {
 static struct host_pdev gbl_host_pdev;
 static struct host_vdev gbl_host_vdev;
 
-void *allocate_granule(void);
+void *allocate_granule(unsigned int num_granules);
 
 static void host_pdev_cleanup(struct host_pdev *dev)
 {
-	if (dev->pdev_id != 0UL) {
-		(void)host_spdm_rsp_deinit((int)dev->pdev_id);
-		dev->pdev_id = 0UL;
+	if (dev->spdm_rsp_id >= 0) {
+		(void)host_spdm_rsp_deinit(dev->spdm_rsp_id);
+		dev->spdm_rsp_id = -1;
 	}
+	dev->pdev_id = 0UL;
 
 	free(dev->cert_chain);
 	dev->cert_chain = NULL;
@@ -266,15 +287,19 @@ static int host_pdev_create(struct host_pdev *dev)
 	struct smc_result result;
 	uint32_t i;
 
-	pdev_params = allocate_granule();
+	pdev_params = allocate_granule(1U);
 	memset(pdev_params, 0, GRANULE_SIZE);
 
 	pdev_params->flags = dev->pdev_flags;
 	pdev_params->cert_id = dev->cert_slot_id;
 	pdev_params->pdev_id = dev->pdev_id;
+	pdev_params->segment_id = dev->segment_id;
 	pdev_params->num_aux = dev->pdev_aux_num;
 	pdev_params->hash_algo = dev->hash_algo;
 	pdev_params->root_id = dev->root_id;
+	pdev_params->rid_base = dev->rid_base;
+	pdev_params->rid_top = dev->rid_top;
+	pdev_params->ide_sid = dev->ide_sid;
 	pdev_params->ecam_addr = dev->ecam_addr;
 	for (i = 0; i < dev->pdev_aux_num; i++) {
 		pdev_params->aux[i] = (uintptr_t)dev->pdev_aux[i];
@@ -293,7 +318,7 @@ static int host_pdev_set_key(struct host_pdev *dev)
 	struct rmi_public_key_params *pubkey_params;
 	struct smc_result result;
 
-	pubkey_params = allocate_granule();
+	pubkey_params = allocate_granule(1U);
 	memset(pubkey_params, 0, GRANULE_SIZE);
 
 	memcpy(pubkey_params->key, dev->public_key, dev->public_key_len);
@@ -546,8 +571,8 @@ static int host_pdev_spdm_rsp_communicate(struct host_pdev *h_pdev,
 	}
 
 	resp_len = 0UL;
-	assert(h_pdev->pdev_id <= INT32_MAX);
-	rc = host_spdm_rsp_communicate((int)h_pdev->pdev_id,
+	assert(h_pdev->spdm_rsp_id >= 0);
+	rc = host_spdm_rsp_communicate(h_pdev->spdm_rsp_id,
 				       (void *)dcomm_enter->req_addr,
 				       dcomm_exit->req_len,
 				       (void *)dcomm_enter->resp_addr,
@@ -770,6 +795,7 @@ static int host_pdev_setup(struct host_pdev *dev)
 	uint32_t i;
 
 	memset(dev, 0, sizeof(struct host_pdev));
+	dev->spdm_rsp_id = -1;
 
 	/* Connect with SPDM responder emu */
 	rc = host_spdm_rsp_connect(&spdm_rsp_id);
@@ -777,11 +803,21 @@ static int host_pdev_setup(struct host_pdev *dev)
 		INFO("Connect to SPDM responder failed.\n");
 		return -1;
 	}
-	/* Set the SPDM responder emu id */
-	dev->pdev_id = (unsigned long)spdm_rsp_id;
+	dev->spdm_rsp_id = spdm_rsp_id;
+
+	/*
+	 * Expose stable PCIe identifiers to RMM/Realm. The SPDM responder ID is
+	 * only used to route DOE traffic from fake host to the emulator.
+	 */
+	dev->segment_id = HOST_PDEV_SEGMENT_ID;
+	dev->pdev_id = HOST_CREATE_BDF(HOST_PDEV_BUS, HOST_PDEV_DEV,
+					 HOST_PDEV_FUNC);
+	dev->rid_base = (uint16_t)dev->pdev_id;
+	dev->rid_top = (uint16_t)(dev->rid_base + 1U);
+	dev->ide_sid = HOST_PDEV_IDE_SID;
 
 	/* Allocate granule for PDEV and delegate */
-	dev->pdev_ptr = allocate_granule();
+	dev->pdev_ptr = allocate_granule(1U);
 	memset(dev->pdev_ptr, 0, GRANULE_SIZE);
 	host_rmi_granule_range_delegate(dev->pdev_ptr,
 			dev->pdev_ptr + GRANULE_SIZE,
@@ -800,7 +836,7 @@ static int host_pdev_setup(struct host_pdev *dev)
 
 	/* Create a extended capability DVSEC in Root Port config space */
 	if (EXTRACT(RMI_PDEV_FLAGS_NCOH_IDE, dev->pdev_flags) == RMI_PDEV_IDE_TRUE) {
-		dev->root_id = 0U;
+		dev->root_id = HOST_ROOT_PORT_ID;
 		dev->ecam_addr = host_utils_pci_get_ecam_base();
 
 		rc = host_utils_pci_rp_dvsec_setup(dev->root_id);
@@ -824,7 +860,7 @@ static int host_pdev_setup(struct host_pdev *dev)
 	/* Allocate aux granules for PDEV and delegate */
 	INFO("PDEV create requires %u aux pages\n", dev->pdev_aux_num);
 	for (i = 0; i < dev->pdev_aux_num; i++) {
-		dev->pdev_aux[i] = allocate_granule();
+		dev->pdev_aux[i] = allocate_granule(1U);
 		host_rmi_granule_range_delegate(dev->pdev_aux[i],
 						(dev->pdev_aux[i] + GRANULE_SIZE),
 						&result);
@@ -835,10 +871,10 @@ static int host_pdev_setup(struct host_pdev *dev)
 	}
 
 	/* Allocate dev_comm_data and send/recv buffer for Dev communication */
-	dev->dev_comm_data = (struct rmi_dev_comm_data *)allocate_granule();
+	dev->dev_comm_data = (struct rmi_dev_comm_data *)allocate_granule(1U);
 	memset(dev->dev_comm_data, 0, sizeof(struct rmi_dev_comm_data));
-	dev->dev_comm_data->enter.req_addr = (unsigned long)allocate_granule();
-	dev->dev_comm_data->enter.resp_addr = (unsigned long)allocate_granule();
+	dev->dev_comm_data->enter.req_addr = (unsigned long)allocate_granule(1U);
+	dev->dev_comm_data->enter.resp_addr = (unsigned long)allocate_granule(1U);
 
 	/* Allocate buffer to cache device certificate */
 	dev->cert_slot_id = 0;
@@ -858,7 +894,7 @@ static int host_pdev_setup(struct host_pdev *dev)
 	}
 
 	/* Allocate buffer to store extracted public key */
-	dev->public_key = allocate_granule();
+	dev->public_key = allocate_granule(1U);
 	if (dev->public_key == NULL) {
 		rc = -1;
 		goto out_cleanup;
@@ -866,7 +902,7 @@ static int host_pdev_setup(struct host_pdev *dev)
 	dev->public_key_len = GRANULE_SIZE;
 
 	/* Allocate buffer to store public key metadata */
-	dev->public_key_metadata = allocate_granule();
+	dev->public_key_metadata = allocate_granule(1U);
 	if (dev->public_key_metadata == NULL) {
 		rc = -1;
 		goto out_cleanup;
@@ -1056,7 +1092,7 @@ static int host_vdev_setup(struct host_pdev *h_pdev,
 	h_vdev->pdev_ptr = h_pdev->pdev_ptr;
 
 	/* Allocate granule for VDEV and delegate */
-	h_vdev->vdev_ptr = allocate_granule();
+	h_vdev->vdev_ptr = allocate_granule(1U);
 	memset(h_vdev->vdev_ptr, 0, GRANULE_SIZE);
 	host_rmi_granule_range_delegate(h_vdev->vdev_ptr,
 					(h_vdev->vdev_ptr + GRANULE_SIZE),
@@ -1067,12 +1103,12 @@ static int host_vdev_setup(struct host_pdev *h_pdev,
 	}
 
 	/* Allocate dev_comm_data and send/recv buffer for Dev communication */
-	h_vdev->dev_comm_data = (struct rmi_dev_comm_data *)allocate_granule();
+	h_vdev->dev_comm_data = (struct rmi_dev_comm_data *)allocate_granule(1U);
 	memset(h_vdev->dev_comm_data, 0, sizeof(struct rmi_dev_comm_data));
 	h_vdev->dev_comm_data->enter.req_addr = (unsigned long)
-			allocate_granule();
+			allocate_granule(1U);
 	h_vdev->dev_comm_data->enter.resp_addr = (unsigned long)
-			allocate_granule();
+			allocate_granule(1U);
 
 	/* Allocate buffer to cache device measurements */
 	h_vdev->meas = (uint8_t *)malloc((size_t)HOST_VDEV_MEAS_LEN_MAX);
@@ -1120,7 +1156,7 @@ int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id)
 	}
 
 	/* Create vdev and bind it to the Realm */
-	vdev_params = allocate_granule();
+	vdev_params = allocate_granule(1U);
 	memset(vdev_params, 0, GRANULE_SIZE);
 
 	vdev_params->vdev_id = h_vdev->vdev_id;

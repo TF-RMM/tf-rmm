@@ -679,9 +679,9 @@ static void stop_spdm_responder(void)
 
 int main(int argc, char *argv[])
 {
-	int host_pdev_id;
+	int host_pdev_id = 0;
 	int host_vdev_id = -1;
-	int rc;
+	int rc = 0;
 	bool realm_created = false;
 
 	initialise_app_headers(argc, argv);
@@ -711,6 +711,14 @@ int main(int argc, char *argv[])
 	/* Start RMM */
 	(void)rmm_main(0UL);
 
+	/* Create a realm and a rec */
+	if (host_create_realm_and_activate(&g_realm) != 0) {
+		ERROR("ERROR: failed to create realm");
+		rc = -1;
+		goto out_cleanup;
+	}
+	realm_created = true;
+
 	/*
 	 * Find devices (spdm_responder) and if any device exist create a PDEV
 	 * instance of the device with RMM and establish a secure session with
@@ -722,14 +730,6 @@ int main(int argc, char *argv[])
 		rc = -1;
 		goto out_cleanup;
 	}
-
-	/* Create a realm and a rec */
-	if (host_create_realm_and_activate(&g_realm) != 0) {
-		ERROR("ERROR: failed to create realm");
-		rc = -1;
-		goto out_cleanup;
-	}
-	realm_created = true;
 
 	/* Run rec to invoke attest related RSIs */
 	rc = host_realm_run_attest(&g_realm);
