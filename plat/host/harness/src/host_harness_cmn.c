@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
+#include <firme.h>
 #include <host_el3_rp_ide_km.h>
 #include <host_utils.h>
 #ifndef CBMC
@@ -475,6 +476,55 @@ static int rmm_el3_get_features(uint64_t feat_reg_idx, uint64_t *feat_reg)
 }
 #endif
 
+unsigned long host_firme_base_version(unsigned char service_id)
+{
+	switch (service_id) {
+	case FIRME_BASE_SERVICE_ID:
+		return SUPPORTED_FIRME_BASE_VERSION;
+	case FIRME_GM_SERVICE_ID:
+		return SUPPORTED_FIRME_GM_VERSION;
+	default:
+		return FIRME_NOT_SUPPORTED;
+	}
+}
+
+unsigned long host_firme_base_features(unsigned char service_id,
+				       unsigned char index,
+				       unsigned long *reg)
+{
+	*reg = 0UL;
+
+	switch (service_id) {
+	case FIRME_BASE_SERVICE_ID:
+		if (index == 0U) {
+			*reg = 0x3U;
+			return FIRME_SUCCESS;
+		} else if (index == 1U) {
+			*reg = FIRME_BASE_FR1_SVC_BIT(FIRME_GM_SERVICE_ID);
+			return FIRME_SUCCESS;
+		}
+		return FIRME_NOT_SUPPORTED;
+	case FIRME_GM_SERVICE_ID:
+		if (index == 0U) {
+			*reg = FIRME_GM_FR0_GPI_SET_BIT;
+		}
+		return FIRME_SUCCESS;
+	default:
+		return FIRME_NOT_SUPPORTED;
+	}
+}
+
+unsigned long host_firme_gm_gpi_set(unsigned long base_addr,
+				    unsigned long *granule_count,
+				    unsigned long attributes)
+{
+	(void)base_addr;
+	(void)attributes;
+	*granule_count = 1UL;
+	return FIRME_SUCCESS;
+}
+
+
 void host_monitor_call(unsigned long id, struct smc_args *args,
 		       struct smc_result *res)
 {
@@ -489,6 +539,16 @@ void host_monitor_call(unsigned long id, struct smc_args *args,
 		break;
 	case SMC_RMM_GTSI_UNDELEGATE:
 		res->x[0] = host_gtsi_undelegate(args->v[0]);
+		break;
+	case SMC_FIRME_BASE_VERSION:
+		res->x[0] = host_firme_base_version((unsigned char)args->v[0]);
+		break;
+	case SMC_FIRME_BASE_FEATURES:
+		res->x[0] = host_firme_base_features((unsigned char)args->v[0], (unsigned char)args->v[1], &(res->x[1]));
+		break;
+	case SMC_FIRME_GM_GPI_SET:
+		res->x[0] = host_firme_gm_gpi_set(args->v[0], &args->v[1], args->v[2]);
+		res->x[1] = args->v[1];
 		break;
 	case SMCCC_ARCH_FEATURES:
 		/* Always return success */

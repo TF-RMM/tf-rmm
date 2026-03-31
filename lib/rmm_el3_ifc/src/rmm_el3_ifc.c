@@ -6,6 +6,7 @@
 #include <arch_helpers.h>
 #include <assert.h>
 #include <debug.h>
+#include <firme.h>
 #include <rmm_el3_ifc.h>
 #include <rmm_el3_ifc_priv.h>
 #include <smc.h>

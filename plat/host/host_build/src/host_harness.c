@@ -4,6 +4,7 @@
  */
 
 #include <buffer.h>
+#include <firme.h>
 #include <host_harness.h>
 
 unsigned long slot_vas[(unsigned int)NR_CPU_SLOTS] = { 0UL };

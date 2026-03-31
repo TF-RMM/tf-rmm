@@ -62,4 +62,22 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 	return 0;
 }
 
+unsigned long rmm_el3_ifc_gtsi_delegate(unsigned long addr)
+{
+	ASSERT(false, "rmm_el3_ifc_gtsi_delegate");
+	return 0;
+}
+
+unsigned long rmm_el3_ifc_gtsi_undelegate(unsigned long addr)
+{
+	ASSERT(false, "rmm_el3_ifc_gtsi_undelegate");
+	return 0;
+}
+
+bool firme_init(void)
+{
+	ASSERT(false, "firme_init");
+	return false;
+}
+
 #endif /* CBMC */

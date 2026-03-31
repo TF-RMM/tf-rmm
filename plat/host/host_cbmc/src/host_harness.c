@@ -4,6 +4,7 @@
  */
 
 #include <buffer.h>
+#include <firme.h>
 #include <host_harness.h>
 #include <tb_common.h>
 #include <tb_granules.h>

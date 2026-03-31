@@ -5,6 +5,7 @@
 
 
 #include <buffer.h>
+#include <firme.h>
 #include <host_harness.h>
 #include <test_helpers.h>
 #include <test_private.h>

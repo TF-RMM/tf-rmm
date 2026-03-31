@@ -11,6 +11,7 @@
 #include <debug.h>
 #include <dev_granule.h>
 #include <feature.h>
+#include <firme.h>
 #include <glob_data.h>
 #include <platform_api.h>
 #include <random_app.h>
@@ -171,6 +172,11 @@ uint64_t rmm_main(uint64_t token)
 	NOTICE("RSI ABI revision v%lu.%lu\n",
 	       RSI_ABI_VERSION_GET_MAJOR(rsi_revision),
 	       RSI_ABI_VERSION_GET_MINOR(rsi_revision));
+
+
+	if (firme_init() == false) {
+		INFO("FIRME interface is not available\n");
+	}
 
 	unsigned long num_gr = plat_get_num_granules();
 	assert(num_gr != UINT64_MAX);
