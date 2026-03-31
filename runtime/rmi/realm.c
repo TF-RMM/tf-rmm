@@ -613,12 +613,24 @@ static int generate_realm_instance_id(unsigned char *realm_instance_id, size_t l
 	return random_app_prng_get_random(random_app_data, &(realm_instance_id[1]), len - 1U);
 }
 
+static void init_obj_map(struct rd_aux *rd_aux)
+{
+	struct sarray_hdr *hnd __unused;
+
+	hnd = sarray_init_vdev_map(&rd_aux->vdev_map_hnd,
+				   rd_aux->vdev_map_mem,
+				   sizeof(rd_aux->vdev_map_mem));
+	assert(hnd != NULL);
+}
+
 static void rd_init_aux_granules(struct rd *rd)
 {
-	void *map = buffer_rd_aux_granules_map_zeroed(&rd->aux_granules[0], rd->num_rd_aux);
+	struct rd_aux *rd_aux = buffer_rd_aux_granules_map_zeroed(
+					&rd->aux_granules[0], rd->num_rd_aux);
 
-	assert(map != NULL);
-	buffer_rd_aux_granules_unmap(map, rd->num_rd_aux);
+	assert(rd_aux != NULL);
+	init_obj_map(rd_aux);
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
 }
 
 /*
@@ -627,7 +639,7 @@ static void rd_init_aux_granules(struct rd *rd)
  * The caller must hold the RD granule lock, ensure that all root RTT and VDEV
  * reference counts are zero, and provide the mapped RD auxiliary data.
  */
-static void realm_destroy_cleanup(struct rd *rd)
+static void realm_destroy_cleanup(struct rd *rd, struct rd_aux *rd_aux)
 {
 	struct granule *g_rtt;
 	unsigned int num_rtts;
@@ -635,6 +647,9 @@ static void realm_destroy_cleanup(struct rd *rd)
 
 	num_rtts = plane_to_s2_context(rd, PLANE_0_ID)->num_root_rtts;
 	mecid = plane_to_s2_context(rd, PLANE_0_ID)->mecid;
+
+	assert(sarray_num_elems(&rd_aux->vdev_map_hnd) == 0U);
+	sarray_destroy(&rd_aux->vdev_map_hnd);
 
 	/* Free root tables in all RTT trees */
 	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {
@@ -985,6 +1000,7 @@ void smc_realm_destroy(unsigned long rd_addr, struct smc_result *res)
 	struct sro_context *sro;
 	unsigned int num_rtts;
 	unsigned int num_rd_aux;
+	struct rd_aux *rd_aux;
 	int ret;
 	unsigned long ctx_reserved;
 
@@ -1032,12 +1048,18 @@ void smc_realm_destroy(unsigned long rd_addr, struct smc_result *res)
 		}
 	}
 
-	realm_destroy_cleanup(rd);
+	num_rd_aux = rd->num_rd_aux;
+
+	rd_aux = buffer_rd_aux_granules_map(&rd->aux_granules[0], num_rd_aux);
+	assert(rd_aux != NULL);
+
+	realm_destroy_cleanup(rd, rd_aux);
+
+	buffer_rd_aux_granules_unmap(rd_aux, num_rd_aux);
 
 	sro = my_sro_ctx();
 	assert(sro != NULL);
 
-	num_rd_aux = rd->num_rd_aux;
 	for (unsigned int i = 0U; i < num_rd_aux; i++) {
 		sro->aux_op_ctx.aux_granules_pa[i] =
 			granule_addr(rd->aux_granules[i]);

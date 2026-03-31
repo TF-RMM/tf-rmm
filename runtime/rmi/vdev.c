@@ -335,6 +335,7 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	struct granule *g_pdev;
 	struct granule *g_vdev = NULL;
 	struct rd *rd;
+	struct rd_aux *rd_aux;
 	struct pdev *pd;
 	struct vdev *vd;
 	struct s2tt_context *plane_0_s2_context;
@@ -343,6 +344,8 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	unsigned long rc;
 	struct pdev_stream *stream;
 	uint32_t vdev_slot;
+	struct vdev_map vdev_map;
+	int ret;
 
 	if (!is_rmi_feat_da_enabled()) {
 		res->x[0] = SMC_NOT_SUPPORTED;
@@ -428,6 +431,7 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	s2_cfg.vmid = plane_0_s2_context->vmid;
 	s2_cfg.mecid = plane_0_s2_context->mecid;
 
+	/* If the TDI is already in use, this call would fail */
 	if (smmuv3_configure_stream(pd->dev.ecam_addr,
 				   (unsigned int)vdev_params.tdi_id,
 				   &s2_cfg, &sid, &smmu_idx) != 0) {
@@ -435,13 +439,23 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		goto out_unmap_vd;
 	}
 
-	/* Initialize VDEV fields */
+	/* Initialize immutable VDEV fields before inserting into the vdev map */
 	vd->g_rd = g_rd;
 	vd->g_pdev = g_pdev;
-
-	/* TODO_ALP17: check whether vdev_id and tdi_id are free */
 	vd->id = vdev_params.vdev_id;
 	vd->tdi_id = vdev_params.tdi_id;
+
+	/* insert vdev to the vdev_map */
+	rd_aux = buffer_rd_aux_granules_map(&rd->aux_granules[0], rd->num_rd_aux);
+	assert(rd_aux != NULL);
+	vdev_map.vdev = vdev_addr;
+	ret = sarray_insert_vdev_map(&rd_aux->vdev_map_hnd, vd->id, &vdev_map);
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+	if (ret != 0) { /* error if vdev_id exists or no-space */
+		rc = RMI_ERROR_INPUT;
+		(void)smmuv3_release_ste(smmu_idx, sid);
+		goto out_unmap_vd;
+	}
 
 	vd->rmi_state = RMI_VDEV_STATE_NEW;
 	vd->dma_state = RMI_VDEV_DMA_DISABLED;
@@ -1051,8 +1065,10 @@ void smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	struct rd *rd = NULL;
 	struct pdev *pd = NULL;
 	struct vdev *vd = NULL;
+	struct rd_aux *rd_aux = NULL;
 	unsigned long smc_rc;
 	uint32_t vdev_slot;
+	int ret __unused;
 
 	if (!is_rmi_feat_da_enabled()) {
 		res->x[0] = SMC_NOT_SUPPORTED;
@@ -1113,6 +1129,12 @@ void smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
 	}
+
+	rd_aux = buffer_rd_aux_granules_map(&rd->aux_granules[0], rd->num_rd_aux);
+	assert(rd_aux != NULL);
+	ret = sarray_delete_vdev_map(&rd_aux->vdev_map_hnd, vd->id, NULL);
+	assert(ret == 0);
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
 
 	/* Update Realm */
 	rd_vdev_refcount_dec(rd);

@@ -16,6 +16,7 @@
 #include <rec.h>
 #include <rsi-handler.h>
 #include <s2tt.h>
+#include <sarray.h>
 #include <smmuv3.h>
 
 #define REALM_NEW		0U
@@ -29,9 +30,18 @@
 #define S2AP_DIRECT_ENC		(false)
 #define S2AP_INDIRECT_ENC	(true)
 
+struct vdev_map {
+	SARRAY_EMBED_KEY();	/* vdev_id is the key */
+	uintptr_t vdev;		/* VDEV granule */
+};
+/* coverity[misra_c_2012_directive_12_3_violation:SUPPRESS] */
+/* coverity[misra_c_2012_rule_20_7_violation:SUPPRESS] */
+DEFINE_SARRAY(vdev_map, struct vdev_map);
+
 struct rd_aux {
-	/* TODO: Add useful members in later commits */
-	unsigned int unused;
+	/* vdev_id to VDEV mapping array */
+	struct sarray_hdr vdev_map_hnd;
+	struct vdev_map vdev_map_mem[RD_MAX_VDEVS(MAX_VDEVS_ORDER_PER_RD)];
 };
 
 COMPILER_ASSERT(MAX_RD_AUX_GRANULES >=
