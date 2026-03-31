@@ -21,7 +21,12 @@
 #define CCA_REALM_MEC_POLICY			(44243)
 #define CCA_REALM_PROFILE			(265)
 
+#ifdef DOWNREV_CCA_TOKEN_TOP_FORMAT
 #define TAG_CCA_TOKEN				(399)
+#else
+#define TAG_CCA_TOKEN				(907)
+#define COAP_EAT_CWT_TYPE			(263)
+#endif
 #define CCA_PLAT_TOKEN				(44234)
 #define CCA_REALM_DELEGATED_TOKEN		(44241)
 
