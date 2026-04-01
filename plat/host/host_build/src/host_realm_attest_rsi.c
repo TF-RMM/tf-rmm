@@ -18,7 +18,7 @@
 #define ATTEST_TOKEN_BUFFER_SIZE	0x100
 #define REALM_BUFFER_IPA		0x1000  /* This has to match a valid IPA in host_setup.c */
 
-static void print_buf(const unsigned char *buf, size_t size)
+void print_buf(const unsigned char *buf, size_t size)
 {
 	size_t i;
 
@@ -69,7 +69,9 @@ static int realm_continue_2(unsigned long *rec_regs, unsigned long *rec_sp_el0)
 	print_buf((const unsigned char *)host_realm_get_realm_data_1(),
 		  token_size);
 
-	/* Simulate return back to NS due to FIQ */
+	/* Simulate return back to NS due to FIQ, set elr_el2 to next rsi call */
+	write_elr_el2((u_register_t)host_realm_da_rsi_main);
+	write_esr_el2(0);
 	return ARM_EXCEPTION_FIQ_LEL;
 }
 

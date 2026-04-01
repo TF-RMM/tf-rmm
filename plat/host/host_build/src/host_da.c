@@ -1173,7 +1173,15 @@ int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id)
 		host_vdev_cleanup(h_vdev);
 		return -1;
 	}
-
+	/*
+	 * Drive VDEV communication once after create so VDEV/PDEV communication
+	 * state is settled before Realm DA RSIs trigger VDEV_COMPLETE.
+	 */
+	if (host_dev_communicate(realm, h_pdev, h_vdev, RMI_VDEV_STATE_UNLOCKED) != 0) {
+		ERROR("VDEV create -> UNLOCKED transition failed\n");
+		host_vdev_cleanup(h_vdev);
+		return -1;
+	}
 	return host_vdev_id;
 }
 
@@ -1242,19 +1250,35 @@ out_destroy:
 int host_realm_run_da(struct host_realm *realm)
 {
 	struct smc_result result;
-
-	realm->rec_params->pc = (uintptr_t)host_realm_da_rsi_main;
+	unsigned long exit_reason;
 
 	/* Run the Realm to call DA RSIs */
 	memset(realm->rec_run, 0, sizeof(*realm->rec_run));
 	host_rmi_rec_enter(realm->rec, realm->rec_run, &result);
-	if (!IS_RMI_RESULT_SUCCESS(result)) {
-		return -1;
+	CHECK_RMI_RESULT();
+	exit_reason = realm->rec_run->exit.exit_reason;
+	while (exit_reason == RMI_EXIT_VDEV_REQUEST) {
+		void *vdev_ptr = host_find_vdev_from_id(realm->rec_run->exit.vdev_id_1);
+
+		if (vdev_ptr == NULL) {
+			WARN("WARN: VDEV not found for vdev_id=%lu\n",
+			     realm->rec_run->exit.vdev_id_1);
+		}
+		host_rmi_vdev_complete(realm->rec, vdev_ptr, &result);
+		if (!IS_RMI_RESULT_SUCCESS(result)) {
+			WARN("Ignoring error: RMI_VDEV_COMPLETE failed for vdev_id=%lu rc=%lu\n",
+			      realm->rec_run->exit.vdev_id_1, result.x[0]);
+		}
+
+		host_rmi_rec_enter(realm->rec, realm->rec_run, &result);
+		CHECK_RMI_RESULT();
+		exit_reason = realm->rec_run->exit.exit_reason;
 	}
 
-	if (realm->rec_run->exit.exit_reason == RMI_EXIT_FIQ) {
+	if (exit_reason == RMI_EXIT_FIQ) {
 		INFO("Realm executed DA RSI successfully\n");
+		return 0;
 	}
-
-	return 0;
+	ERROR("Unexpected REC exit reason during DA flow: %lu\n", exit_reason);
+	return -1;
 }
