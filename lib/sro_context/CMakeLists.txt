@@ -8,7 +8,8 @@ add_library(rmm-lib-sro_context)
 target_link_libraries(rmm-lib-sro_context
     PRIVATE rmm-lib-arch
             rmm-lib-debug
-            rmm-lib-smc)
+            rmm-lib-smc
+    PUBLIC  rmm-lib-addr_list)
 
 target_include_directories(rmm-lib-sro_context
     PUBLIC "include")
