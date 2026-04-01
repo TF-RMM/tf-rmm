@@ -406,7 +406,8 @@ bool finish_rsi_vdev_get_info(struct rec *rec,
 		assert(((unsigned int)res.action & FLAG_UPDATE_REC) != 0U);
 		/* coverity[uninit_use:SUPPRESS] */
 		plane->regs[0] = res.smc_res.x[0];
-		goto unmap_llt;
+		*request_finished = true;
+		return true;
 	}
 
 	/* coverity[uninit_use:SUPPRESS] */
