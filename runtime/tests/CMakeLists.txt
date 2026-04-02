@@ -18,3 +18,9 @@ rmm_build_unittest(NAME rec_sro_tests
                    TARGET rmm-runtime
                    SOURCES "tests/rec_sro_tests.cpp"
                    ITERATIONS 1)
+
+rmm_build_unittest(NAME sro_donate_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/sro_donate_tests.cpp"
+                   ITERATIONS 1)
