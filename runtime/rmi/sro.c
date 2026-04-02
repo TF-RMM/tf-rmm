@@ -252,7 +252,9 @@ void smc_op_mem_donate(unsigned long handle,
 	/*
 	 * Limit the number of entries to not cross granules.
 	 * The command will terminate with INCOMPLETE if there is a granule cross.
+	 * Cap list_count before the addition to prevent integer overflow.
 	 */
+	list_count = MIN(list_count, SRO_MAX_LIST_ENTRIES);
 	list_count = (((list_count + list_offset) > SRO_MAX_LIST_ENTRIES) ?
 				(SRO_MAX_LIST_ENTRIES - list_offset) : list_count);
 
@@ -335,7 +337,9 @@ void smc_op_mem_reclaim(unsigned long handle,
 	/*
 	 * Limit the number of entries to not cross granules.
 	 * The command will terminate with INCOMPLETE if there is a granule cross.
+	 * Cap list_count before the addition to prevent integer overflow.
 	 */
+	list_count = MIN(list_count, SRO_MAX_LIST_ENTRIES);
 	list_count = (((list_count + list_offset) > SRO_MAX_LIST_ENTRIES) ?
 				(SRO_MAX_LIST_ENTRIES - list_offset) : list_count);
 
