@@ -24,16 +24,6 @@ unsigned int mecid_max(void)
     return 0;
 }
 
-int mec_set_private(unsigned int mecid)
-{
-    return 0;
-}
-
-int mec_set_shared(unsigned int mecid)
-{
-    return 0;
-}
-
 bool mecid_reserve(unsigned int mecid)
 {
     return true;
@@ -44,7 +34,7 @@ void mecid_free(unsigned int mecid)
     /* No operation */
 }
 
-bool mecid_alloc(unsigned int *mecid, unsigned int mec_policy)
+bool mecid_alloc(unsigned int *mecid, bool is_shared)
 {
 	*mecid = 0U;
 	return true;

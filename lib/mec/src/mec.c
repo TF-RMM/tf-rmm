@@ -9,29 +9,18 @@
 #include <debug.h>
 #include <errno.h>
 #include <mec.h>
-#include <memory.h>
 #include <rmm_el3_ifc.h>
-#include <smc-rmi.h>
 
-#define MECID_SYSTEM_BIT	(1U << (RESERVED_MECID_SYSTEM % BITS_PER_UL))
-#define MECID_SYSTEM_OFFSET	(RESERVED_MECID_SYSTEM / BITS_PER_UL)
+#define MECID_SYSTEM_OFFSET		(RESERVED_MECID_SYSTEM / BITS_PER_UL)
 
-#define IS_MEC_VALID(id)	(((id) - RESERVED_IDS) <= mecid_max())
+#define IS_PRIVATE_MECID_VALID(id)	(((id) >= MECID_PRIVATE_START) \
+					&& ((id) <= mecid_max()))
 
-/* MECID of 0 is Shared as default */
-#define MECID_DEFAULT_SHARED		INTERNAL_MECID(0U)
-#define MECID_DEFAULT_SHARED_BIT	(1U << (MECID_DEFAULT_SHARED % BITS_PER_UL))
-#define MECID_DEFAULT_SHARED_OFFSET	(MECID_DEFAULT_SHARED / BITS_PER_UL)
+/* Ensure all the reserved MECIDs and the shared MECID have offset 0 */
+COMPILER_ASSERT(RESERVED_IDS + 1U < BITS_PER_UL);
 
-/*
- * Ensure that the array offset is the same so that we can use a single offset
- * for initializing DEFAULT_OFFSET_BIT and SYSTEM_BIT. Also ensure that
- * SYSTEM_OFFSET is 0.
- */
-COMPILER_ASSERT(MECID_DEFAULT_SHARED_OFFSET == MECID_SYSTEM_OFFSET);
-COMPILER_ASSERT(MECID_SYSTEM_OFFSET == 0U);
-
-#define MEC_RESERVE_INITALIZER		(MECID_DEFAULT_SHARED_BIT | MECID_SYSTEM_BIT)
+/* All the reserved MECIDs plus the shared MECID have to be initialized */
+#define MEC_RESERVE_INITALIZER		((1UL << (RESERVED_IDS + 1UL)) - 1UL)
 
 static struct mec_state_s *g_mec_state;
 
@@ -43,10 +32,10 @@ void _mecid_s1_get(unsigned int mecid)
 	uint64_t old_val =  atomic_load_add_64(&mecid_pcpcu_refcnt[my_cpuid()], 1U);
 	if (old_val == 0U) {
 		assert(read_mecid_a1_el2() == RESERVED_MECID_SYSTEM);
-		write_mecid_a1_el2((unsigned long)INTERNAL_MECID(mecid));
+		write_mecid_a1_el2((unsigned long)mecid);
 		isb();
 	} else {
-		assert(read_mecid_a1_el2() == (unsigned long)INTERNAL_MECID(mecid));
+		assert(read_mecid_a1_el2() == (unsigned long)mecid);
 	}
 }
 
@@ -63,29 +52,6 @@ void _mecid_s1_put(void)
 	}
 }
 
-/* Maximum MECID allocatable */
-unsigned int mecid_max(void)
-{
-	unsigned int mecid_count;
-
-	/* cppcheck-suppress knownConditionTrueFalse */
-	if (!is_feat_mec_present()) {
-		return 0;
-	}
-
-	/*
-	 * MECIDR_MECIDWIDTHM1 plus 1 is the MECID width in bits.
-	 * So Max count is (2^MECID width) - 1. Also reduce the RESERVED_IDs
-	 * from the count.
-	 */
-	mecid_count = (unsigned int)1 << (EXTRACT(MECIDR_MECIDWIDTHM1,
-						read_mecidr_el2()) + 1U);
-	mecid_count = mecid_count - RESERVED_IDS - 1U;
-
-	assert(mecid_count <= MEC_MAX_COUNT);
-	return mecid_count;
-}
-
 /*
  * Atomically set a bit corresponding to mecid. Returns true if the
  * bit was not set previously, else returns false.
@@ -94,7 +60,7 @@ static bool mec_reserve(unsigned int mecid)
 {
 	unsigned int offset, bit;
 
-	assert(IS_MEC_VALID(mecid));
+	assert(IS_PRIVATE_MECID_VALID(mecid));
 
 	offset = mecid / BITS_PER_UL;
 	bit = mecid % BITS_PER_UL;
@@ -102,8 +68,7 @@ static bool mec_reserve(unsigned int mecid)
 	if (!atomic_bit_set_acquire_release_64(&g_mec_state->mec_reserved[offset],
 						bit)) {
 		/*
-		 * Tweak the key associated with the MECID. This function
-		 * is called with lock aqcuired when reserving Shared MECID.
+		 * Tweak the key associated with the MECID.
 		 */
 		(void)rmm_el3_ifc_mec_refresh((unsigned short)mecid, false);
 		return true;
@@ -119,7 +84,7 @@ static void mec_release(unsigned int mecid)
 {
 	unsigned int offset, bit;
 
-	assert(IS_MEC_VALID(mecid));
+	assert(IS_PRIVATE_MECID_VALID(mecid));
 
 	offset = mecid / BITS_PER_UL;
 	bit = mecid % BITS_PER_UL;
@@ -140,23 +105,29 @@ static void mec_release(unsigned int mecid)
  */
 static bool mecid_reserve(unsigned int mecid)
 {
+	bool ret;
+
 	/* cppcheck-suppress knownConditionTrueFalse */
 	if (!is_feat_mec_present()) {
 		return true;
 	}
 
-	mecid = INTERNAL_MECID(mecid);
-
-	if (!(IS_MEC_VALID(mecid))) {
-		return false;
-	}
-
-	assert(read_mecid_a1_el2() == RESERVED_MECID_SYSTEM);
-
-	spinlock_acquire(&g_mec_state->shared_mecid_spinlock);
-	if (mecid == SCA_READ32(&g_mec_state->shared_mec)) { /* cppcheck-suppress misra-c2012-17.3 */
-		bool ret;
+	if (mecid == MECID_SHARED) {
+		/*
+		 * If the MECID is shared, refresh the key tweak if
+		 * the use count is 0 and increment the use count.
+		 */
+		spinlock_acquire(&g_mec_state->shared_mecid_spinlock);
+		/* coverity[misra_c_2012_rule_14_3_violation:SUPPRESS] */
 		if (g_mec_state->shared_mec_members < UINT64_MAX) {
+			/* coverity[deadcode:SUPPRESS] */
+			/* coverity[misra_c_2012_rule_14_3_violation:SUPPRESS] */
+			if (g_mec_state->shared_mec_members == 0UL) {
+				/* coverity[misra_c_2012_rule_14_3_violation:SUPPRESS] */
+				(void)rmm_el3_ifc_mec_refresh(
+					(unsigned short)MECID_SHARED,
+					false);
+			}
 			g_mec_state->shared_mec_members++;
 			ret = true;
 		} else {
@@ -165,7 +136,13 @@ static bool mecid_reserve(unsigned int mecid)
 		spinlock_release(&g_mec_state->shared_mecid_spinlock);
 		return ret;
 	}
-	spinlock_release(&g_mec_state->shared_mecid_spinlock);
+
+	if (!(IS_PRIVATE_MECID_VALID(mecid))) {
+		return false;
+	}
+
+	assert(read_mecid_a1_el2() == RESERVED_MECID_SYSTEM);
+
 	return mec_reserve(mecid);
 }
 
@@ -181,20 +158,25 @@ void mecid_free(unsigned int mecid)
 		return;
 	}
 
-	mecid = INTERNAL_MECID(mecid);
-
-	/* The MECID is already validated during assign */
-	assert(IS_MEC_VALID(mecid));
-
-	spinlock_acquire(&g_mec_state->shared_mecid_spinlock);
-	/* cppcheck-suppress misra-c2012-17.3 */
-	if (mecid == SCA_READ32(&g_mec_state->shared_mec)) {
+	if (mecid == MECID_SHARED) {
+		/*
+		 * If the MECID is shared, decrement the use count and
+		 * refresh the key tweak once the count reaches 0.
+		 */
+		spinlock_acquire(&g_mec_state->shared_mecid_spinlock);
 		assert(g_mec_state->shared_mec_members > 0U);
 		g_mec_state->shared_mec_members--;
+		if (g_mec_state->shared_mec_members == 0U) {
+			(void)rmm_el3_ifc_mec_refresh(
+				(unsigned short)MECID_SHARED, true);
+		}
 		spinlock_release(&g_mec_state->shared_mecid_spinlock);
 		return;
 	}
-	spinlock_release(&g_mec_state->shared_mecid_spinlock);
+
+	/* The MECID is already validated during assign */
+	assert(IS_PRIVATE_MECID_VALID(mecid));
+
 	mec_release(mecid);
 }
 
@@ -204,10 +186,7 @@ void mecid_free(unsigned int mecid)
  */
 static unsigned int mecid_hint(void)
 {
-	/* cppcheck-suppress knownConditionTrueFalse */
-	if (!is_feat_mec_present()) {
-		return 0U;
-	}
+	assert(is_feat_mec_present());
 
 	for (unsigned int i = 0U; i < MECID_ARRAY_SIZE; i++) {
 		unsigned long word_val = g_mec_state->mec_reserved[i];
@@ -223,58 +202,63 @@ static unsigned int mecid_hint(void)
 
 /*
  * Allocates a free MECID from the available pool.
- * @mec_policy: MEC policy (RMI_MEC_POLICY_SHARED or RMI_MEC_POLICY_PRIVATE)
+ * @is_shared: whether the MECID is to be allocated for shared
+ *             or private use.
  * Returns:
  * - True, on success and sets mecid to the allocated value
  *   or FEAT_MEC is not present
  * - False, if no free MECID is available or invalid policy
  */
-bool mecid_alloc(unsigned int *mecid, unsigned int mec_policy)
+bool mecid_alloc(unsigned int *mecid, bool is_shared)
 {
 	unsigned int max_mecid;
-	unsigned int mecid_count;
+	unsigned int private_mecid_count;
 	unsigned int i;
 	unsigned int start_hint;
+	unsigned int hint;
 
-	/* set mecid to 0, it is converted to INTERNAL_MECID later */
 	/* cppcheck-suppress knownConditionTrueFalse */
 	if (!is_feat_mec_present()) {
-		*mecid = 0U;
+		*mecid = RESERVED_MECID_SYSTEM;
 		return true;
 	}
 
 	/* Handle policy-based allocation */
-	if (mec_policy == RMI_MEC_POLICY_SHARED) {
-		if (!mecid_reserve(0U)) {
-			return false;
+	if (is_shared) {
+		if (mecid_reserve(MECID_SHARED)) {
+			*mecid = MECID_SHARED;
+			return true;
 		}
-		*mecid = 0U;
-		return true;
-	} else if (mec_policy != RMI_MEC_POLICY_PRIVATE) {
-		/* Invalid policy */
 		return false;
 	}
 
 	/* Allocate new MECID for private policy */
 	max_mecid = mecid_max();
-	mecid_count = max_mecid + 1U;
 
 	/* Get hint for where to start searching */
 	start_hint = mecid_hint();
-	if (start_hint >= mecid_count) {
-		start_hint = 0U;
+
+	if ((start_hint == 0U) || (start_hint > max_mecid)) {
+		start_hint = MECID_PRIVATE_START;
 	}
 
-	/* Search for a free MECID in the bitmap, in two phases */
-	for (i = start_hint; i < mecid_count; i++) {
-		if (mecid_reserve(i)) {
-			*mecid = i;
-			return true;
-		}
-	}
-	for (i = 0U; i < start_hint; i++) {
-		if (mecid_reserve(i)) {
-			*mecid = i;
+	/*
+	 * Available private MECIDs start after the reserved MECIDs and the
+	 * shared MECID.
+	 */
+	private_mecid_count = mecid_private_count();
+
+	/* Adjust start_hint to be relative to private MECID start */
+	start_hint -= MECID_PRIVATE_START;
+
+	/*
+	 * Search for a free MECID in the bitmap circularly, starting from
+	 * the hint and only through the private MECIDs.
+	 */
+	for (i = 0U; i < private_mecid_count; i++) {
+		hint = MECID_PRIVATE_START + ((i + start_hint) % private_mecid_count);
+		if (mecid_reserve(hint)) {
+			*mecid = hint;
 			return true;
 		}
 	}
@@ -287,7 +271,6 @@ bool mecid_alloc(unsigned int *mecid, unsigned int mec_policy)
  */
 bool mec_is_realm_mecid_s2_pvt(void)
 {
-
 	/* cppcheck-suppress knownConditionTrueFalse */
 	if (!is_feat_mec_present()) {
 		return false;
@@ -296,12 +279,7 @@ bool mec_is_realm_mecid_s2_pvt(void)
 	unsigned int mecid = (unsigned int)read_vmecid_p_el2();
 	assert(mecid != RESERVED_MECID_SYSTEM);
 
-	/*
-	 * `shared_mec` can only be updated when no REC is using it and
-	 * is only updated under the `shared_mecid_spinlock`. Read
-	 * with ACQUIRE semantics.
-	 */
-	return (mecid != SCA_READ32_ACQUIRE(&g_mec_state->shared_mec));
+	return (mecid != MECID_SHARED);
 }
 
 #if (RMM_MEM_SCRUB_METHOD == 1)
@@ -337,7 +315,7 @@ void mec_init_mmu(void)
 	(void)rmm_el3_ifc_mec_refresh(RESERVED_MECID_SCRUB, false);
 #endif
 	/* Initialize the default shared MECID */
-	(void)rmm_el3_ifc_mec_refresh(MECID_DEFAULT_SHARED, false);
+	(void)rmm_el3_ifc_mec_refresh(MECID_SHARED, false);
 
 	mecid = RESERVED_MECID_SYSTEM;
 
@@ -358,7 +336,6 @@ void mec_init_mmu(void)
  */
 static void mec_state_init_values(void)
 {
-	g_mec_state->shared_mec = MECID_DEFAULT_SHARED;
 	g_mec_state->shared_mec_members = 0U;
 
 	for (unsigned int i = 0U; i < MECID_ARRAY_SIZE; i++) {
