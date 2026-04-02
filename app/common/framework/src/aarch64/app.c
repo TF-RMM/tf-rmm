@@ -14,6 +14,7 @@
 #include <buffer.h>
 #include <debug.h>
 #include <errno.h>
+#include <glob_data.h>
 #include <granule.h>
 #include <import_sym.h>
 #include <utils_def.h>
@@ -358,38 +359,39 @@ static int init_app_reg_ctx(struct app_data_cfg *app_data)
 	return 0;
 }
 
-int app_new_instance(struct app_data_cfg *app_data,
-		      unsigned long app_id,
-		      uintptr_t granule_pas[],
-		      size_t granule_count,
-		      void *granule_va_start)
+static int app_init_cfg_data(struct app_data_cfg *app_data,
+			      bool new_instance)
 {
 	struct app_header *app_header = NULL;
 	int ret = 0;
 	/* idx 0 and 1 is used for app_reg_ctx and for page table */;
 	size_t next_granule_idx = GRANULE_PA_IDX_COUNT;
 
-	LOG_APP_FW("Initialising app %lu\n", app_id);
+	LOG_APP_FW("Initialising app %lu\n", app_data->app_id);
 
 	if (app_data == NULL) {
 		ERROR("%s (%u): app data is NULL\n", __func__, __LINE__);
 		return -EINVAL;
 	}
 
-	if (app_get_header_ptr(app_id, &app_header) < 0) {
+	if (app_get_header_ptr(app_data->app_id, &app_header) < 0) {
 		ERROR("%s (%u): failed to get header ptr for app_id %lu:\n",
-			__func__, __LINE__, app_id);
+			__func__, __LINE__, app_data->app_id);
 		return -EINVAL;
 	}
 
-	if (granule_count < app_get_required_granule_count(app_id)) {
+	if (app_data->granule_pa_count <
+			app_get_required_granule_count(app_data->app_id)) {
 		ERROR("%s (%u): Not enough RW pages: %lu instead of %lu\n",
-			__func__, __LINE__, granule_count, app_get_required_granule_count(app_id));
+			__func__, __LINE__, app_data->granule_pa_count,
+			app_get_required_granule_count(app_data->app_id));
 		return -ENOMEM;
 	}
 
-	/* Initialise the app_data structure */
-	(void)memset(app_data, 0, sizeof(app_data[0]));
+	if (!new_instance) {
+		/* For an existing instance, reset the translation context */
+		(void)memset((void *)&app_data->app_va_xlat_ctx, 0, sizeof(struct xlat_ctx));
+	}
 
 	size_t stack_size = app_header->stack_page_count * GRANULE_SIZE;
 	size_t heap_size = app_header->heap_page_count * GRANULE_SIZE;
@@ -397,10 +399,13 @@ int app_new_instance(struct app_data_cfg *app_data,
 	LOG_APP_FW("    stack_size = %lu\n", stack_size);
 	LOG_APP_FW("    heap_size = %lu\n", heap_size);
 
-	void *page_table = slot_map_app_pagetable(granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE]);
+	void *page_table = slot_map_app_pagetable(
+		app_data->granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE]);
 
-	ret = init_app_translation(
-		app_id, app_data, granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE], page_table);
+	ret = init_app_translation(app_data->app_id,
+						app_data,
+						app_data->granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE],
+						page_table);
 	if (ret != 0) {
 		goto unmap_page_table;
 	}
@@ -408,28 +413,29 @@ int app_new_instance(struct app_data_cfg *app_data,
 	/* Map the app_reg_ctx page to the dedicated transient region */
 	ret = app_xlat_map(app_data,
 			  APP_VA_START,
-			  granule_pas[GRANULE_PA_IDX_APP_REG_CTX],
+			  app_data->granule_pas[GRANULE_PA_IDX_APP_REG_CTX],
 			  XLAT_NG_DATA_ATTR);
 	if (ret != 0) {
 		goto unmap_page_table;
 	}
 
 	ret = app_shared_xlat_map(app_data, app_data->el0_shared_page_va,
-		&next_granule_idx, granule_pas, granule_count);
+		&next_granule_idx, app_data->granule_pas, app_data->granule_pa_count);
 	if (ret != 0) {
 		goto unmap_page_table;
 	}
 	ret = app_stack_xlat_map(app_data, app_data->stack_buf_start_va, stack_size,
-		&next_granule_idx, granule_pas, granule_count);
+		&next_granule_idx, app_data->granule_pas, app_data->granule_pa_count);
 	if (ret != 0) {
 		goto unmap_page_table;
 	}
 	app_data->stack_top = app_data->stack_buf_start_va + stack_size;
 
 	app_data->heap_size = heap_size;
-	app_data->el2_heap_start = (void *)&(((char *)granule_va_start)[next_granule_idx * GRANULE_SIZE]);
+	app_data->el2_heap_start = (void *)&(((char *)app_data->
+		granule_va_start)[next_granule_idx * GRANULE_SIZE]);
 	ret = app_heap_xlat_map(app_data, app_data->heap_va, app_data->heap_size,
-		&next_granule_idx, granule_pas, granule_count);
+		&next_granule_idx, app_data->granule_pas, app_data->granule_pa_count);
 	if (ret != 0) {
 		goto unmap_page_table;
 	}
@@ -437,16 +443,49 @@ int app_new_instance(struct app_data_cfg *app_data,
 	/* Set up register initial values for entering the app */
 	app_data->entry_point = app_header->section_text_va;
 
-	app_data->app_reg_ctx_pa = granule_pas[GRANULE_PA_IDX_APP_REG_CTX];
+	app_data->app_reg_ctx_pa =
+		app_data->granule_pas[GRANULE_PA_IDX_APP_REG_CTX];
 
-	ret = init_app_reg_ctx(app_data);
-	if (ret != 0) {
-		goto unmap_page_table;
+	if (new_instance) {
+		ret = init_app_reg_ctx(app_data);
+		if (ret != 0) {
+			goto unmap_page_table;
+		}
 	}
 
 unmap_page_table:
-	unmap_page(granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE], page_table);
+	unmap_page(app_data->granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE],
+		page_table);
 	return ret;
+}
+
+int app_new_instance(struct app_data_cfg *app_data,
+			unsigned long app_id,
+			uintptr_t granule_pas[],
+			size_t granule_count,
+			void *granule_va_start)
+{
+	unsigned long glob_fw_img_sequence = glob_data_get_fw_img_sequence();
+	assert(glob_fw_img_sequence != 0UL);
+
+	assert(granule_count <= APP_MAX_PAGES);
+
+	/* Initialize the app_data structure */
+	(void)memset((void *)app_data, 0, sizeof(struct app_data_cfg));
+
+	app_data->app_id = app_id;
+	app_data->app_fw_img_sequence = glob_fw_img_sequence;
+
+	/*
+	 * Copy info about the app granules, as it will be needed to re-initialize
+	 * the app table after an LFA activation.
+	 */
+	(void)memcpy((void *)app_data->granule_pas, (void *)granule_pas,
+			sizeof(uintptr_t) * granule_count);
+	app_data->granule_pa_count = granule_count;
+	app_data->granule_va_start = granule_va_start;
+
+	return app_init_cfg_data(app_data, true);
 }
 
 /* Stub for function used in fake_host */
@@ -615,6 +654,18 @@ static void app_run_internal(struct app_data_cfg *app_data,
 	unsigned long old_hcr_el2 = read_hcr_el2();
 	unsigned long old_elr_el2 = read_elr_el2();
 	unsigned long old_spsr_el2 = read_spsr_el2();
+
+	unsigned long glob_data_fw_img_sequence = glob_data_get_fw_img_sequence();
+	assert(glob_data_fw_img_sequence != 0UL);
+
+	if (glob_data_fw_img_sequence != app_data->app_fw_img_sequence) {
+		if (app_init_cfg_data(app_data, false) != 0) {
+			ERROR("%s (%u): Failed to re-initialise app data\n", __func__,
+				__LINE__);
+			panic();
+		}
+		app_data->app_fw_img_sequence = glob_data_fw_img_sequence;
+	}
 
 	write_hcr_el2(HCR_EL2_APP);
 

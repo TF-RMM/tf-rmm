@@ -55,6 +55,9 @@ struct glob_data {
 
 	/* RMM state */
 	enum rmm_state rmm_state;
+
+	/* Firmware image sequence*/
+	unsigned long fw_img_sequence;
 };
 
 uintptr_t glob_data_init(struct glob_data *gl,
@@ -68,5 +71,6 @@ uintptr_t glob_data_get_mec_state_va(size_t *alloc_size);
 enum rmm_state glob_data_get_rmm_state(void);
 void glob_data_set_rmm_state(enum rmm_state state);
 uintptr_t glob_data_get_sro_ctx_va(size_t *alloc_size);
+unsigned long glob_data_get_fw_img_sequence(void);
 
 #endif /* GLOBDATA_H */

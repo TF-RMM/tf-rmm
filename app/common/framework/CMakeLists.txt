@@ -19,7 +19,8 @@ target_link_libraries(rmm-app-cmn-fw
         rmm-lib-console
         rmm-lib-debug
         rmm-lib-rmm_el3_ifc
-        rmm-lib-slot_buf)
+        rmm-lib-slot_buf
+        rmm-lib-glob_data)
 
 target_link_libraries(rmm-app-cmn-fw
     PUBLIC
