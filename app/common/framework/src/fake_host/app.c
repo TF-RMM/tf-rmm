@@ -197,12 +197,12 @@ int app_new_instance(struct app_data_cfg *app_data,
 		}
 	}
 
-	/* Create the thread for this app instance */
+	/* Create a new coroutine for this app instance */
 	command = CREATE_NEW_APP_INSTANCE;
 
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &command, sizeof(command));
-	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &app_data->thread_id,
-		sizeof(app_data->thread_id));
+	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &app_data->inst_id,
+		sizeof(app_data->inst_id));
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &heap_size, sizeof(heap_size));
 	app_data->el2_shared_page = NULL;
 	app_data->app_id = app_id;
@@ -217,7 +217,7 @@ void app_delete_instance(struct app_data_cfg *app_data)
 	int ret;
 	unsigned long command;
 	unsigned long app_id = app_data->app_id;
-	pthread_t thread_id = app_data->thread_id;
+	uintptr_t inst_id = app_data->inst_id;
 	struct app_process_data *app_process_data;
 
 	command = EXIT_APP_INSTANCE;
@@ -228,9 +228,9 @@ void app_delete_instance(struct app_data_cfg *app_data)
 		return;
 	}
 
-	/* Forward the exit command and thread ID to the app process */
+	/* Forward the exit command and instance ID to the app process */
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &command, sizeof(command));
-	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &thread_id, sizeof(thread_id));
+	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &inst_id, sizeof(inst_id));
 
 	/* Read the status of exiting app instances */
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &ret, sizeof(ret));
@@ -304,20 +304,12 @@ static unsigned long app_run_internal(struct app_data_cfg *app_data,
 
 			retval = call_app_service(service_index, app_data, arg0, arg1, arg2, arg3);
 
-			unsigned long bytes_to_forward =
-				sizeof(unsigned long) +
-				sizeof(shared_page) +
-				sizeof(unsigned long) +
-				app_data->heap_size;
-
 			const unsigned long command = RUN_APP_INSTANCE;
 
 			WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process,
 				&command, sizeof(command));
-			WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &app_data->thread_id,
-				sizeof(app_data->thread_id));
-			WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &bytes_to_forward,
-				sizeof(bytes_to_forward));
+			WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &app_data->inst_id,
+				sizeof(app_data->inst_id));
 
 			WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process,
 				&retval, sizeof(retval));
@@ -365,17 +357,8 @@ unsigned long app_run(struct app_data_cfg *app_data,
 	const unsigned long command = RUN_APP_INSTANCE;
 
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &command, sizeof(command));
-	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &app_data->thread_id,
-		sizeof(app_data->thread_id));
-
-	unsigned long bytes_to_forward =
-		5 * sizeof(unsigned long) +
-		sizeof(shared_page) +
-		sizeof(unsigned long) +
-		app_data->heap_size;
-
-	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &bytes_to_forward,
-		sizeof(bytes_to_forward));
+	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &app_data->inst_id,
+		sizeof(app_data->inst_id));
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &app_func_id, sizeof(app_func_id));
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &arg0, sizeof(arg0));
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &arg1, sizeof(arg1));
@@ -400,16 +383,8 @@ unsigned long app_resume(struct app_data_cfg *app_data)
 	const unsigned long command = RUN_APP_INSTANCE;
 
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &command, sizeof(command));
-	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &app_data->thread_id,
-		sizeof(app_data->thread_id));
-
-	unsigned long bytes_to_forward =
-		sizeof(shared_page) +
-		sizeof(unsigned long) +
-		app_data->heap_size;
-
-	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &bytes_to_forward,
-		sizeof(bytes_to_forward));
+	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &app_data->inst_id,
+		sizeof(app_data->inst_id));
 
 	return app_run_internal(app_data, app_process_data);
 }

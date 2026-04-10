@@ -7,8 +7,8 @@
 #define APP_FW_STRUCTURES_H
 
 #include <debug.h>
-#include <pthread.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <utils_def.h>
@@ -24,10 +24,10 @@ struct app_data_cfg {
 	unsigned long app_id;
 	void *el2_shared_page;
 	/*
-	 * This thread ID is valid in the corresponding app process, not in the
-	 * main RMM process!
+	 * This is an opaque handle valid in the corresponding app process,
+	 * not in the main RMM process. Transferred as raw bytes over pipes.
 	 */
-	pthread_t thread_id;
+	uintptr_t inst_id;
 	/*
 	 * Points to a dynamically allocated buffer that will hold a copy of the
 	 * app instance's heap. It is used to emulate the RMM EL2 code's direct

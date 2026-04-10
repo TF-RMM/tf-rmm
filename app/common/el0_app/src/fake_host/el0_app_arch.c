@@ -8,7 +8,8 @@
 #include <assert.h>
 #include <debug.h>
 #include <el0_app_helpers.h>
-#include <pthread.h>
+#define MINICORO_IMPL
+#include "minicoro.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,17 +20,16 @@ static uint8_t shared_buffer[GRANULE_SIZE] __aligned(GRANULE_SIZE);
 static struct app_instance_data_list_t *instance_list;
 
 struct app_instance_data_t {
-	int read_from_main_fd;
-	int write_to_main_fd;
+	/* Process pipe fds — set by run_app_instance() before each resume */
+	int read_fd;
+	int write_fd;
 	void *heap_start;
 	size_t heap_size;
 };
 
 struct app_instance_data_list_t {
 	struct app_instance_data_t data;
-	pthread_t thread_id;
-	int read_from_instance_fd;
-	int write_to_instance_fd;
+	mco_coro *coro;
 	struct app_instance_data_list_t *next;
 };
 
@@ -55,12 +55,12 @@ size_t get_shared_mem_size(void)
 	return GRANULE_SIZE;
 }
 
-static struct app_instance_data_list_t *get_instance_list_item(pthread_t thread_id)
+static struct app_instance_data_list_t *get_instance_list_item(mco_coro *coro)
 {
 	struct app_instance_data_list_t *curr = instance_list;
 
 	while (curr != NULL) {
-		if (curr->thread_id == thread_id) {
+		if (curr->coro == coro) {
 			return curr;
 		}
 		curr = curr->next;
@@ -68,20 +68,16 @@ static struct app_instance_data_list_t *get_instance_list_item(pthread_t thread_
 	return NULL;
 }
 
-static struct app_instance_data_t *get_instance_data(pthread_t thread_id)
+static struct app_instance_data_t *get_current_instance_data(void)
 {
-	struct app_instance_data_list_t *curr =
-		get_instance_list_item(thread_id);
-	if (curr != NULL) {
-		return &curr->data;
-	}
-	return NULL;
+	mco_coro *co = mco_running();
+
+	return (struct app_instance_data_t *)mco_get_user_data(co);
 }
 
 void *get_heap_start(void)
 {
-	pthread_t thread_id = pthread_self();
-	struct app_instance_data_t *app_data = get_instance_data(thread_id);
+	struct app_instance_data_t *app_data = get_current_instance_data();
 
 	return app_data->heap_start;
 }
@@ -98,8 +94,8 @@ static void insert_instance_data(struct app_instance_data_list_t *inst_data)
 
 /* Call a service from the app
  *
- * Write the service call ID and parameters to the RMM, and read back the
- * results.
+ * Write the service call request directly to the process pipe, yield to the
+ * main loop, and read back the results when resumed.
  */
 unsigned long el0_app_service_call(unsigned long service_index,
 				   unsigned long arg0,
@@ -107,121 +103,123 @@ unsigned long el0_app_service_call(unsigned long service_index,
 				   unsigned long arg2,
 				   unsigned long arg3)
 {
+	struct app_instance_data_t *app_data = get_current_instance_data();
 
-	pthread_t thread_id = pthread_self();
-	struct app_instance_data_t *app_data = get_instance_data(thread_id);
+	assert(app_data->read_fd >= 0);
+	assert(app_data->write_fd >= 0);
 
 	unsigned long reason = APP_SERVICE_CALL;
 
-	unsigned long bytes_to_forward =
-		6 * sizeof(unsigned long) +
-		sizeof(shared_buffer) +
-		sizeof(size_t) +
-		app_data->heap_size;
+	/* Write request directly to the process pipe */
+	WRITE_OR_EXIT(app_data->write_fd, &reason, sizeof(reason));
+	WRITE_OR_EXIT(app_data->write_fd, &service_index, sizeof(service_index));
+	WRITE_OR_EXIT(app_data->write_fd, &arg0, sizeof(arg0));
+	WRITE_OR_EXIT(app_data->write_fd, &arg1, sizeof(arg1));
+	WRITE_OR_EXIT(app_data->write_fd, &arg2, sizeof(arg2));
+	WRITE_OR_EXIT(app_data->write_fd, &arg3, sizeof(arg3));
+	WRITE_OR_EXIT(app_data->write_fd, shared_buffer, sizeof(shared_buffer));
+	WRITE_OR_EXIT(app_data->write_fd, &app_data->heap_size, sizeof(size_t));
+	WRITE_OR_EXIT(app_data->write_fd, app_data->heap_start, app_data->heap_size);
 
-	WRITE_OR_EXIT(app_data->write_to_main_fd, &bytes_to_forward, sizeof(bytes_to_forward));
-	WRITE_OR_EXIT(app_data->write_to_main_fd, &reason, sizeof(reason));
-	WRITE_OR_EXIT(app_data->write_to_main_fd, &service_index, sizeof(service_index));
-	WRITE_OR_EXIT(app_data->write_to_main_fd, &arg0, sizeof(arg0));
-	WRITE_OR_EXIT(app_data->write_to_main_fd, &arg1, sizeof(arg1));
-	WRITE_OR_EXIT(app_data->write_to_main_fd, &arg2, sizeof(arg2));
-	WRITE_OR_EXIT(app_data->write_to_main_fd, &arg3, sizeof(arg3));
-	WRITE_OR_EXIT(app_data->write_to_main_fd, shared_buffer, sizeof(shared_buffer));
-	WRITE_OR_EXIT(app_data->write_to_main_fd, &app_data->heap_size, sizeof(size_t));
-	WRITE_OR_EXIT(app_data->write_to_main_fd, app_data->heap_start, app_data->heap_size);
+	/* Yield to main loop — framework will process the service call */
+	mco_yield(mco_running());
 
+	/* Resumed: read response directly from process pipe */
 	unsigned long retval;
 	size_t heap_size;
 
-	READ_OR_EXIT(app_data->read_from_main_fd, &retval, sizeof(retval));
-	READ_OR_EXIT(app_data->read_from_main_fd, shared_buffer, sizeof(shared_buffer));
-	READ_OR_EXIT(app_data->read_from_main_fd, &heap_size, sizeof(size_t));
+	READ_OR_EXIT(app_data->read_fd, &retval, sizeof(retval));
+	READ_OR_EXIT(app_data->read_fd, shared_buffer, sizeof(shared_buffer));
+	READ_OR_EXIT(app_data->read_fd, &heap_size, sizeof(size_t));
 	assert(heap_size == app_data->heap_size);
-	READ_OR_EXIT(app_data->read_from_main_fd, app_data->heap_start, app_data->heap_size);
+	READ_OR_EXIT(app_data->read_fd, app_data->heap_start, app_data->heap_size);
 	return retval;
 }
 
 void el0_app_yield(void)
 {
-	pthread_t thread_id = pthread_self();
-	struct app_instance_data_t *app_data = get_instance_data(thread_id);
+	struct app_instance_data_t *app_data = get_current_instance_data();
+
+	assert(app_data->read_fd >= 0);
+	assert(app_data->write_fd >= 0);
 
 	unsigned long reason = APP_YIELD_CALL;
 
-	unsigned long bytes_to_forward =
-		sizeof(unsigned long) +
-		sizeof(shared_buffer) +
-		sizeof(size_t) +
-		app_data->heap_size;
+	/* Write yield request directly to the process pipe */
+	WRITE_OR_EXIT(app_data->write_fd, &reason, sizeof(reason));
+	WRITE_OR_EXIT(app_data->write_fd, shared_buffer, sizeof(shared_buffer));
+	WRITE_OR_EXIT(app_data->write_fd, &app_data->heap_size, sizeof(size_t));
+	WRITE_OR_EXIT(app_data->write_fd, app_data->heap_start, app_data->heap_size);
 
-	WRITE_OR_EXIT(app_data->write_to_main_fd, &bytes_to_forward, sizeof(bytes_to_forward));
-	WRITE_OR_EXIT(app_data->write_to_main_fd, &reason, sizeof(reason));
-	WRITE_OR_EXIT(app_data->write_to_main_fd, shared_buffer, sizeof(shared_buffer));
-	WRITE_OR_EXIT(app_data->write_to_main_fd, &app_data->heap_size, sizeof(size_t));
-	WRITE_OR_EXIT(app_data->write_to_main_fd, app_data->heap_start, app_data->heap_size);
+	/* Yield to main loop */
+	mco_yield(mco_running());
 
+	/* Resumed: read updated state from process pipe */
 	size_t heap_size;
 
-	READ_OR_EXIT(app_data->read_from_main_fd, shared_buffer, sizeof(shared_buffer));
-	READ_OR_EXIT(app_data->read_from_main_fd, &heap_size, sizeof(size_t));
+	READ_OR_EXIT(app_data->read_fd, shared_buffer, sizeof(shared_buffer));
+	READ_OR_EXIT(app_data->read_fd, &heap_size, sizeof(size_t));
 	assert(heap_size == app_data->heap_size);
-	READ_OR_EXIT(app_data->read_from_main_fd, app_data->heap_start, app_data->heap_size);
+	READ_OR_EXIT(app_data->read_fd, app_data->heap_start, app_data->heap_size);
 }
 
-void *app_instance_main(void *args)
+void app_instance_main(mco_coro *co)
 {
 	struct app_instance_data_t *app_data =
-		(struct app_instance_data_t *)args;
+		(struct app_instance_data_t *)mco_get_user_data(co);
 
 	unsigned long arg0, arg1, arg2, arg3;
-
 
 	while (true) {
 		unsigned long app_func_id;
 		size_t heap_size;
 
-		READ_OR_EXIT(app_data->read_from_main_fd, &app_func_id, sizeof(app_func_id));
+		assert(app_data->read_fd >= 0);
 
-		/* If exiting app instance, there is no need to read other parameters */
+		READ_OR_EXIT(app_data->read_fd, &app_func_id, sizeof(app_func_id));
+
+		/* If exiting app instance, coroutine returns (state becomes MCO_DEAD) */
 		if (app_func_id == EXIT_APP_INSTANCE) {
-			pthread_exit(NULL);
+			return;
 		}
 
-		READ_OR_EXIT(app_data->read_from_main_fd, &arg0, sizeof(arg0));
-		READ_OR_EXIT(app_data->read_from_main_fd, &arg1, sizeof(arg1));
-		READ_OR_EXIT(app_data->read_from_main_fd, &arg2, sizeof(arg2));
-		READ_OR_EXIT(app_data->read_from_main_fd, &arg3, sizeof(arg3));
-		READ_OR_EXIT(app_data->read_from_main_fd, shared_buffer, sizeof(shared_buffer));
-		READ_OR_EXIT(app_data->read_from_main_fd, &heap_size, sizeof(size_t));
+		/*
+		 * write_fd is not set in the EXIT path (exit_app_instances
+		 * only provides a read pipe), so assert it after the EXIT
+		 * check where we actually need it.
+		 */
+		assert(app_data->write_fd >= 0);
+
+		READ_OR_EXIT(app_data->read_fd, &arg0, sizeof(arg0));
+		READ_OR_EXIT(app_data->read_fd, &arg1, sizeof(arg1));
+		READ_OR_EXIT(app_data->read_fd, &arg2, sizeof(arg2));
+		READ_OR_EXIT(app_data->read_fd, &arg3, sizeof(arg3));
+		READ_OR_EXIT(app_data->read_fd, shared_buffer, sizeof(shared_buffer));
+		READ_OR_EXIT(app_data->read_fd, &heap_size, sizeof(size_t));
 		if (heap_size != 0) {
 			assert(heap_size == app_data->heap_size);
-			READ_OR_EXIT(app_data->read_from_main_fd, app_data->heap_start, app_data->heap_size);
+			READ_OR_EXIT(app_data->read_fd, app_data->heap_start, app_data->heap_size);
 		}
 
 		unsigned long retval = el0_app_entry_func(app_func_id, arg0, arg1, arg2, arg3);
 		unsigned long reason = APP_EXIT_CALL;
 
-		unsigned long bytes_to_forward =
-			2 * sizeof(unsigned long) +
-			sizeof(shared_buffer) +
-			sizeof(size_t) +
-			app_data->heap_size;
+		/* Write result directly to process pipe */
+		WRITE_OR_EXIT(app_data->write_fd, &reason, sizeof(reason));
+		WRITE_OR_EXIT(app_data->write_fd, &retval, sizeof(retval));
+		WRITE_OR_EXIT(app_data->write_fd, shared_buffer, sizeof(shared_buffer));
+		WRITE_OR_EXIT(app_data->write_fd, &app_data->heap_size, sizeof(size_t));
+		WRITE_OR_EXIT(app_data->write_fd, app_data->heap_start, app_data->heap_size);
 
-		WRITE_OR_EXIT(app_data->write_to_main_fd, &bytes_to_forward,
-			sizeof(bytes_to_forward));
-		WRITE_OR_EXIT(app_data->write_to_main_fd, &reason, sizeof(reason));
-		WRITE_OR_EXIT(app_data->write_to_main_fd, &retval, sizeof(retval));
-		WRITE_OR_EXIT(app_data->write_to_main_fd, shared_buffer, sizeof(shared_buffer));
-		WRITE_OR_EXIT(app_data->write_to_main_fd, &app_data->heap_size, sizeof(size_t));
-		WRITE_OR_EXIT(app_data->write_to_main_fd, app_data->heap_start, app_data->heap_size);
+		/* Yield back to main loop */
+		mco_yield(co);
 	}
-	return NULL;
 }
 
-static pthread_t create_app_instance(void)
+static mco_coro *create_app_instance(void)
 {
 	struct app_instance_data_list_t *instance_list_new;
-	int ret;
+	mco_result res;
 
 	instance_list_new = (struct app_instance_data_list_t *)
 		malloc(sizeof(struct app_instance_data_list_t));
@@ -229,101 +227,90 @@ static pthread_t create_app_instance(void)
 		exit(1);
 	}
 
-	int fds_main_to_instance[2];
-	int fds_instance_to_main[2];
-
-	if (pipe(fds_main_to_instance) == -1) {
-		exit(1);
-	}
-	if (pipe(fds_instance_to_main) == -1) {
-		exit(1);
-	}
-
-	instance_list_new->read_from_instance_fd = fds_instance_to_main[0];
-	instance_list_new->write_to_instance_fd = fds_main_to_instance[1];
-	instance_list_new->data.read_from_main_fd = fds_main_to_instance[0];
-	instance_list_new->data.write_to_main_fd = fds_instance_to_main[1];
-
 	instance_list_new->data.heap_size = get_heap_page_count() * GRANULE_SIZE;
 	instance_list_new->data.heap_start = malloc(instance_list_new->data.heap_size);
 	if (instance_list_new->data.heap_start == NULL) {
 		exit(1);
 	}
 
-	insert_instance_data(instance_list_new);
+	/* Pipe fds will be set per-call in run_app_instance() */
+	instance_list_new->data.read_fd = -1;
+	instance_list_new->data.write_fd = -1;
 
-	ret = pthread_create(&(instance_list_new->thread_id),
-			     NULL,
-			     app_instance_main,
-			     &(instance_list_new->data));
-	if (ret != 0) {
+	mco_desc desc = mco_desc_init(app_instance_main, 0);
+	desc.user_data = &instance_list_new->data;
+
+	res = mco_create(&instance_list_new->coro, &desc);
+	if (res != MCO_SUCCESS) {
+		ERROR("Failed to create coroutine: %s\n", mco_result_description(res));
 		exit(1);
 	}
-	return instance_list_new->thread_id;
+
+	insert_instance_data(instance_list_new);
+
+	return instance_list_new->coro;
 }
 
-void run_app_instance(int process_read_fd, int process_write_fd, pthread_t thread_id)
+void run_app_instance(int process_read_fd, int process_write_fd, mco_coro *coro)
 {
+	struct app_instance_data_list_t *instance_data = get_instance_list_item(coro);
+	mco_result res;
 
-	struct app_instance_data_list_t *instance_data = get_instance_list_item(thread_id);
+	/* Set the process pipe fds for this call */
+	instance_data->data.read_fd = process_read_fd;
+	instance_data->data.write_fd = process_write_fd;
 
-	unsigned long num_bytes_to_forward;
-	char copy_buffer[1024];
-
-	/* Send the call details */
-	READ_OR_EXIT(process_read_fd, &num_bytes_to_forward, sizeof(num_bytes_to_forward));
-	while (num_bytes_to_forward > 0) {
-		size_t to_forward = min(num_bytes_to_forward, sizeof(copy_buffer));
-
-		READ_OR_EXIT(process_read_fd, copy_buffer, to_forward);
-		WRITE_OR_EXIT(instance_data->write_to_instance_fd, copy_buffer, to_forward);
-		num_bytes_to_forward -= to_forward;
+	/* Resume the coroutine — it will read from / write to process pipe */
+	res = mco_resume(coro);
+	if (res != MCO_SUCCESS) {
+		ERROR("Failed to resume coroutine: %s\n", mco_result_description(res));
+		exit(1);
 	}
 
-	/* return the response */
-	READ_OR_EXIT(instance_data->read_from_instance_fd, &num_bytes_to_forward,
-		sizeof(num_bytes_to_forward));
-	while (num_bytes_to_forward > 0) {
-		size_t to_forward = min(num_bytes_to_forward, sizeof(copy_buffer));
-
-		READ_OR_EXIT(instance_data->read_from_instance_fd, copy_buffer, to_forward);
-		WRITE_OR_EXIT(process_write_fd, copy_buffer, to_forward);
-		num_bytes_to_forward -= to_forward;
-	}
+	/* Invalidate fds — only valid during coroutine execution */
+	instance_data->data.read_fd = -1;
+	instance_data->data.write_fd = -1;
 }
 
-int exit_app_instances(pthread_t thread_id)
+int exit_app_instances(mco_coro *coro)
 {
 	struct app_instance_data_list_t *prev = NULL;
 	struct app_instance_data_list_t *curr = instance_list;
 	unsigned long command = EXIT_APP_INSTANCE;
-	int ret;
 
-	/* Find the app instance with the given thread ID */
 	while (curr != NULL) {
-		if (curr->thread_id == thread_id) {
-			/* Send the EXIT command to the thread */
-			WRITE_OR_EXIT(curr->write_to_instance_fd, &command, sizeof(command));
+		if (curr->coro == coro) {
+			/*
+			 * Use a local pipe to deliver the EXIT command to
+			 * the coroutine. The coroutine reads from read_fd,
+			 * so we write EXIT to the pipe's write end and
+			 * point read_fd at the pipe's read end.
+			 */
+			int exit_pipe[2];
 
-			/* Wait for the thread to exit before cleaning up */
-			ret = pthread_join(thread_id, NULL);
+			if (pipe(exit_pipe) == -1) {
+				exit(1);
+			}
 
-			/* Remove the instance from list */
+			curr->data.read_fd = exit_pipe[0];
+			WRITE_OR_EXIT(exit_pipe[1], &command, sizeof(command));
+			mco_resume(coro);
+			close(exit_pipe[0]);
+			close(exit_pipe[1]);
+
+			/* Remove from list */
 			if (prev == NULL) {
 				instance_list = curr->next;
 			} else {
 				prev->next = curr->next;
 			}
 
-			/* Clean up the instance */
-			close(curr->read_from_instance_fd);
-			close(curr->write_to_instance_fd);
-			close(curr->data.read_from_main_fd);
-			close(curr->data.write_to_main_fd);
+			/* Clean up */
+			mco_destroy(coro);
 			free(curr->data.heap_start);
 			free(curr);
 
-			return ret;
+			return 0;
 		}
 		prev = curr;
 		curr = curr->next;
@@ -366,31 +353,35 @@ int main(int argc, char **argv)
 		case CREATE_NEW_APP_INSTANCE:
 		{
 			size_t heap_size = 0U;
-			pthread_t thread_id = create_app_instance();
-			struct app_instance_data_t *app_data = get_instance_data(thread_id);
+			mco_coro *coro = create_app_instance();
+			struct app_instance_data_t *app_data =
+				(struct app_instance_data_t *)mco_get_user_data(coro);
 
 			assert(app_data != NULL);
 			heap_size = app_data->heap_size;
 
-			WRITE_OR_EXIT(process_write_fd, &thread_id, sizeof(thread_id));
+			/* Send the coro pointer as the opaque instance handle */
+			void *coro_handle = coro;
+
+			WRITE_OR_EXIT(process_write_fd, &coro_handle, sizeof(coro_handle));
 			WRITE_OR_EXIT(process_write_fd, &heap_size, sizeof(heap_size));
 			break;
 		}
 		case RUN_APP_INSTANCE:
 		{
-			pthread_t thread_id;
+			void *coro_handle;
 
-			READ_OR_EXIT(process_read_fd, &thread_id, sizeof(thread_id));
-			run_app_instance(process_read_fd, process_write_fd, thread_id);
+			READ_OR_EXIT(process_read_fd, &coro_handle, sizeof(coro_handle));
+			run_app_instance(process_read_fd, process_write_fd, coro_handle);
 			break;
 		}
 		case EXIT_APP_INSTANCE:
 		{
-			pthread_t thread_id;
+			void *coro_handle;
 
-			/* Read the thread ID and exit the thread */
-			READ_OR_EXIT(process_read_fd, &thread_id, sizeof(thread_id));
-			ret = exit_app_instances(thread_id);
+			/* Read the coro handle and exit the instance */
+			READ_OR_EXIT(process_read_fd, &coro_handle, sizeof(coro_handle));
+			ret = exit_app_instances(coro_handle);
 
 			/* Write back status of exiting app instances */
 			WRITE_OR_EXIT(process_write_fd, &ret, sizeof(ret));
