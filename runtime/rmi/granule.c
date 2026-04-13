@@ -244,8 +244,14 @@ void smc_granule_tracking_get(unsigned long addr,
 unsigned long smc_rmm_config_set(unsigned long config_ptr)
 {
 	struct rmi_rmm_config cfg = { 0 };
+	struct granule *g_cfg;
 
-	if (!ALIGNED(config_ptr, SZ_4K)) {
+	if ((config_ptr == 0UL) || !ALIGNED(config_ptr, SZ_4K)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	g_cfg = find_granule(config_ptr);
+	if ((g_cfg == NULL) || (granule_unlocked_state(g_cfg) != GRANULE_STATE_NS)) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -265,8 +271,14 @@ unsigned long smc_rmm_config_set(unsigned long config_ptr)
 unsigned long smc_rmm_config_get(unsigned long config_ptr)
 {
 	struct rmi_rmm_config cfg = { 0 };
+	struct granule *g_cfg;
 
-	if (!ALIGNED(config_ptr, SZ_4K)) {
+	if ((config_ptr == 0UL) || !ALIGNED(config_ptr, SZ_4K)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	g_cfg = find_granule(config_ptr);
+	if ((g_cfg == NULL) || (granule_unlocked_state(g_cfg) != GRANULE_STATE_NS)) {
 		return RMI_ERROR_INPUT;
 	}
 

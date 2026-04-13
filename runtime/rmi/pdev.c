@@ -108,6 +108,10 @@ static unsigned long pdev_get_aux_count_from_flags(unsigned long pdev_flags)
 void smc_pdev_aux_count(unsigned long flags, struct smc_result *res)
 {
 	if (is_rmi_feat_da_enabled()) {
+		if (EXTRACT(RMI_PDEV_FLAGS_SPDM, flags) != RMI_PDEV_SPDM_TRUE) {
+			res->x[0] = RMI_ERROR_INPUT;
+			return;
+		}
 		res->x[0] = RMI_SUCCESS;
 		res->x[1] = pdev_get_aux_count_from_flags(flags);
 	} else {
