@@ -260,6 +260,16 @@ static bool handle_data_abort(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		goto end;
 	}
 
+	if ((esr & ESR_EL2_ABORT_ISV_BIT) == 0UL) {
+		/*
+		 * Non-emulatable data abort at unprotected IPA.
+		 * Per the spec (RRYVFL), propagate IL in addition
+		 * to the common non-emulated abort fields.
+		 */
+		esr &= ESR_NONEMULATED_ABORT_MASK | MASK(ESR_EL2_IL);
+		goto end;
+	}
+
 	if (esr_is_write(esr)) {
 		write_val = get_dabt_write_value(rec, esr);
 	}
@@ -840,11 +850,8 @@ bool handle_realm_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int excep
 	case ARM_EXCEPTION_SYNC_LEL: {
 		bool ret;
 
-		/*
-		 * TODO: Sanitize ESR to ensure it doesn't leak sensitive
-		 * information.
-		 */
 		rec_exit->exit_reason = RMI_EXIT_SYNC;
+		/* ESR_EL2 is properly sainitized through handle_exception_sync() */
 		ret = handle_exception_sync(rec, rec_exit);
 		if (!ret) {
 			plane->last_run_info.esr = read_esr_el2();
@@ -873,11 +880,8 @@ bool handle_realm_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int excep
 		const unsigned long esr = read_esr_el2();
 		bool ret;
 
-		/*
-		 * TODO: Sanitize ESR to ensure it doesn't leak sensitive
-		 * information.
-		 */
 		rec_exit->exit_reason = RMI_EXIT_SERROR;
+		/* ESR_EL2 is properly sainitized through handle_exception_serror_lel() */
 		ret = handle_exception_serror_lel(rec, rec_exit);
 		if (!ret) {
 			plane->last_run_info.esr = esr;
