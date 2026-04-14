@@ -434,21 +434,40 @@ bool finish_rsi_vdev_get_info(struct rec *rec,
 	buffer_unmap(vd);
 	granule_unlock(g_vdev);
 
-	granule_lock(g_pdev, GRANULE_STATE_PDEV);
+	g_pdev = find_lock_granule(granule_addr(g_pdev), GRANULE_STATE_PDEV);
+	if (g_pdev == NULL) {
+		plane->regs[0] = RSI_ERROR_INPUT;
+		goto unmap_llt;
+	}
+
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
 
-	granule_lock(g_vdev, GRANULE_STATE_VDEV);
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		plane->regs[0] = RSI_ERROR_INPUT;
+		goto out_unmap_pd;
+	}
+
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
+
+	if ((vd->g_pdev != g_pdev) ||
+	    (vd->g_rd != rec->realm_info.g_rd) ||
+	    (vd->id != rec->vdev.vdev_id)) {
+		plane->regs[0] = RSI_ERROR_INPUT;
+		goto out_unmap_vd;
+	}
 
 	vdev_get_info(pd, vd, vdev_info);
 
 	/* Update return value */
 	plane->regs[0] = RSI_SUCCESS;
 
+out_unmap_vd:
 	buffer_unmap(vd);
 	granule_unlock(g_vdev);
+out_unmap_pd:
 	buffer_unmap(pd);
 	granule_unlock(g_pdev);
 
