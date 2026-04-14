@@ -43,6 +43,7 @@ struct host_realm {
 uint64_t rmm_main(uint64_t token);
 int realm_start(unsigned long *regs, unsigned long *rec_sp_el0);
 unsigned long host_realm_get_realm_data_1(void);
+void print_buf(const unsigned char *buf, size_t size);
 
 int host_realm_da_rsi_main(unsigned long *rec_regs, unsigned long *rec_sp_el0);
 
