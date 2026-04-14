@@ -49,13 +49,14 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 
 	if ((plane_idx == PLANE_0_ID) ||
 	    (plane_idx >= rec_num_planes(rec)) ||
+	    (!GRANULE_ALIGNED(run_ipa)) ||
 	    (!addr_in_rec_par(rec, run_ipa))) {
 		res->smc_res.x[0] = RSI_ERROR_INPUT;
 		return;
 	}
 
 	if (!realm_mem_lock_map(rec, run_ipa, (void **)&run, &llt, res)) {
-		/* In case of failure res is updated */
+		/* In case of failure res is updated by realm_mem_lock_map() */
 		return;
 	}
 
