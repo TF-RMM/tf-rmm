@@ -317,8 +317,7 @@ static unsigned char vdev_state_to_rsi(uint32_t vdev_rmi_state)
  */
 static void vdev_get_info(struct pdev *pd, struct vdev *vd, struct rsi_vdev_info *vdev_info)
 {
-	/* TODO: Set in flags whether this device is associated with a VSMMU */
-	vdev_info->flags = 0U;
+	(void)memset(vdev_info, 0, sizeof(*vdev_info));
 
 	/*
 	 * Set certificate slot id and RMI hash algorithm. RMI and RSI hash
@@ -343,7 +342,6 @@ static void vdev_get_info(struct pdev *pd, struct vdev *vd, struct rsi_vdev_info
 	(void)memcpy(vdev_info->cert_digest, pd->cert_digest.value,
 		     pd->cert_digest.len);
 	/* TODO_ALP17: Set proper public_key */
-	(void)memset(vdev_info->pubkey_digest, 0, RSI_VDEV_PUBKEY_DIGEST_LEN);
 	(void)memcpy(vdev_info->meas_digest, vd->meas_digest.value,
 		     vd->meas_digest.len);
 	(void)memcpy(vdev_info->report_digest, vd->ifc_report_digest.value,
