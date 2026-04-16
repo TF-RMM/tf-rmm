@@ -126,7 +126,7 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		goto out_unmap_pd;
 	}
 
-	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	vd = buffer_granule_map_zeroed(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
 	plane_0_s2_context = plane_to_s2_context(rd, PLANE_0_ID);
@@ -154,8 +154,6 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	vd->dma_state = RMI_VDEV_DMA_DISABLED;
 	vd->op = VDEV_OP_UNLOCK;
 	vd->comm_state = DEV_COMM_PENDING;
-	vd->num_map = 0U;
-	vd->attest_info = (struct vdev_attest_info){0u, 0U, 0U};
 
 	/* Update Realm */
 	rd_vdev_refcount_inc(rd);
