@@ -135,7 +135,7 @@
 #endif /* CBMC */
 
 #define IS_POWER_OF_TWO(x)			\
-	((((x) + UL(0)) & ((x) - UL(1))) == UL(0))
+	(((x) != UL(0)) && ((((x) + UL(0)) & ((x) - UL(1))) == UL(0)))
 
 #define COMPILER_BARRIER() __asm__ volatile ("" ::: "memory")
 
