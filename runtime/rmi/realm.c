@@ -893,6 +893,7 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 				  offsetof(struct rd, smmu_cmd_sync));
 	assert(smmuv3_ret == 0);
 
+	init_rd_obj_map_epoch(rd);
 	init_overlay_permissions(rd);
 
 	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {

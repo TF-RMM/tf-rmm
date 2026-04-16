@@ -153,6 +153,9 @@ struct rd {
 	 */
 	unsigned long ats_plane;
 
+	/* epoch counter to track changes to vdev_id/mpidr obj mappings */
+	uint64_t obj_map_epoch;
+
 	/* CMD_SYNC completion state for SMMU TLB invalidations. */
 	struct smmuv3_cmd_sync smmu_cmd_sync;
 
@@ -292,6 +295,41 @@ static inline unsigned long get_rd_rec_count_locked(struct rd *rd)
 static inline unsigned long get_rd_rec_count_unlocked(struct rd *rd)
 {
 	return SCA_READ64_ACQUIRE(&rd->rec_count);
+}
+
+/*
+ * Gets the object map epoch while holding the rd granule lock.
+ */
+static inline uint64_t get_rd_obj_map_epoch_locked(struct rd *rd)
+{
+	return SCA_READ64(&rd->obj_map_epoch);
+}
+
+/*
+ * Sets the object map epoch while holding the rd granule lock.
+ */
+static inline void _set_rd_obj_map_epoch(struct rd *rd, uint64_t epoch)
+{
+	SCA_WRITE64(&rd->obj_map_epoch, epoch);
+}
+
+/*
+ * initialise the epoch counter of an rd while holding the rd granule lock.
+ */
+static inline void init_rd_obj_map_epoch(struct rd *rd)
+{
+	_set_rd_obj_map_epoch(rd, 0UL);
+}
+
+/*
+ * Increments the object map epoch while holding the rd granule lock.
+ */
+static inline void inc_rd_obj_map_epoch(struct rd *rd)
+{
+	uint64_t epoch = get_rd_obj_map_epoch_locked(rd);
+
+	assert(epoch != UINT64_MAX);
+	_set_rd_obj_map_epoch(rd, epoch + 1U);
 }
 
 /*

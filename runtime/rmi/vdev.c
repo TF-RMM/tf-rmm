@@ -457,6 +457,9 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		goto out_unmap_vd;
 	}
 
+	/* increment the epoch to accommodate the new change to the map */
+	inc_rd_obj_map_epoch(rd);
+
 	vd->rmi_state = RMI_VDEV_STATE_NEW;
 	vd->dma_state = RMI_VDEV_DMA_DISABLED;
 	vd->op = VDEV_OP_UNLOCK;
@@ -1135,6 +1138,9 @@ void smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	ret = sarray_delete_vdev_map(&rd_aux->vdev_map_hnd, vd->id, NULL);
 	assert(ret == 0);
 	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+
+	/* next epoch with the vdev removed */
+	inc_rd_obj_map_epoch(rd);
 
 	/* Update Realm */
 	rd_vdev_refcount_dec(rd);

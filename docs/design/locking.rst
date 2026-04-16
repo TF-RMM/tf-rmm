@@ -606,6 +606,34 @@ Spinlocks provide support for nested critical sections. Processes can acquire
 multiple spinlocks at the same time, as long as the locking order is not
 violated.
 
+Object-map Epoch Counter
+************************
+
+Some operations must obtain an object address from a map owned by an |RD|
+before they can acquire all the required granule locks in the prescribed
+order. Such an operation reads the map while holding the RD granule lock,
+releases that lock, and then reacquires the RD and referenced object granules
+together. During this unlocked interval, the Host can remove or replace the
+mapping. It can also reuse the same granule for a new object, so checking only
+the cached address and granule state would not detect this scenario.
+
+Each RD therefore contains a 64-bit ``obj_map_epoch`` counter. The counter is
+the generation of the RD-owned object maps, which currently contain the
+VDEV-ID-to-VDEV and MPIDR-to-REC mappings. An insertion or deletion in either
+map increments the counter while the RD granule lock is held.
+
+A consumer snapshots ``obj_map_epoch`` under the RD granule lock when it reads
+a mapping. After acquiring the complete lock set, including the RD, it compares
+the current epoch with the snapshot. If they differ, an object map changed
+during the unlocked interval, so the consumer releases the acquired objects
+and retries the lookup. If they match, the cached mapping has not changed and
+the consumer can continue with the usual granule state and ownership checks.
+The counter is deliberately coarse-grained: a change to an unrelated mapping
+also causes a conservative retry.
+
+At Realm creation, ``obj_map_epoch`` is initialized to 0. Every RD object-map
+change advances this counter.
+
 References
 ----------
 
