@@ -221,10 +221,10 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RMM_CONFIG_GET,		1, 0, smc_rmm_config_get,	 true, true),
 	HANDLER(RMM_CONFIG_SET,		1, 0, smc_rmm_config_set,	 true, true),
 	HANDLER(RMM_ACTIVATE,		0, 0, smc_rmm_activate,		 true, true),
-	HANDLER(OP_CANCEL,		2, 1, smc_op_cancel,		 true, true),
+	HANDLER(OP_CANCEL,		1, 1, smc_op_cancel,		 true, true),
 	HANDLER(OP_CONTINUE,		2, 2, smc_op_continue,		 true, true),
-	HANDLER(OP_MEM_DONATE,		3, 3, smc_op_mem_donate,	 true, true),
-	HANDLER(OP_MEM_RECLAIM,		3, 2, smc_op_mem_reclaim,	 true, true)
+	HANDLER(OP_MEM_DONATE,		3, 2, smc_op_mem_donate,	 true, true),
+	HANDLER(OP_MEM_RECLAIM,		3, 1, smc_op_mem_reclaim,	 true, true)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));

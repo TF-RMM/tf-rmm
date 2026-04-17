@@ -181,14 +181,13 @@ static unsigned long host_handle_rec_sro(struct host_realm *realm,
 			assert(consumed_entries == count);
 			break;
 		}
-		case RMI_OP_MEM_REQ_RECLAIM:
+		case RMI_OP_MEM_REQ_RECLAIM: {
+			unsigned long total_freed __unused = 0UL;
+
 			host_rmi_op_mem_reclaim(*handle, realm->sro_addr_list,
 						realm->sro_addr_list_entries,
 						&consumed_entries,
 						result);
-
-			/* Expect one entry per aux block (of granule size) */
-			assert(consumed_entries == MAX_REC_AUX_GRANULES);
 
 			for (unsigned int i = 0U; i < consumed_entries; i++) {
 				unsigned long entry =
@@ -202,15 +201,18 @@ static unsigned long host_handle_rec_sro(struct host_realm *realm,
 									RMI_PAGE_L3);
 
 				block_count = EXTRACT(RMI_ADDR_RDESC_4K_CNT, entry);
-				assert(block_count == 1UL);
-
 				granule_ptr = EXTRACT(RMI_ADDR_RDESC_4K_ADDR, entry) <<
 							GRANULE_SHIFT;
 				delegated = (EXTRACT(RMI_ADDR_RDESC_4K_ST, entry) != 0UL);
 
 				rec_free_aux(granule_ptr, block_count, delegated);
+				total_freed += block_count;
 			}
+
+			/* All aux granules must have been returned */
+			assert(total_freed == MAX_REC_AUX_GRANULES);
 			break;
+		}
 		case RMI_OP_MEM_REQ_NONE:
 		default:
 			host_rmi_op_continue(handle, 0UL, donate_req, result);

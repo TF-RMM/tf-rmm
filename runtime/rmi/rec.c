@@ -374,15 +374,15 @@ static unsigned long get_rsi_feature_register_0(struct rd *rd)
 /*
  * SRO handle callback to finish a SRO flow with the stored RmiResult.
  */
-static void rec_sro_finish(struct smc_args *args, struct smc_result *res)
+static void rec_sro_finish(unsigned long fid, struct smc_result *res)
 {
 	struct sro_context *sro = my_sro_ctx();
 
-	(void)args;
+	(void)fid;
 
 	assert(sro != NULL);
 
-	/* Return the error from RMI_CREATE */
+	/* Return the error from RMI_REC_CREATE/RMI_REC_DESTROY */
 	res->x[0] = sro->rec_ctx.ret_err;
 	res->x[2] = 0UL;
 }
@@ -390,37 +390,32 @@ static void rec_sro_finish(struct smc_args *args, struct smc_result *res)
 /*
  * SRO handle callback for RMI_OP_MEM_RECLAIM.
  */
-static void rec_memory_reclaim(struct smc_args *args, struct smc_result *res)
+static void rec_memory_reclaim(unsigned long fid, struct smc_result *res)
 {
-	uintptr_t *pa_list = (uintptr_t *)args->v[2];
-	unsigned long list_count = args->v[3];
 	struct sro_context *sro = my_sro_ctx();
 	unsigned long to_reclaim;
-	uintptr_t entry;
 
 	assert(sro != NULL);
+	assert(fid == SMC_RMI_OP_MEM_RECLAIM);
 
-	to_reclaim = MIN(sro->rec_ctx.requested_aux_granules, list_count);
+	(void)fid;
+
+	to_reclaim = MIN(sro->rec_ctx.requested_aux_granules,
+			sro_ctx_range_desc_count(sro));
 
 	for (unsigned long i = 0UL; i < to_reclaim; i++) {
+		bool ret __unused;
 		/* Create an entry for each granule to return */
 		unsigned long granule_idx = i + sro->rec_ctx.total_transferred;
+		assert(granule_idx < ARRAY_SIZE(sro->rec_ctx.aux_granules_pa));
 		unsigned long granule_pa = sro->rec_ctx.aux_granules_pa[granule_idx];
 
 		/* Transition the granule */
 		free_rec_aux_granule(granule_pa);
 
-		/*
-		 * @TODO: This will be optimized in the future by the use of an
-		 * address list library.
-		 */
-		entry = INPLACE(RMI_ADDR_RDESC_4K_SZ, RMI_PAGE_L3)
-			| INPLACE(RMI_ADDR_RDESC_4K_CNT, 1U)
-			| INPLACE(RMI_ADDR_RDESC_4K_ADDR, granule_pa
-							>> L3_XLAT_ADDRESS_SHIFT)
-			| INPLACE(RMI_ADDR_RDESC_4K_ST, RMI_OP_MEM_DELEGATE);
-
-		pa_list[i] = entry;
+		/* Add the entry to the SRO addr list */
+		ret = addr_list_add_block(&sro->addr_list, granule_pa, 3, RMI_OP_MEM_DELEGATE);
+		assert(ret);
 	}
 
 	sro->rec_ctx.requested_aux_granules -= to_reclaim;
@@ -436,13 +431,11 @@ static void rec_memory_reclaim(struct smc_args *args, struct smc_result *res)
 
 		/* Setup the callback for the next stage */
 		sro->rec_ctx.cb_id = (unsigned int)SRO_REC_FINISH;
-		sro_ctx_next_cmd(SMC_RMI_OP_CONTINUE);
 	} else {
 		res->x[0] |= INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_RECLAIM);
 
 		/* Setup the callback for the next stage */
 		sro->rec_ctx.cb_id = (unsigned int)SRO_REC_MEM_RECLAIM;
-		sro_ctx_next_cmd(SMC_RMI_OP_MEM_RECLAIM);
 	}
 
 	res->x[1] = to_reclaim;
@@ -467,7 +460,6 @@ static void rec_start_memory_reclaim(unsigned long err_code,
 
 	/* Setup the callback for the next stage */
 	sro->rec_ctx.cb_id = (unsigned int)SRO_REC_MEM_RECLAIM;
-	sro_ctx_next_cmd(SMC_RMI_OP_MEM_RECLAIM);
 
 	/* Log the error code from REC_CREATE */
 	sro->rec_ctx.ret_err = err_code;
@@ -494,7 +486,7 @@ static void rec_start_memory_reclaim(unsigned long err_code,
  *
  * This callback is executed after all the necessary memory has been donated.
  */
-static void rec_create_continue(struct smc_args *args, struct smc_result *res)
+static void rec_create_continue(unsigned long fid, struct smc_result *res)
 {
 	struct granule *g_rd;
 	struct granule *g_rec;
@@ -511,11 +503,16 @@ static void rec_create_continue(struct smc_args *args, struct smc_result *res)
 	struct sro_context *sro = my_sro_ctx();
 
 	assert(sro != NULL);
+	assert(fid == SMC_RMI_OP_CONTINUE);
 
 	/* Get the information from the SRO Context */
 	rd_addr = sro->rec_ctx.rd_addr;
 	rec_addr = sro->rec_ctx.rec_addr;
 	rec_params_addr = sro->rec_ctx.rec_params_addr;
+
+	/* Ensure all requested aux granules have been transferred */
+	assert(sro->rec_ctx.total_transferred ==
+			sro->rec_ctx.requested_aux_granules);
 	num_rec_aux = (unsigned int)sro->rec_ctx.requested_aux_granules;
 
 	g_rec_params = find_granule(rec_params_addr);
@@ -674,41 +671,48 @@ out_free_aux:
 	} else {
 		/* Finish the command with SUCCESS */
 		sro->rec_ctx.ret_err = ret;
-		rec_sro_finish(args, res);
+		rec_sro_finish(fid, res);
 	}
 }
 
 /*
  * SRO handle callback for RMI_OP_MEM_DONATE during RMI_REC_CREATE.
  */
-static void rec_create_request_aux_mem(struct smc_args *args,
+static void rec_create_request_aux_mem(unsigned long fid,
 					struct smc_result *res)
 {
 	struct sro_context *sro = my_sro_ctx();
-	unsigned long *entry_list;
-	unsigned long donated_granules;
-	unsigned long i;
+	unsigned long donated_granules = 0UL;
+	struct granule *donated_gr;
+	unsigned long granule_pa;
+	int block_level;
+	unsigned long st;
 
 	assert(sro != NULL);
+	(void)fid;
 
 	/* Validate that this was invoked from RMI_OP_MEM_DONATE */
-	assert(args->v[0] == SMC_RMI_OP_MEM_DONATE);
+	assert(fid == SMC_RMI_OP_MEM_DONATE);
 
-	entry_list = (unsigned long *)args->v[2];
-	donated_granules = args->v[3];
-
-	for (i = 0U; i < donated_granules; i++) {
-		struct granule *donated_granule;
-		unsigned long entry = entry_list[i];
-		unsigned long granule_pa = EXTRACT(RMI_ADDR_RDESC_4K_ADDR, entry)
-							<< RMI_ADDR_RDESC_4K_ADDR_SHIFT;
+	while (addr_list_reduce_first_block(&sro->addr_list,
+						      &granule_pa,
+						      &block_level,
+						      &st)) {
+		/* This is checked by the SRO framework, assert the same. */
+		assert(st == RMI_OP_MEM_DELEGATE);
+		/*
+		 * Since we requested for granules which can be donated via
+		 * L3 granules, assert the same. The SRO framework would have
+		 * checked that total donated memory is <= requested memory.
+		 */
+		assert(block_level == 3);
 
 		/* Try to transition the donated granule */
-		donated_granule = find_lock_granule(granule_pa, GRANULE_STATE_DELEGATED);
+		donated_gr = find_lock_granule(granule_pa, GRANULE_STATE_DELEGATED);
 
 
-		if (donated_granule == NULL) {
-			if (i == 0UL) {
+		if (donated_gr == NULL) {
+			if (donated_granules == 0UL) {
 				/*
 				 * Failed on the very first granule in the list.
 				 * Return an error so the host knows the list is
@@ -722,24 +726,25 @@ static void rec_create_request_aux_mem(struct smc_args *args,
 			break;
 		}
 
-		granule_unlock_transition(donated_granule, GRANULE_STATE_REC_AUX);
+		granule_unlock_transition(donated_gr, GRANULE_STATE_REC_AUX);
 
-		sro->rec_ctx.aux_granules_pa[i + sro->rec_ctx.total_transferred] =
+		sro->rec_ctx.aux_granules_pa[donated_granules + sro->rec_ctx.total_transferred] =
 			granule_pa;
+
+		donated_granules++;
 	}
 
-	/* Update the number of donated granules in case a transition failed */
-	donated_granules = i;
 
-	if ((donated_granules + sro->rec_ctx.total_transferred) <
-					sro->rec_ctx.requested_aux_granules) {
+	/* Record the number of granules we have so far */
+	sro->rec_ctx.total_transferred += donated_granules;
+
+	if (sro->rec_ctx.total_transferred <
+			sro->rec_ctx.requested_aux_granules) {
 		/* We need to request more granules */
-		unsigned long pending = sro->rec_ctx.requested_aux_granules -
-				(sro->rec_ctx.total_transferred + donated_granules);
+		unsigned long pending = sro->rec_ctx.requested_aux_granules
+					- sro->rec_ctx.total_transferred;
 
-		/* Record the number of granules we have so far */
-		sro->rec_ctx.total_transferred += donated_granules;
-
+		 /* RmiResult with RmiResultDataIncomplete */
 		res->x[0] = (RMI_INCOMPLETE |
 				INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_DONATE) |
 				INPLACE(RMI_OP_CAN_CANCEL_BIT, SRO_CAN_CANCEL_FLAG(sro)));
@@ -751,7 +756,6 @@ static void rec_create_request_aux_mem(struct smc_args *args,
 			     INPLACE(RMI_OP_DONATE_MEM_STATE, RMI_OP_MEM_DELEGATE));
 
 		sro->rec_ctx.cb_id = (unsigned int)SRO_REC_REQUEST_AUX_MEM;
-		sro_ctx_next_cmd(SMC_RMI_OP_MEM_DONATE);
 	} else {
 		/* All the memory has been donated */
 
@@ -764,16 +768,15 @@ static void rec_create_request_aux_mem(struct smc_args *args,
 
 		/* Setup the callback for the next stage */
 		sro->rec_ctx.cb_id = (unsigned int)SRO_REC_CREATE_CONTINUE;
-		sro_ctx_next_cmd(SMC_RMI_OP_CONTINUE);
 	}
 
 	res->x[1] = donated_granules;
 }
 
-void rec_continue_handler(struct smc_args *args, struct smc_result *res)
+void rec_continue_handler(unsigned long fid, struct smc_result *res)
 {
 	/* List of handlers that can be invoked from here */
-	sro_handle_cb sro_callbacks[SRO_REC_NUM_STATES] = {
+	const sro_handle_cb sro_callbacks[SRO_REC_NUM_STATES] = {
 		[SRO_REC_MEM_RECLAIM] = rec_memory_reclaim,
 		[SRO_REC_REQUEST_AUX_MEM] = rec_create_request_aux_mem,
 		[SRO_REC_CREATE_CONTINUE] = rec_create_continue,
@@ -784,7 +787,7 @@ void rec_continue_handler(struct smc_args *args, struct smc_result *res)
 	assert(sro != NULL);
 	assert(sro->rec_ctx.cb_id < (unsigned int)SRO_REC_NUM_STATES);
 
-	sro_callbacks[sro->rec_ctx.cb_id](args, res);
+	sro_callbacks[sro->rec_ctx.cb_id](fid, res);
 }
 
 void smc_rec_create(unsigned long rd_addr,
@@ -802,7 +805,8 @@ void smc_rec_create(unsigned long rd_addr,
 	 */
 	ret = sro_ctx_reserve(SMC_RMI_REC_CREATE,
 			      MAX_REC_AUX_GRANULES * GRANULE_SIZE,
-			      false, false);
+			      false, false,
+			      SMC_RMI_OP_MEM_DONATE);
 	if (ret != RMI_SUCCESS) {
 		res->x[0] = ret;
 		return;
@@ -816,7 +820,6 @@ void smc_rec_create(unsigned long rd_addr,
 	 * the aux granules.
 	 */
 	sro->rec_ctx.cb_id = (unsigned int)SRO_REC_REQUEST_AUX_MEM;
-	sro_ctx_next_cmd(SMC_RMI_OP_MEM_DONATE);
 
 	/* Initialize the sro context for the command */
 	sro->rec_ctx.rd_addr = rd_addr;
@@ -859,7 +862,8 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 	 * The memory operation is not required to be contiguous.
 	 * The operation cannot be cancelled.
 	 */
-	ctx_reserved = sro_ctx_reserve(SMC_RMI_REC_DESTROY, 0UL, false, false);
+	ctx_reserved = sro_ctx_reserve(SMC_RMI_REC_DESTROY, 0UL, false, false,
+				      SMC_RMI_OP_MEM_RECLAIM);
 	if (ctx_reserved != RMI_SUCCESS) {
 		res->x[0] = ctx_reserved;
 		return;
@@ -893,10 +897,11 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 	sro = my_sro_ctx();
 	assert(sro != NULL);
 
-	for (unsigned int i = 0U; i < rec->num_rec_aux; i++) {
+	unsigned long num_rec_aux = rec->num_rec_aux;
+
+	for (unsigned int i = 0U; i < num_rec_aux; i++) {
 		sro->rec_ctx.aux_granules_pa[i] = granule_addr(rec->g_aux[i]);
 	}
-	sro->rec_ctx.requested_aux_granules = rec->num_rec_aux;
 
 	buffer_unmap(rec);
 
@@ -913,7 +918,7 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 	atomic_granule_put_release(g_rd);
 
 	rec_start_memory_reclaim(RMI_SUCCESS, res, true,
-				 sro->rec_ctx.requested_aux_granules);
+				num_rec_aux);
 }
 
 unsigned long smc_psci_complete(unsigned long calling_rec_addr,

@@ -241,11 +241,10 @@ void smc_op_mem_reclaim(unsigned long handle,
 			unsigned long list_addr,
 			unsigned long list_count,
 			struct smc_result *res);
-void smc_op_continue(unsigned long flags,
-		     unsigned long handle,
+void smc_op_continue(unsigned long handle,
+		     unsigned long flags,
 		     struct smc_result *res);
-void smc_op_cancel(unsigned long flags,
-		     unsigned long handle,
+void smc_op_cancel(unsigned long handle,
 		     struct smc_result *res);
 
 #endif /* SMC_HANDLER_H */

@@ -6,8 +6,10 @@
 #ifndef SRO_CONTEXT_H
 #define SRO_CONTEXT_H
 
+#include <addr_list.h>
 #include <smc-rmi.h>
 #include <smc.h>
+#include <xlat_defs.h>
 
 /*
  * The `sro_context` library manages the storage space for the context of
@@ -29,15 +31,8 @@
  * the content is very specific to each command (or, to a family of commands).
  */
 
-/* Prototype of the handles to use for CONTINUE operations */
-typedef void(*sro_handle_cb)(struct smc_args *arg, struct smc_result *res);
-
-/*
- * Maximum number of entries we allow the donate/reclaim address list to have.
- * Note that this implementation does not allow the list to cross
- * granule, so in that case, the operation will just return INCOMPLETE.
- */
-#define SRO_MAX_LIST_ENTRIES		(GRANULE_SIZE / sizeof(unsigned long))
+/* Prototype of the handles to use for SRO operations */
+typedef void (*sro_handle_cb)(unsigned long fid, struct smc_result *res);
 
 /*
  * As the SRO contexts may remain allocated when RMI handler exits
@@ -100,13 +95,19 @@ struct sro_context {
 	/* Initiating RMI command */
 	unsigned long init_command;
 
+	/* SRO Address List for the ongoing operation */
+	struct addr_list addr_list;
+
 	/* Whether the command can be cancelled */
 	bool can_cancel;
 
 	/* Whether the donated memory needs to be contiguous */
 	bool is_contig;
 
-	/* FID of the expected SRO RMI that should have been invoked */
+	/* The state of the memory associated with donate or reclaim */
+	unsigned long mem_state;
+
+	/* FID of the expected SRO RMI that should be invoked */
 	unsigned long expected_fid;
 
 	/*
@@ -118,24 +119,6 @@ struct sro_context {
 	unsigned long transfer_req;
 
 	/*
-	 * Amount of memory being transferred by the RMI_OP_MEM_DONATE/RECLAIM.
-	 * This takes into account all the entries on the current RMI Address List.
-	 */
-	unsigned long current_transfer;
-
-	/*
-	 * Stores a copy of the return arguments in case it needs to
-	 * retry a command due to the incorrect SRO RMI command.
-	 */
-	struct smc_result prev_res;
-
-	/* Buffer to temporarly store donate/request entries */
-	unsigned long list_buffer[SRO_MAX_LIST_ENTRIES];
-
-	/* Number of valid entries on list_buffer */
-	unsigned long pend_entries;
-
-	/*
 	 * Keep a copy of the RmiResult for the current reclaim operation
 	 * in case the copy to NS memory fails and we need to retry.
 	 */
@@ -144,11 +127,38 @@ struct sro_context {
 	/* Previous expected FID for the reclaim operation */
 	unsigned long prev_exp_fid;
 
+	/* Flags passed by the caller for continue operation */
+	unsigned long flags;
+
+	/*
+	 * Number of `ranges` allowed on the list if list_type is output
+	 * Else the number of valid `ranges` on the list if list_type is input.
+	 */
+	unsigned long range_desc_count;
+
 	/* Union with a structure for all the possible SRO commands */
 	union{
 		struct sro_rec_ctx rec_ctx;
 	};
 };
+
+/*
+ * Compute the total transfer size in bytes from an RmiOpMemDonateReq
+ * descriptor: block_size(sz_field) * block_count.
+ */
+#define RMI_OP_DONATE_TRANSFER_SIZE(_desc)					\
+	(XLAT_BLOCK_SIZE((int)(XLAT_TABLE_LEVEL_MAX -				\
+			(int)EXTRACT(RMI_OP_DONATE_BLK_SIZE, (_desc)))) *	\
+	 EXTRACT(RMI_OP_DONATE_BLK_COUNT, (_desc)))
+
+/*
+ * Returns the number of `ranges` entries in the list which can be utilized by the callback.
+ */
+static inline unsigned long sro_ctx_range_desc_count(const struct sro_context *sro)
+{
+	assert(sro != NULL);
+	return sro->range_desc_count;
+}
 
 /*
  * Pool of SRO contexts managed by the sro_context library.
@@ -184,6 +194,7 @@ struct sro_cpu_ctx_ref {
  *		ongoing operation.
  *	- can_cancel: Whether the command can be canceled.
  *	- is_contig: Whether the requested memory is contiguous or not.
+ *	- expected_fid: FID of the first expected SRO RMI operation.
  *
  * Return:
  *	- One of the following return codes:
@@ -194,7 +205,8 @@ struct sro_cpu_ctx_ref {
  *			       current CPU.
  */
 unsigned long sro_ctx_reserve(unsigned long command, unsigned long xfer,
-			      bool can_cancel, bool is_contig);
+			      bool can_cancel, bool is_contig,
+			      unsigned long expected_fid);
 
 /*
  * Release the SRO currently in use by the calling CPU.
@@ -217,17 +229,6 @@ bool sro_ctx_find(unsigned long op_handle);
  * Return a pointer to the SRO context currently assigned to the calling CPU.
  */
 struct sro_context *my_sro_ctx(void);
-
-/*
- * Configure the next expected command.
- *
- * Args:
- *	- fid: FID of the expected SRO RMI operation that must follow.
- *	       if the FID does not match the FID of the invoked SRO RMI
- *	       operation, the RMI will return the same values as the
- *	       previous one to try to retry.
- */
-void sro_ctx_next_cmd(unsigned long fid);
 
 /*
  * Initialize the sro_context library.

@@ -62,7 +62,8 @@ void sro_ctx_init(uintptr_t va, size_t sz)
  * - RMI_SUCCESS: SRO context is assigned to the current CPU.
  */
 unsigned long sro_ctx_reserve(unsigned long command, unsigned long xfer,
-			      bool can_cancel, bool is_contig)
+			      bool can_cancel, bool is_contig,
+			      unsigned long expected_fid)
 {
 	unsigned int sealed = 0U;
 	unsigned int cpuid = my_cpuid();
@@ -83,8 +84,9 @@ unsigned long sro_ctx_reserve(unsigned long command, unsigned long xfer,
 			pool->ctxs[i].can_cancel = can_cancel;
 			pool->ctxs[i].is_contig = is_contig;
 			pool->ctxs[i].transfer_req = xfer;
+			pool->ctxs[i].expected_fid = expected_fid;
 			pool->ctxs[i].reclaim_res = SRO_INVALID_RESULT;
-			pool->ctxs[i].pend_entries = 0UL;
+
 			ret = RMI_SUCCESS;
 			break;
 		} else if (pool->ctxs[i].state == SRO_STATE_SEALED) {
@@ -194,15 +196,3 @@ void sro_ctx_release(void)
 	spinlock_release(&sro_spinlock);
 }
 
-/*
- * Configure the next expected FID on the SRO flow.
- */
-void sro_ctx_next_cmd(unsigned long fid)
-{
-	struct sro_context *sro = my_sro_ctx();
-
-	assert((pool != NULL) && pool->init);
-	assert((fid == SMC_RMI_OP_CONTINUE) || ((fid >= SMC_RMI_OP_MEM_DONATE) &&
-						(fid <= SMC_RMI_OP_CANCEL)));
-	sro->expected_fid = fid;
-}
