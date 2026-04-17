@@ -82,8 +82,6 @@ void host_rmi_vdev_create(void *rd, void *pdev_ptr, void *vdev_ptr,
 			  void *vdev_params_ptr, struct smc_result *res);
 void host_rmi_vdev_communicate(void *rd, void *pdev_ptr, void *vdev_ptr, void *data_ptr,
 			       struct smc_result *res);
-void host_rmi_vdev_complete(void *rec_ptr, void *vdev_ptr,
-			    struct smc_result *res);
 void host_rmi_vdev_get_state(void *vdev, struct smc_result *res);
 void host_rmi_vdev_abort(void *vdev, struct smc_result *res);
 void host_rmi_vdev_unlock(void *rd, void *pdev, void *vdev,

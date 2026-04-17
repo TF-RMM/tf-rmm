@@ -183,9 +183,9 @@
 #define RMI_EXIT_HOST_CALL		U(5)
 #define RMI_EXIT_SERROR			U(6)
 #define RMI_EXIT_S2AP_CHANGE		U(7)
-#define RMI_EXIT_VDEV_REQUEST		U(8)
-#define RMI_EXIT_DEV_MEM_MAP		U(9)
-#define RMI_EXIT_VDEV_P2P_BINDING	U(10)
+#define RMI_EXIT_VDEV_VALIDATE_MAPPING	U(8)
+#define RMI_EXIT_VSMMU_COMMAND		U(10)
+#define RMI_EXIT_VDEV_P2P_BINDING	U(11)
 
 /* RmiRttEntryState represents the state of an RTTE */
 #define RMI_UNASSIGNED		UL(0)
@@ -792,12 +792,7 @@
 #define RMI_MEC_POLICY_PRIVATE			U(1)
 
 /*
- * FID: 0xC400018E
- */
-#define SMC_RMI_VDEV_COMPLETE			SMC64_RMI_FID(U(0x3E))
-
-/*
- * FID: 0xC400018F is not used.
+ * FIDs: 0xC400018C - 0xC400018F are not used.
  */
 
 /*

@@ -1392,7 +1392,7 @@ int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id)
 	}
 	/*
 	 * Drive VDEV communication once after create so VDEV/PDEV communication
-	 * state is settled before Realm DA RSIs trigger VDEV_COMPLETE.
+	 * state is settled.
 	 */
 	if (host_dev_communicate(realm, h_pdev, true, h_vdev,
 				 RMI_VDEV_STATE_UNLOCKED, false) != 0) {
@@ -1475,23 +1475,6 @@ int host_realm_run_da(struct host_realm *realm)
 	host_rmi_rec_enter(realm->rec, realm->rec_run, &result);
 	CHECK_RMI_RESULT();
 	exit_reason = realm->rec_run->exit.exit_reason;
-	while (exit_reason == RMI_EXIT_VDEV_REQUEST) {
-		void *vdev_ptr = host_find_vdev_from_id(realm->rec_run->exit.vdev_id_1);
-
-		if (vdev_ptr == NULL) {
-			WARN("WARN: VDEV not found for vdev_id=%lu\n",
-			     realm->rec_run->exit.vdev_id_1);
-		}
-		host_rmi_vdev_complete(realm->rec, vdev_ptr, &result);
-		if (!IS_RMI_RESULT_SUCCESS(result)) {
-			WARN("Ignoring error: RMI_VDEV_COMPLETE failed for vdev_id=%lu rc=%lu\n",
-			      realm->rec_run->exit.vdev_id_1, result.x[0]);
-		}
-
-		host_rmi_rec_enter(realm->rec, realm->rec_run, &result);
-		CHECK_RMI_RESULT();
-		exit_reason = realm->rec_run->exit.exit_reason;
-	}
 
 	if (exit_reason == RMI_EXIT_FIQ) {
 		INFO("Realm executed DA RSI successfully\n");

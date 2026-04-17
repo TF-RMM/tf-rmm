@@ -411,13 +411,6 @@ void host_rmi_vdev_communicate(void *rd, void *pdev_ptr, void *vdev_ptr,
 		      (uintptr_t)vdev_ptr, (uintptr_t)data_ptr, 0, 0, 0, res);
 }
 
-void host_rmi_vdev_complete(void *rec_ptr, void *vdev_ptr,
-			    struct smc_result *res)
-{
-	handle_ns_smc(SMC_RMI_VDEV_COMPLETE, (uintptr_t)rec_ptr,
-		      (uintptr_t)vdev_ptr, 0, 0, 0, 0, 0, res);
-}
-
 void host_rmi_vdev_get_state(void *vdev, struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMI_VDEV_GET_STATE, (uintptr_t)vdev,

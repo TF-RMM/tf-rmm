@@ -93,8 +93,6 @@ COMPILER_ASSERT((sizeof(struct pmu_state) * MAX_TOTAL_PLANES) <= REC_PMU_SIZE);
 /* Type of REC pending operation. */
 #define REC_PENDING_NONE		U(0) /* No operation is pending */
 #define REC_PENDING_PSCI_COMPLETE	U(1) /* A PSCI operation is pending */
-#define REC_PENDING_VDEV_REQUEST	U(2) /* A VDEV request is pending */
-#define REC_PENDING_VDEV_COMPLETE	U(3) /* A VDEV request has been completed. */
 
 struct granule;
 struct rd;

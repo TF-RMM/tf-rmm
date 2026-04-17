@@ -150,7 +150,6 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(VDEV_GET_STATE,		1, 2, smc_vdev_get_state,	 true, true),
 	HANDLER(VDEV_UNLOCK,		3, 2, smc_vdev_unlock,		 true, true),
 	HANDLER(RTT_SET_S2AP,		4, 2, smc_rtt_set_s2ap,		 false, true),
-	HANDLER(VDEV_COMPLETE,		2, 1, smc_vdev_complete,	 true, true),
 	HANDLER(VDEV_GET_INTERFACE_REPORT, 3, 1, smc_vdev_get_interface_report,	 true, true),
 	HANDLER(VDEV_GET_MEASUREMENTS,	4, 1, smc_vdev_get_measurements, true, true),
 	HANDLER(VDEV_LOCK,		3, 1, smc_vdev_lock,		 true, true),
