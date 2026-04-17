@@ -250,6 +250,32 @@ bool find_lock_two_granules(
 	return find_lock_granules(gs, ARRAY_SIZE(gs));
 }
 
+/*
+ * Find three granules and lock them in order of their address.
+ *
+ * See find_lock_granules().
+ */
+bool find_lock_three_granules(
+			unsigned long addr1,
+			unsigned char expected_state1,
+			struct granule **g1,
+			unsigned long addr2,
+			unsigned char expected_state2,
+			struct granule **g2,
+			unsigned long addr3,
+			unsigned char expected_state3,
+			struct granule **g3)
+{
+	struct granule_set gs[] = {
+		{addr1, NULL, g1, expected_state1},
+		{addr2, NULL, g2, expected_state2},
+		{addr3, NULL, g3, expected_state3},
+	};
+
+	assert((g1 != NULL) && (g2 != NULL) && (g3 != NULL));
+
+	return find_lock_granules(gs, ARRAY_SIZE(gs));
+}
 void granule_memzero_mapped(void *buf)
 {
 	unsigned long dczid_el0 = read_dczid_el0();

@@ -251,6 +251,17 @@ bool find_lock_two_granules(unsigned long addr1,
 			    unsigned char expected_state2,
 			    struct granule **g2);
 
+bool find_lock_three_granules(
+			unsigned long addr1,
+			unsigned char expected_state1,
+			struct granule **g1,
+			unsigned long addr2,
+			unsigned char expected_state2,
+			struct granule **g2,
+			unsigned long addr3,
+			unsigned char expected_state3,
+			struct granule **g3);
+
 void granule_memzero_mapped(void *buf);
 void granule_dcci_poe(struct granule *g);
 
