@@ -34,8 +34,8 @@ target_compile_definitions(rmm-app-common-el0_app
 )
 
 if (RMM_ARCH STREQUAL fake_host)
-    target_link_libraries(rmm-app-common-el0_app
-        PRIVATE pthread)
+    target_include_directories(rmm-app-common-el0_app
+        PRIVATE "${CMAKE_SOURCE_DIR}/ext/minicoro")
 else()
     target_sources(rmm-app-common-el0_app
         PRIVATE "src/${RMM_ARCH}/el0_app_helpers.S")

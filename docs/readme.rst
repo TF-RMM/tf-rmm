@@ -69,10 +69,12 @@ see `License and Copyright for Contributions`_.
 Third Party Projects
 ====================
 
-The `TF-RMM`_ project requires to be linked with certain other 3rd party
-projects and they are to be cloned from their repositories into ``ext`` folder
-before building. The projects are `MbedTLS`_, `t_cose`_, `QCBOR`_,
-`CppUTest`_ and `libspdm`_. `libspdm`_ repository is fetched during config phase.
+The `TF-RMM`_ project depends on certain other 3rd party projects, which are
+fetched automatically into the ``ext`` folder during CMake configure when
+building from a git checkout. The projects are `MbedTLS`_, `t_cose`_,
+`QCBOR`_, `libspdm`_, `CppUTest`_, `spdm_emu`_ and `minicoro`_.
+The `CppUTest`_, `spdm_emu`_ and `minicoro`_ repositories are used
+exclusively for fake_host based testing.
 
 The project also contains files which are imported from other projects
 into the source tree and may have a different license. Such files with
@@ -131,3 +133,5 @@ To report a bug, please file an `issue on Github`_
 .. _libspdm: https://github.com/DMTF/libspdm.git
 .. _Trusted Firmware: https://www.trustedfirmware.org/
 .. _TF-RMM: https://www.trustedfirmware.org/projects/tf-rmm/
+.. _spdm_emu: https://github.com/DMTF/spdm-emu
+.. _minicoro: https://github.com/edubart/minicoro/
