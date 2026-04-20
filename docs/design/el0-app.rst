@@ -281,16 +281,17 @@ elf file. The RMM core is compiled to the elf file ``rmm_core.elf``. RMM core
 expects the app ELF files to reside in the same directory as the RMM core
 executable. The first time the main RMM process calls ``app_new_instance`` the
 process is forked, the image of the requested RMM app is loaded in the new
-process, and a named-pipe connection isestablished between the two processes.
+process, and a pipe connection is established between the two processes.
 When the RMM app process is created, for each ``app_new_instance`` (including the
-first call) a new thread is created. The main thread in the RMM app process is
-responsible for dispatching the RMM app calls and returns between the main RMM
-process and the RMM app thread.
+first call) a new coroutine is created using the minicoro library. The main
+thread in the RMM app process dispatches commands from the main RMM process,
+resuming the appropriate coroutine which then reads from and writes to the
+process pipe directly.
 
 There is no shared memory between the main and the RMM app processes, memory
 sharing is emulated by sending over the content of the main process's "shared
-page" to the RMM app thread on an ``app_run`` call, and sending back the content
-of the RMM app thread's "shared page" on RMM app function return.
+page" to the RMM app coroutine on an ``app_run`` call, and sending back the
+content of the RMM app coroutine's "shared page" on RMM app function return.
 
 |RMM app host|
 
@@ -402,11 +403,6 @@ Proposed Enhancements to the RMM App Framework
 
    Currently, separate VBARs are set up for the app and RMM. Evaluate whether a
    single VBAR could be used to simplify the design.
-
-#. Lightweight App Threading in ``fake_host``
-
-   Replace full PThreads with a lighter-weight threading model for running apps
-   in the ``fake_host`` test environment.
 
 #. Enable FEAT_PAN/PAN3 for EL0
 
