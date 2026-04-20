@@ -233,7 +233,11 @@ static inline bool rmi_handler_needs_fpu(unsigned int id)
 {
 #ifdef RMM_FPU_USE_AT_REL2
 	if ((id == SMC_RMI_REALM_CREATE) || (id == SMC_RMI_RTT_DATA_MAP_INIT) ||
-	    (id == SMC_RMI_REC_CREATE) || (id == SMC_RMI_RTT_INIT_RIPAS)) {
+	    (id == SMC_RMI_REC_CREATE) || (id == SMC_RMI_RTT_INIT_RIPAS) ||
+	    (id == SMC_RMI_OP_CONTINUE) ||
+	    (id == SMC_RMI_PDEV_COMMUNICATE) ||
+	    (id == SMC_RMI_PDEV_SET_PUBKEY) ||
+	    (id == SMC_RMI_VDEV_COMMUNICATE)) {
 		return true;
 	}
 #else
