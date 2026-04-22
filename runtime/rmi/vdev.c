@@ -308,8 +308,6 @@ static unsigned long validate_vdev_params(
 
 	/* TODO: Verify tdi_id is unique for the associated PDEV segment */
 
-	/* TODO: Ensure vdev_id is within the rid bounds of PDEV */
-
 	return RMI_SUCCESS;
 }
 
@@ -379,6 +377,12 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	if ((pd->rmi_state != RMI_PDEV_STATE_READY) ||
 	    (pd->max_num_vdevs == pd->num_vdevs)) {
 		rc = RMI_ERROR_DEVICE;
+		goto out_unmap_pd;
+	}
+
+	if ((vdev_params.tdi_id < pd->dev.rid_base) ||
+	    (vdev_params.tdi_id >= pd->dev.rid_top)) {
+		rc = RMI_ERROR_INPUT;
 		goto out_unmap_pd;
 	}
 
