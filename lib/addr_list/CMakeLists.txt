@@ -18,3 +18,5 @@ target_include_directories(rmm-lib-addr_list
 
 target_sources(rmm-lib-addr_list
     PRIVATE "src/addr_list.c")
+
+include(tests/CMakeLists.txt)
