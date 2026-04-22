@@ -2114,7 +2114,7 @@ out_unlock_rec_rd:
 
 static bool addr_is_in_vdev_addr_range(struct vdev *vd, unsigned long addr)
 {
-	for (size_t i = 0; i < vd->num_addr_range; ++i) {
+	for (unsigned long i = 0; i < vd->num_addr_range; ++i) {
 		if ((addr >= vd->addr_range[i].base) &&
 		    (addr < vd->addr_range[i].top)) {
 			return true;

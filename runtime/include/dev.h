@@ -118,6 +118,15 @@ struct pcie_dev {
 	unsigned int rid_top;
 };
 
+#define PDEV_MAX_VDEVS(vdevs_order)	((1U << (vdevs_order)) - 1U)
+#define PDEV_VDEV_SLOT_INVALID		((unsigned int)-1)
+
+struct pdev_vdev_range_slot {
+	bool active;
+	unsigned long num_addr_range;
+	struct rmi_address_range addr_range[RMI_VDEV_PARAMS_ADDR_RANGE_MAX];
+};
+
 struct pdev_op {
 	/*
 	 * Device interface operation that is in progress. RmmPdevOperation
@@ -152,6 +161,9 @@ struct pdev {
 	/* Number of VDEVs associated with this PDEV */
 	uint32_t num_vdevs;
 	uint32_t max_num_vdevs;
+
+	/* Cached address ranges of active VDEVs associated with this PDEV */
+	struct pdev_vdev_range_slot vdev_range_slots[PDEV_MAX_VDEVS(MAX_VDEVS_ORDER)];
 
 	/* Number and addresses of PDEV app auxiliary granules */
 	struct granule *g_app_aux[PDEV_PARAM_AUX_GRANULES_MAX - NON_APP_PDEV_AUX_GRANULES];
@@ -283,8 +295,9 @@ struct vdev {
 	uint8_t start_interface_nonce[RDEV_START_INTERFACE_NONCE_SIZE];
 
 	/* Device address ranges */
-	size_t num_addr_range;
+	unsigned long num_addr_range;
 	struct rmi_address_range addr_range[RMI_VDEV_PARAMS_ADDR_RANGE_MAX];
+	uint32_t pdev_slot;
 
 };
 COMPILER_ASSERT(sizeof(struct vdev) <= GRANULE_SIZE);

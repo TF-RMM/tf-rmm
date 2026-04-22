@@ -311,8 +311,6 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 	struct sro_context *sro = my_sro_ctx();
 	unsigned int num_app_aux_granules;
 
-	/* TODO: check max vdev count */
-
 	assert(sro != NULL);
 	assert(fid == SMC_RMI_OP_CONTINUE);
 
@@ -403,7 +401,7 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 		pd->op.curr = PDEV_OP_NONE;
 		pd->rmi_flags = sro_ctx->flags;
 		pd->num_vdevs = 0;
-		pd->max_num_vdevs = (1U << sro_ctx->max_vdevs_order) - 1U;
+		pd->max_num_vdevs = (uint32_t)(PDEV_MAX_VDEVS(sro_ctx->max_vdevs_order));
 		pd->rmi_hash_algo = sro_ctx->hash_algo;
 		pd->num_app_aux = num_app_aux_granules;
 		(void)memcpy((void *)pd->g_app_aux,
@@ -488,7 +486,7 @@ static unsigned long pdev_create_continue_rp(unsigned long pdev_addr,
 	pd->op.curr = PDEV_OP_NONE;
 	pd->rmi_flags = pdev_params->flags;
 	pd->num_vdevs = 0;
-	pd->max_num_vdevs = (1U << pdev_params->max_vdevs_order) - 1U;
+	pd->max_num_vdevs = (uint32_t)PDEV_MAX_VDEVS(pdev_params->max_vdevs_order);
 	pd->rmi_hash_algo = pdev_params->hash_algo;
 
 	/* Initialize PDEV communication state */

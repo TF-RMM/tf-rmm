@@ -22,10 +22,11 @@
 #include <string.h>
 #include <utils_def.h>
 
-static bool rmi_addr_ranges_valid(struct rmi_address_range *addr_range, size_t addr_range_cnt)
+static bool rmi_addr_ranges_valid(struct rmi_address_range *addr_range,
+				  unsigned long addr_range_cnt)
 {
 	unsigned long last_top = 0U;
-	size_t i;
+	unsigned long i;
 
 	for (i = 0; i < addr_range_cnt; ++i) {
 
@@ -36,6 +37,103 @@ static bool rmi_addr_ranges_valid(struct rmi_address_range *addr_range, size_t a
 		last_top = addr_range[i].top;
 	}
 	return true;
+}
+
+static bool rmi_addr_ranges_overlap(const struct rmi_address_range *range1,
+				    unsigned long range1_cnt,
+				    const struct rmi_address_range *range2,
+				    unsigned long range2_cnt)
+{
+	unsigned long range1_idx = 0U;
+	unsigned long range2_idx = 0U;
+
+	/*
+	 * We can assume that the ranges are sorted, because that is already
+	 * checked by rmi_addr_ranges_valid which is called early in
+	 * smc_vdev_create.
+	 */
+	while ((range1_idx < range1_cnt) && (range2_idx < range2_cnt)) {
+		if ((range1[range1_idx].base < range2[range2_idx].top) &&
+		    (range2[range2_idx].base < range1[range1_idx].top)) {
+			return true;
+		}
+
+		if (range1[range1_idx].top <= range2[range2_idx].base) {
+			range1_idx++;
+		} else {
+			range2_idx++;
+		}
+	}
+
+	return false;
+}
+
+/*
+ * Check whether the address range specified by a VDEV_CREATE overlaps the
+ * address range of any existing VDEV of this PDEV.
+ * Note that the VDEV state is not considered when checking overlap, which means
+ * VDEVs in error state are checked as well. The ranges of a VDEV are only
+ * cleared from PDEV in case of VDEV_DESTROY.
+ */
+static bool pdev_vdev_ranges_overlap(const struct pdev *pd,
+				     const struct rmi_address_range *addr_range,
+				     unsigned long addr_range_cnt)
+{
+	assert(pd->max_num_vdevs <= ARRAY_SIZE(pd->vdev_range_slots));
+	for (uint32_t i = 0U; i < pd->max_num_vdevs; ++i) {
+		const struct pdev_vdev_range_slot *slot = &pd->vdev_range_slots[i];
+
+		if (!slot->active) {
+			continue;
+		}
+
+		if (rmi_addr_ranges_overlap(slot->addr_range, slot->num_addr_range,
+					    addr_range, addr_range_cnt)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static uint32_t pdev_find_free_vdev_slot(const struct pdev *pd)
+{
+	uint32_t i;
+
+	assert(pd->max_num_vdevs <= ARRAY_SIZE(pd->vdev_range_slots));
+	for (i = 0U; i < pd->max_num_vdevs; ++i) {
+		if (!pd->vdev_range_slots[i].active) {
+			return i;
+		}
+	}
+
+	return PDEV_VDEV_SLOT_INVALID;
+}
+
+static void pdev_set_vdev_ranges(struct pdev *pd, uint32_t slot_idx,
+				 const struct rmi_address_range *addr_range,
+				 unsigned long addr_range_cnt)
+{
+	struct pdev_vdev_range_slot *slot = &pd->vdev_range_slots[slot_idx];
+
+	assert(slot_idx < pd->max_num_vdevs);
+	assert(addr_range_cnt <= RMI_VDEV_PARAMS_ADDR_RANGE_MAX);
+
+	slot->num_addr_range = addr_range_cnt;
+	slot->active = true;
+	(void)memcpy(slot->addr_range, addr_range,
+		     addr_range_cnt * sizeof(addr_range[0]));
+}
+
+static void pdev_clear_vdev_ranges(struct pdev *pd, uint32_t slot_idx)
+{
+	struct pdev_vdev_range_slot *slot = &pd->vdev_range_slots[slot_idx];
+
+	assert(slot_idx < pd->max_num_vdevs);
+
+	slot->active = false;
+	slot->num_addr_range = 0U;
+	(void)memset(slot->addr_range, 0, sizeof(slot->addr_range));
 }
 
 static unsigned long validate_vdev_params(
@@ -95,6 +193,7 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	unsigned int sid, smmu_idx;
 	unsigned long rc;
 	struct pdev_stream *stream;
+	uint32_t vdev_slot;
 
 	if (!is_rmi_feat_da_enabled()) {
 		return SMC_NOT_SUPPORTED;
@@ -135,6 +234,18 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 
 	if ((pd->rmi_state != RMI_PDEV_STATE_READY) ||
 	    (pd->max_num_vdevs == pd->num_vdevs)) {
+		rc = RMI_ERROR_DEVICE;
+		goto out_unmap_pd;
+	}
+
+	if (pdev_vdev_ranges_overlap(pd, vdev_params.addr_range,
+				     vdev_params.num_addr_range)) {
+		rc = RMI_ERROR_INPUT;
+		goto out_unmap_pd;
+	}
+
+	vdev_slot = pdev_find_free_vdev_slot(pd);
+	if (vdev_slot == PDEV_VDEV_SLOT_INVALID) {
 		rc = RMI_ERROR_DEVICE;
 		goto out_unmap_pd;
 	}
@@ -188,20 +299,18 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	vd->sid = sid;
 	vd->smmu_idx = smmu_idx;
 
-	/*
-	 * TODO: Check if the vdev granules are not overlapping with other vdevs
-	 * from the same pdev. We need to avoid host creating overlapping vdev
-	 * ranges from the same PDEV and assigning it to different realms.
-	 */
 	vd->num_addr_range = vdev_params.num_addr_range;
 	(void)memcpy(vd->addr_range,
 		     vdev_params.addr_range,
 		     vdev_params.num_addr_range * sizeof(vdev_params.addr_range[0]));
+	vd->pdev_slot = vdev_slot;
 
 	/* Update Realm */
 	rd_vdev_refcount_inc(rd);
 
 	/* Update PDEV */
+	pdev_set_vdev_ranges(pd, vdev_slot, vdev_params.addr_range,
+			     vdev_params.num_addr_range);
 	pd->num_vdevs++;
 
 out_unmap_vd:
@@ -767,6 +876,7 @@ unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	struct pdev *pd = NULL;
 	struct vdev *vd = NULL;
 	unsigned long smc_rc;
+	uint32_t vdev_slot;
 
 	if (!is_rmi_feat_da_enabled()) {
 		return SMC_NOT_SUPPORTED;
@@ -816,6 +926,10 @@ unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	 */
 	assert(vd->dma_state == RMI_VDEV_DMA_DISABLED);
 
+	vdev_slot = vd->pdev_slot;
+	assert((vdev_slot < pd->max_num_vdevs) &&
+	       (pd->vdev_range_slots[vdev_slot].active));
+
 	if (smmuv3_release_ste(vd->smmu_idx, vd->sid) != 0) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
@@ -825,6 +939,14 @@ unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	rd_vdev_refcount_dec(rd);
 
 	/* Update PDEV. */
+	/*
+	 * The ranges of a VDEV are only cleared from a pdev on VDEV_DESTROY.
+	 * This is true for VDEVS that are in error state, regardless whether
+	 * they got into error state because of a failed VDEV_COMMUNICATE or a
+	 * VDEV_ABORT. To destroy a VDEV in error state, VDEV_UNLOCK must be
+	 * called on it before VDEV_DESTROY.
+	 */
+	pdev_clear_vdev_ranges(pd, vdev_slot);
 	pd->num_vdevs -= 1U;
 
 	buffer_unmap(vd);
@@ -1112,7 +1234,7 @@ void smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 	 * Make sure that no dev granules are mapped in the address ranges of
 	 * this VDEV
 	 */
-	for (size_t i = 0U; i < vd->num_addr_range; ++i) {
+	for (unsigned long i = 0U; i < vd->num_addr_range; ++i) {
 		unsigned long base = vd->addr_range[i].base;
 		unsigned long top = vd->addr_range[i].top;
 
