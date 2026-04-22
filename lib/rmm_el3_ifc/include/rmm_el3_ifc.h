@@ -47,6 +47,12 @@
 /* Hash Algorithm ID */
 #define EL3_TOKEN_SIGN_HASH_ALG_SHA384	(1U)
 
+/*
+ * The boot CPU count must fit in the low GRANULE_SHIFT bits of TPIDR_EL2,
+ * since RMM stores the current CPU ID there together with the per-CPU base.
+ */
+#define RMM_EL3_IFC_MAX_CPUS		GRANULE_SIZE
+
 /********************************************
  * SMC Function IDs for the EL3-RMM interface
  ********************************************/
@@ -277,6 +283,7 @@ COMPILER_ASSERT(U(offsetof(struct el3_token_sign_response, signature_buf)) == 0x
  */
 unsigned int rmm_el3_ifc_get_version(void);
 uintptr_t rmm_el3_ifc_get_shared_buf_pa(void);
+uint64_t rmm_el3_ifc_get_num_cpus(void);
 
 static inline size_t rmm_el3_ifc_get_shared_buf_size(void)
 {

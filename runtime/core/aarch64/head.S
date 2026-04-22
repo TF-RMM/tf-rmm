@@ -52,7 +52,10 @@
 
 /* Cold and warm boot need to go through this path */
 1:
-	/* Early validate and init CPU Id */
+	/*
+	 * For now, just check that the current CPU ID fits in the TPIDR_EL2 low bits.
+	 * We'll have an additional check when setting up the platform.
+	 */
 	mov	x0, x20
 	bl	rmm_el3_ifc_validate_cpuid
 

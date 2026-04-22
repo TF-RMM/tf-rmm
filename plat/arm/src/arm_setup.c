@@ -50,10 +50,18 @@ static struct rmm_el3_compat_callbacks callbacks = {
 void plat_warmboot_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 {
 	/* Avoid MISRA C:2012-2.7 warnings */
-	(void)x0;
 	(void)x1;
 	(void)x2;
 	(void)x3;
+
+	/*
+	 * Ensure that the current CPU ID is valid.
+	 *
+	 * x0: Current CPU ID.
+	 */
+	if (x0 >= rmm_el3_ifc_get_num_cpus()) {
+		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_CPU_ID_OUT_OF_RANGE);
+	}
 
 	if (plat_cmn_warmboot_setup() != 0) {
 		panic();

@@ -10,11 +10,14 @@
 #include <rmm_el3_ifc.h>
 #include <rmm_el3_ifc_priv.h>
 #include <smc.h>
+#include <stdbool.h>
 #include <stdint.h>
+#include <utils_def.h>
 
 /* Boot Interface arguments */
 static uintptr_t rmm_shared_buffer_start_pa;
 static unsigned long rmm_el3_ifc_abi_version;
+static uint64_t rmm_num_cpus;
 
 /* Platform parameters */
 uintptr_t rmm_shared_buffer_start_va;
@@ -62,16 +65,20 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 
 	/*
 	 * Validate the number of CPUs received from EL3.
+	 * This will be the maximum number of CPUs that RMM will have to support.
+	 * It must not exceed RMM_EL3_IFC_MAX_CPUS, which is the largest CPU
+	 * count that still fits in the TPIDR_EL2 low bits.
 	 *
 	 * x2: Number of CPUs in the system as reported by EL3.
 	 */
-	if (x2 > MAX_CPUS) {
+	if (x2 > RMM_EL3_IFC_MAX_CPUS) {
 		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_CPUS_OUT_OF_RANGE);
 	}
 
+	rmm_num_cpus = x2;
+
 	/*
-	 * Validate that the CPU Id is in the range of the maximum
-	 * number of CPUs.
+	 * Validate that the CPU Id is in the range of the maximum number of CPUs.
 	 *
 	 * x0: CPU Id.
 	 * x2: Number of CPUs in the system as reported by EL3.
@@ -99,6 +106,8 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 				sizeof(rmm_shared_buffer_start_pa));
 	inv_dcache_range((uintptr_t)&rmm_el3_ifc_abi_version,
 				sizeof(rmm_el3_ifc_abi_version));
+	inv_dcache_range((uintptr_t)&rmm_num_cpus,
+				sizeof(rmm_num_cpus));
 	inv_dcache_range((uintptr_t)&rmm_shared_buffer_start_va,
 				sizeof(rmm_shared_buffer_start_va));
 	inv_dcache_range((uintptr_t)&initialized, sizeof(bool));
@@ -126,4 +135,12 @@ unsigned int rmm_el3_ifc_get_version(void)
 	assert(initialized == true);
 
 	return (unsigned int)rmm_el3_ifc_abi_version;
+}
+
+/* Get the maximum number of CPUs that RMM must support. */
+uint64_t rmm_el3_ifc_get_num_cpus(void)
+{
+	assert(initialized == true);
+
+	return rmm_num_cpus;
 }
