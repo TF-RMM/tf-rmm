@@ -14,7 +14,8 @@
  * address.
  *
  * The first granule of that region holds `struct pcpu_metadata`. The remaining
- * granules hold the regular RMM stack and the exception-handler stack.
+ * granules hold the private per-CPU data, the regular RMM stack, and the
+ * exception-handler stack.
  *
  * Arguments:
  *   x0 - EL3 activation token. Zero means first entry on this CPU. Non-zero

@@ -63,7 +63,7 @@ static inline bool sme_feat_fa64_enabled(void)
 
 /*
  * Resets the values of the static global variables g_simd_cfg, g_simd_init_done
- * and g_simd_state_saved[].
+ * and the current CPU's private SIMD saved-state flag.
  *
  * NOTE: This should only be called during unit tests, to provide a clean state
  * for each test.

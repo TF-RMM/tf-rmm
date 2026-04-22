@@ -32,6 +32,10 @@
  * |                      |
  * +----------------------+
  * |                      |
+ * | Per-CPU private data |  PCPU_PVT_DATA_PAGES
+ * |                      |
+ * +----------------------+
+ * |                      |
  * | struct pcpu_metadata | PCPU_METADATA_PAGES
  * |                      |
  * +----------------------+
@@ -98,11 +102,20 @@ void pcpu_metadata_early_init(unsigned long pcpu_metadata_pa,
 	pcpu_metadata_ptr->metadata_top_pa = pcpu_metadata_ptr->metadata_base_pa +
 					(PCPU_METADATA_PAGES * GRANULE_SIZE);
 
-	pcpu_metadata_ptr->stack_base_pa = pcpu_metadata_ptr->metadata_top_pa;
+	pcpu_metadata_ptr->pvt_data_base_pa = pcpu_metadata_ptr->metadata_top_pa;
+	pcpu_metadata_ptr->pvt_data_top_pa = pcpu_metadata_ptr->pvt_data_base_pa +
+					(PCPU_PVT_DATA_PAGES * GRANULE_SIZE);
+
+	(void)memset((void *)pcpu_metadata_ptr->pvt_data_base_pa, 0,
+					(PCPU_PVT_DATA_PAGES * GRANULE_SIZE));
+
+	pcpu_metadata_ptr->stack_base_pa = pcpu_metadata_ptr->pvt_data_top_pa;
 	pcpu_metadata_ptr->stack_top_pa = pcpu_metadata_ptr->stack_base_pa +
 					(RMM_NUM_PAGES_PER_STACK * GRANULE_SIZE);
 
 	pcpu_metadata_ptr->eh_stack_base_pa = pcpu_metadata_ptr->stack_top_pa;
+	/* Ensure the EH stack is adjacent to regular stack */
+	assert(pcpu_metadata_ptr->eh_stack_base_pa == pcpu_metadata_ptr->stack_top_pa);
 	pcpu_metadata_ptr->eh_stack_top_pa = pcpu_metadata_ptr->eh_stack_base_pa +
 					(EH_STACK_PAGES * GRANULE_SIZE);
 
@@ -115,9 +128,15 @@ void pcpu_metadata_early_init(unsigned long pcpu_metadata_pa,
 	assert((pcpu_metadata_ptr->high_va_tbls_top_pa) ==
 		(pcpu_metadata_pa + (PCPU_REGION_PAGES * GRANULE_SIZE)));
 
-	/* No need to invalidate the entire struct, only the size of the initialized fields */
-	inv_dcache_range(pcpu_metadata_pa,
-		offsetof(struct pcpu_metadata, eh_stack_top_pa) + sizeof(uintptr_t));
+	/*
+	 * Invalidate all the data structures written above: pcpu_metadata,
+	 * high_va_xlat_ctx, and pcpu_pvt_data
+	 */
+	inv_dcache_range(pcpu_metadata_pa, sizeof(struct pcpu_metadata));
+	inv_dcache_range((uintptr_t)&pcpu_metadata_ptr->high_va_xlat_ctx,
+		sizeof(struct xlat_ctx));
+	inv_dcache_range(pcpu_metadata_ptr->pvt_data_base_pa,
+		(PCPU_PVT_DATA_PAGES * GRANULE_SIZE));
 }
 
 uintptr_t pcpu_get_region_base_pa(void)
@@ -159,8 +178,17 @@ void pcpu_set_glob_data_pa(uintptr_t glob_data_pa)
 					XLAT_NG_DATA_ATTR,				\
 					GRANULE_SIZE)
 
+/* This mapping is used for the private per-CPU data pages. */
+#define RMM_PCPU_PVT_DATA_MMAP_IDX	1U
+#define RMM_PCPU_PVT_DATA_MMAP	MAP_REGION_FULL_SPEC(					\
+					0UL, /* PA is different for each CPU */			\
+					PCPU_PVT_DATA_BASE_VA,				\
+					(PCPU_PVT_DATA_PAGES * GRANULE_SIZE),		\
+					XLAT_NG_DATA_ATTR,					\
+					GRANULE_SIZE)
+
 /* This mapping is used for the RMM stack */
-#define RMM_STACK_MMAP_IDX	1U
+#define RMM_STACK_MMAP_IDX	2U
 #define RMM_STACK_MMAP		MAP_REGION_FULL_SPEC(					\
 					0UL, /* PA is different for each CPU */		\
 					STACK_BASE_VA,				\
@@ -169,16 +197,16 @@ void pcpu_set_glob_data_pa(uintptr_t glob_data_pa)
 					GRANULE_SIZE)
 
 /* This mapping is used for the exception handler stack */
-#define RMM_EH_STACK_MMAP_IDX	2U
+#define RMM_EH_STACK_MMAP_IDX	3U
 #define RMM_EH_STACK_MMAP	MAP_REGION_FULL_SPEC(					\
 					0UL, /* PA is different for each CPU */		\
 					EH_STACK_BASE_VA,				\
-					(EH_STACK_PAGES * GRANULE_SIZE), 	\
+					(EH_STACK_PAGES * GRANULE_SIZE),	\
 					XLAT_NG_DATA_ATTR,				\
 					GRANULE_SIZE)
 
 /* This mapping is used for the per-CPU high-VA page tables. */
-#define RMM_HIGH_VA_TBLS_MMAP_IDX	3U
+#define RMM_HIGH_VA_TBLS_MMAP_IDX	4U
 #define RMM_HIGH_VA_TBLS_MMAP	MAP_REGION_FULL_SPEC(					\
 					0UL, /* PA is different for each CPU */			\
 					HIGH_VA_TBLS_BASE_VA,					\
@@ -191,21 +219,25 @@ void pcpu_set_glob_data_pa(uintptr_t glob_data_pa)
  * but they don't have fixed physical pages associated).
  * Hence define TRANSIENT mmap region.
  */
-#define RMM_SLOT_BUF_MMAP_IDX	4U
+#define RMM_SLOT_BUF_MMAP_IDX	5U
 #define RMM_SLOT_BUF_MMAP	MAP_REGION_TRANSIENT(		\
 					SLOT_BUFFER_BASE_VA,	\
 					RMM_SLOT_BUF_SIZE,	\
 					GRANULE_SIZE)
 
-#define MMAP_REGION_COUNT	5U
+#define MMAP_REGION_COUNT	6U
 
 /*
  * A single L3 page is used to map the full per-CPU high-VA layout, including
  * the metadata page, stacks, page tables, and slot buffers, so enforce here
  * that they fit within that L3 page.
  */
-COMPILER_ASSERT_NO_CBMC((PCPU_REGION_TOTAL_VA_PAGES + XLAT_HIGH_VA_SLOT_NUM) <=
+COMPILER_ASSERT_NO_CBMC(UL((PCPU_REGION_TOTAL_VA_PAGES + XLAT_HIGH_VA_SLOT_NUM)) <=
 					XLAT_TABLE_ENTRIES);
+
+/* Ensure PCPU_REGION_TOTAL_VA_PAGES accounts for every guard page. */
+COMPILER_ASSERT((HIGH_VA_TBLS_TOP_VA +
+		(PCPU_GUARD_GAP_PAGES * GRANULE_SIZE)) == SLOT_BUFFER_BASE_VA);
 
 /*
  * The layout of the High VA space:
@@ -243,6 +275,15 @@ COMPILER_ASSERT_NO_CBMC((PCPU_REGION_TOTAL_VA_PAGES + XLAT_HIGH_VA_SLOT_NUM) <=
  * |                      |
  * +----------------------+
  * |                      |
+ * |   Per-CPU pvt data   |  PCPU_GUARD_GAP_PAGES Unmapped
+ * |       guard          |
+ * |                      |
+ * +----------------------+
+ * |                      |
+ * | Per-CPU private data |  PCPU_PVT_DATA_PAGES Mapped
+ * |                      |
+ * +----------------------+
+ * |                      |
  * | Per-CPU metadata     |  PCPU_GUARD_GAP_PAGES Unmapped
  * |       guard          |
  * |                      |
@@ -264,6 +305,7 @@ int pcpu_high_va_setup(void)
 	/* Allocate xlat_mmap_region for high VA mappings which will be specific to PEs */
 	struct xlat_mmap_region mm_regions_array[MMAP_REGION_COUNT] = {
 		[RMM_PCPU_METADATA_MMAP_IDX] = RMM_PCPU_METADATA_MMAP,
+		[RMM_PCPU_PVT_DATA_MMAP_IDX] = RMM_PCPU_PVT_DATA_MMAP,
 		[RMM_STACK_MMAP_IDX]	= RMM_STACK_MMAP,
 		[RMM_EH_STACK_MMAP_IDX]	= RMM_EH_STACK_MMAP,
 		[RMM_HIGH_VA_TBLS_MMAP_IDX] = RMM_HIGH_VA_TBLS_MMAP,
@@ -284,6 +326,8 @@ int pcpu_high_va_setup(void)
 	 */
 	mm_regions_array[RMM_PCPU_METADATA_MMAP_IDX].base_pa =
 		pcpu_metadata_ptr->metadata_base_pa;
+	mm_regions_array[RMM_PCPU_PVT_DATA_MMAP_IDX].base_pa =
+		pcpu_metadata_ptr->pvt_data_base_pa;
 	mm_regions_array[RMM_STACK_MMAP_IDX].base_pa =
 		pcpu_metadata_ptr->stack_base_pa;
 	mm_regions_array[RMM_EH_STACK_MMAP_IDX].base_pa =

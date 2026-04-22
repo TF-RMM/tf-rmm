@@ -19,8 +19,8 @@
  *
  * This module manages one per-CPU memory region for each CPU. The first
  * physical granule of that region stores `struct pcpu_metadata`. The remaining
- * granules store the regular RMM stack, the exception-handler stack, and the
- * per-CPU high-VA page tables.
+ * granules store the private per-CPU data, the regular RMM stack, the
+ * exception-handler stack, and the per-CPU high-VA page tables.
  *
  * Because the metadata page is the first granule of the region, the base
  * physical address of the per-CPU region is also the physical address of the
@@ -31,19 +31,25 @@
  ******************************************************************************/
 
 /* Number of physical pages used by the metadata page (`struct pcpu_metadata`). */
-#define PCPU_METADATA_PAGES	U(1)
-/* Base physical address of the regular RMM stack. */
-#define PCPU_STACK_BASE_PA_OFFSET	(PCPU_METADATA_PAGES * GRANULE_SIZE)
-#define PCPU_STACK_TOP_PA_OFFSET	(PCPU_STACK_BASE_PA_OFFSET + (RMM_NUM_PAGES_PER_STACK * GRANULE_SIZE))
+#define PCPU_METADATA_PAGES		U(1)
+/* Number of physical pages used by the private per-CPU data area (ns context, simd context etc) */
+#define PCPU_PVT_DATA_PAGES		U(1)
 /* Number of physical pages allocated for the exception-handler stack. */
 #define EH_STACK_PAGES			U(1)
 /* Number of physical pages allocated for the per-CPU high-VA page tables. */
 #define HIGH_VA_TBLS_PAGES	U(1)
 /* Total number of physical pages in one per-CPU region. */
 #define PCPU_REGION_PAGES		(PCPU_METADATA_PAGES + \
+						PCPU_PVT_DATA_PAGES + \
 						RMM_NUM_PAGES_PER_STACK + \
 						EH_STACK_PAGES + \
 						HIGH_VA_TBLS_PAGES)
+
+/* Offset of the regular RMM stack's base physical address from the per-CPU region base PA */
+#define PCPU_STACK_BASE_PA_OFFSET	((PCPU_METADATA_PAGES + PCPU_PVT_DATA_PAGES) * GRANULE_SIZE)
+/* Offset of the regular RMM stack's top physical address from the per-CPU region base PA */
+#define PCPU_STACK_TOP_PA_OFFSET	(PCPU_STACK_BASE_PA_OFFSET + \
+					(RMM_NUM_PAGES_PER_STACK * GRANULE_SIZE))
 
 /******************************************************************************
  * Per-CPU High VA Layout
@@ -90,14 +96,18 @@
  * It includes the stack guards, but not the pages for the Slot Buffer.
  */
 #define PCPU_REGION_TOTAL_VA_PAGES	(PCPU_REGION_PAGES + \
-					(U(4) * PCPU_GUARD_GAP_PAGES))
+					(UL(5) * PCPU_GUARD_GAP_PAGES))
 
 /* Virtual address boundaries of the fixed per-CPU high-VA layout. */
-#define PCPU_METADATA_BASE_VA	(SLOT_BUFFER_BASE_VA - \
+#define PCPU_METADATA_BASE_VA		(SLOT_BUFFER_BASE_VA - \
 						(PCPU_REGION_TOTAL_VA_PAGES * GRANULE_SIZE))
-#define PCPU_METADATA_TOP_VA	(PCPU_METADATA_BASE_VA + \
+#define PCPU_METADATA_TOP_VA		(PCPU_METADATA_BASE_VA + \
 						(PCPU_METADATA_PAGES * GRANULE_SIZE))
-#define STACK_BASE_VA			(PCPU_METADATA_TOP_VA + \
+#define PCPU_PVT_DATA_BASE_VA		(PCPU_METADATA_TOP_VA + \
+						(PCPU_GUARD_GAP_PAGES * GRANULE_SIZE))
+#define PCPU_PVT_DATA_TOP_VA		(PCPU_PVT_DATA_BASE_VA + \
+						(PCPU_PVT_DATA_PAGES * GRANULE_SIZE))
+#define STACK_BASE_VA			(PCPU_PVT_DATA_TOP_VA + \
 						(PCPU_GUARD_GAP_PAGES * GRANULE_SIZE))
 #define STACK_TOP_VA			(STACK_BASE_VA + \
 						(RMM_NUM_PAGES_PER_STACK * GRANULE_SIZE))
@@ -141,8 +151,17 @@ struct pcpu_metadata {
 	uintptr_t metadata_top_pa;
 
 	/*
-	 * Equal to metadata_base_pa + PCPU_METADATA_PAGES * GRANULE_SIZE.
-	 * Also equal to metadata_top_pa.
+	 * Equal to metadata_top_pa.
+	 * Also equal to metadata_base_pa + PCPU_METADATA_PAGES * GRANULE_SIZE.
+	 */
+	uintptr_t pvt_data_base_pa;
+
+	/* Equal to pvt_data_base_pa + PCPU_PVT_DATA_PAGES * GRANULE_SIZE. */
+	uintptr_t pvt_data_top_pa;
+
+	/*
+	 * Equal to pvt_data_base_pa + PCPU_PVT_DATA_PAGES * GRANULE_SIZE.
+	 * Also equal to pvt_data_top_pa.
 	 */
 	uintptr_t stack_base_pa;
 
@@ -178,8 +197,9 @@ struct pcpu_metadata {
 } __aligned(GRANULE_SIZE);
 
 COMPILER_ASSERT(sizeof(struct pcpu_metadata) == GRANULE_SIZE);
-COMPILER_ASSERT(MAX_CPUS <= GRANULE_SIZE);
 
+/* CPU count should fit in the low GRANULE_SHIFT bits of TPIDR_EL2 */
+COMPILER_ASSERT(MAX_CPUS <= GRANULE_SIZE);
 
 /*
  * TPIDR_EL2 always stores the base address of the current CPU's metadata

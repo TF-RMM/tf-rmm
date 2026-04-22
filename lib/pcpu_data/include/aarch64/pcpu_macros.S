@@ -12,8 +12,8 @@
  * Reserve the current CPU's per-CPU region and initialize the early stack.
  *
  * The per-CPU region contains, in order, the metadata page
- * (`struct pcpu_metadata`), the regular RMM stack, and the
- * exception-handler stack.
+ * (`struct pcpu_metadata`), the private per-CPU data pages, the regular RMM
+ * stack, and the exception-handler stack.
  * Since the metadata page is the first granule, the region base PA returned
  * by pcpu_region_alloc() is also the metadata-page PA consumed by
  * pcpu_metadata_early_init().
@@ -71,6 +71,11 @@
 
 	/*
 	 * Calculate the top of the regular RMM stack and set SP to that value.
+	 *
+	 * We have allocated PCPU_REGION_PAGES already, so the stack pointer will
+	 * point to the top of the RMM stack (equal to the bottom of the EH stack region).
+	 * From there it will "grow" downwards.
+	 *
 	 * For now, SP is a physical address. Later, pcpu_switch_to_high_va() rewrites
 	 * it to the fixed high VA for this CPU after MMU activation.
 	 */

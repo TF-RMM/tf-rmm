@@ -6,7 +6,8 @@
 add_library(rmm-lib-simd)
 
 target_link_libraries(rmm-lib-simd
-    PUBLIC rmm-lib-arch)
+    PUBLIC rmm-lib-arch
+    PRIVATE rmm-lib-pcpu_data)
 
 target_include_directories(rmm-lib-simd
     PUBLIC "include"
