@@ -12,7 +12,11 @@
 #include <host_utils_pci.h>
 #include <plat_common.h>
 #include <rmm_el3_ifc.h>
+#include <stdbool.h>
 #include <string.h>
+#ifndef CBMC
+#include <sys/mman.h>
+#endif
 #include <utils_def.h>
 
 #define PCIE_ECAP_START			U(0x100)
@@ -37,32 +41,72 @@ struct dvsec_rme_da {
 	uint32_t dvsec_rme_da_ctl_reg2;
 };
 
-/* Used for one RootPort with BDF=0 to set ECAP to DVSEC with Arm RME DA */
-static uint8_t gbl_pcie_ecam_space[HOST_PCIE_ECAM_SIZE] __aligned(SZ_4K);
+#ifndef CBMC
+static uintptr_t mmap_ecam_space(void)
+{
+	size_t map_size = (size_t)SZ_256M + HOST_PCIE_ECAM_SIZE;
+	void *map_base;
 
-/* Second ECAM space for second root complex (connected to SMMU 1) */
-static uint8_t gbl_pcie_ecam_space_1[HOST_PCIE_ECAM_SIZE] __aligned(SZ_4K);
+	map_base = mmap(NULL, map_size, PROT_READ | PROT_WRITE,
+			MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	assert(map_base != MAP_FAILED);
+
+	return round_up((uintptr_t)map_base, (uintptr_t)SZ_256M);
+}
+#endif
 
 unsigned long host_utils_pci_get_ecam_base(void)
 {
-	return (unsigned long)&gbl_pcie_ecam_space;
+	/* Used for one RootPort with BDF=0 to set ECAP to DVSEC with Arm RME DA */
+#ifdef CBMC
+	static uint8_t ecam_space[HOST_PCIE_ECAM_SIZE] __aligned(SZ_256M);
+
+	return (unsigned long)ecam_space;
+#else
+	static bool ecam_initialized;
+	static uintptr_t ecam_space;
+
+	if (!ecam_initialized) {
+		ecam_space = mmap_ecam_space();
+		ecam_initialized = true;
+	}
+
+	return ecam_space;
+#endif
 }
 
 unsigned long host_utils_pci_get_ecam_base_1(void)
 {
-	return (unsigned long)&gbl_pcie_ecam_space_1;
+	/* Second ECAM space for second root complex (connected to SMMU 1) */
+#ifdef CBMC
+	static uint8_t ecam_space[HOST_PCIE_ECAM_SIZE] __aligned(SZ_256M);
+
+	return (unsigned long)ecam_space;
+#else
+	static bool ecam_initialized;
+	static uintptr_t ecam_space;
+
+	if (!ecam_initialized) {
+		ecam_space = mmap_ecam_space();
+		ecam_initialized = true;
+	}
+
+	return ecam_space;
+#endif
 }
 
 int host_utils_pci_rp_dvsec_setup(uint16_t rp_id)
 {
 	struct dvsec_rme_da *dvsec;
+	uint8_t *ecam_space;
 
 	if (rp_id != 0) {
 		ERROR("Host only supports RP id 0\n");
 		return -1;
 	}
 
-	dvsec = (struct dvsec_rme_da *)&gbl_pcie_ecam_space[PCIE_ECAP_START];
+	ecam_space = (uint8_t *)host_utils_pci_get_ecam_base();
+	dvsec = (struct dvsec_rme_da *)&ecam_space[PCIE_ECAP_START];
 
 	dvsec->ech = PCIE_ECH_ID_DVSEC;
 	dvsec->dvsec_hdr1 = DVSEC_VENDOR_ID_ARM;

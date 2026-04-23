@@ -498,7 +498,7 @@ out_cleanup:
 		(void)host_destroy_realm(&g_realm);
 	}
 
-	VERBOSE("RMM: Fake Host execution completed\n");
+	INFO("RMM: Fake Host execution completed\n");
 
 	return rc;
 }

@@ -45,17 +45,16 @@
 
 struct host_pdev {
 	/* PDEV related fields */
-	void *pdev_ptr;
+	void *ep_pdev_ptr;
+	void *rp_pdev_ptr;
+	unsigned long stream_handle;
 
 	/* SPDM responder transport handle */
 	int spdm_rsp_id;
 
 	/* PCIe device identity exposed to RMM/Realm */
-	unsigned long pdev_id;
+	unsigned long ep_pdev_id;
 	uint16_t segment_id;
-	unsigned long pdev_flags;
-	void *pdev_aux[PDEV_PARAM_AUX_GRANULES_MAX];
-	uint32_t pdev_aux_num;
 	struct rmi_dev_comm_data *dev_comm_data;
 
 	/* Algorithm used to generate device digests */
@@ -74,7 +73,7 @@ struct host_pdev {
 	unsigned char public_key_sig_algo;
 
 	/* Root Port ID and ECAM_SPACE */
-	uint16_t root_id;
+	unsigned long rp_pdev_id;
 	uint16_t rid_base;
 	uint16_t rid_top;
 	uint8_t ide_sid;
@@ -118,40 +117,41 @@ static struct host_vdev gbl_host_vdev;
 
 void *allocate_granule(unsigned int num_granules);
 
-static void host_pdev_cleanup(struct host_pdev *dev)
+static void host_pdev_cleanup(struct host_pdev *dev, bool ep_pdev)
 {
-	if (dev->spdm_rsp_id >= 0) {
-		(void)host_spdm_rsp_deinit(dev->spdm_rsp_id);
-		dev->spdm_rsp_id = -1;
-	}
-	dev->pdev_id = 0UL;
+	unsigned long *pdev_id;
+	void **pdev_ptr;
 
-	free(dev->cert_chain);
-	dev->cert_chain = NULL;
-	dev->cert_chain_len = 0;
+	pdev_id = ep_pdev ? &dev->ep_pdev_id : &dev->rp_pdev_id;
+	pdev_ptr = ep_pdev ? &dev->ep_pdev_ptr : &dev->rp_pdev_ptr;
+	*pdev_id = 0UL;
 
-	free(dev->vca);
-	dev->vca = NULL;
-	dev->vca_len = 0;
-	struct smc_result result;
-	uint32_t i;
+	if (ep_pdev) {
+		dev->stream_handle = 0UL;
 
-	if (dev->pdev_ptr != NULL) {
-		host_rmi_granule_range_undelegate(dev->pdev_ptr,
-						(dev->pdev_ptr + GRANULE_SIZE),
-						&result);
-		dev->pdev_ptr = NULL;
-	}
-
-	for (i = 0; i < dev->pdev_aux_num; i++) {
-		if (dev->pdev_aux[i] != NULL) {
-			host_rmi_granule_range_undelegate(dev->pdev_aux[i],
-							(dev->pdev_aux[i] + GRANULE_SIZE),
-							&result);
-			dev->pdev_aux[i] = NULL;
+		if (dev->spdm_rsp_id >= 0) {
+			(void)host_spdm_rsp_deinit(dev->spdm_rsp_id);
+			dev->spdm_rsp_id = -1;
 		}
+
+		free(dev->cert_chain);
+		dev->cert_chain = NULL;
+		dev->cert_chain_len = 0;
+
+		free(dev->vca);
+		dev->vca = NULL;
+		dev->vca_len = 0;
 	}
-	dev->pdev_aux_num = 0;
+
+	struct smc_result result;
+
+	if (*pdev_ptr != NULL) {
+		host_rmi_granule_range_undelegate(*pdev_ptr,
+						(*pdev_ptr + GRANULE_SIZE),
+						&result);
+		*pdev_ptr = NULL;
+	}
+
 }
 
 static void host_vdev_cleanup(struct host_vdev *dev)
@@ -197,11 +197,14 @@ static const char *get_pdev_state_str(unsigned char state)
 	return "UNKNOWN_STATE";
 }
 
-static int host_pdev_get_state(struct host_pdev *dev, unsigned char *state)
+static int host_pdev_get_state(struct host_pdev *dev, bool ep_pdev, unsigned char *state)
 {
 	struct smc_result result;
+	void **pdev_ptr;
 
-	host_rmi_pdev_get_state(dev->pdev_ptr, &result);
+	pdev_ptr = ep_pdev ? &dev->ep_pdev_ptr : &dev->rp_pdev_ptr;
+
+	host_rmi_pdev_get_state(*pdev_ptr, &result);
 	if (result.x[0] != RMI_SUCCESS) {
 		return -1;
 	}
@@ -211,11 +214,11 @@ static int host_pdev_get_state(struct host_pdev *dev, unsigned char *state)
 	return 0;
 }
 
-static bool is_host_pdev_state(struct host_pdev *dev, unsigned char exp_state)
+static bool is_host_pdev_state(struct host_pdev *dev, bool ep_pdev, unsigned char exp_state)
 {
 	unsigned char cur_state;
 
-	if (host_pdev_get_state(dev, &cur_state) != 0) {
+	if (host_pdev_get_state(dev, ep_pdev, &cur_state) != 0) {
 		return false;
 	}
 
@@ -228,7 +231,8 @@ static bool is_host_pdev_state(struct host_pdev *dev, unsigned char exp_state)
 
 static struct host_pdev *get_host_pdev_from_ptr(void *pdev_ptr)
 {
-	if (gbl_host_pdev.pdev_ptr == pdev_ptr) {
+	if ((gbl_host_pdev.ep_pdev_ptr == pdev_ptr) ||
+	    (gbl_host_pdev.rp_pdev_ptr == pdev_ptr)) {
 		return &gbl_host_pdev;
 	}
 
@@ -282,34 +286,52 @@ static int host_vdev_get_state(struct host_vdev *h_vdev, unsigned char *state)
 	return 0;
 }
 
-static int host_pdev_create(struct host_pdev *dev)
+static int host_pdev_create(struct host_pdev *h_pdev, bool ep_pdev)
 {
 	struct rmi_pdev_params *pdev_params;
 	struct smc_result result;
-	uint32_t i;
+	void *pdev;
 
 	pdev_params = allocate_granule(1U);
 	memset(pdev_params, 0, GRANULE_SIZE);
 
-	pdev_params->flags = dev->pdev_flags;
-	pdev_params->cert_id = dev->cert_slot_id;
-	pdev_params->pdev_id = dev->pdev_id;
-	pdev_params->segment_id = dev->segment_id;
-	pdev_params->num_aux = dev->pdev_aux_num;
-	pdev_params->hash_algo = dev->hash_algo;
-	pdev_params->root_id = dev->root_id;
-	pdev_params->rid_base = dev->rid_base;
-	pdev_params->rid_top = dev->rid_top;
-	pdev_params->ide_sid = dev->ide_sid;
-	pdev_params->ecam_addr = dev->ecam_addr;
-	for (i = 0; i < dev->pdev_aux_num; i++) {
-		pdev_params->aux[i] = (uintptr_t)dev->pdev_aux[i];
+	pdev_params->flags =
+		INPLACE(RMI_PDEV_FLAGS_SPDM, RMI_PDEV_SPDM_TRUE);
+
+	if (ep_pdev) {
+		/* Create EP pdev */
+		pdev_params->flags |=
+			INPLACE(RMI_PDEV_FLAGS_CATEGORY, RMI_PDEV_ENDPOINT_ACCEL_OFF_CHIP);
+		pdev_params->pdev_id = h_pdev->ecam_addr | h_pdev->ep_pdev_id;
+		pdev = h_pdev->ep_pdev_ptr;
+	} else {
+		/* Create RP pdev */
+		pdev_params->flags |=
+			INPLACE(RMI_PDEV_FLAGS_CATEGORY, RMI_PDEV_ROOTPORT);
+		pdev_params->pdev_id = h_pdev->ecam_addr | h_pdev->rp_pdev_id;
+		pdev = h_pdev->rp_pdev_ptr;
 	}
 
-	host_rmi_pdev_create(dev->pdev_ptr, pdev_params, &result);
-	if (!IS_RMI_RESULT_SUCCESS(result)) {
-		return -1;
+	pdev_params->routing_id = h_pdev->segment_id;
+	pdev_params->id_index = h_pdev->cert_slot_id;
+	pdev_params->hash_algo = h_pdev->hash_algo;
+	pdev_params->max_vdevs_order = 2; /* max 3 vdevs */
+
+	host_rmi_pdev_create(pdev, pdev_params, &result);
+
+	if (ep_pdev &&
+	    (unpack_return_code(result.x[0]).status == RMI_INCOMPLETE)) {
+		u_register_t create_handle = 0UL;
+		u_register_t donate_req = 0UL;
+
+		create_handle = result.x[1];
+		donate_req = result.x[2];
+		if (host_sro_drive(create_handle, result.x[0], donate_req) != 0) {
+			return -1;
+		}
+		result.x[0] = RMI_SUCCESS;
 	}
+	CHECK_RMI_RESULT();
 
 	return 0;
 }
@@ -330,7 +352,7 @@ static int host_pdev_set_key(struct host_pdev *dev)
 	pubkey_params->metadata_len = dev->public_key_metadata_len;
 	pubkey_params->algo = dev->public_key_sig_algo;
 
-	host_rmi_pdev_set_pubkey(dev->pdev_ptr, pubkey_params, &result);
+	host_rmi_pdev_set_pubkey(dev->ep_pdev_ptr, pubkey_params, &result);
 	if (!IS_RMI_RESULT_SUCCESS(result)) {
 		return -1;
 	}
@@ -338,11 +360,13 @@ static int host_pdev_set_key(struct host_pdev *dev)
 	return 0;
 }
 
-static int host_pdev_stop(struct host_pdev *dev)
+static int host_pdev_stop(struct host_pdev *dev, bool ep_pdev)
 {
 	struct smc_result result;
+	void **pdev_ptr;
 
-	host_rmi_pdev_stop(dev->pdev_ptr, &result);
+	pdev_ptr = ep_pdev ? &dev->ep_pdev_ptr : &dev->rp_pdev_ptr;
+	host_rmi_pdev_stop(*pdev_ptr, &result);
 	if (!IS_RMI_RESULT_SUCCESS(result)) {
 		return -1;
 	}
@@ -350,11 +374,13 @@ static int host_pdev_stop(struct host_pdev *dev)
 	return 0;
 }
 
-static int host_pdev_destroy(struct host_pdev *dev)
+static int host_pdev_abort(struct host_pdev *dev, bool ep_pdev)
 {
+	void **pdev_ptr;
 	struct smc_result result;
 
-	host_rmi_pdev_destroy(dev->pdev_ptr, &result);
+	pdev_ptr = ep_pdev ? &dev->ep_pdev_ptr : &dev->rp_pdev_ptr;
+	host_rmi_pdev_abort(*pdev_ptr, &result);
 	if (!IS_RMI_RESULT_SUCCESS(result)) {
 		return -1;
 	}
@@ -362,23 +388,24 @@ static int host_pdev_destroy(struct host_pdev *dev)
 	return 0;
 }
 
-static int host_pdev_ide_key_refresh(struct host_pdev *dev, unsigned int ev)
+static int host_pdev_destroy(struct host_pdev *dev, bool ep_pdev)
 {
 	struct smc_result result;
+	u_register_t destroy_handle = 0UL;
+	u_register_t donate_req = 0UL;
+	void **pdev_ptr;
 
-	host_rmi_pdev_ide_key_refresh(dev->pdev_ptr, ev, &result);
-	if (!IS_RMI_RESULT_SUCCESS(result)) {
-		return -1;
+	pdev_ptr = ep_pdev ? &dev->ep_pdev_ptr : &dev->rp_pdev_ptr;
+	host_rmi_pdev_destroy(*pdev_ptr, &result);
+	if (ep_pdev &&
+	    (unpack_return_code(result.x[0]).status == RMI_INCOMPLETE)) {
+		destroy_handle = result.x[1];
+		donate_req = result.x[2];
+		if (host_sro_drive(destroy_handle, result.x[0], donate_req) != 0) {
+			return -1;
+		}
+		result.x[0] = RMI_SUCCESS;
 	}
-
-	return 0;
-}
-
-static int host_pdev_ide_reset(struct host_pdev *dev)
-{
-	struct smc_result result;
-
-	host_rmi_pdev_ide_reset(dev->pdev_ptr, &result);
 	if (!IS_RMI_RESULT_SUCCESS(result)) {
 		return -1;
 	}
@@ -387,18 +414,20 @@ static int host_pdev_ide_reset(struct host_pdev *dev)
 }
 
 static int host_dev_get_state(struct host_pdev *h_pdev,
+			      bool ep_pdev,
 			      struct host_vdev *h_vdev,
 			      unsigned char *state)
 {
 	if (h_vdev) {
 		return host_vdev_get_state(h_vdev, state);
 	} else {
-		return host_pdev_get_state(h_pdev, state);
+		return host_pdev_get_state(h_pdev, ep_pdev, state);
 	}
 }
 
 static unsigned long host_rmi_dev_communicate(struct host_realm *realm,
 					      struct host_pdev *h_pdev,
+					      bool ep_pdev,
 					      struct host_vdev *h_vdev)
 {
 	struct smc_result result;
@@ -411,7 +440,10 @@ static unsigned long host_rmi_dev_communicate(struct host_realm *realm,
 					  h_vdev->dev_comm_data,
 					  &result);
 	} else {
-		host_rmi_pdev_communicate(h_pdev->pdev_ptr,
+		void **pdev_ptr;
+
+		pdev_ptr = ep_pdev ? &h_pdev->ep_pdev_ptr : &h_pdev->rp_pdev_ptr;
+		host_rmi_pdev_communicate(*pdev_ptr,
 					  h_pdev->dev_comm_data,
 					  &result);
 	}
@@ -602,8 +634,10 @@ static int host_pdev_spdm_rsp_communicate(struct host_pdev *h_pdev,
  */
 int host_dev_communicate(struct host_realm *realm,
 			 struct host_pdev *h_pdev,
+			 bool ep_pdev,
 			 struct host_vdev *h_vdev,
-			 unsigned char target_state)
+			 unsigned char target_state,
+			bool go_until_wait_flag_set)
 {
 	int rc;
 	unsigned char state;
@@ -636,14 +670,14 @@ int host_dev_communicate(struct host_realm *realm,
 	dcomm_enter->status = RMI_DEV_COMM_ENTER_STATUS_NONE;
 	dcomm_enter->resp_len = 0;
 
-	rc = host_dev_get_state(h_pdev, h_vdev, &state);
+	rc = host_dev_get_state(h_pdev, ep_pdev, h_vdev, &state);
 	if (rc != 0) {
 		return rc;
 	}
 
 	stop = false;
 	do {
-		ret = host_rmi_dev_communicate(realm, h_pdev, h_vdev);
+		ret = host_rmi_dev_communicate(realm, h_pdev, ep_pdev, h_vdev);
 		if (ret != RMI_SUCCESS) {
 			ERROR("host_rmi_dev_communicate failed\n");
 			rc = -1;
@@ -677,7 +711,7 @@ int host_dev_communicate(struct host_realm *realm,
 			dcomm_enter->status = RMI_DEV_COMM_ENTER_STATUS_NONE;
 		}
 
-		rc = host_dev_get_state(h_pdev, h_vdev, &state);
+		rc = host_dev_get_state(h_pdev, ep_pdev, h_vdev, &state);
 		if (rc != 0) {
 			break;
 		}
@@ -685,10 +719,15 @@ int host_dev_communicate(struct host_realm *realm,
 			/*
 			 * The target state was reached, but for some
 			 * transitions this is not enough, need to continue
-			 * calling it till certain flags are cleared in the
-			 * exit. wait for that to happen.
+			 * calling it till certain flags are cleared, or wait
+			 * flag is set in the exit. wait for that to happen.
 			 */
-			stop = dcomm_exit->flags == 0U;
+			if (go_until_wait_flag_set) {
+				stop = ((dcomm_exit->flags &
+					 RMI_DEV_COMM_EXIT_FLAGS_STREAM_WAIT_BIT) != 0U);
+			} else {
+				stop = dcomm_exit->flags == 0;
+			}
 		} else if (state == error_state) {
 			ERROR("Failed to reach target_state %u instead of %u\n",
 			      state,
@@ -701,37 +740,55 @@ int host_dev_communicate(struct host_realm *realm,
 	return rc;
 }
 
+static int host_pdev_communicate_till_wait(struct host_pdev *h_pdev, bool ep_pdev)
+{
+	int rc;
+	unsigned char state;
+
+	rc = host_dev_get_state(h_pdev, ep_pdev, NULL, &state);
+	if (rc != 0) {
+		return rc;
+	}
+
+	rc = host_dev_communicate(NULL, h_pdev, ep_pdev, NULL, state, true);
+	if (rc != 0) {
+		ERROR("pdev_state_transition: failed\n");
+	}
+	return rc;
+}
+
 /*
  * Invoke RMI handler to transition PDEV state to 'to_state'
  */
-static int host_pdev_transition(struct host_pdev *h_pdev, unsigned char to_state)
+static int host_pdev_transition(struct host_pdev *h_pdev, bool ep_pdev, unsigned char to_state)
 {
 	int rc;
 
 	switch (to_state) {
 	case RMI_PDEV_STATE_NEW:
-		rc = host_pdev_create(h_pdev);
+		rc = host_pdev_create(h_pdev, ep_pdev);
 		break;
 	case RMI_PDEV_STATE_NEEDS_KEY:
-		rc = host_dev_communicate(NULL, h_pdev, NULL, RMI_PDEV_STATE_NEEDS_KEY);
+		rc = host_dev_communicate(NULL, h_pdev, ep_pdev,
+					  NULL, RMI_PDEV_STATE_NEEDS_KEY, false);
 		break;
 	case RMI_PDEV_STATE_HAS_KEY:
 		rc = host_pdev_set_key(h_pdev);
 		break;
 	case RMI_PDEV_STATE_READY:
-		rc = host_dev_communicate(NULL, h_pdev, NULL, RMI_PDEV_STATE_READY);
-		break;
-	case RMI_PDEV_STATE_STOPPING:
-		rc = host_pdev_stop(h_pdev);
+		rc = host_dev_communicate(NULL, h_pdev, ep_pdev, NULL, RMI_PDEV_STATE_READY, false);
 		break;
 	case RMI_PDEV_STATE_STOPPED:
-		rc = host_dev_communicate(NULL, h_pdev, NULL, RMI_PDEV_STATE_STOPPED);
-		break;
-	case RMI_PDEV_STATE_COMMUNICATING:
-		rc = host_pdev_ide_key_refresh(h_pdev, RMI_PDEV_EVENT_IDE_KEY_REFRESH);
-		break;
-	case RMI_PDEV_STATE_IDE_RESETTING:
-		rc = host_pdev_ide_reset(h_pdev);
+		/* Abort communication in case the device's comm state is not idle */
+		INFO("Abort communication, may return RMI_RMI_ERROR_DEVICE\n");
+		(void)host_pdev_abort(h_pdev, ep_pdev);
+
+		rc = host_pdev_stop(h_pdev, ep_pdev);
+		if (rc != 0) {
+			break;
+		}
+		rc = host_dev_communicate(NULL, h_pdev, ep_pdev,
+					  NULL, RMI_PDEV_STATE_STOPPED, false);
 		break;
 	default:
 		rc = -1;
@@ -742,7 +799,7 @@ static int host_pdev_transition(struct host_pdev *h_pdev, unsigned char to_state
 		return -1;
 	}
 
-	if (!is_host_pdev_state(h_pdev, to_state)) {
+	if (!is_host_pdev_state(h_pdev, ep_pdev, to_state)) {
 		ERROR("PDEV state not [%s]\n", get_pdev_state_str(to_state));
 		return -1;
 	}
@@ -750,38 +807,134 @@ static int host_pdev_transition(struct host_pdev *h_pdev, unsigned char to_state
 	return 0;
 }
 
-static int host_pdev_do_ide_ops(struct host_pdev *pdev)
+static int host_pdev_stream_complete(struct host_pdev *h_pdev)
 {
 	int rc;
+	struct smc_result result;
 
-	/* PDEV to COMMUNICATING state, calls PDEV_notify.IDE_KEY_REFRESH */
-	rc = host_pdev_transition(pdev, RMI_PDEV_STATE_COMMUNICATING);
+
+	/* Now we need to call pdev_communicate on the devices until the wait flag is set */
+	rc = host_pdev_communicate_till_wait(h_pdev, false);
 	if (rc != 0) {
-		INFO("PDEV transition: PDEV_READY -> COMMUNICATING failed\n");
+		ERROR("PDEV TSM connect rp_pdev_connect: failed\n");
 		return -1;
 	}
 
-	/* Call rmi_pdev_communicate to do IDE key refresh */
-	rc = host_pdev_transition(pdev, RMI_PDEV_STATE_READY);
+	rc = host_pdev_communicate_till_wait(h_pdev, true);
 	if (rc != 0) {
-		INFO("PDEV transition: COMMUNICATING -> PDEV_READY failed\n");
+		ERROR("PDEV TSM connect ep_pdev_connect: failed\n");
 		return -1;
 	}
 
-	/* PDEV to IDE_RESET state, calls PDEV_IDE_RESET */
-	rc = host_pdev_transition(pdev, RMI_PDEV_STATE_IDE_RESETTING);
+	/* call pdev communicate to let both pdevs reach PDEV_OP_STREAM_COMPLETE */
+	rc = host_pdev_transition(h_pdev, false, RMI_PDEV_STATE_READY);
 	if (rc != 0) {
-		INFO("PDEV transition: PDEV_READY -> IDE_RESETTING failed\n");
+		ERROR("PDEV TSM connect state transitions complete for rp_pdev: failed\n");
 		return -1;
 	}
 
-	/* Call rmi_pdev_communicate to do IDE reset */
-	rc = host_pdev_transition(pdev, RMI_PDEV_STATE_READY);
+	rc = host_pdev_transition(h_pdev, true, RMI_PDEV_STATE_READY);
 	if (rc != 0) {
-		INFO("PDEV transition: IDE_RESETTING -> PDEV_READY failed\n");
+		ERROR("PDEV TSM connect state transitions complete for ep_pdev: failed\n");
 		return -1;
 	}
+
+	/* Finally complete the stream operation */
+	host_rmi_pdev_stream_complete(
+		h_pdev->ep_pdev_ptr,
+		h_pdev->rp_pdev_ptr,
+		h_pdev->stream_handle, &result);
+
+	if (!IS_RMI_RESULT_SUCCESS(result)) {
+		ERROR("PDEV TSM connect stream complete: failed\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int host_pdev_stream_connect(struct host_pdev *pdev)
+{
+	struct rmi_pdev_stream_params *stream_params;
+	struct smc_result result;
+	int rc;
+
+	stream_params = allocate_granule(1U);
+	memset(stream_params, 0, GRANULE_SIZE);
+	stream_params->flags = 0UL;
+	stream_params->stream_type = RMI_PDEV_STREAM_NCOH;
+	stream_params->pdev_1 = (unsigned long)pdev->ep_pdev_ptr;
+	stream_params->pdev_2 = (unsigned long)pdev->rp_pdev_ptr;
+	stream_params->ide_sid = pdev->ide_sid;
+	stream_params->num_addr_range = 0UL;
+
+	INFO("%s: issue connect\n", __func__);
+	host_rmi_pdev_stream_connect(stream_params, &pdev->stream_handle, &result);
+	if (!IS_RMI_RESULT_SUCCESS(result)) {
+		rc = -1;
+		goto out_free;
+	}
+
+	rc = host_pdev_stream_complete(pdev);
+
+out_free:
+	/* allocate_granule is a bump allocator; nothing to free */
 	return rc;
+}
+
+static int host_pdev_stream_disconnect(struct host_pdev *pdev)
+{
+	struct smc_result result;
+
+	if (pdev->stream_handle == 0UL) {
+		return 0;
+	}
+
+	host_rmi_pdev_stream_disconnect(pdev->ep_pdev_ptr, pdev->rp_pdev_ptr,
+					pdev->stream_handle, &result);
+	if (!IS_RMI_RESULT_SUCCESS(result)) {
+		return -1;
+	}
+
+	if (host_pdev_stream_complete(pdev) != 0) {
+		return -1;
+	}
+
+	pdev->stream_handle = 0UL;
+	return 0;
+}
+
+static int host_pdev_stream_key_refresh(struct host_pdev *pdev)
+{
+	struct smc_result result;
+
+	INFO("%s: issue refresh\n", __func__);
+	host_rmi_pdev_stream_key_refresh(pdev->ep_pdev_ptr, pdev->rp_pdev_ptr,
+					 pdev->stream_handle, &result);
+	if (!IS_RMI_RESULT_SUCCESS(result)) {
+		return -1;
+	}
+
+	return host_pdev_stream_complete(pdev);
+}
+
+static int host_pdev_do_ide_ops(struct host_pdev *pdev)
+{
+	/*
+	 * Establish the NCOH stream between the RP and EP PDEV pair first, then
+	 * exercise the IDE key refresh flow on that connected stream.
+	 */
+	if (host_pdev_stream_connect(pdev) != 0) {
+		INFO("PDEV stream connect failed\n");
+		return -1;
+	}
+
+	if (host_pdev_stream_key_refresh(pdev) != 0) {
+		INFO("PDEV stream key refresh failed\n");
+		return -1;
+	}
+
+	return 0;
 }
 
 /*
@@ -793,7 +946,6 @@ static int host_pdev_setup(struct host_pdev *dev)
 	struct smc_result result;
 	int rc = -1;
 	int spdm_rsp_id = -1;
-	uint32_t i;
 
 	memset(dev, 0, sizeof(struct host_pdev));
 	dev->spdm_rsp_id = -1;
@@ -811,64 +963,41 @@ static int host_pdev_setup(struct host_pdev *dev)
 	 * only used to route DOE traffic from fake host to the emulator.
 	 */
 	dev->segment_id = HOST_PDEV_SEGMENT_ID;
-	dev->pdev_id = HOST_CREATE_BDF(HOST_PDEV_BUS, HOST_PDEV_DEV,
+	dev->ep_pdev_id = HOST_CREATE_BDF(HOST_PDEV_BUS, HOST_PDEV_DEV,
 					 HOST_PDEV_FUNC);
-	dev->rid_base = (uint16_t)dev->pdev_id;
-	dev->rid_top = (uint16_t)(dev->rid_base + 1U);
+	dev->rid_base = 0U;
+	dev->rid_top = dev->rid_base + 1U;
 	dev->ide_sid = HOST_PDEV_IDE_SID;
 
-	/* Allocate granule for PDEV and delegate */
-	dev->pdev_ptr = allocate_granule(1U);
-	memset(dev->pdev_ptr, 0, GRANULE_SIZE);
-	host_rmi_granule_range_delegate(dev->pdev_ptr,
-			dev->pdev_ptr + GRANULE_SIZE,
+	/* Allocate granule for EP_PDEV and delegate */
+	dev->ep_pdev_ptr = allocate_granule(1U);
+	memset(dev->ep_pdev_ptr, 0, GRANULE_SIZE);
+	host_rmi_granule_range_delegate(dev->ep_pdev_ptr,
+			dev->ep_pdev_ptr + GRANULE_SIZE,
+			&result);
+	/* Allocate granule for RP_PDEV and delegate */
+	dev->rp_pdev_ptr = allocate_granule(1U);
+	memset(dev->rp_pdev_ptr, 0, GRANULE_SIZE);
+	host_rmi_granule_range_delegate(dev->rp_pdev_ptr,
+			dev->rp_pdev_ptr + GRANULE_SIZE,
 			&result);
 	if (!IS_RMI_RESULT_SUCCESS(result)) {
 		rc = -1;
 		goto out_cleanup;
 	}
 
-	/*
-	 * Off chip PCIe device - set flags as non-coherent device protected by
-	 * end to end IDE, with SPDM.
-	 */
-	dev->pdev_flags = (INPLACE(RMI_PDEV_FLAGS_SPDM, RMI_PDEV_SPDM_TRUE) |
-			   INPLACE(RMI_PDEV_FLAGS_NCOH_IDE, RMI_PDEV_IDE_TRUE));
-
 	/* Create a extended capability DVSEC in Root Port config space */
-	if (EXTRACT(RMI_PDEV_FLAGS_NCOH_IDE, dev->pdev_flags) == RMI_PDEV_IDE_TRUE) {
-		dev->root_id = HOST_ROOT_PORT_ID;
-		dev->ecam_addr = host_utils_pci_get_ecam_base();
+	dev->rp_pdev_id = HOST_ROOT_PORT_ID;
+	dev->ecam_addr = host_utils_pci_get_ecam_base();
 
-		rc = host_utils_pci_rp_dvsec_setup(dev->root_id);
-		if (rc != 0) {
-			INFO("pci_rp_dvsec_setup failed.\n");
-			rc = -1;
-			goto out_cleanup;
-		}
-	} else {
-		dev->ecam_addr = 0UL;
-	}
+	INFO("dev->ecam_addr = %lx\n", dev->ecam_addr);
+	assert((dev->ecam_addr & (SZ_256M - 1U)) == 0U);
 
-	/* Get num of aux granules required for this PDEV */
-	host_rmi_pdev_aux_count(dev->pdev_flags, &result);
-	if (!IS_RMI_RESULT_SUCCESS(result)) {
+	rc = host_utils_pci_rp_dvsec_setup(dev->rp_pdev_id);
+	if (rc != 0) {
+		INFO("pci_rp_dvsec_setup failed.\n");
 		rc = -1;
 		goto out_cleanup;
-	}
-	dev->pdev_aux_num = result.x[1];
-
-	/* Allocate aux granules for PDEV and delegate */
-	INFO("PDEV create requires %u aux pages\n", dev->pdev_aux_num);
-	for (i = 0; i < dev->pdev_aux_num; i++) {
-		dev->pdev_aux[i] = allocate_granule(1U);
-		host_rmi_granule_range_delegate(dev->pdev_aux[i],
-						(dev->pdev_aux[i] + GRANULE_SIZE),
-						&result);
-		if (!IS_RMI_RESULT_SUCCESS(result)) {
-			rc = -1;
-			goto out_cleanup;
-		}
 	}
 
 	/* Allocate dev_comm_data and send/recv buffer for Dev communication */
@@ -916,7 +1045,8 @@ static int host_pdev_setup(struct host_pdev *dev)
 	return 0;
 
 out_cleanup:
-	host_pdev_cleanup(dev);
+	host_pdev_cleanup(dev, true);
+	host_pdev_cleanup(dev, false);
 	return rc;
 }
 
@@ -1011,19 +1141,41 @@ int host_pdev_probe_and_setup(void)
 		return 0;
 	}
 
+	/* Setup RP_PDEV */
+
 	/* Call rmi_pdev_create to transition PDEV to STATE_NEW */
-	rc = host_pdev_transition(pdev, RMI_PDEV_STATE_NEW);
+	rc = host_pdev_transition(pdev, false, RMI_PDEV_STATE_NEW);
 	if (rc != 0) {
 		ERROR("PDEV transition: NULL -> STATE_NEW failed\n");
-		host_pdev_cleanup(pdev);
+		host_pdev_cleanup(pdev, false);
+		return -1;
+	}
+
+	/* Call rmi_pdev_communicate to transition PDEV to READY state */
+	rc = host_pdev_transition(pdev, false, RMI_PDEV_STATE_READY);
+	if (rc != 0) {
+		INFO("PDEV transition: PDEV_HAS_KEY -> PDEV_READY failed\n");
+		(void)host_pdev_reclaim((int)pdev->rp_pdev_id);
+		return -1;
+	}
+
+	/* Setup EP_PDEV */
+
+	/* Call rmi_pdev_create to transition PDEV to STATE_NEW */
+	rc = host_pdev_transition(pdev, true, RMI_PDEV_STATE_NEW);
+	if (rc != 0) {
+		ERROR("PDEV transition: NULL -> STATE_NEW failed\n");
+		host_pdev_cleanup(pdev, true);
+		(void)host_pdev_reclaim((int)pdev->rp_pdev_id);
 		return -1;
 	}
 
 	/* Call rmi_pdev_communicate to transition PDEV to NEEDS_KEY */
-	rc = host_pdev_transition(pdev, RMI_PDEV_STATE_NEEDS_KEY);
+	rc = host_pdev_transition(pdev, true, RMI_PDEV_STATE_NEEDS_KEY);
 	if (rc != 0) {
 		ERROR("PDEV transition: PDEV_NEW -> PDEV_NEEDS_KEY failed\n");
-		(void)host_pdev_reclaim((int)pdev->pdev_id);
+		(void)host_pdev_reclaim((int)pdev->ep_pdev_id);
+		(void)host_pdev_reclaim((int)pdev->rp_pdev_id);
 		return -1;
 	}
 
@@ -1037,7 +1189,8 @@ int host_pdev_probe_and_setup(void)
 						 &public_key_algo);
 	if (rc != 0) {
 		ERROR("Get public key failed\n");
-		(void)host_pdev_reclaim((int)pdev->pdev_id);
+		(void)host_pdev_reclaim((int)pdev->ep_pdev_id);
+		(void)host_pdev_reclaim((int)pdev->rp_pdev_id);
 		return -1;
 	}
 
@@ -1053,32 +1206,33 @@ int host_pdev_probe_and_setup(void)
 	     pdev->public_key_sig_algo);
 
 	/* Call rmi_pdev_set_key transition PDEV to HAS_KEY */
-	rc = host_pdev_transition(pdev, RMI_PDEV_STATE_HAS_KEY);
+	rc = host_pdev_transition(pdev, true, RMI_PDEV_STATE_HAS_KEY);
 	if (rc != 0) {
 		INFO("PDEV transition: PDEV_NEEDS_KEY -> PDEV_HAS_KEY failed\n");
-		(void)host_pdev_reclaim((int)pdev->pdev_id);
+		(void)host_pdev_reclaim((int)pdev->ep_pdev_id);
+		(void)host_pdev_reclaim((int)pdev->rp_pdev_id);
 		return -1;
 	}
 
 	/* Call rmi_pdev_communicate to transition PDEV to READY state */
-	rc = host_pdev_transition(pdev, RMI_PDEV_STATE_READY);
+	rc = host_pdev_transition(pdev, true, RMI_PDEV_STATE_READY);
 	if (rc != 0) {
 		INFO("PDEV transition: PDEV_HAS_KEY -> PDEV_READY failed\n");
-		(void)host_pdev_reclaim((int)pdev->pdev_id);
+		(void)host_pdev_reclaim((int)pdev->ep_pdev_id);
+		(void)host_pdev_reclaim((int)pdev->rp_pdev_id);
 		return -1;
 	}
 
 	/* do host_pdev IDE key refresh and IDE reset */
-	if (EXTRACT(RMI_PDEV_FLAGS_NCOH_IDE, pdev->pdev_flags) == RMI_PDEV_IDE_TRUE) {
-		rc = host_pdev_do_ide_ops(pdev);
-		if (rc != 0) {
-			INFO("PDEV IDE refresh, reset failed\n");
-			(void)host_pdev_reclaim((int)pdev->pdev_id);
-			return -1;
-		}
+	rc = host_pdev_do_ide_ops(pdev);
+	if (rc != 0) {
+		INFO("PDEV IDE refresh, reset failed\n");
+		(void)host_pdev_reclaim((int)pdev->ep_pdev_id);
+		(void)host_pdev_reclaim((int)pdev->rp_pdev_id);
+		return -1;
 	}
 
-	return (int)pdev->pdev_id;
+	return (int)pdev->ep_pdev_id;
 }
 
 /*
@@ -1088,32 +1242,38 @@ int host_pdev_reclaim(int host_pdev_id)
 {
 	struct host_pdev *pdev;
 	int rc;
+	bool ep_pdev;
 
 	pdev = &gbl_host_pdev;
-	if (pdev->pdev_id != (unsigned long)host_pdev_id) {
+	if (pdev->ep_pdev_id == (unsigned long)host_pdev_id) {
+		ep_pdev = true;
+	} else if (pdev->rp_pdev_id == (unsigned long)host_pdev_id) {
+		ep_pdev = false;
+	} else {
 		return -1;
 	}
 
 	rc = 0;
 
-	/* Move the device to STOPPING state */
-	if (host_pdev_transition(pdev, RMI_PDEV_STATE_STOPPING) != 0) {
-		INFO("PDEV transition: to PDEV_STATE_STOPPING failed\n");
-		rc = -1;
+	if (pdev->stream_handle != 0UL) {
+		if (host_pdev_stream_disconnect(pdev) != 0) {
+			INFO("PDEV stream disconnect failed\n");
+			rc = -1;
+		}
 	}
 
 	/* Do pdev_communicate to terminate secure session */
-	if (host_pdev_transition(pdev, RMI_PDEV_STATE_STOPPED) != 0) {
+	if (host_pdev_transition(pdev, ep_pdev, RMI_PDEV_STATE_STOPPED) != 0) {
 		INFO("PDEV transition: to PDEV_STATE_STOPPED failed\n");
 		rc = -1;
 	}
 
-	if (host_pdev_destroy(pdev) != 0) {
+	if (host_pdev_destroy(pdev, ep_pdev) != 0) {
 		INFO("PDEV transition: to STATE_NULL failed\n");
 		rc = -1;
 	}
 
-	host_pdev_cleanup(pdev);
+	host_pdev_cleanup(pdev, ep_pdev);
 	return rc;
 }
 
@@ -1138,11 +1298,11 @@ static int host_vdev_setup(struct host_pdev *h_pdev,
 	h_vdev->vdev_id = HOST_DA_VDEV_ID;
 
 	/* This is TDI id, this must be same as PDEV ID */
-	assert(h_pdev->pdev_id == vdev_tdi_id);
+	assert(h_pdev->ep_pdev_id == vdev_tdi_id);
 	h_vdev->tdi_id = vdev_tdi_id;
 
 	h_vdev->flags = 0UL;
-	h_vdev->pdev_ptr = h_pdev->pdev_ptr;
+	h_vdev->pdev_ptr = h_pdev->ep_pdev_ptr;
 
 	/* Allocate granule for VDEV and delegate */
 	h_vdev->vdev_ptr = allocate_granule(1U);
@@ -1215,10 +1375,9 @@ int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id)
 	vdev_params->vdev_id = h_vdev->vdev_id;
 	vdev_params->tdi_id = h_vdev->tdi_id;
 	vdev_params->flags = h_vdev->flags;
-	vdev_params->num_aux = 0;
 
 	host_rmi_vdev_create(realm->rd,
-			     h_pdev->pdev_ptr,
+			     h_pdev->ep_pdev_ptr,
 			     h_vdev->vdev_ptr,
 			     vdev_params,
 			     &result);
@@ -1230,7 +1389,8 @@ int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id)
 	 * Drive VDEV communication once after create so VDEV/PDEV communication
 	 * state is settled before Realm DA RSIs trigger VDEV_COMPLETE.
 	 */
-	if (host_dev_communicate(realm, h_pdev, h_vdev, RMI_VDEV_STATE_UNLOCKED) != 0) {
+	if (host_dev_communicate(realm, h_pdev, true, h_vdev,
+				 RMI_VDEV_STATE_UNLOCKED, false) != 0) {
 		ERROR("VDEV create -> UNLOCKED transition failed\n");
 		host_vdev_cleanup(h_vdev);
 		return -1;
@@ -1277,8 +1437,8 @@ int host_vdev_reclaim(struct host_realm *realm, int host_vdev_id)
 		}
 
 		/* Do vdev_communicate to move to UNLOCKED state */
-		if (host_dev_communicate(realm, h_pdev, h_vdev,
-					 RMI_VDEV_STATE_UNLOCKED) != 0) {
+		if (host_dev_communicate(realm, h_pdev, true, h_vdev,
+					 RMI_VDEV_STATE_UNLOCKED, false) != 0) {
 			INFO("VDEV unlock -> UNLOCKED failed\n");
 			rc = -1;
 		}

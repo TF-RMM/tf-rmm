@@ -19,6 +19,8 @@
 #define SZ_2G	(UL(2)  * SZ_1G)
 #define SZ_2M	(UL(2)  * SZ_1M)
 
+#define SZ_256M	(UL(256) * SZ_1M)
+
 #ifndef __ASSEMBLER__
 #define BITS_PER_UL	((unsigned int)(8U * sizeof(unsigned long)))
 #define BITS_PER_UCHAR	(8U)

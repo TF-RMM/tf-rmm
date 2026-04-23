@@ -292,12 +292,6 @@ void host_rmi_pdev_create(void *pdev, void *pdev_params_ptr,
 		      (uintptr_t)pdev_params_ptr, 0, 0, 0, 0, 0, res);
 }
 
-void host_rmi_pdev_aux_count(unsigned long pdev_flags, struct smc_result *res)
-{
-	handle_ns_smc(SMC_RMI_PDEV_AUX_COUNT, (uintptr_t)pdev_flags,
-		      0, 0, 0, 0, 0, 0, res);
-}
-
 void host_rmi_pdev_communicate(void *pdev, void *io_data_ptr,
 			       struct smc_result *res)
 {
@@ -333,16 +327,45 @@ void host_rmi_pdev_destroy(void *pdev, struct smc_result *res)
 	handle_ns_smc(SMC_RMI_PDEV_DESTROY, (uintptr_t)pdev, 0, 0, 0, 0, 0, 0, res);
 }
 
-void host_rmi_pdev_ide_key_refresh(void *pdev, unsigned long ev, struct smc_result *res)
+void host_rmi_pdev_stream_connect(void *stream_params_ptr, void *stream_handle,
+				  struct smc_result *res)
 {
-	handle_ns_smc(SMC_RMI_PDEV_IDE_KEY_REFRESH, (uintptr_t)pdev, (uintptr_t)ev, 0, 0,
-		      0, 0, 0, res);
+	unsigned long *handle_ptr = (unsigned long *)stream_handle;
+
+	handle_ns_smc(SMC_RMI_PDEV_STREAM_CONNECT, (uintptr_t)stream_params_ptr,
+		      0, 0, 0, 0, 0, 0, res);
+
+	*handle_ptr = res->x[1];
 }
 
-void host_rmi_pdev_ide_reset(void *pdev, struct smc_result *res)
+void host_rmi_pdev_stream_disconnect(void *pdev1, void *pdev2,
+				     unsigned long stream_handle,
+				     struct smc_result *res)
 {
-	handle_ns_smc(SMC_RMI_PDEV_IDE_RESET, (uintptr_t)pdev, 0, 0, 0, 0, 0,
-		      0, res);
+	handle_ns_smc(SMC_RMI_PDEV_STREAM_DISCONNECT,
+		      (uintptr_t)pdev1,
+		      (uintptr_t)pdev2,
+		      stream_handle, 0, 0, 0, 0, res);
+}
+
+void host_rmi_pdev_stream_complete(void *pdev1, void *pdev2,
+				   unsigned long stream_handle,
+				   struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_PDEV_STREAM_COMPLETE,
+		      (uintptr_t)pdev1,
+		      (uintptr_t)pdev2,
+		      stream_handle, 0, 0, 0, 0, res);
+}
+
+void host_rmi_pdev_stream_key_refresh(void *pdev1, void *pdev2,
+				      unsigned long stream_handle,
+				      struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_PDEV_STREAM_KEY_REFRESH,
+		      (uintptr_t)pdev1,
+		      (uintptr_t)pdev2,
+		      stream_handle, 0, 0, 0, 0, res);
 }
 
 void host_rmi_vdev_create(void *rd, void *pdev_ptr, void *vdev_ptr,
