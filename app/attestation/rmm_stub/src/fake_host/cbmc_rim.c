@@ -34,12 +34,4 @@ void measurement_rec_params_measure(unsigned char rim_measurement[],
 	ASSERT(false, "measurement_rec_params_measure");
 }
 
-void measurement_init_ripas_measure(unsigned char rim_measurement[],
-				    enum hash_algo algorithm,
-				    unsigned long ipa,
-				    unsigned long level)
-{
-	ASSERT(false, "measurement_init_ripas_measure");
-}
-
 #endif /* CBMC */

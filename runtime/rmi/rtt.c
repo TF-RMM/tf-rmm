@@ -1863,10 +1863,6 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 			   !s2tte_is_unassigned_ram(s2_ctx, s2tte)) {
 			break;
 		}
-		measurement_init_ripas_measure(rd->measurement[RIM_MEASUREMENT_SLOT],
-					       rd->algorithm,
-					       addr,
-					       next);
 		addr = next;
 	}
 

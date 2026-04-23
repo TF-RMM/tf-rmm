@@ -125,30 +125,3 @@ void measurement_rec_params_measure(unsigned char rim_measurement[],
 			       sizeof(struct measurement_desc_rec),
 			       rim_measurement);
 }
-
-void measurement_init_ripas_measure(unsigned char rim_measurement[],
-				    enum hash_algo algorithm,
-				    unsigned long base,
-				    unsigned long top)
-{
-	struct measurement_desc_ripas measure_desc = {0};
-
-	/* Initialize the measurement descriptior structure */
-	measure_desc.desc_type = MEASURE_DESC_TYPE_RIPAS;
-	measure_desc.len = sizeof(struct measurement_desc_ripas);
-	measure_desc.base = base;
-	measure_desc.top = top;
-	(void)memcpy(measure_desc.rim,
-		     rim_measurement,
-		     measurement_get_size(algorithm));
-
-	/*
-	 * Hashing the measurement descriptor structure; the result is the
-	 * updated RIM.
-	 */
-	/* coverity[overrun-buffer-val:SUPPRESS] */
-	measurement_hash_compute(algorithm,
-				 &measure_desc,
-				 sizeof(measure_desc),
-				 rim_measurement);
-}

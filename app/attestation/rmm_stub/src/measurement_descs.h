@@ -54,25 +54,4 @@ COMPILER_ASSERT_NO_CBMC(U(offsetof(struct measurement_desc_rec, len)) == 0x8U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct measurement_desc_rec, rim)) == 0x10U);
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct measurement_desc_rec, content)) == 0x50U);
 
-/* RmmMeasurementDescriptorRipas type as per RMM spec */
-struct measurement_desc_ripas {
-	/* Measurement descriptor type, value 0x2 */
-	SET_MEMBER(unsigned char desc_type, 0x0, 0x8);
-	/* Length of this data structure in bytes */
-	SET_MEMBER(unsigned long len, 0x8, 0x10);
-	/* Current RIM value */
-	SET_MEMBER(unsigned char rim[MAX_MEASUREMENT_SIZE], 0x10, 0x50);
-	/* Base IPA at which the RIPAS change occurred */
-	SET_MEMBER(unsigned long base, 0x50, 0x58);
-	/* Top IPA at which the RIPAS change occurred */
-	SET_MEMBER(unsigned long top, 0x58, 0x100);
-};
-COMPILER_ASSERT_NO_CBMC(sizeof(struct measurement_desc_ripas) == 0x100UL);
-
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct measurement_desc_ripas, desc_type)) == 0x0U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct measurement_desc_ripas, len)) == 0x8U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct measurement_desc_ripas, rim)) == 0x10U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct measurement_desc_ripas, base)) == 0x50U);
-COMPILER_ASSERT_NO_CBMC(U(offsetof(struct measurement_desc_ripas, top)) == 0x58U);
-
 #endif /* MEASUREMENT_DESCS_H */
