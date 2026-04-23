@@ -51,6 +51,31 @@ static inline uint64_t atomic_load_add_release_64(uint64_t *loc, uint64_t val)
 }
 
 /*
+ * Atomically adds @val to the 64-bit value stored at memory location @loc.
+ * Stores to memory with acquire and release semantics.
+ * Returns the old value.
+ */
+static inline uint64_t atomic_load_add_acquire_release_64(uint64_t *loc,
+							   uint64_t val)
+{
+	uint64_t old_val;
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)loc;
+	(void)val;
+
+	/* cppcheck-suppress misra-c2012-17.3 */
+	asm volatile(
+	"	ldaddal %[val], %[old_val], %[loc]\n"
+	: [loc] "+Q" (*loc),
+	  [old_val] "=r" (old_val)
+	: [val] "r" (val)
+	: "memory");
+
+	return old_val;
+}
+
+/*
  * Atomically adds @val to the 16-bit value stored at memory location @loc.
  */
 static inline void atomic_add_16(uint16_t *loc, uint16_t val)
