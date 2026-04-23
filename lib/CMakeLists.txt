@@ -6,7 +6,8 @@
 add_library(rmm-lib INTERFACE)
 
 target_link_libraries(rmm-lib
-    INTERFACE rmm-lib-arch
+    INTERFACE rmm-lib-addr_list
+              rmm-lib-arch
               rmm-lib-common
               rmm-lib-console
               rmm-lib-debug
@@ -24,6 +25,7 @@ target_link_libraries(rmm-lib
               rmm-lib-xlat
               rmm-lib-xlat_low_va)
 
+add_subdirectory("addr_list")
 add_subdirectory("arch")
 add_subdirectory("common")
 add_subdirectory("console")
