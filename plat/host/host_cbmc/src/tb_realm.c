@@ -54,7 +54,7 @@ struct rmm_realm Realm(uint64_t addr)
 		.rtt_base = granule_metadata_ptr_to_pa(s2_ctx->g_rtt),
 		.rtt_level_start = s2_ctx->s2_starting_level,
 		.rtt_num_start = s2_ctx->num_root_rtts,
-		.state = rd_ptr->state,
+		.state = RD_UNPACK_STATE(rd_ptr->state_and_count),
 		.vmid = s2_ctx->vmid
 	};
 
@@ -97,7 +97,7 @@ bool valid_s2tt_context(struct s2tt_context value)
 
 bool valid_rd(struct rd value)
 {
-	return valid_realm_state(value.state)
+	return valid_realm_state(RD_UNPACK_STATE(value.state_and_count))
 		&& valid_s2tt_context(value.s2_ctx[PRIMARY_S2_CTX_ID])
 		&& valid_hash_algo(value.algorithm)
 		&& value.num_rec_aux == MAX_REC_AUX_GRANULES;

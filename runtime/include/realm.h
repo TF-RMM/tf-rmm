@@ -19,6 +19,7 @@
 #define REALM_NEW		0U
 #define REALM_ACTIVE		1U
 #define REALM_SYSTEM_OFF	2U
+#define REALM_ZOMBIE		3U
 
 /*
  * Possible values for rtt_s2ap_encoding
@@ -29,8 +30,14 @@
 /* struct rd is protected by the rd granule lock */
 struct rd {
 	/*
-	 * 'state' & 'rec_count' are only accessed through dedicated
-	 * primitives where the following rules apply:
+	 * 'state_and_count' packs realm state (upper 2 bits) and
+	 * active_rec_count (lower 62 bits) into a single 64-bit word.
+	 * This allows lock-free atomic transitions using CAS (CASAL):
+	 *
+	 * - smc_rec_enter: atomically increments count only if state is ACTIVE
+	 * - smc_realm_terminate: atomically sets ZOMBIE only if count == 0
+	 *
+	 * 'rec_count' is accessed through dedicated primitives:
 	 *
 	 * (1) To write the value, the RMI handler must hold the rd granule
 	 *     lock and use a single copy atomic store with release semantics.
@@ -43,8 +50,11 @@ struct rd {
 	 *
 	 * Other members of the structure are accessed with rd granule lock held.
 	 */
-	/* 64-bit variable accessed with READ64/WRITE64/ACQUIRE semantic */
-	unsigned long state;
+	/*
+	 * Packed: bits [63:62] = state, bits [61:0] = active_rec_count.
+	 * Accessed via CAS (lock-free) or plain atomic load under lock.
+	 */
+	unsigned long state_and_count;
 
 	/* Reference count */
 	unsigned long rec_count;
@@ -121,19 +131,22 @@ COMPILER_ASSERT((U(offsetof(struct rd, measurement)) & 7U) == 0U);
 COMPILER_ASSERT(sizeof(struct rd) <= GRANULE_SIZE);
 
 /*
- * Sets the rd's state while holding the rd granule lock.
+ * state_and_count packing:
+ *   bits [63:62] = realm state (2 bits, supports values 0-3)
+ *   bits [61:0]  = active_rec_count (62 bits)
  */
-static inline void set_rd_state(struct rd *rd, unsigned long state)
-{
-	SCA_WRITE64_RELEASE(&rd->state, state);
-}
+#define RD_STATE_SHIFT		62U
+#define RD_COUNT_MASK		((1UL << RD_STATE_SHIFT) - 1UL)
+#define RD_PACK_SC(s, c)	(((unsigned long)(s) << RD_STATE_SHIFT) | (c))
+#define RD_UNPACK_STATE(v)	((v) >> RD_STATE_SHIFT)
+#define RD_UNPACK_COUNT(v)	((v) & RD_COUNT_MASK)
 
 /*
  * Gets the rd's state while holding the rd granule lock.
  */
 static inline unsigned long get_rd_state_locked(struct rd *rd)
 {
-	return SCA_READ64(&rd->state);
+	return RD_UNPACK_STATE(SCA_READ64(&rd->state_and_count));
 }
 
 /*
@@ -142,7 +155,79 @@ static inline unsigned long get_rd_state_locked(struct rd *rd)
  */
 static inline unsigned long get_rd_state_unlocked(struct rd *rd)
 {
-	return SCA_READ64_ACQUIRE(&rd->state);
+	return RD_UNPACK_STATE(SCA_READ64_ACQUIRE(&rd->state_and_count));
+}
+
+/*
+ * Sets the rd's state via CAS loop. Safe to call even when
+ * active_rec_count is being concurrently modified (lock-free).
+ * The caller must hold the rd granule lock or otherwise guarantee
+ * no concurrent state transitions.
+ */
+static inline void set_rd_state(struct rd *rd, unsigned long state)
+{
+	unsigned long old;
+
+	do {
+		old = SCA_READ64_ACQUIRE(&rd->state_and_count);
+	} while (!atomic_cas_acquire_release_64(
+			(uint64_t *)&rd->state_and_count,
+			old,
+			RD_PACK_SC(state, RD_UNPACK_COUNT(old))));
+}
+
+/*
+ * Atomically transitions state from @expected_state to @new_state only if
+ * the current state matches and active_rec_count == 0.
+ * Uses CAS with acquire-release semantics (lock-free).
+ * Returns true on success.
+ */
+static inline bool rd_cas_state_if_count_zero(struct rd *rd,
+					      unsigned long expected_state,
+					      unsigned long new_state)
+{
+	uint64_t expected = RD_PACK_SC(expected_state, 0UL);
+	uint64_t desired = RD_PACK_SC(new_state, 0UL);
+
+	return atomic_cas_acquire_release_64(
+		(uint64_t *)&rd->state_and_count, expected, desired);
+}
+
+/*
+ * Atomically increments active_rec_count only if the realm state is ACTIVE.
+ * Uses CAS with acquire-release semantics (lock-free).
+ * Returns true on success, false if realm is not ACTIVE.
+ */
+static inline bool rd_active_rec_count_inc_if_active(struct rd *rd)
+{
+	unsigned long old, new_val;
+
+	do {
+		old = SCA_READ64_ACQUIRE(&rd->state_and_count);
+		if (RD_UNPACK_STATE(old) != REALM_ACTIVE) {
+			return false;
+		}
+		new_val = old + 1UL;
+		/* Count overflow into state bits would be catastrophic */
+		assert(RD_UNPACK_STATE(new_val) == REALM_ACTIVE);
+	} while (!atomic_cas_acquire_release_64(
+			(uint64_t *)&rd->state_and_count, old, new_val));
+
+	return true;
+}
+
+/*
+ * Atomically decrements active_rec_count (unconditional, lock-free).
+ * Uses release semantics so that smc_realm_terminate()'s acquire read
+ * observes the decrement.
+ */
+static inline void rd_active_rec_count_dec(struct rd *rd)
+{
+	uint64_t old = atomic_load_add_release_64((uint64_t *)&rd->state_and_count,
+					 (uint64_t)-1LL);
+
+	assert(RD_UNPACK_COUNT(old) > 0UL);
+	(void)old;
 }
 
 /*

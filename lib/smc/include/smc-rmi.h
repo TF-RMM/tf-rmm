@@ -401,6 +401,13 @@
 #define SMC_RMI_REALM_CREATE			SMC64_RMI_FID(U(0x8))
 
 /*
+ * FID: 0xC4000201
+ *
+ * arg0 == RD address
+ */
+#define SMC_RMI_REALM_TERMINATE			SMC64_RMI_FID(U(0xB1))
+
+/*
  * FID: 0xC4000159
  *
  * arg0 == RD address

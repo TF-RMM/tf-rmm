@@ -299,6 +299,34 @@ static inline bool atomic_bit_set_acquire_release_64(uint64_t *loc, unsigned int
 }
 
 /*
+ * Atomic compare-and-swap with acquire and release semantics.
+ * If *loc == expected, atomically sets *loc = desired and returns true.
+ * Otherwise, returns false.
+ */
+static inline bool atomic_cas_acquire_release_64(uint64_t *loc,
+						 uint64_t expected,
+						 uint64_t desired)
+{
+	uint64_t tmp = expected;
+
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)loc;
+	(void)expected;
+	(void)desired;
+
+	/* cppcheck-suppress misra-c2012-17.3 */
+	asm volatile(
+	"	casal %[tmp], %[desired], %[loc]\n"
+	: [loc] "+Q" (*loc),
+	  [tmp] "+r" (tmp)
+	: [desired] "r" (desired)
+	: "memory");
+
+	/* cppcheck-suppress knownConditionTrueFalse */
+	return (tmp == expected);
+}
+
+/*
  * Atomically performs exclusive-OR with @val on the 16-bit value stored at memory
  * location @loc and stores the result back to memory.
  * Returns the old value.

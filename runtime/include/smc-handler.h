@@ -37,6 +37,7 @@ unsigned long smc_realm_activate(unsigned long rd_addr);
 unsigned long smc_realm_create(unsigned long rd_addr,
 				unsigned long realm_params_addr);
 
+unsigned long smc_realm_terminate(unsigned long rd_addr);
 unsigned long smc_realm_destroy(unsigned long rd_addr);
 
 void smc_rec_create(unsigned long rd_addr,

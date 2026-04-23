@@ -369,12 +369,13 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 {
 	struct granule *g_rec;
 	struct granule *g_run;
+	struct granule *g_rd;
 	struct rec *rec;
 	struct rec_plane *plane;
 	STRUCT_TYPE sysreg_state *sysregs;
 	struct rd *rd;
 	struct rmi_rec_run rec_run;
-	unsigned long realm_state, ret;
+	unsigned long ret;
 	bool success;
 	int res;
 	void *rec_aux;
@@ -429,26 +430,24 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 
 	rec = buffer_granule_map(g_rec, SLOT_REC);
 	assert(rec != NULL);
+	g_rd = rec->realm_info.g_rd;
 
-	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	/*
+	 * Atomically increment active_rec_count only if the realm state is
+	 * ACTIVE. This is lock-free: CAS on the packed state_and_count word
+	 * ensures mutual exclusion with smc_realm_terminate()'s CAS that
+	 * transitions ACTIVE->ZOMBIE only when count==0.
+	 */
+	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
-	realm_state = get_rd_state_unlocked(rd);
-	buffer_unmap(rd);
-
-	switch (realm_state) {
-	case REALM_NEW:
-		ret = pack_return_code(RMI_ERROR_REALM, 0U);
-		goto out_unmap_buffers;
-	case REALM_ACTIVE:
-		break;
-	case REALM_SYSTEM_OFF:
-		ret = pack_return_code(RMI_ERROR_REALM, 1U);
-		goto out_unmap_buffers;
-	default:
-		assert(false);
-		break;
+	if (!rd_active_rec_count_inc_if_active(rd)) {
+		buffer_unmap(rd);
+		ret = RMI_ERROR_REALM;
+		goto out_unmap_buffers_no_count;
 	}
+
+	buffer_unmap(rd);
 
 	if (!rec->runnable) {
 		ret = RMI_ERROR_REC;
@@ -598,6 +597,16 @@ out_unmap_buffers:
 		}
 	}
 
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+	rd_active_rec_count_dec(rd);
+	buffer_unmap(rd);
+	goto out_put_rec;
+
+out_unmap_buffers_no_count:
+	buffer_unmap(rec);
+
+out_put_rec:
 	atomic_granule_put_release(g_rec);
 
 	return ret;

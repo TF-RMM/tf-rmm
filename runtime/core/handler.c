@@ -166,6 +166,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RTT_DATA_MAP_INIT,	5, 0, smc_rtt_data_map_init,	 false, false),
 	HANDLER(REALM_ACTIVATE,		1, 0, smc_realm_activate,	 true,  true),
 	HANDLER(REALM_CREATE,		2, 0, smc_realm_create,		 true,  true),
+	HANDLER(REALM_TERMINATE,	1, 0, smc_realm_terminate,	 true,  true),
 	HANDLER(REALM_DESTROY,		1, 0, smc_realm_destroy,	 true,  true),
 	HANDLER(REC_CREATE,		3, 2, smc_rec_create,		 true,  true),
 	HANDLER(REC_DESTROY,		1, 1, smc_rec_destroy,		 true,  true),

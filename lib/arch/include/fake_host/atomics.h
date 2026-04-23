@@ -160,6 +160,22 @@ static inline bool atomic_bit_set_acquire_release_64(uint64_t *loc, unsigned int
 }
 
 /*
+ * Atomic compare-and-swap with acquire and release semantics.
+ * If *loc == expected, atomically sets *loc = desired and returns true.
+ * Otherwise, returns false.
+ */
+static inline bool atomic_cas_acquire_release_64(uint64_t *loc,
+						 uint64_t expected,
+						 uint64_t desired)
+{
+	if (*loc == expected) {
+		*loc = desired;
+		return true;
+	}
+	return false;
+}
+
+/*
  * Atomically performs exclusive-OR with @val on the 16-bit value stored at memory
  * location @loc and stores the result back to memory.
  * Returns the old value.
