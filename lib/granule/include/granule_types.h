@@ -215,7 +215,14 @@
 /* VDEV - Virtual device auxiliary granule (internal) */
 #define GRANULE_STATE_VDEV_AUX		10U
 
-#define GRANULE_STATE_LAST		GRANULE_STATE_VDEV_AUX
+/*
+ * PARTIAL - This is an intermediate state which signals that the object
+ * associated with this granule is partially created/destroyed. This is
+ * due to an ongoing SRO flow.
+ */
+#define GRANULE_STATE_PARTIAL		11U
+
+#define GRANULE_STATE_LAST		GRANULE_STATE_PARTIAL
 
 /*
  * Granule descriptor bit fields:
