@@ -6,6 +6,7 @@
 #ifndef HARNESS_UTILS_H
 #define HARNESS_UTILS_H
 
+#define FUZZ_PROT_LOG(...) INFO(__VA_ARGS__)
 
 #define PACKET(packet_type, b, p) \
 struct packet_type p = { 0 }; \

@@ -8,7 +8,7 @@ import subprocess
 import click
 
 schedules = ["explore", "fast", "exploit", "seek", "rare", "mmopt", "coe", "lin", 'quad']
-corpora = ["default", "invalid", "min", "pmu", "ripas", "rtt", "rtt-fold"]
+corpora = ["default", "invalid", "min", "pmu", "ripas", "rtt", "rtt_fold"]
 
 fuzz_root = "_Fuzz"
 fuzz_out = f"{fuzz_root}/aflout"

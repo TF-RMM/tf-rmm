@@ -4,6 +4,7 @@
 
 from fuzzer_protocol import *
 
+macro_endl = "\t\\\n"
 
 def create_fuzzer_protocol_header(filename):
     commands = []
@@ -36,24 +37,26 @@ def create_fuzzer_protocol_header(filename):
                 raise Exception(f"Invalid field type: {type(field).__name__}")
 
             fields.append(f"\t{field_type} {field_name};")
-            format_strings.append(f"{field_name} = {format_str}")
-            args.append(f"p.{field_name}")
+            format_strings.append(f"\t\t\t\"{field_name} = {format_str}")
+            args.append(f"(p).{field_name}")
 
         field_list = "\n".join(fields)
         structs.append(f"struct packet_{name.lower()} {{\n{field_list}\n}} __packed;")
 
-        log_format = ", ".join(format_strings)
+        log_format = f", \"{macro_endl}".join(format_strings)
         arg_list = ", ".join(args)
         log_macros.append(
-            f'#define LOG_packet_{name.lower()}_FUNC(p) \\\n'
-            f'\tfprintf(stderr, "_FH: {cl_name}({log_format}),\\n", {arg_list}); fflush(stdout)')
+            f'#define LOG_packet_{name.lower()}_FUNC(p){macro_endl}'
+            f'\tFUZZ_PROT_LOG("[FP]: {cl_name}(\"{macro_endl}'
+            f'{log_format})\\n",{macro_endl}'
+            f'\t\t\t{arg_list});')
 
     with open(filename, "wt") as f:
-        f.write("// Generated file\n")
-        f.write("#include <stdint.h>\n")
-        f.write("#include <inttypes.h>\n")
+        f.write("/* Generated file */\n")
         f.write("#ifndef FUZZER_PROTOCOL_H_\n")
         f.write("#define FUZZER_PROTOCOL_H_\n\n")
+        f.write("#include <stdint.h>\n")
+        f.write("#include <inttypes.h>\n")
         f.write("\n".join(commands))
         f.write("\n\n")
         f.write("\n\n".join(structs))

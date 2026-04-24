@@ -410,8 +410,8 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_RTT_DATA_MAP_INIT: {
 			PACKET(packet_rtt_data_map_init, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD)
-			validate_state(_granules[packet.data_index], GRANULE_STATE_DELEGATED)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
+			validate_state(_granules[packet.data_index], GRANULE_STATE_DELEGATED);
 			host_rmi_rtt_data_map_init(
 					_granules[packet.rd_index],
 					_granules[packet.data_index],
@@ -424,7 +424,7 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_RTT_DATA_UNMAP: {
 			PACKET(packet_rtt_data_unmap, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
 			host_rmi_rtt_data_unmap(
 					_granules[packet.rd_index],
 					packet.base,
@@ -437,7 +437,7 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_RTT_DATA_MAP: {
 			PACKET(packet_rtt_data_map, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
 			host_rmi_rtt_data_map(
 					_granules[packet.rd_index],
 					packet.base,
@@ -450,7 +450,7 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_REALM_ACTIVATE: {
 			PACKET(packet_realm_activate, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
 			host_rmi_realm_activate(_granules[packet.rd_index], &res);
 			break;
 		}
@@ -458,9 +458,9 @@ int execute(unsigned char *buffer, size_t read_res)
 		case COMMAND_REALM_CREATE: {
 			/* Realm create */
 			PACKET(packet_realm_create, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_DELEGATED)
-			validate_state(_granules[packet.param_index], GRANULE_STATE_NS)
-			validate_state(_granules[packet.rtt_base_index], GRANULE_STATE_DELEGATED)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_DELEGATED);
+			validate_state(_granules[packet.param_index], GRANULE_STATE_NS);
+			validate_state(_granules[packet.rtt_base_index], GRANULE_STATE_DELEGATED);
 
 			struct rmi_realm_params *realm_params = _granules[packet.param_index];
 
@@ -497,16 +497,16 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_REALM_DESTROY: {
 			PACKET(packet_realm_destroy, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
 			host_rmi_realm_destroy(_granules[packet.rd_index], &res);
 			break;
 		}
 
 		case COMMAND_REC_CREATE: {
 			PACKET(packet_rec_create, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD)
-			validate_state(_granules[packet.rec_index], GRANULE_STATE_DELEGATED)
-			validate_state(_granules[packet.param_index], GRANULE_STATE_NS)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
+			validate_state(_granules[packet.rec_index], GRANULE_STATE_DELEGATED);
+			validate_state(_granules[packet.param_index], GRANULE_STATE_NS);
 
 			struct rmi_rec_params *rec_params = _granules[packet.param_index];
 			/*
@@ -548,7 +548,7 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_REC_DESTROY: {
 			PACKET(packet_rec_destroy, b, packet);
-			validate_state(_granules[packet.rec_index], GRANULE_STATE_REC)
+			validate_state(_granules[packet.rec_index], GRANULE_STATE_REC);
 
 			sro_cancel_if_active(&res);
 			sro_ctx_handle = 0UL;
@@ -561,8 +561,8 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_REC_ENTER: {
 			PACKET(packet_rec_enter, b, packet);
-			validate_state(_granules[packet.rec_index], GRANULE_STATE_REC)
-			validate_state(_granules[packet.run_index], GRANULE_STATE_NS)
+			validate_state(_granules[packet.rec_index], GRANULE_STATE_REC);
+			validate_state(_granules[packet.run_index], GRANULE_STATE_NS);
 
 			struct rmi_rec_run *rec_run = _granules[packet.run_index];
 			if (rec_run && granule_state_is(
@@ -577,8 +577,8 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_RTT_CREATE: {
 			PACKET(packet_rtt_create, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD)
-			validate_state(_granules[packet.rtt_index], GRANULE_STATE_DELEGATED)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
+			validate_state(_granules[packet.rtt_index], GRANULE_STATE_DELEGATED);
 			host_rmi_rtt_create(
 					_granules[packet.rd_index],
 					_granules[packet.rtt_index],
@@ -589,7 +589,7 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_RTT_DESTROY: {
 			PACKET(packet_rtt_destroy, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
 			host_rmi_rtt_destroy(
 					_granules[packet.rd_index],
 					(void *)packet.ipa,
@@ -599,7 +599,7 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_RTT_MAP_UNPROTECTED: {
 			PACKET(packet_rtt_map_unprotected, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
 			host_rmi_rtt_map_unprotected(
 					_granules[packet.rd_index],
 					packet.ipa,
@@ -610,7 +610,7 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_RTT_READ_ENTRY: {
 			PACKET(packet_rtt_read_entry, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
 			host_rmi_rtt_read_entry(
 					_granules[packet.rd_index],
 					packet.ipa,
@@ -620,7 +620,7 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_RTT_UNMAP_UNPROTECTED: {
 			PACKET(packet_rtt_unmap_unprotected, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
 			host_rmi_rtt_unmap_unprotected(
 					_granules[packet.rd_index],
 					packet.ipa,
@@ -630,8 +630,8 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_PSCI_COMPLETE: {
 			PACKET(packet_psci_complete, b, packet);
-			validate_state(_granules[packet.calling_rec], GRANULE_STATE_REC)
-			validate_state(_granules[packet.target_rec], GRANULE_STATE_REC)
+			validate_state(_granules[packet.calling_rec], GRANULE_STATE_REC);
+			validate_state(_granules[packet.target_rec], GRANULE_STATE_REC);
 			host_rmi_psci_complete(
 					_granules[packet.calling_rec],
 					_granules[packet.target_rec],
@@ -650,7 +650,7 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_RTT_FOLD: {
 			PACKET(packet_rtt_fold, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
 			host_rmi_rtt_fold(
 					_granules[packet.rd_index],
 					packet.ipa,
@@ -660,7 +660,7 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_RTT_INIT_RIPAS: {
 			PACKET(packet_rtt_init_ripas, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
 			host_rmi_rtt_init_ripas(
 					_granules[packet.rd_index],
 					packet.base, packet.top, &res);
@@ -669,8 +669,8 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_RTT_SET_RIPAS: {
 			PACKET(packet_rtt_set_ripas, b, packet);
-			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD)
-			validate_state(_granules[packet.rec_index], GRANULE_STATE_REC)
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
+			validate_state(_granules[packet.rec_index], GRANULE_STATE_REC);
 			host_rmi_rtt_set_ripas(
 					_granules[packet.rd_index],
 					_granules[packet.rec_index],
@@ -680,7 +680,7 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_RMM_CONFIG_GET: {
 			PACKET(packet_rmm_config_get, b, packet);
-			validate_state(_granules[packet.config_index], GRANULE_STATE_NS)
+			validate_state(_granules[packet.config_index], GRANULE_STATE_NS);
 			host_rmi_rmm_config_get(
 					(unsigned long)_granules[packet.config_index],
 					&res);
@@ -689,7 +689,7 @@ int execute(unsigned char *buffer, size_t read_res)
 
 		case COMMAND_RMM_CONFIG_SET: {
 			PACKET(packet_rmm_config_set, b, packet);
-			validate_state(_granules[packet.config_index], GRANULE_STATE_NS)
+			validate_state(_granules[packet.config_index], GRANULE_STATE_NS);
 			host_rmi_rmm_config_set(
 					(unsigned long)_granules[packet.config_index],
 					&res);

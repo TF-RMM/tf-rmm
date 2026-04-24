@@ -4,43 +4,51 @@
 #
 
 if (HOST_VARIANT STREQUAL "host_fuzz")
+    set(FUZZ_PROTOCOL_HEADER
+        "${CMAKE_SOURCE_DIR}/plat/host/host_fuzz/include/fuzzer_protocol.h")
+    set(FUZZ_PROTOCOL_GENERATOR
+        "${CMAKE_CURRENT_SOURCE_DIR}/python/create_fuzzer_protocol_header.py")
+    set(FUZZ_PROTOCOL_DEFINITION
+        "${CMAKE_CURRENT_SOURCE_DIR}/python/fuzzer_protocol.py")
+    set(FUZZ_CORPUS_SCRIPTS_DIR
+        "${CMAKE_CURRENT_SOURCE_DIR}/python/corpus")
+    set(FUZZ_CORPUS_DIR
+        "${CMAKE_BINARY_DIR}/smc_corpus")
+
     # Fuzz protocol header
-    add_custom_command(OUTPUT "${CMAKE_SOURCE_DIR}/plat/host/host_fuzz/include/fuzzer_protocol.h"
-            COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/python/create_fuzzer_protocol_header.py
-            ${CMAKE_SOURCE_DIR}/plat/host/host_fuzz/include/fuzzer_protocol.h
+    add_custom_command(OUTPUT "${FUZZ_PROTOCOL_HEADER}"
+            COMMAND python3 "${FUZZ_PROTOCOL_GENERATOR}" "${FUZZ_PROTOCOL_HEADER}"
+            DEPENDS "${FUZZ_PROTOCOL_GENERATOR}" "${FUZZ_PROTOCOL_DEFINITION}"
             COMMENT "Generate protocol header"
+            VERBATIM
     )
 
     add_custom_target(fuzzer-protocol ALL
-            DEPENDS "${CMAKE_SOURCE_DIR}/plat/host/host_fuzz/include/fuzzer_protocol.h"
+            DEPENDS "${FUZZ_PROTOCOL_HEADER}"
     )
 
-    #     SMC corpus
-    add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/smc_corpus"
-            COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/python/generate_default_test.py ${CMAKE_BINARY_DIR}/smc_corpus/default.bin
-            COMMENT "Generate default test as SMC corpus"
+    # Corpora
+    file(GLOB FUZZ_CORPUS_SCRIPTS CONFIGURE_DEPENDS
+        "${FUZZ_CORPUS_SCRIPTS_DIR}/*.py")
 
-            COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/python/generate_minimal_test.py ${CMAKE_BINARY_DIR}/smc_corpus/min.bin
-            COMMENT "Generate minimal test as SMC corpus"
+    set(FUZZ_CORPUS_OUTPUTS)
+    foreach(FUZZ_CORPUS_SCRIPT IN LISTS FUZZ_CORPUS_SCRIPTS)
+        get_filename_component(FUZZ_CORPUS_NAME "${FUZZ_CORPUS_SCRIPT}" NAME_WE)
+        set(FUZZ_CORPUS_OUTPUT "${FUZZ_CORPUS_DIR}/${FUZZ_CORPUS_NAME}.bin")
 
-            COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/python/generate_rtt_test.py ${CMAKE_BINARY_DIR}/smc_corpus/rtt.bin
-            COMMENT "Generate minimal rtt as SMC corpus"
+        add_custom_command(OUTPUT "${FUZZ_CORPUS_OUTPUT}"
+                COMMAND "${CMAKE_COMMAND}" -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
+                        python3 "${FUZZ_CORPUS_SCRIPT}" "${FUZZ_CORPUS_OUTPUT}"
+                DEPENDS "${FUZZ_CORPUS_SCRIPT}" "${FUZZ_PROTOCOL_DEFINITION}"
+                COMMENT "Generate ${FUZZ_CORPUS_NAME} corpus"
+                VERBATIM
+        )
 
-            COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/python/generate_rtt_fold_test.py ${CMAKE_BINARY_DIR}/smc_corpus/rtt-fold.bin
-            COMMENT "Generate minimal rtt-fold as SMC corpus"
-
-            COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/python/generate_ripas_test.py ${CMAKE_BINARY_DIR}/smc_corpus/ripas.bin
-            COMMENT "Generate ripas test as SMC corpus"
-
-            COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/python/generate_invalid_test.py ${CMAKE_BINARY_DIR}/smc_corpus/invalid.bin
-            COMMENT "Generate invalid test as SMC corpus"
-
-            COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/python/generate_pmu_test.py ${CMAKE_BINARY_DIR}/smc_corpus/pmu.bin
-            COMMENT "Generate pmu test as SMC corpus"
-    )
+        list(APPEND FUZZ_CORPUS_OUTPUTS "${FUZZ_CORPUS_OUTPUT}")
+    endforeach()
 
     add_custom_target(smc-corpus ALL
-            DEPENDS "${CMAKE_BINARY_DIR}/smc_corpus"
+            DEPENDS ${FUZZ_CORPUS_OUTPUTS}
     )
 
     add_dependencies(rmm-plat-host_fuzz smc-corpus)
@@ -48,7 +56,7 @@ if (HOST_VARIANT STREQUAL "host_fuzz")
 
     set(${FUZZ_BUILD_NAME} ENV{FUZZ_BUILD_NAME})
 
-    set(CORPUS_DIR "${CMAKE_BINARY_DIR}/smc_corpus")
+    set(CORPUS_DIR "${FUZZ_CORPUS_DIR}")
     set(FUZZ_ROOT "${CMAKE_BINARY_DIR}/../..")
     set(AFL_OUT_DIR "${FUZZ_ROOT}/aflout/${FUZZ_BUILD_NAME}")
 
