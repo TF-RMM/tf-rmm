@@ -104,5 +104,10 @@ the fake host architecture.
 1. Unit testing framework in RMM which allows testing public API of
    components and generation of code coverage data.
 
-.. |Fake Host Architecture Diagram| image:: ./diagrams/fake_host_arch.drawio.png
+2. Fuzz testing of the RMM with AFL++. The harness feeds mutated
+   sequences of RMI/RSI commands to RMM to discover crashes and
+   assertion failures. See the |Fuzz Application Note| application
+   note for details.
 
+.. |Fake Host Architecture Diagram| image:: ./diagrams/fake_host_arch.drawio.png
+.. |Fuzz Application Note| replace:: :doc:`/resources/application-notes/fuzz`

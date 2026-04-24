@@ -10,3 +10,5 @@ out
 *~
 *.patch
 *.swp
+__pycache__
+fuzzer_protocol.h

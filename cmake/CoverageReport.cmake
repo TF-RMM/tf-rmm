@@ -129,6 +129,12 @@ if(RMM_COVERAGE)
       set(HTML_REPORT --html-details ${COVERAGE_OUTPUT}.html)
   endif()
 
+  # Ignore gcov parse errors for fuzzing to avoid "suspicious hits" errors
+  # Print text summary for fuzzing ci workflow
+  if (HOST_VARIANT STREQUAL "host_fuzz")
+    set(FUZZ_OPTIONS --gcov-ignore-parse-errors --print-summary)
+  endif()
+
   #
   # Rules for coverage report generation
   #
@@ -136,7 +142,8 @@ if(RMM_COVERAGE)
                     COMMAND ${CMAKE_COMMAND} -E make_directory "${COVERAGE_DIRECTORY}"
                     COMMAND ${GCOVR_EXECUTABLE}
                             ${GCOVR_EXE_OPTION}
-                            --exclude "'((.+)ext(.+))|((.+)CMakeFiles(.+)\..)|((.+)\.cpp)|((.+)test(.+))'"
+                            ${FUZZ_OPTIONS}
+                            --exclude "'((.+)/ext/(.+))|((.+)CMakeFiles(.+)\..)|((.+)\.cpp)|((.+)test(.+))'"
                             -r ${CMAKE_SOURCE_DIR}
                             -x ${COVERAGE_OUTPUT}.xml
                             ${HTML_REPORT}

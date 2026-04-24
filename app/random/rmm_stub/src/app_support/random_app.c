@@ -170,3 +170,9 @@ struct app_data_cfg *random_app_get_data_cfg(void)
 	return & rmm_random_app_datas[cpuid];
 }
 
+void random_reset_app_state(void)
+{
+	(void)memset(random_app_init_done, 0, sizeof(random_app_init_done));
+	(void)memset(rmm_random_app_datas, 0, sizeof(rmm_random_app_datas));
+	(void)memset(rmm_random_app_pages, 0, sizeof(rmm_random_app_pages));
+}

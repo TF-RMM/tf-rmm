@@ -8,6 +8,7 @@ arm_config_option(
     HELP "Enable static analysis checkers.")
 
 add_subdirectory("cbmc")
+add_subdirectory("fuzz")
 
 #
 # Additional static checks build targets

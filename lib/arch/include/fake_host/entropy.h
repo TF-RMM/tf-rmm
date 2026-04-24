@@ -9,11 +9,16 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+extern uint64_t entropy_val;
+
+static inline void arch_reset_entropy(void)
+{
+	entropy_val = 0U;
+}
+
 static inline bool arch_collect_entropy(uint64_t *random)
 {
-	static uint64_t val;
-
-	*random = val++;
+	*random = entropy_val++;
 	return true;
 }
 

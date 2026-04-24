@@ -45,6 +45,17 @@
 void app_framework_setup(void);
 
 /*
+ * Kill all running EL0 app child processes, close their pipe file descriptors,
+ * and reset the internal process tracking state. After this call, subsequent
+ * app_new_instance() calls will fork fresh child processes.
+ *
+ * This is intended for use in fuzz harness reset() to prevent pipe protocol
+ * corruption that occurs when AFL kills a forkserver child mid-pipe-operation,
+ * leaving the long-lived app processes in an inconsistent state.
+ */
+void app_processes_cleanup(void);
+
+/*
  * Function to calculate the number of per instance granules that are used by
  * this app.
  *

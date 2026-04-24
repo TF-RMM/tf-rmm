@@ -240,6 +240,13 @@ struct sro_context *my_sro_ctx(void);
 void sro_ctx_init(uintptr_t va, size_t sz);
 
 /*
+ * ONLY FOR TEST PURPOSE.
+ * Reset all SRO context state for use between persistent-mode fuzzing
+ * iterations.  Frees per-CPU references and resets all pool contexts to FREE.
+ */
+void sro_ctx_reset(void);
+
+/*
  * Helper macro that reads the `is_contig` flag of a given sro context
  * passed by reference and returns the contig RMI flag value to be used
  * on an rmiOpMemDonateReq type.

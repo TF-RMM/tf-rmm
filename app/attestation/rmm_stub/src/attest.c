@@ -323,3 +323,10 @@ int attest_app_el3_token_write_response_to_ctx(struct app_data_cfg *app_data,
 	return ret;
 }
 #endif
+
+void attest_reset_app_state(void)
+{
+	(void)memset(attest_app_init_done, 0, sizeof(attest_app_init_done));
+	(void)memset(rmm_attest_app_datas, 0, sizeof(rmm_attest_app_datas));
+	(void)memset(rmm_attest_app_pages, 0, sizeof(rmm_attest_app_pages));
+}

@@ -301,7 +301,7 @@ The |RMM| build system supports the following CMake build options.
    MBEDTLS_ECP_MAX_OPS		,248 -			,1000			,"Number of max operations per ECC signing iteration"
    DOWNREV_CCA_TOKEN_TOP_FORMAT	,TRUE | FALSE		,FALSE			,"Enables support for the (deprecated) EAT Collection form of the CCA top level attestation token"
    RMM_FPU_USE_AT_REL2		,ON | OFF		,OFF(fake_host) ON(aarch64),"Enable FPU/SIMD usage in RMM."
-   HOST_VARIANT			,host_build | host_test | host_cbmc	,host_build	,"Variant to build for the host platform. Only available when RMM_PLATFORM=host"
+   HOST_VARIANT			,host_build | host_test | host_cbmc | host_fuzz ,host_build	,"Variant to build for the host platform. Only available when RMM_PLATFORM=host"
    HOST_DRAM_SIZE		,			,0x20000000		,"Host memory size that will be used as physical DRAM"
    HOST_NCOH_DEV_SIZE		,			,0xA000			,"Host memory size that will be used as non-coherent device granules"
    RMM_COVERAGE 		,ON | OFF		,OFF			,"Enable coverage analysis"
