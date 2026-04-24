@@ -27,9 +27,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-/* LLVM/GCC gcov runtime: flush .gcda files and reset counters */
+/* LLVM/GCC gcov runtime: flush .gcda files */
 extern void __gcov_dump(void);
-extern void __gcov_reset(void);
 
 /* Create a simple 4 level (Lvl 0 - LvL 3) RTT structure */
 #define RTT_COUNT 4
@@ -893,15 +892,6 @@ int main(int argc, char *argv[])
 			continue;
 		}
 		execute(buffer, len);
-
-		/*
-		 * Flush coverage for this iteration, then reset counters
-		 * so the next dump writes only new data. Without reset,
-		 * accumulated counters would overwrite the init coverage
-		 * persisted above.
-		 */
-		__gcov_dump();
-		__gcov_reset();
 	}
 
 #else
