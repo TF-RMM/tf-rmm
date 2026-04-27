@@ -173,7 +173,7 @@ void report_timer_state_to_ns(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 		if (phys_report == REPORT_P0) {
 			cntp_cval = p0_cntp_cval;
-			cntp_ctl = p0_cntp_cval;
+			cntp_ctl = p0_cntp_ctl;
 		}
 	}
 
