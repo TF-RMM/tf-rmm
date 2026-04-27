@@ -115,6 +115,7 @@ enum rmi_type {
 	set_rmi_type(4, 2),	/* 4 arguments, 2 output values */
 	set_rmi_type(5, 1),	/* 5 arguments, 1 output value */
 	set_rmi_type(5, 3),	/* 5 arguments, 3 output values */
+	set_rmi_type(5, 4),	/* 5 arguments, 4 output values */
 	set_rmi_type(6, 1)	/* 6 arguments, 1 output values */
 };
 
@@ -139,6 +140,7 @@ struct smc_handler {
 		handler_4_o	f_42;
 		handler_5_o	f_51;
 		handler_5_o	f_53;
+		handler_5_o	f_54;
 		handler_6_o	f_61;
 		void		*fn_dummy;
 	};
@@ -175,8 +177,8 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RTT_DESTROY,		3, 2, smc_rtt_destroy,		 false, true),
 	HANDLER(RTT_UNPROT_MAP,		5, 1, smc_rtt_unprot_map,	 false, true),
 	HANDLER(RTT_READ_ENTRY,		3, 4, smc_rtt_read_entry,	 false, true),
-	HANDLER(RTT_UNMAP_UNPROTECTED,	3, 1, smc_rtt_unmap_unprotected, false, false),
 	HANDLER(RTT_DEV_VALIDATE,	4, 1, smc_rtt_dev_validate,	 false, true),
+	HANDLER(RTT_UNPROT_UNMAP,	5, 4, smc_rtt_unprot_unmap,	 false, true),
 	HANDLER(PSCI_COMPLETE,		3, 0, smc_psci_complete,	 true,  true),
 	HANDLER(FEATURES,		1, 1, smc_read_feature_register, false,  true),
 	HANDLER(RTT_FOLD,		3, 1, smc_rtt_fold,		 false, false),
@@ -309,7 +311,7 @@ static void rmi_log_on_exit(unsigned int handler_id,
 		    (rc.status == RMI_INCOMPLETE) ||
 		   ((rc.status == RMI_ERROR_RTT) &&
 		   ((function_id == SMC_RMI_RTT_DESTROY)  ||
-		    (function_id == SMC_RMI_RTT_UNMAP_UNPROTECTED)))) {
+		    (function_id == SMC_RMI_RTT_UNPROT_UNMAP)))) {
 			/* Print output values */
 			num = ((unsigned int)handler->type >> 8) & 0xFFU;
 			assert(num <= MAX_NUM_OUTPUT_VALS);
@@ -465,6 +467,9 @@ void handle_ns_smc(unsigned int function_id,
 		break;
 	case rmi_type_53:
 		handler->f_53(arg0, arg1, arg2, arg3, arg4, res);
+		break;
+	case rmi_type_54:
+		handler->f_54(arg0, arg1, arg2, arg3, arg4, res);
 		break;
 	case rmi_type_61:
 		handler->f_61(arg0, arg1, arg2, arg3, arg4, arg5, res);

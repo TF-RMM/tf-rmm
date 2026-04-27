@@ -190,15 +190,20 @@ void host_rmi_rtt_read_entry(void *rd, uintptr_t ipa, uintptr_t level, struct sm
 		      0, res);
 }
 
-void host_rmi_rtt_unmap_unprotected(void *rd, uintptr_t ipa, uintptr_t level,
-				    struct smc_result *res)
+void host_rmi_rtt_unmap_unprotected(void *rd,
+			unsigned long base,
+			unsigned long top,
+			unsigned long flags,
+			unsigned long oaddr,
+			struct smc_result *res)
 {
-	handle_ns_smc(SMC_RMI_RTT_UNMAP_UNPROTECTED,
+	handle_ns_smc(SMC_RMI_RTT_UNPROT_UNMAP,
 		      (uintptr_t)rd,
-		      ipa,
-		      level,
-		      0, 0, 0,
-		      0, res);
+		      base,
+		      top,
+		      flags,
+		      oaddr,
+		      0, 0, res);
 }
 
 void host_rmi_rtt_data_unmap(void *rd, uintptr_t base, uintptr_t top,

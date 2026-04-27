@@ -25,6 +25,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <xlat_defs.h>
+#include <xlat_tables.h>
 
 typedef void (*tlb_handler_t)(const struct s2tt_context *s2tt_ctx,
 			      bool da_enabled, unsigned int vmid,
@@ -1039,157 +1040,13 @@ void smc_rtt_aux_destroy(unsigned long rd_addr,
 	rtt_destroy(rd_addr, map_addr, ulevel, index, true, res);
 }
 
-enum map_unmap_ns_op {
-	MAP_NS,
-	UNMAP_NS
-};
-
 /*
  * We don't hold a reference on the NS granule when it is
  * mapped into a realm. Instead we rely on the guarantees
  * provided by the architecture to ensure that a NS access
  * to a protected granule is prohibited even within the realm.
  */
-static void map_unmap_ns(unsigned long rd_addr,
-			  unsigned long map_addr,
-			  long level,
-			  unsigned long pa,
-			  unsigned long memattr,
-			  unsigned long s2ap,
-			  enum map_unmap_ns_op op,
-			  struct smc_result *res)
-{
-	struct granule *g_rd;
-	struct rd *rd;
-	unsigned long *s2tt, s2tte;
-	struct s2tt_walk wi;
-	struct s2tt_context *s2_ctx;
-	unsigned long host_s2tte = 0UL;
-
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	rd = buffer_granule_map(g_rd, SLOT_RD);
-	assert(rd != NULL);
-
-	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
-
-	if (!validate_rtt_map_cmds(map_addr, level, rd)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		goto out_unmap_rd;
-	}
-
-	if (op == MAP_NS) {
-		/* Construct host_s2tte with PA and memattr */
-		host_s2tte = pa_to_s2tte(s2_ctx, pa) | INPLACE(S2TTE_MEMATTR, memattr);
-
-		/* Add AP based on direct or indirect encoding */
-		if (s2_ctx->indirect_s2ap) {
-			/* For indirect encoding, s2ap is the PI_INDEX value */
-			host_s2tte = s2tte_set_pi_index(s2_ctx, host_s2tte, s2ap);
-		} else {
-			/* For direct encoding, encode s2ap bits as R/W permissions */
-			if ((s2ap & MASK(RMI_S2AP_DIRECT_READ)) != 0UL) {
-				host_s2tte |= INPLACE(S2TTE_PERM_R, 1UL);
-			}
-			if ((s2ap & MASK(RMI_S2AP_DIRECT_WRITE)) != 0UL) {
-				host_s2tte |= INPLACE(S2TTE_PERM_W, 1UL);
-			}
-		}
-		if (!host_ns_s2tte_is_valid(s2_ctx, host_s2tte, level)) {
-			res->x[0] = RMI_ERROR_INPUT;
-			goto out_unmap_rd;
-		}
-	}
-
-	/* Check if map_addr is outside PAR */
-	if (addr_in_par(rd, map_addr)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		goto out_unmap_rd;
-	}
-
-	/* Validate that the base permission indirection is within range */
-	if (s2_ctx->indirect_s2ap &&
-	    (s2tte_get_pi_index(s2_ctx, host_s2tte) >
-				(unsigned long)S2AP_IND_BASE_PERM_IDX_RW)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		goto out_unmap_rd;
-	}
-
-	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
-
-	s2tt_walk_lock_unlock(s2_ctx, map_addr, level, &wi);
-
-	/*
-	 * For UNMAP_NS, we need to map the table and look
-	 * for the end of the non-live region.
-	 */
-	if ((op == MAP_NS) && (wi.last_level != level)) {
-		res->x[0] = pack_return_code(RMI_ERROR_RTT,
-						(unsigned char)wi.last_level);
-		goto out_unlock_llt;
-	}
-
-	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
-	assert(s2tt != NULL);
-
-	s2tte = s2tte_read(&s2tt[wi.index]);
-
-	if (op == MAP_NS) {
-		if (!s2tte_is_unassigned_ns(s2_ctx, s2tte)) {
-			res->x[0] = pack_return_code(RMI_ERROR_RTT,
-						(unsigned char)level);
-			goto out_unmap_table;
-		}
-
-		s2tte = s2tte_create_assigned_ns(s2_ctx, host_s2tte,
-						 level, 0UL);
-		s2tte_write(&s2tt[wi.index], s2tte);
-
-	} else if (op == UNMAP_NS) {
-		/*
-		 * The following check also verifies that map_addr is outside
-		 * PAR, as valid_NS s2tte may only cover outside PAR IPA range.
-		 */
-		bool assigned_ns = s2tte_is_assigned_ns(s2_ctx, s2tte,
-							wi.last_level);
-
-		if ((wi.last_level != level) || !assigned_ns) {
-			res->x[0] = pack_return_code(RMI_ERROR_RTT,
-						(unsigned char)wi.last_level);
-			goto out_unmap_table;
-		}
-
-		s2tte = s2tte_create_unassigned_ns(s2_ctx, UNUSED_UL);
-		s2tte_write(&s2tt[wi.index], s2tte);
-
-		if (s2_ctx->indirect_s2ap) {
-			/* Invalidate TLBs for all Plane VMIDs */
-			invalidate_page_block_per_vmids(rd, map_addr, level);
-		} else {
-			invalidate_page_block(s2_ctx, rd->da_enabled, s2_ctx->vmid,
-						map_addr, level);
-		}
-	}
-
-	res->x[0] = RMI_SUCCESS;
-
-out_unmap_table:
-	if (op == UNMAP_NS) {
-		res->x[1] = s2tt_skip_non_live_entries(s2_ctx, map_addr,
-						       s2tt, &wi);
-	}
-	buffer_unmap(s2tt);
-out_unlock_llt:
-	granule_unlock(wi.g_llt);
-out_unmap_rd:
-	buffer_unmap(rd);
-	granule_unlock(g_rd);
-}
-
+/* @TODO Enhance implementation later */
 void smc_rtt_unprot_map(unsigned long rd_addr,
 			unsigned long base,
 			unsigned long top,
@@ -1200,6 +1057,12 @@ void smc_rtt_unprot_map(unsigned long rd_addr,
 	unsigned long oaddr_type, memattr, s2ap, pa, sz_enc;
 	long level;
 	unsigned long map_size;
+	struct granule *g_rd;
+	struct rd *rd;
+	unsigned long *s2tt, s2tte;
+	struct s2tt_walk wi;
+	struct s2tt_context *s2_ctx;
+	unsigned long host_s2tte = 0UL;
 
 	/* Extract flags fields */
 	oaddr_type = EXTRACT(RMI_RTT_UNPROT_MAP_FLAGS_OADDR_TYPE, flags);
@@ -1233,24 +1096,205 @@ void smc_rtt_unprot_map(unsigned long rd_addr,
 		return;
 	}
 
-	/*
-	 * Map the unprotected IPA range using host_s2tte with specified attributes
-	 */
-	map_unmap_ns(rd_addr, base, level, pa, memattr, s2ap, MAP_NS, res);
-
-	if (res->x[0] == RMI_SUCCESS) {
-		res->x[1] = base + map_size;
+	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
+	if (g_rd == NULL) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
+
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
+
+	if (!validate_rtt_map_cmds(base, level, rd)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		goto out_unmap_rd;
+	}
+
+	/* Construct host_s2tte with PA and memattr */
+	host_s2tte = pa_to_s2tte(s2_ctx, pa) | INPLACE(S2TTE_MEMATTR, memattr);
+
+	/* Add AP based on direct or indirect encoding */
+	if (s2_ctx->indirect_s2ap) {
+		/* For indirect encoding, s2ap is the PI_INDEX value */
+		host_s2tte = s2tte_set_pi_index(s2_ctx, host_s2tte, s2ap);
+	} else {
+		/* For direct encoding, encode s2ap bits as R/W permissions */
+		if ((s2ap & MASK(RMI_S2AP_DIRECT_READ)) != 0UL) {
+			host_s2tte |= INPLACE(S2TTE_PERM_R, 1UL);
+		}
+		if ((s2ap & MASK(RMI_S2AP_DIRECT_WRITE)) != 0UL) {
+			host_s2tte |= INPLACE(S2TTE_PERM_W, 1UL);
+		}
+	}
+
+	if (!host_ns_s2tte_is_valid(s2_ctx, host_s2tte, level)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		goto out_unmap_rd;
+	}
+
+	/* Check if base is outside PAR */
+	if (addr_in_par(rd, base)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		goto out_unmap_rd;
+	}
+
+	/* Validate that the base permission indirection is within range */
+	if (s2_ctx->indirect_s2ap &&
+	    (s2tte_get_pi_index(s2_ctx, host_s2tte) >
+				(unsigned long)S2AP_IND_BASE_PERM_IDX_RW)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		goto out_unmap_rd;
+	}
+
+	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
+
+	s2tt_walk_lock_unlock(s2_ctx, base, level, &wi);
+
+	if (wi.last_level != level) {
+		res->x[0] = pack_return_code(RMI_ERROR_RTT,
+						(unsigned char)wi.last_level);
+		goto out_unlock_llt;
+	}
+
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
+	assert(s2tt != NULL);
+
+	s2tte = s2tte_read(&s2tt[wi.index]);
+
+	if (!s2tte_is_unassigned_ns(s2_ctx, s2tte)) {
+		res->x[0] = pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
+		goto out_unmap_table;
+	}
+
+	s2tte = s2tte_create_assigned_ns(s2_ctx, host_s2tte, level, 0UL);
+	s2tte_write(&s2tt[wi.index], s2tte);
+
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = base + map_size;
+
+out_unmap_table:
+	buffer_unmap(s2tt);
+out_unlock_llt:
+	granule_unlock(wi.g_llt);
+out_unmap_rd:
+	buffer_unmap(rd);
+	granule_unlock(g_rd);
 }
 
-void smc_rtt_unmap_unprotected(unsigned long rd_addr,
-				unsigned long map_addr,
-				unsigned long ulevel,
-				struct smc_result *res)
+/*
+ * We don't hold a reference on the NS granule when it is
+ * mapped into a realm. Instead we rely on the guarantees
+ * provided by the architecture to ensure that a NS access
+ * to a protected granule is prohibited even within the realm.
+ */
+/* @TODO Enhance implementation later */
+void smc_rtt_unprot_unmap(unsigned long rd_addr,
+			unsigned long base,
+			unsigned long top,
+			unsigned long flags,
+			unsigned long oaddr,
+			struct smc_result *res)
 {
-	long level = (long)ulevel;
+	unsigned long oaddr_type = EXTRACT(RMI_RTT_UNMAP_FLAGS_OADDR_TYPE, flags);
+	struct granule *g_rd;
+	struct rd *rd;
+	unsigned long *s2tt, s2tte;
+	struct s2tt_walk wi;
+	struct s2tt_context *s2_ctx;
+	bool assigned_ns;
 
-	map_unmap_ns(rd_addr, map_addr, level, 0UL, 0UL, 0UL, UNMAP_NS, res);
+	res->x[0] = RMI_ERROR_INPUT;
+
+	if ((top < base) ||
+			!GRANULE_ALIGNED(base) ||
+			!GRANULE_ALIGNED(top) ||
+			((top - base) < GRANULE_SIZE)) {
+		return;
+	}
+
+	if ((oaddr_type != RMI_ADDR_TYPE_SINGLE) &&
+		(oaddr_type != RMI_ADDR_TYPE_NONE)) {
+		return;
+	}
+
+	/* If flags.oaddr_type == RMI_ADDR_TYPE_SINGLE then oaddr SBZ. */
+	if (oaddr != 0UL) {
+		return;
+	}
+
+	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
+	if (g_rd == NULL) {
+		return;
+	}
+
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
+
+	/* Check if base is outside PAR */
+	if (addr_in_par(rd, base)) {
+		goto out_unmap_rd;
+	}
+
+	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
+
+	s2tt_walk_lock_unlock(s2_ctx, base, S2TT_PAGE_LEVEL, &wi);
+
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
+	assert(s2tt != NULL);
+
+	s2tte = s2tte_read(&s2tt[wi.index]);
+
+	if (((top - base) < s2tte_map_size((int)wi.last_level)) ||
+			!validate_map_addr(base, wi.last_level, rd)) {
+		res->x[0] = pack_return_code(RMI_ERROR_RTT,
+					(unsigned char)wi.last_level);
+		goto out_unmap_table;
+	}
+
+	/*
+	 * The following check also verifies that base is outside
+	 * PAR, as valid_NS s2tte may only cover outside PAR IPA range.
+	 * Unmaps IPA from last level.
+	 */
+	assigned_ns = s2tte_is_assigned_ns(s2_ctx, s2tte, wi.last_level);
+
+	if (assigned_ns) {
+		unsigned long old_s2tte = s2tte;
+
+		s2tte = s2tte_create_unassigned_ns(s2_ctx, UNUSED_UL);
+		s2tte_write(&s2tt[wi.index], s2tte);
+
+		if (s2_ctx->indirect_s2ap) {
+			/* Invalidate TLBs for all Plane VMIDs */
+			invalidate_page_block_per_vmids(rd, base, wi.last_level);
+		} else {
+			invalidate_page_block(s2_ctx, rd->da_enabled, s2_ctx->vmid,
+					base, wi.last_level);
+		}
+
+		/* Return unmapped PA as RmiAddrRangeDesc4KB desc */
+		if (oaddr_type == RMI_ADDR_TYPE_SINGLE) {
+			res->x[2] = s2tte_to_pa(s2_ctx, old_s2tte, wi.last_level) |
+				INPLACE(RMI_ADDR_RDESC_4K_CNT, 0x1UL);
+		}
+	}
+
+	res->x[0] = RMI_SUCCESS;
+	res->x[3] = 0UL;
+
+out_unmap_table:
+	if (res->x[0] == RMI_SUCCESS) {
+		res->x[1] = MIN(top, s2tt_skip_non_live_entries(s2_ctx, base, s2tt, &wi));
+	}
+	buffer_unmap(s2tt);
+	granule_unlock(wi.g_llt);
+out_unmap_rd:
+	buffer_unmap(rd);
+	granule_unlock(g_rd);
 }
 
 void smc_rtt_read_entry(unsigned long rd_addr,
