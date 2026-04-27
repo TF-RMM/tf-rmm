@@ -463,20 +463,6 @@
 #define SMC_RMI_RTT_DESTROY			SMC64_RMI_FID(U(0xE))
 
 /*
- * FID: 0xC400015F
- *
- * arg0 == RD address
- * arg1 == map address
- * arg2 == level
- * arg3 == s2tte
- */
-#define SMC_RMI_RTT_MAP_UNPROTECTED		SMC64_RMI_FID(U(0xF))
-
-/*
- * FID: 0xC4000160 is not used.
- */
-
-/*
  * FID: 0xC4000161
  *
  * arg0 == RD address
@@ -1051,6 +1037,19 @@
 #define SMC_RMI_RTT_DEV_UNMAP			SMC64_RMI_FID(U(0xA8))
 
 /*
+ * FID: 0xC40001FB
+ *
+ * arg0 == RD address
+ * arg1 == Base of target IPA range
+ * arg2 == Top of target IPA range
+ * arg3 == RmiRttUnprotMapFlags
+ * arg4 == Output address set descriptor
+ *
+ * ret1 == Next IPA to process
+ */
+#define SMC_RMI_RTT_UNPROT_MAP			SMC64_RMI_FID(U(0xAB))
+
+/*
  * FID: 0xC4000202
  *
  * Activate the RMM.
@@ -1286,6 +1285,26 @@ enum rmm_state {
 #define RMI_ADDR_TYPE_NONE		UL(0)
 #define RMI_ADDR_TYPE_SINGLE		UL(1)
 #define RMI_ADDR_TYPE_LIST		UL(2)
+
+/* RmiRttUnprotMapFlags - Flags for RTT_UNPROT_MAP command */
+#define RMI_RTT_UNPROT_MAP_FLAGS_OADDR_TYPE_WIDTH	UL(2)
+#define RMI_RTT_UNPROT_MAP_FLAGS_OADDR_TYPE_SHIFT	UL(0)
+
+#define RMI_RTT_UNPROT_MAP_FLAGS_LIST_COUNT_WIDTH	UL(14)
+#define RMI_RTT_UNPROT_MAP_FLAGS_LIST_COUNT_SHIFT	UL(2)
+
+#define RMI_RTT_UNPROT_MAP_FLAGS_MEMATTR_WIDTH		UL(3)
+#define RMI_RTT_UNPROT_MAP_FLAGS_MEMATTR_SHIFT		UL(16)
+
+#define RMI_RTT_UNPROT_MAP_FLAGS_S2AP_WIDTH		UL(4)
+#define RMI_RTT_UNPROT_MAP_FLAGS_S2AP_SHIFT		UL(19)
+
+/* S2AP Direct Encoding bits (when indirect_s2ap is false) */
+#define RMI_S2AP_DIRECT_WRITE_WIDTH		UL(1)
+#define RMI_S2AP_DIRECT_WRITE_SHIFT		UL(0)
+
+#define RMI_S2AP_DIRECT_READ_WIDTH		UL(1)
+#define RMI_S2AP_DIRECT_READ_SHIFT		UL(1)
 
 /*
  * The RmiRmmConfig parameters shared with the Host via

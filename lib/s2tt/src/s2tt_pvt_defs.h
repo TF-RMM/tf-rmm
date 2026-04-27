@@ -111,8 +111,6 @@
  * The following constants for the mapping attributes (S2_TTE_MEMATTR_*)
  * assume that HCR_EL2.FWB is set.
  */
-#define S2TTE_MEMATTR_SHIFT		2
-#define S2TTE_MEMATTR_MASK		(0x7UL << S2TTE_MEMATTR_SHIFT)
 #define S2TTE_MEMATTR_FWB_NC		((1UL << 4) | (1UL << 2))
 #define S2TTE_MEMATTR_FWB_NORMAL_WB	((1UL << 4) | (2UL << 2))
 #define S2TTE_MEMATTR_DEV_COH		((1UL << 4) | (3UL << 2))
@@ -130,7 +128,7 @@
  * and they are not part of the S2TTE.
  */
 #define S2TTE_ATTRS_LPA2	(S2TTE_MEMATTR_FWB_NORMAL_WB | S2TTE_AF)
-#define S2TTE_ATTRS_LPA2_MASK	(S2TTE_MEMATTR_MASK | S2TTE_AF)
+#define S2TTE_ATTRS_LPA2_MASK	(MASK(S2TTE_MEMATTR) | S2TTE_AF)
 #define S2TTE_ATTRS		(S2TTE_ATTRS_LPA2 | S2TTE_SH_IS)
 #define S2TTE_ATTRS_MASK	(S2TTE_ATTRS_LPA2_MASK | S2TTE_SH_MASK)
 
@@ -141,7 +139,7 @@
 #define S2TTE_DEV_NCOH_ATTRS	(S2TTE_DEV_ATTRS | S2TTE_MEMATTR_FWB_NC)
 
 /* NS attributes controlled by the host */
-#define S2TTE_NS_ATTR_MASK	(S2TTE_MEMATTR_MASK)
+#define S2TTE_NS_ATTR_MASK	MASK(S2TTE_MEMATTR)
 
 /*
  * Additional NS attributes set by RMM.
@@ -168,16 +166,6 @@
 					S2TT_MIN_STARTING_LEVEL + 1)
 #define NR_RTT_LEVELS_LPA2	(S2TT_PAGE_LEVEL -		\
 					S2TT_MIN_STARTING_LEVEL_LPA2 + 1)
-
-/*
- * Access permission bits.
- */
-#define S2TTE_PERM_R_SHIFT		6UL
-#define S2TTE_PERM_R_WIDTH		1UL
-#define S2TTE_PERM_W_SHIFT		7UL
-#define S2TTE_PERM_W_WIDTH		1UL
-#define S2TTE_PERM_XN_SHIFT		53UL
-#define S2TTE_PERM_XN_WIDTH		2UL
 
 #define S2TTE_RW_AP_MASK		(MASK(S2TTE_PERM_R) | MASK(S2TTE_PERM_W))
 #define S2TTE_PERM_MASK			(S2TTE_RW_AP_MASK | MASK(S2TTE_PERM_XN))

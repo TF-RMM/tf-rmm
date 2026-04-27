@@ -180,17 +180,6 @@ void host_rmi_rtt_aux_destroy(void *rd, void *ipa, unsigned int level,
 		0, res);
 }
 
-void host_rmi_rtt_map_unprotected(void *rd, uintptr_t ipa, uintptr_t level,
-				  uintptr_t desc, struct smc_result *res)
-{
-	handle_ns_smc(SMC_RMI_RTT_MAP_UNPROTECTED,
-		      (uintptr_t)rd,
-		      ipa,
-		      level,
-		      desc, 0, 0,
-		      0, res);
-}
-
 void host_rmi_rtt_read_entry(void *rd, uintptr_t ipa, uintptr_t level, struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMI_RTT_READ_ENTRY,
@@ -232,6 +221,21 @@ void host_rmi_rtt_data_map(void *rd, uintptr_t base, uintptr_t top,
 			   struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMI_RTT_DATA_MAP,
+		      (uintptr_t)rd,
+		      base,
+		      top,
+		      flags,
+		      oaddr,
+		      0,
+		      0,
+		      res);
+}
+
+void host_rmi_rtt_unprot_map(void *rd, uintptr_t base, uintptr_t top,
+		     unsigned long flags, uintptr_t oaddr,
+		     struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_RTT_UNPROT_MAP,
 		      (uintptr_t)rd,
 		      base,
 		      top,

@@ -37,9 +37,6 @@ void host_rmi_rec_enter(void *rec, void *run_ptr, struct smc_result *res);
 void host_rmi_rtt_create(void *rd, void *rtt, void *ipa,
 		unsigned int level, struct smc_result *res);
 void host_rmi_rtt_destroy(void *rd, void *ipa, unsigned int level, struct smc_result *res);
-void host_rmi_rtt_map_unprotected(void *rd, uintptr_t ipa, uintptr_t level,
-		uintptr_t desc, struct smc_result *res);
-
 void host_rmi_rtt_read_entry(void *rd, uintptr_t ipa, uintptr_t level, struct smc_result *res);
 void host_rmi_rtt_unmap_unprotected(void *rd, uintptr_t ipa, uintptr_t level,
 		struct smc_result *res);
@@ -47,6 +44,8 @@ void host_rmi_rtt_data_unmap(void *rd, uintptr_t base, uintptr_t top,
 		unsigned long flags, uintptr_t oaddr, struct smc_result *res);
 void host_rmi_rtt_data_map(void *rd, uintptr_t base, uintptr_t top,
 		unsigned long flags, uintptr_t oaddr, struct smc_result *res);
+void host_rmi_rtt_unprot_map(void *rd, uintptr_t base, uintptr_t top,
+		     unsigned long flags, uintptr_t oaddr, struct smc_result *res);
 
 void host_rmi_psci_complete(void *calling_rec, void *target_rec, uintptr_t status,
 		struct smc_result *res);

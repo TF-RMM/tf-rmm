@@ -4,6 +4,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <addr_list.h>
 #include <assert.h>
 #include <buffer.h>
 #include <debug.h>
@@ -1052,7 +1053,9 @@ enum map_unmap_ns_op {
 static void map_unmap_ns(unsigned long rd_addr,
 			  unsigned long map_addr,
 			  long level,
-			  unsigned long host_s2tte,
+			  unsigned long pa,
+			  unsigned long memattr,
+			  unsigned long s2ap,
 			  enum map_unmap_ns_op op,
 			  struct smc_result *res)
 {
@@ -1061,6 +1064,7 @@ static void map_unmap_ns(unsigned long rd_addr,
 	unsigned long *s2tt, s2tte;
 	struct s2tt_walk wi;
 	struct s2tt_context *s2_ctx;
+	unsigned long host_s2tte = 0UL;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
@@ -1078,10 +1082,27 @@ static void map_unmap_ns(unsigned long rd_addr,
 		goto out_unmap_rd;
 	}
 
-	if ((op == MAP_NS) &&
-	    (!host_ns_s2tte_is_valid(s2_ctx, host_s2tte, level))) {
-		res->x[0] = RMI_ERROR_INPUT;
-		goto out_unmap_rd;
+	if (op == MAP_NS) {
+		/* Construct host_s2tte with PA and memattr */
+		host_s2tte = pa_to_s2tte(s2_ctx, pa) | INPLACE(S2TTE_MEMATTR, memattr);
+
+		/* Add AP based on direct or indirect encoding */
+		if (s2_ctx->indirect_s2ap) {
+			/* For indirect encoding, s2ap is the PI_INDEX value */
+			host_s2tte = s2tte_set_pi_index(s2_ctx, host_s2tte, s2ap);
+		} else {
+			/* For direct encoding, encode s2ap bits as R/W permissions */
+			if ((s2ap & MASK(RMI_S2AP_DIRECT_READ)) != 0UL) {
+				host_s2tte |= INPLACE(S2TTE_PERM_R, 1UL);
+			}
+			if ((s2ap & MASK(RMI_S2AP_DIRECT_WRITE)) != 0UL) {
+				host_s2tte |= INPLACE(S2TTE_PERM_W, 1UL);
+			}
+		}
+		if (!host_ns_s2tte_is_valid(s2_ctx, host_s2tte, level)) {
+			res->x[0] = RMI_ERROR_INPUT;
+			goto out_unmap_rd;
+		}
 	}
 
 	/* Check if map_addr is outside PAR */
@@ -1169,18 +1190,57 @@ out_unmap_rd:
 	granule_unlock(g_rd);
 }
 
-unsigned long smc_rtt_map_unprotected(unsigned long rd_addr,
-				      unsigned long map_addr,
-				      unsigned long ulevel,
-				      unsigned long s2tte)
+void smc_rtt_unprot_map(unsigned long rd_addr,
+			unsigned long base,
+			unsigned long top,
+			unsigned long flags,
+			unsigned long oaddr,
+			struct smc_result *res)
 {
-	long level = (long)ulevel;
-	struct smc_result res;
+	unsigned long oaddr_type, memattr, s2ap, pa, sz_enc;
+	long level;
+	unsigned long map_size;
 
-	(void)memset(&res, 0, sizeof(struct smc_result));
-	map_unmap_ns(rd_addr, map_addr, level, s2tte, MAP_NS, &res);
+	/* Extract flags fields */
+	oaddr_type = EXTRACT(RMI_RTT_UNPROT_MAP_FLAGS_OADDR_TYPE, flags);
+	memattr = EXTRACT(RMI_RTT_UNPROT_MAP_FLAGS_MEMATTR, flags);
+	s2ap = EXTRACT(RMI_RTT_UNPROT_MAP_FLAGS_S2AP, flags);
 
-	return res.x[0];
+	/* Only support RMI_ADDR_TYPE_SINGLE */
+	if (oaddr_type != RMI_ADDR_TYPE_SINGLE) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	if (top < base) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	/* Extract oaddr descriptor fields (SINGLE type: address range descriptor) */
+	sz_enc = EXTRACT(RMI_ADDR_RDESC_4K_SZ, oaddr);
+	pa = (EXTRACT(RMI_ADDR_RDESC_4K_ADDR, oaddr) << OA_SHIFT);
+
+	/* Decode RmiAddrBlockSize to RTT level. */
+	level = XLAT_LVL_FROM_ADR_LIST_SZ(sz_enc);
+
+	/* Decode descriptor block size. */
+	map_size = addr_list_sz_to_xlat_blk_sz(sz_enc);
+
+	/* Descriptor-sized block must fit in requested range. */
+	if ((top - base) < map_size) {
+		res->x[0] = pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
+		return;
+	}
+
+	/*
+	 * Map the unprotected IPA range using host_s2tte with specified attributes
+	 */
+	map_unmap_ns(rd_addr, base, level, pa, memattr, s2ap, MAP_NS, res);
+
+	if (res->x[0] == RMI_SUCCESS) {
+		res->x[1] = base + map_size;
+	}
 }
 
 void smc_rtt_unmap_unprotected(unsigned long rd_addr,
@@ -1190,7 +1250,7 @@ void smc_rtt_unmap_unprotected(unsigned long rd_addr,
 {
 	long level = (long)ulevel;
 
-	map_unmap_ns(rd_addr, map_addr, level, 0UL, UNMAP_NS, res);
+	map_unmap_ns(rd_addr, map_addr, level, 0UL, 0UL, 0UL, UNMAP_NS, res);
 }
 
 void smc_rtt_read_entry(unsigned long rd_addr,
@@ -1677,7 +1737,10 @@ void smc_rtt_data_map(unsigned long rd_addr,
 	ret = smc_data_create_unknown(rd_addr, data_addr, base);
 
 	res->x[0] = ret;
-	res->x[1] = base + GRANULE_SIZE;
+
+	if (ret == RMI_SUCCESS) {
+		res->x[1] = base + GRANULE_SIZE;
+	}
 }
 
 unsigned long smc_rtt_data_map_init(unsigned long rd_addr,
