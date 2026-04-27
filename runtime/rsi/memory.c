@@ -121,7 +121,7 @@ static bool validate_cookie(struct rec *rec, unsigned long *cookie,
 	}
 
 	if (!rtt_tree_pp || (GET_RTT_BASE_FROM_COOKIE(*cookie) != base) ||
-	    (GET_RTT_IDX_FROM_COOKIE(*cookie) > rec_num_planes(rec))) {
+	    (GET_RTT_IDX_FROM_COOKIE(*cookie) >= rec_num_planes(rec))) {
 		return false;
 	}
 
