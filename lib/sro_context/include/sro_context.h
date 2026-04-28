@@ -9,6 +9,7 @@
 #include <addr_list.h>
 #include <smc-rmi.h>
 #include <smc.h>
+#include <sro_aux.h>
 #include <xlat_defs.h>
 
 /*
@@ -30,9 +31,6 @@
  * Note that the library is agnostic to the actual content of the objects as
  * the content is very specific to each command (or, to a family of commands).
  */
-
-/* Prototype of the handles to use for SRO operations */
-typedef void (*sro_handle_cb)(unsigned long fid, struct smc_result *res);
 
 /*
  * As the SRO contexts may remain allocated when RMI handler exits
@@ -64,25 +62,9 @@ typedef void (*sro_handle_cb)(unsigned long fid, struct smc_result *res);
  * Data structure with the information to continue a REC related operation.
  */
 struct sro_rec_ctx {
-	/* Index of the callback to invoke */
-	unsigned int cb_id;
-
 	/* Parameters for REC creation */
 	unsigned long rd_addr;
-	unsigned long rec_addr;
 	unsigned long rec_params_addr;
-
-	/* Error condition in case REC_CREATE fails */
-	unsigned long ret_err;
-
-	/* List of PAs for the auxiliary granules donated by the host */
-	uintptr_t aux_granules_pa[MAX_REC_AUX_GRANULES];
-
-	/* Number of granules requested */
-	unsigned long requested_aux_granules;
-
-	/* Number of granules donated or reclaimed so far */
-	unsigned long total_transferred;
 };
 
 /*
@@ -194,8 +176,14 @@ struct sro_context {
 	 */
 	unsigned long range_desc_count;
 
+	/*
+	 * Common state for aux granule transfer handling
+	 * Only used for memory-transferring RMI Operations.
+	 */
+	struct sro_aux_op_ctx aux_op_ctx;
+
 	/* Union with a structure for all the possible SRO commands */
-	union{
+	union {
 		struct sro_rec_ctx rec_ctx;
 		struct sro_psmmu_ctx psmmu_ctx;
 	};
