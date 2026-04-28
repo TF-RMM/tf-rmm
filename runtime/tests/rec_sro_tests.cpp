@@ -191,7 +191,7 @@ TEST(rec_sro_tests, rec_create_sro_happy_path)
 	for (unsigned long i = 0; i < requested_count; i++) {
 		addr_list[i] = encode_addr_desc(
 			aux_base + (i * GRANULE_SIZE),
-			1UL, RMI_OP_MEM_DELEGATE);
+			1UL, RMI_OP_MEM_DELEGATED);
 	}
 
 	struct smc_result res = {};
@@ -235,7 +235,7 @@ TEST(rec_sro_tests, rec_create_sro_zero_count_oob)
 		/* CNT=0: addr_list_validate skips these entries */
 		addr_list[i] = encode_addr_desc(
 			extra_base + (i * GRANULE_SIZE),
-			0UL, RMI_OP_MEM_DELEGATE);
+			0UL, RMI_OP_MEM_DELEGATED);
 	}
 
 	struct smc_result res = {};
@@ -284,7 +284,7 @@ TEST(rec_sro_tests, rec_create_sro_mixed_zero_and_valid_count)
 		unsigned long cnt = (i == list_count - 1) ? 0UL : 1UL;
 		addr_list[i] = encode_addr_desc(
 			aux_base + (i * GRANULE_SIZE),
-			cnt, RMI_OP_MEM_DELEGATE);
+			cnt, RMI_OP_MEM_DELEGATED);
 	}
 
 	struct smc_result res = {};
@@ -328,7 +328,7 @@ TEST(rec_sro_tests, rec_create_sro_transfer_exceeds_request)
 		/* CNT=2 makes each entry contribute 2 * GRANULE_SIZE */
 		addr_list[i] = encode_addr_desc(
 			aux_base + (i * GRANULE_SIZE),
-			2UL, RMI_OP_MEM_DELEGATE);
+			2UL, RMI_OP_MEM_DELEGATED);
 	}
 
 	struct smc_result res = {};
@@ -360,7 +360,7 @@ TEST(rec_sro_tests, rec_create_sro_first_granule_not_delegated)
 	for (unsigned long i = 0; i < requested_count; i++) {
 		addr_list[i] = encode_addr_desc(
 			aux_base + (i * GRANULE_SIZE),
-			1UL, RMI_OP_MEM_DELEGATE);
+			1UL, RMI_OP_MEM_DELEGATED);
 	}
 
 	struct smc_result res = {};
@@ -414,7 +414,7 @@ TEST(rec_sro_tests, rec_create_sro_middle_granule_not_delegated)
 	for (unsigned long i = 0; i < requested_count; i++) {
 		addr_list[i] = encode_addr_desc(
 			aux_base + (i * GRANULE_SIZE),
-			1UL, RMI_OP_MEM_DELEGATE);
+			1UL, RMI_OP_MEM_DELEGATED);
 	}
 
 	struct smc_result res = {};
@@ -440,7 +440,7 @@ TEST(rec_sro_tests, rec_create_sro_middle_granule_not_delegated)
 	 */
 	uintptr_t bad_granule = reserve_granules(1);
 	/* Do NOT delegate bad_granule - it stays in NS state */
-	addr_list[0] = encode_addr_desc(bad_granule, 1UL, RMI_OP_MEM_DELEGATE);
+	addr_list[0] = encode_addr_desc(bad_granule, 1UL, RMI_OP_MEM_DELEGATED);
 
 	smc_op_mem_donate(handle, realm.addr_list, 1, &res);
 
@@ -469,7 +469,7 @@ TEST(rec_sro_tests, rec_create_sro_invalid_handle)
 
 	uintptr_t aux_base = reserve_granules(1);
 	CHECK_TRUE(delegate_range(aux_base, aux_base + GRANULE_SIZE));
-	addr_list[0] = encode_addr_desc(aux_base, 1UL, RMI_OP_MEM_DELEGATE);
+	addr_list[0] = encode_addr_desc(aux_base, 1UL, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(bad_handle, realm.addr_list, 1, &res);
@@ -528,7 +528,7 @@ TEST(rec_sro_tests, rec_create_sro_incremental_donation)
 	for (unsigned long batch = 0; batch < requested_count; batch++) {
 		addr_list[0] = encode_addr_desc(
 			aux_base + (batch * GRANULE_SIZE),
-			1UL, RMI_OP_MEM_DELEGATE);
+			1UL, RMI_OP_MEM_DELEGATED);
 
 		smc_op_mem_donate(handle, realm.addr_list, 1, &res);
 
@@ -645,7 +645,7 @@ static unsigned long trigger_reclaim(struct test_realm *r,
 	for (unsigned long i = 0; i < good_count; i++) {
 		addr_list[i] = encode_addr_desc(
 			aux_base + (i * GRANULE_SIZE),
-			1UL, RMI_OP_MEM_DELEGATE);
+			1UL, RMI_OP_MEM_DELEGATED);
 	}
 
 	smc_op_mem_donate(*handle, r->addr_list, good_count, &res);
@@ -661,7 +661,7 @@ static unsigned long trigger_reclaim(struct test_realm *r,
 	 * This triggers the i==0 failure path -> rec_start_memory_reclaim.
 	 */
 	uintptr_t bad = reserve_granules(1);
-	addr_list[0] = encode_addr_desc(bad, 1UL, RMI_OP_MEM_DELEGATE);
+	addr_list[0] = encode_addr_desc(bad, 1UL, RMI_OP_MEM_DELEGATED);
 
 	smc_op_mem_donate(*handle, r->addr_list, 1, &res);
 	rc = unpack_return_code(res.x[0]);

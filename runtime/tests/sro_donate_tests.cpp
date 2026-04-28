@@ -179,7 +179,7 @@ static void reclaim_entries_cb(unsigned long fid,
 	for (unsigned long i = 0UL; i < g_reclaim_count; i++) {
 		sro->addr_list.range_desc[i] = encode_addr_desc(
 				g_reclaim_base + i * GRANULE_SIZE,
-				1UL, RMI_OP_MEM_DELEGATE);
+				1UL, RMI_OP_MEM_DELEGATED);
 	}
 	sro->addr_list.count = g_reclaim_count;
 	res->x[0] = RMI_INCOMPLETE |
@@ -283,7 +283,7 @@ TEST(sro_donate_tests, donate_invalid_handle)
 	uintptr_t ns_buf = reserve_granules(1U);
 	unsigned long *list = (unsigned long *)ns_buf;
 
-	list[0] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(0xDEADBEEFUL, ns_buf, 1UL, &res);
@@ -323,8 +323,8 @@ TEST(sro_donate_tests, donate_contig_multi_entry)
 	uintptr_t ns_buf = reserve_granules(1U);
 
 	unsigned long *list = (unsigned long *)ns_buf;
-	list[0] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATE);
-	list[1] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATED);
+	list[1] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 2UL, &res);
@@ -368,7 +368,7 @@ TEST(sro_donate_tests, donate_zero_cnt_entry)
 
 	unsigned long *list = (unsigned long *)ns_buf;
 	/* CNT = 0 */
-	list[0] = encode_addr_desc(ns_buf, 0UL, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(ns_buf, 0UL, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 1UL, &res);
@@ -387,8 +387,8 @@ TEST(sro_donate_tests, donate_mixed_zero_cnt)
 	uintptr_t ns_buf = reserve_granules(1U);
 
 	unsigned long *list = (unsigned long *)ns_buf;
-	list[0] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATE);
-	list[1] = encode_addr_desc(ns_buf, 0UL, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATED);
+	list[1] = encode_addr_desc(ns_buf, 0UL, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 2UL, &res);
@@ -410,8 +410,8 @@ TEST(sro_donate_tests, donate_transfer_exceeds_req)
 
 	unsigned long *list = (unsigned long *)ns_buf;
 	/* Two entries, each CNT=1 → total = 2 × GRANULE_SIZE > xfer */
-	list[0] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATE);
-	list[1] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATED);
+	list[1] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 2UL, &res);
@@ -451,7 +451,7 @@ TEST(sro_donate_tests, donate_entry_addr_unaligned_to_blk_size)
 
 	unsigned long *list = (unsigned long *)ns_buf;
 	list[0] = encode_addr_desc_blk(entry_addr, 1UL,
-				       RMI_OP_MEM_DELEGATE, l2_blk_sz);
+				       RMI_OP_MEM_DELEGATED, l2_blk_sz);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 1UL, &res);
@@ -477,7 +477,7 @@ TEST(sro_donate_tests, donate_happy_path_single_entry)
 	CHECK_TRUE(delegate_range(donor, donor + GRANULE_SIZE));
 
 	unsigned long *list = (unsigned long *)ns_buf;
-	list[0] = encode_addr_desc(donor, 1UL, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(donor, 1UL, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 1UL, &res);
@@ -503,7 +503,7 @@ TEST(sro_donate_tests, donate_happy_path_contig_single)
 	CHECK_TRUE(delegate_range(donor, donor + GRANULE_SIZE));
 
 	unsigned long *list = (unsigned long *)ns_buf;
-	list[0] = encode_addr_desc(donor, 1UL, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(donor, 1UL, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 1UL, &res);
@@ -531,11 +531,11 @@ TEST(sro_donate_tests, donate_contig_valid_plus_zero_cnt)
 
 	unsigned long *list = (unsigned long *)ns_buf;
 	/* Zero-count entry (skipped) */
-	list[0] = encode_addr_desc(ns_buf, 0UL, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(ns_buf, 0UL, RMI_OP_MEM_DELEGATED);
 	/* Valid single entry */
-	list[1] = encode_addr_desc(donor, 1UL, RMI_OP_MEM_DELEGATE);
+	list[1] = encode_addr_desc(donor, 1UL, RMI_OP_MEM_DELEGATED);
 	/* Another zero-count entry (skipped) */
-	list[2] = encode_addr_desc(ns_buf, 0UL, RMI_OP_MEM_DELEGATE);
+	list[2] = encode_addr_desc(ns_buf, 0UL, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 3UL, &res);
@@ -559,9 +559,9 @@ TEST(sro_donate_tests, donate_contig_two_valid_with_zeros)
 	uintptr_t ns_buf = reserve_granules(1U);
 
 	unsigned long *list = (unsigned long *)ns_buf;
-	list[0] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATE);
-	list[1] = encode_addr_desc(ns_buf, 0UL, RMI_OP_MEM_DELEGATE);
-	list[2] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATED);
+	list[1] = encode_addr_desc(ns_buf, 0UL, RMI_OP_MEM_DELEGATED);
+	list[2] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 3UL, &res);
@@ -596,7 +596,7 @@ TEST(sro_donate_tests, donate_contig_multi_granule_aligned)
 	CHECK_TRUE(delegate_range(donor, donor + total_size));
 
 	unsigned long *list = (unsigned long *)ns_buf;
-	list[0] = encode_addr_desc(donor, cnt, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(donor, cnt, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 1UL, &res);
@@ -628,7 +628,7 @@ TEST(sro_donate_tests, donate_contig_non_power_of_two)
 	donor = round_up(donor, total_size);
 
 	unsigned long *list = (unsigned long *)ns_buf;
-	list[0] = encode_addr_desc(donor, cnt, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(donor, cnt, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 1UL, &res);
@@ -664,7 +664,7 @@ TEST(sro_donate_tests, donate_contig_addr_not_aligned_to_total)
 	CHECK_FALSE(ALIGNED(donor, total_size));
 
 	unsigned long *list = (unsigned long *)ns_buf;
-	list[0] = encode_addr_desc(donor, cnt, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(donor, cnt, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 1UL, &res);
@@ -686,7 +686,7 @@ TEST(sro_donate_tests, donate_wrong_state)
 	uintptr_t ns_buf = reserve_granules(1U);
 
 	unsigned long *list = (unsigned long *)ns_buf;
-	list[0] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_UNDELEGATE);
+	list[0] = encode_addr_desc(ns_buf, 1UL, RMI_OP_MEM_UNDELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 1UL, &res);
@@ -718,7 +718,7 @@ TEST(sro_donate_tests, donate_total_exceeds_transfer_req_large_cnt)
 	uintptr_t ns_buf = reserve_granules(1U);
 
 	unsigned long *list = (unsigned long *)ns_buf;
-	list[0] = encode_addr_desc(ns_buf, max_cnt, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(ns_buf, max_cnt, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 1UL, &res);
@@ -751,7 +751,7 @@ TEST(sro_donate_tests, donate_list_count_clamped)
 	for (unsigned long i = 0; i < ADDR_LIST_MAX_RANGES; i++) {
 		uintptr_t fake_addr = ns_buf + i * GRANULE_SIZE;
 		list[i] = encode_addr_desc(fake_addr, 1UL,
-					   RMI_OP_MEM_DELEGATE);
+					   RMI_OP_MEM_DELEGATED);
 	}
 
 	struct smc_result res = {};
@@ -791,7 +791,7 @@ TEST(sro_donate_tests, donate_mid_granule_boundary_clamp)
 	for (unsigned long i = 0; i < ADDR_LIST_MAX_RANGES - 1UL; i++) {
 		uintptr_t fake_addr = ns_buf + i * GRANULE_SIZE;
 		list[i] = encode_addr_desc(fake_addr, 1UL,
-					   RMI_OP_MEM_DELEGATE);
+					   RMI_OP_MEM_DELEGATED);
 	}
 
 	struct smc_result res = {};
@@ -1322,13 +1322,13 @@ static void flow_reclaim_phase_cb(unsigned long fid, struct smc_result *res)
 		struct sro_context *sro = my_sro_ctx();
 
 		addr_list_add_block(&sro->addr_list,
-			granule_addr(50U), 3U, RMI_OP_MEM_DELEGATE);
+			granule_addr(50U), 3U, RMI_OP_MEM_DELEGATED);
 		addr_list_add_block(&sro->addr_list,
-			granule_addr(60U), 3U, RMI_OP_MEM_DELEGATE);
+			granule_addr(60U), 3U, RMI_OP_MEM_DELEGATED);
 		addr_list_add_block(&sro->addr_list,
-			granule_addr(70U), 3U, RMI_OP_MEM_DELEGATE);
+			granule_addr(70U), 3U, RMI_OP_MEM_DELEGATED);
 		addr_list_add_block(&sro->addr_list,
-			granule_addr(80U), 3U, RMI_OP_MEM_DELEGATE);
+			granule_addr(80U), 3U, RMI_OP_MEM_DELEGATED);
 		res->x[0] = RMI_INCOMPLETE |
 			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
 			    INPLACE(RMI_OP_CAN_CANCEL_BIT, RMI_OP_CAN_CANCEL);
@@ -1394,7 +1394,7 @@ static void flow_l2_phase_cb(unsigned long fid, struct smc_result *res)
 		struct sro_context *sro = my_sro_ctx();
 
 		addr_list_add_block(&sro->addr_list,
-			granule_addr(100U), 3U, RMI_OP_MEM_DELEGATE);
+			granule_addr(100U), 3U, RMI_OP_MEM_DELEGATED);
 		res->x[0] = RMI_INCOMPLETE |
 			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
 			    INPLACE(RMI_OP_CAN_CANCEL_BIT, RMI_OP_CAN_CANCEL);
@@ -1437,7 +1437,7 @@ TEST(sro_donate_tests, flow_donate_continue_success)
 	CHECK_TRUE(delegate_range(donor, donor + GRANULE_SIZE));
 
 	unsigned long *list = (unsigned long *)ns_buf;
-	list[0] = encode_addr_desc(donor, 1UL, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(donor, 1UL, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result dres = {};
 	smc_op_mem_donate(handle, ns_buf, 1UL, &dres);
@@ -1596,7 +1596,7 @@ TEST(sro_donate_tests, flow_l2_block_donate_and_reclaim)
 
 	unsigned long *list = (unsigned long *)ns_buf;
 	list[0] = encode_addr_desc_blk(donor, 1UL,
-				       RMI_OP_MEM_DELEGATE, l2_blk_sz_enc);
+				       RMI_OP_MEM_DELEGATED, l2_blk_sz_enc);
 
 	struct smc_result dres = {};
 	smc_op_mem_donate(handle, ns_buf, 1UL, &dres);
@@ -1636,7 +1636,7 @@ TEST(sro_donate_tests, donate_max_block_count)
 	uintptr_t ns_buf = reserve_granules(1U);
 
 	unsigned long *list = (unsigned long *)ns_buf;
-	list[0] = encode_addr_desc(ns_buf, max_cnt, RMI_OP_MEM_DELEGATE);
+	list[0] = encode_addr_desc(ns_buf, max_cnt, RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 1UL, &res);
@@ -1674,7 +1674,7 @@ TEST(sro_donate_tests, donate_max_block_count_plus_one_wraps)
 	unsigned long cnt_mask = (1UL << RMI_ADDR_RDESC_4K_CNT_WIDTH) - 1UL;
 
 	list[0] = encode_addr_desc(ns_buf, (max_cnt + 1UL) & cnt_mask,
-				   RMI_OP_MEM_DELEGATE);
+				   RMI_OP_MEM_DELEGATED);
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, ns_buf, 1UL, &res);

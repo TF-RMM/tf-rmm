@@ -90,9 +90,9 @@ static void rmi_op_dispatch(unsigned long fid,
 
 			sro->mem_state =
 				(EXTRACT(RMI_OP_DONATE_MEM_STATE, res->x[2]) ==
-							RMI_OP_MEM_DELEGATE) ?
-							RMI_OP_MEM_DELEGATE :
-							RMI_OP_MEM_UNDELEGATE;
+							RMI_OP_MEM_DELEGATED) ?
+							RMI_OP_MEM_DELEGATED :
+							RMI_OP_MEM_UNDELEGATED;
 		}
 
 		/*

@@ -97,7 +97,7 @@ bool addr_list_reduce_first_block(struct addr_list *list,
  *                  described by the list. The caller is responsible for
  *                  checking this against any required memory limit.
  * - state: the expected RMI operation state for all `ranges`. Must be either
- *          RMI_OP_MEM_DELEGATE or RMI_OP_MEM_UNDELEGATE.
+ *          RMI_OP_MEM_DELEGATED or RMI_OP_MEM_UNDELEGATED.
  *
  * Returns:
  * - true if all `ranges` pass validation.

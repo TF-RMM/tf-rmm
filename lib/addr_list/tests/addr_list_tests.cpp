@@ -34,7 +34,7 @@ static uintptr_t granule_addr(unsigned int idx)
 static unsigned long rand_state(void)
 {
 	return test_helpers_get_rand_in_range(
-			RMI_OP_MEM_DELEGATE, RMI_OP_MEM_UNDELEGATE);
+			RMI_OP_MEM_DELEGATED, RMI_OP_MEM_UNDELEGATED);
 }
 
 /*
@@ -335,15 +335,15 @@ TEST(addr_list_tests, add_block_different_state_no_merge)
 	addr_list_init(&list, LIST_TYPE_OUTPUT);
 
 	CHECK_TRUE(addr_list_add_block(&list, addr0, rtt_level,
-			RMI_OP_MEM_DELEGATE));
+			RMI_OP_MEM_DELEGATED));
 	CHECK_TRUE(addr_list_add_block(&list, addr1, rtt_level,
-			RMI_OP_MEM_UNDELEGATE));
+			RMI_OP_MEM_UNDELEGATED));
 
 	UNSIGNED_LONGS_EQUAL(2UL, list.count);
 	check_desc(&list, 0, addr0, 1UL, level_to_sz(rtt_level),
-		   RMI_OP_MEM_DELEGATE);
+		   RMI_OP_MEM_DELEGATED);
 	check_desc(&list, 1, addr1, 1UL, level_to_sz(rtt_level),
-		   RMI_OP_MEM_UNDELEGATE);
+		   RMI_OP_MEM_UNDELEGATED);
 	check_descs_zero(&list, 2);
 }
 
@@ -655,13 +655,13 @@ TEST(addr_list_tests, reduce_undelegate_state)
 
 	addr_list_init(&list, LIST_TYPE_INPUT);
 	build_input_list(&list, base, 1UL, rtt_level,
-			      RMI_OP_MEM_UNDELEGATE);
+			      RMI_OP_MEM_UNDELEGATED);
 
 	bool ret = addr_list_reduce_first_block(&list, &addr, &level, &out_st);
 	CHECK_TRUE(ret);
 	UNSIGNED_LONGS_EQUAL(base, addr);
 	UNSIGNED_LONGS_EQUAL(rtt_level, level);
-	UNSIGNED_LONGS_EQUAL(RMI_OP_MEM_UNDELEGATE, out_st);
+	UNSIGNED_LONGS_EQUAL(RMI_OP_MEM_UNDELEGATED, out_st);
 
 	/* Descriptor should now be exhausted */
 	UNSIGNED_LONGS_EQUAL(0UL,
@@ -787,7 +787,7 @@ TEST(addr_list_tests, validate_count_exceeds_max)
 
 	test_helpers_expect_assert_fail(true);
 	(void)addr_list_validate(&list, false,
-			&total_mem, RMI_OP_MEM_DELEGATE);
+			&total_mem, RMI_OP_MEM_DELEGATED);
 	test_helpers_expect_assert_fail(false);
 }
 
@@ -827,11 +827,11 @@ TEST(addr_list_tests, validate_wrong_state)
 	addr_list_init(&list, LIST_TYPE_INPUT);
 	build_input_list(&list, base, 1UL,
 			      (unsigned long)XLAT_TABLE_LEVEL_MAX,
-			      RMI_OP_MEM_UNDELEGATE);
+			      RMI_OP_MEM_UNDELEGATED);
 
 	unsigned long total_mem = 0UL;
 	bool ret = addr_list_validate(&list, false,
-			&total_mem, RMI_OP_MEM_DELEGATE);
+			&total_mem, RMI_OP_MEM_DELEGATED);
 	CHECK_FALSE(ret);
 }
 
@@ -1042,11 +1042,11 @@ TEST(addr_list_tests, validate_undelegate_state_match)
 	addr_list_init(&list, LIST_TYPE_INPUT);
 	build_input_list(&list, base, rand_cnt,
 			      (unsigned long)XLAT_TABLE_LEVEL_MAX,
-			      RMI_OP_MEM_UNDELEGATE);
+			      RMI_OP_MEM_UNDELEGATED);
 
 	unsigned long total_mem = 0UL;
 	bool ret = addr_list_validate(&list, false,
-			&total_mem, RMI_OP_MEM_UNDELEGATE);
+			&total_mem, RMI_OP_MEM_UNDELEGATED);
 	CHECK_TRUE(ret);
 	UNSIGNED_LONGS_EQUAL(rand_cnt * GRANULE_SIZE, total_mem);
 }

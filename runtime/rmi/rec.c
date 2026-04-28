@@ -424,7 +424,7 @@ static void rec_memory_reclaim(unsigned long fid, struct smc_result *res)
 		free_rec_aux_granule(granule_pa);
 
 		/* Add the entry to the SRO addr list */
-		ret = addr_list_add_block(&sro->addr_list, granule_pa, 3, RMI_OP_MEM_DELEGATE);
+		ret = addr_list_add_block(&sro->addr_list, granule_pa, 3, RMI_OP_MEM_DELEGATED);
 		assert(ret);
 	}
 
@@ -714,7 +714,7 @@ static void rec_memory_donate(unsigned long fid,
 						      &block_level,
 						      &st)) {
 		/* This is checked by the SRO framework, assert the same. */
-		assert(st == RMI_OP_MEM_DELEGATE);
+		assert(st == RMI_OP_MEM_DELEGATED);
 		/*
 		 * Since we requested for granules which can be donated via
 		 * L3 granules, assert the same. The SRO framework would have
@@ -768,7 +768,7 @@ static void rec_memory_donate(unsigned long fid,
 		res->x[2] = (INPLACE(RMI_OP_DONATE_BLK_SIZE, RMI_PAGE_L3) |
 			     INPLACE(RMI_OP_DONATE_BLK_COUNT, pending) |
 			     INPLACE(RMI_OP_DONATE_MEM_CONTIG, SRO_CONTIG_FLAG(sro)) |
-			     INPLACE(RMI_OP_DONATE_MEM_STATE, RMI_OP_MEM_DELEGATE));
+			     INPLACE(RMI_OP_DONATE_MEM_STATE, RMI_OP_MEM_DELEGATED));
 
 		sro->rec_ctx.cb_id = (unsigned int)SRO_REC_MEM_DONATE;
 	} else {
@@ -862,7 +862,7 @@ void smc_rec_create(unsigned long rd_addr,
 	res->x[2] = (INPLACE(RMI_OP_DONATE_BLK_SIZE, RMI_PAGE_L3) |
 		     INPLACE(RMI_OP_DONATE_BLK_COUNT, sro->rec_ctx.requested_aux_granules) |
 		     INPLACE(RMI_OP_DONATE_MEM_CONTIG, SRO_CONTIG_FLAG(sro)) |
-		     INPLACE(RMI_OP_DONATE_MEM_STATE, RMI_OP_MEM_DELEGATE));
+		     INPLACE(RMI_OP_DONATE_MEM_STATE, RMI_OP_MEM_DELEGATED));
 
 		/* Seal the SRO context and get its handle */
 	res->x[1] = sro_ctx_seal();

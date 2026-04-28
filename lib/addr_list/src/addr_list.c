@@ -133,7 +133,7 @@ bool addr_list_add_block(struct addr_list *list,
 	unsigned long blk_size;
 
 	assert((rtt_level >= 0) && (rtt_level <= XLAT_TABLE_LEVEL_MAX));
-	assert((st == RMI_OP_MEM_DELEGATE) || (st == RMI_OP_MEM_UNDELEGATE));
+	assert((st == RMI_OP_MEM_DELEGATED) || (st == RMI_OP_MEM_UNDELEGATED));
 
 	/*
 	 * @TODO: XLAT_BLOCK_SIZE takes into account only 4K granule size
@@ -231,7 +231,7 @@ bool addr_list_validate(struct addr_list *list, bool is_contig,
 	assert(list != NULL);
 	assert(total_mem_out != NULL);
 	assert(list->type == LIST_TYPE_INPUT);
-	assert((state == RMI_OP_MEM_DELEGATE) || (state == RMI_OP_MEM_UNDELEGATE));
+	assert((state == RMI_OP_MEM_DELEGATED) || (state == RMI_OP_MEM_UNDELEGATED));
 
 	assert(list->count <= (unsigned int)ADDR_LIST_MAX_RANGES);
 

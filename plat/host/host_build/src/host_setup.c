@@ -142,7 +142,7 @@ static unsigned long host_handle_rec_sro(struct host_realm *realm,
 		case RMI_OP_MEM_REQ_DONATE: {
 			unsigned long count = EXTRACT(RMI_OP_DONATE_BLK_COUNT, *donate_req);
 			unsigned long delegate = (*donate_req & MASK(RMI_OP_DONATE_MEM_STATE)) ?
-					RMI_OP_MEM_UNDELEGATE : RMI_OP_MEM_DELEGATE;
+					RMI_OP_MEM_UNDELEGATED : RMI_OP_MEM_DELEGATED;
 			uintptr_t base;
 
 			if ((count == 0UL) || (count > MAX_REC_AUX_GRANULES) ||
@@ -153,13 +153,13 @@ static unsigned long host_handle_rec_sro(struct host_realm *realm,
 
 			/* Ensure we request block of L3 size */
 			assert(EXTRACT(RMI_OP_DONATE_BLK_SIZE, *donate_req) == RMI_PAGE_L3);
-			base = rec_allocate_aux(count, (delegate == RMI_OP_MEM_DELEGATE));
+			base = rec_allocate_aux(count, (delegate == RMI_OP_MEM_DELEGATED));
 
 			/* Populate the list. Add one block (page) per entry */
 			for (unsigned int i = 0U; i < count; i++) {
 				uintptr_t base_addr = base + (i * GRANULE_SIZE);
 				realm->sro_addr_list[i] =
-					encode_rmi_addr_desc(base_addr, 1UL, RMI_OP_MEM_DELEGATE);
+					encode_rmi_addr_desc(base_addr, 1UL, RMI_OP_MEM_DELEGATED);
 			}
 
 			host_rmi_op_mem_donate(*handle, realm->sro_addr_list, count,
