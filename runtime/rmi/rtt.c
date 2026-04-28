@@ -243,17 +243,14 @@ static unsigned long rtt_create(unsigned long rd_addr,
 	assert(rd != NULL);
 
 	if (!validate_rtt_structure_cmds(map_addr, level, rd)) {
-		buffer_unmap(rd);
-		granule_unlock(g_rd);
-		granule_unlock(g_tbl);
-		return RMI_ERROR_INPUT;
+		ret = RMI_ERROR_INPUT;
+		goto out_unlock_g_tbl;
 	}
 
 	if (aux) {
 		if (!validate_aux_rtt_args(rd, s2tt_index, map_addr)) {
-			granule_unlock(g_rd);
-			granule_unlock(g_tbl);
-			return RMI_ERROR_INPUT;
+			ret = RMI_ERROR_INPUT;
+			goto out_unlock_g_tbl;
 		}
 		s2_ctx = &rd->s2_ctx[s2tt_index];
 	} else {
@@ -266,10 +263,8 @@ static unsigned long rtt_create(unsigned long rd_addr,
 	 */
 	if (!s2_ctx->enable_lpa2) {
 		if ((rtt_addr >= (UL(1) << S2TT_MAX_PA_BITS))) {
-			buffer_unmap(rd);
-			granule_unlock(g_rd);
-			granule_unlock(g_tbl);
-			return RMI_ERROR_INPUT;
+			ret = RMI_ERROR_INPUT;
+			goto out_unlock_g_tbl;
 		}
 	}
 
@@ -509,6 +504,7 @@ out_unmap_table:
 out_unlock_llt:
 	granule_unlock(wi.g_llt);
 
+out_unlock_g_tbl:
 	if (ret == RMI_SUCCESS) {
 		granule_unlock_transition(g_tbl, GRANULE_STATE_RTT);
 	} else {
