@@ -744,7 +744,7 @@ int execute(unsigned char *buffer, size_t read_res)
 					&res);
 
 				sro_ctx_addr_list[i] = encode_rmi_addr_desc(
-					aux_addr, 1UL, RMI_OP_MEM_DELEGATE);
+					aux_addr, 1UL, RMI_OP_MEM_DELEGATED);
 			}
 
 			unsigned long consumed = 0UL;

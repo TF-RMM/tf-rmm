@@ -1147,8 +1147,8 @@ enum rmm_state {
  * Values for RMI_OP_DONATE_MEM_STATE and
  * RMI_OP_RECLAIM_MEM_STATE.
  */
-#define RMI_OP_MEM_DELEGATE		0UL
-#define RMI_OP_MEM_UNDELEGATE		1UL
+#define RMI_OP_MEM_DELEGATED		0UL
+#define RMI_OP_MEM_UNDELEGATED		1UL
 
 /* RmiContinueFlags type definitionns */
 #define RMI_CONTINUE_BEYOND_FLAG	BIT(0)
