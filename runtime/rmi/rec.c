@@ -815,7 +815,6 @@ void smc_rec_create(unsigned long rd_addr,
 
 	struct granule *gr = find_lock_granule(rec_addr, GRANULE_STATE_DELEGATED);
 	if (gr == NULL) {
-		granule_unlock(gr);
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}

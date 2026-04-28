@@ -30,11 +30,34 @@ struct rmi_handles {
 	.cb = (_cb)							\
 }
 
-static const struct rmi_handles sro_handles[] = {
+static struct rmi_handles sro_handles[] = {
 	SRO_HANDLE(REC_CREATE, rec_continue_handler),
 	SRO_HANDLE(REC_DESTROY, rec_continue_handler)
 };
 COMPILER_ASSERT(ARRAY_SIZE(sro_handles) <= SMC64_NUM_FIDS_IN_RANGE(RMI));
+
+/*
+ * ONLY FOR TESTING PURPOSES
+ * Install a test callback for a given SRO command.
+ *
+ * This allows unit tests to exercise smc_op_mem_donate() and other SRO
+ * entry points in isolation without going through the full REC_CREATE /
+ * REC_DESTROY flows.
+ *
+ * Returns the previous callback so the caller can restore it.
+ */
+/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
+sro_handle_cb sro_install_test_handler(unsigned long command, sro_handle_cb cb)
+{
+	unsigned long idx = RMI_HANDLER_ID(command);
+
+	assert(idx < ARRAY_SIZE(sro_handles));
+
+	sro_handle_cb old = sro_handles[idx].cb;
+
+	sro_handles[idx].cb = cb;
+	return old;
+}
 
 static void rmi_op_dispatch(unsigned long fid,
 			    struct smc_result *res)
