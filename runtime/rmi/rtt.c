@@ -1855,13 +1855,14 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 		if (s2tte_is_unassigned_empty(s2_ctx, s2tte)) {
 			s2tte = s2tte_create_unassigned_ram(s2_ctx, s2tte);
 			s2tte_write(&s2tt[index], s2tte);
-		} else if (!s2tte_is_unassigned_ram(s2_ctx, s2tte)) {
+		} else if (s2tte_is_assigned_empty(s2_ctx, s2tte, level)) {
+			unsigned long pa = s2tte_pa(s2_ctx, s2tte, level);
+			s2tte = s2tte_create_assigned_ram(s2_ctx, pa, level, s2tte);
+			s2tte_write(&s2tt[index], s2tte);
+		} else if (!s2tte_is_assigned_ram(s2_ctx, s2tte, level) &&
+			   !s2tte_is_unassigned_ram(s2_ctx, s2tte)) {
 			break;
 		}
-		measurement_init_ripas_measure(rd->measurement[RIM_MEASUREMENT_SLOT],
-					       rd->algorithm,
-					       addr,
-					       next);
 		addr = next;
 	}
 

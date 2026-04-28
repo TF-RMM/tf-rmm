@@ -78,20 +78,4 @@ void measurement_realm_params_measure(unsigned char rim_measurement[],
 void measurement_rec_params_measure(unsigned char rim_measurement[],
 				    enum hash_algo algorithm,
 				    struct rmi_rec_params *rec_params);
-
-
-/*
- * Measure a RIPAS granule
- *
- * Arguments:
- *	- rim_measurement:	The buffer where the RIM to be updated is found.
- *	- algorithm:		Algorithm to use for measurement.
- *	- base:			Base of target IPA region.
- *	- top:			Top of target IPA region.
- */
-void measurement_init_ripas_measure(unsigned char rim_measurement[],
-				    enum hash_algo algorithm,
-				    unsigned long base,
-				    unsigned long top);
-
 #endif /* MEASUREMENT_H */
