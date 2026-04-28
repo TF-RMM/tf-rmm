@@ -39,9 +39,10 @@ func rmm_handler
 	stp	x4, x5, [sp, #(LR_AND_RES_PTR_SIZE + SMC_RES_X4_X5)]
 	stp	x6, x7, [sp, #(LR_AND_RES_PTR_SIZE + SMC_RES_X6_X7)]
 
-	/* Zero smc_result->x[0..3] */
-	stp	xzr, xzr, [sp, #(LR_AND_RES_PTR_SIZE + SMC_RES_X0_X1)]
-	stp	xzr, xzr, [sp, #(LR_AND_RES_PTR_SIZE + SMC_RES_X2_X3)]
+	/*
+	 * smc_result->x[0..3] is zeroed in handle_ns_smc() so that both
+	 * AArch64 and fake_host paths behave identically.
+	 */
 
 	/*
 	 * Store the res pointer (sp+LR_AND_RES_PTR_SIZE) as the 9th stack argument.

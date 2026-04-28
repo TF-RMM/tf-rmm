@@ -27,9 +27,9 @@
 /* Possible states of the SRO flow for REC_CREATE and DESTROY */
 enum sro_stage {
 	SRO_REC_MEM_RECLAIM = 0,
-	SRO_REC_REQUEST_AUX_MEM,
+	SRO_REC_MEM_DONATE,
 	SRO_REC_CREATE_CONTINUE,
-	SRO_REC_FINISH,
+	SRO_REC_DESTROY_FINISH,
 	SRO_REC_NUM_STATES
 };
 
@@ -372,17 +372,27 @@ static unsigned long get_rsi_feature_register_0(struct rd *rd)
  **********************************************************************/
 
 /*
- * SRO handle callback to finish a SRO flow with the stored RmiResult.
+ * SRO handle callback to finish a SRO reclaim flow with the stored RmiResult.
  */
-static void rec_sro_finish(unsigned long fid, struct smc_result *res)
+static void rec_sro_reclaim_finish(unsigned long fid, struct smc_result *res)
 {
 	struct sro_context *sro = my_sro_ctx();
 
 	(void)fid;
+	struct granule *gr;
 
 	assert(sro != NULL);
 
-	/* Return the error from RMI_REC_CREATE/RMI_REC_DESTROY */
+	/*
+	 * At this point, all the memory has been successfully reclaimed
+	 * and communicated to NS Host. Set the granule state for the rec
+	 * granule to DELEGATED.
+	 */
+	gr = find_lock_granule(sro->rec_ctx.rec_addr, GRANULE_STATE_PARTIAL);
+	assert(gr != NULL);
+	granule_unlock_transition_to_delegated(gr);
+
+	/* Return the error code from RMI_REC_CREATE/RMI_REC_DESTROY */
 	res->x[0] = sro->rec_ctx.ret_err;
 	res->x[2] = 0UL;
 }
@@ -430,7 +440,7 @@ static void rec_memory_reclaim(unsigned long fid, struct smc_result *res)
 		res->x[0] |= INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE);
 
 		/* Setup the callback for the next stage */
-		sro->rec_ctx.cb_id = (unsigned int)SRO_REC_FINISH;
+		sro->rec_ctx.cb_id = (unsigned int)SRO_REC_DESTROY_FINISH;
 	} else {
 		res->x[0] |= INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_RECLAIM);
 
@@ -454,6 +464,9 @@ static void rec_start_memory_reclaim(unsigned long err_code,
 	struct sro_context *sro = my_sro_ctx();
 
 	assert(sro != NULL);
+	/* Assert that the rec granule state is PARTIAL */
+	assert(granule_unlocked_state(find_granule(sro->rec_ctx.rec_addr))
+		== GRANULE_STATE_PARTIAL);
 
 	sro->rec_ctx.requested_aux_granules = num_granules;
 	sro->rec_ctx.total_transferred = 0;
@@ -504,6 +517,7 @@ static void rec_create_continue(unsigned long fid, struct smc_result *res)
 
 	assert(sro != NULL);
 	assert(fid == SMC_RMI_OP_CONTINUE);
+	(void)fid;
 
 	/* Get the information from the SRO Context */
 	rd_addr = sro->rec_ctx.rd_addr;
@@ -551,7 +565,7 @@ static void rec_create_continue(unsigned long fid, struct smc_result *res)
 	}
 
 	if (!find_lock_two_granules(rec_addr,
-				GRANULE_STATE_DELEGATED,
+				GRANULE_STATE_PARTIAL,
 				&g_rec,
 				rd_addr,
 				GRANULE_STATE_RD,
@@ -670,15 +684,16 @@ out_free_aux:
 					 sro->rec_ctx.total_transferred);
 	} else {
 		/* Finish the command with SUCCESS */
-		sro->rec_ctx.ret_err = ret;
-		rec_sro_finish(fid, res);
+		res->x[0] = ret;
+		assert(res->x[2] == 0UL);
+		assert(res->x[1] == 0UL);
 	}
 }
 
 /*
  * SRO handle callback for RMI_OP_MEM_DONATE during RMI_REC_CREATE.
  */
-static void rec_create_request_aux_mem(unsigned long fid,
+static void rec_memory_donate(unsigned long fid,
 					struct smc_result *res)
 {
 	struct sro_context *sro = my_sro_ctx();
@@ -755,7 +770,7 @@ static void rec_create_request_aux_mem(unsigned long fid,
 			     INPLACE(RMI_OP_DONATE_MEM_CONTIG, SRO_CONTIG_FLAG(sro)) |
 			     INPLACE(RMI_OP_DONATE_MEM_STATE, RMI_OP_MEM_DELEGATE));
 
-		sro->rec_ctx.cb_id = (unsigned int)SRO_REC_REQUEST_AUX_MEM;
+		sro->rec_ctx.cb_id = (unsigned int)SRO_REC_MEM_DONATE;
 	} else {
 		/* All the memory has been donated */
 
@@ -778,9 +793,9 @@ void rec_continue_handler(unsigned long fid, struct smc_result *res)
 	/* List of handlers that can be invoked from here */
 	const sro_handle_cb sro_callbacks[SRO_REC_NUM_STATES] = {
 		[SRO_REC_MEM_RECLAIM] = rec_memory_reclaim,
-		[SRO_REC_REQUEST_AUX_MEM] = rec_create_request_aux_mem,
+		[SRO_REC_MEM_DONATE] = rec_memory_donate,
 		[SRO_REC_CREATE_CONTINUE] = rec_create_continue,
-		[SRO_REC_FINISH] = rec_sro_finish
+		[SRO_REC_DESTROY_FINISH] = rec_sro_reclaim_finish
 	};
 	struct sro_context *sro = my_sro_ctx();
 
@@ -798,6 +813,13 @@ void smc_rec_create(unsigned long rd_addr,
 	struct sro_context *sro;
 	unsigned long ret;
 
+	struct granule *gr = find_lock_granule(rec_addr, GRANULE_STATE_DELEGATED);
+	if (gr == NULL) {
+		granule_unlock(gr);
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
 	/*
 	 * Reserve an SRO context handle.
 	 * The memory is not required to be contiguous.
@@ -808,9 +830,13 @@ void smc_rec_create(unsigned long rd_addr,
 			      false, false,
 			      SMC_RMI_OP_MEM_DONATE);
 	if (ret != RMI_SUCCESS) {
+		granule_unlock(gr);
 		res->x[0] = ret;
 		return;
 	}
+
+	/* Transition to PARTIAL state while SRO flow is ongoing */
+	granule_unlock_transition(gr, GRANULE_STATE_PARTIAL);
 
 	sro = my_sro_ctx();
 	assert(sro != NULL);
@@ -819,7 +845,7 @@ void smc_rec_create(unsigned long rd_addr,
 	 * The first step of REC_CREATE will be to request memory for
 	 * the aux granules.
 	 */
-	sro->rec_ctx.cb_id = (unsigned int)SRO_REC_REQUEST_AUX_MEM;
+	sro->rec_ctx.cb_id = (unsigned int)SRO_REC_MEM_DONATE;
 
 	/* Initialize the sro context for the command */
 	sro->rec_ctx.rd_addr = rd_addr;
@@ -897,6 +923,8 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 	sro = my_sro_ctx();
 	assert(sro != NULL);
 
+	sro->rec_ctx.rec_addr = rec_addr;
+
 	unsigned long num_rec_aux = rec->num_rec_aux;
 
 	for (unsigned int i = 0U; i < num_rec_aux; i++) {
@@ -905,7 +933,7 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 
 	buffer_unmap(rec);
 
-	granule_unlock_transition_to_delegated(g_rec);
+	granule_unlock_transition(g_rec, GRANULE_STATE_PARTIAL);
 
 	/*
 	 * Decrement refcount. The refcount should be balanced before

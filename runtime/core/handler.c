@@ -18,6 +18,8 @@
 #include <smc-rmi.h>
 #include <smc.h>
 #include <status.h>
+/* coverity[unnecessary_header:SUPPRESS] */
+#include <string.h>
 #include <utils_def.h>
 #include <xlat_high_va.h>
 
@@ -335,6 +337,9 @@ void handle_ns_smc(unsigned int function_id,
 	struct simd_context *ns_simd_ctx;
 	bool sve_hint = false;
 	unsigned long args[] __unused = {arg0, arg1, arg2, arg3, arg4, arg5, arg6};
+
+	/* Zero the result registers x[0]..x[3] */
+	(void)memset(&res->x[0], 0, 4U * sizeof(res->x[0]));
 
 	/* Save the SVE hint bit and clear it from the function ID */
 	if ((function_id & SMC_SVE_HINT) != 0U) {

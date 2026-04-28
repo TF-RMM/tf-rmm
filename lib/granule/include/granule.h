@@ -81,6 +81,9 @@ static inline void __granule_assert_unlocked_invariants(struct granule *g,
 	case GRANULE_STATE_DELEGATED:
 		assert(REFCOUNT(g) == 0U);
 		break;
+	case GRANULE_STATE_PARTIAL:
+		assert(REFCOUNT(g) == 0U);
+		break;
 	case GRANULE_STATE_RD:
 		/*
 		 * Refcount is used to check if RD and associated granules can
