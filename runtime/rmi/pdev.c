@@ -418,15 +418,17 @@ static unsigned long copyout_dev_comm_exit(struct granule *g_dev_comm_data,
 static int copy_cached_digest(struct dev_comm_exit_shared *shared_ret,
 			      struct dev_obj_digest *comm_digest_ptr)
 {
-	assert(shared_ret->cached_digest.len != 0U);
-	if (shared_ret->cached_digest.len != 0U) {
-		if (comm_digest_ptr == NULL) {
-			return DEV_ASSIGN_STATUS_ERROR;
-		}
-		(void)memcpy(comm_digest_ptr->value, shared_ret->cached_digest.value,
-			     shared_ret->cached_digest.len);
-		comm_digest_ptr->len = shared_ret->cached_digest.len;
+	size_t digest_len = shared_ret->cached_digest.len;
+
+	if ((digest_len == 0U) || (comm_digest_ptr == NULL) ||
+	    (digest_len > sizeof(comm_digest_ptr->value))) {
+		return DEV_ASSIGN_STATUS_ERROR;
 	}
+
+	(void)memcpy(comm_digest_ptr->value, shared_ret->cached_digest.value,
+		     digest_len);
+	comm_digest_ptr->len = digest_len;
+
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }
 
