@@ -328,7 +328,12 @@ unsigned long smc_pdev_create(unsigned long pdev_addr,
 	 * Unlock and transit the PDEV granule state to GRANULE_STATE_PDEV.
 	 */
 	buffer_unmap(pd);
-	granule_unlock_transition(g_pdev, GRANULE_STATE_PDEV);
+
+	if (smc_rc == RMI_SUCCESS) {
+		granule_unlock_transition(g_pdev, GRANULE_STATE_PDEV);
+	} else {
+		granule_unlock(g_pdev);
+	}
 
 out_restore_pdev_aux_granule_state:
 	if (smc_rc != RMI_SUCCESS) {
