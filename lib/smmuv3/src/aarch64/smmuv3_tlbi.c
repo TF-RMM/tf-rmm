@@ -33,8 +33,12 @@ static int wait_cmdq_all(void)
 	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
 		struct smmuv3_dev *smmu = &driv->smmuv3_devs[i];
 
-		/* Check if SMMU participates in broadcast TLB maintenance */
-		if ((smmu->config.features & FEAT_BTM) == 0U) {
+		/*
+		 * Check that SMMU state is PSMMU_ACTIVE
+		 * and it participates in broadcast TLB maintenance.
+		 */
+		if ((smmu->state == PSMMU_ACTIVE) &&
+		   ((smmu->config.features & FEAT_BTM) == 0U)) {
 			int ret = wait_cmdq_empty(smmu);
 
 			if (ret != 0) {
@@ -42,7 +46,6 @@ static int wait_cmdq_all(void)
 			}
 		}
 	}
-
 	return 0;
 }
 
@@ -179,8 +182,12 @@ int smmuv3_inv(void)
 	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
 		struct smmuv3_dev *smmu = &driv->smmuv3_devs[i];
 
-		/* Check if SMMU participates in broadcast TLB maintenance */
-		if ((smmu->config.features & FEAT_BTM) == 0U) {
+		/*
+		 * Check that SMMU state is PSMMU_ACTIVE
+		 * and it participates in broadcast TLB maintenance.
+		 */
+		if ((smmu->state == PSMMU_ACTIVE) &&
+		   ((smmu->config.features & FEAT_BTM) == 0U)) {
 			ret = tlbi_single(smmu);
 			if (ret != 0) {
 				spinlock_all(false);
@@ -268,8 +275,12 @@ int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
 	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
 		struct smmuv3_dev *smmu = &driv->smmuv3_devs[i];
 
-		/* Check if SMMU participates in broadcast TLB maintenance */
-		if ((smmu->config.features & FEAT_BTM) == 0U) {
+		/*
+		 * Check that SMMU state is PSMMU_ACTIVE
+		 * and it participates in broadcast TLB maintenance.
+		 */
+		if ((smmu->state == PSMMU_ACTIVE) &&
+		   ((smmu->config.features & FEAT_BTM) == 0U)) {
 			ret = tlbi_ipa_single(smmu, vmid, addr, num_grans,
 						level, leaf);
 			if (ret != 0) {
@@ -325,8 +336,12 @@ int smmuv3_inv_at_level_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
 	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
 		struct smmuv3_dev *smmu = &driv->smmuv3_devs[i];
 
-		/* Check if SMMU participates in broadcast TLB maintenance */
-		if ((smmu->config.features & FEAT_BTM) == 0U) {
+		/*
+		 * Check that SMMU state is PSMMU_ACTIVE
+		 * and it participates in broadcast TLB maintenance.
+		 */
+		if ((smmu->state == PSMMU_ACTIVE) &&
+		   ((smmu->config.features & FEAT_BTM) == 0U)) {
 			for (unsigned int j = 0U; j < nvmids; j++) {
 				ret = tlbi_ipa_single(smmu, vmid_list[j],
 							addr, num_grans, level, leaf);

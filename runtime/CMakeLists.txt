@@ -90,8 +90,7 @@ target_sources(rmm-runtime
             "rmi/run.c"
             "rmi/sro.c"
             "rmi/vdev.c"
-            "rmi/version.c"
-            "rmi/pdev.c")
+            "rmi/version.c")
 
 if(HOST_VARIANT STREQUAL "host_cbmc")
     target_sources(rmm-runtime

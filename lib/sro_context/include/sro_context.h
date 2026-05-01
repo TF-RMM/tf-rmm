@@ -52,6 +52,31 @@ typedef void (*sro_handle_cb)(unsigned long fid, struct smc_result *res);
 	 (sizeof(struct sro_context) * (MAX_CPUS * SRO_CTX_PER_CPU)))
 
 /*
+ * The number of granules of occupied by SMMUv3 L1 Stream Table,
+ * whose size is determined by the StreamID size (SMMU_IDR1.SIDSIZE):
+ *   - 16 bits:  8 KB  (2 granules)
+ *   - 17 bits: 16 KB  (4 granules)
+ */
+#define SRO_PSMMU_L1_ST_GRANS	2U
+
+/*
+ * The number of granules required for PSMMU activation:
+ *   - L1 Stream Table: SRO_PSMMU_L1_GRANS
+ *   - L2 Stream Table descriptors: SRO_PSMMU_L1_GRANS
+ *   - SMMUv3 Command queue: 1
+ *   - SMMUv3 Event queue: 1
+ */
+#define SRO_PSMMU_GRANS		((SRO_PSMMU_L1_ST_GRANS * 2U) + 2U)
+
+/*
+ * Number of memory blocks to donate for PSMMU activation:
+ *   - L1 Stream Table
+ *   - L2 Stream Table descriptors
+ *   - SMMUv3 Command and Event queues
+ */
+#define SRO_PSMMU_BLOCKS	3U
+
+/*
  * Data structure with the information to continue a REC related operation.
  */
 struct sro_rec_ctx {
@@ -74,6 +99,54 @@ struct sro_rec_ctx {
 
 	/* Number of granules donated or reclaimed so far */
 	unsigned long total_transferred;
+};
+
+/*
+ * Data structures with the information to continue a PSMMU related operation.
+ */
+struct smmuv3_dev;
+
+struct sro_psmmu_block {
+	/* Number of granules in block to donate dusring PSMMU activation */
+	unsigned long requested;
+
+	/* Contiguous flag */
+	unsigned long contig;
+};
+
+struct sro_psmmu_ctx {
+	/* Pointer to the SMMUv3 driver structure */
+	struct smmuv3_dev *smmu_ptr;
+
+	/* SID */
+	unsigned long sid;
+
+	/* Index of the callback to invoke */
+	unsigned int cb_id;
+
+	/* Index of the granule to donate in psmmu_block[] */
+	unsigned int block_idx;
+
+	/* Number of granules requested in the currect block */
+	unsigned long requested;
+
+	/* Number of granules donated or reclaimed in the current block */
+	unsigned long transferred;
+
+	/* Number of granules donated or reclaimed so far */
+	unsigned long total_transferred;
+
+	/* Donation blocks */
+	struct sro_psmmu_block psmmu_block[SRO_PSMMU_BLOCKS];
+
+	/*
+	 * Physical addresses of the granules donated by the host.
+	 * The number of entries depends on the size of the L1 Stream Table.
+	 */
+	uintptr_t granules_pa[SRO_PSMMU_GRANS];
+
+	/* Error condition in case operation fails */
+	unsigned long ret_err;
 };
 
 /* State of an SRO context */
@@ -139,6 +212,7 @@ struct sro_context {
 	/* Union with a structure for all the possible SRO commands */
 	union{
 		struct sro_rec_ctx rec_ctx;
+		struct sro_psmmu_ctx psmmu_ctx;
 	};
 };
 
@@ -211,6 +285,7 @@ static inline unsigned long sro_ctx_range_desc_count(const struct sro_context *s
 /*
  * Pool of SRO contexts managed by the sro_context library.
  */
+/* cppcheck-suppress misra-c2012-2.4 */
 struct sro_ctx_pool {
 	/* Whether the pool has been initialized */
 	bool init;
@@ -225,6 +300,7 @@ struct sro_ctx_pool {
 /*
  * Per_cpu reference to command context that is currently used by the CPU.
  */
+/* cppcheck-suppress misra-c2012-2.4 */
 struct sro_cpu_ctx_ref {
 	/* NULL if no SRO context is assigned to the CPU */
 	struct sro_context *ctx;

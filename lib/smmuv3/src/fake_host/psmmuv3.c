@@ -62,3 +62,64 @@ int psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid)
 	return 0;
 }
 
+size_t psmmu_strtab_size(struct smmuv3_dev *smmu)
+{
+	(void)smmu;
+
+	return 0UL;
+}
+
+int psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t *donated_pa)
+{
+	(void)smmu;
+	(void)donated_pa;
+
+	return 0;
+}
+
+int psmmu_register_queues(struct smmuv3_dev *smmu)
+{
+	(void)smmu;
+
+	return 0;
+}
+
+int psmmu_validate_st_l2(struct smmuv3_dev *smmu, unsigned long sid, uintptr_t *l2tab_pa)
+{
+	(void)smmu;
+	(void)sid;
+	(void)l2tab_pa;
+
+	return 0;
+}
+
+int psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid, uintptr_t l2tab_pa)
+{
+	(void)smmu;
+	(void)sid;
+	(void)l2tab_pa;
+
+	return 0;
+}
+
+unsigned long psmmu_get_donated(struct smmuv3_dev *smmu, uintptr_t *donated_pa)
+{
+	(void)smmu;
+	(void)donated_pa;
+
+	return 0;
+}
+
+bool psmmu_set_busy(struct smmuv3_dev *smmu, unsigned int state)
+{
+	(void)smmu;
+	(void)state;
+
+	return true;
+}
+
+void psmmu_set_inactive(struct smmuv3_dev *smmu)
+{
+	(void)smmu;
+}
+

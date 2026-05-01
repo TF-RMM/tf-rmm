@@ -423,7 +423,38 @@ typedef __uint128_t	uint128_t;
 /* Index to point STE in Level 2 table */
 #define L2STE_IDX(sid)		((sid) & ((U(1) << SMMU_STRTAB_SPLIT) - 1U))
 
+/*
+ * L2 Stream Table descriptor.
+ * Maximum number of allocated STEs 2^SMMU_STRTAB_SPLIT = 64.
+ */
+#define L2DESC_STE_CNT_SHIFT	U(0)
+#define L2DESC_STE_CNT_WIDTH	GRANULE_SHIFT
+#define L2DESC_VA_SHIFT		L2DESC_STE_CNT_WIDTH
+#define L2DESC_VA_WIDTH		(64U - L2DESC_VA_SHIFT)
+
 #define MAX_RETRIES		100000U
+
+#define L1_ST_IDX		0UL
+#define L2_DS_IDX(_num)		(L1_ST_IDX + (_num))
+#define CMDQ_IDX(_num)		(L1_ST_IDX + ((_num) * 2U))
+#define EVTQ_IDX(_num)		(L1_ST_IDX + ((_num) * 2U) + 1UL)
+
+/*
+ * The number of granules of occupied by SMMUv3 L1 Stream Table,
+ * whose size is determined by the StreamID size (SMMU_IDR1.SIDSIZE):
+ *   - 16 bits:  8 KB  (2 granules)
+ *   - 17 bits: 16 KB  (4 granules)
+ */
+#define PSMMU_L1_ST_GRANS	2U
+
+/*
+ * The number of granules required for PSMMU activation:
+ *   - L1 Stream Table: SRO_PSMMU_L1_GRANS
+ *   - L2 Stream Table descriptors: SRO_PSMMU_L1_GRANS
+ *   - SMMUv3 Command queue: 1
+ *   - SMMUv3 Event queue: 1
+ */
+#define PSMMU_GRANS		(PSMMU_L1_ST_GRANS * 2U + 2U)
 
 enum queue_type {
 	CMDQ,
@@ -461,7 +492,6 @@ struct smmu_config {
 
 struct smmu_queue {
 	uintptr_t q_base;
-	uintptr_t q_base_pa;
 	void *cons_reg;
 	void *prod_reg;
 	uint32_t rd_idx;
@@ -483,30 +513,32 @@ struct smmuv3_dev {
 	struct smmu_queue evtq;
 	struct psmmu_params params;
 
+	/* Physical addresses of granules donated during PSMMU activation */
+	uintptr_t donated_pa[PSMMU_GRANS];
+
 	uint64_t *strtab_base;
-	uintptr_t strtab_base_pa;
-	uint64_t num_l1_ents;
+	size_t strtab_size;
 
 	/*
-	 * Base of contiguously allocated L2 tables.
-	 * This will be removed when L2 tables are donated by NS Host.
+	 * Array of L2 Stream Table descriptors containing
+	 * virtual addresses of dynamically allocated L2 tables
+	 * and the number of allocated STEs in each table.
 	 */
-	struct l2tab *l2strtab_base;
-	struct l2tab *l2strtab_base_pa;
+	uintptr_t *l2strtab;
 
-	/*
-	 * Array containing the number of allocated STEs
-	 * in each L2 stream table.
-	 * Number of elements num_l1_ents.
-	 * Maximum number of allocated STEs 2^SMMU_STRTAB_SPLIT.
-	 */
-	unsigned short *l2ste_cnt;
-	uintptr_t l2ste_cnt_pa;
-
-	unsigned int state;
-
-	/* Number of L1 Stream Table Descriptors in use */
+	/* Number of L2 Stream Table Descriptors in use */
 	unsigned int l1std_cnt;
+
+	/*
+	 * PSMMU state:
+	 * - PSMMU_ACTIVE
+	 * - PSMMU_BUSY
+	 * - PSMMU_INACTIVE
+	 *
+	 * Transitions between PSMMU_ACTIVE and PSMMU_INACTIVE
+	 * occur only via PSMMU_BUSY state.
+	 */
+	unsigned int state;
 
 	spinlock_t lock;
 };
@@ -528,11 +560,14 @@ struct smmuv3_driv {
 bool get_smmu_broadcast_tlb(void);
 struct smmuv3_driv *get_smmuv3_driver(void);
 struct smmuv3_dev *get_by_index(unsigned int smmu_idx, unsigned int sid);
+void configure_strtab(struct smmuv3_dev *smmu, uintptr_t strtab_base_pa);
+void configure_queue(struct smmuv3_dev *smmu, enum queue_type type,
+			uintptr_t queue_base_pa);
 int prepare_send_command(struct smmuv3_dev *smmu, unsigned long opcode,
 			 unsigned long param0, unsigned long param1);
 int wait_cmdq_empty(struct smmuv3_dev *smmu);
-int enable_smmu(struct smmuv3_dev *smmu);
-int disable_smmu(struct smmuv3_dev *smmu);
+int smmu_on(struct smmuv3_dev *smmu);
+int smmu_off(struct smmuv3_dev *smmu);
 int inval_cached_ste(struct smmuv3_dev *smmu, unsigned long sid, bool leaf_only);
 
 /*
