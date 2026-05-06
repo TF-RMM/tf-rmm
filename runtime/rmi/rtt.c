@@ -3188,7 +3188,6 @@ static void rtt_dev_mem_set_range(struct s2tt_context *s2_ctx,
 }
 
 void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
-			  unsigned long pdev_addr, unsigned long vdev_addr,
 			  unsigned long base, unsigned long top,
 			  struct smc_result *res)
 {
@@ -3200,10 +3199,6 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 	struct rec *rec;
 	struct rd *rd;
 	bool is_coh;
-
-	/* TODO_ALP17: Check the following input parameters */
-	(void)pdev_addr;
-	(void)vdev_addr;
 
 	if ((top <= base) || !GRANULE_ALIGNED(top)) {
 		res->x[0] = RMI_ERROR_INPUT;
