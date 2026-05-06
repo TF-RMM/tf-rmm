@@ -32,6 +32,7 @@ int dev_assign_app_init(struct app_data_cfg *app_data, uintptr_t granule_pas[],
 
 	rc = app_new_instance(app_data,
 				  RMM_DEV_ASSIGN_APP_ID,
+				  false, /* reset_on_lfa */
 				  granule_pas,
 				  granule_pa_count,
 				  granule_va_start, 0);

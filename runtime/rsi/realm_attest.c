@@ -5,6 +5,7 @@
 
 #include <buffer.h>
 #include <debug.h>
+#include <glob_data.h>
 #include <granule.h>
 #include <measurement.h>
 #include <mec.h>
@@ -80,8 +81,12 @@ static void attest_token_continue_write_state(struct rec *rec,
 		res->smc_res.x[0] = RSI_INCOMPLETE;
 	} else {
 		res->smc_res.x[0] = RSI_SUCCESS;
-		/* Token creation is complete, reset realm token length */
+		/*
+		 * Token creation is complete, reset realm token length and
+		 * challenge flag
+		 */
 		attest_data->rmm_realm_token_len = 0;
+		attest_data->rmm_cca_token_challenge_set = false;
 	}
 
 	res->smc_res.x[1] = length;
@@ -94,21 +99,19 @@ out_unmap:
 	granule_unlock(llt);
 }
 
-void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
+static bool realm_attest_token_init(struct rec *rec,
+					unsigned long *token_buf_size)
 {
 	struct rd *rd;
 	struct rec_attest_data *attest_data;
 	enum attest_token_err_t ret;
-	struct rec_plane *plane;
 
 	assert(rec != NULL);
 
-	/* RSI calls can only be issued by Plane 0 */
-	plane = rec_plane_0(rec);
-	assert(rec_is_plane_0_active(rec));
-
 	attest_data = rec->aux_data.attest_data;
-	res->action = UPDATE_REC_RETURN_TO_REALM;
+
+	/* Reset rmm_cca_token_challenge_set flag */
+	attest_data->rmm_cca_token_challenge_set = false;
 
 	/* Initialize length fields in attestation data */
 	attest_data->rmm_realm_token_len = 0;
@@ -123,8 +126,7 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 						tr_granule_addr(rec->g_rec));
 	if (ret != ATTEST_TOKEN_ERR_SUCCESS) {
 		ERROR("Failed to initialize attestation token context.\n");
-		res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
-		return;
+		return false;
 	}
 
 	/*
@@ -140,19 +142,52 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 			     mec_is_realm_mecid_s2_pvt(),
 			     &(rd->realm_instance_id[0]),
 			     &(rd->rpv[0]),
-			     (const void *)&plane->regs[1]);
+			     (const void *)attest_data->rmm_cca_token_challenge);
 
 	buffer_unmap(rd);
 	granule_unlock(rec->realm_info.g_rd);
 
 	if (ret != ATTEST_TOKEN_ERR_SUCCESS) {
 		ERROR("Realm token creation failed.\n");
-		res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
-		return;
+		return false;
 	}
 
-	res->smc_res.x[0] = RSI_SUCCESS;
-	res->smc_res.x[1] = ATTEST_TOKEN_BUF_SIZE;
+	if (token_buf_size != NULL) {
+		*token_buf_size = ATTEST_TOKEN_BUF_SIZE;
+	}
+
+	/* Record the firmware sequence only after successful initialization. */
+	attest_data->fw_img_sequence = glob_data_get_fw_img_sequence();
+
+	/* Update rmm_cca_token_challenge_set flag */
+	attest_data->rmm_cca_token_challenge_set = true;
+
+	return true;
+}
+
+void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
+{
+	struct rec_attest_data *attest_data;
+	struct rec_plane *plane;
+
+	assert(rec != NULL);
+
+	/* RSI calls can only be issued by Plane 0 */
+	plane = rec_plane_0(rec);
+	assert(rec_is_plane_0_active(rec));
+
+	attest_data = rec->aux_data.attest_data;
+
+	(void)memcpy((void *)attest_data->rmm_cca_token_challenge,
+		(const void *)&plane->regs[1],
+		ATTEST_CHALLENGE_SIZE);
+
+	res->action = UPDATE_REC_RETURN_TO_REALM;
+	if (realm_attest_token_init(rec, &res->smc_res.x[1])) {
+		res->smc_res.x[0] = RSI_SUCCESS;
+	} else {
+		res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
+	}
 }
 
 /*
@@ -220,6 +255,18 @@ static __unused int write_response_to_rec(struct rec *curr_rec,
 	return ret;
 }
 
+static bool is_attest_token_re_init_needed(struct rec_attest_data *attest_data)
+{
+	/*
+	 * Use the attestation sequence stored in the REC's attest_data structure
+	 * to detect whether re-initialization is ineeded as the app might have
+	 * been re-initialized already by other RSI calls and therefore the
+	 * app_data->fw_img_sequence might no longer be useful.
+	 */
+	return (attest_data->rmm_cca_token_len == 0U) &&
+		(attest_data->fw_img_sequence != glob_data_get_fw_img_sequence());
+}
+
 void handle_rsi_attest_token_continue(struct rec *rec,
 				      struct rmi_rec_exit *rec_exit,
 				      struct rsi_result *res)
@@ -255,6 +302,33 @@ void handle_rsi_attest_token_continue(struct rec *rec,
 		return;
 	}
 
+	if (!attest_data->rmm_cca_token_challenge_set) {
+		/*
+		 * The challenge should have been set in the initial call to
+		 * RSI_ATTEST_TOKEN_INIT, if it was not set, it means the initial
+		 * call was not made or failed, and therefore the attestation token
+		 * process has not been properly initialized, or this is a call
+		 * after LFA and therefore the stored challenge is to be used,
+		 * which has to be valid in order to proceed.
+		 */
+		res->smc_res.x[0] = RSI_ERROR_STATE;
+		return;
+	}
+
+	if (is_attest_token_re_init_needed(attest_data)) {
+		/*
+		 * RMM image has been updated and therefore the attestation app
+		 * might have been too. If the CCA token has not been created
+		 * in the EL2 heap yet, the in-progress app state must be
+		 * re-initialized before continuing.
+		 */
+		if (!realm_attest_token_init(rec, NULL)) {
+			ERROR("Failed to re-initialize attestation after LFA.\n");
+			res->smc_res.x[0] = RSI_ERROR_STATE;
+			return;
+		}
+	}
+
 	/* Sign the token */
 	while (attest_data->rmm_realm_token_len == 0U) {
 		enum attest_token_err_t ret;
@@ -267,6 +341,12 @@ void handle_rsi_attest_token_continue(struct rec *rec,
 			 * Before this call the initial attestation token call
 			 * (SMC_RSI_ATTEST_TOKEN_INIT) must have been executed
 			 * successfully.
+			 *
+			 * TODO: This check might have become redundant as
+			 * attest_data->rmm_cca_token_challenge_set is now
+			 * checked at the beginning of this function. Further
+			 * analysis is required to determine whether it should
+			 * be kept or not.
 			 */
 			res->smc_res.x[0] = RSI_ERROR_STATE;
 			return;

@@ -53,6 +53,7 @@ static int random_app_init(
 	 */
 	return app_new_instance(app_data,
 				  RMM_RANDOM_APP_ID,
+				  false, /* reset_on_lfa */
 				  granule_pas,
 				  granule_pa_count,
 				  granule_va_start,

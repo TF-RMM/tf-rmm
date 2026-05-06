@@ -17,6 +17,7 @@ void app_framework_setup(void)
 
 int app_new_instance(struct app_data_cfg *app_data,
 		      unsigned long app_id,
+		      bool reset_on_lfa,
 		      uintptr_t granule_pas[],
 		      size_t granule_count,
 		      void *granule_va_start,
@@ -24,6 +25,7 @@ int app_new_instance(struct app_data_cfg *app_data,
 {
 	(void)app_data;
 	(void)app_id;
+	(void)reset_on_lfa;
 	(void)granule_pas;
 	(void)granule_count;
 	(void)granule_va_start;
@@ -108,4 +110,10 @@ size_t app_get_required_granule_count(unsigned long app_id)
 {
 	(void)app_id;
 	return 0U;
+}
+
+bool is_app_fw_img_sequence_current(struct app_data_cfg *app_data)
+{
+	(void)app_data;
+	return true;
 }

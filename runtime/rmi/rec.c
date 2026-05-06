@@ -306,6 +306,7 @@ static void rec_aux_granules_init(struct rec *r)
 
 	ret = app_new_instance(&r->attest_app_data,
 		ATTESTATION_APP_ID,
+		true, /* reset_on_lfa */
 		granule_pas,
 		granule_pa_count,
 		(void *)(SLOT_BUFFER_BASE_VA +
