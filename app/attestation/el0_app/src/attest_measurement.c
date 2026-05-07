@@ -31,6 +31,8 @@ unsigned long app_do_hash(enum hash_algo algorithm,
 		psa_algorithm = PSA_ALG_SHA_256;
 	} else if (algorithm == HASH_SHA_512) {
 		psa_algorithm = PSA_ALG_SHA_512;
+	} else if (algorithm == HASH_SHA_384) {
+		psa_algorithm = PSA_ALG_SHA_384;
 	} else {
 		assert(false);
 	}
@@ -73,6 +75,9 @@ unsigned long app_do_extend(enum hash_algo algorithm,
 		break;
 	case HASH_SHA_512:
 		psa_algorithm = PSA_ALG_SHA_512;
+		break;
+	case HASH_SHA_384:
+		psa_algorithm = PSA_ALG_SHA_384;
 		break;
 	default:
 		assert(false);

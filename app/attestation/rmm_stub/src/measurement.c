@@ -29,6 +29,10 @@ static void measurement_print(unsigned char *measurement,
 		VERBOSE("(SHA512): 0x");
 		size = SHA512_SIZE;
 		break;
+	case HASH_SHA_384:
+		VERBOSE("(SHA384): 0x");
+		size = SHA384_SIZE;
+		break;
 	default:
 		/* Prevent static check and MISRA warnings */
 		assert(false);

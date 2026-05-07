@@ -1115,6 +1115,8 @@ static inline psa_algorithm_t rmi_to_psa_hash_algo(uint8_t rmi_hash_algo)
 		return PSA_ALG_SHA_256;
 	} else if (rmi_hash_algo == RMI_HASH_SHA_512) {
 		return PSA_ALG_SHA_512;
+	} else if (rmi_hash_algo == RMI_HASH_SHA_384) {
+		return PSA_ALG_SHA_384;
 	}
 
 	return PSA_ALG_NONE;

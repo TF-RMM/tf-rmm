@@ -31,6 +31,7 @@ static void attest_get_hash_algo_text(enum hash_algo algorithm,
 {
 	const char *sha256 = "sha-256";
 	const char *sha512 = "sha-512";
+	const char *sha384 = "sha-384";
 
 	switch (algorithm) {
 	case HASH_SHA_256:
@@ -38,6 +39,9 @@ static void attest_get_hash_algo_text(enum hash_algo algorithm,
 		break;
 	case HASH_SHA_512:
 		*algo_text = UsefulBuf_FromSZ(sha512);
+		break;
+	case HASH_SHA_384:
+		*algo_text = UsefulBuf_FromSZ(sha384);
 		break;
 	default:
 		assert(false);

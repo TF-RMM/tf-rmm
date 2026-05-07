@@ -126,6 +126,7 @@
 /* RmiHashAlgorithm type */
 #define RMI_HASH_SHA_256		0U
 #define RMI_HASH_SHA_512		1U
+#define RMI_HASH_SHA_384		2U
 
 /* Maximum number of Interrupt Controller List Registers */
 #define REC_GIC_NUM_LRS			U(16)

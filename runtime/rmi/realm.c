@@ -447,6 +447,7 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 	switch (p->algorithm) {
 	case RMI_HASH_SHA_256:
 	case RMI_HASH_SHA_512:
+	case RMI_HASH_SHA_384:
 		break;
 	default:
 		return false;
@@ -708,8 +709,10 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 
 	if (p.algorithm == RMI_HASH_SHA_256) {
 		rd->algorithm = HASH_SHA_256;
-	} else {
+	} else if (p.algorithm == RMI_HASH_SHA_512) {
 		rd->algorithm = HASH_SHA_512;
+	} else {
+		rd->algorithm = HASH_SHA_384;
 	}
 
 	rd->pmu_enabled = EXTRACT(RMI_REALM_FLAGS0_PMU, p.flags0) != 0UL;

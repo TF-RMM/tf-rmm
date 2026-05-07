@@ -9,5 +9,6 @@
 bool valid_hash_algo(enum hash_algo value)
 {
 	return value == RMI_HASH_SHA_256 ||
-	       value == RMI_HASH_SHA_512;
+	       value == RMI_HASH_SHA_512 ||
+	       value == RMI_HASH_SHA_384;
 }
