@@ -292,14 +292,33 @@ IGNORE_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC3)
 	TEST_EXIT;
 }
 
+static void buffer_test_cb_unmap_noop(void *buf)
+{
+	(void)buf;
+}
+
+static unsigned int buffer_test_cb_va_to_slot_ns(void *buf)
+{
+	(void)buf;
+	return (unsigned int)SLOT_NS;
+}
+
 TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC4)
 {
+	union test_harness_cbs cb;
+
 	/******************************************************************
 	 * TEST CASE 4:
 	 *
 	 * Test that buffer_unmap() exits gracefully when an invalid VA
 	 * is used.
 	 ******************************************************************/
+
+	/* Register no-op callbacks so an invalid VA causes no side effects */
+	cb.buffer_unmap = buffer_test_cb_unmap_noop;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+	cb.buffer_va_to_slot = buffer_test_cb_va_to_slot_ns;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
 
 	buffer_unmap((void *)NULL);
 	TEST_EXIT;
@@ -2002,6 +2021,8 @@ TEST(slot_buffer, check_cpu_slots_empty_TC2)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
 	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+	cb.buffer_va_to_slot = buffer_test_cb_va_to_slot_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
 
 	granule_addr = get_rand_granule_addr();
 	test_granule = addr_to_granule(granule_addr);
@@ -2037,6 +2058,8 @@ TEST(slot_buffer, buffer_granule_sanitize_TC1)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
 	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+	cb.buffer_va_to_slot = buffer_test_cb_va_to_slot_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
 
 	granule_addr = get_rand_granule_addr();
 	test_granule = addr_to_granule(granule_addr);
@@ -2107,6 +2130,8 @@ TEST(slot_buffer, buffer_aux_granules_map_zeroed_TC1)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
 	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+	cb.buffer_va_to_slot = buffer_test_cb_va_to_slot_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
 
 	get_contiguous_rand_granule_array(granule_addrs, MAX_REC_AUX_GRANULES);
 
@@ -2167,6 +2192,8 @@ TEST(slot_buffer, buffer_aux_granules_map_TC1)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
 	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+	cb.buffer_va_to_slot = buffer_test_cb_va_to_slot_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
 
 	get_contiguous_rand_granule_array(granule_addrs, MAX_REC_AUX_GRANULES);
 
@@ -2225,6 +2252,8 @@ TEST(slot_buffer, buffer_pdev_aux_granules_map_zeroed_TC1)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
 	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+	cb.buffer_va_to_slot = buffer_test_cb_va_to_slot_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
 
 	get_contiguous_rand_granule_array(granule_addrs,
 					PDEV_PARAM_AUX_GRANULES_MAX);
@@ -2286,6 +2315,8 @@ TEST(slot_buffer, buffer_pdev_aux_granules_map_TC1)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
 	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+	cb.buffer_va_to_slot = buffer_test_cb_va_to_slot_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
 
 	get_contiguous_rand_granule_array(granule_addrs,
 					PDEV_PARAM_AUX_GRANULES_MAX);
