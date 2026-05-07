@@ -41,8 +41,6 @@ extern void __gcov_dump(void);
 	RMM_EL3_IFC_MAKE_VERSION(RMM_EL3_IFC_VERS_MAJOR, RMM_EL3_IFC_VERS_MINOR)
 #define RMM_EL3_MAX_CPUS		(1U)
 
-extern unsigned long slot_vas[(unsigned int)NR_CPU_SLOTS];
-
 static unsigned int next_granule_index;
 
 /* Instrumentation: track crash context for signal handler */
@@ -333,7 +331,7 @@ static void fast_reset(void)
 	memset((void *)sro_va, 0, sro_sz);
 	sro_ctx_init(sro_va, sro_sz);
 
-	memset(slot_vas, 0, sizeof(slot_vas));
+	host_util_slot_reset();
 
 	alloc = glob_data_get_granules_va(&alloc_size);
 	memset((void *)alloc, 0, alloc_size);

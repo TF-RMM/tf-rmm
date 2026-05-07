@@ -143,6 +143,16 @@ unsigned long host_util_get_granule_base(void);
  */
 unsigned long host_util_get_dev_granule_base(void);
 
+#ifndef CBMC
+/*
+ * Common slot buffer operations using mmap aliasing.
+ */
+void *host_util_slot_map(unsigned int slot, unsigned long addr);
+void host_util_slot_unmap(void *buf);
+unsigned int host_util_buf_to_slot(void *buf);
+void host_util_slot_reset(void);
+#endif /* !CBMC */
+
 /*
  * Set the current CPU emulated by the platform.
  */

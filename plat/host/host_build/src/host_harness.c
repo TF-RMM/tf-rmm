@@ -4,30 +4,17 @@
  */
 
 #include <buffer.h>
-#include <firme.h>
 #include <host_harness.h>
-
-unsigned long slot_vas[(unsigned int)NR_CPU_SLOTS] = { 0UL };
+#include <host_utils.h>
 
 void *host_buffer_arch_map(unsigned int slot, unsigned long addr)
 {
-	assert(slot < NR_CPU_SLOTS);
-
-	slot_vas[slot] = addr;
-
-	return (void *)addr;
+	return host_util_slot_map(slot, addr);
 }
 
 void host_buffer_arch_unmap(void *buf)
 {
-	unsigned int i;
-	for (i = 0; i < (unsigned int)NR_CPU_SLOTS; i++) {
-		if (slot_vas[i] == (unsigned long)buf) {
-			/* The slot is cleared in the host_buffer_arch_va_to_slot function */
-			return;
-		}
-	}
-	assert(false); /* Execution should not reach this point */
+	host_util_slot_unmap(buf);
 }
 
 void *host_mmio_arch_map(unsigned long addr, uint64_t pas_type)
@@ -40,7 +27,6 @@ void host_mmio_arch_unmap(void *mmio)
 {
 	(void)mmio;
 }
-
 
 unsigned long host_gtsi_delegate(unsigned long addr)
 {
@@ -58,13 +44,5 @@ unsigned long host_gtsi_undelegate(unsigned long addr)
 
 unsigned int host_buffer_arch_va_to_slot(void *addr)
 {
-	unsigned int i;
-	for (i = 0; i < (unsigned int)NR_CPU_SLOTS; i++) {
-		if (slot_vas[i] == (unsigned long)addr) {
-			slot_vas[i] = 0UL; /* Clear the slot */
-			return i;
-		}
-	}
-	assert(false); /* Execution should not reach this point */
-	return i;
+	return host_util_buf_to_slot(addr);
 }

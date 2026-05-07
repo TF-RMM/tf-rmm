@@ -3,21 +3,149 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#ifndef CBMC
+#define _GNU_SOURCE
+#endif
+
 #include <arch_helpers.h>
+#ifndef CBMC
+#include <assert.h>
+#endif
+#include <buffer.h>
 #include <debug.h>
 #include <gic.h>
 #include <host_utils.h>
 #include <rmm_el3_ifc.h>
+#ifndef CBMC
+#include <string.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 #include <xlat_defs.h>
 
 /*
  * Allocate memory to emulate physical memory to initialize the
  * granule library.
+ *
+ * CBMC builds use a plain static array.
+ * All other host builds use memfd-backed MAP_SHARED regions, enabling
+ * mmap aliasing for zero-copy slot buffers.
  */
-IF_NCBMC(static) unsigned char host_dram_buffer[HOST_DRAM_SIZE]
-							__aligned(GRANULE_SIZE);
-IF_NCBMC(static) unsigned char host_dev_ncoh_buffer[HOST_NCOH_DEV_SIZE]
-							__aligned(GRANULE_SIZE);
+#ifdef CBMC
+unsigned char host_dram_buffer[HOST_DRAM_SIZE] __aligned(GRANULE_SIZE);
+unsigned char host_dev_ncoh_buffer[HOST_NCOH_DEV_SIZE] __aligned(GRANULE_SIZE);
+#else
+static unsigned char *host_dram_buffer;
+static unsigned char *host_dev_ncoh_buffer;
+static int host_dram_memfd = -1;
+static int host_dev_memfd = -1;
+
+__attribute__((constructor))
+static void host_util_init_memfd(void)
+{
+	int ret __attribute__((unused));
+
+	host_dram_memfd = memfd_create("host_dram", MFD_CLOEXEC);
+	assert(host_dram_memfd >= 0);
+	ret = ftruncate(host_dram_memfd, (off_t)HOST_DRAM_SIZE);
+	assert(ret == 0);
+	host_dram_buffer = mmap(NULL, HOST_DRAM_SIZE, PROT_READ | PROT_WRITE,
+				MAP_SHARED, host_dram_memfd, 0);
+	assert(host_dram_buffer != MAP_FAILED);
+
+	host_dev_memfd = memfd_create("host_dev", MFD_CLOEXEC);
+	assert(host_dev_memfd >= 0);
+	ret = ftruncate(host_dev_memfd, (off_t)HOST_NCOH_DEV_SIZE);
+	assert(ret == 0);
+	host_dev_ncoh_buffer = mmap(NULL, HOST_NCOH_DEV_SIZE,
+				    PROT_READ | PROT_WRITE,
+				    MAP_SHARED, host_dev_memfd, 0);
+	assert(host_dev_ncoh_buffer != MAP_FAILED);
+}
+
+/*
+ * Common slot buffer implementation using mmap aliasing.
+ * Shared by host_build, host_fuzz, and host_test (as fallback).
+ */
+static unsigned char *host_slot_region;
+static bool host_slot_active[(unsigned int)NR_CPU_SLOTS];
+
+__attribute__((constructor))
+static void host_slot_region_init(void)
+{
+	size_t slot_size = (size_t)NR_CPU_SLOTS * GRANULE_SIZE;
+
+	host_slot_region = mmap(NULL, slot_size, PROT_NONE,
+				MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	assert(host_slot_region != MAP_FAILED);
+}
+
+unsigned int host_util_buf_to_slot(void *buf)
+{
+	uintptr_t offset = (uintptr_t)buf - (uintptr_t)host_slot_region;
+
+	assert(offset < (uintptr_t)NR_CPU_SLOTS * GRANULE_SIZE);
+	assert((offset % GRANULE_SIZE) == 0U);
+	return (unsigned int)(offset / GRANULE_SIZE);
+}
+
+void *host_util_slot_map(unsigned int slot, unsigned long addr)
+{
+	unsigned long dram_base = (unsigned long)host_dram_buffer;
+	unsigned long dev_base = (unsigned long)host_dev_ncoh_buffer;
+	int fd;
+	off_t file_offset;
+
+	assert(slot < NR_CPU_SLOTS);
+
+	if (addr >= dram_base && addr < dram_base + HOST_DRAM_SIZE) {
+		fd = host_dram_memfd;
+		file_offset = (off_t)(addr - dram_base);
+	} else if (addr >= dev_base && addr < dev_base + HOST_NCOH_DEV_SIZE) {
+		fd = host_dev_memfd;
+		file_offset = (off_t)(addr - dev_base);
+	} else {
+		assert(false);
+		return NULL;
+	}
+
+	unsigned char *slot_va = host_slot_region + (size_t)slot * GRANULE_SIZE;
+	void *p __attribute__((unused));
+
+	p = mmap(slot_va, GRANULE_SIZE, PROT_READ | PROT_WRITE,
+		 MAP_FIXED | MAP_SHARED, fd, file_offset);
+	assert(p == (void *)slot_va);
+
+	host_slot_active[slot] = true;
+	return (void *)slot_va;
+}
+
+void host_util_slot_unmap(void *buf)
+{
+	unsigned int slot = host_util_buf_to_slot(buf);
+
+	assert(host_slot_active[slot]);
+	host_slot_active[slot] = false;
+
+	void *slot_va = host_slot_region + (size_t)slot * GRANULE_SIZE;
+	void *p __attribute__((unused));
+
+	p = mmap(slot_va, GRANULE_SIZE, PROT_NONE,
+		 MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	assert(p == slot_va);
+}
+
+void host_util_slot_reset(void)
+{
+	size_t slot_size = (size_t)NR_CPU_SLOTS * GRANULE_SIZE;
+	void *p __attribute__((unused));
+
+	p = mmap(host_slot_region, slot_size, PROT_NONE,
+		 MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	assert(p == (void *)host_slot_region);
+	(void)memset(host_slot_active, 0, sizeof(host_slot_active));
+}
+#endif /* CBMC */
 
 /*
  * Define and set the Boot Interface arguments.
