@@ -536,58 +536,146 @@ int inval_cached_ste(struct smmuv3_dev *smmu, unsigned long sid, bool leaf_only)
 /*
  * Calculate SCALE and NUM for one CMD_TLBI_S2_IPA range invalidation command.
  *
- * The SMMUv3 spec defines the range covered by a single command as:
+ * The SMMUv3 specification defines the range covered by a single command as:
+ *
  *   Range = ((NUM + 1) * 2^SCALE) * GRANULE_SIZE
  *
- * This function computes SCALE and NUM (as a raw count, encoded in the command
- * as NUM - 1) such that the command covers as many granules as possible from the
- * remaining @num_grans, without exceeding that count.
+ * With NUM_WIDTH = 5, the NUM field encodes (NUM + 1) in the range [1, 32].
+ * Therefore, a single command can invalidate at most 32 * 2^SCALE granules.
  *
- * @num_grans	- Remaining granules to invalidate. Must be non-zero.
- * @scale_max	- Architectural maximum for SCALE:
- *		  31 (5-bit SCALE field, FEAT_DS absent)
- *		  39 (6-bit SCALE field, FEAT_DS present)
- * @scale_out	- Output: the SCALE field value.
- * @num_out	- Output: the raw count (encode in CMD as NUM = *num_out - 1).
+ * This function selects SCALE and NUM (returned as the raw count NUM + 1,
+ * encoded in the command as NUM = *num_out - 1) such that the command
+ * covers the maximum possible number of granules from @num_grans without
+ * exceeding it.
  *
- * Returns	- Number of granules covered: (*num_out << *scale_out).
- *		  This is always > 0 and <= @num_grans.
+ * Optimization:
+ * Instead of searching all SCALE values in [0, scale_max], the search
+ * window is restricted as follows:
+ *
+ *   Let hi = floor_log2(num_grans).
+ *
+ *   - SCALE never needs to exceed hi, since num_grans >> SCALE would
+ *     otherwise be zero.
+ *
+ *   - For SCALE < (hi - NUM_WIDTH), (num_grans >> SCALE) is already
+ *     >= 2^NUM_WIDTH and therefore saturates NUM at its architectural
+ *     maximum (32). In that region, the covered range
+ *
+ *         covered = (32 << SCALE)
+ *
+ *     strictly decreases as SCALE decreases.
+ *
+ *   Therefore, it is sufficient to search:
+ *
+ *         SCALE in [max(0, hi - NUM_WIDTH), min(hi, scale_max)]
+ *
+ *   which reduces the search to at most NUM_WIDTH + 1 candidates
+ *   (i.e., at most 6 when NUM_WIDTH = 5).
+ *
+ * The search proceeds from high SCALE to low, so ties naturally prefer
+ * larger SCALE values.
+ *
+ * @num_grans  - Remaining granules to invalidate. Must be non-zero.
+ * @scale_max  - Architectural maximum for SCALE:
+ *               31 (5-bit SCALE field, FEAT_DS absent)
+ *               39 (6-bit SCALE field, FEAT_DS present)
+ * @scale_out  - Output: selected SCALE value.
+ * @num_out    - Output: raw group count (NUM + 1).
+ *               Encode in command as NUM = *num_out - 1.
+ *
+ * Returns     - Number of granules covered: (*num_out << *scale_out).
+ *               Guaranteed to be > 0 and <= @num_grans.
  */
 static inline unsigned long calc_tlbi_range(unsigned long num_grans,
 					    unsigned int scale_max,
 					    unsigned int *scale_out,
 					    unsigned long *num_out)
 {
+	unsigned long best_num = 1UL;
+	unsigned long best_covered = 0UL;
 	/*
-	 * Set SCALE to the position of the least significant set bit of
-	 * num_grans. This ensures that num_grans is divisible by 2^SCALE,
-	 * so NUM = num_grans >> SCALE is an integer with its LSB always set.
+	 * hi = floor_log2(num_grans) which is the position of the most
+	 * significant set bit of num_grans.
+	 *
+	 * This is the largest meaningful SCALE value, since for any
+	 * SCALE > hi we would have (num_grans >> SCALE) == 0.
 	 */
-	unsigned int scale = (unsigned int)__builtin_ffsl((long)num_grans) - 1U;
-	unsigned long num;
+	unsigned int hi = 63U - (unsigned int)__builtin_clzl(num_grans);
+	unsigned int s_hi = hi;	/* upper bound for SCALE candidates */
+	unsigned int s_lo = 0U;	/* lower bound for SCALE candidates */
+	unsigned int best_scale;
 
-	if (scale <= scale_max) {
-		/*
-		 * SCALE is within the architectural limit.
-		 * Take as many (2^SCALE) granule groups as fit in NUM_WIDTH bits.
-		 */
-		num = (num_grans >> scale) & ((1UL << NUM_WIDTH) - 1UL);
-	} else {
-		/*
-		 * SCALE exceeds the architectural limit; clamp to scale_max.
-		 * Adjust NUM so that (num << scale_max) still covers the same
-		 * or fewer granules as in the unclamped case.
-		 */
-		num = 1UL << (scale - scale_max);
-		if (num > (1UL << NUM_WIDTH)) {
-			num = 1UL << NUM_WIDTH;
-		}
-		scale = scale_max;
+	/* Upper bound for SCALE candidates (clamped to architectural limit) */
+	if (s_hi > scale_max) {
+		s_hi = scale_max;
 	}
 
-	*scale_out = scale;
-	*num_out = num;
-	return (num << scale);
+	/*
+	 * Lower bound for SCALE candidates.
+	 *
+	 * With NUM_WIDTH = 5, (NUM + 1) is at most 32.
+	 *
+	 * For SCALE < (hi - NUM_WIDTH):
+	 *   (num_grans >> SCALE) >= 32, so NUM saturates at 32.
+	 *   covered = (32 << SCALE), which strictly decreases as SCALE decreases.
+	 *
+	 * Therefore, the optimal saturated candidate is at SCALE = (hi - 5),
+	 * and no smaller SCALE can produce a larger covered range.
+	 */
+	if (hi >= NUM_WIDTH) {
+		s_lo = hi - NUM_WIDTH;
+	}
+
+	/*
+	 * Ensure lower bound does not exceed upper bound
+	 * (can happen if scale_max < hi - NUM_WIDTH).
+	 */
+	if (s_lo > s_hi) {
+		s_lo = s_hi;
+	}
+
+	best_scale = s_lo;
+
+	/*
+	 * Search SCALE candidates in the restricted window:
+	 *   SCALE in [s_lo, s_hi]
+	 *
+	 * The window size is at most NUM_WIDTH + 1 (= 6 iterations when
+	 * NUM_WIDTH = 5).
+	 *
+	 * Iterate from high SCALE to low so that ties naturally prefer
+	 * larger SCALE values.
+	 */
+	for (int s = (int)s_hi; s >= (int)s_lo; --s) {
+		/*
+		 * Maximum number of groups at this SCALE.
+		 * NUM = min(num_grans >> s, 32).
+		 */
+		unsigned long num = MIN(num_grans >> (unsigned int)s,
+					1UL << NUM_WIDTH);
+
+		/* Number of granules covered by this candidate command */
+		unsigned long covered = num << (unsigned int)s;
+
+		/*
+		 * Keep the candidate that covers the largest number of
+		 * granules without exceeding num_grans.
+		 */
+		if (covered > best_covered) {
+			best_covered = covered;
+			best_scale = (unsigned int)s;
+			best_num = num;
+
+			/* Perfect fit: cannot do better */
+			if (best_covered == num_grans) {
+				break;
+			}
+		}
+	}
+
+	*scale_out = best_scale;
+	*num_out = best_num;
+	return best_covered;
 }
 
 #endif /* SMMUV3_PRIV_H */
