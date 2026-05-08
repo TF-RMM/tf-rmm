@@ -847,6 +847,7 @@ int execute(unsigned char *buffer, size_t read_res)
 			PACKET(packet_granule_tracking_get, b, packet);
 			host_rmi_granule_tracking_get(
 					(unsigned long)_granules[packet.granule_index],
+					(unsigned long)_granules[packet.granule_index] + GRANULE_SIZE,
 					&res);
 			break;
 		}

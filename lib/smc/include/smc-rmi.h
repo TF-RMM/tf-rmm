@@ -880,10 +880,12 @@
 /*
  * FID: 0xC40001E1
  *
- * arg0 == PA of the tracking region
+ * arg0 == Base PA of the tracking region
+ * arg1 == Top of the PA region
  *
  * ret1 == Memory category (RmiMemCategory)
  * ret2 == Tracking region state (RmiTrackingRegionState)
+ * ret3 == Top of the PA region for which the results apply
  */
 #define SMC_RMI_GRANULE_TRACKING_GET		SMC64_RMI_FID(U(0x91))
 

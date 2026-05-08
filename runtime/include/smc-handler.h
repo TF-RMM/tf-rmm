@@ -246,7 +246,7 @@ unsigned long smc_pdev_stream_key_purge(unsigned long pdev1_addr,
 					unsigned long pdev2_addr,
 					unsigned long stream_handle);
 
-void smc_granule_tracking_get(unsigned long addr,
+void smc_granule_tracking_get(unsigned long start, unsigned long end,
 			      struct smc_result *res);
 unsigned long smc_rmm_activate(void);
 unsigned long smc_rmm_config_get(unsigned long config_ptr);

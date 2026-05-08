@@ -433,11 +433,13 @@ void host_rmi_vdev_destroy(void *rd, void *pdev, void *vdev,
 		      (uintptr_t)vdev, 0, 0, 0, 0, res);
 }
 
-void host_rmi_granule_tracking_get(unsigned long addr, struct smc_result *res)
+void host_rmi_granule_tracking_get(unsigned long base,
+				unsigned long top,
+				struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMI_GRANULE_TRACKING_GET,
-		      addr,
-		      0, 0, 0, 0, 0, 0,
+		      base, top,
+		      0, 0, 0, 0, 0,
 		      res);
 }
 

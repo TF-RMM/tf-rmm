@@ -88,7 +88,9 @@ void host_rmi_vdev_unlock(void *rd, void *pdev, void *vdev,
 			  struct smc_result *res);
 void host_rmi_vdev_destroy(void *rd, void *pdev, void *vdev,
 			   struct smc_result *res);
-void host_rmi_granule_tracking_get(unsigned long addr, struct smc_result *res);
+void host_rmi_granule_tracking_get(unsigned long base,
+			unsigned long top,
+			struct smc_result *res);
 void host_rmi_rmm_config_get(unsigned long config_ptr, struct smc_result *res);
 void host_rmi_rmm_config_set(unsigned long config_ptr, struct smc_result *res);
 void host_rmi_op_mem_donate(unsigned long handle, void *list_addr,

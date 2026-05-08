@@ -107,6 +107,7 @@ enum rmi_type {
 	set_rmi_type(1, 2),	/* 1 argument,  2 output values */
 	set_rmi_type(2, 1),	/* 2 arguments, 1 output value */
 	set_rmi_type(2, 2),	/* 2 arguments, 2 output values */
+	set_rmi_type(2, 3),	/* 2 arguments, 3 output values */
 	set_rmi_type(3, 1),	/* 3 arguments, 1 output value */
 	set_rmi_type(3, 2),	/* 3 arguments, 2 output values */
 	set_rmi_type(3, 3),	/* 3 arguments, 3 output values */
@@ -132,6 +133,7 @@ struct smc_handler {
 		handler_1_o	f_12;
 		handler_2_o	f_21;
 		handler_2_o	f_22;
+		handler_2_o	f_23;
 		handler_3_o	f_31;
 		handler_3_o	f_32;
 		handler_3_o	f_33;
@@ -217,7 +219,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PSMMU_DEACTIVATE,	1, 2, smc_psmmu_deactivate,	 true, true),
 	HANDLER(PSMMU_ST_L2_CREATE,	2, 2, smc_psmmu_st_l2_create,	 true, true),
 	HANDLER(PSMMU_ST_L2_DESTROY,	2, 2, smc_psmmu_st_l2_destroy,	 true, true),
-	HANDLER(GRANULE_TRACKING_GET,	1, 2, smc_granule_tracking_get,	 true, true),
+	HANDLER(GRANULE_TRACKING_GET,	2, 3, smc_granule_tracking_get,	 true, true),
 	HANDLER(GPT_L1_CREATE,		1, 1, smc_gpt_l1_create,	 false, true),
 	HANDLER(RMM_CONFIG_GET,		1, 0, smc_rmm_config_get,	 true, true),
 	HANDLER(RMM_CONFIG_SET,		1, 0, smc_rmm_config_set,	 true, true),
@@ -443,6 +445,9 @@ void handle_ns_smc(unsigned int function_id,
 		break;
 	case rmi_type_22:
 		handler->f_22(arg0, arg1, res);
+		break;
+	case rmi_type_23:
+		handler->f_23(arg0, arg1, res);
 		break;
 	case rmi_type_31:
 		handler->f_31(arg0, arg1, arg2, res);
