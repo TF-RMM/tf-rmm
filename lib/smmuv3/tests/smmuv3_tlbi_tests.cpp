@@ -225,58 +225,52 @@ TEST(smmuv3_tlbi_range, non_power_of_2)
 /* ---------------------------------------------------------------------------
  * TC5: Two-iteration case -- values that cannot be covered in one command.
  *
- *   num_grans = 33 = 1 + (1 * 2^5)
+ *   num_grans = 33 = (1 * 2^5) + 1
+ *
+ *   The bounded search selects SCALE = 5, NUM = 1 (covered = 32) as the
+ *   best single-command option, leaving 1 granule for the second iteration.
+ *   Ties (equal covered values at lower SCALE) are broken in favour of the
+ *   larger SCALE, so scale = 5 is selected over scale = 4..0.
  * --------------------------------------------------------------------------- */
 TEST(smmuv3_tlbi_range, two_iteration_values)
 {
 	unsigned int scale;
 	unsigned long num, covered;
 
-	/* num_grans = 33 */
+	/* First iteration: covers 32 granules (scale=5, num=1) */
 	covered = calc_tlbi_range(33UL, SCALE_MAX_NO_DS, &scale, &num);
-	if (covered == 1UL) {
-		/* First iteration covers 1 granule */
-		UNSIGNED_LONGS_EQUAL(0U, scale);
-		UNSIGNED_LONGS_EQUAL(1UL, num);
+	UNSIGNED_LONGS_EQUAL(5U, scale);
+	UNSIGNED_LONGS_EQUAL(1UL, num);
+	UNSIGNED_LONGS_EQUAL(32UL, covered);
 
-		/* Second iteration: remaining 32  */
-		covered = calc_tlbi_range(32UL, SCALE_MAX_NO_DS, &scale, &num);
-		UNSIGNED_LONGS_EQUAL(5U, scale);
-		UNSIGNED_LONGS_EQUAL(1UL, num);
-		UNSIGNED_LONGS_EQUAL(32UL, covered);
-	} else {
-		/* First iteration covers 32 granules */
-		UNSIGNED_LONGS_EQUAL(32UL, covered);
-		UNSIGNED_LONGS_EQUAL(5U, scale);
-		UNSIGNED_LONGS_EQUAL(1UL, num);
-
-		/* Second iteration: remaining 1  */
-		covered = calc_tlbi_range(1UL, SCALE_MAX_NO_DS, &scale, &num);
-		UNSIGNED_LONGS_EQUAL(0U, scale);
-		UNSIGNED_LONGS_EQUAL(1UL, num);
-		UNSIGNED_LONGS_EQUAL(1UL, covered);
-	}
+	/* Second iteration: remaining 1 granule */
+	covered = calc_tlbi_range(1UL, SCALE_MAX_NO_DS, &scale, &num);
+	UNSIGNED_LONGS_EQUAL(0U, scale);
+	UNSIGNED_LONGS_EQUAL(1UL, num);
+	UNSIGNED_LONGS_EQUAL(1UL, covered);
 }
 
 /* -----------------------------------------------------------------------
  * TC6: Scale clamping -- no FEAT_DS (scale_max = 31).
  *
- *   When num_grans has trailing zeros count > scale_max (31), the SCALE
- *   field is clamped and NUM is increased to compensate.
+ *   Scale clamping occurs when hi > scale_max (hi = floor_log2(num_grans)).
+ *   In that case s_hi is clamped to scale_max and the bounded search
+ *   finds the best (NUM, SCALE = scale_max) pair without exceeding
+ *   num_grans.
  *
- *   num_grans = 2^32:  trailing zeros = 32 > 31.
- *     num = 1 << (32 - 31) = 2.  scale_out = 31.
- *     covered = 2 << 31 = 2^32.
+ *   num_grans = 2^32:  hi=32 > 31, s_hi=31.
+ *     Bounded search at s=31: num = 2^32 >> 31 = 2.
+ *     covered = 2 << 31 = 2^32  (perfect fit).
  *
- *   num_grans = 2^35:  trailing zeros = 35 > 31.
- *     num = 1 << (35 - 31) = 16.  scale_out = 31.
- *     covered = 16 << 31 = 2^35.
+ *   num_grans = 2^35:  hi=35 > 31, s_hi=31.
+ *     num = 2^35 >> 31 = 16.  covered = 16 << 31 = 2^35.
  *
- *   num_grans = 2^36:  num = 1 << 5 = 32 (== NUM_FIELD_MAX).
+ *   num_grans = 2^36:  s_hi=31.
+ *     num = 2^36 >> 31 = 32 == NUM_FIELD_MAX.
  *
- *   num_grans = 2^37:  num would be 1 << 6 = 64 > NUM_FIELD_MAX=32.
- *     Capped: num = 32, scale = 31, covered = 32 << 31 = 2^36.
- *     Only covers half; second iteration handles the rest.
+ *   num_grans = 2^37:  hi=37, s_lo = max(0, 37-5) = 32 > s_hi=31,
+ *     so s_lo is clamped to s_hi=31.  num = MIN(2^37>>31, 32) = 32.
+ *     covered = 32 << 31 = 2^36 (not 2^37 -- takes two iterations).
  * ----------------------------------------------------------------------- */
 TEST(smmuv3_tlbi_range, scale_clamp_no_ds)
 {
@@ -316,13 +310,17 @@ TEST(smmuv3_tlbi_range, scale_clamp_no_ds)
 /* -----------------------------------------------------------------------
  * TC7: Scale clamping -- with FEAT_DS (scale_max = 39).
  *
- *   num_grans = 2^40: trailing zeros = 40 > 39.
- *     num = 1 << (40 - 39) = 2.  scale_out = 39.  covered = 2 << 39 = 2^40.
+ *   num_grans = 2^40:  hi=40 > 39, s_hi=39.
+ *     Bounded search at s=39: num = 2^40 >> 39 = 2.
+ *     covered = 2 << 39 = 2^40  (perfect fit).
  *
- *   num_grans = 2^44: num = 1 << (44 - 39) = 32 == NUM_FIELD_MAX.
+ *   num_grans = 2^44:  hi=44 > 39, s_hi=39, s_lo = max(0, 44-5) = 39.
+ *     Single candidate at s=39: num = 2^44 >> 39 = 32 == NUM_FIELD_MAX.
+ *     covered = 32 << 39 = 2^44  (perfect fit).
  *
- *   num_grans = 2^45: num would be 64, capped at 32.
- *     covered = 32 << 39 = 2^44 (not 2^45).
+ *   num_grans = 2^45:  s_hi=39, s_lo = max(0, 45-5) = 40 > 39,
+ *     so s_lo is clamped to s_hi=39.  num = MIN(2^45>>39, 32) = 32.
+ *     covered = 32 << 39 = 2^44 (not 2^45 -- takes two iterations).
  * ----------------------------------------------------------------------- */
 TEST(smmuv3_tlbi_range, scale_clamp_feat_ds)
 {
@@ -499,6 +497,8 @@ TEST(smmuv3_tlbi_range, powers_of_2_minus_1)
 {
 	unsigned int total = 0U;
 
+	INFO("\n");
+
 	/* Covers all 4KB granules in the 56-bit address space */
 	for (unsigned int i = 6U; i <= 44U; i++) {
 		/* Number of granules 2^i - 1 */
@@ -534,4 +534,72 @@ TEST(smmuv3_tlbi_range, powers_of_2_minus_1)
 	}
 
 	INFO("Total number of commands %u\n", total);
+
+	/*
+	 * Regression guard: the optimized algorithm must produce exactly 211
+	 * commands across all 39 inputs (i = 6..44) with scale_max = 39.
+	 */
+	UNSIGNED_LONGS_EQUAL(211U, total);
+}
+
+/* -----------------------------------------------------------------------
+ * TC14: Optimization quality -- first-iteration SCALE maximization.
+ *
+ *   For inputs of the form (2^n - 1) the previous LSB-based algorithm
+ *   always selected SCALE = 0 (the input is odd) and NUM = 31, covering
+ *   only 31 granules per command regardless of n.
+ *
+ *   The bounded-search algorithm selects the (SCALE, NUM) pair that
+ *   maximises coverage.  For n in [NUM_WIDTH + 1, scale_max + NUM_WIDTH]:
+ *
+ *     SCALE = n - NUM_WIDTH,  NUM = 31,
+ *     covered = 31 * 2^(n - NUM_WIDTH)   (31/32 of the range in one shot)
+ *
+ *   This is verified both for specific inputs and via a loop over the
+ *   full range n = [NUM_WIDTH + 1, SCALE_MAX_FEAT_DS + NUM_WIDTH].
+ * ----------------------------------------------------------------------- */
+TEST(smmuv3_tlbi_range, first_iter_scale_maximization)
+{
+	unsigned int scale;
+	unsigned long num, covered;
+
+	/* 2^6 - 1 = 63: optimal SCALE = 1, NUM = 31, covered = 62 */
+	covered = calc_tlbi_range(63UL, SCALE_MAX_FEAT_DS, &scale, &num);
+	UNSIGNED_LONGS_EQUAL(1U, scale);
+	UNSIGNED_LONGS_EQUAL(31UL, num);
+	UNSIGNED_LONGS_EQUAL(62UL, covered);
+
+	/* 2^10 - 1 = 1023: optimal SCALE = 5, NUM = 31, covered = 31 * 32 = 992 */
+	covered = calc_tlbi_range(1023UL, SCALE_MAX_FEAT_DS, &scale, &num);
+	UNSIGNED_LONGS_EQUAL(5U, scale);
+	UNSIGNED_LONGS_EQUAL(31UL, num);
+	UNSIGNED_LONGS_EQUAL(31UL << 5, covered);
+
+	/* 2^12 - 1 = 4095: optimal SCALE = 7, NUM = 31, covered = 31 * 128 = 3968 */
+	covered = calc_tlbi_range(4095UL, SCALE_MAX_FEAT_DS, &scale, &num);
+	UNSIGNED_LONGS_EQUAL(7U, scale);
+	UNSIGNED_LONGS_EQUAL(31UL, num);
+	UNSIGNED_LONGS_EQUAL(31UL << 7, covered);
+
+	/* 2^44 - 1: optimal SCALE = 39 (= scale_max), NUM = 31 */
+	covered = calc_tlbi_range((1UL << 44) - 1UL, SCALE_MAX_FEAT_DS, &scale, &num);
+	UNSIGNED_LONGS_EQUAL(SCALE_MAX_FEAT_DS, scale);
+	UNSIGNED_LONGS_EQUAL(31UL, num);
+	UNSIGNED_LONGS_EQUAL(31UL << SCALE_MAX_FEAT_DS, covered);
+
+	/*
+	 * Loop: for all n in [NUM_WIDTH+1, SCALE_MAX_FEAT_DS+NUM_WIDTH],
+	 * i.e. n in [6, 44], verify:
+	 *   first call on (2^n - 1) returns SCALE = n - NUM_WIDTH, NUM = 31.
+	 */
+	for (unsigned int n = NUM_WIDTH + 1U;
+	     n <= SCALE_MAX_FEAT_DS + NUM_WIDTH; n++) {
+		unsigned long ng = (1UL << n) - 1UL;
+		unsigned int expected_scale = n - NUM_WIDTH;
+
+		covered = calc_tlbi_range(ng, SCALE_MAX_FEAT_DS, &scale, &num);
+		UNSIGNED_LONGS_EQUAL(expected_scale, scale);
+		UNSIGNED_LONGS_EQUAL(31UL, num);
+		UNSIGNED_LONGS_EQUAL(31UL << expected_scale, covered);
+	}
 }
