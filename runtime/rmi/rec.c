@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <app.h>
 #include <arch.h>
 #include <arch_features.h>
 #include <buffer.h>
@@ -294,11 +295,13 @@ static void rec_aux_granules_init(struct rec *r)
 		granule_pas[i] = granule_addr(r->g_aux[used_aux_pages + i]);
 	}
 
-	ret = attest_app_new(&r->attest_app_data,
+	ret = app_new_instance(&r->attest_app_data,
+		ATTESTATION_APP_ID,
 		granule_pas,
 		granule_pa_count,
 		(void *)(SLOT_VIRT +
-			(((unsigned long)SLOT_REC_AUX0 + used_aux_pages) * GRANULE_SIZE)));
+			(((unsigned long)SLOT_REC_AUX0 + used_aux_pages) * GRANULE_SIZE)),
+		0);
 	if (ret != 0) {
 		panic();
 	}

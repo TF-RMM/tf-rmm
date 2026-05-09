@@ -19,13 +19,20 @@ int app_new_instance(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
 		      size_t granule_count,
-		      void *granule_va_start){
+		      void *granule_va_start,
+		      unsigned long flags)
+{
 	(void)app_data;
 	(void)app_id;
 	(void)granule_pas;
 	(void)granule_count;
 	(void)granule_va_start;
+	(void)flags;
 	return 0;
+}
+
+void app_reset_instances(void)
+{
 }
 
 void app_delete_instance(struct app_data_cfg *app_data)

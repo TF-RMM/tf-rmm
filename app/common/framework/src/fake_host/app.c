@@ -224,7 +224,8 @@ int app_new_instance(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
 		      size_t granule_count,
-		      void *granule_va_start)
+		      void *granule_va_start,
+		      unsigned long flags)
 {
 	struct app_process_data *app_process_data;
 	unsigned long command;
@@ -246,6 +247,7 @@ int app_new_instance(struct app_data_cfg *app_data,
 	command = CREATE_NEW_APP_INSTANCE;
 
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &command, sizeof(command));
+	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &flags, sizeof(flags));
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &app_data->inst_id,
 		sizeof(app_data->inst_id));
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &heap_size, sizeof(heap_size));
@@ -296,6 +298,19 @@ void app_unmap_shared_page(struct app_data_cfg *app_data)
 {
 	assert(app_data->el2_shared_page != NULL);
 	app_data->el2_shared_page = NULL;
+}
+
+void app_reset_instances(void)
+{
+	for (size_t i = 0; i < initialised_app_process_data_count; i++) {
+		unsigned long command = RESET_APP_INSTANCES;
+		unsigned long ack;
+
+		WRITE_OR_EXIT(app_process_datas[i].fd_rmm_to_app_process,
+			      &command, sizeof(command));
+		READ_OR_EXIT(app_process_datas[i].fd_app_process_to_rmm,
+			     &ack, sizeof(ack));
+	}
 }
 
 static unsigned long app_run_internal(struct app_data_cfg *app_data,

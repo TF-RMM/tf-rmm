@@ -45,11 +45,17 @@ static int random_app_init(
 	void *granule_va_start)
 {
 	assert(!random_app_init_done[my_cpuid()]);
+	/*
+	 * Per-CPU random instances are long-lived (survive across fuzz
+	 * iterations), so mark them persistent so that creating new transient
+	 * instances does not destroy them.
+	 */
 	return app_new_instance(app_data,
 				  RMM_RANDOM_APP_ID,
 				  granule_pas,
 				  granule_pa_count,
-				  granule_va_start);
+				  granule_va_start,
+				  APP_INSTANCE_FLAG_PERSISTENT);
 }
 
 static int random_app_prng_init(struct app_data_cfg *app_data,

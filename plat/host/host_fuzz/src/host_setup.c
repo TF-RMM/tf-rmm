@@ -219,13 +219,24 @@ static void fuzz_realm_coro(mco_coro *co)
 		/*
 		 * If the corpus flagged this command for looping,
 		 * re-issue on RSI_INCOMPLETE with updated offset.
+		 * Bound iterations to avoid hangs when no progress
+		 * is made (e.g. bytes-written == 0) or when the
+		 * token requires many round-trips.
 		 */
 		if (cmd.flags & RSI_CMD_FLAG_LOOP_INCOMPLETE) {
 			unsigned long offset = cmd.args[1]; /* initial offset */
+			unsigned int loop_limit = 256;
 
-			while (g_fuzz_rec_regs[0] == RSI_INCOMPLETE) {
+			while (g_fuzz_rec_regs[0] == RSI_INCOMPLETE &&
+			       loop_limit-- > 0) {
 				assert((cmd.fid & ~SMC_SVE_HINT) == SMC_RSI_ATTEST_TOKEN_CONTINUE);
-				offset += g_fuzz_rec_regs[1];
+				unsigned long progress = g_fuzz_rec_regs[1];
+
+				if (progress == 0) {
+					break;
+				}
+
+				offset += progress;
 
 				g_fuzz_rec_regs[0] = cmd.fid;
 				g_fuzz_rec_regs[1] = cmd.args[0];
@@ -515,6 +526,14 @@ static void fast_reset(void)
 		mco_destroy(g_fuzz_realm_coro);
 		g_fuzz_realm_coro = NULL;
 	}
+
+	/*
+	 * Destroy transient app instances leaked from the previous
+	 * iteration.  Persistent instances (per-CPU, created during
+	 * init) are preserved.  This is unconditional so every
+	 * iteration takes the same code path for AFL stability.
+	 */
+	app_reset_instances();
 }
 
 int execute(unsigned char *buffer, size_t read_res)
