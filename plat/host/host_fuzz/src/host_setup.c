@@ -126,8 +126,12 @@ static void *allocate_granule(void)
  */
 #define RSI_QUEUE_MAX 64
 
+/* RSI command flags for struct rsi_cmd::flags */
+#define RSI_CMD_FLAG_LOOP_INCOMPLETE	UL(0x1)
+
 struct rsi_cmd {
 	unsigned long fid;
+	unsigned long flags;
 	unsigned long args[8];
 };
 
@@ -188,6 +192,12 @@ static void fuzz_realm_rsi_call(mco_coro *co)
  * Realm coroutine: drains RSI commands from the queue.
  * Each iteration pops one RSI command, sets up the registers,
  * and yields to let RMM process the RSI.
+ *
+ * When RSI_CMD_FLAG_LOOP_INCOMPLETE is set on a command, the
+ * coroutine re-issues the same RSI (advancing arg2/offset by
+ * the bytes-written value in x1) while RMM returns RSI_INCOMPLETE.
+ * This covers RSI_ATTEST_TOKEN_CONTINUE and any future RSI that
+ * follows the same offset-advancing protocol.
  */
 static void fuzz_realm_coro(mco_coro *co)
 {
@@ -205,6 +215,25 @@ static void fuzz_realm_coro(mco_coro *co)
 		g_fuzz_rec_regs[8] = cmd.args[7];
 
 		fuzz_realm_rsi_call(co);
+
+		/*
+		 * If the corpus flagged this command for looping,
+		 * re-issue on RSI_INCOMPLETE with updated offset.
+		 */
+		if (cmd.flags & RSI_CMD_FLAG_LOOP_INCOMPLETE) {
+			unsigned long offset = cmd.args[1]; /* initial offset */
+
+			while (g_fuzz_rec_regs[0] == RSI_INCOMPLETE) {
+				assert((cmd.fid & ~SMC_SVE_HINT) == SMC_RSI_ATTEST_TOKEN_CONTINUE);
+				offset += g_fuzz_rec_regs[1];
+
+				g_fuzz_rec_regs[0] = cmd.fid;
+				g_fuzz_rec_regs[1] = cmd.args[0];
+				g_fuzz_rec_regs[2] = offset;
+				g_fuzz_rec_regs[3] = cmd.args[2];
+				fuzz_realm_rsi_call(co);
+			}
+		}
 	}
 
 	/* All queued RSIs processed; exit realm with FIQ */
@@ -962,6 +991,7 @@ int execute(unsigned char *buffer, size_t read_res)
 			PACKET(packet_rsi_call, b, packet);
 			struct rsi_cmd cmd = {
 				.fid = packet.fid,
+				.flags = packet.flags,
 				.args = {
 					packet.arg1, packet.arg2,
 					packet.arg3, packet.arg4,

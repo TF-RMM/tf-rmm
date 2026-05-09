@@ -13,6 +13,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,6 +125,18 @@ static struct app_process_data *create_app_process(unsigned long app_id)
 		return NULL;
 	}
 
+	/*
+	 * Set O_CLOEXEC on all four pipe fds so that they are automatically
+	 * closed when execv() runs for later app processes.  Without this,
+	 * each app process inherits write-end fds of other apps' pipes,
+	 * preventing EOF delivery during graceful shutdown.
+	 * The child will clear O_CLOEXEC on the two fds it actually needs.
+	 */
+	(void)fcntl(fds_rmm_to_app_process[0], F_SETFD, FD_CLOEXEC);
+	(void)fcntl(fds_rmm_to_app_process[1], F_SETFD, FD_CLOEXEC);
+	(void)fcntl(fds_app_process_to_rmm[0], F_SETFD, FD_CLOEXEC);
+	(void)fcntl(fds_app_process_to_rmm[1], F_SETFD, FD_CLOEXEC);
+
 	ret->pid = fork();
 
 	if (ret->pid == 0) {
@@ -132,6 +145,12 @@ static struct app_process_data *create_app_process(unsigned long app_id)
 		 */
 		close(fds_rmm_to_app_process[1]);
 		close(fds_app_process_to_rmm[0]);
+
+		/* Clear O_CLOEXEC on the two fds the app process needs
+		 * so they survive execv().
+		 */
+		(void)fcntl(fds_rmm_to_app_process[0], F_SETFD, 0);
+		(void)fcntl(fds_app_process_to_rmm[1], F_SETFD, 0);
 		/*
 		 * Tell the kernel to automatically SIGKILL the app process
 		 * when its parent rmm.elf dies — regardless of how the parent
@@ -188,10 +207,14 @@ void app_framework_setup(void)
 void app_processes_cleanup(void)
 {
 	for (size_t i = 0; i < initialised_app_process_data_count; i++) {
-		kill(app_process_datas[i].pid, SIGKILL);
-		waitpid(app_process_datas[i].pid, NULL, 0);
+		/*
+		 * Close the pipes first so the app process's read() returns
+		 * EOF, causing exit(0) which flushes gcov/coverage data via
+		 * __gcov_exit().  Using SIGKILL would skip that flush.
+		 */
 		close(app_process_datas[i].fd_rmm_to_app_process);
 		close(app_process_datas[i].fd_app_process_to_rmm);
+		waitpid(app_process_datas[i].pid, NULL, 0);
 	}
 	initialised_app_process_data_count = 0;
 	memset(app_process_datas, 0, sizeof(app_process_datas));

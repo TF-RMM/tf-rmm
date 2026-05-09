@@ -109,7 +109,9 @@ if __name__ == "__main__":
                            arg5=0x2930313233343536, arg6=0x3738394041424344,
                            arg7=0x4546474849505152, arg8=0x5354555657585960))
     # RSI_ATTEST_TOKEN_CONTINUE (write token to REALM_DATA_IPA, offset=0, size=256)
+    # RSI_CMD_FLAG_LOOP_INCOMPLETE: auto-retry with updated offset on RSI_INCOMPLETE
     packets.append(RsiCall(fid=0xC4000195,
+                           flags=RSI_CMD_FLAG_LOOP_INCOMPLETE,
                            arg1=REALM_DATA_IPA, arg2=0, arg3=0x100))
 
     # --- Enter realm (drains queued RSI calls) ---

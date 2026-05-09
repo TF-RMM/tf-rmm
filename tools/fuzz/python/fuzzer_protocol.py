@@ -263,10 +263,15 @@ class SroContinue(Packet):
     ]
 
 
+# RSI command flags for RsiCall.flags
+RSI_CMD_FLAG_LOOP_INCOMPLETE = 0x1
+
+
 class RsiCall(Packet):
     name = "Rsi call"
     fields_desc = [
         LELongField("fid", 0),
+        LELongField("flags", 0),
         LELongField("arg1", 0),
         LELongField("arg2", 0),
         LELongField("arg3", 0),
