@@ -6,6 +6,7 @@
 #ifndef HOST_REALM_H
 #define HOST_REALM_H
 
+#include <minicoro.h>
 #include <smc-rmi.h>
 
 /* Create a simple 4 level (Lvl 0 - LvL 3) RTT structure */
@@ -43,7 +44,12 @@ int realm_start(unsigned long *regs, unsigned long *rec_sp_el0);
 unsigned long host_realm_get_realm_data_1(void);
 void print_buf(const unsigned char *buf, size_t size);
 
-int host_realm_da_rsi_main(unsigned long *rec_regs, unsigned long *rec_sp_el0);
+/* Shared realm coroutine state */
+extern unsigned long *g_rec_regs;
+extern int g_realm_ret;
+
+void realm_rsi_call(mco_coro *co);
+void realm_da_rsi_coro(mco_coro *co);
 
 unsigned long host_realm_get_realm_buffer(void);
 int host_sro_drive(unsigned long handle, unsigned long ret_status,

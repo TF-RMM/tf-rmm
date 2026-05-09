@@ -10,7 +10,8 @@ target_link_libraries(rmm-plat-host_build
             rmm-lib)
 
 target_include_directories(rmm-plat-host_build
-    PRIVATE "src")
+    PRIVATE "${CMAKE_SOURCE_DIR}/ext/minicoro"
+            "src")
 
 target_sources(rmm-plat-host_build
     PRIVATE "src/host_setup.c"

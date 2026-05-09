@@ -370,9 +370,12 @@ static int host_realm_run_attest(struct host_realm *realm)
 
 	if (realm->rec_run->exit.exit_reason == RMI_EXIT_FIQ) {
 		INFO("Realm executed successfully and exited due to FIQ.\n");
+		return 0;
 	}
 
-	return 0;
+	ERROR("Unexpected REC exit reason during attestation flow: %lu\n",
+		realm->rec_run->exit.exit_reason);
+	return -1;
 }
 
 uint64_t rmm_main(uint64_t token);
