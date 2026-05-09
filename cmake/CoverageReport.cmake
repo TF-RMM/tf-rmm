@@ -143,7 +143,7 @@ if(RMM_COVERAGE)
                     COMMAND ${GCOVR_EXECUTABLE}
                             ${GCOVR_EXE_OPTION}
                             ${FUZZ_OPTIONS}
-                            --exclude "'((.+)/ext/(.+))|((.+)CMakeFiles(.+)\..)|((.+)\.cpp)|((.+)test(.+))'"
+                            --exclude "'((.+)/ext/(.+))|((.+)CMakeFiles(.+)\..)|((.+)\.cpp)|((.+)/tests?/(.+))'"
                             -r ${CMAKE_SOURCE_DIR}
                             -x ${COVERAGE_OUTPUT}.xml
                             ${HTML_REPORT}

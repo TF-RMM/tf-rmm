@@ -15,7 +15,8 @@ target_sources(rmm-plat-host_fuzz
             "src/host_harness.c")
 
 target_include_directories(rmm-plat-host_fuzz
-    PUBLIC "include")
+    PUBLIC "include"
+    PRIVATE "${CMAKE_SOURCE_DIR}/ext/minicoro")
 
 # Export symbols for backtrace_symbols_fd() in the crash signal handler
 target_link_options(rmm-plat-host_fuzz

@@ -263,6 +263,21 @@ class SroContinue(Packet):
     ]
 
 
+class RsiCall(Packet):
+    name = "Rsi call"
+    fields_desc = [
+        LELongField("fid", 0),
+        LELongField("arg1", 0),
+        LELongField("arg2", 0),
+        LELongField("arg3", 0),
+        LELongField("arg4", 0),
+        LELongField("arg5", 0),
+        LELongField("arg6", 0),
+        LELongField("arg7", 0),
+        LELongField("arg8", 0),
+    ]
+
+
 # fid: 10xC4000150 - 0xC4000169
 bind_layers(RMI, AllocateGranule, command=99)
 
@@ -299,3 +314,4 @@ bind_layers(RMI, GranuleTrackingGet, command=29)
 bind_layers(RMI, SroDonate, command=30)
 bind_layers(RMI, SroReclaim, command=31)
 bind_layers(RMI, SroContinue, command=32)
+bind_layers(RMI, RsiCall, command=33)
