@@ -162,6 +162,12 @@ struct vdev {
 	/* DMA state */
 	uint32_t dma_state;
 
+	/* StreamId */
+	uint32_t sid;
+
+	/* SMMU index */
+	uint32_t smmu_idx;
+
 	/*
 	 * Digest of device measurements and interface report. This digest is
 	 * calculated when RMM fetches these objects. The content of these device

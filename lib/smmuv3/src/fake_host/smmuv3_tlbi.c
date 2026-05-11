@@ -14,7 +14,7 @@ int smmuv3_inv(void)
 	return 0;
 }
 
-int smmuv3_inv_entries(unsigned long smmu_idx, unsigned int vmid)
+int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid)
 {
 	(void)smmu_idx;
 	(void)vmid;

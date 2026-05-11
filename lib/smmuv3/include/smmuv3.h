@@ -10,9 +10,6 @@
 
 #include <rmm_el3_ifc.h>
 
-/* TODO: get SMMUv3 index from the Boot Manifest */
-#define SMMU_IDX	0UL
-
 struct smmu_stg2_config {
 	unsigned long s2ttb;
 	unsigned long vtcr;
@@ -60,27 +57,31 @@ uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
 int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz);
 
 /*
- * Configure stage-2 translation parameters for a StreamID.
+ * Configure stage-2 translation parameters for a given TDI identifier.
  *
  * Parameters:
- *   smmu_idx	- Index of the SMMU instance in the platform SMMU list.
- *   s2_cfg	- Pointer to stage-2 configuration describing VTCR, VMID, and
- *		  the base address of the stage-2 translation table.
- *   sid	- StreamID whose STE must be populated.
+ *   ecam_addr	- ECAM base address identifying the Root Complex.
+ *   tdi_id	- TDI identifier whose Stream Table Entry (STE) is to be populated.
+ *   s2_cfg	- Pointer to the stage-2 configuration containing VTCR, VMID,
+ *		  and the base address of the stage-2 translation table.
+ *   sid_ptr	- Pointer to return the derived StreamID on the selected SMMU
+ *		  instance from the RequesterID (TDI identifier).
+ *   idx_ptr	- Pointer to return the index of the SMMU instance in the
+ *		  platform SMMU list.
  *
  * Return:
- *   0		- success.
- *   -EINVAL	- smmu_idx, sid, or s2_cfg is invalid, or STE is already valid.
- *                No driver state or STE contents are modified.
- *   -ETIMEDOUT	- SMMU command timeout while writing the STE.
+ *   0		- Success.
+ *   -EINVAL	- ecam_addr, tdi_id or s2_cfg is invalid, or the STE is already valid.
+ *		  In this case, no driver state or STE contents are modified.
+ *   -ETIMEDOUT	- Timed out while issuing the SMMU command to write the STE.
  *   -EIO	- SMMU queue or command interface error.
  *
- * On -EINVAL error, no Stream Table Entries (STEs) are programmed and the
- * driver's internal state remains unchanged.
+ * On -EINVAL error, no Stream Table Entry (STE) is programmed and the driver's
+ * internal state remains unchanged.
  */
-int smmuv3_configure_stream(unsigned long smmu_idx,
+int smmuv3_configure_stream(unsigned long ecam_addr, unsigned int tdi_id,
 			    struct smmu_stg2_config *s2_cfg,
-			    unsigned int sid);
+			    unsigned int *sid_ptr, unsigned int *idx_ptr);
 
 /*
  * Enable a previously configured Stream Table Entry (STE) for the given
@@ -88,7 +89,7 @@ int smmuv3_configure_stream(unsigned long smmu_idx,
  *
  * Parameters:
  *   smmu_idx	- Index of the SMMU instance.
- *   sid       - StreamID whose STE must be enabled.
+ *   sid	- StreamID whose STE must be enabled.
  *
  * Return:
  *   0		- success.
@@ -97,10 +98,10 @@ int smmuv3_configure_stream(unsigned long smmu_idx,
  *   -ETIMEDOUT	- command timeout while updating the STE.
  *   -EIO	- SMMU queue or command interface error.
  *
- * On -EINVAL error, no STEs are programmed and the driver's internal state
- * remains unchanged.
+ * On -EINVAL error, no Stream Table Entry (STE) is programmed and the driver's
+ * internal state remains unchanged.
  */
-int smmuv3_enable_ste(unsigned long smmu_idx, unsigned int sid);
+int smmuv3_enable_ste(unsigned int smmu_idx, unsigned int sid);
 
 /*
  * Disable an active Stream Table Entry for the given StreamID.
@@ -119,7 +120,7 @@ int smmuv3_enable_ste(unsigned long smmu_idx, unsigned int sid);
  * On -EINVAL error, no STEs are programmed and the driver's internal state
  * remains unchanged.
  */
-int smmuv3_disable_ste(unsigned long smmu_idx, unsigned int sid);
+int smmuv3_disable_ste(unsigned int smmu_idx, unsigned int sid);
 
 /*
  * Release a previously allocated Stream Table Entry.
@@ -140,7 +141,7 @@ int smmuv3_disable_ste(unsigned long smmu_idx, unsigned int sid);
  * If there are no remaining users of the Level 1 Stream Table Descriptor,
  * it is cleared and the SMMU TLBs are invalidated.
  */
-int smmuv3_release_ste(unsigned long smmu_idx, unsigned int sid);
+int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid);
 
 /*
  * Perform a context-wide invalidation for all SMMUs that do not support
@@ -168,7 +169,7 @@ int smmuv3_inv(void);
  *   -ETIMEDOUT	- timeout during invalidation.
  *   -EIO	- hardware or queue processing error.
  */
-int smmuv3_inv_entries(unsigned long smmu_idx, unsigned int vmid);
+int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid);
 
 /*
  * Invalidate @num_entrs TLB entries within a block region for VMID.

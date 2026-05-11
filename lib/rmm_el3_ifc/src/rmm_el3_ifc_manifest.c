@@ -21,68 +21,253 @@ static uint8_t cached_manifest[GRANULE_SIZE] __aligned(GRANULE_SIZE);
 static struct rmm_core_manifest *local_core_manifest;
 
 /*
- * Manifest status
+ * Copy the SMMU list data into the cached manifest buffer.
+ * The SMMU info array needs to be copied separately since it's
+ * pointed to by the manifest structure.
+ *
+ * Return updated offset.
  */
-static bool manifest_processed;
+static size_t copy_smmu_data(size_t offset)
+{
+	struct smmu_info *smmus_ptr = local_core_manifest->plat_smmu.smmus;
+	size_t smmu_array_size = sizeof(struct smmu_info) *
+					local_core_manifest->plat_smmu.num_smmus;
+	void *cached_smmu_array;
+
+	if ((smmu_array_size == 0UL) || (smmus_ptr == NULL)) {
+		return offset;
+	}
+
+	/* Ensure the SMMU array fits in the cached manifest buffer */
+	assert((offset + smmu_array_size) <= GRANULE_SIZE);
+
+	cached_smmu_array = (void *)((uintptr_t)cached_manifest + offset);
+
+	/* Copy the SMMU array to cached buffer */
+	(void)memcpy(cached_smmu_array, (void *)smmus_ptr, smmu_array_size);
+
+	/* Update the pointer in local_core_manifest to point to cached copy */
+	local_core_manifest->plat_smmu.smmus = (struct smmu_info *)cached_smmu_array;
+
+	inv_dcache_range((uintptr_t)cached_smmu_array, smmu_array_size);
+
+	return (offset + smmu_array_size);
+}
+
+/*
+ * Calculate the size of the PCIe Root Complex List data.
+ */
+static size_t get_root_complex_size(struct root_complex_list *rc_list)
+{
+	struct root_complex_info *rc_info;
+	uint64_t num_root_complexes;
+	size_t size;
+
+	assert(rc_list != NULL);
+
+	rc_info = rc_list->root_complex;
+	num_root_complexes = rc_list->num_root_complex;
+
+	/* No Root Complex List data */
+	if ((num_root_complexes == 0UL) || (rc_info == NULL)) {
+		return 0UL;
+	}
+
+	/* Root Complex info size */
+	size = num_root_complexes * sizeof(struct root_complex_info);
+
+	/* Calculate all Root Complex data size */
+	for (uint64_t rc_idx = 0UL; rc_idx < num_root_complexes; rc_idx++) {
+		struct root_port_info *rp_info = rc_info[rc_idx].root_ports;
+		uint32_t num_root_ports = rc_info[rc_idx].num_root_ports;
+
+		/* No Root Port data */
+		if ((num_root_ports == 0U) || (rp_info == NULL)) {
+			continue;
+		}
+
+		size += num_root_ports * sizeof(struct root_port_info);
+
+		/* Sum BDF mapping counts across all Root Ports */
+		for (uint32_t rp_idx = 0U; rp_idx < num_root_ports; rp_idx++) {
+			size += rp_info[rp_idx].num_bdf_mappings *
+				sizeof(struct bdf_mapping_info);
+		}
+	}
+
+	return size;
+}
+
+/*
+ * Copy the PCIe Root Port data into a new buffer.
+ *
+ * The root_complex_info array and all nested root_port_info and
+ * bdf_mapping_info arrays are copied into @buffer at @offset.  The
+ * internal pointers within the copied structures (root_ports,
+ * bdf_mappings) are updated to point into the new buffer.
+ *
+ * NOTE: The top-level rc_list->root_complex pointer is NOT updated.
+ * The caller must patch it after this call:
+ *
+ *   rc_list->root_complex =
+ *       (struct root_complex_info *)((uintptr_t)buffer + offset);
+ */
+static void set_root_complex_data(struct root_complex_list *rc_list,
+				  void *buffer, size_t offset)
+{
+	struct root_complex_info *rc_info, *dst_rc_info;
+	uint64_t num_root_complexes;
+	size_t copy_size;
+
+	assert(rc_list != NULL);
+	assert(buffer != NULL);
+
+	num_root_complexes = rc_list->num_root_complex;
+
+	rc_info = rc_list->root_complex;
+
+	/* No Root Complex data */
+	if ((num_root_complexes == 0UL) || (rc_info == NULL)) {
+		return;
+	}
+
+	copy_size = num_root_complexes * sizeof(struct root_complex_info);
+
+	dst_rc_info = (struct root_complex_info *)((uintptr_t)buffer + offset);
+
+	/* Copy all Root Complex info structures */
+	(void)memcpy((void *)dst_rc_info, (void *)rc_info, copy_size);
+
+	offset += copy_size;
+
+	/* Iterate over all Root Complexes */
+	for (uint64_t rc_idx = 0UL; rc_idx < num_root_complexes; rc_idx++) {
+		struct root_port_info *rp_info = dst_rc_info[rc_idx].root_ports;
+		struct root_port_info *dst_rp_info =
+			(struct root_port_info *)((uintptr_t)buffer + offset);
+		uint32_t num_root_ports = dst_rc_info[rc_idx].num_root_ports;
+
+		/* No Root Port data */
+		if ((num_root_ports == 0U) || (rp_info == NULL)) {
+			continue;
+		}
+
+		copy_size = num_root_ports * sizeof(struct root_port_info);
+
+		/* Copy all Root Port info structures */
+		(void)memcpy((void *)dst_rp_info, (void *)rp_info, copy_size);
+
+		offset += copy_size;
+
+		/* Update the pointer in local_core_manifest */
+		dst_rc_info[rc_idx].root_ports = dst_rp_info;
+
+		/* Iterate over all Root Ports */
+		for (uint32_t rp_idx = 0U; rp_idx < num_root_ports; rp_idx++) {
+			struct bdf_mapping_info *bdf_info =
+						dst_rp_info[rp_idx].bdf_mappings;
+			struct bdf_mapping_info *dst_bdf_info =
+				(struct bdf_mapping_info *)((uintptr_t)buffer + offset);
+			uint32_t num_bdf_mappings = rp_info[rp_idx].num_bdf_mappings;
+
+			/* No BDF Mapping data */
+			if ((num_bdf_mappings == 0U) || (bdf_info == NULL)) {
+				continue;
+			}
+
+			copy_size = num_bdf_mappings * sizeof(struct bdf_mapping_info);
+
+			/* Copy all BDF Mapping Info structures */
+			(void)memcpy((void *)dst_bdf_info, (void *)bdf_info, copy_size);
+
+			offset += copy_size;
+
+			/* Update the pointer in local_core_manifest */
+			dst_rp_info[rp_idx].bdf_mappings = dst_bdf_info;
+		}
+	}
+}
+
+/*
+ * Copy the PCIe Root Port data into the cached manifest buffer.
+ *
+ * Return updated offset.
+ */
+static size_t copy_root_complex_data(size_t offset)
+{
+	struct root_complex_list *rc_list = &local_core_manifest->plat_root_complex;
+	size_t size = get_root_complex_size(rc_list);
+
+	/* Ensure all Root Complex info fits in the cached manifest buffer */
+	assert((offset + size) <= GRANULE_SIZE);
+
+	/* Copy the data and update the associated pointers */
+	if (size != 0UL) {
+		struct root_complex_info *cached_rc_info;
+
+		set_root_complex_data(rc_list, (void *)cached_manifest, offset);
+
+		cached_rc_info = (struct root_complex_info *)
+					((uintptr_t)cached_manifest + offset);
+
+		/* Update the pointer in local_core_manifest to point to the cached copy */
+		local_core_manifest->plat_root_complex.root_complex = cached_rc_info;
+
+		inv_dcache_range((uintptr_t)cached_rc_info, size);
+	}
+
+	return (offset + size);
+}
 
 void rmm_el3_ifc_process_boot_manifest(void)
 {
-	assert(!manifest_processed && !is_mmu_enabled());
+	struct rmm_core_manifest *core_manifest;
+
+	assert((local_core_manifest == NULL) && !is_mmu_enabled());
+
+	core_manifest = (struct rmm_core_manifest *)rmm_el3_ifc_get_shared_buf_pa();
+
+	/* Validate the Boot Manifest Version */
+	if (!IS_RMM_EL3_MANIFEST_COMPATIBLE(core_manifest->version)) {
+		rmm_el3_ifc_report_fail_to_el3(
+					E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED);
+	}
 
 	local_core_manifest = (struct rmm_core_manifest *)&cached_manifest;
+
+	inv_dcache_range((uintptr_t)&local_core_manifest, sizeof(uintptr_t));
 
 	/*
 	 * The Boot Manifest is expected to be on the shared area.
 	 * Make a local copy of it.
 	 */
-	(void)memcpy((void *)local_core_manifest,
-		     (void *)rmm_el3_ifc_get_shared_buf_pa(),
+	(void)memcpy((void *)local_core_manifest, (void *)core_manifest,
 		     sizeof(struct rmm_core_manifest));
 
+	/* Check the Boot Manifest Version */
+	if (local_core_manifest->version >=
+		RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(5))) {
+
+		/* Copy the SMMU list data into the cached manifest buffer */
+		size_t offset = copy_smmu_data(sizeof(struct rmm_core_manifest));
+
+		/* Copy the PCIe Root Complex data into the cached manifest buffer */
+		(void)copy_root_complex_data(offset);
+	}
+
+	/*
+	 * Invalidate the cache for the manifest header to ensure visibility of the
+	 * data copied by memcpy() and any updates performed by copy_smmu_data()
+	 * and copy_root_complex_data().
+	 */
 	inv_dcache_range((uintptr_t)local_core_manifest,
 				sizeof(struct rmm_core_manifest));
-
-	/*
-	 * Copy the SMMU list data into the cached manifest buffer.
-	 * The SMMU info array needs to be copied separately since it's
-	 * pointed to by the manifest structure.
-	 */
-	if ((local_core_manifest->plat_smmu.num_smmus != 0UL) &&
-	    (local_core_manifest->plat_smmu.smmus != NULL)) {
-		struct smmu_info *smmus_ptr = local_core_manifest->plat_smmu.smmus;
-		size_t smmu_array_size = sizeof(struct smmu_info) *
-					local_core_manifest->plat_smmu.num_smmus;
-		uintptr_t cache_offset = sizeof(struct rmm_core_manifest);
-		void *cached_smmu_array = (void *)((uintptr_t)cached_manifest + cache_offset);
-
-		/* Ensure the SMMU array fits in the cached manifest buffer */
-		assert((cache_offset + smmu_array_size) <= GRANULE_SIZE);
-
-		/* Copy SMMU array to cached buffer */
-		(void)memcpy(cached_smmu_array, (void *)smmus_ptr, smmu_array_size);
-
-		/* Update the pointer in local_core_manifest to point to cached copy */
-		local_core_manifest->plat_smmu.smmus = (struct smmu_info *)cached_smmu_array;
-
-		inv_dcache_range((uintptr_t)cached_smmu_array, smmu_array_size);
-	}
-
-	/*
-	 * Validate the Boot Manifest Version.
-	 */
-	if (!IS_RMM_EL3_MANIFEST_COMPATIBLE(local_core_manifest->version)) {
-		rmm_el3_ifc_report_fail_to_el3(
-					E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED);
-	}
-
-	manifest_processed = true;
-	inv_dcache_range((uintptr_t)&manifest_processed, sizeof(bool));
 }
 
 /* Return the raw value of the received boot manifest */
 unsigned int rmm_el3_ifc_get_manifest_version(void)
 {
-	assert(manifest_processed);
+	assert(local_core_manifest != NULL);
 
 	return local_core_manifest->version;
 }
@@ -91,7 +276,7 @@ unsigned int rmm_el3_ifc_get_manifest_version(void)
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 uintptr_t rmm_el3_ifc_get_plat_manifest_pa(void)
 {
-	assert(manifest_processed && !is_mmu_enabled());
+	assert((local_core_manifest != NULL) && !is_mmu_enabled());
 
 	return local_core_manifest->plat_data;
 }
@@ -130,7 +315,7 @@ static int get_memory_data_validated_pa(unsigned long max_num_banks,
 	struct memory_bank *bank_ptr;
 
 	assert((memory_info != NULL) && (plat_memory != NULL));
-	assert(manifest_processed && !is_mmu_enabled());
+	assert((local_core_manifest != NULL) && !is_mmu_enabled());
 
 	/* Set pointer to the platform memory info structure to NULL */
 	*memory_info = NULL;
@@ -294,7 +479,7 @@ int rmm_el3_ifc_get_console_list_pa(struct console_list **plat_console_list)
 	struct console_list *csl_list;
 	struct console_info *console_ptr;
 
-	assert(manifest_processed && !is_mmu_enabled());
+	assert((local_core_manifest != NULL) && !is_mmu_enabled());
 
 	*plat_console_list = NULL;
 
@@ -332,66 +517,7 @@ int rmm_el3_ifc_get_console_list_pa(struct console_list **plat_console_list)
 }
 
 /*
- * Return validated Root Complex list in plat_rc_list pointer from the Boot
- * manifest v0.5 onwards.
- */
-int rmm_el3_ifc_get_root_complex_list_pa(struct root_complex_list **plat_rc_list)
-{
-	struct root_complex_list *rc_list;
-	struct root_complex_info *rc_info;
-	uint64_t num_root_complexes;
-	uint64_t total_size;
-	uint64_t checksum;
-
-	assert((manifest_processed == (bool)true) &&
-		(is_mmu_enabled() == (bool)false));
-
-	*plat_rc_list = NULL;
-
-	/* Validate the Boot Manifest Version */
-	if (local_core_manifest->version <
-			RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(5))) {
-		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
-	}
-
-	rc_list = &local_core_manifest->plat_root_complex;
-
-	num_root_complexes = rc_list->num_root_complex;
-	rc_info = rc_list->root_complex;
-
-	/* Calculate the checksum of the rc_list structure */
-	checksum = num_root_complexes + (uint64_t)rc_info + rc_list->checksum;
-
-	/* Calculate all Root complex info size */
-	total_size = num_root_complexes * sizeof(struct root_complex_info);
-
-	for (uint64_t rc_idx = 0UL; rc_idx < num_root_complexes; rc_idx++) {
-		struct root_port_info *rp_info;
-		uint32_t num_root_ports;
-
-		num_root_ports = rc_info[rc_idx].num_root_ports;
-		rp_info = rc_info[rc_idx].root_ports;
-
-		total_size += num_root_ports * sizeof(struct root_port_info);
-		total_size += rp_info->num_bdf_mappings *
-			sizeof(struct bdf_mapping_info);
-	}
-
-	/* Update checksum */
-	checksum += checksum_calc((uint64_t *)rc_info, total_size);
-
-	/* Verify the checksum is 0 */
-	if (checksum != 0UL) {
-		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
-	}
-
-	*plat_rc_list = rc_list;
-
-	return E_RMM_BOOT_SUCCESS;
-}
-
-/*
- * Return validated SMMUv3 list passed in plat_smmu pointer cached in RMM.
+ * Return SMMUv3 list passed in plat_smmu pointer cached in RMM.
  * From the Boot manifest v0.5 onwards.
  */
 int rmm_el3_ifc_get_cached_smmu_list_pa(struct smmu_list **plat_smmu_list)
@@ -399,7 +525,7 @@ int rmm_el3_ifc_get_cached_smmu_list_pa(struct smmu_list **plat_smmu_list)
 	uint64_t num_smmus;
 	struct smmu_list *smmus_list;
 
-	assert(manifest_processed && is_mmu_enabled());
+	assert((local_core_manifest != NULL) && is_mmu_enabled());
 
 	*plat_smmu_list = NULL;
 
@@ -423,4 +549,76 @@ int rmm_el3_ifc_get_cached_smmu_list_pa(struct smmu_list **plat_smmu_list)
 
 	*plat_smmu_list = smmus_list;
 	return E_RMM_BOOT_SUCCESS;
+}
+
+/*
+ * Resolve a PCIe device BDF to an SMMU index and StreamID using the
+ * cached Root Complex topology.
+ */
+int rmm_el3_ifc_bdf_to_smmu(unsigned long ecam_addr, unsigned int bdf,
+			    unsigned int *smmu_idx, unsigned int *sid)
+{
+	struct root_complex_list *rc_list;
+	struct root_complex_info *root_complex;
+	uint64_t num_root_complexes;
+
+	assert(smmu_idx != NULL);
+	assert(sid != NULL);
+	assert(local_core_manifest != NULL);
+
+	rc_list = &local_core_manifest->plat_root_complex;
+	num_root_complexes = rc_list->num_root_complex;
+	root_complex = rc_list->root_complex;
+
+	if ((num_root_complexes == 0UL) || (root_complex == NULL)) {
+		return E_RMM_INVAL;
+	}
+
+	/* Find the Root Complex matching the ECAM base address */
+	for (uint64_t rc_idx = 0UL; rc_idx < num_root_complexes; rc_idx++) {
+		struct root_port_info *rp_info;
+		uint32_t num_root_ports;
+
+		if (root_complex[rc_idx].ecam_base != ecam_addr) {
+			continue;
+		}
+
+		rp_info = root_complex[rc_idx].root_ports;
+		num_root_ports = root_complex[rc_idx].num_root_ports;
+
+		if ((num_root_ports == 0U) || (rp_info == NULL)) {
+			return E_RMM_INVAL;
+		}
+
+		/* Iterate over all Root Ports */
+		for (uint32_t rp_idx = 0U; rp_idx < num_root_ports; rp_idx++) {
+			struct bdf_mapping_info *bdf_info =
+						rp_info[rp_idx].bdf_mappings;
+			uint32_t num_bdf_mappings =
+						rp_info[rp_idx].num_bdf_mappings;
+
+			if ((num_bdf_mappings == 0U) || (bdf_info == NULL)) {
+				continue;
+			}
+
+			/* Iterate over all BDF Mappings */
+			for (uint32_t map_idx = 0U;
+			     map_idx < num_bdf_mappings; map_idx++) {
+				if ((bdf >= bdf_info[map_idx].mapping_base) &&
+				    (bdf < bdf_info[map_idx].mapping_top)) {
+					*smmu_idx = (unsigned int)
+							bdf_info[map_idx].smmu_idx;
+					*sid = bdf +
+						(unsigned int)
+						bdf_info[map_idx].mapping_off;
+					return E_RMM_OK;
+				}
+			}
+		}
+
+		/* ECAM matched but BDF not found in this Root Complex */
+		return E_RMM_INVAL;
+	}
+
+	return E_RMM_INVAL;
 }

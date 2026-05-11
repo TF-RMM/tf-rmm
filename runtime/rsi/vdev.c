@@ -148,7 +148,7 @@ bool finish_rsi_vdev_dma_enable(struct rec *rec,
 		/* Only call the driver if not already enabled */
 		/* TODO_ALP17: set non_ats_plane in vdev */
 
-		if (smmuv3_enable_ste(SMMU_IDX, (unsigned int)vd->tdi_id) != 0) {
+		if (smmuv3_enable_ste(vd->smmu_idx, vd->sid) != 0) {
 			rc = RSI_ERROR_DEVICE;
 		} else {
 			vd->dma_state = RMI_VDEV_DMA_ENABLED;
@@ -232,7 +232,7 @@ bool finish_rsi_vdev_dma_disable(struct rec *rec,
 	rc = RSI_SUCCESS;
 	if (vd->dma_state != RMI_VDEV_DMA_DISABLED) {
 		/* Only call the driver if not already disabled */
-		if (smmuv3_disable_ste(SMMU_IDX, (unsigned int)vd->tdi_id) != 0) {
+		if (smmuv3_disable_ste(vd->smmu_idx, vd->sid) != 0) {
 			rc = RSI_ERROR_DEVICE;
 		} else {
 			vd->dma_state = RMI_VDEV_DMA_DISABLED;
