@@ -5,27 +5,28 @@
 
 
 #include <buffer.h>
-#include <firme.h>
 #include <host_harness.h>
+#include <host_utils.h>
 #include <test_helpers.h>
 #include <test_private.h>
 
 /*
  * Harness corresponding to CB_BUFFER_MAP.
  * This harness searches for a valid pointer to CB_BUFFER_MAP and calls it.
- * If there is no valid pointer, the default behavior is to return addr
+ * If there is no valid pointer, the default behavior uses mmap aliasing.
  */
 void *host_buffer_arch_map(unsigned int slot, unsigned long addr)
 {
 	cb_buffer_map cb = (cb_buffer_map)get_cb(CB_BUFFER_MAP);
 
-	return (cb == NULL) ? (void *)addr : cb((enum buffer_slot)slot, addr);
+	return (cb == NULL) ? host_util_slot_map(slot, addr)
+			    : cb((enum buffer_slot)slot, addr);
 }
 
 /*
  * Harness corresponding to CB_BUFFER_UNMAP.
  * This harness searches for a valid pointer to CB_BUFFER_UNMAP and calls it.
- * If there is no valid pointer, the default behavior is to do nothing.
+ * If there is no valid pointer, the default behavior uses mmap aliasing.
  */
 void host_buffer_arch_unmap(void *buf)
 {
@@ -33,13 +34,15 @@ void host_buffer_arch_unmap(void *buf)
 
 	if (cb != NULL) {
 		cb(buf);
+	} else {
+		host_util_slot_unmap(buf);
 	}
 }
 
 /*
  * Harness corresponding to CB_BUFFER_VA_TO_SLOT.
  * This harness searches for a valid pointer to CB_BUFFER_VA_TO_SLOT and calls it.
- * If there is no valid pointer, the default behavior is to return 0.
+ * If there is no valid pointer, the default behavior uses mmap aliasing.
  */
 unsigned int host_buffer_arch_va_to_slot(void *buf)
 {
@@ -50,7 +53,7 @@ unsigned int host_buffer_arch_va_to_slot(void *buf)
 		return cb(buf);
 	}
 
-	return 0U;
+	return host_util_buf_to_slot(buf);
 }
 
 
