@@ -486,6 +486,8 @@ unsigned long host_firme_base_version(unsigned char service_id)
 		return SUPPORTED_FIRME_GM_VERSION;
 	case FIRME_IDE_SERVICE_ID:
 		return SUPPORTED_FIRME_IDE_VERSION;
+	case FIRME_MECID_SERVICE_ID:
+		return SUPPORTED_FIRME_MECID_VERSION;
 	default:
 		return FIRME_NOT_SUPPORTED;
 	}
@@ -505,6 +507,7 @@ unsigned long host_firme_base_features(unsigned char service_id,
 		} else if (index == 1U) {
 			*reg = FIRME_BASE_FR1_SVC_BIT(FIRME_GM_SERVICE_ID);
 			*reg |= FIRME_BASE_FR1_SVC_BIT(FIRME_IDE_SERVICE_ID);
+			*reg |= FIRME_BASE_FR1_SVC_BIT(FIRME_MECID_SERVICE_ID);
 			return FIRME_SUCCESS;
 		}
 		return FIRME_NOT_SUPPORTED;
@@ -518,6 +521,12 @@ unsigned long host_firme_base_features(unsigned char service_id,
 			*reg = FIRME_IDE_FR0_DEFAULT;
 		}
 		return FIRME_SUCCESS;
+	case FIRME_MECID_SERVICE_ID:
+		if (index == 0U) {
+			*reg = FIRME_MECID_FR0_MEC_REFRESH_BIT;
+			return FIRME_SUCCESS;
+		}
+		return FIRME_NOT_SUPPORTED;
 	default:
 		return FIRME_NOT_SUPPORTED;
 	}

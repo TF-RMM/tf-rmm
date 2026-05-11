@@ -35,6 +35,7 @@
 #define SMC_FIRME_IDE_KEYSET_PROG	SMC64_STD_FID(FIRME, U(3)) /* FID 0xC400 0403 */
 #define SMC_FIRME_IDE_KEYSET_GO		SMC64_STD_FID(FIRME, U(4)) /* FID 0xC400 0404 */
 #define SMC_FIRME_IDE_KEYSET_STOP	SMC64_STD_FID(FIRME, U(5)) /* FID 0xC400 0405 */
+#define SMC_FIRME_MECID_REFRESH		SMC64_STD_FID(FIRME, U(7)) /* FID 0xC400 0407 */
 
 /* FIRME_VERSION definitions */
 
@@ -53,7 +54,8 @@
 #define FIRME_BASE_SERVICE_ID			U(0)
 #define FIRME_GM_SERVICE_ID			U(1)
 #define FIRME_IDE_SERVICE_ID			U(2)
-#define FIRME_NUM_SERVICES			U(3)
+#define FIRME_MECID_SERVICE_ID			U(3)
+#define FIRME_NUM_SERVICES			U(4)
 
 /* Base feature register definitions. */
 #define FIRME_BASE_FR1_SVC_BIT(svc_id)		UL(0x1UL << UL(16U + ((svc_id) - 1U)))
@@ -69,6 +71,7 @@
 #define SUPPORTED_FIRME_BASE_VERSION	0x10000U /* 1.0 */
 #define SUPPORTED_FIRME_GM_VERSION	0x10000U /* 1.0 */
 #define SUPPORTED_FIRME_IDE_VERSION	0x10000U /* 1.0 */
+#define SUPPORTED_FIRME_MECID_VERSION	0x10000U /* 1.0 */
 
 /* IDE KM service feature register definitions. */
 #define FIRME_IDE_FR0_MASK		UL(0x7)
@@ -111,6 +114,17 @@ static inline bool firme_supports_ ## abi(void) 			\
 		& FIRME_ ## SVC_ID ## _FR0_ ## ABI ## _BIT) != 0UL;	\
 }
 
+#define MEC_REFRESH_REASON_REALM_CREATE		U(0)
+#define MEC_REFRESH_REASON_REALM_DESTROY	U(1)
+
+#define MEC_PARAM_MECID_SHIFT			U(32)
+#define MEC_PARAM_MECID_MASK			U(0xFFFF)
+
+#define FIRME_MECID_FEATURE_REG_COUNT		U(1)
+#define FIRME_MECID_FR0_MEC_REFRESH_BIT	BIT(0)
+#define FIRME_MECID_FR0_MASK \
+	FIRME_MECID_FR0_MEC_REFRESH_BIT
+
 /* This helper converts FIRME status to RMM EL3 interface status */
 static inline int firme_errno_to_rmm_errno(uint64_t firme_errno)
 {
@@ -152,6 +166,8 @@ DEFINE_FIRME_ABI_QUERY(GM, gpi_set, GPI_SET)
 DEFINE_FIRME_ABI_QUERY(IDE, keyset_prog, KEYSET_PROG)
 DEFINE_FIRME_ABI_QUERY(IDE, keyset_go, KEYSET_GO)
 DEFINE_FIRME_ABI_QUERY(IDE, keyset_stop, KEYSET_STOP)
+
+DEFINE_FIRME_ABI_QUERY(MECID, mec_refresh, MEC_REFRESH)
 
 static inline bool firme_supports_ide_service(void)
 {
