@@ -43,7 +43,7 @@ run:
     -C pci.hierarchy_file_name: ${rtvar:PCI_HIERARCHY_FILE_FIXED}
     # Set SMMU related parameters
     -C pci.pci_smmuv3.mmu.SMMU_AIDR: 0x3
-    -C pci.pci_smmuv3.mmu.SMMU_IDR0: 0x498F36BB
+    -C pci.pci_smmuv3.mmu.SMMU_IDR0: 0x498F76BB
     -C pci.pci_smmuv3.mmu.SMMU_IDR1: 0xCE73D10
     -C pci.pci_smmuv3.mmu.SMMU_IDR3: 0x773C
     -C pci.pci_smmuv3.mmu.SMMU_IDR5: 0x4F6

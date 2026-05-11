@@ -102,6 +102,7 @@ typedef __uint128_t	uint128_t;
 #define IDR0_TTF_WIDTH		U(2)
 #define IDR0_BTM_BIT		BIT32(5)
 #define IDR0_ASID16_BIT		BIT32(12)
+#define IDR0_SEV_BIT		BIT32(14)
 #define IDR0_VMW_BIT		BIT32(17)
 #define IDR0_VMID16_BIT		BIT32(18)
 #define IDR0_TTENDIAN_SHIFT	U(21)
@@ -178,6 +179,7 @@ typedef __uint128_t	uint128_t;
 #define FEAT_MSI		BIT32(10)
 #define FEAT_PRI		BIT32(11)
 #define FEAT_DPT		BIT32(12)
+#define FEAT_SEV		BIT32(13)
 
 /* Log2 of maximum number of Command and Event queues entries */
 #define QUEUE_SIZE_MAX		U(19)
