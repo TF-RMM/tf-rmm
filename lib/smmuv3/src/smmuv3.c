@@ -12,9 +12,9 @@
 #include <rmm_el3_ifc.h>
 #include <smc-rmi.h>
 #include <smmuv3.h>
+#include <smmuv3_arch.h>
 #include <smmuv3_priv.h>
 #include <utils_def.h>
-#include <xlat_low_va.h>
 #include <xlat_tables.h>
 
 /* Log2 of max command queue size */
@@ -143,7 +143,7 @@ uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
 		return 0UL;
 	}
 
-	va = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM, *out_pa, true);
+	va = smmuv3_arch_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM, *out_pa, true);
 	if (va == 0UL) {
 		ERROR("Failed to allocate VA for smmu_layout\n");
 		*out_pa = 0UL;
@@ -306,16 +306,7 @@ static int init_config(struct smmuv3_dev *smmu)
 static int wait_for_ack(struct smmuv3_dev *smmu, uint32_t offset,
 			uint32_t mask, uint32_t expected)
 {
-	unsigned int retries = 0U;
-
-	while (retries++ < MAX_RETRIES) {
-		uint32_t val = read32((void *)(smmu->r_base + offset));
-		if ((val & mask) == (expected & mask)) {
-			return 0;
-		}
-	}
-
-	return -ETIMEDOUT;
+	return smmuv3_arch_wait_for_ack(smmu->r_base, offset, mask, expected);
 }
 
 static int check_cmdq_err(struct smmuv3_dev *smmu)
@@ -363,6 +354,9 @@ int wait_cmdq_empty(struct smmuv3_dev *smmu)
 {
 	uint32_t prod_reg, cons_reg;
 	unsigned int retries = 0U;
+
+	/* On fake_host, simulate instant command processing */
+	smmuv3_arch_sync_cmdq(smmu->cmdq.prod_reg, smmu->cmdq.cons_reg);
 
 	prod_reg = read32(smmu->cmdq.prod_reg);
 
@@ -1192,7 +1186,7 @@ int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz)
 		smmu = &g_smmus[i];
 
 		/* SMMU registers, Page 0 */
-		smmu->ns_base = xlat_low_va_map(SZ_64K, (MT_RW_DEV | MT_NS),
+		smmu->ns_base = smmuv3_arch_map(SZ_64K, (MT_RW_DEV | MT_NS),
 						smmu->ns_base_pa, false);
 		if (smmu->ns_base == 0UL) {
 			SMMU_ERROR(smmu, "Failed to map SMMU NS base 0x%lx\n",
@@ -1202,7 +1196,7 @@ int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz)
 		}
 
 		/* SMMU registers, Realm Page 0 and 1 */
-		smmu->r_base = xlat_low_va_map(2U * SZ_64K, (MT_RW_DEV | MT_REALM),
+		smmu->r_base = smmuv3_arch_map(2U * SZ_64K, (MT_RW_DEV | MT_REALM),
 						smmu->r_base_pa, false);
 		if (smmu->r_base == 0UL) {
 			SMMU_ERROR(smmu, "Failed to map SMMU R base 0x%lx\n",

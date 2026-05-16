@@ -10,9 +10,9 @@
 #include <smmuv3_psmmu.h>
 #include <rmm_el3_ifc.h>
 #include <smc-rmi.h>
+#include <smmuv3_arch.h>
 #include <smmuv3_priv.h>
 #include <string.h>
-#include <xlat_low_va.h>
 #include <xlat_tables.h>
 
 struct smmuv3_dev *smmuv3_psmmu_find(unsigned long psmmu_ptr)
@@ -142,7 +142,7 @@ void smmuv3_psmmu_unmap(struct smmuv3_dev *smmu)
 
 	/* Unmap Event queue */
 	if (smmu->evtq.q_base != 0UL) {
-		ret = xlat_low_va_unmap(smmu->evtq.q_base, GRANULE_SIZE);
+		ret = smmuv3_arch_unmap(smmu->evtq.q_base, GRANULE_SIZE);
 		if (ret != 0) {
 			SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
 					"EVTQ", smmu->evtq.q_base);
@@ -152,7 +152,7 @@ void smmuv3_psmmu_unmap(struct smmuv3_dev *smmu)
 
 	/* Unmap Command queue */
 	if (smmu->cmdq.q_base != 0UL) {
-		ret = xlat_low_va_unmap(smmu->cmdq.q_base, GRANULE_SIZE);
+		ret = smmuv3_arch_unmap(smmu->cmdq.q_base, GRANULE_SIZE);
 		if (ret != 0) {
 			SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
 					"CMDQ", smmu->cmdq.q_base);
@@ -162,7 +162,7 @@ void smmuv3_psmmu_unmap(struct smmuv3_dev *smmu)
 
 	/* Unmap array of L2 Stream Table descriptors */
 	if (smmu->l2strtab != NULL) {
-		ret = xlat_low_va_unmap((uintptr_t)smmu->l2strtab, smmu->strtab_size);
+		ret = smmuv3_arch_unmap((uintptr_t)smmu->l2strtab, smmu->strtab_size);
 		if (ret != 0) {
 			SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
 					"L2 Desc array", (uintptr_t)smmu->l2strtab);
@@ -172,7 +172,7 @@ void smmuv3_psmmu_unmap(struct smmuv3_dev *smmu)
 
 	/* Unmap L1 Stream Table */
 	if (smmu->strtab_base != NULL) {
-		ret = xlat_low_va_unmap((uintptr_t)smmu->strtab_base, smmu->strtab_size);
+		ret = smmuv3_arch_unmap((uintptr_t)smmu->strtab_base, smmu->strtab_size);
 		if (ret != 0) {
 			SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
 					"L1 StrTab", (uintptr_t)smmu->strtab_base);
@@ -316,13 +316,13 @@ int smmuv3_psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa,
 	for (unsigned int i = 0U; i < 2U; i++) {
 		assert(ALIGNED(granules_pa[i], size));
 
-		granules_va[i] = xlat_low_va_map(size, MT_RW_DATA | MT_REALM,
+		granules_va[i] = smmuv3_arch_map(size, MT_RW_DATA | MT_REALM,
 						granules_pa[i], true);
 		if (granules_va[i] == 0UL) {
 			SMMU_ERROR(smmu, "Failed to map 0x%lx\n", granules_pa[i]);
 			/* Unmap any previously mapped granule */
 			for (unsigned int j = 0U; j < i; j++) {
-				(void)xlat_low_va_unmap(granules_va[j], size);
+				(void)smmuv3_arch_unmap(granules_va[j], size);
 			}
 			return -ENOMEM;
 		}
@@ -368,7 +368,7 @@ int smmuv3_psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	}
 
 	/* Map L2 Stream Table */
-	l2tab_va = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM, l2tab_pa, true);
+	l2tab_va = smmuv3_arch_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM, l2tab_pa, true);
 	if (l2tab_va == 0UL) {
 		spinlock_release(&smmu->lock);
 		SMMU_ERROR(smmu, "Failed to map L2 Stream Table 0x%lx\n", l2tab_pa);
@@ -395,7 +395,7 @@ int smmuv3_psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 		spinlock_release(&smmu->lock);
 
 		/* Unmap L2 Stream Table */
-		(void)xlat_low_va_unmap(l2tab_va, GRANULE_SIZE);
+		(void)smmuv3_arch_unmap(l2tab_va, GRANULE_SIZE);
 		return ret;
 	}
 
@@ -450,7 +450,7 @@ int smmuv3_psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	smmu->l1_refcnt--;
 
 	/* Unmap L2 Stream Table */
-	ret = xlat_low_va_unmap(l2tab_va, GRANULE_SIZE);
+	ret = smmuv3_arch_unmap(l2tab_va, GRANULE_SIZE);
 	if (ret != 0) {
 		spinlock_release(&smmu->lock);
 		SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
@@ -487,13 +487,13 @@ int smmuv3_psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
 	granules_pa[1] = evtq_pa;
 
 	for (unsigned int i = 0U; i < 2U; i++) {
-		granules_va[i] = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM,
+		granules_va[i] = smmuv3_arch_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM,
 						granules_pa[i], true);
 		if (granules_va[i] == 0UL) {
 			SMMU_ERROR(smmu, "Failed to map 0x%lx\n", granules_pa[i]);
 			/* Unmap any previously mapped granule */
 			for (unsigned int j = 0U; j < i; j++) {
-				(void)xlat_low_va_unmap(granules_va[j],
+				(void)smmuv3_arch_unmap(granules_va[j],
 							GRANULE_SIZE);
 			}
 			return -ENOMEM;

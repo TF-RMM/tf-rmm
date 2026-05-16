@@ -16,6 +16,7 @@
 #include <gic.h>
 #include <host_utils.h>
 #include <rmm_el3_ifc.h>
+#include <sizes.h>
 #ifndef CBMC
 #include <string.h>
 #include <sys/mman.h>
@@ -158,6 +159,17 @@ static unsigned char el3_rmm_shared_buffer[PAGE_SIZE] __aligned(PAGE_SIZE);
 static struct rmm_core_manifest *boot_manifest =
 			(struct rmm_core_manifest *)el3_rmm_shared_buffer;
 
+/*
+ * SMMUv3 register pages for fake_host testing.
+ * NS base: 64KB (Page 0 only).
+ * R base: 128KB (Realm Page 0 and Page 1).
+ */
+static unsigned char host_smmu_ns_page[SZ_64K] __aligned(SZ_64K);
+static unsigned char host_smmu_r_page[2U * SZ_64K] __aligned(SZ_64K);
+static unsigned char host_smmu_ns_page_1[SZ_64K] __aligned(SZ_64K);
+static unsigned char host_smmu_r_page_1[2U * SZ_64K] __aligned(SZ_64K);
+static struct smmu_info host_smmu_info[2U];
+
 
 unsigned long host_util_get_granule_base(void)
 {
@@ -294,9 +306,53 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 
 	/* Initialize the boot manifest */
 	boot_manifest->version = RMM_EL3_MANIFEST_MAKE_VERSION(
-						RMM_EL3_MANIFEST_VERS_MAJOR,
-						RMM_EL3_MANIFEST_VERS_MINOR);
+						U(0), U(5));
 	boot_manifest->plat_data = (uintptr_t)NULL;
+
+	/*
+	 * Set up SMMUv3 register pages with hardware ID register values
+	 * matching the FVP model configuration (from shrinkwrap YAML).
+	 */
+	(void)memset(host_smmu_ns_page, 0, sizeof(host_smmu_ns_page));
+	(void)memset(host_smmu_r_page, 0, sizeof(host_smmu_r_page));
+
+	/* NS Page 0 ID registers */
+	*(uint32_t *)&host_smmu_ns_page[0x00] = 0x498F76BBU;	/* SMMU_IDR0 */
+	*(uint32_t *)&host_smmu_ns_page[0x04] = 0x0CE73D10U;	/* SMMU_IDR1 */
+	*(uint32_t *)&host_smmu_ns_page[0x0C] = 0x0000773CU;	/* SMMU_IDR3 */
+	*(uint32_t *)&host_smmu_ns_page[0x14] = 0x000005F6U;	/* SMMU_IDR5 (D128 bit set) */
+	*(uint32_t *)&host_smmu_ns_page[0x1C] = 0x00000003U;	/* SMMU_AIDR */
+
+	/* Realm Page 0 ID registers */
+	*(uint32_t *)&host_smmu_r_page[0x000] = 0x01012400U;	/* SMMU_R_IDR0 */
+	*(uint32_t *)&host_smmu_r_page[0x00C] = 0x00010000U;	/* SMMU_R_IDR3 */
+	*(uint32_t *)&host_smmu_r_page[0x220] = 0x0000000FU;	/* SMMU_R_MECIDR */
+
+	/*
+	 * Second SMMU: same as first but without Broadcast TLB Maintenance
+	 * (IDR0.BTM, bit 5 cleared).
+	 */
+	(void)memset(host_smmu_ns_page_1, 0, sizeof(host_smmu_ns_page_1));
+	(void)memset(host_smmu_r_page_1, 0, sizeof(host_smmu_r_page_1));
+
+	*(uint32_t *)&host_smmu_ns_page_1[0x00] = 0x498F769BU;	/* SMMU_IDR0 (no BTM) */
+	*(uint32_t *)&host_smmu_ns_page_1[0x04] = 0x0CE73D10U;	/* SMMU_IDR1 */
+	*(uint32_t *)&host_smmu_ns_page_1[0x0C] = 0x0000773CU;	/* SMMU_IDR3 */
+	*(uint32_t *)&host_smmu_ns_page_1[0x14] = 0x000005F6U;	/* SMMU_IDR5 */
+	*(uint32_t *)&host_smmu_ns_page_1[0x1C] = 0x00000003U;	/* SMMU_AIDR */
+
+	*(uint32_t *)&host_smmu_r_page_1[0x000] = 0x01012400U;	/* SMMU_R_IDR0 */
+	*(uint32_t *)&host_smmu_r_page_1[0x00C] = 0x00010000U;	/* SMMU_R_IDR3 */
+	*(uint32_t *)&host_smmu_r_page_1[0x220] = 0x0000000FU;	/* SMMU_R_MECIDR */
+
+	/* Set up SMMU info array for boot manifest */
+	host_smmu_info[0].smmu_base = (uint64_t)(uintptr_t)host_smmu_ns_page;
+	host_smmu_info[0].smmu_r_base = (uint64_t)(uintptr_t)host_smmu_r_page;
+	host_smmu_info[1].smmu_base = (uint64_t)(uintptr_t)host_smmu_ns_page_1;
+	host_smmu_info[1].smmu_r_base = (uint64_t)(uintptr_t)host_smmu_r_page_1;
+	boot_manifest->plat_smmu.num_smmus = 2UL;
+	boot_manifest->plat_smmu.smmus = host_smmu_info;
+	boot_manifest->plat_smmu.checksum = 0UL;
 }
 
 int host_util_rec_run(unsigned long *rec_regs, unsigned long *rec_sp_el0)
