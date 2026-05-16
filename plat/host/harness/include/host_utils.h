@@ -199,6 +199,12 @@ int host_util_rsi_helper(realm_entrypoint_t ep);
 char *host_util_get_base_dir(const char *path);
 
 /*
+ * Return the NS base physical address of the fake SMMU at the given index.
+ * Used by unit tests to pass a valid psmmu_ptr to PSMMU RMI commands.
+ */
+unsigned long host_util_get_smmu_ns_base(unsigned int idx);
+
+/*
  * Register all app headers (paths to ELF binaries) needed at runtime.
  */
 void host_util_initialise_app_headers(int argc, char *argv[]);

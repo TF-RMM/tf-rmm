@@ -195,6 +195,24 @@ void test_helpers_rmm_start(bool secondaries);
 unsigned int test_helpers_get_nr_granules(void);
 
 /*
+ * Reset the granule allocator index back to 1.
+ * Granule 0 is reserved for the EL3-RMM shared communication buffer
+ * used during RMM boot and must not be handed out to tests.
+ */
+void test_helpers_allocate_reset(void);
+
+/*
+ * Allocate 'n' contiguous granules and return the base PA.
+ */
+uintptr_t test_helpers_allocate_granules(unsigned int n);
+
+/*
+ * Allocate 'n' contiguous granules whose base PA is aligned to
+ * n * GRANULE_SIZE (required for contiguous donations).
+ */
+uintptr_t test_helpers_allocate_granules_aligned(unsigned int n);
+
+/*
  * Initializes the test helper library
  */
 void test_helpers_init(void);

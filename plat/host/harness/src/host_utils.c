@@ -357,6 +357,11 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	host_utils_pci_setup_root_complex(&boot_manifest->plat_root_complex);
 }
 
+unsigned long host_util_get_smmu_ns_base(unsigned int idx)
+{
+	return (unsigned long)host_smmu_info[idx].smmu_base;
+}
+
 int host_util_rec_run(unsigned long *rec_regs, unsigned long *rec_sp_el0)
 {
 	unsigned long pc = read_elr_el2();

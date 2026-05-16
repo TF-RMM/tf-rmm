@@ -141,6 +141,40 @@ unsigned int test_helpers_get_nr_granules(void)
 	return HOST_NR_GRANULES;
 }
 
+/*
+ * Start allocating from index 1: granule 0 is reserved for the
+ * EL3-RMM shared communication buffer used during RMM boot.
+ */
+static unsigned int g_alloc_idx = 1U;
+
+void test_helpers_allocate_reset(void)
+{
+	g_alloc_idx = 1U;
+}
+
+uintptr_t test_helpers_allocate_granules(unsigned int n)
+{
+	assert((g_alloc_idx + n) <= HOST_NR_GRANULES);
+	uintptr_t base = host_util_get_granule_base() +
+			 (uintptr_t)g_alloc_idx * GRANULE_SIZE;
+	g_alloc_idx += n;
+	return base;
+}
+
+uintptr_t test_helpers_allocate_granules_aligned(unsigned int n)
+{
+	uintptr_t pool_base = host_util_get_granule_base();
+	uintptr_t align_bytes = (uintptr_t)n * GRANULE_SIZE;
+	uintptr_t current_addr = pool_base + (uintptr_t)g_alloc_idx * GRANULE_SIZE;
+	uintptr_t aligned_addr = round_up(current_addr, align_bytes);
+
+	g_alloc_idx = (unsigned int)((aligned_addr - pool_base) / GRANULE_SIZE);
+
+	assert((g_alloc_idx + n) <= HOST_NR_GRANULES);
+	g_alloc_idx += n;
+	return aligned_addr;
+}
+
 unsigned long test_helpers_get_rand_in_range(unsigned long min,
 					     unsigned long max)
 {

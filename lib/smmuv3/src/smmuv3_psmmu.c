@@ -205,6 +205,22 @@ int smmuv3_psmmu_deactivate(struct smmuv3_dev *smmu)
 	return 0;
 }
 
+void smmuv3_psmmu_reset(struct smmuv3_dev *smmu)
+{
+	assert(smmu != NULL);
+
+	smmu->cmdq.q_base = 0UL;
+	smmu->evtq.q_base = 0UL;
+	smmu->l1_st_pa = 0UL;
+	smmu->l2_ds_pa = 0UL;
+	smmu->cmdq_pa = 0UL;
+	smmu->evtq_pa = 0UL;
+	smmu->strtab_base = NULL;
+	smmu->l2strtab = NULL;
+	smmu->l1_refcnt = 0U;
+	smmu->state = PSMMU_INACTIVE;
+}
+
 bool smmuv3_psmmu_validate_sid(struct smmuv3_dev *smmu, unsigned long sid)
 {
 	assert(smmu != NULL);

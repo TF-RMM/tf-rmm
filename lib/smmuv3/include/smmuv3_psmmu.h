@@ -72,4 +72,10 @@ int smmuv3_psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 int smmuv3_psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 				uintptr_t *l2tab_pa);
 
+/*
+ * Reset the PSMMU to post-init state (PSMMU_INACTIVE).
+ * Intended for unit test teardown.
+ */
+void smmuv3_psmmu_reset(struct smmuv3_dev *smmu);
+
 #endif /* SMMUV3_PSMMU_H */
