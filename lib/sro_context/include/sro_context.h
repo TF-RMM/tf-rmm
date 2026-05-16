@@ -152,6 +152,54 @@ struct sro_context {
 	 EXTRACT(RMI_OP_DONATE_BLK_COUNT, (_desc)))
 
 /*
+ * Encode an RmiOpMemDonateReq descriptor from a byte size, contiguity flag
+ * and memory state.
+ *
+ * The function picks the largest block level (L0 > L1 > L2 > L3) for which
+ * the size is an exact multiple of the block size and the resulting block
+ * count fits in RMI_OP_DONATE_BLK_COUNT (14 bits, max 16383).
+ *
+ * Args:
+ *  size_bytes - total donation size in bytes (must be a multiple of GRANULE_SIZE)
+ *  contig     - RMI_OP_MEM_CONTIG or RMI_OP_MEM_NON_CONTIG
+ *  state      - RMI_OP_MEM_DELEGATED or RMI_OP_MEM_UNDELEGATED
+ *
+ * Returns the encoded RmiOpMemDonateReq value.
+ */
+static inline unsigned long rmi_op_donate_req_encode(unsigned long size_bytes,
+						     unsigned long contig,
+						     unsigned long state)
+{
+	unsigned long max_count =
+		(1UL << RMI_OP_DONATE_BLK_COUNT_WIDTH) - 1UL;
+
+	for (int level = 0; level <= XLAT_TABLE_LEVEL_MAX; level++) {
+		unsigned long blk_size = XLAT_BLOCK_SIZE(level);
+		unsigned long blk_sz_enc =
+			(unsigned long)(XLAT_TABLE_LEVEL_MAX - level);
+
+		if ((size_bytes % blk_size) != 0UL) {
+			continue;
+		}
+
+		unsigned long count = size_bytes / blk_size;
+
+		if (count > max_count) {
+			continue;
+		}
+
+		return (INPLACE(RMI_OP_DONATE_BLK_SIZE, blk_sz_enc) |
+			INPLACE(RMI_OP_DONATE_BLK_COUNT, count) |
+			INPLACE(RMI_OP_DONATE_MEM_CONTIG, contig) |
+			INPLACE(RMI_OP_DONATE_MEM_STATE, state));
+	}
+
+	/* Should never be reached for valid inputs */
+	assert(false);
+	return 0UL;
+}
+
+/*
  * Returns the number of `ranges` entries in the list which can be utilized by the callback.
  */
 static inline unsigned long sro_ctx_range_desc_count(const struct sro_context *sro)
