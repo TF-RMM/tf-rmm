@@ -7,7 +7,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <memory.h>
-#include <psmmuv3.h>
+#include <smmuv3_psmmu.h>
 #include <rmm_el3_ifc.h>
 #include <smc-rmi.h>
 #include <smmuv3_priv.h>
@@ -15,7 +15,7 @@
 #include <xlat_low_va.h>
 #include <xlat_tables.h>
 
-struct smmuv3_dev *psmmu_find(unsigned long psmmu_ptr)
+struct smmuv3_dev *smmuv3_psmmu_find(unsigned long psmmu_ptr)
 {
 	struct smmuv3_driv *driv = get_smmuv3_driver();
 
@@ -38,7 +38,7 @@ struct smmuv3_dev *psmmu_find(unsigned long psmmu_ptr)
  * RMI_PSMMU_FLAGS_MSI is ignored. Setting RMI_PSMMU_FLAGS_PRI or
  * RMI_PSMMU_FLAGS_ATS results in an error.
  */
-bool psmmu_validate_params(struct smmuv3_dev *smmu, struct psmmu_params *params)
+bool smmuv3_psmmu_validate_params(struct smmuv3_dev *smmu, struct psmmu_params *params)
 {
 	unsigned long flags = params->flags;
 
@@ -57,7 +57,7 @@ bool psmmu_validate_params(struct smmuv3_dev *smmu, struct psmmu_params *params)
 	return true;
 }
 
-void psmmu_set_active(struct smmuv3_dev *smmu)
+void smmuv3_psmmu_set_active(struct smmuv3_dev *smmu)
 {
 	assert(smmu != NULL);
 	spinlock_acquire(&smmu->lock);
@@ -75,7 +75,7 @@ void psmmu_set_active(struct smmuv3_dev *smmu)
  * or RMI_PSMMU_DEACTIVATE command upon failure when
  * the expected PSMMU state is PSMMU_BUSY.
  */
-void psmmu_set_inactive(struct smmuv3_dev *smmu)
+void smmuv3_psmmu_set_inactive(struct smmuv3_dev *smmu)
 {
 	assert(smmu != NULL);
 	spinlock_acquire(&smmu->lock);
@@ -93,7 +93,7 @@ void psmmu_set_inactive(struct smmuv3_dev *smmu)
  * when the expected PSMMU state is PSMMU_INACTIVE, or by
  * RMI_PSMMU_DEACTIVATE when the PSMMU state is PSMMU_INACTIVE.
  */
-bool psmmu_set_busy(struct smmuv3_dev *smmu, unsigned int state)
+bool smmuv3_psmmu_set_busy(struct smmuv3_dev *smmu, unsigned int state)
 {
 	bool ret;
 
@@ -109,12 +109,12 @@ bool psmmu_set_busy(struct smmuv3_dev *smmu, unsigned int state)
 	return ret;
 }
 
-size_t psmmu_strtab_size(struct smmuv3_dev *smmu)
+size_t smmuv3_psmmu_strtab_size(struct smmuv3_dev *smmu)
 {
 	return smmu->strtab_size;
 }
 
-int psmmu_activate(struct smmuv3_dev *smmu)
+int smmuv3_psmmu_activate(struct smmuv3_dev *smmu)
 {
 	int ret;
 
@@ -128,13 +128,13 @@ int psmmu_activate(struct smmuv3_dev *smmu)
 		return ret;
 	}
 
-	psmmu_set_active(smmu);
+	smmuv3_psmmu_set_active(smmu);
 
 	SMMU_DEBUG("PSMMU 0x%lx activated\n", smmu->ns_base_pa);
 	return 0;
 }
 
-void psmmu_unmap(struct smmuv3_dev *smmu)
+void smmuv3_psmmu_unmap(struct smmuv3_dev *smmu)
 {
 	int ret;
 
@@ -181,7 +181,7 @@ void psmmu_unmap(struct smmuv3_dev *smmu)
 	}
 }
 
-int psmmu_deactivate(struct smmuv3_dev *smmu)
+int smmuv3_psmmu_deactivate(struct smmuv3_dev *smmu)
 {
 	assert(smmu != NULL);
 
@@ -199,13 +199,13 @@ int psmmu_deactivate(struct smmuv3_dev *smmu)
 	smmu_off(smmu);
 
 	/* Unmap allocated memory */
-	psmmu_unmap(smmu);
+	smmuv3_psmmu_unmap(smmu);
 
 	SMMU_DEBUG("PSMMU 0x%lx deactivated\n", smmu->ns_base_pa);
 	return 0;
 }
 
-bool psmmu_validate_sid(struct smmuv3_dev *smmu, unsigned long sid)
+bool smmuv3_psmmu_validate_sid(struct smmuv3_dev *smmu, unsigned long sid)
 {
 	assert(smmu != NULL);
 
@@ -272,8 +272,8 @@ static int validate_st_l2(struct smmuv3_dev *smmu, unsigned long l1_idx,
 	return 0;
 }
 
-void psmmu_get_donated(struct smmuv3_dev *smmu, uintptr_t *range_base,
-		       unsigned long *range_size)
+void smmuv3_psmmu_get_donated(struct smmuv3_dev *smmu, uintptr_t *range_base,
+				unsigned long *range_size)
 {
 	unsigned long l1_grans;
 
@@ -295,8 +295,8 @@ void psmmu_get_donated(struct smmuv3_dev *smmu, uintptr_t *range_base,
 	range_size[(unsigned int)PSMMU_MEM_RANGE_EVTQ] = 1UL;
 }
 
-int psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa,
-			 uintptr_t l2_ds_pa)
+int smmuv3_psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa,
+				uintptr_t l2_ds_pa)
 {
 	uintptr_t granules_pa[2];
 	uintptr_t granules_va[2];
@@ -347,8 +347,8 @@ int psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa,
 	return 0;
 }
 
-int psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
-			 uintptr_t l2tab_pa)
+int smmuv3_psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
+				uintptr_t l2tab_pa)
 {
 	unsigned long l1_idx;
 	uintptr_t l2tab_va;
@@ -417,8 +417,8 @@ int psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	return ret;
 }
 
-int psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
-		       uintptr_t *l2tab_pa)
+int smmuv3_psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
+				uintptr_t *l2tab_pa)
 {
 	unsigned long l1_idx;
 	uintptr_t l2tab_va;
@@ -472,8 +472,8 @@ int psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	return ret;
 }
 
-int psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
-			  uintptr_t evtq_pa)
+int smmuv3_psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
+				 uintptr_t evtq_pa)
 {
 	uintptr_t granules_pa[2];
 	uintptr_t granules_va[2];

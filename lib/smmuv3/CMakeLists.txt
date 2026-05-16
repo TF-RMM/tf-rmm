@@ -61,7 +61,7 @@ target_include_directories(rmm-lib-smmuv3
     PRIVATE "src")
 
 target_sources(rmm-lib-smmuv3
-    PRIVATE "src/${RMM_ARCH}/psmmuv3.c"
+    PRIVATE "src/${RMM_ARCH}/smmuv3_psmmu.c"
             "src/${RMM_ARCH}/smmuv3.c"
             "src/${RMM_ARCH}/smmuv3_tlbi.c")
 
