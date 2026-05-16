@@ -87,6 +87,27 @@ bool addr_list_reduce_first_block(struct addr_list *list,
 			       unsigned long *st);
 
 /*
+ * Reduces the entire contiguous block from the list and returns its base
+ * address and total size in bytes. The list must contain at most one range
+ * descriptor. Asserts that the total size is a power of 2 and that the base
+ * address is aligned to the total size.
+ *
+ * Args:
+ * - list: the address list to consume the block from.
+ * - base_addr: the base address of the block is returned through this pointer.
+ * - total_size: total size in bytes is returned through this pointer.
+ * - st: the state of the block is returned through this pointer.
+ *
+ * Returns:
+ * - true if a block was consumed from the list.
+ * - false if the list is empty.
+ */
+bool addr_list_reduce_contig_block(struct addr_list *list,
+				   unsigned long *base_addr,
+				   unsigned long *total_size,
+				   unsigned long *st);
+
+/*
  * Validates the address list `ranges` and returns the total memory described.
  *
  * Args:

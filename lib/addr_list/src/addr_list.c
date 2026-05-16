@@ -223,6 +223,58 @@ bool addr_list_reduce_first_block(struct addr_list *list,
 	return true;
 }
 
+/*
+ * Reduces the entire contiguous block from the list and returns
+ * its base address and total size in bytes.
+ * The list must contain at most one range descriptor.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+bool addr_list_reduce_contig_block(struct addr_list *list,
+				   unsigned long *base_addr,
+				   unsigned long *total_size,
+				   unsigned long *st)
+{
+	unsigned long blk_size;
+	unsigned long count;
+
+	assert(list != NULL);
+	assert(base_addr != NULL);
+	assert(total_size != NULL);
+	assert(st != NULL);
+	assert(list->type == LIST_TYPE_INPUT);
+
+	/* Find the first non-empty range descriptor */
+	unsigned int idx = 0U;
+
+	while ((idx < list->count) &&
+	       (desc_is_empty(list->range_desc[idx]))) {
+		idx++;
+	}
+
+	if (idx == list->count) {
+		return false;
+	}
+
+	/* Assert that no further non-empty entry exists */
+	for (unsigned int j = idx + 1U; j < list->count; j++) {
+		assert(desc_is_empty(list->range_desc[j]));
+	}
+
+	blk_size = desc_blk_size(list->range_desc[idx]);
+	count = get_cnt_from_desc(list->range_desc[idx]);
+	*base_addr = get_addr_from_desc(list->range_desc[idx]);
+	*total_size = count * blk_size;
+	*st = get_st_from_desc(list->range_desc[idx]);
+
+	assert(IS_POWER_OF_TWO(*total_size));
+	assert(ALIGNED((uintptr_t)*base_addr, *total_size));
+
+	/* Consume the entire range */
+	list->range_desc[idx] = set_cnt_in_desc(list->range_desc[idx], 0UL);
+
+	return true;
+}
+
 /* Perform the necessary validation on the address list */
 /* cppcheck-suppress misra-c2012-8.7 */
 bool addr_list_validate(struct addr_list *list, bool is_contig,
