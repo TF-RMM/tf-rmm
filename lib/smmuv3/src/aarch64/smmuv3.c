@@ -298,13 +298,6 @@ static int init_config(struct smmuv3_dev *smmu)
 	size = num_l1_ents * STRTAB_L1_DESC_SIZE;
 	smmu->strtab_size = round_up(size, GRANULE_SIZE);
 
-	if (smmu->strtab_size > (PSMMU_L1_ST_GRANS * GRANULE_SIZE)) {
-		SMMU_ERROR(smmu, "L1 Stream Table requires %lu granules,"
-			   "which exceeds the supported maximum of %u",
-			   (smmu->strtab_size / GRANULE_SIZE), PSMMU_L1_ST_GRANS);
-		return -ENOTSUP;
-	}
-
 	SMMU_DEBUG("\tNumber of L1 Stream Table entries %lu, size 0x%lx\n",
 			num_l1_ents, smmu->strtab_size);
 	return 0;
@@ -696,29 +689,33 @@ int smmu_on(struct smmuv3_dev *smmu)
 	return ret;
 }
 
-int smmu_off(struct smmuv3_dev *smmu)
+void smmu_off(struct smmuv3_dev *smmu)
 {
 	uint32_t cr0;
 	int ret;
 
 	assert(smmu != NULL);
 
+	/*
+	 * Best-effort deactivation: log errors but continue through
+	 * all steps to ensure the SMMU is fully disabled.
+	 */
+
 	ret = prepare_send_command(smmu, CMD_SYNC, 0UL, 0UL);
 	if (ret != 0) {
 		SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "SYNC");
-		return ret;
 	}
 
-	ret = wait_cmdq_empty(smmu);
-	if (ret != 0) {
-		return ret;
+	if (ret == 0) {
+		ret = wait_cmdq_empty(smmu);
 	}
 
-	/* Invalidate cached configurations and TLBs */
-	ret = inval_cfg_tlbs(smmu);
-	if (ret != 0) {
-		SMMU_ERROR(smmu, "Failed to invalidate TLBs\n");
-		return ret;
+	if (ret == 0) {
+		/* Invalidate cached configurations and TLBs */
+		ret = inval_cfg_tlbs(smmu);
+		if (ret != 0) {
+			SMMU_ERROR(smmu, "Failed to invalidate TLBs\n");
+		}
 	}
 
 	cr0 = read32((void *)(smmu->r_base + SMMU_R_CR0));
@@ -729,7 +726,6 @@ int smmu_off(struct smmuv3_dev *smmu)
 	ret = wait_for_ack(smmu, SMMU_R_CR0ACK, R_CR0ACK_SMMUEN_BIT, cr0);
 	if (ret != 0) {
 		SMMU_ERROR(smmu, "Failed to disable, %d\n", ret);
-		return ret;
 	}
 
 	/* Disable the Command queue */
@@ -738,7 +734,6 @@ int smmu_off(struct smmuv3_dev *smmu)
 	ret = wait_for_ack(smmu, SMMU_R_CR0ACK, cr0, cr0);
 	if (ret != 0) {
 		SMMU_ERROR(smmu, "Failed to disable %s\n", "CMDQ");
-		return ret;
 	}
 
 	/* Disable the Event queue */
@@ -748,7 +743,6 @@ int smmu_off(struct smmuv3_dev *smmu)
 	if (ret != 0) {
 		SMMU_ERROR(smmu, "Failed to disable %s\n", "EVTQ");
 	}
-	return ret;
 }
 
 static int disable_smmu(struct smmuv3_dev *smmu)

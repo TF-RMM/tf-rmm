@@ -52,29 +52,13 @@ typedef void (*sro_handle_cb)(unsigned long fid, struct smc_result *res);
 	 (sizeof(struct sro_context) * (MAX_CPUS * SRO_CTX_PER_CPU)))
 
 /*
- * The number of granules of occupied by SMMUv3 L1 Stream Table,
- * whose size is determined by the StreamID size (SMMU_IDR1.SIDSIZE):
- *   - 16 bits:  8 KB  (2 granules)
- *   - 17 bits: 16 KB  (4 granules)
- */
-#define SRO_PSMMU_L1_ST_GRANS	2U
-
-/*
- * The number of granules required for PSMMU activation:
- *   - L1 Stream Table: SRO_PSMMU_L1_GRANS
- *   - L2 Stream Table descriptors: SRO_PSMMU_L1_GRANS
- *   - SMMUv3 Command queue: 1
- *   - SMMUv3 Event queue: 1
- */
-#define SRO_PSMMU_GRANS		((SRO_PSMMU_L1_ST_GRANS * 2U) + 2U)
-
-/*
- * Number of memory blocks to donate for PSMMU activation:
+ * Number of memory ranges to donate for PSMMU activation:
  *   - L1 Stream Table
  *   - L2 Stream Table descriptors
- *   - SMMUv3 Command and Event queues
+ *   - SMMUv3 Command queue
+ *   - SMMUv3 Event queue
  */
-#define SRO_PSMMU_BLOCKS	3U
+#define SRO_PSMMU_RANGES	4U
 
 /*
  * Data structure with the information to continue a REC related operation.
@@ -106,12 +90,19 @@ struct sro_rec_ctx {
  */
 struct smmuv3_dev;
 
-struct sro_psmmu_block {
-	/* Number of granules in block to donate dusring PSMMU activation */
+struct sro_psmmu_range {
+	/* Number of granules in block to donate during PSMMU activation */
 	unsigned long requested;
 
 	/* Contiguous flag */
 	unsigned long contig;
+
+	/*
+	 * Base physical address of the donated range.
+	 * Since each range is contiguous, the base PA is sufficient
+	 * to reconstruct all individual granule PAs.
+	 */
+	uintptr_t base;
 };
 
 struct sro_psmmu_ctx {
@@ -124,26 +115,20 @@ struct sro_psmmu_ctx {
 	/* Index of the callback to invoke */
 	unsigned int cb_id;
 
-	/* Index of the granule to donate in psmmu_block[] */
-	unsigned int block_idx;
+	/* Index of the range to donate in psmmu_range[] */
+	unsigned int range_idx;
 
-	/* Number of granules requested in the currect block */
+	/* Number of granules requested in the current range */
 	unsigned long requested;
 
-	/* Number of granules donated or reclaimed in the current block */
+	/* Number of granules donated or reclaimed in the current range */
 	unsigned long transferred;
 
 	/* Number of granules donated or reclaimed so far */
 	unsigned long total_transferred;
 
-	/* Donation blocks */
-	struct sro_psmmu_block psmmu_block[SRO_PSMMU_BLOCKS];
-
-	/*
-	 * Physical addresses of the granules donated by the host.
-	 * The number of entries depends on the size of the L1 Stream Table.
-	 */
-	uintptr_t granules_pa[SRO_PSMMU_GRANS];
+	/* Donation ranges */
+	struct sro_psmmu_range psmmu_range[SRO_PSMMU_RANGES];
 
 	/* Error condition in case operation fails */
 	unsigned long ret_err;

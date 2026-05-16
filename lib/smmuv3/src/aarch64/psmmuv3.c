@@ -57,6 +57,17 @@ bool psmmu_validate_params(struct smmuv3_dev *smmu, struct psmmu_params *params)
 	return true;
 }
 
+void psmmu_set_active(struct smmuv3_dev *smmu)
+{
+	assert(smmu != NULL);
+	spinlock_acquire(&smmu->lock);
+
+	assert(smmu->state == PSMMU_BUSY);
+
+	smmu->state = PSMMU_ACTIVE;
+	spinlock_release(&smmu->lock);
+}
+
 /*
  * Set the PSMMU state to PSMMU_INACTIVE.
  *
@@ -109,7 +120,7 @@ int psmmu_activate(struct smmuv3_dev *smmu)
 
 	assert(smmu != NULL);
 	assert(smmu->state == PSMMU_BUSY);
-	assert(smmu->l1std_cnt == 0U);
+	assert(smmu->l1_refcnt == 0U);
 
 	ret = smmu_on(smmu);
 	if (ret != 0) {
@@ -117,68 +128,78 @@ int psmmu_activate(struct smmuv3_dev *smmu)
 		return ret;
 	}
 
-	smmu->state = PSMMU_ACTIVE;
+	psmmu_set_active(smmu);
 
 	SMMU_DEBUG("PSMMU 0x%lx activated\n", smmu->ns_base_pa);
 	return 0;
 }
 
-int psmmu_deactivate(struct smmuv3_dev *smmu)
+void psmmu_unmap(struct smmuv3_dev *smmu)
 {
 	int ret;
 
 	assert(smmu != NULL);
 
-	/* Check the number of L2 Stream Table descriptors */
-	if (smmu->l1std_cnt != 0U) {
-		return -EBUSY;
-	}
-
-	ret = smmu_off(smmu);
-	if (ret != 0) {
-		SMMU_ERROR(smmu, "Failed to switch off\n");
-		return ret;
+	/* Unmap Event queue */
+	if (smmu->evtq.q_base != 0UL) {
+		ret = xlat_low_va_unmap(smmu->evtq.q_base, GRANULE_SIZE);
+		if (ret != 0) {
+			SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
+					"EVTQ", smmu->evtq.q_base);
+		}
+		smmu->evtq.q_base = 0UL;
 	}
 
 	/* Unmap Command queue */
-	ret = xlat_low_va_unmap(smmu->cmdq.q_base, GRANULE_SIZE);
-	if (ret != 0) {
-		SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
-				"CMDQ", smmu->cmdq.q_base);
-		return ret;
+	if (smmu->cmdq.q_base != 0UL) {
+		ret = xlat_low_va_unmap(smmu->cmdq.q_base, GRANULE_SIZE);
+		if (ret != 0) {
+			SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
+					"CMDQ", smmu->cmdq.q_base);
+		}
+		smmu->cmdq.q_base = 0UL;
 	}
-
-	smmu->cmdq.q_base = 0UL;
-
-	/* Unmap Event queue */
-	ret = xlat_low_va_unmap(smmu->evtq.q_base, GRANULE_SIZE);
-	if (ret != 0) {
-		SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
-				"EVTQ", smmu->evtq.q_base);
-		return ret;
-	}
-
-	smmu->evtq.q_base = 0UL;
 
 	/* Unmap array of L2 Stream Table descriptors */
-	ret = xlat_low_va_unmap((uintptr_t)smmu->l2strtab, smmu->strtab_size);
-	if (ret != 0) {
-		SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
-				"L2 Descrs", (uintptr_t)smmu->l2strtab);
-		return ret;
+	if (smmu->l2strtab != NULL) {
+		ret = xlat_low_va_unmap((uintptr_t)smmu->l2strtab, smmu->strtab_size);
+		if (ret != 0) {
+			SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
+					"L2 Desc array", (uintptr_t)smmu->l2strtab);
+		}
+		smmu->l2strtab = NULL;
 	}
-
-	smmu->l2strtab = NULL;
 
 	/* Unmap L1 Stream Table */
-	ret = xlat_low_va_unmap((uintptr_t)smmu->strtab_base, smmu->strtab_size);
-	if (ret != 0) {
-		SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
-				"L1 Table", (uintptr_t)smmu->strtab_base);
-		return ret;
+	if (smmu->strtab_base != NULL) {
+		ret = xlat_low_va_unmap((uintptr_t)smmu->strtab_base, smmu->strtab_size);
+		if (ret != 0) {
+			SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
+					"L1 StrTab", (uintptr_t)smmu->strtab_base);
+		}
+		smmu->strtab_base = NULL;
+	}
+}
+
+int psmmu_deactivate(struct smmuv3_dev *smmu)
+{
+	assert(smmu != NULL);
+
+	/* Check the L1 Stream Table refcount */
+	if (smmu->l1_refcnt != 0U) {
+		SMMU_ERROR(smmu, "Cannot deactivate PSMMU with non-zero L1 refcount\n");
+		return -EBUSY;
 	}
 
-	smmu->strtab_base = NULL;
+	/*
+	 * Best-effort deactivation: log errors but continue through
+	 * all steps to fully tear down the SMMU.
+	 */
+
+	smmu_off(smmu);
+
+	/* Unmap allocated memory */
+	psmmu_unmap(smmu);
 
 	SMMU_DEBUG("PSMMU 0x%lx deactivated\n", smmu->ns_base_pa);
 	return 0;
@@ -200,22 +221,20 @@ bool psmmu_validate_sid(struct smmuv3_dev *smmu, unsigned long sid)
 	return true;
 }
 
-int psmmu_validate_st_l2(struct smmuv3_dev *smmu, unsigned long sid, uintptr_t *l2tab_pa)
+/*
+ * Validate a L2 Stream Table entry.
+ * Must be called with smmu->lock held.
+ *
+ * When l2tab_pa is NULL, validates that the entry is free (for create).
+ * When l2tab_pa is non-NULL, validates that the entry exists with zero
+ * allocated STEs and extracts its physical address (for destroy).
+ */
+static int validate_st_l2(struct smmuv3_dev *smmu, unsigned long l1_idx,
+			  unsigned long sid, uintptr_t *l2tab_pa)
 {
-	unsigned long l1_idx;
-	int ret = 0;
-
-	assert(smmu != NULL);
-
-	/* L1STD index in L1 table */
-	l1_idx = L1STD_IDX(sid);
-
-	spinlock_acquire(&smmu->lock);
-
 	/* Check PSMMU state */
 	if (smmu->state != PSMMU_ACTIVE) {
-		ret = -EINVAL;
-		goto err_out;
+		return -EINVAL;
 	}
 
 	if (l2tab_pa == NULL) {
@@ -227,8 +246,7 @@ int psmmu_validate_st_l2(struct smmuv3_dev *smmu, unsigned long sid, uintptr_t *
 		if (smmu->strtab_base[l1_idx] != 0UL) {
 			SMMU_ERROR(smmu, "STRTAB L2 for SID 0x%lx is already created\n",
 					sid);
-			ret = -EINVAL;
-			goto err_out;
+			return -EINVAL;
 		}
 	} else {
 		/*
@@ -237,64 +255,63 @@ int psmmu_validate_st_l2(struct smmuv3_dev *smmu, unsigned long sid, uintptr_t *
 		 */
 		if (smmu->strtab_base[l1_idx] == 0UL) {
 			SMMU_ERROR(smmu, "STRTAB L2 for SID 0x%lx not found\n", sid);
-			ret = -EINVAL;
-			goto err_out;
+			return -EINVAL;
 		}
 
 		/* Verify that the number of allocated STEs is zero */
 		if ((smmu->l2strtab[l1_idx] & MASK(L2DESC_STE_CNT)) != 0UL) {
 			SMMU_ERROR(smmu, "STRTAB L2 for SID 0x%lx has %lu STEs\n",
 				sid, smmu->l2strtab[l1_idx] & MASK(L2DESC_STE_CNT));
-			ret = -EINVAL;
-			goto err_out;
+			return -EINVAL;
 		}
 
-		/* Get physical address of L2 Stream Table */
+		/* Extract physical address of L2 Stream Table */
 		*l2tab_pa = smmu->strtab_base[l1_idx] & MASK(STRTAB_L1_DESC_L2PTR);
 	}
 
-err_out:
-	spinlock_release(&smmu->lock);
-	return ret;
+	return 0;
 }
 
-unsigned long psmmu_get_donated(struct smmuv3_dev *smmu, uintptr_t *donated_pa)
+void psmmu_get_donated(struct smmuv3_dev *smmu, uintptr_t *range_base,
+		       unsigned long *range_size)
 {
-	unsigned long num_granules;
+	unsigned long l1_grans;
 
 	assert(smmu != NULL);
 
-	num_granules = (2UL * (smmu->strtab_size / GRANULE_SIZE)) + 2UL;
+	/* Number of granules in L1 Stream Table */
+	l1_grans = smmu->strtab_size / GRANULE_SIZE;
 
-	/* Copy physical addresses of donated granules to SRO context */
-	(void)memcpy(donated_pa, smmu->donated_pa, num_granules * sizeof(uintptr_t));
+	range_base[(unsigned int)PSMMU_MEM_RANGE_L1_ST] = smmu->l1_st_pa;
+	range_size[(unsigned int)PSMMU_MEM_RANGE_L1_ST] = l1_grans;
 
-	return num_granules;
+	range_base[(unsigned int)PSMMU_MEM_RANGE_L2_DS] = smmu->l2_ds_pa;
+	range_size[(unsigned int)PSMMU_MEM_RANGE_L2_DS] = l1_grans;
+
+	range_base[(unsigned int)PSMMU_MEM_RANGE_CMDQ] = smmu->cmdq_pa;
+	range_size[(unsigned int)PSMMU_MEM_RANGE_CMDQ] = 1UL;
+
+	range_base[(unsigned int)PSMMU_MEM_RANGE_EVTQ] = smmu->evtq_pa;
+	range_size[(unsigned int)PSMMU_MEM_RANGE_EVTQ] = 1UL;
 }
 
-int psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t *donated_pa)
+int psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa,
+			 uintptr_t l2_ds_pa)
 {
 	uintptr_t granules_pa[2];
 	uintptr_t granules_va[2];
-	unsigned long l1tab_gran;
 	size_t size;
 
 	assert(smmu != NULL);
 
-	/* Copy physical addresses of donated granules from SRO context */
-	(void)memcpy(smmu->donated_pa, donated_pa, sizeof(smmu->donated_pa));
-
 	/* Size of L1 Stream Table */
 	size = smmu->strtab_size;
 
-	/* Number of granules */
-	l1tab_gran = smmu->strtab_size / GRANULE_SIZE;
-
 	/* Physical address of L1 Stream Table */
-	granules_pa[0] = smmu->donated_pa[L1_ST_IDX];
+	granules_pa[0] = l1_st_pa;
 
-	/* Physical address of  L2 Stream Table descriptors */
-	granules_pa[1] = smmu->donated_pa[L2_DS_IDX(l1tab_gran)];
+	/* Physical address of L2 Stream Table descriptors */
+	granules_pa[1] = l2_ds_pa;
 
 	for (unsigned int i = 0U; i < 2U; i++) {
 		assert(ALIGNED(granules_pa[i], size));
@@ -303,16 +320,24 @@ int psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t *donated_pa)
 						granules_pa[i], true);
 		if (granules_va[i] == 0UL) {
 			SMMU_ERROR(smmu, "Failed to map 0x%lx\n", granules_pa[i]);
+			/* Unmap any previously mapped granule */
+			for (unsigned int j = 0U; j < i; j++) {
+				(void)xlat_low_va_unmap(granules_va[j], size);
+			}
 			return -ENOMEM;
 		}
 	}
+
+	/* Store base PAs for reclaim during deactivation */
+	smmu->l1_st_pa = l1_st_pa;
+	smmu->l2_ds_pa = l2_ds_pa;
 
 	/* Virtual address of L1 Stream Table */
 	smmu->strtab_base = (uint64_t *)granules_va[0];
 
 	configure_strtab(smmu, granules_pa[0]);
 
-	/* Virtual address of L2 Stream Table descriptors */
+	/* Virtual address of L2 Stream Table descriptors array */
 	smmu->l2strtab = (uintptr_t *)granules_va[1];
 
 	SMMU_DEBUG("%s: PA 0x%lx VA 0x%lx size 0x%lx\n", "L1 StrTab",
@@ -335,6 +360,12 @@ int psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	l1_idx = L1STD_IDX(sid);
 
 	spinlock_acquire(&smmu->lock);
+
+	ret = validate_st_l2(smmu, l1_idx, sid, NULL);
+	if (ret != 0) {
+		spinlock_release(&smmu->lock);
+		return ret;
+	}
 
 	/* Map L2 Stream Table */
 	l2tab_va = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM, l2tab_pa, true);
@@ -368,8 +399,8 @@ int psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 		return ret;
 	}
 
-	/* Increment number of L2 Stream Table descriptors */
-	smmu->l1std_cnt++;
+	/* Increment L1 Stream Table refcount */
+	smmu->l1_refcnt++;
 
 	/*
 	 * Store L2 virtual address in L2 Stream Table descriptor.
@@ -386,21 +417,26 @@ int psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	return ret;
 }
 
-int psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid)
+int psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
+		       uintptr_t *l2tab_pa)
 {
 	unsigned long l1_idx;
 	uintptr_t l2tab_va;
 	int ret;
 
 	assert(smmu != NULL);
+	assert(l2tab_pa != NULL);
 
 	/* L1STD index in L1 table */
 	l1_idx = L1STD_IDX(sid);
 
 	spinlock_acquire(&smmu->lock);
 
-	/* Verify that the number of allocated STEs is 0 */
-	assert((smmu->l2strtab[l1_idx] & MASK(L2DESC_STE_CNT)) == 0UL);
+	ret = validate_st_l2(smmu, l1_idx, sid, l2tab_pa);
+	if (ret != 0) {
+		spinlock_release(&smmu->lock);
+		return ret;
+	}
 
 	/* Get virtual address of L2 Stream Table */
 	l2tab_va = smmu->l2strtab[l1_idx];
@@ -409,9 +445,9 @@ int psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid)
 	smmu->strtab_base[l1_idx] = 0UL;
 	dsb(ish);
 
-	/* Decrement number of L2 Stream Table descriptors */
-	assert(smmu->l1std_cnt != 0U);
-	smmu->l1std_cnt--;
+	/* Decrement L1 Stream Table refcount */
+	assert(smmu->l1_refcnt != 0U);
+	smmu->l1_refcnt--;
 
 	/* Unmap L2 Stream Table */
 	ret = xlat_low_va_unmap(l2tab_va, GRANULE_SIZE);
@@ -436,31 +472,37 @@ int psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid)
 	return ret;
 }
 
-int psmmu_register_queues(struct smmuv3_dev *smmu)
+int psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
+			  uintptr_t evtq_pa)
 {
 	uintptr_t granules_pa[2];
 	uintptr_t granules_va[2];
-	unsigned long l1tab_gran;
 
 	assert(smmu != NULL);
 
-	/* Number of L1 Stream Table granules */
-	l1tab_gran = smmu->strtab_size / GRANULE_SIZE;
-
 	/* Physical address of Command queue */
-	granules_pa[0] = smmu->donated_pa[CMDQ_IDX(l1tab_gran)];
+	granules_pa[0] = cmdq_pa;
 
 	/* Physical address of Event queue */
-	granules_pa[1] = smmu->donated_pa[EVTQ_IDX(l1tab_gran)];
+	granules_pa[1] = evtq_pa;
 
 	for (unsigned int i = 0U; i < 2U; i++) {
 		granules_va[i] = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM,
 						granules_pa[i], true);
 		if (granules_va[i] == 0UL) {
 			SMMU_ERROR(smmu, "Failed to map 0x%lx\n", granules_pa[i]);
+			/* Unmap any previously mapped granule */
+			for (unsigned int j = 0U; j < i; j++) {
+				(void)xlat_low_va_unmap(granules_va[j],
+							GRANULE_SIZE);
+			}
 			return -ENOMEM;
 		}
 	}
+
+	/* Store base PAs for reclaim during deactivation */
+	smmu->cmdq_pa = cmdq_pa;
+	smmu->evtq_pa = evtq_pa;
 
 	smmu->cmdq.q_base = granules_va[0];
 	configure_queue(smmu, CMDQ, granules_pa[0]);

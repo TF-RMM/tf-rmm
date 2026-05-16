@@ -434,28 +434,6 @@ typedef __uint128_t	uint128_t;
 
 #define MAX_RETRIES		100000U
 
-#define L1_ST_IDX		0UL
-#define L2_DS_IDX(_num)		(L1_ST_IDX + (_num))
-#define CMDQ_IDX(_num)		(L1_ST_IDX + ((_num) * 2U))
-#define EVTQ_IDX(_num)		(L1_ST_IDX + ((_num) * 2U) + 1UL)
-
-/*
- * The number of granules of occupied by SMMUv3 L1 Stream Table,
- * whose size is determined by the StreamID size (SMMU_IDR1.SIDSIZE):
- *   - 16 bits:  8 KB  (2 granules)
- *   - 17 bits: 16 KB  (4 granules)
- */
-#define PSMMU_L1_ST_GRANS	2U
-
-/*
- * The number of granules required for PSMMU activation:
- *   - L1 Stream Table: SRO_PSMMU_L1_GRANS
- *   - L2 Stream Table descriptors: SRO_PSMMU_L1_GRANS
- *   - SMMUv3 Command queue: 1
- *   - SMMUv3 Event queue: 1
- */
-#define PSMMU_GRANS		(PSMMU_L1_ST_GRANS * 2U + 2U)
-
 enum queue_type {
 	CMDQ,
 	EVTQ,
@@ -513,21 +491,45 @@ struct smmuv3_dev {
 	struct smmu_queue evtq;
 	struct psmmu_params params;
 
-	/* Physical addresses of granules donated during PSMMU activation */
-	uintptr_t donated_pa[PSMMU_GRANS];
+	/*
+	 * Base physical addresses of donated ranges.
+	 * Stored during PSMMU activation for reclaim during deactivation.
+	 */
+	uintptr_t l1_st_pa;	/* L1 Stream Table base */
+	uintptr_t l2_ds_pa;	/* l2strtab[] descriptors base */
+	uintptr_t cmdq_pa;	/* Command queue */
+	uintptr_t evtq_pa;	/* Event queue */
 
+	/* Virtual address and size of the L1 Stream Table */
 	uint64_t *strtab_base;
 	size_t strtab_size;
 
 	/*
-	 * Array of L2 Stream Table descriptors containing
-	 * virtual addresses of dynamically allocated L2 tables
-	 * and the number of allocated STEs in each table.
+	 * Array of L2 Stream Table descriptors, one entry per L1STD.
+	 * Each entry packs two fields into a single uintptr_t:
+	 *
+	 *   bits [L2DESC_STE_CNT_WIDTH-1 : L2DESC_STE_CNT_SHIFT]
+	 *       Number of allocated STEs in the L2 table.
+	 *       L2DESC_STE_CNT_WIDTH = GRANULE_SHIFT (12 bits), which is
+	 *       sufficient because the maximum STE count per L2 table is
+	 *       2^SMMU_STRTAB_SPLIT (= 64).
+	 *
+	 *   bits [63 : L2DESC_VA_SHIFT]
+	 *       Virtual address of the mapped L2 Stream Table.
+	 *       L2 tables are always granule-aligned, so their low
+	 *       GRANULE_SHIFT bits are always zero and are free to
+	 *       hold the STE count without loss of information.
+	 *
+	 * Use the L2DESC_STE_CNT and L2DESC_VA field macros to
+	 * extract or compose each field with MASK()/INPLACE()/EXTRACT().
 	 */
 	uintptr_t *l2strtab;
 
-	/* Number of L2 Stream Table Descriptors in use */
-	unsigned int l1std_cnt;
+	/*
+	 * Ref count for L1 Stream Table. It indicates the number of
+	 * L1 Stream Table entries populated.
+	 */
+	unsigned int l1_refcnt;
 
 	/*
 	 * PSMMU state:
@@ -567,7 +569,7 @@ int prepare_send_command(struct smmuv3_dev *smmu, unsigned long opcode,
 			 unsigned long param0, unsigned long param1);
 int wait_cmdq_empty(struct smmuv3_dev *smmu);
 int smmu_on(struct smmuv3_dev *smmu);
-int smmu_off(struct smmuv3_dev *smmu);
+void smmu_off(struct smmuv3_dev *smmu);
 int inval_cached_ste(struct smmuv3_dev *smmu, unsigned long sid, bool leaf_only);
 
 /*

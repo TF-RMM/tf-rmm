@@ -54,10 +54,12 @@ int psmmu_allocate_st_l2(struct smmuv3_dev *smmu, unsigned long sid)
 	return 0;
 }
 
-int psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid)
+int psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
+		       uintptr_t *l2tab_pa)
 {
 	(void)smmu;
 	(void)sid;
+	(void)l2tab_pa;
 
 	return 0;
 }
@@ -69,26 +71,22 @@ size_t psmmu_strtab_size(struct smmuv3_dev *smmu)
 	return 0UL;
 }
 
-int psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t *donated_pa)
+int psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa,
+			 uintptr_t l2_ds_pa)
 {
 	(void)smmu;
-	(void)donated_pa;
+	(void)l1_st_pa;
+	(void)l2_ds_pa;
 
 	return 0;
 }
 
-int psmmu_register_queues(struct smmuv3_dev *smmu)
+int psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
+			  uintptr_t evtq_pa)
 {
 	(void)smmu;
-
-	return 0;
-}
-
-int psmmu_validate_st_l2(struct smmuv3_dev *smmu, unsigned long sid, uintptr_t *l2tab_pa)
-{
-	(void)smmu;
-	(void)sid;
-	(void)l2tab_pa;
+	(void)cmdq_pa;
+	(void)evtq_pa;
 
 	return 0;
 }
@@ -102,12 +100,12 @@ int psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid, uintptr_t l
 	return 0;
 }
 
-unsigned long psmmu_get_donated(struct smmuv3_dev *smmu, uintptr_t *donated_pa)
+void psmmu_get_donated(struct smmuv3_dev *smmu, uintptr_t *range_base,
+		       unsigned long *range_size)
 {
 	(void)smmu;
-	(void)donated_pa;
-
-	return 0;
+	(void)range_base;
+	(void)range_size;
 }
 
 bool psmmu_set_busy(struct smmuv3_dev *smmu, unsigned int state)
@@ -118,7 +116,17 @@ bool psmmu_set_busy(struct smmuv3_dev *smmu, unsigned int state)
 	return true;
 }
 
+void psmmu_set_active(struct smmuv3_dev *smmu)
+{
+	(void)smmu;
+}
+
 void psmmu_set_inactive(struct smmuv3_dev *smmu)
+{
+	(void)smmu;
+}
+
+void psmmu_unmap(struct smmuv3_dev *smmu)
 {
 	(void)smmu;
 }
