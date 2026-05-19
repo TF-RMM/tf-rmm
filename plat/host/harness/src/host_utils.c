@@ -15,6 +15,7 @@
 #include <debug.h>
 #include <gic.h>
 #include <host_utils.h>
+#include <host_utils_pci.h>
 #include <rmm_el3_ifc.h>
 #include <sizes.h>
 #ifndef CBMC
@@ -169,7 +170,6 @@ static unsigned char host_smmu_r_page[2U * SZ_64K] __aligned(SZ_64K);
 static unsigned char host_smmu_ns_page_1[SZ_64K] __aligned(SZ_64K);
 static unsigned char host_smmu_r_page_1[2U * SZ_64K] __aligned(SZ_64K);
 static struct smmu_info host_smmu_info[2U];
-
 
 unsigned long host_util_get_granule_base(void)
 {
@@ -353,6 +353,8 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	boot_manifest->plat_smmu.num_smmus = 2UL;
 	boot_manifest->plat_smmu.smmus = host_smmu_info;
 	boot_manifest->plat_smmu.checksum = 0UL;
+
+	host_utils_pci_setup_root_complex(&boot_manifest->plat_root_complex);
 }
 
 int host_util_rec_run(unsigned long *rec_regs, unsigned long *rec_sp_el0)

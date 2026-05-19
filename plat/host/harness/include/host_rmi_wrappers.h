@@ -93,5 +93,11 @@ void host_rmi_op_continue(void *handle, unsigned long flags,
 			  void *donate_req, struct smc_result *res);
 void host_rmi_op_cancel(unsigned long handle, unsigned long flags,
 			struct smc_result *res);
+void host_rmi_psmmu_activate(unsigned long psmmu_ptr, void *params_ptr,
+			     void *handle, void *donate_req,
+			     struct smc_result *res);
+void host_rmi_psmmu_st_l2_create(unsigned long psmmu_ptr, unsigned long sid,
+				 void *handle, void *donate_req,
+				 struct smc_result *res);
 
 #endif /* HOST_RMI_WRAPPERS_H */

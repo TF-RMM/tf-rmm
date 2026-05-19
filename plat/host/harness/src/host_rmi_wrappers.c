@@ -478,3 +478,37 @@ void host_rmi_op_cancel(unsigned long handle, unsigned long flags,
 		      0, 0, 0, 0, 0,
 		      res);
 }
+
+void host_rmi_psmmu_activate(unsigned long psmmu_ptr, void *params_ptr,
+			     void *handle, void *donate_req,
+			     struct smc_result *res)
+{
+	unsigned long *hdl = (unsigned long *)handle;
+	unsigned long *req = (unsigned long *)donate_req;
+
+	handle_ns_smc(SMC_RMI_PSMMU_ACTIVATE,
+		      psmmu_ptr,
+		      (uintptr_t)params_ptr,
+		      0, 0, 0, 0, 0,
+		      res);
+
+	*hdl = res->x[1];
+	*req = res->x[2];
+}
+
+void host_rmi_psmmu_st_l2_create(unsigned long psmmu_ptr, unsigned long sid,
+				 void *handle, void *donate_req,
+				 struct smc_result *res)
+{
+	unsigned long *hdl = (unsigned long *)handle;
+	unsigned long *req = (unsigned long *)donate_req;
+
+	handle_ns_smc(SMC_RMI_PSMMU_ST_L2_CREATE,
+		      psmmu_ptr,
+		      sid,
+		      0, 0, 0, 0, 0,
+		      res);
+
+	*hdl = res->x[1];
+	*req = res->x[2];
+}

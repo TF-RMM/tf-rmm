@@ -15,6 +15,7 @@
 #include <platform_api.h>
 #include <rmm_el3_ifc.h>
 #include <smc-rmi.h>
+#include <status.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -917,6 +918,58 @@ static int host_pdev_setup(struct host_pdev *dev)
 out_cleanup:
 	host_pdev_cleanup(dev);
 	return rc;
+}
+
+/*
+ * Activate the PSMMU for the given SMMU index and create the L2 stream
+ * table entry for the specified SID.
+ *
+ * Returns 0 on success, -1 on failure.
+ */
+int host_psmmu_setup(unsigned int smmu_idx, unsigned long sid)
+{
+	unsigned long psmmu_ptr;
+	unsigned long handle;
+	unsigned long donate_req;
+	struct smc_result result;
+	void *params_ptr;
+
+	psmmu_ptr = host_util_get_smmu_ns_base(smmu_idx);
+
+	/* Allocate params granule (psmmu_params = all zeros is valid) */
+	params_ptr = allocate_granule(1U);
+	memset(params_ptr, 0, GRANULE_SIZE);
+
+	/* Step 1: PSMMU_ACTIVATE */
+	host_rmi_psmmu_activate(psmmu_ptr, params_ptr,
+				&handle, &donate_req, &result);
+	if (unpack_return_code(result.x[0]).status != RMI_INCOMPLETE) {
+		ERROR("PSMMU activate failed: 0x%lx\n", result.x[0]);
+		return -1;
+	}
+
+	if (host_sro_drive(handle, result.x[0], donate_req) != 0) {
+		ERROR("PSMMU activate SRO failed\n");
+		return -1;
+	}
+
+	INFO("PSMMU[%u] activated\n", smmu_idx);
+
+	/* Step 2: PSMMU_ST_L2_CREATE for the required SID */
+	host_rmi_psmmu_st_l2_create(psmmu_ptr, sid,
+				    &handle, &donate_req, &result);
+	if (unpack_return_code(result.x[0]).status != RMI_INCOMPLETE) {
+		ERROR("PSMMU ST_L2_CREATE failed: 0x%lx\n", result.x[0]);
+		return -1;
+	}
+
+	if (host_sro_drive(handle, result.x[0], donate_req) != 0) {
+		ERROR("PSMMU ST_L2_CREATE SRO failed\n");
+		return -1;
+	}
+
+	INFO("PSMMU[%u] L2 stream table created for SID 0x%lx\n", smmu_idx, sid);
+	return 0;
 }
 
 /*

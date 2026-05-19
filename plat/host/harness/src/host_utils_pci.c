@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <gic.h>
 #include <host_utils.h>
+#include <host_utils_pci.h>
 #include <plat_common.h>
 #include <rmm_el3_ifc.h>
 #include <string.h>
@@ -39,9 +40,17 @@ struct dvsec_rme_da {
 /* Used for one RootPort with BDF=0 to set ECAP to DVSEC with Arm RME DA */
 static uint8_t gbl_pcie_ecam_space[HOST_PCIE_ECAM_SIZE] __aligned(SZ_4K);
 
+/* Second ECAM space for second root complex (connected to SMMU 1) */
+static uint8_t gbl_pcie_ecam_space_1[HOST_PCIE_ECAM_SIZE] __aligned(SZ_4K);
+
 unsigned long host_utils_pci_get_ecam_base(void)
 {
 	return (unsigned long)&gbl_pcie_ecam_space;
+}
+
+unsigned long host_utils_pci_get_ecam_base_1(void)
+{
+	return (unsigned long)&gbl_pcie_ecam_space_1;
 }
 
 int host_utils_pci_rp_dvsec_setup(uint16_t rp_id)
@@ -60,4 +69,64 @@ int host_utils_pci_rp_dvsec_setup(uint16_t rp_id)
 	dvsec->dvsec_hdr2 = DVSEC_ID_RME_DA;
 
 	return 0;
+}
+
+/*
+ * PCIe Root Complex topology for BDF-to-SMMU resolution.
+ * RC 0: ECAM = gbl_pcie_ecam_space, segment 0, covers BDF [0x0000, 0xFFFF) -> SMMU 0
+ * RC 1: ECAM = gbl_pcie_ecam_space_1, segment 1, covers BDF [0x0000, 0xFFFF) -> SMMU 1
+ */
+static struct bdf_mapping_info host_bdf_mappings_0[1U];
+static struct root_port_info host_root_ports_0[1U];
+static struct bdf_mapping_info host_bdf_mappings_1[1U];
+static struct root_port_info host_root_ports_1[1U];
+static struct root_complex_info host_root_complex_info[2U];
+
+void host_utils_pci_setup_root_complex(struct root_complex_list *rc_list)
+{
+	/*
+	 * Root Complex 0: segment 0, one root port (id=0),
+	 *   BDF mapping [0x0000, 0xFFFF) -> SMMU 0, offset 0.
+	 *   This covers BDF 0x100 (bus=1, dev=0, func=0).
+	 *
+	 * Root Complex 1: segment 1, one root port (id=0),
+	 *   BDF mapping [0x0000, 0xFFFF) -> SMMU 1, offset 0.
+	 */
+	host_bdf_mappings_0[0].mapping_base = 0x0000U;
+	host_bdf_mappings_0[0].mapping_top = 0xFFFFU;
+	host_bdf_mappings_0[0].mapping_off = 0x0000U;
+	host_bdf_mappings_0[0].smmu_idx = 0U;
+
+	host_root_ports_0[0].root_port_id = 0U;
+	host_root_ports_0[0].padding = 0U;
+	host_root_ports_0[0].num_bdf_mappings = 1U;
+	host_root_ports_0[0].bdf_mappings = host_bdf_mappings_0;
+
+	host_bdf_mappings_1[0].mapping_base = 0x0000U;
+	host_bdf_mappings_1[0].mapping_top = 0xFFFFU;
+	host_bdf_mappings_1[0].mapping_off = 0x0000U;
+	host_bdf_mappings_1[0].smmu_idx = 1U;
+
+	host_root_ports_1[0].root_port_id = 0U;
+	host_root_ports_1[0].padding = 0U;
+	host_root_ports_1[0].num_bdf_mappings = 1U;
+	host_root_ports_1[0].bdf_mappings = host_bdf_mappings_1;
+
+	host_root_complex_info[0].ecam_base =
+		(uint64_t)host_utils_pci_get_ecam_base();
+	host_root_complex_info[0].segment = 0U;
+	host_root_complex_info[0].num_root_ports = 1U;
+	host_root_complex_info[0].root_ports = host_root_ports_0;
+
+	host_root_complex_info[1].ecam_base =
+		(uint64_t)host_utils_pci_get_ecam_base_1();
+	host_root_complex_info[1].segment = 1U;
+	host_root_complex_info[1].num_root_ports = 1U;
+	host_root_complex_info[1].root_ports = host_root_ports_1;
+
+	rc_list->num_root_complex = 2UL;
+	rc_list->rc_info_version = 0U;
+	rc_list->padding = 0U;
+	rc_list->root_complex = host_root_complex_info;
+	rc_list->checksum = 0UL;
 }
