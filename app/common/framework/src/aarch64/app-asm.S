@@ -78,41 +78,20 @@ func run_app
 	mrs	x1, vbar_el2
 	str	x1, [x0, #RMM_VBAR_EL2_OFFSET]
 
-	/* Update TTBR register:
-	 * Point ttbr1_el2 to the app's translation table
+	/*
+	 * Update TTBR register:
+	 * Point ttbr1_el2 to the app's translation table.
+	 *
+	 * No TLBI is needed here: the back_from_el0 exit path performs
+	 * TLBI ASIDE1 for the app ASID after every TTBR switch, which
+	 * guarantees no stale entries exist for the app ASID at this point.
+	 *
+	 * No ISB is needed here as no memory access through the new TTBR1
+	 * mapping occurs until after the ISB following the VBAR_EL2 write
+	 * below.
 	 */
-	dsb	nsh
 	ldr	x1, [x0, #APP_TTBR1_EL2_OFFSET]
 	msr	ttbr1_el2, x1
-
-	/* Invalidate TLB for the App ASID. The ASID is extracted from the TTBR
-	 * value. The ASID is encoded in the bits [63:48] in both the TTBR value
-	 * and in the TLBI operand, so here only bits [47:0] needs to be
-	 * cleared.
-	 */
-	/* TODO: Further optimise TLB management.
-	 * - Since Text, RO, RW and BSS are shared for all the instances of the
-	 *   App, here we could do a TLBI ASID only for the instance specific
-	 *   memory like stack, heap and shared memory.
-	 * - There is a further optimization for App instances specific to CPU.
-	 *   By using special ASID for CPU app instances (for example MSB set),
-	 *   TLB invalidation for those can be omitted.
-	 */
-	and	x1, x1, #(~((1 << 48) - 1))
-	tlbi	aside1, x1
-	dsb	nsh
-	isb
-
-	/* starting from this point the app mapping is active, so to access
-	 * app_reg_ctx, it must be done via the VA in the app mapping.
-	 * So update x0.
-	 */
-	mov_imm	x0, APP_VA_START
-
-	/* Disable Low VA range for unprivileged code */
-	mrs	x1, tcr_el2
-	orr	x1, x1, #TCR_EL2_E0PD0
-	msr	tcr_el2, x1
 
 	/* update the vector table base address to the app_return vector */
 	adrp	x1, app_vectors
@@ -120,6 +99,10 @@ func run_app
 	msr	vbar_el2, x1
 	isb
 
+	/* From this point, the app mapping is active via TTBR1 and
+	 * app_reg_ctx must be accessed via the VA in the app mapping (x0).
+	 */
+	mov_imm	x0, APP_VA_START
 	/* load app GPRs */
 	ldp	x2,  x3,  [x0, #(APP_SAVED_REGS_OFFSET + 16 * 1)]
 	ldp	x4,  x5,  [x0, #(APP_SAVED_REGS_OFFSET + 16 * 2)]
@@ -189,23 +172,28 @@ func back_from_el0
 	msr	vbar_el2, x2
 	isb
 
-	/* get the app ASID from the current TTBR */
+	/*
+	 * Extract the app ASID from the current TTBR1 before switching.
+	 * This is used for the TLBI after the TTBR restore.
+	 */
 	mrs	x3, ttbr1_el2
 	and	x3, x3, #(~((1 << 48) - 1))
 
 	/* restore TTBR register */
-	dsb	nsh
 	ldr	x2, [x1, #RMM_TTBR1_EL2_OFFSET]
 	msr	ttbr1_el2, x2
-
-	/* Invalidate TLB using app ASID */
-	tlbi	aside1, x3
-	dsb	nsh
 	isb
 
-	mrs	x2, tcr_el2
-	and	x2, x2, #(~TCR_EL2_E0PD1) /* TODO: restore original value instead!!! */
-	msr	tcr_el2, x2
+	/*
+	 * Invalidate stale app TLB entries after TTBR restore.
+	 */
+	/* TODO: Further optimise TLB management.
+	 * There is a further optimization for App instances specific to CPU.
+	 * By using special ASID for CPU app instances (for example MSB set),
+	 * TLB invalidation for those can be omitted.
+	 */
+	tlbi	aside1, x3
+	dsb	nsh
 	isb
 
 	/*

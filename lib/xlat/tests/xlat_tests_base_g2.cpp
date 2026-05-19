@@ -2093,7 +2093,7 @@ static void validate_tcr_el2(struct xlat_ctx *low_ctx,
 	exp_tcr |= TCR_EL2_TG0_4K | TCR_EL2_TG1_4K;
 
 	/* Hierarchical permissions */
-	exp_tcr |= TCR_EL2_AS | TCR_EL2_HPD0 | TCR_EL2_HPD1;
+	exp_tcr |= TCR_EL2_AS | TCR_EL2_HPD0 | TCR_EL2_HPD1 | TCR_EL2_E0PD0;
 
 	/* The current ASID is defined by TTBR1_EL2 */
 	exp_tcr |= TCR_EL2_A1;
