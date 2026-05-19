@@ -179,9 +179,11 @@ uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
 static inline struct ste_entry *sid_to_ste(struct smmuv3_dev *smmu, unsigned int sid)
 {
 	/* Get virtual address of L2 Stream Table */
+	assert(smmu->l2strtab != NULL);
 	/* coverity[null_field:SUPPRESS] */
 	struct l2tab *ptr = (struct l2tab *)(smmu->l2strtab[L1STD_IDX(sid)] &
 						MASK(L2DESC_VA));
+	assert(ptr != NULL);
 	return &ptr->l2tab_entry[L2STE_IDX(sid)];
 }
 
@@ -355,6 +357,9 @@ int wait_cmdq_empty(struct smmuv3_dev *smmu)
 	uint32_t prod_reg, cons_reg;
 	unsigned int retries = 0U;
 
+	assert(smmu->cmdq.prod_reg != NULL);
+	assert(smmu->cmdq.cons_reg != NULL);
+
 	/* On fake_host, simulate instant command processing */
 	smmuv3_arch_sync_cmdq(smmu->cmdq.prod_reg, smmu->cmdq.cons_reg);
 
@@ -406,8 +411,14 @@ int wait_cmdq_empty(struct smmuv3_dev *smmu)
 static int send_cmd(struct smmuv3_dev *smmu, uint128_t cmd)
 {
 	uint32_t wrap_bit = U(1) << smmu->config.cmdq_log2size;
-	uint32_t prod_reg = read32(smmu->cmdq.prod_reg);
+	uint32_t prod_reg;
 	unsigned int retries = MAX_RETRIES;
+
+	assert(smmu->cmdq.q_base != 0UL);
+	assert(smmu->cmdq.prod_reg != NULL);
+	assert(smmu->cmdq.cons_reg != NULL);
+
+	prod_reg = read32(smmu->cmdq.prod_reg);
 
 	/* Wait until Command queue is not full */
 	do {
@@ -528,8 +539,14 @@ static int configure_ste(struct smmuv3_dev *smmu, unsigned int sid,
 			 struct ste_entry *ste_ptr,
 			 const struct smmu_stg2_config *s2_cfg)
 {
-	unsigned long ds = EXTRACT(VTCR_DS, s2_cfg->vtcr);
-	unsigned long sl2 = EXTRACT(VTCR_SL2, s2_cfg->vtcr);
+	unsigned long ds, sl2;
+
+	assert(smmu != NULL);
+	assert(ste_ptr != NULL);
+	assert(s2_cfg != NULL);
+
+	ds = EXTRACT(VTCR_DS, s2_cfg->vtcr);
+	sl2 = EXTRACT(VTCR_SL2, s2_cfg->vtcr);
 
 	assert((ste_ptr->ste[0] & STE0_V_BIT) == 0UL);
 
@@ -624,6 +641,9 @@ int smmu_on(struct smmuv3_dev *smmu)
 {
 	uint32_t cr0, cr2 = SMMU_R_CR2_INIT;
 	int ret;
+
+	assert(smmu != NULL);
+	assert(smmu->r_base != 0UL);
 
 	write32(SMMU_R_CR1_INIT, (void *)(smmu->r_base + SMMU_R_CR1));
 
@@ -964,6 +984,7 @@ static int change_ste(unsigned int smmu_idx, unsigned int sid, bool enable)
 {
 	struct smmuv3_dev *smmu;
 	struct ste_entry *ste_ptr;
+	unsigned int l1_idx;
 	bool valid;
 	int ret;
 
@@ -972,8 +993,28 @@ static int change_ste(unsigned int smmu_idx, unsigned int sid, bool enable)
 		return -EINVAL;
 	}
 
+	/* L1STD index in L1 table */
+	l1_idx = L1STD_IDX(sid);
+
 	spinlock_acquire(&smmu->lock);
+
+	if (smmu->state != PSMMU_ACTIVE) {
+		SMMU_ERROR(smmu, "PSMMU not active (state=%u) for SID 0x%x\n",
+				smmu->state, sid);
+		spinlock_release(&smmu->lock);
+		return -EINVAL;
+	}
+
+	/* Check that L2 table is allocated */
+	assert(smmu->strtab_base != NULL);
+	if (smmu->strtab_base[l1_idx] == 0UL) {
+		spinlock_release(&smmu->lock);
+		SMMU_ERROR(smmu, "STRTAB L2 for SID 0x%x not found\n", sid);
+		return -EINVAL;
+	}
+
 	ste_ptr = sid_to_ste(smmu, sid);
+	assert(ste_ptr != NULL);
 
 	/* Check STE.V bit */
 	valid = (ste_ptr->ste[0] & STE0_V_BIT) != 0UL;
@@ -1026,7 +1067,15 @@ int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid)
 
 	spinlock_acquire(&smmu->lock);
 
+	if (smmu->state != PSMMU_ACTIVE) {
+		SMMU_ERROR(smmu, "PSMMU not active (state=%u) for SID 0x%x\n",
+				smmu->state, sid);
+		spinlock_release(&smmu->lock);
+		return -EINVAL;
+	}
+
 	/* Check that L2 table was allocated */
+	assert(smmu->strtab_base != NULL);
 	if (smmu->strtab_base[l1_idx] == 0UL) {
 		spinlock_release(&smmu->lock);
 		SMMU_ERROR(smmu, "STRTAB L2 for SID 0x%x not found\n", sid);
@@ -1041,6 +1090,7 @@ int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid)
 	}
 
 	ste_ptr = sid_to_ste(smmu, sid);
+	assert(ste_ptr != NULL);
 
 	/* Check that STE is not valid, e.g. smmuv3_disable_ste() was called */
 	if ((ste_ptr->ste[0] & STE0_V_BIT) != 0UL) {
@@ -1119,7 +1169,16 @@ int smmuv3_configure_stream(unsigned long ecam_addr, unsigned int tdi_id,
 
 	spinlock_acquire(&smmu->lock);
 
+	/* Check that PSMMU is active (stream table allocated and SMMU enabled) */
+	if (smmu->state != PSMMU_ACTIVE) {
+		SMMU_ERROR(smmu, "PSMMU not active (state=%u) for SID 0x%x\n",
+				smmu->state, sid);
+		spinlock_release(&smmu->lock);
+		return -EINVAL;
+	}
+
 	/* Check that L2 table is allocated */
+	assert(smmu->strtab_base != NULL);
 	if (smmu->strtab_base[l1_idx] == 0UL) {
 		spinlock_release(&smmu->lock);
 		SMMU_ERROR(smmu, "STRTAB L2 for SID 0x%x not found\n", sid);
@@ -1127,6 +1186,7 @@ int smmuv3_configure_stream(unsigned long ecam_addr, unsigned int tdi_id,
 	}
 
 	ste_ptr = sid_to_ste(smmu, sid);
+	assert(ste_ptr != NULL);
 
 	/* Check that STE is not already set */
 	if (ste_ptr->ste[0] != 0UL) {
