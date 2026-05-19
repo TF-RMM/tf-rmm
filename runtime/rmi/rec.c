@@ -765,10 +765,10 @@ static void rec_memory_donate(unsigned long fid,
 				INPLACE(RMI_OP_CAN_CANCEL_BIT, SRO_CAN_CANCEL_FLAG(sro)));
 
 		/* RmiOpMemDonateReq */
-		res->x[2] = (INPLACE(RMI_OP_DONATE_BLK_SIZE, RMI_PAGE_L3) |
-			     INPLACE(RMI_OP_DONATE_BLK_COUNT, pending) |
-			     INPLACE(RMI_OP_DONATE_MEM_CONTIG, SRO_CONTIG_FLAG(sro)) |
-			     INPLACE(RMI_OP_DONATE_MEM_STATE, RMI_OP_MEM_DELEGATED));
+		res->x[2] = rmi_op_donate_req_encode(
+					pending * GRANULE_SIZE,
+					SRO_CONTIG_FLAG(sro),
+					RMI_OP_MEM_DELEGATED);
 
 		sro->rec_ctx.cb_id = (unsigned int)SRO_REC_MEM_DONATE;
 	} else {
@@ -859,10 +859,10 @@ void smc_rec_create(unsigned long rd_addr,
 			INPLACE(RMI_OP_CAN_CANCEL_BIT, SRO_CAN_CANCEL_FLAG(sro)));
 
 	/* RmiOpMemDonateReq */
-	res->x[2] = (INPLACE(RMI_OP_DONATE_BLK_SIZE, RMI_PAGE_L3) |
-		     INPLACE(RMI_OP_DONATE_BLK_COUNT, sro->rec_ctx.requested_aux_granules) |
-		     INPLACE(RMI_OP_DONATE_MEM_CONTIG, SRO_CONTIG_FLAG(sro)) |
-		     INPLACE(RMI_OP_DONATE_MEM_STATE, RMI_OP_MEM_DELEGATED));
+	res->x[2] = rmi_op_donate_req_encode(
+				sro->rec_ctx.requested_aux_granules * GRANULE_SIZE,
+				SRO_CONTIG_FLAG(sro),
+				RMI_OP_MEM_DELEGATED);
 
 		/* Seal the SRO context and get its handle */
 	res->x[1] = sro_ctx_seal();

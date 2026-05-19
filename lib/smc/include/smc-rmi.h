@@ -1843,7 +1843,8 @@ struct rmi_psmmu_params {
  * Represents the state of a PSMMU.
  */
 #define PSMMU_INACTIVE	U(0)
-#define PSMMU_ACTIVE	U(1)
+#define PSMMU_BUSY	U(1)
+#define PSMMU_ACTIVE	U(2)
 
 /*
  * RmiPsmmuFlags

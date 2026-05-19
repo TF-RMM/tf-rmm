@@ -117,6 +117,9 @@ static inline void __granule_assert_unlocked_invariants(struct granule *g,
 	case GRANULE_STATE_VDEV_AUX:
 		assert(REFCOUNT(g) == 0U);
 		break;
+	case GRANULE_STATE_INTERNAL:
+		assert(REFCOUNT(g) == 0U);
+		break;
 	default:
 		/* Unknown granule type */
 		assert(false);

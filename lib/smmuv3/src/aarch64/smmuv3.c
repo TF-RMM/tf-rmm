@@ -178,15 +178,14 @@ uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
 /* Get address of STE */
 static inline struct ste_entry *sid_to_ste(struct smmuv3_dev *smmu, unsigned int sid)
 {
+	/* Get virtual address of L2 Stream Table */
 	/* coverity[null_field:SUPPRESS] */
-	struct l2tab *ptr = &smmu->l2strtab_base[L1STD_IDX(sid)];
-
-	assert(ptr != NULL);
-
+	struct l2tab *ptr = (struct l2tab *)(smmu->l2strtab[L1STD_IDX(sid)] &
+						MASK(L2DESC_VA));
 	return &ptr->l2tab_entry[L2STE_IDX(sid)];
 }
 
-static void configure_strtab(struct smmuv3_dev *smmu)
+void configure_strtab(struct smmuv3_dev *smmu, uintptr_t strtab_base_pa)
 {
 	uint32_t reg;
 	uint64_t reg64;
@@ -196,31 +195,26 @@ static void configure_strtab(struct smmuv3_dev *smmu)
 	reg |= INPLACE32(STRTAB_BASE_CFG_FMT, TWO_LVL_STR_TABLE);
 	write32(reg, (void *)(smmu->r_base + SMMU_R_STRTAB_BASE_CFG));
 
-	reg64 = smmu->strtab_base_pa | RAWA_BIT;
+	reg64 = strtab_base_pa | RAWA_BIT;
 	write64(reg64, (void *)(smmu->r_base + SMMU_R_STRTAB_BASE));
-
-	SMMU_DEBUG("\tConfigured 2-level Stream table @0x%lx mapped to 0x%lx\n",
-			smmu->strtab_base_pa, (uintptr_t)smmu->strtab_base);
 }
 
-static void configure_queue(struct smmuv3_dev *smmu, enum queue_type type)
+void configure_queue(struct smmuv3_dev *smmu, enum queue_type type,
+			uintptr_t queue_base_pa)
 {
 	struct smmu_queue *queue;
-	uintptr_t queue_base_pa;
 	uint64_t base_reg;
 	uint32_t base_offset, cons_offset, prod_offset;
 	unsigned int log2size;
 
 	if (type == CMDQ) {
 		queue = &smmu->cmdq;
-		queue_base_pa = smmu->cmdq.q_base_pa;
 		log2size = smmu->config.cmdq_log2size;
 		base_offset = SMMU_R_CMDQ_BASE;
 		cons_offset = SMMU_R_CMDQ_CONS;
 		prod_offset = SMMU_R_CMDQ_PROD;
 	} else {
 		queue = &smmu->evtq;
-		queue_base_pa = smmu->evtq.q_base_pa;
 		log2size = smmu->config.evtq_log2size;
 		base_offset = SMMU_R_EVENTQ_BASE;
 		cons_offset = SMMU_R_EVENTQ_CONS;
@@ -244,6 +238,8 @@ static int init_config(struct smmuv3_dev *smmu)
 {
 	uint32_t idr1 = read32((void *)(smmu->ns_base + SMMU_IDR1));
 	unsigned int log2size;
+	unsigned long num_l1_ents;
+	size_t size;
 
 	if ((idr1 & (IDR1_QUEUES_PRESET_BIT | IDR1_TABLES_PRESET_BIT)) != 0U) {
 		SMMU_ERROR(smmu,
@@ -298,9 +294,12 @@ static int init_config(struct smmuv3_dev *smmu)
 		return -ENOTSUP;
 	}
 
-	smmu->num_l1_ents = (1UL << (smmu->config.streamid_bits - SMMU_STRTAB_SPLIT));
-	SMMU_DEBUG("\tNumber of Stream Table L1 entries %ld\n", smmu->num_l1_ents);
+	num_l1_ents = (1UL << (smmu->config.streamid_bits - SMMU_STRTAB_SPLIT));
+	size = num_l1_ents * STRTAB_L1_DESC_SIZE;
+	smmu->strtab_size = round_up(size, GRANULE_SIZE);
 
+	SMMU_DEBUG("\tNumber of L1 Stream Table entries %lu, size 0x%lx\n",
+			num_l1_ents, smmu->strtab_size);
 	return 0;
 }
 
@@ -402,6 +401,7 @@ int wait_cmdq_empty(struct smmuv3_dev *smmu)
 		if ((smmu->config.features & FEAT_SEV) != 0U) {
 			wfe();
 		}
+
 	} while (++retries < MAX_RETRIES);
 
 	SMMU_ERROR(smmu, "Timeout processing commands CONS: 0x%x PROD: 0x%x\n",
@@ -609,7 +609,24 @@ static int inval_cfg_tlbs(struct smmuv3_dev *smmu)
 	return wait_cmdq_empty(smmu);
 }
 
-int enable_smmu(struct smmuv3_dev *smmu)
+/*
+ * Initialize and enable the SMMUv3 device.
+ *
+ * This function programs the core control registers, configures optional
+ * features (such as BTM and MEC), and brings the SMMU into an operational
+ * state. It performs the following steps:
+ *   - Programs CR1/CR2 with initial configuration.
+ *   - Optionally enables broadcast TLB maintenance behaviour (BTM).
+ *   - Configures MECID for Realm accesses if supported.
+ *   - Enables the Command Queue (CMDQ) and waits for acknowledgment.
+ *   - Enables the Event Queue (EVTQ) and waits for acknowledgment.
+ *   - Invalidates cached configurations and TLBs.
+ *   - Enables SMMU translation (SMMUEN) and waits for acknowledgment.
+ *
+ * Returns:
+ *   0 on success, or a negative error code if any step fails.
+ */
+int smmu_on(struct smmuv3_dev *smmu)
 {
 	uint32_t cr0, cr2 = SMMU_R_CR2_INIT;
 	int ret;
@@ -641,7 +658,7 @@ int enable_smmu(struct smmuv3_dev *smmu)
 	write32(cr0, (void *)(smmu->r_base + SMMU_R_CR0));
 	ret = wait_for_ack(smmu, SMMU_R_CR0ACK, cr0, cr0);
 	if (ret != 0) {
-		SMMU_ERROR(smmu, "Failed to enable %s queue\n", "Command");
+		SMMU_ERROR(smmu, "Failed to enable %s\n", "CMDQ");
 		return ret;
 	}
 
@@ -651,7 +668,7 @@ int enable_smmu(struct smmuv3_dev *smmu)
 	write32(cr0, (void *)(smmu->r_base + SMMU_R_CR0));
 	ret = wait_for_ack(smmu, SMMU_R_CR0ACK, R_CR0ACK_EVTQEN_BIT, cr0);
 	if (ret != 0) {
-		SMMU_ERROR(smmu, "Failed to enable %s queue\n", "Event");
+		SMMU_ERROR(smmu, "Failed to enable %s\n", "EVTQ");
 		return ret;
 	}
 
@@ -667,10 +684,81 @@ int enable_smmu(struct smmuv3_dev *smmu)
 	write32(cr0, (void *)(smmu->r_base + SMMU_R_CR0));
 	ret = wait_for_ack(smmu, SMMU_R_CR0ACK, R_CR0ACK_SMMUEN_BIT, cr0);
 	if (ret != 0) {
-		SMMU_ERROR(smmu, "Failed to enable\n");
+		SMMU_ERROR(smmu, "Failed to enable, %d\n", ret);
+	}
+	return ret;
+}
+
+void smmu_off(struct smmuv3_dev *smmu)
+{
+	uint32_t cr0;
+	int ret;
+
+	assert(smmu != NULL);
+
+	/*
+	 * Best-effort deactivation: log errors but continue through
+	 * all steps to ensure the SMMU is fully disabled.
+	 */
+
+	ret = prepare_send_command(smmu, CMD_SYNC, 0UL, 0UL);
+	if (ret != 0) {
+		SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "SYNC");
 	}
 
-	smmu->state = PSMMU_ACTIVE;
+	if (ret == 0) {
+		ret = wait_cmdq_empty(smmu);
+	}
+
+	if (ret == 0) {
+		/* Invalidate cached configurations and TLBs */
+		ret = inval_cfg_tlbs(smmu);
+		if (ret != 0) {
+			SMMU_ERROR(smmu, "Failed to invalidate TLBs\n");
+		}
+	}
+
+	cr0 = read32((void *)(smmu->r_base + SMMU_R_CR0));
+
+	/* Disable SMMU translation */
+	cr0 &= ~R_CR0_SMMUEN_BIT;
+	write32(cr0, (void *)(smmu->r_base + SMMU_R_CR0));
+	ret = wait_for_ack(smmu, SMMU_R_CR0ACK, R_CR0ACK_SMMUEN_BIT, cr0);
+	if (ret != 0) {
+		SMMU_ERROR(smmu, "Failed to disable, %d\n", ret);
+	}
+
+	/* Disable the Command queue */
+	cr0 &= ~R_CR0_CMDQEN_BIT;
+	write32(cr0, (void *)(smmu->r_base + SMMU_R_CR0));
+	ret = wait_for_ack(smmu, SMMU_R_CR0ACK, cr0, cr0);
+	if (ret != 0) {
+		SMMU_ERROR(smmu, "Failed to disable %s\n", "CMDQ");
+	}
+
+	/* Disable the Event queue */
+	cr0 &= ~R_CR0_EVTQEN_BIT;
+	write32(cr0, (void *)(smmu->r_base + SMMU_R_CR0));
+	ret = wait_for_ack(smmu, SMMU_R_CR0ACK, R_CR0ACK_EVTQEN_BIT, cr0);
+	if (ret != 0) {
+		SMMU_ERROR(smmu, "Failed to disable %s\n", "EVTQ");
+	}
+}
+
+static int disable_smmu(struct smmuv3_dev *smmu)
+{
+	uint32_t cr0;
+	int ret;
+
+	assert(smmu != NULL);
+	cr0 = read32((void *)(smmu->r_base + SMMU_R_CR0));
+	cr0 &= ~R_CR0_SMMUEN_BIT;
+
+	write32(cr0, (void *)(smmu->r_base + SMMU_R_CR0));
+	ret = wait_for_ack(smmu, SMMU_R_CR0ACK, R_CR0ACK_SMMUEN_BIT, cr0);
+	if (ret != 0) {
+		SMMU_ERROR(smmu, "Failed to disable, %d\n", ret);
+	}
 	return ret;
 }
 
@@ -855,25 +943,6 @@ static int get_features(struct smmuv3_dev *smmu)
 	return 0;
 }
 
-int disable_smmu(struct smmuv3_dev *smmu)
-{
-	uint32_t cr0;
-	int ret;
-
-	assert(smmu != NULL);
-	cr0 = read32((void *)(smmu->r_base + SMMU_R_CR0));
-	cr0 &= ~R_CR0_SMMUEN_BIT;
-
-	write32(cr0, (void *)(smmu->r_base + SMMU_R_CR0));
-	ret = wait_for_ack(smmu, SMMU_R_CR0ACK, R_CR0ACK_SMMUEN_BIT, cr0);
-	if (ret != 0) {
-		SMMU_ERROR(smmu, "Failed to disable, %d\n", ret);
-	}
-
-	smmu->state = PSMMU_INACTIVE;
-	return ret;
-}
-
 struct smmuv3_dev *get_by_index(unsigned int smmu_idx, unsigned int sid)
 {
 	struct smmuv3_dev *smmu;
@@ -971,7 +1040,7 @@ int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid)
 	}
 
 	/* Check number of allocated STEs */
-	if (smmu->l2ste_cnt[l1_idx] == 0U) {
+	if ((smmu->l2strtab[l1_idx] & MASK(L2DESC_STE_CNT)) == 0U) {
 		spinlock_release(&smmu->lock);
 		SMMU_ERROR(smmu, "No STEs in STRTAB L2 for SID 0x%x\n", sid);
 		return -EINVAL;
@@ -999,7 +1068,7 @@ int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid)
 	dsb(ish);
 
 	/* Decrement number of allocated STEs */
-	smmu->l2ste_cnt[l1_idx]--;
+	smmu->l2strtab[l1_idx]--;
 
 	/* Invalidate configuration structure */
 	ret = inval_cached_ste(smmu, sid, true);
@@ -1075,7 +1144,7 @@ int smmuv3_configure_stream(unsigned long ecam_addr, unsigned int tdi_id,
 	ret = configure_ste(smmu, sid, ste_ptr, s2_cfg);
 	if (ret == 0) {
 		/* Increment number of allocated STEs */
-		smmu->l2ste_cnt[l1_idx]++;
+		smmu->l2strtab[l1_idx]++;
 
 		*sid_ptr = sid;
 		*idx_ptr = smmu_idx;
@@ -1083,128 +1152,6 @@ int smmuv3_configure_stream(unsigned long ecam_addr, unsigned int tdi_id,
 
 	spinlock_release(&smmu->lock);
 	return ret;
-}
-
-/* TODO: change with SRO */
-static int allocate_resources(struct smmuv3_dev *smmu)
-{
-	uintptr_t pa, va;
-	size_t size;
-	int ret;
-
-	/* Allocate command queue based on detected size */
-	size = (1UL << smmu->config.cmdq_log2size) * CMD_RECORD_SIZE;
-	assert(size <= GRANULE_SIZE);
-
-	ret = rmm_el3_ifc_reserve_memory(GRANULE_SIZE, 0U, GRANULE_SIZE, &pa);
-	if (ret != 0) {
-		SMMU_ERROR(smmu, FAILED_RESERVE, "Command queue\n");
-		return -ENOMEM;
-	}
-
-	va = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM, pa, true);
-	if (va == 0UL) {
-		SMMU_ERROR(smmu, FAILED_MAP, "Command queue\n");
-		return -ENOMEM;
-	}
-
-	smmu->cmdq.q_base = va;
-	smmu->cmdq.q_base_pa = pa;
-
-	SMMU_DEBUG("CMDQ: va 0x%lx pa 0x%lx size 0x%lx\n",
-			smmu->cmdq.q_base, smmu->cmdq.q_base_pa, size);
-
-	/* Allocate event queue based on detected size */
-	size = (1UL << smmu->config.evtq_log2size) * EVT_RECORD_SIZE;
-	assert(size <= GRANULE_SIZE);
-
-	ret = rmm_el3_ifc_reserve_memory(GRANULE_SIZE, 0U, GRANULE_SIZE, &pa);
-	if (ret != 0) {
-		SMMU_ERROR(smmu, FAILED_RESERVE, "Event queue\n");
-		return -ENOMEM;
-	}
-
-	va = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM, pa, true);
-	if (va == 0UL) {
-		SMMU_ERROR(smmu, FAILED_MAP, "Event queue\n");
-		return -ENOMEM;
-	}
-
-	smmu->evtq.q_base = va;
-	smmu->evtq.q_base_pa = pa;
-
-	SMMU_DEBUG("EVTQ: va 0x%lx pa 0x%lx size 0x%lx\n",
-			smmu->evtq.q_base, smmu->evtq.q_base_pa, size);
-
-	/* Allocate L1 stream table based on number of L1 entries */
-	size = smmu->num_l1_ents * STRTAB_L1_DESC_SIZE;
-	size = round_up(size, GRANULE_SIZE);
-
-	ret = rmm_el3_ifc_reserve_memory(size, 0U, size, &pa);
-	if (ret != 0) {
-		SMMU_ERROR(smmu, FAILED_RESERVE, "L1 stream table\n");
-		return -ENOMEM;
-	}
-
-	va = xlat_low_va_map(size, MT_RW_DATA | MT_REALM, pa, true);
-	if (va == 0UL) {
-		SMMU_ERROR(smmu, FAILED_MAP, "L1 stream table\n");
-		return -ENOMEM;
-	}
-
-	smmu->strtab_base = (uint64_t *)va;
-	smmu->strtab_base_pa = pa;
-
-	SMMU_DEBUG("STRTAB L1: va 0x%lx pa 0x%lx size 0x%lx\n",
-		(uintptr_t)smmu->strtab_base, smmu->strtab_base_pa, size);
-
-	/*
-	 * Allocate L2 stream tables based on number of L1 entries.
-	 * Note. The size of L2 tables will be GRANULE_ALIGNED.
-	 */
-	size = smmu->num_l1_ents * sizeof(struct l2tab);
-	ret = rmm_el3_ifc_reserve_memory(size, 0, GRANULE_SIZE, &pa);
-	if (ret != 0) {
-		SMMU_ERROR(smmu, FAILED_RESERVE, "L2 stream tables\n");
-		return -ENOMEM;
-	}
-
-	va = xlat_low_va_map(size, MT_RW_DATA | MT_REALM, pa, true);
-	if ((va == 0UL) || (pa == 0UL)) {
-		SMMU_ERROR(smmu, FAILED_MAP, "L2 stream tables\n");
-		return -ENOMEM;
-	}
-
-	smmu->l2strtab_base = (struct l2tab *)va;
-	smmu->l2strtab_base_pa = (struct l2tab *)pa;
-
-	/*
-	 * Allocate array containing the number of allocated STEs
-	 * in each L2 stream table.
-	 */
-	size = smmu->num_l1_ents * sizeof(*smmu->l2ste_cnt);
-	size = round_up(size, GRANULE_SIZE);
-
-	ret = rmm_el3_ifc_reserve_memory(size, 0U, GRANULE_SIZE, &pa);
-	if (ret != 0) {
-		SMMU_ERROR(smmu, FAILED_RESERVE,
-				"array of number of allocated STEs\n");
-		return -ENOMEM;
-	}
-
-	va = xlat_low_va_map(size, MT_RW_DATA | MT_REALM, pa, true);
-	if (va == 0UL) {
-		SMMU_ERROR(smmu, FAILED_MAP,
-				"array of number of allocated STEs\n");
-		return -ENOMEM;
-	}
-
-	smmu->l2ste_cnt = (unsigned short *)va;
-	smmu->l2ste_cnt_pa = pa;
-
-	SMMU_DEBUG("Array of number of allocated STEs: va 0x%lx pa 0x%lx size 0x%lx\n",
-			(uintptr_t)smmu->l2ste_cnt, smmu->l2ste_cnt_pa, size);
-	return 0;
 }
 
 int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz)
@@ -1279,15 +1226,7 @@ int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz)
 			goto err;
 		}
 
-		/* Allocate resources dynamically */
-		ret = allocate_resources(smmu);
-		if (ret != 0) {
-			goto err;
-		}
-
-		configure_queue(smmu, CMDQ);
-		configure_queue(smmu, EVTQ);
-		configure_strtab(smmu);
+		smmu->state = PSMMU_INACTIVE;
 
 		SMMU_DEBUG("SMMUv3[%lu] initialized and remapped NS base at 0x%lx,"
 			   " R base at 0x%lx\n",

@@ -423,6 +423,15 @@ typedef __uint128_t	uint128_t;
 /* Index to point STE in Level 2 table */
 #define L2STE_IDX(sid)		((sid) & ((U(1) << SMMU_STRTAB_SPLIT) - 1U))
 
+/*
+ * L2 Stream Table descriptor.
+ * Maximum number of allocated STEs 2^SMMU_STRTAB_SPLIT = 64.
+ */
+#define L2DESC_STE_CNT_SHIFT	U(0)
+#define L2DESC_STE_CNT_WIDTH	GRANULE_SHIFT
+#define L2DESC_VA_SHIFT		L2DESC_STE_CNT_WIDTH
+#define L2DESC_VA_WIDTH		(64U - L2DESC_VA_SHIFT)
+
 #define MAX_RETRIES		100000U
 
 enum queue_type {
@@ -461,7 +470,6 @@ struct smmu_config {
 
 struct smmu_queue {
 	uintptr_t q_base;
-	uintptr_t q_base_pa;
 	void *cons_reg;
 	void *prod_reg;
 	uint32_t rd_idx;
@@ -483,30 +491,56 @@ struct smmuv3_dev {
 	struct smmu_queue evtq;
 	struct psmmu_params params;
 
+	/*
+	 * Base physical addresses of donated ranges.
+	 * Stored during PSMMU activation for reclaim during deactivation.
+	 */
+	uintptr_t l1_st_pa;	/* L1 Stream Table base */
+	uintptr_t l2_ds_pa;	/* l2strtab[] descriptors base */
+	uintptr_t cmdq_pa;	/* Command queue */
+	uintptr_t evtq_pa;	/* Event queue */
+
+	/* Virtual address and size of the L1 Stream Table */
 	uint64_t *strtab_base;
-	uintptr_t strtab_base_pa;
-	uint64_t num_l1_ents;
+	size_t strtab_size;
 
 	/*
-	 * Base of contiguously allocated L2 tables.
-	 * This will be removed when L2 tables are donated by NS Host.
+	 * Array of L2 Stream Table descriptors, one entry per L1STD.
+	 * Each entry packs two fields into a single uintptr_t:
+	 *
+	 *   bits [L2DESC_STE_CNT_WIDTH-1 : L2DESC_STE_CNT_SHIFT]
+	 *       Number of allocated STEs in the L2 table.
+	 *       L2DESC_STE_CNT_WIDTH = GRANULE_SHIFT (12 bits), which is
+	 *       sufficient because the maximum STE count per L2 table is
+	 *       2^SMMU_STRTAB_SPLIT (= 64).
+	 *
+	 *   bits [63 : L2DESC_VA_SHIFT]
+	 *       Virtual address of the mapped L2 Stream Table.
+	 *       L2 tables are always granule-aligned, so their low
+	 *       GRANULE_SHIFT bits are always zero and are free to
+	 *       hold the STE count without loss of information.
+	 *
+	 * Use the L2DESC_STE_CNT and L2DESC_VA field macros to
+	 * extract or compose each field with MASK()/INPLACE()/EXTRACT().
 	 */
-	struct l2tab *l2strtab_base;
-	struct l2tab *l2strtab_base_pa;
+	uintptr_t *l2strtab;
 
 	/*
-	 * Array containing the number of allocated STEs
-	 * in each L2 stream table.
-	 * Number of elements num_l1_ents.
-	 * Maximum number of allocated STEs 2^SMMU_STRTAB_SPLIT.
+	 * Ref count for L1 Stream Table. It indicates the number of
+	 * L1 Stream Table entries populated.
 	 */
-	unsigned short *l2ste_cnt;
-	uintptr_t l2ste_cnt_pa;
+	unsigned int l1_refcnt;
 
+	/*
+	 * PSMMU state:
+	 * - PSMMU_ACTIVE
+	 * - PSMMU_BUSY
+	 * - PSMMU_INACTIVE
+	 *
+	 * Transitions between PSMMU_ACTIVE and PSMMU_INACTIVE
+	 * occur only via PSMMU_BUSY state.
+	 */
 	unsigned int state;
-
-	/* Number of L1 Stream Table Descriptors in use */
-	unsigned int l1std_cnt;
 
 	spinlock_t lock;
 };
@@ -528,11 +562,14 @@ struct smmuv3_driv {
 bool get_smmu_broadcast_tlb(void);
 struct smmuv3_driv *get_smmuv3_driver(void);
 struct smmuv3_dev *get_by_index(unsigned int smmu_idx, unsigned int sid);
+void configure_strtab(struct smmuv3_dev *smmu, uintptr_t strtab_base_pa);
+void configure_queue(struct smmuv3_dev *smmu, enum queue_type type,
+			uintptr_t queue_base_pa);
 int prepare_send_command(struct smmuv3_dev *smmu, unsigned long opcode,
 			 unsigned long param0, unsigned long param1);
 int wait_cmdq_empty(struct smmuv3_dev *smmu);
-int enable_smmu(struct smmuv3_dev *smmu);
-int disable_smmu(struct smmuv3_dev *smmu);
+int smmu_on(struct smmuv3_dev *smmu);
+void smmu_off(struct smmuv3_dev *smmu);
 int inval_cached_ste(struct smmuv3_dev *smmu, unsigned long sid, bool leaf_only);
 
 /*

@@ -22,14 +22,14 @@
  * - L1 stream table: up to (2^(32-SMMU_STRTAB_SPLIT) * 8 bytes), rounded to granule alignment
  * - L2 stream tables: 2^(32-SMMU_STRTAB_SPLIT) granules (one per L1 entry)
  * - SID bitmap: round_up((2^32 / BITS_PER_UL) * 8, GRANULE_SIZE)
- * - l1std_cnt: round_up(2^(32-SMMU_STRTAB_SPLIT) * 2, GRANULE_SIZE)
+ * - l1_refcnt: round_up(2^(32-SMMU_STRTAB_SPLIT) * 2, GRANULE_SIZE)
  *
  * Typical case with streamid_bits = 16:
  *   L1 entries = 2^10 = 1024
  *   L1 table = 2 granule
  *   L2 tables = 1024 granules = 4MB
  *   SID bitmap = 1 granule
- *   l1std_cnt = 1 granule
+ *   l1_refcnt = 1 granule
  *   Total per SMMU (typical): ~4MB + 12KB
  */
 #ifndef SMMU_STRTAB_SPLIT
@@ -44,7 +44,7 @@
 			round_up((UL(1) << ((streamid_bits) - (split))) * 8U, GRANULE_SIZE) + /* L1 table */ \
 			((UL(1) << ((streamid_bits) - (split))) * GRANULE_SIZE) + /* L2 tables */ \
 			round_up((UL(1) << (streamid_bits)) / 8U, GRANULE_SIZE) + /* SID bitmap */ \
-			round_up((UL(1) << ((streamid_bits) - (split))) * 2U, GRANULE_SIZE))) /* l1std_cnt */ \
+			round_up((UL(1) << ((streamid_bits) - (split))) * 2U, GRANULE_SIZE))) /* l1_refcnt */ \
 		: 0UL)
 
 #define RESERVE_MEM_SIZE(nr_gr, nr_ncoh_gr, cmn_xlat)			\

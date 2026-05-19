@@ -167,7 +167,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(REALM_ACTIVATE,		1, 0, smc_realm_activate,	 true,  true),
 	HANDLER(REALM_CREATE,		2, 0, smc_realm_create,		 true,  true),
 	HANDLER(REALM_DESTROY,		1, 0, smc_realm_destroy,	 true,  true),
-	HANDLER(REC_CREATE,		3, 1, smc_rec_create,		 true,  true),
+	HANDLER(REC_CREATE,		3, 2, smc_rec_create,		 true,  true),
 	HANDLER(REC_DESTROY,		1, 1, smc_rec_destroy,		 true,  true),
 	HANDLER(REC_ENTER,		2, 0, smc_rec_enter,		 false, true),
 	HANDLER(RTT_CREATE,		4, 0, smc_rtt_create,		 false, true),
@@ -214,10 +214,10 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(VDEV_GET_MEASUREMENTS,	4, 0, smc_vdev_get_measurements, true, true),
 	HANDLER(VDEV_LOCK,		3, 0, smc_vdev_lock,		 true, true),
 	HANDLER(VDEV_START,		3, 0, smc_vdev_start,		 true, true),
-	HANDLER(PSMMU_ACTIVATE,		2, 0, smc_psmmu_activate,	 true, true),
-	HANDLER(PSMMU_DEACTIVATE,	1, 0, smc_psmmu_deactivate,	 true, true),
-	HANDLER(PSMMU_ST_L2_CREATE,	2, 0, smc_psmmu_st_l2_create,	 true, true),
-	HANDLER(PSMMU_ST_L2_DESTROY,	2, 0, smc_psmmu_st_l2_destroy,	 true, true),
+	HANDLER(PSMMU_ACTIVATE,		2, 2, smc_psmmu_activate,	 true, true),
+	HANDLER(PSMMU_DEACTIVATE,	1, 2, smc_psmmu_deactivate,	 true, true),
+	HANDLER(PSMMU_ST_L2_CREATE,	2, 2, smc_psmmu_st_l2_create,	 true, true),
+	HANDLER(PSMMU_ST_L2_DESTROY,	2, 2, smc_psmmu_st_l2_destroy,	 true, true),
 	HANDLER(GRANULE_TRACKING_GET,	1, 2, smc_granule_tracking_get,	 true, true),
 	HANDLER(GPT_L1_CREATE,		1, 1, smc_gpt_l1_create,	 false, true),
 	HANDLER(RMM_CONFIG_GET,		1, 0, smc_rmm_config_get,	 true, true),
@@ -303,6 +303,7 @@ static void rmi_log_on_exit(unsigned int handler_id,
 		}
 
 		if ((rc.status == RMI_SUCCESS) ||
+		    (rc.status == RMI_INCOMPLETE) ||
 		   ((rc.status == RMI_ERROR_RTT) &&
 		   ((function_id == SMC_RMI_RTT_DESTROY)  ||
 		    (function_id == SMC_RMI_RTT_UNMAP_UNPROTECTED)))) {

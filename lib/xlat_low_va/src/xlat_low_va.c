@@ -551,8 +551,8 @@ uintptr_t xlat_low_va_map(size_t size, uint64_t attr, uintptr_t in_pa, bool clea
 		return 0ULL;
 	}
 
-	INFO("xlat_low_va_map: pa=0x%lx size=0x%zx -> va=0x%lx (pool_base=0x%lx)\n",
-		in_pa, size, va, xlat_get_low_va_info()->dyn_va_pool_base);
+	INFO("%s(): pa=0x%lx size=0x%zx -> va=0x%lx (pool_base=0x%lx)\n",
+		__func__, in_pa, size, va, xlat_get_low_va_info()->dyn_va_pool_base);
 
 	/* Clear the memory if requested */
 	if (clear_memory) {
@@ -566,6 +566,8 @@ int xlat_low_va_unmap(uintptr_t va, size_t size)
 {
 	assert((va != 0UL) && (ALIGNED(va, GRANULE_SIZE)));
 	assert(ALIGNED(size, GRANULE_SIZE));
+
+	INFO("%s(): va=0x%lx size=0x%zx\n", __func__, va, size);
 
 	return xlat_unmap_l3_region(&(xlat_get_low_va_info()->dyn_va_ctx), va, size);
 }

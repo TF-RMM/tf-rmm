@@ -40,6 +40,7 @@
  * - GRANULE_STATE_REC_AUX
  * - GRANULE_STATE_PDEV_AUX
  * - GRANULE_STATE_VDEV_AUX
+ * - GRANULE_STATE_INTERNAL
  * - DEV_GRANULE_STATE_MAPPED
  *
  * The following locking rules must be followed in all cases:
@@ -60,6 +61,7 @@
  *    3. `DEV_MAPPED`
  *    4. `REC_AUX`
  *    5. `PDEV_AUX`
+ *    6. `INTERNAL`
  *
  * 5. Granules in the same `internal` state must be locked in the order defined
  *    below for that specific state.
@@ -222,7 +224,10 @@
  */
 #define GRANULE_STATE_PARTIAL		11U
 
-#define GRANULE_STATE_LAST		GRANULE_STATE_PARTIAL
+/* Granule is used internally by the RMM */
+#define GRANULE_STATE_INTERNAL		12U
+
+#define GRANULE_STATE_LAST		GRANULE_STATE_INTERNAL
 
 /*
  * Granule descriptor bit fields:
