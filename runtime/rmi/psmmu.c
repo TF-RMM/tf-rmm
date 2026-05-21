@@ -7,7 +7,7 @@
 #include <debug.h>
 #include <feature.h>
 #include <psmmu.h>
-#include <psmmuv3.h>
+#include <smmuv3_psmmu.h>
 #include <sro_context.h>
 #include <xlat_defs.h>
 
@@ -25,8 +25,11 @@ static void reclaim_start(unsigned long fid, struct smc_result *res);
 static void reclaim_finish(unsigned long fid, struct smc_result *res);
 
 /*
- * Possible states of the SRO flow for RMI_PSMMU_CREATE_ST_L2
- * and RMI_PSMMU_ST_L2_DESTROY
+ * Possible states of the SRO flow for
+ * - RMI_PSMMU_ACTIVATE
+ * - RMI_PSMMU_DEACTIVATE
+ * - RMI_PSMMU_ST_L2_CREATE
+ * - RMI_PSMMU_ST_L2_DESTROY
  */
 enum psmmu_sro_stage {
 	SRO_ACTIVATE_START,
@@ -348,7 +351,7 @@ static void reclaim_finish(unsigned long fid, struct smc_result *res)
 
 	/* If called from RMI_PSMMU_ACTIVATE, set the state to PSMMU_INACTIVE */
 	if (sro->psmmu_ctx.sid == UL(-1)) {
-		psmmu_set_inactive(sro->psmmu_ctx.smmu_ptr);
+		smmuv3_psmmu_set_inactive(sro->psmmu_ctx.smmu_ptr);
 	}
 }
 
@@ -379,7 +382,7 @@ void smc_psmmu_activate(unsigned long psmmu_ptr, unsigned long params_ptr,
 		return;
 	}
 
-	smmu = psmmu_find(psmmu_ptr);
+	smmu = smmuv3_psmmu_find(psmmu_ptr);
 	if (smmu == NULL) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
@@ -400,7 +403,7 @@ void smc_psmmu_activate(unsigned long psmmu_ptr, unsigned long params_ptr,
 
 	/* Validate PSMMU parameters */
 	/* coverity[uninit_use_in_call:SUPPRESS] */
-	if (!psmmu_validate_params(smmu, &params)) {
+	if (!smmuv3_psmmu_validate_params(smmu, &params)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
@@ -410,9 +413,9 @@ void smc_psmmu_activate(unsigned long psmmu_ptr, unsigned long params_ptr,
 	 * the L1 Stream Table. The same size is used for
 	 * the L2 Stream Table descriptors array.
 	 */
-	l1st_grans = psmmu_strtab_size(smmu) / GRANULE_SIZE;
+	l1st_grans = smmuv3_psmmu_strtab_size(smmu) / GRANULE_SIZE;
 
-	if (!psmmu_set_busy(smmu, PSMMU_INACTIVE)) {
+	if (!smmuv3_psmmu_set_busy(smmu, PSMMU_INACTIVE)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
@@ -427,7 +430,7 @@ void smc_psmmu_activate(unsigned long psmmu_ptr, unsigned long params_ptr,
 				false, true,
 				SMC_RMI_OP_MEM_DONATE);
 	if (ret != RMI_SUCCESS) {
-		psmmu_set_inactive(smmu);
+		smmuv3_psmmu_set_inactive(smmu);
 		res->x[0] = ret;
 		return;
 	}
@@ -554,14 +557,14 @@ static void activate_finish(unsigned long fid, struct smc_result *res)
 
 	res->x[2] = 0UL;
 
-	ret = psmmu_register_st_l1(smmu,
+	ret = smmuv3_psmmu_register_st_l1(smmu,
 			sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_L1_ST].base,
 			sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_L2_DS].base);
 	if (ret != 0) {
 		goto unmap_reclaim;
 	}
 
-	ret = psmmu_register_queues(smmu,
+	ret = smmuv3_psmmu_register_queues(smmu,
 			sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_CMDQ].base,
 			sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_EVTQ].base);
 	if (ret != 0) {
@@ -572,14 +575,14 @@ static void activate_finish(unsigned long fid, struct smc_result *res)
 	 * Initialize and enable the SMMUv3 device.
 	 * Set state to PSMMU_ACTIVE.
 	 */
-	ret = psmmu_activate(smmu);
+	ret = smmuv3_psmmu_activate(smmu);
 	if (ret == 0) {
 		res->x[0] = RMI_SUCCESS;
 		return;
 	}
 
 unmap_reclaim:
-	psmmu_unmap(smmu);
+	smmuv3_psmmu_unmap(smmu);
 	prepare_reclaim(sro, SRO_RECLAIM_START, RMI_ERROR_INPUT, false, res);
 }
 
@@ -608,13 +611,13 @@ void smc_psmmu_deactivate(unsigned long psmmu_ptr, struct smc_result *res)
 		return;
 	}
 
-	smmu = psmmu_find(psmmu_ptr);
+	smmu = smmuv3_psmmu_find(psmmu_ptr);
 	if (smmu == NULL) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
-	if (!psmmu_set_busy(smmu, PSMMU_ACTIVE)) {
+	if (!smmuv3_psmmu_set_busy(smmu, PSMMU_ACTIVE)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
@@ -626,13 +629,13 @@ void smc_psmmu_deactivate(unsigned long psmmu_ptr, struct smc_result *res)
 	ret = sro_ctx_reserve(SMC_RMI_PSMMU_DEACTIVATE, 0UL,
 			      false, false, SMC_RMI_OP_MEM_RECLAIM);
 	if (ret != RMI_SUCCESS) {
-		psmmu_set_active(smmu);
+		smmuv3_psmmu_set_active(smmu);
 		res->x[0] = ret;
 		return;
 	}
 
-	if (psmmu_deactivate(smmu) != 0) {
-		psmmu_set_active(smmu);
+	if (smmuv3_psmmu_deactivate(smmu) != 0) {
+		smmuv3_psmmu_set_active(smmu);
 		sro_ctx_release();
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
@@ -649,7 +652,7 @@ void smc_psmmu_deactivate(unsigned long psmmu_ptr, struct smc_result *res)
 	 * driver. memory_reclaim() will reconstruct individual granule
 	 * PAs from these.
 	 */
-	psmmu_get_donated(smmu, bases, sizes);
+	smmuv3_psmmu_get_donated(smmu, bases, sizes);
 
 	for (unsigned int i = 0U; i < (unsigned int)PSMMU_MEM_RANGE_NUM; i++) {
 		sro->psmmu_ctx.psmmu_range[i].base = bases[i];
@@ -696,7 +699,7 @@ static void deactivate_finish(unsigned long fid, struct smc_result *res)
 	smmu = sro->psmmu_ctx.smmu_ptr;
 	assert(smmu != NULL);
 
-	psmmu_set_inactive(smmu);
+	smmuv3_psmmu_set_inactive(smmu);
 
 	res->x[0] = RMI_SUCCESS;
 }
@@ -725,13 +728,13 @@ void smc_psmmu_st_l2_create(unsigned long psmmu_ptr, unsigned long sid,
 		return;
 	}
 
-	smmu = psmmu_find(psmmu_ptr);
+	smmu = smmuv3_psmmu_find(psmmu_ptr);
 	if (smmu == NULL) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
-	if (!psmmu_validate_sid(smmu, sid)) {
+	if (!smmuv3_psmmu_validate_sid(smmu, sid)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
@@ -831,7 +834,7 @@ static void create_l2_continue(unsigned long fid, struct smc_result *res)
 
 	sid = sro->psmmu_ctx.sid;
 
-	ret = psmmu_register_st_l2(smmu, sid, sro->psmmu_ctx.psmmu_range[0].base);
+	ret = smmuv3_psmmu_register_st_l2(smmu, sid, sro->psmmu_ctx.psmmu_range[0].base);
 	if (ret == 0) {
 		/* Finish the command with SUCCESS */
 		res->x[0] = RMI_SUCCESS;
@@ -872,13 +875,13 @@ void smc_psmmu_st_l2_destroy(unsigned long psmmu_ptr, unsigned long sid,
 		return;
 	}
 
-	smmu = psmmu_find(psmmu_ptr);
+	smmu = smmuv3_psmmu_find(psmmu_ptr);
 	if (smmu == NULL) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
-	if (!psmmu_validate_sid(smmu, sid)) {
+	if (!smmuv3_psmmu_validate_sid(smmu, sid)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
@@ -893,7 +896,7 @@ void smc_psmmu_st_l2_destroy(unsigned long psmmu_ptr, unsigned long sid,
 		return;
 	}
 
-	rc = psmmu_release_st_l2(smmu, sid, &l2tab_pa);
+	rc = smmuv3_psmmu_release_st_l2(smmu, sid, &l2tab_pa);
 	if (rc != 0) {
 		res->x[0] = RMI_ERROR_INPUT;
 		sro_ctx_release();

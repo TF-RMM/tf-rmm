@@ -49,20 +49,26 @@ endif()
 
 target_link_libraries(rmm-lib-smmuv3
     PRIVATE rmm-lib-arch
+            rmm-lib-debug
             rmm-lib-mec
             rmm-lib-rmm_el3_ifc
             rmm-lib-s2tt
             rmm-lib-smc
-            rmm-lib-xlat
-            rmm-lib-xlat_low_va)
+            rmm-lib-xlat)
+
+if(NOT RMM_ARCH STREQUAL fake_host)
+    target_link_libraries(rmm-lib-smmuv3
+        PRIVATE rmm-lib-xlat_low_va)
+endif()
 
 target_include_directories(rmm-lib-smmuv3
     PUBLIC "include"
-    PRIVATE "src")
+    PRIVATE "src"
+            "src/${RMM_ARCH}")
 
 target_sources(rmm-lib-smmuv3
-    PRIVATE "src/${RMM_ARCH}/psmmuv3.c"
-            "src/${RMM_ARCH}/smmuv3.c"
-            "src/${RMM_ARCH}/smmuv3_tlbi.c")
+    PRIVATE "src/smmuv3_psmmu.c"
+            "src/smmuv3.c"
+            "src/smmuv3_tlbi.c")
 
 include("tests/CMakeLists.txt")

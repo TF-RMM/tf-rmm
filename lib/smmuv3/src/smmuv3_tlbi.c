@@ -228,6 +228,12 @@ int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid)
 	 */
 	spinlock_acquire(&smmu->lock);
 
+	if (smmu->state != PSMMU_ACTIVE) {
+		SMMU_ERROR(smmu, "PSMMU not active (state=%u)\n", smmu->state);
+		spinlock_release(&smmu->lock);
+		return -EINVAL;
+	}
+
 	ret = prepare_send_command(smmu, CMD_TLBI_S12_VMALL, vmid, 0UL);
 	if (ret != 0) {
 		SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "TLBI_S12_VMALL");

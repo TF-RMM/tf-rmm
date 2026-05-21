@@ -35,13 +35,7 @@ static unsigned long encode_addr_desc(uintptr_t base, unsigned long count,
 	       INPLACE(RMI_ADDR_RDESC_4K_ST, state);
 }
 
-/*
- * Helper to get a granule physical address by index.
- */
-static uintptr_t granule_addr(unsigned int idx)
-{
-	return host_util_get_granule_base() + (uintptr_t)idx * GRANULE_SIZE;
-}
+
 
 /*
  * Delegate a contiguous range of granules.
@@ -65,21 +59,6 @@ static bool delegate_range(uintptr_t start, uintptr_t end)
 	return true;
 }
 
-static unsigned int g_next_idx = 1U; /* skip granule 0 */
-
-/*
- * Reserve 'n' contiguous granules and return the base PA.
- */
-static uintptr_t reserve_granules(unsigned int n)
-{
-	unsigned int nr = test_helpers_get_nr_granules();
-
-	CHECK_TRUE((g_next_idx + n) <= nr);
-	uintptr_t base = granule_addr(g_next_idx);
-	g_next_idx += n;
-	return base;
-}
-
 struct test_realm {
 	uintptr_t rd;
 	uintptr_t rec;
@@ -96,10 +75,10 @@ struct test_realm {
  */
 static bool create_test_context(struct test_realm *r)
 {
-	r->rd = reserve_granules(1);
-	r->rec = reserve_granules(1);
-	r->rec_params = reserve_granules(1);
-	r->addr_list = reserve_granules(1);
+	r->rd = test_helpers_allocate_granules(1);
+	r->rec = test_helpers_allocate_granules(1);
+	r->rec_params = test_helpers_allocate_granules(1);
+	r->addr_list = test_helpers_allocate_granules(1);
 
 	/* smc_rec_create requires the rec granule to be DELEGATED */
 	if (!delegate_range(r->rec, r->rec + GRANULE_SIZE)) {
@@ -182,7 +161,7 @@ TEST(rec_sro_tests, rec_create_sro_happy_path)
 	CHECK_TRUE(requested_count > 0UL);
 
 	/* Allocate and delegate the number of aux granules RMM asked for */
-	uintptr_t aux_base = reserve_granules((unsigned int)requested_count);
+	uintptr_t aux_base = test_helpers_allocate_granules((unsigned int)requested_count);
 	CHECK_TRUE(delegate_range(aux_base,
 				  aux_base + requested_count * GRANULE_SIZE));
 
@@ -226,7 +205,7 @@ TEST(rec_sro_tests, rec_create_sro_zero_count_oob)
 	unsigned long requested_count = EXTRACT(RMI_OP_DONATE_BLK_COUNT, donate_req);
 	/* Prepare more zero-count descriptors than RMM requested */
 	unsigned long oob_count = requested_count + 3UL;
-	uintptr_t extra_base = reserve_granules((unsigned int)oob_count);
+	uintptr_t extra_base = test_helpers_allocate_granules((unsigned int)oob_count);
 	CHECK_TRUE(delegate_range(extra_base,
 				  extra_base + oob_count * GRANULE_SIZE));
 
@@ -274,7 +253,7 @@ TEST(rec_sro_tests, rec_create_sro_mixed_zero_and_valid_count)
 	/* Build a list: some valid, one zero-count */
 	unsigned long list_count = EXTRACT(RMI_OP_DONATE_BLK_COUNT, donate_req);
 	CHECK_TRUE(list_count >= 2UL);
-	uintptr_t aux_base = reserve_granules((unsigned int)list_count);
+	uintptr_t aux_base = test_helpers_allocate_granules((unsigned int)list_count);
 	CHECK_TRUE(delegate_range(aux_base,
 				  aux_base + list_count * GRANULE_SIZE));
 
@@ -319,7 +298,7 @@ TEST(rec_sro_tests, rec_create_sro_transfer_exceeds_request)
 	CHECK_TRUE(initiate_rec_create(&realm, &handle, &donate_req));
 
 	unsigned long list_count = EXTRACT(RMI_OP_DONATE_BLK_COUNT, donate_req);
-	uintptr_t aux_base = reserve_granules((unsigned int)list_count);
+	uintptr_t aux_base = test_helpers_allocate_granules((unsigned int)list_count);
 	CHECK_TRUE(delegate_range(aux_base,
 				  aux_base + list_count * GRANULE_SIZE));
 
@@ -354,7 +333,7 @@ TEST(rec_sro_tests, rec_create_sro_first_granule_not_delegated)
 
 	unsigned long requested_count = EXTRACT(RMI_OP_DONATE_BLK_COUNT, donate_req);
 	/* Reserve granules but do NOT delegate them */
-	uintptr_t aux_base = reserve_granules((unsigned int)requested_count);
+	uintptr_t aux_base = test_helpers_allocate_granules((unsigned int)requested_count);
 
 	unsigned long *addr_list = (unsigned long *)realm.addr_list;
 	for (unsigned long i = 0; i < requested_count; i++) {
@@ -402,7 +381,7 @@ TEST(rec_sro_tests, rec_create_sro_middle_granule_not_delegated)
 	 * delegated so that they can be used in follow-up donations if
 	 * requested_count > 2.
 	 */
-	uintptr_t aux_base = reserve_granules((unsigned int)requested_count);
+	uintptr_t aux_base = test_helpers_allocate_granules((unsigned int)requested_count);
 	CHECK_TRUE(delegate_range(aux_base, aux_base + GRANULE_SIZE));
 	/* skip index 1 (leave NS) */
 	if (requested_count > 2UL) {
@@ -438,7 +417,7 @@ TEST(rec_sro_tests, rec_create_sro_middle_granule_not_delegated)
 	 * the i==0 failure path in rec_create_request_aux_mem, which calls
 	 * rec_start_memory_reclaim -> INCOMPLETE + RECLAIM.
 	 */
-	uintptr_t bad_granule = reserve_granules(1);
+	uintptr_t bad_granule = test_helpers_allocate_granules(1);
 	/* Do NOT delegate bad_granule - it stays in NS state */
 	addr_list[0] = encode_addr_desc(bad_granule, 1UL, RMI_OP_MEM_DELEGATED);
 
@@ -467,7 +446,7 @@ TEST(rec_sro_tests, rec_create_sro_invalid_handle)
 	unsigned long bad_handle = 0xDEADBEEFUL;
 	unsigned long *addr_list = (unsigned long *)realm.addr_list;
 
-	uintptr_t aux_base = reserve_granules(1);
+	uintptr_t aux_base = test_helpers_allocate_granules(1);
 	CHECK_TRUE(delegate_range(aux_base, aux_base + GRANULE_SIZE));
 	addr_list[0] = encode_addr_desc(aux_base, 1UL, RMI_OP_MEM_DELEGATED);
 
@@ -517,7 +496,7 @@ TEST(rec_sro_tests, rec_create_sro_incremental_donation)
 	CHECK_TRUE(initiate_rec_create(&realm, &handle, &donate_req));
 
 	unsigned long requested_count = EXTRACT(RMI_OP_DONATE_BLK_COUNT, donate_req);
-	uintptr_t aux_base = reserve_granules((unsigned int)requested_count);
+	uintptr_t aux_base = test_helpers_allocate_granules((unsigned int)requested_count);
 	CHECK_TRUE(delegate_range(aux_base,
 				  aux_base + requested_count * GRANULE_SIZE));
 
@@ -637,7 +616,7 @@ static unsigned long trigger_reclaim(struct test_realm *r,
 	 * the SRO context has some aux_granules_pa[] entries to reclaim.
 	 */
 	unsigned long good_count = requested - 1UL;
-	uintptr_t aux_base = reserve_granules((unsigned int)good_count);
+	uintptr_t aux_base = test_helpers_allocate_granules((unsigned int)good_count);
 	CHECK_TRUE(delegate_range(aux_base,
 				  aux_base + good_count * GRANULE_SIZE));
 
@@ -660,7 +639,7 @@ static unsigned long trigger_reclaim(struct test_realm *r,
 	 * Now send a non-delegated granule as the next batch.
 	 * This triggers the i==0 failure path -> rec_start_memory_reclaim.
 	 */
-	uintptr_t bad = reserve_granules(1);
+	uintptr_t bad = test_helpers_allocate_granules(1);
 	addr_list[0] = encode_addr_desc(bad, 1UL, RMI_OP_MEM_DELEGATED);
 
 	smc_op_mem_donate(*handle, r->addr_list, 1, &res);
@@ -766,8 +745,8 @@ static void populate_fake_rec(uintptr_t rec_pa,
 static uintptr_t alloc_fake_rec(unsigned int num_aux,
 				uintptr_t aux_pa_out[])
 {
-	uintptr_t rd_pa  = reserve_granules(1U);
-	uintptr_t rec_pa = reserve_granules(1U);
+	uintptr_t rd_pa  = test_helpers_allocate_granules(1U);
+	uintptr_t rec_pa = test_helpers_allocate_granules(1U);
 
 	/* Delegate REC and RD granules */
 	CHECK_TRUE(delegate_range(rd_pa,  rd_pa  + GRANULE_SIZE));
@@ -782,7 +761,7 @@ static uintptr_t alloc_fake_rec(unsigned int num_aux,
 
 	/* Delegate and set each auxiliary granule to REC_AUX */
 	for (unsigned int i = 0U; i < num_aux; i++) {
-		aux_pa_out[i] = reserve_granules(1U);
+		aux_pa_out[i] = test_helpers_allocate_granules(1U);
 		CHECK_TRUE(delegate_range(aux_pa_out[i],
 					  aux_pa_out[i] + GRANULE_SIZE));
 
@@ -877,7 +856,7 @@ static void drain_reclaim(unsigned long handle,
  */
 TEST(rec_sro_tests, rec_destroy_invalid_address)
 {
-	uintptr_t unaligned = granule_addr(g_next_idx) + 1U;
+	uintptr_t unaligned = test_helpers_allocate_granules(1U) + 1U;
 	struct smc_result res = {};
 	smc_rec_destroy(unaligned, &res);
 	CHECK_EQUAL(RMI_ERROR_INPUT, res.x[0]);
@@ -890,7 +869,7 @@ TEST(rec_sro_tests, rec_destroy_invalid_address)
  */
 TEST(rec_sro_tests, rec_destroy_granule_not_in_rec_state)
 {
-	uintptr_t delegated_pa = reserve_granules(1U);
+	uintptr_t delegated_pa = test_helpers_allocate_granules(1U);
 	CHECK_TRUE(delegate_range(delegated_pa, delegated_pa + GRANULE_SIZE));
 
 	struct smc_result res = {};
@@ -906,7 +885,7 @@ TEST(rec_sro_tests, rec_destroy_granule_not_in_rec_state)
  */
 TEST(rec_sro_tests, rec_destroy_busy_rec)
 {
-	uintptr_t rec_pa = reserve_granules(1U);
+	uintptr_t rec_pa = test_helpers_allocate_granules(1U);
 	CHECK_TRUE(delegate_range(rec_pa, rec_pa + GRANULE_SIZE));
 
 	/* Force the granule to REC state, then bump the refcount to 1 */
@@ -946,7 +925,7 @@ TEST(rec_sro_tests, rec_destroy_single_batch_reclaim)
 {
 	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
 	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
-	uintptr_t ns_buf = reserve_granules(1U);
+	uintptr_t ns_buf = test_helpers_allocate_granules(1U);
 
 	struct smc_result res = {};
 	smc_rec_destroy(rec_pa, &res);
@@ -999,7 +978,7 @@ TEST(rec_sro_tests, rec_destroy_multi_batch_reclaim)
 {
 	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
 	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
-	uintptr_t ns_buf = reserve_granules(1U);
+	uintptr_t ns_buf = test_helpers_allocate_granules(1U);
 
 	struct smc_result res = {};
 	smc_rec_destroy(rec_pa, &res);
@@ -1029,7 +1008,7 @@ TEST(rec_sro_tests, rec_destroy_reclaim_invalid_handle)
 {
 	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
 	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
-	uintptr_t ns_buf = reserve_granules(1U);
+	uintptr_t ns_buf = test_helpers_allocate_granules(1U);
 
 	struct smc_result res = {};
 	smc_rec_destroy(rec_pa, &res);
@@ -1060,7 +1039,7 @@ TEST(rec_sro_tests, rec_destroy_reclaim_unaligned_output)
 {
 	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
 	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
-	uintptr_t ns_buf = reserve_granules(1U);
+	uintptr_t ns_buf = test_helpers_allocate_granules(1U);
 
 	struct smc_result res = {};
 	smc_rec_destroy(rec_pa, &res);
@@ -1095,10 +1074,10 @@ TEST(rec_sro_tests, rec_destroy_reclaim_non_ns_output_buffer)
 	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
 
 	/* A delegated granule is NOT in NS state */
-	uintptr_t bad_buf = reserve_granules(1U);
+	uintptr_t bad_buf = test_helpers_allocate_granules(1U);
 	CHECK_TRUE(delegate_range(bad_buf, bad_buf + GRANULE_SIZE));
 
-	uintptr_t ns_buf = reserve_granules(1U); /* stays in NS state */
+	uintptr_t ns_buf = test_helpers_allocate_granules(1U); /* stays in NS state */
 
 	struct smc_result res = {};
 	smc_rec_destroy(rec_pa, &res);
@@ -1128,7 +1107,7 @@ TEST(rec_sro_tests, rec_destroy_wrong_fid_continue_before_reclaim)
 {
 	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
 	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
-	uintptr_t ns_buf = reserve_granules(1U);
+	uintptr_t ns_buf = test_helpers_allocate_granules(1U);
 
 	struct smc_result res = {};
 	smc_rec_destroy(rec_pa, &res);
@@ -1162,7 +1141,7 @@ TEST(rec_sro_tests, rec_destroy_cancel_not_allowed)
 {
 	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
 	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
-	uintptr_t ns_buf = reserve_granules(1U);
+	uintptr_t ns_buf = test_helpers_allocate_granules(1U);
 
 	struct smc_result res = {};
 	smc_rec_destroy(rec_pa, &res);
@@ -1197,7 +1176,7 @@ TEST(rec_sro_tests, rec_destroy_reclaim_oversized_batch_clamped)
 {
 	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
 	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
-	uintptr_t ns_buf = reserve_granules(1U);
+	uintptr_t ns_buf = test_helpers_allocate_granules(1U);
 
 	struct smc_result res = {};
 	smc_rec_destroy(rec_pa, &res);
@@ -1255,8 +1234,8 @@ TEST(rec_sro_tests, rec_destroy_reclaim_pending_entries_memmove)
 	 */
 	uintptr_t aux_pa[2];
 
-	uintptr_t rd_pa  = reserve_granules(1U);
-	uintptr_t rec_pa = reserve_granules(1U);
+	uintptr_t rd_pa  = test_helpers_allocate_granules(1U);
+	uintptr_t rec_pa = test_helpers_allocate_granules(1U);
 	CHECK_TRUE(delegate_range(rd_pa,  rd_pa  + GRANULE_SIZE));
 	CHECK_TRUE(delegate_range(rec_pa, rec_pa + GRANULE_SIZE));
 
@@ -1266,9 +1245,9 @@ TEST(rec_sro_tests, rec_destroy_reclaim_pending_entries_memmove)
 	granule_refcount_inc(g_rd, 1U);
 	granule_unlock(g_rd);
 
-	aux_pa[0] = reserve_granules(1U);
-	reserve_granules(1U);              /* gap: creates non-consecutive PA */
-	aux_pa[1] = reserve_granules(1U);
+	aux_pa[0] = test_helpers_allocate_granules(1U);
+	test_helpers_allocate_granules(1U);              /* gap: creates non-consecutive PA */
+	aux_pa[1] = test_helpers_allocate_granules(1U);
 
 	for (unsigned int i = 0U; i < 2U; i++) {
 		CHECK_TRUE(delegate_range(aux_pa[i], aux_pa[i] + GRANULE_SIZE));
@@ -1281,10 +1260,10 @@ TEST(rec_sro_tests, rec_destroy_reclaim_pending_entries_memmove)
 	populate_fake_rec(rec_pa, g_rd, aux_pa, 2U);
 
 	/* A delegated granule serves as the invalid (non-NS) output buf */
-	uintptr_t bad_buf = reserve_granules(1U);
+	uintptr_t bad_buf = test_helpers_allocate_granules(1U);
 	CHECK_TRUE(delegate_range(bad_buf, bad_buf + GRANULE_SIZE));
 
-	uintptr_t ns_buf = reserve_granules(1U); /* stays in NS state */
+	uintptr_t ns_buf = test_helpers_allocate_granules(1U); /* stays in NS state */
 
 	struct smc_result res = {};
 	smc_rec_destroy(rec_pa, &res);

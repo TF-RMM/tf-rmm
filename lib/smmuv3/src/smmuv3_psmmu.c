@@ -7,15 +7,15 @@
 #include <assert.h>
 #include <errno.h>
 #include <memory.h>
-#include <psmmuv3.h>
+#include <smmuv3_psmmu.h>
 #include <rmm_el3_ifc.h>
 #include <smc-rmi.h>
+#include <smmuv3_arch.h>
 #include <smmuv3_priv.h>
 #include <string.h>
-#include <xlat_low_va.h>
 #include <xlat_tables.h>
 
-struct smmuv3_dev *psmmu_find(unsigned long psmmu_ptr)
+struct smmuv3_dev *smmuv3_psmmu_find(unsigned long psmmu_ptr)
 {
 	struct smmuv3_driv *driv = get_smmuv3_driver();
 
@@ -38,7 +38,7 @@ struct smmuv3_dev *psmmu_find(unsigned long psmmu_ptr)
  * RMI_PSMMU_FLAGS_MSI is ignored. Setting RMI_PSMMU_FLAGS_PRI or
  * RMI_PSMMU_FLAGS_ATS results in an error.
  */
-bool psmmu_validate_params(struct smmuv3_dev *smmu, struct psmmu_params *params)
+bool smmuv3_psmmu_validate_params(struct smmuv3_dev *smmu, struct psmmu_params *params)
 {
 	unsigned long flags = params->flags;
 
@@ -57,7 +57,7 @@ bool psmmu_validate_params(struct smmuv3_dev *smmu, struct psmmu_params *params)
 	return true;
 }
 
-void psmmu_set_active(struct smmuv3_dev *smmu)
+void smmuv3_psmmu_set_active(struct smmuv3_dev *smmu)
 {
 	assert(smmu != NULL);
 	spinlock_acquire(&smmu->lock);
@@ -75,7 +75,7 @@ void psmmu_set_active(struct smmuv3_dev *smmu)
  * or RMI_PSMMU_DEACTIVATE command upon failure when
  * the expected PSMMU state is PSMMU_BUSY.
  */
-void psmmu_set_inactive(struct smmuv3_dev *smmu)
+void smmuv3_psmmu_set_inactive(struct smmuv3_dev *smmu)
 {
 	assert(smmu != NULL);
 	spinlock_acquire(&smmu->lock);
@@ -93,7 +93,7 @@ void psmmu_set_inactive(struct smmuv3_dev *smmu)
  * when the expected PSMMU state is PSMMU_INACTIVE, or by
  * RMI_PSMMU_DEACTIVATE when the PSMMU state is PSMMU_INACTIVE.
  */
-bool psmmu_set_busy(struct smmuv3_dev *smmu, unsigned int state)
+bool smmuv3_psmmu_set_busy(struct smmuv3_dev *smmu, unsigned int state)
 {
 	bool ret;
 
@@ -109,12 +109,12 @@ bool psmmu_set_busy(struct smmuv3_dev *smmu, unsigned int state)
 	return ret;
 }
 
-size_t psmmu_strtab_size(struct smmuv3_dev *smmu)
+size_t smmuv3_psmmu_strtab_size(struct smmuv3_dev *smmu)
 {
 	return smmu->strtab_size;
 }
 
-int psmmu_activate(struct smmuv3_dev *smmu)
+int smmuv3_psmmu_activate(struct smmuv3_dev *smmu)
 {
 	int ret;
 
@@ -128,13 +128,13 @@ int psmmu_activate(struct smmuv3_dev *smmu)
 		return ret;
 	}
 
-	psmmu_set_active(smmu);
+	smmuv3_psmmu_set_active(smmu);
 
 	SMMU_DEBUG("PSMMU 0x%lx activated\n", smmu->ns_base_pa);
 	return 0;
 }
 
-void psmmu_unmap(struct smmuv3_dev *smmu)
+void smmuv3_psmmu_unmap(struct smmuv3_dev *smmu)
 {
 	int ret;
 
@@ -142,7 +142,7 @@ void psmmu_unmap(struct smmuv3_dev *smmu)
 
 	/* Unmap Event queue */
 	if (smmu->evtq.q_base != 0UL) {
-		ret = xlat_low_va_unmap(smmu->evtq.q_base, GRANULE_SIZE);
+		ret = smmuv3_arch_unmap(smmu->evtq.q_base, GRANULE_SIZE);
 		if (ret != 0) {
 			SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
 					"EVTQ", smmu->evtq.q_base);
@@ -152,7 +152,7 @@ void psmmu_unmap(struct smmuv3_dev *smmu)
 
 	/* Unmap Command queue */
 	if (smmu->cmdq.q_base != 0UL) {
-		ret = xlat_low_va_unmap(smmu->cmdq.q_base, GRANULE_SIZE);
+		ret = smmuv3_arch_unmap(smmu->cmdq.q_base, GRANULE_SIZE);
 		if (ret != 0) {
 			SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
 					"CMDQ", smmu->cmdq.q_base);
@@ -162,7 +162,7 @@ void psmmu_unmap(struct smmuv3_dev *smmu)
 
 	/* Unmap array of L2 Stream Table descriptors */
 	if (smmu->l2strtab != NULL) {
-		ret = xlat_low_va_unmap((uintptr_t)smmu->l2strtab, smmu->strtab_size);
+		ret = smmuv3_arch_unmap((uintptr_t)smmu->l2strtab, smmu->strtab_size);
 		if (ret != 0) {
 			SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
 					"L2 Desc array", (uintptr_t)smmu->l2strtab);
@@ -172,7 +172,7 @@ void psmmu_unmap(struct smmuv3_dev *smmu)
 
 	/* Unmap L1 Stream Table */
 	if (smmu->strtab_base != NULL) {
-		ret = xlat_low_va_unmap((uintptr_t)smmu->strtab_base, smmu->strtab_size);
+		ret = smmuv3_arch_unmap((uintptr_t)smmu->strtab_base, smmu->strtab_size);
 		if (ret != 0) {
 			SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
 					"L1 StrTab", (uintptr_t)smmu->strtab_base);
@@ -181,7 +181,7 @@ void psmmu_unmap(struct smmuv3_dev *smmu)
 	}
 }
 
-int psmmu_deactivate(struct smmuv3_dev *smmu)
+int smmuv3_psmmu_deactivate(struct smmuv3_dev *smmu)
 {
 	assert(smmu != NULL);
 
@@ -199,13 +199,29 @@ int psmmu_deactivate(struct smmuv3_dev *smmu)
 	smmu_off(smmu);
 
 	/* Unmap allocated memory */
-	psmmu_unmap(smmu);
+	smmuv3_psmmu_unmap(smmu);
 
 	SMMU_DEBUG("PSMMU 0x%lx deactivated\n", smmu->ns_base_pa);
 	return 0;
 }
 
-bool psmmu_validate_sid(struct smmuv3_dev *smmu, unsigned long sid)
+void smmuv3_psmmu_reset(struct smmuv3_dev *smmu)
+{
+	assert(smmu != NULL);
+
+	smmu->cmdq.q_base = 0UL;
+	smmu->evtq.q_base = 0UL;
+	smmu->l1_st_pa = 0UL;
+	smmu->l2_ds_pa = 0UL;
+	smmu->cmdq_pa = 0UL;
+	smmu->evtq_pa = 0UL;
+	smmu->strtab_base = NULL;
+	smmu->l2strtab = NULL;
+	smmu->l1_refcnt = 0U;
+	smmu->state = PSMMU_INACTIVE;
+}
+
+bool smmuv3_psmmu_validate_sid(struct smmuv3_dev *smmu, unsigned long sid)
 {
 	assert(smmu != NULL);
 
@@ -272,8 +288,8 @@ static int validate_st_l2(struct smmuv3_dev *smmu, unsigned long l1_idx,
 	return 0;
 }
 
-void psmmu_get_donated(struct smmuv3_dev *smmu, uintptr_t *range_base,
-		       unsigned long *range_size)
+void smmuv3_psmmu_get_donated(struct smmuv3_dev *smmu, uintptr_t *range_base,
+				unsigned long *range_size)
 {
 	unsigned long l1_grans;
 
@@ -295,8 +311,8 @@ void psmmu_get_donated(struct smmuv3_dev *smmu, uintptr_t *range_base,
 	range_size[(unsigned int)PSMMU_MEM_RANGE_EVTQ] = 1UL;
 }
 
-int psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa,
-			 uintptr_t l2_ds_pa)
+int smmuv3_psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa,
+				uintptr_t l2_ds_pa)
 {
 	uintptr_t granules_pa[2];
 	uintptr_t granules_va[2];
@@ -316,13 +332,13 @@ int psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa,
 	for (unsigned int i = 0U; i < 2U; i++) {
 		assert(ALIGNED(granules_pa[i], size));
 
-		granules_va[i] = xlat_low_va_map(size, MT_RW_DATA | MT_REALM,
+		granules_va[i] = smmuv3_arch_map(size, MT_RW_DATA | MT_REALM,
 						granules_pa[i], true);
 		if (granules_va[i] == 0UL) {
 			SMMU_ERROR(smmu, "Failed to map 0x%lx\n", granules_pa[i]);
 			/* Unmap any previously mapped granule */
 			for (unsigned int j = 0U; j < i; j++) {
-				(void)xlat_low_va_unmap(granules_va[j], size);
+				(void)smmuv3_arch_unmap(granules_va[j], size);
 			}
 			return -ENOMEM;
 		}
@@ -347,8 +363,8 @@ int psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa,
 	return 0;
 }
 
-int psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
-			 uintptr_t l2tab_pa)
+int smmuv3_psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
+				uintptr_t l2tab_pa)
 {
 	unsigned long l1_idx;
 	uintptr_t l2tab_va;
@@ -368,7 +384,7 @@ int psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	}
 
 	/* Map L2 Stream Table */
-	l2tab_va = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM, l2tab_pa, true);
+	l2tab_va = smmuv3_arch_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM, l2tab_pa, true);
 	if (l2tab_va == 0UL) {
 		spinlock_release(&smmu->lock);
 		SMMU_ERROR(smmu, "Failed to map L2 Stream Table 0x%lx\n", l2tab_pa);
@@ -395,7 +411,7 @@ int psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 		spinlock_release(&smmu->lock);
 
 		/* Unmap L2 Stream Table */
-		(void)xlat_low_va_unmap(l2tab_va, GRANULE_SIZE);
+		(void)smmuv3_arch_unmap(l2tab_va, GRANULE_SIZE);
 		return ret;
 	}
 
@@ -417,8 +433,8 @@ int psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	return ret;
 }
 
-int psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
-		       uintptr_t *l2tab_pa)
+int smmuv3_psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
+				uintptr_t *l2tab_pa)
 {
 	unsigned long l1_idx;
 	uintptr_t l2tab_va;
@@ -450,7 +466,7 @@ int psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	smmu->l1_refcnt--;
 
 	/* Unmap L2 Stream Table */
-	ret = xlat_low_va_unmap(l2tab_va, GRANULE_SIZE);
+	ret = smmuv3_arch_unmap(l2tab_va, GRANULE_SIZE);
 	if (ret != 0) {
 		spinlock_release(&smmu->lock);
 		SMMU_ERROR(smmu, "Failed to unmap %s 0x%lx\n",
@@ -472,8 +488,8 @@ int psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	return ret;
 }
 
-int psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
-			  uintptr_t evtq_pa)
+int smmuv3_psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
+				 uintptr_t evtq_pa)
 {
 	uintptr_t granules_pa[2];
 	uintptr_t granules_va[2];
@@ -487,13 +503,13 @@ int psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
 	granules_pa[1] = evtq_pa;
 
 	for (unsigned int i = 0U; i < 2U; i++) {
-		granules_va[i] = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM,
+		granules_va[i] = smmuv3_arch_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM,
 						granules_pa[i], true);
 		if (granules_va[i] == 0UL) {
 			SMMU_ERROR(smmu, "Failed to map 0x%lx\n", granules_pa[i]);
 			/* Unmap any previously mapped granule */
 			for (unsigned int j = 0U; j < i; j++) {
-				(void)xlat_low_va_unmap(granules_va[j],
+				(void)smmuv3_arch_unmap(granules_va[j],
 							GRANULE_SIZE);
 			}
 			return -ENOMEM;

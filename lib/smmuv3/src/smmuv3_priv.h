@@ -456,7 +456,7 @@ struct l2tab {
 	struct ste_entry l2tab_entry[STRTAB_L1_STE_MAX];
 };
 
-COMPILER_ASSERT(sizeof(struct l2tab) == GRANULE_SIZE);
+COMPILER_ASSERT_NO_CBMC(sizeof(struct l2tab) == GRANULE_SIZE);
 
 struct smmu_config {
 	unsigned int minor_rev;

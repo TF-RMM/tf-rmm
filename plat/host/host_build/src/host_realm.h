@@ -32,8 +32,6 @@ struct host_realm {
 	struct rmi_realm_params *realm_params;
 	struct rmi_rec_params *rec_params;
 	struct rmi_rec_run *rec_run;
-	uintptr_t *sro_addr_list;
-	size_t sro_addr_list_entries;
 	uintptr_t realm_data_1;
 	size_t realm_data_1_num_gr;
 	uintptr_t realm_data_2;
@@ -48,7 +46,10 @@ void print_buf(const unsigned char *buf, size_t size);
 int host_realm_da_rsi_main(unsigned long *rec_regs, unsigned long *rec_sp_el0);
 
 unsigned long host_realm_get_realm_buffer(void);
+int host_sro_drive(unsigned long handle, unsigned long ret_status,
+		   unsigned long donate_req);
 int host_pdev_probe_and_setup(void);
+int host_psmmu_setup(unsigned int smmu_idx, unsigned long sid);
 int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id);
 int host_realm_run_da(struct host_realm *realm);
 int host_pdev_reclaim(int host_pdev_id);
