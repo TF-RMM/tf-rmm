@@ -138,6 +138,7 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	ret = attest_realm_token_create(&rec->attest_app_data,
 			     rd->algorithm, rd->measurement,
 			     mec_is_realm_mecid_s2_pvt(),
+			     &(rd->realm_instance_id[0]),
 			     &(rd->rpv[0]),
 			     (const void *)&plane->regs[1]);
 

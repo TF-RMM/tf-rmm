@@ -146,6 +146,8 @@ attest_app_cca_token_create(struct token_sign_cntxt *me,
  * Algorithm		- Algorithm used during measurement.
  * Measurement		- Array of buffers containing all the measurements.
  * num_measurements	- Number of measurements to add to the token.
+ * realm_instance_id_buf- Pointer to the Realm Instance ID
+ * realm_instance_id_len- Length of the Realm Instance ID
  * rpv_buf              - Pointer to the Realm Personalization value
  * rpv_len              - Length of the Realm Personalization value
  * is_pvt_mecid		- The Realm MEC policy, private or shared
@@ -160,6 +162,8 @@ attest_app_cca_token_create(struct token_sign_cntxt *me,
 int attest_app_realm_token_create(enum hash_algo algorithm,
 			     unsigned char measurements[][MAX_MEASUREMENT_SIZE],
 			     unsigned int num_measurements,
+			     const void *realm_instance_id_buf,
+			     size_t realm_instance_id_len,
 			     const void *rpv_buf,
 			     size_t rpv_len,
 			     bool is_pvt_mecid,

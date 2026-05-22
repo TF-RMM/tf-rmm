@@ -11,6 +11,7 @@
 #include <granule.h>
 #include <measurement.h>
 #include <mec.h>
+#include <random_app.h>
 #include <realm.h>
 #include <s2tt.h>
 #include <s2tt_ap.h>
@@ -584,6 +585,24 @@ static void init_overlay_permissions(struct rd *rd)
 	set_perm_immutable(rd, S2TTE_DEF_UNPROT_OVERLAY_IDX);
 }
 
+/*
+ * Generate Realm Instance ID
+ * Returns 0 on success.
+ */
+static int generate_realm_instance_id(unsigned char *realm_instance_id, size_t len)
+{
+	struct app_data_cfg *random_app_data = random_app_get_data_cfg();
+
+	assert(realm_instance_id != NULL);
+
+	/* UEID type is RAND */
+	realm_instance_id[0] = 0x01U;
+
+	/* Generate random part */
+	return random_app_prng_get_random(random_app_data, &(realm_instance_id[1]), len - 1U);
+}
+
+
 unsigned long smc_realm_create(unsigned long rd_addr,
 			       unsigned long realm_params_addr)
 {
@@ -595,6 +614,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	unsigned int n_vmids = 0U, n_rtts = 0U;
 	unsigned int mecid = 0U;
 	unsigned long ats_plane;
+	unsigned char realm_instance_id[REALM_INSTANCE_ID_SIZE];
 	bool rtt_tree_pp;
 	unsigned int mec_policy;
 
@@ -607,6 +627,10 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 				   &rtt_tree_pp, rtt_base, &ats_plane,
 				   &mec_policy)) {
 		return RMI_ERROR_INPUT;
+	}
+
+	if (generate_realm_instance_id(realm_instance_id, REALM_INSTANCE_ID_SIZE) != 0) {
+		return RMI_ERROR_GLOBAL;
 	}
 
 	/* Allocate VMIDs for all planes in the realm */
@@ -701,6 +725,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	}
 
 	(void)memcpy(&rd->rpv[0], &p.rpv[0], RPV_SIZE);
+	(void)memcpy(rd->realm_instance_id, realm_instance_id, REALM_INSTANCE_ID_SIZE);
 
 	rd->num_rec_aux = MAX_REC_AUX_GRANULES;
 

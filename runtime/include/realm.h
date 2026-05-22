@@ -62,6 +62,9 @@ struct rd {
 	/* Realm measurement 8 bytes aligned */
 	unsigned char measurement[MEASUREMENT_SLOT_NR][MAX_MEASUREMENT_SIZE];
 
+	/* Realm Instance ID */
+	unsigned char realm_instance_id[REALM_INSTANCE_ID_SIZE];
+
 	/* Stage 2 configuration of the Realm */
 	struct s2tt_context s2_ctx[MAX_S2_CTXS];
 

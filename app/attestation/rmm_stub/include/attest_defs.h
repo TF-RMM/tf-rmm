@@ -51,12 +51,13 @@ enum hash_algo {
 #define MAX_MEASUREMENT_SIZE		SHA512_SIZE
 #define ATTEST_CHALLENGE_SIZE		(64)
 #define RMM_REALM_TOKEN_BUF_SIZE	SZ_1K
+#define REALM_INSTANCE_ID_SIZE		(33U)
 #else
 #define ATTEST_TOKEN_BUF_SIZE	4U
 #define MAX_MEASUREMENT_SIZE		sizeof(uint64_t)
 #define ATTEST_CHALLENGE_SIZE		(1)
 #define RMM_REALM_TOKEN_BUF_SIZE	4U
-
+#define REALM_INSTANCE_ID_SIZE		(1U)
 #endif
 
 /* Maximum number of measurements */
@@ -156,6 +157,7 @@ COMPILER_ASSERT(sizeof(struct attest_extend_measurement_return_buffer) == GRANUL
 
 struct attest_realm_token_create_params {
 	uint8_t measurements[MEASUREMENT_SLOT_NR][MAX_MEASUREMENT_SIZE];
+	uint8_t realm_instance_id[REALM_INSTANCE_ID_SIZE];
 	uint8_t rpv[RPV_SIZE];
 	bool is_pvt_mecid;
 	uint8_t challenge[ATTEST_CHALLENGE_SIZE];
