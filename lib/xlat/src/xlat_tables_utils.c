@@ -1101,3 +1101,76 @@ int xlat_unmap_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t unmap_size)
 
 	return 0;
 }
+
+/*
+ * Walk the L3 translation tables of the given context starting at 'va' and
+ * return the corresponding PA via 'pa_out'. The function checks subsequent
+ * L3 descriptors for physically contiguous mappings, accumulating their size.
+ *
+ * The walk terminates when:
+ *   - The VA reaches 'top_va' (exclusive upper bound), or
+ *   - A descriptor is invalid/empty, or
+ *   - The next PA is not contiguous with the previous one.
+ *
+ * This function assumes that tables are created down to L3.
+ */
+size_t xlat_get_contig_pa_level3(struct xlat_ctx *ctx, uintptr_t va,
+			      uintptr_t top_va, uintptr_t *pa_out)
+{
+	struct xlat_llt_info llt;
+	int ret;
+	size_t accumulated_size = 0;
+	uintptr_t expected_pa = 0UL;
+	uintptr_t cur_va = va;
+
+	assert(ctx != NULL);
+	assert(pa_out != NULL);
+	assert(ALIGNED(va, GRANULE_SIZE));
+	assert(ALIGNED(top_va, GRANULE_SIZE));
+	assert(top_va > va);
+
+	while (cur_va < top_va) {
+		uint64_t desc;
+		uint64_t *tte_ptr;
+		uintptr_t pa;
+
+		/* Get the L3 table for the current VA */
+		ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
+		if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
+			break;
+		}
+
+		/* Get the TTE pointer for the current VA */
+		tte_ptr = xlat_get_tte_ptr(&llt, cur_va);
+		if (tte_ptr == NULL) {
+			break;
+		}
+
+		desc = xlat_read_tte(tte_ptr);
+
+		/* Check if descriptor is a valid L3 page */
+		if ((desc & DESC_MASK) != PAGE_DESC) {
+			break;
+		}
+
+		pa = (uintptr_t)xlat_get_oa_from_tte(desc);
+
+		if (accumulated_size == 0U) {
+			/* First entry: record the starting PA */
+			*pa_out = pa;
+			expected_pa = pa + GRANULE_SIZE;
+			accumulated_size = GRANULE_SIZE;
+		} else {
+			/* Check contiguity */
+			if (pa != expected_pa) {
+				break;
+			}
+			expected_pa += GRANULE_SIZE;
+			accumulated_size += GRANULE_SIZE;
+		}
+
+		cur_va += GRANULE_SIZE;
+	}
+
+	return accumulated_size;
+}

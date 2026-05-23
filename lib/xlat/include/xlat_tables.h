@@ -447,5 +447,31 @@ int xlat_map_l3_region(struct xlat_ctx *ctx, uintptr_t pa, size_t size,
  */
 int xlat_unmap_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t unmap_size);
 
+/*
+ * Walk the L3 translation tables of the given context starting at 'va' and
+ * return the corresponding PA via 'pa_out'. The function checks subsequent
+ * L3 descriptors for physically contiguous mappings, accumulating their size.
+ *
+ * The walk terminates when:
+ *   - The VA reaches 'top_va' (exclusive upper bound), or
+ *   - A descriptor is invalid/empty, or
+ *   - The next PA is not contiguous with the previous one.
+ *
+ * This function assumes that tables are created down to L3.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context to walk.
+ *   - va: Starting virtual address (must be page-aligned).
+ *   - top_va: Upper VA limit (exclusive, must be page-aligned, > va).
+ *   - pa_out: Output pointer for the PA corresponding to 'va'.
+ *
+ * Returns:
+ *   - The accumulated contiguous size (in bytes) starting from 'va'.
+ *   - 0 if the starting VA is not validly mapped or inputs are invalid.
+ *   - On success, *pa_out contains the PA of 'va'.
+ */
+size_t xlat_get_contig_pa_level3(struct xlat_ctx *ctx, uintptr_t va,
+			     uintptr_t top_va, uintptr_t *pa_out);
+
 #endif /*__ASSEMBLER__*/
 #endif /* XLAT_TABLES_H */

@@ -83,4 +83,29 @@ int xlat_low_va_unmap(uintptr_t va, size_t size);
 /* Get dynamic VA base */
 uintptr_t xlat_low_va_get_dyn_va_base(void);
 
+/*
+ * Walk the low VA translation tables starting at 'va' and return the
+ * corresponding PA via 'pa_out'. The function then checks subsequent L3
+ * descriptors for physically contiguous mappings, accumulating their size.
+ *
+ * The walk terminates when:
+ *   - The VA reaches 'top_va' (exclusive upper bound), or
+ *   - A descriptor is invalid/empty, or
+ *   - The next PA is not contiguous with the previous one.
+ *
+ * This function assumes that tables are created down to L3.
+ *
+ * Arguments:
+ *   - va: Starting virtual address (must be page-aligned).
+ *   - top_va: Upper VA limit (exclusive, must be page-aligned, > va).
+ *   - pa_out: Output pointer for the PA corresponding to 'va'.
+ *
+ * Returns:
+ *   - The accumulated contiguous size (in bytes) starting from 'va'.
+ *   - 0 if the starting VA is not validly mapped or inputs are invalid.
+ *   - On success, *pa_out contains the PA of 'va'.
+ */
+size_t xlat_low_va_get_contig_pa(uintptr_t va, uintptr_t top_va,
+				     uintptr_t *pa_out);
+
 #endif /* XLAT_LOW_VA_H */

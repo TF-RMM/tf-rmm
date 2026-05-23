@@ -576,3 +576,9 @@ uintptr_t xlat_low_va_get_dyn_va_base(void)
 {
 	return g_va_info.dyn_va_pool_base;
 }
+
+size_t xlat_low_va_get_contig_pa(uintptr_t va, uintptr_t top_va,
+				     uintptr_t *pa_out)
+{
+	return xlat_get_contig_pa_level3(&g_va_info.dyn_va_ctx, va, top_va, pa_out);
+}
