@@ -1052,3 +1052,348 @@ TEST(xlat_low_va, xlat_low_va_pool_TC1)
 	CHECK_TRUE(ALIGNED(dyn_base, XLAT_BLOCK_SIZE(1U)));
 
 }
+
+/*****************************************************************************
+ * Tests for xlat_low_va_get_contig_pa
+ ****************************************************************************/
+
+/*
+ * Test: Single page contiguous PA
+ */
+TEST(xlat_low_va, xlat_low_va_get_contig_pa_single_page_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map a single granule, then call xlat_low_va_get_contig_pa to
+	 * verify it returns the correct PA and size of one granule.
+	 ******************************************************************/
+
+	uintptr_t test_pa = 0x10000UL;
+	uintptr_t va;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	va = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM, test_pa, false);
+	CHECK_TRUE(va != 0UL);
+
+	contig_size = xlat_low_va_get_contig_pa(va, va + GRANULE_SIZE, &pa_out);
+	CHECK_EQUAL(GRANULE_SIZE, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	ret = xlat_low_va_unmap(va, GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Multiple contiguous pages within one L3 table
+ */
+TEST(xlat_low_va, xlat_low_va_get_contig_pa_multi_page_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map multiple contiguous granules (physically contiguous PA),
+	 * verify that xlat_low_va_get_contig_pa accumulates the full size.
+	 ******************************************************************/
+
+	const size_t num_pages = 8UL;
+	const size_t total_size = num_pages * GRANULE_SIZE;
+	uintptr_t test_pa = 0x20000UL;
+	uintptr_t va;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	va = xlat_low_va_map(total_size, MT_RW_DATA | MT_REALM, test_pa, false);
+	CHECK_TRUE(va != 0UL);
+
+	contig_size = xlat_low_va_get_contig_pa(va, va + total_size, &pa_out);
+	CHECK_EQUAL(total_size, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	ret = xlat_low_va_unmap(va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Contiguous PA spanning multiple L3 tables
+ */
+TEST(xlat_low_va, xlat_low_va_get_contig_pa_cross_l3_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map a region larger than one L3 table (>2MB) with contiguous PA,
+	 * then verify that xlat_low_va_get_contig_pa correctly walks across
+	 * the L3 table boundary and accumulates the full size.
+	 ******************************************************************/
+
+	/* Map 3MB = spans at least 2 L3 tables (each covers 2MB) */
+	const size_t total_size = 3UL * SZ_1M;
+	uintptr_t test_pa = 0x100000UL;
+	uintptr_t va;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	va = xlat_low_va_map(total_size, MT_RW_DATA | MT_REALM, test_pa, false);
+	CHECK_TRUE(va != 0UL);
+
+	contig_size = xlat_low_va_get_contig_pa(va, va + total_size, &pa_out);
+	CHECK_EQUAL(total_size, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	ret = xlat_low_va_unmap(va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: top_va limits the walk before end of contiguous region
+ */
+TEST(xlat_low_va, xlat_low_va_get_contig_pa_top_va_limit_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map a 4-page region, but call with top_va limiting to 2 pages.
+	 * Verify only 2 pages worth of size is returned.
+	 ******************************************************************/
+
+	const size_t total_size = 4UL * GRANULE_SIZE;
+	uintptr_t test_pa = 0x30000UL;
+	uintptr_t va;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	va = xlat_low_va_map(total_size, MT_RW_DATA | MT_REALM, test_pa, false);
+	CHECK_TRUE(va != 0UL);
+
+	/* Limit walk to only 2 pages */
+	contig_size = xlat_low_va_get_contig_pa(va, va + (2UL * GRANULE_SIZE), &pa_out);
+	CHECK_EQUAL(2UL * GRANULE_SIZE, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	ret = xlat_low_va_unmap(va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Non-contiguous PA breaks the walk
+ */
+TEST(xlat_low_va, xlat_low_va_get_contig_pa_non_contig_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map two separate regions that are VA-contiguous but PA-non-contiguous.
+	 * Verify the walk stops at the PA discontinuity.
+	 ******************************************************************/
+
+	uintptr_t test_pa1 = 0x40000UL;
+	uintptr_t test_pa2 = 0x80000UL; /* Not contiguous with test_pa1 */
+	uintptr_t va1, va2;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	/* Map two separate granules - they should get contiguous VAs */
+	va1 = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM, test_pa1, false);
+	CHECK_TRUE(va1 != 0UL);
+
+	va2 = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM, test_pa2, false);
+	CHECK_TRUE(va2 != 0UL);
+
+	/* VAs should be contiguous */
+	CHECK_EQUAL(va1 + GRANULE_SIZE, va2);
+
+	/* Walk should stop after first page due to PA discontinuity */
+	contig_size = xlat_low_va_get_contig_pa(va1, va1 + (2UL * GRANULE_SIZE), &pa_out);
+	CHECK_EQUAL(GRANULE_SIZE, contig_size);
+	CHECK_EQUAL(test_pa1, pa_out);
+
+	ret = xlat_low_va_unmap(va1, GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+	ret = xlat_low_va_unmap(va2, GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Unmapped page (hole) terminates the walk
+ */
+TEST(xlat_low_va, xlat_low_va_get_contig_pa_unmapped_hole_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map 3 contiguous pages, unmap the middle one, then verify
+	 * xlat_low_va_get_contig_pa stops at the hole.
+	 ******************************************************************/
+
+	const size_t total_size = 3UL * GRANULE_SIZE;
+	uintptr_t test_pa = 0x50000UL;
+	uintptr_t va;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	va = xlat_low_va_map(total_size, MT_RW_DATA | MT_REALM, test_pa, false);
+	CHECK_TRUE(va != 0UL);
+
+	/* Unmap the middle page to create a hole */
+	ret = xlat_low_va_unmap(va + GRANULE_SIZE, GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+
+	/* Walk should stop after first page (hole at index 1) */
+	contig_size = xlat_low_va_get_contig_pa(va, va + total_size, &pa_out);
+	CHECK_EQUAL(GRANULE_SIZE, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	/* Clean up remaining mapped pages */
+	ret = xlat_low_va_unmap(va, GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+	ret = xlat_low_va_unmap(va + (2UL * GRANULE_SIZE), GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Starting at unmapped page returns 0
+ */
+TEST(xlat_low_va, xlat_low_va_get_contig_pa_unmapped_start_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map a page, unmap it, then call xlat_low_va_get_contig_pa on
+	 * that unmapped VA. Should return 0 (no valid mapping).
+	 ******************************************************************/
+
+	uintptr_t test_pa = 0x60000UL;
+	uintptr_t va;
+	uintptr_t pa_out = 0xDEAD;
+	size_t contig_size;
+	int ret;
+
+	va = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM, test_pa, false);
+	CHECK_TRUE(va != 0UL);
+
+	/* Unmap it */
+	ret = xlat_low_va_unmap(va, GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+
+	/* Walk on unmapped VA should return 0 */
+	contig_size = xlat_low_va_get_contig_pa(va, va + GRANULE_SIZE, &pa_out);
+	CHECK_EQUAL(0UL, contig_size);
+}
+
+/*
+ * Test: Large contiguous mapping spanning many L3 tables
+ */
+TEST(xlat_low_va, xlat_low_va_get_contig_pa_large_span_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map a 10MB contiguous region (spans 5 L3 tables) and verify
+	 * xlat_low_va_get_contig_pa returns the full 10MB size.
+	 ******************************************************************/
+
+	const size_t total_size = 10UL * SZ_1M;
+	uintptr_t test_pa = 0x200000UL;
+	uintptr_t va;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	va = xlat_low_va_map(total_size, MT_RW_DATA | MT_REALM, test_pa, false);
+	CHECK_TRUE(va != 0UL);
+
+	contig_size = xlat_low_va_get_contig_pa(va, va + total_size, &pa_out);
+	CHECK_EQUAL(total_size, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	ret = xlat_low_va_unmap(va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Walk starting from middle of a mapped region
+ */
+TEST(xlat_low_va, xlat_low_va_get_contig_pa_partial_start_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map a 4-page region, then start the walk from the 2nd page.
+	 * Verify it returns PA of the 2nd page and size of 3 pages.
+	 ******************************************************************/
+
+	const size_t total_size = 4UL * GRANULE_SIZE;
+	uintptr_t test_pa = 0x70000UL;
+	uintptr_t va;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	va = xlat_low_va_map(total_size, MT_RW_DATA | MT_REALM, test_pa, false);
+	CHECK_TRUE(va != 0UL);
+
+	/* Start from 2nd page, walk to end */
+	uintptr_t start_va = va + GRANULE_SIZE;
+
+	contig_size = xlat_low_va_get_contig_pa(start_va, va + total_size, &pa_out);
+	CHECK_EQUAL(3UL * GRANULE_SIZE, contig_size);
+	CHECK_EQUAL(test_pa + GRANULE_SIZE, pa_out);
+
+	ret = xlat_low_va_unmap(va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Non-contiguous PA at L3 table boundary
+ */
+TEST(xlat_low_va, xlat_low_va_get_contig_pa_break_at_l3_boundary_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Map two regions: the first fills to the end of an L3 table and
+	 * the second starts at the beginning of the next L3 table with a
+	 * non-contiguous PA. Verify the walk stops at the L3 boundary.
+	 ******************************************************************/
+
+	/* Size of one L3 table coverage: 512 pages = 2MB */
+	const size_t l3_table_size = XLAT_BLOCK_SIZE(2);
+
+	/*
+	 * Map 2MB with contiguous PA, then map another 2MB region
+	 * with a different (non-contiguous) PA base.
+	 */
+	uintptr_t test_pa1 = 0x100000UL;
+	uintptr_t test_pa2 = 0x500000UL; /* Intentionally not contiguous */
+	uintptr_t va1, va2;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	va1 = xlat_low_va_map(l3_table_size, MT_RW_DATA | MT_REALM, test_pa1, false);
+	CHECK_TRUE(va1 != 0UL);
+
+	va2 = xlat_low_va_map(l3_table_size, MT_RW_DATA | MT_REALM, test_pa2, false);
+	CHECK_TRUE(va2 != 0UL);
+
+	/* VAs should be contiguous (next available VA) */
+	CHECK_EQUAL(va1 + l3_table_size, va2);
+
+	/* Walk from va1 across both regions - should stop at PA discontinuity */
+	contig_size = xlat_low_va_get_contig_pa(va1, va2 + l3_table_size, &pa_out);
+	CHECK_EQUAL(l3_table_size, contig_size);
+	CHECK_EQUAL(test_pa1, pa_out);
+
+	ret = xlat_low_va_unmap(va1, l3_table_size);
+	CHECK_EQUAL(0, ret);
+	ret = xlat_low_va_unmap(va2, l3_table_size);
+	CHECK_EQUAL(0, ret);
+}
