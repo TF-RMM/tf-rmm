@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <rmm_el3_ifc.h>
 #include <sizes.h>
+#include <spinlock.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -93,6 +94,7 @@ IMPORT_SYM(uintptr_t, rmm_rw_end, RMM_RW_END);
 					XLAT_BLOCK_SIZE(1))
 
 static struct xlat_low_va_info g_va_info;
+static spinlock_t g_dyn_va_lock = {0U};
 
 
 struct xlat_low_va_info *xlat_get_low_va_info(void)
@@ -542,9 +544,13 @@ uintptr_t xlat_low_va_map(size_t size, uint64_t attr, uintptr_t in_pa, bool clea
 		(attr == (MT_RW_DEV | MT_NS)) ||
 		(attr == (MT_RO_DATA | MT_REALM)));
 
+	spinlock_acquire(&g_dyn_va_lock);
+
 	/* Map the memory - this will automatically find available VA and map */
 	ret = xlat_map_l3_region(&(xlat_get_low_va_info()->dyn_va_ctx),
 				 in_pa, size, attr, &va);
+
+	spinlock_release(&g_dyn_va_lock);
 
 	if (ret != 0) {
 		ERROR("Failed to map memory for %zu granules\n", size/GRANULE_SIZE);
@@ -564,12 +570,18 @@ uintptr_t xlat_low_va_map(size_t size, uint64_t attr, uintptr_t in_pa, bool clea
 
 int xlat_low_va_unmap(uintptr_t va, size_t size)
 {
+	int ret;
+
 	assert((va != 0UL) && (ALIGNED(va, GRANULE_SIZE)));
 	assert(ALIGNED(size, GRANULE_SIZE));
 
 	INFO("%s(): va=0x%lx size=0x%zx\n", __func__, va, size);
 
-	return xlat_unmap_l3_region(&(xlat_get_low_va_info()->dyn_va_ctx), va, size);
+	spinlock_acquire(&g_dyn_va_lock);
+	ret = xlat_unmap_l3_region(&(xlat_get_low_va_info()->dyn_va_ctx), va, size);
+	spinlock_release(&g_dyn_va_lock);
+
+	return ret;
 }
 
 uintptr_t xlat_low_va_get_dyn_va_base(void)
@@ -580,30 +592,66 @@ uintptr_t xlat_low_va_get_dyn_va_base(void)
 size_t xlat_low_va_get_contig_pa(uintptr_t va, uintptr_t top_va,
 				     uintptr_t *pa_out)
 {
-	return xlat_get_contig_pa_level3(&g_va_info.dyn_va_ctx, va, top_va, pa_out);
+	size_t result;
+
+	spinlock_acquire(&g_dyn_va_lock);
+	result = xlat_get_contig_pa_level3(&g_va_info.dyn_va_ctx, va, top_va, pa_out);
+	spinlock_release(&g_dyn_va_lock);
+
+	return result;
 }
 
 int xlat_low_va_reserve(size_t size, uintptr_t *reserved_va)
 {
-	return xlat_reserve_va_l3_region(&g_va_info.dyn_va_ctx, size, reserved_va);
+	int ret;
+
+	spinlock_acquire(&g_dyn_va_lock);
+	ret = xlat_reserve_va_l3_region(&g_va_info.dyn_va_ctx, size, reserved_va);
+	spinlock_release(&g_dyn_va_lock);
+
+	return ret;
 }
 
 int xlat_low_va_populate(uintptr_t va, uintptr_t pa, size_t size, uint64_t attr)
 {
-	return xlat_populate_va_l3_region(&g_va_info.dyn_va_ctx, va, pa, size, attr);
+	int ret;
+
+	spinlock_acquire(&g_dyn_va_lock);
+	ret = xlat_populate_va_l3_region(&g_va_info.dyn_va_ctx, va, pa, size, attr);
+	spinlock_release(&g_dyn_va_lock);
+
+	return ret;
 }
 
 int xlat_low_va_commit(uintptr_t va, size_t size)
 {
-	return xlat_commit_va_l3_region(&g_va_info.dyn_va_ctx, va, size);
+	int ret;
+
+	spinlock_acquire(&g_dyn_va_lock);
+	ret = xlat_commit_va_l3_region(&g_va_info.dyn_va_ctx, va, size);
+	spinlock_release(&g_dyn_va_lock);
+
+	return ret;
 }
 
 int xlat_low_va_decommit(uintptr_t va, size_t size)
 {
-	return xlat_decommit_va_l3_region(&g_va_info.dyn_va_ctx, va, size);
+	int ret;
+
+	spinlock_acquire(&g_dyn_va_lock);
+	ret = xlat_decommit_va_l3_region(&g_va_info.dyn_va_ctx, va, size);
+	spinlock_release(&g_dyn_va_lock);
+
+	return ret;
 }
 
 int xlat_low_va_unreserve(uintptr_t va, size_t size)
 {
-	return xlat_unreserve_va_l3_region(&g_va_info.dyn_va_ctx, va, size);
+	int ret;
+
+	spinlock_acquire(&g_dyn_va_lock);
+	ret = xlat_unreserve_va_l3_region(&g_va_info.dyn_va_ctx, va, size);
+	spinlock_release(&g_dyn_va_lock);
+
+	return ret;
 }
