@@ -473,5 +473,63 @@ int xlat_unmap_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t unmap_size);
 size_t xlat_get_contig_pa_level3(struct xlat_ctx *ctx, uintptr_t va,
 			     uintptr_t top_va, uintptr_t *pa_out);
 
+/*
+ * Reserve a contiguous VA region of the given size without mapping any PA.
+ * The reserved entries are marked as allocated so the VA allocator will not
+ * reuse them, but they remain invalid from the hardware perspective.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context.
+ *   - size: Size of the VA region to reserve (must be granule-aligned).
+ *   - reserved_va: Output pointer for the reserved VA base.
+ *
+ * Return:
+ *   - 0 on success with *reserved_va set to the base of the reserved region.
+ *   - Negative error code on failure (-EFAULT, -EINVAL, -ENOMEM).
+ */
+int xlat_reserve_va_l3_region(struct xlat_ctx *ctx, size_t size,
+			      uintptr_t *reserved_va);
+
+/*
+ * Populate a previously reserved VA range with a PA mapping. The entries are
+ * written with the full descriptor (PA + attributes) but remain invalid from
+ * the hardware perspective until committed.
+ *
+ * The VA range [va, va + size) must have been previously reserved with
+ * xlat_reserve_va_l3_region. Multiple calls can populate different
+ * sub-ranges of the same reservation.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context.
+ *   - va: Starting VA to populate (must be granule-aligned, within reservation).
+ *   - pa: Physical address to map (must be granule-aligned).
+ *   - size: Size to populate (must be granule-aligned).
+ *   - attr: Memory attributes for the mapping.
+ *
+ * Return:
+ *   - 0 on success.
+ *   - Negative error code on failure (-EFAULT, -EINVAL).
+ */
+int xlat_populate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va,
+			       uintptr_t pa, size_t size, uint64_t attr);
+
+/*
+ * Commit a previously populated VA range, making the descriptors valid to
+ * hardware. After this call, the CPU can translate through these entries.
+ *
+ * The entire range [va, va + size) must have been populated with
+ * xlat_populate_va_l3_region before calling this function.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context.
+ *   - va: Starting VA to commit (must be granule-aligned).
+ *   - size: Size to commit (must be granule-aligned).
+ *
+ * Return:
+ *   - 0 on success.
+ *   - Negative error code on failure (-EFAULT, -EINVAL).
+ */
+int xlat_commit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size);
+
 #endif /*__ASSEMBLER__*/
 #endif /* XLAT_TABLES_H */

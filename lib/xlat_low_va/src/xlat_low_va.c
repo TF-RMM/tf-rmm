@@ -582,3 +582,18 @@ size_t xlat_low_va_get_contig_pa(uintptr_t va, uintptr_t top_va,
 {
 	return xlat_get_contig_pa_level3(&g_va_info.dyn_va_ctx, va, top_va, pa_out);
 }
+
+int xlat_low_va_reserve(size_t size, uintptr_t *reserved_va)
+{
+	return xlat_reserve_va_l3_region(&g_va_info.dyn_va_ctx, size, reserved_va);
+}
+
+int xlat_low_va_populate(uintptr_t va, uintptr_t pa, size_t size, uint64_t attr)
+{
+	return xlat_populate_va_l3_region(&g_va_info.dyn_va_ctx, va, pa, size, attr);
+}
+
+int xlat_low_va_commit(uintptr_t va, size_t size)
+{
+	return xlat_commit_va_l3_region(&g_va_info.dyn_va_ctx, va, size);
+}

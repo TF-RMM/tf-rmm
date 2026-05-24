@@ -1174,3 +1174,224 @@ size_t xlat_get_contig_pa_level3(struct xlat_ctx *ctx, uintptr_t va,
 
 	return accumulated_size;
 }
+
+/*
+ * Reserve a contiguous VA region by marking L3 entries as allocated but
+ * invalid. The entries get TRANSIENT_DESC | VA_ALLOCATED_FLAG set so
+ * find_available_va() will skip them, but hardware cannot translate them.
+ */
+int xlat_reserve_va_l3_region(struct xlat_ctx *ctx, size_t size,
+			      uintptr_t *reserved_va)
+{
+	int ret;
+	uintptr_t va;
+	struct xlat_llt_info llt;
+	uintptr_t cur_va;
+	uintptr_t end_va;
+	uintptr_t l3_base_va = 0;
+	uint64_t *l3_table = NULL;
+
+	assert(ctx != NULL);
+	assert((ctx->cfg.init != false));
+	assert((ctx->tbls.init != false));
+	assert(reserved_va != NULL);
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(size) || (size == 0U)) {
+		ERROR("%s: Invalid size: size=0x%zx\n", __func__, size);
+		return -EINVAL;
+	}
+
+	/* Find available VA space */
+	ret = find_available_va(ctx, size, &va);
+	if (ret != 0) {
+		ERROR("%s: No available VA space for size 0x%zx\n", __func__, size);
+		return ret;
+	}
+
+	cur_va = va;
+	end_va = va + size;
+
+	while (cur_va < end_va) {
+		/* Get new L3 table if needed */
+		if ((l3_table == NULL) || (cur_va >= (l3_base_va +
+				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+			if (l3_table != NULL) {
+				update_parent_flags(ctx, l3_base_va, true);
+			}
+
+			ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
+			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
+				ERROR("%s: Failed to get L3 table for VA 0x%lx\n",
+				      __func__, cur_va);
+				return -EFAULT;
+			}
+
+			assert(llt.table != NULL);
+			l3_table = llt.table;
+			l3_base_va = llt.llt_base_va;
+		}
+
+		unsigned int idx = (unsigned int)((cur_va - l3_base_va) >>
+				XLAT_ADDR_SHIFT(XLAT_TABLE_LEVEL_MAX));
+		assert(idx < XLAT_TABLE_ENTRIES);
+
+		/* Entry must be free (TRANSIENT_DESC only, not allocated) */
+		assert((xlat_read_tte(&l3_table[idx]) & VA_ALLOCATED_FLAG) == 0ULL);
+
+		/* Mark as reserved: allocated but not valid */
+		xlat_write_tte(&l3_table[idx],
+			       TRANSIENT_DESC | VA_ALLOCATED_FLAG);
+
+		cur_va += GRANULE_SIZE;
+	}
+
+	/* Update parent flags for the last L3 table */
+	if (l3_table != NULL) {
+		update_parent_flags(ctx, l3_base_va, true);
+	}
+
+	*reserved_va = va;
+	return 0;
+}
+
+/*
+ * Populate a reserved VA range with PA mappings. Writes descriptors with all
+ * attributes and PA but keeps them invalid (VALID_DESC bit cleared).
+ */
+int xlat_populate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va,
+			       uintptr_t pa, size_t size, uint64_t attr)
+{
+	int ret;
+	struct xlat_llt_info llt;
+	uintptr_t cur_va;
+	uintptr_t end_va;
+	uintptr_t cur_pa;
+	uintptr_t l3_base_va = 0;
+	uint64_t *l3_table = NULL;
+
+	assert(ctx != NULL);
+	assert((ctx->cfg.init != false));
+	assert((ctx->tbls.init != false));
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(size) || !GRANULE_ALIGNED(va) || !GRANULE_ALIGNED(pa)) {
+		ERROR("%s: VA/PA/size unaligned: va=0x%lx pa=0x%lx size=0x%zx\n",
+		      __func__, va, pa, size);
+		return -EINVAL;
+	}
+
+	if ((size == 0U) || (MT_TYPE(attr) == MT_TRANSIENT)) {
+		ERROR("%s: Invalid arguments: size=0x%zx attr=0x%lx\n",
+		      __func__, size, attr);
+		return -EINVAL;
+	}
+
+	cur_va = va;
+	cur_pa = pa;
+	end_va = va + size;
+
+	while (cur_va < end_va) {
+		if ((l3_table == NULL) || (cur_va >= (l3_base_va +
+				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+			ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
+			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
+				ERROR("%s: Failed to get L3 table for VA 0x%lx\n",
+				      __func__, cur_va);
+				return -EFAULT;
+			}
+			assert(llt.table != NULL);
+			l3_table = llt.table;
+			l3_base_va = llt.llt_base_va;
+		}
+
+		unsigned int idx = (unsigned int)((cur_va - l3_base_va) >>
+				XLAT_ADDR_SHIFT(XLAT_TABLE_LEVEL_MAX));
+		assert(idx < XLAT_TABLE_ENTRIES);
+
+		uint64_t cur_desc __unused = xlat_read_tte(&l3_table[idx]);
+
+		/* Entry must be reserved (allocated, transient, not valid) */
+		assert((cur_desc & (TRANSIENT_DESC | VA_ALLOCATED_FLAG)) ==
+		       (TRANSIENT_DESC | VA_ALLOCATED_FLAG));
+		assert((cur_desc & VALID_DESC) == 0ULL);
+
+		/*
+		 * Build the full descriptor but clear VALID_DESC so hardware
+		 * cannot translate through it yet.
+		 */
+		uint64_t desc = xlat_desc(attr, cur_pa, XLAT_TABLE_LEVEL_MAX);
+
+		desc = (desc & ~VALID_DESC) | TRANSIENT_DESC | VA_ALLOCATED_FLAG;
+		xlat_write_tte(&l3_table[idx], desc);
+
+		cur_va += GRANULE_SIZE;
+		cur_pa += GRANULE_SIZE;
+	}
+
+	return 0;
+}
+
+/*
+ * Commit a populated VA range by setting the VALID_DESC bit on all entries,
+ * making them visible to hardware translation.
+ */
+int xlat_commit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
+{
+	int ret;
+	struct xlat_llt_info llt;
+	uintptr_t cur_va;
+	uintptr_t end_va;
+	uintptr_t l3_base_va = 0;
+	uint64_t *l3_table = NULL;
+
+	assert(ctx != NULL);
+	assert((ctx->cfg.init != false));
+	assert((ctx->tbls.init != false));
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(va) || !GRANULE_ALIGNED(size) || (size == 0U)) {
+		ERROR("%s: Invalid arguments: va=0x%lx size=0x%zx\n",
+		      __func__, va, size);
+		return -EINVAL;
+	}
+
+	cur_va = va;
+	end_va = va + size;
+
+	while (cur_va < end_va) {
+		if ((l3_table == NULL) || (cur_va >= (l3_base_va +
+				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+			ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
+			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
+				ERROR("%s: Failed to get L3 table for VA 0x%lx\n",
+				      __func__, cur_va);
+				return -EFAULT;
+			}
+			assert(llt.table != NULL);
+			l3_table = llt.table;
+			l3_base_va = llt.llt_base_va;
+		}
+
+		unsigned int idx = (unsigned int)((cur_va - l3_base_va) >>
+				XLAT_ADDR_SHIFT(XLAT_TABLE_LEVEL_MAX));
+		assert(idx < XLAT_TABLE_ENTRIES);
+
+		uint64_t desc = xlat_read_tte(&l3_table[idx]);
+
+		/* Entry must be populated (has descriptor content, not valid yet) */
+		assert((desc & (TRANSIENT_DESC | VA_ALLOCATED_FLAG)) ==
+		       (TRANSIENT_DESC | VA_ALLOCATED_FLAG));
+		assert((desc & VALID_DESC) == 0ULL);
+		/* Must have PAGE_DESC bits minus VALID (i.e. bit 1 set) */
+		assert((desc & UL(0x2)) != 0ULL);
+
+		/* Set VALID_DESC to make it live */
+		desc |= VALID_DESC;
+		xlat_write_tte_release(&l3_table[idx], desc);
+
+		cur_va += GRANULE_SIZE;
+	}
+
+	return 0;
+}

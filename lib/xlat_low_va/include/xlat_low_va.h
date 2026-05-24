@@ -108,4 +108,52 @@ uintptr_t xlat_low_va_get_dyn_va_base(void);
 size_t xlat_low_va_get_contig_pa(uintptr_t va, uintptr_t top_va,
 				     uintptr_t *pa_out);
 
+/*
+ * Reserve a contiguous VA region in the dynamic VA pool without mapping
+ * any PA. The reserved region is invisible to hardware and cannot be used
+ * for translation until populated and committed.
+ *
+ * Arguments:
+ *   - size: Size to reserve (must be granule-aligned, > 0).
+ *   - reserved_va: Output pointer for the reserved VA base.
+ *
+ * Returns:
+ *   - 0 on success with *reserved_va set.
+ *   - Negative error code on failure.
+ */
+int xlat_low_va_reserve(size_t size, uintptr_t *reserved_va);
+
+/*
+ * Populate a sub-range of a previously reserved VA region with a PA mapping.
+ * The entries are written with full attributes but remain invalid to hardware.
+ * Multiple calls can populate different (non-overlapping) sub-ranges of the
+ * same reservation with different PAs.
+ *
+ * Arguments:
+ *   - va: Starting VA to populate (must be within a reserved region).
+ *   - pa: Physical address to map (must be granule-aligned).
+ *   - size: Size to populate (must be granule-aligned, > 0).
+ *   - attr: Memory attributes for the mapping.
+ *
+ * Returns:
+ *   - 0 on success.
+ *   - Negative error code on failure.
+ */
+int xlat_low_va_populate(uintptr_t va, uintptr_t pa, size_t size, uint64_t attr);
+
+/*
+ * Commit a previously populated VA region, making all entries valid to
+ * hardware. After this call the CPU can translate through the region.
+ * The entire range must have been populated before committing.
+ *
+ * Arguments:
+ *   - va: Starting VA to commit (must be granule-aligned).
+ *   - size: Size to commit (must be granule-aligned, > 0).
+ *
+ * Returns:
+ *   - 0 on success.
+ *   - Negative error code on failure.
+ */
+int xlat_low_va_commit(uintptr_t va, size_t size);
+
 #endif /* XLAT_LOW_VA_H */

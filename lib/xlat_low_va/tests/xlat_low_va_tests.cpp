@@ -1397,3 +1397,360 @@ TEST(xlat_low_va, xlat_low_va_get_contig_pa_break_at_l3_boundary_TC1)
 	ret = xlat_low_va_unmap(va2, l3_table_size);
 	CHECK_EQUAL(0, ret);
 }
+
+/*****************************************************************************
+ * Tests for xlat_low_va_reserve / xlat_low_va_populate / xlat_low_va_commit
+ ****************************************************************************/
+
+/*
+ * Test: Basic reserve, populate, commit flow with single PA
+ */
+TEST(xlat_low_va, xlat_low_va_reserve_populate_commit_basic_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Reserve a region, populate it with a single contiguous PA,
+	 * commit it, and verify the mapping is accessible via
+	 * xlat_low_va_get_contig_pa.
+	 ******************************************************************/
+
+	const size_t total_size = 4UL * GRANULE_SIZE;
+	uintptr_t test_pa = 0x40000UL;
+	uintptr_t reserved_va = 0;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	/* Reserve */
+	ret = xlat_low_va_reserve(total_size, &reserved_va);
+	CHECK_EQUAL(0, ret);
+	CHECK_TRUE(reserved_va != 0UL);
+	CHECK_TRUE(ALIGNED(reserved_va, GRANULE_SIZE));
+
+	/* Verify not yet accessible (not valid) */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(0UL, contig_size);
+
+	/* Populate */
+	ret = xlat_low_va_populate(reserved_va, test_pa, total_size,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(0, ret);
+
+	/* Still not accessible (not committed) */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(0UL, contig_size);
+
+	/* Commit */
+	ret = xlat_low_va_commit(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	/* Now accessible */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(total_size, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	/* Cleanup */
+	ret = xlat_low_va_unmap(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Populate multiple non-contiguous PAs into a single reserved VA region
+ */
+TEST(xlat_low_va, xlat_low_va_reserve_multi_pa_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Reserve a 4-page region, populate it with two separate
+	 * non-contiguous PA ranges (2 pages each), commit all, and
+	 * verify that get_contig_pa stops at the PA discontinuity.
+	 ******************************************************************/
+
+	const size_t page_size = GRANULE_SIZE;
+	const size_t total_size = 4UL * page_size;
+	uintptr_t pa1 = 0x50000UL; /* First 2 pages */
+	uintptr_t pa2 = 0x90000UL; /* Second 2 pages (non-contiguous) */
+	uintptr_t reserved_va = 0;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	/* Reserve */
+	ret = xlat_low_va_reserve(total_size, &reserved_va);
+	CHECK_EQUAL(0, ret);
+
+	/* Populate first 2 pages */
+	ret = xlat_low_va_populate(reserved_va, pa1, 2UL * page_size,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(0, ret);
+
+	/* Populate second 2 pages with different PA */
+	ret = xlat_low_va_populate(reserved_va + (2UL * page_size), pa2,
+				   2UL * page_size, MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(0, ret);
+
+	/* Commit entire region */
+	ret = xlat_low_va_commit(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	/* Walk should stop at PA discontinuity after 2 pages */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(2UL * page_size, contig_size);
+	CHECK_EQUAL(pa1, pa_out);
+
+	/* Walk from 3rd page should return pa2 with 2 pages */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va + (2UL * page_size),
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(2UL * page_size, contig_size);
+	CHECK_EQUAL(pa2, pa_out);
+
+	/* Cleanup */
+	ret = xlat_low_va_unmap(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Reserve spanning multiple L3 tables
+ */
+TEST(xlat_low_va, xlat_low_va_reserve_cross_l3_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Reserve a 3MB region (crosses L3 table boundary at 2MB),
+	 * populate with contiguous PA, commit, and verify full mapping.
+	 ******************************************************************/
+
+	const size_t total_size = 3UL * SZ_1M;
+	uintptr_t test_pa = 0x200000UL;
+	uintptr_t reserved_va = 0;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	ret = xlat_low_va_reserve(total_size, &reserved_va);
+	CHECK_EQUAL(0, ret);
+
+	ret = xlat_low_va_populate(reserved_va, test_pa, total_size,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(0, ret);
+
+	ret = xlat_low_va_commit(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(total_size, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	ret = xlat_low_va_unmap(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Incremental populate - populate pages one by one
+ */
+TEST(xlat_low_va, xlat_low_va_reserve_incremental_populate_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Reserve a 4-page region, populate each page individually with
+	 * a different PA, commit, and verify each page maps correctly.
+	 ******************************************************************/
+
+	const size_t num_pages = 4UL;
+	const size_t total_size = num_pages * GRANULE_SIZE;
+	uintptr_t pas[4] = { 0xA0000UL, 0xB0000UL, 0xC0000UL, 0xD0000UL };
+	uintptr_t reserved_va = 0;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	ret = xlat_low_va_reserve(total_size, &reserved_va);
+	CHECK_EQUAL(0, ret);
+
+	/* Populate each page with a different non-contiguous PA */
+	for (unsigned int i = 0; i < num_pages; i++) {
+		ret = xlat_low_va_populate(reserved_va + (i * GRANULE_SIZE),
+					   pas[i], GRANULE_SIZE,
+					   MT_RW_DATA | MT_REALM);
+		CHECK_EQUAL(0, ret);
+	}
+
+	/* Commit all at once */
+	ret = xlat_low_va_commit(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	/* Each page should be accessible individually since PAs are non-contiguous */
+	for (unsigned int i = 0; i < num_pages; i++) {
+		contig_size = xlat_low_va_get_contig_pa(
+			reserved_va + (i * GRANULE_SIZE),
+			reserved_va + ((i + 1UL) * GRANULE_SIZE), &pa_out);
+		CHECK_EQUAL(GRANULE_SIZE, contig_size);
+		CHECK_EQUAL(pas[i], pa_out);
+	}
+
+	/* Walk from start should only return 1 page (PAs not contiguous) */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(GRANULE_SIZE, contig_size);
+	CHECK_EQUAL(pas[0], pa_out);
+
+	ret = xlat_low_va_unmap(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Reserved VA is not reused by subsequent allocations
+ */
+TEST(xlat_low_va, xlat_low_va_reserve_no_reuse_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Reserve a region, then map another region. Verify the mapped
+	 * region does not overlap with the reserved region.
+	 ******************************************************************/
+
+	const size_t reserve_size = 4UL * GRANULE_SIZE;
+	uintptr_t reserved_va = 0;
+	uintptr_t mapped_va;
+	uintptr_t test_pa = 0x60000UL;
+	int ret;
+
+	ret = xlat_low_va_reserve(reserve_size, &reserved_va);
+	CHECK_EQUAL(0, ret);
+
+	/* Map something else - should not overlap */
+	mapped_va = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM,
+				    test_pa, false);
+	CHECK_TRUE(mapped_va != 0UL);
+
+	/* mapped_va must not be within [reserved_va, reserved_va + reserve_size) */
+	CHECK_TRUE((mapped_va + GRANULE_SIZE <= reserved_va) ||
+		   (mapped_va >= reserved_va + reserve_size));
+
+	/* Populate and commit the reservation so we can unmap it */
+	ret = xlat_low_va_populate(reserved_va, 0x70000UL, reserve_size,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(0, ret);
+	ret = xlat_low_va_commit(reserved_va, reserve_size);
+	CHECK_EQUAL(0, ret);
+
+	ret = xlat_low_va_unmap(reserved_va, reserve_size);
+	CHECK_EQUAL(0, ret);
+	ret = xlat_low_va_unmap(mapped_va, GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Partial commit (commit sub-range of populated region)
+ */
+TEST(xlat_low_va, xlat_low_va_reserve_partial_commit_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Reserve 4 pages, populate all 4, but commit only the first 2.
+	 * Verify only the first 2 are accessible.
+	 ******************************************************************/
+
+	const size_t total_size = 4UL * GRANULE_SIZE;
+	uintptr_t test_pa = 0xE0000UL;
+	uintptr_t reserved_va = 0;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	ret = xlat_low_va_reserve(total_size, &reserved_va);
+	CHECK_EQUAL(0, ret);
+
+	ret = xlat_low_va_populate(reserved_va, test_pa, total_size,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(0, ret);
+
+	/* Commit only first 2 pages */
+	ret = xlat_low_va_commit(reserved_va, 2UL * GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+
+	/* First 2 pages accessible */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(2UL * GRANULE_SIZE, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	/* Commit remaining 2 pages */
+	ret = xlat_low_va_commit(reserved_va + (2UL * GRANULE_SIZE),
+				 2UL * GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+
+	/* Now all 4 pages accessible */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(total_size, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	ret = xlat_low_va_unmap(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Multiple non-contiguous PAs spanning L3 boundary
+ */
+TEST(xlat_low_va, xlat_low_va_reserve_multi_pa_cross_l3_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Reserve 4MB (spans 2 L3 tables), populate first 2MB with PA1
+	 * and second 2MB with PA2 (non-contiguous), commit, verify.
+	 ******************************************************************/
+
+	const size_t l3_size = XLAT_BLOCK_SIZE(2); /* 2MB */
+	const size_t total_size = 2UL * l3_size;
+	uintptr_t pa1 = 0x400000UL;
+	uintptr_t pa2 = 0x800000UL; /* Non-contiguous */
+	uintptr_t reserved_va = 0;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	ret = xlat_low_va_reserve(total_size, &reserved_va);
+	CHECK_EQUAL(0, ret);
+
+	/* Populate first L3 table region */
+	ret = xlat_low_va_populate(reserved_va, pa1, l3_size,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(0, ret);
+
+	/* Populate second L3 table region */
+	ret = xlat_low_va_populate(reserved_va + l3_size, pa2, l3_size,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(0, ret);
+
+	/* Commit all */
+	ret = xlat_low_va_commit(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	/* Walk stops at L3 boundary due to PA discontinuity */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(l3_size, contig_size);
+	CHECK_EQUAL(pa1, pa_out);
+
+	/* Second region also valid */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va + l3_size,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(l3_size, contig_size);
+	CHECK_EQUAL(pa2, pa_out);
+
+	ret = xlat_low_va_unmap(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
