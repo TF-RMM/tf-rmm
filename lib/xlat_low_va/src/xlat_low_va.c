@@ -597,3 +597,13 @@ int xlat_low_va_commit(uintptr_t va, size_t size)
 {
 	return xlat_commit_va_l3_region(&g_va_info.dyn_va_ctx, va, size);
 }
+
+int xlat_low_va_decommit(uintptr_t va, size_t size)
+{
+	return xlat_decommit_va_l3_region(&g_va_info.dyn_va_ctx, va, size);
+}
+
+int xlat_low_va_unreserve(uintptr_t va, size_t size)
+{
+	return xlat_unreserve_va_l3_region(&g_va_info.dyn_va_ctx, va, size);
+}

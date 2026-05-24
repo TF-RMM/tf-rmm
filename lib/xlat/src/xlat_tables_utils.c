@@ -1395,3 +1395,143 @@ int xlat_commit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
 
 	return 0;
 }
+
+/*
+ * Decommit a committed VA range by clearing the VALID_DESC bit, making entries
+ * invisible to hardware. The VA reservation and PA/attribute data are retained.
+ * TLB is invalidated for the affected range.
+ */
+int xlat_decommit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
+{
+	int ret;
+	struct xlat_llt_info llt;
+	uintptr_t cur_va;
+	uintptr_t end_va;
+	uintptr_t l3_base_va = 0;
+	uint64_t *l3_table = NULL;
+
+	assert(ctx != NULL);
+	assert((ctx->cfg.init != false));
+	assert((ctx->tbls.init != false));
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(va) || !GRANULE_ALIGNED(size) || (size == 0U)) {
+		ERROR("%s: Invalid arguments: va=0x%lx size=0x%zx\n",
+		      __func__, va, size);
+		return -EINVAL;
+	}
+
+	cur_va = va;
+	end_va = va + size;
+
+	while (cur_va < end_va) {
+		if ((l3_table == NULL) || (cur_va >= (l3_base_va +
+				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+			ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
+			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
+				ERROR("%s: Failed to get L3 table for VA 0x%lx\n",
+				      __func__, cur_va);
+				return -EFAULT;
+			}
+			assert(llt.table != NULL);
+			l3_table = llt.table;
+			l3_base_va = llt.llt_base_va;
+		}
+
+		unsigned int idx = (unsigned int)((cur_va - l3_base_va) >>
+				XLAT_ADDR_SHIFT(XLAT_TABLE_LEVEL_MAX));
+		assert(idx < XLAT_TABLE_ENTRIES);
+
+		uint64_t desc = xlat_read_tte(&l3_table[idx]);
+
+		/* Entry must be committed (valid, allocated, transient) */
+		assert((desc & (TRANSIENT_DESC | VA_ALLOCATED_FLAG | VALID_DESC)) ==
+		       (TRANSIENT_DESC | VA_ALLOCATED_FLAG | VALID_DESC));
+
+		/* Clear VALID_DESC to make it invisible to hardware */
+		desc &= ~VALID_DESC;
+		xlat_write_tte(&l3_table[idx], desc);
+
+		cur_va += GRANULE_SIZE;
+	}
+
+	/* Invalidate TLB for the decommitted VA range */
+	XLAT_ARCH_TLBI_VA_RANGE(va, end_va, ish, GRANULE_SIZE);
+	XLAT_ARCH_TLBI_SYNC(ish);
+
+	return 0;
+}
+
+/*
+ * Release a VA reservation by resetting L3 entries back to free state
+ * (TRANSIENT_DESC only). Entries must not be valid (must be reserved,
+ * populated-but-uncommitted, or decommitted).
+ */
+int xlat_unreserve_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
+{
+	int ret;
+	struct xlat_llt_info llt;
+	uintptr_t cur_va;
+	uintptr_t end_va;
+	uintptr_t l3_base_va = 0;
+	uintptr_t prev_l3_base_va = 0;
+	uint64_t *l3_table = NULL;
+
+	assert(ctx != NULL);
+	assert((ctx->cfg.init != false));
+	assert((ctx->tbls.init != false));
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(va) || !GRANULE_ALIGNED(size) || (size == 0U)) {
+		ERROR("%s: Invalid arguments: va=0x%lx size=0x%zx\n",
+		      __func__, va, size);
+		return -EINVAL;
+	}
+
+	cur_va = va;
+	end_va = va + size;
+
+	while (cur_va < end_va) {
+		if ((l3_table == NULL) || (cur_va >= (l3_base_va +
+				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+			/* Update parent flags for previous L3 table */
+			if (l3_table != NULL) {
+				update_parent_flags(ctx, prev_l3_base_va, false);
+			}
+
+			ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
+			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
+				ERROR("%s: Failed to get L3 table for VA 0x%lx\n",
+				      __func__, cur_va);
+				return -EFAULT;
+			}
+			assert(llt.table != NULL);
+			l3_table = llt.table;
+			l3_base_va = llt.llt_base_va;
+			prev_l3_base_va = l3_base_va;
+		}
+
+		unsigned int idx = (unsigned int)((cur_va - l3_base_va) >>
+				XLAT_ADDR_SHIFT(XLAT_TABLE_LEVEL_MAX));
+		assert(idx < XLAT_TABLE_ENTRIES);
+
+		uint64_t desc __unused = xlat_read_tte(&l3_table[idx]);
+
+		/* Entry must be allocated and not valid */
+		assert((desc & (TRANSIENT_DESC | VA_ALLOCATED_FLAG)) ==
+		       (TRANSIENT_DESC | VA_ALLOCATED_FLAG));
+		assert((desc & VALID_DESC) == 0ULL);
+
+		/* Reset to free state */
+		xlat_write_tte(&l3_table[idx], TRANSIENT_DESC);
+
+		cur_va += GRANULE_SIZE;
+	}
+
+	/* Update parent flags for the last L3 table */
+	if (l3_table != NULL) {
+		update_parent_flags(ctx, prev_l3_base_va, false);
+	}
+
+	return 0;
+}

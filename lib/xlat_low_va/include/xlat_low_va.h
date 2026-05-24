@@ -156,4 +156,35 @@ int xlat_low_va_populate(uintptr_t va, uintptr_t pa, size_t size, uint64_t attr)
  */
 int xlat_low_va_commit(uintptr_t va, size_t size);
 
+/*
+ * Decommit a previously committed VA region, making entries invalid to
+ * hardware while retaining the VA reservation and PA/attribute data.
+ * The region can be re-committed later with xlat_low_va_commit.
+ * TLB is invalidated for the affected range.
+ *
+ * Arguments:
+ *   - va: Starting VA to decommit (must be granule-aligned).
+ *   - size: Size to decommit (must be granule-aligned, > 0).
+ *
+ * Returns:
+ *   - 0 on success.
+ *   - Negative error code on failure.
+ */
+int xlat_low_va_decommit(uintptr_t va, size_t size);
+
+/*
+ * Release a VA reservation, returning the VA space to the free pool.
+ * The region must not be valid (must be reserved, populated-but-uncommitted,
+ * or decommitted). Use xlat_low_va_decommit first if the region is live.
+ *
+ * Arguments:
+ *   - va: Starting VA to unreserve (must be granule-aligned).
+ *   - size: Size to unreserve (must be granule-aligned, > 0).
+ *
+ * Returns:
+ *   - 0 on success.
+ *   - Negative error code on failure.
+ */
+int xlat_low_va_unreserve(uintptr_t va, size_t size);
+
 #endif /* XLAT_LOW_VA_H */

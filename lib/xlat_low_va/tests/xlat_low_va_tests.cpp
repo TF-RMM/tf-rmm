@@ -1754,3 +1754,259 @@ TEST(xlat_low_va, xlat_low_va_reserve_multi_pa_cross_l3_TC1)
 	ret = xlat_low_va_unmap(reserved_va, total_size);
 	CHECK_EQUAL(0, ret);
 }
+
+/*
+ * Test: Decommit makes entries invalid but preserves reservation
+ */
+TEST(xlat_low_va, xlat_low_va_decommit_basic_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Reserve, populate, commit, then decommit. Verify entries become
+	 * invisible to hardware but VA is still reserved (not reused).
+	 * Then re-commit and verify mapping is live again.
+	 ******************************************************************/
+
+	const size_t total_size = 4UL * GRANULE_SIZE;
+	uintptr_t test_pa = 0xF0000UL;
+	uintptr_t reserved_va = 0;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	/* Reserve + populate + commit */
+	ret = xlat_low_va_reserve(total_size, &reserved_va);
+	CHECK_EQUAL(0, ret);
+	ret = xlat_low_va_populate(reserved_va, test_pa, total_size,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(0, ret);
+	ret = xlat_low_va_commit(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	/* Verify accessible */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(total_size, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	/* Decommit */
+	ret = xlat_low_va_decommit(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	/* Verify NOT accessible */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(0UL, contig_size);
+
+	/* Verify VA is still reserved - new map should not overlap */
+	uintptr_t other_va = xlat_low_va_map(GRANULE_SIZE, MT_RW_DATA | MT_REALM,
+					     0x100000UL, false);
+	CHECK_TRUE(other_va != 0UL);
+	CHECK_TRUE((other_va + GRANULE_SIZE <= reserved_va) ||
+		   (other_va >= reserved_va + total_size));
+	ret = xlat_low_va_unmap(other_va, GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+
+	/* Re-commit and verify accessible again */
+	ret = xlat_low_va_commit(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(total_size, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	/* Cleanup */
+	ret = xlat_low_va_unmap(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Partial decommit within a committed region
+ */
+TEST(xlat_low_va, xlat_low_va_decommit_partial_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Commit 4 pages, decommit only the middle 2, verify first and
+	 * last pages remain accessible while middle 2 are not.
+	 ******************************************************************/
+
+	const size_t total_size = 4UL * GRANULE_SIZE;
+	uintptr_t test_pa = 0x110000UL;
+	uintptr_t reserved_va = 0;
+	uintptr_t pa_out = 0;
+	size_t contig_size;
+	int ret;
+
+	ret = xlat_low_va_reserve(total_size, &reserved_va);
+	CHECK_EQUAL(0, ret);
+	ret = xlat_low_va_populate(reserved_va, test_pa, total_size,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(0, ret);
+	ret = xlat_low_va_commit(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	/* Decommit middle 2 pages */
+	ret = xlat_low_va_decommit(reserved_va + GRANULE_SIZE, 2UL * GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+
+	/* First page still accessible */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(GRANULE_SIZE, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	/* Last page still accessible */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va + (3UL * GRANULE_SIZE),
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(GRANULE_SIZE, contig_size);
+	CHECK_EQUAL(test_pa + (3UL * GRANULE_SIZE), pa_out);
+
+	/* Middle pages not accessible */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va + GRANULE_SIZE,
+				reserved_va + (3UL * GRANULE_SIZE), &pa_out);
+	CHECK_EQUAL(0UL, contig_size);
+
+	/* Re-commit middle and verify full region accessible */
+	ret = xlat_low_va_commit(reserved_va + GRANULE_SIZE, 2UL * GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(total_size, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	ret = xlat_low_va_unmap(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*****************************************************************************
+ * Tests for xlat_low_va_unreserve
+ ****************************************************************************/
+
+/*
+ * Test: Unreserve a reserved-only region (not populated)
+ */
+TEST(xlat_low_va, xlat_low_va_unreserve_reserved_only_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Reserve a region, then unreserve it without populating.
+	 * Verify the VA becomes available for new allocations.
+	 ******************************************************************/
+
+	const size_t total_size = 4UL * GRANULE_SIZE;
+	uintptr_t reserved_va = 0;
+	uintptr_t new_va;
+	int ret;
+
+	ret = xlat_low_va_reserve(total_size, &reserved_va);
+	CHECK_EQUAL(0, ret);
+	CHECK_TRUE(reserved_va != 0UL);
+
+	/* Unreserve */
+	ret = xlat_low_va_unreserve(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	/* The freed VA should now be reusable by the allocator */
+	new_va = xlat_low_va_map(total_size, MT_RW_DATA | MT_REALM,
+				 0x120000UL, false);
+	CHECK_TRUE(new_va != 0UL);
+	/* The allocator should reuse the freed VA */
+	CHECK_EQUAL(reserved_va, new_va);
+
+	ret = xlat_low_va_unmap(new_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Unreserve a populated-but-uncommitted region
+ */
+TEST(xlat_low_va, xlat_low_va_unreserve_populated_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Reserve and populate a region (but don't commit), then unreserve.
+	 * Verify VA is freed.
+	 ******************************************************************/
+
+	const size_t total_size = 2UL * GRANULE_SIZE;
+	uintptr_t reserved_va = 0;
+	uintptr_t new_va;
+	int ret;
+
+	ret = xlat_low_va_reserve(total_size, &reserved_va);
+	CHECK_EQUAL(0, ret);
+
+	ret = xlat_low_va_populate(reserved_va, 0x130000UL, total_size,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(0, ret);
+
+	/* Unreserve without committing */
+	ret = xlat_low_va_unreserve(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	/* VA should be reusable */
+	new_va = xlat_low_va_map(total_size, MT_RW_DATA | MT_REALM,
+				 0x140000UL, false);
+	CHECK_TRUE(new_va != 0UL);
+	CHECK_EQUAL(reserved_va, new_va);
+
+	ret = xlat_low_va_unmap(new_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Unreserve a decommitted region
+ */
+TEST(xlat_low_va, xlat_low_va_unreserve_decommitted_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Reserve, populate, commit, decommit, then unreserve.
+	 * Verify the full lifecycle works and VA is freed at the end.
+	 ******************************************************************/
+
+	const size_t total_size = 4UL * GRANULE_SIZE;
+	uintptr_t test_pa = 0x150000UL;
+	uintptr_t reserved_va = 0;
+	uintptr_t pa_out = 0;
+	uintptr_t new_va;
+	size_t contig_size;
+	int ret;
+
+	/* Full lifecycle: reserve → populate → commit */
+	ret = xlat_low_va_reserve(total_size, &reserved_va);
+	CHECK_EQUAL(0, ret);
+	ret = xlat_low_va_populate(reserved_va, test_pa, total_size,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(0, ret);
+	ret = xlat_low_va_commit(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	/* Verify live */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(total_size, contig_size);
+
+	/* Decommit */
+	ret = xlat_low_va_decommit(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	/* Unreserve */
+	ret = xlat_low_va_unreserve(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	/* VA should be reusable */
+	new_va = xlat_low_va_map(total_size, MT_RW_DATA | MT_REALM,
+				 0x160000UL, false);
+	CHECK_TRUE(new_va != 0UL);
+	CHECK_EQUAL(reserved_va, new_va);
+
+	ret = xlat_low_va_unmap(new_va, total_size);
+	CHECK_EQUAL(0, ret);
+}

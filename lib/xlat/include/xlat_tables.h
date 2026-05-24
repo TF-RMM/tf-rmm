@@ -531,5 +531,39 @@ int xlat_populate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va,
  */
 int xlat_commit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size);
 
+/*
+ * Decommit a previously committed VA range, making the descriptors invalid
+ * to hardware while retaining the VA reservation and PA/attribute information.
+ * The entries can be re-committed later with xlat_commit_va_l3_region.
+ *
+ * TLB invalidation is performed for the affected range.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context.
+ *   - va: Starting VA to decommit (must be granule-aligned).
+ *   - size: Size to decommit (must be granule-aligned).
+ *
+ * Return:
+ *   - 0 on success.
+ *   - Negative error code on failure (-EFAULT, -EINVAL).
+ */
+int xlat_decommit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size);
+
+/*
+ * Release a VA reservation, making the entries free for future allocations.
+ * The entries must not be valid (i.e. must be reserved, populated-but-uncommitted,
+ * or decommitted). Use xlat_decommit_va_l3_region first if the entries are live.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context.
+ *   - va: Starting VA to unreserve (must be granule-aligned).
+ *   - size: Size to unreserve (must be granule-aligned).
+ *
+ * Return:
+ *   - 0 on success.
+ *   - Negative error code on failure (-EFAULT, -EINVAL).
+ */
+int xlat_unreserve_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size);
+
 #endif /*__ASSEMBLER__*/
 #endif /* XLAT_TABLES_H */
