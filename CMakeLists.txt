@@ -52,7 +52,7 @@ include("cmake/BuildType.cmake")
 # and also where the project directory and version variables are set up.
 #
 
-project(RMM VERSION 0.8.0 LANGUAGES C CXX ASM)
+project(RMM VERSION 0.9.0 LANGUAGES C CXX ASM)
 
 #
 # Set global flags.
