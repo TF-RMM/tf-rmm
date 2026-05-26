@@ -668,6 +668,10 @@ static void app_run_internal(struct app_data_cfg *app_data,
 	}
 
 	write_hcr_el2(HCR_EL2_APP);
+	/*
+	 * No ISB needed here: run_app() will issue a context
+	 * synchronization event as part of entering EL0 app.
+	 */
 
 	assert(app_reg_ctx != NULL);
 

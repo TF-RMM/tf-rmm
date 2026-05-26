@@ -168,7 +168,7 @@ int xlat_arch_setup_mmu_cfg(struct xlat_ctx * const ctx, struct xlat_mmu_cfg *mm
 	/*
 	 * ASID and hierarchical permissions.
 	 */
-	tcr |= TCR_EL2_AS | TCR_EL2_HPD0 | TCR_EL2_HPD1;
+	tcr |= TCR_EL2_AS | TCR_EL2_HPD0 | TCR_EL2_HPD1 | TCR_EL2_E0PD0;
 
 	/* The current ASID is defined by TTBR1_EL2 */
 	tcr |= TCR_EL2_A1;

@@ -1,6 +1,8 @@
 .. SPDX-License-Identifier: BSD-3-Clause
 .. SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 
+.. _el0_apps_in_rmm:
+
 ###############
 EL0 apps in RMM
 ###############
@@ -121,6 +123,8 @@ as well.
 
 |RMM bin generation|
 
+.. _el0_app_instance:
+
 ****************
 RMM App Instance
 ****************
@@ -128,6 +132,9 @@ RMM App Instance
 In this document app instance refers to an execution context, along with the
 necessary memory that is allocated for it. In operating system terms, a thread
 is analogous to an EL0 App instance.
+
+For ASID allocation and TLB maintenance related to app instances, see
+:ref:`el0_app_tlb_asid_instance_model`.
 
 To manage and run an RMM app instance, RMM core needs memory for the following
 purposes:
