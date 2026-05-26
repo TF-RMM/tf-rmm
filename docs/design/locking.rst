@@ -286,6 +286,25 @@ locking/refcount implementation:
   locking order for DATA granules is: RD -> RTT -> RTT -> ... -> DATA.
   No reference counts are held on this granule type.
 
+* **Internal:** These are granules owned by |RMM| for internal use which do not
+  yet have a more specific granule state. This state is currently used by the
+  SMMU driver for donated PSMMU memory while it is staged for driver use, or
+  after a driver object has been torn down and before the memory is reclaimed by
+  the host. No reference counts are held on this granule type.
+
+* **PSMMU L2 Stream Table:** These are granules containing SMMUv3 Level 2
+  Stream Tables. Granule content access is protected by the SMMUv3 device lock.
+  A reference count is held on this granule for each configured Stream Table
+  Entry in the L2 table. The L2 table can only be destroyed when the reference
+  count is zero.
+
+  When an SMMUv3 device lock and a PSMMU granule lock are both required, the
+  SMMUv3 device lock must be acquired before locking granules in
+  ``GRANULE_STATE_INTERNAL`` or ``GRANULE_STATE_PSMMU_ST_L2``. Donation and
+  reclaim paths may lock ``GRANULE_STATE_INTERNAL`` granules without holding an
+  SMMUv3 device lock, but must not acquire an SMMUv3 device lock while holding
+  such a granule lock.
+
 
 Locking
 ********
@@ -539,6 +558,8 @@ classified into two categories:
 
 	- GRANULE_STATE_RTT
 	- GRANULE_STATE_DATA
+	- GRANULE_STATE_INTERNAL
+	- GRANULE_STATE_PSMMU_ST_L2
 	- DEV_GRANULE_STATE_MAPPED
 
 We now state the locking guidelines for |RMM| as:
@@ -557,10 +578,12 @@ We now state the locking guidelines for |RMM| as:
    granule must be unlocked and no further granules may be locked within the
    currently-executing RMM command.
 
-#. Granules in an `internal` state must be locked in order of state:
+#. Granules in the following `internal` states must be locked in order of state:
 
 	- `RTT`
 	- `DATA`
+	- `INTERNAL`
+	- `PSMMU_ST_L2`
 
 #. Granules in the same `internal` state must be locked in the
    :ref:`locking_impl` defined order for that specific state.

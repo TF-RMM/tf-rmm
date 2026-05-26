@@ -18,8 +18,6 @@
 enum psmmu_l1_mem_range {
 	/* L1 Stream Table */
 	PSMMU_MEM_RANGE_L1_ST = 0U,
-	/* l2strtab[] array (one entry per L1STD, same size as L1 table) */
-	PSMMU_MEM_RANGE_L2_DS,
 	/* SMMUv3 Command queue */
 	PSMMU_MEM_RANGE_CMDQ,
 	/* SMMUv3 Event queue */
@@ -43,8 +41,7 @@ void smmuv3_psmmu_set_inactive(struct smmuv3_dev *smmu);
  * in the PSMMU_BUSY state. They do not acquire or release the lock.
  */
 size_t smmuv3_psmmu_strtab_size(struct smmuv3_dev *smmu);
-int smmuv3_psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa,
-				uintptr_t l2_ds_pa);
+int smmuv3_psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa);
 int smmuv3_psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
 				 uintptr_t evtq_pa);
 int smmuv3_psmmu_activate(struct smmuv3_dev *smmu);

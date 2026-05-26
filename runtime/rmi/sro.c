@@ -146,6 +146,8 @@ void smc_op_mem_donate(unsigned long handle,
 	struct sro_context *sro;
 	unsigned long list_offset;
 	unsigned long total_mem = 0UL;
+	unsigned long mem_req = RMI_OP_MEM_REQ_NONE;
+	return_code_t rc;
 
 	found = sro_ctx_find(handle);
 	if (!found) {
@@ -203,9 +205,33 @@ void smc_op_mem_donate(unsigned long handle,
 		goto donate_end;
 	}
 
+	/*
+	 * A contiguous donation has no per-granule re-request path: the
+	 * callback consumes the block in one go. Allow an empty list (no
+	 * progress), but reject any partial delivery.
+	 */
+	if (sro->is_contig && (total_mem != 0UL) &&
+	    (total_mem != sro->transfer_req)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		goto donate_end;
+	}
+
 	sro->range_desc_count = list_count;
 	rmi_op_dispatch(SMC_RMI_OP_MEM_DONATE, res);
-	assert((res->x[1] * GRANULE_SIZE) <= total_mem);
+
+	rc = unpack_return_code(res->x[0]);
+	if (rc.status == RMI_INCOMPLETE) {
+		mem_req = EXTRACT(RMI_OP_MEM_REQ, res->x[0]);
+	}
+
+	/*
+	 * When the callback switches to MEM_REQ_RECLAIM after a failed
+	 * donation, x[1] reports the total memory to reclaim (accumulated
+	 * across earlier ranges), not granules consumed from this donation.
+	 */
+	if (mem_req != RMI_OP_MEM_REQ_RECLAIM) {
+		assert((res->x[1] * GRANULE_SIZE) <= total_mem);
+	}
 
 donate_end:
 	(void)sro_ctx_seal();

@@ -22,7 +22,8 @@ bool valid_granule_unlocked_state(unsigned char value)
 			|| value == GRANULE_STATE_REC
 			|| value == GRANULE_STATE_REC_AUX
 			|| value == GRANULE_STATE_DATA
-			|| value == GRANULE_STATE_RTT;
+			|| value == GRANULE_STATE_RTT
+			|| value == GRANULE_STATE_PSMMU_ST_L2;
 }
 
 /* Ref to `__granule_assert_unlocked_invariants` function in `granule.h`. */
@@ -46,6 +47,8 @@ bool valid_granule(struct granule value)
 	case GRANULE_STATE_REC: return granule_refcount_read(&value) <= 1;
 	case GRANULE_STATE_RTT: return granule_refcount_read(&value) >= 0 &&
 		granule_refcount_read(&value) <= REFCOUNT_MAX;
+	case GRANULE_STATE_PSMMU_ST_L2:
+		return granule_refcount_read(&value) <= PSMMU_ST_L2_REFCOUNT_MAX;
 	case GRANULE_STATE_RD: return true;
 	default: return false;
 	}

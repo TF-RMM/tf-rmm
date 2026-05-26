@@ -8,6 +8,7 @@
 #ifndef SMMUV3_PRIV_H
 #define SMMUV3_PRIV_H
 
+#include <assert.h>
 #include <debug.h>
 #include <spinlock.h>
 #include <utils_def.h>
@@ -22,6 +23,25 @@ typedef __uint128_t	uint128_t;
 
 #define FAILED_MAP	"Failed to map %s"
 #define FAILED_RESERVE	"Failed to reserve memory for %s"
+
+/*
+ * Bit 0 tag for VA fields in smmuv3_dev.
+ *
+ * After reserving a VA region, bit 0 is set in the pre-existing field to
+ * indicate "reserved but not committed".  After commit, the field holds
+ * the effective (granule-aligned) VA with bit 0 clear.  After decommit,
+ * bit 0 is set again to mark the field as uncommitted while retaining the
+ * reserved VA.
+ *
+ * This avoids duplicating VA fields for the reserve/populate/commit model.
+ * Since all VAs are granule-aligned, bit 0 is always available as a tag.
+ */
+#define SMMU_VA_UNCOMMITTED	1UL
+#define smmu_va_is_committed(field) \
+	((((uintptr_t)(field) & SMMU_VA_UNCOMMITTED) == 0UL) && \
+	 ((uintptr_t)(field) != 0UL))
+#define smmu_va_mark_reserved(va)	((va) | SMMU_VA_UNCOMMITTED)
+#define smmu_va_get_reserved(field)	((uintptr_t)(field) & ~SMMU_VA_UNCOMMITTED)
 
 #define SMMU_ERROR(smmu, fmt, ...)			\
 	do {						\
@@ -411,6 +431,9 @@ typedef __uint128_t	uint128_t;
 /* L1 Stream Table Descriptor size */
 #define STRTAB_L1_DESC_SIZE	8U
 
+/* Fixed split point for granule-sized L2 Stream Tables */
+#define SMMU_STRTAB_SPLIT	U(6)
+
 /* Maximum number of STEs per L1STD descriptor */
 #define STRTAB_L1_STE_MAX	(UL(1) << SMMU_STRTAB_SPLIT)
 
@@ -422,15 +445,6 @@ typedef __uint128_t	uint128_t;
 
 /* Index to point STE in Level 2 table */
 #define L2STE_IDX(sid)		((sid) & ((U(1) << SMMU_STRTAB_SPLIT) - 1U))
-
-/*
- * L2 Stream Table descriptor.
- * Maximum number of allocated STEs 2^SMMU_STRTAB_SPLIT = 64.
- */
-#define L2DESC_STE_CNT_SHIFT	U(0)
-#define L2DESC_STE_CNT_WIDTH	GRANULE_SHIFT
-#define L2DESC_VA_SHIFT		L2DESC_STE_CNT_WIDTH
-#define L2DESC_VA_WIDTH		(64U - L2DESC_VA_SHIFT)
 
 #define MAX_RETRIES		100000U
 
@@ -496,34 +510,23 @@ struct smmuv3_dev {
 	 * Stored during PSMMU activation for reclaim during deactivation.
 	 */
 	uintptr_t l1_st_pa;	/* L1 Stream Table base */
-	uintptr_t l2_ds_pa;	/* l2strtab[] descriptors base */
 	uintptr_t cmdq_pa;	/* Command queue */
 	uintptr_t evtq_pa;	/* Event queue */
 
-	/* Virtual address and size of the L1 Stream Table */
-	uint64_t *strtab_base;
-	size_t strtab_size;
+	/*
+	 * Reserved VA for L2 table pool, allocated at boot in
+	 * smmuv3_init(). Individual L2 tables are committed at
+	 * l2_pool_va + l1_idx * GRANULE_SIZE.
+	 */
+	uintptr_t l2_pool_va;
 
 	/*
-	 * Array of L2 Stream Table descriptors, one entry per L1STD.
-	 * Each entry packs two fields into a single uintptr_t:
-	 *
-	 *   bits [L2DESC_STE_CNT_WIDTH-1 : L2DESC_STE_CNT_SHIFT]
-	 *       Number of allocated STEs in the L2 table.
-	 *       L2DESC_STE_CNT_WIDTH = GRANULE_SHIFT (12 bits), which is
-	 *       sufficient because the maximum STE count per L2 table is
-	 *       2^SMMU_STRTAB_SPLIT (= 64).
-	 *
-	 *   bits [63 : L2DESC_VA_SHIFT]
-	 *       Virtual address of the mapped L2 Stream Table.
-	 *       L2 tables are always granule-aligned, so their low
-	 *       GRANULE_SHIFT bits are always zero and are free to
-	 *       hold the STE count without loss of information.
-	 *
-	 * Use the L2DESC_STE_CNT and L2DESC_VA field macros to
-	 * extract or compose each field with MASK()/INPLACE()/EXTRACT().
+	 * Virtual address of the L1 Stream Table.
+	 * Uses bit-0 tagging (SMMU_VA_UNCOMMITTED): after reserve, bit 0
+	 * is set; after commit, holds the effective VA with bit 0 clear.
 	 */
-	uintptr_t *l2strtab;
+	uint64_t *strtab_base;
+	size_t strtab_size;
 
 	/*
 	 * Ref count for L1 Stream Table. It indicates the number of
@@ -558,6 +561,21 @@ struct smmuv3_driv {
 	/* Indicates whether the driver is initialized */
 	bool is_init;
 };
+
+static inline uintptr_t smmu_l2tab_va(struct smmuv3_dev *smmu,
+				      unsigned long l1_idx)
+{
+	assert(smmu != NULL);
+	return smmu->l2_pool_va + (l1_idx * GRANULE_SIZE);
+}
+
+static inline uintptr_t smmu_l1std_l2tab_pa(struct smmuv3_dev *smmu,
+					    unsigned long l1_idx)
+{
+	assert(smmu != NULL);
+	assert(smmu_va_is_committed(smmu->strtab_base));
+	return smmu->strtab_base[l1_idx] & MASK(STRTAB_L1_DESC_L2PTR);
+}
 
 bool get_smmu_broadcast_tlb(void);
 struct smmuv3_driv *get_smmuv3_driver(void);

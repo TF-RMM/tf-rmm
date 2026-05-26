@@ -52,11 +52,10 @@
 /*
  * Number of memory ranges to donate for PSMMU activation:
  *   - L1 Stream Table
- *   - L2 Stream Table descriptors
  *   - SMMUv3 Command queue
  *   - SMMUv3 Event queue
  */
-#define SRO_PSMMU_RANGES	4U
+#define SRO_PSMMU_RANGES	3U
 
 /*
  * Data structure with the information to continue a REC related operation.
@@ -81,8 +80,6 @@ struct sro_psmmu_range {
 
 	/*
 	 * Base physical address of the donated range.
-	 * Since each range is contiguous, the base PA is sufficient
-	 * to reconstruct all individual granule PAs.
 	 */
 	uintptr_t base;
 };

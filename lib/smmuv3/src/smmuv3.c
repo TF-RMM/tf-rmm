@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <bitmap.h>
 #include <errno.h>
+#include <granule.h>
 #include <mec.h>
 #include <mmio.h>
 #include <rmm_el3_ifc.h>
@@ -28,6 +29,9 @@ COMPILER_ASSERT_NO_CBMC(MAX_LOG2_CMD_QUEUE_SIZE ==
 
 COMPILER_ASSERT_NO_CBMC(MAX_LOG2_EVT_QUEUE_SIZE ==
 		(GRANULE_SHIFT - U(__builtin_ctz(EVT_RECORD_SIZE))));
+
+COMPILER_ASSERT_NO_CBMC(STRTAB_L1_STE_MAX == PSMMU_ST_L2_REFCOUNT_MAX);
+COMPILER_ASSERT_NO_CBMC(STRTAB_L2_SIZE == GRANULE_SIZE);
 
 /*
  * SMMU_IDR5.OAS, bits [2:0].
@@ -178,11 +182,9 @@ uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
 /* Get address of STE */
 static inline struct ste_entry *sid_to_ste(struct smmuv3_dev *smmu, unsigned int sid)
 {
-	/* Get virtual address of L2 Stream Table */
-	assert(smmu->l2strtab != NULL);
-	/* coverity[null_field:SUPPRESS] */
-	struct l2tab *ptr = (struct l2tab *)(smmu->l2strtab[L1STD_IDX(sid)] &
-						MASK(L2DESC_VA));
+	struct l2tab *ptr;
+
+	ptr = (struct l2tab *)smmu_l2tab_va(smmu, (unsigned long)L1STD_IDX(sid));
 	assert(ptr != NULL);
 	return &ptr->l2tab_entry[L2STE_IDX(sid)];
 }
@@ -414,7 +416,7 @@ static int send_cmd(struct smmuv3_dev *smmu, uint128_t cmd)
 	uint32_t prod_reg;
 	unsigned int retries = MAX_RETRIES;
 
-	assert(smmu->cmdq.q_base != 0UL);
+	assert(smmu_va_is_committed(smmu->cmdq.q_base));
 	assert(smmu->cmdq.prod_reg != NULL);
 	assert(smmu->cmdq.cons_reg != NULL);
 
@@ -535,11 +537,24 @@ int inval_cached_ste(struct smmuv3_dev *smmu, unsigned long sid,
 	return wait_cmdq_empty(smmu);
 }
 
+static void clear_ste(struct ste_entry *ste_ptr)
+{
+	assert(ste_ptr != NULL);
+
+	ste_ptr->ste[0] = 0UL;
+	ste_ptr->ste[1] = 0UL;
+	ste_ptr->ste[2] = 0UL;
+	ste_ptr->ste[3] = 0UL;
+	ste_ptr->ste[4] = 0UL;
+	dsb(ish);
+}
+
 static int configure_ste(struct smmuv3_dev *smmu, unsigned int sid,
 			 struct ste_entry *ste_ptr,
 			 const struct smmu_stg2_config *s2_cfg)
 {
 	unsigned long ds, sl2;
+	int ret;
 
 	assert(smmu != NULL);
 	assert(ste_ptr != NULL);
@@ -586,7 +601,12 @@ static int configure_ste(struct smmuv3_dev *smmu, unsigned int sid,
 	dsb(ish);
 
 	/* Invalidate configuration structure */
-	return inval_cached_ste(smmu, sid, true);
+	ret = inval_cached_ste(smmu, sid, true);
+	if (ret != 0) {
+		clear_ste(ste_ptr);
+	}
+
+	return ret;
 }
 
 static int inval_cfg_tlbs(struct smmuv3_dev *smmu)
@@ -1005,8 +1025,9 @@ static int change_ste(unsigned int smmu_idx, unsigned int sid, bool enable)
 		return -EINVAL;
 	}
 
+	assert(smmu_va_is_committed(smmu->strtab_base));
+
 	/* Check that L2 table is allocated */
-	assert(smmu->strtab_base != NULL);
 	if (smmu->strtab_base[l1_idx] == 0UL) {
 		spinlock_release(&smmu->lock);
 		SMMU_ERROR(smmu, "STRTAB L2 for SID 0x%x not found\n", sid);
@@ -1052,7 +1073,9 @@ int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid)
 {
 	struct smmuv3_dev *smmu;
 	struct ste_entry *ste_ptr;
+	struct granule *g_l2tab;
 	unsigned int l1_idx;
+	uintptr_t l2tab_pa;
 	int ret;
 
 	SMMU_DEBUG("%s(0x%x)\n", __func__, sid);
@@ -1074,16 +1097,21 @@ int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid)
 		return -EINVAL;
 	}
 
+	assert(smmu_va_is_committed(smmu->strtab_base));
+
 	/* Check that L2 table was allocated */
-	assert(smmu->strtab_base != NULL);
 	if (smmu->strtab_base[l1_idx] == 0UL) {
 		spinlock_release(&smmu->lock);
 		SMMU_ERROR(smmu, "STRTAB L2 for SID 0x%x not found\n", sid);
 		return -EINVAL;
 	}
 
-	/* Check number of allocated STEs */
-	if ((smmu->l2strtab[l1_idx] & MASK(L2DESC_STE_CNT)) == 0U) {
+	l2tab_pa = smmu_l1std_l2tab_pa(smmu, l1_idx);
+	g_l2tab = find_lock_granule(l2tab_pa, GRANULE_STATE_PSMMU_ST_L2);
+	assert(g_l2tab != NULL);
+
+	if (granule_refcount_read(g_l2tab) == 0U) {
+		granule_unlock(g_l2tab);
 		spinlock_release(&smmu->lock);
 		SMMU_ERROR(smmu, "No STEs in STRTAB L2 for SID 0x%x\n", sid);
 		return -EINVAL;
@@ -1094,6 +1122,7 @@ int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid)
 
 	/* Check that STE is not valid, e.g. smmuv3_disable_ste() was called */
 	if ((ste_ptr->ste[0] & STE0_V_BIT) != 0UL) {
+		granule_unlock(g_l2tab);
 		spinlock_release(&smmu->lock);
 		SMMU_ERROR(smmu, "Cannot release valid STE with SID 0x%x\n", sid);
 		return -EINVAL;
@@ -1104,15 +1133,11 @@ int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid)
 	 * Ensure that the context can no longer be used.
 	 * Clear S2 STE fields.
 	 */
-	ste_ptr->ste[0] = 0UL;
-	ste_ptr->ste[1] = 0UL;
-	ste_ptr->ste[2] = 0UL;
-	ste_ptr->ste[3] = 0UL;
-	ste_ptr->ste[4] = 0UL;
-	dsb(ish);
+	clear_ste(ste_ptr);
 
-	/* Decrement number of allocated STEs */
-	smmu->l2strtab[l1_idx]--;
+	/* Decrement number of configured STEs */
+	atomic_granule_put(g_l2tab);
+	granule_unlock(g_l2tab);
 
 	/* Invalidate configuration structure */
 	ret = inval_cached_ste(smmu, sid, true);
@@ -1140,7 +1165,9 @@ int smmuv3_configure_stream(unsigned long ecam_addr, unsigned int tdi_id,
 {
 	struct smmuv3_dev *smmu;
 	struct ste_entry *ste_ptr;
+	struct granule *g_l2tab;
 	unsigned int l1_idx, smmu_idx, sid;
+	uintptr_t l2tab_pa;
 	int ret;
 
 	assert(s2_cfg != NULL);
@@ -1177,8 +1204,9 @@ int smmuv3_configure_stream(unsigned long ecam_addr, unsigned int tdi_id,
 		return -EINVAL;
 	}
 
+	assert(smmu_va_is_committed(smmu->strtab_base));
+
 	/* Check that L2 table is allocated */
-	assert(smmu->strtab_base != NULL);
 	if (smmu->strtab_base[l1_idx] == 0UL) {
 		spinlock_release(&smmu->lock);
 		SMMU_ERROR(smmu, "STRTAB L2 for SID 0x%x not found\n", sid);
@@ -1195,13 +1223,22 @@ int smmuv3_configure_stream(unsigned long ecam_addr, unsigned int tdi_id,
 		return -EINVAL;
 	}
 
+	l2tab_pa = smmu_l1std_l2tab_pa(smmu, l1_idx);
+	g_l2tab = find_lock_granule(l2tab_pa, GRANULE_STATE_PSMMU_ST_L2);
+	assert(g_l2tab != NULL);
+
+	assert(granule_refcount_read(g_l2tab) < STRTAB_L1_STE_MAX);
+	/* Increment number of configured STEs */
+	atomic_granule_get(g_l2tab);
+	granule_unlock(g_l2tab);
+
 	ret = configure_ste(smmu, sid, ste_ptr, s2_cfg);
 	if (ret == 0) {
-		/* Increment number of allocated STEs */
-		smmu->l2strtab[l1_idx]++;
-
 		*sid_ptr = sid;
 		*idx_ptr = smmu_idx;
+	} else {
+		/* Roll back the refcount taken before writing the STE fields. */
+		atomic_granule_put_release(g_l2tab);
 	}
 
 	spinlock_release(&smmu->lock);
@@ -1212,7 +1249,9 @@ int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz)
 {
 	struct smmuv3_dev *smmu;
 	unsigned long num_smmus;
+	unsigned long num_l2_ents;
 	int ret;
+	uintptr_t reserved_va;
 
 	if ((driv_hdl == 0U) || (hdl_sz < sizeof(struct smmuv3_driv))) {
 		SMMU_DEBUG("Invalid SMMUv3 driver handle\n");
@@ -1277,6 +1316,46 @@ int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz)
 
 		ret = init_config(smmu);
 		if (ret != 0) {
+			goto err;
+		}
+
+		/* Reserve VA space for runtime structures */
+		ret = smmuv3_arch_reserve(smmu->strtab_size,
+						&reserved_va);
+		if (ret != 0) {
+			SMMU_ERROR(smmu,
+				"Failed to reserve VA for L1 StrTab\n");
+			goto err;
+		}
+		smmu->strtab_base = (uint64_t *)
+			smmu_va_mark_reserved(reserved_va);
+
+		ret = smmuv3_arch_reserve(GRANULE_SIZE, &reserved_va);
+		if (ret != 0) {
+			SMMU_ERROR(smmu,
+				"Failed to reserve VA for CMDQ\n");
+			goto err;
+		}
+		smmu->cmdq.q_base =
+			smmu_va_mark_reserved(reserved_va);
+
+		ret = smmuv3_arch_reserve(GRANULE_SIZE, &reserved_va);
+		if (ret != 0) {
+			SMMU_ERROR(smmu,
+				"Failed to reserve VA for EVTQ\n");
+			goto err;
+		}
+		smmu->evtq.q_base =
+			smmu_va_mark_reserved(reserved_va);
+
+		num_l2_ents = (1UL <<
+			(smmu->config.streamid_bits - SMMU_STRTAB_SPLIT));
+
+		ret = smmuv3_arch_reserve(num_l2_ents * GRANULE_SIZE,
+						&smmu->l2_pool_va);
+		if (ret != 0) {
+			SMMU_ERROR(smmu,
+				"Failed to reserve VA for L2 pool\n");
 			goto err;
 		}
 

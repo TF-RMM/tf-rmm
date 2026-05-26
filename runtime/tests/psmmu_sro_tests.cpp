@@ -67,7 +67,7 @@ static unsigned long get_psmmu_ptr(void)
  * Helper: perform a full donation phase for smc_psmmu_activate.
  *
  * After calling smc_psmmu_activate, the SRO flow requests multiple
- * memory ranges (L1 ST, L2 DS array, CMDQ, EVTQ). This helper drives
+ * memory ranges (L1 ST, CMDQ, EVTQ). This helper drives
  * the entire donation state machine until it reaches MEM_REQ_NONE
  * (ready for OP_CONTINUE).
  *
@@ -241,7 +241,7 @@ TEST(psmmu_sro_tests, deactivate_happy_path)
 	handle = res.x[1];
 
 	/* Reclaim all donated memory */
-	smc_op_mem_reclaim(handle, ns_buf, 6UL, &res);
+	smc_op_mem_reclaim(handle, ns_buf, 4UL, &res);
 	rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_INCOMPLETE, rc.status);
 	CHECK_EQUAL(RMI_OP_MEM_REQ_NONE,
@@ -255,9 +255,9 @@ TEST(psmmu_sro_tests, deactivate_happy_path)
 /* ----------------------------------------------------------------
  * TC4: PSMMU_ACTIVATE donation failure triggers reclaim.
  *
- * Start activate, donate correctly for the first range, then
- * send a non-delegated granule for the second range. This causes
- * the driver to trigger reclaim of all previously donated memory.
+ * Start activate, donate correctly for L1_ST, then send a non-delegated
+ * granule for CMDQ. This causes the driver to trigger reclaim of all
+ * previously donated memory.
  * ----------------------------------------------------------------
  */
 TEST(psmmu_sro_tests, activate_donation_failure_triggers_reclaim)
@@ -301,12 +301,12 @@ TEST(psmmu_sro_tests, activate_donation_failure_triggers_reclaim)
 	rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_INCOMPLETE, rc.status);
 
-	/* Next range should be requested (L2 DS) */
+	/* Next range should be requested (CMDQ - non-contiguous) */
 	unsigned long mem_req = EXTRACT(RMI_OP_MEM_REQ, res.x[0]);
 	CHECK_EQUAL(RMI_OP_MEM_REQ_DONATE, mem_req);
 
 	/*
-	 * Send a non-delegated granule for the second range.
+	 * Send a non-delegated granule for CMDQ.
 	 * This should fail and trigger reclaim.
 	 */
 	donate_req = res.x[2];
@@ -314,16 +314,12 @@ TEST(psmmu_sro_tests, activate_donation_failure_triggers_reclaim)
 	blk_count = EXTRACT(RMI_OP_DONATE_BLK_COUNT, donate_req);
 	blk_size_bytes = XLAT_BLOCK_SIZE((int)XLAT_TABLE_LEVEL_MAX - (int)blk_sz);
 	num_granules = (blk_count * blk_size_bytes) / GRANULE_SIZE;
+	CHECK_EQUAL(1UL, num_granules);
 
-	/* Delegate only the first granule; leave the 2nd undelegated */
-	uintptr_t bad_base = test_helpers_allocate_granules_aligned((unsigned int)num_granules);
-	CHECK_TRUE(delegate_range(bad_base, bad_base + GRANULE_SIZE));
+	uintptr_t bad_page = test_helpers_allocate_granules(1U);
+	/* NOT delegated — this will fail the donation */
 
-	addr_list[0] = INPLACE(RMI_ADDR_RDESC_4K_SZ, blk_sz) |
-		       INPLACE(RMI_ADDR_RDESC_4K_CNT, blk_count) |
-		       INPLACE(RMI_ADDR_RDESC_4K_ADDR,
-			       bad_base >> GRANULE_SHIFT) |
-		       INPLACE(RMI_ADDR_RDESC_4K_ST, RMI_OP_MEM_DELEGATED);
+	addr_list[0] = encode_addr_desc(bad_page, 1UL, RMI_OP_MEM_DELEGATED);
 
 	smc_op_mem_donate(handle, ns_buf, 1UL, &res);
 	rc = unpack_return_code(res.x[0]);
@@ -333,12 +329,31 @@ TEST(psmmu_sro_tests, activate_donation_failure_triggers_reclaim)
 	mem_req = EXTRACT(RMI_OP_MEM_REQ, res.x[0]);
 	CHECK_EQUAL(RMI_OP_MEM_REQ_RECLAIM, mem_req);
 
-	/* Perform the reclaim */
-	smc_op_mem_reclaim(handle, ns_buf, num_granules, &res);
+	/*
+	 * Perform the reclaim.
+	 * Total donated: 2 (L1_ST) granules.
+	 * They may be coalesced into fewer descriptors.
+	 */
+	smc_op_mem_reclaim(handle, ns_buf, 2UL, &res);
 	rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_INCOMPLETE, rc.status);
 	CHECK_EQUAL(RMI_OP_MEM_REQ_NONE,
 		    (unsigned long)EXTRACT(RMI_OP_MEM_REQ, res.x[0]));
+
+	/* At least one descriptor should have been returned */
+	CHECK_TRUE(res.x[1] > 0UL);
+
+	/* Verify total granules in descriptors sum to 2 */
+	unsigned long total_grans = 0UL;
+	for (unsigned long i = 0UL; i < res.x[1]; i++) {
+		unsigned long desc = addr_list[i];
+		unsigned long blk_sz = EXTRACT(RMI_ADDR_RDESC_4K_SZ, desc);
+		unsigned long blk_cnt = EXTRACT(RMI_ADDR_RDESC_4K_CNT, desc);
+		unsigned long blk_bytes =
+			XLAT_BLOCK_SIZE((int)XLAT_TABLE_LEVEL_MAX - (int)blk_sz);
+		total_grans += (blk_cnt * blk_bytes) / GRANULE_SIZE;
+	}
+	CHECK_EQUAL(2UL, total_grans);
 
 	/* OP_CONTINUE should return the error */
 	smc_op_continue(handle, 0UL, &res);
@@ -680,5 +695,3 @@ TEST(psmmu_sro_tests, activate_donate_empty_list)
 	smc_op_continue(handle, 0UL, &res);
 	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
 }
-
-
