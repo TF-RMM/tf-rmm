@@ -51,6 +51,23 @@ TEST_GROUP(xlat_low_va) {
 	}
 };
 
+static uint64_t xlat_low_va_read_dyn_desc(uintptr_t va)
+{
+	int ret;
+	struct xlat_llt_info llt;
+	uint64_t *tte;
+	struct xlat_low_va_info *info = xlat_get_low_va_info();
+
+	ret = xlat_get_llt_from_va(&llt, &info->dyn_va_ctx, va);
+	CHECK_EQUAL(0, ret);
+	CHECK_EQUAL(XLAT_TABLE_LEVEL_MAX, llt.level);
+
+	tte = xlat_get_tte_ptr(&llt, va);
+	CHECK_TRUE(tte != NULL);
+
+	return *tte;
+}
+
 /*
  * Test: xlat_get_low_va_info returns valid pointer
  */
@@ -1878,6 +1895,176 @@ TEST(xlat_low_va, xlat_low_va_decommit_partial_TC1)
 	CHECK_EQUAL(test_pa, pa_out);
 
 	ret = xlat_low_va_unmap(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*****************************************************************************
+ * Tests for xlat_low_va_depopulate
+ ****************************************************************************/
+
+/*
+ * Test: Depopulate populated-but-uncommitted VA entries
+ */
+TEST(xlat_low_va, xlat_low_va_depopulate_populated_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Reserve and populate a VA range without committing it, then
+	 * depopulate one page. Verify that the depopulated entry returns to
+	 * the reserved state while the adjacent populated entry is unchanged.
+	 ******************************************************************/
+
+	const size_t total_size = 2UL * GRANULE_SIZE;
+	uintptr_t test_pa = 0x170000UL;
+	uintptr_t reserved_va = 0;
+	uintptr_t pa_out = 0;
+	uint64_t desc;
+	size_t contig_size;
+	int ret;
+
+	ret = xlat_low_va_reserve(total_size, &reserved_va);
+	CHECK_EQUAL(0, ret);
+	CHECK_TRUE(reserved_va != 0UL);
+
+	desc = xlat_low_va_read_dyn_desc(reserved_va);
+	CHECK_EQUAL(TRANSIENT_DESC | VA_ALLOCATED_FLAG, desc);
+
+	ret = xlat_low_va_populate(reserved_va, test_pa, total_size,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(0, ret);
+
+	/* Populated entries are still not visible until committed. */
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(0UL, contig_size);
+
+	desc = xlat_low_va_read_dyn_desc(reserved_va);
+	CHECK_TRUE((desc & (TRANSIENT_DESC | VA_ALLOCATED_FLAG)) ==
+		   (TRANSIENT_DESC | VA_ALLOCATED_FLAG));
+	CHECK_TRUE((desc & VALID_DESC) == 0ULL);
+	CHECK_EQUAL(test_pa, xlat_get_oa_from_tte(desc));
+
+	desc = xlat_low_va_read_dyn_desc(reserved_va + GRANULE_SIZE);
+	CHECK_TRUE((desc & (TRANSIENT_DESC | VA_ALLOCATED_FLAG)) ==
+		   (TRANSIENT_DESC | VA_ALLOCATED_FLAG));
+	CHECK_TRUE((desc & VALID_DESC) == 0ULL);
+	CHECK_EQUAL(test_pa + GRANULE_SIZE, xlat_get_oa_from_tte(desc));
+
+	ret = xlat_low_va_depopulate(reserved_va, GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+
+	desc = xlat_low_va_read_dyn_desc(reserved_va);
+	CHECK_EQUAL(TRANSIENT_DESC | VA_ALLOCATED_FLAG, desc);
+
+	desc = xlat_low_va_read_dyn_desc(reserved_va + GRANULE_SIZE);
+	CHECK_TRUE((desc & (TRANSIENT_DESC | VA_ALLOCATED_FLAG)) ==
+		   (TRANSIENT_DESC | VA_ALLOCATED_FLAG));
+	CHECK_TRUE((desc & VALID_DESC) == 0ULL);
+	CHECK_EQUAL(test_pa + GRANULE_SIZE, xlat_get_oa_from_tte(desc));
+
+	ret = xlat_low_va_unreserve(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Depopulate decommitted VA entries
+ */
+TEST(xlat_low_va, xlat_low_va_depopulate_decommitted_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Reserve, populate, commit and decommit a VA range before
+	 * depopulating it. Verify that decommit keeps PA/attribute payload
+	 * and depopulate clears the entries back to the reserved state.
+	 ******************************************************************/
+
+	const size_t total_size = 2UL * GRANULE_SIZE;
+	uintptr_t test_pa = 0x180000UL;
+	uintptr_t reserved_va = 0;
+	uintptr_t pa_out = 0;
+	uint64_t desc;
+	size_t contig_size;
+	int ret;
+
+	ret = xlat_low_va_reserve(total_size, &reserved_va);
+	CHECK_EQUAL(0, ret);
+	CHECK_TRUE(reserved_va != 0UL);
+
+	ret = xlat_low_va_populate(reserved_va, test_pa, total_size,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(0, ret);
+
+	ret = xlat_low_va_commit(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(total_size, contig_size);
+	CHECK_EQUAL(test_pa, pa_out);
+
+	ret = xlat_low_va_decommit(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	contig_size = xlat_low_va_get_contig_pa(reserved_va,
+				reserved_va + total_size, &pa_out);
+	CHECK_EQUAL(0UL, contig_size);
+
+	desc = xlat_low_va_read_dyn_desc(reserved_va);
+	CHECK_TRUE((desc & VALID_DESC) == 0ULL);
+	CHECK_TRUE((desc & UL(0x2)) != 0ULL);
+	CHECK_TRUE((desc & VA_ALLOCATED_FLAG) != 0ULL);
+	CHECK_EQUAL(test_pa, xlat_get_oa_from_tte(desc));
+
+	ret = xlat_low_va_depopulate(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+
+	desc = xlat_low_va_read_dyn_desc(reserved_va);
+	CHECK_EQUAL(TRANSIENT_DESC | VA_ALLOCATED_FLAG, desc);
+
+	desc = xlat_low_va_read_dyn_desc(reserved_va + GRANULE_SIZE);
+	CHECK_EQUAL(TRANSIENT_DESC | VA_ALLOCATED_FLAG, desc);
+
+	ret = xlat_low_va_unreserve(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Depopulate argument validation
+ */
+TEST(xlat_low_va, xlat_low_va_depopulate_errors_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Verify that the low-VA depopulate API reports errors for
+	 * unaligned VA, unaligned size, zero size and an out-of-range VA.
+	 ******************************************************************/
+
+	struct xlat_low_va_info *info = xlat_get_low_va_info();
+	uintptr_t reserved_va = 0;
+	int ret;
+
+	ret = xlat_low_va_reserve(GRANULE_SIZE, &reserved_va);
+	CHECK_EQUAL(0, ret);
+	CHECK_TRUE(reserved_va != 0UL);
+
+	ret = xlat_low_va_depopulate(reserved_va + 1UL, GRANULE_SIZE);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_depopulate(reserved_va, GRANULE_SIZE + 1UL);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_depopulate(reserved_va, 0UL);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_depopulate(info->dyn_va_ctx.cfg.base_va +
+				     info->dyn_va_ctx.cfg.max_va_size,
+				     GRANULE_SIZE);
+	CHECK_EQUAL(-EFAULT, ret);
+
+	ret = xlat_low_va_unreserve(reserved_va, GRANULE_SIZE);
 	CHECK_EQUAL(0, ret);
 }
 

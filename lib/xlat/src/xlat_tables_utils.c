@@ -728,11 +728,6 @@ static bool is_table_fully_allocated(uint64_t *table, int level)
 		if ((desc & VA_ALLOCATED_FLAG) == 0ULL) {
 			return false;
 		}
-		/*
-		 * If we reach here, then it is TRANSIENT and Allocated.
-		 * So it must be a Valid page or table descriptor.
-		 */
-		assert((desc & VALID_DESC) != 0UL);
 	}
 
 	return true;
@@ -1458,6 +1453,70 @@ int xlat_decommit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
 	/* Invalidate TLB for the decommitted VA range */
 	XLAT_ARCH_TLBI_VA_RANGE(va, end_va, ish, GRANULE_SIZE);
 	XLAT_ARCH_TLBI_SYNC(ish);
+
+	return 0;
+}
+
+/*
+ * Depopulate a VA range by clearing PA/attribute data and returning entries
+ * to the reserved state (TRANSIENT_DESC | VA_ALLOCATED_FLAG). Entries must
+ * not be valid (must be populated-but-uncommitted or decommitted).
+ * This is the reverse of xlat_populate_va_l3_region.
+ */
+int xlat_depopulate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
+{
+	int ret;
+	struct xlat_llt_info llt;
+	uintptr_t cur_va;
+	uintptr_t end_va;
+	uintptr_t l3_base_va = 0;
+	uint64_t *l3_table = NULL;
+
+	assert(ctx != NULL);
+	assert((ctx->cfg.init != false));
+	assert((ctx->tbls.init != false));
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(va) || !GRANULE_ALIGNED(size) || (size == 0U)) {
+		ERROR("%s: Invalid arguments: va=0x%lx size=0x%zx\n",
+		      __func__, va, size);
+		return -EINVAL;
+	}
+
+	cur_va = va;
+	end_va = va + size;
+
+	while (cur_va < end_va) {
+		if ((l3_table == NULL) || (cur_va >= (l3_base_va +
+				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+			ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
+			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
+				ERROR("%s: Failed to get L3 table for VA 0x%lx\n",
+				      __func__, cur_va);
+				return -EFAULT;
+			}
+			assert(llt.table != NULL);
+			l3_table = llt.table;
+			l3_base_va = llt.llt_base_va;
+		}
+
+		unsigned int idx = (unsigned int)((cur_va - l3_base_va) >>
+				XLAT_ADDR_SHIFT(XLAT_TABLE_LEVEL_MAX));
+		assert(idx < XLAT_TABLE_ENTRIES);
+
+		uint64_t desc __unused = xlat_read_tte(&l3_table[idx]);
+
+		/* Entry must be allocated and not valid (populated or decommitted) */
+		assert((desc & (TRANSIENT_DESC | VA_ALLOCATED_FLAG)) ==
+		       (TRANSIENT_DESC | VA_ALLOCATED_FLAG));
+		assert((desc & VALID_DESC) == 0ULL);
+
+		/* Reset to reserved state (clear PA/attributes) */
+		xlat_write_tte(&l3_table[idx],
+			       TRANSIENT_DESC | VA_ALLOCATED_FLAG);
+
+		cur_va += GRANULE_SIZE;
+	}
 
 	return 0;
 }

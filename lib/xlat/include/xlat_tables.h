@@ -550,6 +550,24 @@ int xlat_commit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size);
 int xlat_decommit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size);
 
 /*
+ * Depopulate a VA range, clearing PA/attribute information and returning
+ * entries to the reserved state. Entries must not be valid (must be
+ * populated-but-uncommitted or decommitted).
+ * Use xlat_decommit_va_l3_region first if the entries are live.
+ * This is the reverse of xlat_populate_va_l3_region.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context.
+ *   - va: Starting VA to depopulate (must be granule-aligned).
+ *   - size: Size to depopulate (must be granule-aligned).
+ *
+ * Return:
+ *   - 0 on success.
+ *   - Negative error code on failure (-EFAULT, -EINVAL).
+ */
+int xlat_depopulate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size);
+
+/*
  * Release a VA reservation, making the entries free for future allocations.
  * The entries must not be valid (i.e. must be reserved, populated-but-uncommitted,
  * or decommitted). Use xlat_decommit_va_l3_region first if the entries are live.

@@ -173,6 +173,21 @@ int xlat_low_va_commit(uintptr_t va, size_t size);
 int xlat_low_va_decommit(uintptr_t va, size_t size);
 
 /*
+ * Depopulate a previously populated (but uncommitted or decommitted) VA region,
+ * clearing PA/attribute data and returning entries to the reserved state.
+ * This is the reverse of xlat_low_va_populate.
+ *
+ * Arguments:
+ *   - va: Starting VA to depopulate (must be granule-aligned).
+ *   - size: Size to depopulate (must be granule-aligned, > 0).
+ *
+ * Returns:
+ *   - 0 on success.
+ *   - Negative error code on failure.
+ */
+int xlat_low_va_depopulate(uintptr_t va, size_t size);
+
+/*
  * Release a VA reservation, returning the VA space to the free pool.
  * The region must not be valid (must be reserved, populated-but-uncommitted,
  * or decommitted). Use xlat_low_va_decommit first if the region is live.

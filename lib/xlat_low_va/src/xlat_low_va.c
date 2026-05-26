@@ -645,6 +645,17 @@ int xlat_low_va_decommit(uintptr_t va, size_t size)
 	return ret;
 }
 
+int xlat_low_va_depopulate(uintptr_t va, size_t size)
+{
+	int ret;
+
+	spinlock_acquire(&g_dyn_va_lock);
+	ret = xlat_depopulate_va_l3_region(&g_va_info.dyn_va_ctx, va, size);
+	spinlock_release(&g_dyn_va_lock);
+
+	return ret;
+}
+
 int xlat_low_va_unreserve(uintptr_t va, size_t size)
 {
 	int ret;
