@@ -24,6 +24,12 @@ target_link_libraries(rmm-runtime
             rmm-platform
             rmm-el2-stub)
 
+if(RMM_UNITTESTS)
+    get_property(RMM_UNITTEST_TARGETS GLOBAL PROPERTY RMM_UNITTEST_TARGETS)
+    target_link_libraries(rmm-runtime
+        PRIVATE ${RMM_UNITTEST_TARGETS})
+endif()
+
 target_include_directories(rmm-runtime
     PRIVATE "include"
             "rmi")
