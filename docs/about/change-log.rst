@@ -6,6 +6,270 @@ Change-log and Release notes
 ############################
 
 ******
+v0.9.0
+******
+
+The following sections have the details on the release. This
+release has been verified with `TF-A v2.15`_ release.
+
+============================
+New features in this release
+============================
+
+- Live Firmware Activation (LFA) support
+
+  *  Introduced ``xlat_low_va`` library for dynamic VA mapping support,
+     including L3 map/unmap helpers, VA allocation tracking, table stitching
+     and estimation.
+  *  Added ``glob_data`` library for centralized state management persisted
+     across firmware activations (granule arrays, SMMU handles, SRO contexts,
+     VMID bitmaps, MEC state).
+  *  Refactored platform common init to use ``xlat_low_va`` and added new
+     platform APIs to query number of granules.
+  *  Added EL3 ``RESERVE_MEMORY`` call and compatibility layer for memory
+     reservation.
+  *  Allow activation token to be passed to main and return value for
+     ``BOOT_COMPLETE`` SMC for state recovery across warm boot.
+  *  Added compatibility mode for platforms.
+  *  Deprecated config options for granule memory in favor of runtime
+     discovery.
+  *  Added shrinkwrap overlay for LFA testing.
+
+- Stateful RMI Operations (SRO)
+
+  *  Added ``sro_context`` library for managing SRO contexts.
+  *  Added ``addr_list`` library to handle RMI address lists.
+  *  Implemented RMIs for SRO operations including ``RMI_OP_CONTINUE``.
+  *  Added SRO support to ``rmi_rec_create`` and ``rmi_rec_destroy``.
+  *  Added ``GRANULE_STATE_PARTIAL`` for REC SRO flows.
+  *  Added SRO support for PSMMU commands with
+     ``rmi_op_donate_req_encode()`` helper.
+  *  Added ``addr_list_reduce_contig_block()`` helper.
+  *  Added platform host support for SRO.
+  *  Added comprehensive unit tests for addr_lists and SRO flows.
+
+- RMM v2.0 specification alignment
+
+  *  Updated EL3 interface version to 2.0.
+  *  Updated RSI ABI to RMM spec 2.0-bet0-rc1.
+  *  Expanded ``smc_result`` to 8 registers and added arg6 support.
+  *  Initial alignment to `RMMv2.0 spec Beta 0`_
+
+     -  Added ``RMI_RTT_DATA_MAP``, ``RMI_RTT_DATA_MAP_INIT``,
+        ``RMI_RTT_DATA_UNMAP`` commands for range data granule mapping.
+     -  Added ``SMC_RMI_GRANULE_RANGE_DELEGATE`` and
+        ``SMC_RMI_GRANULE_RANGE_UNDELEGATE`` for range granule operations.
+     -  Added support for Feature Register 2, 3, 4.
+     -  Added stub implementations for ``RMI_GRANULE_TRACKING_GET``,
+        ``RMI_RMM_ACTIVATE``, ``RMI_RMM_CONFIG_SET``, ``RMI_RMM_CONFIG_GET``
+        and ``RMI_GPT_L1_CREATE`` (placeholder for future dynamic GPT).
+     -  Updated RMM tracking region and granule size definitions to v2.0.
+     -  Removed VMID and MECID from ``RmiRealmParams`` structure.
+     -  Allow NS hypervisor to program vGIC hardware (List Registers,
+        ICH_HCR_EL2) directly on REC entry instead of passing via RMI ABI.
+     -  Disabled PMU for Realms for RMM v2.0 spec.
+     -  Removed build option ``RMM_V1_1``.
+     -  Aligned ``RMI_RTT_INIT_RIPAS`` to RMMv2.0.
+
+- SMMUv3 driver integration
+
+  *  Added initial SMMUv3 driver with command queue, TLBI per-VMID list
+     functions and CMD_SYNC-generated wake-up events for CMDQ synchronization.
+  *  Added SRO support for PSMMU commands. This means that the Host can now
+     donate memory for SMMUv3 driver structures and manage their lifecycle.
+  *  Integrated SMMUv3 driver calls into runtime RMI handlers.
+  *  Added TLBI range packing optimization to minimize command count.
+  *  Derived StreamID and SMMU index for TDI identifier.
+  *  Added support for MEC and 52-bit PA space in SMMUv3 driver.
+  *  Added fake_host mock layer for SMMU driver to help validate SMMU driver
+     code.
+  *  Added unit tests for ``calc_tlbi_range()``.
+  *  Added comprehensive unit tests for PSMMU SRO RMI commands.
+
+- Device Assignment updates (aligned to spec 1.1-alp16/alp17)
+
+  *  Updated DA PDEV flow to 1.1-alp16.
+  *  Converted ``RSI_RDEV_*`` ABIs to ``RSI_VDEV_*`` ABIs.
+  *  Moved RSI calls to RMI according to spec 1.1 alp16.
+  *  Updated VDEV transition flow and device ID mapping according to spec
+     1.1 alp16.
+  *  Added ``RMI_VDEV_VALIDATE_MAPPING``, ``RSI_VDEV_DMA_[EN|DIS]ABLE``.
+  *  Updated ``RMI_DEV_MEM_[UN]MAP`` to ``RMI_VDEV_[UN]MAP``.
+  *  Updated ``RMI_VDEV_UNMAP`` to not expect vdev.
+  *  Added VCA digest calculation.
+  *  Updated DA RSI interface to spec 2.0-alp20.
+  *  Updated get measurement ABI to 2.0-bet0-rc1.
+
+- `FIRME`_ support
+
+  *  Generalized feature discovery via FIRME.
+  *  Use FIRME ``GPI_SET`` when available.
+
+- EL0 App improvements
+
+  *  Re-initialized app xlat tables after LFA to restore app state.
+  *  Fixed EL0 app entry and exit TTBR/TLBI sequence to follow Arm
+     architecture requirements.
+
+- Fuzz testing framework
+
+  *  Added AFL++ based fuzz testing support for ``fake_host`` architecture.
+  *  Added GitHub Actions workflow for automated fuzzing.
+
+- Additional architectural feature enablement
+
+  *  Enabled FEAT_MOPS for Realms.
+
+
+======================================
+Bug fixes/improvements in this release
+======================================
+
+- Planes fixes:
+
+  *  Fixed off-by-one in ``validate_cookie`` allowing OOB context access.
+  *  Fixed ``run_align`` check missing from ``rsi_plane_enter``.
+  *  Fixed copy-paste bug leaking realm physical timer to NS host.
+  *  Fixed PN SMC handling.
+  *  Fixed ``ats_plane`` parameter handling.
+
+- Runtime/core fixes:
+
+  *  Fixed ESR register sanitization on Realm exit.
+  *  Fixed HCR_EL2 init value and invalidation from image base.
+  *  Fixed ISB after timer restore to prevent IRQ loop.
+  *  Fixed ``vdev_destroy`` mismatch error code.
+  *  Fixed save SIMD state for ``RMI OP_CONTINUE``.
+  *  Zero ``vdev_info`` and granule for ``vdev_get_info``.
+  *  Fixed invalid cleanup on ``vdev_get_info`` map failure.
+  *  Prevented reading uninitialised app shared buffer.
+  *  Fixed RD granule not unmapped on ``smc_rtt_create()`` error path.
+  *  Removed spurious ``granule_unlock``.
+  *  Fixed ``smc_rtt_data_unmap`` result translation.
+  *  Fixed input validation for RMI.
+  *  Fixed instruction abort checks for ``RIPAS_DEV``.
+  *  Fixed ``realm_ipa_to_pa()`` callers to handle ``RIPAS_DEV``.
+
+- Device Assignment fixes:
+
+  *  Fixed PDEV granule unlock without transition on failure.
+  *  Fixed cached digest length validation.
+  *  Fixed incorrect assert check for ``vdev_state``.
+  *  Corrected PCIe Extended Capability iteration.
+  *  Used proper size for caching reqs.
+
+- Xlat table fixes:
+
+  *  Fixed dynamic VA context to guarantee ``base_level=1``.
+  *  Fixed crash in ``xlat_tables_print``.
+  *  Added missing barriers in xlat library.
+  *  Fixed boundary check assertion in ``xlat_stitch_tables_l1``.
+  *  Fixed RMM reporting wrong PAS size when 52-bit PAS is supported.
+  *  Embedded ``xlat_ctx_cfg`` and ``xlat_ctx_tbls`` within ``xlat_ctx``.
+
+- Architecture and register fixes:
+
+  *  Fixed bugs related to FEAT_SYSREG128 (FEAT_D128).
+  *  Defined ID_AA64ISAR2_EL1 field masks.
+  *  Fixed HCR_EL2.FB needs to be set issue.
+  *  Reverted incorrect S2AP register write.
+  *  Fixed PMEVTYPER_EL0 write logic.
+
+- EL0 App fixes:
+
+  *  Fixed attestation app thread leak.
+  *  Fixed exit reason for host app yield.
+  *  Added ``MT_AP_UNPRIV`` to EL0 app text mapping.
+
+- Misc fixes:
+
+  *  Removed ``strlcpy`` from libc.
+  *  Used word operations in ``memcpy_ns_{read,write}_4``.
+  *  Removed redundant cast in ``IMPORT_SYM`` macro.
+  *  Removed deprecated RMI ABIs and fixed CBMC build errors.
+  *  Made ``MAX()`` and ``MIN()`` macros type-safe.
+  *  Stopped execution when UBSAN is triggered.
+  *  Improved GCC include path detection.
+
+==================================
+Build/Testing/Tooling improvements
+==================================
+
+- Added comprehensive unit tests for xlat library (VA allocation, L1 table
+  stitching, LPA2, ``xlat_low_va``).
+- Improved assertion logging in unittests.
+- Added support for register callback substitution and backup of installed
+  callbacks for test re-runs.
+- Imported banned API check tool to RMM codebase.
+- Added static check for non-ASCII characters.
+- Added ICSAN, LBSAN and NGSAN sanitizer support.
+- Replaced pthread app instances with minicoro (cooperative coroutines) on
+  ``fake_host`` for lightweight EL0 app simulation.
+- Fixed CBMC tests and skipped app libraries for ``host_cbmc``.
+- Fixed coverage, doc and toolchain for ``host_fuzz``.
+- Reworked RMM logging.
+- ``fake_host`` uses default path for app images.
+- Used memfd backed slot buffer for all non-CBMC ``fake_host`` variants.
+- Fixed ``fake_host`` slot mapping.
+- Fixed required granule count always 0 in ``fake_host``.
+- Fixed ``fake_host`` DA RSI flow alignment with RMM v2.
+- Initialized and built ``spdm-emu`` for ``fake_host``.
+- Added ``fake_host`` xlat stubs and fixed related unit tests.
+- Added ``fake_host`` platform support to call DA ABIs.
+- Supported multi-granule data mapping in ``fake_host`` platform.
+- Added FVP parameters for MEC, LPA2 and Linux in shrinkwrap overlays.
+- Added shrinkwrap overlays for 3-world CCA demonstrator.
+- Refactored DA model configuration into shrinkwrap overlay.
+- Updated shrinkwrap remotes for linux and kvmtool.
+- Disabled PCI diagnostics in shrinkwrap.
+- Fixed smmuv3 config for MEC in shrinkwrap.
+
+=========
+Platforms
+=========
+
+- Refactored Root Complex list handling in ``rmm_el3_ifc``.
+- Cached SMMU list in RMM.
+- Simplified Arm platform setup.
+
+=============
+Documentation
+=============
+
+- Updated EL0 app design documentation.
+- Added EL0 app ASID Management and TLB Maintenance design.
+- Upgraded minimum GCC and Clang compiler version requirements.
+- Documented PL011_HW_FLOW_CONTROL in user-guide.
+- Updated 3-World testing with CCA DA guide.
+
+=======
+Drivers
+=======
+
+- Added hardware flow control support for PL011 UART driver.
+
+============================
+Known issues and limitations
+============================
+
+- Self-hosted debug for Realm is still not implemented (`issue#23`_).
+- Some capabilities from latest RMM specifications remain restricted or
+  experimental.
+
+=================
+Upcoming features
+=================
+
+- Continued hardening of LFA, SRO and SMMUv3 features.
+- Further RMMv2.0 and FIRME specification alignment.
+- Fuzz testing expansion leveraging the ``fake_host`` architecture.
+- Support for Self-hosted debug in Realms.
+
+.. _TF-A v2.15: https://git.trustedfirmware.org/TF-A/trusted-firmware-a/+/refs/tags/v2.15.0
+.. _RMMv2.0 spec Beta 0: https://developer.arm.com/documentation/den0137/2-0bet0/?lang=en
+.. _FIRME: https://developer.arm.com/documentation/den0149/1-0alp3/?lang=en
+
+******
 v0.8.0
 ******
 
