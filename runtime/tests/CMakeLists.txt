@@ -30,3 +30,9 @@ rmm_build_unittest(NAME psmmu_sro_tests
                    TARGET rmm-runtime
                    SOURCES "tests/psmmu_sro_tests.cpp"
                    ITERATIONS 1)
+
+rmm_build_unittest(NAME vdev_range_slot_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/vdev_range_slot_tests.cpp"
+                   ITERATIONS 1)

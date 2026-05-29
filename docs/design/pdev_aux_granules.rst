@@ -28,7 +28,7 @@ the endpoint (pdev1) stream objects granule. Auxiliary granules are split into:
 PDEV auxiliary granules are tracked in the PDEV structure and are mapped into
 slot buffers as needed. The stream objects granule is mapped through
 ``SLOT_PDEV_STREAM``. The app auxiliary granules are mapped as a contiguous
-range starting at ``SLOT_PDEV_AUX0``.
+range starting at ``SLOT_PDEV_APP_AUX0``.
 
 ***********************
 Granule layout and role

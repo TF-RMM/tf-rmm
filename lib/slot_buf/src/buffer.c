@@ -440,7 +440,7 @@ static void *buffer_aux_granules_map(struct granule *g_aux[],
 	void *mapped_aux = NULL;
 
 	assert(((slot == SLOT_REC_AUX0) && (num_aux <= MAX_REC_AUX_GRANULES)) ||
-	       ((slot == SLOT_PDEV_AUX0) && (num_aux <= PDEV_PARAM_AUX_GRANULES_MAX)) ||
+	       ((slot == SLOT_PDEV_APP_AUX0) && (num_aux <= MAX_PDEV_APP_AUX_GRANULES)) ||
 	       ((slot == SLOT_VDEV_AUX0) && (num_aux <= VDEV_PARAM_AUX_GRANULES_MAX)) ||
 	       ((slot == SLOT_EL3_TOKEN_SIGN_AUX0) && (num_aux <= MAX_REC_AUX_GRANULES)));
 
@@ -522,32 +522,32 @@ void buffer_rec_aux_unmap(void *rec_aux, unsigned int num_aux)
 
 /*
  * The parent REC granule lock is expected to be acquired before functions
- * buffer_pdev_aux_granules_map() and buffer_pdev_aux_unmap() are called.
+ * buffer_pdev_app_aux_map() and buffer_pdev_app_aux_unmap() are called.
  */
-void *buffer_pdev_aux_granules_map(struct granule *g_pdev_aux[],
-				  unsigned int num_aux)
+void *buffer_pdev_app_aux_map(struct granule *g_pdev_aux[],
+			      unsigned int num_aux)
 {
 	assert(g_pdev_aux != NULL);
-	assert(num_aux <= PDEV_PARAM_AUX_GRANULES_MAX);
-	return buffer_aux_granules_map(g_pdev_aux, num_aux, SLOT_PDEV_AUX0, false);
+	assert(num_aux <= MAX_PDEV_APP_AUX_GRANULES);
+	return buffer_aux_granules_map(g_pdev_aux, num_aux, SLOT_PDEV_APP_AUX0, false);
 }
 
 /*
  * The parent REC granule lock is expected to be acquired before functions
- * buffer_pdev_aux_granules_map_zeroed() and buffer_pdev_aux_unmap() are called.
+ * buffer_pdev_app_aux_map_zeroed() and buffer_pdev_app_aux_unmap() are called.
  */
-void *buffer_pdev_aux_granules_map_zeroed(struct granule *g_pdev_aux[],
-				  unsigned int num_aux)
+void *buffer_pdev_app_aux_map_zeroed(struct granule *g_pdev_aux[],
+				     unsigned int num_aux)
 {
 	assert(g_pdev_aux != NULL);
-	assert(num_aux <= PDEV_PARAM_AUX_GRANULES_MAX);
-	return buffer_aux_granules_map(g_pdev_aux, num_aux, SLOT_PDEV_AUX0, true);
+	assert(num_aux <= MAX_PDEV_APP_AUX_GRANULES);
+	return buffer_aux_granules_map(g_pdev_aux, num_aux, SLOT_PDEV_APP_AUX0, true);
 }
 
-void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux)
+void buffer_pdev_app_aux_unmap(void *pdev_aux, unsigned int num_aux)
 {
 	assert(pdev_aux != NULL);
-	assert(num_aux <= PDEV_PARAM_AUX_GRANULES_MAX);
+	assert(num_aux <= MAX_PDEV_APP_AUX_GRANULES);
 	return buffer_aux_unmap(pdev_aux, num_aux);
 }
 

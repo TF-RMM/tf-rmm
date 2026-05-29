@@ -155,7 +155,7 @@ static unsigned long validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
 	return RMI_SUCCESS;
 }
 
-static unsigned long pdev_get_aux_count_from_flags(unsigned long pdev_flags)
+static unsigned long pdev_get_app_aux_count_from_flags(unsigned long pdev_flags)
 {
 	(void)pdev_flags;
 
@@ -172,6 +172,13 @@ static unsigned long pdev_get_aux_count_from_flags(unsigned long pdev_flags)
 	 * (i.e., the most granules) is assumed.
 	 */
 	return app_get_required_granule_count(RMM_DEV_ASSIGN_APP_ID);
+}
+
+static unsigned int pdev_get_vdev_range_aux_count(unsigned long max_vdevs_order)
+{
+	assert(max_vdevs_order <= MAX_VDEVS_ORDER);
+
+	return (unsigned int)PDEV_VDEV_RANGE_AUX_COUNT_FROM_ORDER(max_vdevs_order);
 }
 
 static unsigned long
@@ -238,19 +245,20 @@ void smc_pdev_create(unsigned long pdev_addr,
 	}
 
 	/*
-	 * Granules for the app plus a page for the stream objects associated
-	 * with this EP PDEV.
-	 * Initiate SRO to get the required amount of memory.
+	 * Granules for the app, one page for stream objects associated with
+	 * this EP PDEV, and enough pages to store cached VDEV ranges for the
+	 * requested max_vdevs_order. Initiate SRO to get that memory.
 	 */
-	const size_t aux_count = pdev_get_aux_count_from_flags(pdev_params.flags) +
-		NON_APP_PDEV_AUX_GRANULES;
-	if (aux_count > PDEV_PARAM_AUX_GRANULES_MAX) {
+	const size_t aux_count = pdev_get_app_aux_count_from_flags(pdev_params.flags) +
+		MAX_PDEV_STREAM_AUX_COUNT +
+		pdev_get_vdev_range_aux_count(pdev_params.max_vdevs_order);
+	if (aux_count > MAX_PDEV_PARAM_AUX_GRANULES) {
 		/*
 		 * The PDEV cannot hold enough granules for this configuration.
-		 * Increase PDEV_PARAM_AUX_GRANULES_MAX
+		 * Increase MAX_PDEV_PARAM_AUX_GRANULES
 		 */
 		ERROR("PDEV object can hold at most %u aux granules (%lu required)\n",
-			PDEV_PARAM_AUX_GRANULES_MAX, aux_count);
+			MAX_PDEV_PARAM_AUX_GRANULES, aux_count);
 		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
@@ -297,7 +305,7 @@ void smc_pdev_create(unsigned long pdev_addr,
 static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 {
 	struct granule *g_pdev;
-	struct granule *all_aux_granules[PDEV_PARAM_AUX_GRANULES_MAX];
+	struct granule *all_aux_granules[MAX_PDEV_PARAM_AUX_GRANULES];
 	uintptr_t *all_aux_granule_pas;
 	struct pdev *pd;
 	struct sro_pdev_ctx *sro_ctx;
@@ -310,6 +318,8 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 	void *aux_mapped_addr;
 	struct sro_context *sro = my_sro_ctx();
 	unsigned int num_app_aux_granules;
+	unsigned int num_vdev_range_aux_granules;
+	unsigned int app_aux_start_idx;
 
 	assert(sro != NULL);
 	assert(fid == SMC_RMI_OP_CONTINUE);
@@ -323,13 +333,18 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 	sro_ctx = &sro->pdev_ctx;
 	num_aux_granules = (unsigned int)sro->aux_op_ctx.requested_aux_granules;
 	all_aux_granule_pas = sro->aux_op_ctx.aux_granules_pa;
-	num_app_aux_granules = num_aux_granules - NON_APP_PDEV_AUX_GRANULES;
-	assert(num_app_aux_granules < (PDEV_PARAM_AUX_GRANULES_MAX - NON_APP_PDEV_AUX_GRANULES));
+	num_vdev_range_aux_granules =
+		pdev_get_vdev_range_aux_count(sro_ctx->max_vdevs_order);
+	app_aux_start_idx = PDEV_VDEV_RANGES_AUX_GRANULE_IDX +
+		num_vdev_range_aux_granules;
 
-	if (num_aux_granules < NON_APP_PDEV_AUX_GRANULES) {
+	if (num_aux_granules < app_aux_start_idx) {
 		smc_rc = RMI_ERROR_INPUT;
 		goto out_restore_pdev_aux_granule_state;
 	}
+
+	num_app_aux_granules = num_aux_granules - app_aux_start_idx;
+	assert(num_app_aux_granules <= ARRAY_SIZE(pd->g_app_aux));
 
 	for (unsigned int i = 0U; i < num_aux_granules; i++) {
 		unsigned long addr = all_aux_granule_pas[i];
@@ -368,6 +383,7 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 	}
 
 	/* Map and initialise the stream granule */
+	/* NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage) */
 	aux_mapped_addr = buffer_granule_map_zeroed(
 				all_aux_granules[PDEV_STREAM_AUX_GRANULE_IDX],
 				SLOT_PDEV_STREAM);
@@ -375,19 +391,29 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 
 	buffer_unmap(aux_mapped_addr);
 
+	for (unsigned int i = 0U; i < num_vdev_range_aux_granules; i++) {
+		/* NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage) */
+		aux_mapped_addr = buffer_granule_map_zeroed(
+			all_aux_granules[PDEV_VDEV_RANGES_AUX_GRANULE_IDX + i],
+			SLOT_PDEV_VDEV_RANGE);
+		assert(aux_mapped_addr != NULL);
+
+		buffer_unmap(aux_mapped_addr);
+	}
+
 	/*
 	 * Map app aux granules separately from the reserved aux granules so
-	 * they occupy SLOT_PDEV_AUX0 and above, matching the VA layout used
+	 * they occupy SLOT_PDEV_APP_AUX0 and above, matching the VA layout used
 	 * during app execution.
 	 */
 	/* coverity[overrun-buffer-val:SUPPRESS] */
-	aux_mapped_addr = buffer_pdev_aux_granules_map_zeroed(
-				&all_aux_granules[PDEV_APP_AUX_GRANULE_IDX],
+	aux_mapped_addr = buffer_pdev_app_aux_map_zeroed(
+				&all_aux_granules[app_aux_start_idx],
 				num_app_aux_granules);
 	assert(aux_mapped_addr != NULL);
 
 	rc = dev_assign_app_init(&pd->da_app_data,
-		&all_aux_granule_pas[PDEV_APP_AUX_GRANULE_IDX],
+		&all_aux_granule_pas[app_aux_start_idx],
 		num_app_aux_granules,
 		aux_mapped_addr,
 		&dparams);
@@ -404,10 +430,13 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 		pd->max_num_vdevs = (uint32_t)(PDEV_MAX_VDEVS(sro_ctx->max_vdevs_order));
 		pd->rmi_hash_algo = sro_ctx->hash_algo;
 		pd->num_app_aux = num_app_aux_granules;
-		(void)memcpy((void *)pd->g_app_aux,
-			     (void *)(&all_aux_granules[PDEV_APP_AUX_GRANULE_IDX]),
-			     pd->num_app_aux * sizeof(struct granule *));
 		pd->g_stream_aux = all_aux_granules[PDEV_STREAM_AUX_GRANULE_IDX];
+		(void)memcpy((void *)pd->g_vdevs_ranges_aux,
+			     (void *)(&all_aux_granules[PDEV_VDEV_RANGES_AUX_GRANULE_IDX]),
+			     num_vdev_range_aux_granules * sizeof(struct granule *));
+		(void)memcpy((void *)pd->g_app_aux,
+			     (void *)(&all_aux_granules[app_aux_start_idx]),
+			     pd->num_app_aux * sizeof(struct granule *));
 
 		/* Initialize PDEV communication state */
 		pd->dev_comm_state = DEV_COMM_PENDING;
@@ -425,7 +454,7 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 		smc_rc = RMI_ERROR_INPUT;
 	}
 
-	buffer_pdev_aux_unmap(aux_mapped_addr, num_app_aux_granules);
+	buffer_pdev_app_aux_unmap(aux_mapped_addr, num_app_aux_granules);
 
 	/*
 	 * Unlock and transit the PDEV granule state to GRANULE_STATE_PARTIAL.
@@ -971,10 +1000,10 @@ unsigned long dev_communicate(struct pdev *pd,
 		return comm_rc;
 	}
 
-	/* Map app PDEV aux granules to slot starting SLOT_PDEV_AUX0 */
+	/* Map app PDEV aux granules to slot starting SLOT_PDEV_APP_AUX0 */
 	/* coverity[overrun-buffer-val:SUPPRESS] */
 	if (pd->num_app_aux > 0U) {
-		aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_app_aux, pd->num_app_aux);
+		aux_mapped_addr = buffer_pdev_app_aux_map(pd->g_app_aux, pd->num_app_aux);
 	}
 
 	if (vd == NULL) {
@@ -984,7 +1013,7 @@ unsigned long dev_communicate(struct pdev *pd,
 	}
 
 	if (aux_mapped_addr != NULL) {
-		buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_app_aux);
+		buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
 	}
 
 	comm_rc = copyout_dev_comm_exit(g_dev_comm_data,
@@ -1371,9 +1400,9 @@ unsigned long smc_pdev_abort(unsigned long pdev_addr)
 	}
 
 	if (pd->num_app_aux > 0U) {
-		/* Map app PDEV aux granules to slot starting SLOT_PDEV_AUX0 */
+		/* Map app PDEV aux granules to slot starting SLOT_PDEV_APP_AUX0 */
 		/* coverity[overrun-buffer-val:SUPPRESS] */
-		aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_app_aux, pd->num_app_aux);
+		aux_mapped_addr = buffer_pdev_app_aux_map(pd->g_app_aux, pd->num_app_aux);
 
 		/*
 		 * This will resume the blocked CMA SPDM command and the recv callback
@@ -1382,7 +1411,7 @@ unsigned long smc_pdev_abort(unsigned long pdev_addr)
 		rc = dev_assign_abort_app_operation(&pd->da_app_data);
 		assert(rc == 0);
 
-		buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_app_aux);
+		buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
 	}
 
 	pd->dev_comm_state = DEV_COMM_IDLE;
@@ -1410,6 +1439,8 @@ void smc_pdev_destroy(unsigned long pdev_addr, struct smc_result *res)
 	struct pdev *pd;
 	struct sro_context *sro;
 	unsigned long ret;
+	size_t num_vdev_range_aux_granules;
+	size_t app_aux_start_idx;
 
 	if (!is_rmi_feat_da_enabled()) {
 		res->x[0] = SMC_NOT_SUPPORTED;
@@ -1466,15 +1497,21 @@ void smc_pdev_destroy(unsigned long pdev_addr, struct smc_result *res)
 	/* Memory to reclaim */
 	sro = my_sro_ctx();
 	assert(sro != NULL);
+	num_vdev_range_aux_granules = PDEV_VDEV_RANGE_AUX_COUNT_FROM_SLOT_COUNT(pd->max_num_vdevs);
+	app_aux_start_idx = PDEV_VDEV_RANGES_AUX_GRANULE_IDX +
+		num_vdev_range_aux_granules;
 
 	sro->aux_op_ctx.aux_granules_pa[PDEV_STREAM_AUX_GRANULE_IDX] =
 		granule_addr(pd->g_stream_aux);
+	for (unsigned int i = 0U; i < num_vdev_range_aux_granules; i++) {
+		sro->aux_op_ctx.aux_granules_pa[PDEV_VDEV_RANGES_AUX_GRANULE_IDX + i] =
+			granule_addr(pd->g_vdevs_ranges_aux[i]);
+	}
 	for (unsigned int i = 0U; i < pd->num_app_aux; i++) {
-		sro->aux_op_ctx.aux_granules_pa[PDEV_APP_AUX_GRANULE_IDX + i] =
+		sro->aux_op_ctx.aux_granules_pa[app_aux_start_idx + i] =
 			granule_addr(pd->g_app_aux[i]);
 	}
-	sro->aux_op_ctx.requested_aux_granules =
-		(unsigned long)(NON_APP_PDEV_AUX_GRANULES + pd->num_app_aux);
+	sro->aux_op_ctx.requested_aux_granules = app_aux_start_idx + pd->num_app_aux;
 
 	buffer_unmap(pd);
 

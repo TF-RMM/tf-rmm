@@ -5,7 +5,7 @@
 
 #include <arch_features.h>
 #include <assert.h>
-#include <dev.h>
+#include <dev_assign_layout.h>
 #include <feature.h>
 #include <mec.h>
 #include <s2tt.h>
