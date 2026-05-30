@@ -35,8 +35,6 @@ extern void __gcov_dump(void);
 /* Create a simple 4 level (Lvl 0 - LvL 3) RTT structure */
 #define RTT_COUNT 4
 
-/*Magic rec_params index that would trigger ripas change flow*/
-#define RIPAS_FLOW_MAGIC 99
 
 /* Define the EL3-RMM interface version as set from EL3 */
 #define EL3_IFC_ABI_VERSION		\
@@ -309,48 +307,7 @@ static int realm_fin(unsigned long *regs, unsigned long *sp_el0)
 	return ARM_EXCEPTION_FIQ_LEL;
 }
 
-/*
- * RIPAS flow realm entry point (used when rec_params index == RIPAS_FLOW_MAGIC).
- * Kept as legacy callbacks since RIPAS flow is not corpus-driven.
- */
-static int realm_start_ripas(unsigned long *regs, unsigned long *sp_el0);
-static int realm_state_set(unsigned long *regs, unsigned long *sp_el0);
-static int realm_ripas_fin(unsigned long *regs, unsigned long *sp_el0);
 
-static int realm_start_ripas(unsigned long *regs, unsigned long *sp_el0)
-{
-	regs[0] = SMC_RSI_IPA_STATE_GET;
-	regs[1] = 0x1000;
-	regs[2] = 0x2000;
-	return host_util_rsi_helper(realm_state_set);
-}
-
-static int realm_state_set(unsigned long *regs, unsigned long *sp_el0)
-{
-	if (regs[0] != RSI_SUCCESS) {
-		ERROR("SMC_RSI_IPA_STATE_GET command failed 0x%lx\n", regs[0]);
-		return 0;
-	}
-	INFO("IPA_STATE_GET out_top: 0x%lx, IPA state: 0x%lx\n", regs[1], regs[2]);
-
-	regs[0] = SMC_RSI_IPA_STATE_SET;
-	regs[1] = 0x1000;
-	regs[2] = 0x2000;
-	regs[3] = 0x0;
-
-	return host_util_rsi_helper(realm_ripas_fin);
-}
-
-static int realm_ripas_fin(unsigned long *regs, unsigned long *sp_el0)
-{
-	if (regs[0] != RSI_SUCCESS) {
-		ERROR("SMC_RSI_IPA_STATE_SET command failed 0x%lx\n", regs[0]);
-		return 0;
-	}
-	INFO("IPA_STATE_SET new_base: 0x%lx, response: 0x%lx\n", regs[1], regs[2]);
-
-	return ARM_EXCEPTION_FIQ_LEL;
-}
 
 uint64_t rmm_main(uint64_t token);
 void rmm_arch_init(void);
@@ -704,11 +661,7 @@ int execute(unsigned char *buffer, size_t read_res)
 				memset(rec_params, 0x00, sizeof(*rec_params));
 				rec_params->flags = packet.flags;
 				rec_params->mpidr = packet.mpidr;
-				if (packet.param_index == RIPAS_FLOW_MAGIC) {
-					rec_params->pc = (uintptr_t)realm_start_ripas;
-				} else {
-					rec_params->pc = (uintptr_t)realm_start;
-				}
+				rec_params->pc = (uintptr_t)realm_start;
 
 				printf("PC 0x%08lx\n", rec_params->pc);
 			}
