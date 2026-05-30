@@ -160,6 +160,7 @@ elseif("${RMM_CBMC_CONFIGURATION}" STREQUAL "ANALYSIS")
     "${cbmc_analysis_flags_list}")
 elseif("${RMM_CBMC_CONFIGURATION}" STREQUAL "GCC")
   list(APPEND cbmc_compiler_options
+    "-fdata-sections"
     "-Wall"
     "-Werror"
     "-Wno-unused-function"

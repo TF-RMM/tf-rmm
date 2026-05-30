@@ -8,6 +8,7 @@ add_library(rmm-lib-sro_context)
 target_link_libraries(rmm-lib-sro_context
     PRIVATE rmm-lib-arch
             rmm-lib-debug
+            rmm-lib-granule
             rmm-lib-smc
     PUBLIC  rmm-lib-addr_list)
 
@@ -15,4 +16,5 @@ target_include_directories(rmm-lib-sro_context
     PUBLIC "include")
 
 target_sources(rmm-lib-sro_context
-    PRIVATE "src/sro_context.c")
+    PRIVATE "src/sro_aux.c"
+            "src/sro_context.c")

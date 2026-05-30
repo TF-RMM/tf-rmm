@@ -9,6 +9,7 @@
 #include <debug.h>
 #include <dev.h>
 #include <dev_assign_app.h>
+#include <dev_granule.h>
 #include <feature.h>
 #include <granule.h>
 #include <random_app.h>
@@ -20,6 +21,120 @@
 #include <smmuv3.h>
 #include <string.h>
 #include <utils_def.h>
+
+static bool rmi_addr_ranges_valid(struct rmi_address_range *addr_range,
+				  unsigned long addr_range_cnt)
+{
+	unsigned long last_top = 0U;
+	unsigned long i;
+
+	for (i = 0; i < addr_range_cnt; ++i) {
+
+		if ((addr_range[i].base >= addr_range[i].top) ||
+		    (addr_range[i].base < last_top)) {
+			return false;
+		}
+		last_top = addr_range[i].top;
+	}
+	return true;
+}
+
+static bool rmi_addr_ranges_overlap(const struct rmi_address_range *range1,
+				    unsigned long range1_cnt,
+				    const struct rmi_address_range *range2,
+				    unsigned long range2_cnt)
+{
+	unsigned long range1_idx = 0U;
+	unsigned long range2_idx = 0U;
+
+	/*
+	 * We can assume that the ranges are sorted, because that is already
+	 * checked by rmi_addr_ranges_valid which is called early in
+	 * smc_vdev_create.
+	 */
+	while ((range1_idx < range1_cnt) && (range2_idx < range2_cnt)) {
+		if ((range1[range1_idx].base < range2[range2_idx].top) &&
+		    (range2[range2_idx].base < range1[range1_idx].top)) {
+			return true;
+		}
+
+		if (range1[range1_idx].top <= range2[range2_idx].base) {
+			range1_idx++;
+		} else {
+			range2_idx++;
+		}
+	}
+
+	return false;
+}
+
+/*
+ * Check whether the address range specified by a VDEV_CREATE overlaps the
+ * address range of any existing VDEV of this PDEV.
+ * Note that the VDEV state is not considered when checking overlap, which means
+ * VDEVs in error state are checked as well. The ranges of a VDEV are only
+ * cleared from PDEV in case of VDEV_DESTROY.
+ */
+static bool pdev_vdev_ranges_overlap(const struct pdev *pd,
+				     const struct rmi_address_range *addr_range,
+				     unsigned long addr_range_cnt)
+{
+	assert(pd->max_num_vdevs <= ARRAY_SIZE(pd->vdev_range_slots));
+	for (uint32_t i = 0U; i < pd->max_num_vdevs; ++i) {
+		const struct pdev_vdev_range_slot *slot = &pd->vdev_range_slots[i];
+
+		if (!slot->active) {
+			continue;
+		}
+
+		if (rmi_addr_ranges_overlap(slot->addr_range, slot->num_addr_range,
+					    addr_range, addr_range_cnt)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static uint32_t pdev_find_free_vdev_slot(const struct pdev *pd)
+{
+	uint32_t i;
+
+	assert(pd->max_num_vdevs <= ARRAY_SIZE(pd->vdev_range_slots));
+	for (i = 0U; i < pd->max_num_vdevs; ++i) {
+		if (!pd->vdev_range_slots[i].active) {
+			return i;
+		}
+	}
+
+	return PDEV_VDEV_SLOT_INVALID;
+}
+
+static void pdev_set_vdev_ranges(struct pdev *pd, uint32_t slot_idx,
+				 const struct rmi_address_range *addr_range,
+				 unsigned long addr_range_cnt)
+{
+	struct pdev_vdev_range_slot *slot = &pd->vdev_range_slots[slot_idx];
+
+	assert(slot_idx < pd->max_num_vdevs);
+	assert(addr_range_cnt <= RMI_VDEV_PARAMS_ADDR_RANGE_MAX);
+
+	slot->num_addr_range = addr_range_cnt;
+	slot->active = true;
+	(void)memcpy(slot->addr_range, addr_range,
+		     addr_range_cnt * sizeof(addr_range[0]));
+}
+
+static void pdev_clear_vdev_ranges(struct pdev *pd, uint32_t slot_idx)
+{
+	struct pdev_vdev_range_slot *slot = &pd->vdev_range_slots[slot_idx];
+
+	assert(slot_idx < pd->max_num_vdevs);
+
+	slot->active = false;
+	slot->num_addr_range = 0U;
+	(void)memset(slot->addr_range, 0, sizeof(slot->addr_range));
+}
 
 static unsigned long validate_vdev_params(
 	unsigned long vdev_params_addr,
@@ -39,13 +154,13 @@ static unsigned long validate_vdev_params(
 		return RMI_ERROR_INPUT;
 	}
 
-	if (vdev_params->num_aux != 0U) {
+	if ((vdev_params->flags != 0U) ||
+	    (vdev_params->num_addr_range > RMI_VDEV_PARAMS_ADDR_RANGE_MAX) ||
+	    !rmi_addr_ranges_valid(vdev_params->addr_range, vdev_params->num_addr_range)) {
 		return RMI_ERROR_INPUT;
 	}
 
-	if (vdev_params->flags != 0U) {
-		return RMI_ERROR_INPUT;
-	}
+	/* TODO: Verify VSMMU related parameters */
 
 	/* TODO: Verify tdi_id is unique for the associated PDEV segment */
 
@@ -69,7 +184,7 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	struct rmi_vdev_params vdev_params; /* this consumes 4KB of stack */
 	struct granule *g_rd;
 	struct granule *g_pdev;
-	struct granule *g_vdev;
+	struct granule *g_vdev = NULL;
 	struct rd *rd;
 	struct pdev *pd;
 	struct vdev *vd;
@@ -77,6 +192,8 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	struct smmu_stg2_config s2_cfg;
 	unsigned int sid, smmu_idx;
 	unsigned long rc;
+	struct pdev_stream *stream;
+	uint32_t vdev_slot;
 
 	if (!is_rmi_feat_da_enabled()) {
 		return SMC_NOT_SUPPORTED;
@@ -98,14 +215,6 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		return RMI_ERROR_INPUT;
 	}
 
-	/* Lock vdev granule and map it */
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_DELEGATED);
-	if (g_vdev == NULL) {
-		granule_unlock(g_rd);
-		granule_unlock(g_pdev);
-		return RMI_ERROR_INPUT;
-	}
-
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
@@ -117,14 +226,44 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
 
-	if (pd->rmi_state != RMI_PDEV_STATE_READY) {
+	if ((PDEV_CATEGORY(pd) != RMI_PDEV_ENDPOINT_ACCEL_OFF_CHIP) &&
+	    (PDEV_CATEGORY(pd) != RMI_PDEV_ENDPOINT_ACCEL_ON_CHIP)) {
 		rc = RMI_ERROR_DEVICE;
 		goto out_unmap_pd;
 	}
 
-	if (EXTRACT(RMI_PDEV_FLAGS_CATEGORY, pd->rmi_flags) != RMI_PDEV_SMEM) {
+	if ((pd->rmi_state != RMI_PDEV_STATE_READY) ||
+	    (pd->max_num_vdevs == pd->num_vdevs)) {
 		rc = RMI_ERROR_DEVICE;
 		goto out_unmap_pd;
+	}
+
+	if (pdev_vdev_ranges_overlap(pd, vdev_params.addr_range,
+				     vdev_params.num_addr_range)) {
+		rc = RMI_ERROR_INPUT;
+		goto out_unmap_pd;
+	}
+
+	vdev_slot = pdev_find_free_vdev_slot(pd);
+	if (vdev_slot == PDEV_VDEV_SLOT_INVALID) {
+		rc = RMI_ERROR_DEVICE;
+		goto out_unmap_pd;
+	}
+
+	stream = pdev_stream_granules_lock_map(pd->g_stream_aux, RMI_PDEV_STREAM_NCOH);
+	assert(stream != NULL);
+
+	if (!stream->taken ||
+	    (stream->state != PDEV_STREAM_CONNECTED)) {
+		rc = RMI_ERROR_DEVICE;
+		goto out_unmap_stream;
+	}
+
+	/* Lock vdev granule and map it */
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_DELEGATED);
+	if (g_vdev == NULL) {
+		rc = RMI_ERROR_INPUT;
+		goto out_unmap_stream;
 	}
 
 	vd = buffer_granule_map_zeroed(g_vdev, SLOT_VDEV);
@@ -160,22 +299,33 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	vd->sid = sid;
 	vd->smmu_idx = smmu_idx;
 
+	vd->num_addr_range = vdev_params.num_addr_range;
+	(void)memcpy(vd->addr_range,
+		     vdev_params.addr_range,
+		     vdev_params.num_addr_range * sizeof(vdev_params.addr_range[0]));
+	vd->pdev_slot = vdev_slot;
+
 	/* Update Realm */
 	rd_vdev_refcount_inc(rd);
 
 	/* Update PDEV */
+	pdev_set_vdev_ranges(pd, vdev_slot, vdev_params.addr_range,
+			     vdev_params.num_addr_range);
 	pd->num_vdevs++;
 
 out_unmap_vd:
 	buffer_unmap(vd);
+out_unmap_stream:
+	pdev_stream_granules_unmap_unlock(pd->g_stream_aux, stream, RMI_PDEV_STREAM_NCOH);
 out_unmap_pd:
 	buffer_unmap(pd);
 out_unmap_rd:
 	buffer_unmap(rd);
 
 	if (rc == RMI_SUCCESS) {
+		assert(g_vdev != NULL);
 		granule_unlock_transition(g_vdev, GRANULE_STATE_VDEV);
-	} else {
+	} else if (g_vdev != NULL) {
 		granule_unlock(g_vdev);
 	}
 	granule_unlock(g_pdev);
@@ -532,6 +682,12 @@ unsigned long smc_vdev_communicate(unsigned long rd_addr,
 				vd->rmi_state = RMI_VDEV_STATE_ERROR;
 			}
 			break;
+		case VDEV_OP_KEY_REFRESH:
+			vd->rmi_state = RMI_VDEV_STATE_KEY_PURGE;
+			break;
+		case VDEV_OP_KEY_PURGE:
+			vd->rmi_state = RMI_VDEV_STATE_UNLOCKED;
+			break;
 		default:
 			assert(false);
 		}
@@ -551,30 +707,6 @@ out:
 	granule_unlock(g_pdev);
 
 	return rmi_rc;
-}
-
-/*
- * smc_vdev_aux_count
- *
- * Get number of auxiliary Granules required for a VDEV.
- *
- * pdev_flags	- PDEV flags
- * vdev_flags	- VDEV flags
- * res		- SMC result
- */
-void smc_vdev_aux_count(unsigned long pdev_flags, unsigned long vdev_flags,
-			struct smc_result *res)
-{
-	/* VDEV aux granules will be enabled when VSMMU support is enabled */
-	(void)pdev_flags;
-	(void)vdev_flags;
-
-	if (is_rmi_feat_da_enabled()) {
-		res->x[0] = RMI_SUCCESS;
-		res->x[1] = 0UL;
-	} else {
-		res->x[0] = SMC_NOT_SUPPORTED;
-	}
 }
 
 /*
@@ -623,11 +755,16 @@ out_err_input:
 /*
  * smc_vdev_abort
  *
+ * rd_addr	- PA of RD
+ * pdev_addr	- PA of the PDEV
  * vdev_addr	- PA of the VDEV
  */
-unsigned long smc_vdev_abort(unsigned long vdev_addr)
+unsigned long smc_vdev_abort(unsigned long rd_addr,
+			     unsigned long pdev_addr,
+			     unsigned long vdev_addr)
 {
 	int rc __unused;
+	struct granule *g_rd;
 	struct granule *g_pdev;
 	struct granule *g_vdev;
 	void *aux_mapped_addr;
@@ -639,38 +776,45 @@ unsigned long smc_vdev_abort(unsigned long vdev_addr)
 		return SMC_NOT_SUPPORTED;
 	}
 
-	if (!GRANULE_ALIGNED(vdev_addr)) {
+	if ((!GRANULE_ALIGNED(rd_addr)) ||
+	    (!GRANULE_ALIGNED(pdev_addr)) ||
+	    (!GRANULE_ALIGNED(vdev_addr))) {
 		return RMI_ERROR_INPUT;
 	}
-
-	/* Lock the vdev granule and map it, to get the pdev granule address. */
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		return RMI_ERROR_INPUT;
-	}
-
-	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
-	assert(vd != NULL);
-
-	g_pdev = vd->g_pdev;
 
 	/*
-	 * To lock and map pdev, we first need to unlock vdev, and lock the
-	 * granules again in the pdev-vdev order, so locking order is
-	 * maintained.
+	 * RD is not used by the current implementation, but still check
+	 * according to spec
 	 */
-	buffer_unmap(vd);
-	granule_unlock(g_vdev);
+	g_rd = find_granule(rd_addr);
+	if ((g_rd == NULL) ||
+	    (granule_unlocked_state(g_rd) != GRANULE_STATE_RD)) {
+		return RMI_ERROR_INPUT;
+	}
 
-	granule_lock(g_pdev, GRANULE_STATE_PDEV);
+	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
+	if (g_pdev == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
 
-	granule_lock(g_vdev, GRANULE_STATE_VDEV);
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		smc_rc = RMI_ERROR_INPUT;
+		goto out_pdev_buf_unmap;
+	}
+
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
 	if (vd->comm_state == DEV_COMM_IDLE) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_vdev_buf_unmap;
+	}
+
+	if ((vd->g_rd != g_rd) || (vd->g_pdev != g_pdev)) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_vdev_buf_unmap;
 	}
@@ -687,7 +831,7 @@ unsigned long smc_vdev_abort(unsigned long vdev_addr)
 
 	/* Map PDEV aux granules */
 	/* coverity[overrun-buffer-val:SUPPRESS] */
-	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_aux, pd->num_aux);
+	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_app_aux, pd->num_app_aux);
 	assert(aux_mapped_addr != NULL);
 
 	/*
@@ -698,7 +842,7 @@ unsigned long smc_vdev_abort(unsigned long vdev_addr)
 	assert(rc == 0);
 
 	/* Unmap all PDEV aux granules */
-	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_aux);
+	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_app_aux);
 
 vdev_reset_state:
 	vd->rmi_state = RMI_VDEV_STATE_ERROR;
@@ -708,6 +852,7 @@ vdev_reset_state:
 out_vdev_buf_unmap:
 	buffer_unmap(vd);
 	granule_unlock(g_vdev);
+out_pdev_buf_unmap:
 	buffer_unmap(pd);
 	granule_unlock(g_pdev);
 
@@ -731,6 +876,7 @@ unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	struct pdev *pd = NULL;
 	struct vdev *vd = NULL;
 	unsigned long smc_rc;
+	uint32_t vdev_slot;
 
 	if (!is_rmi_feat_da_enabled()) {
 		return SMC_NOT_SUPPORTED;
@@ -768,18 +914,21 @@ unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	}
 
 	if ((vd->rmi_state != RMI_VDEV_STATE_NEW) &&
-	    (vd->rmi_state != RMI_VDEV_STATE_UNLOCKED) &&
-	    (vd->rmi_state != RMI_VDEV_STATE_ERROR)) {
+	    (vd->rmi_state != RMI_VDEV_STATE_UNLOCKED)) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
 	}
 
-	if (vd->dma_state == RMI_VDEV_DMA_ENABLED) {
-		if (smmuv3_disable_ste(vd->smmu_idx, vd->sid) != 0) {
-			smc_rc = RMI_ERROR_DEVICE;
-			goto out_err_input;
-		}
-	}
+	/*
+	 * The VDEV state machine enforces DMA-off before reaching a destroyable
+	 * state. In particular, smc_vdev_unlock() disables the STE before the
+	 * VDEV can transition to RMI_VDEV_STATE_UNLOCKED.
+	 */
+	assert(vd->dma_state == RMI_VDEV_DMA_DISABLED);
+
+	vdev_slot = vd->pdev_slot;
+	assert((vdev_slot < pd->max_num_vdevs) &&
+	       (pd->vdev_range_slots[vdev_slot].active));
 
 	if (smmuv3_release_ste(vd->smmu_idx, vd->sid) != 0) {
 		smc_rc = RMI_ERROR_DEVICE;
@@ -790,6 +939,14 @@ unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	rd_vdev_refcount_dec(rd);
 
 	/* Update PDEV. */
+	/*
+	 * The ranges of a VDEV are only cleared from a pdev on VDEV_DESTROY.
+	 * This is true for VDEVS that are in error state, regardless whether
+	 * they got into error state because of a failed VDEV_COMMUNICATE or a
+	 * VDEV_ABORT. To destroy a VDEV in error state, VDEV_UNLOCK must be
+	 * called on it before VDEV_DESTROY.
+	 */
+	pdev_clear_vdev_ranges(pd, vdev_slot);
 	pd->num_vdevs -= 1U;
 
 	buffer_unmap(vd);
@@ -1012,8 +1169,8 @@ out_err_input:
 	return smc_rc;
 }
 
-unsigned long smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
-				unsigned long vdev_addr)
+void smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
+		     unsigned long vdev_addr, struct smc_result *res)
 {
 	struct granule *g_rd = NULL;
 	struct granule *g_pdev = NULL;
@@ -1021,26 +1178,31 @@ unsigned long smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 	struct dev_tdisp_params *tdisp_params;
 	struct vdev *vd = NULL;
 
-	unsigned long smc_rc;
-
 	if (!is_rmi_feat_da_enabled()) {
-		return SMC_NOT_SUPPORTED;
+		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[1] = 0U;
+		return;
 	}
 
 	if (!GRANULE_ALIGNED(rd_addr) || !GRANULE_ALIGNED(pdev_addr) ||
 	    !GRANULE_ALIGNED(vdev_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0U;
+		return;
 	}
 
 	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
 				    pdev_addr, GRANULE_STATE_PDEV, &g_pdev)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0U;
+		return;
 	}
 
 	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
 	if (g_vdev == NULL) {
-		smc_rc = RMI_ERROR_INPUT;
-		goto out_err_input;
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0U;
+		goto out_unlock;
 	}
 
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
@@ -1048,26 +1210,64 @@ unsigned long smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 
 	if ((vd->g_rd != g_rd) ||
 	    (vd->g_pdev != g_pdev)) {
-		smc_rc = RMI_ERROR_DEVICE;
-		goto out_err_input;
+		res->x[0] = RMI_ERROR_DEVICE;
+		res->x[1] = 0U;
+		goto out_unlock;
 	}
 
 	if ((vd->rmi_state != RMI_VDEV_STATE_LOCKED) &&
 	    (vd->rmi_state != RMI_VDEV_STATE_STARTED) &&
 	    (vd->rmi_state != RMI_VDEV_STATE_ERROR)) {
-		smc_rc = RMI_ERROR_DEVICE;
-		goto out_err_input;
+		res->x[0] = RMI_ERROR_DEVICE;
+		res->x[1] = 0U;
+		goto out_unlock;
 	}
 
 	if (vd->comm_state != DEV_COMM_IDLE) {
 		ERROR("vd(%p)->comm_state(%u) != DEV_COMM_IDLE\n", (void *)vd, vd->comm_state);
-		smc_rc = RMI_ERROR_DEVICE;
-		goto out_err_input;
+		res->x[0] = RMI_ERROR_DEVICE;
+		res->x[1] = 0U;
+		goto out_unlock;
 	}
 
-	if (vd->num_map != 0U) {
-		smc_rc = RMI_ERROR_DEVICE;
-		goto out_err_input;
+	/*
+	 * Make sure that no dev granules are mapped in the address ranges of
+	 * this VDEV
+	 */
+	for (unsigned long i = 0U; i < vd->num_addr_range; ++i) {
+		unsigned long base = vd->addr_range[i].base;
+		unsigned long top = vd->addr_range[i].top;
+
+		for (unsigned long addr = base; addr < top; addr += GRANULE_SIZE) {
+			enum dev_coh_type type;
+			struct dev_granule *g =
+				find_lock_dev_granule(addr, DEV_GRANULE_STATE_MAPPED, &type);
+
+			/*
+			 * If the granule is in DEV_GRANULE_STATE_MAPPED state,
+			 * then the unlocking of the VDEV cannot be continued
+			 */
+			if (g != NULL) {
+				dev_granule_unlock(g);
+				res->x[0] = RMI_ERROR_GRANULE;
+				res->x[1] = addr;
+				goto out_unlock;
+			}
+		}
+	}
+
+	/*
+	 * Disable the STE (CFGI_STE and CMD_SYNC) early on to stop device from
+	 * DMAing to realm memory. This is especially important when we
+	 * implement the forced-refresh as part of the UNLOCK().
+	 */
+	if (vd->dma_state == RMI_VDEV_DMA_ENABLED) {
+		if (smmuv3_disable_ste(vd->smmu_idx, vd->sid) != 0) {
+			res->x[0] = RMI_ERROR_DEVICE;
+			res->x[1] = 0U;
+			goto out_unlock;
+		}
+		vd->dma_state = RMI_VDEV_DMA_DISABLED;
 	}
 
 	/* Set TDISP parameters */
@@ -1078,9 +1278,10 @@ unsigned long smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 	vd->op = VDEV_OP_UNLOCK;
 	vd->comm_state = DEV_COMM_PENDING;
 
-	smc_rc = RMI_SUCCESS;
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = 0U;
 
-out_err_input:
+out_unlock:
 	if (vd != NULL) {
 		buffer_unmap(vd);
 	}
@@ -1093,6 +1294,4 @@ out_err_input:
 	}
 
 	granule_unlock(g_rd);
-
-	return smc_rc;
 }

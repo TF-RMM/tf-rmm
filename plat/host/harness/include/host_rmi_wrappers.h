@@ -56,17 +56,25 @@ void host_rmi_rtt_set_ripas(void *rd, void *rec, uintptr_t base, uintptr_t top,
 		struct smc_result *res);
 void host_rmi_pdev_create(void *pdev, void *pdev_params_ptr,
 			  struct smc_result *res);
-void host_rmi_pdev_aux_count(unsigned long pdev_flags, struct smc_result *res);
 void host_rmi_pdev_communicate(void *pdev, void *io_data_ptr,
 			       struct smc_result *res);
 void host_rmi_pdev_get_state(void *pdev, struct smc_result *res);
 void host_rmi_pdev_abort(void *pdev, struct smc_result *res);
 void host_rmi_pdev_stop(void *pdev, struct smc_result *res);
 void host_rmi_pdev_destroy(void *pdev, struct smc_result *res);
-void host_rmi_pdev_ide_key_refresh(void *pdev, uintptr_t ev, struct smc_result *res);
-void host_rmi_pdev_ide_reset(void *pdev, struct smc_result *res);
 void host_rmi_pdev_set_pubkey(void *pdev, void *pubkey_params_ptr,
 			      struct smc_result *res);
+void host_rmi_pdev_stream_connect(void *stream_params_ptr, void *stream_handle,
+				  struct smc_result *res);
+void host_rmi_pdev_stream_disconnect(void *pdev1, void *pdev2,
+				     unsigned long stream_handle,
+				     struct smc_result *res);
+void host_rmi_pdev_stream_complete(void *pdev1, void *pdev2,
+				   unsigned long stream_handle,
+				   struct smc_result *res);
+void host_rmi_pdev_stream_key_refresh(void *pdev1, void *pdev2,
+				      unsigned long stream_handle,
+				      struct smc_result *res);
 void host_rmi_vdev_create(void *rd, void *pdev_ptr, void *vdev_ptr,
 			  void *vdev_params_ptr, struct smc_result *res);
 void host_rmi_vdev_communicate(void *rd, void *pdev_ptr, void *vdev_ptr, void *data_ptr,

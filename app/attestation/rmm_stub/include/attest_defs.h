@@ -26,6 +26,7 @@
 enum hash_algo {
 	HASH_SHA_256 = RMI_HASH_SHA_256,
 	HASH_SHA_512 = RMI_HASH_SHA_512,
+	HASH_SHA_384 = RMI_HASH_SHA_384,
 };
 
 /* Size in bytes of the SHA256 measurement */
@@ -33,6 +34,9 @@ enum hash_algo {
 
 /* Size in bytes of the SHA512 measurement */
 #define SHA512_SIZE			(64U)
+
+/* Size in bytes of the SHA384 measurement */
+#define SHA384_SIZE			(48U)
 
 #ifndef CBMC
 /*
@@ -119,6 +123,9 @@ static inline size_t measurement_get_size(const enum hash_algo algorithm)
 		break;
 	case HASH_SHA_512:
 		ret = (size_t)SHA512_SIZE;
+		break;
+	case HASH_SHA_384:
+		ret = (size_t)SHA384_SIZE;
 		break;
 	default:
 		assert(false);

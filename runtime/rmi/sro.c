@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <buffer.h>
 #include <debug.h>
+#include <dev.h>
 #include <granule.h>
 #include <granule_types.h>
 #include <limits.h>
@@ -37,7 +38,9 @@ static struct rmi_handles sro_handles[] = {
 	SRO_HANDLE(PSMMU_ACTIVATE, psmmu_continue_handler),
 	SRO_HANDLE(PSMMU_DEACTIVATE, psmmu_continue_handler),
 	SRO_HANDLE(PSMMU_ST_L2_CREATE, psmmu_continue_handler),
-	SRO_HANDLE(PSMMU_ST_L2_DESTROY, psmmu_continue_handler)
+	SRO_HANDLE(PSMMU_ST_L2_DESTROY, psmmu_continue_handler),
+	SRO_HANDLE(PDEV_CREATE, pdev_continue_handler),
+	SRO_HANDLE(PDEV_DESTROY, pdev_continue_handler)
 };
 COMPILER_ASSERT(ARRAY_SIZE(sro_handles) <= SMC64_NUM_FIDS_IN_RANGE(RMI));
 

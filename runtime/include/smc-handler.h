@@ -92,10 +92,10 @@ void smc_rtt_unmap_unprotected(unsigned long rd_addr,
 				unsigned long ulevel,
 				struct smc_result *res);
 
-void smc_vdev_validate_mapping(unsigned long rd_addr, unsigned long rec_addr,
-			       unsigned long pdev_addr, unsigned long vdev_addr,
-			       unsigned long base, unsigned long top,
-			       struct smc_result *res);
+void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
+			   unsigned long pdev_addr, unsigned long vdev_addr,
+			   unsigned long base, unsigned long top,
+			   struct smc_result *res);
 
 void smc_rtt_read_entry(unsigned long rd_addr,
 			unsigned long map_addr,
@@ -155,21 +155,24 @@ void smc_rtt_aux_unmap_unprotected(unsigned long rd_addr,
 				   unsigned long index,
 				   struct smc_result *res);
 
-unsigned long smc_vdev_map(unsigned long rd_addr,
-			   unsigned long vdev_addr,
-			   unsigned long map_addr,
-			   unsigned long ulevel,
-			   unsigned long dev_mem_addr);
+void smc_rtt_dev_map(unsigned long rd_addr,
+		     unsigned long vdev_addr,
+		     unsigned long base,
+		     unsigned long top,
+		     unsigned long flags,
+		     unsigned long oaddr,
+		     struct smc_result *res);
 
-void smc_vdev_unmap(unsigned long rd_addr,
-		   unsigned long map_addr,
-		   unsigned long ulevel,
-		   struct smc_result *res);
+void smc_rtt_dev_unmap(unsigned long rd_addr,
+		       unsigned long base,
+		       unsigned long top,
+		       unsigned long flags,
+		       unsigned long oaddr,
+		       struct smc_result *res);
 
-unsigned long smc_pdev_create(unsigned long pdev_addr,
-			      unsigned long pdev_params_addr);
-
-void smc_pdev_aux_count(unsigned long flags, struct smc_result *res);
+void smc_pdev_create(unsigned long pdev_addr,
+		     unsigned long pdev_params_addr,
+		     struct smc_result *res);
 
 unsigned long smc_pdev_communicate(unsigned long pdev_addr,
 				   unsigned long dev_comm_data_addr);
@@ -183,11 +186,7 @@ unsigned long smc_pdev_abort(unsigned long pdev_addr);
 
 unsigned long smc_pdev_stop(unsigned long pdev_addr);
 
-unsigned long smc_pdev_destroy(unsigned long pdev_addr);
-
-unsigned long smc_pdev_ide_key_refresh(unsigned long pdev_addr, unsigned long coh);
-
-unsigned long smc_pdev_ide_reset(unsigned long pdev_addr);
+void smc_pdev_destroy(unsigned long pdev_addr, struct smc_result *res);
 
 unsigned long smc_mec_set_shared(unsigned long mecid);
 
@@ -206,13 +205,12 @@ unsigned long smc_vdev_communicate(unsigned long rd_addr,
 
 void smc_vdev_get_state(unsigned long vdev_addr, struct smc_result *res);
 
-unsigned long smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
-				unsigned long vdev_addr);
+void smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
+		     unsigned long vdev_addr, struct smc_result *res);
 
-void smc_vdev_aux_count(unsigned long pdev_flags, unsigned long vdev_flags,
-			struct smc_result *res);
-
-unsigned long smc_vdev_abort(unsigned long vdev_addr);
+unsigned long smc_vdev_abort(unsigned long rd_addr,
+			     unsigned long pdev_addr,
+			     unsigned long vdev_addr);
 
 unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 			       unsigned long vdev_addr);
@@ -224,6 +222,24 @@ unsigned long smc_vdev_lock(unsigned long rd_addr, unsigned long pdev_addr,
 					unsigned long vdev_addr);
 unsigned long smc_vdev_start(unsigned long rd_addr, unsigned long pdev_addr,
 					unsigned long vdev_addr);
+
+void smc_pdev_stream_connect(unsigned long stream_params_addr, struct smc_result *res);
+
+unsigned long smc_pdev_stream_disconnect(unsigned long pdev1_addr,
+					 unsigned long pdev2_addr,
+					 unsigned long stream_handle);
+
+unsigned long smc_pdev_stream_complete(unsigned long pdev1_addr,
+				       unsigned long pdev2_addr,
+				       unsigned long stream_handle);
+
+unsigned long smc_pdev_stream_key_refresh(unsigned long pdev1_addr,
+					  unsigned long pdev2_addr,
+					  unsigned long stream_handle);
+
+unsigned long smc_pdev_stream_key_purge(unsigned long pdev1_addr,
+					unsigned long pdev2_addr,
+					unsigned long stream_handle);
 
 void smc_granule_tracking_get(unsigned long addr,
 			      struct smc_result *res);

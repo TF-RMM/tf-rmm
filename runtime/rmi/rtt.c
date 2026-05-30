@@ -2112,11 +2112,24 @@ out_unlock_rec_rd:
 	granule_unlock(g_rd);
 }
 
-unsigned long smc_vdev_map(unsigned long rd_addr,
-			   unsigned long vdev_addr,
-			   unsigned long map_addr,
-			   unsigned long ulevel,
-			   unsigned long dev_mem_addr)
+static bool addr_is_in_vdev_addr_range(struct vdev *vd, unsigned long addr)
+{
+	for (unsigned long i = 0; i < vd->num_addr_range; ++i) {
+		if ((addr >= vd->addr_range[i].base) &&
+		    (addr < vd->addr_range[i].top)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+void smc_rtt_dev_map(unsigned long rd_addr,
+		     unsigned long vdev_addr,
+		     unsigned long base,
+		     unsigned long top,
+		     unsigned long flags,
+		     unsigned long oaddr,
+		     struct smc_result *res)
 {
 	struct dev_granule *g_dev;
 	struct granule *g_rd;
@@ -2126,14 +2139,25 @@ unsigned long smc_vdev_map(unsigned long rd_addr,
 	struct s2tt_walk wi;
 	struct s2tt_context s2_ctx;
 	unsigned long s2tte, *s2tt, num_granules;
-	long level = (long)ulevel;
-	unsigned long ret;
 	__unused enum dev_coh_type type;
+	unsigned long data_addr;
 
-	/* Dev_Mem_Map/Unmap commands can operate up to a level 2 block entry */
-	if ((level < S2TT_MIN_DEV_BLOCK_LEVEL) || (level > S2TT_PAGE_LEVEL)) {
-		return RMI_ERROR_INPUT;
+	/* Only support RMI_ADDR_TYPE_SINGLE */
+	if (flags != RMI_ADDR_TYPE_SINGLE) {
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
+		return;
 	}
+
+	if ((top < base) || ((top - base) < GRANULE_SIZE)) {
+		/* Only support single granule */
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
+		return;
+	}
+
+	/* Extract physical address from bits [51:12] */
+	data_addr = oaddr & ((BIT(40) - 1UL) << 12);
 
 	/*
 	 * The code below assumes that "external" granules are always
@@ -2149,23 +2173,22 @@ unsigned long smc_vdev_map(unsigned long rd_addr,
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
+		return;
 	}
 
-	if (level == S2TT_PAGE_LEVEL) {
-		num_granules = 1UL;
-	} else {
-		assert(level == (S2TT_PAGE_LEVEL - 1L));
-		num_granules = S2TTES_PER_S2TT;
-	}
+	num_granules = 1UL;
 
-	g_dev = find_lock_dev_granules(dev_mem_addr,
+	g_dev = find_lock_dev_granules(data_addr,
 					DEV_GRANULE_STATE_DELEGATED,
 					num_granules,
 					&type);
 	if (g_dev == NULL) {
 		granule_unlock(g_rd);
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
+		return;
 	}
 
 	rd = buffer_granule_map(g_rd, SLOT_RD);
@@ -2175,7 +2198,8 @@ unsigned long smc_vdev_map(unsigned long rd_addr,
 	if (g_vdev == NULL) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
-		ret = RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
 		goto out_unlock_granules;
 	}
 
@@ -2187,17 +2211,21 @@ unsigned long smc_vdev_map(unsigned long rd_addr,
 		granule_unlock(g_vdev);
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
-		ret = RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
 		goto out_unlock_granules;
 	}
 
-	if (!addr_in_par(rd, map_addr) ||
-	    !validate_map_addr(map_addr, level, rd)) {
+	if (!addr_in_par(rd, base) ||
+	    !validate_map_addr(base, S2TT_PAGE_LEVEL, rd) ||
+	    !addr_in_par(rd, top - GRANULE_SIZE) ||
+	    !addr_is_in_vdev_addr_range(vd, data_addr)) {
 		buffer_unmap(vd);
 		granule_unlock(g_vdev);
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
-		ret = RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
 		goto out_unlock_granules;
 	}
 
@@ -2208,10 +2236,11 @@ unsigned long smc_vdev_map(unsigned long rd_addr,
 	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
 	granule_unlock(g_rd);
 
-	s2tt_walk_lock_unlock(&s2_ctx, map_addr, level, &wi);
-	if (wi.last_level != level) {
-		ret = pack_return_code(RMI_ERROR_RTT,
+	s2tt_walk_lock_unlock(&s2_ctx, base, S2TT_PAGE_LEVEL, &wi);
+	if (wi.last_level != S2TT_PAGE_LEVEL) {
+		res->x[0] = pack_return_code(RMI_ERROR_RTT,
 					(unsigned char)wi.last_level);
+		res->x[1] = 0UL;
 		goto out_unlock_ll_table;
 	}
 
@@ -2222,16 +2251,18 @@ unsigned long smc_vdev_map(unsigned long rd_addr,
 
 	if (!(s2tte_is_unassigned_empty(&s2_ctx, s2tte) ||
 	      s2tte_is_unassigned_destroyed(&s2_ctx, s2tte))) {
-		ret = pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
+		res->x[0] = pack_return_code(RMI_ERROR_RTT, (unsigned char)S2TT_PAGE_LEVEL);
+		res->x[1] = 0UL;
 		goto out_unmap_ll_table;
 	}
 
 	s2tte = s2tte_create_assigned_dev_unchanged(&s2_ctx, s2tte,
-						    dev_mem_addr, level);
+						    data_addr, S2TT_PAGE_LEVEL);
 	s2tte_write(&s2tt[wi.index], s2tte);
 	atomic_granule_get(wi.g_llt);
 
-	ret = RMI_SUCCESS;
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = base + GRANULE_SIZE;
 
 out_unmap_ll_table:
 	buffer_unmap(s2tt);
@@ -2239,58 +2270,72 @@ out_unlock_ll_table:
 	granule_unlock(wi.g_llt);
 out_unlock_granules:
 	while (num_granules != 0UL) {
-		if (ret == RMI_SUCCESS) {
+		if (res->x[0] == RMI_SUCCESS) {
 			dev_granule_unlock_transition(&g_dev[--num_granules],
 							DEV_GRANULE_STATE_MAPPED);
 		} else {
 			dev_granule_unlock(&g_dev[--num_granules]);
 		}
 	}
-	return ret;
+	return;
 }
 
-/*
- * TODO_ALP17: Removed vdev parameter based on discussion in
- * https://jira.arm.com/browse/FENIMORE-1303
- * Check the results in latest spec.
- */
-void smc_vdev_unmap(unsigned long rd_addr,
-		    unsigned long map_addr,
-		    unsigned long ulevel,
-		    struct smc_result *res)
+void smc_rtt_dev_unmap(unsigned long rd_addr,
+		       unsigned long base,
+		       unsigned long top,
+		       unsigned long flags,
+		       unsigned long oaddr,
+		       struct smc_result *res)
 {
 	struct granule *g_rd;
 	struct rd *rd;
+
+	/* TODO: for now only support RMI_ADDR_TYPE_SINGLE */
+	if (flags != RMI_ADDR_TYPE_SINGLE) {
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
+		res->x[2] = 0UL;
+		res->x[3] = 0UL;
+		return;
+	}
+
+	if ((top < base) || ((top - base) < GRANULE_SIZE)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
+		res->x[2] = 0UL;
+		res->x[3] = 0UL;
+		return;
+	}
+
 	struct s2tt_walk wi;
 	struct s2tt_context s2_ctx;
 	unsigned long dev_mem_addr, dev_addr, s2tte, *s2tt, num_granules;
-	long level = (long)ulevel;
 	__unused enum dev_coh_type type;
 	bool da_enabled;
-
-	/* Dev_Mem_Map/Unmap commands can operate up to a level 2 block entry */
-	if ((level < S2TT_MIN_DEV_BLOCK_LEVEL) || (level > S2TT_PAGE_LEVEL)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[2] = 0UL;
-		return;
-	}
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
 		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
 		res->x[2] = 0UL;
+		res->x[3] = 0UL;
 		return;
 	}
 
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
-	if (!addr_in_par(rd, map_addr) ||
-	    !validate_map_addr(map_addr, level, rd)) {
+	(void)oaddr;
+
+	if (!addr_in_par(rd, base) ||
+	    !validate_map_addr(base, S2TT_PAGE_LEVEL, rd) ||
+	    !addr_in_par(rd, top - GRANULE_SIZE)) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
 		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0UL;
 		res->x[2] = 0UL;
+		res->x[3] = 0UL;
 		return;
 	}
 
@@ -2301,11 +2346,11 @@ void smc_vdev_unmap(unsigned long rd_addr,
 	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
 	granule_unlock(g_rd);
 
-	s2tt_walk_lock_unlock(&s2_ctx, map_addr, level, &wi);
+	s2tt_walk_lock_unlock(&s2_ctx, base, S2TT_PAGE_LEVEL, &wi);
 	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx.mecid);
 	assert(s2tt != NULL);
 
-	if (wi.last_level != level) {
+	if (wi.last_level != S2TT_PAGE_LEVEL) {
 		res->x[0] = pack_return_code(RMI_ERROR_RTT,
 						(unsigned char)wi.last_level);
 		goto out_unmap_ll_table;
@@ -2313,28 +2358,28 @@ void smc_vdev_unmap(unsigned long rd_addr,
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
 
-	if (s2tte_is_assigned_dev_dev(&s2_ctx, s2tte, level)) {
-		dev_mem_addr = s2tte_pa(&s2_ctx, s2tte, level);
+	if (s2tte_is_assigned_dev_dev(&s2_ctx, s2tte, S2TT_PAGE_LEVEL)) {
+		dev_mem_addr = s2tte_pa(&s2_ctx, s2tte, S2TT_PAGE_LEVEL);
 		s2tte = s2tte_create_unassigned_destroyed(&s2_ctx, s2tte);
 		s2tte_write(&s2tt[wi.index], s2tte);
-		invalidate_page_block(&s2_ctx, da_enabled, s2_ctx.vmid, map_addr, level);
-	} else if (s2tte_is_assigned_dev_empty(&s2_ctx, s2tte, level)) {
-		dev_mem_addr = s2tte_pa(&s2_ctx, s2tte, level);
+		invalidate_page_block(&s2_ctx, da_enabled, s2_ctx.vmid, base, S2TT_PAGE_LEVEL);
+	} else if (s2tte_is_assigned_dev_empty(&s2_ctx, s2tte, S2TT_PAGE_LEVEL)) {
+		dev_mem_addr = s2tte_pa(&s2_ctx, s2tte, S2TT_PAGE_LEVEL);
 		s2tte = s2tte_create_unassigned_empty(&s2_ctx, s2tte);
 		s2tte_write(&s2tt[wi.index], s2tte);
-	} else if (s2tte_is_assigned_dev_destroyed(&s2_ctx, s2tte, level)) {
-		dev_mem_addr = s2tte_pa(&s2_ctx, s2tte, level);
+	} else if (s2tte_is_assigned_dev_destroyed(&s2_ctx, s2tte, S2TT_PAGE_LEVEL)) {
+		dev_mem_addr = s2tte_pa(&s2_ctx, s2tte, S2TT_PAGE_LEVEL);
 		s2tte = s2tte_create_unassigned_destroyed(&s2_ctx, s2tte);
 		s2tte_write(&s2tt[wi.index], s2tte);
 	} else {
 		res->x[0] = pack_return_code(RMI_ERROR_RTT,
-						(unsigned char)level);
+						(unsigned char)S2TT_PAGE_LEVEL);
 		goto out_unmap_ll_table;
 	}
 
 	atomic_granule_put(wi.g_llt);
 
-	num_granules = (level == S2TT_PAGE_LEVEL) ? 1UL : S2TTES_PER_S2TT;
+	num_granules = 1UL;
 	dev_addr = dev_mem_addr;
 
 	for (unsigned long i = 0UL; i < num_granules; i++) {
@@ -2347,9 +2392,10 @@ void smc_vdev_unmap(unsigned long rd_addr,
 	}
 
 	res->x[0] = RMI_SUCCESS;
-	res->x[1] = dev_mem_addr;
+	res->x[1] = base + GRANULE_SIZE;
+	res->x[2] = dev_mem_addr | (0x1U << 2U); /* Only one L3 block is unmapped */
+	res->x[3] = 0UL; /* as only RMI_ADDR_TYPE_SINGLE is supported. */
 out_unmap_ll_table:
-	res->x[2] = s2tt_skip_non_live_entries(&s2_ctx, map_addr, s2tt, &wi);
 	buffer_unmap(s2tt);
 	granule_unlock(wi.g_llt);
 }
@@ -3141,10 +3187,10 @@ static void rtt_dev_mem_set_range(struct s2tt_context *s2_ctx,
 	}
 }
 
-void smc_vdev_validate_mapping(unsigned long rd_addr, unsigned long rec_addr,
-			       unsigned long pdev_addr, unsigned long vdev_addr,
-			       unsigned long base, unsigned long top,
-			       struct smc_result *res)
+void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
+			  unsigned long pdev_addr, unsigned long vdev_addr,
+			  unsigned long base, unsigned long top,
+			  struct smc_result *res)
 {
 	struct granule *g_rd, *g_rec;
 	struct s2tt_context *s2_ctx;

@@ -106,8 +106,11 @@
 /* A GPT walk reached an entry with unexpected level */
 #define RMI_ERROR_GPT			U(15)
 
+/* An attribute of a Granule does not match the expected value */
+#define RMI_ERROR_GRANULE		U(16)
+
 /* Max number of RMI Status Errors. */
-#define RMI_ERROR_COUNT_MAX		U(16)
+#define RMI_ERROR_COUNT_MAX		U(17)
 
 /*
  * The number of GPRs (starting from X0) that are
@@ -126,6 +129,7 @@
 /* RmiHashAlgorithm type */
 #define RMI_HASH_SHA_256		0U
 #define RMI_HASH_SHA_512		1U
+#define RMI_HASH_SHA_384		2U
 
 /* Maximum number of Interrupt Controller List Registers */
 #define REC_GIC_NUM_LRS			U(16)
@@ -378,9 +382,8 @@
 #define SMC_RMI_RTT_DATA_MAP_INIT		SMC64_RMI_FID(U(0x3))
 
 /*
- * FID: 0xC4000156
+ * FID: 0xC4000156 is not used.
  */
-#define SMC_RMI_PDEV_AUX_COUNT			SMC64_RMI_FID(U(0x6))
 
 /*
  * FID: 0xC4000157
@@ -463,9 +466,8 @@
 #define SMC_RMI_RTT_MAP_UNPROTECTED		SMC64_RMI_FID(U(0xF))
 
 /*
- * FID: 0xC4000160
+ * FID: 0xC4000160 is not used.
  */
-#define SMC_RMI_VDEV_AUX_COUNT			SMC64_RMI_FID(U(0x10))
 
 /*
  * FID: 0xC4000161
@@ -506,7 +508,7 @@
  *
  * ret1 == Top IPA of range whose RIPAS was modified
  */
-#define SMC_RMI_VDEV_VALIDATE_MAPPING		SMC64_RMI_FID(U(0x13))
+#define SMC_RMI_RTT_DEV_VALIDATE		SMC64_RMI_FID(U(0x13))
 
 /*
  * FID: 0xC4000164
@@ -594,32 +596,8 @@
 #define SMC_RMI_PSMMU_IRQ_NOTIFY		SMC64_RMI_FID(U(0x1F))
 
 /*
- * FID: 0xC4000171 is not used.
+ * FIDs: 0xC4000170 - 0xC4000173 are not used.
  */
-
-/*
- * FID: 0xC4000172
- *
- * arg0 == PA of the RD for the target Realm
- * arg1 == PA of the VDEV
- * arg2 == IPA at which the memory will be mapped in the target Realm
- * arg3 == RTT level
- * arg4 == PA of the target device memory
- */
-#define SMC_RMI_VDEV_MAP			SMC64_RMI_FID(U(0x22))
-
-/*
- * FID: 0xC4000173
- *
- * arg0 == PA of the RD which owns the target device memory
- * arg1 == IPA at which the memory is mapped in the target Realm
- * arg2 == RTT level
- *
- * ret1 == PA of the device memory which was unmapped
- * ret2 == Top IPA of non-live RTT entries, from entry at which the RTT walk
- *         terminated
- */
-#define SMC_RMI_VDEV_UNMAP			SMC64_RMI_FID(U(0x23))
 
 /*
  * FID: 0xC4000174
@@ -647,17 +625,17 @@
 #define SMC_RMI_PDEV_GET_STATE			SMC64_RMI_FID(U(0x28))
 
 /*
- * FID: 0xC4000179
+ * FID: 0xC4000179 is not used.
  */
-#define SMC_RMI_PDEV_IDE_RESET			SMC64_RMI_FID(U(0x29))
 
 /*
  * FID: 0xC400017A
  *
- * arg0 == PA of the PDEV
- * arg1 == Select coherent or non-coherent IDE stream
+ * arg0 == PA of the first PDEV object
+ * arg1 == PA of the second PDEV object
+ * arg2 == Stream handle
  */
-#define SMC_RMI_PDEV_IDE_KEY_REFRESH		SMC64_RMI_FID(U(0x2A))
+#define SMC_RMI_PDEV_STREAM_KEY_REFRESH		SMC64_RMI_FID(U(0x2A))
 
 /*
  * FID: 0xC400017B
@@ -800,6 +778,8 @@
  * arg0 == PA of the RD
  * arg1 == PA of the PDEV
  * arg2 == PA of the VDEV
+ *
+ * ret1 == Address of assigned Granule
  */
 #define SMC_RMI_VDEV_UNLOCK			SMC64_RMI_FID(U(0x3A))
 
@@ -1015,6 +995,55 @@
 #define SMC_RMI_RTT_DATA_UNMAP			SMC64_RMI_FID(U(0xA6))
 
 /*
+ * FID: 0xC40001F7
+ *
+ * arg0 == PA of the RD for the target Realm
+ * arg1 == PA of the VDEV
+ * arg2 == Base of the target IPA range
+ * arg3 == Top of the target IPA range
+ * arg4 == Flags
+ * arg5 == Output address set descriptor.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_SINGLE then this describes a
+ *         contiguous PA range which will be mapped into the target IPA range.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_LIST then this is the PA of a
+ *         Granule that holds an RMI Address List.
+ *         This describes a list of PA regions which will be mapped into the
+ *         target IPA range.
+ *
+ * ret1 == Top IPA of range which has been mapped
+ */
+#define SMC_RMI_RTT_DEV_MAP			SMC64_RMI_FID(U(0xA7))
+
+/*
+ * FID: 0xC40001F8
+ *
+ * arg0 == PA of the RD for the target Realm
+ * arg1 == Base of the target IPA range
+ * arg2 == Top of the target IPA range
+ * arg3 == Flags
+ * arg4 == Output address set descriptor.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_SINGLE then this describes a
+ *         contiguous PA range which has been unmapped from the target IPA
+ *         range.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_LIST then this is the PA of a
+ *         Granule that holds an RMI Address List.
+ *         This describes a list of PA regions which have been unmapped from the
+ *         target IPA range.
+ *
+ * ret1 == Top IPA of range which has been mapped
+ * ret2 == Output address range.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_SINGLE then this describes a
+ *         contiguous PA range which has been unmapped from the target IPA
+ *         range.
+ *         If flags.oaddr_type != RMI_ADDR_TYPE_SINGLE then this value is zero.
+ * ret3 == Number of entries in output address list.
+ *         If flags.oaddr_type == RMI_ADDR_TYPE_LIST then this is the number of
+ *         entries which have been written to the output address list.
+ *         If flags.oaddr_type != RMI_ADDR_TYPE_LIST then this value is zero.
+ */
+#define SMC_RMI_RTT_DEV_UNMAP			SMC64_RMI_FID(U(0xA8))
+
+/*
  * FID: 0xC4000202
  *
  * Activate the RMM.
@@ -1044,6 +1073,42 @@ enum rmm_state {
  * ret2 == Memory donation requirements.
  */
 #define SMC_RMI_OP_CONTINUE			SMC64_RMI_FID(U(0xB3))
+
+/*
+ * FID: 0xC4000204
+ *
+ * arg0 == PA of PDEV stream parameters
+ *
+ * ret1 == PDEV stream handle
+ */
+#define SMC_RMI_PDEV_STREAM_CONNECT		SMC64_RMI_FID(U(0xB4))
+
+/*
+ * FID: 0xC4000205
+ *
+ * arg0 == PA of the first PDEV object
+ * arg1 == PA of the second PDEV object
+ * arg2 == Stream handle
+ */
+#define SMC_RMI_PDEV_STREAM_DISCONNECT		SMC64_RMI_FID(U(0xB5))
+
+/*
+ * FID: 0xC4000206
+ *
+ * arg0 == PA of the first PDEV object
+ * arg1 == PA of the second PDEV object
+ * arg2 == Stream handle
+ */
+#define SMC_RMI_PDEV_STREAM_COMPLETE		SMC64_RMI_FID(U(0xB6))
+
+/*
+ * FID: 0xC4000207
+ *
+ * arg0 == PA of the first PDEV object
+ * arg1 == PA of the second PDEV object
+ * arg2 == Stream handle
+ */
+#define SMC_RMI_PDEV_STREAM_KEY_PURGE		SMC64_RMI_FID(U(0xB7))
 
 /*
  * FID: 0xC4000208
@@ -1396,13 +1461,6 @@ struct rmi_rec_run {
 #define RMI_PDEV_SPDM_FALSE			U(0)
 #define RMI_PDEV_SPDM_TRUE			U(1)
 
-/*
- * RmiPdevIde
- * Represents whether the link to the device is protected using IDE.
- * Width: 1 bit
- */
-#define RMI_PDEV_IDE_FALSE			U(0)
-#define RMI_PDEV_IDE_TRUE			U(1)
 
 /*
  * RmiPdevCoherent
@@ -1411,52 +1469,6 @@ struct rmi_rec_run {
  */
 #define RMI_PDEV_COHERENT_FALSE			U(0)
 #define RMI_PDEV_COHERENT_TRUE			U(1)
-
-/*
- * RmiPdevTrust
- * Represents the device trust model.
- * Width: 1 bit
- */
-#define RMI_TRUST_SEL				U(0)
-#define RMI_TRUST_COMP				U(1)
-
-/*
- * RmiPdevCategory
- * Represents PDEV category.
- * Width: 2 bits
- */
-#define RMI_PDEV_SMEM				U(0)
-#define RMI_PDEV_CMEM_CXL			U(1)
-
-/*
- * RmiPdevFlags
- * Fieldset contains flags provided by the Host during PDEV creation
- * Width: 64 bits
- */
-/* RmiPdevSpdm: Bit 0 */
-#define RMI_PDEV_FLAGS_SPDM_SHIFT		UL(0)
-#define RMI_PDEV_FLAGS_SPDM_WIDTH		UL(1)
-/* RmiPdevIde: Bit 1 */
-#define RMI_PDEV_FLAGS_NCOH_IDE_SHIFT		UL(1)
-#define RMI_PDEV_FLAGS_NCOH_IDE_WIDTH		UL(1)
-/* RmiFeature: Bit 2 */
-#define RMI_PDEV_FLAGS_NCOH_ADDR_SHIFT		UL(2)
-#define RMI_PDEV_FLAGS_NCOH_ADDR_WIDTH		UL(1)
-/* RmiPdevIde: Bit 3 */
-#define RMI_PDEV_FLAGS_COH_IDE_SHIFT		UL(3)
-#define RMI_PDEV_FLAGS_COH_IDE_WIDTH		UL(1)
-/* RmiFeature: Bit 4 */
-#define RMI_PDEV_FLAGS_COH_ADDR_SHIFT		UL(4)
-#define RMI_PDEV_FLAGS_COH_ADDR_WIDTH		UL(1)
-/* RmiFeature: Bit 5 */
-#define RMI_PDEV_FLAGS_P2P_SHIFT		UL(5)
-#define RMI_PDEV_FLAGS_P2P_WIDTH		UL(1)
-/* RmiPdevTrust: Bit 6 */
-#define RMI_PDEV_FLAGS_TRUST_SHIFT		UL(6)
-#define RMI_PDEV_FLAGS_TRUST_WIDTH		UL(1)
-/* RmiPdevCategory: Bit 8-7 */
-#define RMI_PDEV_FLAGS_CATEGORY_SHIFT		UL(7)
-#define RMI_PDEV_FLAGS_CATEGORY_WIDTH		UL(2)
 
 /*
  * RmiPdevEvent
@@ -1474,11 +1486,16 @@ struct rmi_rec_run {
 #define RMI_PDEV_STATE_NEEDS_KEY		U(1)
 #define RMI_PDEV_STATE_HAS_KEY			U(2)
 #define RMI_PDEV_STATE_READY			U(3)
-#define RMI_PDEV_STATE_IDE_RESETTING		U(4)
-#define RMI_PDEV_STATE_COMMUNICATING		U(5)
-#define RMI_PDEV_STATE_STOPPING			U(6)
-#define RMI_PDEV_STATE_STOPPED			U(7)
-#define RMI_PDEV_STATE_ERROR			U(8)
+#define RMI_PDEV_STATE_STOPPED			U(4)
+#define RMI_PDEV_STATE_ERROR			U(5)
+
+/*
+ * RmiPdevCoherent
+ * Coherency of device accesses
+ * Width: 1 bits
+ */
+#define RMI_NCOH				U(0)
+#define RMI_COH					U(1)
 
 /*
  * RmiSignatureAlgorithm
@@ -1526,6 +1543,7 @@ struct rmi_dev_comm_enter {
 #define RMI_DEV_COMM_EXIT_FLAGS_RSP_WAIT_BIT		(UL(1) << 3U)
 #define RMI_DEV_COMM_EXIT_FLAGS_RSP_RESET_BIT		(UL(1) << 4U)
 #define RMI_DEV_COMM_EXIT_FLAGS_MULTI_BIT		(UL(1) << 5U)
+#define RMI_DEV_COMM_EXIT_FLAGS_STREAM_WAIT_BIT		(UL(1) << 6U)
 
 /*
  * RmiDevCommObject
@@ -1636,71 +1654,61 @@ struct rmi_address_range {
 };
 
 /*
- * Maximum number of aux granules paramenter passed in rmi_pdev_params during
- * PDEV createto PDEV create
+ * Maximum number of aux granules that can be tracked by the a PDEV object.
  */
+#ifndef CBMC
 #define PDEV_PARAM_AUX_GRANULES_MAX		U(32)
-
-#ifdef CBMC
-#define PDEV_PARAM_NCOH_ADDR_RANGE_MAX		U(1)
 #else /* CBMC */
-/*
- * Maximum number of device non-coherent RmiAddressRange parameter passed in
- * rmi_pdev_params during PDEV create
- */
-#define PDEV_PARAM_NCOH_ADDR_RANGE_MAX		U(16)
+#define PDEV_PARAM_AUX_GRANULES_MAX		U(2)
 #endif /* CBMC */
 
 /*
- * Maximum number of device coherent RmiAddressRange parameter passed in
- * rmi_pdev_params during PDEV create
+ * RmiPdevCategory
+ * PDEV category
+ * Width: 2 bits
  */
-#define PDEV_PARAM_COH_ADDR_RANGE_MAX		U(4)
+#define RMI_PDEV_ROOTPORT			U(0)
+#define RMI_PDEV_ENDPOINT_ACCEL_OFF_CHIP	U(1)
+#define RMI_PDEV_ENDPOINT_ACCEL_ON_CHIP		U(2)
+
+/*
+ * RmiPdevFlags
+ * Flags provided by the Host during PDEV creation
+ * Width: 64 bits
+ */
+/* RmiPdevSpdm: Bit 0 */
+#define RMI_PDEV_FLAGS_SPDM_SHIFT		UL(0)
+#define RMI_PDEV_FLAGS_SPDM_WIDTH		UL(1)
+/* RmiPdevCategory: Bits 2:1 */
+#define RMI_PDEV_FLAGS_CATEGORY_SHIFT		UL(1)
+#define RMI_PDEV_FLAGS_CATEGORY_WIDTH		UL(2)
 
 /*
  * RmiPdevParams
- * This structure contains parameters provided by Host during PDEV creation.
+ * Parameters provided by the Host during PDEV creation
  * Width: 4096 (0x1000) bytes.
  */
 /* cppcheck-suppress misra-c2012-2.4 */
 struct rmi_pdev_params {
 	/* RmiPdevFlags: Flags */
-	SET_MEMBER_RMI(unsigned long flags, 0, 0x8);
+	SET_MEMBER_RMI(unsigned long flags, 0x0, 0x8);
 	/* Bits64: Physical device identifier */
 	SET_MEMBER_RMI(unsigned long pdev_id, 0x8, 0x10);
-	/* Bits8: Segment ID */
-	SET_MEMBER_RMI(unsigned char segment_id, 0x10, 0x18);
-	/* Address: ECAM base address of the PCIe configuration space */
-	SET_MEMBER_RMI(unsigned long ecam_addr, 0x18, 0x20);
-	/* Bits16: Root Port identifier */
-	SET_MEMBER_RMI(unsigned short root_id, 0x20, 0x28);
-	/* UInt64: Certificate identifier */
-	SET_MEMBER_RMI(unsigned long cert_id, 0x28, 0x30);
-	/* UInt16: Base requester ID range (inclusive) */
-	SET_MEMBER_RMI(unsigned short rid_base, 0x30, 0x38);
-	/* UInt16: Top of requester ID range (exclusive) */
-	SET_MEMBER_RMI(unsigned short rid_top, 0x38, 0x40);
+	/* Bits64: Routing identifier */
+	SET_MEMBER_RMI(unsigned long routing_id, 0x10, 0x18);
+	/* UInt64: Device identity index */
+	SET_MEMBER_RMI(unsigned long id_index, 0x18, 0x20);
+	/* Bits32: Base of requester ID range (inclusive). */
+	SET_MEMBER_RMI(unsigned int rid_base, 0x20, 0x28);
+	/* Bits32: Top of requester ID range (exclusive). */
+	SET_MEMBER_RMI(unsigned int rid_top, 0x28, 0x30);
 	/* RmiHashAlgorithm: Algorithm used to generate device digests */
-	SET_MEMBER_RMI(unsigned char hash_algo, 0x40, 0x48);
-	/* UInt64: Number of auxiliary granules */
-	SET_MEMBER_RMI(unsigned long num_aux, 0x48, 0x50);
-	/* UInt64: IDE stream identifier */
-	SET_MEMBER_RMI(unsigned long ide_sid, 0x50, 0x58);
-	/* UInt64: Number of device non-coherent address ranges */
-	SET_MEMBER_RMI(unsigned long ncoh_num_addr_range, 0x58, 0x60);
-	/* UInt64: Number of device coherent address ranges */
-	SET_MEMBER_RMI(unsigned long coh_num_addr_range, 0x60, 0x100);
-	/* Address: Addresses of auxiliary granules */
-	SET_MEMBER_RMI(unsigned long aux[PDEV_PARAM_AUX_GRANULES_MAX], 0x100,
-		       0x200);
-	/* RmiAddressRange: Device non-coherent address range */
-	SET_MEMBER_RMI(struct rmi_address_range
-		       ncoh_addr_range[PDEV_PARAM_NCOH_ADDR_RANGE_MAX],
-		       0x200, 0x300);
-	/* RmiAddressRange: Device coherent address range */
-	SET_MEMBER_RMI(struct rmi_address_range
-		       coh_addr_range[PDEV_PARAM_COH_ADDR_RANGE_MAX],
-		       0x300, 0x1000);
+	SET_MEMBER_RMI(unsigned char hash_algo, 0x30, 0x38);
+	/*
+	 * UInt64: Order of the maximum number of VDEVs which can be created for this
+	 * PDEV.
+	 */
+	SET_MEMBER_RMI(unsigned long max_vdevs_order, 0x38, 0x1000);
 };
 
 /* Max length of public key data passed in rmi_public_key_params */
@@ -1731,11 +1739,12 @@ struct rmi_public_key_params {
 
 /*
  * RmiVdevFlags
- * Fieldset contains flags provided by the Host during VDEV creation.
+ * Flags provided by the Host during VDEV creation
  * Width: 64 bits
  */
-#define RMI_VDEV_FLAGS_RES0_SHIFT		UL(0)
-#define RMI_VDEV_FLAGS_RES0_WIDTH		UL(63)
+/* RmiFeature: Whether device uses a VSMMU */
+#define RMI_VDEV_FLAGS_VSMMU_SHIFT		UL(0)
+#define RMI_VDEV_FLAGS_VSMMU_WIDTH		UL(1)
 
 /*
  * RmmVdevState
@@ -1753,26 +1762,34 @@ struct rmi_public_key_params {
 /* Maximum number of aux granules paramenter passed to VDEV create */
 #define VDEV_PARAM_AUX_GRANULES_MAX		U(32)
 
+#ifndef CBMC
+#define RMI_VDEV_PARAMS_ADDR_RANGE_MAX 8U
+#else /* CBMC */
+#define RMI_VDEV_PARAMS_ADDR_RANGE_MAX 1U
+#endif /* CBMC */
+
 /*
  * RmiVdevParams
- * The RmiVdevParams structure contains parameters provided by the Host during
- * VDEV creation.
+ * Parameters provided by the Host during VDEV creation
  * Width: 4096 (0x1000) bytes.
  */
 /* cppcheck-suppress misra-c2012-2.4 */
 struct rmi_vdev_params {
 	/* RmiVdevFlags: Flags */
-	SET_MEMBER_RMI(unsigned long flags, 0, 0x8);
+	SET_MEMBER_RMI(unsigned long flags, 0x0, 0x8);
 	/* Bits64: Virtual device identifier */
 	SET_MEMBER_RMI(unsigned long vdev_id, 0x8, 0x10);
 	/* Bits64: TDI identifier */
-	SET_MEMBER_RMI(unsigned long tdi_id, 0x10, 0x18);
-	/* UInt64: Number of auxiliary granules */
-	SET_MEMBER_RMI(unsigned long num_aux, 0x18, 0x100);
-
-	/* Address: Addresses of auxiliary granules */
-	SET_MEMBER_RMI(unsigned long aux[VDEV_PARAM_AUX_GRANULES_MAX], 0x100,
-		       0x1000);
+	SET_MEMBER_RMI(unsigned long tdi_id, 0x10, 0x20);
+	/* Address: PA of VSMMU. */
+	SET_MEMBER_RMI(unsigned long vsmmu_addr, 0x20, 0x28);
+	/* Bits64: Virtual Stream Identifier. */
+	SET_MEMBER_RMI(unsigned long vsid, 0x28, 0x30);
+	/* UInt64: Number of device address ranges. */
+	SET_MEMBER_RMI(unsigned long num_addr_range, 0x30, 0x200);
+	/* RmiAddrRange: Device address ranges. */
+	SET_MEMBER_RMI(struct rmi_address_range addr_range[RMI_VDEV_PARAMS_ADDR_RANGE_MAX],
+		0x200, 0x1000);
 };
 
 /*
@@ -1857,6 +1874,50 @@ struct rmi_psmmu_params {
 #define RMI_PSMMU_FLAGS_ATS_WIDTH	U(1)
 #define RMI_PSMMU_FLAGS_PRI_SHIFT	U(2)
 #define RMI_PSMMU_FLAGS_PRI_WIDTH	U(1)
+
+/*
+ * RmiPdevStreamFlags
+ * Flags provided by the Host during PDEV stream creation
+ * Width: 64 bits
+ */
+
+/*
+ * RmiPdevStreamType
+ * Type of a PDEV stream
+ * Width: 8 bits
+ */
+#define RMI_PDEV_STREAM_NON_TEE			0U
+#define RMI_PDEV_STREAM_NCOH			1U
+#define RMI_PDEV_STREAM_COH			2U
+#define RMI_PDEV_STREAM_NCOH_SYS		3U
+#define RMI_PDEV_STREAM_COH_SYS			4U
+#define RMI_PDEV_STREAM_TYPE_COUNT		5U
+
+#define RMI_PDEV_STREAM_ADDR_RANGE_CNT		U(16)
+
+/*
+ * RmiPdevStreamParams
+ * Parameters provided by the Host during PDEV stream creation
+ * Width: 4096 (0x1000) bytes.
+ */
+/* cppcheck-suppress misra-c2012-2.4 */
+struct rmi_pdev_stream_params {
+	/* RmiPdevStreamFlags: Flags */
+	SET_MEMBER_RMI(unsigned long flags, 0x0, 0x8);
+	/* RmiPdevStreamType: Stream type */
+	SET_MEMBER_RMI(unsigned char stream_type, 0x8, 0x10);
+	/* Address: Address of first PDEV. */
+	SET_MEMBER_RMI(unsigned long pdev_1, 0x10, 0x18);
+	/* Address: Address of second PDEV */
+	SET_MEMBER_RMI(unsigned long pdev_2, 0x18, 0x20);
+	/* UInt64: IDE stream ID */
+	SET_MEMBER_RMI(unsigned long ide_sid, 0x20, 0x28);
+	/* UInt64: Number of device address ranges */
+	SET_MEMBER_RMI(unsigned long num_addr_range, 0x28, 0x100);
+	/* RmiAddrRange: Device address range */
+	SET_MEMBER_RMI(struct rmi_address_range addr_range[RMI_PDEV_STREAM_ADDR_RANGE_CNT],
+		0x100, 0x1000);
+};
 
 /* Returns the higher supported RMI ABI revision */
 unsigned long rmi_get_highest_supported_version(void);

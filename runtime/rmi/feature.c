@@ -5,8 +5,8 @@
 
 #include <arch_features.h>
 #include <assert.h>
+#include <dev.h>
 #include <feature.h>
-#include <gic.h>
 #include <mec.h>
 #include <s2tt.h>
 #include <simd.h>
@@ -124,6 +124,11 @@ unsigned long get_feature_register_2(void)
 	unsigned long feat_reg2 = 0UL;
 
 	feat_reg2 |= INPLACE(RMI_FEATURE_REGISTER_2_DA_EN, feat_da_supported);
+
+	if (feat_da_supported == RMI_FEATURE_TRUE) {
+		feat_reg2 |= INPLACE(RMI_FEATURE_REGISTER_2_MAX_VDEVS_ORDER, MAX_VDEVS_ORDER);
+	}
+
 	return feat_reg2;
 }
 
