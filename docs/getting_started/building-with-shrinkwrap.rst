@@ -149,7 +149,7 @@ above):
     .. code-block:: shell
 
        cd /cca
-       ./lkvm run --realm -c 2 -m 256 --disk guest-disk.img --kernel Image -p "earlycon=uart,mmio,0x101000000 root=/dev/vda2" --iommufd-vdevice --vfio-pci 0000:02:00.0
+       ./lkvm run --realm -c 2 -m 256 --disk guest-disk.img --kernel Image -p "earlycon=uart,mmio,0x101000000 root=/dev/vda2" --viommu --vfio-pci 0000:02:00.0
 
 
 Be patient while this boots to the shell.
