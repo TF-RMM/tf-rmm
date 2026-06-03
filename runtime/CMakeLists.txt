@@ -25,7 +25,8 @@ target_link_libraries(rmm-runtime
             rmm-el2-stub)
 
 target_include_directories(rmm-runtime
-    PRIVATE "include")
+    PRIVATE "include"
+            "rmi")
 
 arm_config_option(
     NAME RMM_MAX_SIZE

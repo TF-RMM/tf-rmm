@@ -21,6 +21,7 @@
 #include <smmuv3.h>
 #include <string.h>
 #include <utils_def.h>
+#include <vdev_test.h>
 
 static bool rmi_addr_ranges_valid(struct rmi_address_range *addr_range,
 				  unsigned long addr_range_cnt)
@@ -246,11 +247,8 @@ static bool pdev_vdev_range_slot_is_active(const struct pdev *pd, uint32_t slot_
 }
 
 /*
- * ONLY FOR TESTING PURPOSES
- * Expose the PDEV VDEV-range slot helpers so runtime unit tests can exercise
- * multi-page slot storage without going through the full DA object flows.
+ * Test-only wrappers — declarations are in tests/vdev_test.h.
  */
-/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 void vdev_test_pdev_set_vdev_ranges(struct pdev *pd, uint32_t slot_idx,
 				    const struct rmi_address_range *addr_range,
 				    unsigned long addr_range_cnt)
@@ -258,26 +256,22 @@ void vdev_test_pdev_set_vdev_ranges(struct pdev *pd, uint32_t slot_idx,
 	pdev_set_vdev_ranges(pd, slot_idx, addr_range, addr_range_cnt);
 }
 
-/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 void vdev_test_pdev_clear_vdev_ranges(struct pdev *pd, uint32_t slot_idx)
 {
 	pdev_clear_vdev_ranges(pd, slot_idx);
 }
 
-/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 bool vdev_test_pdev_vdev_range_slot_is_active(const struct pdev *pd,
 					      uint32_t slot_idx)
 {
 	return pdev_vdev_range_slot_is_active(pd, slot_idx);
 }
 
-/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 uint32_t vdev_test_pdev_find_free_vdev_slot(const struct pdev *pd)
 {
 	return pdev_find_free_vdev_slot(pd);
 }
 
-/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 bool vdev_test_pdev_vdev_ranges_overlap(
 	const struct pdev *pd,
 	const struct rmi_address_range *addr_range,
