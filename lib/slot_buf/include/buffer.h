@@ -6,6 +6,7 @@
 #ifndef BUFFER_H
 #define BUFFER_H
 
+#include <dev_assign_layout.h>
 #include <granule.h>
 #include <smc-rmi.h>
 #include <stddef.h>
@@ -38,8 +39,9 @@ enum buffer_slot {
 	SLOT_PDEV,		/* Slot for Physical device object */
 	SLOT_PDEV2,		/* Slot for 2nd Physical device object */
 	SLOT_PDEV_STREAM,	/* Slot for Physical device object's associated streams */
-	SLOT_PDEV_AUX0,		/* Slots for PDEV auxiliary granules */
-	SLOT_VDEV = U(SLOT_PDEV_AUX0) + PDEV_PARAM_AUX_GRANULES_MAX,
+	SLOT_PDEV_VDEV_RANGE,	/* Slot for VDEV ranges page */
+	SLOT_PDEV_APP_AUX0,	/* Slots for PDEV app auxiliary granules */
+	SLOT_VDEV = U(SLOT_PDEV_APP_AUX0) + MAX_PDEV_APP_AUX_GRANULES,
 	SLOT_VDEV_AUX0,		/* Slots for VDEV auxiliary granules */
 	/* Slot to map Realm Data. This slot uses the Realm MECID when FEAT_MEC is present. */
 	SLOT_REALM = U(SLOT_VDEV_AUX0) + VDEV_PARAM_AUX_GRANULES_MAX,
@@ -61,8 +63,8 @@ static inline enum buffer_slot safe_cast_to_slot(enum buffer_slot slot, unsigned
 	case SLOT_REC_AUX0:
 		assert(val < MAX_REC_AUX_GRANULES);
 		break;
-	case SLOT_PDEV_AUX0:
-		assert(val < PDEV_PARAM_AUX_GRANULES_MAX);
+	case SLOT_PDEV_APP_AUX0:
+		assert(val < MAX_PDEV_APP_AUX_GRANULES);
 		break;
 	default:
 		assert(false);
@@ -154,20 +156,20 @@ void buffer_rec_aux_unmap(void *rec_aux, unsigned int num_aux);
 
 /*
  * Maps the `num_aux` granules at 'g_pdev_aux' to buffer slot starting
- * SLOT_PDEV_AUX0.
+ * SLOT_PDEV_APP_AUX0.
  */
-void *buffer_pdev_aux_granules_map(struct granule *g_pdev_aux[],
-				   unsigned int num_aux);
+void *buffer_pdev_app_aux_map(struct granule *g_pdev_aux[],
+			      unsigned int num_aux);
 
 /*
  * Maps and zeroes the `num_aux` granules at 'g_pdev_aux' to buffer slot
- * starting SLOT_PDEV_AUX0.
+ * starting SLOT_PDEV_APP_AUX0.
  */
-void *buffer_pdev_aux_granules_map_zeroed(struct granule *g_pdev_aux[],
-				   unsigned int num_aux);
+void *buffer_pdev_app_aux_map_zeroed(struct granule *g_pdev_aux[],
+				     unsigned int num_aux);
 
-/* Unmaps the `num_aux` granules from slot starting SLOT_PDEV_AUX0 */
-void buffer_pdev_aux_unmap(void *pdev_aux, unsigned int num_aux);
+/* Unmaps the `num_aux` granules from slot starting SLOT_PDEV_APP_AUX0 */
+void buffer_pdev_app_aux_unmap(void *pdev_aux, unsigned int num_aux);
 
 /* Sanitizes the granule based on the sanitize policy configured */
 void buffer_granule_sanitize(struct granule *g);

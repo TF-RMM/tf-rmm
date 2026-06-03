@@ -1654,15 +1654,6 @@ struct rmi_address_range {
 };
 
 /*
- * Maximum number of aux granules that can be tracked by the a PDEV object.
- */
-#ifndef CBMC
-#define PDEV_PARAM_AUX_GRANULES_MAX		U(32)
-#else /* CBMC */
-#define PDEV_PARAM_AUX_GRANULES_MAX		U(2)
-#endif /* CBMC */
-
-/*
  * RmiPdevCategory
  * PDEV category
  * Width: 2 bits

@@ -69,6 +69,86 @@ static bool rmi_addr_ranges_overlap(const struct rmi_address_range *range1,
 }
 
 /*
+ * Return the number of aux pages allocated to cover this PDEV's VDEV slot
+ * capacity.
+ */
+static size_t pdev_vdev_ranges_allocated_page_count(const struct pdev *pd)
+{
+	return (size_t)PDEV_VDEV_RANGE_AUX_COUNT_FROM_SLOT_COUNT(pd->max_num_vdevs);
+}
+
+static size_t pdev_vdev_ranges_count_on_page(const struct pdev *pd, size_t page_idx)
+{
+	size_t slot_base;
+	size_t slot_count;
+
+	slot_base = page_idx * VDEV_RANGE_SLOTS_PER_GRANULE;
+	assert(slot_base < (size_t)pd->max_num_vdevs);
+
+	slot_count = (size_t)pd->max_num_vdevs - slot_base;
+
+	return min(slot_count, (size_t)VDEV_RANGE_SLOTS_PER_GRANULE);
+}
+
+static struct pdev_vdev_range_slot *pdev_vdev_ranges_map_page(const struct pdev *pd,
+							      size_t page_idx)
+{
+	assert(page_idx < pdev_vdev_ranges_allocated_page_count(pd));
+	assert(page_idx < ARRAY_SIZE(pd->g_vdevs_ranges_aux));
+	assert(pd->g_vdevs_ranges_aux[page_idx] != NULL);
+
+	return buffer_granule_map(pd->g_vdevs_ranges_aux[page_idx],
+				  SLOT_PDEV_VDEV_RANGE);
+}
+
+static struct pdev_vdev_range_slot *pdev_vdev_range_slot_map(const struct pdev *pd,
+							     uint32_t slot_idx,
+							     struct pdev_vdev_range_slot **slots)
+{
+	const size_t page_idx = slot_idx / VDEV_RANGE_SLOTS_PER_GRANULE;
+	const size_t page_slot_idx = slot_idx % VDEV_RANGE_SLOTS_PER_GRANULE;
+
+	assert(slot_idx < pd->max_num_vdevs);
+	assert(slots != NULL);
+
+	*slots = pdev_vdev_ranges_map_page(pd, page_idx);
+	assert(*slots != NULL);
+
+	return &(*slots)[page_slot_idx];
+}
+
+static bool pdev_vdev_ranges_on_a_page_overlap(const struct pdev *pd,
+					       size_t page_idx,
+					       const struct rmi_address_range *addr_range,
+					       unsigned long addr_range_cnt)
+{
+	struct pdev_vdev_range_slot *slots;
+	const size_t slot_count = pdev_vdev_ranges_count_on_page(pd, page_idx);
+	bool overlap = false;
+
+	slots = pdev_vdev_ranges_map_page(pd, page_idx);
+	assert(slots != NULL);
+
+	for (size_t i = 0U; i < slot_count; ++i) {
+		const struct pdev_vdev_range_slot *slot = &slots[i];
+
+		if (!slot->active) {
+			continue;
+		}
+
+		if (rmi_addr_ranges_overlap(slot->addr_range, slot->num_addr_range,
+					    addr_range, addr_range_cnt)) {
+			overlap = true;
+			break;
+		}
+	}
+
+	buffer_unmap(slots);
+
+	return overlap;
+}
+
+/*
  * Check whether the address range specified by a VDEV_CREATE overlaps the
  * address range of any existing VDEV of this PDEV.
  * Note that the VDEV state is not considered when checking overlap, which means
@@ -79,16 +159,13 @@ static bool pdev_vdev_ranges_overlap(const struct pdev *pd,
 				     const struct rmi_address_range *addr_range,
 				     unsigned long addr_range_cnt)
 {
-	assert(pd->max_num_vdevs <= ARRAY_SIZE(pd->vdev_range_slots));
-	for (uint32_t i = 0U; i < pd->max_num_vdevs; ++i) {
-		const struct pdev_vdev_range_slot *slot = &pd->vdev_range_slots[i];
+	const size_t page_count = pdev_vdev_ranges_allocated_page_count(pd);
 
-		if (!slot->active) {
-			continue;
-		}
-
-		if (rmi_addr_ranges_overlap(slot->addr_range, slot->num_addr_range,
-					    addr_range, addr_range_cnt)) {
+	assert(page_count <= ARRAY_SIZE(pd->g_vdevs_ranges_aux));
+	for (size_t page_idx = 0U; page_idx < page_count; ++page_idx) {
+		if (pdev_vdev_ranges_on_a_page_overlap(pd, page_idx,
+						       addr_range,
+						       addr_range_cnt)) {
 			return true;
 		}
 	}
@@ -98,13 +175,24 @@ static bool pdev_vdev_ranges_overlap(const struct pdev *pd,
 
 static uint32_t pdev_find_free_vdev_slot(const struct pdev *pd)
 {
-	uint32_t i;
+	const size_t page_count = pdev_vdev_ranges_allocated_page_count(pd);
 
-	assert(pd->max_num_vdevs <= ARRAY_SIZE(pd->vdev_range_slots));
-	for (i = 0U; i < pd->max_num_vdevs; ++i) {
-		if (!pd->vdev_range_slots[i].active) {
-			return i;
+	assert(page_count <= ARRAY_SIZE(pd->g_vdevs_ranges_aux));
+	for (size_t page_idx = 0U; page_idx < page_count; ++page_idx) {
+		struct pdev_vdev_range_slot *slots;
+		const size_t slot_count = pdev_vdev_ranges_count_on_page(pd, page_idx);
+
+		slots = pdev_vdev_ranges_map_page(pd, page_idx);
+		assert(slots != NULL);
+
+		for (size_t i = 0U; i < slot_count; ++i) {
+			if (!slots[i].active) {
+				buffer_unmap(slots);
+				return (uint32_t)((page_idx * VDEV_RANGE_SLOTS_PER_GRANULE) + i);
+			}
 		}
+
+		buffer_unmap(slots);
 	}
 
 	return PDEV_VDEV_SLOT_INVALID;
@@ -114,26 +202,88 @@ static void pdev_set_vdev_ranges(struct pdev *pd, uint32_t slot_idx,
 				 const struct rmi_address_range *addr_range,
 				 unsigned long addr_range_cnt)
 {
-	struct pdev_vdev_range_slot *slot = &pd->vdev_range_slots[slot_idx];
+	struct pdev_vdev_range_slot *slots;
+	struct pdev_vdev_range_slot *slot;
 
 	assert(slot_idx < pd->max_num_vdevs);
 	assert(addr_range_cnt <= RMI_VDEV_PARAMS_ADDR_RANGE_MAX);
 
+	slot = pdev_vdev_range_slot_map(pd, slot_idx, &slots);
 	slot->num_addr_range = addr_range_cnt;
 	slot->active = true;
 	(void)memcpy(slot->addr_range, addr_range,
 		     addr_range_cnt * sizeof(addr_range[0]));
+	buffer_unmap(slots);
 }
 
 static void pdev_clear_vdev_ranges(struct pdev *pd, uint32_t slot_idx)
 {
-	struct pdev_vdev_range_slot *slot = &pd->vdev_range_slots[slot_idx];
+	struct pdev_vdev_range_slot *slots;
+	struct pdev_vdev_range_slot *slot;
 
 	assert(slot_idx < pd->max_num_vdevs);
 
+	slot = pdev_vdev_range_slot_map(pd, slot_idx, &slots);
 	slot->active = false;
 	slot->num_addr_range = 0U;
 	(void)memset(slot->addr_range, 0, sizeof(slot->addr_range));
+	buffer_unmap(slots);
+}
+
+static bool pdev_vdev_range_slot_is_active(const struct pdev *pd, uint32_t slot_idx)
+{
+	struct pdev_vdev_range_slot *slots;
+	struct pdev_vdev_range_slot *slot;
+	bool active;
+
+	assert(slot_idx < pd->max_num_vdevs);
+
+	slot = pdev_vdev_range_slot_map(pd, slot_idx, &slots);
+	active = slot->active;
+	buffer_unmap(slots);
+
+	return active;
+}
+
+/*
+ * ONLY FOR TESTING PURPOSES
+ * Expose the PDEV VDEV-range slot helpers so runtime unit tests can exercise
+ * multi-page slot storage without going through the full DA object flows.
+ */
+/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
+void vdev_test_pdev_set_vdev_ranges(struct pdev *pd, uint32_t slot_idx,
+				    const struct rmi_address_range *addr_range,
+				    unsigned long addr_range_cnt)
+{
+	pdev_set_vdev_ranges(pd, slot_idx, addr_range, addr_range_cnt);
+}
+
+/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
+void vdev_test_pdev_clear_vdev_ranges(struct pdev *pd, uint32_t slot_idx)
+{
+	pdev_clear_vdev_ranges(pd, slot_idx);
+}
+
+/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
+bool vdev_test_pdev_vdev_range_slot_is_active(const struct pdev *pd,
+					      uint32_t slot_idx)
+{
+	return pdev_vdev_range_slot_is_active(pd, slot_idx);
+}
+
+/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
+uint32_t vdev_test_pdev_find_free_vdev_slot(const struct pdev *pd)
+{
+	return pdev_find_free_vdev_slot(pd);
+}
+
+/* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
+bool vdev_test_pdev_vdev_ranges_overlap(
+	const struct pdev *pd,
+	const struct rmi_address_range *addr_range,
+	unsigned long addr_range_cnt)
+{
+	return pdev_vdev_ranges_overlap(pd, addr_range, addr_range_cnt);
 }
 
 static unsigned long validate_vdev_params(
@@ -831,7 +981,7 @@ unsigned long smc_vdev_abort(unsigned long rd_addr,
 
 	/* Map PDEV aux granules */
 	/* coverity[overrun-buffer-val:SUPPRESS] */
-	aux_mapped_addr = buffer_pdev_aux_granules_map(pd->g_app_aux, pd->num_app_aux);
+	aux_mapped_addr = buffer_pdev_app_aux_map(pd->g_app_aux, pd->num_app_aux);
 	assert(aux_mapped_addr != NULL);
 
 	/*
@@ -842,7 +992,7 @@ unsigned long smc_vdev_abort(unsigned long rd_addr,
 	assert(rc == 0);
 
 	/* Unmap all PDEV aux granules */
-	buffer_pdev_aux_unmap(aux_mapped_addr, pd->num_app_aux);
+	buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
 
 vdev_reset_state:
 	vd->rmi_state = RMI_VDEV_STATE_ERROR;
@@ -928,7 +1078,7 @@ unsigned long smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 
 	vdev_slot = vd->pdev_slot;
 	assert((vdev_slot < pd->max_num_vdevs) &&
-	       (pd->vdev_range_slots[vdev_slot].active));
+	       (pdev_vdev_range_slot_is_active(pd, vdev_slot)));
 
 	if (smmuv3_release_ste(vd->smmu_idx, vd->sid) != 0) {
 		smc_rc = RMI_ERROR_DEVICE;

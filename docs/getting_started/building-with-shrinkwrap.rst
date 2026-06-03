@@ -97,13 +97,8 @@ To run the demonstrator, use the following command:
 
        shrinkwrap run cca-3world.yaml --overlay=cca.yaml --rtvar=ROOTFS=${SHRINKWRAP_PACKAGE}/cca-3world/rootfs.ext2
 
-3-World testing with CCA DA (RMMv1.x)
-_____________________________________
-
-    .. note::
-
-       The instructions in this section are relevant for testing CCA software aligned to
-       RMMv1.x specification. Please checkout an RMMv1.x compatible TF-RMM branch.
+3-World testing with CCA DA
+___________________________
 
 Follow the instructions in :ref:`Setup_local_RMM_with_Shrinkwrap` to setup the
 local RMM with shrinkwrap.

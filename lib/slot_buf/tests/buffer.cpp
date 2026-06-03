@@ -2228,10 +2228,10 @@ TEST(slot_buffer, buffer_aux_granules_map_TC1)
 	CHECK_TRUE(is_pattern_preserved);
 }
 
-TEST(slot_buffer, buffer_pdev_aux_granules_map_zeroed_TC1)
+TEST(slot_buffer, buffer_pdev_app_aux_map_zeroed_TC1)
 {
-	uintptr_t granule_addrs[PDEV_PARAM_AUX_GRANULES_MAX];
-	struct granule *granules[PDEV_PARAM_AUX_GRANULES_MAX];
+	uintptr_t granule_addrs[MAX_PDEV_APP_AUX_GRANULES];
+	struct granule *granules[MAX_PDEV_APP_AUX_GRANULES];
 	union test_harness_cbs cb;
 	unsigned char pattern[] = { 0x28, 0x11, 0xa2, 0x5c,
 					0x30, 0xee, 0x9f, 0x58};
@@ -2242,8 +2242,8 @@ TEST(slot_buffer, buffer_pdev_aux_granules_map_zeroed_TC1)
 	/******************************************************************
 	 * TEST CASE 1:
 	 *
-	 * Map and zero an array of REC_AUX granules to SLOT_PDEV_AUX using
-	 * buffer_pdev_aux_granules_map() and validate that PDEV_AUX
+	 * Map and zero an array of REC_AUX granules to SLOT_PDEV_APP_AUX0
+	 * using buffer_pdev_app_aux_map() and validate that PDEV app
 	 * granules are zeroed.
 	 ******************************************************************/
 
@@ -2256,27 +2256,27 @@ TEST(slot_buffer, buffer_pdev_aux_granules_map_zeroed_TC1)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
 
 	get_contiguous_rand_granule_array(granule_addrs,
-					PDEV_PARAM_AUX_GRANULES_MAX);
+					MAX_PDEV_APP_AUX_GRANULES);
 
-	for (unsigned int i = 0U; i < PDEV_PARAM_AUX_GRANULES_MAX; i++) {
+	for (unsigned int i = 0U; i < MAX_PDEV_APP_AUX_GRANULES; i++) {
 		granules[i] = addr_to_granule(granule_addrs[i]);
 	}
 
-	for (unsigned int i = 0U; i < PDEV_PARAM_AUX_GRANULES_MAX; i++) {
+	for (unsigned int i = 0U; i < MAX_PDEV_APP_AUX_GRANULES; i++) {
 		fill_buffer_with_pattern((void *)granule_addrs[i], GRANULE_SIZE,
 					 (const unsigned char *)pattern,
 					 sizeof(pattern));
 	}
 
-	buf_pdev_granules = buffer_pdev_aux_granules_map_zeroed(granules,
-						PDEV_PARAM_AUX_GRANULES_MAX);
+	buf_pdev_granules = buffer_pdev_app_aux_map_zeroed(granules,
+						MAX_PDEV_APP_AUX_GRANULES);
 
 
 	memset((void *)pattern, 0, sizeof(pattern));
 
 	addr = (uintptr_t)buf_pdev_granules;
 
-	for (unsigned int i = 0U; i < PDEV_PARAM_AUX_GRANULES_MAX; i++) {
+	for (unsigned int i = 0U; i < MAX_PDEV_APP_AUX_GRANULES; i++) {
 		if (!verify_pattern_in_buffer((void *)addr, GRANULE_SIZE,
 						  (const unsigned char *)pattern,
 						  sizeof(pattern))) {
@@ -2286,16 +2286,16 @@ TEST(slot_buffer, buffer_pdev_aux_granules_map_zeroed_TC1)
 		addr += GRANULE_SIZE;
 	}
 
-	buffer_pdev_aux_unmap(buf_pdev_granules, PDEV_PARAM_AUX_GRANULES_MAX);
+	buffer_pdev_app_aux_unmap(buf_pdev_granules, MAX_PDEV_APP_AUX_GRANULES);
 
 	CHECK_TRUE(buf_pdev_granules != NULL);
 	CHECK_TRUE(zeroed);
 }
 
-TEST(slot_buffer, buffer_pdev_aux_granules_map_TC1)
+TEST(slot_buffer, buffer_pdev_app_aux_map_TC1)
 {
-	uintptr_t granule_addrs[PDEV_PARAM_AUX_GRANULES_MAX];
-	struct granule *pdev_granules[PDEV_PARAM_AUX_GRANULES_MAX];
+	uintptr_t granule_addrs[MAX_PDEV_APP_AUX_GRANULES];
+	struct granule *pdev_granules[MAX_PDEV_APP_AUX_GRANULES];
 	union test_harness_cbs cb;
 	void *buf_pdev_granules;
 	unsigned char pattern[] = { 0x28, 0x11, 0xa2, 0x5c,
@@ -2306,8 +2306,8 @@ TEST(slot_buffer, buffer_pdev_aux_granules_map_TC1)
 	/******************************************************************
 	 * TEST CASE 1:
 	 *
-	 * Map an array of REC_AUX granules to SLOT_PDEV_AUX using
-	 * buffer_pdev_aux_granules_map().
+	 * Map an array of REC_AUX granules to SLOT_PDEV_APP_AUX0 using
+	 * buffer_pdev_app_aux_map().
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
@@ -2319,13 +2319,13 @@ TEST(slot_buffer, buffer_pdev_aux_granules_map_TC1)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
 
 	get_contiguous_rand_granule_array(granule_addrs,
-					PDEV_PARAM_AUX_GRANULES_MAX);
+					MAX_PDEV_APP_AUX_GRANULES);
 
-	for (unsigned int i = 0U; i < PDEV_PARAM_AUX_GRANULES_MAX; i++) {
+	for (unsigned int i = 0U; i < MAX_PDEV_APP_AUX_GRANULES; i++) {
 		pdev_granules[i] = addr_to_granule(granule_addrs[i]);
 	}
 
-	for (unsigned int i = 0U; i < PDEV_PARAM_AUX_GRANULES_MAX; i++) {
+	for (unsigned int i = 0U; i < MAX_PDEV_APP_AUX_GRANULES; i++) {
 		addr = granule_addrs[i];
 
 		fill_buffer_with_pattern((void *)addr, GRANULE_SIZE,
@@ -2335,11 +2335,11 @@ TEST(slot_buffer, buffer_pdev_aux_granules_map_TC1)
 		pdev_granules[i] = addr_to_granule(addr);
 	}
 
-	buf_pdev_granules = buffer_pdev_aux_granules_map(pdev_granules,
-						PDEV_PARAM_AUX_GRANULES_MAX);
+	buf_pdev_granules = buffer_pdev_app_aux_map(pdev_granules,
+						MAX_PDEV_APP_AUX_GRANULES);
 
 	addr = (uintptr_t)buf_pdev_granules;
-	for (unsigned int i = 0U; i < PDEV_PARAM_AUX_GRANULES_MAX; i++) {
+	for (unsigned int i = 0U; i < MAX_PDEV_APP_AUX_GRANULES; i++) {
 		if (!verify_pattern_in_buffer((void *)addr, GRANULE_SIZE,
 					  (const unsigned char *)pattern,
 					  sizeof(pattern))) {
@@ -2349,7 +2349,7 @@ TEST(slot_buffer, buffer_pdev_aux_granules_map_TC1)
 		addr += GRANULE_SIZE;
 	}
 
-	buffer_pdev_aux_unmap(buf_pdev_granules, PDEV_PARAM_AUX_GRANULES_MAX);
+	buffer_pdev_app_aux_unmap(buf_pdev_granules, MAX_PDEV_APP_AUX_GRANULES);
 
 	CHECK_TRUE(buf_pdev_granules != NULL);
 	CHECK_TRUE(is_pattern_preserved);

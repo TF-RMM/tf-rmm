@@ -6,14 +6,19 @@
 #ifndef SRO_AUX_H
 #define SRO_AUX_H
 
+#include <dev_assign_layout.h>
 #include <smc-rmi.h>
 #include <smc.h>
 #include <stdbool.h>
 
-#define SRO_AUX_GRANULES_MAX		U(32)
+/*
+ * Keep this aligned with the largest auxiliary granule count required by any
+ * SRO flow.
+ */
+#define MAX_SRO_AUX_GRANULES		MAX_PDEV_PARAM_AUX_GRANULES
 
-COMPILER_ASSERT(SRO_AUX_GRANULES_MAX >= MAX_REC_AUX_GRANULES);
-COMPILER_ASSERT(SRO_AUX_GRANULES_MAX >= PDEV_PARAM_AUX_GRANULES_MAX);
+COMPILER_ASSERT(MAX_SRO_AUX_GRANULES >= MAX_REC_AUX_GRANULES);
+COMPILER_ASSERT(MAX_SRO_AUX_GRANULES >= MAX_PDEV_PARAM_AUX_GRANULES);
 
 struct sro_context;
 
@@ -42,7 +47,7 @@ struct sro_aux_op_ctx {
 	unsigned long ret_err;
 
 	/* List of PAs for the auxiliary granules donated by the host */
-	uintptr_t aux_granules_pa[SRO_AUX_GRANULES_MAX];
+	uintptr_t aux_granules_pa[MAX_SRO_AUX_GRANULES];
 
 	/* Number of granules requested */
 	unsigned long requested_aux_granules;

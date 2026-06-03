@@ -9,6 +9,7 @@
 #include <app_fw_structures.h>
 #include <arch.h>
 #include <arch_features.h>
+#include <dev_assign_layout.h>
 #include <dev_assign_structs.h>
 #include <granule.h>
 #include <sizes.h>
@@ -55,27 +56,6 @@
 #define PDEV_CATEGORY_FROM_FLAGS(flags)		(EXTRACT(RMI_PDEV_FLAGS_CATEGORY, flags))
 #define PDEV_CATEGORY(pd_ptr)			(PDEV_CATEGORY_FROM_FLAGS((pd_ptr)->rmi_flags))
 
-/*
- * PDEV aux granules:
- * idx 0: The granule containing the stream objects associated with this ep_pdev
- * idx 1 - PDEV_PARAM_AUX_GRANULES_MAX: used for app
- */
-#define PDEV_STREAM_AUX_GRANULE_IDX		0U /* The stream objects */
-#define NON_APP_PDEV_AUX_GRANULES		1U
-/* start idx of Apps Aux pages */
-#define PDEV_APP_AUX_GRANULE_IDX		NON_APP_PDEV_AUX_GRANULES
-
-#ifndef CBMC
-/*
- * Can be increased as necessary, until the granule size limit in `struct pdev`
- * is reached. After that the vdev_range_slots array needs to be moved to 1 or
- * more pdev AUX page(s)
- */
-#define MAX_VDEVS_ORDER				UL(4)
-#else /* CBMC */
-#define MAX_VDEVS_ORDER				UL(2)
-#endif /* CBMC */
-
 enum stream_op_state {
 	STREAM_OP_STATE_NONE,
 	STREAM_OP_STATE_START,
@@ -118,7 +98,7 @@ struct pcie_dev {
 	unsigned int rid_top;
 };
 
-#define PDEV_MAX_VDEVS(vdevs_order)	((1U << (vdevs_order)) - 1U)
+#define PDEV_MAX_VDEVS(vdevs_order)	((1UL << (vdevs_order)) - 1U)
 #define PDEV_VDEV_SLOT_INVALID		((unsigned int)-1)
 
 struct pdev_vdev_range_slot {
@@ -143,6 +123,31 @@ struct pdev_op {
 	enum stream_op_state stream_op_state;
 };
 
+#define VDEV_RANGE_SLOTS_PER_GRANULE	(GRANULE_SIZE / sizeof(struct pdev_vdev_range_slot))
+/* Round up slot_count to full granules, then divide by slots per granule. */
+#define PDEV_VDEV_RANGE_AUX_COUNT_FROM_SLOT_COUNT(slot_count) \
+	(((slot_count) + VDEV_RANGE_SLOTS_PER_GRANULE - 1U) / \
+	 VDEV_RANGE_SLOTS_PER_GRANULE)
+#define PDEV_VDEV_RANGE_AUX_COUNT_FROM_ORDER(vdevs_order) \
+	PDEV_VDEV_RANGE_AUX_COUNT_FROM_SLOT_COUNT(PDEV_MAX_VDEVS(vdevs_order))
+
+/*
+ * PDEV aux granules:
+ * idx 0: The granule containing the stream objects associated with this ep_pdev
+ * idx 1..N: pages storing cached VDEV address ranges, where N depends on the
+ * requested max_vdevs_order
+ * idx after the range pages: app aux pages
+ */
+#define PDEV_STREAM_AUX_GRANULE_IDX		0U
+#define MAX_PDEV_STREAM_AUX_COUNT		1U
+#define PDEV_VDEV_RANGES_AUX_GRANULE_IDX					\
+		(PDEV_STREAM_AUX_GRANULE_IDX + MAX_PDEV_STREAM_AUX_COUNT)
+#define MAX_VDEV_RANGES_AUX_COUNT						\
+	PDEV_VDEV_RANGE_AUX_COUNT_FROM_ORDER(MAX_VDEVS_ORDER)
+COMPILER_ASSERT(MAX_PDEV_APP_AUX_GRANULES ==
+	(MAX_PDEV_PARAM_AUX_GRANULES -
+	 (PDEV_VDEV_RANGES_AUX_GRANULE_IDX + MAX_VDEV_RANGES_AUX_COUNT)));
+
 /*
  * PDEV object. Represents a communication channel between the RMM and a
  * physical device, for example a PCIe device.
@@ -162,12 +167,12 @@ struct pdev {
 	uint32_t num_vdevs;
 	uint32_t max_num_vdevs;
 
-	/* Cached address ranges of active VDEVs associated with this PDEV */
-	struct pdev_vdev_range_slot vdev_range_slots[PDEV_MAX_VDEVS(MAX_VDEVS_ORDER)];
-
 	/* Number and addresses of PDEV app auxiliary granules */
-	struct granule *g_app_aux[PDEV_PARAM_AUX_GRANULES_MAX - NON_APP_PDEV_AUX_GRANULES];
+	struct granule *g_app_aux[MAX_PDEV_APP_AUX_GRANULES];
 	unsigned int num_app_aux;
+
+	/* The aux granules holding the VDEV ranges associated with this PDEV */
+	struct granule *g_vdevs_ranges_aux[MAX_VDEV_RANGES_AUX_COUNT];
 
 	/*
 	 * Algorithm used to generate device digests. This value is returned to
