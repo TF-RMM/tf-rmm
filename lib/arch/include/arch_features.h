@@ -602,7 +602,7 @@ static inline bool is_feat_sysreg128_present(void)
  */
 static inline bool is_feat_mops_present(void)
 {
-	return(EXTRACT(ID_AA64ISAR2_EL1_FEAT_MOPS,
+	return (EXTRACT(ID_AA64ISAR2_EL1_FEAT_MOPS,
 			READ_CACHED_REG(id_aa64isar2_el1)) != 0UL);
 }
 

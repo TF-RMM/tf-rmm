@@ -411,11 +411,6 @@ Proposed Enhancements to the RMM App Framework
    Currently, separate VBARs are set up for the app and RMM. Evaluate whether a
    single VBAR could be used to simplify the design.
 
-#. Enable FEAT_PAN/PAN3 for EL0
-
-   Ensure that the appropriate Privileged Access Never (PAN) features (including
-   PAN3) are correctly set when executing code at EL0.
-
 #. Hardening ``app_services``
 
    The ``app_services`` interface should be hardened. This includes:
