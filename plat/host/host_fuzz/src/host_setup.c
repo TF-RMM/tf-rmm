@@ -15,6 +15,8 @@
 #include <harness_utils.h>
 #include <host_rmi_wrappers.h>
 #include <host_utils.h>
+#define MINICORO_IMPL
+#include <minicoro.h>
 #include <platform_api.h>
 #include <random_app.h>
 #include <rmm_el3_ifc.h>
@@ -33,8 +35,6 @@ extern void __gcov_dump(void);
 /* Create a simple 4 level (Lvl 0 - LvL 3) RTT structure */
 #define RTT_COUNT 4
 
-/*Magic rec_params index that would trigger ripas change flow*/
-#define RIPAS_FLOW_MAGIC 99
 
 /* Define the EL3-RMM interface version as set from EL3 */
 #define EL3_IFC_ABI_VERSION		\
@@ -117,68 +117,197 @@ static void *allocate_granule(void)
 
 	return (void *)granule;
 }
-static int realm_start(unsigned long *regs, unsigned long *sp_el0);
-static int realm_fin(unsigned long *regs, unsigned long *sp_el0);
 
+/*
+ * RSI command queue: populated by COMMAND_RSI_CALL from corpus,
+ * drained by the realm coroutine on REC_ENTER.
+ */
+#define RSI_QUEUE_MAX 64
+
+/* RSI command flags for struct rsi_cmd::flags */
+#define RSI_CMD_FLAG_LOOP_INCOMPLETE	UL(0x1)
+
+struct rsi_cmd {
+	unsigned long fid;
+	unsigned long flags;
+	unsigned long args[8];
+};
+
+static struct rsi_cmd rsi_queue[RSI_QUEUE_MAX];
+static unsigned int rsi_queue_head;
+static unsigned int rsi_queue_tail;
+
+static void rsi_queue_reset(void)
+{
+	rsi_queue_head = 0;
+	rsi_queue_tail = 0;
+}
+
+static bool rsi_queue_empty(void)
+{
+	return rsi_queue_head == rsi_queue_tail;
+}
+
+static bool rsi_queue_push(const struct rsi_cmd *cmd)
+{
+	unsigned int next = (rsi_queue_tail + 1) % RSI_QUEUE_MAX;
+
+	if (next == rsi_queue_head) {
+		return false; /* queue full */
+	}
+	rsi_queue[rsi_queue_tail] = *cmd;
+	rsi_queue_tail = next;
+	return true;
+}
+
+static bool rsi_queue_pop(struct rsi_cmd *cmd)
+{
+	if (rsi_queue_empty()) {
+		return false;
+	}
+	*cmd = rsi_queue[rsi_queue_head];
+	rsi_queue_head = (rsi_queue_head + 1) % RSI_QUEUE_MAX;
+	return true;
+}
+
+/* Shared state between realm_start wrapper and realm coroutine */
+static unsigned long *g_fuzz_rec_regs;
+static int g_fuzz_realm_ret;
+static mco_coro *g_fuzz_realm_coro;
+
+/*
+ * Yield from realm coroutine to issue an RSI call.
+ * Caller must have populated g_fuzz_rec_regs[0..8] with the RSI FID + args.
+ * On resume, g_fuzz_rec_regs contains the RSI response.
+ */
+static void fuzz_realm_rsi_call(mco_coro *co)
+{
+	g_fuzz_realm_ret = ARM_EXCEPTION_SYNC_LEL;
+	mco_yield(co);
+}
+
+/*
+ * Realm coroutine: drains RSI commands from the queue.
+ * Each iteration pops one RSI command, sets up the registers,
+ * and yields to let RMM process the RSI.
+ *
+ * When RSI_CMD_FLAG_LOOP_INCOMPLETE is set on a command, the
+ * coroutine re-issues the same RSI (advancing arg2/offset by
+ * the bytes-written value in x1) while RMM returns RSI_INCOMPLETE.
+ * This covers RSI_ATTEST_TOKEN_CONTINUE and any future RSI that
+ * follows the same offset-advancing protocol.
+ */
+static void fuzz_realm_coro(mco_coro *co)
+{
+	struct rsi_cmd cmd;
+
+	while (rsi_queue_pop(&cmd)) {
+		g_fuzz_rec_regs[0] = cmd.fid;
+		g_fuzz_rec_regs[1] = cmd.args[0];
+		g_fuzz_rec_regs[2] = cmd.args[1];
+		g_fuzz_rec_regs[3] = cmd.args[2];
+		g_fuzz_rec_regs[4] = cmd.args[3];
+		g_fuzz_rec_regs[5] = cmd.args[4];
+		g_fuzz_rec_regs[6] = cmd.args[5];
+		g_fuzz_rec_regs[7] = cmd.args[6];
+		g_fuzz_rec_regs[8] = cmd.args[7];
+
+		fuzz_realm_rsi_call(co);
+
+		/*
+		 * If the corpus flagged this command for looping,
+		 * re-issue on RSI_INCOMPLETE with updated offset.
+		 * Bound iterations to avoid hangs when no progress
+		 * is made (e.g. bytes-written == 0) or when the
+		 * token requires many round-trips.
+		 */
+		if (cmd.flags & RSI_CMD_FLAG_LOOP_INCOMPLETE) {
+			unsigned long offset = cmd.args[1]; /* initial offset */
+			unsigned int loop_limit = 256;
+
+			while (g_fuzz_rec_regs[0] == RSI_INCOMPLETE &&
+			       loop_limit-- > 0) {
+				assert((cmd.fid & ~SMC_SVE_HINT) == SMC_RSI_ATTEST_TOKEN_CONTINUE);
+				unsigned long progress = g_fuzz_rec_regs[1];
+
+				if (progress == 0) {
+					break;
+				}
+
+				offset += progress;
+
+				g_fuzz_rec_regs[0] = cmd.fid;
+				g_fuzz_rec_regs[1] = cmd.args[0];
+				g_fuzz_rec_regs[2] = offset;
+				g_fuzz_rec_regs[3] = cmd.args[2];
+				fuzz_realm_rsi_call(co);
+			}
+		}
+	}
+
+	/* All queued RSIs processed; exit realm with FIQ */
+	g_fuzz_realm_ret = ARM_EXCEPTION_FIQ_LEL;
+}
+
+/*
+ * realm_start: entry point for realm execution, called by host_util_rec_run.
+ * Creates/resumes a coroutine that drains the RSI queue.
+ */
+static int realm_fin(unsigned long *regs, unsigned long *sp_el0);
 static int realm_start(unsigned long *regs, unsigned long *sp_el0)
 {
-	INFO("###########################\n");
-	INFO("# Hello World from a Realm!\n");
-	INFO("###########################\n");
+	(void)sp_el0;
 
-	regs[0] = SMC_RSI_VERSION;
-	regs[1] = MAKE_RSI_REVISION(1, 0);
-	return host_util_rsi_helper(realm_fin);
+	g_fuzz_rec_regs = regs;
+
+	if (g_fuzz_realm_coro == NULL) {
+		/*
+		 * If no RSIs are queued, do a basic RSI_VERSION and exit.
+		 */
+		if (rsi_queue_empty()) {
+			regs[0] = SMC_RSI_VERSION;
+			regs[1] = MAKE_RSI_REVISION(1, 0);
+			return host_util_rsi_helper(realm_fin);
+		}
+
+		mco_desc desc = mco_desc_init(fuzz_realm_coro, 0);
+		mco_result res = mco_create(&g_fuzz_realm_coro, &desc);
+
+		if (res != MCO_SUCCESS) {
+			ERROR("Failed to create realm coroutine\n");
+			return 0;
+		}
+	}
+
+	mco_resume(g_fuzz_realm_coro);
+
+	if (mco_status(g_fuzz_realm_coro) == MCO_DEAD) {
+		mco_destroy(g_fuzz_realm_coro);
+		g_fuzz_realm_coro = NULL;
+	} else {
+		/*
+		 * Coroutine yielded for an RSI call.
+		 * Set ELR_EL2 back to realm_start so we re-enter here.
+		 */
+		write_elr_el2((u_register_t)realm_start - 0x4);
+		write_esr_el2(ESR_EL2_EC_SMC);
+	}
+
+	return g_fuzz_realm_ret;
 }
+
+/*
+ * Legacy callback for the no-RSI-queue fallback path.
+ */
 static int realm_fin(unsigned long *regs, unsigned long *sp_el0)
 {
+	(void)sp_el0;
+
 	INFO("RSI Version is 0x%lx : 0x%lx\n", regs[1], regs[2]);
-
-	if (regs[0] != RSI_SUCCESS) {
-		ERROR("RSI_VERSION command failed 0x%lx\n", regs[0]);
-		return 0;
-	}
 	return ARM_EXCEPTION_FIQ_LEL;
 }
 
-static int realm_start_ripas(unsigned long *regs, unsigned long *sp_el0);
-static int realm_state_set(unsigned long *regs, unsigned long *sp_el0);
-static int realm_ripas_fin(unsigned long *regs, unsigned long *sp_el0);
 
-static int realm_start_ripas(unsigned long *regs, unsigned long *sp_el0)
-{
-	regs[0] = SMC_RSI_IPA_STATE_GET;
-	regs[1] = 0x1000;
-	regs[2] = 0x2000;
-	return host_util_rsi_helper(realm_state_set);
-}
-
-static int realm_state_set(unsigned long *regs, unsigned long *sp_el0)
-{
-	if (regs[0] != RSI_SUCCESS) {
-		ERROR("SMC_RSI_IPA_STATE_GET command failed 0x%lx\n", regs[0]);
-		return 0;
-	}
-	INFO("IPA_STATE_GET out_top: 0x%lx, IPA state: 0x%lx\n", regs[1], regs[2]);
-
-	regs[0] = SMC_RSI_IPA_STATE_SET;
-	regs[1] = 0x1000;
-	regs[2] = 0x2000;
-	regs[3] = 0x0;
-
-	return host_util_rsi_helper(realm_ripas_fin);
-}
-
-static int realm_ripas_fin(unsigned long *regs, unsigned long *sp_el0)
-{
-	if (regs[0] != RSI_SUCCESS) {
-		ERROR("SMC_RSI_IPA_STATE_SET command failed 0x%lx\n", regs[0]);
-		return 0;
-	}
-	INFO("IPA_STATE_SET new_base: 0x%lx, response: 0x%lx\n", regs[1], regs[2]);
-
-	return ARM_EXCEPTION_FIQ_LEL;
-}
 
 uint64_t rmm_main(uint64_t token);
 void rmm_arch_init(void);
@@ -347,6 +476,21 @@ static void fast_reset(void)
 	sro_ctx_handle = 0UL;
 	sro_ctx_donate_req = 0UL;
 	sro_ctx_addr_list = NULL;
+
+	/* Reset RSI queue and destroy any live realm coroutine */
+	rsi_queue_reset();
+	if (g_fuzz_realm_coro != NULL) {
+		mco_destroy(g_fuzz_realm_coro);
+		g_fuzz_realm_coro = NULL;
+	}
+
+	/*
+	 * Destroy transient app instances leaked from the previous
+	 * iteration.  Persistent instances (per-CPU, created during
+	 * init) are preserved.  This is unconditional so every
+	 * iteration takes the same code path for AFL stability.
+	 */
+	app_reset_instances();
 }
 
 int execute(unsigned char *buffer, size_t read_res)
@@ -517,11 +661,7 @@ int execute(unsigned char *buffer, size_t read_res)
 				memset(rec_params, 0x00, sizeof(*rec_params));
 				rec_params->flags = packet.flags;
 				rec_params->mpidr = packet.mpidr;
-				if (packet.param_index == RIPAS_FLOW_MAGIC) {
-					rec_params->pc = (uintptr_t)realm_start_ripas;
-				} else {
-					rec_params->pc = (uintptr_t)realm_start;
-				}
+				rec_params->pc = (uintptr_t)realm_start;
 
 				printf("PC 0x%08lx\n", rec_params->pc);
 			}
@@ -816,6 +956,22 @@ int execute(unsigned char *buffer, size_t read_res)
 			g_sro_phase = "continue";
 			host_rmi_op_continue(&sro_ctx_handle, packet.flags,
 					     &sro_ctx_donate_req, &res);
+			break;
+		}
+
+		case COMMAND_RSI_CALL: {
+			PACKET(packet_rsi_call, b, packet);
+			struct rsi_cmd cmd = {
+				.fid = packet.fid,
+				.flags = packet.flags,
+				.args = {
+					packet.arg1, packet.arg2,
+					packet.arg3, packet.arg4,
+					packet.arg5, packet.arg6,
+					packet.arg7, packet.arg8
+				}
+			};
+			rsi_queue_push(&cmd);
 			break;
 		}
 

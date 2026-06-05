@@ -43,19 +43,6 @@ static unsigned long global_init_attest_app(struct app_data_cfg *app_data)
 	return ret;
 }
 
-int attest_app_new(
-	struct app_data_cfg *app_data,
-	uintptr_t granule_pas[],
-	size_t granule_pa_count,
-	void *granule_va_start)
-{
-	return app_new_instance(app_data,
-				ATTESTATION_APP_ID,
-				granule_pas,
-				granule_pa_count,
-				granule_va_start);
-}
-
 int attest_app_global_init(void)
 {
 	struct app_data_cfg app_data;
@@ -77,7 +64,7 @@ int attest_app_global_init(void)
 				ATTESTATION_APP_ID,
 				granule_pas,
 				ARRAY_SIZE(granule_pas),
-				rmm_attest_app_pages[cpuid][0]);
+				rmm_attest_app_pages[cpuid][0], 0);
 	if (ret != 0) {
 		return ret;
 	}
@@ -126,10 +113,17 @@ void attest_app_init_per_cpu_instance(void)
 		granule_pas[i] = (uintptr_t)&rmm_attest_app_pages[cpuid][i][0];
 	}
 
-	ret = attest_app_new(&rmm_attest_app_datas[cpuid],
+	/*
+	 * Per-CPU attestation instances are long-lived (survive across fuzz
+	 * iterations), so mark them persistent so that creating new transient
+	 * instances does not destroy them.
+	 */
+	ret = app_new_instance(&rmm_attest_app_datas[cpuid],
+			ATTESTATION_APP_ID,
 			granule_pas,
 			ATTESTATION_APP_PAGE_COUNT,
-			&rmm_attest_app_pages[cpuid][0][0]);
+			&rmm_attest_app_pages[cpuid][0][0],
+			APP_INSTANCE_FLAG_PERSISTENT);
 	if (ret != 0) {
 		panic();
 	}

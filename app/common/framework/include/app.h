@@ -33,6 +33,9 @@
 
 #define GRANULE_COUNT(size)	(round_up(size, GRANULE_SIZE) / GRANULE_SIZE)
 
+/* Flags for app_new_instance() */
+#define APP_INSTANCE_FLAG_PERSISTENT	UL(1)
+
 #ifdef APP_FW_LOGGING
 #define LOG_APP_FW INFO
 #else
@@ -78,6 +81,8 @@ size_t app_get_required_granule_count(unsigned long app_id);
  *	- granule_count: The number of elements in the granule_pas array.
  *	- granule_va_start: The start address of the granules as they are mapped
  *        in RMM core
+ *	- flags: Behavioural flags (e.g. APP_INSTANCE_FLAG_PERSISTENT); pass 0
+ *        for default (transient) behaviour - ignored for aarch64.
  *
  * Return:
  *	- 0 on success or a negative POSIX error otherwise.
@@ -95,9 +100,17 @@ int app_new_instance(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
 		      size_t granule_count,
-		      void *granule_va_start);
+		      void *granule_va_start,
+		      unsigned long flags);
 
 void app_delete_instance(struct app_data_cfg *app_data);
+
+/*
+ * Destroy all non-persistent (transient) app instances across all app
+ * processes.  Persistent instances (created with APP_INSTANCE_FLAG_PERSISTENT)
+ * are preserved.
+ */
+void app_reset_instances(void);
 
 void *app_get_heap_ptr(struct app_data_cfg *app_data);
 

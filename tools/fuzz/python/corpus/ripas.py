@@ -10,9 +10,12 @@ if __name__ == "__main__":
     rd = 0
     rec = 1
     realm_params = 2
-    rec_params = 99
+    rec_params = 3
     rec_run = 4
     rtt_base = 5
+
+    REALM_BUFFER_IPA = 0x1000
+    GRANULE_SIZE = 0x1000
 
     packets.append(AllocateGranule(index=rd))
     packets.append(AllocateGranule(index=rec))
@@ -35,9 +38,6 @@ if __name__ == "__main__":
     for i in range(1, 4):
         packets.append(RTTCreate(rd_index=rd, rtt_index=rtt_base + i, ipa=0, level=i))
 
-    REALM_BUFFER_IPA = 0x1000
-    GRANULE_SIZE = 0x1000
-    # packets.append(RTTReadEntry(rd_index=rd, ipa=0, level=1))
     packets.append(RttInitRipas(rd_index=rd, base=REALM_BUFFER_IPA,
                                 top=REALM_BUFFER_IPA + GRANULE_SIZE))
 
@@ -61,6 +61,19 @@ if __name__ == "__main__":
     packets.append(SroContinue(flags=0))
 
     packets.append(RealmActivate(rd_index=rd))
+
+    # Queue RSI calls for RIPAS flow via the generic RSI command queue
+    # RSI_IPA_STATE_GET (base=0x1000, top=0x2000)
+    packets.append(RsiCall(fid=0xC4000198,
+                           arg1=REALM_BUFFER_IPA,
+                           arg2=REALM_BUFFER_IPA + GRANULE_SIZE))
+    # RSI_IPA_STATE_SET (base=0x1000, top=0x2000, flags=0)
+    packets.append(RsiCall(fid=0xC4000197,
+                           arg1=REALM_BUFFER_IPA,
+                           arg2=REALM_BUFFER_IPA + GRANULE_SIZE,
+                           arg3=0x0))
+
+    # Enter realm (drains queued RSI calls)
     packets.append(RecEnter(rec_index=rec, run_index=rec_run))
     packets.append(RttSetRipas(rd_index=rd, rec_index=rec,
                                base=REALM_BUFFER_IPA,

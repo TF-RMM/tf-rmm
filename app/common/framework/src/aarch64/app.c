@@ -463,9 +463,13 @@ int app_new_instance(struct app_data_cfg *app_data,
 			unsigned long app_id,
 			uintptr_t granule_pas[],
 			size_t granule_count,
-			void *granule_va_start)
+			void *granule_va_start,
+			unsigned long flags)
 {
 	unsigned long glob_fw_img_sequence = glob_data_get_fw_img_sequence();
+
+	(void)flags;
+
 	assert(glob_fw_img_sequence != 0UL);
 
 	assert(granule_count <= APP_MAX_PAGES);
@@ -492,6 +496,11 @@ int app_new_instance(struct app_data_cfg *app_data,
 void app_delete_instance(struct app_data_cfg *app_data)
 {
 	(void) app_data;
+}
+
+/* Stub for function used in fake_host */
+void app_reset_instances(void)
+{
 }
 
 void *app_get_heap_ptr(struct app_data_cfg *app_data)

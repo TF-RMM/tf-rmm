@@ -13,6 +13,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,6 +125,18 @@ static struct app_process_data *create_app_process(unsigned long app_id)
 		return NULL;
 	}
 
+	/*
+	 * Set O_CLOEXEC on all four pipe fds so that they are automatically
+	 * closed when execv() runs for later app processes.  Without this,
+	 * each app process inherits write-end fds of other apps' pipes,
+	 * preventing EOF delivery during graceful shutdown.
+	 * The child will clear O_CLOEXEC on the two fds it actually needs.
+	 */
+	(void)fcntl(fds_rmm_to_app_process[0], F_SETFD, FD_CLOEXEC);
+	(void)fcntl(fds_rmm_to_app_process[1], F_SETFD, FD_CLOEXEC);
+	(void)fcntl(fds_app_process_to_rmm[0], F_SETFD, FD_CLOEXEC);
+	(void)fcntl(fds_app_process_to_rmm[1], F_SETFD, FD_CLOEXEC);
+
 	ret->pid = fork();
 
 	if (ret->pid == 0) {
@@ -132,6 +145,12 @@ static struct app_process_data *create_app_process(unsigned long app_id)
 		 */
 		close(fds_rmm_to_app_process[1]);
 		close(fds_app_process_to_rmm[0]);
+
+		/* Clear O_CLOEXEC on the two fds the app process needs
+		 * so they survive execv().
+		 */
+		(void)fcntl(fds_rmm_to_app_process[0], F_SETFD, 0);
+		(void)fcntl(fds_app_process_to_rmm[1], F_SETFD, 0);
 		/*
 		 * Tell the kernel to automatically SIGKILL the app process
 		 * when its parent rmm.elf dies — regardless of how the parent
@@ -188,10 +207,14 @@ void app_framework_setup(void)
 void app_processes_cleanup(void)
 {
 	for (size_t i = 0; i < initialised_app_process_data_count; i++) {
-		kill(app_process_datas[i].pid, SIGKILL);
-		waitpid(app_process_datas[i].pid, NULL, 0);
+		/*
+		 * Close the pipes first so the app process's read() returns
+		 * EOF, causing exit(0) which flushes gcov/coverage data via
+		 * __gcov_exit().  Using SIGKILL would skip that flush.
+		 */
 		close(app_process_datas[i].fd_rmm_to_app_process);
 		close(app_process_datas[i].fd_app_process_to_rmm);
+		waitpid(app_process_datas[i].pid, NULL, 0);
 	}
 	initialised_app_process_data_count = 0;
 	memset(app_process_datas, 0, sizeof(app_process_datas));
@@ -201,7 +224,8 @@ int app_new_instance(struct app_data_cfg *app_data,
 		      unsigned long app_id,
 		      uintptr_t granule_pas[],
 		      size_t granule_count,
-		      void *granule_va_start)
+		      void *granule_va_start,
+		      unsigned long flags)
 {
 	struct app_process_data *app_process_data;
 	unsigned long command;
@@ -223,6 +247,7 @@ int app_new_instance(struct app_data_cfg *app_data,
 	command = CREATE_NEW_APP_INSTANCE;
 
 	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &command, sizeof(command));
+	WRITE_OR_EXIT(app_process_data->fd_rmm_to_app_process, &flags, sizeof(flags));
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &app_data->inst_id,
 		sizeof(app_data->inst_id));
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &heap_size, sizeof(heap_size));
@@ -273,6 +298,19 @@ void app_unmap_shared_page(struct app_data_cfg *app_data)
 {
 	assert(app_data->el2_shared_page != NULL);
 	app_data->el2_shared_page = NULL;
+}
+
+void app_reset_instances(void)
+{
+	for (size_t i = 0; i < initialised_app_process_data_count; i++) {
+		unsigned long command = RESET_APP_INSTANCES;
+		unsigned long ack;
+
+		WRITE_OR_EXIT(app_process_datas[i].fd_rmm_to_app_process,
+			      &command, sizeof(command));
+		READ_OR_EXIT(app_process_datas[i].fd_app_process_to_rmm,
+			     &ack, sizeof(ack));
+	}
 }
 
 static unsigned long app_run_internal(struct app_data_cfg *app_data,

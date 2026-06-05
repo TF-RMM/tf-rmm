@@ -33,12 +33,6 @@ int attest_app_global_init(void);
 /* Init an app instance for this CPU */
 void attest_app_init_per_cpu_instance(void);
 
-/* Iniialise a new app instance in the app_data object */
-int attest_app_new(struct app_data_cfg *app_data,
-	uintptr_t granule_pas[],
-	size_t granule_pa_count,
-	void *granule_va_start);
-
 /*
  * Delete the thread associated with an attestation app
  * ONLY A WRAPPER - Ensure correct app_data is specified

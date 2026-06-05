@@ -9,6 +9,12 @@
 #define CREATE_NEW_APP_INSTANCE		13
 #define RUN_APP_INSTANCE		21
 #define EXIT_APP_INSTANCE		31
+#define RESET_APP_INSTANCES		41
+
+/* Flags for CREATE_NEW_APP_INSTANCE (sent as a word after the command) */
+#ifndef APP_INSTANCE_FLAG_PERSISTENT
+#define APP_INSTANCE_FLAG_PERSISTENT	1UL
+#endif
 
 #define OP_OR_EXIT(op, fd, buf, count, error_on_eof)                                               \
 	do {                                                                                       \
