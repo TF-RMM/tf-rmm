@@ -275,7 +275,7 @@ static int realm_start(unsigned long *regs, unsigned long *sp_el0)
 
 		if (res != MCO_SUCCESS) {
 			ERROR("Failed to create realm coroutine\n");
-			return 0;
+			return ARM_EXCEPTION_FIQ_LEL;
 		}
 	}
 
@@ -327,6 +327,13 @@ void init(void)
 	install_crash_handlers();
 
 	host_util_set_cpuid(0U);
+
+	/*
+	 * Register realm entry points so host_util_rec_run() can
+	 * correct the PC when advance_pc() was skipped (stage-2 fault).
+	 */
+	host_util_set_realm_entry(realm_start);
+	host_util_set_realm_entry(realm_fin);
 
 	host_util_setup_sysreg_and_boot_manifest();
 

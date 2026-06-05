@@ -180,14 +180,27 @@ void host_util_setup_sysreg_and_boot_manifest(void);
  */
 unsigned char *host_util_get_el3_rmm_shared_buffer(void);
 
+/* Prototype for Realm entrypoint */
+typedef int (*realm_entrypoint_t)(unsigned long *, unsigned long *);
+
 /*
  * Runs the realm entrypoint as programmed in elr_el2 and resets
  * the esr_el2 before entering the Realm.
+ *
+ * When host_util_rsi_helper() sets elr_el2 to (ep - 4) and the RMM
+ * emulates a stage-2 data abort instead of calling advance_pc(), the
+ * saved PC stays at (ep - 4).  On re-entry restore_realm_state writes
+ * that stale value, which would call into the middle of a C function.
+ * To handle this, callers register valid entry points via
+ * host_util_set_realm_entry(). host_util_rec_run() only enters those
+ * registered callbacks. It corrects the off-by-4 case when it matches a
+ * registered entry point and otherwise reports an unknown sync exception.
  */
 int host_util_rec_run(unsigned long *rec_regs, unsigned long *rec_sp_el0);
 
-/* Prototype for Realm entrypoint */
-typedef int (*realm_entrypoint_t)(unsigned long *, unsigned long *);
+#define HOST_UTIL_MAX_REALM_ENTRIES 8
+
+void host_util_set_realm_entry(realm_entrypoint_t ep);
 
 /* Helper for invoking RSI calls */
 int host_util_rsi_helper(realm_entrypoint_t ep);
