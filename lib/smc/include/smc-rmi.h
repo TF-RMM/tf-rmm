@@ -1734,11 +1734,6 @@ struct rmi_pdev_params {
 	SET_MEMBER_RMI(unsigned int rid_top, 0x28, 0x30);
 	/* RmiHashAlgorithm: Algorithm used to generate device digests */
 	SET_MEMBER_RMI(unsigned char hash_algo, 0x30, 0x38);
-	/*
-	 * UInt64: Order of the maximum number of VDEVs which can be created for this
-	 * PDEV.
-	 */
-	SET_MEMBER_RMI(unsigned long max_vdevs_order, 0x38, 0x1000);
 };
 
 /* Max length of public key data passed in rmi_public_key_params */

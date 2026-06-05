@@ -105,6 +105,9 @@ void pdev_stream_granules_unmap_unlock(struct granule *g_streams,
 static unsigned long validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
 
 {
+	unsigned int max_num_vdevs =
+		pd_params->rid_top - pd_params->rid_base;
+
 	if ((pd_params->flags & ~RMI_PDEV_FLAGS_VALID_MASK) != 0U) {
 		return RMI_ERROR_INPUT;
 	}
@@ -138,7 +141,7 @@ static unsigned long validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
 		return RMI_ERROR_INPUT;
 	}
 
-	if ((pd_params->max_vdevs_order > MAX_VDEVS_ORDER) ||
+	if ((max_num_vdevs > PDEV_MAX_VDEVS(MAX_VDEVS_ORDER)) ||
 	    (pd_params->routing_id > (unsigned long)(UINT16_MAX))) {
 		return RMI_ERROR_INPUT;
 	}
@@ -174,11 +177,17 @@ static unsigned long pdev_get_app_aux_count_from_flags(unsigned long pdev_flags)
 	return app_get_required_granule_count(RMM_DEV_ASSIGN_APP_ID);
 }
 
-static unsigned int pdev_get_vdev_range_aux_count(unsigned long max_vdevs_order)
+static unsigned int pdev_get_max_num_vdevs(unsigned int rid_base,
+					   unsigned int rid_top)
 {
-	assert(max_vdevs_order <= MAX_VDEVS_ORDER);
+	return rid_top - rid_base;
+}
 
-	return (unsigned int)PDEV_VDEV_RANGE_AUX_COUNT_FROM_ORDER(max_vdevs_order);
+static unsigned int pdev_get_vdev_range_aux_count(unsigned int max_num_vdevs)
+{
+	assert(max_num_vdevs <= PDEV_MAX_VDEVS(MAX_VDEVS_ORDER));
+
+	return (unsigned int)PDEV_VDEV_RANGE_AUX_COUNT_FROM_SLOT_COUNT(max_num_vdevs);
 }
 
 static unsigned long
@@ -202,6 +211,7 @@ void smc_pdev_create(unsigned long pdev_addr,
 	struct rmi_pdev_params pdev_params; /* this consumes 4k of stack */
 	bool ns_access_ok;
 	unsigned long ret;
+	unsigned int max_num_vdevs;
 
 	if (!is_rmi_feat_da_enabled()) {
 		res->x[0] = SMC_NOT_SUPPORTED;
@@ -247,11 +257,13 @@ void smc_pdev_create(unsigned long pdev_addr,
 	/*
 	 * Granules for the app, one page for stream objects associated with
 	 * this EP PDEV, and enough pages to store cached VDEV ranges for the
-	 * requested max_vdevs_order. Initiate SRO to get that memory.
+	 * RID span associated with this PDEV. Initiate SRO to get that memory.
 	 */
+	max_num_vdevs = pdev_get_max_num_vdevs(pdev_params.rid_base,
+						 pdev_params.rid_top);
 	const size_t aux_count = pdev_get_app_aux_count_from_flags(pdev_params.flags) +
 		MAX_PDEV_STREAM_AUX_COUNT +
-		pdev_get_vdev_range_aux_count(pdev_params.max_vdevs_order);
+		pdev_get_vdev_range_aux_count(max_num_vdevs);
 	if (aux_count > MAX_PDEV_PARAM_AUX_GRANULES) {
 		/*
 		 * The PDEV cannot hold enough granules for this configuration.
@@ -293,7 +305,6 @@ void smc_pdev_create(unsigned long pdev_addr,
 	sro->pdev_ctx.rid_base = pdev_params.rid_base;
 	sro->pdev_ctx.rid_top = pdev_params.rid_top;
 	sro->pdev_ctx.hash_algo = pdev_params.hash_algo;
-	sro->pdev_ctx.max_vdevs_order = pdev_params.max_vdevs_order;
 
 	granule_unlock_transition(gr, GRANULE_STATE_PARTIAL);
 
@@ -320,6 +331,7 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 	unsigned int num_app_aux_granules;
 	unsigned int num_vdev_range_aux_granules;
 	unsigned int app_aux_start_idx;
+	unsigned int max_num_vdevs;
 
 	assert(sro != NULL);
 	assert(fid == SMC_RMI_OP_CONTINUE);
@@ -333,8 +345,9 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 	sro_ctx = &sro->pdev_ctx;
 	num_aux_granules = (unsigned int)sro->aux_op_ctx.requested_aux_granules;
 	all_aux_granule_pas = sro->aux_op_ctx.aux_granules_pa;
-	num_vdev_range_aux_granules =
-		pdev_get_vdev_range_aux_count(sro_ctx->max_vdevs_order);
+	max_num_vdevs = pdev_get_max_num_vdevs(sro_ctx->rid_base,
+						 sro_ctx->rid_top);
+	num_vdev_range_aux_granules = pdev_get_vdev_range_aux_count(max_num_vdevs);
 	app_aux_start_idx = PDEV_VDEV_RANGES_AUX_GRANULE_IDX +
 		num_vdev_range_aux_granules;
 
@@ -427,7 +440,7 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 		pd->op.curr = PDEV_OP_NONE;
 		pd->rmi_flags = sro_ctx->flags;
 		pd->num_vdevs = 0;
-		pd->max_num_vdevs = (uint32_t)(PDEV_MAX_VDEVS(sro_ctx->max_vdevs_order));
+		pd->max_num_vdevs = (uint32_t)max_num_vdevs;
 		pd->rmi_hash_algo = sro_ctx->hash_algo;
 		pd->num_app_aux = num_app_aux_granules;
 		pd->g_stream_aux = all_aux_granules[PDEV_STREAM_AUX_GRANULE_IDX];
@@ -494,6 +507,7 @@ static unsigned long pdev_create_continue_rp(unsigned long pdev_addr,
 	struct pdev *pd;
 	unsigned long ecam_addr;
 	unsigned long bdf;
+	unsigned int max_num_vdevs;
 
 	/* Lock pdev granule and map it */
 	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_DELEGATED);
@@ -506,6 +520,8 @@ static unsigned long pdev_create_continue_rp(unsigned long pdev_addr,
 
 	ecam_addr = pdev_params->pdev_id & MASK(PDEV_ID_ECAM_ADDR);
 	bdf = pdev_params->pdev_id & MASK(PDEV_ID_BDF);
+	max_num_vdevs = pdev_get_max_num_vdevs(pdev_params->rid_base,
+						 pdev_params->rid_top);
 
 	/* Initialize PDEV */
 	pd->da_app_yielded = false;
@@ -515,7 +531,7 @@ static unsigned long pdev_create_continue_rp(unsigned long pdev_addr,
 	pd->op.curr = PDEV_OP_NONE;
 	pd->rmi_flags = pdev_params->flags;
 	pd->num_vdevs = 0;
-	pd->max_num_vdevs = (uint32_t)PDEV_MAX_VDEVS(pdev_params->max_vdevs_order);
+	pd->max_num_vdevs = (uint32_t)max_num_vdevs;
 	pd->rmi_hash_algo = pdev_params->hash_algo;
 
 	/* Initialize PDEV communication state */

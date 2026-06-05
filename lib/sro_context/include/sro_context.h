@@ -140,7 +140,6 @@ struct sro_pdev_ctx {
 	unsigned int rid_base;
 	unsigned int rid_top;
 	unsigned char hash_algo;
-	unsigned long max_vdevs_order;
 };
 
 struct sro_context {
