@@ -1150,7 +1150,7 @@ void smc_rtt_unprot_map(unsigned long rd_addr,
 
 	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
 
-	s2tt_walk_lock_unlock(s2_ctx, base, level, &wi);
+	s2tt_walk_lock_unlock(s2_ctx, base, S2TT_PAGE_LEVEL, &wi);
 
 	if (wi.last_level != level) {
 		res->x[0] = pack_return_code(RMI_ERROR_RTT,
@@ -1164,7 +1164,18 @@ void smc_rtt_unprot_map(unsigned long rd_addr,
 	s2tte = s2tte_read(&s2tt[wi.index]);
 
 	if (!s2tte_is_unassigned_ns(s2_ctx, s2tte)) {
-		res->x[0] = pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
+		unsigned long expected =
+			s2tte_create_assigned_ns(s2_ctx, host_s2tte, level, 0UL);
+
+		/* If already mapped as NS, then skip if the tte matches */
+		if (s2tte_is_assigned_ns(s2_ctx, s2tte, level) &&
+		    (s2tte == expected)) {
+			res->x[0] = RMI_SUCCESS;
+			res->x[1] = base + map_size;
+		} else {
+			res->x[0] = pack_return_code(RMI_ERROR_RTT,
+						(unsigned char)level);
+		}
 		goto out_unmap_table;
 	}
 
