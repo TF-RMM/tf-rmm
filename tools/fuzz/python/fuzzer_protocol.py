@@ -97,6 +97,13 @@ class RealmDestroy(Packet):
     ]
 
 
+class RealmTerminate(Packet):
+    name = "Realm terminate"
+    fields_desc = [
+        ByteField("rd_index", 0)
+    ]
+
+
 class RecCreate(Packet):
     name = "Rec create"
     fields_desc = [
@@ -320,3 +327,4 @@ bind_layers(RMI, SroDonate, command=30)
 bind_layers(RMI, SroReclaim, command=31)
 bind_layers(RMI, SroContinue, command=32)
 bind_layers(RMI, RsiCall, command=33)
+bind_layers(RMI, RealmTerminate, command=49)

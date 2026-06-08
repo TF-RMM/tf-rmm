@@ -19,6 +19,7 @@ void host_rmi_rtt_data_map_init(void *rd, void *data, uintptr_t ipa, void *src,
 
 void host_rmi_realm_activate(void *rd, struct smc_result *res);
 void host_rmi_realm_create(void *rd, void *params_ptr, struct smc_result *res);
+void host_rmi_realm_terminate(void *rd, struct smc_result *res);
 void host_rmi_realm_destroy(void *rd, struct smc_result *res);
 void host_rmi_rtt_create(void *rd, void *rtt, void *ipa,
 			 unsigned int level, struct smc_result *res);

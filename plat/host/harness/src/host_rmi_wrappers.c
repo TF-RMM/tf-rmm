@@ -78,6 +78,14 @@ void host_rmi_realm_create(void *rd, void *params_ptr, struct smc_result *res)
 		      0, res);
 }
 
+void host_rmi_realm_terminate(void *rd, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_REALM_TERMINATE,
+		      (uintptr_t)rd,
+		      0, 0, 0, 0, 0,
+		      0, res);
+}
+
 void host_rmi_realm_destroy(void *rd, struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMI_REALM_DESTROY,

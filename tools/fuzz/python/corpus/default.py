@@ -149,6 +149,7 @@ if __name__ == "__main__":
         packets.append(GranuleUndelegate(index=rtt_base + 3 + level))
 
     # Destroy realm and undelegate remaining granules
+    packets.append(RealmTerminate(rd_index=rd))
     packets.append(RealmDestroy(rd_index=rd))
     packets.append(GranuleUndelegate(index=rtt_base))   # rtt[0]
     packets.append(GranuleUndelegate(index=rd))

@@ -46,6 +46,8 @@ Command Support Matrix
 +---------------------+---------+---------+-----+-----+-------+-----+----------+
 | RealmCreate         | ✔       | ✔       |     | ✔   | ✔     | ✔   | ✔        |
 +---------------------+---------+---------+-----+-----+-------+-----+----------+
+| RealmTerminate      | ✔       | ✔       |     | ✔   | ✔     | ✔   | ✔        |
++---------------------+---------+---------+-----+-----+-------+-----+----------+
 | RealmDestroy        | ✔       | ✔       |     | ✔   | ✔     | ✔   | ✔        |
 +---------------------+---------+---------+-----+-----+-------+-----+----------+
 | RecCreate           | ✔       | ✔ (2)   |     | ✔   | ✔     |     |          |
@@ -105,6 +107,7 @@ Default
 - RttDataUnmap
 - GranuleUndelegate
 - RTTDestroy
+- RealmTerminate
 - RealmDestroy
 
 Invalid
@@ -125,6 +128,7 @@ Invalid
 - RttDataUnmap
 - GranuleUndelegate
 - RTTDestroy
+- RealmTerminate
 - RealmDestroy
 
 Min
@@ -149,6 +153,7 @@ Pmu
 - \--
 - RecDestroy
 - GranuleUndelegate
+- RealmTerminate
 - RealmDestroy
 
 Ripas
@@ -169,6 +174,7 @@ Ripas
 - RttDataUnmap
 - GranuleUndelegate
 - RTTDestroy
+- RealmTerminate
 - RealmDestroy
 
 
@@ -182,6 +188,7 @@ Rtt
 - \--
 - RTTDestroy
 - GranuleUndelegate
+- RealmTerminate
 - RealmDestroy
 
 
@@ -196,4 +203,5 @@ RTT_Fold
 - \--
 - RTTDestroy
 - GranuleUndelegate
+- RealmTerminate
 - RealmDestroy

@@ -643,6 +643,13 @@ int execute(unsigned char *buffer, size_t read_res)
 			break;
 		}
 
+		case COMMAND_REALM_TERMINATE: {
+			PACKET(packet_realm_terminate, b, packet);
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
+			host_rmi_realm_terminate(_granules[packet.rd_index], &res);
+			break;
+		}
+
 		case COMMAND_REC_CREATE: {
 			PACKET(packet_rec_create, b, packet);
 			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);

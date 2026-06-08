@@ -338,6 +338,9 @@ static int host_destroy_realm(struct host_realm *realm)
 		return -1;
 	}
 
+	host_rmi_realm_terminate(realm->rd, &result);
+	CHECK_RMI_RESULT();
+
 	host_rmi_realm_destroy(realm->rd, &result);
 	CHECK_RMI_RESULT();
 	if (undelegate_granule_range(realm->rd,
