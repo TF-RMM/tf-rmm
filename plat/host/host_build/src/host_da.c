@@ -30,7 +30,7 @@
 
 #define HOST_VDEV_IFC_REPORT_LEN_MAX	(8U * 1024U)
 
-/* PCIe endpoint at 00:01.0 behind the root port 00:00.0. */
+/* PCIe endpoint at 01:00.0 behind the root port 00:00.0. */
 #define HOST_PDEV_SEGMENT_ID		0U
 #define HOST_PDEV_BUS			1U
 #define HOST_PDEV_DEV			0U
@@ -74,8 +74,8 @@ struct host_pdev {
 
 	/* Root Port ID and ECAM_SPACE */
 	unsigned long rp_pdev_id;
-	uint16_t rid_base;
-	uint16_t rid_top;
+	unsigned int rid_base;
+	unsigned int rid_top;
 	uint8_t ide_sid;
 	unsigned long ecam_addr;
 };
@@ -314,6 +314,8 @@ static int host_pdev_create(struct host_pdev *h_pdev, bool ep_pdev)
 
 	pdev_params->routing_id = h_pdev->segment_id;
 	pdev_params->id_index = h_pdev->cert_slot_id;
+	pdev_params->rid_base = h_pdev->rid_base;
+	pdev_params->rid_top = h_pdev->rid_top;
 	pdev_params->hash_algo = h_pdev->hash_algo;
 	pdev_params->max_vdevs_order = 2; /* max 3 vdevs */
 
@@ -965,7 +967,7 @@ static int host_pdev_setup(struct host_pdev *dev)
 	dev->segment_id = HOST_PDEV_SEGMENT_ID;
 	dev->ep_pdev_id = HOST_CREATE_BDF(HOST_PDEV_BUS, HOST_PDEV_DEV,
 					 HOST_PDEV_FUNC);
-	dev->rid_base = 0U;
+	dev->rid_base = (unsigned int)dev->ep_pdev_id;
 	dev->rid_top = dev->rid_base + 1U;
 	dev->ide_sid = HOST_PDEV_IDE_SID;
 
