@@ -805,6 +805,12 @@ int rmm_el3_ifc_rp_ide_key_set_stop(unsigned long ecam_addr, unsigned long rp_id
 				    unsigned long stream_info);
 
 /*
+ * Check whether @ecam_addr matches a Root Complex ECAM base address from the
+ * cached Boot Manifest.
+ */
+bool rmm_el3_ifc_is_ecam_base_valid(unsigned long ecam_addr);
+
+/*
  * Resolve a PCIe device BDF to an SMMU index and StreamID using the
  * cached Root Complex topology from the Boot Manifest.
  *

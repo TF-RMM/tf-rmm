@@ -552,6 +552,35 @@ int rmm_el3_ifc_get_cached_smmu_list_pa(struct smmu_list **plat_smmu_list)
 }
 
 /*
+ * Check whether @ecam_addr matches a Root Complex ECAM base address from the
+ * cached Root Complex topology.
+ */
+bool rmm_el3_ifc_is_ecam_base_valid(unsigned long ecam_addr)
+{
+	struct root_complex_list *rc_list;
+	struct root_complex_info *root_complex;
+	uint64_t num_root_complexes;
+
+	assert(local_core_manifest != NULL);
+
+	rc_list = &local_core_manifest->plat_root_complex;
+	num_root_complexes = rc_list->num_root_complex;
+	root_complex = rc_list->root_complex;
+
+	if ((num_root_complexes == 0UL) || (root_complex == NULL)) {
+		return false;
+	}
+
+	for (uint64_t rc_idx = 0UL; rc_idx < num_root_complexes; rc_idx++) {
+		if (root_complex[rc_idx].ecam_base == ecam_addr) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/*
  * Resolve a PCIe device BDF to an SMMU index and StreamID using the
  * cached Root Complex topology.
  */

@@ -302,13 +302,15 @@ static int host_pdev_create(struct host_pdev *h_pdev, bool ep_pdev)
 		/* Create EP pdev */
 		pdev_params->flags |=
 			INPLACE(RMI_PDEV_FLAGS_CATEGORY, RMI_PDEV_ENDPOINT_ACCEL_OFF_CHIP);
-		pdev_params->pdev_id = h_pdev->ecam_addr | h_pdev->ep_pdev_id;
+		pdev_params->hb_base = h_pdev->ecam_addr;
+		pdev_params->pdev_id = h_pdev->ep_pdev_id;
 		pdev = h_pdev->ep_pdev_ptr;
 	} else {
 		/* Create RP pdev */
 		pdev_params->flags |=
 			INPLACE(RMI_PDEV_FLAGS_CATEGORY, RMI_PDEV_ROOTPORT);
-		pdev_params->pdev_id = h_pdev->ecam_addr | h_pdev->rp_pdev_id;
+		pdev_params->hb_base = h_pdev->ecam_addr;
+		pdev_params->pdev_id = h_pdev->rp_pdev_id;
 		pdev = h_pdev->rp_pdev_ptr;
 	}
 

@@ -134,6 +134,7 @@ enum sro_state {
 struct sro_pdev_ctx {
 	/* Parameters for PDEV creation */
 	unsigned long flags;
+	unsigned long hb_base;
 	unsigned long pdev_id;
 	uint16_t routing_id;
 	unsigned long id_index;

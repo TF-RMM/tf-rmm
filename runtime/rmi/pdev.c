@@ -12,6 +12,7 @@
 #include <dev_assign_app.h>
 #include <feature.h>
 #include <granule.h>
+#include <rmm_el3_ifc.h>
 #include <sizes.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
@@ -20,12 +21,8 @@
 #include <utils_def.h>
 #include <xlat_high_va.h>
 
-#define PDEV_ID_BDF_WIDTH		28U /* 256 MB */
-#define PDEV_ID_BDF_SHIFT		0U
-#define PDEV_ID_ECAM_ADDR_WIDTH		(64U - PDEV_ID_BDF_WIDTH)
-#define PDEV_ID_ECAM_ADDR_SHIFT		PDEV_ID_BDF_WIDTH
-
 #define RMI_PDEV_FLAGS_VALID_MASK  (MASK(RMI_PDEV_FLAGS_SPDM) | MASK(RMI_PDEV_FLAGS_CATEGORY))
+#define PCIE_BDF_VALID_MASK		((unsigned long)UINT16_MAX)
 
 struct pdev_stream_aux {
 	struct pdev_stream streams[RMI_PDEV_STREAM_TYPE_COUNT];
@@ -96,11 +93,20 @@ void pdev_stream_granules_unmap_unlock(struct granule *g_streams,
 	granule_unlock(g_streams);
 }
 
+static bool pdev_hb_base_is_valid(unsigned long hb_base)
+{
+	return rmm_el3_ifc_is_ecam_base_valid(hb_base);
+}
+
+static bool pdev_pci_bdf_is_valid(unsigned long bdf)
+{
+	return (bdf & ~PCIE_BDF_VALID_MASK) == 0UL;
+}
+
 /*
- * todo:
- * Validate device specific PDEV parameters by traversing all previously created
- * PDEVs and check against current PDEV parameters. This implements
- * RmiPdevParamsIsValid of RMM specification.
+ * TODO:
+ * Check that the device identifier is not equal to the device identifier of
+ * another PDEV.
  */
 static unsigned long validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
 
@@ -146,14 +152,10 @@ static unsigned long validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
 		return RMI_ERROR_INPUT;
 	}
 
-	/*
-	 * TODO: Check if device identifier is valid.
-	 */
-
-	/*
-	 * TODO: Check if device identifier is not equal to the device
-	 * identifier of another PDEV
-	 */
+	if (!pdev_hb_base_is_valid(pd_params->hb_base) ||
+	    !pdev_pci_bdf_is_valid(pd_params->pdev_id)) {
+		return RMI_ERROR_INPUT;
+	}
 
 	return RMI_SUCCESS;
 }
@@ -299,6 +301,7 @@ void smc_pdev_create(unsigned long pdev_addr,
 	 */
 	/* Initialize the sro context for the command */
 	sro->pdev_ctx.flags = pdev_params.flags;
+	sro->pdev_ctx.hb_base = pdev_params.hb_base;
 	sro->pdev_ctx.pdev_id = pdev_params.pdev_id;
 	sro->pdev_ctx.routing_id = (uint16_t)pdev_params.routing_id;
 	sro->pdev_ctx.id_index = pdev_params.id_index;
@@ -379,8 +382,8 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 	pd = buffer_granule_map_zeroed(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
 
-	ecam_addr = sro_ctx->pdev_id & MASK(PDEV_ID_ECAM_ADDR);
-	bdf = sro_ctx->pdev_id & MASK(PDEV_ID_BDF);
+	ecam_addr = sro_ctx->hb_base;
+	bdf = sro_ctx->pdev_id;
 
 	/* Call init routine to initialize device class specific state */
 	dparams.dev_handle = (void *)pd;
@@ -518,8 +521,8 @@ static unsigned long pdev_create_continue_rp(unsigned long pdev_addr,
 	pd = buffer_granule_map_zeroed(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
 
-	ecam_addr = pdev_params->pdev_id & MASK(PDEV_ID_ECAM_ADDR);
-	bdf = pdev_params->pdev_id & MASK(PDEV_ID_BDF);
+	ecam_addr = pdev_params->hb_base;
+	bdf = pdev_params->pdev_id;
 	max_num_vdevs = pdev_get_max_num_vdevs(pdev_params->rid_base,
 						 pdev_params->rid_top);
 

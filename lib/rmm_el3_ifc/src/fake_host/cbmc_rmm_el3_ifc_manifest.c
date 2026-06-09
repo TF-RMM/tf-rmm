@@ -22,4 +22,10 @@ int rmm_el3_ifc_bdf_to_smmu(unsigned long ecam_addr, unsigned int bdf,
 	ASSERT(false, "rmm_el3_ifc_bdf_to_smmu");
 	return 0;
 }
+
+bool rmm_el3_ifc_is_ecam_base_valid(unsigned long ecam_addr)
+{
+	(void)ecam_addr;
+	return true;
+}
 #endif /* CBMC */
