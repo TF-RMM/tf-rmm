@@ -1107,7 +1107,14 @@ void smc_rtt_unprot_map(unsigned long rd_addr,
 
 	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
 
-	if (!validate_rtt_map_cmds(base, level, rd)) {
+	/*
+	 * Check that the requested range is within the Realm IPA space and
+	 * outside PAR before walking.
+	 */
+	if (!validate_rtt_map_cmds(base, level, rd) ||
+	    !validate_map_addr(top - GRANULE_SIZE, S2TT_PAGE_LEVEL, rd) ||
+	    addr_in_par(rd, base) ||
+	    addr_in_par(rd, top - GRANULE_SIZE)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		goto out_unmap_rd;
 	}
@@ -1130,12 +1137,6 @@ void smc_rtt_unprot_map(unsigned long rd_addr,
 	}
 
 	if (!host_ns_s2tte_is_valid(s2_ctx, host_s2tte, level)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		goto out_unmap_rd;
-	}
-
-	/* Check if base is outside PAR */
-	if (addr_in_par(rd, base)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		goto out_unmap_rd;
 	}
@@ -1245,8 +1246,14 @@ void smc_rtt_unprot_unmap(unsigned long rd_addr,
 
 	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
 
-	/* Check if base is outside PAR */
-	if (addr_in_par(rd, base)) {
+	/*
+	 * Check that the range is within the Realm IPA space and outside PAR
+	 * before walking. s2tt_walk_lock_unlock() requires a valid IPA.
+	 */
+	if (!validate_map_addr(base, S2TT_PAGE_LEVEL, rd) ||
+	    !validate_map_addr(top - GRANULE_SIZE, S2TT_PAGE_LEVEL, rd) ||
+	    addr_in_par(rd, base) ||
+	    addr_in_par(rd, top - GRANULE_SIZE)) {
 		goto out_unmap_rd;
 	}
 
