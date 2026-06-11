@@ -97,6 +97,28 @@ To run the demonstrator, use the following command:
 
        shrinkwrap run cca-3world.yaml --overlay=cca.yaml --rtvar=ROOTFS=${SHRINKWRAP_PACKAGE}/cca-3world/rootfs.ext2
 
+Finally, once the host has booted, log in as "root" (no password). Now, launch
+a realm using kvmtool from the /cca directory (that was created above):
+
+    .. code-block:: shell
+
+       cd /cca
+       ./lkvm run --realm -c 2 -m 256 --disk guest-disk.img --kernel Image -p "earlycon=uart,mmio,0x101000000 root=/dev/vda2"
+
+You should see the realm guest booting to shell. You can now test the basic
+functionality of RMM by running some commands in the realm shell, for example:
+
+    .. code-block:: shell
+
+       ls /dev/vda2
+       cat /proc/cpuinfo
+
+To power off the realm guest, run:
+
+    .. code-block:: shell
+
+       poweroff -f
+
 3-World testing with CCA DA
 ___________________________
 
@@ -105,6 +127,12 @@ local RMM with shrinkwrap.
 
 RMM provides ``cca_da.yaml`` overlay that can be used along with the
 ``cca-3world.yaml`` to build a 3 World demonstrator.
+
+.. note::
+
+      For CCA DA testing, use |RMM| commit ``d54026d``. This temporary
+      limitation will be removed once a compatible Linux kernel branch is
+      pushed out.
 
 As an example, the following command line would build the 3-World demonstrator.
 It assumes that Shrinkwrap is called from within the ``<RMM_ROOT>`` directory

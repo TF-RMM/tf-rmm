@@ -643,6 +643,13 @@ int execute(unsigned char *buffer, size_t read_res)
 			break;
 		}
 
+		case COMMAND_REALM_TERMINATE: {
+			PACKET(packet_realm_terminate, b, packet);
+			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
+			host_rmi_realm_terminate(_granules[packet.rd_index], &res);
+			break;
+		}
+
 		case COMMAND_REC_CREATE: {
 			PACKET(packet_rec_create, b, packet);
 			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
@@ -737,11 +744,12 @@ int execute(unsigned char *buffer, size_t read_res)
 		case COMMAND_RTT_MAP_UNPROTECTED: {
 			PACKET(packet_rtt_map_unprotected, b, packet);
 			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
-			host_rmi_rtt_map_unprotected(
+			host_rmi_rtt_unprot_map(
 					_granules[packet.rd_index],
-					packet.ipa,
-					packet.level,
-					packet.desc, &res);
+					packet.base,
+					packet.top,
+					packet.flags,
+					packet.oaddr, &res);
 			break;
 		}
 
@@ -760,8 +768,10 @@ int execute(unsigned char *buffer, size_t read_res)
 			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
 			host_rmi_rtt_unmap_unprotected(
 					_granules[packet.rd_index],
-					packet.ipa,
-					packet.level, &res);
+					packet.base,
+					packet.top,
+					packet.flags,
+					packet.oaddr, &res);
 			break;
 		}
 
@@ -837,6 +847,7 @@ int execute(unsigned char *buffer, size_t read_res)
 			PACKET(packet_granule_tracking_get, b, packet);
 			host_rmi_granule_tracking_get(
 					(unsigned long)_granules[packet.granule_index],
+					(unsigned long)_granules[packet.granule_index] + GRANULE_SIZE,
 					&res);
 			break;
 		}

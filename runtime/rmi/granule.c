@@ -193,7 +193,14 @@ unsigned long smc_granule_undelegate(unsigned long addr)
 /* Internal only symbol for the size */
 #define RMM_INTERNAL_TRACKING_REGION_SIZE	(1UL << 30UL) /* 1GB */
 
-void smc_granule_tracking_get(unsigned long addr,
+/*
+ * TODO This is a dummy implementation. RMM statically tracks all of memory.
+ * The granule tracking implementation will be enhanced later to support
+ * mixed memory types. Also end is currently returned as it is
+ * back to the caller in res->x[3].
+ */
+void smc_granule_tracking_get(unsigned long start,
+			      unsigned long end,
 			      struct smc_result *res)
 {
 	struct granule *g;
@@ -204,31 +211,34 @@ void smc_granule_tracking_get(unsigned long addr,
 
 	res->x[0] = RMI_ERROR_INPUT;
 
-	/* Reject addresses beyond implemented PA size */
-	if (addr > max_pa) {
+	/* Reject invalid address range or addresses beyond implemented PA size */
+	if ((start > max_pa) || (end > max_pa) || (start > end) ||
+	    ((end - start) < GRANULE_SIZE)) {
 		return;
 	}
 
-	if (!ALIGNED(addr, RMM_INTERNAL_TRACKING_REGION_SIZE)) {
+	if (!GRANULE_ALIGNED(start) || !GRANULE_ALIGNED(end)) {
 		return;
 	}
 
-	g = find_granule(addr);
+	g = find_granule(start);
 	if (g != NULL) {
 		res->x[0] = RMI_SUCCESS;
 		res->x[1] = RMI_MEM_CATEGORY_CONVENTIONAL;
 		res->x[2] = RMI_TRACKING_FINE;
+		res->x[3] = end;
 		return;
 	}
 
 	/* Try to find device granule */
-	dg = find_dev_granule(addr, &type);
+	dg = find_dev_granule(start, &type);
 	if (dg != NULL) {
 		res->x[0] = RMI_SUCCESS;
 		res->x[2] = RMI_TRACKING_FINE;
 		res->x[1] = (type == DEV_MEM_NON_COHERENT) ?
 				RMI_MEM_CATEGORY_DEV_NCOH :
 				RMI_MEM_CATEGORY_DEV_COH;
+		res->x[3] = end;
 		return;
 	}
 
@@ -239,6 +249,7 @@ void smc_granule_tracking_get(unsigned long addr,
 	res->x[0] = RMI_SUCCESS;
 	res->x[1] = RMI_MEM_CATEGORY_CONVENTIONAL;
 	res->x[2] = RMI_TRACKING_NONE;
+	res->x[3] = end;
 }
 
 unsigned long smc_rmm_config_set(unsigned long config_ptr)

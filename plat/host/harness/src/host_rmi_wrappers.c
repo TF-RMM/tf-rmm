@@ -78,6 +78,14 @@ void host_rmi_realm_create(void *rd, void *params_ptr, struct smc_result *res)
 		      0, res);
 }
 
+void host_rmi_realm_terminate(void *rd, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_REALM_TERMINATE,
+		      (uintptr_t)rd,
+		      0, 0, 0, 0, 0,
+		      0, res);
+}
+
 void host_rmi_realm_destroy(void *rd, struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMI_REALM_DESTROY,
@@ -172,17 +180,6 @@ void host_rmi_rtt_aux_destroy(void *rd, void *ipa, unsigned int level,
 		0, res);
 }
 
-void host_rmi_rtt_map_unprotected(void *rd, uintptr_t ipa, uintptr_t level,
-				  uintptr_t desc, struct smc_result *res)
-{
-	handle_ns_smc(SMC_RMI_RTT_MAP_UNPROTECTED,
-		      (uintptr_t)rd,
-		      ipa,
-		      level,
-		      desc, 0, 0,
-		      0, res);
-}
-
 void host_rmi_rtt_read_entry(void *rd, uintptr_t ipa, uintptr_t level, struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMI_RTT_READ_ENTRY,
@@ -193,15 +190,20 @@ void host_rmi_rtt_read_entry(void *rd, uintptr_t ipa, uintptr_t level, struct sm
 		      0, res);
 }
 
-void host_rmi_rtt_unmap_unprotected(void *rd, uintptr_t ipa, uintptr_t level,
-				    struct smc_result *res)
+void host_rmi_rtt_unmap_unprotected(void *rd,
+			unsigned long base,
+			unsigned long top,
+			unsigned long flags,
+			unsigned long oaddr,
+			struct smc_result *res)
 {
-	handle_ns_smc(SMC_RMI_RTT_UNMAP_UNPROTECTED,
+	handle_ns_smc(SMC_RMI_RTT_UNPROT_UNMAP,
 		      (uintptr_t)rd,
-		      ipa,
-		      level,
-		      0, 0, 0,
-		      0, res);
+		      base,
+		      top,
+		      flags,
+		      oaddr,
+		      0, 0, res);
 }
 
 void host_rmi_rtt_data_unmap(void *rd, uintptr_t base, uintptr_t top,
@@ -224,6 +226,21 @@ void host_rmi_rtt_data_map(void *rd, uintptr_t base, uintptr_t top,
 			   struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMI_RTT_DATA_MAP,
+		      (uintptr_t)rd,
+		      base,
+		      top,
+		      flags,
+		      oaddr,
+		      0,
+		      0,
+		      res);
+}
+
+void host_rmi_rtt_unprot_map(void *rd, uintptr_t base, uintptr_t top,
+		     unsigned long flags, uintptr_t oaddr,
+		     struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_RTT_UNPROT_MAP,
 		      (uintptr_t)rd,
 		      base,
 		      top,
@@ -416,11 +433,13 @@ void host_rmi_vdev_destroy(void *rd, void *pdev, void *vdev,
 		      (uintptr_t)vdev, 0, 0, 0, 0, res);
 }
 
-void host_rmi_granule_tracking_get(unsigned long addr, struct smc_result *res)
+void host_rmi_granule_tracking_get(unsigned long base,
+				unsigned long top,
+				struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMI_GRANULE_TRACKING_GET,
-		      addr,
-		      0, 0, 0, 0, 0, 0,
+		      base, top,
+		      0, 0, 0, 0, 0,
 		      res);
 }
 

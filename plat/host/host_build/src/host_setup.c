@@ -203,7 +203,7 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 	}
 
 	/* Test RMI_GRANULE_TRACKING_GET */
-	host_rmi_granule_tracking_get(0, &result);
+	host_rmi_granule_tracking_get(0, GRANULE_SIZE, &result);
 	CHECK_RMI_RESULT();
 	INFO("RMI_GRANULE_TRACKING_GET: category=0x%lx, tracking=0x%lx\n",
 	     result.x[1], result.x[2]);
@@ -337,6 +337,9 @@ static int host_destroy_realm(struct host_realm *realm)
 					     GRANULE_SIZE)) != 0) {
 		return -1;
 	}
+
+	host_rmi_realm_terminate(realm->rd, &result);
+	CHECK_RMI_RESULT();
 
 	host_rmi_realm_destroy(realm->rd, &result);
 	CHECK_RMI_RESULT();

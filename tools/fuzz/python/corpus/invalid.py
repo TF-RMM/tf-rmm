@@ -98,6 +98,7 @@ if __name__ == "__main__":
         packets.append(RTTDestroy(rd_index=rd, ipa=0, level=i))
         packets.append(GranuleUndelegate(index=rtt_base + i))
 
+    packets.append(RealmTerminate(rd_index=rd))
     packets.append(RealmDestroy(rd_index=rd))
     packets.append(GranuleUndelegate(index=rtt_base))
     packets.append(GranuleUndelegate(index=rd))

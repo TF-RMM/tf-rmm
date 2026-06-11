@@ -4,6 +4,60 @@
 from scapy.all import *
 
 
+GRANULE_SHIFT = 12
+
+RMI_PAGE_L3 = 0
+
+RMI_ADDR_TYPE_NONE = 0
+RMI_ADDR_TYPE_SINGLE = 1
+RMI_ADDR_TYPE_LIST = 2
+
+RMI_ADDR_RDESC_4K_SZ_SHIFT = 0
+RMI_ADDR_RDESC_4K_CNT_SHIFT = 2
+RMI_ADDR_RDESC_4K_ADDR_SHIFT = 12
+RMI_ADDR_RDESC_4K_ST_SHIFT = 63
+
+RMI_RTT_UNPROT_MAP_FLAGS_OADDR_TYPE_SHIFT = 0
+RMI_RTT_UNPROT_MAP_FLAGS_LIST_COUNT_SHIFT = 2
+RMI_RTT_UNPROT_MAP_FLAGS_MEMATTR_SHIFT = 16
+RMI_RTT_UNPROT_MAP_FLAGS_S2AP_SHIFT = 19
+
+RMI_RTT_UNMAP_FLAGS_OADDR_TYPE_SHIFT = 0
+RMI_RTT_UNMAP_FLAGS_LIST_COUNT_SHIFT = 2
+
+RMI_UNPROT_MEMATTR_NORMAL_WB = 6
+RMI_S2AP_DIRECT_READ = 1 << 1
+RMI_S2AP_DIRECT_WRITE = 1 << 0
+RMI_S2AP_DIRECT_RW = RMI_S2AP_DIRECT_READ | RMI_S2AP_DIRECT_WRITE
+
+
+def rmi_addr_rdesc_4k(addr, count=1, size=RMI_PAGE_L3, state=0):
+    return (
+        (size << RMI_ADDR_RDESC_4K_SZ_SHIFT) |
+        (count << RMI_ADDR_RDESC_4K_CNT_SHIFT) |
+        ((addr >> GRANULE_SHIFT) << RMI_ADDR_RDESC_4K_ADDR_SHIFT) |
+        (state << RMI_ADDR_RDESC_4K_ST_SHIFT)
+    )
+
+
+def rmi_rtt_unprot_map_flags(oaddr_type=RMI_ADDR_TYPE_SINGLE, list_count=0,
+                             memattr=RMI_UNPROT_MEMATTR_NORMAL_WB,
+                             s2ap=RMI_S2AP_DIRECT_RW):
+    return (
+        (oaddr_type << RMI_RTT_UNPROT_MAP_FLAGS_OADDR_TYPE_SHIFT) |
+        (list_count << RMI_RTT_UNPROT_MAP_FLAGS_LIST_COUNT_SHIFT) |
+        (memattr << RMI_RTT_UNPROT_MAP_FLAGS_MEMATTR_SHIFT) |
+        (s2ap << RMI_RTT_UNPROT_MAP_FLAGS_S2AP_SHIFT)
+    )
+
+
+def rmi_rtt_unmap_flags(oaddr_type=RMI_ADDR_TYPE_SINGLE, list_count=0):
+    return (
+        (oaddr_type << RMI_RTT_UNMAP_FLAGS_OADDR_TYPE_SHIFT) |
+        (list_count << RMI_RTT_UNMAP_FLAGS_LIST_COUNT_SHIFT)
+    )
+
+
 class RMI(Packet):
     name = "RMI"
     fields_desc = [
@@ -97,6 +151,13 @@ class RealmDestroy(Packet):
     ]
 
 
+class RealmTerminate(Packet):
+    name = "Realm terminate"
+    fields_desc = [
+        ByteField("rd_index", 0)
+    ]
+
+
 class RecCreate(Packet):
     name = "Rec create"
     fields_desc = [
@@ -146,9 +207,10 @@ class RTTMapUnprotected(Packet):
     name = "RTT Map Unprotected"
     fields_desc = [
         ByteField("rd_index", 0),
-        LELongField("ipa", 0),
-        LEIntField("level", 0),
-        LELongField("desc", 0),
+        LELongField("base", 0),
+        LELongField("top", 0),
+        LELongField("flags", 0),
+        LELongField("oaddr", 0),
     ]
 
 
@@ -165,8 +227,10 @@ class RTTUnmapUnprotected(Packet):
     name = "RTT Unmap Unprotected"
     fields_desc = [
         ByteField("rd_index", 0),
-        LELongField("ipa", 0),
-        LEIntField("level", 0),
+        LELongField("base", 0),
+        LELongField("top", 0),
+        LELongField("flags", 0),
+        LELongField("oaddr", 0),
     ]
 
 
@@ -320,3 +384,4 @@ bind_layers(RMI, SroDonate, command=30)
 bind_layers(RMI, SroReclaim, command=31)
 bind_layers(RMI, SroContinue, command=32)
 bind_layers(RMI, RsiCall, command=33)
+bind_layers(RMI, RealmTerminate, command=49)

@@ -401,6 +401,13 @@
 #define SMC_RMI_REALM_CREATE			SMC64_RMI_FID(U(0x8))
 
 /*
+ * FID: 0xC4000201
+ *
+ * arg0 == RD address
+ */
+#define SMC_RMI_REALM_TERMINATE			SMC64_RMI_FID(U(0xB1))
+
+/*
  * FID: 0xC4000159
  *
  * arg0 == RD address
@@ -456,20 +463,6 @@
 #define SMC_RMI_RTT_DESTROY			SMC64_RMI_FID(U(0xE))
 
 /*
- * FID: 0xC400015F
- *
- * arg0 == RD address
- * arg1 == map address
- * arg2 == level
- * arg3 == s2tte
- */
-#define SMC_RMI_RTT_MAP_UNPROTECTED		SMC64_RMI_FID(U(0xF))
-
-/*
- * FID: 0xC4000160 is not used.
- */
-
-/*
  * FID: 0xC4000161
  *
  * arg0 == RD address
@@ -483,18 +476,6 @@
  * if ret0 == RMI_SUCCESS, otherwise, undefined.
  */
 #define SMC_RMI_RTT_READ_ENTRY			SMC64_RMI_FID(U(0x11))
-
-/*
- * FID: 0xC4000162
- *
- * arg0 == RD address
- * arg1 == map address
- * arg2 == level
- *
- * ret1 == Top of the non-live address region. Only valid
- *         if ret0 == RMI_SUCCESS or ret0 == (RMI_ERROR_RTT, x)
- */
-#define SMC_RMI_RTT_UNMAP_UNPROTECTED		SMC64_RMI_FID(U(0x12))
 
 /*
  * FID: 0xC4000163
@@ -899,10 +880,12 @@
 /*
  * FID: 0xC40001E1
  *
- * arg0 == PA of the tracking region
+ * arg0 == Base PA of the tracking region
+ * arg1 == Top of the PA region
  *
  * ret1 == Memory category (RmiMemCategory)
  * ret2 == Tracking region state (RmiTrackingRegionState)
+ * ret3 == Top of the PA region for which the results apply
  */
 #define SMC_RMI_GRANULE_TRACKING_GET		SMC64_RMI_FID(U(0x91))
 
@@ -1042,6 +1025,35 @@
  *         If flags.oaddr_type != RMI_ADDR_TYPE_LIST then this value is zero.
  */
 #define SMC_RMI_RTT_DEV_UNMAP			SMC64_RMI_FID(U(0xA8))
+
+/*
+ * FID: 0xC40001FB
+ *
+ * arg0 == RD address
+ * arg1 == Base of target IPA range
+ * arg2 == Top of target IPA range
+ * arg3 == RmiRttUnprotMapFlags
+ * arg4 == Output address set descriptor
+ *
+ * ret1 == Next IPA to process
+ */
+#define SMC_RMI_RTT_UNPROT_MAP			SMC64_RMI_FID(U(0xAB))
+
+/*
+ * FID: 0xC40001FC
+ *
+ * arg0 == PA of the RD for the target Realm
+ * arg1 == Base of the target IPA range
+ * arg2 == Top of the target IPA range
+ * arg3 == RmiRttUnmapFlags Flags
+ * arg4 == RmiAddrSetDesc Output address set descriptor.
+ *
+ * ret0 == RmiResult Command result
+ * ret1 == out_top Address Top IPA of range which has been unmapped
+ * ret2 == out_range RmiAddrRangeDesc Output address range (if oaddr_type == SINGLE)
+ * ret3 == out_count UInt64 Number of entries in output address list (0 for SINGLE)
+ */
+#define SMC_RMI_RTT_UNPROT_UNMAP		SMC64_RMI_FID(U(0xAC))
 
 /*
  * FID: 0xC4000202
@@ -1279,6 +1291,33 @@ enum rmm_state {
 #define RMI_ADDR_TYPE_NONE		UL(0)
 #define RMI_ADDR_TYPE_SINGLE		UL(1)
 #define RMI_ADDR_TYPE_LIST		UL(2)
+
+/* RmiRttUnprotMapFlags - Flags for RTT_UNPROT_MAP command */
+#define RMI_RTT_UNPROT_MAP_FLAGS_OADDR_TYPE_WIDTH	UL(2)
+#define RMI_RTT_UNPROT_MAP_FLAGS_OADDR_TYPE_SHIFT	UL(0)
+
+#define RMI_RTT_UNPROT_MAP_FLAGS_LIST_COUNT_WIDTH	UL(14)
+#define RMI_RTT_UNPROT_MAP_FLAGS_LIST_COUNT_SHIFT	UL(2)
+
+#define RMI_RTT_UNPROT_MAP_FLAGS_MEMATTR_WIDTH		UL(3)
+#define RMI_RTT_UNPROT_MAP_FLAGS_MEMATTR_SHIFT		UL(16)
+
+#define RMI_RTT_UNPROT_MAP_FLAGS_S2AP_WIDTH		UL(4)
+#define RMI_RTT_UNPROT_MAP_FLAGS_S2AP_SHIFT		UL(19)
+
+/* S2AP Direct Encoding bits (when indirect_s2ap is false) */
+#define RMI_S2AP_DIRECT_WRITE_WIDTH		UL(1)
+#define RMI_S2AP_DIRECT_WRITE_SHIFT		UL(0)
+
+#define RMI_S2AP_DIRECT_READ_WIDTH		UL(1)
+#define RMI_S2AP_DIRECT_READ_SHIFT		UL(1)
+
+/* RmiRttUnprotUNMapFlags - Flags for RTT_UNPROT_UNMAP RTT_DATA_UNMAP RTT_DEV_UNMAP commands */
+#define RMI_RTT_UNMAP_FLAGS_OADDR_TYPE_WIDTH	UL(2)
+#define RMI_RTT_UNMAP_FLAGS_OADDR_TYPE_SHIFT	UL(0)
+
+#define RMI_RTT_UNMAP_FLAGS_LIST_COUNT_WIDTH	UL(14)
+#define RMI_RTT_UNMAP_FLAGS_LIST_COUNT_SHIFT	UL(2)
 
 /*
  * The RmiRmmConfig parameters shared with the Host via

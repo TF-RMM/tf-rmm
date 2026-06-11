@@ -96,6 +96,23 @@ struct s2tt_context {
 #define S2TTE_DIRTY_BIT			(1UL << 7)
 
 /*
+ * S2TTE Memory Attribute field
+ * Bits [4:2] encode the memory attributes when FWB is set
+ */
+#define S2TTE_MEMATTR_SHIFT		2U
+#define S2TTE_MEMATTR_WIDTH		3U
+#define S2TTE_MEMATTR_MASK		MASK(S2TTE_MEMATTR)
+/*
+ * Access permission bits for direct S2AP encoding.
+ */
+#define S2TTE_PERM_R_SHIFT		6UL
+#define S2TTE_PERM_R_WIDTH		1UL
+#define S2TTE_PERM_W_SHIFT		7UL
+#define S2TTE_PERM_W_WIDTH		1UL
+#define S2TTE_PERM_XN_SHIFT		53UL
+#define S2TTE_PERM_XN_WIDTH		2UL
+
+/*
  * The MMU is a separate observer, and requires that translation table updates
  * are made with single-copy-atomic stores, necessitating inline assembly. For
  * consistency we use accessors for both reads and writes of translation table

@@ -37,6 +37,7 @@ unsigned long smc_realm_activate(unsigned long rd_addr);
 unsigned long smc_realm_create(unsigned long rd_addr,
 				unsigned long realm_params_addr);
 
+unsigned long smc_realm_terminate(unsigned long rd_addr);
 unsigned long smc_realm_destroy(unsigned long rd_addr);
 
 void smc_rec_create(unsigned long rd_addr,
@@ -82,15 +83,20 @@ void smc_rtt_aux_fold(unsigned long rd_addr,
 		      unsigned long index,
 		      struct smc_result *res);
 
-unsigned long smc_rtt_map_unprotected(unsigned long rd_addr,
-				      unsigned long map_addr,
-				      unsigned long ulevel,
-				      unsigned long s2tte);
+void smc_rtt_unprot_map(unsigned long rd_addr,
+			unsigned long base,
+			unsigned long top,
+			unsigned long flags,
+			unsigned long oaddr,
+			struct smc_result *res);
 
-void smc_rtt_unmap_unprotected(unsigned long rd_addr,
-				unsigned long map_addr,
-				unsigned long ulevel,
-				struct smc_result *res);
+
+void smc_rtt_unprot_unmap(unsigned long rd_addr,
+			 unsigned long base,
+			 unsigned long top,
+			 unsigned long flags,
+			 unsigned long oaddr,
+			 struct smc_result *res);
 
 void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 			   unsigned long base, unsigned long top,
@@ -240,7 +246,7 @@ unsigned long smc_pdev_stream_key_purge(unsigned long pdev1_addr,
 					unsigned long pdev2_addr,
 					unsigned long stream_handle);
 
-void smc_granule_tracking_get(unsigned long addr,
+void smc_granule_tracking_get(unsigned long start, unsigned long end,
 			      struct smc_result *res);
 unsigned long smc_rmm_activate(void);
 unsigned long smc_rmm_config_get(unsigned long config_ptr);

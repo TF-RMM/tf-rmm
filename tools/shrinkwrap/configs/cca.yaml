@@ -16,6 +16,7 @@ layers:
   # Include layers from RMM repo
   - rmm.yaml
   - rmm-debug.yaml
+  - model-enable-da.yaml
 
 build:
   rmm:
@@ -25,7 +26,7 @@ build:
   linux:
     repo:
       remote: https://gitlab.arm.com/linux-arm/linux-cca
-      revision: cca-host/v13
+      revision: cca-host/v14
     prebuild:
       - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_PCI_TSM
       - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_PCI_DOE
@@ -50,4 +51,9 @@ build:
         revision: v1.7.2
       kvmtool:
         remote: https://gitlab.arm.com/linux-arm/kvmtool-cca
-        revision: cca/v11
+        revision: cca/v12
+
+  kvm-unit-tests:
+    repo:
+        remote: https://gitlab.arm.com/linux-arm/kvm-unit-tests-cca
+        revision: cca/v4

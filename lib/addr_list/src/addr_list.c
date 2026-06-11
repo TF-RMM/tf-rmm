@@ -12,36 +12,10 @@
 #include <string.h>
 #include <utils_def.h>
 
-/* Convert an encoded size field to the corresponding XLAT block size */
-static unsigned long sz_enc_to_blk_size(unsigned long sz_enc)
-{
-	/*
-	 * @TODO: XLAT_BLOCK_SIZE takes into account only 4K granule size
-	 * as it is the only supported granule size for the xlat library.
-	 * We need to support other granule sizes regardless of the xlat library
-	 * supported granularity in order to support all the possible
-	 * RmiAddrRange block sizes.
-	 */
-	return XLAT_BLOCK_SIZE((long)XLAT_TABLE_LEVEL_MAX - (long)sz_enc);
-}
-
 /* Get the desc_blk_size from desc */
 static unsigned long desc_blk_size(unsigned long desc)
 {
-	return sz_enc_to_blk_size(get_sz_from_desc(desc));
-}
-
-static unsigned long blk_size_to_sz_enc(unsigned long blk_size)
-{
-	for (unsigned long sz_enc = 0UL;
-	     sz_enc <= (unsigned long)XLAT_TABLE_LEVEL_MAX; sz_enc++) {
-		if (sz_enc_to_blk_size(sz_enc) == blk_size) {
-			return sz_enc;
-		}
-	}
-	/* Should never be reached if blk_size is valid */
-	assert(false);
-	return 0UL;
+	return addr_list_sz_to_xlat_blk_sz(get_sz_from_desc(desc));
 }
 
 static unsigned long create_desc(unsigned long addr,
@@ -49,7 +23,7 @@ static unsigned long create_desc(unsigned long addr,
 				 unsigned long blk_size,
 				 unsigned long st)
 {
-	unsigned long sz = blk_size_to_sz_enc(blk_size);
+	unsigned long sz = xlat_blk_sz_to_addr_list_sz(blk_size);
 	unsigned long desc = 0UL;
 
 	desc |= set_addr_in_desc(desc, addr);

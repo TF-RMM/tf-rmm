@@ -107,6 +107,7 @@ enum rmi_type {
 	set_rmi_type(1, 2),	/* 1 argument,  2 output values */
 	set_rmi_type(2, 1),	/* 2 arguments, 1 output value */
 	set_rmi_type(2, 2),	/* 2 arguments, 2 output values */
+	set_rmi_type(2, 3),	/* 2 arguments, 3 output values */
 	set_rmi_type(3, 1),	/* 3 arguments, 1 output value */
 	set_rmi_type(3, 2),	/* 3 arguments, 2 output values */
 	set_rmi_type(3, 3),	/* 3 arguments, 3 output values */
@@ -115,6 +116,7 @@ enum rmi_type {
 	set_rmi_type(4, 2),	/* 4 arguments, 2 output values */
 	set_rmi_type(5, 1),	/* 5 arguments, 1 output value */
 	set_rmi_type(5, 3),	/* 5 arguments, 3 output values */
+	set_rmi_type(5, 4),	/* 5 arguments, 4 output values */
 	set_rmi_type(6, 1)	/* 6 arguments, 1 output values */
 };
 
@@ -131,6 +133,7 @@ struct smc_handler {
 		handler_1_o	f_12;
 		handler_2_o	f_21;
 		handler_2_o	f_22;
+		handler_2_o	f_23;
 		handler_3_o	f_31;
 		handler_3_o	f_32;
 		handler_3_o	f_33;
@@ -139,6 +142,7 @@ struct smc_handler {
 		handler_4_o	f_42;
 		handler_5_o	f_51;
 		handler_5_o	f_53;
+		handler_5_o	f_54;
 		handler_6_o	f_61;
 		void		*fn_dummy;
 	};
@@ -166,16 +170,17 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RTT_DATA_MAP_INIT,	5, 0, smc_rtt_data_map_init,	 false, false),
 	HANDLER(REALM_ACTIVATE,		1, 0, smc_realm_activate,	 true,  true),
 	HANDLER(REALM_CREATE,		2, 0, smc_realm_create,		 true,  true),
+	HANDLER(REALM_TERMINATE,	1, 0, smc_realm_terminate,	 true,  true),
 	HANDLER(REALM_DESTROY,		1, 0, smc_realm_destroy,	 true,  true),
 	HANDLER(REC_CREATE,		3, 2, smc_rec_create,		 true,  true),
 	HANDLER(REC_DESTROY,		1, 1, smc_rec_destroy,		 true,  true),
 	HANDLER(REC_ENTER,		2, 0, smc_rec_enter,		 false, true),
 	HANDLER(RTT_CREATE,		4, 0, smc_rtt_create,		 false, true),
 	HANDLER(RTT_DESTROY,		3, 2, smc_rtt_destroy,		 false, true),
-	HANDLER(RTT_MAP_UNPROTECTED,	4, 0, smc_rtt_map_unprotected,	 false, false),
+	HANDLER(RTT_UNPROT_MAP,		5, 1, smc_rtt_unprot_map,	 false, true),
 	HANDLER(RTT_READ_ENTRY,		3, 4, smc_rtt_read_entry,	 false, true),
-	HANDLER(RTT_UNMAP_UNPROTECTED,	3, 1, smc_rtt_unmap_unprotected, false, false),
 	HANDLER(RTT_DEV_VALIDATE,	4, 1, smc_rtt_dev_validate,	 false, true),
+	HANDLER(RTT_UNPROT_UNMAP,	5, 4, smc_rtt_unprot_unmap,	 false, true),
 	HANDLER(PSCI_COMPLETE,		3, 0, smc_psci_complete,	 true,  true),
 	HANDLER(FEATURES,		1, 1, smc_read_feature_register, false,  true),
 	HANDLER(RTT_FOLD,		3, 1, smc_rtt_fold,		 false, false),
@@ -214,7 +219,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PSMMU_DEACTIVATE,	1, 2, smc_psmmu_deactivate,	 true, true),
 	HANDLER(PSMMU_ST_L2_CREATE,	2, 2, smc_psmmu_st_l2_create,	 true, true),
 	HANDLER(PSMMU_ST_L2_DESTROY,	2, 2, smc_psmmu_st_l2_destroy,	 true, true),
-	HANDLER(GRANULE_TRACKING_GET,	1, 2, smc_granule_tracking_get,	 true, true),
+	HANDLER(GRANULE_TRACKING_GET,	2, 3, smc_granule_tracking_get,	 true, true),
 	HANDLER(GPT_L1_CREATE,		1, 1, smc_gpt_l1_create,	 false, true),
 	HANDLER(RMM_CONFIG_GET,		1, 0, smc_rmm_config_get,	 true, true),
 	HANDLER(RMM_CONFIG_SET,		1, 0, smc_rmm_config_set,	 true, true),
@@ -308,7 +313,7 @@ static void rmi_log_on_exit(unsigned int handler_id,
 		    (rc.status == RMI_INCOMPLETE) ||
 		   ((rc.status == RMI_ERROR_RTT) &&
 		   ((function_id == SMC_RMI_RTT_DESTROY)  ||
-		    (function_id == SMC_RMI_RTT_UNMAP_UNPROTECTED)))) {
+		    (function_id == SMC_RMI_RTT_UNPROT_UNMAP)))) {
 			/* Print output values */
 			num = ((unsigned int)handler->type >> 8) & 0xFFU;
 			assert(num <= MAX_NUM_OUTPUT_VALS);
@@ -441,6 +446,9 @@ void handle_ns_smc(unsigned int function_id,
 	case rmi_type_22:
 		handler->f_22(arg0, arg1, res);
 		break;
+	case rmi_type_23:
+		handler->f_23(arg0, arg1, res);
+		break;
 	case rmi_type_31:
 		handler->f_31(arg0, arg1, arg2, res);
 		break;
@@ -464,6 +472,9 @@ void handle_ns_smc(unsigned int function_id,
 		break;
 	case rmi_type_53:
 		handler->f_53(arg0, arg1, arg2, arg3, arg4, res);
+		break;
+	case rmi_type_54:
+		handler->f_54(arg0, arg1, arg2, arg3, arg4, res);
 		break;
 	case rmi_type_61:
 		handler->f_61(arg0, arg1, arg2, arg3, arg4, arg5, res);

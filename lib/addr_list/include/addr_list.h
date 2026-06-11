@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <utils_def.h>
+#include <xlat_tables.h>
 
 /*
  * Maximum number of `ranges` we allow the address list to have.
@@ -16,6 +17,10 @@
  * granule, so in that case, the operation will just return INCOMPLETE.
  */
 #define ADDR_LIST_MAX_RANGES	(GRANULE_SIZE / sizeof(unsigned long))
+
+/* RmiAddrBlockSize to XLAT Level */
+#define XLAT_LVL_FROM_ADR_LIST_SZ(x) ((long)XLAT_TABLE_LEVEL_MAX - (long)(x))
+
 
 enum list_type {
 	LIST_TYPE_INPUT = 1,
@@ -166,6 +171,32 @@ static inline bool addr_list_is_empty(struct addr_list *list)
 {
 	assert(list != NULL);
 	return (list->count == 0U);
+}
+
+/* Convert an encoded size field to the corresponding XLAT block size */
+static inline unsigned long addr_list_sz_to_xlat_blk_sz(unsigned long sz_enc)
+{
+	/*
+	 * @TODO: XLAT_BLOCK_SIZE takes into account only 4K granule size
+	 * as it is the only supported granule size for the xlat library.
+	 * We need to support other granule sizes regardless of the xlat library
+	 * supported granularity in order to support all the possible
+	 * RmiAddrRange block sizes.
+	 */
+	return XLAT_BLOCK_SIZE((long)XLAT_TABLE_LEVEL_MAX - (long)sz_enc);
+}
+
+static inline unsigned long xlat_blk_sz_to_addr_list_sz(unsigned long blk_size)
+{
+	for (unsigned long sz_enc = 0UL;
+	     sz_enc <= (unsigned long)XLAT_TABLE_LEVEL_MAX; sz_enc++) {
+		if (addr_list_sz_to_xlat_blk_sz(sz_enc) == blk_size) {
+			return sz_enc;
+		}
+	}
+	/* Should never be reached if blk_size is valid */
+	assert(false);
+	return 0UL;
 }
 
 #endif /* ADDR_LIST_H */

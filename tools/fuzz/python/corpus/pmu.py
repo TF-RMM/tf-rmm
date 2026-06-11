@@ -63,6 +63,7 @@ if __name__ == "__main__":
     packets.append(SroReclaim(list_entries=255))
     packets.append(SroContinue(flags=0))
 
+    packets.append(RealmTerminate(rd_index=rd))
     packets.append(RealmDestroy(rd_index=rd))
 
     packets.append(GranuleUndelegate(index=rtt_base))

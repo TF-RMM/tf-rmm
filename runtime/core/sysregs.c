@@ -189,9 +189,8 @@ static bool handle_icc_el1_sysreg_trap(struct rec *rec,
 	(void)rec;
 	(void)skip_adv_pc;
 	(void)sysreg;
+	(void)rec_exit;
 
-	rec_exit->exit_reason = RMI_EXIT_SYNC;
-	rec_exit->esr = esr;
 	return false;
 }
 
@@ -256,6 +255,14 @@ static void emulate_sysreg_access_ns(struct rec *rec,
 	if (ESR_EL2_SYSREG_IS_WRITE(esr)) {
 		rec_exit->gprs[0] = get_sysreg_write_value(rec, esr);
 	}
+
+	/*
+	 * Clear the RT field from the ESR reported to the NS host.
+	 * For writes, the value is in gprs[0]; for reads, the host
+	 * provides the value in gprs[0] on re-entry and RMM copies
+	 * it to the correct register using last_run_info.esr.
+	 */
+	rec_exit->esr = esr & ~MASK(ESR_EL2_SYSREG_TRAP_RT);
 }
 
 /*
