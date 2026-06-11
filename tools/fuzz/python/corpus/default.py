@@ -90,8 +90,12 @@ if __name__ == "__main__":
     packets.append(RealmActivate(rd_index=rd))
 
     # --- Map an NS (unprotected) page for the realm to use ---
-    packets.append(RTTMapUnprotected(rd_index=rd, ipa=UNPROTECTED_IPA,
-                                     level=3, desc=0b1100))
+    packets.append(RTTMapUnprotected(
+        rd_index=rd,
+        base=UNPROTECTED_IPA,
+        top=UNPROTECTED_IPA + GRANULE_SIZE,
+        flags=rmi_rtt_unprot_map_flags(),
+        oaddr=rmi_addr_rdesc_4k(0)))
 
     # --- Queue RSI calls to be executed inside the realm ---
     # RSI_VERSION
@@ -119,7 +123,12 @@ if __name__ == "__main__":
 
     # --- Teardown ---
     # Unmap unprotected entry
-    packets.append(RTTUnmapUnprotected(rd_index=rd, ipa=UNPROTECTED_IPA, level=3))
+    packets.append(RTTUnmapUnprotected(
+        rd_index=rd,
+        base=UNPROTECTED_IPA,
+        top=UNPROTECTED_IPA + GRANULE_SIZE,
+        flags=rmi_rtt_unmap_flags(),
+        oaddr=0))
 
     # Destroy REC then drive SRO protocol to reclaim aux granules
     packets.append(RecDestroy(rec_index=rec))

@@ -744,11 +744,12 @@ int execute(unsigned char *buffer, size_t read_res)
 		case COMMAND_RTT_MAP_UNPROTECTED: {
 			PACKET(packet_rtt_map_unprotected, b, packet);
 			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
-			host_rmi_rtt_map_unprotected(
+			host_rmi_rtt_unprot_map(
 					_granules[packet.rd_index],
-					packet.ipa,
-					packet.level,
-					packet.desc, &res);
+					packet.base,
+					packet.top,
+					packet.flags,
+					packet.oaddr, &res);
 			break;
 		}
 
@@ -767,8 +768,10 @@ int execute(unsigned char *buffer, size_t read_res)
 			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
 			host_rmi_rtt_unmap_unprotected(
 					_granules[packet.rd_index],
-					packet.ipa,
-					packet.level, &res);
+					packet.base,
+					packet.top,
+					packet.flags,
+					packet.oaddr, &res);
 			break;
 		}
 
