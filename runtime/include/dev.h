@@ -91,8 +91,8 @@ struct pcie_dev {
 	uint64_t cert_slot_id;
 
 	/*
-	 * Base and top of requester ID range (inclusive). The value is in
-	 * PCI BDF format.
+	 * Base (inclusive) and top (exclusive) of requester ID range. The
+	 * value is in PCI BDF format.
 	 */
 	unsigned int rid_base;
 	unsigned int rid_top;

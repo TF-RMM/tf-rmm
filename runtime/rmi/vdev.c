@@ -281,6 +281,7 @@ bool vdev_test_pdev_vdev_ranges_overlap(
 }
 
 static unsigned long validate_vdev_params(
+	const struct pdev *pd,
 	unsigned long vdev_params_addr,
 	struct rmi_vdev_params *vdev_params)
 {
@@ -304,11 +305,14 @@ static unsigned long validate_vdev_params(
 		return RMI_ERROR_INPUT;
 	}
 
+	if ((vdev_params->tdi_id < pd->dev.rid_base) ||
+	    (vdev_params->tdi_id >= pd->dev.rid_top)) {
+		return RMI_ERROR_INPUT;
+	}
+
 	/* TODO: Verify VSMMU related parameters */
 
 	/* TODO: Verify tdi_id is unique for the associated PDEV segment */
-
-	/* TODO: Ensure vdev_id is within the rid bounds of PDEV */
 
 	return RMI_SUCCESS;
 }
@@ -348,12 +352,6 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		return RMI_ERROR_INPUT;
 	}
 
-	/* coverity[uninit_use_in_call:SUPPRESS] */
-	rc = validate_vdev_params(vdev_params_addr, &vdev_params);
-	if (rc != RMI_SUCCESS) {
-		return rc;
-	}
-
 	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
 				    pdev_addr, GRANULE_STATE_PDEV, &g_pdev)) {
 		return RMI_ERROR_INPUT;
@@ -369,6 +367,12 @@ unsigned long smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
+
+	/* coverity[uninit_use_in_call:SUPPRESS] */
+	rc = validate_vdev_params(pd, vdev_params_addr, &vdev_params);
+	if (rc != RMI_SUCCESS) {
+		goto out_unmap_pd;
+	}
 
 	if ((PDEV_CATEGORY(pd) != RMI_PDEV_ENDPOINT_ACCEL_OFF_CHIP) &&
 	    (PDEV_CATEGORY(pd) != RMI_PDEV_ENDPOINT_ACCEL_ON_CHIP)) {
