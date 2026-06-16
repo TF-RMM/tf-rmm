@@ -137,10 +137,12 @@
 #ifndef CBMC
 /* Maximum number of auxiliary granules required for a REC */
 #define MAX_REC_AUX_GRANULES		U(16)
+#define MAX_RD_AUX_GRANULES		U(9)
 /* Maximum number of auxiliary planes supported */
 #define MAX_AUX_PLANES			U(3)
 #else /* CBMC */
 #define MAX_REC_AUX_GRANULES		U(1)
+#define MAX_RD_AUX_GRANULES		U(1)
 #define MAX_AUX_PLANES			U(0)
 #endif /* CBMC */
 
@@ -1165,6 +1167,13 @@ enum rmm_state {
  * for CBMC
  */
 #define RPV_SIZE		1
+#endif
+
+/* Size of Realm Instance ID */
+#ifndef CBMC
+#define REALM_INSTANCE_ID_SIZE	33U
+#else
+#define REALM_INSTANCE_ID_SIZE	1U
 #endif
 
 /* RmiRealmFlags0 format */

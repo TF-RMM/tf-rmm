@@ -270,8 +270,12 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 						      RMI_FEATURE_FALSE);
 	}
 
-	host_rmi_realm_create(realm->rd, realm->realm_params, &result);
-	CHECK_RMI_RESULT();
+	host_rmi_realm_create(realm->rd, realm->realm_params,
+			      &create_handle, &donate_req, &result);
+	if (host_handle_rec_sro(&result, create_handle, donate_req) != 0) {
+		return -1;
+	}
+
 
 	/* Create RTT table to start at IPA 0x0 */
 	for (i = 1; i < RTT_COUNT; ++i) {
@@ -353,8 +357,10 @@ static int host_destroy_realm(struct host_realm *realm)
 	host_rmi_realm_terminate(realm->rd, &result);
 	CHECK_RMI_RESULT();
 
-	host_rmi_realm_destroy(realm->rd, &result);
-	CHECK_RMI_RESULT();
+	host_rmi_realm_destroy(realm->rd, (void *)&destroy_handle, &result);
+	if (host_handle_rec_sro(&result, destroy_handle, donate_req) != 0) {
+		return -1;
+	}
 	if (undelegate_granule_range(realm->rd,
 				     (void *)((uintptr_t)realm->rd + GRANULE_SIZE)) != 0) {
 		return -1;

@@ -69,13 +69,20 @@ void host_rmi_realm_activate(void *rd, struct smc_result *res)
 		      0, res);
 }
 
-void host_rmi_realm_create(void *rd, void *params_ptr, struct smc_result *res)
+void host_rmi_realm_create(void *rd, void *params_ptr, void *handle,
+			   void *donate_req, struct smc_result *res)
 {
+	unsigned long *handle_ptr = (unsigned long *)handle;
+	unsigned long *req_ptr = (unsigned long *)donate_req;
+
 	handle_ns_smc(SMC_RMI_REALM_CREATE,
 		      (uintptr_t)rd,
 		      (uintptr_t)params_ptr,
 		      0, 0, 0, 0,
 		      0, res);
+
+	*handle_ptr = res->x[1];
+	*req_ptr = res->x[2];
 }
 
 void host_rmi_realm_terminate(void *rd, struct smc_result *res)
@@ -86,12 +93,16 @@ void host_rmi_realm_terminate(void *rd, struct smc_result *res)
 		      0, res);
 }
 
-void host_rmi_realm_destroy(void *rd, struct smc_result *res)
+void host_rmi_realm_destroy(void *rd, void *destroy_handle, struct smc_result *res)
 {
+	unsigned long *handle_ptr = (unsigned long *)destroy_handle;
+
 	handle_ns_smc(SMC_RMI_REALM_DESTROY,
 		      (uintptr_t)rd,
 		      0, 0, 0, 0, 0,
 		      0, res);
+
+	*handle_ptr = res->x[1];
 }
 
 void host_rmi_rec_create(void *rd, void *rec, void *params_ptr,

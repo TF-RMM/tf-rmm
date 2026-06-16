@@ -129,6 +129,9 @@ static inline void __granule_assert_unlocked_invariants(struct granule *g,
 	case GRANULE_STATE_PSMMU_ST_L2:
 		assert(REFCOUNT(g) <= PSMMU_ST_L2_REFCOUNT_MAX);
 		break;
+	case GRANULE_STATE_RD_AUX:
+		assert(REFCOUNT(g) == 0U);
+		break;
 	default:
 		/* Unknown granule type */
 		assert(false);

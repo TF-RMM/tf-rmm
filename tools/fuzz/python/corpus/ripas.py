@@ -34,6 +34,8 @@ if __name__ == "__main__":
         RealmCreate(rd_index=rd, param_index=realm_params,
                     s2sz=0x30, num_bps=0x1, num_wps=0x1,
                     rtt_base_index=rtt_base, rtt_num_start=1))
+    packets.append(SroDonate(count=0))
+    packets.append(SroContinue(flags=0))
 
     for i in range(1, 4):
         packets.append(RTTCreate(rd_index=rd, rtt_index=rtt_base + i, ipa=0, level=i))
@@ -95,6 +97,8 @@ if __name__ == "__main__":
 
     packets.append(RealmTerminate(rd_index=rd))
     packets.append(RealmDestroy(rd_index=rd))
+    packets.append(SroReclaim(list_entries=255))
+    packets.append(SroContinue(flags=0))
     packets.append(GranuleUndelegate(index=rtt_base))
     packets.append(GranuleUndelegate(index=rd))
     packets.append(GranuleUndelegate(index=rec))

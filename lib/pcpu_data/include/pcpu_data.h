@@ -65,7 +65,7 @@
  * The number of slot-buffer pages. These pages are part of the high VA region of each CPU.
  * This is an arbitrary constant that must be >= NR_CPU_SLOTS.
  */
-#define XLAT_HIGH_VA_SLOT_NUM	(U(115))
+#define XLAT_HIGH_VA_SLOT_NUM	(U(124))
 
 /*
  * Translation-table attributes for per-CPU private high-VA mappings.

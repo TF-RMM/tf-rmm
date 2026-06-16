@@ -43,6 +43,8 @@ if __name__ == "__main__":
                     flags=0x4, pmu_num_ctrs=0x1f,
                     s2sz=0x30, num_bps=0x1, num_wps=0x1,
                     rtt_base_index=rtt_base, rtt_num_start=1))
+    packets.append(SroDonate(count=0))
+    packets.append(SroContinue(flags=0))
 
     # Aux granules donated via explicit SRO protocol
     packets.append(RecCreate(
@@ -65,6 +67,8 @@ if __name__ == "__main__":
 
     packets.append(RealmTerminate(rd_index=rd))
     packets.append(RealmDestroy(rd_index=rd))
+    packets.append(SroReclaim(list_entries=255))
+    packets.append(SroContinue(flags=0))
 
     packets.append(GranuleUndelegate(index=rtt_base))
     packets.append(GranuleUndelegate(index=rd))

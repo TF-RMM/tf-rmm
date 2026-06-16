@@ -237,7 +237,10 @@
  */
 #define GRANULE_STATE_PSMMU_ST_L2	13U
 
-#define GRANULE_STATE_LAST		GRANULE_STATE_PSMMU_ST_L2
+/* RD_AUX - Realm Descriptor auxiliary granule (internal) */
+#define GRANULE_STATE_RD_AUX		14U
+
+#define GRANULE_STATE_LAST		GRANULE_STATE_RD_AUX
 
 /*
  * Granule descriptor bit fields:

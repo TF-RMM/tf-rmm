@@ -51,13 +51,11 @@ enum hash_algo {
 #define MAX_MEASUREMENT_SIZE		SHA512_SIZE
 #define ATTEST_CHALLENGE_SIZE		(64)
 #define RMM_REALM_TOKEN_BUF_SIZE	SZ_1K
-#define REALM_INSTANCE_ID_SIZE		(33U)
 #else
 #define ATTEST_TOKEN_BUF_SIZE	4U
 #define MAX_MEASUREMENT_SIZE		sizeof(uint64_t)
 #define ATTEST_CHALLENGE_SIZE		(1)
 #define RMM_REALM_TOKEN_BUF_SIZE	4U
-#define REALM_INSTANCE_ID_SIZE		(1U)
 #endif
 
 /* Maximum number of measurements */

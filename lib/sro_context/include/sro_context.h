@@ -257,6 +257,13 @@ struct sro_map_ctx {
 	bool rollback;			/* Rollback in progress */
 };
 
+/*
+ * Data structure with the information to continue a Realm related operation.
+ */
+struct sro_realm_ctx {
+	unsigned long realm_params_addr;
+};
+
 struct sro_context {
 	/* State of this context */
 	enum sro_state state;
@@ -318,6 +325,7 @@ struct sro_context {
 		struct sro_pdev_ctx pdev_ctx;
 		struct sro_unmap_ctx unmap_ctx;
 		struct sro_map_ctx map_ctx;
+		struct sro_realm_ctx realm_ctx;
 	};
 };
 
