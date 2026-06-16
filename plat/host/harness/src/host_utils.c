@@ -19,6 +19,7 @@
 #include <rmm_el3_ifc.h>
 #include <sizes.h>
 #ifndef CBMC
+#include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -362,10 +363,56 @@ unsigned long host_util_get_smmu_ns_base(unsigned int idx)
 	return (unsigned long)host_smmu_info[idx].smmu_base;
 }
 
+static realm_entrypoint_t realm_entries[HOST_UTIL_MAX_REALM_ENTRIES];
+static unsigned int realm_entry_count;
+
+void host_util_set_realm_entry(realm_entrypoint_t ep)
+{
+	assert(realm_entry_count < HOST_UTIL_MAX_REALM_ENTRIES);
+	realm_entries[realm_entry_count++] = ep;
+}
+
 int host_util_rec_run(unsigned long *rec_regs, unsigned long *rec_sp_el0)
 {
 	unsigned long pc = read_elr_el2();
-	realm_entrypoint_t realm_ep = (void *)pc;
+	realm_entrypoint_t realm_ep = NULL;
+	uintptr_t pc_addr = (uintptr_t)pc;
+	uintptr_t next_pc = pc_addr + 4UL;
+
+	/*
+	 * host_util_rsi_helper() sets elr_el2 to (entry_point - 4) so
+	 * that advance_pc() brings it back to the real function address.
+	 * When the RMM emulates a stage-2 data abort instead (e.g.
+	 * HOST_CALL hits an unmapped IPA), advance_pc() is NOT called
+	 * and the saved PC stays at (entry_point - 4).
+	 *
+	 * Detect this off-by-4 case by checking whether (pc + 4) matches
+	 * a registered realm entry point, and correct it.  This simulates
+	 * the realm retrying the faulting SMC instruction.
+	 */
+	for (unsigned int i = 0; i < realm_entry_count; i++) {
+		uintptr_t entry = (uintptr_t)realm_entries[i];
+
+		if (entry == pc_addr) {
+			realm_ep = realm_entries[i];
+			break;
+		}
+
+		if (entry == next_pc) {
+			pc = (unsigned long)entry;
+			realm_ep = realm_entries[i];
+			write_elr_el2(pc);
+			break;
+		}
+	}
+
+	if (realm_ep == NULL) {
+		(void)fprintf(stderr, "[DEBUG] host_util_rec_run: invalid pc=0x%lx "
+			"esr_el2=0x%lx spsr_el2=0x%lx vbar_el12=0x%lx\n",
+			pc, read_esr_el2(), read_spsr_el2(), read_vbar_el12());
+		write_esr_el2(ESR_EL2_EC_UNKNOWN);
+		return ARM_EXCEPTION_SYNC_LEL;
+	}
 
 	write_esr_el2(0x0);
 	return realm_ep(rec_regs, rec_sp_el0);

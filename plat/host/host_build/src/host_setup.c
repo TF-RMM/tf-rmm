@@ -402,6 +402,9 @@ int main(int argc, char *argv[])
 
 	host_util_set_cpuid(0U);
 
+	/* host_util_rec_run() only enters registered Realm callbacks. */
+	host_util_set_realm_entry(realm_start);
+
 	host_util_setup_sysreg_and_boot_manifest();
 
 	arch_features_query_el3_support();
