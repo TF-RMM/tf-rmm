@@ -663,6 +663,27 @@ uint64_t *xlat_get_tte_ptr(const struct xlat_llt_info * const llt,
 			&llt->table[index] : NULL;
 }
 
+static bool xlat_llt_covers_va(const struct xlat_llt_info * const llt,
+			       const uintptr_t va)
+{
+	uintptr_t offset;
+	uintptr_t table_va_size;
+
+	assert(llt != NULL);
+	assert(llt->level <= XLAT_TABLE_LEVEL_MAX);
+	assert(llt->level >= XLAT_TABLE_LEVEL_MIN);
+
+	if (va < llt->llt_base_va) {
+		return false;
+	}
+
+	offset = va - llt->llt_base_va;
+	table_va_size = (uintptr_t)XLAT_GET_TABLE_ENTRIES(llt->level) *
+			XLAT_BLOCK_SIZE(llt->level);
+
+	return offset < table_va_size;
+}
+
 /*
  * Helper to update the descriptor on a level 3 table entry for a given
  * VA offset.
@@ -814,7 +835,7 @@ static int xlat_tables_update_level3(struct xlat_ctx *ctx,
 	uintptr_t pa = mm->base_pa;
 	uintptr_t end_va = mm->base_va + mm->size;
 
-	struct xlat_llt_info llt;
+	struct xlat_llt_info llt = {0};
 	uintptr_t l3_base_va = 0;
 	uint64_t *l3_table = NULL;
 	uintptr_t prev_l3_base_va = 0;
@@ -825,8 +846,8 @@ static int xlat_tables_update_level3(struct xlat_ctx *ctx,
 		 * If l3_table is not set or VA is outside current L3 table,
 		 * get new L3 table.
 		 */
-		if ((l3_table == NULL) || (*next_va >= (l3_base_va +
-				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+		if ((l3_table == NULL) ||
+		    (xlat_llt_covers_va(&llt, *next_va) == false)) {
 			/* Update parent flags for the previous L3 table before moving to next */
 			if (l3_table != NULL) {
 				update_parent_flags(ctx, prev_l3_base_va, allocating);
@@ -1112,11 +1133,12 @@ int xlat_unmap_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t unmap_size)
 size_t xlat_get_contig_pa_level3(struct xlat_ctx *ctx, uintptr_t va,
 			      uintptr_t top_va, uintptr_t *pa_out)
 {
-	struct xlat_llt_info llt;
+	struct xlat_llt_info llt = {0};
 	int ret;
 	size_t accumulated_size = 0;
 	uintptr_t expected_pa = 0UL;
 	uintptr_t cur_va = va;
+	bool llt_valid = false;
 
 	assert(ctx != NULL);
 	assert(pa_out != NULL);
@@ -1129,10 +1151,14 @@ size_t xlat_get_contig_pa_level3(struct xlat_ctx *ctx, uintptr_t va,
 		uint64_t *tte_ptr;
 		uintptr_t pa;
 
-		/* Get the L3 table for the current VA */
-		ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
-		if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
-			break;
+		if ((llt_valid == false) ||
+		    (xlat_llt_covers_va(&llt, cur_va) == false)) {
+			/* Get the L3 table for the current VA */
+			ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
+			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
+				break;
+			}
+			llt_valid = true;
 		}
 
 		/* Get the TTE pointer for the current VA */
@@ -1180,7 +1206,7 @@ int xlat_reserve_va_l3_region(struct xlat_ctx *ctx, size_t size,
 {
 	int ret;
 	uintptr_t va;
-	struct xlat_llt_info llt;
+	struct xlat_llt_info llt = {0};
 	uintptr_t cur_va;
 	uintptr_t end_va;
 	uintptr_t l3_base_va = 0;
@@ -1209,8 +1235,8 @@ int xlat_reserve_va_l3_region(struct xlat_ctx *ctx, size_t size,
 
 	while (cur_va < end_va) {
 		/* Get new L3 table if needed */
-		if ((l3_table == NULL) || (cur_va >= (l3_base_va +
-				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+		if ((l3_table == NULL) ||
+		    (xlat_llt_covers_va(&llt, cur_va) == false)) {
 			if (l3_table != NULL) {
 				update_parent_flags(ctx, l3_base_va, true);
 			}
@@ -1258,7 +1284,7 @@ int xlat_populate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va,
 			       uintptr_t pa, size_t size, uint64_t attr)
 {
 	int ret;
-	struct xlat_llt_info llt;
+	struct xlat_llt_info llt = {0};
 	uintptr_t cur_va;
 	uintptr_t end_va;
 	uintptr_t cur_pa;
@@ -1287,8 +1313,8 @@ int xlat_populate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va,
 	end_va = va + size;
 
 	while (cur_va < end_va) {
-		if ((l3_table == NULL) || (cur_va >= (l3_base_va +
-				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+		if ((l3_table == NULL) ||
+		    (xlat_llt_covers_va(&llt, cur_va) == false)) {
 			ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
 			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
 				ERROR("%s: Failed to get L3 table for VA 0x%lx\n",
@@ -1334,7 +1360,7 @@ int xlat_populate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va,
 int xlat_commit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
 {
 	int ret;
-	struct xlat_llt_info llt;
+	struct xlat_llt_info llt = {0};
 	uintptr_t cur_va;
 	uintptr_t end_va;
 	uintptr_t l3_base_va = 0;
@@ -1355,8 +1381,8 @@ int xlat_commit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
 	end_va = va + size;
 
 	while (cur_va < end_va) {
-		if ((l3_table == NULL) || (cur_va >= (l3_base_va +
-				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+		if ((l3_table == NULL) ||
+		    (xlat_llt_covers_va(&llt, cur_va) == false)) {
 			ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
 			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
 				ERROR("%s: Failed to get L3 table for VA 0x%lx\n",
@@ -1399,7 +1425,7 @@ int xlat_commit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
 int xlat_decommit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
 {
 	int ret;
-	struct xlat_llt_info llt;
+	struct xlat_llt_info llt = {0};
 	uintptr_t cur_va;
 	uintptr_t end_va;
 	uintptr_t l3_base_va = 0;
@@ -1420,8 +1446,8 @@ int xlat_decommit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
 	end_va = va + size;
 
 	while (cur_va < end_va) {
-		if ((l3_table == NULL) || (cur_va >= (l3_base_va +
-				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+		if ((l3_table == NULL) ||
+		    (xlat_llt_covers_va(&llt, cur_va) == false)) {
 			ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
 			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
 				ERROR("%s: Failed to get L3 table for VA 0x%lx\n",
@@ -1466,7 +1492,7 @@ int xlat_decommit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
 int xlat_depopulate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
 {
 	int ret;
-	struct xlat_llt_info llt;
+	struct xlat_llt_info llt = {0};
 	uintptr_t cur_va;
 	uintptr_t end_va;
 	uintptr_t l3_base_va = 0;
@@ -1487,8 +1513,8 @@ int xlat_depopulate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size
 	end_va = va + size;
 
 	while (cur_va < end_va) {
-		if ((l3_table == NULL) || (cur_va >= (l3_base_va +
-				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+		if ((l3_table == NULL) ||
+		    (xlat_llt_covers_va(&llt, cur_va) == false)) {
 			ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
 			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
 				ERROR("%s: Failed to get L3 table for VA 0x%lx\n",
@@ -1529,7 +1555,7 @@ int xlat_depopulate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size
 int xlat_unreserve_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
 {
 	int ret;
-	struct xlat_llt_info llt;
+	struct xlat_llt_info llt = {0};
 	uintptr_t cur_va;
 	uintptr_t end_va;
 	uintptr_t l3_base_va = 0;
@@ -1551,8 +1577,8 @@ int xlat_unreserve_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
 	end_va = va + size;
 
 	while (cur_va < end_va) {
-		if ((l3_table == NULL) || (cur_va >= (l3_base_va +
-				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
+		if ((l3_table == NULL) ||
+		    (xlat_llt_covers_va(&llt, cur_va) == false)) {
 			/* Update parent flags for previous L3 table */
 			if (l3_table != NULL) {
 				update_parent_flags(ctx, prev_l3_base_va, false);
