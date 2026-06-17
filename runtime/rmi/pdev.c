@@ -98,9 +98,24 @@ static bool pdev_hb_base_is_valid(unsigned long hb_base)
 	return rmm_el3_ifc_is_ecam_base_valid(hb_base);
 }
 
-static bool pdev_pci_bdf_is_valid(unsigned long bdf)
+static bool pdev_pci_id_is_valid(unsigned long hb_base, unsigned long bdf,
+				 unsigned long flags)
 {
-	return (bdf & ~PCIE_BDF_VALID_MASK) == 0UL;
+	if ((bdf & ~PCIE_BDF_VALID_MASK) != 0UL) {
+		return false;
+	}
+
+	if (PDEV_CATEGORY_FROM_FLAGS(flags) == RMI_PDEV_ROOTPORT) {
+		return rmm_el3_ifc_is_root_port_id_valid(hb_base, (unsigned int)bdf);
+	}
+
+	return rmm_el3_ifc_is_bdf_valid(hb_base, (unsigned int)bdf);
+}
+
+static unsigned int pdev_get_max_num_vdevs(unsigned int rid_base,
+					   unsigned int rid_top)
+{
+	return rid_top - rid_base;
 }
 
 /*
@@ -109,10 +124,26 @@ static bool pdev_pci_bdf_is_valid(unsigned long bdf)
  * another PDEV.
  */
 static unsigned long validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
-
 {
-	unsigned int max_num_vdevs =
-		pd_params->rid_top - pd_params->rid_base;
+	if ((PDEV_CATEGORY_FROM_FLAGS(pd_params->flags) != RMI_PDEV_ROOTPORT)) {
+		if (pd_params->rid_base >= pd_params->rid_top) {
+			return RMI_ERROR_INPUT;
+		}
+		unsigned int max_num_vdevs =
+			pdev_get_max_num_vdevs(pd_params->rid_base, pd_params->rid_top);
+
+		if (max_num_vdevs > PDEV_MAX_VDEVS(MAX_VDEVS_ORDER)) {
+			return RMI_ERROR_INPUT;
+		}
+
+		/* Validate hash algorithm */
+		/* coverity[uninit_use:SUPPRESS] */
+		if ((pd_params->hash_algo != RMI_HASH_SHA_256) &&
+		    (pd_params->hash_algo != RMI_HASH_SHA_512) &&
+		    (pd_params->hash_algo != RMI_HASH_SHA_384)) {
+			return RMI_ERROR_INPUT;
+		}
+	}
 
 	if ((pd_params->flags & ~RMI_PDEV_FLAGS_VALID_MASK) != 0U) {
 		return RMI_ERROR_INPUT;
@@ -139,21 +170,13 @@ static unsigned long validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
 		return RMI_ERROR_NOT_SUPPORTED;
 	}
 
-	/* Validate hash algorithm */
-	/* coverity[uninit_use:SUPPRESS] */
-	if ((pd_params->hash_algo != RMI_HASH_SHA_256) &&
-	    (pd_params->hash_algo != RMI_HASH_SHA_512) &&
-	    (pd_params->hash_algo != RMI_HASH_SHA_384)) {
-		return RMI_ERROR_INPUT;
-	}
-
-	if ((max_num_vdevs > PDEV_MAX_VDEVS(MAX_VDEVS_ORDER)) ||
-	    (pd_params->routing_id > (unsigned long)(UINT16_MAX))) {
+	if (pd_params->routing_id > (unsigned long)(UINT16_MAX)) {
 		return RMI_ERROR_INPUT;
 	}
 
 	if (!pdev_hb_base_is_valid(pd_params->hb_base) ||
-	    !pdev_pci_bdf_is_valid(pd_params->pdev_id)) {
+	    !pdev_pci_id_is_valid(pd_params->hb_base, pd_params->pdev_id,
+				  pd_params->flags)) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -177,12 +200,6 @@ static unsigned long pdev_get_app_aux_count_from_flags(unsigned long pdev_flags)
 	 * (i.e., the most granules) is assumed.
 	 */
 	return app_get_required_granule_count(RMM_DEV_ASSIGN_APP_ID);
-}
-
-static unsigned int pdev_get_max_num_vdevs(unsigned int rid_base,
-					   unsigned int rid_top)
-{
-	return rid_top - rid_base;
 }
 
 static unsigned int pdev_get_vdev_range_aux_count(unsigned int max_num_vdevs)
@@ -510,7 +527,6 @@ static unsigned long pdev_create_continue_rp(unsigned long pdev_addr,
 	struct pdev *pd;
 	unsigned long ecam_addr;
 	unsigned long bdf;
-	unsigned int max_num_vdevs;
 
 	/* Lock pdev granule and map it */
 	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_DELEGATED);
@@ -523,8 +539,6 @@ static unsigned long pdev_create_continue_rp(unsigned long pdev_addr,
 
 	ecam_addr = pdev_params->hb_base;
 	bdf = pdev_params->pdev_id;
-	max_num_vdevs = pdev_get_max_num_vdevs(pdev_params->rid_base,
-						 pdev_params->rid_top);
 
 	/* Initialize PDEV */
 	pd->da_app_yielded = false;
@@ -533,9 +547,9 @@ static unsigned long pdev_create_continue_rp(unsigned long pdev_addr,
 	pd->rmi_state = RMI_PDEV_STATE_NEW;
 	pd->op.curr = PDEV_OP_NONE;
 	pd->rmi_flags = pdev_params->flags;
-	pd->num_vdevs = 0;
-	pd->max_num_vdevs = (uint32_t)max_num_vdevs;
-	pd->rmi_hash_algo = pdev_params->hash_algo;
+	pd->num_vdevs = 0U;
+	pd->max_num_vdevs = 0U;
+	pd->rmi_hash_algo = RMI_HASH_SHA_256; /* Not used */
 
 	/* Initialize PDEV communication state */
 	pd->dev_comm_state = DEV_COMM_PENDING;
