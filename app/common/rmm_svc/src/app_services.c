@@ -493,11 +493,10 @@ static uint64_t app_service_rp_ide_key_program(struct app_data_cfg *app_data,
 				      unsigned long sub_stream,
 				      unsigned long arg3)
 {
-	unsigned long stream_info;
 	struct service_rp_ide_op_struct *params;
 	struct el3_ifc_rp_ide_iv iv;
-	uint32_t retry = 0;
 	int rc;
+	uint32_t retry = 0;
 
 	(void)arg3;
 
@@ -509,33 +508,22 @@ static uint64_t app_service_rp_ide_key_program(struct app_data_cfg *app_data,
 		  ((unsigned long)params->iv[1] << 32U);
 	iv.iq_w1 = 0U;
 
-	stream_info = EL3_IFC_IDE_MAKE_STREAM_INFO((uint8_t)kslot, ((is_rx != 0U) ? 1U : 0U),
-						   (uint8_t)sub_stream, params->ide_sid);
+	assert(sizeof(params->key) == sizeof(struct el3_ifc_rp_ide_key));
 
 	do {
-		assert(sizeof(params->key) == sizeof(struct el3_ifc_rp_ide_key));
-		rc = rmm_el3_ifc_rp_ide_key_prog(params->ecam_addr, params->rp_id,
-						 stream_info,
-						 (struct el3_ifc_rp_ide_key *)&params->key,
+		rc = rmm_el3_ifc_rp_ide_key_prog(params->ecam_addr,
+						 params->rp_id, kslot,
+						 ((is_rx != 0U) ? 1U : 0U),
+						 sub_stream, params->ide_sid,
+				 (struct el3_ifc_rp_ide_key *)&params->key,
 						 &iv);
-		if (rc != E_RMM_AGAIN) {
-			/* TODO: This could return to the app in case of
-			 * E_RMM_AGAIN as well and then let the APP decide.
-			 * This will naturally add some delay and also allow
-			 * pre-emption/yield to NS in a natural way.
-			 */
+
+		if (rc != E_RMM_BUSY) {
 			return (uint64_t)rc;
 		}
-
-		/* todo: add DSM wait to exit to Host */
-
-		/* TODO: Handle E_RMM_IN_PROGRESS error code */
-
-		INFO("DSM_IDE: rp_ide_key_prog retry: %d\n", retry);
 	} while (++retry < EL3_IFC_IDE_KM_RETRY_COUNT_MAX);
 
-	return (uint64_t)rc;
-
+	return (uint64_t)rmm_errno_to_generic_errno(rc);
 }
 
 static uint64_t app_service_rp_ide_key_set_go(struct app_data_cfg *app_data,
@@ -544,34 +532,28 @@ static uint64_t app_service_rp_ide_key_set_go(struct app_data_cfg *app_data,
 				      unsigned long sub_stream,
 				      unsigned long arg3)
 {
-	unsigned long stream_info;
 	struct service_rp_ide_op_struct *params;
-	uint32_t retry = 0;
 	int rc;
+	uint32_t retry = 0;
 
 	(void)arg3;
 
 	assert(app_data->el2_shared_page != NULL);
 	params = (struct service_rp_ide_op_struct *)app_data->el2_shared_page;
 
-	stream_info = EL3_IFC_IDE_MAKE_STREAM_INFO((uint8_t)kslot, ((is_rx != 0U) ? 1U : 0U),
-						   (uint8_t)sub_stream, params->ide_sid);
 
 	do {
-		rc = rmm_el3_ifc_rp_ide_key_set_go(params->ecam_addr, params->rp_id,
-						   stream_info);
-		if (rc != E_RMM_AGAIN) {
+		rc = rmm_el3_ifc_rp_ide_key_set_go(params->ecam_addr,
+						   params->rp_id, kslot,
+						   ((is_rx != 0U) ? 1U : 0U),
+						   sub_stream, params->ide_sid);
+
+		if (rc != E_RMM_BUSY) {
 			return (uint64_t)rc;
 		}
-
-		/* todo: add DSM wait to exit to Host */
-
-		/* TODO: Handle E_RMM_IN_PROGRESS error code */
-
-		INFO("DSM_IDE: rp_ide_key_set_go retry: %d\n", retry);
 	} while (++retry < EL3_IFC_IDE_KM_RETRY_COUNT_MAX);
 
-	return (uint64_t)rc;
+	return (uint64_t)rmm_errno_to_generic_errno(rc);
 }
 
 static uint64_t app_service_rp_ide_key_set_stop(struct app_data_cfg *app_data,
@@ -580,34 +562,28 @@ static uint64_t app_service_rp_ide_key_set_stop(struct app_data_cfg *app_data,
 				      unsigned long sub_stream,
 				      unsigned long arg3)
 {
-	unsigned long stream_info;
 	struct service_rp_ide_op_struct *params;
-	uint32_t retry = 0;
 	int rc;
+	uint32_t retry = 0;
 
 	(void)arg3;
 
 	assert(app_data->el2_shared_page != NULL);
 	params = (struct service_rp_ide_op_struct *)app_data->el2_shared_page;
 
-	stream_info = EL3_IFC_IDE_MAKE_STREAM_INFO((uint8_t)kslot, ((is_rx != 0U) ? 1U : 0U),
-						   (uint8_t)sub_stream, params->ide_sid);
-
 	do {
-		rc = rmm_el3_ifc_rp_ide_key_set_stop(params->ecam_addr, params->rp_id,
-						     stream_info);
-		if (rc != E_RMM_AGAIN) {
+		rc = rmm_el3_ifc_rp_ide_key_set_stop(params->ecam_addr,
+						     params->rp_id, kslot,
+						     ((is_rx != 0U) ? 1U : 0U),
+						     sub_stream,
+						     params->ide_sid);
+
+		if (rc != E_RMM_BUSY) {
 			return (uint64_t)rc;
 		}
-
-		/* todo: add DSM wait to exit to Host */
-
-		/* TODO: Handle E_RMM_IN_PROGRESS error code */
-
-		INFO("DSM_IDE: rp_ide_key_set_go retry: %d\n", retry);
 	} while (++retry < EL3_IFC_IDE_KM_RETRY_COUNT_MAX);
 
-	return (uint64_t)rc;
+	return (uint64_t)rmm_errno_to_generic_errno(rc);
 }
 
 static uint64_t app_service_ns_mmio_read_4(struct app_data_cfg *app_data,

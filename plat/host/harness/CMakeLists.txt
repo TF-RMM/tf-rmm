@@ -35,6 +35,7 @@ target_sources(rmm-host-harness
             "src/host_platform_api_cmn.c"
             "src/host_rmi_wrappers.c"
             "src/host_el3_rp_ide_km.c"
+            "src/host_firme_ide_km.c"
             "src/host_utils.c"
             "src/host_utils_pci.c")
 

@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <firme.h>
 #include <host_el3_rp_ide_km.h>
+#include <host_firme_ide_km.h>
 #include <host_utils.h>
 #ifndef CBMC
 #include <mbedtls/memory_buffer_alloc.h>
@@ -483,6 +484,8 @@ unsigned long host_firme_base_version(unsigned char service_id)
 		return SUPPORTED_FIRME_BASE_VERSION;
 	case FIRME_GM_SERVICE_ID:
 		return SUPPORTED_FIRME_GM_VERSION;
+	case FIRME_IDE_SERVICE_ID:
+		return SUPPORTED_FIRME_IDE_VERSION;
 	default:
 		return FIRME_NOT_SUPPORTED;
 	}
@@ -501,12 +504,18 @@ unsigned long host_firme_base_features(unsigned char service_id,
 			return FIRME_SUCCESS;
 		} else if (index == 1U) {
 			*reg = FIRME_BASE_FR1_SVC_BIT(FIRME_GM_SERVICE_ID);
+			*reg |= FIRME_BASE_FR1_SVC_BIT(FIRME_IDE_SERVICE_ID);
 			return FIRME_SUCCESS;
 		}
 		return FIRME_NOT_SUPPORTED;
 	case FIRME_GM_SERVICE_ID:
 		if (index == 0U) {
 			*reg = FIRME_GM_FR0_GPI_SET_BIT;
+		}
+		return FIRME_SUCCESS;
+	case FIRME_IDE_SERVICE_ID:
+		if (index == 0U) {
+			*reg = FIRME_IDE_FR0_DEFAULT;
 		}
 		return FIRME_SUCCESS;
 	default:
@@ -610,6 +619,20 @@ void host_monitor_call(unsigned long id, struct smc_args *args,
 	case SMC_RMM_RP_IDE_KEY_SET_STOP:
 		res->x[0] = host_el3_rp_ide_key_set_stop(args->v[0], args->v[1],
 							 args->v[2]);
+		break;
+	case SMC_FIRME_IDE_KEYSET_PROG:
+		res->x[0] = host_firme_ide_keyset_prog(args->v[0], args->v[1],
+						       args->v[2], args->v[3],
+						       args->v[4], args->v[5],
+						       args->v[6], args->v[7]);
+		break;
+	case SMC_FIRME_IDE_KEYSET_GO:
+		res->x[0] = host_firme_ide_keyset_go(args->v[0], args->v[1],
+						     args->v[2], args->v[3]);
+		break;
+	case SMC_FIRME_IDE_KEYSET_STOP:
+		res->x[0] = host_firme_ide_keyset_stop(args->v[0], args->v[1],
+						       args->v[2], args->v[3]);
 		break;
 	case SMCCC_ARCH_FEATURE_AVAILABILITY:
 	{
