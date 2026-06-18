@@ -302,13 +302,15 @@ static int host_pdev_create(struct host_pdev *h_pdev, bool ep_pdev)
 		/* Create EP pdev */
 		pdev_params->flags |=
 			INPLACE(RMI_PDEV_FLAGS_CATEGORY, RMI_PDEV_ENDPOINT_ACCEL_OFF_CHIP);
-		pdev_params->pdev_id = h_pdev->ecam_addr | h_pdev->ep_pdev_id;
+		pdev_params->hb_base = h_pdev->ecam_addr;
+		pdev_params->pdev_id = h_pdev->ep_pdev_id;
 		pdev = h_pdev->ep_pdev_ptr;
 	} else {
 		/* Create RP pdev */
 		pdev_params->flags |=
 			INPLACE(RMI_PDEV_FLAGS_CATEGORY, RMI_PDEV_ROOTPORT);
-		pdev_params->pdev_id = h_pdev->ecam_addr | h_pdev->rp_pdev_id;
+		pdev_params->hb_base = h_pdev->ecam_addr;
+		pdev_params->pdev_id = h_pdev->rp_pdev_id;
 		pdev = h_pdev->rp_pdev_ptr;
 	}
 
@@ -317,7 +319,8 @@ static int host_pdev_create(struct host_pdev *h_pdev, bool ep_pdev)
 	pdev_params->rid_base = h_pdev->rid_base;
 	pdev_params->rid_top = h_pdev->rid_top;
 	pdev_params->hash_algo = h_pdev->hash_algo;
-	pdev_params->max_vdevs_order = 2; /* max 3 vdevs */
+	pdev_params->rid_base = h_pdev->ep_pdev_id;
+	pdev_params->rid_top = pdev_params->rid_base + 1;
 
 	host_rmi_pdev_create(pdev, pdev_params, &result);
 

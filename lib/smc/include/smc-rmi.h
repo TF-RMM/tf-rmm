@@ -1722,23 +1722,20 @@ struct rmi_address_range {
 struct rmi_pdev_params {
 	/* RmiPdevFlags: Flags */
 	SET_MEMBER_RMI(unsigned long flags, 0x0, 0x8);
+	/* Bits64: Host bridge base */
+	SET_MEMBER_RMI(unsigned long hb_base, 0x8, 0x10);
 	/* Bits64: Physical device identifier */
-	SET_MEMBER_RMI(unsigned long pdev_id, 0x8, 0x10);
+	SET_MEMBER_RMI(unsigned long pdev_id, 0x10, 0x18);
 	/* Bits64: Routing identifier */
-	SET_MEMBER_RMI(unsigned long routing_id, 0x10, 0x18);
+	SET_MEMBER_RMI(unsigned long routing_id, 0x18, 0x20);
 	/* UInt64: Device identity index */
-	SET_MEMBER_RMI(unsigned long id_index, 0x18, 0x20);
+	SET_MEMBER_RMI(unsigned long id_index, 0x20, 0x28);
 	/* Bits32: Base of requester ID range (inclusive). */
-	SET_MEMBER_RMI(unsigned int rid_base, 0x20, 0x28);
+	SET_MEMBER_RMI(unsigned int rid_base, 0x28, 0x30);
 	/* Bits32: Top of requester ID range (exclusive). */
-	SET_MEMBER_RMI(unsigned int rid_top, 0x28, 0x30);
+	SET_MEMBER_RMI(unsigned int rid_top, 0x30, 0x38);
 	/* RmiHashAlgorithm: Algorithm used to generate device digests */
-	SET_MEMBER_RMI(unsigned char hash_algo, 0x30, 0x38);
-	/*
-	 * UInt64: Order of the maximum number of VDEVs which can be created for this
-	 * PDEV.
-	 */
-	SET_MEMBER_RMI(unsigned long max_vdevs_order, 0x38, 0x1000);
+	SET_MEMBER_RMI(unsigned char hash_algo, 0x38, 0x1000);
 };
 
 /* Max length of public key data passed in rmi_public_key_params */

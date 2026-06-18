@@ -12,6 +12,7 @@
 #include <dev_assign_app.h>
 #include <feature.h>
 #include <granule.h>
+#include <rmm_el3_ifc.h>
 #include <sizes.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
@@ -20,12 +21,8 @@
 #include <utils_def.h>
 #include <xlat_high_va.h>
 
-#define PDEV_ID_BDF_WIDTH		28U /* 256 MB */
-#define PDEV_ID_BDF_SHIFT		0U
-#define PDEV_ID_ECAM_ADDR_WIDTH		(64U - PDEV_ID_BDF_WIDTH)
-#define PDEV_ID_ECAM_ADDR_SHIFT		PDEV_ID_BDF_WIDTH
-
 #define RMI_PDEV_FLAGS_VALID_MASK  (MASK(RMI_PDEV_FLAGS_SPDM) | MASK(RMI_PDEV_FLAGS_CATEGORY))
+#define PCIE_BDF_VALID_MASK		((unsigned long)UINT16_MAX)
 
 struct pdev_stream_aux {
 	struct pdev_stream streams[RMI_PDEV_STREAM_TYPE_COUNT];
@@ -96,15 +93,58 @@ void pdev_stream_granules_unmap_unlock(struct granule *g_streams,
 	granule_unlock(g_streams);
 }
 
+static bool pdev_hb_base_is_valid(unsigned long hb_base)
+{
+	return rmm_el3_ifc_is_ecam_base_valid(hb_base);
+}
+
+static bool pdev_pci_id_is_valid(unsigned long hb_base, unsigned long bdf,
+				 unsigned long flags)
+{
+	if ((bdf & ~PCIE_BDF_VALID_MASK) != 0UL) {
+		return false;
+	}
+
+	if (PDEV_CATEGORY_FROM_FLAGS(flags) == RMI_PDEV_ROOTPORT) {
+		return rmm_el3_ifc_is_root_port_id_valid(hb_base, (unsigned int)bdf);
+	}
+
+	return rmm_el3_ifc_is_bdf_valid(hb_base, (unsigned int)bdf);
+}
+
+static unsigned int pdev_get_max_num_vdevs(unsigned int rid_base,
+					   unsigned int rid_top)
+{
+	return rid_top - rid_base;
+}
+
 /*
- * todo:
- * Validate device specific PDEV parameters by traversing all previously created
- * PDEVs and check against current PDEV parameters. This implements
- * RmiPdevParamsIsValid of RMM specification.
+ * TODO:
+ * Check that the device identifier is not equal to the device identifier of
+ * another PDEV.
  */
 static unsigned long validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
-
 {
+	if ((PDEV_CATEGORY_FROM_FLAGS(pd_params->flags) != RMI_PDEV_ROOTPORT)) {
+		if (pd_params->rid_base >= pd_params->rid_top) {
+			return RMI_ERROR_INPUT;
+		}
+		unsigned int max_num_vdevs =
+			pdev_get_max_num_vdevs(pd_params->rid_base, pd_params->rid_top);
+
+		if (max_num_vdevs > PDEV_MAX_VDEVS(MAX_VDEVS_ORDER)) {
+			return RMI_ERROR_INPUT;
+		}
+
+		/* Validate hash algorithm */
+		/* coverity[uninit_use:SUPPRESS] */
+		if ((pd_params->hash_algo != RMI_HASH_SHA_256) &&
+		    (pd_params->hash_algo != RMI_HASH_SHA_512) &&
+		    (pd_params->hash_algo != RMI_HASH_SHA_384)) {
+			return RMI_ERROR_INPUT;
+		}
+	}
+
 	if ((pd_params->flags & ~RMI_PDEV_FLAGS_VALID_MASK) != 0U) {
 		return RMI_ERROR_INPUT;
 	}
@@ -130,27 +170,15 @@ static unsigned long validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
 		return RMI_ERROR_NOT_SUPPORTED;
 	}
 
-	/* Validate hash algorithm */
-	/* coverity[uninit_use:SUPPRESS] */
-	if ((pd_params->hash_algo != RMI_HASH_SHA_256) &&
-	    (pd_params->hash_algo != RMI_HASH_SHA_512) &&
-	    (pd_params->hash_algo != RMI_HASH_SHA_384)) {
+	if (pd_params->routing_id > (unsigned long)(UINT16_MAX)) {
 		return RMI_ERROR_INPUT;
 	}
 
-	if ((pd_params->max_vdevs_order > MAX_VDEVS_ORDER) ||
-	    (pd_params->routing_id > (unsigned long)(UINT16_MAX))) {
+	if (!pdev_hb_base_is_valid(pd_params->hb_base) ||
+	    !pdev_pci_id_is_valid(pd_params->hb_base, pd_params->pdev_id,
+				  pd_params->flags)) {
 		return RMI_ERROR_INPUT;
 	}
-
-	/*
-	 * TODO: Check if device identifier is valid.
-	 */
-
-	/*
-	 * TODO: Check if device identifier is not equal to the device
-	 * identifier of another PDEV
-	 */
 
 	return RMI_SUCCESS;
 }
@@ -174,11 +202,11 @@ static unsigned long pdev_get_app_aux_count_from_flags(unsigned long pdev_flags)
 	return app_get_required_granule_count(RMM_DEV_ASSIGN_APP_ID);
 }
 
-static unsigned int pdev_get_vdev_range_aux_count(unsigned long max_vdevs_order)
+static unsigned int pdev_get_vdev_range_aux_count(unsigned int max_num_vdevs)
 {
-	assert(max_vdevs_order <= MAX_VDEVS_ORDER);
+	assert(max_num_vdevs <= PDEV_MAX_VDEVS(MAX_VDEVS_ORDER));
 
-	return (unsigned int)PDEV_VDEV_RANGE_AUX_COUNT_FROM_ORDER(max_vdevs_order);
+	return (unsigned int)PDEV_VDEV_RANGE_AUX_COUNT_FROM_SLOT_COUNT(max_num_vdevs);
 }
 
 static unsigned long
@@ -202,6 +230,7 @@ void smc_pdev_create(unsigned long pdev_addr,
 	struct rmi_pdev_params pdev_params; /* this consumes 4k of stack */
 	bool ns_access_ok;
 	unsigned long ret;
+	unsigned int max_num_vdevs;
 
 	if (!is_rmi_feat_da_enabled()) {
 		res->x[0] = SMC_NOT_SUPPORTED;
@@ -247,11 +276,13 @@ void smc_pdev_create(unsigned long pdev_addr,
 	/*
 	 * Granules for the app, one page for stream objects associated with
 	 * this EP PDEV, and enough pages to store cached VDEV ranges for the
-	 * requested max_vdevs_order. Initiate SRO to get that memory.
+	 * RID span associated with this PDEV. Initiate SRO to get that memory.
 	 */
+	max_num_vdevs = pdev_get_max_num_vdevs(pdev_params.rid_base,
+						 pdev_params.rid_top);
 	const size_t aux_count = pdev_get_app_aux_count_from_flags(pdev_params.flags) +
 		MAX_PDEV_STREAM_AUX_COUNT +
-		pdev_get_vdev_range_aux_count(pdev_params.max_vdevs_order);
+		pdev_get_vdev_range_aux_count(max_num_vdevs);
 	if (aux_count > MAX_PDEV_PARAM_AUX_GRANULES) {
 		/*
 		 * The PDEV cannot hold enough granules for this configuration.
@@ -287,13 +318,13 @@ void smc_pdev_create(unsigned long pdev_addr,
 	 */
 	/* Initialize the sro context for the command */
 	sro->pdev_ctx.flags = pdev_params.flags;
+	sro->pdev_ctx.hb_base = pdev_params.hb_base;
 	sro->pdev_ctx.pdev_id = pdev_params.pdev_id;
 	sro->pdev_ctx.routing_id = (uint16_t)pdev_params.routing_id;
 	sro->pdev_ctx.id_index = pdev_params.id_index;
 	sro->pdev_ctx.rid_base = pdev_params.rid_base;
 	sro->pdev_ctx.rid_top = pdev_params.rid_top;
 	sro->pdev_ctx.hash_algo = pdev_params.hash_algo;
-	sro->pdev_ctx.max_vdevs_order = pdev_params.max_vdevs_order;
 
 	granule_unlock_transition(gr, GRANULE_STATE_PARTIAL);
 
@@ -320,6 +351,7 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 	unsigned int num_app_aux_granules;
 	unsigned int num_vdev_range_aux_granules;
 	unsigned int app_aux_start_idx;
+	unsigned int max_num_vdevs;
 
 	assert(sro != NULL);
 	assert(fid == SMC_RMI_OP_CONTINUE);
@@ -333,8 +365,9 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 	sro_ctx = &sro->pdev_ctx;
 	num_aux_granules = (unsigned int)sro->aux_op_ctx.requested_aux_granules;
 	all_aux_granule_pas = sro->aux_op_ctx.aux_granules_pa;
-	num_vdev_range_aux_granules =
-		pdev_get_vdev_range_aux_count(sro_ctx->max_vdevs_order);
+	max_num_vdevs = pdev_get_max_num_vdevs(sro_ctx->rid_base,
+						 sro_ctx->rid_top);
+	num_vdev_range_aux_granules = pdev_get_vdev_range_aux_count(max_num_vdevs);
 	app_aux_start_idx = PDEV_VDEV_RANGES_AUX_GRANULE_IDX +
 		num_vdev_range_aux_granules;
 
@@ -366,8 +399,8 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 	pd = buffer_granule_map_zeroed(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
 
-	ecam_addr = sro_ctx->pdev_id & MASK(PDEV_ID_ECAM_ADDR);
-	bdf = sro_ctx->pdev_id & MASK(PDEV_ID_BDF);
+	ecam_addr = sro_ctx->hb_base;
+	bdf = sro_ctx->pdev_id;
 
 	/* Call init routine to initialize device class specific state */
 	dparams.dev_handle = (void *)pd;
@@ -427,7 +460,7 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 		pd->op.curr = PDEV_OP_NONE;
 		pd->rmi_flags = sro_ctx->flags;
 		pd->num_vdevs = 0;
-		pd->max_num_vdevs = (uint32_t)(PDEV_MAX_VDEVS(sro_ctx->max_vdevs_order));
+		pd->max_num_vdevs = (uint32_t)max_num_vdevs;
 		pd->rmi_hash_algo = sro_ctx->hash_algo;
 		pd->num_app_aux = num_app_aux_granules;
 		pd->g_stream_aux = all_aux_granules[PDEV_STREAM_AUX_GRANULE_IDX];
@@ -504,8 +537,8 @@ static unsigned long pdev_create_continue_rp(unsigned long pdev_addr,
 	pd = buffer_granule_map_zeroed(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
 
-	ecam_addr = pdev_params->pdev_id & MASK(PDEV_ID_ECAM_ADDR);
-	bdf = pdev_params->pdev_id & MASK(PDEV_ID_BDF);
+	ecam_addr = pdev_params->hb_base;
+	bdf = pdev_params->pdev_id;
 
 	/* Initialize PDEV */
 	pd->da_app_yielded = false;
@@ -514,9 +547,9 @@ static unsigned long pdev_create_continue_rp(unsigned long pdev_addr,
 	pd->rmi_state = RMI_PDEV_STATE_NEW;
 	pd->op.curr = PDEV_OP_NONE;
 	pd->rmi_flags = pdev_params->flags;
-	pd->num_vdevs = 0;
-	pd->max_num_vdevs = (uint32_t)PDEV_MAX_VDEVS(pdev_params->max_vdevs_order);
-	pd->rmi_hash_algo = pdev_params->hash_algo;
+	pd->num_vdevs = 0U;
+	pd->max_num_vdevs = 0U;
+	pd->rmi_hash_algo = RMI_HASH_SHA_256; /* Not used */
 
 	/* Initialize PDEV communication state */
 	pd->dev_comm_state = DEV_COMM_PENDING;
