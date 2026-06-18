@@ -697,13 +697,10 @@ ASSERT_TEST(no_mec, mecid_max_TC1)
 {	/******************************************************************
 	 * TEST CASE 1:
 	 *
-	 * Call mecid_max() when FEAT_MEC is not present. It should trigger
-	 * an assert failure.
+	 * Call mecid_max() when FEAT_MEC is not present, it should return 0.
 	 ******************************************************************/
 
-	test_helpers_expect_assert_fail(true);
-	(void)mecid_max();
-	test_helpers_fail_if_no_assert_failed();
+	CHECK_EQUAL(0U, mecid_max());
 }
 
 TEST(no_mec, mecid_free_TC1)

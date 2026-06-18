@@ -65,6 +65,9 @@ struct mec_state_s {
 	/* The bitmap for the reserved/used MECID values.*/
 	unsigned long mec_reserved[MECID_ARRAY_SIZE];
 
+	/* The smallest MECID width supported by the system. */
+	unsigned int common_mecid_width;
+
 	/* Indicates the number of members using the shared MECID */
 	unsigned long shared_mec_members;
 

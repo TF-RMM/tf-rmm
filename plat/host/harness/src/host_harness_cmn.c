@@ -524,9 +524,13 @@ unsigned long host_firme_base_features(unsigned char service_id,
 	case FIRME_MECID_SERVICE_ID:
 		if (index == 0U) {
 			*reg = FIRME_MECID_FR0_MEC_REFRESH_BIT;
-			return FIRME_SUCCESS;
+		} else if (index == 1U) {
+			*reg = INPLACE(FIRME_MECID_FR1_COMMON_MECID_WIDTH_BITS, 15U);
+		} else {
+			return FIRME_NOT_SUPPORTED;
 		}
-		return FIRME_NOT_SUPPORTED;
+
+		return FIRME_SUCCESS;
 	default:
 		return FIRME_NOT_SUPPORTED;
 	}

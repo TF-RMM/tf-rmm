@@ -8,8 +8,10 @@
 #include <cpuid.h>
 #include <debug.h>
 #include <errno.h>
+#include <firme.h>
 #include <mec.h>
 #include <rmm_el3_ifc.h>
+#include <utils_def.h>
 
 #define MECID_SYSTEM_OFFSET		(RESERVED_MECID_SYSTEM / BITS_PER_UL)
 
@@ -25,6 +27,29 @@ COMPILER_ASSERT(RESERVED_IDS + 1U < BITS_PER_UL);
 static struct mec_state_s *g_mec_state;
 
 static uint64_t mecid_pcpcu_refcnt[MAX_CPUS];
+
+static unsigned int mec_compute_common_mecid_width(void)
+{
+	unsigned int local_width;
+	unsigned long feat_reg1;
+	unsigned int el3_width;
+
+	if (!is_feat_mec_present()) {
+		return 0U;
+	}
+
+	local_width = (unsigned int)(EXTRACT(MECIDR_MECIDWIDTHM1, read_mecidr_el2()) + 1U);
+	feat_reg1 = firme_get_feature_register(FIRME_MECID_SERVICE_ID, 1U);
+	el3_width = (unsigned int)(EXTRACT(FIRME_MECID_FR1_COMMON_MECID_WIDTH_BITS,
+					  feat_reg1) + 1U);
+
+	return MIN(local_width, el3_width);
+}
+
+static unsigned int mec_get_common_mecid_width(void)
+{
+	return g_mec_state->common_mecid_width;
+}
 
 void _mecid_s1_get(unsigned int mecid)
 {
@@ -56,14 +81,16 @@ unsigned int mecid_max(void)
 {
 	unsigned int mecid_count;
 
-	assert(is_feat_mec_present());
+	/* cppcheck-suppress knownConditionTrueFalse */
+	if (!is_feat_mec_present()) {
+		return 0;
+	}
 
 	/*
 	 * MECIDR_MECIDWIDTHM1 plus 1 is the MECID width in bits.
 	 * So Max MECID is (2^MECID width) - 1.
 	 */
-	mecid_count = (unsigned int)1 << (EXTRACT(MECIDR_MECIDWIDTHM1,
-						read_mecidr_el2()) + 1U);
+	mecid_count = (unsigned int)1 << mec_get_common_mecid_width();
 
 	assert(mecid_count <= MEC_MAX_COUNT);
 	return mecid_count - 1U;
@@ -349,6 +376,7 @@ void mec_init_mmu(void)
 static void mec_state_init_values(void)
 {
 	g_mec_state->shared_mec_members = 0U;
+	g_mec_state->common_mecid_width = mec_compute_common_mecid_width();
 
 	for (unsigned int i = 0U; i < MECID_ARRAY_SIZE; i++) {
 		g_mec_state->mec_reserved[i] = 0UL;

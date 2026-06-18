@@ -120,10 +120,12 @@ static inline bool firme_supports_ ## abi(void) 			\
 #define MEC_PARAM_MECID_SHIFT			U(32)
 #define MEC_PARAM_MECID_MASK			U(0xFFFF)
 
-#define FIRME_MECID_FEATURE_REG_COUNT		U(1)
+#define FIRME_MECID_FEATURE_REG_COUNT		U(2)
 #define FIRME_MECID_FR0_MEC_REFRESH_BIT	BIT(0)
 #define FIRME_MECID_FR0_MASK \
 	FIRME_MECID_FR0_MEC_REFRESH_BIT
+#define FIRME_MECID_FR1_COMMON_MECID_WIDTH_BITS_SHIFT	U(0)
+#define FIRME_MECID_FR1_COMMON_MECID_WIDTH_BITS_WIDTH	UL(4)
 
 /* This helper converts FIRME status to RMM EL3 interface status */
 static inline int firme_errno_to_rmm_errno(uint64_t firme_errno)
@@ -159,6 +161,8 @@ static inline int firme_errno_to_rmm_errno(uint64_t firme_errno)
 bool firme_init(void);
 uint32_t firme_get_version(unsigned char service_id);
 unsigned long get_present_abis(unsigned int service_id);
+unsigned long firme_get_feature_register(unsigned int service_id,
+					 unsigned int feature_reg_idx);
 
 /* Helper functions to query service ABIs */
 DEFINE_FIRME_ABI_QUERY(GM, gpi_set, GPI_SET)

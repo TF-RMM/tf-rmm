@@ -27,6 +27,7 @@ static const unsigned long firme_abis_masks[FIRME_NUM_SERVICES] = {
 /* FIRME status variables. */
 static unsigned int firme_el3_svc_version[FIRME_NUM_SERVICES];
 static unsigned long firme_el3_svc_present_abis[FIRME_NUM_SERVICES];
+static unsigned long firme_el3_svc_feat_reg1[FIRME_NUM_SERVICES];
 
 static bool firme_feature_discovery(unsigned int svc_id)
 {
@@ -73,6 +74,14 @@ static bool firme_feature_discovery(unsigned int svc_id)
 		return false;
 	}
 	firme_el3_svc_present_abis[svc_id] = smc_res.x[1] & mask;
+
+	/* Feature register 1 is service-specific and optional. */
+	/* cppcheck-suppress misra-c2012-9.3 */
+	struct smc_args smc_args_3 = SMC_ARGS_2(svc_id, 1U);
+	monitor_call_with_arg_res(SMC_FIRME_BASE_FEATURES, &smc_args_3, &smc_res);
+	if (smc_res.x[0] == FIRME_SUCCESS) {
+		firme_el3_svc_feat_reg1[svc_id] = smc_res.x[1];
+	}
 
 	return true;
 }
@@ -121,6 +130,23 @@ unsigned long get_present_abis(unsigned int service_id)
 	assert(service_id < FIRME_NUM_SERVICES);
 
 	return firme_el3_svc_present_abis[service_id];
+}
+
+/* cppcheck-suppress misra-c2012-8.7 */
+unsigned long firme_get_feature_register(unsigned int service_id,
+					 unsigned int feature_reg_idx)
+{
+	assert(service_id < FIRME_NUM_SERVICES);
+
+	if (feature_reg_idx == 0U) {
+		return firme_el3_svc_present_abis[service_id];
+	}
+
+	if (feature_reg_idx == 1U) {
+		return firme_el3_svc_feat_reg1[service_id];
+	}
+
+	return 0UL;
 }
 
 /* cppcheck-suppress misra-c2012-8.7 */

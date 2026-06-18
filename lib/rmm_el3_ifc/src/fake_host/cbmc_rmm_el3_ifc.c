@@ -80,4 +80,14 @@ bool firme_init(void)
 	return false;
 }
 
+unsigned long firme_get_feature_register(unsigned int service_id,
+					 unsigned int feature_reg_idx)
+{
+	(void)service_id;
+	(void)feature_reg_idx;
+
+	ASSERT(false, "firme_get_feature_register");
+	return 0UL;
+}
+
 #endif /* CBMC */
