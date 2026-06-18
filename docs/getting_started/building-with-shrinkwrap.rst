@@ -128,12 +128,6 @@ local RMM with shrinkwrap.
 RMM provides ``cca_da.yaml`` overlay that can be used along with the
 ``cca-3world.yaml`` to build a 3 World demonstrator.
 
-.. note::
-
-      For CCA DA testing, use |RMM| commit ``d54026d``. This temporary
-      limitation will be removed once a compatible Linux kernel branch is
-      pushed out.
-
 As an example, the following command line would build the 3-World demonstrator.
 It assumes that Shrinkwrap is called from within the ``<RMM_ROOT>`` directory
 that was created in the last step:
