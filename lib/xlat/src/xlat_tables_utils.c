@@ -1026,17 +1026,19 @@ int xlat_map_l3_region(struct xlat_ctx *ctx, uintptr_t pa, size_t size,
 	assert(is_mmu_enabled());
 
 	if (!GRANULE_ALIGNED(size) || !GRANULE_ALIGNED(pa)) {
-		ERROR("%s: PA/size not aligned to granularity\n", __func__);
+		ERROR("%s: PA/size unaligned: pa=0x%lx size=0x%zx\n",
+		      __func__, pa, size);
 		return -EFAULT;
 	}
 
 	if (size == 0U) {
-		ERROR("%s: Invalid size\n", __func__);
+		ERROR("%s: Invalid size: size=0x%zx\n", __func__, size);
 		return -EINVAL;
 	}
 
 	if (MT_TYPE(attr) == MT_TRANSIENT) {
-		ERROR("%s: Transient attr should not be set.\n", __func__);
+		ERROR("%s: Transient attr should not be set: attr=0x%lx\n",
+		      __func__, attr);
 		return -EFAULT;
 	}
 
@@ -1099,7 +1101,8 @@ int xlat_unmap_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t unmap_size)
 	assert(is_mmu_enabled());
 
 	if (!GRANULE_ALIGNED(mm.base_va) || !GRANULE_ALIGNED(unmap_size)) {
-		ERROR("%s: VA/ unmap size not aligned to granularity\n", __func__);
+		ERROR("%s: VA/unmap size unaligned: va=0x%lx size=0x%zx\n",
+		      __func__, mm.base_va, unmap_size);
 		return -EFAULT;
 	}
 
