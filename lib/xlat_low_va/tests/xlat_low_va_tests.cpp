@@ -580,6 +580,29 @@ ASSERT_TEST(xlat_low_va, xlat_low_va_map_unaligned_pa_TC1)
 }
 
 /*
+ * Test: xlat_low_va_map with invalid size should fail
+ */
+TEST(xlat_low_va, xlat_low_va_map_invalid_size_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Verify that xlat_low_va_map() returns 0 when the requested size
+	 * is zero or not granule-aligned.
+	 ******************************************************************/
+
+	uintptr_t test_pa = host_util_get_granule_base() + GRANULE_SIZE;
+	uintptr_t va;
+
+	va = xlat_low_va_map(0UL, MT_RW_DATA | MT_REALM, test_pa, false);
+	CHECK_EQUAL(0UL, va);
+
+	va = xlat_low_va_map(GRANULE_SIZE + 1UL, MT_RW_DATA | MT_REALM,
+			     test_pa, false);
+	CHECK_EQUAL(0UL, va);
+}
+
+/*
  * Test: Verify all expected common regions are present
  */
 TEST(xlat_low_va, xlat_low_va_common_regions_TC1)
@@ -1420,6 +1443,30 @@ TEST(xlat_low_va, xlat_low_va_get_contig_pa_break_at_l3_boundary_TC1)
  ****************************************************************************/
 
 /*
+ * Test: Reserve argument validation
+ */
+TEST(xlat_low_va, xlat_low_va_reserve_errors_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Verify that the low-VA reserve API reports errors for zero size
+	 * and unaligned size.
+	 ******************************************************************/
+
+	uintptr_t reserved_va = 0xDEADUL;
+	int ret;
+
+	ret = xlat_low_va_reserve(0UL, &reserved_va);
+	CHECK_EQUAL(-EINVAL, ret);
+	CHECK_EQUAL(0xDEADUL, reserved_va);
+
+	ret = xlat_low_va_reserve(GRANULE_SIZE + 1UL, &reserved_va);
+	CHECK_EQUAL(-EINVAL, ret);
+	CHECK_EQUAL(0xDEADUL, reserved_va);
+}
+
+/*
  * Test: Basic reserve, populate, commit flow with single PA
  */
 TEST(xlat_low_va, xlat_low_va_reserve_populate_commit_basic_TC1)
@@ -1472,6 +1519,57 @@ TEST(xlat_low_va, xlat_low_va_reserve_populate_commit_basic_TC1)
 
 	/* Cleanup */
 	ret = xlat_low_va_unmap(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Populate argument validation
+ */
+TEST(xlat_low_va, xlat_low_va_populate_errors_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Verify that the low-VA populate API reports errors for
+	 * unaligned VA, unaligned PA, unaligned size, zero size, transient
+	 * attributes and an out-of-range VA.
+	 ******************************************************************/
+
+	struct xlat_low_va_info *info = xlat_get_low_va_info();
+	uintptr_t reserved_va = 0;
+	int ret;
+
+	ret = xlat_low_va_reserve(GRANULE_SIZE, &reserved_va);
+	CHECK_EQUAL(0, ret);
+	CHECK_TRUE(reserved_va != 0UL);
+
+	ret = xlat_low_va_populate(reserved_va + 1UL, 0x50000UL,
+				   GRANULE_SIZE, MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_populate(reserved_va, 0x50001UL, GRANULE_SIZE,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_populate(reserved_va, 0x50000UL,
+				   GRANULE_SIZE + 1UL, MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_populate(reserved_va, 0x50000UL, 0UL,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_populate(reserved_va, 0x50000UL, GRANULE_SIZE,
+				   MT_TRANSIENT);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_populate(info->dyn_va_ctx.cfg.base_va +
+				   info->dyn_va_ctx.cfg.max_va_size,
+				   0x50000UL, GRANULE_SIZE,
+				   MT_RW_DATA | MT_REALM);
+	CHECK_EQUAL(-EFAULT, ret);
+
+	ret = xlat_low_va_unreserve(reserved_va, GRANULE_SIZE);
 	CHECK_EQUAL(0, ret);
 }
 
@@ -1719,6 +1817,44 @@ TEST(xlat_low_va, xlat_low_va_reserve_partial_commit_TC1)
 }
 
 /*
+ * Test: Commit argument validation
+ */
+TEST(xlat_low_va, xlat_low_va_commit_errors_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Verify that the low-VA commit API reports errors for unaligned
+	 * VA, unaligned size, zero size and an out-of-range VA.
+	 ******************************************************************/
+
+	struct xlat_low_va_info *info = xlat_get_low_va_info();
+	uintptr_t reserved_va = 0;
+	int ret;
+
+	ret = xlat_low_va_reserve(GRANULE_SIZE, &reserved_va);
+	CHECK_EQUAL(0, ret);
+	CHECK_TRUE(reserved_va != 0UL);
+
+	ret = xlat_low_va_commit(reserved_va + 1UL, GRANULE_SIZE);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_commit(reserved_va, GRANULE_SIZE + 1UL);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_commit(reserved_va, 0UL);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_commit(info->dyn_va_ctx.cfg.base_va +
+				 info->dyn_va_ctx.cfg.max_va_size,
+				 GRANULE_SIZE);
+	CHECK_EQUAL(-EFAULT, ret);
+
+	ret = xlat_low_va_unreserve(reserved_va, GRANULE_SIZE);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
  * Test: Multiple non-contiguous PAs spanning L3 boundary
  */
 TEST(xlat_low_va, xlat_low_va_reserve_multi_pa_cross_l3_TC1)
@@ -1835,6 +1971,44 @@ TEST(xlat_low_va, xlat_low_va_decommit_basic_TC1)
 
 	/* Cleanup */
 	ret = xlat_low_va_unmap(reserved_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Decommit argument validation
+ */
+TEST(xlat_low_va, xlat_low_va_decommit_errors_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Verify that the low-VA decommit API reports errors for unaligned
+	 * VA, unaligned size, zero size and an out-of-range VA.
+	 ******************************************************************/
+
+	struct xlat_low_va_info *info = xlat_get_low_va_info();
+	uintptr_t reserved_va = 0;
+	int ret;
+
+	ret = xlat_low_va_reserve(GRANULE_SIZE, &reserved_va);
+	CHECK_EQUAL(0, ret);
+	CHECK_TRUE(reserved_va != 0UL);
+
+	ret = xlat_low_va_decommit(reserved_va + 1UL, GRANULE_SIZE);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_decommit(reserved_va, GRANULE_SIZE + 1UL);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_decommit(reserved_va, 0UL);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_decommit(info->dyn_va_ctx.cfg.base_va +
+				   info->dyn_va_ctx.cfg.max_va_size,
+				   GRANULE_SIZE);
+	CHECK_EQUAL(-EFAULT, ret);
+
+	ret = xlat_low_va_unreserve(reserved_va, GRANULE_SIZE);
 	CHECK_EQUAL(0, ret);
 }
 
@@ -2195,5 +2369,43 @@ TEST(xlat_low_va, xlat_low_va_unreserve_decommitted_TC1)
 	CHECK_EQUAL(reserved_va, new_va);
 
 	ret = xlat_low_va_unmap(new_va, total_size);
+	CHECK_EQUAL(0, ret);
+}
+
+/*
+ * Test: Unreserve argument validation
+ */
+TEST(xlat_low_va, xlat_low_va_unreserve_errors_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Verify that the low-VA unreserve API reports errors for
+	 * unaligned VA, unaligned size, zero size and an out-of-range VA.
+	 ******************************************************************/
+
+	struct xlat_low_va_info *info = xlat_get_low_va_info();
+	uintptr_t reserved_va = 0;
+	int ret;
+
+	ret = xlat_low_va_reserve(GRANULE_SIZE, &reserved_va);
+	CHECK_EQUAL(0, ret);
+	CHECK_TRUE(reserved_va != 0UL);
+
+	ret = xlat_low_va_unreserve(reserved_va + 1UL, GRANULE_SIZE);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_unreserve(reserved_va, GRANULE_SIZE + 1UL);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_unreserve(reserved_va, 0UL);
+	CHECK_EQUAL(-EINVAL, ret);
+
+	ret = xlat_low_va_unreserve(info->dyn_va_ctx.cfg.base_va +
+				    info->dyn_va_ctx.cfg.max_va_size,
+				    GRANULE_SIZE);
+	CHECK_EQUAL(-EFAULT, ret);
+
+	ret = xlat_low_va_unreserve(reserved_va, GRANULE_SIZE);
 	CHECK_EQUAL(0, ret);
 }
