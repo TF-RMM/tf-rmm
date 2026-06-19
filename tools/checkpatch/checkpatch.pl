@@ -478,6 +478,7 @@ our $Attribute	= qr{
 			__packed__|
 			__packed2__|
 			__naked|
+			__unused|
 			__maybe_unused|
 			__always_unused|
 			__noreturn|
