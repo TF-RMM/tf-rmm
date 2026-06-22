@@ -12,15 +12,18 @@
  * Maximum vdevs_order supported by the implementation.
  */
 #ifndef CBMC
-#define MAX_VDEVS_ORDER				UL(10)
+#define MAX_VDEVS_ORDER_PER_PDEV		UL(10)
+#define MAX_VDEVS_ORDER_PER_RD                  UL(10)
+
 /*
  * Sized to cover the stream page, the VDEV range pages needed for
- * MAX_VDEVS_ORDER, and the current device-assignment app requirement.
+ * MAX_VDEVS_ORDER_PER_PDEV, and the current device-assignment app requirement.
  */
 #define MAX_PDEV_PARAM_AUX_GRANULES		U(72)
 #define MAX_PDEV_APP_AUX_GRANULES		U(34)
 #else /* CBMC */
-#define MAX_VDEVS_ORDER				UL(2)
+#define MAX_VDEVS_ORDER_PER_PDEV		UL(2)
+#define MAX_VDEVS_ORDER_PER_RD                  UL(2)
 #define MAX_PDEV_PARAM_AUX_GRANULES		U(3)
 #define MAX_PDEV_APP_AUX_GRANULES		U(1)
 #endif /* CBMC */

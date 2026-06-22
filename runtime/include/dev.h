@@ -99,6 +99,7 @@ struct pcie_dev {
 };
 
 #define PDEV_MAX_VDEVS(vdevs_order)	((1UL << (vdevs_order)) - 1U)
+#define RD_MAX_VDEVS(vdevs_order)	((1UL << (vdevs_order)) - 1U)
 #define PDEV_VDEV_SLOT_INVALID		((unsigned int)-1)
 
 struct pdev_vdev_range_slot {
@@ -143,7 +144,7 @@ struct pdev_op {
 #define PDEV_VDEV_RANGES_AUX_GRANULE_IDX					\
 		(PDEV_STREAM_AUX_GRANULE_IDX + MAX_PDEV_STREAM_AUX_COUNT)
 #define MAX_VDEV_RANGES_AUX_COUNT						\
-	PDEV_VDEV_RANGE_AUX_COUNT_FROM_ORDER(MAX_VDEVS_ORDER)
+	PDEV_VDEV_RANGE_AUX_COUNT_FROM_ORDER(MAX_VDEVS_ORDER_PER_PDEV)
 COMPILER_ASSERT(MAX_PDEV_APP_AUX_GRANULES ==
 	(MAX_PDEV_PARAM_AUX_GRANULES -
 	 (PDEV_VDEV_RANGES_AUX_GRANULE_IDX + MAX_VDEV_RANGES_AUX_COUNT)));

@@ -132,7 +132,7 @@ static unsigned long validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
 		unsigned int max_num_vdevs =
 			pdev_get_max_num_vdevs(pd_params->rid_base, pd_params->rid_top);
 
-		if (max_num_vdevs > PDEV_MAX_VDEVS(MAX_VDEVS_ORDER)) {
+		if (max_num_vdevs > PDEV_MAX_VDEVS(MAX_VDEVS_ORDER_PER_PDEV)) {
 			return RMI_ERROR_INPUT;
 		}
 
@@ -204,7 +204,7 @@ static unsigned long pdev_get_app_aux_count_from_flags(unsigned long pdev_flags)
 
 static unsigned int pdev_get_vdev_range_aux_count(unsigned int max_num_vdevs)
 {
-	assert(max_num_vdevs <= PDEV_MAX_VDEVS(MAX_VDEVS_ORDER));
+	assert(max_num_vdevs <= PDEV_MAX_VDEVS(MAX_VDEVS_ORDER_PER_PDEV));
 
 	return (unsigned int)PDEV_VDEV_RANGE_AUX_COUNT_FROM_SLOT_COUNT(max_num_vdevs);
 }
