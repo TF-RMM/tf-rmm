@@ -663,46 +663,25 @@ uint64_t *xlat_get_tte_ptr(const struct xlat_llt_info * const llt,
 			&llt->table[index] : NULL;
 }
 
-/*
- * Helper to update the descriptor on a level 3 table entry for a given
- * VA offset.
- */
-static void xlat_update_level3_descriptor(uintptr_t va_offset,
-					uintptr_t pa,
-					uint64_t *l3_table,
-					uint64_t attr)
-
+static bool xlat_llt_covers_va(const struct xlat_llt_info * const llt,
+			       const uintptr_t va)
 {
-	uint64_t desc;
+	uintptr_t offset;
+	uintptr_t table_va_size;
 
-	unsigned int l3_idx = (unsigned int)(va_offset >>
-			XLAT_ADDR_SHIFT(XLAT_TABLE_LEVEL_MAX));
-	assert(l3_idx < XLAT_TABLE_ENTRIES);
+	assert(llt != NULL);
+	assert(llt->level <= XLAT_TABLE_LEVEL_MAX);
+	assert(llt->level >= XLAT_TABLE_LEVEL_MIN);
 
-	/* Ensure correct mapping and unmapping sequences are followed */
-	assert(/* Unmapping: */
-		((MT_TYPE(attr) == MT_TRANSIENT) &&
-		((l3_table[l3_idx] & (TRANSIENT_DESC | VALID_DESC)) ==
-					(TRANSIENT_DESC | VALID_DESC))) ||
-		/* Mapping: */
-		((MT_TYPE(attr) != MT_TRANSIENT) &&
-		((l3_table[l3_idx] & (TRANSIENT_DESC | VALID_DESC)) ==
-					TRANSIENT_DESC)));
-
-	/* Set VA_ALLOCATED_FLAG when mapping, clear it when unmapping */
-	if (MT_TYPE(attr) == MT_TRANSIENT) {
-		/* Assert that the tte is allocated */
-		assert((l3_table[l3_idx] & VA_ALLOCATED_FLAG) != 0ULL);
-
-		/* Unmapping: clear the allocated flag */
-		desc = TRANSIENT_DESC;
-	} else {
-		/* Mapping: set the allocated flag */
-		desc = xlat_desc(attr, pa, XLAT_TABLE_LEVEL_MAX)
-				| TRANSIENT_DESC | VA_ALLOCATED_FLAG;
+	if (va < llt->llt_base_va) {
+		return false;
 	}
 
-	xlat_write_tte_release(&l3_table[l3_idx], desc);
+	offset = va - llt->llt_base_va;
+	table_va_size = (uintptr_t)XLAT_GET_TABLE_ENTRIES(llt->level) *
+			XLAT_BLOCK_SIZE(llt->level);
+
+	return offset < table_va_size;
 }
 
 /*
@@ -728,11 +707,6 @@ static bool is_table_fully_allocated(uint64_t *table, int level)
 		if ((desc & VA_ALLOCATED_FLAG) == 0ULL) {
 			return false;
 		}
-		/*
-		 * If we reach here, then it is TRANSIENT and Allocated.
-		 * So it must be a Valid page or table descriptor.
-		 */
-		assert((desc & VALID_DESC) != 0UL);
 	}
 
 	return true;
@@ -800,74 +774,6 @@ static void update_parent_flags(struct xlat_ctx *ctx, uintptr_t va, bool allocat
 			xlat_write_tte(&table[child_idx], new_desc);
 		}
 	}
-}
-
-/*
- * Function to update level 3 table entries for a VA range.
- * Continues modifying the same L3 table as long as VA is within its range.
- * Only walks from base table when a new L3 table is needed.
- * `next_va` is updated to the next VA after the end of the mapped region.
- * This function returns 0 on success or a POSIX error code otherwise.
- */
-static int xlat_tables_update_level3(struct xlat_ctx *ctx,
-				struct xlat_mmap_region *mm, uintptr_t *next_va)
-{
-	assert(ctx != NULL);
-	assert(mm != NULL);
-
-	*next_va = mm->base_va;
-	uintptr_t pa = mm->base_pa;
-	uintptr_t end_va = mm->base_va + mm->size;
-
-	struct xlat_llt_info llt;
-	uintptr_t l3_base_va = 0;
-	uint64_t *l3_table = NULL;
-	uintptr_t prev_l3_base_va = 0;
-	bool allocating = (MT_TYPE(mm->attr) != MT_TRANSIENT);
-
-	while (*next_va < end_va) {
-		/*
-		 * If l3_table is not set or VA is outside current L3 table,
-		 * get new L3 table.
-		 */
-		if ((l3_table == NULL) || (*next_va >= (l3_base_va +
-				XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX)))) {
-			/* Update parent flags for the previous L3 table before moving to next */
-			if (l3_table != NULL) {
-				update_parent_flags(ctx, prev_l3_base_va, allocating);
-			}
-
-			int ret = xlat_get_llt_from_va(&llt, ctx, *next_va);
-
-			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
-				ERROR("%s: Failed to get L3 table for VA 0x%lx\n",
-				      __func__, *next_va);
-				return -EFAULT;
-			}
-			l3_table = llt.table;
-			l3_base_va = llt.llt_base_va;
-			prev_l3_base_va = l3_base_va;
-		}
-
-		/* Now at level 3 table */
-		assert(l3_table != NULL);
-
-		xlat_update_level3_descriptor(*next_va - l3_base_va,
-						pa, l3_table, mm->attr);
-		*next_va += XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX);
-
-		/* Only increment PA if not unmapping */
-		if (MT_TYPE(mm->attr) != MT_TRANSIENT) {
-			pa += XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX);
-		}
-	}
-
-	/* Update parent table flags for the last L3 table processed */
-	if (l3_table != NULL) {
-		update_parent_flags(ctx, prev_l3_base_va, allocating);
-	}
-
-	return 0;
 }
 
 /*
@@ -979,6 +885,193 @@ static int find_available_va(struct xlat_ctx *ctx, size_t size,
 	return -ENOMEM;
 }
 
+enum xlat_va_l3_op {
+	XLAT_VA_L3_MAP,
+	XLAT_VA_L3_UNMAP,
+	XLAT_VA_L3_RESERVE,
+	XLAT_VA_L3_POPULATE,
+	XLAT_VA_L3_COMMIT,
+	XLAT_VA_L3_DECOMMIT,
+	XLAT_VA_L3_DEPOPULATE,
+	XLAT_VA_L3_UNRESERVE
+};
+
+/*
+ * Apply one VA allocation state transition to a single L3 table entry.
+ *
+ * The caller must provide an entry whose current descriptor matches the
+ * requested operation. The transition is asserted locally before the entry is
+ * updated. MAP and POPULATE consume 'pa' and 'attr' to create descriptor
+ * contents; the other operations only change validity/allocation state.
+ */
+static void xlat_apply_va_l3_entry(enum xlat_va_l3_op op,
+				   uint64_t *tte,
+				   uintptr_t pa,
+				   uint64_t attr)
+{
+	uint64_t desc;
+	uint64_t new_desc;
+
+	assert(tte != NULL);
+
+	desc = xlat_read_tte(tte);
+
+	switch (op) {
+	case XLAT_VA_L3_MAP:
+		/* Entry must be transient and invalid. */
+		assert(MT_TYPE(attr) != MT_TRANSIENT);
+		assert(desc == TRANSIENT_DESC);
+
+		new_desc = xlat_desc(attr, pa, XLAT_TABLE_LEVEL_MAX) |
+			   TRANSIENT_DESC | VA_ALLOCATED_FLAG;
+		xlat_write_tte_release(tte, new_desc);
+		break;
+	case XLAT_VA_L3_UNMAP:
+		/* Entry must be committed and transient. */
+		assert((desc & (TRANSIENT_DESC | VALID_DESC)) ==
+		       (TRANSIENT_DESC | VALID_DESC));
+		assert((desc & VA_ALLOCATED_FLAG) != 0ULL);
+
+		xlat_write_tte_release(tte, TRANSIENT_DESC);
+		break;
+	case XLAT_VA_L3_RESERVE:
+		/* Entry must be free (TRANSIENT_DESC only, not allocated). */
+		assert(desc == TRANSIENT_DESC);
+
+		xlat_write_tte(tte, TRANSIENT_DESC | VA_ALLOCATED_FLAG);
+		break;
+	case XLAT_VA_L3_POPULATE:
+		/* Entry must be reserved (allocated, transient, not valid). */
+		assert(MT_TYPE(attr) != MT_TRANSIENT);
+		assert((desc & (TRANSIENT_DESC | VA_ALLOCATED_FLAG | VALID_DESC)) ==
+		       (TRANSIENT_DESC | VA_ALLOCATED_FLAG));
+
+		new_desc = xlat_desc(attr, pa, XLAT_TABLE_LEVEL_MAX);
+		new_desc = (new_desc & ~VALID_DESC) | TRANSIENT_DESC |
+			   VA_ALLOCATED_FLAG;
+		xlat_write_tte(tte, new_desc);
+		break;
+	case XLAT_VA_L3_COMMIT:
+		/* Entry must be populated (has descriptor content, not valid yet). */
+		assert((desc & (TRANSIENT_DESC | VA_ALLOCATED_FLAG | VALID_DESC)) ==
+		       (TRANSIENT_DESC | VA_ALLOCATED_FLAG));
+		assert((desc & DESC_MASK) == (PAGE_DESC & ~VALID_DESC));
+
+		xlat_write_tte_release(tte, desc | VALID_DESC);
+		break;
+	case XLAT_VA_L3_DECOMMIT:
+		/* Entry must be committed (valid, allocated, transient). */
+		assert((desc & (TRANSIENT_DESC | VA_ALLOCATED_FLAG | VALID_DESC)) ==
+		       (TRANSIENT_DESC | VA_ALLOCATED_FLAG | VALID_DESC));
+
+		xlat_write_tte(tte, desc & ~VALID_DESC);
+		break;
+	case XLAT_VA_L3_DEPOPULATE:
+		/* Entry must be allocated and not valid. */
+		assert((desc & (TRANSIENT_DESC | VA_ALLOCATED_FLAG | VALID_DESC)) ==
+		       (TRANSIENT_DESC | VA_ALLOCATED_FLAG));
+		assert((desc & DESC_MASK) == (PAGE_DESC & ~VALID_DESC));
+
+		xlat_write_tte(tte, TRANSIENT_DESC | VA_ALLOCATED_FLAG);
+		break;
+	case XLAT_VA_L3_UNRESERVE:
+		/* Entry must be allocated and not valid. */
+		assert((desc & (TRANSIENT_DESC | VA_ALLOCATED_FLAG | VALID_DESC)) ==
+		       (TRANSIENT_DESC | VA_ALLOCATED_FLAG));
+
+		xlat_write_tte(tte, TRANSIENT_DESC);
+		break;
+	default:
+		assert(false);
+		break;
+	}
+}
+
+/*
+ * Apply an L3 VA operation over a granule-aligned VA range.
+ *
+ * The function walks the context's L3 tables from 'va' to 'va + size',
+ * reusing the current L3 table while it covers the next VA. Each L3 entry
+ * is updated according to 'op'. The PA is advanced only for operations that
+ * populate descriptor contents (map and populate); 'attr' is consumed only
+ * by those operations.
+ *
+ * Parent VA allocation flags are updated when an operation changes allocation
+ * state. Returns 0 on success or -EFAULT if the target L3 table cannot be
+ * found.
+ */
+static int xlat_apply_va_l3_range(struct xlat_ctx *ctx,
+				  uintptr_t va,
+				  uintptr_t pa,
+				  size_t size,
+				  uint64_t attr,
+				  enum xlat_va_l3_op op,
+				  const char *caller)
+{
+	int ret;
+	struct xlat_llt_info llt = {0};
+	uintptr_t cur_va;
+	uintptr_t cur_pa;
+	uintptr_t end_va;
+	uintptr_t l3_base_va = 0;
+	uint64_t *l3_table = NULL;
+	unsigned int idx;
+	bool update_flags;
+	bool allocating;
+
+	assert(ctx != NULL);
+	assert(caller != NULL);
+
+	cur_va = va;
+	cur_pa = pa;
+	end_va = va + size;
+	update_flags = ((op == XLAT_VA_L3_MAP) ||
+			(op == XLAT_VA_L3_UNMAP) ||
+			(op == XLAT_VA_L3_RESERVE) ||
+			(op == XLAT_VA_L3_UNRESERVE));
+	allocating = ((op == XLAT_VA_L3_MAP) ||
+		      (op == XLAT_VA_L3_RESERVE));
+
+	while (cur_va < end_va) {
+		if ((l3_table == NULL) ||
+		    (xlat_llt_covers_va(&llt, cur_va) == false)) {
+			if ((l3_table != NULL) && (update_flags != false)) {
+				update_parent_flags(ctx, l3_base_va, allocating);
+			}
+
+			ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
+			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
+				ERROR("%s: Failed to get L3 table for VA 0x%lx\n",
+				      caller, cur_va);
+				return -EFAULT;
+			}
+
+			assert(llt.table != NULL);
+			l3_table = llt.table;
+			l3_base_va = llt.llt_base_va;
+		}
+
+		idx = (unsigned int)((cur_va - l3_base_va) >>
+				     XLAT_ADDR_SHIFT(XLAT_TABLE_LEVEL_MAX));
+
+		assert(idx < XLAT_TABLE_ENTRIES);
+
+		xlat_apply_va_l3_entry(op, &l3_table[idx], cur_pa, attr);
+
+		cur_va += GRANULE_SIZE;
+		if ((op == XLAT_VA_L3_MAP) ||
+		    (op == XLAT_VA_L3_POPULATE)) {
+			cur_pa += GRANULE_SIZE;
+		}
+	}
+
+	if ((l3_table != NULL) && (update_flags != false)) {
+		update_parent_flags(ctx, l3_base_va, allocating);
+	}
+
+	return 0;
+}
+
 /*
  * Public API to map a region by searching for available VA space.
  * This function searches for a contiguous free VA range and maps the given
@@ -1000,8 +1093,6 @@ int xlat_map_l3_region(struct xlat_ctx *ctx, uintptr_t pa, size_t size,
 {
 	int ret;
 	uintptr_t va;
-	uintptr_t next_va = 0;
-	struct xlat_mmap_region mm;
 
 	assert(ctx != NULL);
 	assert((ctx->cfg.init != false));
@@ -1010,17 +1101,19 @@ int xlat_map_l3_region(struct xlat_ctx *ctx, uintptr_t pa, size_t size,
 	assert(is_mmu_enabled());
 
 	if (!GRANULE_ALIGNED(size) || !GRANULE_ALIGNED(pa)) {
-		ERROR("%s: PA/size not aligned to granularity\n", __func__);
+		ERROR("%s: PA/size unaligned: pa=0x%lx size=0x%zx\n",
+		      __func__, pa, size);
 		return -EFAULT;
 	}
 
 	if (size == 0U) {
-		ERROR("%s: Invalid size\n", __func__);
+		ERROR("%s: Invalid size: size=0x%zx\n", __func__, size);
 		return -EINVAL;
 	}
 
 	if (MT_TYPE(attr) == MT_TRANSIENT) {
-		ERROR("%s: Transient attr should not be set.\n", __func__);
+		ERROR("%s: Transient attr should not be set: attr=0x%lx\n",
+		      __func__, attr);
 		return -EFAULT;
 	}
 
@@ -1031,25 +1124,10 @@ int xlat_map_l3_region(struct xlat_ctx *ctx, uintptr_t pa, size_t size,
 		return ret;
 	}
 
-	/* Set up mmap region for mapping */
-	mm.base_pa = pa;
-	mm.base_va = va;
-	mm.size = size;
-	mm.granularity = GRANULE_SIZE;
-	mm.attr = attr;
-
-	/* Perform the actual mapping */
-	ret = xlat_tables_update_level3(ctx, &mm, &next_va);
+	ret = xlat_apply_va_l3_range(ctx, va, pa, size, attr,
+				     XLAT_VA_L3_MAP, __func__);
 	if (ret != 0) {
 		ERROR("%s: Failed to update level 3 tables\n", __func__);
-		return -EFAULT;
-	}
-
-	assert(next_va >= mm.base_va);
-	size_t mapped_size = next_va - mm.base_va;
-	if (mapped_size != size) {
-		ERROR("%s: Partial mapping (expected 0x%zx, got 0x%zx)\n",
-			__func__, size, mapped_size);
 		return -EFAULT;
 	}
 
@@ -1066,15 +1144,7 @@ int xlat_map_l3_region(struct xlat_ctx *ctx, uintptr_t pa, size_t size,
  */
 int xlat_unmap_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t unmap_size)
 {
-	struct xlat_mmap_region mm = {
-		.base_va = va,
-		.size = unmap_size,
-		.base_pa = 0, /* PA is not needed for unmapping */
-		.attr = MT_TRANSIENT, /* Use transient attr to indicate unmapping */
-		.granularity = GRANULE_SIZE,
-	};
-
-	uintptr_t next_va = 0;
+	uintptr_t end_va;
 	int ret;
 
 	assert((ctx != NULL) && (unmap_size != 0U));
@@ -1082,22 +1152,270 @@ int xlat_unmap_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t unmap_size)
 	assert((ctx->tbls.init != false));
 	assert(is_mmu_enabled());
 
-	if (!GRANULE_ALIGNED(mm.base_va) || !GRANULE_ALIGNED(unmap_size)) {
-		ERROR("%s: VA/ unmap size not aligned to granularity\n", __func__);
+	if (!GRANULE_ALIGNED(va) || !GRANULE_ALIGNED(unmap_size)) {
+		ERROR("%s: VA/unmap size unaligned: va=0x%lx size=0x%zx\n",
+		      __func__, va, unmap_size);
 		return -EFAULT;
 	}
 
-	ret = xlat_tables_update_level3(ctx, &mm, &next_va);
-	assert(next_va >= mm.base_va);
+	end_va = va + unmap_size;
+	ret = xlat_apply_va_l3_range(ctx, va, 0UL, unmap_size, 0UL,
+				     XLAT_VA_L3_UNMAP, __func__);
 
 	/* Invalidate TLB for affected VA range */
-	XLAT_ARCH_TLBI_VA_RANGE(mm.base_va, next_va, ish, mm.granularity);
+	XLAT_ARCH_TLBI_VA_RANGE(va, end_va, ish, GRANULE_SIZE);
 	XLAT_ARCH_TLBI_SYNC(ish);
 
-	if ((ret != 0) || ((next_va - mm.base_va) != mm.size)) {
+	if (ret != 0) {
 		ERROR("%s: Failed to update level 3 tables\n", __func__);
 		return -EFAULT;
 	}
 
 	return 0;
+}
+
+/*
+ * Walk the L3 translation tables of the given context starting at 'va' and
+ * return the corresponding PA via 'pa_out'. The function checks subsequent
+ * L3 descriptors for physically contiguous mappings, accumulating their size.
+ *
+ * The walk terminates when:
+ *   - The VA reaches 'top_va' (exclusive upper bound), or
+ *   - A descriptor is invalid/empty, or
+ *   - The next PA is not contiguous with the previous one.
+ *
+ * This function assumes that tables are created down to L3.
+ */
+size_t xlat_get_contig_pa_level3(struct xlat_ctx *ctx, uintptr_t va,
+			      uintptr_t top_va, uintptr_t *pa_out)
+{
+	struct xlat_llt_info llt = {0};
+	int ret;
+	size_t accumulated_size = 0;
+	uintptr_t expected_pa = 0UL;
+	uintptr_t cur_va = va;
+	bool llt_valid = false;
+
+	assert(ctx != NULL);
+	assert(pa_out != NULL);
+	assert(ALIGNED(va, GRANULE_SIZE));
+	assert(ALIGNED(top_va, GRANULE_SIZE));
+	assert(top_va > va);
+
+	while (cur_va < top_va) {
+		uint64_t desc;
+		uint64_t *tte_ptr;
+		uintptr_t pa;
+
+		if ((llt_valid == false) ||
+		    (xlat_llt_covers_va(&llt, cur_va) == false)) {
+			/* Get the L3 table for the current VA */
+			ret = xlat_get_llt_from_va(&llt, ctx, cur_va);
+			if ((ret != 0) || (llt.level != XLAT_TABLE_LEVEL_MAX)) {
+				break;
+			}
+			llt_valid = true;
+		}
+
+		/* Get the TTE pointer for the current VA */
+		tte_ptr = xlat_get_tte_ptr(&llt, cur_va);
+		if (tte_ptr == NULL) {
+			break;
+		}
+
+		desc = xlat_read_tte(tte_ptr);
+
+		/* Check if descriptor is a valid L3 page */
+		if ((desc & DESC_MASK) != PAGE_DESC) {
+			break;
+		}
+
+		pa = (uintptr_t)xlat_get_oa_from_tte(desc);
+
+		if (accumulated_size == 0U) {
+			/* First entry: record the starting PA */
+			*pa_out = pa;
+			expected_pa = pa + GRANULE_SIZE;
+			accumulated_size = GRANULE_SIZE;
+		} else {
+			/* Check contiguity */
+			if (pa != expected_pa) {
+				break;
+			}
+			expected_pa += GRANULE_SIZE;
+			accumulated_size += GRANULE_SIZE;
+		}
+
+		cur_va += GRANULE_SIZE;
+	}
+
+	return accumulated_size;
+}
+
+/*
+ * Reserve a contiguous VA region by marking L3 entries as allocated but
+ * invalid. The entries get TRANSIENT_DESC | VA_ALLOCATED_FLAG set so
+ * find_available_va() will skip them, but hardware cannot translate them.
+ */
+int xlat_reserve_va_l3_region(struct xlat_ctx *ctx, size_t size,
+			      uintptr_t *reserved_va)
+{
+	int ret;
+	uintptr_t va;
+
+	assert(ctx != NULL);
+	assert((ctx->cfg.init != false));
+	assert((ctx->tbls.init != false));
+	assert(reserved_va != NULL);
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(size) || (size == 0U)) {
+		ERROR("%s: Invalid size: size=0x%zx\n", __func__, size);
+		return -EINVAL;
+	}
+
+	/* Find available VA space */
+	ret = find_available_va(ctx, size, &va);
+	if (ret != 0) {
+		ERROR("%s: No available VA space for size 0x%zx\n", __func__, size);
+		return ret;
+	}
+
+	ret = xlat_apply_va_l3_range(ctx, va, 0UL, size, 0UL,
+				     XLAT_VA_L3_RESERVE, __func__);
+	if (ret != 0) {
+		return ret;
+	}
+
+	*reserved_va = va;
+	return 0;
+}
+
+/*
+ * Populate a reserved VA range with PA mappings. Writes descriptors with all
+ * attributes and PA but keeps them invalid (VALID_DESC bit cleared).
+ */
+int xlat_populate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va,
+			       uintptr_t pa, size_t size, uint64_t attr)
+{
+	assert(ctx != NULL);
+	assert((ctx->cfg.init != false));
+	assert((ctx->tbls.init != false));
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(size) || !GRANULE_ALIGNED(va) || !GRANULE_ALIGNED(pa)) {
+		ERROR("%s: VA/PA/size unaligned: va=0x%lx pa=0x%lx size=0x%zx\n",
+		      __func__, va, pa, size);
+		return -EINVAL;
+	}
+
+	if ((size == 0U) || (MT_TYPE(attr) == MT_TRANSIENT)) {
+		ERROR("%s: Invalid arguments: size=0x%zx attr=0x%lx\n",
+		      __func__, size, attr);
+		return -EINVAL;
+	}
+
+	return xlat_apply_va_l3_range(ctx, va, pa, size, attr,
+				      XLAT_VA_L3_POPULATE, __func__);
+}
+
+/*
+ * Commit a populated VA range by setting the VALID_DESC bit on all entries,
+ * making them visible to hardware translation.
+ */
+int xlat_commit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
+{
+	assert(ctx != NULL);
+	assert((ctx->cfg.init != false));
+	assert((ctx->tbls.init != false));
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(va) || !GRANULE_ALIGNED(size) || (size == 0U)) {
+		ERROR("%s: Invalid arguments: va=0x%lx size=0x%zx\n",
+		      __func__, va, size);
+		return -EINVAL;
+	}
+
+	return xlat_apply_va_l3_range(ctx, va, 0UL, size, 0UL,
+				      XLAT_VA_L3_COMMIT, __func__);
+}
+
+/*
+ * Decommit a committed VA range by clearing the VALID_DESC bit, making entries
+ * invisible to hardware. The VA reservation and PA/attribute data are retained.
+ * TLB is invalidated for the affected range.
+ */
+int xlat_decommit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
+{
+	uintptr_t end_va;
+	int ret;
+
+	assert(ctx != NULL);
+	assert((ctx->cfg.init != false));
+	assert((ctx->tbls.init != false));
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(va) || !GRANULE_ALIGNED(size) || (size == 0U)) {
+		ERROR("%s: Invalid arguments: va=0x%lx size=0x%zx\n",
+		      __func__, va, size);
+		return -EINVAL;
+	}
+
+	end_va = va + size;
+	ret = xlat_apply_va_l3_range(ctx, va, 0UL, size, 0UL,
+				     XLAT_VA_L3_DECOMMIT, __func__);
+	if (ret != 0) {
+		return ret;
+	}
+
+	/* Invalidate TLB for the decommitted VA range */
+	XLAT_ARCH_TLBI_VA_RANGE(va, end_va, ish, GRANULE_SIZE);
+	XLAT_ARCH_TLBI_SYNC(ish);
+
+	return 0;
+}
+
+/*
+ * Depopulate a VA range by clearing PA/attribute data and returning entries
+ * to the reserved state (TRANSIENT_DESC | VA_ALLOCATED_FLAG). Entries must
+ * not be valid (must be populated-but-uncommitted or decommitted).
+ * This is the reverse of xlat_populate_va_l3_region.
+ */
+int xlat_depopulate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
+{
+	assert(ctx != NULL);
+	assert((ctx->cfg.init != false));
+	assert((ctx->tbls.init != false));
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(va) || !GRANULE_ALIGNED(size) || (size == 0U)) {
+		ERROR("%s: Invalid arguments: va=0x%lx size=0x%zx\n",
+		      __func__, va, size);
+		return -EINVAL;
+	}
+
+	return xlat_apply_va_l3_range(ctx, va, 0UL, size, 0UL,
+				      XLAT_VA_L3_DEPOPULATE, __func__);
+}
+
+/*
+ * Release a VA reservation by resetting L3 entries back to free state
+ * (TRANSIENT_DESC only). Entries must not be valid (must be reserved,
+ * populated-but-uncommitted, or decommitted).
+ */
+int xlat_unreserve_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size)
+{
+	assert(ctx != NULL);
+	assert((ctx->cfg.init != false));
+	assert((ctx->tbls.init != false));
+	assert(is_mmu_enabled());
+
+	if (!GRANULE_ALIGNED(va) || !GRANULE_ALIGNED(size) || (size == 0U)) {
+		ERROR("%s: Invalid arguments: va=0x%lx size=0x%zx\n",
+		      __func__, va, size);
+		return -EINVAL;
+	}
+
+	return xlat_apply_va_l3_range(ctx, va, 0UL, size, 0UL,
+				      XLAT_VA_L3_UNRESERVE, __func__);
 }

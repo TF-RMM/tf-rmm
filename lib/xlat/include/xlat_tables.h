@@ -447,5 +447,141 @@ int xlat_map_l3_region(struct xlat_ctx *ctx, uintptr_t pa, size_t size,
  */
 int xlat_unmap_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t unmap_size);
 
+/*
+ * Walk the L3 translation tables of the given context starting at 'va' and
+ * return the corresponding PA via 'pa_out'. The function checks subsequent
+ * L3 descriptors for physically contiguous mappings, accumulating their size.
+ *
+ * The walk terminates when:
+ *   - The VA reaches 'top_va' (exclusive upper bound), or
+ *   - A descriptor is invalid/empty, or
+ *   - The next PA is not contiguous with the previous one.
+ *
+ * This function assumes that tables are created down to L3.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context to walk.
+ *   - va: Starting virtual address (must be page-aligned).
+ *   - top_va: Upper VA limit (exclusive, must be page-aligned, > va).
+ *   - pa_out: Output pointer for the PA corresponding to 'va'.
+ *
+ * Returns:
+ *   - The accumulated contiguous size (in bytes) starting from 'va'.
+ *   - 0 if the starting VA is not validly mapped or inputs are invalid.
+ *   - On success, *pa_out contains the PA of 'va'.
+ */
+size_t xlat_get_contig_pa_level3(struct xlat_ctx *ctx, uintptr_t va,
+			     uintptr_t top_va, uintptr_t *pa_out);
+
+/*
+ * Reserve a contiguous VA region of the given size without mapping any PA.
+ * The reserved entries are marked as allocated so the VA allocator will not
+ * reuse them, but they remain invalid from the hardware perspective.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context.
+ *   - size: Size of the VA region to reserve (must be granule-aligned).
+ *   - reserved_va: Output pointer for the reserved VA base.
+ *
+ * Return:
+ *   - 0 on success with *reserved_va set to the base of the reserved region.
+ *   - Negative error code on failure (-EFAULT, -EINVAL, -ENOMEM).
+ */
+int xlat_reserve_va_l3_region(struct xlat_ctx *ctx, size_t size,
+			      uintptr_t *reserved_va);
+
+/*
+ * Populate a previously reserved VA range with a PA mapping. The entries are
+ * written with the full descriptor (PA + attributes) but remain invalid from
+ * the hardware perspective until committed.
+ *
+ * The VA range [va, va + size) must have been previously reserved with
+ * xlat_reserve_va_l3_region. Multiple calls can populate different
+ * sub-ranges of the same reservation.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context.
+ *   - va: Starting VA to populate (must be granule-aligned, within reservation).
+ *   - pa: Physical address to map (must be granule-aligned).
+ *   - size: Size to populate (must be granule-aligned).
+ *   - attr: Memory attributes for the mapping.
+ *
+ * Return:
+ *   - 0 on success.
+ *   - Negative error code on failure (-EFAULT, -EINVAL).
+ */
+int xlat_populate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va,
+			       uintptr_t pa, size_t size, uint64_t attr);
+
+/*
+ * Commit a previously populated VA range, making the descriptors valid to
+ * hardware. After this call, the CPU can translate through these entries.
+ *
+ * The entire range [va, va + size) must have been populated with
+ * xlat_populate_va_l3_region before calling this function.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context.
+ *   - va: Starting VA to commit (must be granule-aligned).
+ *   - size: Size to commit (must be granule-aligned).
+ *
+ * Return:
+ *   - 0 on success.
+ *   - Negative error code on failure (-EFAULT, -EINVAL).
+ */
+int xlat_commit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size);
+
+/*
+ * Decommit a previously committed VA range, making the descriptors invalid
+ * to hardware while retaining the VA reservation and PA/attribute information.
+ * The entries can be re-committed later with xlat_commit_va_l3_region.
+ *
+ * TLB invalidation is performed for the affected range.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context.
+ *   - va: Starting VA to decommit (must be granule-aligned).
+ *   - size: Size to decommit (must be granule-aligned).
+ *
+ * Return:
+ *   - 0 on success.
+ *   - Negative error code on failure (-EFAULT, -EINVAL).
+ */
+int xlat_decommit_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size);
+
+/*
+ * Depopulate a VA range, clearing PA/attribute information and returning
+ * entries to the reserved state. Entries must not be valid (must be
+ * populated-but-uncommitted or decommitted).
+ * Use xlat_decommit_va_l3_region first if the entries are live.
+ * This is the reverse of xlat_populate_va_l3_region.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context.
+ *   - va: Starting VA to depopulate (must be granule-aligned).
+ *   - size: Size to depopulate (must be granule-aligned).
+ *
+ * Return:
+ *   - 0 on success.
+ *   - Negative error code on failure (-EFAULT, -EINVAL).
+ */
+int xlat_depopulate_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size);
+
+/*
+ * Release a VA reservation, making the entries free for future allocations.
+ * The entries must not be valid (i.e. must be reserved, populated-but-uncommitted,
+ * or decommitted). Use xlat_decommit_va_l3_region first if the entries are live.
+ *
+ * Arguments:
+ *   - ctx: Pointer to the translation context.
+ *   - va: Starting VA to unreserve (must be granule-aligned).
+ *   - size: Size to unreserve (must be granule-aligned).
+ *
+ * Return:
+ *   - 0 on success.
+ *   - Negative error code on failure (-EFAULT, -EINVAL).
+ */
+int xlat_unreserve_va_l3_region(struct xlat_ctx *ctx, uintptr_t va, size_t size);
+
 #endif /*__ASSEMBLER__*/
 #endif /* XLAT_TABLES_H */

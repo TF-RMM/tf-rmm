@@ -83,4 +83,123 @@ int xlat_low_va_unmap(uintptr_t va, size_t size);
 /* Get dynamic VA base */
 uintptr_t xlat_low_va_get_dyn_va_base(void);
 
+/*
+ * Walk the low VA translation tables starting at 'va' and return the
+ * corresponding PA via 'pa_out'. The function then checks subsequent L3
+ * descriptors for physically contiguous mappings, accumulating their size.
+ *
+ * The walk terminates when:
+ *   - The VA reaches 'top_va' (exclusive upper bound), or
+ *   - A descriptor is invalid/empty, or
+ *   - The next PA is not contiguous with the previous one.
+ *
+ * This function assumes that tables are created down to L3.
+ *
+ * Arguments:
+ *   - va: Starting virtual address (must be page-aligned).
+ *   - top_va: Upper VA limit (exclusive, must be page-aligned, > va).
+ *   - pa_out: Output pointer for the PA corresponding to 'va'.
+ *
+ * Returns:
+ *   - The accumulated contiguous size (in bytes) starting from 'va'.
+ *   - 0 if the starting VA is not validly mapped or inputs are invalid.
+ *   - On success, *pa_out contains the PA of 'va'.
+ */
+size_t xlat_low_va_get_contig_pa(uintptr_t va, uintptr_t top_va,
+				     uintptr_t *pa_out);
+
+/*
+ * Reserve a contiguous VA region in the dynamic VA pool without mapping
+ * any PA. The reserved region is invisible to hardware and cannot be used
+ * for translation until populated and committed.
+ *
+ * Arguments:
+ *   - size: Size to reserve (must be granule-aligned, > 0).
+ *   - reserved_va: Output pointer for the reserved VA base.
+ *
+ * Returns:
+ *   - 0 on success with *reserved_va set.
+ *   - Negative error code on failure.
+ */
+int xlat_low_va_reserve(size_t size, uintptr_t *reserved_va);
+
+/*
+ * Populate a sub-range of a previously reserved VA region with a PA mapping.
+ * The entries are written with full attributes but remain invalid to hardware.
+ * Multiple calls can populate different (non-overlapping) sub-ranges of the
+ * same reservation with different PAs.
+ *
+ * Arguments:
+ *   - va: Starting VA to populate (must be within a reserved region).
+ *   - pa: Physical address to map (must be granule-aligned).
+ *   - size: Size to populate (must be granule-aligned, > 0).
+ *   - attr: Memory attributes for the mapping.
+ *
+ * Returns:
+ *   - 0 on success.
+ *   - Negative error code on failure.
+ */
+int xlat_low_va_populate(uintptr_t va, uintptr_t pa, size_t size, uint64_t attr);
+
+/*
+ * Commit a previously populated VA region, making all entries valid to
+ * hardware. After this call the CPU can translate through the region.
+ * The entire range must have been populated before committing.
+ *
+ * Arguments:
+ *   - va: Starting VA to commit (must be granule-aligned).
+ *   - size: Size to commit (must be granule-aligned, > 0).
+ *
+ * Returns:
+ *   - 0 on success.
+ *   - Negative error code on failure.
+ */
+int xlat_low_va_commit(uintptr_t va, size_t size);
+
+/*
+ * Decommit a previously committed VA region, making entries invalid to
+ * hardware while retaining the VA reservation and PA/attribute data.
+ * The region can be re-committed later with xlat_low_va_commit.
+ * TLB is invalidated for the affected range.
+ *
+ * Arguments:
+ *   - va: Starting VA to decommit (must be granule-aligned).
+ *   - size: Size to decommit (must be granule-aligned, > 0).
+ *
+ * Returns:
+ *   - 0 on success.
+ *   - Negative error code on failure.
+ */
+int xlat_low_va_decommit(uintptr_t va, size_t size);
+
+/*
+ * Depopulate a previously populated (but uncommitted or decommitted) VA region,
+ * clearing PA/attribute data and returning entries to the reserved state.
+ * This is the reverse of xlat_low_va_populate.
+ *
+ * Arguments:
+ *   - va: Starting VA to depopulate (must be granule-aligned).
+ *   - size: Size to depopulate (must be granule-aligned, > 0).
+ *
+ * Returns:
+ *   - 0 on success.
+ *   - Negative error code on failure.
+ */
+int xlat_low_va_depopulate(uintptr_t va, size_t size);
+
+/*
+ * Release a VA reservation, returning the VA space to the free pool.
+ * The region must not be valid (must be reserved, populated-but-uncommitted,
+ * or decommitted). Use xlat_low_va_decommit first if the region is live.
+ *
+ * Arguments:
+ *   - va: Starting VA to unreserve (must be granule-aligned).
+ *   - size: Size to unreserve (must be granule-aligned, > 0).
+ *
+ * Returns:
+ *   - 0 on success.
+ *   - Negative error code on failure.
+ */
+int xlat_low_va_unreserve(uintptr_t va, size_t size);
+
 #endif /* XLAT_LOW_VA_H */
