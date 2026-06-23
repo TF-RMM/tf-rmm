@@ -218,6 +218,11 @@ uintptr_t test_helpers_allocate_granules_aligned(unsigned int n);
 void test_helpers_init(void);
 
 /*
+ * Helper function to get a valid random private MECID value.
+ */
+unsigned int test_helpers_get_random_mecid(void);
+
+/*
  * Return a pointer to the first available granule structure
  */
 struct granule *test_helpers_granule_struct_base(void);

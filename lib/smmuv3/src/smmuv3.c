@@ -577,7 +577,7 @@ static int configure_ste(struct smmuv3_dev *smmu, unsigned int sid,
 	/* STE[319:256] */
 	if (is_feat_mec_present()) {
 		ste_ptr->ste[4] = INPLACE(STE4_MECID,
-					(unsigned long)INTERNAL_MECID(s2_cfg->mecid));
+					(unsigned long)s2_cfg->mecid);
 	}
 
 	SMMU_DEBUG("STE[319:0] %lx:%lx:%lx:%lx:%lx\n",

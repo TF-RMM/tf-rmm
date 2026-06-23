@@ -310,6 +310,16 @@ struct granule *test_helpers_granule_struct_base(void)
 	return addr_to_granule(host_util_get_granule_base());
 }
 
+unsigned int test_helpers_get_random_mecid(void)
+{
+	/*
+	 * 256 is harmless today because the fake host likely
+	 * emulates a 8-bit or wider MECID space.
+	 */
+	return MECID_PRIVATE_START + (rand() %
+			(256 - MECID_PRIVATE_START));
+}
+
 /******************************************************************
  * Private APIs shared with other host_test files.
  *****************************************************************/

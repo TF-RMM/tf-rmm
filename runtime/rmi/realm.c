@@ -259,7 +259,8 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 				  unsigned int *n_rtts,
 				  bool *rtt_tree_pp,
 				  unsigned long *rtt_base,
-				  unsigned long *ats_plane)
+				  unsigned long *ats_plane,
+				  unsigned int *mec_policy)
 {
 	unsigned long feat_reg0 = get_feature_register_0();
 	unsigned long feat_reg2 = get_feature_register_2();
@@ -270,7 +271,7 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 		EXTRACT(RMI_REALM_FLAGS1_RTT_TREE_PP, p->flags1);
 	unsigned long feat_flags1_s2ap_enc __unused =
 		EXTRACT(RMI_REALM_FLAGS1_S2AP_ENC, p->flags1);
-	unsigned long mec_policy;
+	unsigned long mec_policy_param;
 	unsigned int n_planes;
 
 	/* Validate LPA2 flag */
@@ -340,11 +341,12 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 	}
 
 	/* Validate MEC policy */
-	mec_policy = EXTRACT(RMI_REALM_FLAGS0_MEC_POLICY, p->flags0);
-	if ((mec_policy != RMI_MEC_POLICY_SHARED) &&
-	    (mec_policy != RMI_MEC_POLICY_PRIVATE)) {
+	mec_policy_param = EXTRACT(RMI_REALM_FLAGS0_MEC_POLICY, p->flags0);
+	if ((mec_policy_param != RMI_MEC_POLICY_SHARED) &&
+	    (mec_policy_param != RMI_MEC_POLICY_PRIVATE)) {
 		return false;
 	}
+	*mec_policy = (unsigned int)mec_policy_param;
 
 	if (!validate_ipa_bits_and_sl(p->s2sz, p->rtt_level_start,
 						is_lpa2_requested(p))) {
@@ -594,6 +596,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	unsigned int mecid = 0U;
 	unsigned long ats_plane;
 	bool rtt_tree_pp;
+	unsigned int mec_policy;
 
 	if (!get_realm_params(&p, realm_params_addr)) {
 		return RMI_ERROR_INPUT;
@@ -601,7 +604,8 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 
 	/* coverity[uninit_use_in_call:SUPPRESS] */
 	if (!validate_realm_params(&p, &n_vmids, &n_rtts,
-				   &rtt_tree_pp, rtt_base, &ats_plane)) {
+				   &rtt_tree_pp, rtt_base, &ats_plane,
+				   &mec_policy)) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -618,9 +622,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	}
 
 	/* Allocate MECID for the realm */
-	if (!mecid_alloc(&mecid,
-			 (unsigned int)EXTRACT(RMI_REALM_FLAGS0_MEC_POLICY,
-					       p.flags0))) {
+	if (!mecid_alloc(&mecid, mec_policy == RMI_MEC_POLICY_SHARED)) {
 		/* Free allocated VMIDs before returning */
 		free_vmids(vmid, n_vmids);
 		return RMI_ERROR_GLOBAL;

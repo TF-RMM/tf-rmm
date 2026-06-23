@@ -167,7 +167,8 @@ TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC1)
 				continue;
 			}
 			slot_va = (uintptr_t)(is_realm_mecid_slot((enum buffer_slot)j) ?
-				buffer_granule_mecid_map(test_granule, (enum buffer_slot)j, rand() % 256) :
+				buffer_granule_mecid_map(test_granule, (enum buffer_slot)j,
+					test_helpers_get_random_mecid()) :
 				buffer_granule_map(test_granule, (enum buffer_slot)j));
 			expected_va = slot_to_va((enum buffer_slot)j);
 
@@ -234,7 +235,8 @@ TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC2)
 			host_util_set_cpuid(j);
 			test_granule = addr_to_granule(granules_per_cpu[j]);
 			slot_va[j] = is_realm_mecid_slot((enum buffer_slot)i) ?
-				buffer_granule_mecid_map(test_granule, (enum buffer_slot)i, rand() % 256) :
+				buffer_granule_mecid_map(test_granule, (enum buffer_slot)i,
+					test_helpers_get_random_mecid()) :
 				buffer_granule_map(test_granule, (enum buffer_slot)i);
 		}
 
@@ -1951,7 +1953,8 @@ TEST(slot_buffer, buffer_granule_map_zeroed_TC1)
 					(int)test_helpers_get_rand_in_range(1UL, INT_MAX),
 					GRANULE_SIZE);
 				void *buf = is_realm_mecid_slot((enum buffer_slot)k) ?
-					buffer_granule_mecid_map_zeroed(granule, (enum buffer_slot)k, rand() % 256) :
+					buffer_granule_mecid_map_zeroed(granule, (enum buffer_slot)k,
+						test_helpers_get_random_mecid()) :
 					buffer_granule_map_zeroed(granule, (enum buffer_slot)k);
 				buffer_unmap(buf);
 
@@ -2031,7 +2034,8 @@ TEST(slot_buffer, check_cpu_slots_empty_TC2)
 		(unsigned long)(SLOT_NS + 1U), (unsigned long)NR_CPU_SLOTS - 1U);
 
 	buf = is_realm_mecid_slot(slot)
-		? buffer_granule_mecid_map(test_granule, slot, rand() % 256)
+		? buffer_granule_mecid_map(test_granule, slot,
+			test_helpers_get_random_mecid())
 		: buffer_granule_map(test_granule, slot);
 
 	bool ret = check_cpu_slots_empty();

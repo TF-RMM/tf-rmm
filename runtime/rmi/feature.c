@@ -153,8 +153,8 @@ unsigned long get_feature_register_4(void)
 	unsigned long feat_reg4 = 0UL;
 	unsigned int mec_count;
 
-	/* Get the maximum number of MECs supported by the hardware */
-	mec_count = mecid_max();
+	/* Get the maximum number of private MECIDs supported by RMM */
+	mec_count = mecid_private_count();
 
 	/* Report the MEC count (the full 64-bit field is used for MEC_COUNT) */
 	feat_reg4 = (unsigned long)mec_count;
