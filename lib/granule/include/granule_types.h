@@ -41,6 +41,7 @@
  * - GRANULE_STATE_PDEV_AUX
  * - GRANULE_STATE_VDEV_AUX
  * - GRANULE_STATE_INTERNAL
+ * - GRANULE_STATE_PSMMU_ST_L2
  * - DEV_GRANULE_STATE_MAPPED
  *
  * The following locking rules must be followed in all cases:
@@ -62,6 +63,7 @@
  *    4. `REC_AUX`
  *    5. `PDEV_AUX`
  *    6. `INTERNAL`
+ *    7. `PSMMU_ST_L2`
  *
  * 5. Granules in the same `internal` state must be locked in the order defined
  *    below for that specific state.
@@ -227,7 +229,15 @@
 /* Granule is used internally by the RMM */
 #define GRANULE_STATE_INTERNAL		12U
 
-#define GRANULE_STATE_LAST		GRANULE_STATE_INTERNAL
+/*
+ * PSMMU_ST_L2 - SMMUv3 Level 2 Stream Table
+ *
+ * Granule content is protected by the SMMUv3 device lock. The granule
+ * refcount tracks the number of configured STEs in the L2 Stream Table.
+ */
+#define GRANULE_STATE_PSMMU_ST_L2	13U
+
+#define GRANULE_STATE_LAST		GRANULE_STATE_PSMMU_ST_L2
 
 /*
  * Granule descriptor bit fields:

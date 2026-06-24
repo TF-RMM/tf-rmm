@@ -8,6 +8,7 @@
 
 #include <errno.h>
 #include <mmio.h>
+#include <string.h>
 #include <xlat_low_va.h>
 
 /*
@@ -28,6 +29,55 @@ static inline uintptr_t smmuv3_arch_map(size_t size, uint64_t attr,
 static inline int smmuv3_arch_unmap(uintptr_t va, size_t size)
 {
 	return xlat_low_va_unmap(va, size);
+}
+
+/*
+ * Reserve VA space at boot time for later populate/commit.
+ */
+static inline int smmuv3_arch_reserve(size_t size, uintptr_t *va)
+{
+	return xlat_low_va_reserve(size, va);
+}
+
+/*
+ * Populate a previously reserved VA region with a PA mapping.
+ */
+static inline int smmuv3_arch_populate(uintptr_t va, uintptr_t pa,
+				       size_t size, uint64_t attr)
+{
+	return xlat_low_va_populate(va, pa, size, attr);
+}
+
+/*
+ * Commit a populated VA region, making it hardware-visible, and zero
+ * the memory.
+ */
+static inline int smmuv3_arch_commit_clear(uintptr_t va, size_t size)
+{
+	int ret = xlat_low_va_commit(va, size);
+
+	if (ret == 0) {
+		(void)memset((void *)va, 0, size);
+	}
+	return ret;
+}
+
+/*
+ * Decommit a VA region, making it hardware-invisible but keeping
+ * the VA reservation and PA/attribute data.
+ */
+static inline int smmuv3_arch_decommit(uintptr_t va, size_t size)
+{
+	return xlat_low_va_decommit(va, size);
+}
+
+/*
+ * Depopulate a VA region, clearing PA/attribute data and returning
+ * entries to the reserved state. Must be decommitted first.
+ */
+static inline int smmuv3_arch_depopulate(uintptr_t va, size_t size)
+{
+	return xlat_low_va_depopulate(va, size);
 }
 
 /*

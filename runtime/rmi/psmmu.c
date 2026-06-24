@@ -282,10 +282,9 @@ static void memory_reclaim(enum psmmu_sro_stage stage_id, struct smc_result *res
 	remaining = total;
 
 	/*
-	 * Reconstruct individual granule PAs from the base PA and size
-	 * of each donated range, and transition each granule back to
-	 * DELEGATED state. Use total_transferred to handle partial
-	 * donations on the last range.
+	 * Reconstruct individual granule PAs from the base PA and size of each
+	 * donated range, and transition each granule back to DELEGATED state.
+	 * Use total_transferred to handle partial donations on the last range.
 	 */
 	for (unsigned int r = 0U; r <= sro->psmmu_ctx.range_idx; r++) {
 		unsigned long count = sro->psmmu_ctx.psmmu_range[r].requested;
@@ -298,18 +297,21 @@ static void memory_reclaim(enum psmmu_sro_stage stage_id, struct smc_result *res
 		for (unsigned long j = 0UL; j < count; j++) {
 			struct granule *gr;
 
-			__unused bool ret;
+			__unused bool add_ret;
 
-			gr = find_lock_granule(granule_pa, GRANULE_STATE_INTERNAL);
+			gr = find_lock_granule(granule_pa,
+					GRANULE_STATE_INTERNAL);
 			assert(gr != NULL);
 			granule_unlock_transition_to_delegated(gr);
 
-			ret = addr_list_add_block(&sro->addr_list, granule_pa,
-					XLAT_TABLE_LEVEL_MAX,
-					RMI_OP_MEM_DELEGATED);
-			assert(ret);
+			add_ret = addr_list_add_block(
+				&sro->addr_list, granule_pa,
+				XLAT_TABLE_LEVEL_MAX,
+				RMI_OP_MEM_DELEGATED);
+			assert(add_ret);
 			granule_pa += GRANULE_SIZE;
 		}
+
 		remaining -= count;
 		if (remaining == 0UL) {
 			break;
@@ -408,11 +410,7 @@ void smc_psmmu_activate(unsigned long psmmu_ptr, unsigned long params_ptr,
 		return;
 	}
 
-	/*
-	 * Calculate the number of granules required for
-	 * the L1 Stream Table. The same size is used for
-	 * the L2 Stream Table descriptors array.
-	 */
+	/* Calculate the number of granules required for the L1 Stream Table. */
 	l1st_grans = smmuv3_psmmu_strtab_size(smmu) / GRANULE_SIZE;
 
 	if (!smmuv3_psmmu_set_busy(smmu, PSMMU_INACTIVE)) {
@@ -447,14 +445,6 @@ void smc_psmmu_activate(unsigned long psmmu_ptr, unsigned long params_ptr,
 	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_L1_ST].requested = l1st_grans;
 	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_L1_ST].contig =
 									RMI_OP_MEM_CONTIG;
-	/* L2 Stream Table descriptors array */
-	/*
-	 * TODO: currently we request a contiguous block, but this needs
-	 * to be changed to non-contiguous.
-	 */
-	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_L2_DS].requested = l1st_grans;
-	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_L2_DS].contig =
-									RMI_OP_MEM_CONTIG;
 	/* Command queue */
 	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_CMDQ].requested = 1UL;
 	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_CMDQ].contig =
@@ -487,6 +477,7 @@ static void activate_start(unsigned long fid, struct smc_result *res)
 	assert(sro != NULL);
 
 	ret = memory_donate(sro, res);
+
 	if (ret == 0) {
 		/* Empty donation; request more memory from the host */
 		return;
@@ -558,8 +549,7 @@ static void activate_finish(unsigned long fid, struct smc_result *res)
 	res->x[2] = 0UL;
 
 	ret = smmuv3_psmmu_register_st_l1(smmu,
-			sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_L1_ST].base,
-			sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_L2_DS].base);
+			sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_L1_ST].base);
 	if (ret != 0) {
 		goto unmap_reclaim;
 	}
@@ -650,7 +640,7 @@ void smc_psmmu_deactivate(unsigned long psmmu_ptr, struct smc_result *res)
 	/*
 	 * Retrieve the base PA and size of each donated range from the
 	 * driver. memory_reclaim() will reconstruct individual granule
-	 * PAs from these.
+	 * PAs from these ranges.
 	 */
 	smmuv3_psmmu_get_donated(smmu, bases, sizes);
 
@@ -659,6 +649,15 @@ void smc_psmmu_deactivate(unsigned long psmmu_ptr, struct smc_result *res)
 		sro->psmmu_ctx.psmmu_range[i].requested = sizes[i];
 		total += sizes[i];
 	}
+
+	/* Set contig flags for reclaim path */
+	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_L1_ST].contig =
+								RMI_OP_MEM_CONTIG;
+	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_CMDQ].contig =
+								RMI_OP_MEM_NON_CONTIG;
+	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_EVTQ].contig =
+								RMI_OP_MEM_NON_CONTIG;
+
 	sro->psmmu_ctx.total_transferred = total;
 	sro->psmmu_ctx.range_idx = (unsigned int)PSMMU_MEM_RANGE_NUM - 1U;
 
@@ -946,4 +945,3 @@ static void destroy_l2_finish(unsigned long fid, struct smc_result *res)
 	assert(fid == SMC_RMI_OP_CONTINUE);
 	res->x[0] = RMI_SUCCESS;
 }
-

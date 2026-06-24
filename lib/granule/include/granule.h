@@ -19,12 +19,18 @@
 #define RTT_REFCOUNT_MAX	(unsigned short)	\
 					(GRANULE_SIZE / sizeof(uint64_t))
 
+/* Maximum number of 64-byte STEs in a granule-sized PSMMU L2 Stream Table */
+#define PSMMU_ST_L2_REFCOUNT_MAX	(unsigned short)(GRANULE_SIZE / U(64))
+
 /* Maximum value defined by the 'refcount' field width in granule descriptor */
 #define REFCOUNT_MAX		(unsigned short)	\
 					((U(1) << GRN_REFCOUNT_WIDTH) - U(1))
 
 /* RTT_REFCOUNT_MAX can't exceed REFCOUNT_MAX */
 COMPILER_ASSERT(RTT_REFCOUNT_MAX <= REFCOUNT_MAX);
+
+/* PSMMU_ST_L2_REFCOUNT_MAX can't exceed REFCOUNT_MAX */
+COMPILER_ASSERT(PSMMU_ST_L2_REFCOUNT_MAX <= REFCOUNT_MAX);
 
 /* Granule descriptor fields access macros */
 #define LOCKED(g)	\
@@ -119,6 +125,9 @@ static inline void __granule_assert_unlocked_invariants(struct granule *g,
 		break;
 	case GRANULE_STATE_INTERNAL:
 		assert(REFCOUNT(g) == 0U);
+		break;
+	case GRANULE_STATE_PSMMU_ST_L2:
+		assert(REFCOUNT(g) <= PSMMU_ST_L2_REFCOUNT_MAX);
 		break;
 	default:
 		/* Unknown granule type */

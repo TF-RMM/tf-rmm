@@ -127,7 +127,10 @@ void debug_state(void *addr, unsigned short expected_state)
 		"GRANULE_STATE_PDEV",
 		"GRANULE_STATE_PDEV_AUX",
 		"GRANULE_STATE_VDEV",
-		"GRANULE_STATE_VDEV_AUX"
+		"GRANULE_STATE_VDEV_AUX",
+		"GRANULE_STATE_PARTIAL",
+		"GRANULE_STATE_INTERNAL",
+		"GRANULE_STATE_PSMMU_ST_L2"
 	};
 
 	struct granule *g_addr = find_granule((uintptr_t)addr);
