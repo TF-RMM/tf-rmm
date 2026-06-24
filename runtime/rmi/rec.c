@@ -751,12 +751,12 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 }
 
 void smc_psci_complete(unsigned long calling_rec_addr,
-		       unsigned long target_rec_addr,
 		       unsigned long status,
 		       struct smc_result *res)
 {
 	struct granule *g_calling_rec, *g_target_rec;
 	struct rec  *calling_rec, *target_rec;
+	unsigned long target_rec_addr;
 	unsigned long ret;
 	void *target_rec_aux;
 
@@ -765,10 +765,29 @@ void smc_psci_complete(unsigned long calling_rec_addr,
 		return;
 	}
 
-	if (!GRANULE_ALIGNED(target_rec_addr)) {
+	g_calling_rec = find_lock_granule(calling_rec_addr, GRANULE_STATE_REC);
+	if (g_calling_rec == NULL) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
+
+	/*
+	 * Synchronize with REC exit before reading `target_rec_addr`
+	 * which may be updated while the REC is running.
+	 */
+	if (granule_refcount_read_acquire(g_calling_rec) != 0U) {
+		granule_unlock(g_calling_rec);
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	calling_rec = buffer_granule_map(g_calling_rec, SLOT_REC);
+	assert(calling_rec != NULL);
+
+	target_rec_addr = calling_rec->target_rec_addr;
+
+	buffer_unmap(calling_rec);
+	granule_unlock(g_calling_rec);
 
 	if (!find_lock_two_granules(calling_rec_addr,
 					GRANULE_STATE_REC,
@@ -785,6 +804,9 @@ void smc_psci_complete(unsigned long calling_rec_addr,
 	 * reference counter. Here, we may access the volatile (non constant)
 	 * members of REC structure (such as rec->running) only if the counter
 	 * is zero.
+	 *
+	 * This check is needed again here because rec lock is released and
+	 * locked again and REC could have started running in that window.
 	 */
 	if (granule_refcount_read_acquire(g_calling_rec) != 0U) {
 		/*

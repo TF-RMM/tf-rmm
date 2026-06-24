@@ -262,14 +262,13 @@ void host_rmi_rtt_unprot_map(void *rd, uintptr_t base, uintptr_t top,
 		      res);
 }
 
-void host_rmi_psci_complete(void *calling_rec, void *target_rec, uintptr_t status,
+void host_rmi_psci_complete(void *calling_rec, uintptr_t status,
 		struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMI_PSCI_COMPLETE,
 		      (uintptr_t)calling_rec,
-		      (uintptr_t)target_rec,
 		      status,
-		      0, 0, 0,
+		      0, 0, 0, 0,
 		      0, res);
 }
 

@@ -128,8 +128,12 @@ static void psci_cpu_on(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			struct rsi_result *res)
 {
 	struct rec_plane *plane = rec_active_plane(rec);
+	struct granule *g_target_cpu;
+	struct rd *rd;
+	struct rd_aux *rd_aux;
 	unsigned long target_cpu = plane->regs[1];
 	unsigned long entry_point_address = plane->regs[2];
+	unsigned long target_rec_mpidr;
 	unsigned long target_rec_idx;
 
 	res->action = UPDATE_REC_RETURN_TO_REALM;
@@ -158,6 +162,37 @@ static void psci_cpu_on(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		res->smc_res.x[0] = PSCI_RETURN_ALREADY_ON;
 		return;
 	}
+
+	target_rec_mpidr = mpidr_to_rec_mpidr(target_cpu);
+
+	/*
+	 * Look up the target rec address, and save it to be used during PSCI
+	 * complete
+	 */
+	if (!granule_lock_on_state_match(rec->realm_info.g_rd, GRANULE_STATE_RD)) {
+		res->smc_res.x[0] = PSCI_RETURN_INTERNAL_FAILURE;
+		return;
+	}
+
+	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	rd_aux = buffer_rd_aux_granules_map(
+			&rd->aux_granules[0], rd->num_rd_aux);
+	assert(rd_aux != NULL);
+
+	g_target_cpu = map_mpidr_to_rec(&rd_aux->mpidr_rec_map, target_rec_mpidr);
+
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+	buffer_unmap(rd);
+	granule_unlock(rec->realm_info.g_rd);
+
+	if (g_target_cpu == NULL) {
+		res->smc_res.x[0] = PSCI_RETURN_INVALID_PARAMS;
+		return;
+	}
+
+	rec->target_rec_addr = granule_addr(g_target_cpu);
 
 	/* Record that a PSCI request is outstanding */
 	rec_set_pending_op(rec, REC_PENDING_PSCI_COMPLETE);
@@ -409,16 +444,6 @@ static unsigned long complete_psci_cpu_on(struct rec *target_rec,
 	return PSCI_RETURN_SUCCESS;
 }
 
-static unsigned long complete_psci_affinity_info(struct rec *target_rec)
-{
-	if ((granule_refcount_read_acquire(target_rec->g_rec) != 0U) ||
-		target_rec->runnable) {
-		return PSCI_AFFINITY_INFO_ON;
-	}
-
-	return PSCI_AFFINITY_INFO_OFF;
-}
-
 unsigned long psci_complete_request(struct rec *calling_rec,
 				    struct rec *target_rec, unsigned long status)
 {
@@ -467,14 +492,6 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 		   (rec_ret == PSCI_RETURN_ALREADY_ON)) {
 			ret = RMI_ERROR_INPUT;
 		}
-		break;
-	case SMC32_PSCI_AFFINITY_INFO:
-	case SMC64_PSCI_AFFINITY_INFO:
-		if (status != PSCI_RETURN_SUCCESS) {
-			return RMI_ERROR_INPUT;
-		}
-
-		rec_ret = complete_psci_affinity_info(target_rec);
 		break;
 	default:
 		assert(false);

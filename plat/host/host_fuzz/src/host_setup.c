@@ -803,10 +803,8 @@ int execute(unsigned char *buffer, size_t read_res)
 		case COMMAND_PSCI_COMPLETE: {
 			PACKET(packet_psci_complete, b, packet);
 			validate_state(_granules[packet.calling_rec], GRANULE_STATE_REC);
-			validate_state(_granules[packet.target_rec], GRANULE_STATE_REC);
 			host_rmi_psci_complete(
 					_granules[packet.calling_rec],
-					_granules[packet.target_rec],
 					packet.status, &res);
 			break;
 		}

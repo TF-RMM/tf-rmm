@@ -496,8 +496,8 @@
 /*
  * FID: 0xC4000164
  *
- * arg0 == calling rec address
- * arg1 == target rec address
+ * arg0 == PA of the calling REC
+ * arg1 == Status of the PSCI request
  */
 #define SMC_RMI_PSCI_COMPLETE			SMC64_RMI_FID(U(0x14))
 

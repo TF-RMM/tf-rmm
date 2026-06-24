@@ -113,7 +113,6 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 			struct smc_result *res);
 
 void smc_psci_complete(unsigned long calling_rec_addr,
-		       unsigned long target_rec_addr,
 		       unsigned long status,
 		       struct smc_result *res);
 

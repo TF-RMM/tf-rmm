@@ -50,7 +50,7 @@ void host_rmi_rtt_data_map(void *rd, uintptr_t base, uintptr_t top,
 void host_rmi_rtt_unprot_map(void *rd, uintptr_t base, uintptr_t top,
 		     unsigned long flags, uintptr_t oaddr, struct smc_result *res);
 
-void host_rmi_psci_complete(void *calling_rec, void *target_rec, uintptr_t status,
+void host_rmi_psci_complete(void *calling_rec, uintptr_t status,
 		struct smc_result *res);
 void host_rmi_features(unsigned long index, struct smc_result *res);
 void host_rmi_rtt_fold(void *rd, uintptr_t ipa, uintptr_t level, struct smc_result *res);
