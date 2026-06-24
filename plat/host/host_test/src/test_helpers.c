@@ -107,9 +107,18 @@ static void start_secondary_pe(unsigned int cpuid)
 	per_cpu_token[cpuid] = rmm_warmboot_main(per_cpu_token[cpuid]);
 }
 
+static void start_secondary_pes(void)
+{
+	for (unsigned int i = 1U; i < RMM_EL3_MAX_CPUS; i++) {
+		start_secondary_pe(i);
+	}
+	host_util_set_cpuid(0U);
+}
+
 void test_helpers_rmm_start(bool secondaries)
 {
 	static bool initialized;
+	static bool secondaries_initialized;
 
 	if (initialized == false) {
 		/* Enable RMM and setup basic structures for each test. */
@@ -119,10 +128,8 @@ void test_helpers_rmm_start(bool secondaries)
 		start_primary_pe();
 
 		if (secondaries) {
-			for (unsigned int i = 1U; i < RMM_EL3_MAX_CPUS; i++) {
-				start_secondary_pe(i);
-			}
-			host_util_set_cpuid(0U);
+			start_secondary_pes();
+			secondaries_initialized = true;
 		}
 
 		/* Take a snapshot of the current sysreg status */
@@ -133,6 +140,17 @@ void test_helpers_rmm_start(bool secondaries)
 
 		/* Restore the sysreg status */
 		host_util_restore_sysreg_snapshot();
+
+		if (secondaries && (secondaries_initialized == false)) {
+			start_secondary_pes();
+
+			/*
+			 * Future tests should restore the full multi-PE
+			 * baseline once secondary PEs have been brought up.
+			 */
+			host_util_take_sysreg_snapshot();
+			secondaries_initialized = true;
+		}
 	}
 }
 

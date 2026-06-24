@@ -102,11 +102,39 @@ function(rmm_build_unittest)
             set(arg_ITERATIONS "1")
         endif()
 
-        target_sources("${arg_TARGET}"
+        if(arg_TARGET STREQUAL "rmm-runtime")
+            set(_test_target "${arg_TARGET}")
+        else()
+            set(_test_target "${arg_TARGET}-unittests")
+
+            if(NOT TARGET "${_test_target}")
+                add_library("${_test_target}" STATIC)
+
+                target_include_directories("${_test_target}"
+                    PRIVATE "$<TARGET_PROPERTY:${arg_TARGET},INCLUDE_DIRECTORIES>"
+                            "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+
+                target_compile_definitions("${_test_target}"
+                    PRIVATE "$<TARGET_PROPERTY:${arg_TARGET},COMPILE_DEFINITIONS>")
+
+                target_compile_options("${_test_target}"
+                    PRIVATE "$<TARGET_PROPERTY:${arg_TARGET},COMPILE_OPTIONS>")
+
+                set_property(GLOBAL APPEND PROPERTY RMM_UNITTEST_TARGETS
+                    "${_test_target}")
+            endif()
+        endif()
+
+        target_sources("${_test_target}"
             PRIVATE ${arg_SOURCES})
 
-        target_link_libraries("${arg_TARGET}"
-            PRIVATE CppUTest ${arg_LIBRARIES})
+        if(arg_TARGET STREQUAL "rmm-runtime")
+            target_link_libraries("${_test_target}"
+                PRIVATE CppUTest ${arg_LIBRARIES})
+        else()
+            target_link_libraries("${_test_target}"
+                PRIVATE "${arg_TARGET}" CppUTest ${arg_LIBRARIES})
+        endif()
 
         # Add the test to the CMake test builder, so we can automate
         # the test run process.
