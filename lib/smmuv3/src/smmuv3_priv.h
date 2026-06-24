@@ -510,11 +510,17 @@ struct smmuv3_dev {
 	 * Stored during PSMMU activation for reclaim during deactivation.
 	 */
 	uintptr_t l1_st_pa;	/* L1 Stream Table base */
-	uintptr_t cmdq_pa;	/* Command queue */
-	uintptr_t evtq_pa;	/* Event queue */
+
+	/* Command queue PA and allocation size */
+	uintptr_t cmdq_pa;
+	size_t cmdq_size;
+
+	/* Event queue PA and allocation size */
+	uintptr_t evtq_pa;
+	size_t evtq_size;
 
 	/*
-	 * Reserved VA for L2 table pool, allocated at boot in
+	 * Reserved VA for L2 Tables pool, allocated at boot in
 	 * smmuv3_init(). Individual L2 tables are committed at
 	 * l2_pool_va + l1_idx * GRANULE_SIZE.
 	 */

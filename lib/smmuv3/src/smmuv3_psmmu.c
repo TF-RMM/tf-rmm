@@ -110,8 +110,21 @@ bool smmuv3_psmmu_set_busy(struct smmuv3_dev *smmu, unsigned int state)
 	return ret;
 }
 
+size_t smmuv3_psmmu_cmdq_alloc_size(struct smmuv3_dev *smmu)
+{
+	assert(smmu != NULL);
+	return smmu->cmdq_size;
+}
+
+size_t smmuv3_psmmu_evtq_alloc_size(struct smmuv3_dev *smmu)
+{
+	assert(smmu != NULL);
+	return smmu->evtq_size;
+}
+
 size_t smmuv3_psmmu_strtab_size(struct smmuv3_dev *smmu)
 {
+	assert(smmu != NULL);
 	return smmu->strtab_size;
 }
 
@@ -135,40 +148,44 @@ int smmuv3_psmmu_activate(struct smmuv3_dev *smmu)
 	return 0;
 }
 
-void smmuv3_psmmu_unmap(struct smmuv3_dev *smmu)
+static void decommit_depopulate(uintptr_t va, size_t size)
 {
 	int ret __unused;
+
+	ret = smmuv3_arch_decommit(va, size);
+	assert(ret == 0);
+	ret = smmuv3_arch_depopulate(va, size);
+	assert(ret == 0);
+}
+
+void smmuv3_psmmu_unmap(struct smmuv3_dev *smmu)
+{
 	uintptr_t va;
+	size_t size;
 
 	assert(smmu != NULL);
 
 	/* Decommit and depopulate Event queue */
 	if (smmu_va_is_committed(smmu->evtq.q_base)) {
 		va = smmu->evtq.q_base;
-		ret = smmuv3_arch_decommit(va, GRANULE_SIZE);
-		assert(ret == 0);
-		ret = smmuv3_arch_depopulate(va, GRANULE_SIZE);
-		assert(ret == 0);
+		size = smmu->evtq_size;
+		decommit_depopulate(va, size);
 		smmu->evtq.q_base = smmu_va_mark_reserved(va);
 	}
 
 	/* Decommit and depopulate Command queue */
 	if (smmu_va_is_committed(smmu->cmdq.q_base)) {
 		va = smmu->cmdq.q_base;
-		ret = smmuv3_arch_decommit(va, GRANULE_SIZE);
-		assert(ret == 0);
-		ret = smmuv3_arch_depopulate(va, GRANULE_SIZE);
-		assert(ret == 0);
+		size = smmu->cmdq_size;
+		decommit_depopulate(va, size);
 		smmu->cmdq.q_base = smmu_va_mark_reserved(va);
 	}
 
 	/* Decommit and depopulate L1 Stream Table */
 	if (smmu_va_is_committed(smmu->strtab_base)) {
 		va = (uintptr_t)smmu->strtab_base;
-		ret = smmuv3_arch_decommit(va, smmu->strtab_size);
-		assert(ret == 0);
-		ret = smmuv3_arch_depopulate(va, smmu->strtab_size);
-		assert(ret == 0);
+		size = smmu->strtab_size;
+		decommit_depopulate(va, size);
 		smmu->strtab_base = (uint64_t *)smmu_va_mark_reserved(va);
 	}
 }
@@ -204,7 +221,6 @@ void smmuv3_psmmu_reset(struct smmuv3_dev *smmu)
 	uintptr_t va;
 	uintptr_t l2tab_pa;
 	unsigned short refcount;
-	int ret __unused;
 
 	assert(smmu != NULL);
 
@@ -227,10 +243,8 @@ void smmuv3_psmmu_reset(struct smmuv3_dev *smmu)
 			l2tab_pa = smmu_l1std_l2tab_pa(smmu, i);
 			va = smmu_l2tab_va(smmu, i);
 
-			ret = smmuv3_arch_decommit(va, GRANULE_SIZE);
-			assert(ret == 0);
-			ret = smmuv3_arch_depopulate(va, GRANULE_SIZE);
-			assert(ret == 0);
+			/* Decommit and depopulate L2 Stream Table */
+			decommit_depopulate(va, GRANULE_SIZE);
 
 			g_l2tab = find_lock_granule(l2tab_pa,
 						    GRANULE_STATE_PSMMU_ST_L2);
@@ -308,17 +322,18 @@ static int validate_st_l2(struct smmuv3_dev *smmu, unsigned long l1_idx,
 		 * L1STD must be zero.
 		 */
 		if (smmu->strtab_base[l1_idx] != 0UL) {
-			SMMU_ERROR(smmu, "STRTAB L2 for SID 0x%lx is already created\n",
+			SMMU_ERROR(smmu, "L2 StrTab for SID 0x%lx is already created\n",
 					sid);
 			return -EINVAL;
 		}
 	} else {
 		/*
-		 * Verify that the L2 table was populated in L1STD.
+		 * Verify that the L2 Stream Table was populated in L1STD.
 		 * L1STD must be non-zero.
 		 */
 		if (smmu->strtab_base[l1_idx] == 0UL) {
-			SMMU_ERROR(smmu, "STRTAB L2 for SID 0x%lx not found\n", sid);
+			SMMU_ERROR(smmu, "L2 StrTab for SID 0x%lx not found\n",
+					sid);
 			return -EINVAL;
 		}
 
@@ -331,8 +346,8 @@ static int validate_st_l2(struct smmuv3_dev *smmu, unsigned long l1_idx,
 
 		/* Verify that the number of configured STEs is zero */
 		if (refcount != 0U) {
-			SMMU_ERROR(smmu, "STRTAB L2 for SID 0x%lx has %lu STEs\n",
-				sid, (unsigned long)refcount);
+			SMMU_ERROR(smmu, "L2 StrTab for SID 0x%lx has %u STEs\n",
+					sid, refcount);
 			return -EINVAL;
 		}
 
@@ -346,21 +361,19 @@ static int validate_st_l2(struct smmuv3_dev *smmu, unsigned long l1_idx,
 void smmuv3_psmmu_get_donated(struct smmuv3_dev *smmu, uintptr_t *range_base,
 				unsigned long *range_size)
 {
-	unsigned long l1_grans;
-
 	assert(smmu != NULL);
 
-	/* Number of granules in L1 Stream Table */
-	l1_grans = smmu->strtab_size / GRANULE_SIZE;
-
 	range_base[(unsigned int)PSMMU_MEM_RANGE_L1_ST] = smmu->l1_st_pa;
-	range_size[(unsigned int)PSMMU_MEM_RANGE_L1_ST] = l1_grans;
+	/* Number of granules in L1 Stream Table */
+	range_size[(unsigned int)PSMMU_MEM_RANGE_L1_ST] = smmu->strtab_size / GRANULE_SIZE;
 
 	range_base[(unsigned int)PSMMU_MEM_RANGE_CMDQ] = smmu->cmdq_pa;
-	range_size[(unsigned int)PSMMU_MEM_RANGE_CMDQ] = 1UL;
+	/* Number of CMDQ granules */
+	range_size[(unsigned int)PSMMU_MEM_RANGE_CMDQ] = smmu->cmdq_size / GRANULE_SIZE;
 
 	range_base[(unsigned int)PSMMU_MEM_RANGE_EVTQ] = smmu->evtq_pa;
-	range_size[(unsigned int)PSMMU_MEM_RANGE_EVTQ] = 1UL;
+	/* Number of EVTQ granules */
+	range_size[(unsigned int)PSMMU_MEM_RANGE_EVTQ] = smmu->evtq_size / GRANULE_SIZE;
 }
 
 int smmuv3_psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa)
@@ -446,10 +459,7 @@ int smmuv3_psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 
 	g_l2tab = find_lock_granule(l2tab_pa, GRANULE_STATE_INTERNAL);
 	if (g_l2tab == NULL) {
-		ret = smmuv3_arch_decommit(l2tab_va, GRANULE_SIZE);
-		assert(ret == 0);
-		ret = smmuv3_arch_depopulate(l2tab_va, GRANULE_SIZE);
-		assert(ret == 0);
+		decommit_depopulate(l2tab_va, GRANULE_SIZE);
 		spinlock_release(&smmu->lock);
 		SMMU_ERROR(smmu, "Failed to lock L2 Stream Table granule 0x%lx\n",
 				l2tab_pa);
@@ -464,14 +474,12 @@ int smmuv3_psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	/* Write L1STD */
 	smmu->strtab_base[l1_idx] =
 		COMPOSE(STRTAB_L1_DESC_SPAN, (SMMU_STRTAB_SPLIT + 1U)) |
-			(l2tab_pa & MASK(STRTAB_L1_DESC_L2PTR));
+		(l2tab_pa & MASK(STRTAB_L1_DESC_L2PTR));
 	dsb(ish);
 
 	/* Invalidate configuration structure */
 	ret = inval_cached_ste(smmu, sid, false);
 	if (ret != 0) {
-		int cleanup_ret __unused;
-
 		/* Clear L1STD */
 		smmu->strtab_base[l1_idx] = 0UL;
 		dsb(ish);
@@ -481,10 +489,7 @@ int smmuv3_psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 		granule_unlock_transition(g_l2tab, GRANULE_STATE_INTERNAL);
 
 		/* Decommit and depopulate L2 Stream Table */
-		cleanup_ret = smmuv3_arch_decommit(l2tab_va, GRANULE_SIZE);
-		assert(cleanup_ret == 0);
-		cleanup_ret = smmuv3_arch_depopulate(l2tab_va, GRANULE_SIZE);
-		assert(cleanup_ret == 0);
+		decommit_depopulate(l2tab_va, GRANULE_SIZE);
 		spinlock_release(&smmu->lock);
 		return ret;
 	}
@@ -535,11 +540,7 @@ int smmuv3_psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	smmu->l1_refcnt--;
 
 	/* Decommit and depopulate L2 Stream Table */
-	ret = smmuv3_arch_decommit(l2tab_va, GRANULE_SIZE);
-	assert(ret == 0);
-
-	ret = smmuv3_arch_depopulate(l2tab_va, GRANULE_SIZE);
-	assert(ret == 0);
+	decommit_depopulate(l2tab_va, GRANULE_SIZE);
 
 	/* Invalidate configuration structure */
 	ret = inval_cached_ste(smmu, sid, false);
@@ -562,15 +563,18 @@ int smmuv3_psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
 {
 	uintptr_t granules_pa[2];
 	uintptr_t granules_va[2];
+	size_t granules_sz[2];
 	int ret __unused;
 
 	assert(smmu != NULL);
 
-	/* Physical address of Command queue */
+	/* Physical address of Command queue and size */
 	granules_pa[0] = cmdq_pa;
+	granules_sz[0] = smmu->cmdq_size;
 
-	/* Physical address of Event queue */
+	/* Physical address of Event queue and size */
 	granules_pa[1] = evtq_pa;
+	granules_sz[1] = smmu->evtq_size;
 
 	/* Pre-reserved VAs from boot (clear tag to get actual VA) */
 	granules_va[0] = smmu_va_get_reserved(smmu->cmdq.q_base);
@@ -578,35 +582,25 @@ int smmuv3_psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
 
 	for (unsigned int i = 0U; i < 2U; i++) {
 		ret = smmuv3_arch_populate(granules_va[i], granules_pa[i],
-					   GRANULE_SIZE, MT_RW_DATA | MT_REALM);
+					   granules_sz[i], MT_RW_DATA | MT_REALM);
 		if (ret != 0) {
 			/* Undo previously committed entries */
 			for (unsigned int j = 0U; j < i; j++) {
-				ret = smmuv3_arch_decommit(granules_va[j],
-							GRANULE_SIZE);
-				assert(ret == 0);
-				ret = smmuv3_arch_depopulate(granules_va[j],
-							GRANULE_SIZE);
-				assert(ret == 0);
+				decommit_depopulate(granules_va[j], granules_sz[j]);
 			}
 			return -ENOMEM;
 		}
 
-		ret = smmuv3_arch_commit_clear(granules_va[i], GRANULE_SIZE);
+		ret = smmuv3_arch_commit_clear(granules_va[i], granules_sz[i]);
 		if (ret != 0) {
 			/* Current entry is populated only - depopulate */
 			ret = smmuv3_arch_depopulate(granules_va[i],
-						GRANULE_SIZE);
+							granules_sz[i]);
 			assert(ret == 0);
 
 			/* Previous entries are committed - decommit + depopulate */
 			for (unsigned int j = 0U; j < i; j++) {
-				ret = smmuv3_arch_decommit(granules_va[j],
-							GRANULE_SIZE);
-				assert(ret == 0);
-				ret = smmuv3_arch_depopulate(granules_va[j],
-							GRANULE_SIZE);
-				assert(ret == 0);
+				decommit_depopulate(granules_va[j], granules_sz[j]);
 			}
 			return -ENOMEM;
 		}

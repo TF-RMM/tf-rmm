@@ -56,7 +56,7 @@ static const sro_handle_cb sro_psmmu_callbacks[SRO_PSMMU_NUM_STATES] = {
 	[SRO_DESTROY_L2_START] = destroy_l2_start,
 	[SRO_DESTROY_L2_FINISH] = destroy_l2_finish,
 	[SRO_RECLAIM_START] = reclaim_start,
-	[SRO_RECLAIM_FINISH] = reclaim_finish,
+	[SRO_RECLAIM_FINISH] = reclaim_finish
 };
 
 /* cppcheck-suppress misra-c2012-8.7 */
@@ -94,8 +94,8 @@ static void prepare_donate(struct sro_context *sro, enum psmmu_sro_stage stage_i
 
 	/* RmiOpMemDonateReq */
 	res->x[2] = rmi_op_donate_req_encode(requested * GRANULE_SIZE,
-						     contig,
-						     RMI_OP_MEM_DELEGATED);
+					     contig,
+					     RMI_OP_MEM_DELEGATED);
 
 	/* Seal the SRO context and get its handle */
 	res->x[1] = sro_ctx_seal();
@@ -296,18 +296,17 @@ static void memory_reclaim(enum psmmu_sro_stage stage_id, struct smc_result *res
 
 		for (unsigned long j = 0UL; j < count; j++) {
 			struct granule *gr;
-
-			__unused bool add_ret;
+			bool add_ret __unused;
 
 			gr = find_lock_granule(granule_pa,
-					GRANULE_STATE_INTERNAL);
+						GRANULE_STATE_INTERNAL);
 			assert(gr != NULL);
 			granule_unlock_transition_to_delegated(gr);
 
 			add_ret = addr_list_add_block(
-				&sro->addr_list, granule_pa,
-				XLAT_TABLE_LEVEL_MAX,
-				RMI_OP_MEM_DELEGATED);
+					&sro->addr_list, granule_pa,
+					XLAT_TABLE_LEVEL_MAX,
+					RMI_OP_MEM_DELEGATED);
 			assert(add_ret);
 			granule_pa += GRANULE_SIZE;
 		}
@@ -376,7 +375,7 @@ void smc_psmmu_activate(unsigned long psmmu_ptr, unsigned long params_ptr,
 	struct psmmu_params params;
 	struct smmuv3_dev *smmu;
 	struct sro_context *sro;
-	unsigned long l1st_grans;
+	unsigned long cmdq_grans, evtq_grans, l1st_grans;
 	unsigned long ret;
 
 	if (!is_rmi_feat_da_enabled()) {
@@ -410,13 +409,18 @@ void smc_psmmu_activate(unsigned long psmmu_ptr, unsigned long params_ptr,
 		return;
 	}
 
-	/* Calculate the number of granules required for the L1 Stream Table. */
-	l1st_grans = smmuv3_psmmu_strtab_size(smmu) / GRANULE_SIZE;
-
 	if (!smmuv3_psmmu_set_busy(smmu, PSMMU_INACTIVE)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
+
+	/*
+	 * Calculate the number of granules required for CMDQ, EVTQ
+	 * and the L1 Stream Table.
+	 */
+	cmdq_grans = smmuv3_psmmu_cmdq_alloc_size(smmu) / GRANULE_SIZE;
+	evtq_grans = smmuv3_psmmu_evtq_alloc_size(smmu) / GRANULE_SIZE;
+	l1st_grans = smmuv3_psmmu_strtab_size(smmu) / GRANULE_SIZE;
 
 	/*
 	 * Reserve an SRO context handle.
@@ -446,13 +450,13 @@ void smc_psmmu_activate(unsigned long psmmu_ptr, unsigned long params_ptr,
 	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_L1_ST].contig =
 									RMI_OP_MEM_CONTIG;
 	/* Command queue */
-	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_CMDQ].requested = 1UL;
+	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_CMDQ].requested = cmdq_grans;
 	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_CMDQ].contig =
-									RMI_OP_MEM_NON_CONTIG;
+									RMI_OP_MEM_CONTIG;
 	/* Event queue */
-	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_EVTQ].requested = 1UL;
+	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_EVTQ].requested = evtq_grans;
 	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_EVTQ].contig =
-									RMI_OP_MEM_NON_CONTIG;
+									RMI_OP_MEM_CONTIG;
 	prepare_donate(sro, SRO_ACTIVATE_START, res);
 }
 
@@ -617,7 +621,7 @@ void smc_psmmu_deactivate(unsigned long psmmu_ptr, struct smc_result *res)
 	 * The operaton cannot be cancelled.
 	 */
 	ret = sro_ctx_reserve(SMC_RMI_PSMMU_DEACTIVATE, 0UL,
-			      false, false, SMC_RMI_OP_MEM_RECLAIM);
+			      false, true, SMC_RMI_OP_MEM_RECLAIM);
 	if (ret != RMI_SUCCESS) {
 		smmuv3_psmmu_set_active(smmu);
 		res->x[0] = ret;
@@ -654,9 +658,9 @@ void smc_psmmu_deactivate(unsigned long psmmu_ptr, struct smc_result *res)
 	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_L1_ST].contig =
 								RMI_OP_MEM_CONTIG;
 	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_CMDQ].contig =
-								RMI_OP_MEM_NON_CONTIG;
+								RMI_OP_MEM_CONTIG;
 	sro->psmmu_ctx.psmmu_range[(unsigned int)PSMMU_MEM_RANGE_EVTQ].contig =
-								RMI_OP_MEM_NON_CONTIG;
+								RMI_OP_MEM_CONTIG;
 
 	sro->psmmu_ctx.total_transferred = total;
 	sro->psmmu_ctx.range_idx = (unsigned int)PSMMU_MEM_RANGE_NUM - 1U;
@@ -741,10 +745,10 @@ void smc_psmmu_st_l2_create(unsigned long psmmu_ptr, unsigned long sid,
 	/*
 	 * Reserve an SRO context handle.
 	 * The operaton cannot be cancelled.
-	 * The requested memory is non-contiguous.
+	 * The requested memory is contiguous.
 	 */
 	ret = sro_ctx_reserve(SMC_RMI_PSMMU_ST_L2_CREATE, GRANULE_SIZE,
-			      false, false, SMC_RMI_OP_MEM_DONATE);
+			      false, true, SMC_RMI_OP_MEM_DONATE);
 	if (ret != RMI_SUCCESS) {
 		res->x[0] = ret;
 		return;
@@ -758,7 +762,7 @@ void smc_psmmu_st_l2_create(unsigned long psmmu_ptr, unsigned long sid,
 
 	/* Prepare memory donation block for L2 Stream Table */
 	sro->psmmu_ctx.psmmu_range[0].requested = 1UL;
-	sro->psmmu_ctx.psmmu_range[0].contig = RMI_OP_MEM_NON_CONTIG;
+	sro->psmmu_ctx.psmmu_range[0].contig = RMI_OP_MEM_CONTIG;
 
 	prepare_donate(sro, SRO_CREATE_L2_START, res);
 }
@@ -889,7 +893,7 @@ void smc_psmmu_st_l2_destroy(unsigned long psmmu_ptr, unsigned long sid,
 	 * The operaton cannot be cancelled.
 	 */
 	ret = sro_ctx_reserve(SMC_RMI_PSMMU_ST_L2_DESTROY, 0UL,
-			      false, false, SMC_RMI_OP_MEM_RECLAIM);
+			      false, true, SMC_RMI_OP_MEM_RECLAIM);
 	if (ret != RMI_SUCCESS) {
 		res->x[0] = ret;
 		return;
