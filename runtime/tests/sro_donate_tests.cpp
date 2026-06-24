@@ -81,19 +81,12 @@ static bool delegate_range(uintptr_t start, uintptr_t end)
 	return true;
 }
 
-static unsigned int g_next_idx = 1U; /* skip granule 0 */
-
 /*
  * Reserve 'n' contiguous granules and return the base PA.
  */
 static uintptr_t reserve_granules(unsigned int n)
 {
-	unsigned int nr = test_helpers_get_nr_granules();
-
-	CHECK_TRUE((g_next_idx + n) <= nr);
-	uintptr_t base = granule_addr(g_next_idx);
-	g_next_idx += n;
-	return base;
+	return test_helpers_allocate_granules(n);
 }
 
 /*
