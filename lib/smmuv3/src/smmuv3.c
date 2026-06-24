@@ -543,14 +543,11 @@ static void clear_ste(struct ste_entry *ste_ptr)
 	dsb(ish);
 }
 
-static int configure_ste(struct smmuv3_dev *smmu, unsigned int sid,
-			 struct ste_entry *ste_ptr,
-			 const struct smmu_stg2_config *s2_cfg)
+static void configure_ste(struct ste_entry *ste_ptr,
+			  const struct smmu_stg2_config *s2_cfg)
 {
 	unsigned long ds, sl2;
-	int ret;
 
-	assert(smmu != NULL);
 	assert(ste_ptr != NULL);
 	assert(s2_cfg != NULL);
 
@@ -593,14 +590,6 @@ static int configure_ste(struct smmuv3_dev *smmu, unsigned int sid,
 			ste_ptr->ste[4], ste_ptr->ste[3],
 			ste_ptr->ste[2], ste_ptr->ste[1], ste_ptr->ste[0]);
 	dsb(ish);
-
-	/* Invalidate configuration structure */
-	ret = inval_cached_ste(smmu, sid, true);
-	if (ret != 0) {
-		clear_ste(ste_ptr);
-	}
-
-	return ret;
 }
 
 static int inval_cfg_tlbs(struct smmuv3_dev *smmu)
@@ -1226,12 +1215,17 @@ int smmuv3_configure_stream(unsigned long ecam_addr, unsigned int tdi_id,
 	atomic_granule_get(g_l2tab);
 	granule_unlock(g_l2tab);
 
-	ret = configure_ste(smmu, sid, ste_ptr, s2_cfg);
+	configure_ste(ste_ptr, s2_cfg);
+
+	/* Invalidate configuration structure */
+	ret = inval_cached_ste(smmu, sid, true);
 	if (ret == 0) {
 		*sid_ptr = sid;
 		*idx_ptr = smmu_idx;
 	} else {
-		/* Roll back the refcount taken before writing the STE fields. */
+		clear_ste(ste_ptr);
+
+		/* Roll back the refcount taken before writing the STE fields */
 		atomic_granule_put_release(g_l2tab);
 	}
 

@@ -115,4 +115,15 @@ static inline void smmuv3_arch_sync_cmdq(void *prod_reg, void *cons_reg)
 	(void)cons_reg;
 }
 
+/*
+ * Architecture-specific PSMMU reset.
+ *
+ * On real hardware, it is a dummy mplementation and has no functional effect.
+ *
+ */
+static inline void smmuv3_arch_psmmu_reset(struct smmuv3_dev *smmu)
+{
+	(void)smmu;
+}
+
 #endif /* SMMUV3_ARCH_H */

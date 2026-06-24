@@ -148,7 +148,7 @@ int smmuv3_psmmu_activate(struct smmuv3_dev *smmu)
 	return 0;
 }
 
-static void decommit_depopulate(uintptr_t va, size_t size)
+void decommit_depopulate(uintptr_t va, size_t size)
 {
 	int ret __unused;
 
@@ -214,67 +214,16 @@ int smmuv3_psmmu_deactivate(struct smmuv3_dev *smmu)
 	return 0;
 }
 
+/*
+ * Reset the PSMMU state.
+ *
+ * This function is currently used only by the fake_host test
+ * environment. On real hardware it is a dummy wrapper around the
+ * architecture-specific implementation and has no functional effect.
+ */
 void smmuv3_psmmu_reset(struct smmuv3_dev *smmu)
 {
-	unsigned long l1_ents;
-	struct granule *g_l2tab;
-	uintptr_t va;
-	uintptr_t l2tab_pa;
-	unsigned short refcount;
-
-	assert(smmu != NULL);
-
-	if (smmu->state == PSMMU_ACTIVE) {
-		smmu_off(smmu);
-	}
-
-	/*
-	 * Force-cleanup any L2 Stream Tables that are still committed in the
-	 * L2 pool.
-	 */
-	if (smmu_va_is_committed(smmu->strtab_base)) {
-		l1_ents = smmu->strtab_size / STRTAB_L1_DESC_SIZE;
-
-		for (unsigned long i = 0UL; i < l1_ents; i++) {
-			if (smmu->strtab_base[i] == 0UL) {
-				continue;
-			}
-
-			l2tab_pa = smmu_l1std_l2tab_pa(smmu, i);
-			va = smmu_l2tab_va(smmu, i);
-
-			/* Decommit and depopulate L2 Stream Table */
-			decommit_depopulate(va, GRANULE_SIZE);
-
-			g_l2tab = find_lock_granule(l2tab_pa,
-						    GRANULE_STATE_PSMMU_ST_L2);
-			if (g_l2tab != NULL) {
-				refcount = granule_refcount_read(g_l2tab);
-				if (refcount != 0U) {
-					granule_refcount_dec(g_l2tab, refcount);
-				}
-				granule_unlock_transition(g_l2tab, GRANULE_STATE_INTERNAL);
-			}
-
-			smmu->strtab_base[i] = 0UL;
-		}
-	}
-
-	/*
-	 * Force-cleanup any L1 Stream Table and queues that are still mapped.
-	 */
-	smmuv3_psmmu_unmap(smmu);
-
-	/*
-	 * Clear runtime state but preserve the reserved VA tags in
-	 * strtab_base, cmdq.q_base, evtq.q_base set at boot.
-	 * smmuv3_psmmu_unmap() has already re-tagged them as uncommitted.
-	 */
-	smmu->l1_st_pa = 0UL;
-	smmu->cmdq_pa = 0UL;
-	smmu->evtq_pa = 0UL;
-	smmu->l1_refcnt = 0U;
-	smmu->state = PSMMU_INACTIVE;
+	smmuv3_arch_psmmu_reset(smmu);
 }
 
 bool smmuv3_psmmu_validate_sid(struct smmuv3_dev *smmu, unsigned long sid)

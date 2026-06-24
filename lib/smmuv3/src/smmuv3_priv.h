@@ -594,6 +594,8 @@ int prepare_send_command(struct smmuv3_dev *smmu, unsigned long opcode,
 int wait_cmdq_empty(struct smmuv3_dev *smmu);
 int smmu_on(struct smmuv3_dev *smmu);
 void smmu_off(struct smmuv3_dev *smmu);
+void decommit_depopulate(uintptr_t va, size_t size);
+
 int inval_cached_ste(struct smmuv3_dev *smmu, unsigned long sid, bool leaf_only);
 
 /*
