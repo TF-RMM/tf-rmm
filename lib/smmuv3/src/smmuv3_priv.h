@@ -535,6 +535,12 @@ struct smmuv3_dev {
 	size_t strtab_size;
 
 	/*
+	 * StreamID size in bits, at least SMMU_STRTAB_SPLIT,
+	 * derived from the BDF scan.
+	 */
+	unsigned int strtab_sid_bits;
+
+	/*
 	 * Ref count for L1 Stream Table. It indicates the number of
 	 * L1 Stream Table entries populated.
 	 */

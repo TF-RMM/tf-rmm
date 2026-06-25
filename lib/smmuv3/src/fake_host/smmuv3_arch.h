@@ -237,7 +237,7 @@ static inline void smmuv3_arch_psmmu_reset(struct smmuv3_dev *smmu)
 		assert(smmu_va_is_committed(smmu->strtab_base));
 
 		/* Number of L2 Tables */
-		num_l1_ents = 1UL << (smmu->config.streamid_bits - SMMU_STRTAB_SPLIT);
+		num_l1_ents = 1UL << (smmu->strtab_sid_bits - SMMU_STRTAB_SPLIT);
 
 		/*
 		 * Force-cleanup any L2 Stream Tables that are still committed

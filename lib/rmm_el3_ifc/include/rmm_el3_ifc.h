@@ -402,9 +402,9 @@ struct smmu_list {
 /* PCIe BDF Mapping Info structure */
 struct bdf_mapping_info {
 	uint16_t mapping_base;	/* Base of BDF mapping (inclusive) */
-	uint16_t mapping_top;	/* Top of BDF mapping (exclusive) */
+	uint16_t mapping_top;	/* Top of BDF mapping (inclusive) */
 	uint16_t mapping_off;	/* Mapping offset, as per Arm Base System Architecture: */
-				/* StreamID = zero_extend(RequesterID[N-1:0]) + (1<<N)*Constant_B */
+				/* StreamID = zero_extend(RequesterID[15:0]) + (1<<16)*mapping_off */
 	uint16_t smmu_idx;	/* SMMU index in smmu_info[] array */
 };
 
@@ -905,7 +905,7 @@ bool rmm_el3_ifc_is_root_port_id_valid(unsigned long ecam_addr,
  *
  *   StreamID = zero_extend(RequesterID[N-1:0]) + (1 << N) * Constant_B
  *
- * which simplifies to  StreamID = bdf + mapping_off.
+ * which simplifies to StreamID = bdf + (mapping_off << 16).
  *
  * Args:
  *	- ecam_addr	ECAM base address identifying the Root Complex.
@@ -922,6 +922,26 @@ bool rmm_el3_ifc_is_root_port_id_valid(unsigned long ecam_addr,
  */
 int rmm_el3_ifc_bdf_to_smmu(unsigned long ecam_addr, unsigned int bdf,
 			    unsigned int *smmu_idx, unsigned int *sid);
+
+/*
+ * Return the maximum StreamID for the given SMMU index.
+ *
+ * The function scans the Root Complex information provided in the local
+ * core manifest and searches all BDF mapping entries associated with the
+ * requested SMMU. For each matching entry, the BDF mapping top is
+ * translated using mapping_off, and the highest resulting
+ * StreamID value is returned.
+ *
+ * Args:
+ *	- smmu_idx	SMMU index to search for.
+ *	- sid_max	Output pointer for the maximum StreamID.
+ *
+ * Return:
+ *	- E_RMM_OK	StreamID range found successfully.
+ *	- E_RMM_INVAL	Invalid manifest data, invalid BDF mapping, or SMMU index
+ *			not found.
+ */
+int rmm_el3_ifc_sid_max(unsigned int smmu_idx, unsigned int *sid_max);
 
 #endif /* __ASSEMBLER__ */
 #endif /* RMM_EL3_IFC_H */

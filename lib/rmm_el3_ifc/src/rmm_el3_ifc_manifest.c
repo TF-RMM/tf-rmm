@@ -621,7 +621,7 @@ bool rmm_el3_ifc_is_bdf_valid(unsigned long ecam_addr, unsigned int bdf)
 
 			for (uint32_t map_idx = 0U; map_idx < num_bdf_mappings; map_idx++) {
 				if ((bdf >= bdf_info[map_idx].mapping_base) &&
-				    (bdf < bdf_info[map_idx].mapping_top)) {
+				    (bdf <= bdf_info[map_idx].mapping_top)) {
 					return true;
 				}
 			}
@@ -731,12 +731,11 @@ int rmm_el3_ifc_bdf_to_smmu(unsigned long ecam_addr, unsigned int bdf,
 			for (uint32_t map_idx = 0U;
 			     map_idx < num_bdf_mappings; map_idx++) {
 				if ((bdf >= bdf_info[map_idx].mapping_base) &&
-				    (bdf < bdf_info[map_idx].mapping_top)) {
+				    (bdf <= bdf_info[map_idx].mapping_top)) {
 					*smmu_idx = (unsigned int)
 							bdf_info[map_idx].smmu_idx;
-					*sid = bdf +
-						(unsigned int)
-						bdf_info[map_idx].mapping_off;
+					*sid = bdf + ((unsigned int)
+							bdf_info[map_idx].mapping_off << 16);
 					return E_RMM_OK;
 				}
 			}
@@ -747,4 +746,103 @@ int rmm_el3_ifc_bdf_to_smmu(unsigned long ecam_addr, unsigned int bdf,
 	}
 
 	return E_RMM_INVAL;
+}
+
+/*
+ * Return the maximum StreamID for the given SMMU index.
+ *
+ * The function scans the Root Complex information provided in the local
+ * core manifest and searches all BDF mapping entries associated with the
+ * requested SMMU. For each matching entry, the BDF mapping top is
+ * translated using mapping_off, and the highest resulting
+ * StreamID value is returned.
+ *
+ * Args:
+ *	- smmu_idx	SMMU index to search for.
+ *	- sid_max	Output pointer for the maximum StreamID.
+ *
+ * Return:
+ *	- E_RMM_OK	StreamID range found successfully.
+ *	- E_RMM_INVAL	Invalid manifest data, invalid BDF mapping, or SMMU index
+ *			not found.
+ */
+int rmm_el3_ifc_sid_max(unsigned int smmu_idx, unsigned int *sid_max)
+{
+	struct root_complex_list *rc_list;
+	struct root_complex_info *root_complex;
+	uint64_t num_root_complexes;
+	unsigned int max = 0U;
+	bool found = false;
+
+	assert(sid_max != NULL);
+	assert(local_core_manifest != NULL);
+
+	rc_list = &local_core_manifest->plat_root_complex;
+	num_root_complexes = rc_list->num_root_complex;
+	root_complex = rc_list->root_complex;
+
+	if ((num_root_complexes == 0UL) || (root_complex == NULL)) {
+		return E_RMM_INVAL;
+	}
+
+	/* Scan all Root Complexes to find matching SMMU index */
+	for (uint64_t rc_idx = 0UL; rc_idx < num_root_complexes; rc_idx++) {
+		struct root_port_info *rp_info;
+		uint32_t num_root_ports;
+
+		rp_info = root_complex[rc_idx].root_ports;
+		num_root_ports = root_complex[rc_idx].num_root_ports;
+
+		if ((num_root_ports == 0U) || (rp_info == NULL)) {
+			return E_RMM_INVAL;
+		}
+
+		/* Iterate over all Root Ports */
+		for (uint32_t rp_idx = 0U; rp_idx < num_root_ports; rp_idx++) {
+			struct bdf_mapping_info *bdf_info =
+						rp_info[rp_idx].bdf_mappings;
+			uint32_t num_bdf_mappings =
+						rp_info[rp_idx].num_bdf_mappings;
+
+			if ((num_bdf_mappings == 0U) || (bdf_info == NULL)) {
+				continue;
+			}
+
+			/* Iterate over all BDF Mappings */
+			for (uint32_t map_idx = 0U;
+			     map_idx < num_bdf_mappings; map_idx++) {
+				/*
+				 * Validate the BDF Mapping Info structure:
+				 * mapping_base must be less than or equal to mapping_top.
+				 */
+				if (bdf_info[map_idx].mapping_base >
+					bdf_info[map_idx].mapping_top) {
+					return E_RMM_INVAL;
+				}
+
+				/* Check for matching SMMU index */
+				if (smmu_idx == (unsigned int)bdf_info[map_idx].smmu_idx) {
+					/* Top of BDF mapping (inclusive) */
+					unsigned int top =
+						(unsigned int)bdf_info[map_idx].mapping_top +
+						((unsigned int)bdf_info[map_idx].mapping_off << 16);
+
+					found = true;
+
+					/* Update maximum if 'top' is larger */
+					if (top > max) {
+						max = top;
+					}
+				}
+			}
+		}
+	}
+
+	/* SMMU index not found in this Root Complex */
+	if (!found) {
+		return E_RMM_INVAL;
+	}
+
+	*sid_max = max;
+	return E_RMM_OK;
 }

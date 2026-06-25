@@ -235,7 +235,7 @@ bool smmuv3_psmmu_validate_sid(struct smmuv3_dev *smmu, unsigned long sid)
 	 * and within the expected boundary.
 	 */
 	if (((sid & (STRTAB_L1_STE_MAX - 1UL)) != 0UL) ||
-		(sid >= (1UL << smmu->config.streamid_bits))) {
+		(sid >= (1UL << smmu->strtab_sid_bits))) {
 		return false;
 	}
 
@@ -329,7 +329,7 @@ int smmuv3_psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa)
 {
 	uintptr_t l1_va;
 	size_t size;
-	int ret __unused;
+	int ret;
 
 	assert(smmu != NULL);
 
@@ -372,7 +372,7 @@ int smmuv3_psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	unsigned long l1_idx;
 	struct granule *g_l2tab;
 	uintptr_t l2tab_va;
-	int ret __unused;
+	int ret;
 
 	assert(smmu != NULL);
 
@@ -461,7 +461,7 @@ int smmuv3_psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	unsigned long l1_idx;
 	struct granule *g_l2tab;
 	uintptr_t l2tab_va;
-	int ret __unused;
+	int ret;
 
 	assert(smmu != NULL);
 	assert(l2tab_pa != NULL);
@@ -513,7 +513,6 @@ int smmuv3_psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
 	uintptr_t granules_pa[2];
 	uintptr_t granules_va[2];
 	size_t granules_sz[2];
-	int ret __unused;
 
 	assert(smmu != NULL);
 
@@ -530,8 +529,8 @@ int smmuv3_psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
 	granules_va[1] = smmu_va_get_reserved(smmu->evtq.q_base);
 
 	for (unsigned int i = 0U; i < 2U; i++) {
-		ret = smmuv3_arch_populate(granules_va[i], granules_pa[i],
-					   granules_sz[i], MT_RW_DATA | MT_REALM);
+		int ret = smmuv3_arch_populate(granules_va[i], granules_pa[i],
+						granules_sz[i], MT_RW_DATA | MT_REALM);
 		if (ret != 0) {
 			/* Undo previously committed entries */
 			for (unsigned int j = 0U; j < i; j++) {
