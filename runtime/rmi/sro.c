@@ -11,12 +11,12 @@
 #include <granule.h>
 #include <granule_types.h>
 #include <limits.h>
-#include <psmmu.h>
 #include <rec.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
 #include <sro_context.h>
+#include <sro_smmu.h>
 #include <status.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -35,10 +35,10 @@ struct rmi_handles {
 static struct rmi_handles sro_handles[] = {
 	SRO_HANDLE(REC_CREATE, rec_continue_handler),
 	SRO_HANDLE(REC_DESTROY, rec_continue_handler),
-	SRO_HANDLE(PSMMU_ACTIVATE, psmmu_continue_handler),
-	SRO_HANDLE(PSMMU_DEACTIVATE, psmmu_continue_handler),
-	SRO_HANDLE(PSMMU_ST_L2_CREATE, psmmu_continue_handler),
-	SRO_HANDLE(PSMMU_ST_L2_DESTROY, psmmu_continue_handler),
+	SRO_HANDLE(PSMMU_ACTIVATE, smmu_continue_handler),
+	SRO_HANDLE(PSMMU_DEACTIVATE, smmu_continue_handler),
+	SRO_HANDLE(PSMMU_ST_L2_CREATE, smmu_continue_handler),
+	SRO_HANDLE(PSMMU_ST_L2_DESTROY, smmu_continue_handler),
 	SRO_HANDLE(PDEV_CREATE, pdev_continue_handler),
 	SRO_HANDLE(PDEV_DESTROY, pdev_continue_handler),
 	SRO_HANDLE(RTT_DATA_MAP, data_map_continue_handler),

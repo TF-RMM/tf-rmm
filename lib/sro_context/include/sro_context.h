@@ -56,7 +56,7 @@
  *   - SMMUv3 Command queue
  *   - SMMUv3 Event queue
  */
-#define SRO_PSMMU_RANGES	3U
+#define SRO_SMMU_RANGES		3U
 
 /*
  * Data structure with the information to continue a REC related operation.
@@ -68,12 +68,12 @@ struct sro_rec_ctx {
 };
 
 /*
- * Data structures with the information to continue a PSMMU related operation.
+ * Data structures with the information to continue a SMMU related operation.
  */
 struct smmuv3_dev;
 
-struct sro_psmmu_range {
-	/* Number of granules in block to donate during PSMMU activation */
+struct sro_smmu_range {
+	/* Number of granules in block to donate during SMMU SRO operation */
 	unsigned long requested;
 
 	/* Contiguous flag */
@@ -85,7 +85,7 @@ struct sro_psmmu_range {
 	uintptr_t base;
 };
 
-struct sro_psmmu_ctx {
+struct sro_smmu_ctx {
 	/* Pointer to the SMMUv3 driver structure */
 	struct smmuv3_dev *smmu_ptr;
 
@@ -95,7 +95,7 @@ struct sro_psmmu_ctx {
 	/* Index of the callback to invoke */
 	unsigned int cb_id;
 
-	/* Index of the range to donate in psmmu_range[] */
+	/* Index of the range to donate in smmu_range[] */
 	unsigned int range_idx;
 
 	/* Number of granules requested in the current range */
@@ -108,7 +108,7 @@ struct sro_psmmu_ctx {
 	unsigned long total_transferred;
 
 	/* Donation ranges */
-	struct sro_psmmu_range psmmu_range[SRO_PSMMU_RANGES];
+	struct sro_smmu_range smmu_range[SRO_SMMU_RANGES];
 
 	/* Error condition in case operation fails */
 	unsigned long ret_err;
@@ -307,7 +307,7 @@ struct sro_context {
 	/* Union with a structure for all the possible SRO commands */
 	union {
 		struct sro_rec_ctx rec_ctx;
-		struct sro_psmmu_ctx psmmu_ctx;
+		struct sro_smmu_ctx smmu_ctx;
 		struct sro_pdev_ctx pdev_ctx;
 		struct sro_unmap_ctx unmap_ctx;
 		struct sro_map_ctx map_ctx;
