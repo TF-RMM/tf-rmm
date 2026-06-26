@@ -822,7 +822,6 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 	assert(rd != NULL);
 
 	set_rd_state(rd, REALM_NEW);
-	set_rd_rec_count(rd, 0UL);
 
 	rd->rtt_tree_pp = rtt_tree_pp;
 	rd->num_aux_planes = p.num_aux_planes;

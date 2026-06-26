@@ -218,7 +218,6 @@ static void init_destroy_realm(struct test_realm *realm, bool separated_aux)
 	rd = (struct rd *)realm->rd;
 	(void)memset(rd, 0, sizeof(*rd));
 	set_rd_state(rd, REALM_NEW);
-	set_rd_rec_count(rd, 0UL);
 	rd->num_rd_aux = realm->num_aux;
 	rd->s2_ctx[0].g_rtt = find_granule(realm->rtt);
 	rd->s2_ctx[0].num_root_rtts = 1U;

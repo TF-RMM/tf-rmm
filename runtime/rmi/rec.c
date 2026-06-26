@@ -352,7 +352,6 @@ static bool rec_mpidr_taken(struct mpidr_rec_map *mpidr_rec_map, unsigned long m
 static void rd_add_rec(struct rd *rd, struct rmi_rec_params *p,
 			uintptr_t rec_addr, struct rd_aux *rd_aux)
 {
-	unsigned long rec_count = get_rd_rec_count_locked(rd);
 	int ret __unused;
 	unsigned long mpidr = p->mpidr;
 	struct rec_map rec_map;
@@ -363,7 +362,6 @@ static void rd_add_rec(struct rd *rd, struct rmi_rec_params *p,
 	assert(ret == 0);
 
 	inc_rd_obj_map_epoch(rd);
-	set_rd_rec_count(rd, rec_count + 1);
 }
 
 /*
@@ -490,7 +488,7 @@ static void rec_create_continue(unsigned long fid, struct smc_result *res)
 	assert(rec != NULL);
 
 	rec->g_rec = g_rec;
-	rec->rec_idx = rec_mpidr_to_idx(rec_params.mpidr);
+	rec->mpidr = rec_params.mpidr;
 
 	rec->realm_info.num_aux_planes = rd->num_aux_planes;
 
@@ -691,7 +689,7 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 	assert(rec != NULL);
 
 	g_rd = rec->realm_info.g_rd;
-	mpidr = rec_idx_to_mpidr(rec->rec_idx);
+	mpidr = rec->mpidr;
 
 	/* Clean up the attestation app spawned by the REC */
 	(void)attest_app_delete(&rec->attest_app_data);

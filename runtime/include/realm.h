@@ -59,17 +59,6 @@ struct rd {
 	 * - smc_rec_enter: atomically increments count only if state is ACTIVE
 	 * - smc_realm_terminate: atomically sets ZOMBIE only if count == 0
 	 *
-	 * 'rec_count' is accessed through dedicated primitives:
-	 *
-	 * (1) To write the value, the RMI handler must hold the rd granule
-	 *     lock and use a single copy atomic store with release semantics.
-	 *
-	 * (2) To read the value, the RMI handler must either:
-	 *     - Hold the rd granule lock and use a 64-bit single copy
-	 *       atomic load, or
-	 *     - Hold the rd reference count and use a 64-bit single copy
-	 *       atomic load with acquire semantics.
-	 *
 	 * Other members of the structure are accessed with rd granule lock held.
 	 */
 	/*
@@ -77,9 +66,6 @@ struct rd {
 	 * Accessed via CAS (lock-free) or plain atomic load under lock.
 	 */
 	unsigned long state_and_count;
-
-	/* Reference count */
-	unsigned long rec_count;
 
 	/* Realm measurement 8 bytes aligned */
 	unsigned char measurement[MEASUREMENT_SLOT_NR][MAX_MEASUREMENT_SIZE];
@@ -272,31 +258,6 @@ static inline void rd_active_rec_count_dec(struct rd *rd)
 
 	assert(RD_UNPACK_COUNT(old) > 0UL);
 	(void)old;
-}
-
-/*
- * Sets the rd's rec_count while holding the rd granule lock.
- */
-static inline void set_rd_rec_count(struct rd *rd, unsigned long val)
-{
-	SCA_WRITE64_RELEASE(&rd->rec_count, val);
-}
-
-/*
- * Gets the rd's rec_count while holding the rd granule lock.
- */
-static inline unsigned long get_rd_rec_count_locked(struct rd *rd)
-{
-	return SCA_READ64(&rd->rec_count);
-}
-
-/*
- * Gets the rd's rec_count while holding the rd's reference count, without
- * holding the rd granule lock.
- */
-static inline unsigned long get_rd_rec_count_unlocked(struct rd *rd)
-{
-	return SCA_READ64_ACQUIRE(&rd->rec_count);
 }
 
 /*

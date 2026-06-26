@@ -292,7 +292,7 @@ struct rec_rd_rec_lock_set {
 
 struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in logical order */
 	struct granule *g_rec;	/* the granule in which this REC lives */
-	unsigned long rec_idx;	/* which REC is this */
+	unsigned long mpidr;	/* MPIDR assigned by the Host */
 	bool runnable;
 
 	unsigned int pending_op; /* Type of COMPLETE operation pending */
@@ -512,48 +512,18 @@ static inline bool rec_mpidr_is_valid(unsigned long rec_mpidr)
 }
 
 /*
- * Calculate REC index from mpidr of RmiRecMpidr type value.
- * index = Aff3[31:24]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0]
- */
-static inline unsigned long rec_mpidr_to_idx(unsigned long rec_mpidr)
-{
-	return (RMI_MPIDR_AFF(0, rec_mpidr) |
-		RMI_MPIDR_AFF(1, rec_mpidr) |
-		RMI_MPIDR_AFF(2, rec_mpidr) |
-		RMI_MPIDR_AFF(3, rec_mpidr));
-}
-
-/*
- * Convert a REC linear index to RmiRecMpidr format.
- * Aff3[27:20]:Aff2[19:12]:Aff1[11:4]:Aff0[3:0]
- * -> Aff3[31:24]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0].
- */
-static inline unsigned long rec_idx_to_mpidr(unsigned long rec_idx)
-{
-	return ((rec_idx & MASK(RMI_MPIDR_AFF0)) |
-		((rec_idx & ~MASK(RMI_MPIDR_AFF0)) <<
-		 (RMI_MPIDR_AFF1_SHIFT - RMI_MPIDR_AFF0_WIDTH)));
-}
-
-/*
- * Calculate REC index from mpidr of MPIDR_EL1 register type
+ * Convert MPIDR_EL1 register type value
  * Aff3[39:32]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0]
- */
-static inline unsigned long mpidr_to_rec_idx(unsigned long mpidr)
-{
-	return (MPIDR_EL1_AFF(0, mpidr) |
-		MPIDR_EL1_AFF(1, mpidr) |
-		MPIDR_EL1_AFF(2, mpidr) |
-		MPIDR_EL1_AFF(3, mpidr));
-}
-
-/*
- * Convert MPIDR_EL1 register type value to RmiRecMpidr format through the
- * canonical REC linear index representation.
+ * to RmiRecMpidr format
+ * Aff3[31:24]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0].
  */
 static inline unsigned long mpidr_to_rec_mpidr(unsigned long mpidr)
 {
-	return rec_idx_to_mpidr(mpidr_to_rec_idx(mpidr));
+	return (mpidr & (MASK(MPIDR_EL1_AFF0)	|
+			 MASK(MPIDR_EL1_AFF1)	|
+			 MASK(MPIDR_EL1_AFF2)))	|
+		((mpidr & MASK(MPIDR_EL1_AFF3)) >>
+			(MPIDR_EL1_AFF3_SHIFT - RMI_MPIDR_AFF3_SHIFT));
 }
 
 /*
@@ -565,8 +535,8 @@ static inline unsigned long mpidr_to_rec_mpidr(unsigned long mpidr)
 static inline unsigned long rec_mpidr_to_mpidr(unsigned long rec_mpidr)
 {
 	return (rec_mpidr & (MASK(RMI_MPIDR_AFF0)	|
-			 MASK(RMI_MPIDR_AFF1)	|
-			 MASK(RMI_MPIDR_AFF2)))	|
+			 MASK(RMI_MPIDR_AFF1)		|
+			 MASK(RMI_MPIDR_AFF2)))		|
 		((rec_mpidr & MASK(RMI_MPIDR_AFF3)) <<
 			(MPIDR_EL1_AFF3_SHIFT - RMI_MPIDR_AFF3_SHIFT));
 }

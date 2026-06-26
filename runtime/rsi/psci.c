@@ -112,18 +112,6 @@ static void psci_reset_rec(struct rec_plane *plane,
 					caller_sctlr_el1 & SCTLR_ELx_EE_BIT;
 }
 
-static unsigned long rd_map_read_rec_count(struct granule *g_rd)
-{
-	unsigned long rec_count;
-	struct rd *rd = buffer_granule_map(g_rd, SLOT_RD);
-
-	assert(rd != NULL);
-
-	rec_count = get_rd_rec_count_unlocked(rd);
-	buffer_unmap(rd);
-	return rec_count;
-}
-
 static void psci_cpu_on(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			struct rsi_result *res)
 {
@@ -134,7 +122,6 @@ static void psci_cpu_on(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	unsigned long target_cpu = plane->regs[1];
 	unsigned long entry_point_address = plane->regs[2];
 	unsigned long target_rec_mpidr;
-	unsigned long target_rec_idx;
 
 	res->action = UPDATE_REC_RETURN_TO_REALM;
 
@@ -144,26 +131,13 @@ static void psci_cpu_on(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		return;
 	}
 
-	/* Get REC index from MPIDR */
-	target_rec_idx = mpidr_to_rec_idx(target_cpu);
-
-	/*
-	 * Check that the target_cpu is a valid value.
-	 * Note that the RMM enforces that the REC are created with
-	 * consecutively increasing indexes starting from zero.
-	 */
-	if (target_rec_idx >= rd_map_read_rec_count(rec->realm_info.g_rd)) {
-		res->smc_res.x[0] = PSCI_RETURN_INVALID_PARAMS;
-		return;
-	}
+	target_rec_mpidr = mpidr_to_rec_mpidr(target_cpu);
 
 	/* Check if we're trying to turn ourselves on */
-	if (target_rec_idx == rec->rec_idx) {
+	if (target_rec_mpidr == rec->mpidr) {
 		res->smc_res.x[0] = PSCI_RETURN_ALREADY_ON;
 		return;
 	}
-
-	target_rec_mpidr = mpidr_to_rec_mpidr(target_cpu);
 
 	/*
 	 * Look up the target rec address, and save it to be used during PSCI
@@ -217,7 +191,6 @@ static void psci_affinity_info(struct rec *rec,
 	unsigned long target_affinity = plane->regs[1];
 	unsigned long target_rec_mpidr;
 	unsigned long lowest_affinity_level = plane->regs[2];
-	unsigned long target_rec_idx;
 
 	res->action = UPDATE_REC_RETURN_TO_REALM;
 
@@ -226,21 +199,10 @@ static void psci_affinity_info(struct rec *rec,
 		return;
 	}
 
-	/* Get REC index from MPIDR */
-	target_rec_idx = mpidr_to_rec_idx(target_affinity);
-
-	/*
-	 * Check that the target_affinity is a valid value.
-	 * Note that the RMM enforces that the REC are created with
-	 * consecutively increasing indexes starting from zero.
-	 */
-	if (target_rec_idx >= rd_map_read_rec_count(rec->realm_info.g_rd)) {
-		res->smc_res.x[0] = PSCI_RETURN_INVALID_PARAMS;
-		return;
-	}
+	target_rec_mpidr = mpidr_to_rec_mpidr(target_affinity);
 
 	/* Check if the vCPU targets itself */
-	if (target_rec_idx == rec->rec_idx) {
+	if (target_rec_mpidr == rec->mpidr) {
 		res->smc_res.x[0] = PSCI_AFFINITY_INFO_ON;
 		return;
 	}
@@ -253,7 +215,6 @@ static void psci_affinity_info(struct rec *rec,
 		&rd->aux_granules[0], rd->num_rd_aux);
 	assert(rd_aux != NULL);
 
-	target_rec_mpidr = mpidr_to_rec_mpidr(target_affinity);
 	g_target_rec = map_mpidr_to_rec(&rd_aux->mpidr_rec_map, target_rec_mpidr);
 
 	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
@@ -467,7 +428,7 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 
 	mpidr = calling_plane->regs[1];
 
-	if (mpidr_to_rec_idx(mpidr) != target_rec->rec_idx) {
+	if (mpidr_to_rec_mpidr(mpidr) != target_rec->mpidr) {
 		return RMI_ERROR_INPUT;
 	}
 
