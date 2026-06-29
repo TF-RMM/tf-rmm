@@ -1247,3 +1247,501 @@ out_unlock_llt:
 	res->x[0] = ret;
 }
 
+/*
+ * Returns true if the block [@pa, @pa + @block_size) is fully contained
+ * in one of the VDEV's @n_ranges address ranges. Each addr_range is
+ * half-open [base, top).
+ */
+static bool block_in_vdev_range(const struct rmi_address_range *ranges,
+				unsigned long n_ranges,
+				unsigned long pa,
+				unsigned long block_size)
+{
+	unsigned long block_end = pa + block_size;
+
+	for (unsigned long i = 0UL; i < n_ranges; i++) {
+		if ((pa >= ranges[i].base) && (block_end <= ranges[i].top)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/*
+ * Validate inputs to RMI_RTT_DEV_MAP. Thin wrapper around
+ * validate_map_inputs_common() that decodes RmiRttProtMapFlags
+ * (OADDR_TYPE / LIST_COUNT). Descriptors must carry
+ * RMI_OP_MEM_DELEGATED and the range must lie inside PAR.
+ */
+static unsigned long validate_dev_map_inputs(unsigned long base,
+					     unsigned long top,
+					     unsigned long flags,
+					     unsigned long oaddr,
+					     struct rd *rd,
+					     struct addr_list *list_out,
+					     long *level_out,
+					     unsigned long *map_size_out)
+{
+	unsigned long oaddr_type = EXTRACT(
+			RMI_RTT_PROT_MAP_FLAGS_OADDR_TYPE, flags);
+	unsigned long list_count = EXTRACT(
+			RMI_RTT_PROT_MAP_FLAGS_LIST_COUNT, flags);
+
+	return validate_map_inputs_common(base, top, oaddr_type, list_count,
+					  oaddr, rd,
+					  RMI_OP_MEM_DELEGATED,
+					  /* must_be_in_par= */ true,
+					  list_out, level_out, map_size_out);
+}
+
+/*
+ * Roll back a drain-time failure after the leaf slot has been stamped.
+ * Every dev_granule below @ctx->pending_off was transitioned to MAPPED
+ * by this SRO. Walk the cursor backwards, returning each dev_granule
+ * to DELEGATED. On a pending IRQ leave @ctx->pending_off pointing to
+ * the remaining rollback span and return with *@yielded set so
+ * RMI_OP_CONTINUE can resume. Once the cursor reaches zero, clear the
+ * leaf marker, drop the refcount taken when the marker was stamped,
+ * and return @ctx->ret_err.
+ *
+ * Caller contract: @ctx->g_llt is locked and @s2tt is its mapping.
+ */
+static unsigned long dev_map_rollback_pending(struct sro_map_ctx *ctx,
+					      unsigned long *s2tt,
+					      bool *yielded)
+{
+	unsigned long stamped;
+
+	*yielded = false;
+
+	while (ctx->pending_off > 0UL) {
+		struct dev_granule *g_dev;
+		enum dev_coh_type type;
+
+		if (read_isr_el1() != 0UL) {
+			*yielded = true;
+			return RMI_SUCCESS;
+		}
+
+		ctx->pending_off -= GRANULE_SIZE;
+
+		g_dev = find_lock_dev_granule(ctx->pa + ctx->pending_off,
+					      DEV_GRANULE_STATE_MAPPED,
+					      &type);
+		if (g_dev != NULL) {
+			dev_granule_unlock_transition(g_dev,
+						      DEV_GRANULE_STATE_DELEGATED);
+		}
+	}
+
+	stamped = s2tte_read(&s2tt[ctx->index]);
+	assert(s2tte_drain_pending(stamped));
+	assert(s2tte_drain_handle(stamped) == sro_ctx_my_handle());
+
+	s2tte_write(&s2tt[ctx->index], s2tte_clear_drain_pending(stamped));
+	atomic_granule_put_release(ctx->g_llt);
+
+	ctx->rollback = false;
+	return ctx->ret_err;
+}
+
+/*
+ * Yieldable per-granule drain for an in-flight RMI_RTT_DEV_MAP block,
+ * plus the finalize of the leaf s2tte on drain completion. Resumes
+ * from @ctx->pending_off and advances it past every granule it has
+ * transitioned. Each iteration:
+ *
+ *   1. Sample read_isr_el1(); on a pending physical IRQ return true
+ *      with the cursor pointing at the next pending granule.
+ *   2. find_lock_dev_granule(pa, DELEGATED, &type). On failure switch
+ *      to rollback. Rollback is also yieldable; when complete it
+ *      clears the leaf marker and returns RMI_ERROR_INPUT.
+ *   3. On the first iteration (pending_off == 0), pin @ctx->coh_type
+ *      to the type just locked. On subsequent iterations reject any
+ *      mismatch with yieldable rollback + RMI_ERROR_INPUT so the
+ *      entire block stays in one dev memory region.
+ *   4. dev_granule_unlock_transition(g, MAPPED).
+ *
+ * On drain completion the leaf s2tte at &s2tt[@ctx->index] is rewritten
+ * from the drain-pending marker to the assigned form for @ctx->pa,
+ * preserving RIPAS / dev attrs from the still-stamped s2tte.
+ *
+ * Caller contract: the leaf RTT granule (@ctx->g_llt) is locked and
+ * @s2tt is its mapping for the duration of the call. Called from both
+ * dev_map_one_entry (entry path) and dev_map_continue_handler (continue
+ * path); both arrange the lock+map before invoking.
+ *
+ * Returns RMI_SUCCESS with *@yielded set on IRQ-yield during drain or
+ * rollback, RMI_SUCCESS with *@yielded clear when the cursor reaches
+ * the block size for @ctx->level (drain complete, s2tte finalized), or
+ * RMI_ERROR_INPUT if a backing granule cannot be claimed or has a
+ * mismatching coh_type and rollback has completed.
+ */
+static unsigned long dev_map_drain_pending(struct sro_map_ctx *ctx,
+					   const struct s2tt_context *s2_ctx,
+					   unsigned long *s2tt,
+					   bool *yielded)
+{
+	unsigned long map_size = s2tte_map_size(ctx->level);
+	unsigned long stamped, new_s2tte;
+
+	*yielded = false;
+
+	if (ctx->rollback) {
+		return dev_map_rollback_pending(ctx, s2tt, yielded);
+	}
+
+	while (ctx->pending_off < map_size) {
+		struct dev_granule *g_dev;
+		enum dev_coh_type type;
+
+		if (read_isr_el1() != 0UL) {
+			*yielded = true;
+			return RMI_SUCCESS;
+		}
+
+		g_dev = find_lock_dev_granule(ctx->pa + ctx->pending_off,
+					      DEV_GRANULE_STATE_DELEGATED,
+					      &type);
+		if (g_dev == NULL) {
+			ctx->rollback = true;
+			ctx->ret_err = RMI_ERROR_INPUT;
+			return dev_map_rollback_pending(ctx, s2tt, yielded);
+		}
+
+		if (ctx->pending_off == 0UL) {
+			ctx->coh_type = type;
+		} else if (type != ctx->coh_type) {
+			dev_granule_unlock(g_dev);
+			ctx->rollback = true;
+			ctx->ret_err = RMI_ERROR_INPUT;
+			return dev_map_rollback_pending(ctx, s2tt, yielded);
+		}
+
+		dev_granule_unlock_transition(g_dev, DEV_GRANULE_STATE_MAPPED);
+
+		ctx->pending_off += GRANULE_SIZE;
+	}
+
+	stamped = s2tte_read(&s2tt[ctx->index]);
+	assert(s2tte_drain_pending(stamped));
+	assert(s2tte_drain_handle(stamped) == sro_ctx_my_handle());
+
+	new_s2tte = s2tte_create_assigned_dev_unchanged(s2_ctx,
+				s2tte_clear_drain_pending(stamped),
+				ctx->pa, ctx->level);
+	s2tte_write(&s2tt[ctx->index], new_s2tte);
+
+	return RMI_SUCCESS;
+}
+
+/*
+ * Prepare one block of DELEGATED device memory at @pa for mapping into
+ * the leaf RTT slot &s2tt[index] (already locked and mapped) at level
+ * @level. The block covers s2tte_map_size(@level) bytes and is backed
+ * by map_size / GRANULE_SIZE consecutive dev_granules starting at @pa.
+ *
+ * This function performs only the prepare phase (validate + stamp the
+ * leaf s2tte with the drain-pending marker carrying the current SRO
+ * handle + take one refcount on @g_llt). The actual dev_granule lock /
+ * state-transition work is run by dev_map_drain_pending() one granule
+ * at a time so the call can yield to pending IRQs between granules.
+ *
+ * Returns:
+ *   RMI_SUCCESS      slot prepared. The caller must populate the SRO
+ *                    ctx and invoke dev_map_drain_pending().
+ *   pack_return_code(RMI_ERROR_RTT, level)
+ *                    slot is not unassigned (empty / destroyed).
+ *   RMI_BUSY         slot still owes deferred maintenance from a
+ *                    previous SRO (concurrent unmap drain in flight).
+ */
+static unsigned long dev_map_one_entry(struct s2tt_context *s2_ctx,
+				       unsigned long *s2tt,
+				       unsigned long index,
+				       struct granule *g_llt,
+				       long level)
+{
+	unsigned long s2tte, stamped;
+
+	s2tte = s2tte_read(&s2tt[index]);
+	if (!(s2tte_is_unassigned_empty(s2_ctx, s2tte) ||
+	      s2tte_is_unassigned_destroyed(s2_ctx, s2tte))) {
+		return pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
+	}
+	if (s2tte_drain_pending(s2tte)) {
+		return RMI_BUSY;
+	}
+
+	stamped = s2tte_set_drain_pending(s2tte, sro_ctx_my_handle());
+	s2tte_write(&s2tt[index], stamped);
+	atomic_granule_get(g_llt);
+
+	return RMI_SUCCESS;
+}
+
+/*
+ * Implements SMC_RMI_RTT_DEV_MAP with range support over a single leaf
+ * RTT (one tree, one iteration). Mirrors smc_rtt_data_map() in
+ * structure: per-block work stamps the leaf with a drain-pending
+ * marker, then a yieldable drain locks each backing dev_granule one at
+ * a time and transitions DELEGATED -> MAPPED. On an IRQ-yield
+ * mid-drain the call seals an SRO context and returns RMI_INCOMPLETE
+ * so the host can resume via RMI_OP_CONTINUE.
+ *
+ * The walk level is taken from the SZ field of the first descriptor;
+ * supported levels are L1/L2 blocks and L3 pages. A later descriptor
+ * at a different level stops the iteration.
+ *
+ * @flags encodes RmiRttProtMapFlags: OADDR_TYPE selects SINGLE / LIST,
+ * LIST_COUNT is the descriptor count for LIST.
+ *
+ * Output on terminal progress:
+ *   x[0] = RMI_SUCCESS | RMI_ERROR_*
+ *   x[1] = out_top (IPA past the last successfully mapped block)
+ *
+ * Output on yield (drain of one block in flight):
+ *   x[0] = RMI_INCOMPLETE | RMI_OP_MEM_REQ_NONE | RMI_OP_CANNOT_CANCEL
+ *   x[1] = SRO context handle (pass to RMI_OP_CONTINUE).
+ */
+void smc_rtt_dev_map(unsigned long rd_addr,
+		     unsigned long vdev_addr,
+		     unsigned long base,
+		     unsigned long top,
+		     unsigned long flags,
+		     unsigned long oaddr,
+		     struct smc_result *res)
+{
+	struct addr_list list;
+	struct granule *g_rd = NULL;
+	struct granule *g_vdev;
+	struct rd *rd;
+	struct vdev *vd;
+	struct s2tt_walk wi;
+	struct s2tt_context s2_ctx;
+	struct rmi_address_range vdev_ranges[RMI_VDEV_PARAMS_ADDR_RANGE_MAX];
+	unsigned long n_vdev_ranges;
+	unsigned long *s2tt = NULL;
+	unsigned long out_top = base;
+	unsigned long ret;
+	unsigned long map_size;
+	unsigned long idx;
+	long level;
+	bool yielded = false;
+
+	/* Reserve an SRO context up front. */
+	ret = sro_ctx_reserve(SMC_RMI_RTT_DEV_MAP, 0UL, false, false,
+			      SMC_RMI_OP_CONTINUE);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
+		return;
+	}
+
+	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
+	if (g_rd == NULL) {
+		ret = RMI_ERROR_INPUT;
+		goto out_release_sro;
+	}
+
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	ret = validate_dev_map_inputs(base, top, flags, oaddr, rd,
+				      &list, &level, &map_size);
+	if (ret != RMI_SUCCESS) {
+		buffer_unmap(rd);
+		granule_unlock(g_rd);
+		goto out_release_sro;
+	}
+
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		ret = RMI_ERROR_INPUT;
+		buffer_unmap(rd);
+		granule_unlock(g_rd);
+		goto out_release_sro;
+	}
+
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	if (vd->g_rd != g_rd) {
+		ret = RMI_ERROR_INPUT;
+		buffer_unmap(vd);
+		granule_unlock(g_vdev);
+		buffer_unmap(rd);
+		granule_unlock(g_rd);
+		goto out_release_sro;
+	}
+
+	/*
+	 * Snapshot the VDEV's address ranges so we can release the
+	 * VDEV slot before holding the leaf RTT mapping.
+	 */
+	n_vdev_ranges = vd->num_addr_range;
+	for (unsigned long i = 0UL; i < n_vdev_ranges; i++) {
+		vdev_ranges[i] = vd->addr_range[i];
+	}
+	buffer_unmap(vd);
+	granule_unlock(g_vdev);
+
+	s2_ctx = rd->s2_ctx[PRIMARY_S2_CTX_ID];
+
+	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
+
+	/*
+	 * Root RTT now locked. The walk and per-block drain use only
+	 * the stack copy of the primary S2 context.
+	 */
+	buffer_unmap(rd);
+	granule_unlock(g_rd);
+
+	s2tt_walk_lock_unlock(&s2_ctx, base, level, &wi);
+	if (wi.last_level != level) {
+		ret = pack_return_code(RMI_ERROR_RTT,
+				       (unsigned char)wi.last_level);
+		goto out_unlock_llt;
+	}
+
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx.mecid);
+	assert(s2tt != NULL);
+
+	for (idx = wi.index; idx < S2TTES_PER_S2TT; idx++) {
+		struct sro_map_ctx *ctx;
+		unsigned long pa = 0UL;
+		bool yield;
+
+		ret = map_pop_next_block(&list, &s2_ctx,
+					 RMI_OP_MEM_DELEGATED,
+					 level, map_size, out_top, top,
+					 &pa, &yield);
+		if (yield || (ret != RMI_SUCCESS)) {
+			goto done;
+		}
+
+		if (!block_in_vdev_range(vdev_ranges, n_vdev_ranges,
+					 pa, map_size)) {
+			ret = RMI_ERROR_INPUT;
+			goto done;
+		}
+
+		ret = dev_map_one_entry(&s2_ctx, s2tt, idx, wi.g_llt, level);
+		if (ret != RMI_SUCCESS) {
+			goto done;
+		}
+
+		ctx = &my_sro_ctx()->map_ctx;
+		sro_map_ctx_init(ctx, wi.g_llt, rd_addr, pa,
+				 out_top, base, idx, level);
+
+		ret = dev_map_drain_pending(ctx, &s2_ctx, s2tt, &yielded);
+		if (ret != RMI_SUCCESS) {
+			goto done;
+		}
+		if (yielded) {
+			goto done;
+		}
+
+		out_top += map_size;
+	}
+
+done:
+	if (!yielded) {
+		ret = map_partial_progress_finalize(res, ret, out_top, base);
+	}
+
+	buffer_unmap(s2tt);
+out_unlock_llt:
+	granule_unlock(wi.g_llt);
+out_release_sro:
+	if (yielded) {
+		res->x[0] = RMI_INCOMPLETE |
+			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
+			    INPLACE(RMI_OP_CAN_CANCEL_BIT,
+				    RMI_OP_CANNOT_CANCEL);
+		res->x[1] = (unsigned long)sro_ctx_seal();
+		return;
+	}
+
+	sro_ctx_release();
+
+	res->x[0] = ret;
+}
+
+/*
+ * SRO continue callback for RMI_RTT_DEV_MAP. Resumes the per-granule
+ * drain started by smc_rtt_dev_map() and, when complete, finalizes the
+ * leaf s2tte to assigned_dev_unchanged.
+ *
+ * The RD granule is locked before the leaf RTT to preserve the normal
+ * RD -> RTT lock order. The extra refcount taken at stamp time pins
+ * the leaf RTT across the yield.
+ *
+ * Output on completion:
+ *   x[0] = RMI_SUCCESS
+ *   x[1] = IPA past the now-mapped block
+ *
+ * Output on further yield:
+ *   x[0] = RMI_INCOMPLETE | RMI_OP_MEM_REQ_NONE | RMI_OP_CANNOT_CANCEL
+ *   x[1] = 0
+ */
+void dev_map_continue_handler(unsigned long fid,
+			      struct smc_result *res)
+{
+	struct sro_context *sro = my_sro_ctx();
+	struct sro_map_ctx *ctx;
+	struct granule *g_rd;
+	struct rd *rd;
+	struct s2tt_context s2_ctx;
+	unsigned long *s2tt;
+	unsigned long ret;
+	bool yielded;
+
+	assert(sro != NULL);
+	assert(fid == SMC_RMI_OP_CONTINUE);
+	assert(sro->init_command == SMC_RMI_RTT_DEV_MAP);
+	(void)fid;
+
+	ctx = &sro->map_ctx;
+	assert(ctx->g_llt != NULL);
+
+	g_rd = find_lock_granule(ctx->rd_addr, GRANULE_STATE_RD);
+	assert(g_rd != NULL);
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+	s2_ctx = rd->s2_ctx[PRIMARY_S2_CTX_ID];
+
+	granule_lock(ctx->g_llt, GRANULE_STATE_RTT);
+	buffer_unmap(rd);
+	granule_unlock(g_rd);
+
+	s2tt = buffer_granule_mecid_map(ctx->g_llt, SLOT_RTT,
+					s2_ctx.mecid);
+	assert(s2tt != NULL);
+
+	ret = dev_map_drain_pending(ctx, &s2_ctx, s2tt, &yielded);
+
+	buffer_unmap(s2tt);
+	granule_unlock(ctx->g_llt);
+
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = map_partial_progress_finalize(res, ret,
+							  ctx->ipa,
+							  ctx->init_base);
+		ctx->g_llt = NULL;
+		return;
+	}
+
+	if (yielded) {
+		res->x[0] = RMI_INCOMPLETE |
+			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
+			    INPLACE(RMI_OP_CAN_CANCEL_BIT,
+				    RMI_OP_CANNOT_CANCEL);
+		res->x[1] = 0UL;
+		return;
+	}
+
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = ctx->ipa + s2tte_map_size(ctx->level);
+
+	ctx->g_llt = NULL;
+}
