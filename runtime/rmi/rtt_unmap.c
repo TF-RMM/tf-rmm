@@ -1298,3 +1298,126 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
 
 	sro_ctx_release();
 }
+
+/*
+ * Unmap a contiguous range of unprotected (NS) mappings from the
+ * target IPA range [base, top).
+ *
+ * Mirrors smc_rtt_data_unmap for the !addr_in_par half-space: walks
+ * to base, sweeps one leaf's assigned_ns entries to unassigned_ns
+ * marked for deferred stage-2 TLBI, then runs the yieldable
+ * TLBI-and-clear pass. On a pending IRQ mid-pass an SRO context is
+ * sealed and RMI_INCOMPLETE is returned; the host must call
+ * RMI_OP_CONTINUE with the returned handle to resume.
+ *
+ * Supports oaddr_type NONE, SINGLE, and LIST.
+ */
+void smc_rtt_unprot_unmap(unsigned long rd_addr,
+			  unsigned long base,
+			  unsigned long top,
+			  unsigned long flags,
+			  unsigned long oaddr,
+			  struct smc_result *res)
+{
+	struct granule *g_rd;
+	struct rd *rd;
+	struct sro_context *sro;
+	struct sro_unmap_ctx *ctx;
+	unsigned long oaddr_type;
+	unsigned long list_count;
+	unsigned long ret;
+	enum rtt_unmap_run_result step;
+	unsigned int max_count;
+
+	res->x[0] = RMI_ERROR_INPUT;
+
+	ret = sro_ctx_reserve(SMC_RMI_RTT_UNPROT_UNMAP, 0UL, false, false,
+			      SMC_RMI_OP_CONTINUE);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
+		return;
+	}
+
+	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
+	if (g_rd == NULL) {
+		sro_ctx_release();
+		return;
+	}
+
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	ret = validate_unmap_inputs(base, top, flags, oaddr, rd, false,
+				    &oaddr_type, &list_count);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
+		buffer_unmap(rd);
+		granule_unlock(g_rd);
+		sro_ctx_release();
+		return;
+	}
+
+	sro = my_sro_ctx();
+	assert(sro != NULL);
+	ctx = &sro->unmap_ctx;
+	ctx->g_llt = NULL;
+	ctx->oaddr = oaddr;
+	ctx->oaddr_type = (unsigned int)oaddr_type;
+	ctx->cur_base = base;
+	ctx->sro_handle = sro_ctx_my_handle();
+	ctx->mecid = rd->s2_ctx[PRIMARY_S2_CTX_ID].mecid;
+	ctx->leaf_base_ipa = 0UL;
+	ctx->leaf_level = S2TT_PAGE_LEVEL;
+
+	/*
+	 * Cache the VMID set and DA flag the deferred TLBI pass needs
+	 * to invalidate the freed entries on RMI_OP_CONTINUE without
+	 * re-acquiring the RD granule. Direct (single-VMID) realms
+	 * collapse onto a 1-entry list so the per-VMID call serves
+	 * both encodings.
+	 */
+	struct s2tt_context *primary_ctx =
+		&rd->s2_ctx[PRIMARY_S2_CTX_ID];
+
+	if (primary_ctx->indirect_s2ap) {
+		unsigned int nplanes = realm_num_planes(rd);
+
+		assert(nplanes <= MAX_TOTAL_PLANES);
+		for (unsigned int i = 0U; i < nplanes; i++) {
+			ctx->vmid_list[i] =
+				plane_to_s2_context(rd, i)->vmid;
+		}
+		ctx->nvmids = nplanes;
+	} else {
+		ctx->vmid_list[0] = primary_ctx->vmid;
+		ctx->nvmids = 1U;
+	}
+	ctx->da_enabled = rd->da_enabled;
+
+	switch (oaddr_type) {
+	case RMI_ADDR_TYPE_LIST:
+		max_count = (unsigned int)list_count;
+		break;
+	case RMI_ADDR_TYPE_SINGLE:
+		max_count = 1U;
+		break;
+	default:
+		max_count = (unsigned int)ADDR_LIST_MAX_RANGES;
+		break;
+	}
+	addr_list_init(&sro->addr_list, LIST_TYPE_OUTPUT, max_count);
+
+	step = rtt_unmap_run(g_rd, rd, ctx, top, &sro->addr_list, res);
+
+	if (step == RTT_UNMAP_RUN_YIELD) {
+		res->x[0] = RMI_INCOMPLETE |
+			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
+			    INPLACE(RMI_OP_CAN_CANCEL_BIT,
+				    RMI_OP_CANNOT_CANCEL);
+		res->x[1] = (unsigned long)sro_ctx_seal();
+		return;
+	}
+
+	sro_ctx_release();
+}
+
