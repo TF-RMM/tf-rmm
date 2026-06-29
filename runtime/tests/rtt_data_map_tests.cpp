@@ -8,65 +8,6 @@
 
 #include "rtt_data_test_helpers.h"
 
-#ifdef RMM_RTT_MAP_CHECK_ISR_EL1
-static void isr_el1_wr(u_register_t val, u_register_t *reg)
-{
-	*reg = val;
-}
-
-/*
- * Return 0 until the configured countdown reaches zero, then return 1 once
- * and 0 afterwards.
- */
-static u_register_t isr_el1_rd_yield_on_countdown(u_register_t *reg)
-{
-	if (*reg == 0UL) {
-		return 0UL;
-	}
-
-	(*reg)--;
-	return (*reg == 0UL) ? 1UL : 0UL;
-}
-
-static u_register_t isr_el1_rd_return_value(u_register_t *reg)
-{
-	return *reg;
-}
-
-static void prime_isr_yield_during_data_map_drain(void)
-{
-	host_util_set_sysreg_cb("isr_el1",
-				isr_el1_rd_yield_on_countdown,
-				isr_el1_wr, 2UL);
-}
-
-static void prime_isr_yield_during_data_map_rollback(void)
-{
-	host_util_set_sysreg_cb("isr_el1",
-				isr_el1_rd_yield_on_countdown,
-				isr_el1_wr, 4UL);
-}
-
-static void prime_isr_pending_irq(void)
-{
-	host_util_set_sysreg_cb("isr_el1",
-				isr_el1_rd_return_value,
-				isr_el1_wr, 1UL);
-}
-
-static void prime_isr_no_pending_irq(void)
-{
-	host_util_set_sysreg_cb("isr_el1",
-				isr_el1_rd_return_value,
-				isr_el1_wr, 0UL);
-}
-
-static void prime_isr_yield_before_data_map_pop(void)
-{
-	prime_isr_pending_irq();
-}
-#endif
-
 TEST_GROUP(rtt_data_map_tests) {
 	TEST_SETUP()
 	{
