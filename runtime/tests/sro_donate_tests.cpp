@@ -168,7 +168,7 @@ static void reclaim_entries_cb(unsigned long fid,
 	(void)fid;
 	struct sro_context *sro = my_sro_ctx();
 
-	addr_list_init(&sro->addr_list, LIST_TYPE_OUTPUT);
+	addr_list_init(&sro->addr_list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 	for (unsigned long i = 0UL; i < g_reclaim_count; i++) {
 		sro->addr_list.range_desc[i] = encode_addr_desc(
 				g_reclaim_base + i * GRANULE_SIZE,

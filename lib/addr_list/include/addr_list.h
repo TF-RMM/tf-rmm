@@ -35,17 +35,25 @@ struct addr_list {
 	unsigned long range_desc[ADDR_LIST_MAX_RANGES]; /* List of `ranges` */
 	unsigned int count; /* Number of `ranges` in the list */
 	unsigned int cur_idx; /* Current index in the list */
+	unsigned int max_count; /* Cap on number of `ranges` */
 	enum list_type type;/* Type of the list */
 };
 
 /*
- * Initializes the address list with zero `ranges` and the given type.
+ * Initializes the address list with zero `ranges`, the given type and
+ * an upper bound on the number of `ranges` it will ever hold.
  *
  * Args:
  * - list: the address list to initialize.
  * - type: the type of the list (LIST_TYPE_INPUT or LIST_TYPE_OUTPUT).
+ * - max_count: cap on the number of `range` descriptors the list will
+ *              accept. Must be > 0 and <= ADDR_LIST_MAX_RANGES.
+ *              addr_list_add_block() rejects an add that would create
+ *              a new descriptor past this cap; in-place merges into an
+ *              existing descriptor are unaffected.
  */
-void addr_list_init(struct addr_list *list, enum list_type type);
+void addr_list_init(struct addr_list *list, enum list_type type,
+		    unsigned int max_count);
 
 /*
  * Adds a new memory block into the address list.
@@ -69,6 +77,20 @@ bool addr_list_add_block(struct addr_list *list,
 			 unsigned long block_addr,
 			 int rtt_level,
 			 unsigned long st);
+
+/*
+ * Adds an encoded RMI Address Range Descriptor to an input address list.
+ * The descriptor is decoded and stored in the list's canonical format.
+ *
+ * Args:
+ * - list: the input address list to add the descriptor to.
+ * - desc: the encoded RMI Address Range Descriptor.
+ *
+ * Returns:
+ * - true if the descriptor is added to the list.
+ * - false if the list cannot accept the descriptor.
+ */
+bool addr_list_add_desc(struct addr_list *list, unsigned long desc);
 
 /*
  * Removes the leading memory block from the address list. It returns its
@@ -111,6 +133,22 @@ bool addr_list_reduce_contig_block(struct addr_list *list,
 				   unsigned long *base_addr,
 				   unsigned long *total_size,
 				   unsigned long *st);
+
+/*
+ * Read the (base_addr, xlat_level, cnt, st) fields of the descriptor at
+ * index @idx without modifying the list. Returns false if @idx is out
+ * of range.
+ *
+ * Returns @xlat_level as the XLAT table level derived from the descriptor's
+ * encoded block size, suitable for direct use as an RTT walk level.
+ *
+ * Unlike addr_list_reduce_* this is non-destructive and works for both
+ * INPUT and OUTPUT lists, which makes it suitable for iterating an
+ * output list whose contents must be preserved for later host copy.
+ */
+bool addr_list_peek_desc(const struct addr_list *list, unsigned int idx,
+			 unsigned long *base_addr, int *xlat_level,
+			 unsigned long *cnt, unsigned long *st);
 
 /*
  * Validates the address list `ranges` and returns the total memory described.

@@ -168,7 +168,8 @@ void smc_op_mem_donate(unsigned long handle,
 		goto donate_end;
 	}
 
-	addr_list_init(&sro->addr_list, LIST_TYPE_INPUT);
+	addr_list_init(&sro->addr_list, LIST_TYPE_INPUT,
+		 (unsigned int)ADDR_LIST_MAX_RANGES);
 
 	/*
 	 * The list can start at any place inside a given granule (provided
@@ -302,7 +303,8 @@ void smc_op_mem_reclaim(unsigned long handle,
 	 */
 	if (addr_list_is_empty(&sro->addr_list) || (sro->addr_list.type != LIST_TYPE_OUTPUT)) {
 		sro->range_desc_count = list_count;
-		addr_list_init(&sro->addr_list, LIST_TYPE_OUTPUT);
+		addr_list_init(&sro->addr_list, LIST_TYPE_OUTPUT,
+			(unsigned int)ADDR_LIST_MAX_RANGES);
 		rmi_op_dispatch(SMC_RMI_OP_MEM_RECLAIM, res);
 	}
 
