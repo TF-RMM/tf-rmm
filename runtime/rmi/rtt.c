@@ -15,6 +15,7 @@
 #include <planes.h>
 #include <realm.h>
 #include <ripas.h>
+#include <rtt_internal.h>
 #include <s2tt.h>
 #include <s2tt_ap.h>
 #include <smc-handler.h>
@@ -32,13 +33,9 @@ typedef void (*tlb_handler_t)(const struct s2tt_context *s2tt_ctx,
 			      unsigned long addr, long level);
 typedef void (*tlb_handler_per_vmids_t)(struct rd *rd, unsigned long addr, long level);
 
-/*
- * Validate the map_addr value passed to
- * RMI_RTT_*, RMI_DATA_* and RMI_DEV_MEM_* commands.
- */
-static bool validate_map_addr(unsigned long map_addr,
-			      long level,
-			      struct rd *rd)
+bool validate_map_addr(unsigned long map_addr,
+		       long level,
+		       struct rd *rd)
 {
 	return ((map_addr < realm_ipa_size(rd)) &&
 		s2tte_is_addr_lvl_aligned(&rd->s2_ctx[PRIMARY_S2_CTX_ID],
@@ -90,10 +87,7 @@ static bool validate_rtt_entry_cmds(unsigned long map_addr,
 	return validate_map_addr(map_addr, level, rd);
 }
 
-/*
- * Helper to reset the Access Permissions for a protected entry.
- */
-static unsigned long default_protected_ap(struct s2tt_context *s2_ctx)
+unsigned long default_protected_ap(struct s2tt_context *s2_ctx)
 {
 	return s2tte_update_prot_ap(s2_ctx, 0UL,
 				    S2TTE_DEF_BASE_PERM_IDX,
@@ -2015,8 +2009,8 @@ out_unmap_llt:
  *	- @s2tte is a valid (page or block) descriptor in the primary RTT tree.
  *	- The RTT where @s2tte resides is locked.
  */
-static unsigned long not_aux_mappings(struct s2tt_context *s2_ctx,
-				      unsigned long s2tte, long level)
+unsigned long not_aux_mappings(struct s2tt_context *s2_ctx,
+			       unsigned long s2tte, long level)
 {
 	unsigned long map_size = s2tte_map_size((int)level);
 	unsigned long data_addr = s2tte_pa(s2_ctx, s2tte, level);
@@ -2743,6 +2737,14 @@ void smc_rtt_aux_map_protected(unsigned long rd_addr,
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
+	if ((get_rd_state_locked(rd) != REALM_NEW) &&
+	    (get_rd_state_locked(rd) != REALM_ACTIVE)) {
+		buffer_unmap(rd);
+		granule_unlock(g_rd);
+		res->x[0] = RMI_ERROR_REALM;
+		return;
+	}
+
 	if (!validate_rtt_entry_cmds(map_addr, S2TT_PAGE_LEVEL, rd)) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
@@ -2939,6 +2941,12 @@ void smc_rtt_aux_map_unprotected(unsigned long rd_addr,
 
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
+
+	if ((get_rd_state_locked(rd) != REALM_NEW) &&
+	    (get_rd_state_locked(rd) != REALM_ACTIVE)) {
+		res->x[0] = RMI_ERROR_REALM;
+		goto exit_unmap_rd;
+	}
 
 	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
 	start_level = s2_ctx->s2_starting_level;
