@@ -7,6 +7,7 @@
 #define SRO_CONTEXT_H
 
 #include <addr_list.h>
+#include <dev_type.h>
 #include <smc-rmi.h>
 #include <smc.h>
 #include <sro_aux.h>
@@ -140,6 +141,115 @@ struct sro_pdev_ctx {
 	unsigned char hash_algo;
 };
 
+struct granule;
+struct s2tt_context;
+
+/*
+ * State carried by an in-flight RMI_RTT_DATA_UNMAP or RMI_RTT_UNPROT_UNMAP
+ * across one or more RMI_OP_CONTINUE round-trips.
+ *
+ * RMI_RTT_DATA_UNMAP additionally defers the per-entry leaf-RTT
+ * refcount drops (one per live entry the sweep freed) and a per-DATA
+ * granule cache-maintenance drain back to DELEGATED. The un-dropped
+ * refcounts naturally pin @g_llt across yields, and the @pending_*
+ * cursors point to the next granule to drain inside @addr_list so
+ * the SRO_CONTINUE entry can resume in-place. RMI_RTT_UNPROT_UNMAP
+ * does not own DATA granules, so the drain cursors stay zero; the
+ * extra @g_llt refcount taken at yield time is what pins the leaf.
+ */
+struct sro_unmap_ctx {
+	struct granule *g_llt;		/* Leaf RTT pinned across yields */
+	unsigned long oaddr;		/* LIST: NS PA of output buffer */
+	unsigned long cur_base;		/* Next IPA to sweep; also out_top */
+	unsigned int oaddr_type;	/* RmiAddrType: NONE / SINGLE / LIST */
+	/*
+	 * Drain cursors into sro_context::addr_list. DATA_UNMAP only;
+	 * UNPROT_UNMAP leaves them at zero.
+	 */
+	unsigned int pending_desc_idx;	/* next descriptor to drain */
+	unsigned long pending_blk_idx;	/* next block within descriptor */
+	unsigned long pending_pa;	/* next granule PA to drain (in [blk_base, blk_end)) */
+	/*
+	 * SRO handle stamped into every s2tte the sweep writes. The
+	 * drain-completion pass matches this handle to identify and
+	 * clear its own marks. Set once at entry, never mutated. Width
+	 * must fit within S2TTE_SW_HANDLE in s2tt.h.
+	 */
+	unsigned int sro_handle;
+	/*
+	 * MECID snapshot of the primary S2 context. Cached at entry so
+	 * the SRO continue path can map the leaf RTT without needing to
+	 * re-acquire the RD granule.
+	 */
+	unsigned int mecid;
+	/*
+	 * VMIDs and DA flag snapshot used by the deferred stage-2 TLB /
+	 * SMMU invalidation that the drain-completion pass issues for
+	 * every TTE carrying S2TTE_SW_TLBI_PENDING. Cached at entry so
+	 * the SRO continue path can invalidate without an RD granule.
+	 * Width fits MAX_S2_CTXS (one primary plane + auxiliary planes);
+	 * in the direct (single-VMID) case nvmids == 1 and vmid_list[0]
+	 * is the primary plane's vmid.
+	 */
+	unsigned int vmid_list[MAX_TOTAL_PLANES];
+	unsigned int nvmids;
+	bool da_enabled;
+	/*
+	 * Base IPA and level of the currently-pinned leaf RTT (@g_llt),
+	 * cached when the sweep enters each leaf so the drain-completion
+	 * pass can compute the IPA of every stamped TTE for its deferred
+	 * TLBI. Carried across an IRQ-yield so the SRO continue path can
+	 * reuse the same coordinates after reacquiring @g_llt.
+	 */
+	unsigned long leaf_base_ipa;
+	long leaf_level;
+};
+
+/*
+ * State carried by an in-flight RMI_RTT_DATA_MAP or RMI_RTT_DEV_MAP
+ * block-level mapping across one or more RMI_OP_CONTINUE round-trips.
+ *
+ * The entry path validates the request and stamps the leaf s2tte with
+ * the SRO handle plus the drain-pending bit so that concurrent
+ * map/unmap/RIPAS operations on the same IPA back off with RMI_BUSY /
+ * -EAGAIN. The leaf is pinned across yields by one extra refcount on
+ * @g_llt taken when the marker is stamped; that refcount is the same
+ * one the finalize step keeps to represent the eventual live mapping.
+ *
+ * DATA_MAP drains by transitioning, mapping and zeroing each backing
+ * granule. DEV_MAP drains by locking each backing dev_granule and
+ * unlock-transitioning it from DELEGATED to MAPPED. On a pending IRQ
+ * the @pending_off cursor records the next byte offset still owing the
+ * drain so the SRO continue path can resume in-place. If a drain-time
+ * error starts rollback, @rollback is set, @ret_err records the
+ * terminal error, and @pending_off is reused as the count of already
+ * drained bytes still to roll back. When the drain completes, the leaf
+ * s2tte is rewritten to the command-specific assigned form for the
+ * target PA, replacing the SW marker.
+ *
+ * DEV_MAP records the coherency type of the first locked dev_granule
+ * in @coh_type; subsequent iterations reject mismatches so the entire
+ * block is backed by a single dev memory region. DATA_MAP does not use
+ * @coh_type.
+ *
+ * The RD address is cached so the continue handler can re-acquire the
+ * RD granule and copy the S2 context instead of carrying a pointer
+ * into an unmapped RD buffer.
+ */
+struct sro_map_ctx {
+	struct granule *g_llt;		/* Leaf RTT pinned across yields */
+	unsigned long rd_addr;		/* RD address for continue */
+	unsigned long pa;		/* Block-aligned target PA */
+	unsigned long ipa;		/* IPA the block maps to */
+	unsigned long init_base;	/* Base IPA from the entry call */
+	unsigned long pending_off;	/* Next byte offset to drain */
+	unsigned long ret_err;		/* Terminal error after rollback */
+	unsigned long index;		/* Slot index inside @g_llt */
+	long level;			/* Block level the map runs at */
+	enum dev_coh_type coh_type;	/* DEV_MAP coherency type */
+	bool rollback;			/* Rollback in progress */
+};
+
 struct sro_context {
 	/* State of this context */
 	enum sro_state state;
@@ -199,6 +309,8 @@ struct sro_context {
 		struct sro_rec_ctx rec_ctx;
 		struct sro_psmmu_ctx psmmu_ctx;
 		struct sro_pdev_ctx pdev_ctx;
+		struct sro_unmap_ctx unmap_ctx;
+		struct sro_map_ctx map_ctx;
 	};
 };
 
@@ -339,6 +451,13 @@ bool sro_ctx_find(unsigned long op_handle);
  * Return a pointer to the SRO context currently assigned to the calling CPU.
  */
 struct sro_context *my_sro_ctx(void);
+
+/*
+ * Return the global pool index (handle) of the SRO context currently
+ * assigned to the calling CPU. Stable across an IRQ-yield: matches the
+ * value sro_ctx_seal() would return without changing context state.
+ */
+unsigned int sro_ctx_my_handle(void);
 
 /*
  * Initialize the sro_context library.

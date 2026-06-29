@@ -183,6 +183,15 @@ struct sro_context *my_sro_ctx(void)
 	return cpu_sro_ctx[cpuid].ctx;
 }
 
+unsigned int sro_ctx_my_handle(void)
+{
+	unsigned int cpuid = my_cpuid();
+
+	assert((pool != NULL) && pool->init);
+	assert(cpu_sro_ctx[cpuid].ctx != NULL);
+	return cpu_sro_ctx[cpuid].op_handler;
+}
+
 /*
  * Releases the CPU's command context.
  */
