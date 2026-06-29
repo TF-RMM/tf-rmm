@@ -963,3 +963,287 @@ void data_map_continue_handler(unsigned long fid,
 
 	ctx->g_llt = NULL;
 }
+/*
+ * Build the constant per-call attribute bits of the host_s2tte from
+ * @memattr and @s2ap. The PA is OR'd in per-entry by
+ * unprot_map_one_entry().
+ *
+ * Returns RMI_SUCCESS with @base_attrs_out populated, or RMI_ERROR_INPUT
+ * if the indirect base permission index is out of range.
+ */
+static unsigned long build_unprot_map_attrs(struct s2tt_context *s2_ctx,
+					    unsigned long memattr,
+					    unsigned long s2ap,
+					    unsigned long *base_attrs_out)
+{
+	unsigned long attrs = INPLACE(S2TTE_MEMATTR, memattr);
+
+	if (s2_ctx->indirect_s2ap) {
+		/* Indirect encoding: @s2ap is the PI_INDEX value. */
+		attrs = s2tte_set_pi_index(s2_ctx, attrs, s2ap);
+		if (s2tte_get_pi_index(s2_ctx, attrs) >
+				(unsigned long)S2AP_IND_BASE_PERM_IDX_RW) {
+			return RMI_ERROR_INPUT;
+		}
+	} else {
+		/* Direct encoding: @s2ap bits encode R/W permissions. */
+		unsigned long defined = MASK(RMI_S2AP_DIRECT_READ) |
+					MASK(RMI_S2AP_DIRECT_WRITE);
+
+		/* Upper s2ap bits in the flags field are SBZ. */
+		if ((s2ap & ~defined) != 0UL) {
+			return RMI_ERROR_INPUT;
+		}
+		if ((s2ap & MASK(RMI_S2AP_DIRECT_READ)) != 0UL) {
+			attrs |= INPLACE(S2TTE_PERM_R, 1UL);
+		}
+		if ((s2ap & MASK(RMI_S2AP_DIRECT_WRITE)) != 0UL) {
+			attrs |= INPLACE(S2TTE_PERM_W, 1UL);
+		}
+	}
+
+	*base_attrs_out = attrs;
+	return RMI_SUCCESS;
+}
+
+
+/*
+ * Validate inputs to RMI_RTT_UNPROT_MAP. Thin wrapper around
+ * validate_map_inputs_common() that decodes RmiRttUnprotMapFlags
+ * (OADDR_TYPE / LIST_COUNT / MEMATTR / S2AP), then builds the constant
+ * per-call attribute mask in @base_attrs_out for the walk loop to OR
+ * with each per-entry PA. Descriptors must carry RMI_OP_MEM_UNDELEGATED
+ * and the range must lie outside PAR.
+ */
+static unsigned long validate_unprot_map_inputs(unsigned long base,
+						unsigned long top,
+						unsigned long flags,
+						unsigned long oaddr,
+						struct rd *rd,
+						struct addr_list *list_out,
+						long *level_out,
+						unsigned long *map_size_out,
+						unsigned long *base_attrs_out)
+{
+	struct s2tt_context s2_ctx = rd->s2_ctx[PRIMARY_S2_CTX_ID];
+	unsigned long oaddr_type;
+	unsigned long list_count;
+	unsigned long memattr;
+	unsigned long s2ap;
+	unsigned long ret;
+
+	oaddr_type = EXTRACT(RMI_RTT_UNPROT_MAP_FLAGS_OADDR_TYPE, flags);
+	list_count = EXTRACT(RMI_RTT_UNPROT_MAP_FLAGS_LIST_COUNT, flags);
+	memattr = EXTRACT(RMI_RTT_UNPROT_MAP_FLAGS_MEMATTR, flags);
+	s2ap = EXTRACT(RMI_RTT_UNPROT_MAP_FLAGS_S2AP, flags);
+
+	ret = validate_map_inputs_common(base, top, oaddr_type, list_count,
+					 oaddr, rd,
+					 RMI_OP_MEM_UNDELEGATED,
+					 /* must_be_in_par= */ false,
+					 list_out, level_out, map_size_out);
+	if (ret != RMI_SUCCESS) {
+		return ret;
+	}
+
+	return build_unprot_map_attrs(&s2_ctx, memattr, s2ap, base_attrs_out);
+}
+
+/*
+ * Map one NS block at @pa into the leaf RTT slot &s2tt[index]
+ * (already locked and mapped) at level @level. The OA encoding takes
+ * @base_attrs as the constant memattr + AP mask built once by the
+ * validator and OR'd here with the per-entry PA.
+ *
+ * Unlike data_map there is no deferred drain: the leaf s2tte write is
+ * the only architectural side effect, so the entry returns its final
+ * status directly.
+ *
+ * Returns:
+ *   RMI_SUCCESS                                slot now maps @pa
+ *                                              (or already did, idempotent).
+ *   RMI_ERROR_INPUT                            host_s2tte is invalid for
+ *                                              @level.
+ *   pack_return_code(RMI_ERROR_RTT, level)     slot already drained-pending,
+ *                                              non-NS, or assigned to a
+ *                                              different PA / encoding.
+ */
+static unsigned long unprot_map_one_entry(struct s2tt_context *s2_ctx,
+					  unsigned long *s2tt,
+					  unsigned long index,
+					  unsigned long pa,
+					  long level,
+					  unsigned long base_attrs)
+{
+	unsigned long host_s2tte;
+	unsigned long s2tte;
+	unsigned long new_s2tte;
+
+	host_s2tte = pa_to_s2tte(s2_ctx, pa) | base_attrs;
+	if (!host_ns_s2tte_is_valid(s2_ctx, host_s2tte, level)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	s2tte = s2tte_read(&s2tt[index]);
+
+	/*
+	 * If the slot is still carrying a deferred-drain marker stamped
+	 * by an in-flight RMI_RTT_UNPROT_UNMAP, the stage-2 TLB has not
+	 * yet been invalidated for the previous NS PA. Refuse the remap
+	 * until that SRO's drain has cleared the marker, otherwise a
+	 * stale translation could resolve to the old PA after the realm
+	 * starts using the new mapping.
+	 */
+	if (s2tte_drain_pending(s2tte)) {
+		return pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
+	}
+
+	new_s2tte = s2tte_create_assigned_ns(s2_ctx, host_s2tte, level, 0UL);
+
+	if (!s2tte_is_unassigned_ns(s2_ctx, s2tte)) {
+		/*
+		 * Idempotent: if already mapped NS with the same encoding
+		 * report success without rewriting the slot.
+		 */
+		if (s2tte_is_assigned_ns(s2_ctx, s2tte, level) &&
+		    (s2tte == new_s2tte)) {
+			return RMI_SUCCESS;
+		}
+		return pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
+	}
+
+	s2tte_write(&s2tt[index], new_s2tte);
+	return RMI_SUCCESS;
+}
+
+/*
+ * Implements SMC_RMI_RTT_UNPROT_MAP with range support over a single
+ * leaf RTT (one tree, one iteration). Mirrors smc_rtt_data_map() in
+ * structure but maps NS memory into the unprotected IPA space and has
+ * no per-block drain phase: each block is a single architectural
+ * leaf-s2tte write, so the only yield point is the head-of-loop IRQ
+ * check between blocks. Partial progress is reported as RMI_SUCCESS
+ * with @out_top so the host resumes from the unmapped tail.
+ *
+ * We don't hold a reference on the NS granule when it is mapped into
+ * a realm. Instead we rely on the guarantees provided by the
+ * architecture to ensure that an NS access to a protected granule is
+ * prohibited even within the realm.
+ *
+ * @flags layout is RmiRttUnprotMapFlags: OADDR_TYPE selects SINGLE
+ * (one descriptor in @oaddr) or LIST (LIST_COUNT descriptors at the
+ * NS PA @oaddr); MEMATTR and S2AP are constant for the call and
+ * compose the per-entry host_s2tte together with the per-descriptor
+ * PA. The walk level is taken from the SZ field of the first
+ * descriptor; a later descriptor at a different level stops the
+ * iteration.
+ *
+ * Output:
+ *   x[0] = RMI_SUCCESS | RMI_ERROR_*
+ *   x[1] = out_top (IPA past the last successfully mapped block)
+ *
+ * No SRO lifecycle: every block completes synchronously with a single
+ * leaf s2tte write, so there is nothing for a continue handler to
+ * resume. Yield on IRQ is reported as partial progress, not as an
+ * RMI_INCOMPLETE handle.
+ */
+void smc_rtt_unprot_map(unsigned long rd_addr,
+			unsigned long base,
+			unsigned long top,
+			unsigned long flags,
+			unsigned long oaddr,
+			struct smc_result *res)
+{
+	struct addr_list list;
+	struct granule *g_rd = NULL;
+	struct rd *rd;
+	struct s2tt_context s2_ctx;
+	struct s2tt_walk wi;
+	unsigned long *s2tt = NULL;
+	unsigned long out_top = base;
+	unsigned long ret;
+	unsigned long map_size;
+	unsigned long base_attrs;
+	unsigned long idx;
+	long level;
+
+	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
+	if (g_rd == NULL) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	ret = validate_unprot_map_inputs(base, top, flags, oaddr, rd,
+					 &list, &level, &map_size,
+					 &base_attrs);
+	if (ret != RMI_SUCCESS) {
+		buffer_unmap(rd);
+		granule_unlock(g_rd);
+		res->x[0] = ret;
+		return;
+	}
+
+	s2_ctx = rd->s2_ctx[PRIMARY_S2_CTX_ID];
+
+	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
+
+	/*
+	 * Root RTT now locked. The remainder of the call uses only the
+	 * stack copy of the primary S2 context.
+	 */
+	buffer_unmap(rd);
+	granule_unlock(g_rd);
+
+	s2tt_walk_lock_unlock(&s2_ctx, base, level, &wi);
+	if (wi.last_level != level) {
+		ret = pack_return_code(RMI_ERROR_RTT,
+				       (unsigned char)wi.last_level);
+		goto out_unlock_llt;
+	}
+
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx.mecid);
+	assert(s2tt != NULL);
+
+	/*
+	 * Iterate blocks by popping one at a time from @list via
+	 * map_pop_next_block(), which runs the common per-block prologue
+	 * (IRQ yield / descriptor pop / state / level / bounds / PA
+	 * alignment). Stop and return progress on any per-block error or
+	 * on unprot_map_one_entry() failure.
+	 *
+	 * @idx is the loop cursor; @wi.index is left at the walk's
+	 * landing slot.
+	 */
+	for (idx = wi.index; idx < S2TTES_PER_S2TT; idx++) {
+		unsigned long pa = 0UL;
+		bool yield;
+
+		ret = map_pop_next_block(&list, &s2_ctx,
+					 RMI_OP_MEM_UNDELEGATED,
+					 level, map_size, out_top, top,
+					 &pa, &yield);
+		if (yield || (ret != RMI_SUCCESS)) {
+			goto done;
+		}
+
+		ret = unprot_map_one_entry(&s2_ctx, s2tt, idx, pa, level,
+					   base_attrs);
+		if (ret != RMI_SUCCESS) {
+			goto done;
+		}
+
+		out_top += map_size;
+	}
+
+done:
+	ret = map_partial_progress_finalize(res, ret, out_top, base);
+
+	buffer_unmap(s2tt);
+out_unlock_llt:
+	granule_unlock(wi.g_llt);
+	res->x[0] = ret;
+}
+
