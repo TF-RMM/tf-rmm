@@ -94,6 +94,7 @@ target_sources(rmm-runtime
             "rmi/realm.c"
             "rmi/rec.c"
             "rmi/rtt.c"
+            "rmi/rtt_map.c"
             "rmi/run.c"
             "rmi/sro.c"
             "rmi/vdev.c"

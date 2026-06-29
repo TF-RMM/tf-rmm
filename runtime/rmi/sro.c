@@ -40,7 +40,8 @@ static struct rmi_handles sro_handles[] = {
 	SRO_HANDLE(PSMMU_ST_L2_CREATE, psmmu_continue_handler),
 	SRO_HANDLE(PSMMU_ST_L2_DESTROY, psmmu_continue_handler),
 	SRO_HANDLE(PDEV_CREATE, pdev_continue_handler),
-	SRO_HANDLE(PDEV_DESTROY, pdev_continue_handler)
+	SRO_HANDLE(PDEV_DESTROY, pdev_continue_handler),
+	SRO_HANDLE(RTT_DATA_MAP, data_map_continue_handler)
 };
 COMPILER_ASSERT(ARRAY_SIZE(sro_handles) <= SMC64_NUM_FIDS_IN_RANGE(RMI));
 
