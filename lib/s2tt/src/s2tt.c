@@ -1174,9 +1174,11 @@ bool s2tte_is_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 
 	assert(s2_ctx != NULL);
 
-	/* Only pages at L3 and valid blocks at L2 allowed */
+	/* Only pages at L3 and valid blocks at L1/L2 allowed */
 	if (!(((level == S2TT_PAGE_LEVEL) && (desc_type == S2TTE_L3_PAGE)) ||
-	      ((level == S2TT_MIN_DEV_BLOCK_LEVEL) && (desc_type == S2TTE_L012_BLOCK)))) {
+	      ((level >= S2TT_MIN_DEV_BLOCK_LEVEL) &&
+	       (level < S2TT_PAGE_LEVEL) &&
+	       (desc_type == S2TTE_L012_BLOCK)))) {
 		return false;
 	}
 
@@ -1662,6 +1664,78 @@ bool s2tte_is_live(const struct s2tt_context *s2_ctx,
 		   unsigned long s2tte, long level)
 {
 	return s2tte_has_pa(s2_ctx, s2tte, level);
+}
+
+/*
+ * Stamp a freshly-written invalid descriptor with the SW drain-pending
+ * flag and the owning SRO handle. Existing non-SW bits are preserved.
+ *
+ * The SW window lives inside the architectural OA region. Stamping is
+ * only safe when the descriptor carries no real PA bits and is not already
+ * drain-pending; the unassigned forms (currently the only callers) zero
+ * the OA.
+ */
+unsigned long s2tte_set_drain_pending(unsigned long s2tte,
+				      unsigned int sro_handle)
+{
+	unsigned long handle = (unsigned long)sro_handle;
+
+	assert((handle & ~(S2TTE_SW_HANDLE_MASK >> S2TTE_SW_HANDLE_SHIFT))
+		== 0UL);
+	assert((s2tte & S2TTE_SW_DRAIN_PENDING_BIT) == 0UL);
+	assert(((s2tte & ~S2TTE_SW_DRAIN_MASK) &
+		BIT_MASK_ULL(S2TTE_OA_BITS_LPA2 - 1U, GRANULE_SHIFT)) == 0UL);
+
+	return (s2tte & ~S2TTE_SW_DRAIN_MASK) |
+		S2TTE_SW_DRAIN_PENDING_BIT |
+		INPLACE(S2TTE_SW_HANDLE, handle);
+}
+
+/*
+ * Clear the SW drain-pending flag and handle from an invalid descriptor.
+ */
+unsigned long s2tte_clear_drain_pending(unsigned long s2tte)
+{
+	return s2tte & ~S2TTE_SW_DRAIN_MASK;
+}
+
+bool s2tte_drain_pending(unsigned long s2tte)
+{
+	return (s2tte & S2TTE_SW_DRAIN_PENDING_BIT) != 0UL;
+}
+
+/*
+ * Mark an already-stamped drain-pending descriptor as additionally owing
+ * a stage-2 TLB / SMMU invalidation. Only meaningful when drain-pending
+ * is set; the drain-completion walk uses this bit to decide whether to
+ * issue the deferred TLBI before clearing the SW marks.
+ */
+unsigned long s2tte_set_tlbi_pending(unsigned long s2tte)
+{
+	assert((s2tte & S2TTE_SW_DRAIN_PENDING_BIT) != 0UL);
+
+	return s2tte | S2TTE_SW_TLBI_PENDING_BIT;
+}
+
+/*
+ * Clear only the SW TLBI-pending flag, leaving drain-pending and the
+ * SRO handle intact. Used by the deferred TLBI pass after issuing the
+ * invalidation for the entry, so a subsequent resume does not replay
+ * the same TLBI.
+ */
+unsigned long s2tte_clear_tlbi_pending(unsigned long s2tte)
+{
+	return s2tte & ~S2TTE_SW_TLBI_PENDING_BIT;
+}
+
+bool s2tte_tlbi_pending(unsigned long s2tte)
+{
+	return (s2tte & S2TTE_SW_TLBI_PENDING_BIT) != 0UL;
+}
+
+unsigned int s2tte_drain_handle(unsigned long s2tte)
+{
+	return (unsigned int)EXTRACT(S2TTE_SW_HANDLE, s2tte);
 }
 
 /* Returns physical address of @s2tte aligned at level @level */
