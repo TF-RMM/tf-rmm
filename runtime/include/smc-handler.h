@@ -129,6 +129,9 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
 			unsigned long oaddr,
 			struct smc_result *res);
 
+void rtt_unmap_continue_handler(unsigned long fid,
+				struct smc_result *res);
+
 void smc_rtt_data_map(unsigned long rd_addr,
 		      unsigned long base,
 		      unsigned long top,

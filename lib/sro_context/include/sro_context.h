@@ -163,12 +163,12 @@ struct sro_unmap_ctx {
 	unsigned long cur_base;		/* Next IPA to sweep; also out_top */
 	unsigned int oaddr_type;	/* RmiAddrType: NONE / SINGLE / LIST */
 	/*
-	 * Drain cursors into sro_context::addr_list. DATA_UNMAP only;
-	 * UNPROT_UNMAP leaves them at zero.
+	 * Drain cursors into sro_context::addr_list. DATA_UNMAP and
+	 * DEV_UNMAP only; UNPROT_UNMAP does not use them.
 	 */
 	unsigned int pending_desc_idx;	/* next descriptor to drain */
 	unsigned long pending_blk_idx;	/* next block within descriptor */
-	unsigned long pending_pa;	/* next granule PA to drain (in [blk_base, blk_end)) */
+	unsigned long pending_pa;	/* next granule PA, or ~0UL before block start */
 	/*
 	 * SRO handle stamped into every s2tte the sweep writes. The
 	 * drain-completion pass matches this handle to identify and

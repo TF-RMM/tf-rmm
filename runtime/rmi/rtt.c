@@ -1246,181 +1246,6 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 	res->x[0] = RMI_SUCCESS;
 }
 
-static void smc_data_destroy(unsigned long rd_addr,
-		      unsigned long map_addr,
-		      struct smc_result *res)
-{
-	struct granule *g_data;
-	struct granule *g_rd;
-	struct s2tt_walk wi;
-	unsigned long data_addr, s2tte, *s2tt;
-	struct rd *rd;
-	struct s2tt_context *s2_ctx;
-	bool rtt_next_live_entry = true;
-
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[2] = 0UL;
-		return;
-	}
-
-	rd = buffer_granule_map(g_rd, SLOT_RD);
-	assert(rd != NULL);
-
-	if (!addr_in_par(rd, map_addr) ||
-	    !validate_map_addr(map_addr, S2TT_PAGE_LEVEL, rd)) {
-		buffer_unmap(rd);
-		granule_unlock(g_rd);
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[2] = 0UL;
-		return;
-	}
-
-	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
-
-	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
-
-	s2tt_walk_lock_unlock(s2_ctx, map_addr, S2TT_PAGE_LEVEL, &wi);
-	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
-	assert(s2tt != NULL);
-
-	if (wi.last_level != S2TT_PAGE_LEVEL) {
-		res->x[0] = pack_return_code(RMI_ERROR_RTT,
-						(unsigned char)wi.last_level);
-		goto out_unmap_ll_table;
-	}
-
-	s2tte = s2tte_read(&s2tt[wi.index]);
-
-	if (!s2tte_is_live(s2_ctx, s2tte, S2TT_PAGE_LEVEL)) {
-		res->x[0] = pack_return_code(RMI_ERROR_RTT,
-						(unsigned char)S2TT_PAGE_LEVEL);
-		goto out_unmap_ll_table;
-	}
-
-	data_addr = s2tte_pa(s2_ctx, s2tte, S2TT_PAGE_LEVEL);
-
-	/*
-	 * Lock the data granule and check the expected state. Correct locking
-	 * order is guaranteed because granule address is obtained from a
-	 * locked RTT by the table walk. This lock needs to be acquired
-	 * before a state transition to or from GRANULE_STATE_DATA for a
-	 * data granule can happen.
-	 */
-	g_data = find_lock_granule(data_addr, GRANULE_STATE_DATA);
-	assert(g_data != NULL);
-
-	if (granule_refcount_read_acquire(g_data) > 0U) {
-		/* This data granule is mapped into an auxiliary RTT table */
-		granule_unlock(g_data);
-		res->x[0] = pack_return_code(RMI_ERROR_RTT_AUX,
-						(unsigned char)0U);
-		rtt_next_live_entry = false;
-		goto out_unmap_ll_table;
-	}
-
-	if (s2tte_is_assigned_ram(s2_ctx, s2tte, S2TT_PAGE_LEVEL)) {
-		s2tte = s2tte_create_unassigned_destroyed(s2_ctx,
-						default_protected_ap(s2_ctx));
-		s2tte_write(&s2tt[wi.index], s2tte);
-
-		if (s2_ctx->indirect_s2ap) {
-			/* Invalidate TLBs for all Plane VMIDs */
-			invalidate_page_block_per_vmids(rd, map_addr, S2TT_PAGE_LEVEL);
-		} else {
-			invalidate_page_block(s2_ctx, rd->da_enabled, s2_ctx->vmid,
-						map_addr, S2TT_PAGE_LEVEL);
-		}
-	} else if (s2tte_is_assigned_empty(s2_ctx, s2tte, S2TT_PAGE_LEVEL)) {
-		s2tte = s2tte_create_unassigned_empty(s2_ctx, s2tte);
-		s2tte_write(&s2tt[wi.index], s2tte);
-	} else if (s2tte_is_assigned_destroyed(s2_ctx, s2tte,
-					       S2TT_PAGE_LEVEL)) {
-		s2tte = s2tte_create_unassigned_destroyed(s2_ctx, s2tte);
-		s2tte_write(&s2tt[wi.index], s2tte);
-	} else {
-		/* This should never happen */
-		assert(false);
-	}
-
-	atomic_granule_put(wi.g_llt);
-
-	/*
-	 * The data will be scrubbed when this granule is re-used for another Realm
-	 * or reclaimed by NS Host.
-	 */
-	granule_unlock_transition_to_delegated(g_data);
-
-	res->x[0] = RMI_SUCCESS;
-	res->x[1] = data_addr;
-out_unmap_ll_table:
-	if (rtt_next_live_entry) {
-		res->x[2] = s2tt_skip_non_live_entries(s2_ctx, map_addr,
-						       s2tt, &wi);
-	} else {
-		res->x[2] = 0UL;
-	}
-	buffer_unmap(rd);
-	granule_unlock(g_rd);
-	buffer_unmap(s2tt);
-	granule_unlock(wi.g_llt);
-}
-
-/* @TODO Enhance implementation later */
-void smc_rtt_data_unmap(unsigned long rd_addr,
-			unsigned long base,
-			unsigned long top,
-			unsigned long flags,
-			unsigned long oaddr,
-			struct smc_result *res)
-{
-	struct smc_result destroy_res = {0};
-	(void)oaddr;
-
-	/* Only support RMI_ADDR_TYPE_SINGLE */
-	if (flags != RMI_ADDR_TYPE_SINGLE) {
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[1] = 0UL;
-		res->x[2] = 0UL;
-		res->x[3] = 0UL;
-		return;
-	}
-
-	if ((top < base) || ((top - base) < GRANULE_SIZE)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[1] = 0UL;
-		res->x[2] = 0UL;
-		res->x[3] = 0UL;
-		return;
-	}
-
-	smc_data_destroy(rd_addr, base, &destroy_res);
-
-	return_code_t rc = unpack_return_code(destroy_res.x[0]);
-
-	if ((rc.status == RMI_ERROR_RTT) && (destroy_res.x[2] == base)) {
-		/*
-		 * The block entry at 'base' needs to be unfolded before the
-		 * operation can proceed; return the error back to the Host so
-		 * it can unfold at required level first.
-		 */
-		res->x[0] = destroy_res.x[0];
-		assert(rc.index < (unsigned int)S2TT_PAGE_LEVEL);
-	} else if (rc.status == RMI_ERROR_RTT) {
-		/* Other ERROR_RTT (walk completed past base) */
-		res->x[0] = RMI_SUCCESS;
-	} else {
-		/* ERROR_INPUT, ERROR_AUX_RTT, or any other error: propagate as-is */
-		res->x[0] = destroy_res.x[0];
-	}
-	res->x[1] = MIN(destroy_res.x[2], top);
-	res->x[2] = (rc.status == RMI_SUCCESS) ?
-			(destroy_res.x[1] | 0x4U) : 0UL; /* Only one L3 block is unmapped */
-
-	res->x[3] = 0UL;
-}
-
 /*
  * Update the ripas value for the entry pointed by @s2ttep.
  *
@@ -1444,6 +1269,18 @@ static int update_ripas(struct s2tt_context *s2_ctx,
 
 	if (!s2tte_has_ripas(s2_ctx, s2tte, level)) {
 		return -EPERM;
+	}
+
+	/*
+	 * A drain-pending marker means an in-flight SRO still owns this
+	 * architecturally invalid slot. The owner may be preparing a new
+	 * live mapping or completing deferred maintenance for the previous
+	 * OA. Block the RIPAS transition (in particular DESTROYED -> RAM,
+	 * which the realm can request via RSI_IPA_STATE_SET) until the SRO
+	 * completes and clears the marker.
+	 */
+	if (s2tte_drain_pending(s2tte)) {
+		return -EAGAIN;
 	}
 
 	if (ripas_val == RIPAS_RAM) {
