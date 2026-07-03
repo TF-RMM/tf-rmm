@@ -231,7 +231,7 @@ COMPILER_ASSERT(U(offsetof(struct el3_token_sign_response, signature_buf)) == 0x
 #define EL3_IFC_IDE_STREAM_INFO_KEY_SLOT_SHIFT		U(12)
 #define EL3_IFC_IDE_STREAM_INFO_KEY_SLOT_WIDTH		U(1)
 
-/* Number of times to retry a IDE KM call if the SMC returns E_RMM_AGAIN */
+/* Number of times to retry an IDE KM call if the SMC returns E_RMM_BUSY */
 #define EL3_IFC_IDE_KM_RETRY_COUNT_MAX			U(3)
 
 /* Construct stream_info from key set, key direction, key substream, stream id */
@@ -805,8 +805,9 @@ struct el3_ifc_rp_ide_iv {
  *	- E_RMM_OK	On Success. The key programming succeeded.
  *	- E_RMM_FAULT	On Failure. The key programming failed
  *	- E_RMM_INVAL	If the arguments are invalid.
- *	- E_RMM_AGAIN	The RP KM interface is busy, and the call needs to be
+ *	- E_RMM_BUSY	The RP KM interface is busy, and the call needs to be
  *			retried.
+ *	- E_RMM_NOTSUP	If the FIRME IDE service does not support the operation.
  *	- E_RMM_UNK	If the SMC is not implemented or if interface
  *			version is < 0.5.
  */
@@ -834,8 +835,10 @@ int rmm_el3_ifc_rp_ide_key_prog(unsigned long ecam_addr, unsigned long rp_id,
  *	- E_RMM_OK	On Success. The key programming succeeded.
  *	- E_RMM_FAULT	On Failure. The key programming failed
  *	- E_RMM_INVAL	If the arguments are invalid.
- *	- E_RMM_AGAIN	The RP KM interface is busy, and the call needs to be
+ *	- E_RMM_BUSY	The RP KM interface is busy, and the call needs to be
  *			retried.
+ *	- E_RMM_NOTSUP	If the FIRME IDE service does not support the operation.
+ *	- E_RMM_DENIED	If the FIRME IDE service denies the operation.
  *	- E_RMM_UNK	If the SMC is not implemented or if interface
  *			version is < 0.5.
  */
@@ -860,8 +863,10 @@ int rmm_el3_ifc_rp_ide_key_set_go(unsigned long ecam_addr, unsigned long rp_id,
  *	- E_RMM_OK	On Success. The key programming succeeded.
  *	- E_RMM_FAULT	On Failure. The key programming failed
  *	- E_RMM_INVAL	If the arguments are invalid.
- *	- E_RMM_AGAIN	The RP KM interface is busy, and the call needs to be
+ *	- E_RMM_BUSY	The RP KM interface is busy, and the call needs to be
  *			retried.
+ *	- E_RMM_NOTSUP	If the FIRME IDE service does not support the operation.
+ *	- E_RMM_DENIED	If the FIRME IDE service denies the operation.
  *	- E_RMM_UNK	If the SMC is not implemented or if interface
  *			version is < 0.5.
  */

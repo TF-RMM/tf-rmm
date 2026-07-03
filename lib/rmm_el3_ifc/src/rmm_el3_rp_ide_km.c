@@ -57,7 +57,7 @@ static int firme_rp_ide_key_prog(unsigned long ecam_addr, unsigned long rp_id,
 
 	keyset_id = FIRME_IDE_MAKE_KEYSET_ID((uint8_t)kslot, (uint8_t)kdir,
 					     (uint8_t)ide_sub_sid,
-					     (uint8_t)ide_sid, (uint8_t)
+					     (uint8_t)ide_sid,
 					     (uint16_t)rp_id, (uint8_t)0);
 
 	args = SMC_ARGS_8(ecam_addr, 0, keyset_id, key->kq_w0, key->kq_w1,
@@ -98,7 +98,7 @@ static int firme_rp_ide_key_go(unsigned long ecam_addr, unsigned long rp_id,
 
 	keyset_id = FIRME_IDE_MAKE_KEYSET_ID((uint8_t)kslot, (uint8_t)kdir,
 					     (uint8_t)ide_sub_sid,
-					     (uint8_t)ide_sid, (uint8_t)
+					     (uint8_t)ide_sid,
 					     (uint16_t)rp_id, (uint8_t)0);
 
 	firme_rc = monitor_call(SMC_FIRME_IDE_KEYSET_GO, ecam_addr, 0,
@@ -135,7 +135,7 @@ static int firme_rp_ide_key_stop(unsigned long ecam_addr, unsigned long rp_id,
 
 	keyset_id = FIRME_IDE_MAKE_KEYSET_ID((uint8_t)kslot, (uint8_t)kdir,
 					     (uint8_t)ide_sub_sid,
-					     (uint8_t)ide_sid, (uint8_t)
+					     (uint8_t)ide_sid,
 					     (uint16_t)rp_id, (uint8_t)0);
 
 	firme_rc = monitor_call(SMC_FIRME_IDE_KEYSET_STOP, ecam_addr, 0,
