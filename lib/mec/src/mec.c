@@ -52,6 +52,23 @@ void _mecid_s1_put(void)
 	}
 }
 
+unsigned int mecid_max(void)
+{
+	unsigned int mecid_count;
+
+	assert(is_feat_mec_present());
+
+	/*
+	 * MECIDR_MECIDWIDTHM1 plus 1 is the MECID width in bits.
+	 * So Max MECID is (2^MECID width) - 1.
+	 */
+	mecid_count = (unsigned int)1 << (EXTRACT(MECIDR_MECIDWIDTHM1,
+						read_mecidr_el2()) + 1U);
+
+	assert(mecid_count <= MEC_MAX_COUNT);
+	return mecid_count - 1U;
+}
+
 /*
  * Atomically set a bit corresponding to mecid. Returns true if the
  * bit was not set previously, else returns false.
