@@ -8,12 +8,16 @@
 #include <dev_assign_private.h>
 #include <dev_assign_structs.h>
 #include <el0_app_helpers.h>
+#include <errno.h>
 #include <library/pci_ide_km_requester_lib.h>
 #include <library/spdm_crypt_lib.h>
 #include <string.h>
 
 /* SUB_STREAM_PR, SUB_STREAM_NPR, SUB_STREAM_CPL */
 #define IDE_SUBSTREAM_MAX		((unsigned char)3)
+
+/* Delay in microseconds for handling busy IDE key operations */
+#define RP_IDE_BUSY_DELAY_US		U(10)
 
 static bool ide_init_key_buffer(pci_ide_km_aes_256_gcm_key_buffer_t *key_buffer)
 {
@@ -38,6 +42,7 @@ static int rmm_rp_ide_key_prog(struct dev_assign_info *info,
 {
 	struct service_rp_ide_op_struct *service_params;
 	bool is_rx;
+	int svc_rc;
 
 	if (key_direction == U(PCI_IDE_KM_KEY_DIRECTION_RX)) {
 		is_rx = true;
@@ -46,18 +51,23 @@ static int rmm_rp_ide_key_prog(struct dev_assign_info *info,
 	}
 
 	service_params = get_shared_mem_start();
-
 	assert(sizeof(service_params->key) == sizeof(key_buf->key));
-	(void)memcpy(service_params->key, key_buf->key, sizeof(service_params->key));
 	assert(sizeof(service_params->iv) == sizeof(key_buf->iv));
-	(void)memcpy(service_params->iv, key_buf->iv, sizeof(service_params->iv));
+
+	(void)memcpy(service_params->key, key_buf->key,
+		     sizeof(service_params->key));
+	(void)memcpy(service_params->iv, key_buf->iv,
+		     sizeof(service_params->iv));
 
 	service_params->ecam_addr = info->ecam_addr;
 	service_params->rp_id = info->rp_id;
 	service_params->ide_sid = info->ide_sid;
 
-	return (int)el0_app_service_call(APP_SERVICE_RP_IDE_KEY_PROGRAM,
-		kslot, (is_rx ? 1U : 0U), sub_stream, 0);
+	svc_rc = (int)el0_app_service_call(APP_SERVICE_RP_IDE_KEY_PROGRAM,
+					   kslot, (is_rx ? 1U : 0U),
+					   sub_stream, 0);
+
+	return svc_rc;
 }
 
 static int rmm_rp_ide_key_set_go(struct dev_assign_info *info, uint8_t kslot,
@@ -65,6 +75,7 @@ static int rmm_rp_ide_key_set_go(struct dev_assign_info *info, uint8_t kslot,
 {
 	struct service_rp_ide_op_struct *service_params;
 	bool is_rx;
+	int svc_rc;
 
 	if (key_direction == U(PCI_IDE_KM_KEY_DIRECTION_RX)) {
 		is_rx = true;
@@ -78,15 +89,19 @@ static int rmm_rp_ide_key_set_go(struct dev_assign_info *info, uint8_t kslot,
 	service_params->rp_id = info->rp_id;
 	service_params->ide_sid = info->ide_sid;
 
-	return (int)el0_app_service_call(APP_SERVICE_RP_IDE_KEY_SET_GO,
-		kslot, (is_rx ? 1U : 0U), sub_stream, 0);
+	svc_rc = (int)el0_app_service_call(APP_SERVICE_RP_IDE_KEY_SET_GO,
+					   kslot, (is_rx ? 1U : 0U),
+					   sub_stream, 0);
+
+	return svc_rc;
 }
 
-static int rmm_rp_ide_key_set_stop(struct dev_assign_info *info, uint8_t sub_stream,
-				   uint8_t key_direction)
+static int rmm_rp_ide_key_set_stop(struct dev_assign_info *info,
+				   uint8_t sub_stream, uint8_t key_direction)
 {
 	struct service_rp_ide_op_struct *service_params;
 	bool is_rx;
+	int svc_rc;
 
 	if (key_direction == U(PCI_IDE_KM_KEY_DIRECTION_RX)) {
 		is_rx = true;
@@ -100,8 +115,12 @@ static int rmm_rp_ide_key_set_stop(struct dev_assign_info *info, uint8_t sub_str
 	service_params->rp_id = info->rp_id;
 	service_params->ide_sid = info->ide_sid;
 
-	return (int)el0_app_service_call(APP_SERVICE_RP_IDE_KEY_SET_STOP,
-		info->ide_kslot_cur, (is_rx ? 1U : 0U), sub_stream, 0);
+	svc_rc = (int)el0_app_service_call(APP_SERVICE_RP_IDE_KEY_SET_STOP,
+					   info->ide_kslot_cur,
+					   (is_rx ? 1U : 0U),
+					   sub_stream, 0);
+
+	return svc_rc;
 }
 
 static libspdm_return_t

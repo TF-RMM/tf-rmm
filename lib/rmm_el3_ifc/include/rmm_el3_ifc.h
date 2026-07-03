@@ -8,6 +8,7 @@
 
 #ifndef __ASSEMBLER__
 #include <dev_type.h>
+#include <errno.h>
 #endif
 
 #include <sizes.h>
@@ -31,6 +32,9 @@
 #define E_RMM_AGAIN			(-6)
 #define E_RMM_FAULT			(-7)
 #define E_RMM_IN_PROGRESS		(-8)
+#define E_RMM_NOTSUP			(-9)
+#define E_RMM_BUSY			(-10)
+#define E_RMM_DENIED			(-11)
 
 /****************************************
  * Generic defines for RMM-EL3 interface
@@ -227,7 +231,7 @@ COMPILER_ASSERT(U(offsetof(struct el3_token_sign_response, signature_buf)) == 0x
 #define EL3_IFC_IDE_STREAM_INFO_KEY_SLOT_SHIFT		U(12)
 #define EL3_IFC_IDE_STREAM_INFO_KEY_SLOT_WIDTH		U(1)
 
-/* Number of times to retry a IDE KM call if the SMC returns E_RMM_AGAIN */
+/* Number of times to retry an IDE KM call if the SMC returns E_RMM_BUSY */
 #define EL3_IFC_IDE_KM_RETRY_COUNT_MAX			U(3)
 
 /* Construct stream_info from key set, key direction, key substream, stream id */
@@ -255,6 +259,52 @@ uintptr_t rmm_el3_ifc_get_shared_buf_pa(void);
 static inline size_t rmm_el3_ifc_get_shared_buf_size(void)
 {
 	return SZ_4K;
+}
+
+/* This helper converts RMM EL3 interface error codes to generic error code. */
+static inline int rmm_errno_to_generic_errno(int rmm_errno)
+{
+	int rc;
+
+	switch (rmm_errno) {
+	case E_RMM_OK:
+		rc = 0;
+		break;
+	case E_RMM_UNK:
+		rc = -ENOTSUP;
+		break;
+	case E_RMM_BAD_ADDR:
+	case E_RMM_BAD_PAS:
+	case E_RMM_FAULT:
+		rc = -EFAULT;
+		break;
+	case E_RMM_NOMEM:
+		rc = -ENOMEM;
+		break;
+	case E_RMM_INVAL:
+		rc = -EINVAL;
+		break;
+	case E_RMM_AGAIN:
+		rc = -EAGAIN;
+		break;
+	case E_RMM_IN_PROGRESS:
+		rc = -EINPROGRESS;
+		break;
+	case E_RMM_NOTSUP:
+		rc = -ENOTSUP;
+		break;
+	case E_RMM_BUSY:
+		rc = -EBUSY;
+		break;
+	case E_RMM_DENIED:
+		rc = -EPERM;
+		break;
+	default:
+		rc = -ENOTSUP;
+		break;
+	}
+
+	return rc;
 }
 
 /*
@@ -744,7 +794,10 @@ struct el3_ifc_rp_ide_iv {
  * Args:
  *	- ecam_addr	Identify the root complex (RC).
  *	- rp_id		Identify the RP within the RC
- *	- stream_info	IDE selective stream information
+ *	- kslot		Key slot
+ *	- kdir		Key direction
+ *	- ide_sub_sid	IDE sub stream ID
+ *	- ide_sid	IDE stream ID
  *	- key		IDE key buffer
  *	- iv		IV buffer
  *
@@ -752,13 +805,17 @@ struct el3_ifc_rp_ide_iv {
  *	- E_RMM_OK	On Success. The key programming succeeded.
  *	- E_RMM_FAULT	On Failure. The key programming failed
  *	- E_RMM_INVAL	If the arguments are invalid.
- *	- E_RMM_AGAIN	The RP KM interface is busy, and the call needs to be
+ *	- E_RMM_BUSY	The RP KM interface is busy, and the call needs to be
  *			retried.
+ *	- E_RMM_NOTSUP	If the FIRME IDE service does not support the operation.
  *	- E_RMM_UNK	If the SMC is not implemented or if interface
  *			version is < 0.5.
  */
 int rmm_el3_ifc_rp_ide_key_prog(unsigned long ecam_addr, unsigned long rp_id,
-				unsigned long stream_info, struct el3_ifc_rp_ide_key *key,
+				unsigned long kslot, unsigned long kdir,
+				unsigned long ide_sub_sid,
+				unsigned long ide_sid,
+				struct el3_ifc_rp_ide_key *key,
 				struct el3_ifc_rp_ide_iv *iv);
 
 /*
@@ -769,19 +826,26 @@ int rmm_el3_ifc_rp_ide_key_prog(unsigned long ecam_addr, unsigned long rp_id,
  * Args:
  *	- ecam_addr	Identify the root complex (RC).
  *	- rp_id		Identify the RP within the RC
- *	- stream_info	IDE selective stream information
+ *	- kslot		Key slot
+ *	- kdir		Key direction
+ *	- ide_sub_sid	IDE sub stream ID
+ *	- ide_sid	IDE stream ID
  *
  * Return:
  *	- E_RMM_OK	On Success. The key programming succeeded.
  *	- E_RMM_FAULT	On Failure. The key programming failed
  *	- E_RMM_INVAL	If the arguments are invalid.
- *	- E_RMM_AGAIN	The RP KM interface is busy, and the call needs to be
+ *	- E_RMM_BUSY	The RP KM interface is busy, and the call needs to be
  *			retried.
+ *	- E_RMM_NOTSUP	If the FIRME IDE service does not support the operation.
+ *	- E_RMM_DENIED	If the FIRME IDE service denies the operation.
  *	- E_RMM_UNK	If the SMC is not implemented or if interface
  *			version is < 0.5.
  */
 int rmm_el3_ifc_rp_ide_key_set_go(unsigned long ecam_addr, unsigned long rp_id,
-				  unsigned long stream_info);
+				  unsigned long kslot, unsigned long kdir,
+				  unsigned long ide_sub_sid,
+				  unsigned long ide_sid);
 
 /*
  * Stop the IDE stream. This SMC is typically only used in tear down of the IDE
@@ -790,19 +854,26 @@ int rmm_el3_ifc_rp_ide_key_set_go(unsigned long ecam_addr, unsigned long rp_id,
  * Args:
  *	- ecam_addr	Identify the Root Complex (RC).
  *	- rp_id		Identify the RP within the RC
- *	- stream_info	IDE selective stream information
+ *	- kslot		Key slot
+ *	- kdir		Key direction
+ *	- ide_sub_sid	IDE sub stream ID
+ *	- ide_sid	IDE stream ID
  *
  * Return:
  *	- E_RMM_OK	On Success. The key programming succeeded.
  *	- E_RMM_FAULT	On Failure. The key programming failed
  *	- E_RMM_INVAL	If the arguments are invalid.
- *	- E_RMM_AGAIN	The RP KM interface is busy, and the call needs to be
+ *	- E_RMM_BUSY	The RP KM interface is busy, and the call needs to be
  *			retried.
+ *	- E_RMM_NOTSUP	If the FIRME IDE service does not support the operation.
+ *	- E_RMM_DENIED	If the FIRME IDE service denies the operation.
  *	- E_RMM_UNK	If the SMC is not implemented or if interface
  *			version is < 0.5.
  */
 int rmm_el3_ifc_rp_ide_key_set_stop(unsigned long ecam_addr, unsigned long rp_id,
-				    unsigned long stream_info);
+				    unsigned long kslot, unsigned long kdir,
+				    unsigned long ide_sub_sid,
+				    unsigned long ide_sid);
 
 /*
  * Check whether @ecam_addr matches a Root Complex ECAM base address from the

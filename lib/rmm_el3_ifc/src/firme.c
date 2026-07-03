@@ -12,17 +12,20 @@
 /* cppcheck-suppress misra-c2012-9.3 */
 static const unsigned int supported_firme_service_versions[FIRME_NUM_SERVICES] = {
 	[FIRME_BASE_SERVICE_ID] = SUPPORTED_FIRME_BASE_VERSION,
-	[FIRME_GM_SERVICE_ID] = SUPPORTED_FIRME_GM_VERSION
+	[FIRME_GM_SERVICE_ID] = SUPPORTED_FIRME_GM_VERSION,
+	[FIRME_IDE_SERVICE_ID] = SUPPORTED_FIRME_IDE_VERSION
 };
 
 /* cppcheck-suppress misra-c2012-9.3 */
 static const unsigned long firme_abis_masks[FIRME_NUM_SERVICES] = {
-	[FIRME_GM_SERVICE_ID] = FIRME_GM_FR0_MASK
+	[FIRME_GM_SERVICE_ID] = FIRME_GM_FR0_MASK,
+	[FIRME_IDE_SERVICE_ID] = FIRME_IDE_FR0_MASK
 };
 
 /* FIRME status variables. */
-static unsigned int firme_el3_svc_version[FIRME_NUM_SERVICES] = {0U, 0U};
-static unsigned long firme_el3_svc_present_abis[FIRME_NUM_SERVICES] = {0UL, 0UL};
+static unsigned int firme_el3_svc_version[FIRME_NUM_SERVICES] = {0U, 0U, 0U};
+static unsigned long firme_el3_svc_present_abis[FIRME_NUM_SERVICES] = {0UL, 0UL,
+								       0UL};
 
 static bool firme_feature_discovery(unsigned int svc_id)
 {
