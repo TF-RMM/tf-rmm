@@ -270,6 +270,7 @@ enum attest_token_err_t attest_realm_token_create(struct app_data_cfg *app_data,
 			     enum hash_algo algorithm,
 			     unsigned char measurements[][MAX_MEASUREMENT_SIZE],
 			     bool is_pvt_mecid,
+			     const void *realm_instance_id_buf,
 			     const void *rpv_buf,
 			     const void *challenge_buf)
 {
@@ -282,6 +283,9 @@ enum attest_token_err_t attest_realm_token_create(struct app_data_cfg *app_data,
 	(void)memcpy(&(shared_page->measurements),
 	       measurements,
 	       (size_t)(MEASUREMENT_SLOT_NR * MAX_MEASUREMENT_SIZE));
+	(void)memcpy((void *)&(shared_page->realm_instance_id),
+	       realm_instance_id_buf,
+	       REALM_INSTANCE_ID_SIZE);
 	(void)memcpy((void *)&(shared_page->rpv),
 	       rpv_buf,
 	       RPV_SIZE);

@@ -200,6 +200,8 @@ static unsigned long realm_token_create(enum hash_algo algorithm)
 	return (unsigned long)attest_app_realm_token_create(algorithm,
 			     params->measurements,
 			     MEASUREMENT_SLOT_NR,
+			     &(params->realm_instance_id),
+			     REALM_INSTANCE_ID_SIZE,
 			     &(params->rpv),
 			     RPV_SIZE,
 			     params->is_pvt_mecid,

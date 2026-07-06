@@ -48,18 +48,6 @@ static void attest_get_hash_algo_text(enum hash_algo algorithm,
 	}
 }
 
-static UsefulBufC attest_get_mec_policy_text(bool private_mec)
-{
-	if (private_mec) {
-		/* cppcheck-suppress misra-c2012-10.4 */
-		/* coverity[misra_c_2012_rule_10_4_violation:SUPPRESS] */
-		return UsefulBuf_FROM_SZ_LITERAL("private");
-	}
-	/* cppcheck-suppress misra-c2012-10.4 */
-	/* coverity[misra_c_2012_rule_10_4_violation:SUPPRESS] */
-	return UsefulBuf_FROM_SZ_LITERAL("shared");
-}
-
 /*
  * Outline of token creation. Much of this occurs inside
  * t_cose_sign1_encode_parameters() and t_cose_sign1_encode_signature().
@@ -288,6 +276,7 @@ attest_app_cca_token_create(struct token_sign_cntxt *me,
  * As per section A7.2.3.1 of RMM specification, Realm Attestation token is
  * composed of:
  *	- Realm Challenge
+ *	- Realm Instance Id
  *	- Realm Personalization Value
  *	- Realm Hash Algorithm Id
  *	- Realm MEC policy
@@ -299,6 +288,8 @@ attest_app_cca_token_create(struct token_sign_cntxt *me,
 int attest_app_realm_token_create(enum hash_algo algorithm,
 			     unsigned char measurements[][MAX_MEASUREMENT_SIZE],
 			     unsigned int num_measurements,
+			     const void *realm_instance_id_buf,
+			     size_t realm_instance_id_len,
 			     const void *rpv_buf,
 			     size_t rpv_len,
 			     bool is_pvt_mecid,
@@ -313,6 +304,7 @@ int attest_app_realm_token_create(enum hash_algo algorithm,
 	enum attest_token_err_t token_ret = ATTEST_TOKEN_ERR_INVALID_STATE;
 	struct q_useful_buf realm_token_ub = {realm_token_buf, realm_token_buf_size};
 	struct q_useful_buf_c rpv_ub = {rpv_buf, rpv_len};
+	struct q_useful_buf_c realm_instance_id_ub = {realm_instance_id_buf, realm_instance_id_len};
 	int ret;
 
 	/* Can only be called in the init state */
@@ -346,6 +338,10 @@ int attest_app_realm_token_create(enum hash_algo algorithm,
 				   buf);
 
 	QCBOREncode_AddBytesToMapN(&(ctx->ctx.cbor_enc_ctx),
+				   CCA_REALM_INSTANCE_ID,
+				   realm_instance_id_ub);
+
+	QCBOREncode_AddBytesToMapN(&(ctx->ctx.cbor_enc_ctx),
 				   CCA_REALM_PERSONALIZATION_VALUE,
 				   rpv_ub);
 
@@ -369,10 +365,9 @@ int attest_app_realm_token_create(enum hash_algo algorithm,
 				  CCA_REALM_PUB_KEY_HASH_ALGO_ID,
 				  buf);
 
-	buf = attest_get_mec_policy_text(is_pvt_mecid);
-	QCBOREncode_AddTextToMapN(&(ctx->ctx.cbor_enc_ctx),
+	QCBOREncode_AddInt64ToMapN(&(ctx->ctx.cbor_enc_ctx),
 				  CCA_REALM_MEC_POLICY,
-				  buf);
+				  is_pvt_mecid?1:0);
 
 	QCBOREncode_AddTextToMapN(&(ctx->ctx.cbor_enc_ctx),
 				  CCA_REALM_PROFILE,
