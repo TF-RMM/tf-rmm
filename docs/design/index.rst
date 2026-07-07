@@ -10,6 +10,7 @@ Design
 
     locking
     memory-management
+    rtt-map-unmap
     file-org-and-config
     pdev_aux_granules
     fake-host-architecture
