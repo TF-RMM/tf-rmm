@@ -92,11 +92,12 @@ static bool rtt_map_irq_pending(void)
  *                     of its NS granule.
  *   @oaddr          - SINGLE: the single descriptor; LIST: NS PA of
  *                     a granule containing descriptors.
- *   @expected_state - state every descriptor must report:
- *                     RMI_OP_MEM_DELEGATED for DATA_MAP,
- *                     RMI_OP_MEM_UNDELEGATED for UNPROT_MAP.
- *   @must_be_in_par - true: range must lie inside PAR (DATA_MAP);
- *                     false: range must lie outside PAR (UNPROT_MAP).
+ *   @expected_state   - state every descriptor must report when
+ *                       @check_desc_state is true.
+ *   @check_desc_state - true when the command defines descriptor ST as
+ *                       part of its input contract. TODO: revert this later.
+ *   @must_be_in_par   - true: range must lie inside PAR (DATA/DEV_MAP);
+ *                       false: range must lie outside PAR (UNPROT_MAP).
  *
  * Returns RMI_SUCCESS with @list_out / @level_out / @map_size_out
  * populated; on failure returns the RMI status to surface in res->x[0].
@@ -111,6 +112,7 @@ static unsigned long validate_map_inputs_common(unsigned long base,
 						unsigned long oaddr,
 						struct rd *rd,
 						unsigned long expected_state,
+						bool check_desc_state,
 						bool must_be_in_par,
 						struct addr_list *list_out,
 						long *level_out,
@@ -179,7 +181,7 @@ static unsigned long validate_map_inputs_common(unsigned long base,
 
 	level = (long)first_level;
 
-	if (st != expected_state) {
+	if (check_desc_state && (st != expected_state)) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -210,7 +212,8 @@ static unsigned long validate_map_inputs_common(unsigned long base,
  *      *@yield_out is set to true and RMI_SUCCESS is returned; the
  *      caller treats this as "stop and report partial progress".
  *   2. Reduce one block descriptor in the list.
- *   3. Descriptor state must equal @expected_state.
+ *   3. If @check_desc_state is true, descriptor state must equal
+ *      @expected_state.
  *   4. Descriptor level must equal the walk @level (single tree shape
  *      per call).
  *   5. Block must fit in the remaining range (@out_top + @map_size
@@ -227,6 +230,7 @@ static unsigned long validate_map_inputs_common(unsigned long base,
 static unsigned long map_pop_next_block(struct addr_list *list,
 					struct s2tt_context *s2_ctx,
 					unsigned long expected_state,
+					bool check_desc_state,
 					long level,
 					unsigned long map_size,
 					unsigned long out_top,
@@ -249,7 +253,7 @@ static unsigned long map_pop_next_block(struct addr_list *list,
 		return RMI_ERROR_INPUT;
 	}
 
-	if (st != expected_state) {
+	if (check_desc_state && (st != expected_state)) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -511,6 +515,7 @@ static unsigned long validate_data_map_inputs(unsigned long base,
 	return validate_map_inputs_common(base, top, oaddr_type, list_count,
 					  oaddr, rd,
 					  RMI_OP_MEM_DELEGATED,
+					  /* check_desc_state= */ true,
 					  /* must_be_in_par= */ true,
 					  list_out, level_out, map_size_out);
 }
@@ -656,6 +661,7 @@ void smc_rtt_data_map(unsigned long rd_addr,
 
 		ret = map_pop_next_block(&list, &s2_ctx,
 					 RMI_OP_MEM_DELEGATED,
+					 /* check_desc_state= */ true,
 					 level, map_size, out_top, top,
 					 &pa, &yield);
 		if (yield || (ret != RMI_SUCCESS)) {
@@ -1048,7 +1054,8 @@ static unsigned long validate_unprot_map_inputs(unsigned long base,
 
 	ret = validate_map_inputs_common(base, top, oaddr_type, list_count,
 					 oaddr, rd,
-					 RMI_OP_MEM_UNDELEGATED,
+					 RMI_OP_MEM_DELEGATED,
+					 /* check_desc_state= */ false,
 					 /* must_be_in_par= */ false,
 					 list_out, level_out, map_size_out);
 	if (ret != RMI_SUCCESS) {
@@ -1231,7 +1238,8 @@ void smc_rtt_unprot_map(unsigned long rd_addr,
 		bool yield;
 
 		ret = map_pop_next_block(&list, &s2_ctx,
-					 RMI_OP_MEM_UNDELEGATED,
+					 RMI_OP_MEM_DELEGATED,
+					 /* check_desc_state= */ false,
 					 level, map_size, out_top, top,
 					 &pa, &yield);
 		if (yield || (ret != RMI_SUCCESS)) {
@@ -1299,6 +1307,7 @@ static unsigned long validate_dev_map_inputs(unsigned long base,
 	return validate_map_inputs_common(base, top, oaddr_type, list_count,
 					  oaddr, rd,
 					  RMI_OP_MEM_DELEGATED,
+					  /* check_desc_state= */ true,
 					  /* must_be_in_par= */ true,
 					  list_out, level_out, map_size_out);
 }
@@ -1621,6 +1630,7 @@ void smc_rtt_dev_map(unsigned long rd_addr,
 
 		ret = map_pop_next_block(&list, &s2_ctx,
 					 RMI_OP_MEM_DELEGATED,
+					 /* check_desc_state= */ true,
 					 level, map_size, out_top, top,
 					 &pa, &yield);
 		if (yield || (ret != RMI_SUCCESS)) {
