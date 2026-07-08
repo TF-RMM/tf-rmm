@@ -8,6 +8,7 @@
 
 #include "rtt_data_test_helpers.h"
 
+#ifdef RMM_RTT_MAP_CHECK_ISR_EL1
 static void isr_el1_wr(u_register_t val, u_register_t *reg)
 {
 	*reg = val;
@@ -64,6 +65,7 @@ static void prime_isr_yield_before_data_map_pop(void)
 {
 	prime_isr_pending_irq();
 }
+#endif
 
 TEST_GROUP(rtt_data_map_tests) {
 	TEST_SETUP()
@@ -323,6 +325,7 @@ TEST(rtt_data_map_tests, already_mapped_same_pa_is_idempotent)
  * Partial progress                                                   *
  * ------------------------------------------------------------------ */
 
+#ifdef RMM_RTT_MAP_CHECK_ISR_EL1
 /*
  * If DATA_MAP sees a pending IRQ before popping the first descriptor, report
  * zero progress as success with out_top equal to base.
@@ -353,6 +356,7 @@ TEST(rtt_data_map_tests, irq_before_first_descriptor_reports_base_out_top)
 	expect_data_granule_delegated(data_pa);
 	expect_ipa_unassigned_no_drain(&ctx, TEST_DATA_IPA_BASE);
 }
+#endif
 
 /*
  * Stop a multi-page single descriptor at the requested top IPA without
@@ -994,6 +998,7 @@ TEST(rtt_data_map_tests, l2_drain_failure_rolls_back_partial_granules)
  * SRO yield and resume                                               *
  * ------------------------------------------------------------------ */
 
+#ifdef RMM_RTT_MAP_CHECK_ISR_EL1
 /*
  * Yield during the DATA_MAP drain path and complete the pending operation
  * through RMI_OP_CONTINUE.
@@ -1161,3 +1166,4 @@ TEST(rtt_data_map_tests, drain_pending_map_retry_returns_busy)
 	expect_data_granule_delegated(retry_pa);
 	expect_ipa_assigned_ram_to_pa(&ctx, TEST_DATA_IPA_BASE, data_pa);
 }
+#endif

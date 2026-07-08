@@ -64,6 +64,15 @@ static unsigned long map_partial_progress_finalize(struct smc_result *res,
 	return ret;
 }
 
+static bool rtt_map_irq_pending(void)
+{
+#ifdef RMM_RTT_MAP_CHECK_ISR_EL1
+	return (read_isr_el1() != 0UL);
+#else
+	return false;
+#endif
+}
+
 /*
  * Shared input validator for the range-aware map commands
  * (RMI_RTT_DATA_MAP, RMI_RTT_UNPROT_MAP, RMI_RTT_DEV_MAP). Rejects
@@ -197,9 +206,9 @@ static unsigned long validate_map_inputs_common(unsigned long base,
  * Pop the next descriptor from @list and run the per-block prologue
  * shared by the range-aware map walk loops:
  *
- *   1. Yield on pending physical IRQ. *@yield_out is set to true and
- *      RMI_SUCCESS is returned; the caller treats this as "stop and
- *      report partial progress".
+ *   1. If ISR_EL1 sampling is enabled, yield on pending physical IRQ.
+ *      *@yield_out is set to true and RMI_SUCCESS is returned; the
+ *      caller treats this as "stop and report partial progress".
  *   2. Reduce one block descriptor in the list.
  *   3. Descriptor state must equal @expected_state.
  *   4. Descriptor level must equal the walk @level (single tree shape
@@ -231,7 +240,7 @@ static unsigned long map_pop_next_block(struct addr_list *list,
 
 	*yield_out = false;
 
-	if (read_isr_el1() != 0UL) {
+	if (rtt_map_irq_pending()) {
 		*yield_out = true;
 		return RMI_SUCCESS;
 	}
@@ -291,7 +300,7 @@ static unsigned long data_map_rollback_pending(struct sro_map_ctx *ctx,
 	while (ctx->pending_off > 0UL) {
 		struct granule *g_data;
 
-		if (read_isr_el1() != 0UL) {
+		if (rtt_map_irq_pending()) {
 			*yielded = true;
 			return RMI_SUCCESS;
 		}
@@ -322,7 +331,7 @@ static unsigned long data_map_rollback_pending(struct sro_map_ctx *ctx,
  * @ctx->pending_off and advances it past every granule it has claimed
  * and zeroed. Each iteration:
  *
- *   1. Sample read_isr_el1(); on a pending physical IRQ return true
+ *   1. If enabled, sample ISR_EL1; on a pending physical IRQ return true
  *      with the cursor pointing at the next pending granule.
  *   2. find_lock_granule(pa, DELEGATED) and keep it locked.
  *      On failure switch to rollback. Rollback is also yieldable; when
@@ -364,7 +373,7 @@ static unsigned long data_map_drain_pending(struct sro_map_ctx *ctx,
 		struct granule *g_data;
 		void *data;
 
-		if (read_isr_el1() != 0UL) {
+		if (rtt_map_irq_pending()) {
 			*yielded = true;
 			return RMI_SUCCESS;
 		}
@@ -1318,7 +1327,7 @@ static unsigned long dev_map_rollback_pending(struct sro_map_ctx *ctx,
 		struct dev_granule *g_dev;
 		enum dev_coh_type type;
 
-		if (read_isr_el1() != 0UL) {
+		if (rtt_map_irq_pending()) {
 			*yielded = true;
 			return RMI_SUCCESS;
 		}
@@ -1351,7 +1360,7 @@ static unsigned long dev_map_rollback_pending(struct sro_map_ctx *ctx,
  * from @ctx->pending_off and advances it past every granule it has
  * transitioned. Each iteration:
  *
- *   1. Sample read_isr_el1(); on a pending physical IRQ return true
+ *   1. If enabled, sample ISR_EL1; on a pending physical IRQ return true
  *      with the cursor pointing at the next pending granule.
  *   2. find_lock_dev_granule(pa, DELEGATED, &type). On failure switch
  *      to rollback. Rollback is also yieldable; when complete it
@@ -1395,7 +1404,7 @@ static unsigned long dev_map_drain_pending(struct sro_map_ctx *ctx,
 		struct dev_granule *g_dev;
 		enum dev_coh_type type;
 
-		if (read_isr_el1() != 0UL) {
+		if (rtt_map_irq_pending()) {
 			*yielded = true;
 			return RMI_SUCCESS;
 		}

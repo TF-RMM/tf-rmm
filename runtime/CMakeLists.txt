@@ -16,8 +16,22 @@ arm_config_option(
     TYPE STRING
     DEFAULT 40)
 
+# The kernel branch that RMM is currently tested does not support RMI_INCOMPLETE.
+# TODO: remove this build option once kernel branch is updated to support this.
+arm_config_option(
+    NAME RMM_RTT_MAP_CHECK_ISR_EL1
+    HELP "Read ISR_EL1 to yield range-aware RTT map operations on pending IRQs"
+    TYPE BOOL
+    DEFAULT OFF
+    ADVANCED)
+
 target_compile_definitions(rmm-runtime
     PRIVATE "RSI_LOG_LEVEL=${RSI_LOG_LEVEL}")
+
+if(RMM_RTT_MAP_CHECK_ISR_EL1)
+    target_compile_definitions(rmm-runtime
+        PRIVATE "RMM_RTT_MAP_CHECK_ISR_EL1=1")
+endif()
 
 target_link_libraries(rmm-runtime
     PRIVATE rmm-lib
