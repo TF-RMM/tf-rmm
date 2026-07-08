@@ -7,6 +7,7 @@
 #include <CppUTest/TestHarness.h>
 
 extern "C" {
+#include <arch_features.h>
 #include <arch_helpers.h>
 #include <esr.h>
 #include <exit.h>
@@ -69,6 +70,7 @@ static void init_syndrome_sysregs(void)
 {
 	LONGS_EQUAL(0, host_util_set_default_sysreg_cb((char *)"far_el2", 0UL));
 	LONGS_EQUAL(0, host_util_set_default_sysreg_cb((char *)"hpfar_el2", 0UL));
+	LONGS_EQUAL(0, host_util_set_default_sysreg_cb((char *)"par_el1", 0UL));
 	LONGS_EQUAL(0, host_util_set_default_sysreg_cb((char *)"spsr_el2", 0UL));
 }
 
@@ -86,6 +88,11 @@ static void init_context(struct exit_esr_test_context *ctx)
 static unsigned long unprotected_ipa(void)
 {
 	return GRANULE_SIZE * 2UL;
+}
+
+static unsigned long different_unprotected_ipa(void)
+{
+	return unprotected_ipa() + GRANULE_SIZE;
 }
 
 static unsigned long hpfar_for_ipa(unsigned long ipa)
@@ -119,6 +126,7 @@ static unsigned long far_offset(unsigned long far)
  * nonemulatable_unprotected_data_abort_preserves_   A4.3.4.3 / DMTZMC,      D24.2 "ISS encoding for an exception from a Data Abort",
  * il_only                                           RRYVFL                  D24.2.41 "ESR_EL2, Exception Syndrome Register (EL2)",
  *                                                                              D24.2.70 "HPFAR_EL2, Hypervisor IPA Fault Address Register"
+ * direct_permission_fault_uses_stage1_ipa       D1.3.2.1 / RFKLWR, D8.2.13
  */
 
 } /* namespace */
@@ -311,6 +319,7 @@ TEST(exit_esr_tests, emulatable_data_abort_strips_srt_sse_and_s1ptw)
 	write_spsr_el2(0UL);
 	write_far_el2(raw_far);
 	write_hpfar_el2(raw_hpfar);
+	write_par_el1(different_unprotected_ipa());
 	write_esr_el2(raw_esr);
 
 	CHECK_FALSE(handle_realm_exit(&ctx.rec, &ctx.rec_exit, ARM_EXCEPTION_SYNC_LEL));
@@ -359,6 +368,7 @@ TEST(exit_esr_tests, nonemulatable_unprotected_data_abort_preserves_il_only)
 	write_spsr_el2(0UL);
 	write_far_el2((GRANULE_SIZE * 5UL) + 0x44UL);
 	write_hpfar_el2(raw_hpfar);
+	write_par_el1(different_unprotected_ipa());
 	write_esr_el2(raw_esr);
 
 	CHECK_FALSE(handle_realm_exit(&ctx.rec, &ctx.rec_exit, ARM_EXCEPTION_SYNC_LEL));
@@ -375,4 +385,32 @@ TEST(exit_esr_tests, nonemulatable_unprotected_data_abort_preserves_il_only)
 	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.esr & MASK(ESR_EL2_ABORT_SRT));
 	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.esr & ESR_EL2_ABORT_S1PTW_BIT);
 	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.esr & ESR_EL2_ABORT_WNR_BIT);
+}
+
+TEST(exit_esr_tests, direct_permission_fault_uses_stage1_ipa)
+{
+	struct exit_esr_test_context ctx;
+	unsigned long fipa = unprotected_ipa();
+	unsigned long stale_hpfar = hpfar_for_ipa(different_unprotected_ipa());
+	unsigned long saved_mmfr3 = READ_CACHED_REG(id_aa64mmfr3_el1);
+	unsigned long raw_esr = ESR_EL2_EC_DATA_ABORT |
+				ESR_EL2_ABORT_FSC_PERM_FAULT_START;
+
+	/* Direct stage 2 permission faults leave HPFAR_EL2 UNKNOWN. */
+	/* Fake host does not implement 128-bit system register accesses. */
+	WRITE_CACHED_REG(id_aa64mmfr3_el1, 0UL);
+
+	init_context(&ctx);
+
+	write_spsr_el2(0UL);
+	write_far_el2(fipa + 0x44UL);
+	write_hpfar_el2(stale_hpfar);
+	write_par_el1(fipa);
+	write_esr_el2(raw_esr);
+
+	CHECK_FALSE(handle_realm_exit(&ctx.rec, &ctx.rec_exit, ARM_EXCEPTION_SYNC_LEL));
+	WRITE_CACHED_REG(id_aa64mmfr3_el1, saved_mmfr3);
+	UNSIGNED_LONGS_EQUAL(RMI_EXIT_SYNC, ctx.rec_exit.exit_reason);
+	UNSIGNED_LONGS_EQUAL(hpfar_for_ipa(fipa), ctx.rec_exit.hpfar);
+	UNSIGNED_LONGS_EQUAL(fipa, read_par_el1());
 }

@@ -952,6 +952,10 @@
 
 /* PAR_EL1 definitions */
 #define PAR_EL1_F_BIT			(UL(1) << 0)
+#define PAR_EL1_PA_SHIFT		12
+#define PAR_EL1_PA_WIDTH		U(40)
+/* PAR_EL1[64], represented in the low bit of the upper 64-bit half. */
+#define PAR_EL1_D128_BIT		(UL(1) << 0)
 
 /* HPFAR_EL2 definitions */
 #define HPFAR_EL2_FIPA_SHIFT		4

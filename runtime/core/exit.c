@@ -5,6 +5,7 @@
  */
 
 #include <arch.h>
+#include <arch_features.h>
 #include <arch_helpers.h>
 #include <buffer.h>
 #include <esr.h>
@@ -131,6 +132,95 @@ static bool abort_is_permission_fault(unsigned long esr)
 }
 
 /*
+ * HPFAR_EL2 is valid for stage 2 Translation, Access Flag, and Address Size
+ * faults. For a stage 2 Permission fault, it is valid only for an S1PTW.
+ */
+static bool hpfar_is_valid_for_abort(unsigned long esr)
+{
+	bool s1ptw = (esr & ESR_EL2_ABORT_S1PTW_BIT) != 0UL;
+
+	if (abort_is_permission_fault(esr)) {
+		return s1ptw;
+	}
+
+	return true;
+}
+
+/*
+ * Translates the faulting Realm VA to IPA using the stage 1 translation
+ * regime.
+ */
+static unsigned long fipa_from_far(unsigned long far)
+{
+	struct reg128 par;
+	struct reg128 saved_par;
+	bool d128 = is_feat_d128_present();
+
+	/* An AT instruction overwrites PAR_EL1, which is part of Realm state. */
+	if (d128) {
+		saved_par = read128_par_el1();
+	} else {
+		saved_par.lo = read_par_el1();
+		saved_par.hi = 0UL;
+	}
+
+	ats1e1r(far);
+	isb();
+
+	if (d128) {
+		par = read128_par_el1();
+		write128_par_el1(&saved_par);
+	} else {
+		par.lo = read_par_el1();
+		par.hi = 0UL;
+		write_par_el1(saved_par.lo);
+	}
+
+	/*
+	 * PAR_EL1.F == 1 means that the address translation instruction failed.
+	 * A direct stage 2 permission fault requires it to succeed.
+	 */
+	if ((par.lo & PAR_EL1_F_BIT) != 0UL) {
+		panic();
+	}
+
+	/*
+	 * ATS1* uses 128-bit PAR_EL1 when its target translation system uses
+	 * VMSAv9-128. PAR_EL1.D128 reports this format, with the translated IPA
+	 * in the upper half.
+	 */
+	if (d128 && ((par.hi & PAR_EL1_D128_BIT) != 0UL)) {
+		/* TODO: Extract all 44 PA bits when TF-RMM supports 56-bit PA/IPA. */
+		return par.hi & MASK(PAR_EL1_PA);
+	}
+
+	return par.lo & MASK(PAR_EL1_PA);
+}
+
+/*
+ * Populates @fipa and @hpfar for this abort
+ */
+static void get_abort_fault_ipa(unsigned long esr, unsigned long *fipa,
+				unsigned long *hpfar)
+{
+	unsigned long far;
+
+	assert(fipa != NULL);
+	assert(hpfar != NULL);
+
+	if (hpfar_is_valid_for_abort(esr)) {
+		*hpfar = read_hpfar_el2();
+		*fipa = (*hpfar & MASK(HPFAR_EL2_FIPA)) << HPFAR_EL2_FIPA_OFFSET;
+		return;
+	}
+
+	far = read_far_el2();
+	*fipa = fipa_from_far(far);
+
+	*hpfar = *fipa >> HPFAR_EL2_FIPA_OFFSET;
+}
+
+/*
  * Handles Data/Instruction Aborts at a lower EL with External Abort fault
  * status code (D/IFSC).
  * Returns 'true' if the exception is the external abort and the `rec_exit`
@@ -213,8 +303,8 @@ static bool handle_data_abort(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			      unsigned long esr)
 {
 	unsigned long far = 0UL;
-	unsigned long hpfar = read_hpfar_el2();
-	unsigned long fipa = (hpfar & MASK(HPFAR_EL2_FIPA)) << HPFAR_EL2_FIPA_OFFSET;
+	unsigned long hpfar = 0UL;
+	unsigned long fipa = 0UL;
 	unsigned long write_val = 0UL;
 	bool empty_ipa;
 
@@ -224,6 +314,8 @@ static bool handle_data_abort(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		 */
 		return false;
 	}
+
+	get_abort_fault_ipa(esr, &fipa, &hpfar);
 
 	empty_ipa = ipa_is_empty(fipa, rec);
 	if (rec_is_plane_0_active(rec)) {
@@ -298,8 +390,8 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 {
 	unsigned long fsc = esr & MASK(ESR_EL2_ABORT_FSC);
 	unsigned long fsc_type = fsc & ~MASK(ESR_EL2_ABORT_FSC_LEVEL);
-	unsigned long hpfar = read_hpfar_el2();
-	unsigned long fipa = (hpfar & MASK(HPFAR_EL2_FIPA)) << HPFAR_EL2_FIPA_OFFSET;
+	unsigned long hpfar = 0UL;
+	unsigned long fipa = 0UL;
 	bool empty_ipa, in_par;
 
 	if (handle_sync_external_abort(rec, rec_exit, esr)) {
@@ -308,6 +400,8 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 		 */
 		return false;
 	}
+
+	get_abort_fault_ipa(esr, &fipa, &hpfar);
 
 	empty_ipa = ipa_is_empty(fipa, rec);
 	in_par = access_in_rec_par(rec, fipa);
