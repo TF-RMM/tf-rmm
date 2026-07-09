@@ -186,6 +186,15 @@ static enum rtt_unmap_flavor rtt_unmap_flavor_from_fid(unsigned long fid)
 	}
 }
 
+static bool rtt_unmap_irq_pending(void)
+{
+#ifdef RMM_RTT_MAP_UNMAP_CHECK_ISR_EL1
+	return (read_isr_el1() != 0UL);
+#else
+	return false;
+#endif
+}
+
 /*
  * DATA-only pre-add checks for a single sweepable entry.
  *
@@ -623,7 +632,7 @@ static bool rtt_unmap_drain_pending(struct sro_unmap_ctx *ctx,
 		assert(ctx->pending_pa < blk_end);
 
 		while (ctx->pending_pa < blk_end) {
-			if (read_isr_el1() != 0UL) {
+			if (rtt_unmap_irq_pending()) {
 				return true;
 			}
 
@@ -709,7 +718,7 @@ static bool rtt_unmap_tlbi_pending(struct sro_unmap_ctx *ctx,
 	for (i = 0UL; i < S2TTES_PER_S2TT; i++) {
 		unsigned long s2tte;
 
-		if (read_isr_el1() != 0UL) {
+		if (rtt_unmap_irq_pending()) {
 			return true;
 		}
 

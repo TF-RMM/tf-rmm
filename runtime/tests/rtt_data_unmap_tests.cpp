@@ -1414,6 +1414,7 @@ TEST(rtt_data_unmap_tests, l2_table_device_block_data_block_mixed)
 /* ISR yield paths: pending work is completed through RMI_OP_CONTINUE. */
 /* ------------------------------------------------------------------ */
 
+#ifdef RMM_RTT_MAP_UNMAP_CHECK_ISR_EL1
 /*
  * data_unmap_rtc_yield_keep_going
  *
@@ -1558,6 +1559,7 @@ TEST(rtt_data_unmap_tests, data_unmap_yields_in_drain_phase)
 			TEST_DATA_IPA_BASE + (unsigned long)i * GRANULE_SIZE);
 	}
 }
+#endif
 
 /*
  * list_mode_pauses_on_level_change_then_unmaps_l2_block
@@ -1676,6 +1678,7 @@ TEST(rtt_data_unmap_tests, no_progress_after_skipping_holes_stops_at_table)
 	CHECK_EQUAL(0UL, res.x[3]);
 }
 
+#ifdef RMM_RTT_MAP_UNMAP_CHECK_ISR_EL1
 /*
  * list_mode_yield_flushes_partial_list
  *
@@ -1952,3 +1955,4 @@ TEST(rtt_data_unmap_tests, data_create_blocked_only_on_stamped_ipa)
 	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
 	expect_data_granules_delegated(data_base, N);
 }
+#endif

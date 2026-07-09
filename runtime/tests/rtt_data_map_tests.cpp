@@ -266,7 +266,7 @@ TEST(rtt_data_map_tests, already_mapped_same_pa_is_idempotent)
  * Partial progress                                                   *
  * ------------------------------------------------------------------ */
 
-#ifdef RMM_RTT_MAP_CHECK_ISR_EL1
+#ifdef RMM_RTT_MAP_UNMAP_CHECK_ISR_EL1
 /*
  * If DATA_MAP sees a pending IRQ before popping the first descriptor, report
  * zero progress as success with out_top equal to base.
@@ -939,7 +939,7 @@ TEST(rtt_data_map_tests, l2_drain_failure_rolls_back_partial_granules)
  * SRO yield and resume                                               *
  * ------------------------------------------------------------------ */
 
-#ifdef RMM_RTT_MAP_CHECK_ISR_EL1
+#ifdef RMM_RTT_MAP_UNMAP_CHECK_ISR_EL1
 /*
  * Yield during the DATA_MAP drain path and complete the pending operation
  * through RMI_OP_CONTINUE.
