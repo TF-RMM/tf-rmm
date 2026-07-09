@@ -88,11 +88,15 @@ static bool add_block_to_current_idx(struct addr_list *list,
 }
 
 /* cppcheck-suppress misra-c2012-8.7 */
-void addr_list_init(struct addr_list *list, enum list_type type)
+void addr_list_init(struct addr_list *list, enum list_type type,
+		    unsigned int max_count)
 {
 	assert(list != NULL);
+	assert(max_count > 0U);
+	assert(max_count <= (unsigned int)ADDR_LIST_MAX_RANGES);
 	(void)memset(list, 0, sizeof(struct addr_list));
 	list->type = type;
+	list->max_count = max_count;
 }
 
 /* cppcheck-suppress misra-c2012-8.7 */
@@ -138,14 +142,39 @@ bool addr_list_add_block(struct addr_list *list,
 		}
 	}
 
-	if (list->count == ADDR_LIST_MAX_RANGES) {
-		/* The list is full, cannot add the `range` */
+	if (list->count == list->max_count) {
+		/* The list is at its cap, cannot add a new `range` */
 		return false;
 	}
 
 	list->range_desc[list->cur_idx] = create_desc(block_addr, 1UL, blk_size, st);
 	list->count++;
 
+	return true;
+}
+
+/* cppcheck-suppress misra-c2012-8.7 */
+bool addr_list_add_desc(struct addr_list *list, unsigned long desc)
+{
+	unsigned long addr;
+	unsigned long cnt;
+	unsigned long blk_size;
+	unsigned long st;
+
+	assert(list != NULL);
+	assert(list->type == LIST_TYPE_INPUT);
+
+	if (list->count == list->max_count) {
+		return false;
+	}
+
+	addr = get_addr_from_desc(desc);
+	cnt = get_cnt_from_desc(desc);
+	blk_size = desc_blk_size(desc);
+	st = get_st_from_desc(desc);
+
+	list->range_desc[list->count] = create_desc(addr, cnt, blk_size, st);
+	list->count++;
 	return true;
 }
 
@@ -249,6 +278,29 @@ bool addr_list_reduce_contig_block(struct addr_list *list,
 	return true;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 */
+bool addr_list_peek_desc(const struct addr_list *list, unsigned int idx,
+			 unsigned long *base_addr, int *xlat_level,
+			 unsigned long *cnt, unsigned long *st)
+{
+	assert(list != NULL);
+	assert(base_addr != NULL);
+	assert(xlat_level != NULL);
+	assert(cnt != NULL);
+	assert(st != NULL);
+
+	if (idx >= list->count) {
+		return false;
+	}
+
+	*base_addr = get_addr_from_desc(list->range_desc[idx]);
+	*xlat_level = (int)XLAT_LVL_FROM_ADR_LIST_SZ(
+				get_sz_from_desc(list->range_desc[idx]));
+	*cnt = get_cnt_from_desc(list->range_desc[idx]);
+	*st = get_st_from_desc(list->range_desc[idx]);
+	return true;
+}
+
 /* Perform the necessary validation on the address list */
 /* cppcheck-suppress misra-c2012-8.7 */
 bool addr_list_validate(struct addr_list *list, bool is_contig,
@@ -329,16 +381,26 @@ bool addr_list_partial_copy_to_host(struct addr_list *list,
 	unsigned long ns_list_offset =  (ns_list_addr & ~GRANULE_MASK) /
 						 sizeof(unsigned long);
 	unsigned int list_count = list->count;
+	unsigned int granule_remaining;
 	struct granule *g_ns;
 
 	/*
+	 * The host buffer must lie within a single granule. Cap the write at
+	 * the number of descriptor slots remaining from @ns_list_addr to the
+	 * end of the enclosing granule. @ns_list_addr need not be aligned to
+	 * GRANULE_SIZE, only to sizeof(unsigned long).
+	 */
+	assert(ALIGNED(ns_list_addr, sizeof(unsigned long)));
+	granule_remaining = (unsigned int)ADDR_LIST_MAX_RANGES -
+				(unsigned int)ns_list_offset;
+
+	/*
 	 * Cater for the case in which the host specified a count
-	 * less than the pending `range` entries.
+	 * less than the pending `range` entries, and clip to the
+	 * granule boundary so the write cannot cross granules.
 	 */
 	list_count = MIN(list_count, ns_list_count);
-
-	assert((ns_list_offset + list_count) <= ADDR_LIST_MAX_RANGES);
-	assert(ALIGNED(ns_list_addr, sizeof(unsigned long)));
+	list_count = MIN(list_count, granule_remaining);
 
 	g_ns = find_granule(ns_list_addr & GRANULE_MASK);
 	if ((g_ns == NULL) || (granule_unlocked_state(g_ns) != GRANULE_STATE_NS)) {

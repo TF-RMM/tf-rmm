@@ -15,6 +15,7 @@
 #include <planes.h>
 #include <realm.h>
 #include <ripas.h>
+#include <rtt_internal.h>
 #include <s2tt.h>
 #include <s2tt_ap.h>
 #include <smc-handler.h>
@@ -32,13 +33,9 @@ typedef void (*tlb_handler_t)(const struct s2tt_context *s2tt_ctx,
 			      unsigned long addr, long level);
 typedef void (*tlb_handler_per_vmids_t)(struct rd *rd, unsigned long addr, long level);
 
-/*
- * Validate the map_addr value passed to
- * RMI_RTT_*, RMI_DATA_* and RMI_DEV_MEM_* commands.
- */
-static bool validate_map_addr(unsigned long map_addr,
-			      long level,
-			      struct rd *rd)
+bool validate_map_addr(unsigned long map_addr,
+		       long level,
+		       struct rd *rd)
 {
 	return ((map_addr < realm_ipa_size(rd)) &&
 		s2tte_is_addr_lvl_aligned(&rd->s2_ctx[PRIMARY_S2_CTX_ID],
@@ -62,20 +59,6 @@ static bool validate_rtt_structure_cmds(unsigned long map_addr,
 }
 
 /*
- * Map/Unmap commands can operate up to a level 1 block entry so min_level is
- * the smallest block size.
- */
-static bool validate_rtt_map_cmds(unsigned long map_addr,
-				  long level,
-				  struct rd *rd)
-{
-	if ((level < S2TT_MIN_BLOCK_LEVEL) || (level > S2TT_PAGE_LEVEL)) {
-		return false;
-	}
-	return validate_map_addr(map_addr, level, rd);
-}
-
-/*
  * Entry commands can operate on any entry so the minimal valid level is the
  * stage 2 starting level.
  */
@@ -90,10 +73,7 @@ static bool validate_rtt_entry_cmds(unsigned long map_addr,
 	return validate_map_addr(map_addr, level, rd);
 }
 
-/*
- * Helper to reset the Access Permissions for a protected entry.
- */
-static unsigned long default_protected_ap(struct s2tt_context *s2_ctx)
+unsigned long default_protected_ap(struct s2tt_context *s2_ctx)
 {
 	return s2tte_update_prot_ap(s2_ctx, 0UL,
 				    S2TTE_DEF_BASE_PERM_IDX,
@@ -1046,155 +1026,6 @@ void smc_rtt_aux_destroy(unsigned long rd_addr,
  * provided by the architecture to ensure that a NS access
  * to a protected granule is prohibited even within the realm.
  */
-/* @TODO Enhance implementation later */
-void smc_rtt_unprot_map(unsigned long rd_addr,
-			unsigned long base,
-			unsigned long top,
-			unsigned long flags,
-			unsigned long oaddr,
-			struct smc_result *res)
-{
-	unsigned long oaddr_type, memattr, s2ap, pa, sz_enc;
-	long level;
-	unsigned long map_size;
-	struct granule *g_rd;
-	struct rd *rd;
-	unsigned long *s2tt, s2tte;
-	struct s2tt_walk wi;
-	struct s2tt_context *s2_ctx;
-	unsigned long host_s2tte = 0UL;
-
-	/* Extract flags fields */
-	oaddr_type = EXTRACT(RMI_RTT_UNPROT_MAP_FLAGS_OADDR_TYPE, flags);
-	memattr = EXTRACT(RMI_RTT_UNPROT_MAP_FLAGS_MEMATTR, flags);
-	s2ap = EXTRACT(RMI_RTT_UNPROT_MAP_FLAGS_S2AP, flags);
-
-	/* Only support RMI_ADDR_TYPE_SINGLE */
-	if (oaddr_type != RMI_ADDR_TYPE_SINGLE) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	if (top < base) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	/* Extract oaddr descriptor fields (SINGLE type: address range descriptor) */
-	sz_enc = EXTRACT(RMI_ADDR_RDESC_4K_SZ, oaddr);
-	pa = (EXTRACT(RMI_ADDR_RDESC_4K_ADDR, oaddr) << OA_SHIFT);
-
-	/* Decode RmiAddrBlockSize to RTT level. */
-	level = XLAT_LVL_FROM_ADR_LIST_SZ(sz_enc);
-
-	/* Decode descriptor block size. */
-	map_size = addr_list_sz_to_xlat_blk_sz(sz_enc);
-
-	/* Descriptor-sized block must fit in requested range. */
-	if ((top - base) < map_size) {
-		res->x[0] = pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
-		return;
-	}
-
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	rd = buffer_granule_map(g_rd, SLOT_RD);
-	assert(rd != NULL);
-
-	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
-
-	/*
-	 * Check that the requested range is within the Realm IPA space and
-	 * outside PAR before walking.
-	 */
-	if (!validate_rtt_map_cmds(base, level, rd) ||
-	    !validate_map_addr(top - GRANULE_SIZE, S2TT_PAGE_LEVEL, rd) ||
-	    addr_in_par(rd, base) ||
-	    addr_in_par(rd, top - GRANULE_SIZE)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		goto out_unmap_rd;
-	}
-
-	/* Construct host_s2tte with PA and memattr */
-	host_s2tte = pa_to_s2tte(s2_ctx, pa) | INPLACE(S2TTE_MEMATTR, memattr);
-
-	/* Add AP based on direct or indirect encoding */
-	if (s2_ctx->indirect_s2ap) {
-		/* For indirect encoding, s2ap is the PI_INDEX value */
-		host_s2tte = s2tte_set_pi_index(s2_ctx, host_s2tte, s2ap);
-	} else {
-		/* For direct encoding, encode s2ap bits as R/W permissions */
-		if ((s2ap & MASK(RMI_S2AP_DIRECT_READ)) != 0UL) {
-			host_s2tte |= INPLACE(S2TTE_PERM_R, 1UL);
-		}
-		if ((s2ap & MASK(RMI_S2AP_DIRECT_WRITE)) != 0UL) {
-			host_s2tte |= INPLACE(S2TTE_PERM_W, 1UL);
-		}
-	}
-
-	if (!host_ns_s2tte_is_valid(s2_ctx, host_s2tte, level)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		goto out_unmap_rd;
-	}
-
-	/* Validate that the base permission indirection is within range */
-	if (s2_ctx->indirect_s2ap &&
-	    (s2tte_get_pi_index(s2_ctx, host_s2tte) >
-				(unsigned long)S2AP_IND_BASE_PERM_IDX_RW)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		goto out_unmap_rd;
-	}
-
-	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
-
-	s2tt_walk_lock_unlock(s2_ctx, base, S2TT_PAGE_LEVEL, &wi);
-
-	if (wi.last_level != level) {
-		res->x[0] = pack_return_code(RMI_ERROR_RTT,
-						(unsigned char)wi.last_level);
-		goto out_unlock_llt;
-	}
-
-	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
-	assert(s2tt != NULL);
-
-	s2tte = s2tte_read(&s2tt[wi.index]);
-
-	if (!s2tte_is_unassigned_ns(s2_ctx, s2tte)) {
-		unsigned long expected =
-			s2tte_create_assigned_ns(s2_ctx, host_s2tte, level, 0UL);
-
-		/* If already mapped as NS, then skip if the tte matches */
-		if (s2tte_is_assigned_ns(s2_ctx, s2tte, level) &&
-		    (s2tte == expected)) {
-			res->x[0] = RMI_SUCCESS;
-			res->x[1] = base + map_size;
-		} else {
-			res->x[0] = pack_return_code(RMI_ERROR_RTT,
-						(unsigned char)level);
-		}
-		goto out_unmap_table;
-	}
-
-	s2tte = s2tte_create_assigned_ns(s2_ctx, host_s2tte, level, 0UL);
-	s2tte_write(&s2tt[wi.index], s2tte);
-
-	res->x[0] = RMI_SUCCESS;
-	res->x[1] = base + map_size;
-
-out_unmap_table:
-	buffer_unmap(s2tt);
-out_unlock_llt:
-	granule_unlock(wi.g_llt);
-out_unmap_rd:
-	buffer_unmap(rd);
-	granule_unlock(g_rd);
-}
-
 /*
  * We don't hold a reference on the NS granule when it is
  * mapped into a realm. Instead we rely on the guarantees
@@ -1415,186 +1246,6 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 	res->x[0] = RMI_SUCCESS;
 }
 
-static unsigned long validate_data_create_unknown(unsigned long map_addr,
-						  struct rd *rd)
-{
-	if (!addr_in_par(rd, map_addr)) {
-		return RMI_ERROR_INPUT;
-	}
-
-	if (!validate_map_addr(map_addr, S2TT_PAGE_LEVEL, rd)) {
-		return RMI_ERROR_INPUT;
-	}
-
-	return RMI_SUCCESS;
-}
-
-static unsigned long validate_data_create(unsigned long map_addr,
-					  struct rd *rd)
-{
-	if (get_rd_state_locked(rd) != REALM_NEW) {
-		return RMI_ERROR_REALM;
-	}
-
-	return validate_data_create_unknown(map_addr, rd);
-}
-
-/*
- * Implements both smc_data_create and smc_data_create_unknown.
- *
- * if @g_src == NULL, implements smc_data_create_unknown
- * and smc_data_create otherwise.
- */
-static unsigned long data_create(unsigned long rd_addr,
-				 unsigned long data_addr,
-				 unsigned long map_addr,
-				 struct granule *g_src,
-				 unsigned long flags)
-{
-	struct granule *g_data;
-	struct granule *g_rd;
-	struct rd *rd;
-	struct s2tt_walk wi;
-	struct s2tt_context *s2_ctx;
-	unsigned long s2tte, *s2tt;
-	unsigned long ret;
-
-	if (!find_lock_two_granules(data_addr,
-				    GRANULE_STATE_DELEGATED,
-				    &g_data,
-				    rd_addr,
-				    GRANULE_STATE_RD,
-				    &g_rd)) {
-		return RMI_ERROR_INPUT;
-	}
-
-	rd = buffer_granule_map(g_rd, SLOT_RD);
-	assert(rd != NULL);
-
-	ret = (g_src != NULL) ?
-		validate_data_create(map_addr, rd) :
-		validate_data_create_unknown(map_addr, rd);
-
-	if (ret != RMI_SUCCESS) {
-		goto out_unmap_rd;
-	}
-
-	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
-
-	/*
-	 * If LPA2 is disabled for the realm, then `data_addr` must not be
-	 * more than 48 bits wide.
-	 */
-	if (!s2_ctx->enable_lpa2) {
-		if ((data_addr >= (UL(1) << S2TT_MAX_PA_BITS))) {
-			ret = RMI_ERROR_INPUT;
-			goto out_unmap_rd;
-		}
-	}
-
-	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
-
-	s2tt_walk_lock_unlock(s2_ctx, map_addr, S2TT_PAGE_LEVEL, &wi);
-	if (wi.last_level != S2TT_PAGE_LEVEL) {
-		ret = pack_return_code(RMI_ERROR_RTT,
-					(unsigned char)wi.last_level);
-		goto out_unlock_ll_table;
-	}
-
-	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
-	assert(s2tt != NULL);
-
-	s2tte = s2tte_read(&s2tt[wi.index]);
-	if (!s2tte_is_unassigned(s2_ctx, s2tte)) {
-		ret = pack_return_code(RMI_ERROR_RTT,
-					(unsigned char)S2TT_PAGE_LEVEL);
-		goto out_unmap_ll_table;
-	}
-
-	if (g_src != NULL) {
-		bool ns_access_ok;
-		void *data = buffer_granule_mecid_map(g_data, SLOT_REALM, s2_ctx->mecid);
-
-		assert(data != NULL);
-
-		ns_access_ok = ns_buffer_read(SLOT_NS, g_src, 0U,
-					      GRANULE_SIZE, data);
-		if (!ns_access_ok) {
-			buffer_unmap(data);
-			ret = RMI_ERROR_INPUT;
-			goto out_unmap_ll_table;
-		}
-
-		measurement_data_granule_measure(
-			rd->measurement[RIM_MEASUREMENT_SLOT],
-			rd->algorithm,
-			data,
-			map_addr,
-			flags);
-		buffer_unmap(data);
-
-		s2tte = s2tte_create_assigned_ram(s2_ctx, data_addr,
-						  S2TT_PAGE_LEVEL, s2tte);
-	} else {
-		/* Map, zero initialize and unmap the data granule */
-		void *data = buffer_granule_mecid_map_zeroed(g_data, SLOT_REALM, s2_ctx->mecid);
-
-		buffer_unmap(data);
-		s2tte = s2tte_create_assigned_unchanged(s2_ctx, s2tte,
-							data_addr,
-							S2TT_PAGE_LEVEL);
-	}
-
-	s2tte_write(&s2tt[wi.index], s2tte);
-	atomic_granule_get(wi.g_llt);
-
-	ret = RMI_SUCCESS;
-
-out_unmap_ll_table:
-	buffer_unmap(s2tt);
-out_unlock_ll_table:
-	granule_unlock(wi.g_llt);
-out_unmap_rd:
-	buffer_unmap(rd);
-	granule_unlock(g_rd);
-	if (ret == RMI_SUCCESS) {
-		granule_unlock_transition(g_data, GRANULE_STATE_DATA);
-	} else {
-		granule_unlock(g_data);
-	}
-
-	return ret;
-}
-
-static unsigned long smc_data_create(unsigned long rd_addr,
-			      unsigned long data_addr,
-			      unsigned long map_addr,
-			      unsigned long src_addr,
-			      unsigned long flags)
-{
-	struct granule *g_src;
-
-	if ((flags != RMI_NO_MEASURE_CONTENT) &&
-	    (flags != RMI_MEASURE_CONTENT)) {
-		return RMI_ERROR_INPUT;
-	}
-
-	g_src = find_granule(src_addr);
-	if ((g_src == NULL) ||
-		(granule_unlocked_state(g_src) != GRANULE_STATE_NS)) {
-		return RMI_ERROR_INPUT;
-	}
-
-	return data_create(rd_addr, data_addr, map_addr, g_src, flags);
-}
-
-static unsigned long smc_data_create_unknown(unsigned long rd_addr,
-				      unsigned long data_addr,
-				      unsigned long map_addr)
-{
-	return data_create(rd_addr, data_addr, map_addr, NULL, 0);
-}
-
 static void smc_data_destroy(unsigned long rd_addr,
 		      unsigned long map_addr,
 		      struct smc_result *res)
@@ -1768,50 +1419,6 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
 			(destroy_res.x[1] | 0x4U) : 0UL; /* Only one L3 block is unmapped */
 
 	res->x[3] = 0UL;
-}
-
-void smc_rtt_data_map(unsigned long rd_addr,
-		      unsigned long base,
-		      unsigned long top,
-		      unsigned long flags,
-		      unsigned long oaddr,
-		      struct smc_result *res)
-{
-	unsigned long data_addr;
-	unsigned long ret;
-
-	/* Only support RMI_ADDR_TYPE_SINGLE */
-	if (flags != 0x1UL) {
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[1] = 0UL;
-		return;
-	}
-
-	if ((top < base) || ((top - base) < GRANULE_SIZE)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[1] = 0UL;
-		return;
-	}
-
-	/* Extract physical address from bits [51:12] */
-	data_addr = oaddr & ((BIT(40) - 1UL) << 12);
-
-	ret = smc_data_create_unknown(rd_addr, data_addr, base);
-
-	res->x[0] = ret;
-
-	if (ret == RMI_SUCCESS) {
-		res->x[1] = base + GRANULE_SIZE;
-	}
-}
-
-unsigned long smc_rtt_data_map_init(unsigned long rd_addr,
-		     unsigned long data_addr,
-		     unsigned long map_addr,
-		     unsigned long src_addr,
-		     unsigned long flags)
-{
-	return smc_data_create(rd_addr, data_addr, map_addr, src_addr, flags);
 }
 
 /*
@@ -2015,8 +1622,8 @@ out_unmap_llt:
  *	- @s2tte is a valid (page or block) descriptor in the primary RTT tree.
  *	- The RTT where @s2tte resides is locked.
  */
-static unsigned long not_aux_mappings(struct s2tt_context *s2_ctx,
-				      unsigned long s2tte, long level)
+unsigned long not_aux_mappings(struct s2tt_context *s2_ctx,
+			       unsigned long s2tte, long level)
 {
 	unsigned long map_size = s2tte_map_size((int)level);
 	unsigned long data_addr = s2tte_pa(s2_ctx, s2tte, level);
@@ -2235,174 +1842,6 @@ out_unmap_rec:
 out_unlock_rec_rd:
 	granule_unlock(g_rec);
 	granule_unlock(g_rd);
-}
-
-static bool addr_is_in_vdev_addr_range(struct vdev *vd, unsigned long addr)
-{
-	for (unsigned long i = 0; i < vd->num_addr_range; ++i) {
-		if ((addr >= vd->addr_range[i].base) &&
-		    (addr < vd->addr_range[i].top)) {
-			return true;
-		}
-	}
-	return false;
-}
-
-void smc_rtt_dev_map(unsigned long rd_addr,
-		     unsigned long vdev_addr,
-		     unsigned long base,
-		     unsigned long top,
-		     unsigned long flags,
-		     unsigned long oaddr,
-		     struct smc_result *res)
-{
-	struct dev_granule *g_dev;
-	struct granule *g_rd;
-	struct granule *g_vdev;
-	struct rd *rd;
-	struct vdev *vd;
-	struct s2tt_walk wi;
-	struct s2tt_context s2_ctx;
-	unsigned long s2tte, *s2tt, num_granules;
-	__unused enum dev_coh_type type;
-	unsigned long data_addr;
-
-	/* Only support RMI_ADDR_TYPE_SINGLE */
-	if (flags != RMI_ADDR_TYPE_SINGLE) {
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[1] = 0UL;
-		return;
-	}
-
-	if ((top < base) || ((top - base) < GRANULE_SIZE)) {
-		/* Only support single granule */
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[1] = 0UL;
-		return;
-	}
-
-	/* Extract physical address from bits [51:12] */
-	data_addr = oaddr & ((BIT(40) - 1UL) << 12);
-
-	/*
-	 * The code below assumes that "external" granules are always
-	 * locked before "external" dev_granules, hence, RD GRANULE is locked
-	 * before DELEGATED DEV_GRANULE.
-	 *
-	 * The alternative scheme is that all external granules and device
-	 * granules are locked together in the order of their physical
-	 * addresses. For that scheme, however, we need primitives similar to
-	 * 'find_lock_two_granules' that would work with different object
-	 * types (struct granule and struct dev_granule).
-	 */
-
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[1] = 0UL;
-		return;
-	}
-
-	num_granules = 1UL;
-
-	g_dev = find_lock_dev_granules(data_addr,
-					DEV_GRANULE_STATE_DELEGATED,
-					num_granules,
-					&type);
-	if (g_dev == NULL) {
-		granule_unlock(g_rd);
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[1] = 0UL;
-		return;
-	}
-
-	rd = buffer_granule_map(g_rd, SLOT_RD);
-	assert(rd != NULL);
-
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		buffer_unmap(rd);
-		granule_unlock(g_rd);
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[1] = 0UL;
-		goto out_unlock_granules;
-	}
-
-	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
-	assert(vd != NULL);
-
-	if (vd->g_rd != g_rd) {
-		buffer_unmap(vd);
-		granule_unlock(g_vdev);
-		buffer_unmap(rd);
-		granule_unlock(g_rd);
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[1] = 0UL;
-		goto out_unlock_granules;
-	}
-
-	if (!addr_in_par(rd, base) ||
-	    !validate_map_addr(base, S2TT_PAGE_LEVEL, rd) ||
-	    !addr_in_par(rd, top - GRANULE_SIZE) ||
-	    !addr_is_in_vdev_addr_range(vd, data_addr)) {
-		buffer_unmap(vd);
-		granule_unlock(g_vdev);
-		buffer_unmap(rd);
-		granule_unlock(g_rd);
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[1] = 0UL;
-		goto out_unlock_granules;
-	}
-
-	s2_ctx = rd->s2_ctx[PRIMARY_S2_CTX_ID];
-	buffer_unmap(vd);
-	granule_unlock(g_vdev);
-	buffer_unmap(rd);
-	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
-	granule_unlock(g_rd);
-
-	s2tt_walk_lock_unlock(&s2_ctx, base, S2TT_PAGE_LEVEL, &wi);
-	if (wi.last_level != S2TT_PAGE_LEVEL) {
-		res->x[0] = pack_return_code(RMI_ERROR_RTT,
-					(unsigned char)wi.last_level);
-		res->x[1] = 0UL;
-		goto out_unlock_ll_table;
-	}
-
-	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx.mecid);
-	assert(s2tt != NULL);
-
-	s2tte = s2tte_read(&s2tt[wi.index]);
-
-	if (!(s2tte_is_unassigned_empty(&s2_ctx, s2tte) ||
-	      s2tte_is_unassigned_destroyed(&s2_ctx, s2tte))) {
-		res->x[0] = pack_return_code(RMI_ERROR_RTT, (unsigned char)S2TT_PAGE_LEVEL);
-		res->x[1] = 0UL;
-		goto out_unmap_ll_table;
-	}
-
-	s2tte = s2tte_create_assigned_dev_unchanged(&s2_ctx, s2tte,
-						    data_addr, S2TT_PAGE_LEVEL);
-	s2tte_write(&s2tt[wi.index], s2tte);
-	atomic_granule_get(wi.g_llt);
-
-	res->x[0] = RMI_SUCCESS;
-	res->x[1] = base + GRANULE_SIZE;
-
-out_unmap_ll_table:
-	buffer_unmap(s2tt);
-out_unlock_ll_table:
-	granule_unlock(wi.g_llt);
-out_unlock_granules:
-	while (num_granules != 0UL) {
-		if (res->x[0] == RMI_SUCCESS) {
-			dev_granule_unlock_transition(&g_dev[--num_granules],
-							DEV_GRANULE_STATE_MAPPED);
-		} else {
-			dev_granule_unlock(&g_dev[--num_granules]);
-		}
-	}
-	return;
 }
 
 void smc_rtt_dev_unmap(unsigned long rd_addr,
@@ -2743,6 +2182,14 @@ void smc_rtt_aux_map_protected(unsigned long rd_addr,
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
+	if ((get_rd_state_locked(rd) != REALM_NEW) &&
+	    (get_rd_state_locked(rd) != REALM_ACTIVE)) {
+		buffer_unmap(rd);
+		granule_unlock(g_rd);
+		res->x[0] = RMI_ERROR_REALM;
+		return;
+	}
+
 	if (!validate_rtt_entry_cmds(map_addr, S2TT_PAGE_LEVEL, rd)) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
@@ -2939,6 +2386,12 @@ void smc_rtt_aux_map_unprotected(unsigned long rd_addr,
 
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
+
+	if ((get_rd_state_locked(rd) != REALM_NEW) &&
+	    (get_rd_state_locked(rd) != REALM_ACTIVE)) {
+		res->x[0] = RMI_ERROR_REALM;
+		goto exit_unmap_rd;
+	}
 
 	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
 	start_level = s2_ctx->s2_starting_level;

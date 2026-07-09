@@ -124,11 +124,22 @@ static int rtt_data_map_range(void *rd, uintptr_t base_ipa, uintptr_t top_ipa, u
 	uintptr_t current_pa = base_pa;
 
 	while (current_ipa < top_ipa) {
+		/*
+		 * Build an RmiAddrRangeDesc4KB for one L3 page:
+		 *   sz [1:0]    = 0  (L3 page)
+		 *   cnt [11:2]  = 1
+		 *   addr[51:12] = current_pa >> GRANULE_SHIFT
+		 */
+		unsigned long desc =
+			INPLACE(RMI_ADDR_RDESC_4K_CNT, 1UL) |
+			INPLACE(RMI_ADDR_RDESC_4K_ADDR,
+				(unsigned long)current_pa >> GRANULE_SHIFT);
+
 		host_rmi_rtt_data_map(rd,
 				      current_ipa,
 				      top_ipa,
-				      0x1UL,
-				      current_pa,
+				      RMI_ADDR_TYPE_SINGLE,
+				      desc,
 				      &result);
 		CHECK_RMI_RESULT();
 

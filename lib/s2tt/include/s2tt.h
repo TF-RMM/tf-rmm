@@ -65,7 +65,7 @@ struct s2tt_context {
 #define S2TT_MIN_STARTING_LEVEL		(0)
 #define S2TT_MIN_STARTING_LEVEL_LPA2	(-1)
 #define S2TT_PAGE_LEVEL			(3)
-#define S2TT_MIN_DEV_BLOCK_LEVEL	(2)
+#define S2TT_MIN_DEV_BLOCK_LEVEL	(1)
 #define S2TT_MIN_BLOCK_LEVEL		(1)
 
 /*
@@ -111,6 +111,43 @@ struct s2tt_context {
 #define S2TTE_PERM_W_WIDTH		1UL
 #define S2TTE_PERM_XN_SHIFT		53UL
 #define S2TTE_PERM_XN_WIDTH		2UL
+
+/*
+ * SW-reserved bits used by RMM to track a deferred cache/TLB maintenance
+ * obligation on an invalid descriptor.
+ *
+ * The marks are placed inside the architectural Output Address field,
+ * which the unassigned-form constructors leave zero. s2tte_set_drain_pending()
+ * asserts that no non-SW OA bit is set on input so that a future caller
+ * cannot stamp over a descriptor that still carries a real PA.
+ *
+ * Layout (bit indices in the 64-bit TTE):
+ *   bit [33]    : TLBI_PENDING flag (stamped on entries whose previous
+ *                 form had a live HW mapping and therefore still owe a
+ *                 stage-2 TLB / SMMU invalidation against the old OA)
+ *   bit [32]    : DRAIN_PENDING flag
+ *   bits [31:16]: 16-bit SRO handle (identifies the owning SRO context)
+ *
+ * The flag and handle are stamped together by s2tte_set_drain_pending()
+ * after the HIPAS-side constructor has produced the base descriptor;
+ * the TLBI flag is additionally set by s2tte_set_tlbi_pending() for
+ * entries whose previous form was assigned_ram. The TLBI flag is
+ * cleared independently by s2tte_clear_tlbi_pending() as soon as the
+ * deferred invalidation has been issued; the drain-pending bit and
+ * the handle are cleared together by s2tte_clear_drain_pending() at
+ * the end of the drain. The SRO handle is the index of the owning
+ * sro_context in the global SRO pool which is guaranteed unique while
+ * the SRO is in flight.
+ */
+#define S2TTE_SW_DRAIN_PENDING_BIT	(1UL << 32)
+#define S2TTE_SW_TLBI_PENDING_BIT	(1UL << 33)
+
+#define S2TTE_SW_HANDLE_SHIFT		16UL
+#define S2TTE_SW_HANDLE_WIDTH		16UL
+#define S2TTE_SW_HANDLE_MASK		MASK(S2TTE_SW_HANDLE)
+#define S2TTE_SW_DRAIN_MASK		(S2TTE_SW_DRAIN_PENDING_BIT |	\
+					 S2TTE_SW_TLBI_PENDING_BIT |	\
+					 S2TTE_SW_HANDLE_MASK)
 
 /*
  * The MMU is a separate observer, and requires that translation table updates
@@ -242,6 +279,27 @@ unsigned long s2tte_update_prot_ap(struct s2tt_context *s2_ctx,
 
 bool s2tte_is_live(const struct s2tt_context *s2_ctx,
 		   unsigned long s2tte, long level);
+
+/*
+ * Drain-pending helpers. These operate on the SW-reserved bits in the OA
+ * of the invalid descriptor (see S2TTE_SW_DRAIN_PENDING_BIT /
+ * S2TTE_SW_HANDLE_* above) and are independent of HIPAS/RIPAS classification.
+ * The caller stamps a freshly-written unassigned_destroyed (or similar
+ * invalid) descriptor with set_drain_pending(handle); a subsequent drain pass
+ * clears the marks once the deferred maintenance for that SRO completes.
+ *
+ * The HIPAS classifiers (s2tte_is_unassigned_*) deliberately ignore
+ * these SW bits, so RTT_READ_ENTRY continues to report the architectural
+ * state truthfully while the bits are set.
+ */
+unsigned long s2tte_set_drain_pending(unsigned long s2tte,
+				      unsigned int sro_handle);
+unsigned long s2tte_set_tlbi_pending(unsigned long s2tte);
+unsigned long s2tte_clear_tlbi_pending(unsigned long s2tte);
+unsigned long s2tte_clear_drain_pending(unsigned long s2tte);
+bool s2tte_drain_pending(unsigned long s2tte);
+bool s2tte_tlbi_pending(unsigned long s2tte);
+unsigned int s2tte_drain_handle(unsigned long s2tte);
 
 unsigned long pa_to_s2tte(const struct s2tt_context *s2_ctx, unsigned long pa);
 

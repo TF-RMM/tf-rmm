@@ -137,7 +137,7 @@ TEST(addr_list_tests, init_input_list)
 	/* Poison the struct first so we can verify init clears it */
 	(void)memset(&list, 0xFF, sizeof(list));
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 
 	CHECK_TRUE(addr_list_is_empty(&list));
 	UNSIGNED_LONGS_EQUAL(LIST_TYPE_INPUT, list.type);
@@ -155,7 +155,7 @@ TEST(addr_list_tests, init_output_list)
 
 	(void)memset(&list, 0xFF, sizeof(list));
 
-	addr_list_init(&list, LIST_TYPE_OUTPUT);
+	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 
 	CHECK_TRUE(addr_list_is_empty(&list));
 	UNSIGNED_LONGS_EQUAL(LIST_TYPE_OUTPUT, list.type);
@@ -180,7 +180,7 @@ TEST(addr_list_tests, add_block_first_entry)
 	unsigned long st = rand_state();
 	uintptr_t addr = rand_aligned_addr(rtt_level);
 
-	addr_list_init(&list, LIST_TYPE_OUTPUT);
+	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 
 	bool ret = addr_list_add_block(&list, addr, rtt_level, st);
 
@@ -209,7 +209,7 @@ TEST(addr_list_tests, add_block_misaligned_addr)
 						blk_size - 1UL);
 	uintptr_t addr = rand_aligned_addr(rtt_level) + misalign;
 
-	addr_list_init(&list, LIST_TYPE_OUTPUT);
+	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 
 	bool ret = addr_list_add_block(&list, addr, rtt_level, st);
 
@@ -233,7 +233,7 @@ TEST(addr_list_tests, add_block_append_to_range)
 	uintptr_t addr0 = rand_aligned_addr(rtt_level);
 	uintptr_t addr1 = addr0 + blk_size; /* contiguous, after addr0 */
 
-	addr_list_init(&list, LIST_TYPE_OUTPUT);
+	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 
 	CHECK_TRUE(addr_list_add_block(&list, addr0, rtt_level, st));
 	CHECK_TRUE(addr_list_add_block(&list, addr1, rtt_level, st));
@@ -257,7 +257,7 @@ TEST(addr_list_tests, add_block_prepend_to_range)
 	uintptr_t addr0 = rand_aligned_addr(rtt_level);
 	uintptr_t addr1 = addr0 + blk_size;
 
-	addr_list_init(&list, LIST_TYPE_OUTPUT);
+	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 
 	/* Add second (higher) address first, then prepend */
 	CHECK_TRUE(addr_list_add_block(&list, addr1, rtt_level, st));
@@ -283,7 +283,7 @@ TEST(addr_list_tests, add_block_non_contiguous_creates_new_desc)
 	/* Ensure a gap of at least 2 blocks */
 	uintptr_t addr1 = round_up(addr0 + blk_size * 10UL, blk_size);
 
-	addr_list_init(&list, LIST_TYPE_OUTPUT);
+	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 
 	CHECK_TRUE(addr_list_add_block(&list, addr0, rtt_level, st));
 	CHECK_TRUE(addr_list_add_block(&list, addr1, rtt_level, st));
@@ -307,7 +307,7 @@ TEST(addr_list_tests, add_block_different_blk_size_no_merge)
 	uintptr_t addr_l2 = round_up(granule_addr(70U), l2_size);
 	unsigned long l2_level = (unsigned long)XLAT_TABLE_LEVEL_MAX - 1UL;
 
-	addr_list_init(&list, LIST_TYPE_OUTPUT);
+	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 
 	CHECK_TRUE(addr_list_add_block(&list, addr_l3,
 			(unsigned long)XLAT_TABLE_LEVEL_MAX, st));
@@ -332,7 +332,7 @@ TEST(addr_list_tests, add_block_different_state_no_merge)
 	uintptr_t addr0 = rand_aligned_addr(rtt_level);
 	uintptr_t addr1 = addr0 + blk_size; /* contiguous */
 
-	addr_list_init(&list, LIST_TYPE_OUTPUT);
+	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 
 	CHECK_TRUE(addr_list_add_block(&list, addr0, rtt_level,
 			RMI_OP_MEM_DELEGATED));
@@ -358,7 +358,7 @@ TEST(addr_list_tests, add_block_max_count_overflow_creates_new_desc)
 	unsigned long st = rand_state();
 	uintptr_t base = granule_addr(100U);
 
-	addr_list_init(&list, LIST_TYPE_OUTPUT);
+	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 
 	for (unsigned long i = 0; i < max_cnt; i++) {
 		CHECK_TRUE(addr_list_add_block(&list,
@@ -389,7 +389,7 @@ TEST(addr_list_tests, add_block_list_full)
 	unsigned long st = rand_state();
 	uintptr_t base = granule_addr(100U);
 
-	addr_list_init(&list, LIST_TYPE_OUTPUT);
+	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 
 	/* Add non-contiguous blocks to fill all descriptors */
 	for (unsigned long i = 0; i < ADDR_LIST_MAX_RANGES; i++) {
@@ -428,7 +428,7 @@ TEST(addr_list_tests, add_block_merge_with_second_descriptor)
 	/* Ensure a gap so two separate descriptors are created */
 	uintptr_t addr1 = round_up(addr0 + blk_size * 10UL, blk_size);
 
-	addr_list_init(&list, LIST_TYPE_OUTPUT);
+	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 
 	CHECK_TRUE(addr_list_add_block(&list, addr0, rtt_level, st));
 	CHECK_TRUE(addr_list_add_block(&list, addr1, rtt_level, st));
@@ -443,6 +443,33 @@ TEST(addr_list_tests, add_block_merge_with_second_descriptor)
 	check_desc(&list, 0, addr0, 1UL, level_to_sz(rtt_level), st);
 	check_desc(&list, 1, addr1, 2UL, level_to_sz(rtt_level), st);
 	check_descs_zero(&list, 2);
+}
+
+/* ================================================================
+ * addr_list_add_desc() tests
+ * ================================================================
+ */
+
+TEST(addr_list_tests, add_desc_input_list_decodes_descriptor)
+{
+	struct addr_list list;
+	unsigned long rtt_level = (unsigned long)XLAT_TABLE_LEVEL_MAX - 1UL;
+	unsigned long blk_size = XLAT_BLOCK_SIZE(rtt_level);
+	uintptr_t base = round_up(granule_addr(900U), blk_size);
+	unsigned long desc;
+
+	desc = INPLACE(RMI_ADDR_RDESC_4K_SZ, level_to_sz(rtt_level)) |
+	       INPLACE(RMI_ADDR_RDESC_4K_CNT, 3UL) |
+	       INPLACE(RMI_ADDR_RDESC_4K_ADDR, base >> GRANULE_SHIFT) |
+	       INPLACE(RMI_ADDR_RDESC_4K_ST, RMI_OP_MEM_UNDELEGATED);
+
+	addr_list_init(&list, LIST_TYPE_INPUT, 1U);
+	CHECK_TRUE(addr_list_add_desc(&list, desc));
+
+	UNSIGNED_LONGS_EQUAL(1UL, list.count);
+	check_desc(&list, 0, base, 3UL, level_to_sz(rtt_level),
+		   RMI_OP_MEM_UNDELEGATED);
+	check_descs_zero(&list, 1);
 }
 
 /* ================================================================
@@ -474,6 +501,139 @@ static void build_input_list(struct addr_list *list,
 	list->count = idx + 1UL;
 }
 
+/* ================================================================
+ * addr_list_peek_desc() tests
+ * ================================================================
+ */
+
+/* ----------------------------------------------------------------
+ * TC_PEEK_01: Peek on an OUTPUT list reads descriptor fields without
+ *             modifying the list.
+ * ----------------------------------------------------------------
+ */
+TEST(addr_list_tests, peek_output_list)
+{
+	struct addr_list list;
+	unsigned long rtt_level = rand_level();
+	unsigned long st = rand_state();
+	unsigned long blk_size = XLAT_BLOCK_SIZE(rtt_level);
+	uintptr_t base = rand_aligned_addr(rtt_level);
+	unsigned long desc;
+	unsigned long addr, cnt, out_st;
+	int level;
+
+	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
+	CHECK_TRUE(addr_list_add_block(&list, base, rtt_level, st));
+	CHECK_TRUE(addr_list_add_block(&list, base + blk_size, rtt_level, st));
+	desc = list.range_desc[0];
+
+	CHECK_TRUE(addr_list_peek_desc(&list, 0U, &addr, &level, &cnt,
+		&out_st));
+	UNSIGNED_LONGS_EQUAL(base, addr);
+	UNSIGNED_LONGS_EQUAL(rtt_level, level);
+	UNSIGNED_LONGS_EQUAL(2UL, cnt);
+	UNSIGNED_LONGS_EQUAL(st, out_st);
+	UNSIGNED_LONGS_EQUAL(1UL, list.count);
+	UNSIGNED_LONGS_EQUAL(0UL, list.cur_idx);
+	UNSIGNED_LONGS_EQUAL(desc, list.range_desc[0]);
+}
+
+/* ----------------------------------------------------------------
+ * TC_PEEK_02: Peek can read a later INPUT descriptor.
+ * ----------------------------------------------------------------
+ */
+TEST(addr_list_tests, peek_input_list_second_descriptor)
+{
+	struct addr_list list;
+	uintptr_t base0 = granule_addr(700U);
+	unsigned long l2_level = (unsigned long)XLAT_TABLE_LEVEL_MAX - 1UL;
+	unsigned long l2_size = XLAT_BLOCK_SIZE(l2_level);
+	uintptr_t base1 = round_up(granule_addr(760U), l2_size);
+	unsigned long addr, cnt, st;
+	int level;
+
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
+	build_input_list(&list, base0, 1UL,
+			 (unsigned long)XLAT_TABLE_LEVEL_MAX,
+			 RMI_OP_MEM_DELEGATED);
+	build_input_list(&list, base1, 3UL, l2_level,
+			 RMI_OP_MEM_UNDELEGATED);
+
+	CHECK_TRUE(addr_list_peek_desc(&list, 1U, &addr, &level, &cnt, &st));
+	UNSIGNED_LONGS_EQUAL(base1, addr);
+	UNSIGNED_LONGS_EQUAL(l2_level, level);
+	UNSIGNED_LONGS_EQUAL(3UL, cnt);
+	UNSIGNED_LONGS_EQUAL(RMI_OP_MEM_UNDELEGATED, st);
+	UNSIGNED_LONGS_EQUAL(2UL, list.count);
+	UNSIGNED_LONGS_EQUAL(0UL, list.cur_idx);
+}
+
+/* ----------------------------------------------------------------
+ * TC_PEEK_03: Out-of-range index returns false and leaves outputs
+ *             unchanged.
+ * ----------------------------------------------------------------
+ */
+TEST(addr_list_tests, peek_out_of_range)
+{
+	struct addr_list list;
+	unsigned long addr = 0x1234UL;
+	unsigned long cnt = 0x5678UL;
+	unsigned long st = 0x9abcUL;
+	int level = 0x5;
+
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
+	build_input_list(&list, granule_addr(800U), 1UL,
+			 (unsigned long)XLAT_TABLE_LEVEL_MAX,
+			 RMI_OP_MEM_DELEGATED);
+
+	CHECK_FALSE(addr_list_peek_desc(&list, 1U, &addr, &level, &cnt, &st));
+	UNSIGNED_LONGS_EQUAL(0x1234UL, addr);
+	UNSIGNED_LONGS_EQUAL(0x5UL, level);
+	UNSIGNED_LONGS_EQUAL(0x5678UL, cnt);
+	UNSIGNED_LONGS_EQUAL(0x9abcUL, st);
+	UNSIGNED_LONGS_EQUAL(1UL, list.count);
+	UNSIGNED_LONGS_EQUAL(0UL, list.cur_idx);
+}
+
+/* ----------------------------------------------------------------
+ * TC_PEEK_04: Peek is non-destructive for an INPUT list that is later
+ *             reduced.
+ * ----------------------------------------------------------------
+ */
+TEST(addr_list_tests, peek_input_list_preserves_reduce_order)
+{
+	struct addr_list list;
+	unsigned long rtt_level = rand_level();
+	unsigned long st = rand_state();
+	unsigned long blk_size = XLAT_BLOCK_SIZE(rtt_level);
+	uintptr_t base = rand_aligned_addr(rtt_level);
+	unsigned long desc;
+	unsigned long addr, cnt, out_st;
+	int level;
+
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
+	build_input_list(&list, base, 2UL, rtt_level, st);
+	desc = list.range_desc[0];
+
+	CHECK_TRUE(addr_list_peek_desc(&list, 0U, &addr, &level, &cnt,
+		&out_st));
+	UNSIGNED_LONGS_EQUAL(base, addr);
+	UNSIGNED_LONGS_EQUAL(rtt_level, level);
+	UNSIGNED_LONGS_EQUAL(2UL, cnt);
+	UNSIGNED_LONGS_EQUAL(st, out_st);
+	UNSIGNED_LONGS_EQUAL(desc, list.range_desc[0]);
+
+	CHECK_TRUE(addr_list_reduce_first_block(&list, &addr, &level,
+		&out_st));
+	UNSIGNED_LONGS_EQUAL(base, addr);
+	UNSIGNED_LONGS_EQUAL(rtt_level, level);
+	UNSIGNED_LONGS_EQUAL(st, out_st);
+
+	CHECK_TRUE(addr_list_reduce_first_block(&list, &addr, &level,
+		&out_st));
+	UNSIGNED_LONGS_EQUAL(base + blk_size, addr);
+}
+
 /* ----------------------------------------------------------------
  * TC_REDUCE_01: Reduce on empty list returns false, list unchanged.
  * ----------------------------------------------------------------
@@ -484,7 +644,7 @@ TEST(addr_list_tests, reduce_empty_list)
 	unsigned long addr, st;
 	int level;
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 
 	bool ret = addr_list_reduce_first_block(&list, &addr, &level, &st);
 	CHECK_FALSE(ret);
@@ -506,7 +666,7 @@ TEST(addr_list_tests, reduce_single_block)
 	unsigned long addr, out_st;
 	int level;
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base, 1UL, rtt_level, st);
 
 	bool ret = addr_list_reduce_first_block(&list, &addr, &level, &out_st);
@@ -545,7 +705,7 @@ TEST(addr_list_tests, reduce_multiple_blocks)
 	unsigned long num_blocks = (unsigned long)test_helpers_get_rand_in_range(
 					2UL, 5UL);
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base, num_blocks, rtt_level, st);
 
 	for (unsigned long i = 0; i < num_blocks; i++) {
@@ -582,7 +742,7 @@ TEST(addr_list_tests, reduce_skip_empty_descriptors)
 	unsigned long addr, out_st;
 	int level;
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 
 	/* Create two non-contiguous descriptors */
 	build_input_list(&list, base0, 1UL, rtt_level, st);
@@ -617,7 +777,7 @@ TEST(addr_list_tests, reduce_all_descriptors_empty)
 	uintptr_t base0 = rand_aligned_addr(rtt_level);
 	uintptr_t base1 = round_up(base0 + blk_size * 10UL, blk_size);
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 
 	/* Create two non-contiguous descriptors */
 	build_input_list(&list, base0, 1UL, rtt_level, st);
@@ -653,7 +813,7 @@ TEST(addr_list_tests, reduce_undelegate_state)
 	unsigned long addr, out_st;
 	int level;
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base, 1UL, rtt_level,
 			      RMI_OP_MEM_UNDELEGATED);
 
@@ -688,7 +848,7 @@ TEST(addr_list_tests, reduce_across_two_descriptors)
 	unsigned long addr, out_st;
 	int level;
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 
 	/* First descriptor: 2 contiguous blocks */
 	build_input_list(&list, base0, 2UL, rtt_level, st);
@@ -745,7 +905,7 @@ TEST(addr_list_tests, validate_single_valid_entry)
 	unsigned long st = rand_state();
 	uintptr_t base = granule_addr(500U);
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base, rand_cnt,
 			      (unsigned long)XLAT_TABLE_LEVEL_MAX, st);
 
@@ -764,7 +924,7 @@ TEST(addr_list_tests, validate_zero_count)
 	struct addr_list list;
 	unsigned long st = rand_state();
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 
 	unsigned long total_mem = 0UL;
 	bool ret = addr_list_validate(&list, false, &total_mem, st);
@@ -780,7 +940,7 @@ TEST(addr_list_tests, validate_count_exceeds_max)
 {
 	struct addr_list list;
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	list.count = ADDR_LIST_MAX_RANGES + 1UL;
 
 	unsigned long total_mem = 0UL;
@@ -807,7 +967,7 @@ TEST(addr_list_tests, validate_unaligned_base_addr)
 	uintptr_t aligned = round_up(base, l2_size);
 	base = aligned + GRANULE_SIZE;
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base, 1UL, l2_level, st);
 
 	unsigned long total_mem = 0UL;
@@ -824,7 +984,7 @@ TEST(addr_list_tests, validate_wrong_state)
 	struct addr_list list;
 	uintptr_t base = rand_aligned_addr((unsigned long)XLAT_TABLE_LEVEL_MAX);
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base, 1UL,
 			      (unsigned long)XLAT_TABLE_LEVEL_MAX,
 			      RMI_OP_MEM_UNDELEGATED);
@@ -848,7 +1008,7 @@ TEST(addr_list_tests, validate_total_mem_calculation)
 	unsigned long rand_cnt = (unsigned long)test_helpers_get_rand_in_range(
 					2UL, 20UL);
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base, rand_cnt,
 			      (unsigned long)XLAT_TABLE_LEVEL_MAX, st);
 
@@ -869,7 +1029,7 @@ TEST(addr_list_tests, validate_contig_two_valid_entries)
 	uintptr_t base0 = granule_addr(540U);
 	uintptr_t base1 = granule_addr(550U);
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base0, 1UL,
 			      (unsigned long)XLAT_TABLE_LEVEL_MAX, st);
 	build_input_list(&list, base1, 1UL,
@@ -891,7 +1051,7 @@ TEST(addr_list_tests, validate_contig_non_power_of_two)
 	uintptr_t base = granule_addr(560U);
 
 	/* 3 × 4KB = 12KB, not a power of 2 */
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base, 3UL,
 			      (unsigned long)XLAT_TABLE_LEVEL_MAX, st);
 
@@ -916,7 +1076,7 @@ TEST(addr_list_tests, validate_contig_addr_not_aligned_to_total)
 	uintptr_t aligned = round_up(pool, total);
 	uintptr_t base = aligned + GRANULE_SIZE;
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base, cnt,
 			      (unsigned long)XLAT_TABLE_LEVEL_MAX, st);
 
@@ -939,7 +1099,7 @@ TEST(addr_list_tests, validate_contig_happy_path)
 	uintptr_t pool = granule_addr(580U);
 	uintptr_t base = round_up(pool, total);
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base, cnt,
 			      (unsigned long)XLAT_TABLE_LEVEL_MAX, st);
 
@@ -963,7 +1123,7 @@ TEST(addr_list_tests, validate_skips_zero_count_entries)
 	uintptr_t base0 = granule_addr(590U);
 	uintptr_t base1 = granule_addr(600U);
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base0, 1UL,
 			      (unsigned long)XLAT_TABLE_LEVEL_MAX, st);
 	build_input_list(&list, base1, 1UL,
@@ -995,7 +1155,7 @@ TEST(addr_list_tests, validate_total_equals_req_mem)
 	unsigned long rand_cnt = (unsigned long)test_helpers_get_rand_in_range(
 					1UL, 15UL);
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base, rand_cnt,
 			      (unsigned long)XLAT_TABLE_LEVEL_MAX, st);
 
@@ -1016,7 +1176,7 @@ TEST(addr_list_tests, validate_multi_desc_within_req_mem)
 	uintptr_t base0 = granule_addr(620U);
 	uintptr_t base1 = granule_addr(640U);
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base0, 1UL,
 			      (unsigned long)XLAT_TABLE_LEVEL_MAX, st);
 	build_input_list(&list, base1, 1UL,
@@ -1039,7 +1199,7 @@ TEST(addr_list_tests, validate_undelegate_state_match)
 	unsigned long rand_cnt = (unsigned long)test_helpers_get_rand_in_range(
 					1UL, 10UL);
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base, rand_cnt,
 			      (unsigned long)XLAT_TABLE_LEVEL_MAX,
 			      RMI_OP_MEM_UNDELEGATED);
@@ -1064,7 +1224,7 @@ TEST(addr_list_tests, validate_contig_all_zero_count)
 	unsigned long st = rand_state();
 	uintptr_t base = rand_aligned_addr((unsigned long)XLAT_TABLE_LEVEL_MAX);
 
-	addr_list_init(&list, LIST_TYPE_INPUT);
+	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base, 1UL,
 			      (unsigned long)XLAT_TABLE_LEVEL_MAX, st);
 
