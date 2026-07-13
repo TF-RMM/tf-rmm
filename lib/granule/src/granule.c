@@ -147,8 +147,77 @@ struct granule_set {
 	unsigned char state;
 };
 
+
+static unsigned int granule_lock_order(unsigned char state)
+{
+	switch (state) {
+	case GRANULE_STATE_RD:
+		return 0U;
+	case GRANULE_STATE_REC:
+		return 1U;
+	case GRANULE_STATE_PDEV:
+		return 2U;
+	case GRANULE_STATE_VDEV:
+		return 3U;
+	case GRANULE_STATE_DELEGATED:
+		return 4U;
+	case GRANULE_STATE_NS:
+		return 5U;
+	case GRANULE_STATE_RTT:
+		return 6U;
+	case GRANULE_STATE_DATA:
+		return 7U;
+	case GRANULE_STATE_REC_AUX:
+		return 8U;
+	case GRANULE_STATE_PDEV_AUX:
+		return 9U;
+	case GRANULE_STATE_VDEV_AUX:
+		return 10U;
+	case GRANULE_STATE_INTERNAL:
+		return 11U;
+	case GRANULE_STATE_PSMMU_ST_L2:
+		return 12U;
+	case GRANULE_STATE_RD_AUX:
+		return 13U;
+	case GRANULE_STATE_PARTIAL:
+		return 14U;
+	default:
+		/* All granule states must have an explicit lock order. */
+		assert(false);
+		return ~0U;
+	}
+}
+
+static bool granule_set_after(const struct granule_set *a,
+			      const struct granule_set *b)
+{
+	unsigned int order_a = granule_lock_order(a->state);
+	unsigned int order_b = granule_lock_order(b->state);
+
+	if (order_a != order_b) {
+		return order_a > order_b;
+	}
+
+	return a->addr > b->addr;
+}
+
+static bool granule_set_has_duplicate_addr(const struct granule_set *gs,
+					   unsigned long n)
+{
+	for (unsigned long i = 0UL; i < n; i++) {
+		for (unsigned long j = i + 1UL; j < n; j++) {
+			if (gs[i].addr == gs[j].addr) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 /*
- * Sort a set of granules by their address.
+ * Sort a set of granules by lock order. Granules of the same type are sorted
+ * by address.
  */
 static void sort_granules(struct granule_set *gs, unsigned long n)
 {
@@ -156,7 +225,7 @@ static void sort_granules(struct granule_set *gs, unsigned long n)
 		struct granule_set temp = gs[i];
 		unsigned long j = i;
 
-		while ((j > 0UL) && (gs[j - 1UL].addr > temp.addr)) {
+		while ((j > 0UL) && granule_set_after(&gs[j - 1UL], &temp)) {
 			gs[j] = gs[j - 1UL];
 			j--;
 		}
@@ -167,7 +236,7 @@ static void sort_granules(struct granule_set *gs, unsigned long n)
 }
 
 /*
- * Find a set of granules and lock them in order of their address.
+ * Find a set of granules and lock them in lock order.
  *
  * @gs:		Pointer to array of @n items. Each item must be pre-populated
  *		with ->addr set to the granule's address, and ->state set to
@@ -198,15 +267,12 @@ static bool find_lock_granules(struct granule_set *gs, unsigned long n)
 {
 	unsigned long i;
 
+	if (granule_set_has_duplicate_addr(gs, n)) {
+		return false;
+	}
+
 	sort_granules(gs, n);
-
 	for (i = 0UL; i < n; i++) {
-		/* Check for duplicates */
-		if ((i != 0UL) &&
-		    (gs[i].addr == gs[i - 1UL].addr)) {
-			goto out_err;
-		}
-
 		gs[i].g = find_lock_granule(gs[i].addr, gs[i].state);
 		if (gs[i].g == NULL) {
 			goto out_err;
@@ -228,7 +294,7 @@ out_err:
 }
 
 /*
- * Find two granules and lock them in order of their address.
+ * Find two granules and lock them in lock order.
  *
  * See find_lock_granules().
  */
@@ -251,7 +317,7 @@ bool find_lock_two_granules(
 }
 
 /*
- * Find three granules and lock them in order of their address.
+ * Find three granules and lock them in lock order.
  *
  * See find_lock_granules().
  */

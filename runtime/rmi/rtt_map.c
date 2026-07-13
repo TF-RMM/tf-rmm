@@ -382,6 +382,7 @@ static unsigned long data_map_drain_pending(struct sro_map_ctx *ctx,
 			return RMI_SUCCESS;
 		}
 
+		/* pending_off advances from zero, so locks are taken in ascending PA order. */
 		g_data = find_lock_granule(ctx->pa + ctx->pending_off,
 					   GRANULE_STATE_DELEGATED);
 		if (g_data == NULL) {
@@ -761,13 +762,6 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 		return;
 	}
 
-	/* The RD cannot also be used as the delegated data granule. */
-	/* TODO : this code need to be removed when locking order is reworked */
-	if (data_addr == rd_addr) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
 	g_src = find_granule(src_addr);
 	if ((g_src == NULL) ||
 	    (granule_unlocked_state(g_src) != GRANULE_STATE_NS)) {
@@ -775,8 +769,8 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 		return;
 	}
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
+	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+				    data_addr, GRANULE_STATE_DELEGATED, &g_data)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
@@ -836,23 +830,6 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 	 */
 	if (s2tte_drain_pending(s2tte)) {
 		ret = RMI_BUSY;
-		goto out_unmap_ll_table;
-	}
-
-	/* Do not recursively lock the target leaf as the data granule. */
-	/* TODO : this code need to be removed when locking order is reworked */
-	if (data_addr == granule_addr(wi.g_llt)) {
-		ret = RMI_ERROR_INPUT;
-		goto out_unmap_ll_table;
-	}
-
-	/*
-	 * Follow the RTT-before-data locking pattern: once the target leaf
-	 * is locked, claim the backing granule.
-	 */
-	g_data = find_lock_granule(data_addr, GRANULE_STATE_DELEGATED);
-	if (g_data == NULL) {
-		ret = RMI_ERROR_INPUT;
 		goto out_unmap_ll_table;
 	}
 
@@ -1580,8 +1557,8 @@ void smc_rtt_dev_map(unsigned long rd_addr,
 		return;
 	}
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
+	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+				    vdev_addr, GRANULE_STATE_VDEV, &g_vdev)) {
 		ret = RMI_ERROR_INPUT;
 		goto out_release_sro;
 	}
@@ -1593,14 +1570,7 @@ void smc_rtt_dev_map(unsigned long rd_addr,
 				      &list, &level, &map_size);
 	if (ret != RMI_SUCCESS) {
 		buffer_unmap(rd);
-		granule_unlock(g_rd);
-		goto out_release_sro;
-	}
-
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		ret = RMI_ERROR_INPUT;
-		buffer_unmap(rd);
+		granule_unlock(g_vdev);
 		granule_unlock(g_rd);
 		goto out_release_sro;
 	}

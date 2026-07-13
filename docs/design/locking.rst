@@ -222,10 +222,10 @@ granule be repurposed for other use.
 Based on the above, we now describe the Granule State field and the current
 locking/refcount implementation:
 
-* **UnDelegated:** These are granules for which |RMM| does not prevent the |PAS|
-  of the granule from being changed by another agent to any value.
-  In this state, the granule content access is not protected by granule::lock,
-  as it is always subject to reads and writes from Non-Realm worlds.
+* **Non-Secure (NS):** These are granules for which |RMM| does not prevent the
+  |PAS| of the granule from being changed by another agent to any value. In
+  this state, the granule content access is not protected by granule::lock, as
+  it is always subject to reads and writes from Non-Realm worlds.
 
 * **Delegated:** These are granules with memory only accessible by the |RMM|.
   The granule content is protected by granule::lock. No reference counts are
@@ -257,6 +257,16 @@ locking/refcount implementation:
 	- The |RMM| can access the granule's content on the entry and exit path
 	  from the |REC| while the reference is held.
 
+* **Physical Device (PDEV):** These are granules containing metadata describing
+  a physical device assigned through the device-assignment flow. Granule
+  content access is protected by granule::lock. A reference count is held on
+  this granule for each associated VDEV granule.
+
+* **Virtual Device (VDEV):** These are granules containing metadata describing
+  a virtual device assigned to a realm. Granule content access is protected by
+  granule::lock. A reference is held to the associated RD and PDEV while the
+  VDEV exists.
+
 * **Translation Table:** These are granules containing meta data describing
   virtual to physical address translation for the realm, accessible by the |RMM|
   and the hardware Memory Management Unit (MMU). Granule content access is
@@ -280,11 +290,21 @@ locking/refcount implementation:
 * **Data:** These are granules containing realm data, accessible by the |RMM|
   and by the realm to which it belongs. Granule content access is not protected
   by granule::lock, as it is always subject to reads and writes from within a
-  realm. A granule in this state is always referenced from exactly one entry in
-  an RTT granule which must be locked before locking this granule. Only a single
-  DATA granule can be locked at a time on a given PE. The complete internal
-  locking order for DATA granules is: RD -> RTT -> RTT -> ... -> DATA.
-  No reference counts are held on this granule type.
+  realm. A granule in this state can be referenced by at most one entry in each
+  RTT tree, and the RTT leaf entry must be locked before locking this granule
+  through that reference. Only a single DATA granule can be locked at a time on
+  a given PE. The complete internal locking order for DATA granules is:
+  RD -> RTT -> RTT -> ... -> DATA. No reference counts are held on this granule
+  type.
+
+* **Auxiliary granules:** These are granules containing additional object state
+  that does not fit in the primary object granule. REC_AUX, PDEV_AUX, VDEV_AUX
+  and RD_AUX granules are locked only when the corresponding parent object or
+  SRO flow already provides the necessary ownership.
+
+* **Partial:** These are granules whose object is partially created or partially
+  destroyed by an ongoing SRO flow. A PARTIAL granule is locked as the object
+  that owns the SRO operation.
 
 * **Internal:** These are granules owned by |RMM| for internal use which do not
   yet have a more specific granule state. This state is currently used by the
@@ -357,15 +377,15 @@ instead the following should be used:
 	 * returns `false`.
 	 */
 	bool granule_lock_on_state_match(struct granule *g,
-					 enum granule_state expected_state);
+					 unsigned char expected_state);
 
 	/*
 	 * Used when we're certain of the state of an object (e.g. because we
 	 * hold a reference to it) or when locking objects whose reference is
-	 * obtained from another object, after that objects is locked.
+	 * obtained from another object, after that object is locked.
 	 */
 	void granule_lock(struct granule *g,
-			  enum granule_state expected_state);
+			  unsigned char expected_state);
 
 	/*
 	 * Obtains a pointer to a locked granule at `addr` if `addr` is a valid
@@ -373,24 +393,41 @@ instead the following should be used:
 	 * `expected_state`.
 	 */
 	struct granule *find_lock_granule(unsigned long addr,
-					  enum granule_state expected_state);
+					  unsigned char expected_state);
 
-	/* Find two granules and lock them in order of their address. */
-	return_code_t find_lock_two_granules(unsigned long addr1,
-					     enum granule_state expected_state1,
-					     struct granule **g1,
-					     unsigned long addr2,
-					     enum granule_state expected_state2,
-					     struct granule **g2);
+	/*
+	 * Find two granules and lock them in lock order. Granules of
+	 * the same type are locked in order of their address.
+	 */
+	bool find_lock_two_granules(unsigned long addr1,
+				    unsigned char expected_state1,
+				    struct granule **g1,
+				    unsigned long addr2,
+				    unsigned char expected_state2,
+				    struct granule **g2);
+
+	/*
+	 * Find three granules and lock them in lock order. Granules of
+	 * the same type are locked in order of their address.
+	 */
+	bool find_lock_three_granules(unsigned long addr1,
+				      unsigned char expected_state1,
+				      struct granule **g1,
+				      unsigned long addr2,
+				      unsigned char expected_state2,
+				      struct granule **g2,
+				      unsigned long addr3,
+				      unsigned char expected_state3,
+				      struct granule **g3);
 
 	/*
 	 * Obtain a pointer to a locked granule at `addr` which is unused
 	 * (refcount = 0), if `addr` is a valid granule physical address and the
 	 * state of the granule at `addr` is `expected_state`.
 	 */
-	struct granule *find_lock_unused_granule(unsigned long addr,
-						 enum granule_state
-						 expected_state);
+	int find_lock_unused_granule(unsigned long addr,
+				     unsigned char expected_state,
+				     struct granule **g);
 
 .. code-block:: C
 	:caption: **Granule unlocking operations**
@@ -406,7 +443,7 @@ instead the following should be used:
 	 * be called if the calling PE already holds the lock.
 	 */
 	void granule_unlock_transition(struct granule *g,
-				       enum granule_state new_state);
+				       unsigned char new_state);
 
 
 Reference Counting
@@ -434,7 +471,7 @@ The following operations are defined on refcount:
 	 * refcount is required with relaxed memory ordering constraints applied
 	 * at that point.
 	 */
-	unsigned long granule_refcount_read_relaxed(struct granule *g);
+	unsigned short granule_refcount_read(struct granule *g);
 
 	/*
 	 * Single-copy atomic read of refcount variable with ACQUIRE memory
@@ -442,22 +479,16 @@ The following operations are defined on refcount:
 	 * refcount is required with acquire memory ordering constraints applied
 	 * at that point.
 	 */
-	unsigned long granule_refcount_read_acquire(struct granule *g);
+	unsigned short granule_refcount_read_acquire(struct granule *g);
 
 .. code-block:: C
 	:caption: **Increment a refcount value**
 
 	/*
-	 * Increments the granule refcount. Must be called with the granule
-	 * lock held.
-	 */
-	void __granule_get(struct granule *g);
-
-	/*
 	 * Increments the granule refcount by `val`. Must be called with the
 	 * granule lock held.
 	 */
-	void __granule_refcount_inc(struct granule *g, unsigned long val);
+	void granule_refcount_inc(struct granule *g, unsigned short val);
 
 	/* Atomically increments the reference counter of the granule.*/
 	void atomic_granule_get(struct granule *g);
@@ -467,16 +498,10 @@ The following operations are defined on refcount:
 	:caption: **Decrement a refcount value**
 
 	/*
-	 * Decrements the granule refcount. Must be called with the granule
-	 * lock held.
-	 */
-	void __granule_put(struct granule *g);
-
-	/*
 	 * Decrements the granule refcount by `val`. Asserts if refcount can
 	 * become negative. Must be called with the granule lock held.
 	 */
-	void __granule_refcount_dec(struct granule *g, unsigned long val);
+	void granule_refcount_dec(struct granule *g, unsigned short val);
 
 	/* Atomically decrements the reference counter of the granule. */
 	void atomic_granule_put(struct granule *g);
@@ -539,39 +564,43 @@ avoidance as shown by Dijkstra [EWD625]_.
 To establish this partial order, the objects referenced by |RMM| can be
 classified into two categories:
 
-#. **External**: A granule state belongs to the `external` class iff _any_
-   parameter in _any_ RMI command is an address of a granule which is expected
-   to be in that state. The following granule states are `external`:
+#. **External**: A memory granule state belongs to the `external` class iff
+   _any_ parameter in _any_ RMI command is an address of a granule which is
+   expected to be in that state. The following memory granule states are
+   `external`:
 
 	- GRANULE_STATE_NS
 	- GRANULE_STATE_DELEGATED
 	- GRANULE_STATE_RD
 	- GRANULE_STATE_REC
-	- DEV_GRANULE_STATE_NS
-	- DEV_GRANULE_STATE_DELEGATED
+	- GRANULE_STATE_PDEV
+	- GRANULE_STATE_VDEV
 
-#. **Internal**: A granule state belongs to the `internal` class iff it is not
-   an `external`. These are objects which are referenced from another
-   object after that object is locked. Each `internal` object should be
-   referenced from exactly one place. The following granule states are
-   `internal`:
+#. **Internal**: A memory granule state belongs to the `internal` class iff it
+   is not an `external`. These are objects which are referenced from another
+   object after that object is locked. The owning object or hierarchy defines
+   the exact ownership rule for each `internal` state. The following memory
+   granule states are `internal`:
 
 	- GRANULE_STATE_RTT
 	- GRANULE_STATE_DATA
+	- GRANULE_STATE_REC_AUX
+	- GRANULE_STATE_PDEV_AUX
+	- GRANULE_STATE_VDEV_AUX
 	- GRANULE_STATE_INTERNAL
 	- GRANULE_STATE_PSMMU_ST_L2
-	- DEV_GRANULE_STATE_MAPPED
+	- GRANULE_STATE_RD_AUX
+	- GRANULE_STATE_PARTIAL
 
 We now state the locking guidelines for |RMM| as:
 
-#. Granules expected to be in an `external` state must be locked before locking
-   any granules in an `internal` state.
+#. Independently-addressed memory granules must be locked in type order:
+   RD, REC, PDEV, VDEV, DELEGATED, NS, followed by the internal order below.
+   The ``find_lock_two_granules()`` and ``find_lock_three_granules()`` helpers
+   implement this ordering.
 
-#. Granules expected to be in an `external` state must be locked in order of
-   their physical address, starting with the lowest address.
-
-#. Memory granules expected to be in an `external` state must be locked before
-   locking any device memory granules in `external` state.
+#. Independently-addressed memory granules of the same type must be locked in
+   order of their physical address, starting with the lowest address.
 
 #. Once a granule expected to be in an `external` state has been locked, its
    state must be checked against the expected state. If these do not match, the
@@ -582,11 +611,32 @@ We now state the locking guidelines for |RMM| as:
 
 	- `RTT`
 	- `DATA`
+	- `REC_AUX`
+	- `PDEV_AUX`
+	- `VDEV_AUX`
 	- `INTERNAL`
 	- `PSMMU_ST_L2`
+	- `RD_AUX`
+	- `PARTIAL`
 
 #. Granules in the same `internal` state must be locked in the
    :ref:`locking_impl` defined order for that specific state.
+
+#. RTT granules are ordered by the RTT hierarchy rather than by physical
+   address. RTT walks must lock the root table before child tables and use
+   hand-over-hand locking. Concatenated root-level RTTs are entered from the
+   lowest root address before locking the selected concatenated root.
+
+#. DATA granules and device granules whose ownership is obtained from a locked
+   leaf RTT entry are locked under that leaf RTT according to the RTT
+   map/unmap flow. Only one such backing granule is locked at a time. Lists of
+   backing granules queued by RTT unmap are sorted in ascending physical
+   address order before the backing granules are locked and drained.
+
+#. Device granule states, `DEV_GRANULE_STATE_NS`,
+   `DEV_GRANULE_STATE_DELEGATED` and `DEV_GRANULE_STATE_MAPPED`, are locked
+   separately from memory granules by the device granule locking helpers.
+   Memory granules must be locked before device granules.
 
 #. A granule's state can be changed iff the granule is locked and the reference
    count is zero.

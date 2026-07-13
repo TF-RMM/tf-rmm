@@ -153,6 +153,46 @@ bool addr_list_add_block(struct addr_list *list,
 	return true;
 }
 
+static bool desc_after_by_addr(unsigned long a, unsigned long b)
+{
+	bool a_empty = desc_is_empty(a);
+	bool b_empty = desc_is_empty(b);
+
+	if (a_empty != b_empty) {
+		return a_empty;
+	}
+
+	if (a_empty) {
+		return false;
+	}
+
+	return get_addr_from_desc(a) > get_addr_from_desc(b);
+}
+
+/* cppcheck-suppress misra-c2012-8.7 */
+void addr_list_sort_by_addr(struct addr_list *list)
+{
+	assert(list != NULL);
+	assert(list->type == LIST_TYPE_OUTPUT);
+
+	for (unsigned int i = 1U; i < list->count; i++) {
+		unsigned long temp = list->range_desc[i];
+		unsigned int j = i;
+
+		while ((j > 0U) &&
+		       desc_after_by_addr(list->range_desc[j - 1U], temp)) {
+			list->range_desc[j] = list->range_desc[j - 1U];
+			j--;
+		}
+
+		if (i != j) {
+			list->range_desc[j] = temp;
+		}
+	}
+
+	list->cur_idx = 0U;
+}
+
 /* cppcheck-suppress misra-c2012-8.7 */
 bool addr_list_add_desc(struct addr_list *list, unsigned long desc)
 {

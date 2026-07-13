@@ -217,6 +217,58 @@ TEST(rtt_data_unmap_tests, l3_two_pages_list_mode)
 	expect_ipa_unassigned_destroyed(&ctx, TEST_DATA_IPA_BASE + GRANULE_SIZE);
 }
 
+TEST(rtt_data_unmap_tests, list_mode_output_is_sorted_by_pa)
+{
+	struct test_data_ctx ctx;
+	struct smc_result res = {};
+	uintptr_t list_pa = reserve_list_granule();
+	uintptr_t low_pa;
+	uintptr_t gap_pa;
+	uintptr_t high_pa;
+	unsigned long rdesc;
+	unsigned long top = TEST_DATA_IPA_BASE + 2UL * GRANULE_SIZE;
+
+	CHECK_TRUE(create_data_rtt_ctx(&ctx));
+	CHECK_TRUE(init_ripas_range(&ctx, TEST_DATA_IPA_BASE, top));
+
+	low_pa = reserve_delegated_granules(1U);
+	gap_pa = reserve_delegated_granules(1U);
+	high_pa = reserve_delegated_granules(1U);
+	CHECK_EQUAL(low_pa + GRANULE_SIZE, gap_pa);
+	CHECK_EQUAL(gap_pa + GRANULE_SIZE, high_pa);
+
+	CHECK_TRUE(map_data_page(&ctx, TEST_DATA_IPA_BASE, high_pa));
+	CHECK_TRUE(map_data_page(&ctx, TEST_DATA_IPA_BASE + GRANULE_SIZE,
+				 low_pa));
+
+	smc_rtt_data_unmap(ctx.rd, TEST_DATA_IPA_BASE, top,
+			   make_unmap_flags(RMI_ADDR_TYPE_LIST, 2UL),
+			   (unsigned long)list_pa, &res);
+	res = sro_complete_operation(res);
+
+	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
+	CHECK_EQUAL(top, res.x[1]);
+	CHECK_EQUAL(2UL, res.x[3]);
+
+	rdesc = read_list_entry(list_pa, 0U);
+	CHECK_EQUAL(low_pa, decode_single_oaddr_pa(rdesc));
+	CHECK_EQUAL(1UL, decode_rdesc_count(rdesc));
+	CHECK_EQUAL(RMI_PAGE_L3, decode_rdesc_size(rdesc));
+	CHECK_EQUAL(RMI_OP_MEM_DELEGATED, decode_rdesc_state(rdesc));
+
+	rdesc = read_list_entry(list_pa, 1U);
+	CHECK_EQUAL(high_pa, decode_single_oaddr_pa(rdesc));
+	CHECK_EQUAL(1UL, decode_rdesc_count(rdesc));
+	CHECK_EQUAL(RMI_PAGE_L3, decode_rdesc_size(rdesc));
+	CHECK_EQUAL(RMI_OP_MEM_DELEGATED, decode_rdesc_state(rdesc));
+
+	expect_data_granule_delegated(low_pa);
+	expect_data_granule_delegated(high_pa);
+	expect_ipa_unassigned_destroyed(&ctx, TEST_DATA_IPA_BASE);
+	expect_ipa_unassigned_destroyed(&ctx,
+					TEST_DATA_IPA_BASE + GRANULE_SIZE);
+}
+
 /* ------------------------------------------------------------------ */
 /* Already-unmapped IPA returns SUCCESS with count=0                  */
 /* ------------------------------------------------------------------ */
@@ -1238,8 +1290,8 @@ TEST(rtt_data_unmap_tests, data_unmap_stops_before_device_page_after_data)
  * PAs. DATA_UNMAP processes at most one leaf RTT per call, so the host
  * must reissue with the previous result's @res.x[1] as the new base
  * until the requested range is fully covered. LIST mode in each call
- * should skip holes within the current leaf and emit descriptors in
- * IPA order without merging PA-discontiguous entries.
+ * should skip holes within the current leaf and emit PA-sorted descriptors
+ * without merging PA-discontiguous entries.
  */
 TEST(rtt_data_unmap_tests, list_mode_random_pa_spans_multiple_l3_tables)
 {

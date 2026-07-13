@@ -13,14 +13,14 @@
  * -------------
  * Granules must be locked in a specific order to prevent deadlocks.
  *
- * We define two classes of granule states: `external` and `internal`.
+ * We define two classes of memory granule states: `external` and `internal`.
  *
- * A granule state belongs to the `external` class iff _any_ parameter to _any_
- * RMI command is an address of a granule which is expected to be in that state
- * i.e the lock is only acquired if the granule state of the address in RMI
- * command matches to that of the expected state.
+ * A memory granule state belongs to the `external` class iff _any_ parameter
+ * to _any_ RMI command is an address of a granule which is expected to be in
+ * that state i.e the lock is only acquired if the granule state of the address
+ * in RMI command matches to that of the expected state.
  *
- * The following granule states are `external`:
+ * The following memory granule states are `external`:
  *
  * - GRANULE_STATE_NS
  * - GRANULE_STATE_DELEGATED
@@ -28,12 +28,10 @@
  * - GRANULE_STATE_REC
  * - GRANULE_STATE_PDEV
  * - GRANULE_STATE_VDEV
- * - DEV_GRANULE_STATE_NS
- * - DEV_GRANULE_STATE_DELEGATED
  *
- * Otherwise a granule state is considered `internal`.
+ * Otherwise a memory granule state is considered `internal`.
  *
- * The following granule states are `internal`:
+ * The following memory granule states are `internal`:
  *
  * - GRANULE_STATE_RTT
  * - GRANULE_STATE_DATA
@@ -42,15 +40,17 @@
  * - GRANULE_STATE_VDEV_AUX
  * - GRANULE_STATE_INTERNAL
  * - GRANULE_STATE_PSMMU_ST_L2
- * - DEV_GRANULE_STATE_MAPPED
+ * - GRANULE_STATE_RD_AUX
+ * - GRANULE_STATE_PARTIAL
  *
- * The following locking rules must be followed in all cases:
+ * The following locking rules must be followed:
  *
- * 1. Granules expected to be in an `external` state must be locked before
- *    locking any granules in an `internal` state.
+ * 1. Independently-addressed memory granules must be locked in type order:
+ *    RD, REC, PDEV, VDEV, DELEGATED, NS, followed by the internal order
+ *    below.
  *
- * 2. Granules expected to be in an `external` state must be locked in order
- *    of their physical address, starting with the lowest address.
+ * 2. Independently-addressed memory granules of the same type must be locked
+ *    in order of their physical address, starting with the lowest address.
  *
  * 3. Once a granule expected to be in an `external` state has been locked, its
  *    state must be checked against the expected state. If these do not match,
@@ -59,23 +59,47 @@
  * 4. Granules in an `internal` state must be locked in order of state:
  *    1. `RTT`
  *    2. `DATA`
- *    3. `DEV_MAPPED`
- *    4. `REC_AUX`
- *    5. `PDEV_AUX`
+ *    3. `REC_AUX`
+ *    4. `PDEV_AUX`
+ *    5. `VDEV_AUX`
  *    6. `INTERNAL`
  *    7. `PSMMU_ST_L2`
+ *    8. `RD_AUX`
+ *    9. `PARTIAL`
  *
  * 5. Granules in the same `internal` state must be locked in the order defined
  *    below for that specific state.
+ *
+ * The granule_lock_order() helper implements the type order used by
+ * find_lock_two_granules() and find_lock_three_granules() for independently-
+ * addressed memory granules.
+ *
+ * 6. RTT granules are ordered by the RTT hierarchy. RTT walks must lock the
+ *    root table before child tables and use hand-over-hand locking.
+ *
+ * 7. DATA granules and device granules whose ownership is obtained from a
+ *    locked leaf RTT entry are locked under that leaf RTT according to the RTT
+ *    map/unmap flow. Only one such backing granule is locked at a time. Lists
+ *    of backing granules queued by RTT unmap are sorted in ascending physical
+ *    address order before the backing granules are locked and drained.
+ *
+ * 8. Device granule states, DEV_GRANULE_STATE_NS,
+ *    DEV_GRANULE_STATE_DELEGATED and DEV_GRANULE_STATE_MAPPED, are locked
+ *    separately from memory granules by the device granule locking helpers.
+ *    Memory granules must be locked before device granules.
  *
  * A granule's state can be changed iff the granule is locked.
  *
  * Invariants
  * ----------
- * GRANULE_STATE_DELEGATED is special, in that it is the gateway between the
- * non-secure and realm world.  We maintain the property that any unlocked
- * granule with state == GRANULE_STATE_DELEGATED contains only zeroes; while
- * locked these may contain non-zero values.
+ * GRANULE_STATE_DELEGATED is special because it is the gateway between the
+ * Non-secure and Realm worlds.
+ *
+ * An unlocked granule in GRANULE_STATE_DELEGATED has no RMM references. Its
+ * contents are not meaningful to RMM: consumers must initialize or sanitize the
+ * granule when transitioning it from GRANULE_STATE_DELEGATED to another state.
+ * Before a delegated memory granule is returned to Non-secure state, it must be
+ * sanitized.
  */
 
 /*

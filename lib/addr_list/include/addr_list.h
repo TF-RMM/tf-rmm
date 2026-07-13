@@ -79,6 +79,11 @@ bool addr_list_add_block(struct addr_list *list,
 			 unsigned long st);
 
 /*
+ * Sorts an output address list in ascending order of descriptor base address.
+ */
+void addr_list_sort_by_addr(struct addr_list *list);
+
+/*
  * Adds an encoded RMI Address Range Descriptor to an input address list.
  * The descriptor is decoded and stored in the list's canonical format.
  *
