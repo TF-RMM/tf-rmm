@@ -352,6 +352,21 @@ void smc_rec_enter(unsigned long rec_addr,
 		}
 	}
 
+	rec = buffer_granule_map(g_rec, SLOT_REC);
+	assert(rec != NULL);
+
+	/*
+	 * Check runnable before taking the REC refcount. Otherwise a racing
+	 * PSCI_COMPLETE could observe this transient refcount and incorrectly
+	 * treat an off REC as already on.
+	 */
+	if (!rec->runnable) {
+		buffer_unmap(rec);
+		granule_unlock(g_rec);
+		res->x[0] = RMI_ERROR_REC;
+		return;
+	}
+
 	/*
 	 * Increment refcount. REC can have lock-free access, thus atomic access
 	 * is required. Also, since the granule is only used for refcount
@@ -367,6 +382,7 @@ void smc_rec_enter(unsigned long rec_addr,
 				 sizeof(struct rmi_rec_enter), &rec_run.enter);
 
 	if (!success) {
+		buffer_unmap(rec);
 		/*
 		 * Decrement refcount. Lock-free access to REC, thus atomic and
 		 * release semantics is required.
@@ -376,8 +392,6 @@ void smc_rec_enter(unsigned long rec_addr,
 		return;
 	}
 
-	rec = buffer_granule_map(g_rec, SLOT_REC);
-	assert(rec != NULL);
 	g_rd = rec->realm_info.g_rd;
 
 	/*
@@ -396,11 +410,6 @@ void smc_rec_enter(unsigned long rec_addr,
 	}
 
 	buffer_unmap(rd);
-
-	if (!rec->runnable) {
-		ret = RMI_ERROR_REC;
-		goto out_unmap_buffers;
-	}
 
 	/* Check pending commands. */
 	if (rec->pending_op != REC_PENDING_NONE) {
