@@ -743,12 +743,12 @@ unsigned long smc_rtt_data_map_init(unsigned long rd_addr,
 				    unsigned long src_addr,
 				    unsigned long flags)
 {
-	struct granule *g_data;
+	struct granule *g_data = NULL;
 	struct granule *g_rd;
 	struct granule *g_src;
 	struct rd *rd;
 	struct s2tt_walk wi;
-	struct s2tt_context *s2_ctx;
+	struct s2tt_context s2_ctx;
 	unsigned long s2tte, *s2tt;
 	bool ns_access_ok;
 	void *data;
@@ -765,12 +765,8 @@ unsigned long smc_rtt_data_map_init(unsigned long rd_addr,
 		return RMI_ERROR_INPUT;
 	}
 
-	if (!find_lock_two_granules(data_addr,
-				    GRANULE_STATE_DELEGATED,
-				    &g_data,
-				    rd_addr,
-				    GRANULE_STATE_RD,
-				    &g_rd)) {
+	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
+	if (g_rd == NULL) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -788,32 +784,32 @@ unsigned long smc_rtt_data_map_init(unsigned long rd_addr,
 		goto out_unmap_rd;
 	}
 
-	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
+	s2_ctx = rd->s2_ctx[PRIMARY_S2_CTX_ID];
 
 	/*
 	 * If LPA2 is disabled for the realm, then `data_addr` must not be
 	 * more than 48 bits wide.
 	 */
-	if (!s2_ctx->enable_lpa2 &&
+	if (!s2_ctx.enable_lpa2 &&
 	    (data_addr >= (UL(1) << S2TT_MAX_PA_BITS))) {
 		ret = RMI_ERROR_INPUT;
 		goto out_unmap_rd;
 	}
 
-	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
+	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
 
-	s2tt_walk_lock_unlock(s2_ctx, map_addr, S2TT_PAGE_LEVEL, &wi);
+	s2tt_walk_lock_unlock(&s2_ctx, map_addr, S2TT_PAGE_LEVEL, &wi);
 	if (wi.last_level != S2TT_PAGE_LEVEL) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned char)wi.last_level);
 		goto out_unlock_ll_table;
 	}
 
-	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
+	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx.mecid);
 	assert(s2tt != NULL);
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
-	if (!s2tte_is_unassigned(s2_ctx, s2tte)) {
+	if (!s2tte_is_unassigned(&s2_ctx, s2tte)) {
 		ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned char)S2TT_PAGE_LEVEL);
 		goto out_unmap_ll_table;
@@ -832,7 +828,17 @@ unsigned long smc_rtt_data_map_init(unsigned long rd_addr,
 		goto out_unmap_ll_table;
 	}
 
-	data = buffer_granule_mecid_map(g_data, SLOT_REALM, s2_ctx->mecid);
+	/*
+	 * Follow the RTT-before-data locking pattern: once the target leaf
+	 * is locked, claim the backing granule.
+	 */
+	g_data = find_lock_granule(data_addr, GRANULE_STATE_DELEGATED);
+	if (g_data == NULL) {
+		ret = RMI_ERROR_INPUT;
+		goto out_unmap_ll_table;
+	}
+
+	data = buffer_granule_mecid_map(g_data, SLOT_REALM, s2_ctx.mecid);
 	assert(data != NULL);
 
 	ns_access_ok = ns_buffer_read(SLOT_NS, g_src, 0U, GRANULE_SIZE, data);
@@ -850,7 +856,7 @@ unsigned long smc_rtt_data_map_init(unsigned long rd_addr,
 		flags);
 	buffer_unmap(data);
 
-	s2tte = s2tte_create_assigned_ram(s2_ctx, data_addr,
+	s2tte = s2tte_create_assigned_ram(&s2_ctx, data_addr,
 					  S2TT_PAGE_LEVEL, s2tte);
 	s2tte_write(&s2tt[wi.index], s2tte);
 	atomic_granule_get(wi.g_llt);
@@ -864,10 +870,12 @@ out_unlock_ll_table:
 out_unmap_rd:
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
-	if (ret == RMI_SUCCESS) {
-		granule_unlock_transition(g_data, GRANULE_STATE_DATA);
-	} else {
-		granule_unlock(g_data);
+	if (g_data != NULL) {
+		if (ret == RMI_SUCCESS) {
+			granule_unlock_transition(g_data, GRANULE_STATE_DATA);
+		} else {
+			granule_unlock(g_data);
+		}
 	}
 
 	return ret;
