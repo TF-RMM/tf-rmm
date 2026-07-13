@@ -48,6 +48,100 @@ struct test_data_ctx {
 	uintptr_t rtt_l3;
 };
 
+static inline void test_isr_el1_wr(u_register_t val, u_register_t *reg)
+{
+	*reg = val;
+}
+
+/*
+ * Return 0 until the configured countdown reaches zero, then return 1 once
+ * and 0 afterwards.
+ */
+static inline u_register_t test_isr_el1_rd_yield_on_countdown(
+							u_register_t *reg)
+{
+	if (*reg == 0UL) {
+		return 0UL;
+	}
+
+	(*reg)--;
+	return (*reg == 0UL) ? 1UL : 0UL;
+}
+
+static inline u_register_t test_isr_el1_rd_yield_while_countdown(
+							u_register_t *reg)
+{
+	if (*reg == 0UL) {
+		return 0UL;
+	}
+
+	(*reg)--;
+	return 1UL;
+}
+
+/*
+ * Return the stored value on every read until the test installs a different
+ * callback.
+ */
+static inline u_register_t test_isr_el1_rd_return_value(u_register_t *reg)
+{
+	return *reg;
+}
+
+static inline void prime_isr_yield(void)
+{
+	host_util_set_sysreg_cb("isr_el1",
+				test_isr_el1_rd_yield_on_countdown,
+				test_isr_el1_wr, 1UL);
+}
+
+static inline void prime_isr_yield_twice(void)
+{
+	host_util_set_sysreg_cb("isr_el1",
+				test_isr_el1_rd_yield_while_countdown,
+				test_isr_el1_wr, 2UL);
+}
+
+static inline void prime_isr_yield_in_drain(void)
+{
+	host_util_set_sysreg_cb("isr_el1",
+				test_isr_el1_rd_yield_on_countdown,
+				test_isr_el1_wr, S2TTES_PER_S2TT + 1UL);
+}
+
+static inline void prime_isr_yield_during_data_map_drain(void)
+{
+	host_util_set_sysreg_cb("isr_el1",
+				test_isr_el1_rd_yield_on_countdown,
+				test_isr_el1_wr, 2UL);
+}
+
+static inline void prime_isr_yield_during_data_map_rollback(void)
+{
+	host_util_set_sysreg_cb("isr_el1",
+				test_isr_el1_rd_yield_on_countdown,
+				test_isr_el1_wr, 4UL);
+}
+
+static inline void prime_isr_pending_irq(void)
+{
+	host_util_set_sysreg_cb("isr_el1",
+				test_isr_el1_rd_return_value,
+				test_isr_el1_wr, 1UL);
+}
+
+static inline void prime_isr_no_pending_irq(void)
+{
+	host_util_set_sysreg_cb("isr_el1",
+				test_isr_el1_rd_return_value,
+				test_isr_el1_wr, 0UL);
+}
+
+static inline void prime_isr_yield_before_data_map_pop(void)
+{
+	prime_isr_pending_irq();
+}
+
 /*
  * Reset allocation counters at the start of each data test.
  * Moves the NS list pool far above the worst-case data granule range.
@@ -366,6 +460,76 @@ static inline bool install_assigned_dev_mapping(const struct test_data_ctx *ctx,
 }
 
 /*
+ * Install an assigned_empty or assigned_destroyed data entry at level 2 or 3.
+ * The caller owns the backing DATA granules; this only rewrites the RTT state.
+ */
+static inline bool install_assigned_data_ripas_mapping(
+	const struct test_data_ctx *ctx,
+	unsigned long ipa,
+	uintptr_t data_pa,
+	long level,
+	bool destroyed)
+{
+	struct s2tt_context s2_ctx;
+	struct s2tt_walk wi;
+	unsigned long *table;
+	unsigned long old_s2tte;
+	unsigned long s2tte;
+
+	init_data_s2_ctx(ctx, &s2_ctx);
+	granule_lock(s2_ctx.g_rtt, GRANULE_STATE_RTT);
+	s2tt_walk_lock_unlock(&s2_ctx, ipa, level, &wi);
+	if (wi.last_level != level) {
+		granule_unlock(wi.g_llt);
+		return false;
+	}
+
+	table = (unsigned long *)buffer_granule_mecid_map(wi.g_llt, SLOT_RTT,
+							  s2_ctx.mecid);
+	CHECK_TRUE(table != NULL);
+	old_s2tte = s2tte_read(&table[wi.index]);
+	if ((level < S2TT_PAGE_LEVEL) &&
+	    s2tte_is_table(&s2_ctx, old_s2tte, level)) {
+		buffer_unmap(table);
+		granule_unlock(wi.g_llt);
+		return false;
+	}
+
+	if (destroyed) {
+		s2tte = s2tte_create_assigned_destroyed(&s2_ctx, data_pa,
+							level, old_s2tte);
+	} else {
+		s2tte = s2tte_create_assigned_empty(&s2_ctx, data_pa,
+						    level, old_s2tte);
+	}
+	s2tte_write(&table[wi.index], s2tte);
+
+	buffer_unmap(table);
+	granule_unlock(wi.g_llt);
+	return true;
+}
+
+static inline bool install_assigned_empty_mapping(
+	const struct test_data_ctx *ctx,
+	unsigned long ipa,
+	uintptr_t data_pa,
+	long level)
+{
+	return install_assigned_data_ripas_mapping(ctx, ipa, data_pa, level,
+						   false);
+}
+
+static inline bool install_assigned_destroyed_mapping(
+	const struct test_data_ctx *ctx,
+	unsigned long ipa,
+	uintptr_t data_pa,
+	long level)
+{
+	return install_assigned_data_ripas_mapping(ctx, ipa, data_pa, level,
+						   true);
+}
+
+/*
  * Assert: granule at pa is in GRANULE_STATE_DELEGATED.
  */
 static inline void expect_data_granule_delegated(uintptr_t pa)
@@ -387,6 +551,22 @@ static inline void expect_data_granules_delegated(uintptr_t data_base,
 		expect_data_granule_delegated(data_base +
 					      (uintptr_t)i * GRANULE_SIZE);
 	}
+}
+
+/*
+ * Assert: the RTT entry for ipa is in unassigned_empty state.
+ * (This is the state after data_unmap of an assigned_empty entry.)
+ */
+static inline void expect_ipa_unassigned_empty(const struct test_data_ctx *ctx,
+					       unsigned long ipa)
+{
+	unsigned long s2tte;
+	long level;
+	struct s2tt_context s2_ctx;
+
+	CHECK_TRUE(read_data_ipa_s2tte(ctx, ipa, &s2tte, &level));
+	init_data_s2_ctx(ctx, &s2_ctx);
+	CHECK_TRUE(s2tte_is_unassigned_empty(&s2_ctx, s2tte));
 }
 
 /*

@@ -48,3 +48,9 @@ rmm_build_unittest(NAME rtt_data_map_tests
                    TARGET rmm-runtime
                    SOURCES "tests/rtt_data_map_tests.cpp"
                    ITERATIONS 1)
+
+rmm_build_unittest(NAME rtt_data_unmap_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/rtt_data_unmap_tests.cpp"
+                   ITERATIONS 1)

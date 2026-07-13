@@ -66,7 +66,7 @@ static unsigned long map_partial_progress_finalize(struct smc_result *res,
 
 static bool rtt_map_irq_pending(void)
 {
-#ifdef RMM_RTT_MAP_CHECK_ISR_EL1
+#ifdef RMM_RTT_MAP_UNMAP_CHECK_ISR_EL1
 	return (read_isr_el1() != 0UL);
 #else
 	return false;
