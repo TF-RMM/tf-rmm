@@ -23,6 +23,7 @@
 #include <sro_context.h>
 #include <status.h>
 #include <stddef.h>
+#include <xlat_low_va.h>
 
 /*
  * Validate inputs to RMI_RTT_DATA_UNMAP / RMI_RTT_UNPROT_UNMAP /
@@ -678,7 +679,9 @@ static void rtt_unmap_invalidate_pending(struct sro_unmap_ctx *ctx,
 	if (ctx->da_enabled) {
 		int ret = smmuv3_inv_at_level_per_vmids(ctx->vmid_list,
 							ctx->nvmids, addr,
-							level, 1UL, true);
+							level, 1UL, true,
+							xlat_low_va_to_pa((uintptr_t)ctx->msi_addr),
+							ctx->msi_addr);
 
 		if (ret != 0) {
 			ERROR("smmuv3_inv_at_level_per_vmids(0x%lx %ld) error %d\n",

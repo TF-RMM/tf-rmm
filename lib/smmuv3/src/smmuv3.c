@@ -543,8 +543,36 @@ int prepare_send_command(struct smmuv3_dev *smmu, unsigned long opcode,
 
 	ret = send_cmd(smmu, cmd);
 	if (ret != 0) {
-		SMMU_ERROR(smmu, "Failed to send command\n");
+		SMMU_ERROR(smmu, "Failed to send command 0x%lx\n", opcode);
 	}
+	return ret;
+}
+
+int prepare_send_cmd_sync(struct smmuv3_dev *smmu, uintptr_t msi_addr_pa,
+			  unsigned int msi_data)
+{
+	uint128_t cmd = CMD_SYNC |
+			(uint128_t)COMPOSE(CS, SIG_IRQ) |
+			(uint128_t)COMPOSE(MSH, MSH_ISH) |
+			(uint128_t)COMPOSE(MSIATTR, MSIATTR_OIWB) |
+			((uint128_t)msi_data << MSIDATA_SHIFT) |
+			((uint128_t)msi_addr_pa << MSIADDR_SHIFT) |
+			((uint128_t)MSI_NS_RLPA << MSI_NS_SHIFT);
+	int ret;
+
+	assert((msi_addr_pa != 0UL) && ALIGNED(msi_addr_pa, sizeof(unsigned int)));
+
+	/* Check for errors */
+	ret = check_cmdq_err(smmu);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = send_cmd(smmu, cmd);
+	if (ret != 0) {
+		SMMU_ERROR(smmu, "Failed to send CMD_SYNC\n");
+	}
+
 	return ret;
 }
 
@@ -855,6 +883,11 @@ static int get_features(struct smmuv3_dev *smmu)
 		return -ENOTSUP;
 	}
 
+	if ((idr0 & IDR0_COHACC_BIT) == 0U) {
+		SMMU_ERROR(smmu, "IO-coherent access not supported\n");
+		return -ENOTSUP;
+	}
+
 	if ((idr0 & IDR0_BTM_BIT) != 0U) {
 		smmu->config.features |= FEAT_BTM;
 		SMMU_DEBUG("\tBroadcast TLB maintenance\n");
@@ -954,9 +987,9 @@ static int get_features(struct smmuv3_dev *smmu)
 		SMMU_DEBUG("\tPCIe ATS\n");
 	}
 
-	if ((r_idr0 & R_IDR0_MSI_BIT) != 0U) {
-		smmu->config.features |= FEAT_MSI;
-		SMMU_DEBUG("\tMSI\n");
+	if ((r_idr0 & R_IDR0_MSI_BIT) == 0U) {
+		SMMU_ERROR(smmu, "MSI not supported\n");
+		return -ENOTSUP;
 	}
 
 	if ((r_idr0 & R_IDR0_PRI_BIT) != 0U) {

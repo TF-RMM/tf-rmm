@@ -1,0 +1,14 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Overlay to enable SMMUv3 Broadcast TLB Maintenance on FVP.
+
+run:
+  params:
+    # SMMU_IDR0.BTM[5] = 1: Broadcast TLB maintenance supported
+    -C pci.pci_smmuv3.mmu.SMMU_IDR0: 0x498F76BB

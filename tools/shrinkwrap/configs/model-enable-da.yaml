@@ -8,6 +8,8 @@
 description: >-
   This overlay enables necessary options and sets up necessary related files
   for FVP to support Device Assignment (DA) feature based on RMM specification.
+  Broadcast TLB Maintenance is disabled by default so SMMU command-based TLB
+  maintenance is exercised. Add model-enable-btm.yaml to enable BTM.
 
 build:
   rmm:
@@ -43,8 +45,10 @@ run:
     -C pci.hierarchy_file_name: ${rtvar:PCI_HIERARCHY_FILE_FIXED}
     # Set SMMU related parameters
     -C pci.pci_smmuv3.mmu.SMMU_AIDR: 0x3
-    -C pci.pci_smmuv3.mmu.SMMU_IDR0: 0x498F76BB
-    -C pci.pci_smmuv3.mmu.SMMU_IDR1: 0xCE73D10
+    # SMMU_IDR0.BTM[5] = 0: Exercise SMMU command-based TLB maintenance
+    -C pci.pci_smmuv3.mmu.SMMU_IDR0: 0x498F769B
+    # SMMU_IDR1.CMDQS[25:21] = EVENTQS[20:16] = 0x13
+    -C pci.pci_smmuv3.mmu.SMMU_IDR1: 0xE733D10
     -C pci.pci_smmuv3.mmu.SMMU_IDR3: 0x773C
     -C pci.pci_smmuv3.mmu.SMMU_IDR5: 0x4F6
     -C pci.pci_smmuv3.mmu.SMMU_S_IDR0: 0x1000000

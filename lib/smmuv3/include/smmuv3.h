@@ -147,67 +147,94 @@ int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid);
  * Perform a context-wide invalidation for all SMMUs that do not support
  * broadcast TLB maintenance.
  *
+ * Parameters:
+ *   msi_addr_pa - Physical address of the msi_addr array. Each SMMU is
+ *		   programmed to write the corresponding completion word via
+ *		   MSI when the CMD_SYNC command completes.
+ *   msi_addr	 - Array of per-SMMU CMD_SYNC completion words updated by
+ *		   the SMMUs via MSI.
+ *
  * Return:
- *   0		- success, or when broadcast TLB maintenance is supported
- *                on all SMMUs and no local invalidation is required.
- *   -ETIMEDOUT	- timeout during command processing.
- *   -EIO	- internal SMMU error.
+ *   0		 - success, or when broadcast TLB maintenance is supported
+ *                 on all SMMUs and no local invalidation is required.
+ *   -ETIMEDOUT	 - timeout during command processing.
+ *   -EIO	 - internal SMMU error.
  */
-int smmuv3_inv(void);
+int smmuv3_inv(uintptr_t msi_addr_pa, unsigned int *msi_addr);
 
 /*
  * Invalidate all TLB entries at all implemented stages for a VMID on a single SMMU.
  *
  * Parameters:
- *   smmu_idx	- Index of SMMU instance.
- *   vmid	- Virtual Machine Identifier.
+ *   smmu_idx	 - Index of SMMU instance.
+ *   vmid	 - Virtual Machine Identifier.
+ *   msi_addr_pa - Physical address of the msi_addr array. Each SMMU is
+ *		   programmed to write the corresponding completion word via
+ *		   MSI when the CMD_SYNC command completes.
+ *   msi_addr	 - Array of per-SMMU CMD_SYNC completion words updated by
+ *		   the SMMUs via MSI.
  *
  * Return:
- *   0		- success, or when broadcast TLB maintenance is supported
- *                on SMMU and no local invalidation is required.
- *   -EINVAL	- invalid smmu_idx, no actions taken.
- *   -ETIMEDOUT	- timeout during invalidation.
- *   -EIO	- hardware or queue processing error.
+ *   0		 - success, or when broadcast TLB maintenance is supported
+ *                 on SMMU and no local invalidation is required.
+ *   -EINVAL	 - invalid smmu_idx, no actions taken.
+ *   -ETIMEDOUT	 - timeout during invalidation.
+ *   -EIO	 - hardware or queue processing error.
  */
-int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid);
+int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid,
+			uintptr_t msi_addr_pa, unsigned int *msi_addr);
 
 /*
  * Invalidate @num_entrs TLB entries within a block region for VMID.
  *
  * Parameters:
- *   vmid	- Virtual Machine Identifier.
- *   addr	- Base address of the block.
- *   level	- RTT mapped level.
- *   num_entrs	- Number of entries to invalidate.
- *   leaf	- If 'true', validate only cached entries
- *		  for the last level of translation table walk.
+ *   vmid	 - Virtual Machine Identifier.
+ *   addr	 - Base address of the block.
+ *   level	 - RTT mapped level.
+ *   num_entrs	 - Number of entries to invalidate.
+ *   leaf	 - If 'true', validate only cached entries
+ *		   for the last level of translation table walk.
+ *   msi_addr_pa - Physical address of the msi_addr array. Each SMMU is
+ *		   programmed to write the corresponding completion word via
+ *		   MSI when the CMD_SYNC command completes.
+ *   msi_addr	 - Array of per-SMMU CMD_SYNC completion words updated by
+ *		   the SMMUs via MSI.
+ *
  * Return:
- *   0		- success, or when broadcast TLB maintenance is supported
- *		  on all SMMUs and no local invalidation is required.
- *   -ETIMEDOUT	- timeout in TLB invalidation command.
- *   -EIO	- SMMU command/queue error.
+ *   0		 - success, or when broadcast TLB maintenance is supported
+ *		   on all SMMUs and no local invalidation is required.
+ *   -ETIMEDOUT	 - timeout in TLB invalidation command.
+ *   -EIO	 - SMMU command/queue error.
  */
 int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
-			unsigned long num_entrs, bool leaf);
+			unsigned long num_entrs, bool leaf,
+			uintptr_t msi_addr_pa, unsigned int *msi_addr);
 
 /*
  * Invalidate @num_entrs TLB entries mapped within block entry for a list of VMIDs.
  *
  * Parameters:
- *   vmid_list	- Pointer to an array of VMIDs to invalidate for.
- *   addr	- Base address of the block.
- *   level	- RTT mapped level.
- *   num_entrs	- Number of entries to invalidate.
- *   leaf	- If 'true', validate only cached entries
- *		  for the last level of translation table walk.
+ *   vmid_list	 - Pointer to an array of VMIDs to invalidate for.
+ *   addr	 - Base address of the block.
+ *   level	 - RTT mapped level.
+ *   num_entrs	 - Number of entries to invalidate.
+ *   leaf	 - If 'true', validate only cached entries
+ *		   for the last level of translation table walk.
+ *   msi_addr_pa - Physical address of the msi_addr array. Each SMMU is
+ *		   programmed to write the corresponding completion word via
+ *		   MSI when the CMD_SYNC command completes.
+ *   msi_addr	 - Array of per-SMMU CMD_SYNC completion words updated by
+ *		   the SMMUs via MSI.
+ *
  * Return:
- *   0		- success, or when broadcast TLB maintenance is supported
- *                on all SMMUs and no local invalidation is required.
- *   -ETIMEDOUT	- timeout in TLB invalidation command.
- *   -EIO	- SMMU command or queue error.
+ *   0		 - success, or when broadcast TLB maintenance is supported
+ *                 on all SMMUs and no local invalidation is required.
+ *   -ETIMEDOUT	 - timeout in TLB invalidation command.
+ *   -EIO	 - SMMU command or queue error.
  */
 int smmuv3_inv_at_level_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
 				  unsigned long addr, long level,
-				  unsigned long num_entrs, bool leaf);
+				  unsigned long num_entrs, bool leaf,
+				  uintptr_t msi_addr_pa, unsigned int *msi_addr);
 
 #endif /* SMMUV3_H */

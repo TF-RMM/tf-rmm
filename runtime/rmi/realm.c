@@ -760,6 +760,9 @@ void smc_realm_create(unsigned long rd_addr,
 	rd->da_enabled = EXTRACT(RMI_REALM_FLAGS0_DA, p.flags0) != 0UL;
 	rd_vdev_refcount_reset(rd);
 
+	/* Set physical address of the msi_addr[] array */
+	rd->msi_addr_pa = rd_addr + offsetof(struct rd, msi_addr);
+
 	init_overlay_permissions(rd);
 
 	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {

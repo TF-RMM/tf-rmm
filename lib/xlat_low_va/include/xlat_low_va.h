@@ -202,4 +202,23 @@ int xlat_low_va_depopulate(uintptr_t va, size_t size);
  */
 int xlat_low_va_unreserve(uintptr_t va, size_t size);
 
+/*
+ * Translate a virtual address in the low VA region to the corresponding
+ * physical address.
+ *
+ * The address is first rounded down to a granule boundary and resolved via
+ * xlat_low_va_get_contig_pa(). The original offset within the granule is
+ * then added to the returned granule PA.
+ *
+ * Arguments:
+ *   - va: Virtual address to translate.
+ *
+ * Returns:
+ *   - Physical address corresponding to 'va'.
+ *
+ * This function asserts if the granule containing 'va' is not validly
+ * mapped in the low VA translation tables.
+ */
+uintptr_t xlat_low_va_to_pa(uintptr_t va);
+
 #endif /* XLAT_LOW_VA_H */

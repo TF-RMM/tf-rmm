@@ -68,3 +68,8 @@ int xlat_low_va_decommit(uintptr_t va, size_t size)
 	(void)size;
 	return 0;
 }
+
+uintptr_t xlat_low_va_to_pa(uintptr_t va)
+{
+	return va;
+}
