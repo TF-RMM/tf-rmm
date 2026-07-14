@@ -328,11 +328,6 @@ void mec_init_mmu(void)
 #endif
 		return;
 	}
-#if (RMM_MEM_SCRUB_METHOD == 2)
-	(void)rmm_el3_ifc_mec_refresh(RESERVED_MECID_SCRUB, false);
-#endif
-	/* Initialize the default shared MECID */
-	(void)rmm_el3_ifc_mec_refresh(MECID_SHARED, false);
 
 	mecid = RESERVED_MECID_SYSTEM;
 
@@ -379,6 +374,12 @@ void mec_init_state(uintptr_t state, size_t state_size)
 		/* Use mec_state from previous RMM */
 		return;
 	}
+
+#if (RMM_MEM_SCRUB_METHOD == 2)
+	(void)rmm_el3_ifc_mec_refresh(RESERVED_MECID_SCRUB, false);
+#endif
+	/* Initialize the default shared MECID */
+	(void)rmm_el3_ifc_mec_refresh(MECID_SHARED, false);
 
 	/* Initialize mec_state with default values */
 	mec_state_init_values();
