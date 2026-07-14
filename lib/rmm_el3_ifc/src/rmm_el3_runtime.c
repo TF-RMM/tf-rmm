@@ -756,3 +756,13 @@ int rmm_el3_ifc_gtsi_step(unsigned long addr, unsigned long size, bool delegate,
 	state->cookie = state->incomplete ? next_cookie : 0UL;
 	return ret;
 }
+
+/* cppcheck-suppress misra-c2012-8.7 */
+unsigned long rmm_el3_ifc_lfa_allow(bool lfa_allowed)
+{
+	/* TODO: implement FIRME support when spec is available. */
+
+	return monitor_call(SMC_RMM_LFA_ALLOW,
+				(unsigned long)lfa_allowed,
+				0UL, 0UL, 0UL, 0UL, 0UL);
+}

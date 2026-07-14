@@ -124,6 +124,9 @@
 #define RESERVE_MEM_FLAGS_WIDTH		UL(31)
 #define RESERVE_MEM_FLAG_LOCAL_CPU	UL(1)
 
+					/* 0xc40001bc */
+#define SMC_RMM_LFA_ALLOW			SMC64_STD_FID(RMM_EL3, U(12))
+
 /************************
  * Version related macros
  ************************/
@@ -1009,6 +1012,20 @@ int rmm_el3_ifc_sid_max(unsigned int smmu_idx, unsigned int *sid_max);
  *	- NULL if @mem_idx is not valid.
  */
 const struct memory_info *rmm_el3_ifc_memory_info(unsigned int mem_idx);
+
+/*
+ * Notify EL3 whether LFA should be allowed or disallowed from this moment
+ * on.
+ *
+ * Args:
+ *	- lfa_allowed	Indicates whether LFA is allowed or disallowed.
+ *
+ * Return:
+ *	- E_RMM_OK	On Success. The notification was received.
+ *	- E_RMM_UNK	If the SMC is not implemented or if interface
+ *			version is < 2.1.
+ */
+unsigned long rmm_el3_ifc_lfa_allow(bool lfa_allowed);
 
 #endif /* __ASSEMBLER__ */
 #endif /* RMM_EL3_IFC_H */

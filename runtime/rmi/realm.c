@@ -8,6 +8,7 @@
 #include <buffer.h>
 #include <debug.h>
 #include <feature.h>
+#include <glob_data.h>
 #include <granule.h>
 #include <measurement.h>
 #include <mec.h>
@@ -270,6 +271,7 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 				  unsigned long *rtt_base,
 				  unsigned long *ats_plane,
 				  unsigned int *mec_policy,
+				  unsigned int *lfa_policy,
 				  unsigned long *s2oa_limit,
 				  unsigned long *max_num_vdevs)
 {
@@ -284,6 +286,7 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 		EXTRACT(RMI_REALM_FLAGS1_S2AP_ENC, p->flags1);
 	unsigned long mec_policy_param;
 	unsigned long s2oasz_bits;
+	unsigned long lfa_policy_param;
 	unsigned int n_planes;
 
 	s2oasz_bits = EXTRACT(RMI_FEATURE_REGISTER_0_S2OASZ, feat_reg0);
@@ -368,6 +371,14 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 				      *s2oa_limit)) {
 		return false;
 	}
+
+	/* Validate LFA policy */
+	lfa_policy_param = EXTRACT(RMI_REALM_FLAGS0_LFA_POLICY, p->flags0);
+	if ((lfa_policy_param != RMI_LFA_POLICY_DISALLOW) &&
+	    (lfa_policy_param != RMI_LFA_POLICY_ALLOW)) {
+		return false;
+	}
+	*lfa_policy = (unsigned int)lfa_policy_param;
 
 	if (s2_num_root_rtts(p->s2sz, (int)p->rtt_level_start) !=
 						p->rtt_num_start) {
@@ -653,6 +664,7 @@ static void realm_destroy_cleanup(struct rd *rd, struct rd_aux *rd_aux)
 	struct granule *g_rtt;
 	unsigned int num_rtts;
 	unsigned int mecid;
+	int lfa_disallow_ret __unused;
 
 	num_rtts = plane_to_s2_context(rd, PLANE_0_ID)->num_root_rtts;
 	mecid = plane_to_s2_context(rd, PLANE_0_ID)->mecid;
@@ -685,6 +697,11 @@ static void realm_destroy_cleanup(struct rd *rd, struct rd_aux *rd_aux)
 	 * using the Realm MECID and DCCIPoE is completed at this point.
 	 */
 	mecid_free(mecid);
+
+	if (rd->lfa_policy == RMI_LFA_POLICY_DISALLOW) {
+		lfa_disallow_ret = glob_data_lfa_disallow_put();
+		assert(lfa_disallow_ret == 0);
+	}
 }
 
 void smc_realm_create(unsigned long rd_addr,
@@ -755,6 +772,8 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 	unsigned long max_num_vdevs;
 	bool rtt_tree_pp;
 	int smmuv3_ret __unused;
+	unsigned int lfa_policy;
+	int lfa_disallow_ret __unused;
 
 	assert(sro != NULL);
 	assert(fid == SMC_RMI_OP_CONTINUE);
@@ -774,7 +793,8 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 	/* coverity[uninit_use_in_call:SUPPRESS] */
 	if (!validate_realm_params(&p, &n_vmids, &n_rtts,
 				   &rtt_tree_pp, rtt_base, &ats_plane,
-				   &mec_policy, &s2oa_limit, &max_num_vdevs)) {
+				   &mec_policy, &lfa_policy, &s2oa_limit,
+				   &max_num_vdevs)) {
 		ret = RMI_ERROR_INPUT;
 		goto out_reclaim;
 	}
@@ -898,6 +918,8 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 
 	rd->ats_plane = ats_plane;
 
+	rd->lfa_policy = lfa_policy;
+
 	/* Set DA feature flag */
 	rd->da_enabled = EXTRACT(RMI_REALM_FLAGS0_DA, p.flags0) != 0UL;
 	rd->max_num_vdevs = max_num_vdevs;
@@ -919,6 +941,11 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 	measurement_init_rim(rd->measurement[RIM_MEASUREMENT_SLOT],
 					 rd->algorithm);
 	rd_init_aux_granules(rd);
+
+	if (lfa_policy == RMI_LFA_POLICY_DISALLOW) {
+		lfa_disallow_ret = glob_data_lfa_disallow_get();
+		assert(lfa_disallow_ret == 0);
+	}
 
 	buffer_unmap(rd);
 	granule_unlock_transition(g_rd, GRANULE_STATE_RD);

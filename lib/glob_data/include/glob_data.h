@@ -52,6 +52,9 @@ struct glob_data {
 	/* RMM state */
 	enum rmm_state rmm_state;
 
+	/* Number of Realms with a LFA_DISALLOW policy */
+	unsigned long lfa_disallow_realm_num;
+
 	/* Firmware image sequence*/
 	unsigned long fw_img_sequence;
 
@@ -79,6 +82,15 @@ bool glob_data_transition_rmm_state(enum rmm_state expected,
 				    enum rmm_state new_state);
 uintptr_t glob_data_get_sro_ctx_va(size_t *alloc_size);
 unsigned long glob_data_get_fw_img_sequence(void);
+
+/*
+ * Add or remove a Realm's LFA denial, serializing count changes and EL3
+ * notifications. Return 0 on success, or -EINVAL if global data is
+ * unavailable.
+ * The caller must hold the RD lock; put requires a matching get.
+ */
+int glob_data_lfa_disallow_get(void);
+int glob_data_lfa_disallow_put(void);
 
 /*
  * Allocate an EL3 signing ticket atomically from initialized global data.

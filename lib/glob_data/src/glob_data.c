@@ -19,6 +19,9 @@
 static struct glob_data *glob;
 static spinlock_t rmm_state_lock;
 
+/* Keep counter transitions and their EL3 notifications in the same order. */
+static spinlock_t lfa_disallow_lock;
+
 uintptr_t glob_data_get_smmu_driv_hdl_va(size_t *alloc_size)
 {
 	if (glob == NULL) {
@@ -302,4 +305,43 @@ uintptr_t glob_data_init(struct glob_data *gl)
 	flush_dcache_range((uintptr_t)new_gl, sizeof(struct glob_data));
 
 	return new_gl->glob_data_pa;
+}
+
+int glob_data_lfa_disallow_get(void)
+{
+	if (glob == NULL) {
+		ERROR("Global data not initialized\n");
+		return -EINVAL;
+	}
+
+	spinlock_acquire(&lfa_disallow_lock);
+
+	if (glob->lfa_disallow_realm_num == 0UL) {
+		(void)rmm_el3_ifc_lfa_allow(false);
+	}
+	glob->lfa_disallow_realm_num++;
+
+	spinlock_release(&lfa_disallow_lock);
+
+	return 0;
+}
+
+int glob_data_lfa_disallow_put(void)
+{
+	if (glob == NULL) {
+		ERROR("Global data not initialized\n");
+		return -EINVAL;
+	}
+
+	spinlock_acquire(&lfa_disallow_lock);
+	assert(glob->lfa_disallow_realm_num > 0UL);
+
+	glob->lfa_disallow_realm_num--;
+	if (glob->lfa_disallow_realm_num == 0UL) {
+		(void)rmm_el3_ifc_lfa_allow(true);
+	}
+
+	spinlock_release(&lfa_disallow_lock);
+
+	return 0;
 }

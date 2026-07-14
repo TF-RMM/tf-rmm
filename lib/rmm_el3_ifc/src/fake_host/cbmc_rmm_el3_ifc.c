@@ -79,6 +79,14 @@ int rmm_el3_ifc_gtsi_step(unsigned long addr, unsigned long size, bool delegate,
 	return 0;
 }
 
+/* LFA notifications are outside the supported CBMC entry points. */
+unsigned long rmm_el3_ifc_lfa_allow(bool lfa_allowed)
+{
+	(void)lfa_allowed;
+	ASSERT(false, "rmm_el3_ifc_lfa_allow");
+	return 0UL;
+}
+
 bool firme_init(void)
 {
 	ASSERT(false, "firme_init");

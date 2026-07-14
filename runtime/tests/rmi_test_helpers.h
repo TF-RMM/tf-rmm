@@ -72,6 +72,8 @@ static inline void rmi_test_realm_prepare(struct rmi_test_realm *realm,
 
 	params = (struct rmi_realm_params *)realm->params;
 	(void)memset(params, 0, sizeof(*params));
+	/* Allow LFA for test Realms by default. */
+	params->flags0 = INPLACE(RMI_REALM_FLAGS0_LFA_POLICY, RMI_LFA_POLICY_ALLOW);
 	params->s2sz = arch_feat_get_pa_width();
 	params->rtt_base = realm->rtt;
 	params->rtt_num_start = 1U;

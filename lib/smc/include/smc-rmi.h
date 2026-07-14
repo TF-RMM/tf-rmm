@@ -806,6 +806,16 @@
 #define RMI_MEC_POLICY_PRIVATE			U(1)
 
 /*
+ * LFA is not allowed as long as the Realm exists.
+ */
+#define RMI_LFA_POLICY_DISALLOW			U(0)
+
+/*
+ * LFA is allowed while the Realm exists.
+ */
+#define RMI_LFA_POLICY_ALLOW			U(1)
+
+/*
  * FIDs: 0xC400018C - 0xC400018F are not used.
  */
 
@@ -1284,6 +1294,9 @@ enum rmm_state {
 
 #define RMI_REALM_FLAGS0_MEC_POLICY_SHIFT	UL(7)
 #define RMI_REALM_FLAGS0_MEC_POLICY_WIDTH	UL(2)
+
+#define RMI_REALM_FLAGS0_LFA_POLICY_SHIFT	UL(5)
+#define RMI_REALM_FLAGS0_LFA_POLICY_WIDTH	UL(2)
 
 /* RmiRealmFlags1 format */
 #define RMI_REALM_FLAGS1_RTT_TREE_PP_SHIFT	UL(0)

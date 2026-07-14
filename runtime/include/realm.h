@@ -157,6 +157,11 @@ struct rd {
 
 	/* Auxiliary granules for the Realm */
 	struct granule *aux_granules[MAX_RD_AUX_GRANULES];
+
+	/*
+	 * LFA policy for the Realm.
+	 */
+	unsigned int lfa_policy;
 };
 COMPILER_ASSERT((U(offsetof(struct rd, measurement)) & 7U) == 0U);
 COMPILER_ASSERT((U(offsetof(struct rd, smmu_cmd_sync.completion)) & 3U) == 0U);
