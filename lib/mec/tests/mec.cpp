@@ -361,6 +361,41 @@ TEST(mec, mecid_max_TC2)
 	CHECK_EQUAL(max_valid_mecid, max_mecid);
 }
 
+TEST(mec, mecid_private_count_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Limit MECIDR_EL2 so there is no private MECID range available and
+	 * verify that no private MECIDs are reported.
+	 ******************************************************************/
+
+	reset_mecidr_el2(0U);
+
+	CHECK_EQUAL(0U, mecid_private_count());
+}
+
+TEST(mec, mecid_private_count_TC2)
+{
+	unsigned int mecid_width = 4U;
+	unsigned int max_mecid;
+	unsigned int private_count;
+
+	/******************************************************************
+	 * TEST CASE 2:
+	 *
+	 * Set MECIDR_EL2.MECIDWidthm1 and verify that the private MECID
+	 * count excludes reserved and shared MECIDs.
+	 ******************************************************************/
+
+	reset_mecidr_el2(mecid_width - 1U);
+
+	max_mecid = (1U << mecid_width) - 1U;
+	private_count = max_mecid - MECID_PRIVATE_START + 1U;
+
+	CHECK_EQUAL(private_count, mecid_private_count());
+}
+
 TEST(mec, mecid_alloc_TC1)
 {
 	unsigned int mecid = MECID_INVALID;
@@ -401,6 +436,27 @@ TEST(mec, mecid_alloc_TC2)
 	CHECK_EQUAL(MECID_PRIVATE_START, mecid1);
 	CHECK_EQUAL(MECID_PRIVATE_START + 1U, mecid2);
 	CHECK_EQUAL(MECID_INVALID, mecid3);
+}
+
+TEST(mec, mecid_alloc_TC3)
+{
+	unsigned int mecid1;
+	unsigned int mecid2;
+
+	/******************************************************************
+	 * TEST CASE 3:
+	 *
+	 * Allocate and free a private MECID, then verify that the released
+	 * MECID can be allocated again.
+	 ******************************************************************/
+
+	CHECK_TRUE(mecid_alloc(&mecid1, false));
+	mecid_free(mecid1);
+
+	CHECK_TRUE(mecid_alloc(&mecid2, false));
+	mecid_free(mecid2);
+
+	CHECK_EQUAL(mecid1, mecid2);
 }
 
 TEST(mec, mec_is_realm_mecid_s2_pvt_TC1)
@@ -493,6 +549,7 @@ TEST(mec, TEST_mec_mec_init_mmu_TC1)
 	ret &= (read_mecid_a1_el2() == RESERVED_MECID_SYSTEM);
 	ret &= (read_vmecid_p_el2() == RESERVED_MECID_SYSTEM);
 	ret &= (read_vmecid_a_el2() == RESERVED_MECID_SYSTEM);
+	ret &= ((read_sctlr2_el2() & SCTLR2_ELx_EMEC_BIT) != 0UL);
 
 	CHECK_TRUE(ret);
 }
@@ -708,14 +765,20 @@ TEST(no_mec, mec_is_realm_mecid_s2_pvt_TC1)
 
 TEST(no_mec, mec_init_mmu_TC1)
 {
+	unsigned long sctlr2_el2;
+
 	/******************************************************************
 	 * TEST CASE 1:
 	 *
-	 * Call mec_init_mmu(). It should return immediately when
-	 * FEAT_MEC is not present. This test is for coverage purposes only.
+	 * Call mec_init_mmu(). It should return immediately and leave EMEC
+	 * disabled when FEAT_MEC is not present.
 	 ******************************************************************/
 
 	mec_init_mmu();
+
+	sctlr2_el2 = read_sctlr2_el2();
+
+	CHECK_EQUAL(0UL, sctlr2_el2 & SCTLR2_ELx_EMEC_BIT);
 }
 
 TEST_GROUP(mec_restore_after_assert1)
@@ -1051,12 +1114,18 @@ TEST_GROUP(no_sctlr2_mec)
 
 TEST(no_sctlr2_mec, mec_init_mmu_TC1)
 {
+	unsigned long sctlr2_el2;
+
 	/******************************************************************
 	 * TEST CASE 1:
 	 *
-	 * Call mec_init_mmu() when FEAT_SCTRL2 is not present. This test
-	 * is for coverage purposes only.
+	 * Call mec_init_mmu() when FEAT_SCTRL2 is not present and verify
+	 * that EMEC is not enabled.
 	 ******************************************************************/
 
 	mec_init_mmu();
+
+	sctlr2_el2 = read_sctlr2_el2();
+
+	CHECK_EQUAL(0UL, sctlr2_el2 & SCTLR2_ELx_EMEC_BIT);
 }
