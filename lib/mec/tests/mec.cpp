@@ -219,26 +219,6 @@ TEST(mec, mec_realm_mecid_s2_init_TC2)
 	CHECK_EQUAL(mecid, (unsigned int)vmecid_p_el2);
 }
 
-ASSERT_TEST(mec, mec_realm_mecid_s2_init_TC3)
-{
-	unsigned int mecid;
-
-	/******************************************************************
-	 * TEST CASE 3:
-	 *
-	 * Allocate a private MECID, initialize it for Stage 2, then attempt
-	 * to initialize it again. This should trigger an assert failure.
-	 ******************************************************************/
-
-	CHECK_TRUE(mecid_alloc(&mecid, false));
-
-	mec_realm_mecid_s2_init(mecid);
-
-	test_helpers_expect_assert_fail(true);
-	mec_realm_mecid_s2_init(mecid);
-	test_helpers_fail_if_no_assert_failed();
-}
-
 TEST(mec, mec_realm_mecid_s2_reset_TC1)
 {
 	unsigned int mecid;
@@ -751,15 +731,15 @@ TEST_GROUP(mec_restore_after_assert1)
 	TEST_TEARDOWN()
 	{
 		/*
-		* MECID reference counters can't be reset manually, so
-		* MECID_A1_EL2 is set manually so reference counter and
-		* MECID_A1_EL2 can be reset through
-		* mec_realm_mecid_s1_reset() without triggering an assert
-		* failure.
-		*/
-
-		/* Since mecid_alloc was called but reset wasn't, manually fix state */
+		 * MECID reference counters can't be reset manually, so
+		 * MECID_A1_EL2 is set manually so reference counter and
+		 * MECID_A1_EL2 can be reset through
+		 * mec_realm_mecid_s1_reset() without triggering an assert
+		 * failure. The expected assert is triggered after incrementing
+		 * the S1 reference count, so unwind both init calls.
+		 */
 		write_mecid_a1_el2(mecid1);
+		mec_realm_mecid_s1_reset();
 		mec_realm_mecid_s1_reset();
 
 		mecid_free(mecid1);
@@ -863,20 +843,26 @@ TEST_GROUP(mec_restore_after_assert4)
 {
 	unsigned int mecid;
 	bool should_free_mecid;
+	bool should_reset_s2;
 
 	TEST_SETUP()
 	{
 		mec_test_setup();
 		mecid = 0U;
 		should_free_mecid = false;
+		should_reset_s2 = false;
 	}
 
 	TEST_TEARDOWN()
 	{
+		if (should_reset_s2) {
+			write_vmecid_p_el2(RESERVED_MECID_SYSTEM);
+		}
+
 		/*
-		* Restore MECID_A1_EL2 to RESERVED_MECID_SYSTEM after the test
-		* case.
-		*/
+		 * Restore MECID_A1_EL2 to RESERVED_MECID_SYSTEM after the test
+		 * case.
+		 */
 		write_mecid_a1_el2(RESERVED_MECID_SYSTEM);
 
 		/* Release MECID after assert failure if it was allocated */
@@ -885,6 +871,26 @@ TEST_GROUP(mec_restore_after_assert4)
 		}
 	}
 };
+
+ASSERT_TEST(mec_restore_after_assert4, mec_realm_mecid_s2_init_TC3)
+{
+	/******************************************************************
+	 * TEST CASE 3:
+	 *
+	 * Allocate a private MECID, initialize it for Stage 2, then attempt
+	 * to initialize it again. This should trigger an assert failure.
+	 ******************************************************************/
+
+	CHECK_TRUE(mecid_alloc(&mecid, false));
+	should_free_mecid = true;
+
+	mec_test_realm_mecid_s2_init(mecid);
+	should_reset_s2 = true;
+
+	test_helpers_expect_assert_fail(true);
+	mec_test_realm_mecid_s2_init(mecid);
+	test_helpers_fail_if_no_assert_failed();
+}
 
 ASSERT_TEST(mec_restore_after_assert4, mec_realm_mecid_s1_reset_TC1)
 {

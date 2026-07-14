@@ -118,6 +118,8 @@ void mec_test_setup(void)
 {
 	test_helpers_init();
 
+	mec_test_helpers_arch_restore();
+
 	mec_init_state((uintptr_t)&g_mec_state, sizeof(g_mec_state));
 
 	release_all_mecids();
@@ -208,6 +210,11 @@ bool check_vmecid_p_el2_read_clear(void)
 	bool result = is_vmecid_p_el2_read;
 	is_vmecid_p_el2_read = false;
 	return result;
+}
+
+void mec_test_realm_mecid_s2_init(unsigned int mecid)
+{
+	mec_realm_mecid_s2_init(mecid);
 }
 
 void reset_mecidr_el2(unsigned int value)

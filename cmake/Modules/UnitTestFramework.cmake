@@ -16,6 +16,7 @@ Build a unit test group for a given target
 .. code:: cmake
 
     rmm_build_unittest(NAME <name> TARGET <target> SOURCES <sources>
+                       [ADDITIONAL_TEST_GROUPS <LIST of test groups>]
                        [RUN_ISOLATED_TESTS <LIST of tests to run>]
                        [LIBRARIES <libraries_to_link>]
                        [ITERATIONS <iterations>])
@@ -31,6 +32,9 @@ strings):
 - ``NAME`` Name of the test. It must match the name of the CppUtest test group.
 - ``TARGET`` Target where the tests will be linked against.
 - ``SOURCES`` Source files for the tests. This is usually a single C++ file.
+- ``ADDITIONAL_TEST_GROUPS`` Optional parameter to define extra CppUTest groups
+                              implemented by ``SOURCES``. Each group gets its
+                              own CTest entry and linker import.
 - ``RUN_ISOLATED_TESTS`` Optional parameter that specifies a list of tests
                          implemented within ``SOURCES`` to be run. When this
                          list is specified, the binary is re-spawned for each
@@ -75,7 +79,8 @@ endif()
 function(rmm_build_unittest)
     if(RMM_UNITTESTS)
         set(_options "")
-        set(_multi_args "SOURCES;LIBRARIES;RUN_ISOLATED_TESTS")
+        set(_multi_args
+            "SOURCES;LIBRARIES;ADDITIONAL_TEST_GROUPS;RUN_ISOLATED_TESTS")
         set(_single_args "NAME;TARGET;ITERATIONS")
 
         cmake_parse_arguments(
@@ -136,16 +141,38 @@ function(rmm_build_unittest)
                 PRIVATE "${arg_TARGET}" CppUTest ${arg_LIBRARIES})
         endif()
 
+        set(_test_groups "${arg_NAME}")
+        set(_use_exact_test_group_match false)
+
+        if(DEFINED arg_ADDITIONAL_TEST_GROUPS)
+            if(DEFINED arg_RUN_ISOLATED_TESTS)
+                message(FATAL_ERROR
+                    "ADDITIONAL_TEST_GROUPS cannot be used with RUN_ISOLATED_TESTS")
+            endif()
+
+            list(APPEND _test_groups ${arg_ADDITIONAL_TEST_GROUPS})
+            list(REMOVE_DUPLICATES _test_groups)
+            set(_use_exact_test_group_match true)
+        endif()
+
         # Add the test to the CMake test builder, so we can automate
         # the test run process.
         if("RUN_ISOLATED_TESTS" IN_LIST arg_KEYWORDS_MISSING_VALUES OR
             NOT DEFINED arg_RUN_ISOLATED_TESTS)
             # Run all tests at once
-            add_test(NAME "${arg_NAME}"
-                    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-                    COMMAND ${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_core.elf
-                            -g${arg_NAME}
-                            -r${arg_ITERATIONS})
+            foreach(TEST_GROUP IN LISTS _test_groups)
+                if(_use_exact_test_group_match)
+                    set(_test_group_arg "-sg${TEST_GROUP}")
+                else()
+                    set(_test_group_arg "-g${TEST_GROUP}")
+                endif()
+
+                add_test(NAME "${TEST_GROUP}"
+                        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+                        COMMAND ${CMAKE_BINARY_DIR}/$<CONFIG>/rmm_core.elf
+                                ${_test_group_arg}
+                                -r${arg_ITERATIONS})
+            endforeach()
         else()
             # Register a test for each test case, so each one on them can
             # run on isolation.
@@ -158,10 +185,14 @@ function(rmm_build_unittest)
             endforeach()
         endif()
 
-        # Use CppUtest IMPORT_TEST_GROUP macro to explicitly include the new test
-        # group. This is needed as otherwise the linker will ignore the test code.
-        SET(IMPORT_TEST_GROUPS "${IMPORT_TEST_GROUPS} IMPORT_TEST_GROUP(${arg_NAME});"
-            CACHE INTERNAL "IMPORT_TEST_GROUP List")
+        # Use CppUtest IMPORT_TEST_GROUP macro to explicitly include each new
+        # test group. This is needed as otherwise the linker will ignore the
+        # test code.
+        foreach(TEST_GROUP IN LISTS _test_groups)
+            SET(IMPORT_TEST_GROUPS
+                "${IMPORT_TEST_GROUPS} IMPORT_TEST_GROUP(${TEST_GROUP});"
+                CACHE INTERNAL "IMPORT_TEST_GROUP List")
+        endforeach()
 
         # Generate the test_groups.h
         configure_file(${CMAKE_SOURCE_DIR}/plat/host/host_test/src/test_groups.h.in
