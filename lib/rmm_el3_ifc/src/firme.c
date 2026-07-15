@@ -23,9 +23,8 @@ static const unsigned long firme_abis_masks[FIRME_NUM_SERVICES] = {
 };
 
 /* FIRME status variables. */
-static unsigned int firme_el3_svc_version[FIRME_NUM_SERVICES] = {0U, 0U, 0U};
-static unsigned long firme_el3_svc_present_abis[FIRME_NUM_SERVICES] = {0UL, 0UL,
-								       0UL};
+static unsigned int firme_el3_svc_version[FIRME_NUM_SERVICES];
+static unsigned long firme_el3_svc_present_abis[FIRME_NUM_SERVICES];
 
 static bool firme_feature_discovery(unsigned int svc_id)
 {

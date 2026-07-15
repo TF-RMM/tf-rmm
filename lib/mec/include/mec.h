@@ -86,22 +86,7 @@ void _mecid_s1_get(unsigned int mecid);
 void _mecid_s1_put(void);
 
 /* Maximum MECID allocatable */
-static inline unsigned int mecid_max(void)
-{
-	unsigned int mecid_count;
-
-	assert(is_feat_mec_present());
-
-	/*
-	 * MECIDR_MECIDWIDTHM1 plus 1 is the MECID width in bits.
-	 * So Max MECID is (2^MECID width) - 1.
-	 */
-	mecid_count = (unsigned int)1 << (EXTRACT(MECIDR_MECIDWIDTHM1,
-						read_mecidr_el2()) + 1U);
-
-	assert(mecid_count <= MEC_MAX_COUNT);
-	return mecid_count - 1U;
-}
+unsigned int mecid_max(void);
 
 static inline unsigned int mecid_private_count(void)
 {
