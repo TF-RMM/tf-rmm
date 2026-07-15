@@ -21,6 +21,40 @@ static uint8_t cached_manifest[GRANULE_SIZE] __aligned(GRANULE_SIZE);
 static struct rmm_core_manifest *local_core_manifest;
 
 /*
+ * Copy the DRAM/IO regions data into the cached manifest buffer.
+ * The memory banks array needs to be copied separately since it's
+ * pointed to by the manifest structure.
+ *
+ * Return updated offset.
+ */
+static size_t copy_memory_data(struct memory_info *info, size_t offset)
+{
+	void *cached_array;
+	size_t size;
+
+	if ((info->banks == NULL) || (info->num_banks == 0UL)) {
+		return offset;
+	}
+
+	size = sizeof(struct memory_bank) * info->num_banks;
+
+	/* Ensure the memory bank array fits in the cached manifest buffer */
+	assert((offset + size) <= GRANULE_SIZE);
+
+	cached_array = (void *)((uintptr_t)cached_manifest + offset);
+
+	/* Copy the banks array to cached buffer */
+	(void)memcpy(cached_array, (void *)info->banks, size);
+
+	/* Update the pointer in local_core_manifest to point to cached copy */
+	info->banks = (struct memory_bank *)cached_array;
+
+	inv_dcache_range((uintptr_t)cached_array, size);
+
+	return (offset + size);
+}
+
+/*
  * Copy the SMMU list data into the cached manifest buffer.
  * The SMMU info array needs to be copied separately since it's
  * pointed to by the manifest structure.
@@ -222,6 +256,7 @@ static size_t copy_root_complex_data(size_t offset)
 void rmm_el3_ifc_process_boot_manifest(void)
 {
 	struct rmm_core_manifest *core_manifest;
+	size_t offset = sizeof(struct rmm_core_manifest);
 
 	assert((local_core_manifest == NULL) && !is_mmu_enabled());
 
@@ -244,12 +279,30 @@ void rmm_el3_ifc_process_boot_manifest(void)
 	(void)memcpy((void *)local_core_manifest, (void *)core_manifest,
 		     sizeof(struct rmm_core_manifest));
 
-	/* Check the Boot Manifest Version */
+	/*
+	 * Check the Boot Manifest version and copy the required data
+	 * structures into the cached manifest buffer.
+	 */
+	if (local_core_manifest->version >=
+		RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(2))) {
+
+		/* Copy the DRAM data into the cached manifest buffer */
+		offset = copy_memory_data(&local_core_manifest->plat_dram, offset);
+	}
+
+	if (local_core_manifest->version >=
+		RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(4))) {
+
+		/* Copy the device address ranges data into the cached manifest buffer */
+		offset = copy_memory_data(&local_core_manifest->plat_ncoh_region, offset);
+		offset = copy_memory_data(&local_core_manifest->plat_coh_region, offset);
+	}
+
 	if (local_core_manifest->version >=
 		RMM_EL3_MANIFEST_MAKE_VERSION(U(0), U(5))) {
 
 		/* Copy the SMMU list data into the cached manifest buffer */
-		size_t offset = copy_smmu_data(sizeof(struct rmm_core_manifest));
+		offset = copy_smmu_data(offset);
 
 		/* Copy the PCIe Root Complex data into the cached manifest buffer */
 		(void)copy_root_complex_data(offset);
@@ -257,8 +310,7 @@ void rmm_el3_ifc_process_boot_manifest(void)
 
 	/*
 	 * Invalidate the cache for the manifest header to ensure visibility of the
-	 * data copied by memcpy() and any updates performed by copy_smmu_data()
-	 * and copy_root_complex_data().
+	 * data copied by memcpy() and any updates performed by copy_xxx_data().
 	 */
 	inv_dcache_range((uintptr_t)local_core_manifest,
 				sizeof(struct rmm_core_manifest));
@@ -310,7 +362,7 @@ static int get_memory_data_validated_pa(unsigned long max_num_banks,
 					struct memory_info **memory_info,
 					struct memory_info *plat_memory)
 {
-	uint64_t num_banks, checksum;
+	uint64_t num_banks;
 	uintptr_t end = 0UL;
 	struct memory_bank *bank_ptr;
 
@@ -341,9 +393,6 @@ static int get_memory_data_validated_pa(unsigned long max_num_banks,
 	    (bank_ptr == NULL)) {
 		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
 	}
-
-	/* Calculate checksum of memory_info structure */
-	checksum = num_banks + (uint64_t)bank_ptr + plat_memory->checksum;
 
 	for (unsigned long i = 0UL; i < num_banks; i++) {
 		uint64_t size = bank_ptr->size;
@@ -381,17 +430,9 @@ static int get_memory_data_validated_pa(unsigned long max_num_banks,
 		bank_ptr++;
 	}
 
-	/* Update checksum */
 	assert(plat_memory->banks != NULL);
-	checksum += checksum_calc((uint64_t *)plat_memory->banks,
-					sizeof(struct memory_bank) * num_banks);
-
-	/* Checksum must be 0 */
-	if (checksum != 0UL) {
-		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
-	}
-
 	*memory_info = plat_memory;
+
 	return E_RMM_BOOT_SUCCESS;
 }
 
@@ -845,4 +886,31 @@ int rmm_el3_ifc_sid_max(unsigned int smmu_idx, unsigned int *sid_max)
 
 	*sid_max = max;
 	return E_RMM_OK;
+}
+
+/*
+ * Return a pointer to the cached platform memory information for the
+ * requested memory type.
+ *
+ * Args:
+ *	- mem_idx: Memory type index (DRAM_IDX, DEV_NCOH_IDX or DEV_COH_IDX).
+ *
+ * Return:
+ *	- Pointer to the corresponding cached memory_info structure.
+ *	- NULL if @mem_idx is not valid.
+ */
+const struct memory_info *rmm_el3_ifc_memory_info(unsigned int mem_idx)
+{
+	assert((local_core_manifest != NULL) && is_mmu_enabled());
+
+	switch (mem_idx) {
+	case DRAM_IDX:
+		return &local_core_manifest->plat_dram;
+	case DEV_NCOH_IDX:
+		return &local_core_manifest->plat_ncoh_region;
+	case DEV_COH_IDX:
+		return &local_core_manifest->plat_coh_region;
+	default:
+		return NULL;
+	}
 }

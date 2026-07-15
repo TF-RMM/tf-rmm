@@ -247,6 +247,13 @@ COMPILER_ASSERT(U(offsetof(struct el3_token_sign_response, signature_buf)) == 0x
 #define RESERVE_MEM_FLAG_LOCAL		(1UL << 0)
 
 /***************************************************************************
+ * Memory/IO regions enumerations
+ ***************************************************************************/
+#define DRAM_IDX			0U
+#define DEV_NCOH_IDX			1U
+#define DEV_COH_IDX			2U
+
+/***************************************************************************
  * RMM-EL3 Interface related functions
  ***************************************************************************/
 
@@ -942,6 +949,19 @@ int rmm_el3_ifc_bdf_to_smmu(unsigned long ecam_addr, unsigned int bdf,
  *			not found.
  */
 int rmm_el3_ifc_sid_max(unsigned int smmu_idx, unsigned int *sid_max);
+
+/*
+ * Return a pointer to the cached platform memory information for the
+ * requested memory type.
+ *
+ * Args:
+ *	- mem_idx: Memory type index (DRAM_IDX, DEV_NCOH_IDX or DEV_COH_IDX).
+ *
+ * Return:
+ *	- Pointer to the corresponding cached memory_info structure.
+ *	- NULL if @mem_idx is not valid.
+ */
+const struct memory_info *rmm_el3_ifc_memory_info(unsigned int mem_idx);
 
 #endif /* __ASSEMBLER__ */
 #endif /* RMM_EL3_IFC_H */
