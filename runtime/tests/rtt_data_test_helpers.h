@@ -274,6 +274,8 @@ static inline bool create_data_realm_base(struct test_data_ctx *ctx)
  */
 static inline bool create_data_rtts(struct test_data_ctx *ctx)
 {
+	struct smc_result res = {};
+
 	ctx->rtt_l1 = reserve_delegated_granules(1U);
 	ctx->rtt_l2 = reserve_delegated_granules(1U);
 	ctx->rtt_l3 = reserve_delegated_granules(1U);
@@ -286,16 +288,16 @@ static inline bool create_data_rtts(struct test_data_ctx *ctx)
 	 * L3 create: map_addr must be aligned to the L2 block size (2MB).
 	 * TEST_DATA_IPA_BASE (1GB) is also 2MB-aligned, so it works directly.
 	 */
-	if (smc_rtt_create(ctx->rd, ctx->rtt_l1, 0UL, 1UL) !=
-	    RMI_SUCCESS) {
+	smc_rtt_create(ctx->rd, ctx->rtt_l1, 0UL, 1UL, &res);
+	if (res.x[0] != RMI_SUCCESS) {
 		return false;
 	}
-	if (smc_rtt_create(ctx->rd, ctx->rtt_l2, TEST_DATA_IPA_BASE, 2UL) !=
-	    RMI_SUCCESS) {
+	smc_rtt_create(ctx->rd, ctx->rtt_l2, TEST_DATA_IPA_BASE, 2UL, &res);
+	if (res.x[0] != RMI_SUCCESS) {
 		return false;
 	}
-	if (smc_rtt_create(ctx->rd, ctx->rtt_l3, TEST_DATA_IPA_BASE, 3UL) !=
-	    RMI_SUCCESS) {
+	smc_rtt_create(ctx->rd, ctx->rtt_l3, TEST_DATA_IPA_BASE, 3UL, &res);
+	if (res.x[0] != RMI_SUCCESS) {
 		return false;
 	}
 	return true;
@@ -309,8 +311,11 @@ static inline bool create_data_l3_rtt(const struct test_data_ctx *ctx,
 {
 	uintptr_t rtt_l3 = reserve_delegated_granules(1U);
 	unsigned long l2_base = ipa & ~(TEST_DATA_L2_BLOCK_SIZE - 1UL);
+	struct smc_result res = {};
 
-	return smc_rtt_create(ctx->rd, rtt_l3, l2_base, 3UL) == RMI_SUCCESS;
+	smc_rtt_create(ctx->rd, rtt_l3, l2_base, 3UL, &res);
+
+	return res.x[0] == RMI_SUCCESS;
 }
 
 /*
@@ -795,6 +800,8 @@ static inline void force_realm_state(const struct test_data_ctx *ctx,
  */
 static inline bool create_data_rtt_ctx_l2_only(struct test_data_ctx *ctx)
 {
+	struct smc_result res = {};
+
 	if (!create_data_realm_base(ctx)) {
 		return false;
 	}
@@ -803,11 +810,12 @@ static inline bool create_data_rtt_ctx_l2_only(struct test_data_ctx *ctx)
 	ctx->rtt_l2  = reserve_delegated_granules(1U);
 	ctx->rtt_l3  = 0UL; /* no L3 table */
 
-	if (smc_rtt_create(ctx->rd, ctx->rtt_l1, 0UL, 1UL) != RMI_SUCCESS) {
+	smc_rtt_create(ctx->rd, ctx->rtt_l1, 0UL, 1UL, &res);
+	if (res.x[0] != RMI_SUCCESS) {
 		return false;
 	}
-	if (smc_rtt_create(ctx->rd, ctx->rtt_l2,
-			   TEST_DATA_IPA_BASE, 2UL) != RMI_SUCCESS) {
+	smc_rtt_create(ctx->rd, ctx->rtt_l2, TEST_DATA_IPA_BASE, 2UL, &res);
+	if (res.x[0] != RMI_SUCCESS) {
 		return false;
 	}
 	return true;

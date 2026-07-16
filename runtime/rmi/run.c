@@ -364,8 +364,9 @@ static bool complete_host_call(struct rec *rec, struct rmi_rec_run *rec_run)
 	return true;
 }
 
-unsigned long smc_rec_enter(unsigned long rec_addr,
-			    unsigned long rec_run_addr)
+void smc_rec_enter(unsigned long rec_addr,
+		   unsigned long rec_run_addr,
+		   struct smc_result *res)
 {
 	struct granule *g_rec;
 	struct granule *g_run;
@@ -377,7 +378,7 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	struct rmi_rec_run rec_run;
 	unsigned long ret;
 	bool success;
-	int res;
+	int rc;
 	void *rec_aux;
 
 	/*
@@ -390,18 +391,21 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	g_run = find_granule(rec_run_addr);
 	if ((g_run == NULL) ||
 		(granule_unlocked_state(g_run) != GRANULE_STATE_NS)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/* For a REC to be runnable, it should be unused (refcount = 0) */
-	res = find_lock_unused_granule(rec_addr, GRANULE_STATE_REC, &g_rec);
-	if (res != 0) {
-		switch (res) {
+	rc = find_lock_unused_granule(rec_addr, GRANULE_STATE_REC, &g_rec);
+	if (rc != 0) {
+		switch (rc) {
 		case -EINVAL:
-			return RMI_ERROR_INPUT;
+			res->x[0] = RMI_ERROR_INPUT;
+			return;
 		default:
-			assert(res == -EBUSY);
-			return RMI_ERROR_REC;
+			assert(rc == -EBUSY);
+			res->x[0] = RMI_ERROR_REC;
+			return;
 		}
 	}
 
@@ -425,7 +429,8 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 		 * release semantics is required.
 		 */
 		atomic_granule_put_release(g_rec);
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	rec = buffer_granule_map(g_rec, SLOT_REC);
@@ -609,5 +614,5 @@ out_unmap_buffers_no_count:
 out_put_rec:
 	atomic_granule_put_release(g_rec);
 
-	return ret;
+	res->x[0] = ret;
 }

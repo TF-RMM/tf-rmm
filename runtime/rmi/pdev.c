@@ -1078,8 +1078,9 @@ unsigned long dev_communicate(struct pdev *pd,
  * pdev_addr	- PA of the PDEV
  * data_addr	- PA of the communication data structure
  */
-unsigned long smc_pdev_communicate(unsigned long pdev_addr,
-				   unsigned long dev_comm_data_addr)
+void smc_pdev_communicate(unsigned long pdev_addr,
+			  unsigned long dev_comm_data_addr,
+			  struct smc_result *res)
 {
 	struct granule *g_pdev;
 	struct granule *g_dev_comm_data;
@@ -1089,11 +1090,13 @@ unsigned long smc_pdev_communicate(unsigned long pdev_addr,
 	bool update_stream_op_state = false;
 
 	if (!is_rmi_feat_da_enabled()) {
-		return SMC_NOT_SUPPORTED;
+		res->x[0] = SMC_NOT_SUPPORTED;
+		return;
 	}
 
 	if (!GRANULE_ALIGNED(pdev_addr) || !GRANULE_ALIGNED(dev_comm_data_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/* TODO_ALP17: Ensure PdevIsBusy == False */
@@ -1101,7 +1104,8 @@ unsigned long smc_pdev_communicate(unsigned long pdev_addr,
 	/* Lock pdev granule and map it */
 	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
 	if (g_pdev == NULL) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
@@ -1170,7 +1174,7 @@ out_pdev_buf_unmap:
 	buffer_unmap(pd);
 	granule_unlock(g_pdev);
 
-	return rmi_rc;
+	res->x[0] = rmi_rc;
 }
 
 /*
@@ -1248,8 +1252,9 @@ static bool public_key_sig_algo_valid(unsigned long rmi_key_algo)
  * pdev_addr		- PA of the PDEV
  * pubkey_params_addr	- PA of the pubkey parameters
  */
-unsigned long smc_pdev_set_pubkey(unsigned long pdev_addr,
-				  unsigned long pubkey_params_addr)
+void smc_pdev_set_pubkey(unsigned long pdev_addr,
+			 unsigned long pubkey_params_addr,
+			 struct smc_result *res)
 {
 	struct granule *g_pdev;
 	struct granule *g_pubkey_params;
@@ -1262,25 +1267,29 @@ unsigned long smc_pdev_set_pubkey(unsigned long pdev_addr,
 	int rc;
 
 	if (!is_rmi_feat_da_enabled()) {
-		return SMC_NOT_SUPPORTED;
+		res->x[0] = SMC_NOT_SUPPORTED;
+		return;
 	}
 
 	if (!GRANULE_ALIGNED(pdev_addr) || !GRANULE_ALIGNED(pubkey_params_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/* Map and copy public key parameter */
 	g_pubkey_params = find_granule(pubkey_params_addr);
 	if ((g_pubkey_params == NULL) ||
 	    (granule_unlocked_state(g_pubkey_params) != GRANULE_STATE_NS)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	ns_access_ok = ns_buffer_read(SLOT_NS, g_pubkey_params, 0U,
 				      sizeof(struct rmi_public_key_params),
 				      &pubkey_params);
 	if (!ns_access_ok) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/*
@@ -1289,13 +1298,15 @@ unsigned long smc_pdev_set_pubkey(unsigned long pdev_addr,
 	/* coverity[uninit_use:SUPPRESS] */
 	if ((pubkey_params.key_len > PUBKEY_PARAM_KEY_LEN_MAX) ||
 	    (pubkey_params.metadata_len > PUBKEY_PARAM_METADATA_LEN_MAX)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/* coverity[uninit_use:SUPPRESS] */
 	dev_assign_public_key_sig_algo = pubkey_params.algo;
 	if (!public_key_sig_algo_valid(dev_assign_public_key_sig_algo)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/*
@@ -1304,19 +1315,22 @@ unsigned long smc_pdev_set_pubkey(unsigned long pdev_addr,
 	dev_assign_public_key_expected_size = get_expected_key_size(dev_assign_public_key_sig_algo);
 	assert(dev_assign_public_key_expected_size != 0U);
 	if (pubkey_params.key_len != dev_assign_public_key_expected_size) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/* Lock pdev granule and map it */
 	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
 	if (g_pdev == NULL) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	if (pd == NULL) {
 		granule_unlock(g_pdev);
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	assert(pd->g_pdev == g_pdev);
@@ -1340,7 +1354,7 @@ out_pdev_buf_unmap:
 
 	granule_unlock(g_pdev);
 
-	return smc_rc;
+	res->x[0] = smc_rc;
 }
 
 /*
@@ -1349,30 +1363,34 @@ out_pdev_buf_unmap:
  *
  * pdev_addr	- PA of the PDEV
  */
-unsigned long smc_pdev_stop(unsigned long pdev_addr)
+void smc_pdev_stop(unsigned long pdev_addr, struct smc_result *res)
 {
 	struct granule *g_pdev;
 	unsigned long smc_rc;
 	struct pdev *pd;
 
 	if (!is_rmi_feat_da_enabled()) {
-		return SMC_NOT_SUPPORTED;
+		res->x[0] = SMC_NOT_SUPPORTED;
+		return;
 	}
 
 	if (!GRANULE_ALIGNED(pdev_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/* Lock pdev granule and map it */
 	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
 	if (g_pdev == NULL) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	if (pd == NULL) {
 		granule_unlock(g_pdev);
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	if ((pd->dev_comm_state != DEV_COMM_IDLE) ||
@@ -1391,7 +1409,7 @@ out_pdev_buf_unmap:
 
 	granule_unlock(g_pdev);
 
-	return smc_rc;
+	res->x[0] = smc_rc;
 }
 
 /*
@@ -1399,7 +1417,7 @@ out_pdev_buf_unmap:
  *
  * pdev_addr	- PA of the PDEV
  */
-unsigned long smc_pdev_abort(unsigned long pdev_addr)
+void smc_pdev_abort(unsigned long pdev_addr, struct smc_result *res)
 {
 	int rc __unused;
 	struct granule *g_pdev;
@@ -1408,23 +1426,27 @@ unsigned long smc_pdev_abort(unsigned long pdev_addr)
 	void *aux_mapped_addr;
 
 	if (!is_rmi_feat_da_enabled()) {
-		return SMC_NOT_SUPPORTED;
+		res->x[0] = SMC_NOT_SUPPORTED;
+		return;
 	}
 
 	if (!GRANULE_ALIGNED(pdev_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/* Lock pdev granule and map it */
 	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
 	if (g_pdev == NULL) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	if (pd == NULL) {
 		granule_unlock(g_pdev);
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	if (pd->dev_comm_state == DEV_COMM_IDLE) {
@@ -1456,7 +1478,7 @@ out_pdev_buf_unmap:
 
 	granule_unlock(g_pdev);
 
-	return smc_rc;
+	res->x[0] = smc_rc;
 }
 
 /*
@@ -1566,9 +1588,10 @@ void smc_pdev_destroy(unsigned long pdev_addr, struct smc_result *res)
  * pdev2_addr		- PA of the second PDEV object
  * stream_handle	- Stream handle
  */
-unsigned long smc_pdev_stream_key_refresh(unsigned long pdev1_addr,
-					  unsigned long pdev2_addr,
-					  unsigned long stream_handle)
+void smc_pdev_stream_key_refresh(unsigned long pdev1_addr,
+				 unsigned long pdev2_addr,
+				 unsigned long stream_handle,
+				 struct smc_result *res)
 {
 	struct granule *g_pdev1;
 	struct granule *g_pdev2;
@@ -1580,12 +1603,14 @@ unsigned long smc_pdev_stream_key_refresh(unsigned long pdev1_addr,
 	unsigned long handle_pdev1_addr;
 
 	if (!is_rmi_feat_da_enabled()) {
-		return SMC_NOT_SUPPORTED;
+		res->x[0] = SMC_NOT_SUPPORTED;
+		return;
 	}
 
 	if (!GRANULE_ALIGNED(pdev1_addr) ||
 	    !GRANULE_ALIGNED(pdev2_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	if (!find_lock_two_granules(pdev1_addr,
@@ -1594,7 +1619,8 @@ unsigned long smc_pdev_stream_key_refresh(unsigned long pdev1_addr,
 				pdev2_addr,
 				GRANULE_STATE_PDEV,
 				&g_pdev2)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	pd1 = buffer_granule_map(g_pdev1, SLOT_PDEV);
@@ -1668,7 +1694,7 @@ unlock_pdevs:
 	granule_unlock(g_pdev1);
 	granule_unlock(g_pdev2);
 
-	return rmi_rc;
+	res->x[0] = rmi_rc;
 }
 
 static unsigned long validate_pdev_stream_params(struct rmi_pdev_stream_params *stream_params)
@@ -1843,9 +1869,10 @@ unlock_pdevs:
  * pdev2_addr		- PA of the second PDEV object
  * stream_handle	- Stream handle
  */
-unsigned long smc_pdev_stream_disconnect(unsigned long pdev1_addr,
-					 unsigned long pdev2_addr,
-					 unsigned long stream_handle)
+void smc_pdev_stream_disconnect(unsigned long pdev1_addr,
+				unsigned long pdev2_addr,
+				unsigned long stream_handle,
+				struct smc_result *res)
 {
 	struct granule *g_pdev1;
 	struct granule *g_pdev2;
@@ -1858,17 +1885,20 @@ unsigned long smc_pdev_stream_disconnect(unsigned long pdev1_addr,
 
 
 	if (!is_rmi_feat_da_enabled()) {
-		return SMC_NOT_SUPPORTED;
+		res->x[0] = SMC_NOT_SUPPORTED;
+		return;
 	}
 
 	if (!GRANULE_ALIGNED(pdev1_addr) ||
 	    !GRANULE_ALIGNED(pdev2_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	if ((!unpack_stream_handle(stream_handle, &handle_pdev1_addr, &stream_type)) ||
 	    (handle_pdev1_addr != pdev1_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	if (!find_lock_two_granules(pdev1_addr,
@@ -1877,7 +1907,8 @@ unsigned long smc_pdev_stream_disconnect(unsigned long pdev1_addr,
 				pdev2_addr,
 				GRANULE_STATE_PDEV,
 				&g_pdev2)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	pd1 = buffer_granule_map(g_pdev1, SLOT_PDEV);
@@ -1947,7 +1978,7 @@ unlock_pdevs:
 	granule_unlock(g_pdev1);
 	granule_unlock(g_pdev2);
 
-	return rmi_rc;
+	res->x[0] = rmi_rc;
 }
 
 /*
@@ -1957,9 +1988,10 @@ unlock_pdevs:
  * pdev2_addr		- PA of the second PDEV object
  * stream_handle	- Stream handle
  */
-unsigned long smc_pdev_stream_complete(unsigned long pdev1_addr,
-				       unsigned long pdev2_addr,
-				       unsigned long stream_handle)
+void smc_pdev_stream_complete(unsigned long pdev1_addr,
+			      unsigned long pdev2_addr,
+			      unsigned long stream_handle,
+			      struct smc_result *res)
 {
 	struct granule *g_pdev1;
 	struct granule *g_pdev2;
@@ -1971,17 +2003,20 @@ unsigned long smc_pdev_stream_complete(unsigned long pdev1_addr,
 	unsigned char stream_type = RMI_PDEV_STREAM_TYPE_COUNT;
 
 	if (!is_rmi_feat_da_enabled()) {
-		return SMC_NOT_SUPPORTED;
+		res->x[0] = SMC_NOT_SUPPORTED;
+		return;
 	}
 
 	if (!GRANULE_ALIGNED(pdev1_addr) ||
 	    !GRANULE_ALIGNED(pdev2_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	if ((!unpack_stream_handle(stream_handle, &pdev1_addr_handle, &stream_type)) ||
 	    (pdev1_addr_handle != pdev1_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	if (!find_lock_two_granules(pdev1_addr,
@@ -1990,7 +2025,8 @@ unsigned long smc_pdev_stream_complete(unsigned long pdev1_addr,
 				pdev2_addr,
 				GRANULE_STATE_PDEV,
 				&g_pdev2)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 
 	}
 
@@ -2067,7 +2103,7 @@ unlock_pdevs:
 	granule_unlock(g_pdev1);
 	granule_unlock(g_pdev2);
 
-	return rmi_rc;
+	res->x[0] = rmi_rc;
 }
 
 /*
@@ -2077,12 +2113,13 @@ unlock_pdevs:
  * pdev2_addr		- PA of the second PDEV object
  * stream_handle	- Stream handle
  */
-unsigned long smc_pdev_stream_key_purge(unsigned long pdev1_addr,
-					unsigned long pdev2_addr,
-					unsigned long stream_handle)
+void smc_pdev_stream_key_purge(unsigned long pdev1_addr,
+			       unsigned long pdev2_addr,
+			       unsigned long stream_handle,
+			       struct smc_result *res)
 {
 	(void)pdev1_addr;
 	(void)pdev2_addr;
 	(void)stream_handle;
-	return RMI_ERROR_NOT_SUPPORTED;
+	res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 }

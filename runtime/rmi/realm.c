@@ -27,7 +27,7 @@
 
 #define RMI_FEATURE_MIN_IPA_SIZE	PARANGE_WIDTH_32BITS
 
-unsigned long smc_realm_activate(unsigned long rd_addr)
+void smc_realm_activate(unsigned long rd_addr, struct smc_result *res)
 {
 	struct rd *rd;
 	struct granule *g_rd;
@@ -35,7 +35,8 @@ unsigned long smc_realm_activate(unsigned long rd_addr)
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	rd = buffer_granule_map(g_rd, SLOT_RD);
@@ -51,7 +52,7 @@ unsigned long smc_realm_activate(unsigned long rd_addr)
 
 	granule_unlock(g_rd);
 
-	return ret;
+	res->x[0] = ret;
 }
 
 static bool get_realm_params(struct rmi_realm_params *realm_params,
@@ -603,8 +604,9 @@ static int generate_realm_instance_id(unsigned char *realm_instance_id, size_t l
 }
 
 
-unsigned long smc_realm_create(unsigned long rd_addr,
-			       unsigned long realm_params_addr)
+void smc_realm_create(unsigned long rd_addr,
+		      unsigned long realm_params_addr,
+		      struct smc_result *res)
 {
 	struct granule *g_rd;
 	struct rd *rd;
@@ -619,18 +621,21 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	unsigned int mec_policy;
 
 	if (!get_realm_params(&p, realm_params_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/* coverity[uninit_use_in_call:SUPPRESS] */
 	if (!validate_realm_params(&p, &n_vmids, &n_rtts,
 				   &rtt_tree_pp, rtt_base, &ats_plane,
 				   &mec_policy)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	if (generate_realm_instance_id(realm_instance_id, REALM_INSTANCE_ID_SIZE) != 0) {
-		return RMI_ERROR_GLOBAL;
+		res->x[0] = RMI_ERROR_GLOBAL;
+		return;
 	}
 
 	/* Allocate VMIDs for all planes in the realm */
@@ -640,7 +645,8 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 		if (!vmid_alloc(&allocated_vmid)) {
 			/* Free allocated VMIDs before returning */
 			free_vmids(vmid, i);
-			return RMI_ERROR_GLOBAL;
+			res->x[0] = RMI_ERROR_GLOBAL;
+			return;
 		}
 		vmid[i] = (unsigned short)allocated_vmid;
 	}
@@ -649,7 +655,8 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	if (!mecid_alloc(&mecid, mec_policy == RMI_MEC_POLICY_SHARED)) {
 		/* Free allocated VMIDs before returning */
 		free_vmids(vmid, n_vmids);
-		return RMI_ERROR_GLOBAL;
+		res->x[0] = RMI_ERROR_GLOBAL;
+		return;
 	}
 
 	/*
@@ -663,7 +670,8 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	if (!transition_sl_rtts(rtt_base, p.rtt_num_start, n_rtts)) {
 		free_vmids(vmid, n_vmids);
 		mecid_free(mecid);
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/*
@@ -676,7 +684,8 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 		revert_sl_rtts(rtt_base, p.rtt_num_start, n_rtts);
 		free_vmids(vmid, n_vmids);
 		mecid_free(mecid);
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	rd = buffer_granule_map_zeroed(g_rd, SLOT_RD);
@@ -764,7 +773,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 
 	granule_unlock_transition(g_rd, GRANULE_STATE_RD);
 
-	return RMI_SUCCESS;
+	res->x[0] = RMI_SUCCESS;
 }
 
 static unsigned long total_root_rtt_refcount(struct granule *g_rtt,
@@ -788,14 +797,15 @@ static unsigned long total_root_rtt_refcount(struct granule *g_rtt,
 	return refcount;
 }
 
-unsigned long smc_realm_terminate(unsigned long rd_addr)
+void smc_realm_terminate(unsigned long rd_addr, struct smc_result *res)
 {
 	struct granule *g_rd;
 	struct rd *rd;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	rd = buffer_granule_map(g_rd, SLOT_RD);
@@ -812,31 +822,34 @@ unsigned long smc_realm_terminate(unsigned long rd_addr)
 				REALM_ZOMBIE)) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
-		return RMI_ERROR_REALM;
+		res->x[0] = RMI_ERROR_REALM;
+		return;
 	}
 
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
-	return RMI_SUCCESS;
+	res->x[0] = RMI_SUCCESS;
 }
 
-unsigned long smc_realm_destroy(unsigned long rd_addr)
+void smc_realm_destroy(unsigned long rd_addr, struct smc_result *res)
 {
 	struct granule *g_rd;
 	struct granule *g_rtt;
 	struct rd *rd;
 	unsigned int num_rtts, mecid;
-	int res;
+	int ret;
 
 	/* RD should not be destroyed if refcount != 0. */
-	res = find_lock_unused_granule(rd_addr, GRANULE_STATE_RD, &g_rd);
-	if (res != 0) {
-		switch (res) {
+	ret = find_lock_unused_granule(rd_addr, GRANULE_STATE_RD, &g_rd);
+	if (ret != 0) {
+		switch (ret) {
 		case -EINVAL:
-			return RMI_ERROR_INPUT;
+			res->x[0] = RMI_ERROR_INPUT;
+			return;
 		default:
-			assert(res == -EBUSY);
-			return RMI_ERROR_REALM;
+			assert(ret == -EBUSY);
+			res->x[0] = RMI_ERROR_REALM;
+			return;
 		}
 	}
 
@@ -894,10 +907,11 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	 */
 	mecid_free(mecid);
 
-	return RMI_SUCCESS;
+	res->x[0] = RMI_SUCCESS;
+	return;
 
 error_realm:
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
-	return RMI_ERROR_REALM;
+	res->x[0] = RMI_ERROR_REALM;
 }

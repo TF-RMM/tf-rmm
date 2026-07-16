@@ -461,8 +461,8 @@ TEST(rtt_data_unmap_tests, l2_block_stops_before_partial_next_block)
 
 	CHECK_TRUE(create_data_rtt_ctx(&ctx));
 	rtt_l3_second = reserve_delegated_granules(1U);
-	CHECK_EQUAL(RMI_SUCCESS,
-		    smc_rtt_create(ctx.rd, rtt_l3_second, second_ipa, 3UL));
+	smc_rtt_create(ctx.rd, rtt_l3_second, second_ipa, 3UL, &res);
+	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
 	CHECK_TRUE(init_ripas_range(&ctx, TEST_DATA_IPA_BASE, second_top));
 
 	data_base = reserve_delegated_granules_l2_aligned(
@@ -1595,9 +1595,8 @@ TEST(rtt_data_unmap_tests, list_mode_pauses_on_level_change_then_unmaps_l2_block
 	 */
 	CHECK_TRUE(create_data_rtt_ctx(&ctx));
 	rtt_l3_blk = reserve_delegated_granules(1U);
-	CHECK_EQUAL(RMI_SUCCESS,
-		    smc_rtt_create(ctx.rd, rtt_l3_blk,
-				   TEST_DATA_L2_BLOCK_TOP, 3UL));
+	smc_rtt_create(ctx.rd, rtt_l3_blk, TEST_DATA_L2_BLOCK_TOP, 3UL, &res);
+	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
 
 	/* Map one L3 page at TEST_DATA_IPA_BASE */
 	CHECK_TRUE(init_ripas_range(&ctx, TEST_DATA_IPA_BASE,

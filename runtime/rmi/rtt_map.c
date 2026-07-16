@@ -737,11 +737,12 @@ out_release_sro:
  * under @flags, and installs an assigned_ram DATA mapping at
  * @map_addr in the realm identified by @rd_addr.
  */
-unsigned long smc_rtt_data_map_init(unsigned long rd_addr,
-				    unsigned long data_addr,
-				    unsigned long map_addr,
-				    unsigned long src_addr,
-				    unsigned long flags)
+void smc_rtt_data_map_init(unsigned long rd_addr,
+			   unsigned long data_addr,
+			   unsigned long map_addr,
+			   unsigned long src_addr,
+			   unsigned long flags,
+			   struct smc_result *res)
 {
 	struct granule *g_data = NULL;
 	struct granule *g_rd;
@@ -756,18 +757,21 @@ unsigned long smc_rtt_data_map_init(unsigned long rd_addr,
 
 	if ((flags != RMI_NO_MEASURE_CONTENT) &&
 	    (flags != RMI_MEASURE_CONTENT)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	g_src = find_granule(src_addr);
 	if ((g_src == NULL) ||
 	    (granule_unlocked_state(g_src) != GRANULE_STATE_NS)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	rd = buffer_granule_map(g_rd, SLOT_RD);
@@ -878,7 +882,7 @@ out_unmap_rd:
 		}
 	}
 
-	return ret;
+	res->x[0] = ret;
 }
 
 /*
