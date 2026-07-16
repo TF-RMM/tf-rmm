@@ -19,16 +19,17 @@
 
 /* @TODO Enhance implementation later */
 /* cppcheck-suppress misra-c2012-8.7 */
-unsigned long smc_rmm_activate(void)
+void smc_rmm_activate(struct smc_result *res)
 {
 	/* Validate the RMM state */
 	if (glob_data_get_rmm_state() != RMM_STATE_INIT) {
 		ERROR("RMM is in invalid state\n");
-		return RMI_ERROR_GLOBAL;
+		res->x[0] = RMI_ERROR_GLOBAL;
+		return;
 	}
 
 	glob_data_set_rmm_state(RMM_STATE_ACTIVE);
-	return RMI_SUCCESS;
+	res->x[0] = RMI_SUCCESS;
 }
 
 /* cppcheck-suppress misra-c2012-8.7 */

@@ -498,21 +498,23 @@ out_unlock_g_tbl:
 	return ret;
 }
 
-unsigned long smc_rtt_create(unsigned long rd_addr,
-			     unsigned long rtt_addr,
-			     unsigned long map_addr,
-			     unsigned long ulevel)
+void smc_rtt_create(unsigned long rd_addr,
+		    unsigned long rtt_addr,
+		    unsigned long map_addr,
+		    unsigned long ulevel,
+		    struct smc_result *res)
 {
-	return rtt_create(rd_addr, rtt_addr, map_addr, ulevel, 0UL, false);
+	res->x[0] = rtt_create(rd_addr, rtt_addr, map_addr, ulevel, 0UL, false);
 }
 
-unsigned long smc_rtt_aux_create(unsigned long rd_addr,
-				 unsigned long rtt_addr,
-				 unsigned long map_addr,
-				 unsigned long ulevel,
-				 unsigned long index)
+void smc_rtt_aux_create(unsigned long rd_addr,
+			unsigned long rtt_addr,
+			unsigned long map_addr,
+			unsigned long ulevel,
+			unsigned long index,
+			struct smc_result *res)
 {
-	return rtt_create(rd_addr, rtt_addr, map_addr, ulevel, index, true);
+	res->x[0] = rtt_create(rd_addr, rtt_addr, map_addr, ulevel, index, true);
 }
 
 /*

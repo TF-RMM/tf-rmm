@@ -252,55 +252,62 @@ void smc_granule_tracking_get(unsigned long start,
 	res->x[3] = end;
 }
 
-unsigned long smc_rmm_config_set(unsigned long config_ptr)
+void smc_rmm_config_set(unsigned long config_ptr, struct smc_result *res)
 {
 	struct rmi_rmm_config cfg = { 0 };
 	struct granule *g_cfg;
 
 	if ((config_ptr == 0UL) || !ALIGNED(config_ptr, SZ_4K)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	g_cfg = find_granule(config_ptr);
 	if ((g_cfg == NULL) || (granule_unlocked_state(g_cfg) != GRANULE_STATE_NS)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	if (!ns_buffer_read_early(config_ptr, sizeof(cfg), &cfg)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/* TODO: At the moment, only 4KB granularity size is supported */
 	if ((cfg.rmi_granule_size != RMI_GRANULE_SIZE) ||
 	    (cfg.tracking_region_size != RMI_TRACKING_REGION_SIZE)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
-	return RMI_SUCCESS;
+	res->x[0] = RMI_SUCCESS;
 }
 
-unsigned long smc_rmm_config_get(unsigned long config_ptr)
+void smc_rmm_config_get(unsigned long config_ptr, struct smc_result *res)
 {
 	struct rmi_rmm_config cfg = { 0 };
 	struct granule *g_cfg;
 
 	if ((config_ptr == 0UL) || !ALIGNED(config_ptr, SZ_4K)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	g_cfg = find_granule(config_ptr);
 	if ((g_cfg == NULL) || (granule_unlocked_state(g_cfg) != GRANULE_STATE_NS)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	cfg.rmi_granule_size = RMI_GRANULE_SIZE;
 	cfg.tracking_region_size = RMI_TRACKING_REGION_SIZE;
 
 	if (!ns_buffer_write_early(config_ptr, sizeof(cfg), &cfg)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
-	return RMI_SUCCESS;
+	res->x[0] = RMI_SUCCESS;
 }
 
 /* FIXME: This should come from FIRME ABI */

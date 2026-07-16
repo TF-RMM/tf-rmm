@@ -406,6 +406,8 @@ static inline unsigned long decode_single_oaddr_pa(unsigned long out_range)
  */
 static inline bool create_rtt_tree_ctx(struct test_rtt_ctx *ctx)
 {
+	struct smc_result res = {};
+
 	ctx->indirect_s2ap = false;
 	ctx->rd = reserve_delegated_granules(1U);
 	ctx->rtt_l0 = reserve_delegated_granules(1U);
@@ -458,13 +460,16 @@ static inline bool create_rtt_tree_ctx(struct test_rtt_ctx *ctx)
 	buffer_unmap(rd);
 	granule_unlock_transition(g_rd, GRANULE_STATE_RD);
 
-	if (smc_rtt_create(ctx->rd, ctx->rtt_l1, TEST_PAGE_BASE, 1UL) != RMI_SUCCESS) {
+	smc_rtt_create(ctx->rd, ctx->rtt_l1, TEST_PAGE_BASE, 1UL, &res);
+	if (res.x[0] != RMI_SUCCESS) {
 		return false;
 	}
-	if (smc_rtt_create(ctx->rd, ctx->rtt_l2, TEST_PAGE_BASE, 2UL) != RMI_SUCCESS) {
+	smc_rtt_create(ctx->rd, ctx->rtt_l2, TEST_PAGE_BASE, 2UL, &res);
+	if (res.x[0] != RMI_SUCCESS) {
 		return false;
 	}
-	if (smc_rtt_create(ctx->rd, ctx->rtt_l3, TEST_PAGE_BASE, 3UL) != RMI_SUCCESS) {
+	smc_rtt_create(ctx->rd, ctx->rtt_l3, TEST_PAGE_BASE, 3UL, &res);
+	if (res.x[0] != RMI_SUCCESS) {
 		return false;
 	}
 
@@ -482,6 +487,8 @@ static inline bool create_rtt_tree_ctx(struct test_rtt_ctx *ctx)
  */
 static inline bool create_rtt_tree_ctx_indirect_s2ap(struct test_rtt_ctx *ctx)
 {
+	struct smc_result res = {};
+
 	ctx->indirect_s2ap = true;
 	ctx->rd = reserve_delegated_granules(1U);
 	ctx->rtt_l0 = reserve_delegated_granules(1U);
@@ -534,13 +541,16 @@ static inline bool create_rtt_tree_ctx_indirect_s2ap(struct test_rtt_ctx *ctx)
 	buffer_unmap(rd);
 	granule_unlock_transition(g_rd, GRANULE_STATE_RD);
 
-	if (smc_rtt_create(ctx->rd, ctx->rtt_l1, TEST_PAGE_BASE, 1UL) != RMI_SUCCESS) {
+	smc_rtt_create(ctx->rd, ctx->rtt_l1, TEST_PAGE_BASE, 1UL, &res);
+	if (res.x[0] != RMI_SUCCESS) {
 		return false;
 	}
-	if (smc_rtt_create(ctx->rd, ctx->rtt_l2, TEST_PAGE_BASE, 2UL) != RMI_SUCCESS) {
+	smc_rtt_create(ctx->rd, ctx->rtt_l2, TEST_PAGE_BASE, 2UL, &res);
+	if (res.x[0] != RMI_SUCCESS) {
 		return false;
 	}
-	if (smc_rtt_create(ctx->rd, ctx->rtt_l3, TEST_PAGE_BASE, 3UL) != RMI_SUCCESS) {
+	smc_rtt_create(ctx->rd, ctx->rtt_l3, TEST_PAGE_BASE, 3UL, &res);
+	if (res.x[0] != RMI_SUCCESS) {
 		return false;
 	}
 

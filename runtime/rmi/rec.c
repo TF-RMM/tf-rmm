@@ -696,9 +696,10 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 				 GRANULE_STATE_REC_AUX);
 }
 
-unsigned long smc_psci_complete(unsigned long calling_rec_addr,
-				unsigned long target_rec_addr,
-				unsigned long status)
+void smc_psci_complete(unsigned long calling_rec_addr,
+		       unsigned long target_rec_addr,
+		       unsigned long status,
+		       struct smc_result *res)
 {
 	struct granule *g_calling_rec, *g_target_rec;
 	struct rec  *calling_rec, *target_rec;
@@ -706,11 +707,13 @@ unsigned long smc_psci_complete(unsigned long calling_rec_addr,
 	void *target_rec_aux;
 
 	if (!GRANULE_ALIGNED(calling_rec_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	if (!GRANULE_ALIGNED(target_rec_addr)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	if (!find_lock_two_granules(calling_rec_addr,
@@ -719,7 +722,8 @@ unsigned long smc_psci_complete(unsigned long calling_rec_addr,
 					target_rec_addr,
 					GRANULE_STATE_REC,
 					&g_target_rec)) {
-		return RMI_ERROR_INPUT;
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
 	}
 
 	/*
@@ -756,5 +760,5 @@ out_unlock:
 	granule_unlock(g_calling_rec);
 	granule_unlock(g_target_rec);
 
-	return ret;
+	res->x[0] = ret;
 }
