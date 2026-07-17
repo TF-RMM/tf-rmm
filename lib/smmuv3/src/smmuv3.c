@@ -394,6 +394,12 @@ static int check_cmdq_err(struct smmuv3_dev *smmu)
 	return -EIO;
 }
 
+/*
+ * Wait for commands followed by a non-MSI CMD_SYNC to be consumed. This is
+ * used for regular command sequences and works whether or not FEAT_MSI is
+ * implemented. FEAT_SEV allows WFE while polling; otherwise the consumer
+ * register is polled continuously.
+ */
 int wait_cmdq_empty(struct smmuv3_dev *smmu)
 {
 	uint32_t prod_reg, cons_reg;
@@ -570,6 +576,7 @@ int prepare_send_cmd_sync(struct smmuv3_dev *smmu, uintptr_t msi_addr_pa,
 	int ret;
 
 	assert(g_driver != NULL);
+	assert((smmu->config.features & FEAT_MSI) != 0U);
 	assert((msi_addr_pa != 0UL) && ALIGNED(msi_addr_pa, sizeof(unsigned int)));
 
 	/* Check for errors */
@@ -990,9 +997,9 @@ static int get_features(struct smmuv3_dev *smmu)
 	SMMU_DEBUG("\tOutput address size %u bits\n", smmu->config.pa_size);
 
 	/*
-	 * CMD_SYNC.MSIAddress and the SMMU-managed tables can be placed at
-	 * any PA supported by the PE. The SMMU truncates MSIAddress to OAS,
-	 * so its output address size must cover the CPU physical address range.
+	 * The SMMU-managed tables and, when MSI is supported, CMD_SYNC.MSIAddress
+	 * can be placed at any PA supported by the PE. The SMMU output address
+	 * size must therefore cover the CPU physical address range.
 	 */
 	cpu_pa_size = arch_feat_get_pa_width();
 	if (smmu->config.pa_size < cpu_pa_size) {
@@ -1022,9 +1029,22 @@ static int get_features(struct smmuv3_dev *smmu)
 		SMMU_DEBUG("\tPCIe ATS\n");
 	}
 
-	if ((r_idr0 & R_IDR0_MSI_BIT) == 0U) {
-		SMMU_ERROR(smmu, "MSI not supported\n");
+	/*
+	 * Completion model:
+	 * - With FEAT_BTM, CPU broadcast TLB maintenance avoids local TLBI
+	 *   commands. MSI is optional and regular command completion is checked
+	 *   by polling the command queue consumer after CMD_SYNC.
+	 * - Without FEAT_BTM, the driver must issue local TLBI commands. These
+	 *   paths use MSI completion words and therefore require FEAT_MSI.
+	 */
+	if ((r_idr0 & R_IDR0_MSI_BIT) != 0U) {
+		smmu->config.features |= FEAT_MSI;
+		SMMU_DEBUG("\tMSI\n");
+	} else if ((smmu->config.features & FEAT_BTM) == 0U) {
+		SMMU_ERROR(smmu, "MSI required when BTM is not supported\n");
 		return -ENOTSUP;
+	} else {
+		SMMU_DEBUG("\tMSI not supported; using CMDQ polling\n");
 	}
 
 	if ((r_idr0 & R_IDR0_PRI_BIT) != 0U) {

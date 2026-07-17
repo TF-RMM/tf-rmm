@@ -98,6 +98,10 @@ TEST_GROUP(smmuv3_tlbi_range)
 {
 };
 
+/*
+ * Verify that fake_host emulates an MSI-signalling CMD_SYNC by writing
+ * MSIData to MSIAddress and advancing the command queue consumer index.
+ */
 TEST(smmuv3_tlbi_range, fake_host_cmd_sync_msi)
 {
 	uint32_t completion = UINT32_MAX;
@@ -113,6 +117,10 @@ TEST(smmuv3_tlbi_range, fake_host_cmd_sync_msi)
 	UNSIGNED_LONGS_EQUAL(prod, cons);
 }
 
+/*
+ * Verify that a regular CMD_SYNC requests event notification when FEAT_SEV
+ * is supported, and that fake_host consumes the command.
+ */
 TEST(smmuv3_tlbi_range, cmd_sync_sev_command)
 {
 	uint8_t r_page[GRANULE_SIZE] = {};
@@ -137,6 +145,38 @@ TEST(smmuv3_tlbi_range, cmd_sync_sev_command)
 	UNSIGNED_LONGS_EQUAL(prod, cons);
 }
 
+/*
+ * Verify that a BTM-capable SMMU without MSI support uses a non-signalling
+ * CMD_SYNC and that completion can be detected by polling the queue indices.
+ */
+TEST(smmuv3_tlbi_range, cmd_sync_poll_without_msi)
+{
+	uint8_t r_page[GRANULE_SIZE] = {};
+	uint128_t cmdq[2] = {};
+	uint32_t prod = 0U;
+	uint32_t cons = 0U;
+	struct smmuv3_dev smmu = {};
+	uint64_t cmd_lo;
+
+	smmu.r_base = (uintptr_t)r_page;
+	smmu.config.features = FEAT_BTM;
+	smmu.config.cmdq_log2size = 1U;
+	smmu.cmdq.q_base = (uintptr_t)cmdq;
+	smmu.cmdq.prod_reg = &prod;
+	smmu.cmdq.cons_reg = &cons;
+
+	LONGS_EQUAL(0L, prepare_send_command(&smmu, CMD_SYNC, 0UL, 0UL));
+	cmd_lo = (uint64_t)cmdq[0];
+
+	UNSIGNED_LONGS_EQUAL(CMD_SYNC, cmd_lo & UINT64_C(0xFF));
+	UNSIGNED_LONGS_EQUAL(SIG_NONE, EXTRACT(CS, cmd_lo));
+	LONGS_EQUAL(0L, wait_cmdq_empty(&smmu));
+}
+
+/*
+ * Verify that CMD_SYNC state initialization derives the completion-array PA,
+ * clears every completion word, and rejects invalid object addresses.
+ */
 TEST(smmuv3_tlbi_range, cmd_sync_init)
 {
 	struct smmuv3_cmd_sync cmd_sync = {};
@@ -157,6 +197,10 @@ TEST(smmuv3_tlbi_range, cmd_sync_init)
 	LONGS_EQUAL(-EINVAL, smmuv3_cmd_sync_init(&cmd_sync, 0UL));
 }
 
+/*
+ * Verify that CMD_SYNC completion is reported only when every per-SMMU
+ * completion word is zero.
+ */
 TEST(smmuv3_tlbi_range, cmd_sync_completion)
 {
 	struct smmuv3_cmd_sync cmd_sync = {};

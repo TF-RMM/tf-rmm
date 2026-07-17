@@ -23,7 +23,7 @@ struct smmu_stg2_config {
 
 /*
  * CMD_SYNC completion state supplied by a caller that issues an SMMU TLB
- * invalidation. The completion array is written by each SMMU through MSI.
+ * invalidation. Each non-BTM SMMU writes its completion word through MSI.
  *
  * Call smmuv3_cmd_sync_init() before passing this object to an invalidation
  * interface. Its members are driver-private after initialization.
@@ -100,7 +100,8 @@ uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
  *   -ENOMEM	- memory mapping or allocation failure.
  *   -ENODEV	- no SMMUs are defined in the layout.
  *   -ENOTSUP	- a required hardware feature is not supported, including an
- *		  SMMU output address size narrower than the CPU PA range.
+ *		  SMMU output address size narrower than the CPU PA range, or
+ *		  lack of MSI support on an SMMU without BTM.
  *   -ETIMEDOUT	- SMMU command timeout.
  *   -EIO	- internal SMMU error while issuing commands.
  *
@@ -201,9 +202,9 @@ int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid);
  * broadcast TLB maintenance.
  *
  * Parameters:
- *   cmd_sync	 - Initialized CMD_SYNC completion state. Each SMMU writes
- *		   its corresponding completion word through MSI when CMD_SYNC
- *		   completes.
+ *   cmd_sync	 - Initialized CMD_SYNC completion state. Each non-BTM SMMU
+ *		   writes its corresponding completion word through MSI when
+ *		   CMD_SYNC completes.
  *
  * Return:
  *   0		 - success, or when broadcast TLB maintenance is supported

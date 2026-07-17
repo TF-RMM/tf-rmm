@@ -325,7 +325,8 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	*(uint32_t *)&host_smmu_ns_page[0x1C] = 0x00000003U;	/* SMMU_AIDR */
 
 	/* Realm Page 0 ID registers */
-	*(uint32_t *)&host_smmu_r_page[0x000] = 0x01012400U;	/* SMMU_R_IDR0 */
+	/* BTM allows this SMMU to use CMDQ polling without MSI support. */
+	*(uint32_t *)&host_smmu_r_page[0x000] = 0x01010400U;	/* SMMU_R_IDR0 */
 	*(uint32_t *)&host_smmu_r_page[0x00C] = 0x00010000U;	/* SMMU_R_IDR3 */
 	*(uint32_t *)&host_smmu_r_page[0x220] = 0x0000000FU;	/* SMMU_R_MECIDR */
 

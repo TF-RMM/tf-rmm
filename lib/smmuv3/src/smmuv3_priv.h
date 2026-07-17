@@ -199,6 +199,7 @@ typedef __uint128_t	uint128_t;
 #define FEAT_PRI		BIT32(9)
 #define FEAT_DPT		BIT32(10)
 #define FEAT_SEV		BIT32(11)
+#define FEAT_MSI		BIT32(12)
 
 /* Log2 of maximum number of Command and Event queues entries */
 #define QUEUE_SIZE_MAX		U(19)
