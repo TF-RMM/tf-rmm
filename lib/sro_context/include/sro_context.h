@@ -201,13 +201,15 @@ struct sro_unmap_ctx {
 	 * Base IPA and level of the currently-pinned leaf RTT (@g_llt),
 	 * cached when the sweep enters each leaf so the drain-completion
 	 * pass can compute the IPA of every stamped TTE for its deferred
-	 * TLBI. Carried across an IRQ-yield so the SRO continue path can
+	 * TLBI. Carried across an SRO yield so the continue path can
 	 * reuse the same coordinates after reacquiring @g_llt.
 	 */
 	unsigned long leaf_base_ipa;
 	long leaf_level;
-	/* CMD_SYNC completion state for deferred SMMU TLB invalidations. */
+	/* CMD_SYNC completion state for one deferred SMMU TLB invalidation. */
 	struct smmuv3_cmd_sync smmu_cmd_sync;
+	unsigned long smmu_tlbi_idx; /* TTE waiting for CMD_SYNC completion */
+	bool smmu_tlbi_pending;
 };
 
 /*

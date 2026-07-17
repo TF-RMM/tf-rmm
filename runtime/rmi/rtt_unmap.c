@@ -667,27 +667,61 @@ static bool rtt_unmap_drain_pending(struct sro_unmap_ctx *ctx,
 }
 
 /*
- * Issue the deferred stage-2 TLB and (when DA is enabled) SMMU TLB/ATC
- * invalidation for a single IPA on behalf of the SRO @ctx.
+ * Poll the outstanding SMMU CMD_SYNC while there is no interrupt to service.
+ * Return true when the caller must yield with its pending marker intact.
  */
-static void rtt_unmap_invalidate_pending(struct sro_unmap_ctx *ctx,
-					 unsigned long addr, long level)
+static bool rtt_unmap_smmu_sync_yield(struct sro_unmap_ctx *ctx)
 {
-	s2tt_invalidate_page_block_per_vmids(ctx->enable_lpa2, ctx->vmid_list,
-					     ctx->nvmids, addr, level);
+	assert(ctx->smmu_tlbi_pending);
 
+	while (!smmuv3_cmd_sync_is_complete(&ctx->smmu_cmd_sync)) {
+		if (rtt_unmap_irq_pending()) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/*
+ * Issue the deferred stage-2 TLB and (when DA is enabled) SMMU TLB/ATC
+ * invalidation for a single IPA on behalf of the SRO @ctx. Return true when
+ * an IRQ requires yielding before CMD_SYNC completion.
+ */
+static bool rtt_unmap_invalidate_pending(struct sro_unmap_ctx *ctx,
+					 unsigned long addr, long level,
+					 unsigned long s2tte_idx)
+{
+	int ret;
+
+	/* Allow the SMMU to process its commands during the CPU invalidation. */
 	if (ctx->da_enabled) {
-		int ret = smmuv3_inv_at_level_per_vmids(ctx->vmid_list,
-							ctx->nvmids, addr,
-							level, 1UL, true,
-							&ctx->smmu_cmd_sync);
-
+		ret = smmuv3_inv_at_level_per_vmids_submit(ctx->vmid_list,
+							      ctx->nvmids, addr, level,
+							      1UL, true,
+							      &ctx->smmu_cmd_sync);
 		if (ret != 0) {
-			ERROR("smmuv3_inv_at_level_per_vmids(0x%lx %ld) error %d\n",
-				addr, level, ret);
+			ERROR("smmuv3_inv_at_level_per_vmids_submit(0x%lx %ld) error %d\n",
+			      addr, level, ret);
 			panic();
 		}
 	}
+
+	s2tt_invalidate_page_block_per_vmids(ctx->enable_lpa2, ctx->vmid_list,
+					     ctx->nvmids, addr, level);
+
+	if (!ctx->da_enabled) {
+		return false;
+	}
+
+	ctx->smmu_tlbi_idx = s2tte_idx;
+	ctx->smmu_tlbi_pending = true;
+	if (rtt_unmap_smmu_sync_yield(ctx)) {
+		return true;
+	}
+	ctx->smmu_tlbi_pending = false;
+
+	return false;
 }
 
 /*
@@ -696,15 +730,17 @@ static void rtt_unmap_invalidate_pending(struct sro_unmap_ctx *ctx,
  *
  * For each entry carrying our handle and the S2TTE_SW_TLBI_PENDING bit,
  * issue the stage-2 (and SMMU when DA is enabled) TLB invalidation that
- * the sweep deferred and clear the TLBI-pending bit on the entry. The
- * IPA is reconstructed from the cached leaf base IPA and entry index at
- * @ctx->leaf_level. The drain-pending bit and SRO handle are left in
- * place; rtt_unmap_clear_marks_and_drop() removes them in a separate
- * non-yieldable walk once this pass has completed.
+ * the sweep deferred. With DA enabled, submit the SMMU commands and poll
+ * their CMD_SYNC completion until it completes or an IRQ becomes pending.
+ * Clear the TLBI-pending bit only after completion. The IPA is reconstructed
+ * from the cached leaf base IPA and entry index at @ctx->leaf_level. The
+ * drain-pending bit and SRO handle are left in place. A separate,
+ * non-yieldable pass removes them once this pass has completed.
  *
- * On a resume after a yield the walk restarts from entry 0 but only
- * entries still carrying this SRO handle and S2TTE_SW_TLBI_PENDING
- * trigger another invalidation, so the work does not regress.
+ * On a resume after yielding for an IRQ while CMD_SYNC is outstanding, the
+ * stored TTE index is checked first. Once it completes, the walk restarts
+ * from entry 0 but only entries still carrying this SRO handle and
+ * S2TTE_SW_TLBI_PENDING trigger invalidation.
  *
  * A pending physical IRQ is sampled before processing each entry; on
  * a pending IRQ the function returns true (yielded). Entries belonging
@@ -716,6 +752,22 @@ static bool rtt_unmap_tlbi_pending(struct sro_unmap_ctx *ctx,
 {
 	unsigned long map_size = s2tte_map_size((int)ctx->leaf_level);
 	unsigned long i;
+
+	if (ctx->smmu_tlbi_pending) {
+		unsigned long s2tte;
+
+		if (rtt_unmap_smmu_sync_yield(ctx)) {
+			return true;
+		}
+
+		s2tte = s2tte_read(&s2tt[ctx->smmu_tlbi_idx]);
+		assert(s2tte_drain_pending(s2tte));
+		assert(s2tte_drain_handle(s2tte) == ctx->sro_handle);
+		assert(s2tte_tlbi_pending(s2tte));
+		s2tte_write(&s2tt[ctx->smmu_tlbi_idx],
+			    s2tte_clear_tlbi_pending(s2tte));
+		ctx->smmu_tlbi_pending = false;
+	}
 
 	for (i = 0UL; i < S2TTES_PER_S2TT; i++) {
 		unsigned long s2tte;
@@ -732,8 +784,11 @@ static bool rtt_unmap_tlbi_pending(struct sro_unmap_ctx *ctx,
 			unsigned long addr = ctx->leaf_base_ipa +
 					     (i * map_size);
 
-			rtt_unmap_invalidate_pending(ctx, addr,
-						     ctx->leaf_level);
+			if (rtt_unmap_invalidate_pending(ctx, addr,
+							 ctx->leaf_level, i)) {
+				return true;
+			}
+
 			s2tte_write(&s2tt[i],
 				    s2tte_clear_tlbi_pending(s2tte));
 		}
@@ -776,14 +831,14 @@ static void rtt_unmap_clear_marks_and_drop(struct sro_unmap_ctx *ctx,
  * Single deferred-work entry point invoked by the initial runner (per
  * leaf sweep) and the SRO_OP_CONTINUE callbacks.
  *
- * Runs the deferred phases in order on the SRO @ctx. TLBI is issued
+ * Runs the deferred phases in order on the SRO @ctx. TLBI is completed
  * before any granule the host might observe in a different state:
  *   1. rtt_unmap_tlbi_pending(): issue the stage-2 (and SMMU) TLB
  *      invalidations for entries the sweep stamped. Requires the leaf
- *      locked and @s2tt mapped. Each processed entry has its TLBI bit
- *      cleared; the drain mark and handle remain until phase 3. A
- *      resume restarts from entry 0 and skips entries whose TLBI bit is
- *      already clear.
+ *      locked and @s2tt mapped. The SMMU completion is polled until it
+ *      completes or an IRQ becomes pending. On an IRQ, the function yields
+ *      with the TTE marker intact. Once complete, the entry's TLBI bit is
+ *      cleared. The drain mark and handle remain until phase 3.
  *   2. (DATA_UNMAP and DEV_UNMAP only) rtt_unmap_drain_pending():
  *      transition every queued backing granule in @list back to
  *      DELEGATED, with IRQ-yield between granules. Does not touch the
@@ -796,9 +851,9 @@ static void rtt_unmap_clear_marks_and_drop(struct sro_unmap_ctx *ctx,
  * or is skipped for UNPROT. All flavors hold one leaf-RTT refcount per
  * stamped entry until phase 3, so mark clearing is identical.
  *
- * Returns true if any phase yielded on a pending IRQ. On resume the
- * caller simply re-invokes this helper (re-mapping @s2tt under the
- * leaf lock).
+ * Returns true if any phase yields for a pending IRQ, including while waiting
+ * for CMD_SYNC completion. On resume the caller simply re-invokes this helper
+ * (re-mapping @s2tt under the leaf lock).
  */
 static bool rtt_unmap_drain_and_clear(struct sro_unmap_ctx *ctx,
 				      struct addr_list *list,
@@ -824,7 +879,7 @@ static bool rtt_unmap_drain_and_clear(struct sro_unmap_ctx *ctx,
  */
 enum rtt_unmap_run_result {
 	RTT_UNMAP_RUN_DONE,	/* terminal; res->x[] filled */
-	RTT_UNMAP_RUN_YIELD,	/* IRQ-yield mid-progress; resume needed */
+	RTT_UNMAP_RUN_YIELD	/* deferred work remains; resume needed */
 };
 
 /*
@@ -908,8 +963,9 @@ static void rtt_unmap_format_result(unsigned int oaddr_type,
  * The held RTT lock prevents the realm from being torn down underneath
  * it.
  *
- * Returns RTT_UNMAP_RUN_YIELD when the deferred work yielded on a
- * pending IRQ while progress has been made (out_list non-empty).
+ * Returns RTT_UNMAP_RUN_YIELD when the deferred work yielded on a pending IRQ
+ * while progress has been made (out_list non-empty). This includes an IRQ
+ * observed while waiting for CMD_SYNC completion.
  * res->x[] is left for the caller to format as RMI_INCOMPLETE.
  *
  * Returns RTT_UNMAP_RUN_DONE in all other cases. res->x[] is populated
@@ -1021,8 +1077,8 @@ rtt_unmap_run(struct granule *g_rd, struct rd *rd,
 
 	/*
 	 * Run the deferred phases for everything appended by the
-	 * sweep. A pending IRQ in any phase causes a
-	 * yield with the SRO drain cursors holding our position and
+	 * sweep. A pending IRQ, including while waiting for CMD_SYNC completion,
+	 * causes a yield with the SRO drain cursors holding our position and
 	 * the per-entry leaf refcounts still pinning @ctx->g_llt.
 	 */
 	yielded = rtt_unmap_drain_and_clear(ctx, out_list, s2tt, flavor);
@@ -1066,10 +1122,10 @@ out_unmap_ll:
  * RMI_RTT_DEV_UNMAP.
  * Invoked from rmi_op_dispatch() in response to a host RMI_OP_CONTINUE
  * on a sealed handle. The SRO bookkeeping (find/seal/release) is
- * performed by smc_op_continue(); this callback only flushes the
- * outstanding cache-maintenance work queued by the original entry
- * call and reports the resulting terminal status. No further RTT walk
- * or s2tte sweep is performed here: any range left between
+ * performed by smc_op_continue(); this callback completes the pending
+ * SMMU invalidation and cache-maintenance work queued by the original
+ * entry call and reports the resulting terminal status. No further RTT
+ * walk or s2tte sweep is performed here: any range left between
  * @ctx->cur_base and the original @top will be picked up by a fresh
  * RMI_RTT_*UNMAP call from the host.
  *
@@ -1144,9 +1200,10 @@ void rtt_unmap_continue_handler(unsigned long fid,
  * If the request spans further leaves, the host retries with the returned
  * out_top as the new base.
  *
- * On a pending physical IRQ the sweep yields cooperatively. If progress
- * was made (count > 0) and work remains (cur_base < top), the operation
- * seals an SRO context and returns RMI_INCOMPLETE; the host must call
+ * On a pending physical IRQ, including while waiting for SMMU CMD_SYNC
+ * completion, the sweep yields cooperatively. If progress was made
+ * (count > 0) and work remains (cur_base < top), the operation seals an
+ * SRO context and returns RMI_INCOMPLETE; the host must call
  * RMI_OP_CONTINUE with the returned handle to resume. Otherwise the call
  * returns RMI_SUCCESS with the current progress (host retries with the
  * returned out_top as new base).
@@ -1233,8 +1290,11 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
 	ctx->pending_pa = ~0UL;
 	ctx->sro_handle = sro_ctx_my_handle();
 	ctx->mecid = rd->s2_ctx[PRIMARY_S2_CTX_ID].mecid;
+	ctx->enable_lpa2 = rd->s2_ctx[PRIMARY_S2_CTX_ID].enable_lpa2;
 	ctx->leaf_base_ipa = 0UL;
 	ctx->leaf_level = S2TT_PAGE_LEVEL;
+	ctx->smmu_tlbi_idx = 0UL;
+	ctx->smmu_tlbi_pending = false;
 
 	/*
 	 * Cache the VMID set and DA flag the drain-completion pass
@@ -1322,9 +1382,9 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
  * Mirrors smc_rtt_data_unmap for the !addr_in_par half-space: walks
  * to base, sweeps one leaf's assigned_ns entries to unassigned_ns
  * marked for deferred stage-2 TLBI, then runs the yieldable
- * TLBI-and-clear pass. On a pending IRQ mid-pass an SRO context is
- * sealed and RMI_INCOMPLETE is returned; the host must call
- * RMI_OP_CONTINUE with the returned handle to resume.
+ * TLBI-and-clear pass. On a pending IRQ, including while waiting for CMD_SYNC
+ * completion, an SRO context is sealed and RMI_INCOMPLETE is returned; the
+ * host must call RMI_OP_CONTINUE with the returned handle to resume.
  *
  * Supports oaddr_type NONE, SINGLE, and LIST.
  */
@@ -1387,8 +1447,11 @@ void smc_rtt_unprot_unmap(unsigned long rd_addr,
 	ctx->cur_base = base;
 	ctx->sro_handle = sro_ctx_my_handle();
 	ctx->mecid = rd->s2_ctx[PRIMARY_S2_CTX_ID].mecid;
+	ctx->enable_lpa2 = rd->s2_ctx[PRIMARY_S2_CTX_ID].enable_lpa2;
 	ctx->leaf_base_ipa = 0UL;
 	ctx->leaf_level = S2TT_PAGE_LEVEL;
+	ctx->smmu_tlbi_idx = 0UL;
+	ctx->smmu_tlbi_pending = false;
 
 	/*
 	 * Cache the VMID set and DA flag the deferred TLBI pass needs
@@ -1450,8 +1513,9 @@ void smc_rtt_unprot_unmap(unsigned long rd_addr,
  * selected from sro->init_command. The drain phase first invalidates
  * the stamped stage-2 / SMMU mappings entry-by-entry with cooperative
  * IRQ checks, then transitions every freed dev_granule from MAPPED to
- * DELEGATED, also yieldably. On a pending IRQ mid-pass an SRO context
- * is sealed and RMI_INCOMPLETE is returned; the host must call
+ * DELEGATED, also yieldably. On a pending IRQ, including while waiting for
+ * CMD_SYNC completion, an SRO context is sealed and RMI_INCOMPLETE is
+ * returned; the host must call
  * RMI_OP_CONTINUE with the returned handle to resume.
  *
  * Supports oaddr_type NONE, SINGLE and LIST.
@@ -1518,8 +1582,11 @@ void smc_rtt_dev_unmap(unsigned long rd_addr,
 	ctx->pending_pa = ~0UL;
 	ctx->sro_handle = sro_ctx_my_handle();
 	ctx->mecid = rd->s2_ctx[PRIMARY_S2_CTX_ID].mecid;
+	ctx->enable_lpa2 = rd->s2_ctx[PRIMARY_S2_CTX_ID].enable_lpa2;
 	ctx->leaf_base_ipa = 0UL;
 	ctx->leaf_level = S2TT_PAGE_LEVEL;
+	ctx->smmu_tlbi_idx = 0UL;
+	ctx->smmu_tlbi_pending = false;
 
 	struct s2tt_context *primary_ctx =
 		&rd->s2_ctx[PRIMARY_S2_CTX_ID];

@@ -50,6 +50,16 @@ int smmuv3_cmd_sync_init(struct smmuv3_cmd_sync *cmd_sync,
 			 uintptr_t cmd_sync_pa);
 
 /*
+ * Check whether all CMD_SYNC commands submitted with @cmd_sync have
+ * completed.
+ *
+ * Return:
+ *   true	- no CMD_SYNC completion word is pending.
+ *   false	- at least one CMD_SYNC completion word is pending.
+ */
+bool smmuv3_cmd_sync_is_complete(struct smmuv3_cmd_sync *cmd_sync);
+
+/*
  * Set up the SMMU driver and allocate resources for the SMMU instances.
  *
  * Parameters:
@@ -232,6 +242,32 @@ int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid,
 int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
 			unsigned long num_entrs, bool leaf,
 			struct smmuv3_cmd_sync *cmd_sync);
+
+/*
+ * Submit invalidations for @vmid_list without waiting for CMD_SYNC completion.
+ *
+ * The caller must not reuse @cmd_sync until
+ * smmuv3_cmd_sync_is_complete() returns true.
+ *
+ * Parameters:
+ *   vmid_list	 - Pointer to an array of VMIDs to invalidate for.
+ *   addr	 - Base address of the block.
+ *   level	 - RTT mapped level.
+ *   num_entrs	 - Number of entries to invalidate.
+ *   leaf	 - If 'true', invalidate only cached entries for the last
+ *		   level of translation table walk.
+ *   cmd_sync	 - Initialized CMD_SYNC completion state.
+ *
+ * Return:
+ *   0		 - commands submitted, or no local invalidation is required.
+ *   -ETIMEDOUT	 - timeout submitting a command to an SMMU queue.
+ *   -EIO	 - SMMU command or queue error.
+ */
+int smmuv3_inv_at_level_per_vmids_submit(unsigned int *vmid_list,
+					 unsigned int nvmids,
+					 unsigned long addr, long level,
+					 unsigned long num_entrs, bool leaf,
+					 struct smmuv3_cmd_sync *cmd_sync);
 
 /*
  * Invalidate @num_entrs TLB entries mapped within block entry for a list of VMIDs.

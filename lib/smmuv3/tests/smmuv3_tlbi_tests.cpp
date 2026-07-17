@@ -133,6 +133,21 @@ TEST(smmuv3_tlbi_range, cmd_sync_init)
 	LONGS_EQUAL(-EINVAL, smmuv3_cmd_sync_init(&cmd_sync, 0UL));
 }
 
+TEST(smmuv3_tlbi_range, cmd_sync_completion)
+{
+	struct smmuv3_cmd_sync cmd_sync = {};
+	uintptr_t cmd_sync_pa = (uintptr_t)&cmd_sync;
+
+	LONGS_EQUAL(0L, smmuv3_cmd_sync_init(&cmd_sync, cmd_sync_pa));
+	CHECK_TRUE(smmuv3_cmd_sync_is_complete(&cmd_sync));
+
+	cmd_sync.completion[RMM_MAX_SMMUS - 1U] = U(-1);
+	CHECK_FALSE(smmuv3_cmd_sync_is_complete(&cmd_sync));
+
+	cmd_sync.completion[RMM_MAX_SMMUS - 1U] = 0U;
+	CHECK_TRUE(smmuv3_cmd_sync_is_complete(&cmd_sync));
+}
+
 /* -----------------------------------------------------------------------
  * TC1: Single granule -- the minimal possible input.
  *

@@ -89,6 +89,19 @@ static int poll_cmd_sync_all(struct smmuv3_cmd_sync *cmd_sync)
 	return -ETIMEDOUT;
 }
 
+bool smmuv3_cmd_sync_is_complete(struct smmuv3_cmd_sync *cmd_sync)
+{
+	assert(cmd_sync_is_initialized(cmd_sync));
+
+	for (unsigned long i = 0UL; i < RMM_MAX_SMMUS; i++) {
+		if (SCA_READ32_ACQUIRE(&cmd_sync->completion[i]) != 0U) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 static int tlbi_ipa_single(struct smmuv3_dev *smmu, unsigned int vmid,
 			   unsigned long addr, unsigned long num_grans,
 			   long tgt_lvl, bool leaf)
@@ -403,16 +416,16 @@ int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
  * 1b. Some S2TTEs in the table that the L2 table desc was pointed to were valid.
  * Note. This function is called with @addr aligned to the (@level - 1) boundary.
  */
-int smmuv3_inv_at_level_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
-				  unsigned long addr, long level,
-				  unsigned long num_entrs, bool leaf,
-				  struct smmuv3_cmd_sync *cmd_sync)
+int smmuv3_inv_at_level_per_vmids_submit(unsigned int *vmid_list,
+					 unsigned int nvmids,
+					 unsigned long addr, long level,
+					 unsigned long num_entrs, bool leaf,
+					 struct smmuv3_cmd_sync *cmd_sync)
 {
 	struct smmuv3_driv *driv = get_smmuv3_driver();
 
 	/* Calculate number of translation granules */
 	unsigned long num_grans = num_entrs * (XLAT_BLOCK_SIZE(level) / GRANULE_SIZE);
-	bool poll_sync = false;
 
 	assert(driv != NULL);
 	assert(vmid_list != NULL);
@@ -426,7 +439,7 @@ int smmuv3_inv_at_level_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
 
 	assert(cmd_sync_is_initialized(cmd_sync));
 
-	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
+	for (unsigned long i = 0UL; i < RMM_MAX_SMMUS; i++) {
 		SCA_WRITE32(&cmd_sync->completion[i], 0U);
 	}
 
@@ -467,14 +480,25 @@ int smmuv3_inv_at_level_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
 				spinlock_smmu(i, false);
 				return ret;
 			}
-			poll_sync = true;
 		}
 		spinlock_release(&smmu->lock);
 	}
 
-	if (poll_sync) {
-		/* Wait for completion on all SMMUs */
-		return poll_cmd_sync_all(cmd_sync);
-	}
 	return 0;
+}
+
+int smmuv3_inv_at_level_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
+				  unsigned long addr, long level,
+				  unsigned long num_entrs, bool leaf,
+				  struct smmuv3_cmd_sync *cmd_sync)
+{
+	int ret;
+
+	ret = smmuv3_inv_at_level_per_vmids_submit(vmid_list, nvmids, addr,
+						      level, num_entrs, leaf, cmd_sync);
+	if (ret != 0) {
+		return ret;
+	}
+
+	return poll_cmd_sync_all(cmd_sync);
 }
