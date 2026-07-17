@@ -113,6 +113,30 @@ TEST(smmuv3_tlbi_range, fake_host_cmd_sync_msi)
 	UNSIGNED_LONGS_EQUAL(prod, cons);
 }
 
+TEST(smmuv3_tlbi_range, cmd_sync_sev_command)
+{
+	uint8_t r_page[GRANULE_SIZE] = {};
+	uint128_t cmdq[2] = {};
+	uint32_t prod = 0U;
+	uint32_t cons = 0U;
+	struct smmuv3_dev smmu = {};
+	uint64_t cmd_lo;
+
+	smmu.r_base = (uintptr_t)r_page;
+	smmu.config.features = FEAT_SEV;
+	smmu.config.cmdq_log2size = 1U;
+	smmu.cmdq.q_base = (uintptr_t)cmdq;
+	smmu.cmdq.prod_reg = &prod;
+	smmu.cmdq.cons_reg = &cons;
+
+	LONGS_EQUAL(0L, prepare_send_command(&smmu, CMD_SYNC, 0UL, 0UL));
+	cmd_lo = (uint64_t)cmdq[0];
+
+	UNSIGNED_LONGS_EQUAL(CMD_SYNC, cmd_lo & UINT64_C(0xFF));
+	UNSIGNED_LONGS_EQUAL(SIG_SEV, EXTRACT(CS, cmd_lo));
+	UNSIGNED_LONGS_EQUAL(prod, cons);
+}
+
 TEST(smmuv3_tlbi_range, cmd_sync_init)
 {
 	struct smmuv3_cmd_sync cmd_sync = {};

@@ -569,6 +569,7 @@ int prepare_send_cmd_sync(struct smmuv3_dev *smmu, uintptr_t msi_addr_pa,
 			((uint128_t)MSI_NS_RLPA << MSI_NS_SHIFT);
 	int ret;
 
+	assert(g_driver != NULL);
 	assert((msi_addr_pa != 0UL) && ALIGNED(msi_addr_pa, sizeof(unsigned int)));
 
 	/* Check for errors */
@@ -580,6 +581,15 @@ int prepare_send_cmd_sync(struct smmuv3_dev *smmu, uintptr_t msi_addr_pa,
 	ret = send_cmd(smmu, cmd);
 	if (ret != 0) {
 		SMMU_ERROR(smmu, "Failed to send CMD_SYNC\n");
+		return ret;
+	}
+
+	/*
+	 * Generate a wake-up event after the ordered MSI completion write when
+	 * every SMMU supports event notification.
+	 */
+	if (g_driver->event_notify) {
+		ret = prepare_send_command(smmu, CMD_SYNC, 0UL, 0UL);
 	}
 
 	return ret;
@@ -940,6 +950,8 @@ static int get_features(struct smmuv3_dev *smmu)
 	if ((idr0 & IDR0_SEV_BIT) != 0U) {
 		smmu->config.features |= FEAT_SEV;
 		SMMU_DEBUG("\tSEV\n");
+	} else {
+		g_driver->event_notify = false;
 	}
 
 	/*
@@ -1358,8 +1370,9 @@ int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz)
 
 	assert(num_smmus <= RMM_MAX_SMMUS);
 
-	/* Initialize broadcast_tlb to true, will be set to false if any SMMU doesn't support it */
+	/* Initialize system-wide capabilities before probing individual SMMUs. */
 	g_driver->broadcast_tlb = true;
+	g_driver->event_notify = true;
 
 	g_smmus = g_driver->smmuv3_devs;
 	assert(g_smmus != NULL);

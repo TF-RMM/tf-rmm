@@ -678,6 +678,7 @@ static bool rtt_unmap_smmu_sync_yield(struct sro_unmap_ctx *ctx)
 		if (rtt_unmap_irq_pending()) {
 			return true;
 		}
+		smmuv3_cmd_sync_wait();
 	}
 
 	return false;

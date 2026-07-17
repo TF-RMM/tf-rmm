@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors
  */
 
+#include <arch_helpers.h>
 #include <assert.h>
 #include <errno.h>
 #include <memory.h>
@@ -82,6 +83,8 @@ static int poll_cmd_sync_all(struct smmuv3_cmd_sync *cmd_sync)
 			return 0;
 		}
 
+		smmuv3_cmd_sync_wait();
+
 	} while (++retries < MAX_RETRIES);
 
 	SMMU_ERROR(&driv->smmuv3_devs[smmu_idx], "CMD_SYNC timeout\n");
@@ -100,6 +103,22 @@ bool smmuv3_cmd_sync_is_complete(struct smmuv3_cmd_sync *cmd_sync)
 	}
 
 	return true;
+}
+
+/*
+ * Wait for the event sent after an MSI CMD_SYNC completion write. WFE is used
+ * only if every SMMU supports event notification. The event is a wake-up hint,
+ * so callers must recheck the CMD_SYNC completion words after this returns.
+ */
+void smmuv3_cmd_sync_wait(void)
+{
+	struct smmuv3_driv *driv = get_smmuv3_driver();
+
+	assert(driv != NULL);
+
+	if (driv->event_notify) {
+		wfe();
+	}
 }
 
 static int tlbi_ipa_single(struct smmuv3_dev *smmu, unsigned int vmid,
@@ -327,6 +346,8 @@ int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid,
 		if (SCA_READ32_ACQUIRE(&cmd_sync->completion[smmu_idx]) == 0U) {
 			return 0;
 		}
+
+		smmuv3_cmd_sync_wait();
 
 	} while (++retries < MAX_RETRIES);
 

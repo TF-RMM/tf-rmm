@@ -60,6 +60,16 @@ int smmuv3_cmd_sync_init(struct smmuv3_cmd_sync *cmd_sync,
 bool smmuv3_cmd_sync_is_complete(struct smmuv3_cmd_sync *cmd_sync);
 
 /*
+ * Wait for an event associated with the outstanding CMD_SYNC commands.
+ *
+ * This executes WFE only when every SMMU supports event notification.
+ * Otherwise it returns immediately so the caller can continue polling.
+ * Wake-up events can be spurious; the caller must recheck
+ * smmuv3_cmd_sync_is_complete().
+ */
+void smmuv3_cmd_sync_wait(void);
+
+/*
  * Set up the SMMU driver and allocate resources for the SMMU instances.
  *
  * Parameters:
@@ -248,6 +258,8 @@ int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
  *
  * The caller must not reuse @cmd_sync until
  * smmuv3_cmd_sync_is_complete() returns true.
+ * When every SMMU supports event notification, the submission also arranges
+ * for smmuv3_cmd_sync_wait() to use WFE safely.
  *
  * Parameters:
  *   vmid_list	 - Pointer to an array of VMIDs to invalidate for.

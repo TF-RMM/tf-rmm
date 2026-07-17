@@ -593,6 +593,8 @@ struct smmuv3_dev {
 struct smmuv3_driv {
 	/* Indicates whether all SMMUs support broadcast TLB maintenance */
 	bool broadcast_tlb;
+	/* Indicates whether every SMMU supports event notification */
+	bool event_notify;
 	/* Number of SMMUv3 */
 	uint64_t num_smmus;
 	/* Pointer to dynamically allocated array of smmuv3_dev structures */
