@@ -81,13 +81,73 @@ unsigned long s2tte_to_pa(const struct s2tt_context *s2_ctx,
 	return pa;
 }
 
+static unsigned long make_s2_tlbi_range_operand(unsigned long ipa,
+						 bool enable_lpa2,
+						 unsigned int scale,
+						 unsigned long num)
+{
+	unsigned int base_shift = enable_lpa2 ?
+		S2_TLBI_RANGE_BASE_SHIFT_LPA2 : S2_TLBI_RANGE_BASE_SHIFT;
+
+	assert(scale <= S2_TLBI_RANGE_SCALE_MAX);
+	assert((num != 0UL) && (num <= S2_TLBI_RANGE_NUM_MAX));
+	assert(!enable_lpa2 || ALIGNED(ipa, S2_TLBI_RANGE_BASE_ALIGN_LPA2));
+
+	return COMPOSE(S2_TLBI_RANGE_TG, S2_TLBI_RANGE_TG_4K) |
+	       COMPOSE(S2_TLBI_RANGE_SCALE, scale) |
+	       COMPOSE(S2_TLBI_RANGE_NUM, num - 1UL) |
+	       COMPOSE(S2_TLBI_RANGE_BASE_ADDR, ipa >> base_shift);
+}
+
+/*
+ * Invalidate S2 TLB entries from [@ipa, @ipa + @size) for the current VMID.
+ */
+static void stage2_tlbi_ipa_range(unsigned long ipa, unsigned long size,
+				  bool enable_lpa2)
+{
+	unsigned long remaining = size;
+	unsigned long current_ipa = ipa;
+
+	while (remaining != 0UL) {
+		unsigned long num_grans = remaining >> GRANULE_SHIFT;
+		unsigned long num;
+		unsigned long covered;
+		unsigned int scale;
+
+		/*
+		 * With LPA2 the range operand holds BaseADDR[52:16], so use
+		 * single-granule invalidations until the base is 64 KiB aligned.
+		 */
+		if ((num_grans == 1UL) ||
+		    (enable_lpa2 &&
+		     !ALIGNED(current_ipa, S2_TLBI_RANGE_BASE_ALIGN_LPA2))) {
+			tlbiipas2e1is(current_ipa >> GRANULE_SHIFT);
+			covered = 1UL;
+		} else {
+			covered = calc_s2_tlbi_range(num_grans, &scale, &num);
+			assert(covered != 0UL);
+			tlbiripas2e1is(make_s2_tlbi_range_operand(current_ipa,
+								 enable_lpa2,
+								 scale, num));
+		}
+
+		remaining -= covered << GRANULE_SHIFT;
+		current_ipa += covered << GRANULE_SHIFT;
+	}
+}
+
 /*
  * Invalidates S2 TLB entries from [@ipa, @ipa + @size) region tagged with a
  * VMID for each one passed @vmid_list.
  */
-static void stage2_tlbi_ipa_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
-				      unsigned long ipa, unsigned long size)
+static void stage2_tlbi_ipa_per_vmids(bool enable_lpa2,
+				      unsigned int *vmid_list,
+				      unsigned int nvmids,
+				      unsigned long ipa,
+				      unsigned long size)
 {
+	unsigned long old_vttbr_el2;
+
 	/*
 	 * Notes:
 	 *
@@ -97,16 +157,19 @@ static void stage2_tlbi_ipa_per_vmids(unsigned int *vmid_list, unsigned int nvmi
 	 * - @TODO: Provide additional information to this primitive so that
 	 *   we can utilize:
 	 *   - The TTL level hint, see FEAT_TTL,
-	 *   - Final level lookup only invalidation,
-	 *   - Address range invalidation.
+	 *   - Final level lookup only invalidation.
 	 */
 
 	assert(vmid_list != NULL);
+	assert(nvmids != 0U);
+	assert(size != 0UL);
+	assert(ALIGNED(ipa, GRANULE_SIZE));
+	assert(ALIGNED(size, GRANULE_SIZE));
 
 	/*
 	 * Save the current content of vttb_el2.
 	 */
-	unsigned long old_vttbr_el2 = read_vttbr_el2();
+	old_vttbr_el2 = read_vttbr_el2();
 
 	for (unsigned int i = 0U; i < nvmids; i++) {
 		/*
@@ -121,11 +184,7 @@ static void stage2_tlbi_ipa_per_vmids(unsigned int *vmid_list, unsigned int nvmi
 		 * Invalidate entries in S2 TLB caches that
 		 * match both `ipa` & the `current vmid`.
 		 */
-		while (size != 0UL) {
-			tlbiipas2e1is(ipa >> 12);
-			size -= GRANULE_SIZE;
-			ipa += GRANULE_SIZE;
-		}
+		stage2_tlbi_ipa_range(ipa, size, enable_lpa2);
 		dsb(ish);
 
 		/*
@@ -242,16 +301,13 @@ static unsigned long s2tte_get_ap(const struct s2tt_context *s2_ctx,
  * 2a. A L2 table desc has been removed, where
  * 2b. All S2TTEs in L3 table that the L2 table desc was pointing to were invalid.
  */
-void s2tt_invalidate_page_block(const struct s2tt_context *s2_ctx, unsigned long addr,
-				long level)
+void s2tt_invalidate_page_block(bool enable_lpa2, unsigned int vmid,
+				unsigned long addr, long level)
 {
 	(void)level;
 
-	assert(s2_ctx != NULL);
-
-	unsigned int vmid = s2_ctx->vmid;
-
-	stage2_tlbi_ipa_per_vmids(&vmid, 1U, addr, GRANULE_SIZE);
+	stage2_tlbi_ipa_per_vmids(enable_lpa2, &vmid, 1U, addr,
+				      GRANULE_SIZE);
 }
 
 /*
@@ -262,14 +318,14 @@ void s2tt_invalidate_page_block(const struct s2tt_context *s2_ctx, unsigned long
  * 2a. A L2 table desc has been removed, where
  * 2b. All S2TTEs in L3 table that the L2 table desc was pointed to were invalid.
  */
-void s2tt_invalidate_page_block_per_vmids(const struct s2tt_context *s2_ctx,
+void s2tt_invalidate_page_block_per_vmids(bool enable_lpa2,
 					  unsigned int *vmid_list, unsigned int nvmids,
 					  unsigned long addr, long level)
 {
-	(void)s2_ctx;
 	(void)level;
 
-	stage2_tlbi_ipa_per_vmids(vmid_list, nvmids, addr, GRANULE_SIZE);
+	stage2_tlbi_ipa_per_vmids(enable_lpa2, vmid_list, nvmids, addr,
+				      GRANULE_SIZE);
 }
 
 /*
@@ -278,14 +334,11 @@ void s2tt_invalidate_page_block_per_vmids(const struct s2tt_context *s2_ctx,
  * 1a. A L2 table desc has been removed, where
  * 1b. Some S2TTEs in the table that the L2 table desc was pointed to were valid.
  */
-void s2tt_invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
+void s2tt_invalidate_pages_in_block(bool enable_lpa2, unsigned int vmid,
 				    unsigned long addr)
 {
-	assert(s2_ctx != NULL);
-
-	unsigned int vmid = s2_ctx->vmid;
-
-	stage2_tlbi_ipa_per_vmids(&vmid, 1U, addr, BLOCK_L2_SIZE);
+	stage2_tlbi_ipa_per_vmids(enable_lpa2, &vmid, 1U, addr,
+				      BLOCK_L2_SIZE);
 }
 
 /*
@@ -294,14 +347,13 @@ void s2tt_invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
  * 1a. A L2 table desc has been removed, where
  * 1b. Some S2TTEs in the table that the L2 table desc was pointed to were valid.
  */
-void s2tt_invalidate_pages_in_block_per_vmids(const struct s2tt_context *s2_ctx,
+void s2tt_invalidate_pages_in_block_per_vmids(bool enable_lpa2,
 					      unsigned int *vmid_list,
 					      unsigned int nvmids,
 					      unsigned long addr)
 {
-	(void)s2_ctx;
-
-	stage2_tlbi_ipa_per_vmids(vmid_list, nvmids, addr, BLOCK_L2_SIZE);
+	stage2_tlbi_ipa_per_vmids(enable_lpa2, vmid_list, nvmids, addr,
+				      BLOCK_L2_SIZE);
 }
 
 /*

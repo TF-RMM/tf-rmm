@@ -673,7 +673,7 @@ static bool rtt_unmap_drain_pending(struct sro_unmap_ctx *ctx,
 static void rtt_unmap_invalidate_pending(struct sro_unmap_ctx *ctx,
 					 unsigned long addr, long level)
 {
-	s2tt_invalidate_page_block_per_vmids(UNUSED_PTR, ctx->vmid_list,
+	s2tt_invalidate_page_block_per_vmids(ctx->enable_lpa2, ctx->vmid_list,
 					     ctx->nvmids, addr, level);
 
 	if (ctx->da_enabled) {

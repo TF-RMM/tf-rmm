@@ -111,7 +111,8 @@ static void invalidate_page_block_per_vmids(struct rd *rd, unsigned long map_add
 		vmid_list[i] = plane_to_s2_context(rd, i)->vmid;
 	}
 
-	s2tt_invalidate_page_block_per_vmids(UNUSED_PTR, vmid_list, nvmids, map_addr, level);
+	s2tt_invalidate_page_block_per_vmids(rd->s2_ctx[PRIMARY_S2_CTX_ID].enable_lpa2,
+						vmid_list, nvmids, map_addr, level);
 
 	if (rd->da_enabled) {
 		int ret = smmuv3_inv_at_level_per_vmids(vmid_list, nvmids, map_addr,
@@ -140,7 +141,8 @@ static void invalidate_pages_in_block_for_contexts(struct rd *rd, unsigned long 
 		vmid_list[i] = plane_to_s2_context(rd, i)->vmid;
 	}
 
-	s2tt_invalidate_pages_in_block_per_vmids(UNUSED_PTR, vmid_list, nvmids, map_addr);
+	s2tt_invalidate_pages_in_block_per_vmids(rd->s2_ctx[PRIMARY_S2_CTX_ID].enable_lpa2,
+							vmid_list, nvmids, map_addr);
 
 	if (rd->da_enabled) {
 		int ret = smmuv3_inv_at_level_per_vmids(vmid_list, nvmids, map_addr,
@@ -161,7 +163,8 @@ static void invalidate_pages_in_block_for_contexts(struct rd *rd, unsigned long 
 static void invalidate_page_block(const struct s2tt_context *s2_ctx,
 				  struct rd *rd, unsigned long map_addr, long level)
 {
-	s2tt_invalidate_page_block(s2_ctx, map_addr, level);
+	s2tt_invalidate_page_block(s2_ctx->enable_lpa2, s2_ctx->vmid, map_addr,
+				   level);
 
 	if (rd->da_enabled) {
 		int ret = smmuv3_inv_at_level(s2_ctx->vmid, map_addr, level, 1UL, true,
@@ -183,7 +186,8 @@ static void invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
 {
 	(void)level;
 
-	s2tt_invalidate_pages_in_block(s2_ctx, map_addr);
+	s2tt_invalidate_pages_in_block(s2_ctx->enable_lpa2, s2_ctx->vmid,
+				      map_addr);
 
 	if (rd->da_enabled) {
 		int ret = smmuv3_inv_at_level(s2_ctx->vmid, map_addr, level,

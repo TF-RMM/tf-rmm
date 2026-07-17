@@ -183,6 +183,8 @@ struct sro_unmap_ctx {
 	 * re-acquire the RD granule.
 	 */
 	unsigned int mecid;
+	/* LPA2 state needed for deferred stage-2 TLB invalidations. */
+	bool enable_lpa2;
 	/*
 	 * VMIDs and DA flag snapshot used by the deferred stage-2 TLB /
 	 * SMMU invalidation that the drain-completion pass issues for
