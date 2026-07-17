@@ -680,8 +680,7 @@ static void rtt_unmap_invalidate_pending(struct sro_unmap_ctx *ctx,
 		int ret = smmuv3_inv_at_level_per_vmids(ctx->vmid_list,
 							ctx->nvmids, addr,
 							level, 1UL, true,
-							xlat_low_va_to_pa((uintptr_t)ctx->msi_addr),
-							ctx->msi_addr);
+							&ctx->smmu_cmd_sync);
 
 		if (ret != 0) {
 			ERROR("smmuv3_inv_at_level_per_vmids(0x%lx %ld) error %d\n",
@@ -1183,6 +1182,7 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
 	unsigned long list_count;
 	unsigned long ret;
 	enum rtt_unmap_run_result step;
+	int smmuv3_ret __unused;
 
 	res->x[0] = RMI_ERROR_INPUT;
 
@@ -1220,6 +1220,10 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
 	sro = my_sro_ctx();
 	assert(sro != NULL);
 	ctx = &sro->unmap_ctx;
+	smmuv3_ret = smmuv3_cmd_sync_init(&ctx->smmu_cmd_sync,
+				  xlat_low_va_to_pa((uintptr_t)&ctx->smmu_cmd_sync));
+	assert(smmuv3_ret == 0);
+
 	ctx->g_llt = NULL;
 	ctx->oaddr = oaddr;
 	ctx->oaddr_type = (unsigned int)oaddr_type;
@@ -1340,6 +1344,7 @@ void smc_rtt_unprot_unmap(unsigned long rd_addr,
 	unsigned long ret;
 	enum rtt_unmap_run_result step;
 	unsigned int max_count;
+	int smmuv3_ret __unused;
 
 	res->x[0] = RMI_ERROR_INPUT;
 
@@ -1372,6 +1377,10 @@ void smc_rtt_unprot_unmap(unsigned long rd_addr,
 	sro = my_sro_ctx();
 	assert(sro != NULL);
 	ctx = &sro->unmap_ctx;
+	smmuv3_ret = smmuv3_cmd_sync_init(&ctx->smmu_cmd_sync,
+				  xlat_low_va_to_pa((uintptr_t)&ctx->smmu_cmd_sync));
+	assert(smmuv3_ret == 0);
+
 	ctx->g_llt = NULL;
 	ctx->oaddr = oaddr;
 	ctx->oaddr_type = (unsigned int)oaddr_type;
@@ -1463,6 +1472,7 @@ void smc_rtt_dev_unmap(unsigned long rd_addr,
 	unsigned long ret;
 	enum rtt_unmap_run_result step;
 	unsigned int max_count;
+	int smmuv3_ret __unused;
 
 	res->x[0] = RMI_ERROR_INPUT;
 
@@ -1495,6 +1505,10 @@ void smc_rtt_dev_unmap(unsigned long rd_addr,
 	sro = my_sro_ctx();
 	assert(sro != NULL);
 	ctx = &sro->unmap_ctx;
+	smmuv3_ret = smmuv3_cmd_sync_init(&ctx->smmu_cmd_sync,
+				  xlat_low_va_to_pa((uintptr_t)&ctx->smmu_cmd_sync));
+	assert(smmuv3_ret == 0);
+
 	ctx->g_llt = NULL;
 	ctx->oaddr = oaddr;
 	ctx->oaddr_type = (unsigned int)oaddr_type;

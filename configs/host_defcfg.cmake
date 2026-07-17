@@ -11,6 +11,8 @@ set(RMM_PLATFORM "host" CACHE STRING "platform")
 arm_config_option_override(NAME RMM_ARCH DEFAULT "fake_host")
 arm_config_option_override(NAME RMM_TOOLCHAIN DEFAULT "gnu")
 
+arm_config_option_override(NAME RMM_MAX_SMMUS DEFAULT 0x2)
+
 #
 # Width of the virtual address space for the system.
 #

@@ -126,6 +126,14 @@ uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
 	assert((plat_smmu_list->num_smmus == 0UL) ||
 				(plat_smmu_list->smmus != NULL));
 
+	if (plat_smmu_list->num_smmus > RMM_MAX_SMMUS) {
+		*out_pa = 0UL;
+		*out_sz = 0UL;
+		ERROR("SMMUv3 count %lu exceeds configured maximum %u\n",
+			plat_smmu_list->num_smmus, RMM_MAX_SMMUS);
+		return 0UL;
+	}
+
 	/* Size of SMMUv3 device records */
 	devs_size = plat_smmu_list->num_smmus * sizeof(struct smmuv3_dev);
 
@@ -488,6 +496,7 @@ static int send_cmd(struct smmuv3_dev *smmu, uint128_t cmd)
 	prod_reg &= ((wrap_bit << 1) - 1U);
 
 	write32(prod_reg, smmu->cmdq.prod_reg);
+	smmuv3_arch_process_cmd(cmd, smmu->cmdq.prod_reg, smmu->cmdq.cons_reg);
 	return 0;
 }
 
@@ -849,6 +858,7 @@ static int get_features(struct smmuv3_dev *smmu)
 {
 	uint32_t aidr, idr0, idr3 __unused, idr5, r_idr0, r_idr3;
 	uint32_t val;
+	unsigned int cpu_pa_size;
 
 	/* All configuration features are cleared as part of initialisation */
 
@@ -966,6 +976,19 @@ static int get_features(struct smmuv3_dev *smmu)
 	/* Size of physical address output from SMMU */
 	smmu->config.pa_size = idr5_oas[val];
 	SMMU_DEBUG("\tOutput address size %u bits\n", smmu->config.pa_size);
+
+	/*
+	 * CMD_SYNC.MSIAddress and the SMMU-managed tables can be placed at
+	 * any PA supported by the PE. The SMMU truncates MSIAddress to OAS,
+	 * so its output address size must cover the CPU physical address range.
+	 */
+	cpu_pa_size = arch_feat_get_pa_width();
+	if (smmu->config.pa_size < cpu_pa_size) {
+		SMMU_ERROR(smmu,
+			   "Output address size %u bits < CPU PA size %u bits\n",
+			   smmu->config.pa_size, cpu_pa_size);
+		return -ENOTSUP;
+	}
 
 	/*
 	 * Check that 128-bit VMSAv9-128 descriptors are supported
@@ -1332,6 +1355,8 @@ int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz)
 	if (num_smmus == 0UL) {
 		return -ENODEV;
 	}
+
+	assert(num_smmus <= RMM_MAX_SMMUS);
 
 	/* Initialize broadcast_tlb to true, will be set to false if any SMMU doesn't support it */
 	g_driver->broadcast_tlb = true;

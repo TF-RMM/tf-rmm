@@ -8,7 +8,11 @@
 #ifndef SMMUV3_H
 #define SMMUV3_H
 
-#include <rmm_el3_ifc.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+struct smmu_list;
 
 struct smmu_stg2_config {
 	unsigned long s2ttb;
@@ -16,6 +20,34 @@ struct smmu_stg2_config {
 	unsigned int vmid;
 	unsigned int mecid;
 };
+
+/*
+ * CMD_SYNC completion state supplied by a caller that issues an SMMU TLB
+ * invalidation. The completion array is written by each SMMU through MSI.
+ *
+ * Call smmuv3_cmd_sync_init() before passing this object to an invalidation
+ * interface. Its members are driver-private after initialization.
+ */
+struct smmuv3_cmd_sync {
+	uintptr_t completion_pa;
+	unsigned int completion[RMM_MAX_SMMUS];
+	bool init;
+};
+
+/*
+ * Initialize CMD_SYNC completion state.
+ *
+ * Parameters:
+ *   cmd_sync	 - Completion state to initialize.
+ *   cmd_sync_pa	 - Non-zero physical address of cmd_sync in the SMMU's
+ * 		   physical address space.
+ *
+ * Return:
+ *   0		 - success.
+ *   -EINVAL	 - cmd_sync or its physical address is invalid.
+ */
+int smmuv3_cmd_sync_init(struct smmuv3_cmd_sync *cmd_sync,
+			 uintptr_t cmd_sync_pa);
 
 /*
  * Set up the SMMU driver and allocate resources for the SMMU instances.
@@ -47,7 +79,8 @@ uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
  *   -EINVAL	- invalid driv_hdl or hdl_sz.
  *   -ENOMEM	- memory mapping or allocation failure.
  *   -ENODEV	- no SMMUs are defined in the layout.
- *   -ENOTSUP	- a required hardware feature is not supported.
+ *   -ENOTSUP	- a required hardware feature is not supported, including an
+ *		  SMMU output address size narrower than the CPU PA range.
  *   -ETIMEDOUT	- SMMU command timeout.
  *   -EIO	- internal SMMU error while issuing commands.
  *
@@ -148,11 +181,9 @@ int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid);
  * broadcast TLB maintenance.
  *
  * Parameters:
- *   msi_addr_pa - Physical address of the msi_addr array. Each SMMU is
- *		   programmed to write the corresponding completion word via
- *		   MSI when the CMD_SYNC command completes.
- *   msi_addr	 - Array of per-SMMU CMD_SYNC completion words updated by
- *		   the SMMUs via MSI.
+ *   cmd_sync	 - Initialized CMD_SYNC completion state. Each SMMU writes
+ *		   its corresponding completion word through MSI when CMD_SYNC
+ *		   completes.
  *
  * Return:
  *   0		 - success, or when broadcast TLB maintenance is supported
@@ -160,7 +191,7 @@ int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid);
  *   -ETIMEDOUT	 - timeout during command processing.
  *   -EIO	 - internal SMMU error.
  */
-int smmuv3_inv(uintptr_t msi_addr_pa, unsigned int *msi_addr);
+int smmuv3_inv(struct smmuv3_cmd_sync *cmd_sync);
 
 /*
  * Invalidate all TLB entries at all implemented stages for a VMID on a single SMMU.
@@ -168,11 +199,7 @@ int smmuv3_inv(uintptr_t msi_addr_pa, unsigned int *msi_addr);
  * Parameters:
  *   smmu_idx	 - Index of SMMU instance.
  *   vmid	 - Virtual Machine Identifier.
- *   msi_addr_pa - Physical address of the msi_addr array. Each SMMU is
- *		   programmed to write the corresponding completion word via
- *		   MSI when the CMD_SYNC command completes.
- *   msi_addr	 - Array of per-SMMU CMD_SYNC completion words updated by
- *		   the SMMUs via MSI.
+ *   cmd_sync	 - Initialized CMD_SYNC completion state.
  *
  * Return:
  *   0		 - success, or when broadcast TLB maintenance is supported
@@ -182,7 +209,7 @@ int smmuv3_inv(uintptr_t msi_addr_pa, unsigned int *msi_addr);
  *   -EIO	 - hardware or queue processing error.
  */
 int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid,
-			uintptr_t msi_addr_pa, unsigned int *msi_addr);
+			struct smmuv3_cmd_sync *cmd_sync);
 
 /*
  * Invalidate @num_entrs TLB entries within a block region for VMID.
@@ -194,11 +221,7 @@ int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid,
  *   num_entrs	 - Number of entries to invalidate.
  *   leaf	 - If 'true', validate only cached entries
  *		   for the last level of translation table walk.
- *   msi_addr_pa - Physical address of the msi_addr array. Each SMMU is
- *		   programmed to write the corresponding completion word via
- *		   MSI when the CMD_SYNC command completes.
- *   msi_addr	 - Array of per-SMMU CMD_SYNC completion words updated by
- *		   the SMMUs via MSI.
+ *   cmd_sync	 - Initialized CMD_SYNC completion state.
  *
  * Return:
  *   0		 - success, or when broadcast TLB maintenance is supported
@@ -208,7 +231,7 @@ int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid,
  */
 int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
 			unsigned long num_entrs, bool leaf,
-			uintptr_t msi_addr_pa, unsigned int *msi_addr);
+			struct smmuv3_cmd_sync *cmd_sync);
 
 /*
  * Invalidate @num_entrs TLB entries mapped within block entry for a list of VMIDs.
@@ -220,11 +243,7 @@ int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
  *   num_entrs	 - Number of entries to invalidate.
  *   leaf	 - If 'true', validate only cached entries
  *		   for the last level of translation table walk.
- *   msi_addr_pa - Physical address of the msi_addr array. Each SMMU is
- *		   programmed to write the corresponding completion word via
- *		   MSI when the CMD_SYNC command completes.
- *   msi_addr	 - Array of per-SMMU CMD_SYNC completion words updated by
- *		   the SMMUs via MSI.
+ *   cmd_sync	 - Initialized CMD_SYNC completion state.
  *
  * Return:
  *   0		 - success, or when broadcast TLB maintenance is supported
@@ -235,6 +254,6 @@ int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
 int smmuv3_inv_at_level_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
 				  unsigned long addr, long level,
 				  unsigned long num_entrs, bool leaf,
-				  uintptr_t msi_addr_pa, unsigned int *msi_addr);
+				  struct smmuv3_cmd_sync *cmd_sync);
 
 #endif /* SMMUV3_H */

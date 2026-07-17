@@ -116,7 +116,7 @@ static void invalidate_page_block_per_vmids(struct rd *rd, unsigned long map_add
 	if (rd->da_enabled) {
 		int ret = smmuv3_inv_at_level_per_vmids(vmid_list, nvmids, map_addr,
 							level, 1UL, true,
-							rd->msi_addr_pa, rd->msi_addr);
+							&rd->smmu_cmd_sync);
 
 		if (ret != 0) {
 			ERROR("smmuv3_inv_at_level_per_vmids(0x%lx %ld) error %d\n",
@@ -145,7 +145,7 @@ static void invalidate_pages_in_block_for_contexts(struct rd *rd, unsigned long 
 	if (rd->da_enabled) {
 		int ret = smmuv3_inv_at_level_per_vmids(vmid_list, nvmids, map_addr,
 							level, S2TTES_PER_S2TT, false,
-							rd->msi_addr_pa, rd->msi_addr);
+							&rd->smmu_cmd_sync);
 
 		if (ret != 0) {
 			ERROR("smmuv3_inv_at_level_per_vmids(0x%lx %ld) error %d\n",
@@ -165,7 +165,7 @@ static void invalidate_page_block(const struct s2tt_context *s2_ctx,
 
 	if (rd->da_enabled) {
 		int ret = smmuv3_inv_at_level(s2_ctx->vmid, map_addr, level, 1UL, true,
-						rd->msi_addr_pa, rd->msi_addr);
+						&rd->smmu_cmd_sync);
 
 		if (ret != 0) {
 			ERROR("smmuv3_inv_at_level(0x%x 0x%lx %ld) error %d\n",
@@ -188,7 +188,7 @@ static void invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
 	if (rd->da_enabled) {
 		int ret = smmuv3_inv_at_level(s2_ctx->vmid, map_addr, level,
 						S2TTES_PER_S2TT, false,
-						rd->msi_addr_pa, rd->msi_addr);
+						&rd->smmu_cmd_sync);
 		if (ret != 0) {
 			ERROR("smmuv3_inv_at_level(0x%x 0x%lx %ld) error %d\n",
 				s2_ctx->vmid, map_addr, level, ret);

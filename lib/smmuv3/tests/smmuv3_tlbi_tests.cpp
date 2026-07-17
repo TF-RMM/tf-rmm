@@ -37,8 +37,12 @@
 
 extern "C" {
 #include <debug.h>
+#include <errno.h>
 #include <smc-rmi.h>
+#include <smmuv3.h>
+#include <smmuv3_arch.h>
 #include <smmuv3_priv.h>
+#include <stddef.h>
 #include <test_helpers.h>
 }
 
@@ -93,6 +97,41 @@ static void check_full_coverage(unsigned long num_grans_total,
 TEST_GROUP(smmuv3_tlbi_range)
 {
 };
+
+TEST(smmuv3_tlbi_range, fake_host_cmd_sync_msi)
+{
+	uint32_t completion = UINT32_MAX;
+	uint32_t prod = 1U;
+	uint32_t cons = 0U;
+	uint128_t cmd = CMD_SYNC | COMPOSE(CS, SIG_IRQ) |
+		       ((uint128_t)UINT64_C(0xA5A5A5A5) << MSIDATA_SHIFT) |
+		       ((uint128_t)(uintptr_t)&completion << MSIADDR_SHIFT);
+
+	smmuv3_arch_process_cmd(cmd, &prod, &cons);
+
+	UNSIGNED_LONGS_EQUAL(0xA5A5A5A5U, completion);
+	UNSIGNED_LONGS_EQUAL(prod, cons);
+}
+
+TEST(smmuv3_tlbi_range, cmd_sync_init)
+{
+	struct smmuv3_cmd_sync cmd_sync = {};
+	uintptr_t cmd_sync_pa = (uintptr_t)&cmd_sync;
+	uintptr_t completion_pa = cmd_sync_pa +
+				  offsetof(struct smmuv3_cmd_sync, completion);
+
+	cmd_sync.completion[0] = UINT32_MAX;
+
+	LONGS_EQUAL(0L, smmuv3_cmd_sync_init(&cmd_sync, cmd_sync_pa));
+	UNSIGNED_LONGS_EQUAL((unsigned long)completion_pa,
+			     (unsigned long)cmd_sync.completion_pa);
+	for (unsigned int i = 0U; i < RMM_MAX_SMMUS; i++) {
+		UNSIGNED_LONGS_EQUAL(0U, cmd_sync.completion[i]);
+	}
+
+	LONGS_EQUAL(-EINVAL, smmuv3_cmd_sync_init(NULL, cmd_sync_pa));
+	LONGS_EQUAL(-EINVAL, smmuv3_cmd_sync_init(&cmd_sync, 0UL));
+}
 
 /* -----------------------------------------------------------------------
  * TC1: Single granule -- the minimal possible input.

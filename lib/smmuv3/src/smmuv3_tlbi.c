@@ -5,10 +5,45 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <memory.h>
 #include <s2tt.h>
 #include <smmuv3.h>
 #include <smmuv3_priv.h>
+#include <stddef.h>
 #include <xlat_defs.h>
+
+static bool __unused cmd_sync_is_initialized(const struct smmuv3_cmd_sync *cmd_sync)
+{
+	return (cmd_sync != NULL) &&
+	       cmd_sync->init &&
+	       (cmd_sync->completion_pa != 0UL) &&
+	       ALIGNED(cmd_sync->completion_pa, sizeof(cmd_sync->completion[0]));
+}
+
+int smmuv3_cmd_sync_init(struct smmuv3_cmd_sync *cmd_sync,
+			 uintptr_t cmd_sync_pa)
+{
+	uintptr_t completion_pa =
+		cmd_sync_pa + offsetof(struct smmuv3_cmd_sync, completion);
+
+	if ((cmd_sync == NULL) || (cmd_sync_pa == 0UL) ||
+	    (completion_pa == 0UL) ||
+	    (completion_pa < cmd_sync_pa) ||
+	    !ALIGNED(completion_pa, sizeof(cmd_sync->completion[0]))) {
+		return -EINVAL;
+	}
+
+	cmd_sync->init = false;
+	cmd_sync->completion_pa = completion_pa;
+
+	for (unsigned long i = 0UL; i < RMM_MAX_SMMUS; i++) {
+		SCA_WRITE32(&cmd_sync->completion[i], 0U);
+	}
+
+	cmd_sync->init = true;
+
+	return 0;
+}
 
 /* Acquire/release SMMUs' locks starting from SMMU[idx] */
 static void spinlock_smmu(unsigned long idx, bool acquire)
@@ -24,7 +59,7 @@ static void spinlock_smmu(unsigned long idx, bool acquire)
 }
 
 /* Wait for completion of CMD_SYNC command on all SMMUs */
-static int poll_cmd_sync_all(unsigned int *msi_addr)
+static int poll_cmd_sync_all(struct smmuv3_cmd_sync *cmd_sync)
 {
 	unsigned int retries = 0U;
 	struct smmuv3_driv *driv = get_smmuv3_driver();
@@ -37,7 +72,7 @@ static int poll_cmd_sync_all(unsigned int *msi_addr)
 
 		for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
 			/* Check per-SMMU CMD_SYNC completion word */
-			if (msi_addr[i] != 0U) {
+			if (SCA_READ32_ACQUIRE(&cmd_sync->completion[i]) != 0U) {
 				smmu_idx = i;
 				complete = false;
 			}
@@ -56,7 +91,7 @@ static int poll_cmd_sync_all(unsigned int *msi_addr)
 
 static int tlbi_ipa_single(struct smmuv3_dev *smmu, unsigned int vmid,
 			   unsigned long addr, unsigned long num_grans,
-			   long tgt_lvl, bool leaf, uintptr_t msi_addr_pa)
+			   long tgt_lvl, bool leaf)
 {
 	unsigned long vmid_param0;
 	unsigned long tg_ttl;
@@ -137,15 +172,7 @@ static int tlbi_ipa_single(struct smmuv3_dev *smmu, unsigned int vmid,
 		num_grans -= covered;
 	}
 
-	/*
-	 * Sync and ...
-	 * Caller will wait for completion.
-	 */
-	ret = prepare_send_cmd_sync(smmu, msi_addr_pa, 0U);
-	if (ret != 0) {
-		SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "SYNC");
-	}
-	return ret;
+	return 0;
 }
 
 static int tlbi_single(struct smmuv3_dev *smmu, uintptr_t msi_addr_pa)
@@ -169,7 +196,7 @@ static int tlbi_single(struct smmuv3_dev *smmu, uintptr_t msi_addr_pa)
 	return ret;
 }
 
-int smmuv3_inv(uintptr_t msi_addr_pa, unsigned int *msi_addr)
+int smmuv3_inv(struct smmuv3_cmd_sync *cmd_sync)
 {
 	struct smmuv3_driv *driv = get_smmuv3_driver();
 	bool poll_sync = false;
@@ -179,6 +206,12 @@ int smmuv3_inv(uintptr_t msi_addr_pa, unsigned int *msi_addr)
 	/* Broadcast TLB maintenance is supported on all SMMUs */
 	if (get_smmu_broadcast_tlb()) {
 		return 0;
+	}
+
+	assert(cmd_sync_is_initialized(cmd_sync));
+
+	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
+		SCA_WRITE32(&cmd_sync->completion[i], 0U);
 	}
 
 	/*
@@ -198,10 +231,11 @@ int smmuv3_inv(uintptr_t msi_addr_pa, unsigned int *msi_addr)
 		   ((smmu->config.features & FEAT_BTM) == 0U)) {
 			int ret;
 
-			msi_addr[i] = U(-1);
+			SCA_WRITE32(&cmd_sync->completion[i], U(-1));
 
 			ret = tlbi_single(smmu,
-					  msi_addr_pa + (i * sizeof(unsigned int)));
+					  cmd_sync->completion_pa +
+					  (i * sizeof(cmd_sync->completion[0])));
 			if (ret != 0) {
 				/* Release the remaining SMMU locks */
 				spinlock_smmu(i, false);
@@ -215,17 +249,19 @@ int smmuv3_inv(uintptr_t msi_addr_pa, unsigned int *msi_addr)
 
 	if (poll_sync) {
 		/* Wait for completion on all SMMUs */
-		return poll_cmd_sync_all(msi_addr);
+		return poll_cmd_sync_all(cmd_sync);
 	}
 	return 0;
 }
 
 int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid,
-			uintptr_t msi_addr_pa, unsigned int *msi_addr)
+			struct smmuv3_cmd_sync *cmd_sync)
 {
 	struct smmuv3_dev *smmu;
 	unsigned int retries = 0U;
 	int ret;
+
+	assert(cmd_sync_is_initialized(cmd_sync));
 
 	smmu = get_by_index(smmu_idx, 0U);
 	if (smmu == NULL) {
@@ -259,12 +295,15 @@ int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid,
 		return ret;
 	}
 
-	msi_addr[smmu_idx] = U(-1);
+	SCA_WRITE32(&cmd_sync->completion[smmu_idx], U(-1));
 
 	ret = prepare_send_cmd_sync(smmu,
-				    msi_addr_pa + (smmu_idx * sizeof(unsigned int)), 0U);
+				    cmd_sync->completion_pa +
+				    (smmu_idx * sizeof(cmd_sync->completion[0])), 0U);
 	if (ret != 0) {
 		SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "SYNC");
+		spinlock_release(&smmu->lock);
+		return ret;
 	}
 
 	spinlock_release(&smmu->lock);
@@ -272,7 +311,7 @@ int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid,
 	/* Wait for completion of CMD_SYNC command on SMMU */
 	do {
 		/* Check per-SMMU CMD_SYNC completion word */
-		if (msi_addr[smmu_idx] == 0U) {
+		if (SCA_READ32_ACQUIRE(&cmd_sync->completion[smmu_idx]) == 0U) {
 			return 0;
 		}
 
@@ -286,7 +325,7 @@ int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid,
 /* Invalidate @num_entrs TLB entries within a block region for @vmid */
 int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
 			unsigned long num_entrs, bool leaf,
-			uintptr_t msi_addr_pa, unsigned int *msi_addr)
+			struct smmuv3_cmd_sync *cmd_sync)
 {
 	struct smmuv3_driv *driv = get_smmuv3_driver();
 
@@ -300,6 +339,12 @@ int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
 	/* Broadcast TLB maintenance is supported on all SMMUs */
 	if (get_smmu_broadcast_tlb()) {
 		return 0;
+	}
+
+	assert(cmd_sync_is_initialized(cmd_sync));
+
+	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
+		SCA_WRITE32(&cmd_sync->completion[i], 0U);
 	}
 
 	/*
@@ -319,12 +364,20 @@ int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
 		   ((smmu->config.features & FEAT_BTM) == 0U)) {
 			int ret;
 
-			msi_addr[i] = U(-1);
+			SCA_WRITE32(&cmd_sync->completion[i], U(-1));
 
-			ret = tlbi_ipa_single(smmu, vmid, addr, num_grans, level, leaf,
-						msi_addr_pa + (i * sizeof(unsigned int)));
+			ret = tlbi_ipa_single(smmu, vmid, addr, num_grans, level, leaf);
 			if (ret != 0) {
 				/* Release the remaining SMMU locks */
+				spinlock_smmu(i, false);
+				return ret;
+			}
+
+			ret = prepare_send_cmd_sync(smmu,
+					cmd_sync->completion_pa +
+					(i * sizeof(cmd_sync->completion[0])), 0U);
+			if (ret != 0) {
+				SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "SYNC");
 				spinlock_smmu(i, false);
 				return ret;
 			}
@@ -336,7 +389,7 @@ int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
 
 	if (poll_sync) {
 		/* Wait for completion on all SMMUs */
-		return poll_cmd_sync_all(msi_addr);
+		return poll_cmd_sync_all(cmd_sync);
 	}
 	return 0;
 }
@@ -353,7 +406,7 @@ int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
 int smmuv3_inv_at_level_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
 				  unsigned long addr, long level,
 				  unsigned long num_entrs, bool leaf,
-				  uintptr_t msi_addr_pa, unsigned int *msi_addr)
+				  struct smmuv3_cmd_sync *cmd_sync)
 {
 	struct smmuv3_driv *driv = get_smmuv3_driver();
 
@@ -371,6 +424,12 @@ int smmuv3_inv_at_level_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
 		return 0;
 	}
 
+	assert(cmd_sync_is_initialized(cmd_sync));
+
+	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
+		SCA_WRITE32(&cmd_sync->completion[i], 0U);
+	}
+
 	/*
 	 * Acquire all SMMUs' locks to ensure that concurrent operations,
 	 * for example updating an STE, do not touch shared structures.
@@ -386,28 +445,36 @@ int smmuv3_inv_at_level_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
 		 */
 		if ((smmu->state == PSMMU_ACTIVE) &&
 		   ((smmu->config.features & FEAT_BTM) == 0U)) {
+			int ret;
+
+			SCA_WRITE32(&cmd_sync->completion[i], U(-1));
+
 			for (unsigned int j = 0U; j < nvmids; j++) {
-				int ret;
-
-				msi_addr[i] = U(-1);
-
 				ret = tlbi_ipa_single(smmu, vmid_list[j],
-						      addr, num_grans, level, leaf,
-						      msi_addr_pa + (i * sizeof(unsigned int)));
+						      addr, num_grans, level, leaf);
 				if (ret != 0) {
 					/* Release the remaining SMMU locks */
 					spinlock_smmu(i, false);
 					return ret;
 				}
-				poll_sync = true;
 			}
+
+			ret = prepare_send_cmd_sync(smmu,
+					cmd_sync->completion_pa +
+					(i * sizeof(cmd_sync->completion[0])), 0U);
+			if (ret != 0) {
+				SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "SYNC");
+				spinlock_smmu(i, false);
+				return ret;
+			}
+			poll_sync = true;
 		}
 		spinlock_release(&smmu->lock);
 	}
 
 	if (poll_sync) {
 		/* Wait for completion on all SMMUs */
-		return poll_cmd_sync_all(msi_addr);
+		return poll_cmd_sync_all(cmd_sync);
 	}
 	return 0;
 }
