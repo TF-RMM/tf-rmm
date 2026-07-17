@@ -18,18 +18,6 @@
 #include <utils_def.h>
 #include <xlat_tables.h>
 
-/* Log2 of max command queue size */
-#define MAX_LOG2_CMD_QUEUE_SIZE	8U
-
-COMPILER_ASSERT_NO_CBMC(MAX_LOG2_CMD_QUEUE_SIZE ==
-		(GRANULE_SHIFT - U(__builtin_ctz(CMD_RECORD_SIZE))));
-
-/* Log2 of max event queue size */
-#define MAX_LOG2_EVT_QUEUE_SIZE	7U
-
-COMPILER_ASSERT_NO_CBMC(MAX_LOG2_EVT_QUEUE_SIZE ==
-		(GRANULE_SHIFT - U(__builtin_ctz(EVT_RECORD_SIZE))));
-
 COMPILER_ASSERT_NO_CBMC(STRTAB_L1_STE_MAX == PSMMU_ST_L2_REFCOUNT_MAX);
 COMPILER_ASSERT_NO_CBMC(STRTAB_L2_SIZE == GRANULE_SIZE);
 
@@ -59,6 +47,22 @@ bool get_smmu_broadcast_tlb(void)
 struct smmuv3_driv *get_smmuv3_driver(void)
 {
 	return g_driver;
+}
+
+/*
+ * Calculate the number of bits required for the maximum StreamID.
+ * Ensure the result is at least SMMU_STRTAB_SPLIT, the minimum
+ * StreamID size required for two-level SMMUv3 Stream Tables.
+ */
+static unsigned int calc_streamid_bits(unsigned int sid_max)
+{
+	if (sid_max != 0U) {
+		unsigned int bits = 32U - (unsigned int)__builtin_clz(sid_max);
+
+		return MAX(bits, SMMU_STRTAB_SPLIT);
+	}
+
+	return SMMU_STRTAB_SPLIT;
 }
 
 /*
@@ -170,6 +174,17 @@ uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
 	/* Init smmuv3_dev fields based on SMMU info structures */
 	smmu = driver->smmuv3_devs;
 	for (uint64_t i = 0UL; i < plat_smmu_list->num_smmus; i++) {
+		unsigned int sid_max;
+
+		/* Get the top of BDF mappings (inclusive) */
+		if (rmm_el3_ifc_sid_max((unsigned int)i, &sid_max) != E_RMM_OK) {
+			ERROR("Invalid SMMU info data\n");
+			return 0UL;
+		}
+
+		/* Calculate the maximum number of bits in StreamID */
+		smmu[i].strtab_sid_bits = calc_streamid_bits(sid_max);
+
 		smmu[i].ns_base_pa = plat_smmu_list->smmus[i].smmu_base;
 		smmu[i].r_base_pa = plat_smmu_list->smmus[i].smmu_r_base;
 		SMMU_DEBUG("SMMUv3[%lu]: NS base addr: 0x%lx, R base addr: 0x%lx\n",
@@ -194,7 +209,7 @@ void configure_strtab(struct smmuv3_dev *smmu, uintptr_t strtab_base_pa)
 	uint32_t reg;
 	uint64_t reg64;
 
-	reg  = INPLACE32(STRTAB_BASE_CFG_LOG2SIZE, smmu->config.streamid_bits);
+	reg  = INPLACE32(STRTAB_BASE_CFG_LOG2SIZE, smmu->strtab_sid_bits);
 	reg |= INPLACE32(STRTAB_BASE_CFG_SPLIT, SMMU_STRTAB_SPLIT);
 	reg |= INPLACE32(STRTAB_BASE_CFG_FMT, TWO_LVL_STR_TABLE);
 	write32(reg, (void *)(smmu->r_base + SMMU_R_STRTAB_BASE_CFG));
@@ -255,27 +270,33 @@ static int init_config(struct smmuv3_dev *smmu)
 	/* cppcheck-suppress misra-c2012-12.2 */
 	log2size = EXTRACT32(IDR1_CMDQS, idr1);
 
-	/* Restrict to 4KB command queue (256 entries) */
-	if (log2size > MAX_LOG2_CMD_QUEUE_SIZE) {
-		log2size = MAX_LOG2_CMD_QUEUE_SIZE;
+	/* Limit the queue size to the configured maximum */
+	if (log2size > SMMU_MAX_LOG2_CMDQ_SIZE) {
+		log2size = SMMU_MAX_LOG2_CMDQ_SIZE;
 	}
 
 	/* Use hardware-detected value bounded by max */
 	smmu->config.cmdq_log2size = log2size;
-	SMMU_DEBUG("\tCMDQ log2 size %u\n", smmu->config.cmdq_log2size);
+	size = (1UL << log2size) * CMD_RECORD_SIZE;
+	smmu->cmdq_size = round_up(size, GRANULE_SIZE);
+	SMMU_DEBUG("\tCMDQ log2 %u size 0x%lx\n",
+			smmu->config.cmdq_log2size, smmu->cmdq_size);
 
 	/* Event queue */
 	/* cppcheck-suppress misra-c2012-12.2 */
 	log2size = EXTRACT32(IDR1_EVTQS, idr1);
 
-	/* Restrict to 4KB event queue (128 entries) */
-	if (log2size > MAX_LOG2_EVT_QUEUE_SIZE) {
-		log2size = MAX_LOG2_EVT_QUEUE_SIZE;
+	/* Limit the queue size to the configured maximum */
+	if (log2size > SMMU_MAX_LOG2_EVTQ_SIZE) {
+		log2size = SMMU_MAX_LOG2_EVTQ_SIZE;
 	}
 
 	/* Use hardware-detected value bounded by max */
 	smmu->config.evtq_log2size = log2size;
-	SMMU_DEBUG("\tEVTQ log2 size %u\n", smmu->config.evtq_log2size);
+	size = (1UL << log2size) * EVT_RECORD_SIZE;
+	smmu->evtq_size = round_up(size, GRANULE_SIZE);
+	SMMU_DEBUG("\tEVTQ log2 %u size 0x%lx\n",
+		smmu->config.evtq_log2size, smmu->evtq_size);
 
 	/* Max bits of SubstreamID */
 	/* cppcheck-suppress misra-c2012-12.2 */
@@ -288,7 +309,7 @@ static int init_config(struct smmuv3_dev *smmu)
 	/* cppcheck-suppress misra-c2012-12.2 */
 	log2size = EXTRACT32(IDR1_SIDSIZE, idr1);
 
-	/* Use hardware-detected value */
+	/* Get hardware-detected value */
 	smmu->config.streamid_bits = log2size;
 	SMMU_DEBUG("\tStreamID max bits %u\n", log2size);
 
@@ -298,7 +319,18 @@ static int init_config(struct smmuv3_dev *smmu)
 		return -ENOTSUP;
 	}
 
-	num_l1_ents = (1UL << (smmu->config.streamid_bits - SMMU_STRTAB_SPLIT));
+	/*
+	 * Check against the maximum number of bits in StreamID
+	 * obtained from the BDF scan.
+	 */
+	if (smmu->config.streamid_bits < smmu->strtab_sid_bits) {
+		SMMU_ERROR(smmu, "StreamID max bits %u < BDF SID size %u\n",
+				smmu->config.streamid_bits, smmu->strtab_sid_bits);
+		return -ENOTSUP;
+	}
+
+	/* Use calculated value derived from the platform confgiration */
+	num_l1_ents = (1UL << (smmu->strtab_sid_bits - SMMU_STRTAB_SPLIT));
 	size = num_l1_ents * STRTAB_L1_DESC_SIZE;
 	smmu->strtab_size = round_up(size, GRANULE_SIZE);
 
@@ -549,14 +581,11 @@ static void clear_ste(struct ste_entry *ste_ptr)
 	dsb(ish);
 }
 
-static int configure_ste(struct smmuv3_dev *smmu, unsigned int sid,
-			 struct ste_entry *ste_ptr,
-			 const struct smmu_stg2_config *s2_cfg)
+static void configure_ste(struct ste_entry *ste_ptr,
+			  const struct smmu_stg2_config *s2_cfg)
 {
 	unsigned long ds, sl2;
-	int ret;
 
-	assert(smmu != NULL);
 	assert(ste_ptr != NULL);
 	assert(s2_cfg != NULL);
 
@@ -599,14 +628,6 @@ static int configure_ste(struct smmuv3_dev *smmu, unsigned int sid,
 			ste_ptr->ste[4], ste_ptr->ste[3],
 			ste_ptr->ste[2], ste_ptr->ste[1], ste_ptr->ste[0]);
 	dsb(ish);
-
-	/* Invalidate configuration structure */
-	ret = inval_cached_ste(smmu, sid, true);
-	if (ret != 0) {
-		clear_ste(ste_ptr);
-	}
-
-	return ret;
 }
 
 static int inval_cfg_tlbs(struct smmuv3_dev *smmu)
@@ -992,7 +1013,7 @@ struct smmuv3_dev *get_by_index(unsigned int smmu_idx, unsigned int sid)
 	assert(g_smmus != NULL);
 	smmu = &g_smmus[smmu_idx];
 
-	if (sid >= (U(1) << smmu->config.streamid_bits)) {
+	if (sid >= (U(1) << smmu->strtab_sid_bits)) {
 		SMMU_DEBUG("Illegal StreamID 0x%x\n", sid);
 		return NULL;
 	}
@@ -1232,12 +1253,17 @@ int smmuv3_configure_stream(unsigned long ecam_addr, unsigned int tdi_id,
 	atomic_granule_get(g_l2tab);
 	granule_unlock(g_l2tab);
 
-	ret = configure_ste(smmu, sid, ste_ptr, s2_cfg);
+	configure_ste(ste_ptr, s2_cfg);
+
+	/* Invalidate configuration structure */
+	ret = inval_cached_ste(smmu, sid, true);
 	if (ret == 0) {
 		*sid_ptr = sid;
 		*idx_ptr = smmu_idx;
 	} else {
-		/* Roll back the refcount taken before writing the STE fields. */
+		clear_ste(ste_ptr);
+
+		/* Roll back the refcount taken before writing the STE fields */
 		atomic_granule_put_release(g_l2tab);
 	}
 
@@ -1249,9 +1275,9 @@ int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz)
 {
 	struct smmuv3_dev *smmu;
 	unsigned long num_smmus;
-	unsigned long num_l2_ents;
-	int ret;
+	unsigned long num_l1_ents;
 	uintptr_t reserved_va;
+	int ret;
 
 	if ((driv_hdl == 0U) || (hdl_sz < sizeof(struct smmuv3_driv))) {
 		SMMU_DEBUG("Invalid SMMUv3 driver handle\n");
@@ -1320,50 +1346,46 @@ int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz)
 		}
 
 		/* Reserve VA space for runtime structures */
+
+		/* L1 Stream Table */
 		ret = smmuv3_arch_reserve(smmu->strtab_size,
 						&reserved_va);
 		if (ret != 0) {
-			SMMU_ERROR(smmu,
-				"Failed to reserve VA for L1 StrTab\n");
+			SMMU_ERROR(smmu, "Failed to reserve VA for %s\n", "L1 StrTab");
 			goto err;
 		}
-		smmu->strtab_base = (uint64_t *)
-			smmu_va_mark_reserved(reserved_va);
+		smmu->strtab_base = (uint64_t *)smmu_va_mark_reserved(reserved_va);
 
-		ret = smmuv3_arch_reserve(GRANULE_SIZE, &reserved_va);
+		/* Command queue */
+		ret = smmuv3_arch_reserve(smmu->cmdq_size, &reserved_va);
 		if (ret != 0) {
-			SMMU_ERROR(smmu,
-				"Failed to reserve VA for CMDQ\n");
+			SMMU_ERROR(smmu, "Failed to reserve VA for %s\n", "CMDQ");
 			goto err;
 		}
-		smmu->cmdq.q_base =
-			smmu_va_mark_reserved(reserved_va);
+		smmu->cmdq.q_base = smmu_va_mark_reserved(reserved_va);
 
-		ret = smmuv3_arch_reserve(GRANULE_SIZE, &reserved_va);
+		/* Event queue */
+		ret = smmuv3_arch_reserve(smmu->evtq_size, &reserved_va);
 		if (ret != 0) {
-			SMMU_ERROR(smmu,
-				"Failed to reserve VA for EVTQ\n");
+			SMMU_ERROR(smmu, "Failed to reserve VA for %s\n", "EVTQ");
 			goto err;
 		}
-		smmu->evtq.q_base =
-			smmu_va_mark_reserved(reserved_va);
+		smmu->evtq.q_base = smmu_va_mark_reserved(reserved_va);
 
-		num_l2_ents = (1UL <<
-			(smmu->config.streamid_bits - SMMU_STRTAB_SPLIT));
+		/* Number of L2 Tables */
+		num_l1_ents = (1UL << (smmu->strtab_sid_bits - SMMU_STRTAB_SPLIT));
 
-		ret = smmuv3_arch_reserve(num_l2_ents * GRANULE_SIZE,
-						&smmu->l2_pool_va);
+		/* L2 Tables pool */
+		ret = smmuv3_arch_reserve(num_l1_ents * GRANULE_SIZE, &smmu->l2_pool_va);
 		if (ret != 0) {
-			SMMU_ERROR(smmu,
-				"Failed to reserve VA for L2 pool\n");
+			SMMU_ERROR(smmu, "Failed to reserve VA for %s\n", "L2 pool");
 			goto err;
 		}
 
 		smmu->state = PSMMU_INACTIVE;
 
 		SMMU_DEBUG("SMMUv3[%lu] initialized and remapped NS base at 0x%lx,"
-			   " R base at 0x%lx\n",
-			   i, smmu->ns_base, smmu->r_base);
+			   " R base at 0x%lx\n", i, smmu->ns_base, smmu->r_base);
 	}
 
 	g_driver->is_init = true;

@@ -40,6 +40,8 @@ void smmuv3_psmmu_set_inactive(struct smmuv3_dev *smmu);
  * These functions are called during RMI_PSMMU_ACTIVATE while
  * in the PSMMU_BUSY state. They do not acquire or release the lock.
  */
+size_t smmuv3_psmmu_cmdq_alloc_size(struct smmuv3_dev *smmu);
+size_t smmuv3_psmmu_evtq_alloc_size(struct smmuv3_dev *smmu);
 size_t smmuv3_psmmu_strtab_size(struct smmuv3_dev *smmu);
 int smmuv3_psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa);
 int smmuv3_psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,

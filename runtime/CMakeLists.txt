@@ -112,6 +112,7 @@ target_sources(rmm-runtime
             "rmi/rtt_unmap.c"
             "rmi/run.c"
             "rmi/sro.c"
+            "rmi/sro_smmu.c"
             "rmi/vdev.c"
             "rmi/version.c")
 

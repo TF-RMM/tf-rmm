@@ -8,6 +8,7 @@
 
 #include <errno.h>
 #include <mmio.h>
+#include <smmuv3_priv.h>
 #include <string.h>
 #include <xlat_low_va.h>
 
@@ -91,7 +92,7 @@ static inline int smmuv3_arch_wait_for_ack(uintptr_t r_base, uint32_t ack_offset
 {
 	unsigned int retries = 0U;
 
-	while (retries++ < 100000U) {
+	while (retries++ < MAX_RETRIES) {
 		uint32_t val = read32((void *)(r_base + ack_offset));
 
 		if ((val & mask) == (expected & mask)) {
@@ -112,6 +113,17 @@ static inline void smmuv3_arch_sync_cmdq(void *prod_reg, void *cons_reg)
 {
 	(void)prod_reg;
 	(void)cons_reg;
+}
+
+/*
+ * Architecture-specific PSMMU reset.
+ *
+ * On real hardware, it is a dummy mplementation and has no functional effect.
+ *
+ */
+static inline void smmuv3_arch_psmmu_reset(struct smmuv3_dev *smmu)
+{
+	(void)smmu;
 }
 
 #endif /* SMMUV3_ARCH_H */

@@ -64,6 +64,13 @@ void smc_psmmu_st_l2_create(unsigned long psmmu_ptr, unsigned long sid,
 void smc_psmmu_st_l2_destroy(unsigned long psmmu_ptr, unsigned long sid,
 				struct smc_result *res);
 
-void psmmu_continue_handler(unsigned long fid, struct smc_result *res);
+void psmmu_activate_start(unsigned long fid, struct smc_result *res);
+void psmmu_activate_finish(unsigned long fid, struct smc_result *res);
+void psmmu_deactivate_start(unsigned long fid, struct smc_result *res);
+void psmmu_deactivate_finish(unsigned long fid, struct smc_result *res);
+void psmmu_create_l2_start(unsigned long fid, struct smc_result *res);
+void psmmu_create_l2_finish(unsigned long fid, struct smc_result *res);
+void psmmu_destroy_l2_start(unsigned long fid, struct smc_result *res);
+void psmmu_destroy_l2_finish(unsigned long fid, struct smc_result *res);
 
 #endif /* PSMMU_H */

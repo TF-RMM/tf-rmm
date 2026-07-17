@@ -43,4 +43,15 @@ bool rmm_el3_ifc_is_root_port_id_valid(unsigned long ecam_addr,
 	(void)root_port_id;
 	return true;
 }
+
+int rmm_el3_ifc_sid_max(unsigned int smmu_idx, unsigned int *sid_max)
+{
+	(void)smmu_idx;
+	(void)sid_max;
+
+	ASSERT(false, "rmm_el3_ifc_sid_max");
+	return 0;
+}
+
+
 #endif /* CBMC */
