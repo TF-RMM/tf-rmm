@@ -6,6 +6,7 @@
 #include <arch_features.h>
 #include <debug.h>
 #include <firme.h>
+#include <host_harness.h>
 #include <host_utils.h>
 #include <mec.h>
 #include <stdlib.h>
@@ -235,5 +236,26 @@ void reset_mecidr_el2(unsigned int value)
 		exit(1);
 	}
 
+	mec_test_reset();
+}
+
+void reset_firme_mecid_width(unsigned int width)
+{
+	host_firme_set_mecid_width(width);
+	(void)firme_init();
+	mec_test_reset();
+}
+
+void set_firme_mecid_refresh(bool enable)
+{
+	host_firme_enable_mecid_refresh(enable);
+	(void)firme_init();
+	mec_test_reset();
+}
+
+void set_firme_mecid_fr1(bool enable)
+{
+	host_firme_enable_mecid_fr1(enable);
+	(void)firme_init();
 	mec_test_reset();
 }

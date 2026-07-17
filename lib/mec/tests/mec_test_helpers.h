@@ -21,3 +21,6 @@ bool check_vmecid_p_el2_read_clear(void);
 void mec_test_realm_mecid_s2_init(unsigned int mecid);
 
 void reset_mecidr_el2(unsigned int value);
+void reset_firme_mecid_width(unsigned int width);
+void set_firme_mecid_refresh(bool enable);
+void set_firme_mecid_fr1(bool enable);

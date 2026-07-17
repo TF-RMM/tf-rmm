@@ -32,6 +32,7 @@ static unsigned long firme_el3_svc_feat_reg1[FIRME_NUM_SERVICES];
 static bool firme_feature_discovery(unsigned int svc_id)
 {
 	unsigned long res;
+	unsigned long present_abis;
 	/* coverity[var_decl:SUPPRESS] */
 	struct smc_result smc_res;
 	unsigned long svc_id_bit = FIRME_BASE_FR1_SVC_BIT(svc_id);
@@ -39,6 +40,8 @@ static bool firme_feature_discovery(unsigned int svc_id)
 
 	assert(svc_id < ARRAY_SIZE(firme_abis_masks));
 
+	firme_el3_svc_present_abis[svc_id] = 0UL;
+	firme_el3_svc_feat_reg1[svc_id] = 0UL;
 	mask = firme_abis_masks[svc_id];
 
 	/* Read base service feature reg 1 to see if the service is supported. */
@@ -73,15 +76,20 @@ static bool firme_feature_discovery(unsigned int svc_id)
 	if (smc_res.x[0] != FIRME_SUCCESS) {
 		return false;
 	}
-	firme_el3_svc_present_abis[svc_id] = smc_res.x[1] & mask;
+	present_abis = smc_res.x[1] & mask;
 
 	/* Feature register 1 is service-specific and optional. */
 	/* cppcheck-suppress misra-c2012-9.3 */
 	struct smc_args smc_args_3 = SMC_ARGS_2(svc_id, 1U);
+
 	monitor_call_with_arg_res(SMC_FIRME_BASE_FEATURES, &smc_args_3, &smc_res);
 	if (smc_res.x[0] == FIRME_SUCCESS) {
 		firme_el3_svc_feat_reg1[svc_id] = smc_res.x[1];
+	} else if (svc_id == FIRME_MECID_SERVICE_ID) {
+		return false;
 	}
+
+	firme_el3_svc_present_abis[svc_id] = present_abis;
 
 	return true;
 }

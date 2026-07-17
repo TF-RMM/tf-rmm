@@ -39,6 +39,10 @@ static unsigned int mec_compute_common_mecid_width(void)
 	}
 
 	local_width = (unsigned int)(EXTRACT(MECIDR_MECIDWIDTHM1, read_mecidr_el2()) + 1U);
+	if (!firme_supports_mec_refresh()) {
+		return local_width;
+	}
+
 	feat_reg1 = firme_get_feature_register(FIRME_MECID_SERVICE_ID, 1U);
 	el3_width = (unsigned int)(EXTRACT(FIRME_MECID_FR1_COMMON_MECID_WIDTH_BITS,
 					  feat_reg1) + 1U);
@@ -81,10 +85,7 @@ unsigned int mecid_max(void)
 {
 	unsigned int mecid_count;
 
-	/* cppcheck-suppress knownConditionTrueFalse */
-	if (!is_feat_mec_present()) {
-		return 0;
-	}
+	assert(is_feat_mec_present());
 
 	/*
 	 * MECIDR_MECIDWIDTHM1 plus 1 is the MECID width in bits.
