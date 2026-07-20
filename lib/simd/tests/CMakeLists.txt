@@ -3,13 +3,13 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
-target_include_directories(rmm-lib-arch
+target_include_directories(rmm-lib-simd
 	PRIVATE "tests")
 
 # Add test functionality
 rmm_build_unittest(NAME simd
 		   LIBRARIES rmm-platform
-		   TARGET rmm-lib-arch
+		   TARGET rmm-lib-simd
 		   SOURCES "tests/simd_tests.cpp"
 			   "tests/simd_test_helpers.c"
 		   ITERATIONS 10)

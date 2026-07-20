@@ -17,6 +17,7 @@ target_link_libraries(rmm-lib
               rmm-lib-mec
               rmm-lib-pcpu_data
               rmm-lib-rmm_el3_ifc
+              rmm-lib-simd
               rmm-lib-smc
               rmm-lib-smmuv3
               rmm-lib-s2tt
@@ -38,6 +39,7 @@ add_subdirectory("mbedtls")
 add_subdirectory("mec")
 add_subdirectory("pcpu_data")
 add_subdirectory("rmm_el3_ifc")
+add_subdirectory("simd")
 add_subdirectory("smc")
 add_subdirectory("smmuv3")
 add_subdirectory("s2tt")
