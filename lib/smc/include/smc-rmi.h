@@ -875,6 +875,14 @@
 #define SMC_RMI_PSMMU_ST_L2_DESTROY		SMC64_RMI_FID(U(0x8C))
 
 /*
+ * FID: 0xC400020E
+ *
+ * arg0 == PA of PSMMU
+ * arg1 == PA of PSMMU info structure
+ */
+#define SMC_RMI_PSMMU_INFO			SMC64_RMI_FID(U(0xBE))
+
+/*
  * FID: 0xC40001E1
  *
  * arg0 == Base PA of the tracking region
@@ -1918,12 +1926,53 @@ struct rmi_psmmu_params {
  * Contains flags provided by the Host during PSMMU activation.
  * Width: 64 bits
  */
-#define RMI_PSMMU_FLAGS_MSI_SHIFT	U(0)
-#define RMI_PSMMU_FLAGS_MSI_WIDTH	U(1)
-#define RMI_PSMMU_FLAGS_ATS_SHIFT	U(1)
-#define RMI_PSMMU_FLAGS_ATS_WIDTH	U(1)
-#define RMI_PSMMU_FLAGS_PRI_SHIFT	U(2)
-#define RMI_PSMMU_FLAGS_PRI_WIDTH	U(1)
+#define RMI_PSMMU_FLAGS_IRQ_CFG_SHIFT			U(0)
+#define RMI_PSMMU_FLAGS_IRQ_CFG_WIDTH			U(2)
+#define RMI_PSMMU_FLAGS_CMDQ_SYNC_IRQ_WIRED_BIT		BIT(2)
+#define RMI_PSMMU_FLAGS_ATS_SHIFT			U(3)
+#define RMI_PSMMU_FLAGS_ATS_WIDTH			U(1)
+#define RMI_PSMMU_FLAGS_ATS_BIT				BIT(RMI_PSMMU_FLAGS_ATS_SHIFT)
+#define RMI_PSMMU_FLAGS_PRI_SHIFT			U(4)
+#define RMI_PSMMU_FLAGS_PRI_WIDTH			U(1)
+#define RMI_PSMMU_FLAGS_PRI_BIT				BIT(RMI_PSMMU_FLAGS_PRI_SHIFT)
+
+/*
+ * RmiIrqCfg
+ * Represents the interrupt configuration of a PSMMU.
+ */
+#define RMI_IRQ_DISABLED	U(0)
+#define RMI_IRQ_WIRED		U(1)
+#define RMI_IRQ_MSI		U(2)
+
+/*
+ * RmiPsmmuInfoFlags
+ * Contains properties of the PSMMU returned to the Host.
+ * Width: 64 bits
+ */
+#define RMI_PSMMU_INFO_FLAGS_IRQ_CFG_SHIFT		U(0)
+#define RMI_PSMMU_INFO_FLAGS_IRQ_CFG_WIDTH		U(2)
+#define RMI_PSMMU_INFO_FLAGS_CMDQ_SYNC_IRQ_WIRED_BIT	BIT(2)
+#define RMI_PSMMU_INFO_FLAGS_ATS_BIT			BIT(3)
+
+/*
+ * RmiPsmmuInfo
+ * Contains information about a PSMMU.
+ * Width: 4096 (0x1000) bytes.
+ */
+
+/* cppcheck-suppress misra-c2012-2.4 */
+struct rmi_psmmu_info {
+	/* RmiPsmmuInfoFlags */
+	SET_MEMBER_RMI(unsigned long flags, 0x0, 0x8);
+	/* GERROR wired interrupt number */
+	SET_MEMBER_RMI(unsigned int gerror_intr_num, 0x8, 0x10);
+	/* EventQ wired interrupt number */
+	SET_MEMBER_RMI(unsigned int eventq_intr_num, 0x10, 0x18);
+	/* PRIQ wired interrupt number */
+	SET_MEMBER_RMI(unsigned int priq_intr_num, 0x18, 0x20);
+	/* CMDQ-sync wired interrupt number */
+	SET_MEMBER_RMI(unsigned int cmdq_sync_intr_num, 0x20, 0x1000);
+};
 
 /*
  * RmiPdevStreamFlags

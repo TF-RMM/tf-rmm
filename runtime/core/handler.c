@@ -158,6 +158,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PSMMU_DEACTIVATE,	1, 1, smc_psmmu_deactivate,	 true, true),
 	HANDLER(PSMMU_ST_L2_CREATE,	2, 1, smc_psmmu_st_l2_create,	 true, true),
 	HANDLER(PSMMU_ST_L2_DESTROY,	2, 1, smc_psmmu_st_l2_destroy,	 true, true),
+	HANDLER(PSMMU_INFO,		2, 1, smc_psmmu_info,		 true, true),
 	HANDLER(GRANULE_TRACKING_GET,	2, 4, smc_granule_tracking_get,	 true, true),
 	HANDLER(GPT_L1_CREATE,		1, 1, smc_gpt_l1_create,	 false, true),
 	HANDLER(RMM_CONFIG_GET,		1, 1, smc_rmm_config_get,	 true, true),
