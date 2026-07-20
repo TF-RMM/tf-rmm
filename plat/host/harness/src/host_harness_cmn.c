@@ -24,6 +24,8 @@
 #include <spinlock.h>
 #include <string.h>
 
+#define HOST_FIRME_MECID_WIDTH_MAX	U(16)
+
 #ifndef CBMC
 
 #define ATTEST_PLAT_TOKEN_HUNK_LEN	100
@@ -252,6 +254,10 @@ static uint8_t sample_attest_pub_key[] = {
 
 static psa_key_handle_t signing_key;
 #endif
+
+static unsigned int host_firme_mecid_width = HOST_FIRME_MECID_WIDTH_MAX;
+static bool host_firme_mecid_refresh_enabled = true;
+static bool host_firme_mecid_fr1_enabled = true;
 
 bool host_memcpy_ns_read(void *dest, const void *ns_src, unsigned long size)
 {
@@ -486,6 +492,8 @@ unsigned long host_firme_base_version(unsigned char service_id)
 		return SUPPORTED_FIRME_GM_VERSION;
 	case FIRME_IDE_SERVICE_ID:
 		return SUPPORTED_FIRME_IDE_VERSION;
+	case FIRME_MECID_SERVICE_ID:
+		return SUPPORTED_FIRME_MECID_VERSION;
 	default:
 		return FIRME_NOT_SUPPORTED;
 	}
@@ -505,6 +513,7 @@ unsigned long host_firme_base_features(unsigned char service_id,
 		} else if (index == 1U) {
 			*reg = FIRME_BASE_FR1_SVC_BIT(FIRME_GM_SERVICE_ID);
 			*reg |= FIRME_BASE_FR1_SVC_BIT(FIRME_IDE_SERVICE_ID);
+			*reg |= FIRME_BASE_FR1_SVC_BIT(FIRME_MECID_SERVICE_ID);
 			return FIRME_SUCCESS;
 		}
 		return FIRME_NOT_SUPPORTED;
@@ -517,6 +526,22 @@ unsigned long host_firme_base_features(unsigned char service_id,
 		if (index == 0U) {
 			*reg = FIRME_IDE_FR0_DEFAULT;
 		}
+		return FIRME_SUCCESS;
+	case FIRME_MECID_SERVICE_ID:
+		if (index == 0U) {
+			if (host_firme_mecid_refresh_enabled) {
+				*reg = FIRME_MECID_FR0_MEC_REFRESH_BIT;
+			}
+		} else if (index == 1U) {
+			if (!host_firme_mecid_fr1_enabled) {
+				return FIRME_NOT_SUPPORTED;
+			}
+			*reg = INPLACE(FIRME_MECID_FR1_COMMON_MECID_WIDTH_BITS,
+				       host_firme_mecid_width - 1U);
+		} else {
+			return FIRME_NOT_SUPPORTED;
+		}
+
 		return FIRME_SUCCESS;
 	default:
 		return FIRME_NOT_SUPPORTED;
@@ -531,6 +556,30 @@ unsigned long host_firme_gm_gpi_set(unsigned long base_addr,
 	(void)attributes;
 	*granule_count = 1UL;
 	return FIRME_SUCCESS;
+}
+
+unsigned long host_firme_mecid_refresh(unsigned long param)
+{
+	(void)param;
+
+	return FIRME_SUCCESS;
+}
+
+void host_firme_set_mecid_width(unsigned int width)
+{
+	assert((width > 0U) && (width <= HOST_FIRME_MECID_WIDTH_MAX));
+
+	host_firme_mecid_width = width;
+}
+
+void host_firme_enable_mecid_refresh(bool enable)
+{
+	host_firme_mecid_refresh_enabled = enable;
+}
+
+void host_firme_enable_mecid_fr1(bool enable)
+{
+	host_firme_mecid_fr1_enabled = enable;
 }
 
 
@@ -558,6 +607,9 @@ void host_monitor_call(unsigned long id, struct smc_args *args,
 	case SMC_FIRME_GM_GPI_SET:
 		res->x[0] = host_firme_gm_gpi_set(args->v[0], &args->v[1], args->v[2]);
 		res->x[1] = args->v[1];
+		break;
+	case SMC_FIRME_MECID_REFRESH:
+		res->x[0] = host_firme_mecid_refresh(args->v[0]);
 		break;
 	case SMCCC_ARCH_FEATURES:
 		/* Always return success */

@@ -13,22 +13,26 @@
 static const unsigned int supported_firme_service_versions[FIRME_NUM_SERVICES] = {
 	[FIRME_BASE_SERVICE_ID] = SUPPORTED_FIRME_BASE_VERSION,
 	[FIRME_GM_SERVICE_ID] = SUPPORTED_FIRME_GM_VERSION,
-	[FIRME_IDE_SERVICE_ID] = SUPPORTED_FIRME_IDE_VERSION
+	[FIRME_IDE_SERVICE_ID] = SUPPORTED_FIRME_IDE_VERSION,
+	[FIRME_MECID_SERVICE_ID] = SUPPORTED_FIRME_MECID_VERSION
 };
 
 /* cppcheck-suppress misra-c2012-9.3 */
 static const unsigned long firme_abis_masks[FIRME_NUM_SERVICES] = {
 	[FIRME_GM_SERVICE_ID] = FIRME_GM_FR0_MASK,
-	[FIRME_IDE_SERVICE_ID] = FIRME_IDE_FR0_MASK
+	[FIRME_IDE_SERVICE_ID] = FIRME_IDE_FR0_MASK,
+	[FIRME_MECID_SERVICE_ID] = FIRME_MECID_FR0_MASK
 };
 
 /* FIRME status variables. */
 static unsigned int firme_el3_svc_version[FIRME_NUM_SERVICES];
 static unsigned long firme_el3_svc_present_abis[FIRME_NUM_SERVICES];
+static unsigned long firme_el3_svc_feat_reg1[FIRME_NUM_SERVICES];
 
 static bool firme_feature_discovery(unsigned int svc_id)
 {
 	unsigned long res;
+	unsigned long present_abis;
 	/* coverity[var_decl:SUPPRESS] */
 	struct smc_result smc_res;
 	unsigned long svc_id_bit = FIRME_BASE_FR1_SVC_BIT(svc_id);
@@ -36,6 +40,8 @@ static bool firme_feature_discovery(unsigned int svc_id)
 
 	assert(svc_id < ARRAY_SIZE(firme_abis_masks));
 
+	firme_el3_svc_present_abis[svc_id] = 0UL;
+	firme_el3_svc_feat_reg1[svc_id] = 0UL;
 	mask = firme_abis_masks[svc_id];
 
 	/* Read base service feature reg 1 to see if the service is supported. */
@@ -70,7 +76,20 @@ static bool firme_feature_discovery(unsigned int svc_id)
 	if (smc_res.x[0] != FIRME_SUCCESS) {
 		return false;
 	}
-	firme_el3_svc_present_abis[svc_id] = smc_res.x[1] & mask;
+	present_abis = smc_res.x[1] & mask;
+
+	/* Feature register 1 is service-specific and optional. */
+	/* cppcheck-suppress misra-c2012-9.3 */
+	struct smc_args smc_args_3 = SMC_ARGS_2(svc_id, 1U);
+
+	monitor_call_with_arg_res(SMC_FIRME_BASE_FEATURES, &smc_args_3, &smc_res);
+	if (smc_res.x[0] == FIRME_SUCCESS) {
+		firme_el3_svc_feat_reg1[svc_id] = smc_res.x[1];
+	} else if (svc_id == FIRME_MECID_SERVICE_ID) {
+		return false;
+	}
+
+	firme_el3_svc_present_abis[svc_id] = present_abis;
 
 	return true;
 }
@@ -119,6 +138,23 @@ unsigned long get_present_abis(unsigned int service_id)
 	assert(service_id < FIRME_NUM_SERVICES);
 
 	return firme_el3_svc_present_abis[service_id];
+}
+
+/* cppcheck-suppress misra-c2012-8.7 */
+unsigned long firme_get_feature_register(unsigned int service_id,
+					 unsigned int feature_reg_idx)
+{
+	assert(service_id < FIRME_NUM_SERVICES);
+
+	if (feature_reg_idx == 0U) {
+		return firme_el3_svc_present_abis[service_id];
+	}
+
+	if (feature_reg_idx == 1U) {
+		return firme_el3_svc_feat_reg1[service_id];
+	}
+
+	return 0UL;
 }
 
 /* cppcheck-suppress misra-c2012-8.7 */

@@ -5,6 +5,8 @@
 
 #include <arch_features.h>
 #include <debug.h>
+#include <firme.h>
+#include <host_harness.h>
 #include <host_utils.h>
 #include <mec.h>
 #include <stdlib.h>
@@ -119,12 +121,12 @@ void mec_test_setup(void)
 	test_helpers_init();
 
 	mec_test_helpers_arch_restore();
+	mec_reset_sysregs_and_callbacks();
 
+	firme_init();
 	mec_init_state((uintptr_t)&g_mec_state, sizeof(g_mec_state));
 
 	release_all_mecids();
-
-	mec_reset_sysregs_and_callbacks();
 }
 
 void mec_test_teardown(void)
@@ -233,4 +235,27 @@ void reset_mecidr_el2(unsigned int value)
 		ERROR("%s: Failed to reset mecidr_el2 callbacks\n", __func__);
 		exit(1);
 	}
+
+	mec_test_reset();
+}
+
+void reset_firme_mecid_width(unsigned int width)
+{
+	host_firme_set_mecid_width(width);
+	(void)firme_init();
+	mec_test_reset();
+}
+
+void set_firme_mecid_refresh(bool enable)
+{
+	host_firme_enable_mecid_refresh(enable);
+	(void)firme_init();
+	mec_test_reset();
+}
+
+void set_firme_mecid_fr1(bool enable)
+{
+	host_firme_enable_mecid_fr1(enable);
+	(void)firme_init();
+	mec_test_reset();
 }

@@ -10,9 +10,11 @@ extern "C"
 {
 #include <arch_features.h>
 #include <arch_helpers.h>
+#include <firme.h>
 #include <host_utils.h>
 #include <mec.h> /* Interface to exercise */
 #include <mec_test_helpers.h>
+#include <rmm_el3_ifc.h>
 #include <test_helpers.h>
 }
 
@@ -361,6 +363,84 @@ TEST(mec, mecid_max_TC2)
 	CHECK_EQUAL(max_valid_mecid, max_mecid);
 }
 
+TEST(mec, mecid_max_TC3)
+{
+	unsigned int mecid_width = 11U;
+	unsigned int max_mecid;
+	unsigned int max_valid_mecid;
+
+	/******************************************************************
+	 * TEST CASE 3:
+	 *
+	 * Limit the FIRME common MECID width and verify that it limits the
+	 * maximum allocatable MECID when the local width is larger.
+	 ******************************************************************/
+
+	reset_firme_mecid_width(mecid_width);
+
+	max_valid_mecid = (1U << mecid_width) - 1U;
+	max_mecid = mecid_max();
+
+	CHECK_EQUAL(max_valid_mecid, max_mecid);
+
+	reset_firme_mecid_width(MECID_WIDTH);
+}
+
+TEST(mec, mecid_max_TC4)
+{
+	unsigned int max_mecid;
+
+	/******************************************************************
+	 * TEST CASE 4:
+	 *
+	 * Disable FIRME MECID refresh and verify that the local MECID width
+	 * still determines the maximum allocatable MECID.
+	 ******************************************************************/
+
+	reset_mecidr_el2(MECID_WIDTH - 1U);
+	set_firme_mecid_refresh(false);
+
+	max_mecid = mecid_max();
+
+	CHECK_EQUAL(MEC_MAX_COUNT - 1U, max_mecid);
+
+	set_firme_mecid_refresh(true);
+}
+
+TEST(mec, mecid_max_TC5)
+{
+	unsigned int max_mecid;
+
+	/******************************************************************
+	 * TEST CASE 5:
+	 *
+	 * Disable FIRME MECID feature register 1 and verify that the local
+	 * MECID width still determines the maximum allocatable MECID.
+	 ******************************************************************/
+
+	reset_mecidr_el2(MECID_WIDTH - 1U);
+	set_firme_mecid_fr1(false);
+
+	max_mecid = mecid_max();
+
+	CHECK_EQUAL(MEC_MAX_COUNT - 1U, max_mecid);
+
+	set_firme_mecid_fr1(true);
+}
+
+TEST(mec, firme_mecid_refresh_TC1)
+{
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Verify that a MECID refresh uses the FIRME service advertised by
+	 * the fake host.
+	 ******************************************************************/
+
+	CHECK_EQUAL(FIRME_SUCCESS,
+		    rmm_el3_ifc_mec_refresh((unsigned short)MECID_SHARED, false));
+}
+
 TEST(mec, mecid_private_count_TC1)
 {
 	/******************************************************************
@@ -694,11 +774,12 @@ TEST(no_mec, mec_realm_mecid_s2_reset_TC1)
 }
 
 ASSERT_TEST(no_mec, mecid_max_TC1)
-{	/******************************************************************
+{
+	/******************************************************************
 	 * TEST CASE 1:
 	 *
-	 * Call mecid_max() when FEAT_MEC is not present. It should trigger
-	 * an assert failure.
+	 * Call mecid_max() when FEAT_MEC is not present and verify that it
+	 * triggers an assertion failure.
 	 ******************************************************************/
 
 	test_helpers_expect_assert_fail(true);

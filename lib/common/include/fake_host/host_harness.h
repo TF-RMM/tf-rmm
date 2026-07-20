@@ -112,6 +112,11 @@ unsigned long host_firme_gm_gpi_set(unsigned long base_addr,
 				    unsigned long *granule_count,
 				    unsigned long attributes);
 
+unsigned long host_firme_mecid_refresh(unsigned long param);
+void host_firme_set_mecid_width(unsigned int width);
+void host_firme_enable_mecid_refresh(bool enable);
+void host_firme_enable_mecid_fr1(bool enable);
+
 /*
  * Fake host wrapper to return the buffer slot corresponding to a VA.
  */

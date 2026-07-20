@@ -298,6 +298,11 @@ unsigned long rmm_el3_ifc_mec_refresh(unsigned short mecid,
 	/* x1[0] */
 	x1 |= INPLACE(MEC_REFRESH_REASON, (unsigned long)is_destroy);
 
+	if (firme_supports_mec_refresh()) {
+		return monitor_call(SMC_FIRME_MECID_REFRESH, x1,
+					0UL, 0UL, 0UL, 0UL, 0UL);
+	}
+
 	return monitor_call(SMC_RMM_MEC_REFRESH, x1,
 				0UL, 0UL, 0UL, 0UL, 0UL);
 }
