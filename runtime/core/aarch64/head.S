@@ -6,6 +6,7 @@
 #include <app_header.h>
 #include <arch.h>
 #include <asm_macros.S>
+#include <pcpu_macros.S>
 #include <rmm_el3_ifc.h>
 
 .globl rmm_entry
@@ -49,27 +50,13 @@
 	 */
 	bl	fixup_gdt_reloc
 
-	/* Cold and warm boot need to go through this path */
+/* Cold and warm boot need to go through this path */
 1:
 	/* Early validate and init CPU Id */
 	mov	x0, x20
 	bl	rmm_el3_ifc_validate_cpuid
 
-	/*
-	 * Setup stack on this CPU. X0 already contains the CPU Id. The stack
-	 * address set here is the physical address of the stack buffer. During
-	 * RMM boot the stack for this CPU is going to be mapped in the high VA
-	 * space of this CPU, and the SP is updated to the VA of the stack
-	 * bottom after MMU activation. After that, accessing the physical stack
-	 * address causes exception as the stack buffer is not flat-mapped in
-	 * the VA space of the CPU.
-	 */
-	bl	rmm_get_my_stack
-	mov	sp, x0
-
-	/*
-	 * Setup exception vectors
-	 */
+	/* Setup exception vectors */
 	adrp	x3, \_vector
 	add	x3, x3, :lo12:\_vector
 	msr	vbar_el2, x3
@@ -80,6 +67,21 @@
 	 */
 	ldr	x1, \_is_cold_boot_flag
 	cbnz	x1, 2f
+
+	/*
+	 * Warm entry for this CPU:
+	 * - obtain this CPU's per-CPU region base:
+	 *   - if the activation token is non-zero, reuse the existing region base PA
+	 *   - if the activation token is zero, allocate the region now for this CPU's
+	 *     first RMM entry
+	 * - the resulting region base PA is also the metadata-page PA, because the
+	 *   metadata page is the first granule of the per-CPU region
+	 * - build (or rebuild) TPIDR_EL2 as [metadata-page PA | CPU ID]
+	 * - set SP to the top of the RMM stack (backed by physical pages)
+	 *
+	 * On this path the token is currently held in x21.
+	 */
+	pcpu_region_alloc_sp_init	x21, x20
 
 	/* Initialize architecture regs */
 	bl	rmm_arch_init
@@ -94,7 +96,19 @@
 	mov	x4, x24
 	b	\_warm_boot
 
+/* Only use this path if we have a cold boot. */
 2:
+	/*
+	 * First RMM entry on the boot CPU:
+	 * - reserve a new per-CPU region from EL3
+	 * - initialize its metadata page, which acts as the header for that region
+	 * - build TPIDR_EL2 as [metadata-page PA | CPU ID]
+	 * - set SP to the top of the RMM stack (backed by physical pages)
+	 *
+	 * On this path the token is currently held in x24.
+	 */
+	pcpu_region_alloc_sp_init	x24, x20
+
 	/*
 	 * RMM starts with MMU disabled (and hence with data cacheability disabled).
 	 * EL3 loads RMM with caches enabled, so while it can ensure cache lines are
@@ -175,6 +189,13 @@ func rmm_entry
 	/* Initialize MEC before MMU is enabled */
 	bl	mec_init_mmu
 	bl	xlat_enable_mmu_el2
+	/*
+	 * Replace the PA-backed early view with the fixed high-VA view:
+	 * - TPIDR_EL2 changes from [metadata PA | CPU ID] to [metadata VA | CPU ID]
+	 * - SP and SP_EL0 change from PA stacks to the fixed high-VA stacks
+	 */
+	bl	pcpu_switch_to_high_va
+	/* C runtime is available again */
 	bl	pauth_init_enable_el2
 
 #ifdef STACK_PROTECTOR_ENABLED
@@ -185,24 +206,39 @@ func rmm_entry
 	bl	rmm_init_stack_canary
 #endif /* STACK_PROTECTOR_ENABLED */
 
-	/* Pass activation_token (in x4) to rmm_main */
-	mov	x0, x24
+	/*
+	 * After rmm_main, we'll have the activation token
+	 * returned in X0 and ready to be used in smc_ret.
+	 */
 	bl	rmm_main
 	b	smc_ret
 
+/* Only run this for warm boot. */
 skip_to_warmboot:
 	/*
-	 * Carry on with the rest of the RMM warmboot path
+	 * Per-CPU warmboot setup for this CPU while still running on the PA-backed
+	 * early stack. This prepares the fixed high-VA mappings for the current CPU.
 	 */
 	bl	plat_warmboot_setup
 	/* Initialize MEC before MMU is enabled */
 	bl	mec_init_mmu
 	bl	xlat_enable_mmu_el2
+	/*
+	 * Replace the PA-backed early view with the fixed high-VA view:
+	 * - TPIDR_EL2 changes from [metadata PA | CPU ID] to [metadata VA | CPU ID]
+	 * - SP and SP_EL0 change from PA stacks to the fixed high-VA stacks
+	 */
+	bl	pcpu_switch_to_high_va
+	/* C runtime is available again */
 	bl	pauth_init_enable_el2
 
-	/* Pass activation_token (in x1) to rmm_warmboot_main */
-	mov	x0, x21
+	/*
+	 * After rmm_warmboot_main, we'll have the activation token
+	 * returned in X0 and ready to be used in smc_ret.
+	 */
 	bl	rmm_warmboot_main
+
+/* Execute at the end of both the cold and warm boot. */
 smc_ret:
 	/*
 	 * Notify EL3 that RMM boot is complete.
@@ -218,10 +254,10 @@ smc_ret:
 	/* Jump to the SMC handler post-init */
 	b	rmm_handler
 
-	/*
-	 * Flag to mark if it is a cold boot.
-	 * 1: cold boot, 0: warmboot.
-	 */
+/*
+ * Flag to mark if it is a cold boot.
+ * 1: cold boot, 0: warmboot.
+ */
 .align 3
 cold_boot_flag:
 	.dword		1

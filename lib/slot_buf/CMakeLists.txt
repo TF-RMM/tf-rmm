@@ -10,6 +10,7 @@ target_link_libraries(rmm-lib-slot_buf
             rmm-lib-common
             rmm-lib-debug
             rmm-lib-mec
+            rmm-lib-pcpu_data
             rmm-lib-xlat)
 
 target_link_libraries(rmm-lib-slot_buf

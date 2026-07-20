@@ -6,19 +6,13 @@
 #ifndef CBMC
 
 #include <app_header.h>
-#include <arch_helpers.h>
-#include <assert.h>
-#include <buffer.h>
 #include <cpuid.h>
 #include <debug.h>
 #include <errno.h>
 #include <gic.h>
 #include <glob_data.h>
+#include <pcpu_data.h>
 #include <plat_common.h>
-#include <sizes.h>
-#include <stdint.h>
-#include <xlat_contexts.h>
-#include <xlat_high_va.h>
 #include <xlat_low_va.h>
 
 /*
@@ -30,17 +24,19 @@
  * and GIC driver are initialized by this function.
  */
 int plat_cmn_setup(struct xlat_mmap_region *plat_regions,
-		   unsigned int nregions, uint64_t token)
+		   unsigned int nregions)
 {
 	int ret;
 	struct xlat_low_va_info *va_info = NULL;
+	struct glob_data *glob_data_ptr = NULL;
 
 	if ((nregions != 0U) && (plat_regions == NULL)) {
 		return -EINVAL;
 	}
 
-	if (token != 0UL) {
-		va_info = &(((struct glob_data *)token)->low_va_info);
+	glob_data_ptr = (struct glob_data *)pcpu_get_glob_data_pa();
+	if (glob_data_ptr != NULL) {
+		va_info = &glob_data_ptr->low_va_info;
 	}
 
 	/* Initialize the low VA region for RMM */
@@ -76,8 +72,11 @@ int plat_cmn_warmboot_setup(void)
 		return ret;
 	}
 
-	/* Perform warm boot initialization of the high VA region */
-	ret = xlat_high_va_setup();
+	/*
+	 * Map the current CPU's already allocated per-CPU region into the fixed
+	 * high-VA layout.
+	 */
+	ret = pcpu_high_va_setup();
 	if (ret != 0) {
 		ERROR("%s: Failed to setup high VA for CPU[%u]\n",
 			__func__, my_cpuid());

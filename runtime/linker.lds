@@ -71,16 +71,6 @@ SECTIONS
 	rmm_rw_end = .;
 
 	ASSERT(rmm_rw_end == ALIGN(GRANULE_SIZE), "rmm_rw_end is not page aligned")
-
-	.stack ALIGN(GRANULE_SIZE) (NOLOAD) : {
-		rmm_stack_start = .;
-		. = . + (RMM_NUM_PAGES_PER_STACK * GRANULE_SIZE * MAX_CPUS);
-		rmm_stack_end = .;
-		rmm_eh_stack_start = .;
-		. = . + (GRANULE_SIZE * MAX_CPUS);
-		rmm_eh_stack_end = .;
-	} >RAM
-
 	rmm_end = .;
 
 	ASSERT(rmm_end == ALIGN(GRANULE_SIZE), "rmm_end is not page aligned")

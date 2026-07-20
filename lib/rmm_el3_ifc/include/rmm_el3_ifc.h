@@ -17,6 +17,7 @@
 #ifndef __ASSEMBLER__
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #endif
 
 /***************************************
@@ -98,10 +99,24 @@
 					/* 0xc40001bb */
 #define SMC_RMM_RESERVE_MEMORY		SMC64_STD_FID(RMM_EL3, U(11))
 
-#define RESERVE_MEM_ALIGN_SHIFT		56UL
-#define RESERVE_MEM_ALIGN_WIDTH		8UL
-#define RESERVE_MEM_FLAGS_SHIFT		0UL
-#define RESERVE_MEM_FLAGS_WIDTH		56UL
+/***************************************************************************
+ * SMC_RMM_RESERVE_MEMORY related definitions
+ *
+ * The "args" in the input used when making the SMC call are stored in
+ * the register X2 and contain the following sub-fields:
+ *	- Bits [63-56]:	Alignment requirement, in bits (an alignment
+ *			of 64KB would have a value of 16 written
+ *			in the field)
+ *	- Bits [55-32]:	Reserved
+ *	- Bits [31-1]:	Flags
+ *	- Bits [0]:	Local CPU flag - Determines whether the reservation
+ *			should be taken from a pool close to the calling CPU
+ ***************************************************************************/
+#define RESERVE_MEM_ALIGN_SHIFT		UL(56)
+#define RESERVE_MEM_ALIGN_WIDTH		UL(8)
+#define RESERVE_MEM_FLAGS_SHIFT		UL(1)
+#define RESERVE_MEM_FLAGS_WIDTH		UL(31)
+#define RESERVE_MEM_FLAG_LOCAL_CPU	UL(1)
 
 /************************
  * Version related macros
@@ -335,7 +350,7 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 
 /*
  * This function performs an early validation of the CPU Id received
- * during warm boot and stores it into tpidr_el2.
+ * during warm boot.
  *
  * If the validation fails it will call into EL3 and will not return
  * to the caller.
@@ -674,14 +689,15 @@ unsigned long rmm_el3_ifc_gtsi_undelegate(unsigned long addr);
  * available from the RMM-EL3 interface v0.7 onwards.
  *
  * Args:
- *	- size:		Size of memory to be reserved, in bytes.
- *	- flags:	Properties of the memory reservation.
- *			bit 0: reserve memory close to the calling MPIDR
- *	- alignment:	Alignment requirement, in bytes. Can be 1 for the
- *			smallest (byte) alignment, or 4096 for granule
- *			alignment. Must be a power of 2.
- *	- address:	Buffer to receive the physical address of the reserved
- *			memory region.
+ *	- required_size:	Size of memory to be reserved, in bytes.
+ *	- flags:		Properties of the memory reservation. If
+ *				RESERVE_MEM_FLAG_LOCAL_CPU is set, request memory
+ *				local to the calling CPU.
+ *	- alignment:		Alignment requirement, in bytes. Can be 1 for the
+ *				smallest (byte) alignment, or 4096 for granule
+ *				alignment. Must be a power of 2.
+ *	- address:		Buffer to receive the physical address of the reserved
+ *				memory region.
  *
  * Return:
  *	- E_RMM_OK	success
@@ -689,8 +705,27 @@ unsigned long rmm_el3_ifc_gtsi_undelegate(unsigned long addr);
  *	- E_RMM_NOMEM	not enough memory available
  *	- E_RMM_INVAL	unsupported flag
  */
-int rmm_el3_ifc_reserve_memory(size_t size, unsigned int flags,
+int rmm_el3_ifc_reserve_memory(size_t required_size, unsigned int flags,
 			       unsigned long alignment, uintptr_t *address);
+
+/*
+ * Early-boot assembly helper for CPU-local memory reservation with hardcoded values:
+ * - alignment: 12 (4KB granule)
+ * - flags bit[0]: 1 (RESERVE_MEM_FLAG_LOCAL_CPU)
+ *
+ * This helper exists for the pre-C-runtime boot path only. Once the normal
+ * runtime is available, callers should use rmm_el3_ifc_reserve_memory().
+ *
+ * This function reserves CPU-local memory from EL3 via SMC call.
+ *
+ * Arguments:
+ *   x0 - Number of pages to reserve
+ *
+ * Returns:
+ *   x0 - Physical address (PA) of the reserved memory on success
+ *        Returns back to EL3 with Error code on failure.
+ */
+uintptr_t rmm_el3_ifc_early_reserve_mem_local(unsigned long num_pages);
 
 /*
  * Abort the boot process and return to EL3 FW reporting

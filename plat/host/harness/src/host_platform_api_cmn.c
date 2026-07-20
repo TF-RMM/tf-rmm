@@ -10,10 +10,10 @@
 #include <host_utils_pci.h>
 #include <plat_common.h>
 #include <plat_compat_mem.h>
+#include <platform_api.h>
 #include <rmm_el3_ifc.h>
-#include <smc.h>
 #include <stdint.h>
-#include <xlat_tables.h>
+#include <utils_def.h>
 
 /* Number of translation tables for the RMM Low VA static region */
 #define HOST_XLAT_TABLES_LOW_VA		6
@@ -62,7 +62,7 @@ void plat_warmboot_setup(uint64_t x0, uint64_t x1,
  */
 void plat_setup(uint64_t x0, uint64_t x1,
 		uint64_t x2, uint64_t x3,
-		uint64_t x4)
+		uint64_t x4 __unused)
 {
 	(void)host_csl_init();
 
@@ -77,7 +77,7 @@ void plat_setup(uint64_t x0, uint64_t x1,
 				sizeof(rmm_reserve_memory));
 
 	/* Carry on with the rest of the system setup */
-	if (plat_cmn_setup(NULL, 0, x4) != 0) {
+	if (plat_cmn_setup(NULL, 0) != 0) {
 		panic();
 	}
 

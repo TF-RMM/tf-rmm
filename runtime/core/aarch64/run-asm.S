@@ -4,8 +4,8 @@
  */
 
 #include <asm_macros.S>
+#include <pcpu_data.h>
 #include <rec.h>
-#include <xlat_high_va.h>
 
 .globl run_realm
 .globl realm_exit
@@ -94,8 +94,8 @@ func realm_exit
 	stp	x28, x29, [x1, #(16 * 14)]
 	str	x30,      [x1, #(16 * 15)]
 
-	/* Load the exception handler stack bottom to SP_EL0 */
-	mov_imm	x2, RMM_CPU_EH_STACK_END_VA
+	/* Load the exception handler stack top to SP_EL0 */
+	mov_imm	x2, EH_STACK_TOP_VA
 	msr	sp_el0, x2
 
 	/* Disable DIT on return from Realm EL1/0 */

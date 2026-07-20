@@ -4,14 +4,15 @@
  * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  */
 
-#include <arch_helpers.h>
-#include <buffer.h>
+#include <arch_features.h>
+#include <assert.h>
 #include <debug.h>
 #include <errno.h>
 #include <granule.h>
 #include <host_utils.h>
 #include <limits.h>
 #include <mec.h>
+#include <pcpu_data.h>
 #include <platform_api.h>
 #include <rmm_el3_ifc.h>
 #include <stdlib.h>
@@ -50,8 +51,11 @@ static void start_primary_pe(void)
 {
 	host_util_set_cpuid(0U);
 
-	/* Early setup the CpuId into tpidr_el2 */
-	write_tpidr_el2(0U);
+	/*
+	 * Fake-host builds do not execute the EL2 assembly entry path, so set up
+	 * the current CPU's metadata page here instead.
+	 */
+	pcpu_fake_host_setup(0U, per_cpu_token[0]);
 
 	arch_features_query_el3_support();
 
@@ -85,9 +89,10 @@ static void start_secondary_pe(unsigned int cpuid)
 	host_util_set_cpuid(cpuid);
 
 	/*
-	 * Early setup the CpuId into tpidr_el2 for each secondary.
+	 * Fake-host builds do not execute the EL2 assembly entry path, so set up
+	 * the current CPU's metadata page here instead.
 	 */
-	write_tpidr_el2(cpuid);
+	pcpu_fake_host_setup(cpuid, per_cpu_token[cpuid]);
 
 	plat_warmboot_setup(0UL,
 			    RMM_EL3_IFC_ABI_VERSION,

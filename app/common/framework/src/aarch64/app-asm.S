@@ -6,7 +6,7 @@
 #include <app.h>
 #include <arch.h>
 #include <asm_macros.S>
-#include <xlat_high_va.h>
+#include <pcpu_data.h>
 
 .globl run_app
 .globl app_exit
@@ -153,8 +153,8 @@ func back_from_el0
 	mrs	x2, sp_el0
 	str	x2,       [x1, #(APP_SAVED_REGS_OFFSET + 16 * 15 + 8)]
 
-	/* Load the exception handler stack bottom to SP_EL0 */
-	mov_imm	x2, RMM_CPU_EH_STACK_END_VA
+	/* Load the exception handler stack top to SP_EL0 */
+	mov_imm	x2, EH_STACK_TOP_VA
 	msr	sp_el0, x2
 
 	/* x0 and x1 as stored by el2_vectors and this function */
