@@ -76,8 +76,8 @@ add_el0_app(
         rmm-lib-console
         rmm-lib-debug
         rmm-lib-libc
+        rmm-lib-pcpu_data
         rmm-lib-smc
-        rmm-lib-xlat
         t_cose
 )
 

@@ -9,6 +9,7 @@
 #include <realm.h>
 #include <rsi-handler.h>
 #include <smc-rsi.h>
+#include <string.h>
 
 COMPILER_ASSERT(RSI_RPV_SIZE == RPV_SIZE);
 

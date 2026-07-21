@@ -81,7 +81,7 @@ static void start_primary_pe(void)
 	 *
 	 * Note: It is expected that the attestation init will fail.
 	 */
-	per_cpu_token[0] = rmm_main(per_cpu_token[0]);
+	per_cpu_token[0] = rmm_main();
 }
 
 static void start_secondary_pe(unsigned int cpuid)
@@ -109,7 +109,7 @@ static void start_secondary_pe(unsigned int cpuid)
 	 * Finalize the warmboot path.
 	 * This enables the slot buffer mechanism.
 	 */
-	per_cpu_token[cpuid] = rmm_warmboot_main(per_cpu_token[cpuid]);
+	per_cpu_token[cpuid] = rmm_warmboot_main();
 }
 
 static void start_secondary_pes(void)

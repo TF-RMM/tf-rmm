@@ -20,8 +20,6 @@
 /* coverity[unnecessary_header: SUPPRESS] */
 #include <string.h>
 #include <utils_def.h>
-#include <xlat_contexts.h>
-#include <xlat_high_va.h>
 #include <xlat_tables.h>
 
 COMPILER_ASSERT(XLAT_HIGH_VA_SLOT_NUM >= U(NR_CPU_SLOTS));
@@ -71,7 +69,7 @@ void slot_buf_finish_warmboot_init(void)
 	 */
 	if ((get_cached_llt_info())->table == NULL) {
 		if (xlat_get_llt_from_va(get_cached_llt_info(),
-					 xlat_get_high_va_xlat_ctx(),
+					 pcpu_high_va_xlat_ctx(),
 					 slot_to_va(SLOT_NS)) != 0) {
 			ERROR("%s (%u): Failed to initialize table entry cache for CPU %u\n",
 					__func__, __LINE__, my_cpuid());

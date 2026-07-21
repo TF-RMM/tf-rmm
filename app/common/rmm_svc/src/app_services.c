@@ -15,6 +15,7 @@
 #include <errno.h>
 #include <random_app.h>
 #include <rmm_el3_ifc.h>
+#include <string.h>
 
 typedef uint64_t (*app_service_func)(struct app_data_cfg *app_data,
 			  unsigned long arg0,

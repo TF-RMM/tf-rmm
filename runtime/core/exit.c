@@ -24,6 +24,8 @@
 #include <smc-rmi.h>
 #include <smc-rsi.h>
 #include <status.h>
+/* coverity[unnecessary_header:SUPPRESS] */
+#include <string.h>
 #include <sysreg_traps.h>
 #include <timers.h>
 

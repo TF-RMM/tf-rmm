@@ -48,8 +48,8 @@ add_el0_app(
         rmm-lib-arch
         rmm-lib-common
         rmm-lib-debug
+        rmm-lib-pcpu_data
         rmm-lib-smc
-        rmm-lib-xlat
         rmm-pci-ide-km-requester-lib
         rmm-pci_tdisp_requester_lib
         rmm-spdm_requester

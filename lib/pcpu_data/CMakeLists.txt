@@ -12,10 +12,10 @@ target_include_directories(rmm-lib-pcpu_data
 
 target_link_libraries(rmm-lib-pcpu_data
     PRIVATE
-        rmm-lib-arch
         rmm-lib-common
         rmm-lib-debug
     PUBLIC
+        rmm-lib-arch
         rmm-lib-xlat)
 
 if (NOT RMM_ARCH STREQUAL fake_host)

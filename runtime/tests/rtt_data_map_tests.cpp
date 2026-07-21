@@ -39,6 +39,40 @@ static void smc_rtt_data_map_complete(unsigned long rd,
 }
 
 /* ------------------------------------------------------------------ *
+ * DATA_MAP_INIT input validation                                     *
+ * ------------------------------------------------------------------ */
+
+TEST(rtt_data_map_tests, data_map_init_rejects_rd_as_data)
+{
+	struct test_data_ctx ctx;
+	struct smc_result res = {};
+	uintptr_t src;
+
+	CHECK_TRUE(create_data_rtt_ctx(&ctx));
+	src = reserve_list_granule();
+
+	smc_rtt_data_map_init(ctx.rd, ctx.rd, TEST_DATA_IPA_BASE, src,
+			      RMI_NO_MEASURE_CONTENT, &res);
+
+	CHECK_EQUAL(RMI_ERROR_INPUT, res.x[0]);
+}
+
+TEST(rtt_data_map_tests, data_map_init_rejects_leaf_rtt_as_data)
+{
+	struct test_data_ctx ctx;
+	struct smc_result res = {};
+	uintptr_t src;
+
+	CHECK_TRUE(create_data_rtt_ctx(&ctx));
+	src = reserve_list_granule();
+
+	smc_rtt_data_map_init(ctx.rd, ctx.rtt_l3, TEST_DATA_IPA_BASE, src,
+			      RMI_NO_MEASURE_CONTENT, &res);
+
+	CHECK_EQUAL(RMI_ERROR_INPUT, res.x[0]);
+}
+
+/* ------------------------------------------------------------------ *
  * Successful mappings                                                *
  * ------------------------------------------------------------------ */
 

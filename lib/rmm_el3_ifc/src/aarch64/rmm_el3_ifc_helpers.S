@@ -11,7 +11,7 @@
 
 /*
  * This function performs an early validation of the CPU Id received
- * during warm boot.
+ * during cold or warm boot.
  *
  * If the validation fails it will call into EL3 and will not return
  * to the caller.
@@ -21,10 +21,8 @@
  * Clobber list: x0, x1
  */
 func rmm_el3_ifc_validate_cpuid
-	/*
-	 * Check that the current CPU Id does not exceed the maximum allowed.
-	 */
-	mov_imm	x1, MAX_CPUS
+	/* CPU ID must be smaller than the maximum count supported by the EL3 interface. */
+	mov_imm	x1, RMM_EL3_IFC_MAX_CPUS
 	cmp	x0, x1
 	b.hs	1f
 	ret

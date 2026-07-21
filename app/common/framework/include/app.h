@@ -7,13 +7,13 @@
 #define APP_H
 
 #include <app_fw_structures.h>
+#include <pcpu_data.h>
 
 #define APP_VA_START	(UL(0xffffffffffffffff) - XLAT_HIGH_VA_SIZE + 1U)
 
 #ifndef __ASSEMBLER__
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 
 /* exit_flag bits */
 /* An SVC call issued with APP_EXIT_CALL as ISS */

@@ -20,6 +20,7 @@
 #include <smc-rmi.h>
 #include <smc-rsi.h>
 #include <smc.h>
+/* coverity[unnecessary_header:SUPPRESS] */
 #include <string.h>
 
 static void reset_last_run_info(struct rec_plane *plane)

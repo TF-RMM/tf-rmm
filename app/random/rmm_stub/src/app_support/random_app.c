@@ -14,6 +14,7 @@
 #include <random_app.h>
 #include <random_defs.h>
 #include <simd.h>
+#include <string.h>
 
 #define RANDOM_APP_PAGE_COUNT 5U
 

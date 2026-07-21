@@ -6,7 +6,7 @@
 #include <arch_features.h>
 #include <arch_helpers.h>
 #include <assert.h>
-#include <cpuid.h>
+#include <pcpu_pvt_data.h>
 #include <simd.h>
 #include <simd_private.h>
 #include <string.h>
@@ -16,13 +16,6 @@ static struct simd_config g_simd_cfg = { 0 };
 
 /* Set when SIMD init is completed during boot */
 static bool g_simd_init_done;
-
-/*
- * Per-CPU flag to track if CPU's SIMD registers are saved in memory. This
- * allows checks to figure out whether it is OK to use SIMD registers for RMM's
- * own purposes at R-EL2.
- */
-static bool g_simd_state_saved[MAX_CPUS];
 
 #define simd_has_sve(sc)	(((sc)->tflags & SIMD_TFLAG_SVE) != 0U)
 #define simd_has_sme(sc)	(((sc)->tflags & SIMD_TFLAG_SME) != 0U)
@@ -51,10 +44,7 @@ void simd_reset(void)
 {
 	g_simd_init_done = false;
 	(void)memset(&g_simd_cfg, 0, sizeof(struct simd_config));
-
-	for (unsigned int i = 0U; i < MAX_CPUS; i++) {
-		g_simd_state_saved[i] = false;
-	}
+	pcpu_pvt_simd_state_set_saved(false);
 }
 
 /*
@@ -63,7 +53,7 @@ void simd_reset(void)
  */
 bool simd_is_state_saved(void)
 {
-	return g_simd_state_saved[my_cpuid()];
+	return pcpu_pvt_simd_state_is_saved();
 }
 
 static void save_simd_ns_el2_config(struct simd_context *ctx,
@@ -222,7 +212,7 @@ struct simd_context *simd_context_switch(struct simd_context *ctx_save,
 	if (ctx_save != NULL) {
 		assert(is_ctx_init_done(ctx_save));
 		assert(!is_ctx_saved(ctx_save));
-		assert(!g_simd_state_saved[my_cpuid()]);
+		assert(!pcpu_pvt_simd_state_is_saved());
 
 		/*
 		 * Disable appropriate traps. RMM core must run with SIMD traps
@@ -244,14 +234,14 @@ struct simd_context *simd_context_switch(struct simd_context *ctx_save,
 		save_simd_context(ctx_save);
 
 		ctx_save->sflags |= SIMD_SFLAG_SAVED;
-		g_simd_state_saved[my_cpuid()] = true;
+		pcpu_pvt_simd_state_set_saved(true);
 	}
 
 	/* Restore the outgoing context */
 	if (ctx_restore != NULL) {
 		assert(is_ctx_init_done(ctx_restore));
 		assert(is_ctx_saved(ctx_restore));
-		assert(g_simd_state_saved[my_cpuid()]);
+		assert(pcpu_pvt_simd_state_is_saved());
 
 		/* Disable appropriate traps */
 		if (read_cptr_el2() != ctx_restore->cptr_el2) {
@@ -272,7 +262,7 @@ struct simd_context *simd_context_switch(struct simd_context *ctx_save,
 		}
 
 		ctx_restore->sflags &= ~SIMD_SFLAG_SAVED;
-		g_simd_state_saved[my_cpuid()] = false;
+		pcpu_pvt_simd_state_set_saved(false);
 	}
 
 	/* Restore traps */

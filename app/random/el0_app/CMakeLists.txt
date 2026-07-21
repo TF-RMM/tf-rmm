@@ -40,7 +40,7 @@ add_el0_app(
         rmm-app-random-mbedtls
         rmm-lib-common
         rmm-lib-debug
-        rmm-lib-xlat
+        rmm-lib-pcpu_data
 )
 
 # Add fake_host specific sources

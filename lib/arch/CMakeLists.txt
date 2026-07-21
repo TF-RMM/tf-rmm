@@ -28,7 +28,6 @@ if(HOST_VARIANT STREQUAL "host_cbmc")
   target_sources(rmm-lib-arch
         PRIVATE "src/fake_host/cache_wrappers.c"
                 "src/fake_host/cbmc_arch_features.c"
-                "src/fake_host/cbmc_simd.c"
                 "src/fake_host/entropy.c"
                 "src/fake_host/instr_helpers.c")
     # In case of 'host_cbmc' variant no further source files are added to
@@ -38,19 +37,14 @@ endif()
 
 target_sources(rmm-lib-arch
         PRIVATE "src/pmu.c"
-                "src/pauth.c"
-                "src/simd.c")
+                "src/pauth.c")
 
 if(NOT RMM_ARCH STREQUAL fake_host)
     target_sources(rmm-lib-arch
-        PRIVATE "src/aarch64/cache_helpers.S"
-                "src/aarch64/simd_helpers.S")
+        PRIVATE "src/aarch64/cache_helpers.S")
 else()
     target_sources(rmm-lib-arch
         PRIVATE "src/fake_host/cache_wrappers.c"
                 "src/fake_host/entropy.c"
-                "src/fake_host/instr_helpers.c"
-                "src/fake_host/simd_helpers.c")
+                "src/fake_host/instr_helpers.c")
 endif()
-
-include (tests/CMakeLists.txt)

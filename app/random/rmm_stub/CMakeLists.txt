@@ -9,7 +9,8 @@ target_link_libraries(rmm-app-random-stub
     rmm-el2-stub
     rmm-lib-arch
     rmm-lib-common
-    rmm-lib-debug)
+    rmm-lib-debug
+    rmm-lib-simd)
 
 target_include_directories(rmm-app-random-stub
     PUBLIC "include"

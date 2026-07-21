@@ -7,7 +7,6 @@
 #define APP_FW_STRUCTURES_H
 
 #include <utils_def.h>
-#include <xlat_high_va.h>
 
 #define APP_SAVED_GEN_REG_COUNT		U(31)
 
@@ -26,6 +25,9 @@
 #define APP_MAX_PAGES				U(32)
 
 #ifndef __ASSEMBLER__
+
+#include <xlat_contexts.h>
+#include <xlat_tables.h>
 
 /* This structure must always be aligned to page boundary as it is mapped into
  * the app VA space.

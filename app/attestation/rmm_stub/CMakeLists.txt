@@ -11,6 +11,7 @@ target_link_libraries(rmm-app-attestation-stub
     rmm-lib-common
     rmm-lib-debug
     rmm-lib-rmm_el3_ifc
+    rmm-lib-simd
     rmm-lib-smc)
 
 target_include_directories(rmm-app-attestation-stub
