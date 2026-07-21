@@ -761,6 +761,13 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 		return;
 	}
 
+	/* The RD cannot also be used as the delegated data granule. */
+	/* TODO : this code need to be removed when locking order is reworked */
+	if (data_addr == rd_addr) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
 	g_src = find_granule(src_addr);
 	if ((g_src == NULL) ||
 	    (granule_unlocked_state(g_src) != GRANULE_STATE_NS)) {
@@ -829,6 +836,13 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 	 */
 	if (s2tte_drain_pending(s2tte)) {
 		ret = RMI_BUSY;
+		goto out_unmap_ll_table;
+	}
+
+	/* Do not recursively lock the target leaf as the data granule. */
+	/* TODO : this code need to be removed when locking order is reworked */
+	if (data_addr == granule_addr(wi.g_llt)) {
+		ret = RMI_ERROR_INPUT;
 		goto out_unmap_ll_table;
 	}
 

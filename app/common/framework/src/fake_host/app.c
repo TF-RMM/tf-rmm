@@ -40,20 +40,49 @@ static char shared_page[GRANULE_SIZE] __aligned(GRANULE_SIZE);
 static struct app_process_data app_process_datas[(APP_COUNT < 2U)?(2U):(APP_COUNT)];
 static size_t initialised_app_process_data_count;
 
-/*
- * Track transient app-heap allocations that may be leaked when
- * fast_reset() zeroes the granule memory containing app_data structs
- * without calling app_delete_instance().  app_reset_instances() frees
- * every pointer on this list after the app processes have torn down
- * their transient instances.
- *
- * Persistent heaps (random PRNG, attestation) are NOT tracked here
- * because they survive across iterations and are freed only in
- * app_processes_cleanup().
- */
-#define TRANSIENT_HEAP_MAX 256U
-static void *transient_heaps[TRANSIENT_HEAP_MAX];
-static size_t transient_heap_count;
+/* Track app heaps that must be released when their instances are reset. */
+#define TRACKED_HEAP_MAX 256U
+struct tracked_heap {
+	void *ptr;
+	bool persistent;
+};
+
+static struct tracked_heap tracked_heaps[TRACKED_HEAP_MAX];
+static size_t tracked_heap_count;
+
+static void untrack_heap(void *heap)
+{
+	for (size_t i = 0U; i < tracked_heap_count; i++) {
+		if (tracked_heaps[i].ptr == heap) {
+			tracked_heaps[i] = tracked_heaps[--tracked_heap_count];
+			return;
+		}
+	}
+}
+
+static void free_all_tracked_heaps(void)
+{
+	for (size_t i = 0U; i < tracked_heap_count; i++) {
+		free(tracked_heaps[i].ptr);
+	}
+
+	tracked_heap_count = 0U;
+}
+
+static void free_transient_heaps(void)
+{
+	size_t i = 0U;
+
+	while (i < tracked_heap_count) {
+		if (tracked_heaps[i].persistent) {
+			i++;
+			continue;
+		}
+
+		free(tracked_heaps[i].ptr);
+		tracked_heaps[i] = tracked_heaps[--tracked_heap_count];
+	}
+}
 
 void int_to_str(int value, char *buf, size_t buf_size)
 {
@@ -235,8 +264,8 @@ void app_processes_cleanup(void)
 	initialised_app_process_data_count = 0;
 	memset(app_process_datas, 0, sizeof(app_process_datas));
 
-	/* All heaps (including persistent) are now dead — reset tracking */
-	transient_heap_count = 0;
+	/* The app processes no longer own any persistent or transient heaps. */
+	free_all_tracked_heaps();
 }
 
 int app_new_instance(struct app_data_cfg *app_data,
@@ -272,18 +301,15 @@ int app_new_instance(struct app_data_cfg *app_data,
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &heap_size, sizeof(heap_size));
 	app_data->el2_shared_page = NULL;
 	app_data->app_id = app_id;
-	app_data->app_heap = malloc(heap_size);
+	app_data->app_heap = calloc(1U, heap_size);
 	app_data->heap_size = heap_size;
 
-	/*
-	 * Track transient heaps so app_reset_instances() can free them
-	 * when fast_reset() zeroes granule memory without calling
-	 * app_delete_instance().  Persistent heaps (allocated during
-	 * app_reset before tracking is enabled) are not tracked.
-	 */
-	if (!(flags & APP_INSTANCE_FLAG_PERSISTENT) && app_data->app_heap != NULL) {
-		assert(transient_heap_count < TRANSIENT_HEAP_MAX);
-		transient_heaps[transient_heap_count++] = app_data->app_heap;
+	if (app_data->app_heap != NULL) {
+		assert(tracked_heap_count < TRACKED_HEAP_MAX);
+		tracked_heaps[tracked_heap_count].ptr = app_data->app_heap;
+		tracked_heaps[tracked_heap_count].persistent =
+			(flags & APP_INSTANCE_FLAG_PERSISTENT) != 0UL;
+		tracked_heap_count++;
 	}
 
 	return 0;
@@ -314,18 +340,9 @@ void app_delete_instance(struct app_data_cfg *app_data)
 	READ_OR_EXIT(app_process_data->fd_app_process_to_rmm, &ret, sizeof(ret));
 	assert(ret == 0);
 
-	/* Free the heap allocated by app_init_data */
+	/* Free the heap allocated by app_new_instance(). */
+	untrack_heap(app_data->app_heap);
 	free(app_data->app_heap);
-
-	/* Remove from transient tracking if present */
-	for (size_t i = 0; i < transient_heap_count; i++) {
-		if (transient_heaps[i] == app_data->app_heap) {
-			transient_heaps[i] =
-				transient_heaps[--transient_heap_count];
-			break;
-		}
-	}
-
 	app_data->app_heap = NULL;
 }
 
@@ -353,14 +370,8 @@ void app_reset_instances(void)
 			     &ack, sizeof(ack));
 	}
 
-	/*
-	 * Free transient heap allocations leaked by fast_reset() zeroing
-	 * the granule memory without calling app_delete_instance().
-	 */
-	for (size_t i = 0; i < transient_heap_count; i++) {
-		free(transient_heaps[i]);
-	}
-	transient_heap_count = 0;
+	/* Free heaps whose app data was discarded by the fuzz reset. */
+	free_transient_heaps();
 }
 
 static unsigned long app_run_internal(struct app_data_cfg *app_data,
