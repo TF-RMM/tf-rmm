@@ -666,3 +666,8 @@ int xlat_low_va_unreserve(uintptr_t va, size_t size)
 
 	return ret;
 }
+
+uintptr_t xlat_low_va_to_pa(uintptr_t va)
+{
+	return arch_xlat_low_va_to_pa(va);
+}

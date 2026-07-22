@@ -28,4 +28,9 @@
  */
 #define get_shared_buf_pa()	rmm_rw_end
 
+inline uintptr_t arch_xlat_low_va_to_pa(uintptr_t va)
+{
+	return va;
+}
+
 #endif /* XLAT_LOW_VA_ARCH_H */

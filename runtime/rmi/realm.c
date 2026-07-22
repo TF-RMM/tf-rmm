@@ -619,6 +619,7 @@ void smc_realm_create(unsigned long rd_addr,
 	unsigned char realm_instance_id[REALM_INSTANCE_ID_SIZE];
 	bool rtt_tree_pp;
 	unsigned int mec_policy;
+	int smmuv3_ret __unused;
 
 	if (!get_realm_params(&p, realm_params_addr)) {
 		res->x[0] = RMI_ERROR_INPUT;
@@ -759,6 +760,10 @@ void smc_realm_create(unsigned long rd_addr,
 	/* Set DA feature flag */
 	rd->da_enabled = EXTRACT(RMI_REALM_FLAGS0_DA, p.flags0) != 0UL;
 	rd_vdev_refcount_reset(rd);
+
+	smmuv3_ret = smmuv3_cmd_sync_init(&rd->smmu_cmd_sync,
+				  rd_addr + offsetof(struct rd, smmu_cmd_sync));
+	assert(smmuv3_ret == 0);
 
 	init_overlay_permissions(rd);
 

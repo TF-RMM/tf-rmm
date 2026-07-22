@@ -126,6 +126,14 @@ uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
 	assert((plat_smmu_list->num_smmus == 0UL) ||
 				(plat_smmu_list->smmus != NULL));
 
+	if (plat_smmu_list->num_smmus > RMM_MAX_SMMUS) {
+		*out_pa = 0UL;
+		*out_sz = 0UL;
+		ERROR("SMMUv3 count %lu exceeds configured maximum %u\n",
+			plat_smmu_list->num_smmus, RMM_MAX_SMMUS);
+		return 0UL;
+	}
+
 	/* Size of SMMUv3 device records */
 	devs_size = plat_smmu_list->num_smmus * sizeof(struct smmuv3_dev);
 
@@ -386,6 +394,12 @@ static int check_cmdq_err(struct smmuv3_dev *smmu)
 	return -EIO;
 }
 
+/*
+ * Wait for commands followed by a non-MSI CMD_SYNC to be consumed. This is
+ * used for regular command sequences and works whether or not FEAT_MSI is
+ * implemented. FEAT_SEV allows WFE while polling; otherwise the consumer
+ * register is polled continuously.
+ */
 int wait_cmdq_empty(struct smmuv3_dev *smmu)
 {
 	uint32_t prod_reg, cons_reg;
@@ -488,6 +502,7 @@ static int send_cmd(struct smmuv3_dev *smmu, uint128_t cmd)
 	prod_reg &= ((wrap_bit << 1) - 1U);
 
 	write32(prod_reg, smmu->cmdq.prod_reg);
+	smmuv3_arch_process_cmd(cmd, smmu->cmdq.prod_reg, smmu->cmdq.cons_reg);
 	return 0;
 }
 
@@ -543,8 +558,47 @@ int prepare_send_command(struct smmuv3_dev *smmu, unsigned long opcode,
 
 	ret = send_cmd(smmu, cmd);
 	if (ret != 0) {
-		SMMU_ERROR(smmu, "Failed to send command\n");
+		SMMU_ERROR(smmu, "Failed to send command 0x%lx\n", opcode);
 	}
+	return ret;
+}
+
+int prepare_send_cmd_sync(struct smmuv3_dev *smmu, uintptr_t msi_addr_pa,
+			  unsigned int msi_data)
+{
+	uint128_t cmd = CMD_SYNC |
+			(uint128_t)COMPOSE(CS, SIG_IRQ) |
+			(uint128_t)COMPOSE(MSH, MSH_ISH) |
+			(uint128_t)COMPOSE(MSIATTR, MSIATTR_OIWB) |
+			((uint128_t)msi_data << MSIDATA_SHIFT) |
+			((uint128_t)msi_addr_pa << MSIADDR_SHIFT) |
+			((uint128_t)MSI_NS_RLPA << MSI_NS_SHIFT);
+	int ret;
+
+	assert(g_driver != NULL);
+	assert((smmu->config.features & FEAT_MSI) != 0U);
+	assert((msi_addr_pa != 0UL) && ALIGNED(msi_addr_pa, sizeof(unsigned int)));
+
+	/* Check for errors */
+	ret = check_cmdq_err(smmu);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = send_cmd(smmu, cmd);
+	if (ret != 0) {
+		SMMU_ERROR(smmu, "Failed to send CMD_SYNC\n");
+		return ret;
+	}
+
+	/*
+	 * Generate a wake-up event after the ordered MSI completion write when
+	 * every SMMU supports event notification.
+	 */
+	if (g_driver->event_notify) {
+		ret = prepare_send_command(smmu, CMD_SYNC, 0UL, 0UL);
+	}
+
 	return ret;
 }
 
@@ -821,6 +875,7 @@ static int get_features(struct smmuv3_dev *smmu)
 {
 	uint32_t aidr, idr0, idr3 __unused, idr5, r_idr0, r_idr3;
 	uint32_t val;
+	unsigned int cpu_pa_size;
 
 	/* All configuration features are cleared as part of initialisation */
 
@@ -852,6 +907,11 @@ static int get_features(struct smmuv3_dev *smmu)
 		break;
 	default:
 		SMMU_ERROR(smmu, "Unsupported translation table format %u\n", val);
+		return -ENOTSUP;
+	}
+
+	if ((idr0 & IDR0_COHACC_BIT) == 0U) {
+		SMMU_ERROR(smmu, "IO-coherent access not supported\n");
 		return -ENOTSUP;
 	}
 
@@ -897,6 +957,8 @@ static int get_features(struct smmuv3_dev *smmu)
 	if ((idr0 & IDR0_SEV_BIT) != 0U) {
 		smmu->config.features |= FEAT_SEV;
 		SMMU_DEBUG("\tSEV\n");
+	} else {
+		g_driver->event_notify = false;
 	}
 
 	/*
@@ -935,6 +997,19 @@ static int get_features(struct smmuv3_dev *smmu)
 	SMMU_DEBUG("\tOutput address size %u bits\n", smmu->config.pa_size);
 
 	/*
+	 * The SMMU-managed tables and, when MSI is supported, CMD_SYNC.MSIAddress
+	 * can be placed at any PA supported by the PE. The SMMU output address
+	 * size must therefore cover the CPU physical address range.
+	 */
+	cpu_pa_size = arch_feat_get_pa_width();
+	if (smmu->config.pa_size < cpu_pa_size) {
+		SMMU_ERROR(smmu,
+			   "Output address size %u bits < CPU PA size %u bits\n",
+			   smmu->config.pa_size, cpu_pa_size);
+		return -ENOTSUP;
+	}
+
+	/*
 	 * Check that 128-bit VMSAv9-128 descriptors are supported
 	 * by both the PE and the SMMUv3.
 	 */
@@ -954,9 +1029,22 @@ static int get_features(struct smmuv3_dev *smmu)
 		SMMU_DEBUG("\tPCIe ATS\n");
 	}
 
+	/*
+	 * Completion model:
+	 * - With FEAT_BTM, CPU broadcast TLB maintenance avoids local TLBI
+	 *   commands. MSI is optional and regular command completion is checked
+	 *   by polling the command queue consumer after CMD_SYNC.
+	 * - Without FEAT_BTM, the driver must issue local TLBI commands. These
+	 *   paths use MSI completion words and therefore require FEAT_MSI.
+	 */
 	if ((r_idr0 & R_IDR0_MSI_BIT) != 0U) {
 		smmu->config.features |= FEAT_MSI;
 		SMMU_DEBUG("\tMSI\n");
+	} else if ((smmu->config.features & FEAT_BTM) == 0U) {
+		SMMU_ERROR(smmu, "MSI required when BTM is not supported\n");
+		return -ENOTSUP;
+	} else {
+		SMMU_DEBUG("\tMSI not supported; using CMDQ polling\n");
 	}
 
 	if ((r_idr0 & R_IDR0_PRI_BIT) != 0U) {
@@ -1300,8 +1388,11 @@ int smmuv3_init(uintptr_t driv_hdl, size_t hdl_sz)
 		return -ENODEV;
 	}
 
-	/* Initialize broadcast_tlb to true, will be set to false if any SMMU doesn't support it */
+	assert(num_smmus <= RMM_MAX_SMMUS);
+
+	/* Initialize system-wide capabilities before probing individual SMMUs. */
 	g_driver->broadcast_tlb = true;
+	g_driver->event_notify = true;
 
 	g_smmus = g_driver->smmuv3_devs;
 	assert(g_smmus != NULL);

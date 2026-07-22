@@ -15,6 +15,7 @@
 #include <rec.h>
 #include <rsi-handler.h>
 #include <s2tt.h>
+#include <smmuv3.h>
 
 #define REALM_NEW		0U
 #define REALM_ACTIVE		1U
@@ -129,8 +130,12 @@ struct rd {
 	 * request from devices assigned to the Realm.
 	 */
 	unsigned long ats_plane;
+
+	/* CMD_SYNC completion state for SMMU TLB invalidations. */
+	struct smmuv3_cmd_sync smmu_cmd_sync;
 };
 COMPILER_ASSERT((U(offsetof(struct rd, measurement)) & 7U) == 0U);
+COMPILER_ASSERT((U(offsetof(struct rd, smmu_cmd_sync.completion)) & 3U) == 0U);
 COMPILER_ASSERT(sizeof(struct rd) <= GRANULE_SIZE);
 
 /*

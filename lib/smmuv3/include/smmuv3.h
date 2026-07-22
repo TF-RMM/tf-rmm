@@ -8,7 +8,11 @@
 #ifndef SMMUV3_H
 #define SMMUV3_H
 
-#include <rmm_el3_ifc.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+struct smmu_list;
 
 struct smmu_stg2_config {
 	unsigned long s2ttb;
@@ -16,6 +20,54 @@ struct smmu_stg2_config {
 	unsigned int vmid;
 	unsigned int mecid;
 };
+
+/*
+ * CMD_SYNC completion state supplied by a caller that issues an SMMU TLB
+ * invalidation. Each non-BTM SMMU writes its completion word through MSI.
+ *
+ * Call smmuv3_cmd_sync_init() before passing this object to an invalidation
+ * interface. Its members are driver-private after initialization.
+ */
+struct smmuv3_cmd_sync {
+	uintptr_t completion_pa;
+	unsigned int completion[RMM_MAX_SMMUS];
+	bool init;
+};
+
+/*
+ * Initialize CMD_SYNC completion state.
+ *
+ * Parameters:
+ *   cmd_sync	 - Completion state to initialize.
+ *   cmd_sync_pa	 - Non-zero physical address of cmd_sync in the SMMU's
+ * 		   physical address space.
+ *
+ * Return:
+ *   0		 - success.
+ *   -EINVAL	 - cmd_sync or its physical address is invalid.
+ */
+int smmuv3_cmd_sync_init(struct smmuv3_cmd_sync *cmd_sync,
+			 uintptr_t cmd_sync_pa);
+
+/*
+ * Check whether all CMD_SYNC commands submitted with @cmd_sync have
+ * completed.
+ *
+ * Return:
+ *   true	- no CMD_SYNC completion word is pending.
+ *   false	- at least one CMD_SYNC completion word is pending.
+ */
+bool smmuv3_cmd_sync_is_complete(struct smmuv3_cmd_sync *cmd_sync);
+
+/*
+ * Wait for an event associated with the outstanding CMD_SYNC commands.
+ *
+ * This executes WFE only when every SMMU supports event notification.
+ * Otherwise it returns immediately so the caller can continue polling.
+ * Wake-up events can be spurious; the caller must recheck
+ * smmuv3_cmd_sync_is_complete().
+ */
+void smmuv3_cmd_sync_wait(void);
 
 /*
  * Set up the SMMU driver and allocate resources for the SMMU instances.
@@ -47,7 +99,9 @@ uintptr_t smmuv3_driver_setup(struct smmu_list *plat_smmu_list,
  *   -EINVAL	- invalid driv_hdl or hdl_sz.
  *   -ENOMEM	- memory mapping or allocation failure.
  *   -ENODEV	- no SMMUs are defined in the layout.
- *   -ENOTSUP	- a required hardware feature is not supported.
+ *   -ENOTSUP	- a required hardware feature is not supported, including an
+ *		  SMMU output address size narrower than the CPU PA range, or
+ *		  lack of MSI support on an SMMU without BTM.
  *   -ETIMEDOUT	- SMMU command timeout.
  *   -EIO	- internal SMMU error while issuing commands.
  *
@@ -147,67 +201,108 @@ int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid);
  * Perform a context-wide invalidation for all SMMUs that do not support
  * broadcast TLB maintenance.
  *
+ * Parameters:
+ *   cmd_sync	 - Initialized CMD_SYNC completion state. Each non-BTM SMMU
+ *		   writes its corresponding completion word through MSI when
+ *		   CMD_SYNC completes.
+ *
  * Return:
- *   0		- success, or when broadcast TLB maintenance is supported
- *                on all SMMUs and no local invalidation is required.
- *   -ETIMEDOUT	- timeout during command processing.
- *   -EIO	- internal SMMU error.
+ *   0		 - success, or when broadcast TLB maintenance is supported
+ *                 on all SMMUs and no local invalidation is required.
+ *   -ETIMEDOUT	 - timeout during command processing.
+ *   -EIO	 - internal SMMU error.
  */
-int smmuv3_inv(void);
+int smmuv3_inv(struct smmuv3_cmd_sync *cmd_sync);
 
 /*
  * Invalidate all TLB entries at all implemented stages for a VMID on a single SMMU.
  *
  * Parameters:
- *   smmu_idx	- Index of SMMU instance.
- *   vmid	- Virtual Machine Identifier.
+ *   smmu_idx	 - Index of SMMU instance.
+ *   vmid	 - Virtual Machine Identifier.
+ *   cmd_sync	 - Initialized CMD_SYNC completion state.
  *
  * Return:
- *   0		- success, or when broadcast TLB maintenance is supported
- *                on SMMU and no local invalidation is required.
- *   -EINVAL	- invalid smmu_idx, no actions taken.
- *   -ETIMEDOUT	- timeout during invalidation.
- *   -EIO	- hardware or queue processing error.
+ *   0		 - success, or when broadcast TLB maintenance is supported
+ *                 on SMMU and no local invalidation is required.
+ *   -EINVAL	 - invalid smmu_idx, no actions taken.
+ *   -ETIMEDOUT	 - timeout during invalidation.
+ *   -EIO	 - hardware or queue processing error.
  */
-int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid);
+int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid,
+			struct smmuv3_cmd_sync *cmd_sync);
 
 /*
  * Invalidate @num_entrs TLB entries within a block region for VMID.
  *
  * Parameters:
- *   vmid	- Virtual Machine Identifier.
- *   addr	- Base address of the block.
- *   level	- RTT mapped level.
- *   num_entrs	- Number of entries to invalidate.
- *   leaf	- If 'true', validate only cached entries
- *		  for the last level of translation table walk.
+ *   vmid	 - Virtual Machine Identifier.
+ *   addr	 - Base address of the block.
+ *   level	 - RTT mapped level.
+ *   num_entrs	 - Number of entries to invalidate.
+ *   leaf	 - If 'true', validate only cached entries
+ *		   for the last level of translation table walk.
+ *   cmd_sync	 - Initialized CMD_SYNC completion state.
+ *
  * Return:
- *   0		- success, or when broadcast TLB maintenance is supported
- *		  on all SMMUs and no local invalidation is required.
- *   -ETIMEDOUT	- timeout in TLB invalidation command.
- *   -EIO	- SMMU command/queue error.
+ *   0		 - success, or when broadcast TLB maintenance is supported
+ *		   on all SMMUs and no local invalidation is required.
+ *   -ETIMEDOUT	 - timeout in TLB invalidation command.
+ *   -EIO	 - SMMU command/queue error.
  */
 int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
-			unsigned long num_entrs, bool leaf);
+			unsigned long num_entrs, bool leaf,
+			struct smmuv3_cmd_sync *cmd_sync);
+
+/*
+ * Submit invalidations for @vmid_list without waiting for CMD_SYNC completion.
+ *
+ * The caller must not reuse @cmd_sync until
+ * smmuv3_cmd_sync_is_complete() returns true.
+ * When every SMMU supports event notification, the submission also arranges
+ * for smmuv3_cmd_sync_wait() to use WFE safely.
+ *
+ * Parameters:
+ *   vmid_list	 - Pointer to an array of VMIDs to invalidate for.
+ *   addr	 - Base address of the block.
+ *   level	 - RTT mapped level.
+ *   num_entrs	 - Number of entries to invalidate.
+ *   leaf	 - If 'true', invalidate only cached entries for the last
+ *		   level of translation table walk.
+ *   cmd_sync	 - Initialized CMD_SYNC completion state.
+ *
+ * Return:
+ *   0		 - commands submitted, or no local invalidation is required.
+ *   -ETIMEDOUT	 - timeout submitting a command to an SMMU queue.
+ *   -EIO	 - SMMU command or queue error.
+ */
+int smmuv3_inv_at_level_per_vmids_submit(unsigned int *vmid_list,
+					 unsigned int nvmids,
+					 unsigned long addr, long level,
+					 unsigned long num_entrs, bool leaf,
+					 struct smmuv3_cmd_sync *cmd_sync);
 
 /*
  * Invalidate @num_entrs TLB entries mapped within block entry for a list of VMIDs.
  *
  * Parameters:
- *   vmid_list	- Pointer to an array of VMIDs to invalidate for.
- *   addr	- Base address of the block.
- *   level	- RTT mapped level.
- *   num_entrs	- Number of entries to invalidate.
- *   leaf	- If 'true', validate only cached entries
- *		  for the last level of translation table walk.
+ *   vmid_list	 - Pointer to an array of VMIDs to invalidate for.
+ *   addr	 - Base address of the block.
+ *   level	 - RTT mapped level.
+ *   num_entrs	 - Number of entries to invalidate.
+ *   leaf	 - If 'true', validate only cached entries
+ *		   for the last level of translation table walk.
+ *   cmd_sync	 - Initialized CMD_SYNC completion state.
+ *
  * Return:
- *   0		- success, or when broadcast TLB maintenance is supported
- *                on all SMMUs and no local invalidation is required.
- *   -ETIMEDOUT	- timeout in TLB invalidation command.
- *   -EIO	- SMMU command or queue error.
+ *   0		 - success, or when broadcast TLB maintenance is supported
+ *                 on all SMMUs and no local invalidation is required.
+ *   -ETIMEDOUT	 - timeout in TLB invalidation command.
+ *   -EIO	 - SMMU command or queue error.
  */
 int smmuv3_inv_at_level_per_vmids(unsigned int *vmid_list, unsigned int nvmids,
 				  unsigned long addr, long level,
-				  unsigned long num_entrs, bool leaf);
+				  unsigned long num_entrs, bool leaf,
+				  struct smmuv3_cmd_sync *cmd_sync);
 
 #endif /* SMMUV3_H */

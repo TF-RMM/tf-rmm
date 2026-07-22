@@ -126,4 +126,15 @@ static inline void smmuv3_arch_psmmu_reset(struct smmuv3_dev *smmu)
 	(void)smmu;
 }
 
+/*
+ * Architecture-specific notification of a command queue submission.
+ */
+static inline void smmuv3_arch_process_cmd(uint128_t cmd, void *prod_reg,
+					  void *cons_reg)
+{
+	(void)cmd;
+	(void)prod_reg;
+	(void)cons_reg;
+}
+
 #endif /* SMMUV3_ARCH_H */

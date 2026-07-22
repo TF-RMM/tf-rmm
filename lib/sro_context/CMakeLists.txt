@@ -10,7 +10,8 @@ target_link_libraries(rmm-lib-sro_context
             rmm-lib-debug
             rmm-lib-granule
             rmm-lib-smc
-    PUBLIC  rmm-lib-addr_list)
+    PUBLIC  rmm-lib-addr_list
+            rmm-lib-smmuv3)
 
 target_include_directories(rmm-lib-sro_context
     PUBLIC "include")

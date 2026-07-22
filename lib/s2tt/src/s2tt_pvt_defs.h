@@ -6,6 +6,7 @@
 #ifndef S2TT_PVT_DEFS
 #define S2TT_PVT_DEFS
 
+#include <assert.h>
 #include <s2ap_ind.h>
 #include <s2tt.h>
 
@@ -85,6 +86,88 @@
 
 /* Only 4K pages supported */
 #define BLOCK_L2_SIZE		(GRANULE_SIZE * S2TTES_PER_S2TT)
+
+/*
+ * TLBI RIPAS2E1IS operand fields and range limits. The range covered by one
+ * instruction is:
+ *
+ *   (NUM + 1) * 2^(5 * SCALE + 1) translation granules.
+ */
+#define S2_TLBI_RANGE_TG_SHIFT		46U
+#define S2_TLBI_RANGE_TG_WIDTH		2U
+#define S2_TLBI_RANGE_TG_4K		1UL
+
+#define S2_TLBI_RANGE_SCALE_SHIFT	44U
+#define S2_TLBI_RANGE_SCALE_WIDTH	2U
+#define S2_TLBI_RANGE_SCALE_MAX		3U
+#define S2_TLBI_RANGE_SCALE_MULT	5U
+#define S2_TLBI_RANGE_SCALE_BIAS	1U
+
+#define S2_TLBI_RANGE_NUM_SHIFT		39U
+#define S2_TLBI_RANGE_NUM_WIDTH		5U
+#define S2_TLBI_RANGE_NUM_MAX		(1UL << S2_TLBI_RANGE_NUM_WIDTH)
+
+#define S2_TLBI_RANGE_TTL_SHIFT		37U
+#define S2_TLBI_RANGE_TTL_WIDTH		2U
+
+#define S2_TLBI_RANGE_BASE_ADDR_SHIFT	0U
+#define S2_TLBI_RANGE_BASE_ADDR_WIDTH	37U
+#define S2_TLBI_RANGE_BASE_SHIFT	GRANULE_SHIFT
+#define S2_TLBI_RANGE_BASE_SHIFT_LPA2	16U
+#define S2_TLBI_RANGE_BASE_ALIGN_LPA2	(1UL << S2_TLBI_RANGE_BASE_SHIFT_LPA2)
+
+/*
+ * Select the largest range that one TLBI RIPAS2E1IS can cover without
+ * exceeding @num_grans. This is analogous to calc_tlbi_range() in the
+ * SMMUv3 driver, but the CPU instruction uses 2^(5 * SCALE + 1), rather
+ * than 2^SCALE, and supports only four SCALE values.
+ *
+ * @num_grans must be non-zero. A return value of zero means that only one
+ * granule remains and the caller must use TLBI IPAS2E1IS instead.
+ * @num_out is the raw group count; encode it as NUM = @num_out - 1.
+ */
+static inline unsigned long calc_s2_tlbi_range(unsigned long num_grans,
+						unsigned int *scale_out,
+						unsigned long *num_out)
+{
+	unsigned long best_covered = 0UL;
+	unsigned long best_num = 0UL;
+	unsigned int best_scale = 0U;
+	unsigned int scale = S2_TLBI_RANGE_SCALE_MAX;
+
+	assert(num_grans != 0UL);
+	assert(scale_out != NULL);
+	assert(num_out != NULL);
+
+	while (true) {
+		unsigned int shift = (S2_TLBI_RANGE_SCALE_MULT * scale) +
+				     S2_TLBI_RANGE_SCALE_BIAS;
+		unsigned long num = MIN(num_grans >> shift,
+					S2_TLBI_RANGE_NUM_MAX);
+		unsigned long covered = num << shift;
+
+		/* Descending SCALE order makes ties prefer the larger SCALE. */
+		if (covered > best_covered) {
+			best_covered = covered;
+			best_scale = scale;
+			best_num = num;
+
+			if (best_covered == num_grans) {
+				break;
+			}
+		}
+
+		if (scale == 0U) {
+			break;
+		}
+		scale--;
+	}
+
+	*scale_out = best_scale;
+	*num_out = best_num;
+
+	return best_covered;
+}
 
 /*
  * The maximum number of bits supported by the RMM for a stage 2 translation

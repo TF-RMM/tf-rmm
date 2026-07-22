@@ -30,8 +30,7 @@
 #include <xlat_tables.h>
 
 typedef void (*tlb_handler_t)(const struct s2tt_context *s2tt_ctx,
-			      bool da_enabled, unsigned int vmid,
-			      unsigned long addr, long level);
+			      struct rd *rd, unsigned long addr, long level);
 typedef void (*tlb_handler_per_vmids_t)(struct rd *rd, unsigned long addr, long level);
 
 bool validate_map_addr(unsigned long map_addr,
@@ -112,11 +111,13 @@ static void invalidate_page_block_per_vmids(struct rd *rd, unsigned long map_add
 		vmid_list[i] = plane_to_s2_context(rd, i)->vmid;
 	}
 
-	s2tt_invalidate_page_block_per_vmids(UNUSED_PTR, vmid_list, nvmids, map_addr, level);
+	s2tt_invalidate_page_block_per_vmids(rd->s2_ctx[PRIMARY_S2_CTX_ID].enable_lpa2,
+						vmid_list, nvmids, map_addr, level);
 
 	if (rd->da_enabled) {
 		int ret = smmuv3_inv_at_level_per_vmids(vmid_list, nvmids, map_addr,
-							level, 1UL, true);
+							level, 1UL, true,
+							&rd->smmu_cmd_sync);
 
 		if (ret != 0) {
 			ERROR("smmuv3_inv_at_level_per_vmids(0x%lx %ld) error %d\n",
@@ -130,7 +131,7 @@ static void invalidate_page_block_per_vmids(struct rd *rd, unsigned long map_add
  * Helper function to invalidate the pages in a block at address @map_addr
  * for all the valid S2 translation contexts on the realm @rd.
  */
-static void invalidate_pages_in_block_for_contexts(struct rd *rd, unsigned long addr,
+static void invalidate_pages_in_block_for_contexts(struct rd *rd, unsigned long map_addr,
 						   long level)
 {
 	unsigned int vmid_list[MAX_S2_CTXS];
@@ -140,15 +141,17 @@ static void invalidate_pages_in_block_for_contexts(struct rd *rd, unsigned long 
 		vmid_list[i] = plane_to_s2_context(rd, i)->vmid;
 	}
 
-	s2tt_invalidate_pages_in_block_per_vmids(UNUSED_PTR, vmid_list, nvmids, addr);
+	s2tt_invalidate_pages_in_block_per_vmids(rd->s2_ctx[PRIMARY_S2_CTX_ID].enable_lpa2,
+							vmid_list, nvmids, map_addr);
 
 	if (rd->da_enabled) {
-		int ret = smmuv3_inv_at_level_per_vmids(vmid_list, nvmids, addr,
-							level, S2TTES_PER_S2TT, false);
+		int ret = smmuv3_inv_at_level_per_vmids(vmid_list, nvmids, map_addr,
+							level, S2TTES_PER_S2TT, false,
+							&rd->smmu_cmd_sync);
 
 		if (ret != 0) {
 			ERROR("smmuv3_inv_at_level_per_vmids(0x%lx %ld) error %d\n",
-				addr, level, ret);
+				map_addr, level, ret);
 			panic();
 		}
 	}
@@ -158,17 +161,18 @@ static void invalidate_pages_in_block_for_contexts(struct rd *rd, unsigned long 
  * Helper function to invalidate a page or block at address @map_addr and @level.
  */
 static void invalidate_page_block(const struct s2tt_context *s2_ctx,
-				  bool da_enabled, unsigned int vmid,
-				  unsigned long addr, long level)
+				  struct rd *rd, unsigned long map_addr, long level)
 {
-	s2tt_invalidate_page_block(s2_ctx, addr, level);
+	s2tt_invalidate_page_block(s2_ctx->enable_lpa2, s2_ctx->vmid, map_addr,
+				   level);
 
-	if (da_enabled) {
-		int ret = smmuv3_inv_at_level(vmid, addr, level, 1UL, true);
+	if (rd->da_enabled) {
+		int ret = smmuv3_inv_at_level(s2_ctx->vmid, map_addr, level, 1UL, true,
+						&rd->smmu_cmd_sync);
 
 		if (ret != 0) {
 			ERROR("smmuv3_inv_at_level(0x%x 0x%lx %ld) error %d\n",
-				vmid, addr, level, ret);
+				s2_ctx->vmid, map_addr, level, ret);
 			panic();
 		}
 	}
@@ -178,19 +182,20 @@ static void invalidate_page_block(const struct s2tt_context *s2_ctx,
  * Helper function to invalidate pages in block at address @map_addr and @level.
  */
 static void invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
-					bool da_enabled,  unsigned int vmid,
-					unsigned long addr, long level)
+				      struct rd *rd, unsigned long map_addr, long level)
 {
 	(void)level;
 
-	s2tt_invalidate_pages_in_block(s2_ctx, addr);
+	s2tt_invalidate_pages_in_block(s2_ctx->enable_lpa2, s2_ctx->vmid,
+				      map_addr);
 
-	if (da_enabled) {
-		int ret = smmuv3_inv_at_level(vmid, addr, level, S2TTES_PER_S2TT, false);
-
+	if (rd->da_enabled) {
+		int ret = smmuv3_inv_at_level(s2_ctx->vmid, map_addr, level,
+						S2TTES_PER_S2TT, false,
+						&rd->smmu_cmd_sync);
 		if (ret != 0) {
 			ERROR("smmuv3_inv_at_level(0x%x 0x%lx %ld) error %d\n",
-				vmid, addr, level, ret);
+				s2_ctx->vmid, map_addr, level, ret);
 			panic();
 		}
 	}
@@ -354,8 +359,7 @@ static unsigned long rtt_create(unsigned long rd_addr,
 			/* Invalidate TLBs for all Plane VMIDs */
 			invalidate_page_block_per_vmids(rd, map_addr, level);
 		} else {
-			invalidate_page_block(s2_ctx, rd->da_enabled,
-						s2_ctx->vmid, map_addr, level);
+			invalidate_page_block(s2_ctx, rd, map_addr, level);
 		}
 
 		block_pa = s2tte_pa(s2_ctx, parent_s2tte, level - 1L);
@@ -387,8 +391,7 @@ static unsigned long rtt_create(unsigned long rd_addr,
 			/* Invalidate TLBs for all Plane VMIDs */
 			invalidate_page_block_per_vmids(rd, map_addr, level);
 		} else {
-			invalidate_page_block(s2_ctx, rd->da_enabled, s2_ctx->vmid,
-						map_addr, level);
+			invalidate_page_block(s2_ctx, rd, map_addr, level);
 		}
 
 		block_pa = s2tte_pa(s2_ctx, parent_s2tte, level - 1L);
@@ -455,7 +458,7 @@ static unsigned long rtt_create(unsigned long rd_addr,
 		 */
 		s2tte_write(&parent_s2tt[wi.index], 0UL);
 
-		invalidate_page_block(s2_ctx, rd->da_enabled, s2_ctx->vmid, map_addr, level);
+		invalidate_page_block(s2_ctx, rd, map_addr, level);
 
 		block_pa = s2tte_pa(s2_ctx, parent_s2tte, level - 1L);
 
@@ -795,7 +798,7 @@ static void rtt_fold(unsigned long rd_addr,
 		/* Invalidate TLBs for all Plane VMIDs */
 		tlb_handler_per_vmids(rd, map_addr, level);
 	} else {
-		tlb_handler(s2_ctx, rd->da_enabled, s2_ctx->vmid, map_addr, level);
+		tlb_handler(s2_ctx, rd, map_addr, level);
 	}
 
 	ret = RMI_SUCCESS;
@@ -980,7 +983,7 @@ static void rtt_destroy(unsigned long rd_addr,
 		/* Invalidate TLBs for all Plane VMIDs */
 		tlb_handler_per_vmids(rd, map_addr, level);
 	} else {
-		tlb_handler(s2_ctx, rd->da_enabled, s2_ctx->vmid, map_addr, level);
+		tlb_handler(s2_ctx, rd, map_addr, level);
 	}
 
 	s2tte_write(&parent_s2tt[wi.index], parent_s2tte);
@@ -1450,8 +1453,7 @@ static void rtt_set_ripas_range(struct s2tt_context *s2_ctx,
 				/* Invalidate TLBs for all Plane VMIDs */
 				invalidate_page_block_per_vmids(rd, addr, level);
 			} else {
-				invalidate_page_block(s2_ctx, rd->da_enabled,
-							s2_ctx->vmid, addr, level);
+				invalidate_page_block(s2_ctx, rd, addr, level);
 			}
 		}
 
@@ -1724,8 +1726,7 @@ void smc_rtt_set_s2ap(unsigned long rd_addr, unsigned long rec_addr,
 				/* Invalidate for all Plane VMIDs */
 				invalidate_page_block_per_vmids(rd, next, wi.last_level);
 			} else {
-				invalidate_page_block(s2_ctx, rd->da_enabled, s2_ctx->vmid,
-							next, wi.last_level);
+				invalidate_page_block(s2_ctx, rd, next, wi.last_level);
 			}
 		}
 
@@ -2174,8 +2175,7 @@ void smc_rtt_aux_unmap_protected(unsigned long rd_addr,
 		/* Invalidate TLBs for all Plane VMIDs */
 		invalidate_page_block_per_vmids(rd, unmap_addr, wi.last_level);
 	} else {
-		invalidate_page_block(s2_ctx, rd->da_enabled, s2_ctx->vmid,
-					unmap_addr, wi.last_level);
+		invalidate_page_block(s2_ctx, rd, unmap_addr, wi.last_level);
 	}
 
 	res->x[0] = RMI_SUCCESS;
@@ -2254,8 +2254,7 @@ void smc_rtt_aux_unmap_unprotected(unsigned long rd_addr,
 			/* Invalidate TLBs for all Plane VMIDs */
 			invalidate_page_block_per_vmids(rd, unmap_addr, wi.last_level);
 		} else {
-			invalidate_page_block(s2_ctx, rd->da_enabled, s2_ctx->vmid,
-						unmap_addr, wi.last_level);
+			invalidate_page_block(s2_ctx, rd, unmap_addr, wi.last_level);
 		}
 	}
 
@@ -2353,8 +2352,7 @@ static void rtt_dev_mem_set_range(struct s2tt_context *s2_ctx,
 				/* Invalidate TLBs for all Plane VMIDs */
 				invalidate_page_block_per_vmids(rd, addr, level);
 			} else {
-				invalidate_page_block(s2_ctx, rd->da_enabled, s2_ctx->vmid,
-							addr, level);
+				invalidate_page_block(s2_ctx, rd, addr, level);
 			}
 		}
 

@@ -120,6 +120,7 @@ typedef __uint128_t	uint128_t;
 #define IDR0_S1P_BIT		BIT32(1)
 #define IDR0_TTF_SHIFT		U(2)
 #define IDR0_TTF_WIDTH		U(2)
+#define IDR0_COHACC_BIT		BIT32(4)
 #define IDR0_BTM_BIT		BIT32(5)
 #define IDR0_ASID16_BIT		BIT32(12)
 #define IDR0_SEV_BIT		BIT32(14)
@@ -188,18 +189,17 @@ typedef __uint128_t	uint128_t;
 /* SMMU features bitmap */
 #define FEAT_2_LVL_STRTAB	BIT32(0)
 #define FEAT_BTM		BIT32(1)
-#define FEAT_COHACC		BIT32(2)
-#define FEAT_S1P		BIT32(3)
-#define FEAT_ASID16		BIT32(4)
-#define FEAT_VMID16		BIT32(5)
-#define FEAT_RIL		BIT32(6)
-#define FEAT_DS			BIT32(7)
-#define FEAT_D128		BIT32(8)
-#define FEAT_ATS		BIT32(9)
-#define FEAT_MSI		BIT32(10)
-#define FEAT_PRI		BIT32(11)
-#define FEAT_DPT		BIT32(12)
-#define FEAT_SEV		BIT32(13)
+#define FEAT_S1P		BIT32(2)
+#define FEAT_ASID16		BIT32(3)
+#define FEAT_VMID16		BIT32(4)
+#define FEAT_RIL		BIT32(5)
+#define FEAT_DS			BIT32(6)
+#define FEAT_D128		BIT32(7)
+#define FEAT_ATS		BIT32(8)
+#define FEAT_PRI		BIT32(9)
+#define FEAT_DPT		BIT32(10)
+#define FEAT_SEV		BIT32(11)
+#define FEAT_MSI		BIT32(12)
 
 /* Log2 of maximum number of Command and Event queues entries */
 #define QUEUE_SIZE_MAX		U(19)
@@ -335,11 +335,39 @@ typedef __uint128_t	uint128_t;
 #define SID_ALL			UL(31)
 
 /* CMD_SYNC */
-#define SIG_NONE		U(0)
-#define SIG_IRQ			U(1)
-#define SIG_SEV			U(2)
 #define CS_SHIFT		U(12)
 #define CS_WIDTH		U(2)
+#define MSH_SHIFT		U(22)
+#define MSH_WIDTH		U(2)
+#define MSIATTR_SHIFT		U(24)
+#define MSIATTR_WIDTH		U(4)
+#define MSIDATA_SHIFT		U(32)
+#define MSIADDR_SHIFT		U(64)
+#define MSI_NS_SHIFT		U(127)
+
+/* CMD_SYNC.CS[13:12] */
+#define SIG_NONE		UL(0)
+#define SIG_IRQ			UL(1)
+#define SIG_SEV			UL(2)
+
+/* CMD_SYNC.MSH[23:22] */
+#define MSH_NSH			UL(0)
+#define MSH_OSH			UL(2)
+#define MSH_ISH			UL(3)
+
+/*
+ * CMD_SYNC.MSIAttr[27:24]: Normal Outer/Inner Write-Back cacheable.
+ *
+ * MSIAttr uses the SMMU-defined memory attribute encoding, which matches
+ * the Stage-2 MemAttr encoding when S2FWB == 0. S2FWB affects only Stage-2
+ * translation table descriptors and does not affect the encoding of
+ * CMD_SYNC.MSIAttr.
+ */
+#define MSIATTR_OIWB		UL(0xF)
+
+/* CMD_SYNC.MSI_NS[127] */
+#define MSI_NS_RLPA		UL(0)
+#define MSI_NS_NSPA		UL(1)
 
 /* CMD_TLBI_S2_IPA[63:0], CMD_TLBI_S12_VMALL */
 #define VMID_SHIFT		U(32)
@@ -566,6 +594,8 @@ struct smmuv3_dev {
 struct smmuv3_driv {
 	/* Indicates whether all SMMUs support broadcast TLB maintenance */
 	bool broadcast_tlb;
+	/* Indicates whether every SMMU supports event notification */
+	bool event_notify;
 	/* Number of SMMUv3 */
 	uint64_t num_smmus;
 	/* Pointer to dynamically allocated array of smmuv3_dev structures */
@@ -597,6 +627,8 @@ void configure_queue(struct smmuv3_dev *smmu, enum queue_type type,
 			uintptr_t queue_base_pa);
 int prepare_send_command(struct smmuv3_dev *smmu, unsigned long opcode,
 			 unsigned long param0, unsigned long param1);
+int prepare_send_cmd_sync(struct smmuv3_dev *smmu, uintptr_t msi_addr_pa,
+			  unsigned int msi_data);
 int wait_cmdq_empty(struct smmuv3_dev *smmu);
 int smmu_on(struct smmuv3_dev *smmu);
 void smmu_off(struct smmuv3_dev *smmu);

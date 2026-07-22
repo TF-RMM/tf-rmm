@@ -37,8 +37,12 @@
 
 extern "C" {
 #include <debug.h>
+#include <errno.h>
 #include <smc-rmi.h>
+#include <smmuv3.h>
+#include <smmuv3_arch.h>
 #include <smmuv3_priv.h>
+#include <stddef.h>
 #include <test_helpers.h>
 }
 
@@ -93,6 +97,124 @@ static void check_full_coverage(unsigned long num_grans_total,
 TEST_GROUP(smmuv3_tlbi_range)
 {
 };
+
+/*
+ * Verify that fake_host emulates an MSI-signalling CMD_SYNC by writing
+ * MSIData to MSIAddress and advancing the command queue consumer index.
+ */
+TEST(smmuv3_tlbi_range, fake_host_cmd_sync_msi)
+{
+	uint32_t completion = UINT32_MAX;
+	uint32_t prod = 1U;
+	uint32_t cons = 0U;
+	uint128_t cmd = CMD_SYNC | COMPOSE(CS, SIG_IRQ) |
+		       ((uint128_t)UINT64_C(0xA5A5A5A5) << MSIDATA_SHIFT) |
+		       ((uint128_t)(uintptr_t)&completion << MSIADDR_SHIFT);
+
+	smmuv3_arch_process_cmd(cmd, &prod, &cons);
+
+	UNSIGNED_LONGS_EQUAL(0xA5A5A5A5U, completion);
+	UNSIGNED_LONGS_EQUAL(prod, cons);
+}
+
+/*
+ * Verify that a regular CMD_SYNC requests event notification when FEAT_SEV
+ * is supported, and that fake_host consumes the command.
+ */
+TEST(smmuv3_tlbi_range, cmd_sync_sev_command)
+{
+	uint8_t r_page[GRANULE_SIZE] = {};
+	uint128_t cmdq[2] = {};
+	uint32_t prod = 0U;
+	uint32_t cons = 0U;
+	struct smmuv3_dev smmu = {};
+	uint64_t cmd_lo;
+
+	smmu.r_base = (uintptr_t)r_page;
+	smmu.config.features = FEAT_SEV;
+	smmu.config.cmdq_log2size = 1U;
+	smmu.cmdq.q_base = (uintptr_t)cmdq;
+	smmu.cmdq.prod_reg = &prod;
+	smmu.cmdq.cons_reg = &cons;
+
+	LONGS_EQUAL(0L, prepare_send_command(&smmu, CMD_SYNC, 0UL, 0UL));
+	cmd_lo = (uint64_t)cmdq[0];
+
+	UNSIGNED_LONGS_EQUAL(CMD_SYNC, cmd_lo & UINT64_C(0xFF));
+	UNSIGNED_LONGS_EQUAL(SIG_SEV, EXTRACT(CS, cmd_lo));
+	UNSIGNED_LONGS_EQUAL(prod, cons);
+}
+
+/*
+ * Verify that a BTM-capable SMMU without MSI support uses a non-signalling
+ * CMD_SYNC and that completion can be detected by polling the queue indices.
+ */
+TEST(smmuv3_tlbi_range, cmd_sync_poll_without_msi)
+{
+	uint8_t r_page[GRANULE_SIZE] = {};
+	uint128_t cmdq[2] = {};
+	uint32_t prod = 0U;
+	uint32_t cons = 0U;
+	struct smmuv3_dev smmu = {};
+	uint64_t cmd_lo;
+
+	smmu.r_base = (uintptr_t)r_page;
+	smmu.config.features = FEAT_BTM;
+	smmu.config.cmdq_log2size = 1U;
+	smmu.cmdq.q_base = (uintptr_t)cmdq;
+	smmu.cmdq.prod_reg = &prod;
+	smmu.cmdq.cons_reg = &cons;
+
+	LONGS_EQUAL(0L, prepare_send_command(&smmu, CMD_SYNC, 0UL, 0UL));
+	cmd_lo = (uint64_t)cmdq[0];
+
+	UNSIGNED_LONGS_EQUAL(CMD_SYNC, cmd_lo & UINT64_C(0xFF));
+	UNSIGNED_LONGS_EQUAL(SIG_NONE, EXTRACT(CS, cmd_lo));
+	LONGS_EQUAL(0L, wait_cmdq_empty(&smmu));
+}
+
+/*
+ * Verify that CMD_SYNC state initialization derives the completion-array PA,
+ * clears every completion word, and rejects invalid object addresses.
+ */
+TEST(smmuv3_tlbi_range, cmd_sync_init)
+{
+	struct smmuv3_cmd_sync cmd_sync = {};
+	uintptr_t cmd_sync_pa = (uintptr_t)&cmd_sync;
+	uintptr_t completion_pa = cmd_sync_pa +
+				  offsetof(struct smmuv3_cmd_sync, completion);
+
+	cmd_sync.completion[0] = UINT32_MAX;
+
+	LONGS_EQUAL(0L, smmuv3_cmd_sync_init(&cmd_sync, cmd_sync_pa));
+	UNSIGNED_LONGS_EQUAL((unsigned long)completion_pa,
+			     (unsigned long)cmd_sync.completion_pa);
+	for (unsigned int i = 0U; i < RMM_MAX_SMMUS; i++) {
+		UNSIGNED_LONGS_EQUAL(0U, cmd_sync.completion[i]);
+	}
+
+	LONGS_EQUAL(-EINVAL, smmuv3_cmd_sync_init(NULL, cmd_sync_pa));
+	LONGS_EQUAL(-EINVAL, smmuv3_cmd_sync_init(&cmd_sync, 0UL));
+}
+
+/*
+ * Verify that CMD_SYNC completion is reported only when every per-SMMU
+ * completion word is zero.
+ */
+TEST(smmuv3_tlbi_range, cmd_sync_completion)
+{
+	struct smmuv3_cmd_sync cmd_sync = {};
+	uintptr_t cmd_sync_pa = (uintptr_t)&cmd_sync;
+
+	LONGS_EQUAL(0L, smmuv3_cmd_sync_init(&cmd_sync, cmd_sync_pa));
+	CHECK_TRUE(smmuv3_cmd_sync_is_complete(&cmd_sync));
+
+	cmd_sync.completion[RMM_MAX_SMMUS - 1U] = U(-1);
+	CHECK_FALSE(smmuv3_cmd_sync_is_complete(&cmd_sync));
+
+	cmd_sync.completion[RMM_MAX_SMMUS - 1U] = 0U;
+	CHECK_TRUE(smmuv3_cmd_sync_is_complete(&cmd_sync));
+}
 
 /* -----------------------------------------------------------------------
  * TC1: Single granule -- the minimal possible input.

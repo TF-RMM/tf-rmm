@@ -769,7 +769,7 @@ TEST(s2tt_lpa2_s2pie, s2tt_invalidate_page_block_tc1)
 	s2tt_invalidate_page_block_tc1();
 }
 
-ASSERT_TEST(s2tt_lpa2_s2pie, s2tt_invalidate_page_block_tc2)
+TEST(s2tt_lpa2_s2pie, s2tt_invalidate_page_block_tc2)
 {
 	s2tt_invalidate_page_block_tc2();
 }
@@ -779,7 +779,7 @@ TEST(s2tt_lpa2_s2pie, s2tt_invalidate_page_block_tc3)
 	s2tt_invalidate_page_block_tc3();
 }
 
-ASSERT_TEST(s2tt_lpa2_s2pie, s2tt_invalidate_page_block_tc4)
+TEST(s2tt_lpa2_s2pie, s2tt_invalidate_page_block_tc4)
 {
 	s2tt_invalidate_page_block_tc4();
 }
@@ -789,7 +789,7 @@ TEST(s2tt_lpa2_s2pie, s2tt_invalidate_pages_in_block_tc1)
 	s2tt_invalidate_pages_in_block_tc1();
 }
 
-ASSERT_TEST(s2tt_lpa2_s2pie, s2tt_invalidate_pages_in_block_tc2)
+TEST(s2tt_lpa2_s2pie, s2tt_invalidate_pages_in_block_tc2)
 {
 	s2tt_invalidate_pages_in_block_tc2();
 }

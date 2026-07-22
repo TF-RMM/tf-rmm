@@ -128,6 +128,10 @@ local RMM with shrinkwrap.
 RMM provides ``cca_da.yaml`` overlay that can be used along with the
 ``cca-3world.yaml`` to build a 3 World demonstrator.
 
+The FVP SMMU runs without Broadcast TLB Maintenance (BTM) by default. Add the
+``model-enable-btm.yaml`` overlay to the build and run commands when testing
+with BTM enabled.
+
 As an example, the following command line would build the 3-World demonstrator.
 It assumes that Shrinkwrap is called from within the ``<RMM_ROOT>`` directory
 that was created in the last step:
@@ -220,6 +224,10 @@ and Arm RME extension utilizing `TF-A-Tests`_. The main Test payload in
 TF-A-Tests is the |TFTF| binary. In this config, |TF-A| is in Root World, |RMM|
 is in Realm EL2 and |TFTF| is in Normal World.
 
+The FVP SMMU runs without Broadcast TLB Maintenance (BTM) by default. Add the
+``model-enable-btm.yaml`` overlay to the build and run commands when testing
+with BTM enabled.
+
 In order to build the config, you need to run the following command:
 
     .. code-block:: shell
@@ -274,6 +282,7 @@ The available Overlays are sumarized in the next table
    cca_da.yaml,Overlay to build and run RMM in a 3-World CCA demonstrator configuration with Device Assignment (DA) support for RMM v1.x branches.
    lfa-support.yaml,Overlay to build |TF-A| with LFA support enabled and load LFA RMM at expected address.
    model-enable-lpa2.yaml,Overlay used to enable ``FEAT_LPA2`` on the |FVP| model at run time. In addition this overlay also sets the ``PA_SIZE`` on the model to 52
+   model-enable-btm.yaml,Overlay used to enable SMMUv3 Broadcast TLB Maintenance on the |FVP| model at run time.
    model-enable-mec.yaml,Overlay used to enable ``FEAT_MEC`` on the |FVP| model at run time.
    model-enable-mops.yaml,Overlay used to enable ``FEAT_MOPS`` on the |FVP| model at run time.
    model-wait-debugger.yaml,Overlay to configure the |FVP| model to listen for Iris connections on port 7100 and make it wait until a debugger is connected before starting execution

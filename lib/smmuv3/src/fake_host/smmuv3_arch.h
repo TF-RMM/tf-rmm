@@ -7,6 +7,7 @@
 #define SMMUV3_ARCH_H
 
 #include <errno.h>
+#include <granule.h>
 #include <linux/memfd.h>
 #include <smmuv3_priv.h>
 #include <smmuv3_psmmu.h>
@@ -297,6 +298,30 @@ static inline void smmuv3_arch_psmmu_reset(struct smmuv3_dev *smmu)
 	smmu->cmdq_pa = 0UL;
 	smmu->evtq_pa = 0UL;
 	smmu->state = PSMMU_INACTIVE;
+}
+
+/* Process a command immediately and emulate CMD_SYNC MSI completion. */
+static inline void smmuv3_arch_process_cmd(uint128_t cmd, void *prod_reg,
+					  void *cons_reg)
+{
+	uint64_t cmd_lo = (uint64_t)cmd;
+	uint64_t cmd_hi = (uint64_t)(cmd >> 64);
+	uint32_t *msi_addr;
+
+	/*
+	 * fake_host uses identity address translation, so CMD_SYNC.MSIAddress
+	 * in cmd is directly a host pointer. Emulate the SMMU's coherent
+	 * 32-bit MSI write of MSIData in cmd to the completion word. A zero
+	 * MSIAddress does not generate an MSI.
+	 */
+	if ((EXTRACT(CMD, cmd_lo) == CMD_SYNC) &&
+	    (EXTRACT(CS, cmd_lo) == SIG_IRQ) &&
+	    (cmd_hi != 0UL)) {
+		msi_addr = (uint32_t *)(uintptr_t)cmd_hi;
+		*msi_addr = (uint32_t)(cmd_lo >> MSIDATA_SHIFT);
+	}
+
+	smmuv3_arch_sync_cmdq(prod_reg, cons_reg);
 }
 
 #endif /* SMMUV3_ARCH_H */
