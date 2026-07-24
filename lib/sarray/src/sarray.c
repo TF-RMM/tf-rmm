@@ -37,6 +37,35 @@ static uint64_t *_key_ptr(void *data)
 	return (uint64_t *)data;
 }
 
+static int verify_sarray_access(const struct sarray_hdr *hnd, size_t elem_sz)
+{
+	if ((_verify_sarray_hnd(hnd) != 0) || (hnd->elem_sz != elem_sz)) {
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static bool data_overlaps_sarray(const struct sarray_hdr *hnd, const void *data)
+{
+	uintptr_t array_start = (uintptr_t)hnd->base;
+	uintptr_t data_start = (uintptr_t)data;
+	size_t array_sz = hnd->max_elems * hnd->elem_sz;
+	uintptr_t array_end;
+	uintptr_t data_end;
+
+	/* Reject wrapped ranges as they cannot be checked safely. */
+	if ((array_start > (UINTPTR_MAX - array_sz)) ||
+	    (data_start > (UINTPTR_MAX - hnd->elem_sz))) {
+		return true;
+	}
+
+	array_end = array_start + array_sz;
+	data_end = data_start + hnd->elem_sz;
+
+	return (data_start < array_end) && (array_start < data_end);
+}
+
 /* cppcheck-suppress misra-c2012-8.7 */
 const void *sarray_first(const struct sarray_hdr *hnd)
 {
@@ -46,7 +75,7 @@ const void *sarray_first(const struct sarray_hdr *hnd)
 /* cppcheck-suppress misra-c2012-8.7 */
 const void *sarray_last(const struct sarray_hdr *hnd, size_t elem_sz)
 {
-	if ((hnd == NULL) || (hnd->base == NULL)) {
+	if (verify_sarray_access(hnd, elem_sz) != 0) {
 		return NULL;
 	}
 	/* coverity[null_field:SUPPRESS] */
@@ -56,7 +85,11 @@ const void *sarray_last(const struct sarray_hdr *hnd, size_t elem_sz)
 /* cppcheck-suppress misra-c2012-8.7 */
 const void *_get_element(const struct sarray_hdr *hnd, size_t elem_sz, size_t idx)
 {
-	return (const void *)((hnd != NULL) ? _elem_ptr(hnd, elem_sz, idx) : NULL);
+	if (verify_sarray_access(hnd, elem_sz) != 0) {
+		return NULL;
+	}
+
+	return (const void *)_elem_ptr(hnd, elem_sz, idx);
 }
 
 size_t sarray_num_elems(const struct sarray_hdr *hnd)
@@ -78,7 +111,19 @@ int _verify_sarray_hnd(const struct sarray_hdr *hnd)
 		return -EINVAL;
 	}
 
+	if (!ALIGNED((uintptr_t)hnd->base, sizeof(uint64_t))) {
+		return -EINVAL;
+	}
+
 	if (hnd->max_elems == 0U) {
+		return -EINVAL;
+	}
+
+	if (hnd->elem_sz < sizeof(uint64_t)) {
+		return -EINVAL;
+	}
+
+	if (!ALIGNED(hnd->elem_sz, sizeof(uint64_t))) {
 		return -EINVAL;
 	}
 
@@ -103,6 +148,11 @@ struct sarray_hdr *_sarray_init(struct sarray_hdr *hnd, void *base, size_t size,
 		return NULL;
 	}
 
+	if (!ALIGNED((uintptr_t)base, sizeof(uint64_t)) ||
+	    !ALIGNED(elem_sz, sizeof(uint64_t))) {
+		return NULL;
+	}
+
 	if (size < elem_sz) {
 		return NULL;
 	}
@@ -113,6 +163,7 @@ struct sarray_hdr *_sarray_init(struct sarray_hdr *hnd, void *base, size_t size,
 	}
 
 	hnd->base = base;
+	hnd->elem_sz = elem_sz;
 	hnd->max_elems = max_elems;
 	hnd->num_elems = 0U;
 
@@ -127,6 +178,7 @@ void sarray_destroy(struct sarray_hdr *hnd)
 	}
 
 	hnd->base = NULL;
+	hnd->elem_sz = 0U;
 	hnd->max_elems = 0U;
 	hnd->num_elems = 0U;
 }
@@ -141,7 +193,7 @@ bool binary_search_internal(struct sarray_hdr *hnd, size_t elem_sz, uint64_t key
 		return false;
 	}
 
-	if (_verify_sarray_hnd(hnd) != 0) {
+	if (verify_sarray_access(hnd, elem_sz) != 0) {
 		return false;
 	}
 
@@ -191,7 +243,7 @@ void *_sarray_lookup_locked(struct sarray_hdr *hnd, size_t elem_sz, uint64_t key
 {
 	unsigned long idx;
 
-	if (_verify_sarray_hnd(hnd) != 0) {
+	if (verify_sarray_access(hnd, elem_sz) != 0) {
 		return NULL;
 	}
 
@@ -211,7 +263,12 @@ int _sarray_insert_locked(struct sarray_hdr *hnd, size_t elem_sz, uint64_t key, 
 
 	assert(data != NULL);
 
-	if (_verify_sarray_hnd(hnd) != 0) {
+	if (verify_sarray_access(hnd, elem_sz) != 0) {
+		return -EINVAL;
+	}
+
+	/* The shift below must not overwrite the source element. */
+	if (data_overlaps_sarray(hnd, data)) {
 		return -EINVAL;
 	}
 
@@ -254,12 +311,17 @@ int _sarray_delete_locked(struct sarray_hdr *hnd, size_t elem_sz, uint64_t key, 
 	unsigned long idx;
 	size_t count;
 
-	if (_verify_sarray_hnd(hnd) != 0) {
+	if (verify_sarray_access(hnd, elem_sz) != 0) {
 		return -EINVAL;
 	}
 
 	if (!binary_search_internal(hnd, elem_sz, key, &idx)) {
 		return -ENOENT;
+	}
+
+	/* The move below must not overwrite the destination element. */
+	if ((deleted_data != NULL) && data_overlaps_sarray(hnd, deleted_data)) {
+		return -EINVAL;
 	}
 
 	/* copy deleted data if asked for */

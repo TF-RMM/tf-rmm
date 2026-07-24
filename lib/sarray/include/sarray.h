@@ -17,6 +17,7 @@
 
 struct sarray_hdr {
 	void   *base;	/* separate caller-provided data buffer */
+	size_t  elem_sz;	/* size of each element */
 	size_t  max_elems;	/* max elements this array can hold */
 	size_t  num_elems;	/* current number of elements stored */
 };
@@ -106,9 +107,11 @@ bool binary_search_internal(struct sarray_hdr *hnd, size_t elem_sz,
 
 void *_sarray_lookup_locked(struct sarray_hdr *hnd, size_t elem_sz, uint64_t key);
 
+/* The source data must not overlap the array's backing storage. */
 int _sarray_insert_locked(struct sarray_hdr *hnd, size_t elem_sz,
 			   uint64_t key, const void *data);
 
+/* The output data must not overlap the array's backing storage. */
 int _sarray_delete_locked(struct sarray_hdr *hnd, size_t elem_sz,
 			   uint64_t key, void *deleted_data);
 
