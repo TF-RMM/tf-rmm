@@ -453,11 +453,13 @@ static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *r
 {
 	const struct vdev_map *vdev_map;
 	struct granule *g_rd;
+	struct granule *g_vdev;
 	struct rd *rd;
 	struct rd_aux *rd_aux;
+	struct vdev *vd;
 	unsigned long rd_addr;
 	unsigned long vdev_addr;
-	unsigned long pdev_addr;
+	unsigned long pdev_addr = 0UL;
 	uint64_t epoch;
 
 	*lock_set = (struct rsi_vdev_obj){0};
@@ -498,30 +500,38 @@ static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *r
 	vdev_addr = (unsigned long)vdev_map->vdev;
 	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
 
-	/*
-	 * Note that here we could access vdev->pdev to get to the pdev
-	 * pointer because changing the pdev pointer of a vdev would require
-	 * vdev_destroy() and that would inturn update the epoch.
-	 * But this violates the general rule that the object fields are accessed
-	 * only with the corresponding granule lock held. Hence the pdev is obtained
-	 * in another phase, where we lock the vdev and get the pdev pointer.
-	 *
-	 */
+	if (claim_pdev) {
+		/* Lock VDEV before caching its PDEV address. */
+		g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
+		if (g_vdev == NULL) {
+			buffer_unmap(rd);
+			granule_unlock(g_rd);
+			return RSI_INCOMPLETE;
+		}
+
+		vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+		assert(vd != NULL);
+		pdev_addr = granule_addr(vd->g_pdev);
+		buffer_unmap(vd);
+		granule_unlock(g_vdev);
+	}
+
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
 
-	/* no locks held; relock rd and vdev in sorted order */
-	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &lock_set->g_rd,
-				    vdev_addr, GRANULE_STATE_VDEV, &lock_set->g_vdev)) {
+	/* No locks held; acquire all requested objects in lock order. */
+	if (claim_pdev) {
+		if (!find_lock_three_granules(
+				rd_addr, GRANULE_STATE_RD, &lock_set->g_rd,
+				pdev_addr, GRANULE_STATE_PDEV, &lock_set->g_pdev,
+				vdev_addr, GRANULE_STATE_VDEV, &lock_set->g_vdev)) {
+			rsi_vdev_release_objects(lock_set);
+			return RSI_INCOMPLETE;
+		}
+	} else if (!find_lock_two_granules(
+			rd_addr, GRANULE_STATE_RD, &lock_set->g_rd,
+			vdev_addr, GRANULE_STATE_VDEV, &lock_set->g_vdev)) {
 		rsi_vdev_release_objects(lock_set);
-		/*
-		 * At this stage, the locking can fail only if the state of
-		 * vdev_addr has changed from vdev to some thing else.
-		 * This can happen if the Host has destroyed the vdev between the
-		 * unlock and lock, try again see if this is the case. If the
-		 * host has actually removed the vdev_id then lookup would fail.
-		 */
-
 		return RSI_INCOMPLETE;
 	}
 
@@ -562,6 +572,10 @@ static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *r
 	 * the lock_nonce, the realm can also detect the replacement scenario.
 	 */
 	lock_set->rd = buffer_granule_map(lock_set->g_rd, SLOT_RD);
+	if (claim_pdev) {
+		lock_set->pd = buffer_granule_map(lock_set->g_pdev, SLOT_PDEV);
+		assert(lock_set->pd != NULL);
+	}
 	lock_set->vd = buffer_granule_map(lock_set->g_vdev, SLOT_VDEV);
 	assert((lock_set->rd != NULL) && (lock_set->vd != NULL));
 
@@ -584,47 +598,7 @@ static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *r
 	assert(rsi_vdev_matches_map(lock_set->rd, vdev_id, lock_set->g_vdev));
 	assert(lock_set->vd->g_rd == lock_set->g_rd);
 	assert(lock_set->vd->id == vdev_id);
-
-	if (!claim_pdev) {
-		return RSI_SUCCESS;
-	}
-
-	/* get pdev from vdev while holding vdev lock */
-	pdev_addr = granule_addr(lock_set->vd->g_pdev);
-
-	/* release everything again to relock with pdev */
-	rsi_vdev_release_objects(lock_set);
-
-	if (!find_lock_three_granules(rd_addr, GRANULE_STATE_RD, &lock_set->g_rd,
-					  pdev_addr, GRANULE_STATE_PDEV, &lock_set->g_pdev,
-					  vdev_addr, GRANULE_STATE_VDEV, &lock_set->g_vdev)) {
-		rsi_vdev_release_objects(lock_set);
-		/* host has changed pdev/vdev granule state, try again to find out */
-		return RSI_INCOMPLETE;
-	}
-
-	lock_set->rd = buffer_granule_map(lock_set->g_rd, SLOT_RD);
-	lock_set->pd = buffer_granule_map(lock_set->g_pdev, SLOT_PDEV);
-	lock_set->vd = buffer_granule_map(lock_set->g_vdev, SLOT_VDEV);
-	assert((lock_set->rd != NULL) && (lock_set->pd != NULL) &&
-	       (lock_set->vd != NULL));
-
-	if ((get_rd_obj_map_epoch_locked(lock_set->rd) != epoch)) {
-		rsi_vdev_release_objects(lock_set);
-		/* as explained in a similar case above */
-		return RSI_INCOMPLETE;
-	}
-
-	/*
-	 * rd, vdev and pdev are locked, and the objects haven't changed in
-	 * reacquire
-	 */
-
-	/* redundant safety checks */
-	assert(rsi_vdev_matches_map(lock_set->rd, vdev_id, lock_set->g_vdev));
-	assert(lock_set->vd->g_rd == lock_set->g_rd);
-	assert(lock_set->vd->g_pdev == lock_set->g_pdev);
-	assert(lock_set->vd->id == vdev_id);
+	assert(!claim_pdev || (lock_set->vd->g_pdev == lock_set->g_pdev));
 
 	return RSI_SUCCESS;
 }
