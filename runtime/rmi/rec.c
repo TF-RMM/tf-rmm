@@ -31,7 +31,7 @@ static void init_rec_sysregs(STRUCT_TYPE sysreg_state *sysregs,
 	/* Set non-zero values only */
 	sysregs->pp_sysregs.sctlr_el1 = SCTLR_EL1_FLAGS;
 	sysregs->pp_sysregs.mdscr_el1 = MDSCR_EL1_TDCC_BIT;
-	sysregs->vmpidr_el2 = mpidr | VMPIDR_EL2_RES1;
+	sysregs->vmpidr_el2 = rec_mpidr_to_mpidr(mpidr) | VMPIDR_EL2_RES1;
 	sysregs->cnthctl_el2 = CNTHCTL_EL2_NO_TRAPS;
 	sysregs->cptr_el2 = CPTR_EL2_VHE_INIT;
 }
@@ -748,6 +748,68 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 				 GRANULE_STATE_REC_AUX);
 }
 
+/*
+ * Lock and map a calling REC with a pending PSCI request.
+ *
+ * On success, the caller must unmap the REC and unlock @g_calling_rec.
+ */
+static struct rec *find_lock_map_psci_calling_rec(unsigned long calling_rec_addr,
+						  struct granule **g_calling_rec)
+{
+	struct granule *g_rec;
+	struct rec *calling_rec;
+
+	assert(g_calling_rec != NULL);
+
+	g_rec = find_lock_granule(calling_rec_addr, GRANULE_STATE_REC);
+	if (g_rec == NULL) {
+		return NULL;
+	}
+
+	/* Synchronize with REC exit before accessing mutable REC state. */
+	if (granule_refcount_read_acquire(g_rec) != 0U) {
+		granule_unlock(g_rec);
+		return NULL;
+	}
+
+	calling_rec = buffer_granule_map(g_rec, SLOT_REC);
+	assert(calling_rec != NULL);
+
+	/* The cached target address is valid only for a pending PSCI request. */
+	if (calling_rec->pending_op != REC_PENDING_PSCI_COMPLETE) {
+		buffer_unmap(calling_rec);
+		granule_unlock(g_rec);
+		return NULL;
+	}
+
+	*g_calling_rec = g_rec;
+	return calling_rec;
+}
+
+/*
+ * Complete a denied PSCI request when the target REC no longer exists at the
+ * address cached by the calling REC.
+ */
+static unsigned long smc_psci_complete_denied(unsigned long calling_rec_addr)
+{
+	struct granule *g_calling_rec;
+	struct rec *calling_rec;
+	unsigned long ret;
+
+	calling_rec = find_lock_map_psci_calling_rec(calling_rec_addr,
+						     &g_calling_rec);
+	if (calling_rec == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	ret = psci_complete_denied_request(calling_rec);
+
+	buffer_unmap(calling_rec);
+	granule_unlock(g_calling_rec);
+
+	return ret;
+}
+
 void smc_psci_complete(unsigned long calling_rec_addr,
 		       unsigned long status,
 		       struct smc_result *res)
@@ -763,24 +825,12 @@ void smc_psci_complete(unsigned long calling_rec_addr,
 		return;
 	}
 
-	g_calling_rec = find_lock_granule(calling_rec_addr, GRANULE_STATE_REC);
-	if (g_calling_rec == NULL) {
+	calling_rec = find_lock_map_psci_calling_rec(calling_rec_addr,
+						     &g_calling_rec);
+	if (calling_rec == NULL) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
-
-	/*
-	 * Synchronize with REC exit before reading `target_rec_addr`
-	 * which may be updated while the REC is running.
-	 */
-	if (granule_refcount_read_acquire(g_calling_rec) != 0U) {
-		granule_unlock(g_calling_rec);
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	calling_rec = buffer_granule_map(g_calling_rec, SLOT_REC);
-	assert(calling_rec != NULL);
 
 	target_rec_addr = calling_rec->target_rec_addr;
 
@@ -793,7 +843,9 @@ void smc_psci_complete(unsigned long calling_rec_addr,
 					target_rec_addr,
 					GRANULE_STATE_REC,
 					&g_target_rec)) {
-		res->x[0] = RMI_ERROR_INPUT;
+		res->x[0] = (status == PSCI_RETURN_DENIED) ?
+				smc_psci_complete_denied(calling_rec_addr) :
+				RMI_ERROR_INPUT;
 		return;
 	}
 
@@ -819,15 +871,26 @@ void smc_psci_complete(unsigned long calling_rec_addr,
 	assert(calling_rec != NULL);
 
 	target_rec = buffer_granule_map(g_target_rec, SLOT_REC2);
+	assert(target_rec != NULL);
+
+	/*
+	 * The cached target address may have been reused while the calling REC
+	 * lock was released, so confirm that this is still the requested REC.
+	 */
+	if (!psci_target_rec_matches(calling_rec, target_rec)) {
+		ret = (status == PSCI_RETURN_DENIED) ?
+			psci_complete_denied_request(calling_rec) : RMI_ERROR_INPUT;
+		goto out_unmap_recs;
+	}
 
 	/* Reuse the REC_AUX slots for mapping Aux granules for target REC */
 	target_rec_aux = buffer_rec_aux_granules_map(target_rec->g_aux,
 						     target_rec->num_rec_aux);
-	assert(target_rec != NULL);
 
 	ret = psci_complete_request(calling_rec, target_rec, status);
 	buffer_rec_aux_unmap(target_rec_aux, target_rec->num_rec_aux);
 
+out_unmap_recs:
 	buffer_unmap(target_rec);
 	buffer_unmap(calling_rec);
 out_unlock:

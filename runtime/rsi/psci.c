@@ -235,9 +235,11 @@ static void psci_affinity_info(struct rec *rec,
 	target_rec = buffer_granule_map(g_target_rec, SLOT_REC2);
 	assert(target_rec != NULL);
 
-	if (target_rec->realm_info.g_rd != rec->realm_info.g_rd) {
+	if ((target_rec->realm_info.g_rd != rec->realm_info.g_rd) ||
+	    (target_rec->mpidr != target_rec_mpidr)) {
 		/*
-		 * A REC has been destroyed, and recreated in a separate realm.
+		 * A REC has been destroyed, and recreated with a different MPIDR
+		 * or in a separate Realm.
 		 * Permanently turned OFF.
 		 */
 		res->smc_res.x[0] = PSCI_AFFINITY_INFO_OFF;
@@ -405,15 +407,9 @@ static unsigned long complete_psci_cpu_on(struct rec *target_rec,
 	return PSCI_RETURN_SUCCESS;
 }
 
-unsigned long psci_complete_request(struct rec *calling_rec,
-				    struct rec *target_rec, unsigned long status)
+unsigned long psci_complete_denied_request(struct rec *calling_rec)
 {
-	unsigned long ret = RMI_SUCCESS;
-	unsigned long rec_ret = PSCI_RETURN_NOT_SUPPORTED;
 	struct rec_plane *calling_plane = rec_active_plane(calling_rec);
-	STRUCT_TYPE sysreg_state *calling_sysregs =
-					rec_active_plane_sysregs(calling_rec);
-	unsigned long mpidr;
 
 	/* PSCI requests can only be done by Plane 0 */
 	assert(calling_plane == rec_plane_0(calling_rec));
@@ -422,13 +418,48 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 		return RMI_ERROR_INPUT;
 	}
 
-	if (calling_rec->realm_info.g_rd != target_rec->realm_info.g_rd) {
+	switch (calling_plane->regs[0]) {
+	case SMC32_PSCI_CPU_ON:
+	case SMC64_PSCI_CPU_ON:
+		calling_plane->regs[0] = PSCI_RETURN_DENIED;
+		calling_plane->regs[1] = 0UL;
+		calling_plane->regs[2] = 0UL;
+		calling_plane->regs[3] = 0UL;
+		rec_set_pending_op(calling_rec, REC_PENDING_NONE);
+		return RMI_SUCCESS;
+	default:
+		return RMI_ERROR_INPUT;
+	}
+}
+
+bool psci_target_rec_matches(struct rec *calling_rec, struct rec *target_rec)
+{
+	struct rec_plane *calling_plane = rec_active_plane(calling_rec);
+
+	/* PSCI requests can only be done by Plane 0 */
+	assert(calling_plane == rec_plane_0(calling_rec));
+
+	return (calling_rec->realm_info.g_rd == target_rec->realm_info.g_rd) &&
+		(mpidr_to_rec_mpidr(calling_plane->regs[1]) == target_rec->mpidr);
+}
+
+unsigned long psci_complete_request(struct rec *calling_rec,
+				    struct rec *target_rec, unsigned long status)
+{
+	unsigned long ret = RMI_SUCCESS;
+	unsigned long rec_ret = PSCI_RETURN_NOT_SUPPORTED;
+	struct rec_plane *calling_plane = rec_active_plane(calling_rec);
+	STRUCT_TYPE sysreg_state *calling_sysregs =
+					rec_active_plane_sysregs(calling_rec);
+
+	/* PSCI requests can only be done by Plane 0 */
+	assert(calling_plane == rec_plane_0(calling_rec));
+
+	if (calling_rec->pending_op != REC_PENDING_PSCI_COMPLETE) {
 		return RMI_ERROR_INPUT;
 	}
 
-	mpidr = calling_plane->regs[1];
-
-	if (mpidr_to_rec_mpidr(mpidr) != target_rec->mpidr) {
+	if (!psci_target_rec_matches(calling_rec, target_rec)) {
 		return RMI_ERROR_INPUT;
 	}
 
