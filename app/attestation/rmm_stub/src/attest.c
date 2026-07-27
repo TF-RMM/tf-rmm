@@ -19,7 +19,7 @@
  * instance. This number must be at least the the number of per-instance pages
  * necessary for initiate an attestation app.
  */
-#define ATTESTATION_APP_PAGE_COUNT 8U
+#define ATTESTATION_APP_PAGE_COUNT 9U
 
 /*
  * This array will hold the pages for the instance specific memory for all the
@@ -92,7 +92,7 @@ void attest_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
 
 void attest_app_get_bss(uintptr_t *bss_pa, size_t *bss_size)
 {
-	static char attest_app_bss[3U * GRANULE_SIZE] __aligned(GRANULE_SIZE);
+	static char attest_app_bss[4U * GRANULE_SIZE] __aligned(GRANULE_SIZE);
 	*bss_pa = (uintptr_t)attest_app_bss;
 	*bss_size = sizeof(attest_app_bss);
 }

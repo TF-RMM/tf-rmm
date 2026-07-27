@@ -216,7 +216,7 @@ static int allocate_bss(size_t app_id, size_t bss_size, uintptr_t *pa)
 	}
 	ret = app_get_header_ptr_at_index(app_index, &app_header);
 	assert(ret == 0);
-	if (app_bss_memory_array[app_index].size != bss_size) {
+	if (app_bss_memory_array[app_index].size < bss_size) {
 		ERROR("App id %lu requested %lu bytes, got %lu bytes.\n",
 			app_id, bss_size, app_bss_memory_array[app_index].size);
 		assert(false);
