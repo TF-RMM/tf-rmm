@@ -51,7 +51,8 @@ static constexpr unsigned long SYSREG_HOST_ESR_MASK =
 
 static constexpr unsigned long NONEMULATABLE_UNPROT_DATA_ABORT_HOST_ESR_MASK =
 	DATA_ABORT_HOST_COMMON_ESR_MASK |
-	MASK(ESR_EL2_IL);
+	MASK(ESR_EL2_IL) |
+	ESR_EL2_ABORT_WNR_BIT;
 
 static constexpr unsigned long SERROR_HOST_ESR_MASK =
 	MASK(ESR_EL2_EC) |
@@ -147,7 +148,7 @@ static void check_failed_stage1_replay_retries_realm(unsigned long ec)
  *                                                   XXHXJC, RFFNHW          D24.2.41 "ESR_EL2, Exception Syndrome Register (EL2)",
  *                                                                              D24.2.70 "HPFAR_EL2, Hypervisor IPA Fault Address Register"
  * nonemulatable_unprotected_data_abort_preserves_   A4.3.4.3 / DMTZMC,      D24.2 "ISS encoding for an exception from a Data Abort",
- * il_only                                           RRYVFL                  D24.2.41 "ESR_EL2, Exception Syndrome Register (EL2)",
+ * il_and_wnr                                        RRYVFL                  D24.2.41 "ESR_EL2, Exception Syndrome Register (EL2)",
  *                                                                              D24.2.70 "HPFAR_EL2, Hypervisor IPA Fault Address Register"
  * direct_permission_fault_uses_stage1_ipa           D1.3.2.1 / RFKLWR, D8.2.13
  */
@@ -360,16 +361,15 @@ TEST(exit_esr_tests, emulatable_data_abort_strips_srt_sse_and_s1ptw)
 	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.esr & MASK(ESR_EL2_IL));
 }
 
-TEST(exit_esr_tests, nonemulatable_unprotected_data_abort_preserves_il_only)
+TEST(exit_esr_tests, nonemulatable_unprotected_data_abort_preserves_il_and_wnr)
 {
 	/*
 	 * DEN0137 beta2 A4.3.4.3 (DMTZMC, RRYVFL): on a Non-emulatable Data Abort
-	 * at an Unprotected IPA, the host gets the common abort fields plus IL,
-	 * and all of the emulation-specific ISS fields remain zero. Arm ARM
+	 * at an Unprotected IPA, the host gets the common abort fields plus IL and
+	 * WnR, while the other emulation-specific ISS fields remain zero. Arm ARM
 	 * DDI0487L.b "ISS encoding for an exception from a Data Abort"
 	 * (D24-7449) defines which bits live in ISS, while "ESR_EL2, Exception
-	 * Syndrome Register (EL2)" (D24.2.41) defines IL outside ISS. This is the
-	 * rule commit 36c3893f specifically fixed.
+	 * Syndrome Register (EL2)" (D24.2.41) defines IL outside ISS.
 	 */
 	struct exit_esr_test_context ctx;
 	unsigned long raw_hpfar = hpfar_for_ipa(unprotected_ipa());
@@ -407,7 +407,8 @@ TEST(exit_esr_tests, nonemulatable_unprotected_data_abort_preserves_il_only)
 	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.esr & ESR_EL2_ABORT_SSE_BIT);
 	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.esr & MASK(ESR_EL2_ABORT_SRT));
 	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.esr & ESR_EL2_ABORT_S1PTW_BIT);
-	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.esr & ESR_EL2_ABORT_WNR_BIT);
+	UNSIGNED_LONGS_EQUAL(ESR_EL2_ABORT_WNR_BIT,
+			     ctx.rec_exit.esr & ESR_EL2_ABORT_WNR_BIT);
 }
 
 TEST(exit_esr_tests, direct_permission_fault_uses_stage1_ipa)

@@ -376,10 +376,11 @@ static bool handle_data_abort(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	if ((esr & ESR_EL2_ABORT_ISV_BIT) == 0UL) {
 		/*
 		 * Non-emulatable data abort at unprotected IPA.
-		 * Per the spec (RRYVFL), propagate IL in addition
+		 * Per the spec (RRYVFL), propagate IL and WnR in addition
 		 * to the common non-emulated abort fields.
 		 */
-		esr &= ESR_NONEMULATED_ABORT_MASK | MASK(ESR_EL2_IL);
+		esr &= ESR_NONEMULATED_ABORT_MASK | MASK(ESR_EL2_IL) |
+			ESR_EL2_ABORT_WNR_BIT;
 		goto end;
 	}
 
