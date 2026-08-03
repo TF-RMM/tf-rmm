@@ -96,7 +96,7 @@ static inline void __dev_granule_assert_unlocked_invariants(struct dev_granule *
  * This function should be used only for NS dev_granules where RMM performs NS
  * specific operations on the granule.
  */
-static inline unsigned char dev_granule_unlocked_state(struct granule *g)
+static inline unsigned char dev_granule_unlocked_state(struct dev_granule *g)
 {
 	assert(g != NULL);
 

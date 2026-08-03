@@ -26,6 +26,10 @@ static unsigned long dev_granule_delegate(unsigned long addr)
 		return RMI_ERROR_INPUT;
 	}
 
+	if (dev_granule_unlocked_state(g) == DEV_GRANULE_STATE_DELEGATED) {
+		return RMI_SUCCESS;
+	}
+
 	if (!dev_granule_lock_on_state_match(g, DEV_GRANULE_STATE_NS)) {
 		return RMI_ERROR_INPUT;
 	}
@@ -55,6 +59,10 @@ static unsigned long dev_granule_undelegate(unsigned long addr)
 		return RMI_ERROR_INPUT;
 	}
 
+	if (dev_granule_unlocked_state(g) == DEV_GRANULE_STATE_NS) {
+		return RMI_SUCCESS;
+	}
+
 	if (!dev_granule_lock_on_state_match(g, DEV_GRANULE_STATE_DELEGATED)) {
 		return RMI_ERROR_INPUT;
 	}
@@ -80,6 +88,11 @@ unsigned long smc_granule_delegate(unsigned long addr)
 	struct granule *g = find_granule(addr);
 
 	if (g != NULL) {
+
+		if (granule_unlocked_state(g) == GRANULE_STATE_DELEGATED) {
+			return RMI_SUCCESS;
+		}
+
 		if (!granule_lock_on_state_match(g, GRANULE_STATE_NS)) {
 			return RMI_ERROR_INPUT;
 		}
@@ -155,6 +168,10 @@ unsigned long smc_granule_undelegate(unsigned long addr)
 	struct granule *g = find_granule(addr);
 
 	if (g != NULL) {
+		if (granule_unlocked_state(g) == GRANULE_STATE_NS) {
+			return RMI_SUCCESS;
+		}
+
 		if (!granule_lock_on_state_match(g, GRANULE_STATE_DELEGATED)) {
 			return RMI_ERROR_INPUT;
 		}
