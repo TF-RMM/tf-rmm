@@ -61,11 +61,9 @@ void measurement_data_granule_measure(unsigned char rim_measurement[],
  * Arguments:
  *	- rim_measurement:	The buffer where the RIM to be updated is found.
  *	- algorithm:		Algorithm to use for measurement.
- *	- realm_params:		The parameters of the realm.
  */
-void measurement_realm_params_measure(unsigned char rim_measurement[],
-				      enum hash_algo algorithm,
-				      struct rmi_realm_params *realm_params);
+void measurement_init_rim(unsigned char rim_measurement[],
+				      enum hash_algo algorithm);
 
 /*
  * Measure REC params
