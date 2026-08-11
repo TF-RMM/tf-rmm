@@ -800,6 +800,17 @@ void smc_vdev_communicate(unsigned long rd_addr,
 		goto out;
 	}
 
+	/*
+	 * Reject before calling dev_communicate() so that the completion
+	 * handling below cannot process an existing communication state as the
+	 * result of this call.
+	 */
+	if ((vd->comm_state == DEV_COMM_IDLE) ||
+	    (vd->comm_state == DEV_COMM_ERROR)) {
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto out;
+	}
+
 	/* TODO_ALP17: if PdevIsBusy(pdev) then ResultEqual(result, RMI_BUSY) */
 
 	rmi_rc = dev_communicate(pd, vd, dev_comm_data_addr);

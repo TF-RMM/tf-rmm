@@ -51,6 +51,9 @@ static void init_connection_cleanup(struct dev_assign_info *info, bool scrub_cer
 
 	info->spdm_cert_chain_algo = PSA_ALG_NONE;
 	info->spdm_cert_chain_len = 0U;
+	info->spdm_request_len = 0U;
+	info->cached_digest.len = 0U;
+	info->cached_digest_type = CACHE_TYPE_NONE;
 
 	if (scrub_cert_chain_hash) {
 		/* Clean up the CERT_CHAIN_HASH in the context */
@@ -292,17 +295,17 @@ int dev_assign_cmd_ide_disconnect(struct dev_assign_info *info)
 int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info)
 {
 	int rc = DEV_ASSIGN_STATUS_SUCCESS;
+	libspdm_return_t status;
 
 	if (info->session_id != 0U) {
 		/* Terminate the connection. This closes the secure session */
-		libspdm_return_t status = libspdm_stop_session(info->libspdm_ctx,
+		status = libspdm_stop_session(info->libspdm_ctx,
 					      info->session_id,
 					      0 /* end_session_attributes */);
 
 		if (status != LIBSPDM_STATUS_SUCCESS) {
 			ERROR("SPDM_END_SESSION failed: 0x%x\n", status);
 			rc = DEV_ASSIGN_STATUS_ERROR;
-			/*assert(false);*/
 		} else {
 			INFO("SPDM_END_SESSION completed: 0x%x\n", status);
 			info->session_id = 0U;
@@ -310,7 +313,11 @@ int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info)
 	}
 
 	/* Send GET_VERSION, this resets the SPDM connection */
-	(void)libspdm_init_connection(info->libspdm_ctx, true);
+	status = libspdm_init_connection(info->libspdm_ctx, true);
+	if (status != LIBSPDM_STATUS_SUCCESS) {
+		ERROR("SPDM connection reset failed: 0x%x\n", status);
+		rc = DEV_ASSIGN_STATUS_ERROR;
+	}
 
 	/*
 	 * Unset public key context in libspdm connection once the connection is

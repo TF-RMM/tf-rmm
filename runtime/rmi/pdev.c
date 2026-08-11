@@ -607,6 +607,10 @@ static unsigned long copyin_and_validate_dev_comm_enter(
 		return RMI_ERROR_INPUT;
 	}
 
+	if (enter_args->status > RMI_DEV_COMM_ENTER_STATUS_ERROR) {
+		return RMI_ERROR_INPUT;
+	}
+
 	if (!GRANULE_ALIGNED(enter_args->req_addr) ||
 	    !GRANULE_ALIGNED(enter_args->resp_addr) ||
 	    (enter_args->resp_len > GRANULE_SIZE)) {
@@ -852,11 +856,12 @@ static int pdev_dispatch_cmd_ep(struct pdev *pd, struct rmi_dev_comm_enter *ente
 	}
 
 out_handle_app_ret:
+	pd->da_app_yielded = rc == DEV_ASSIGN_STATUS_COMM_BLOCKED_APP_YIELD;
+
 	if (rc == DEV_ASSIGN_STATUS_ERROR) {
 		goto out;
 	}
 
-	pd->da_app_yielded = rc == DEV_ASSIGN_STATUS_COMM_BLOCKED_APP_YIELD;
 	if (copy_cached_digest_if_any &&
 	    (copy_pdev_cached_digest(pd, &pd->da_app_data) != DEV_ASSIGN_STATUS_SUCCESS)) {
 		rc = DEV_ASSIGN_STATUS_ERROR;
@@ -1020,15 +1025,11 @@ unsigned long dev_communicate(struct pdev *pd,
 	assert(pd != NULL);
 
 	if (vd == NULL) {
-		if ((pd->dev_comm_state == DEV_COMM_IDLE) ||
-		    (pd->dev_comm_state == DEV_COMM_ERROR)) {
-			return RMI_ERROR_DEVICE;
-		}
+		assert(pd->dev_comm_state != DEV_COMM_IDLE);
+		assert(pd->dev_comm_state != DEV_COMM_ERROR);
 	} else {
-		if ((vd->comm_state == DEV_COMM_IDLE) ||
-		    (vd->comm_state == DEV_COMM_ERROR)) {
-			return RMI_ERROR_DEVICE;
-		}
+		assert(vd->comm_state != DEV_COMM_IDLE);
+		assert(vd->comm_state != DEV_COMM_ERROR);
 	}
 
 	/* Validate RmiDevCommEnter arguments in DevCommData */
@@ -1051,19 +1052,27 @@ unsigned long dev_communicate(struct pdev *pd,
 		rc = vdev_dispatch_cmd(pd, vd, &enter_args, &exit_args);
 	}
 
-	if (aux_mapped_addr != NULL) {
-		buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
-	}
-
 	comm_rc = copyout_dev_comm_exit(dev_comm_data_addr,
 				       &exit_args);
 	if (comm_rc != RMI_SUCCESS) {
 		/*
 		 * Communication to device has happened, but failed to copy out
-		 * to exit args. Don't return early so that Comm State to error
-		 * below.
+		 * to exit args. If a stop operation yielded, unwind the app
+		 * before publishing the PDEV as stopped. PDEV_DESTROY runs app
+		 * deinit and cannot do so while the app is still yielded.
 		 */
+		if ((vd == NULL) && (pd->op.curr == PDEV_OP_STOP) &&
+		    pd->da_app_yielded) {
+			int abort_rc = dev_assign_abort_app_operation(&pd->da_app_data);
+
+			assert(abort_rc == DEV_ASSIGN_STATUS_SUCCESS);
+			pd->da_app_yielded = false;
+		}
 		rc = DEV_ASSIGN_STATUS_ERROR;
+	}
+
+	if (aux_mapped_addr != NULL) {
+		buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
 	}
 
 	/*
@@ -1119,6 +1128,19 @@ void smc_pdev_communicate(unsigned long pdev_addr,
 
 	assert(pd->g_pdev == g_pdev);
 
+	/*
+	 * Reject before calling dev_communicate() so that the completion
+	 * handling below cannot mistake an existing communication error for the
+	 * result of this call and change the PDEV state.
+	 */
+	if ((pd->dev_comm_state == DEV_COMM_IDLE) ||
+	    (pd->dev_comm_state == DEV_COMM_ERROR)) {
+		buffer_unmap(pd);
+		granule_unlock(g_pdev);
+		res->x[0] = RMI_ERROR_DEVICE;
+		return;
+	}
+
 	if ((pd->op.curr == PDEV_OP_CONNECT) ||
 	    (pd->op.curr == PDEV_OP_DISCONNECT) ||
 	    (pd->op.curr == PDEV_OP_STREAM_COMPLETE) ||
@@ -1137,7 +1159,13 @@ void smc_pdev_communicate(unsigned long pdev_addr,
 	 * and PDEV state.
 	 */
 	if (pd->dev_comm_state == DEV_COMM_ERROR) {
-		pd->rmi_state =  RMI_PDEV_STATE_ERROR;
+		if (pd->op.curr == PDEV_OP_STOP) {
+			pd->rmi_state = RMI_PDEV_STATE_STOPPED;
+			pd->op.curr = PDEV_OP_NONE;
+			pd->op.stream_op_state = STREAM_OP_STATE_NONE;
+		} else {
+			pd->rmi_state = RMI_PDEV_STATE_ERROR;
+		}
 	} else if (pd->dev_comm_state == DEV_COMM_IDLE) {
 		if (pd->op.curr == PDEV_OP_STOP) {
 			pd->rmi_state = RMI_PDEV_STATE_STOPPED;
@@ -1451,6 +1479,13 @@ void smc_pdev_stop(unsigned long pdev_addr, struct smc_result *res)
 		return;
 	}
 
+	if ((pd->rmi_state != RMI_PDEV_STATE_NEEDS_KEY) &&
+	    (pd->rmi_state != RMI_PDEV_STATE_READY) &&
+	    (pd->rmi_state != RMI_PDEV_STATE_ERROR)) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_pdev_buf_unmap;
+	}
+
 	if ((pd->dev_comm_state != DEV_COMM_IDLE) ||
 	    (pd->associated_stream_count > 0U) ||
 	    (pd->num_vdevs != 0U)) {
@@ -1528,7 +1563,12 @@ void smc_pdev_abort(unsigned long pdev_addr, struct smc_result *res)
 		buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
 	}
 
+	pd->da_app_yielded = false;
 	pd->dev_comm_state = DEV_COMM_IDLE;
+	if ((pd->rmi_state == RMI_PDEV_STATE_NEW) ||
+	    (pd->rmi_state == RMI_PDEV_STATE_HAS_KEY)) {
+		pd->rmi_state = RMI_PDEV_STATE_ERROR;
+	}
 
 	smc_rc = RMI_SUCCESS;
 
