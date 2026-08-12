@@ -1637,6 +1637,22 @@ void smc_pdev_abort(unsigned long pdev_addr, struct smc_result *res)
 	}
 
 	pd->da_app_yielded = false;
+
+	if ((pd->rmi_state == RMI_PDEV_STATE_NEW) ||
+	    (pd->rmi_state == RMI_PDEV_STATE_HAS_KEY)) {
+		pd->rmi_state = RMI_PDEV_STATE_ERROR;
+	}
+
+	if (pdev_operation_is_stream(pd)) {
+		pd->rmi_state = RMI_PDEV_STATE_ERROR;
+		pd->op.curr = PDEV_OP_STREAM_COMPLETE;
+	} else {
+		if ((pd->rmi_state != RMI_PDEV_STATE_NEW) &&
+		    (pd->rmi_state != RMI_PDEV_STATE_HAS_KEY)) {
+			pd->rmi_state = RMI_PDEV_STATE_ERROR;
+		}
+	}
+
 	pd->dev_comm_state = DEV_COMM_IDLE;
 	if ((pd->rmi_state == RMI_PDEV_STATE_NEW) ||
 	    (pd->rmi_state == RMI_PDEV_STATE_HAS_KEY)) {
