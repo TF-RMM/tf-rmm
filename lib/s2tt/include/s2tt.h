@@ -283,10 +283,13 @@ bool s2tte_is_live(const struct s2tt_context *s2_ctx,
 /*
  * Drain-pending helpers. These operate on the SW-reserved bits in the OA
  * of the invalid descriptor (see S2TTE_SW_DRAIN_PENDING_BIT /
- * S2TTE_SW_HANDLE_* above) and are independent of HIPAS/RIPAS classification.
- * The caller stamps a freshly-written unassigned_destroyed (or similar
- * invalid) descriptor with set_drain_pending(handle); a subsequent drain pass
+ * S2TTE_SW_HANDLE_* above). The caller stamps a freshly-written unassigned
+ * invalid descriptor with set_drain_pending(handle); a subsequent drain pass
  * clears the marks once the deferred maintenance for that SRO completes.
+ *
+ * The pending/handle query helpers only recognize marks on unassigned
+ * invalid descriptors, so identical SW bits in assigned or valid descriptors
+ * are not treated as pending maintenance.
  *
  * The HIPAS classifiers (s2tte_is_unassigned_*) deliberately ignore
  * these SW bits, so RTT_READ_ENTRY continues to report the architectural

@@ -1753,7 +1753,8 @@ unsigned long s2tte_clear_drain_pending(unsigned long s2tte)
 
 bool s2tte_drain_pending(unsigned long s2tte)
 {
-	return (s2tte & S2TTE_SW_DRAIN_PENDING_BIT) != 0UL;
+	return s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED) &&
+		((s2tte & S2TTE_SW_DRAIN_PENDING_BIT) != 0UL);
 }
 
 /*
@@ -1782,11 +1783,14 @@ unsigned long s2tte_clear_tlbi_pending(unsigned long s2tte)
 
 bool s2tte_tlbi_pending(unsigned long s2tte)
 {
-	return (s2tte & S2TTE_SW_TLBI_PENDING_BIT) != 0UL;
+	return s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED) &&
+		((s2tte & S2TTE_SW_TLBI_PENDING_BIT) != 0UL);
 }
 
 unsigned int s2tte_drain_handle(unsigned long s2tte)
 {
+	assert(s2tte_has_hipas(s2tte, S2TTE_INVALID_HIPAS_UNASSIGNED));
+
 	return (unsigned int)EXTRACT(S2TTE_SW_HANDLE, s2tte);
 }
 
