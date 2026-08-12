@@ -347,3 +347,27 @@ void smc_gpt_l1_create(unsigned long addr, struct smc_result *res)
 	res->x[0] = pack_return_code_level_addr(
 			RMI_ERROR_GPT, (unsigned char)0U, addr);
 }
+
+void smc_gpt_info(unsigned long base, unsigned long top,  struct smc_result *res)
+{
+	unsigned int pasz = arch_feat_get_pa_width();
+	unsigned long max_pa = ((1UL << pasz) - 1UL);
+	enum dev_coh_type type;
+
+	if (!ALIGNED(base, RMM_L0GPTSZ) || !ALIGNED(top, RMM_L0GPTSZ) ||
+	    (base >= max_pa) || (top > max_pa) || (top <= base)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = base + RMM_L0GPTSZ;
+
+	/* All device and DRAM granules are statically covered for now */
+	if (find_granule(base) != NULL ||
+	    find_dev_granule(base, &type) != NULL) {
+		res->x[2] = RMI_GPT_PAR_PLAT;
+	} else {
+		res->x[2] = RMI_GPT_PAR_RESERVED;
+	}
+}

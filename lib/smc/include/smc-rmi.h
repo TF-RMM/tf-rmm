@@ -358,6 +358,14 @@
 #define RMI_REJECT	1U
 
 /*
+ * RmiGptParState enumeration for the GPT info for a given PAR
+ */
+#define RMI_GPT_PAR_RESERVED		U(0)
+#define RMI_GPT_PAR_PLAT		U(1)
+#define RMI_GPT_PAR_HOST_NOT_CREATED	U(2)
+#define RMI_GPT_PAR_HOST_CREATED	U(3)
+
+/*
  * FID: 0xC4000150
  *
  * arg0: Requested interface version
@@ -1160,6 +1168,19 @@ enum rmm_state {
  * ret0 == Command result.
  */
 #define SMC_RMI_OP_CANCEL			SMC64_RMI_FID(U(0xBA))
+
+/*
+ * FID: 0xC4000211
+ *
+ * arg0 == Base of the PAR region
+ * arg1 == Top of the PAR region
+ *
+ * ret0 == Command result.
+ * ret1 == Top of the region for which the info is returned
+ * ret2 == RmiGptParState for the region[@arg0, @ret1)
+ */
+#define SMC_RMI_GPT_INFO			SMC64_RMI_FID(U(0xC1))
+
 
 /* Size of Realm Personalization Value */
 #ifndef CBMC

@@ -161,6 +161,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PSMMU_INFO,		2, 1, smc_psmmu_info,		 true, true),
 	HANDLER(GRANULE_TRACKING_GET,	2, 4, smc_granule_tracking_get,	 true, true),
 	HANDLER(GPT_L1_CREATE,		1, 1, smc_gpt_l1_create,	 false, true),
+	HANDLER(GPT_INFO,		2, 2, smc_gpt_info,		 false, true),
 	HANDLER(RMM_CONFIG_GET,		1, 1, smc_rmm_config_get,	 true, true),
 	HANDLER(RMM_CONFIG_SET,		1, 1, smc_rmm_config_set,	 true, true),
 	HANDLER(RMM_ACTIVATE,		0, 1, smc_rmm_activate,		 true, true),
