@@ -276,6 +276,7 @@ static void pdev_clear_vdev_ranges(struct pdev *pd, uint32_t slot_idx)
 	slot->active = false;
 	slot->num_addr_range = 0U;
 	(void)memset(slot->addr_range, 0, sizeof(slot->addr_range));
+	/* coverity[uninit_use_in_call:SUPPRESS] */
 	buffer_unmap(slots);
 }
 
@@ -289,6 +290,7 @@ static bool pdev_vdev_range_slot_is_active(const struct pdev *pd, uint32_t slot_
 
 	slot = pdev_vdev_range_slot_map(pd, slot_idx, &slots);
 	active = slot->active;
+	/* coverity[uninit_use_in_call:SUPPRESS] */
 	buffer_unmap(slots);
 
 	return active;
@@ -411,6 +413,11 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 
 	if (!rd->da_enabled) {
 		rc = RMI_ERROR_REALM;
+		goto out_unmap_rd;
+	}
+
+	if (rd->max_num_vdevs == rd_vdev_refcount_get(rd)) {
+		rc = RMI_ERROR_DEVICE;
 		goto out_unmap_rd;
 	}
 

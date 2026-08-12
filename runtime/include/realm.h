@@ -125,6 +125,7 @@ struct rd {
 	/* Whether device assignment is enabled for this Realm */
 	bool da_enabled;
 
+	unsigned long max_num_vdevs;
 	/* Reference count of VDEVs assigned to this Realm */
 	unsigned long num_vdevs;
 

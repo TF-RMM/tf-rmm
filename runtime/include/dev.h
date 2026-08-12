@@ -99,7 +99,7 @@ struct pcie_dev {
 };
 
 #define PDEV_MAX_VDEVS(vdevs_order)	((1UL << (vdevs_order)) - 1U)
-#define RD_MAX_VDEVS(vdevs_order)	((1UL << (vdevs_order)) - 1U)
+#define RD_MAX_VDEVS(vdevs_order)	(1UL << (vdevs_order))
 #define PDEV_VDEV_SLOT_INVALID		((unsigned int)-1)
 
 struct pdev_vdev_range_slot {

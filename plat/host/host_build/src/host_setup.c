@@ -541,6 +541,7 @@ static int host_create_realm_and_activate(struct host_realm *realm)
 	    RMI_FEATURE_TRUE) {
 		realm->realm_params->flags0 = INPLACE(RMI_REALM_FLAGS0_DA,
 						      RMI_FEATURE_TRUE);
+		realm->realm_params->max_num_vdevs = 1UL;
 	} else {
 		realm->realm_params->flags0 = INPLACE(RMI_REALM_FLAGS0_DA,
 						      RMI_FEATURE_FALSE);

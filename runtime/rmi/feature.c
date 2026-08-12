@@ -144,8 +144,10 @@ unsigned long get_feature_register_2(void)
 	feat_reg2 |= INPLACE(RMI_FEATURE_REGISTER_2_DA_EN, feat_da_supported);
 
 	if (feat_da_supported == RMI_FEATURE_TRUE) {
-		feat_reg2 |= INPLACE(RMI_FEATURE_REGISTER_2_MAX_VDEVS_ORDER,
+		feat_reg2 |= INPLACE(RMI_FEATURE_REGISTER_2_PDEV_MAX_VDEVS_ORDER,
 				     MAX_VDEVS_ORDER_PER_PDEV);
+		feat_reg2 |= INPLACE(RMI_FEATURE_REGISTER_2_REALM_MAX_VDEVS_ORDER,
+				     MAX_VDEVS_ORDER_PER_RD);
 	}
 
 	return feat_reg2;

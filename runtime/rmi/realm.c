@@ -270,7 +270,8 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 				  unsigned long *rtt_base,
 				  unsigned long *ats_plane,
 				  unsigned int *mec_policy,
-				  unsigned long *s2oa_limit)
+				  unsigned long *s2oa_limit,
+				  unsigned long *max_num_vdevs)
 {
 	unsigned long feat_reg0 = get_feature_register_0();
 	unsigned long feat_reg2 = get_feature_register_2();
@@ -345,10 +346,14 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 	}
 
 	/* Validate if DA feature can be supported for Realm */
-	if ((EXTRACT(RMI_REALM_FLAGS0_DA, p->flags0) == RMI_FEATURE_TRUE) &&
-	    (EXTRACT(RMI_FEATURE_REGISTER_2_DA_EN, feat_reg2) ==
-	     RMI_FEATURE_FALSE)) {
-		return false;
+	if (EXTRACT(RMI_REALM_FLAGS0_DA, p->flags0) == RMI_FEATURE_TRUE) {
+		if ((EXTRACT(RMI_FEATURE_REGISTER_2_DA_EN, feat_reg2) == RMI_FEATURE_FALSE) ||
+		    (p->max_num_vdevs > RD_MAX_VDEVS(MAX_VDEVS_ORDER_PER_RD))) {
+			return false;
+		}
+		*max_num_vdevs = p->max_num_vdevs;
+	} else {
+		*max_num_vdevs = 0UL;
 	}
 
 	/* Validate MEC policy */
@@ -747,6 +752,7 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 	unsigned int mecid = 0U;
 	unsigned int num_rd_aux;
 	unsigned int mec_policy;
+	unsigned long max_num_vdevs;
 	bool rtt_tree_pp;
 	int smmuv3_ret __unused;
 
@@ -768,7 +774,7 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 	/* coverity[uninit_use_in_call:SUPPRESS] */
 	if (!validate_realm_params(&p, &n_vmids, &n_rtts,
 				   &rtt_tree_pp, rtt_base, &ats_plane,
-				   &mec_policy, &s2oa_limit)) {
+				   &mec_policy, &s2oa_limit, &max_num_vdevs)) {
 		ret = RMI_ERROR_INPUT;
 		goto out_reclaim;
 	}
@@ -894,6 +900,7 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 
 	/* Set DA feature flag */
 	rd->da_enabled = EXTRACT(RMI_REALM_FLAGS0_DA, p.flags0) != 0UL;
+	rd->max_num_vdevs = max_num_vdevs;
 	rd_vdev_refcount_reset(rd);
 
 	smmuv3_ret = smmuv3_cmd_sync_init(&rd->smmu_cmd_sync,
