@@ -902,6 +902,7 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 	rd->da_enabled = EXTRACT(RMI_REALM_FLAGS0_DA, p.flags0) != 0UL;
 	rd->max_num_vdevs = max_num_vdevs;
 	rd_vdev_refcount_reset(rd);
+	rd->last_vdev_lock_seq = 0U;
 
 	smmuv3_ret = smmuv3_cmd_sync_init(&rd->smmu_cmd_sync,
 				  sro->aux_op_ctx.obj_addr +

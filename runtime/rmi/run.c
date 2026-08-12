@@ -147,7 +147,7 @@ static void complete_dev_mem_mapping(struct rec *rec,
 	rec->dev_mem.base = 0UL;
 	rec->dev_mem.top = 0UL;
 	rec->vdev_id_1 = 0UL;
-	rec->vdev_freshness_1 = (struct vdev_attest_info){0};
+	rec->vdev_freshness_1 = (struct vdev_freshness){0};
 }
 
 static void complete_set_s2ap(struct rec *rec)

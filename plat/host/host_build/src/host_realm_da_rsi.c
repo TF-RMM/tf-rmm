@@ -88,9 +88,9 @@ void realm_da_rsi_coro(mco_coro *co)
 	INFO(" flags=0x%lx (vsmmu=%lu)\n", vdev_info->flags, vsmmu);
 	INFO(" cert_id=0x%lx\n", vdev_info->cert_id);
 	INFO(" hash_algo=%u\n", (unsigned int)vdev_info->hash_algo);
-	INFO(" lock_nonce=0x%lx\n", vdev_info->lock_nonce);
-	INFO(" meas_nonce=0x%lx\n", vdev_info->meas_nonce);
-	INFO(" report_nonce=0x%lx\n", vdev_info->report_nonce);
+	INFO(" lock_seq=0x%lx\n", vdev_info->lock_seq);
+	INFO(" meas_seq=0x%lx\n", vdev_info->meas_seq);
+	INFO(" report_seq=0x%lx\n", vdev_info->report_seq);
 	INFO(" format_type=%u\n", (unsigned int)vdev_info->format_type);
 	INFO(" format_version=0x%lx\n", vdev_info->format_version);
 	INFO(" state=%u\n", (unsigned int)vdev_info->state);

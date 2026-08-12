@@ -137,6 +137,13 @@ struct rd {
 	unsigned long vdev_inst_counter;
 
 	/*
+	 * Most recent lock sequence assigned to any VDEV in this Realm.
+	 * This persists independently of individual VDEV objects so that
+	 * recreating a VDEV cannot reuse a previous lock sequence.
+	 */
+	uint64_t last_vdev_lock_seq;
+
+	/*
 	 * Index of Plane whose stage 2 permissions are observed by ATS
 	 * request from devices assigned to the Realm.
 	 */

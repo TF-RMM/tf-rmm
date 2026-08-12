@@ -13,7 +13,6 @@
 #include <errno.h>
 #include <feature.h>
 #include <granule.h>
-#include <random_app.h>
 #include <realm.h>
 #include <sizes.h>
 #include <smc-handler.h>
@@ -583,6 +582,7 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	vd->dma_state = RMI_VDEV_DMA_DISABLED;
 	vd->op = VDEV_OP_INIT;
 	vd->comm_state = DEV_COMM_PENDING;
+	vd->freshness = (struct vdev_freshness){ 0 };
 
 	vd->sid = sid;
 	vd->smmu_idx = smmu_idx;
@@ -805,15 +805,17 @@ out:
 	res->x[0] = rmi_rc;
 }
 
-/* Generate random numbers as nonce
- * Returns 0 on success.
- */
-static int generate_attest_info_nonce(unsigned long *nonce)
+static bool vdev_seq_increment(uint64_t *seq)
 {
-	struct app_data_cfg *random_app_data = random_app_get_data_cfg();
+	assert(seq != NULL);
 
-	assert(nonce != NULL);
-	return random_app_prng_get_random(random_app_data, (uint8_t *)nonce, sizeof(*nonce));
+	if (*seq == UINT64_MAX) {
+		return false;
+	}
+
+	*seq += 1U;
+
+	return true;
 }
 
 /*
@@ -836,6 +838,8 @@ void smc_vdev_communicate(unsigned long rd_addr,
 {
 	struct granule *g_pdev = NULL;
 	struct granule *g_vdev = NULL;
+	struct granule *g_rd = NULL;
+	struct rd *rd = NULL;
 	struct pdev *pd = NULL;
 	struct vdev *vd = NULL;
 	unsigned long rmi_rc;
@@ -851,22 +855,18 @@ void smc_vdev_communicate(unsigned long rd_addr,
 		return;
 	}
 
-	/* Check RD while preserving a tracking lookup error for the host. */
-	rmi_rc = vdev_check_parent(rd_addr, GRANULE_STATE_RD);
+	/* Lock RD, PDEV and VDEV. */
+	rmi_rc = tr_find_lock_three_fine_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+						  pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
+						  vdev_addr, GRANULE_STATE_VDEV, &g_vdev);
 	if (rmi_rc != RMI_SUCCESS) {
 		res->x[0] = rmi_rc;
 		return;
 	}
 
-	/* Map PDEV and VDEV. */
-	rmi_rc = tr_find_lock_two_fine_granules(pdev_addr,
-						GRANULE_STATE_PDEV, &g_pdev,
-						vdev_addr, GRANULE_STATE_VDEV,
-						&g_vdev);
-	if (rmi_rc != RMI_SUCCESS) {
-		res->x[0] = rmi_rc;
-		return;
-	}
+	/* Map RD, PDEV and VDEV. */
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
 
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
@@ -895,6 +895,23 @@ void smc_vdev_communicate(unsigned long rd_addr,
 		goto out;
 	}
 
+	/*
+	 * Check that a new freshness value can be allocated before
+	 * communicating with the device. Once communication has taken place the
+	 * device operation may have completed, so discovering exhaustion
+	 * afterwards could leave the device and the VDEV in inconsistent
+	 * states.
+	 */
+	if (((vd->op == VDEV_OP_LOCK) &&
+	     (rd->last_vdev_lock_seq == UINT64_MAX)) ||
+	    ((vd->op == VDEV_OP_GET_MEAS) &&
+	     (vd->freshness.meas_seq == UINT64_MAX)) ||
+	    ((vd->op == VDEV_OP_GET_REPORT) &&
+	     (vd->freshness.report_seq == UINT64_MAX))) {
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto out;
+	}
+
 	/* TODO_ALP17: if PdevIsBusy(pdev) then ResultEqual(result, RMI_BUSY) */
 
 	rmi_rc = dev_communicate(pd, vd, dev_comm_data_addr);
@@ -914,26 +931,30 @@ void smc_vdev_communicate(unsigned long rd_addr,
 			vd->rmi_state = RMI_VDEV_STATE_UNLOCKED;
 			break;
 		case VDEV_OP_LOCK:
-			vd->rmi_state = RMI_VDEV_STATE_LOCKED;
-			/* coverity[overrun-buffer-val:SUPPRESS] */
-			if (generate_attest_info_nonce(&(vd->attest_info.lock_nonce)) != 0) {
+			if (!vdev_seq_increment(&rd->last_vdev_lock_seq)) {
+				rmi_rc = RMI_ERROR_DEVICE;
 				vd->rmi_state = RMI_VDEV_STATE_ERROR;
+				break;
 			}
+			vd->rmi_state = RMI_VDEV_STATE_LOCKED;
+			vd->freshness.lock_seq = rd->last_vdev_lock_seq;
+			vd->freshness.meas_seq = 0U;
+			vd->freshness.report_seq = 0U;
 			break;
 		case VDEV_OP_START:
 			vd->rmi_state = RMI_VDEV_STATE_STARTED;
 			break;
 		case VDEV_OP_GET_MEAS:
 			/* The get measurement operation doesn't change the VDEV's state */
-			/* coverity[overrun-buffer-val:SUPPRESS] */
-			if (generate_attest_info_nonce(&(vd->attest_info.meas_nonce)) != 0) {
+			if (!vdev_seq_increment(&vd->freshness.meas_seq)) {
+				rmi_rc = RMI_ERROR_DEVICE;
 				vd->rmi_state = RMI_VDEV_STATE_ERROR;
 			}
 			break;
 		case VDEV_OP_GET_REPORT:
 			/* The get if report operation doesn't change the VDEV's state */
-			/* coverity[overrun-buffer-val:SUPPRESS] */
-			if (generate_attest_info_nonce(&(vd->attest_info.report_nonce)) != 0) {
+			if (!vdev_seq_increment(&vd->freshness.report_seq)) {
+				rmi_rc = RMI_ERROR_DEVICE;
 				vd->rmi_state = RMI_VDEV_STATE_ERROR;
 			}
 			break;
@@ -957,7 +978,11 @@ out:
 	if (pd != NULL) {
 		buffer_unmap(pd);
 	}
+	if (rd != NULL) {
+		buffer_unmap(rd);
+	}
 	granule_unlock(g_pdev);
+	granule_unlock(g_rd);
 
 	res->x[0] = rmi_rc;
 }

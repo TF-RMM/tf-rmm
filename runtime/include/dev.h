@@ -218,10 +218,10 @@ struct pdev {
 };
 COMPILER_ASSERT(sizeof(struct pdev) <= GRANULE_SIZE);
 
-struct vdev_attest_info {
-	unsigned long lock_nonce;
-	unsigned long meas_nonce;
-	unsigned long report_nonce;
+struct vdev_freshness {
+	uint64_t lock_seq;
+	uint64_t meas_seq;
+	uint64_t report_seq;
 };
 
 /*
@@ -270,7 +270,7 @@ struct vdev {
 	struct dev_obj_digest meas_digest;
 	struct dev_obj_digest ifc_report_digest;
 
-	struct vdev_attest_info attest_info;
+	struct vdev_freshness freshness;
 
 	/*
 	 * Device interface operation that is in progress. RmmVdevOperation

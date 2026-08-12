@@ -228,9 +228,9 @@
  * arg1 == Flags
  * arg2 == Index of Plane whose stage 2 permissions are observed by non-ATS
  *         requests from the device
- * arg3 == Nonce generated on most recent transition to LOCKED state
- * arg4 == GET_MEASUREMENT request sequence number
- * arg5 == GET_INTERFACE_REPORT request sequence number
+ * arg3 == Lock sequence counter retrieved from RSI_VDEV_GET_INFO
+ * arg4 == Measurement sequence counter retrieved from RSI_VDEV_GET_INFO
+ * arg5 == Interface report sequence counter retrieved from RSI_VDEV_GET_INFO
  */
 #define SMC_RSI_VDEV_DMA_ENABLE		SMC64_RSI_FID(U(0xC))
 
@@ -254,9 +254,9 @@
  * arg2 == Top of target IPA region
  * arg3 == Base of target PA region
  * arg4 == Flags
- * arg5 == Nonce generated on most recent transition to LOCKED state
- * arg6 == GET_MEASUREMENT request sequence number
- * arg7 == GET_INTERFACE_REPORT request sequence number
+ * arg5 == Lock sequence counter retrieved from RSI_VDEV_GET_INFO
+ * arg6 == Measurement sequence counter retrieved from RSI_VDEV_GET_INFO
+ * arg7 == Interface report sequence counter retrieved from RSI_VDEV_GET_INFO
  *
  * ret1 == Base of IPA region which was not modified by the command
  * ret2 == Whether the Host accepted or rejected the request
@@ -642,12 +642,21 @@ struct rsi_vdev_info {
 	SET_MEMBER_RSI(unsigned long cert_id, 0x8, 0x10);
 	/* RsiHashAlgorithm: Algorithm used to generate device digests */
 	SET_MEMBER_RSI(unsigned char hash_algo, 0x10, 0x18);
-	/* UInt64: Nonce generated on most recent transition to LOCKED state */
-	SET_MEMBER_RSI(unsigned long lock_nonce, 0x18, 0x20);
-	/* UInt64: Nonce generated on most recent GET_MEASUREMENT request */
-	SET_MEMBER_RSI(unsigned long meas_nonce, 0x20, 0x28);
-	/* UInt64: Nonce generated on most recent GET_INTERFACE_REPORT request */
-	SET_MEMBER_RSI(unsigned long report_nonce, 0x28, 0x30);
+	/*
+	 * UInt64: Lock sequence counter which is incremented on successful
+	 * transition to VDEV_LOCKED state
+	 */
+	SET_MEMBER_RSI(unsigned long lock_seq, 0x18, 0x20);
+	/*
+	 * UInt64: Measurement sequence counter which is incremented on every
+	 * successful GET_MEASUREMENT request
+	 */
+	SET_MEMBER_RSI(unsigned long meas_seq, 0x20, 0x28);
+	/*
+	 * UInt64: Report sequence counter which is incremented on every
+	 * successful GET_INTERFACE_REPORT request
+	 */
+	SET_MEMBER_RSI(unsigned long report_seq, 0x28, 0x30);
 	/* RsiVdevReportFormatType: Report format type */
 	SET_MEMBER_RSI(unsigned char format_type, 0x30, 0x38);
 	/*
