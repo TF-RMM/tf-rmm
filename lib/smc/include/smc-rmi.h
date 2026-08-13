@@ -1227,6 +1227,19 @@ enum rmm_state {
 #define RMI_S2AP_DIRECT				UL(0)
 #define RMI_S2AP_INDIRECT			UL(1)
 
+/*
+ * RmiOpMemState type
+ * Values for the granules state used in
+ * RMI_OP_DONATE_MEM_STATE, RMI_OP_RECLAIM_MEM_STATE
+ * and RMI_ADDR_RDESC_**_STATE.
+ *
+ */
+#define RMI_OP_MEM_STATE_WIDTH		2UL
+
+#define RMI_OP_MEM_DELEGATED		0UL
+#define RMI_OP_MEM_UNDELEGATED		1UL
+#define RMI_OP_MEM_CONDITIONAL		2UL /* Only used in RMI_OP_DONATE_MEM_STATE */
+
 /* RmiOpMemDonateReq type definitions */
 #define RMI_OP_DONATE_BLK_SIZE_WIDTH	2U
 #define RMI_OP_DONATE_BLK_SIZE_SHIFT	0UL
@@ -1237,7 +1250,7 @@ enum rmm_state {
 #define RMI_OP_DONATE_MEM_CONTIG_WIDTH	1U
 #define RMI_OP_DONATE_MEM_CONTIG_SHIFT	16L
 
-#define RMI_OP_DONATE_MEM_STATE_WIDTH	1U
+#define RMI_OP_DONATE_MEM_STATE_WIDTH	RMI_OP_MEM_STATE_WIDTH
 #define RMI_OP_DONATE_MEM_STATE_SHIFT	17L
 
 /* Values for RMI_ADDR_BLK_SIZE */
@@ -1249,16 +1262,6 @@ enum rmm_state {
 /* Values for RMI_OP MEM_DONATE CONTIG */
 #define RMI_OP_MEM_NON_CONTIG		0UL
 #define RMI_OP_MEM_CONTIG		1UL
-
-/* RmiOpMemReclaimFlags type definitions */
-#define RMI_OP_RECLAIM_MEM_STATE	BIT(0)
-
-/*
- * Values for RMI_OP_DONATE_MEM_STATE and
- * RMI_OP_RECLAIM_MEM_STATE.
- */
-#define RMI_OP_MEM_DELEGATED		0UL
-#define RMI_OP_MEM_UNDELEGATED		1UL
 
 /* RmiContinueFlags type definitionns */
 #define RMI_CONTINUE_BEYOND_FLAG	BIT(0)
@@ -1300,8 +1303,8 @@ enum rmm_state {
 #define RMI_ADDR_RDESC_4K_CNT_WIDTH	(10UL)
 #define RMI_ADDR_RDESC_4K_ADDR_SHIFT	(12UL)
 #define RMI_ADDR_RDESC_4K_ADDR_WIDTH	(40UL)
-#define RMI_ADDR_RDESC_4K_ST_SHIFT	(63UL)
-#define RMI_ADDR_RDESC_4K_ST_WIDTH	(1UL)
+#define RMI_ADDR_RDESC_4K_ST_SHIFT	(62UL)
+#define RMI_ADDR_RDESC_4K_ST_WIDTH	RMI_OP_MEM_STATE_WIDTH
 
 #define RMI_ADDR_RDESC_4K_GET_ADDR(x)				\
 		(EXTRACT(RMI_ADDR_RDESC_4K_ADDR, (x)) << GRANULE_SHIFT)

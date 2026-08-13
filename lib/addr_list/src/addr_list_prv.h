@@ -29,8 +29,8 @@
 #define ADDR_RDESC_4K_CNT_WIDTH				(10UL)
 #define ADDR_RDESC_4K_ADDR_SHIFT			(12UL)
 #define ADDR_RDESC_4K_ADDR_WIDTH			(40UL)
-#define ADDR_RDESC_4K_ST_SHIFT				(63UL)
-#define ADDR_RDESC_4K_ST_WIDTH				(1UL)
+#define ADDR_RDESC_4K_ST_SHIFT				(62UL)
+#define ADDR_RDESC_4K_ST_WIDTH				(2UL)
 
 /* RmiAddrRangeDesc16KB type definitons */
 #define ADDR_RDESC_16K_SZ_SHIFT				(0UL)
@@ -39,8 +39,8 @@
 #define ADDR_RDESC_16K_CNT_WIDTH			(12UL)
 #define ADDR_RDESC_16K_ADDR_SHIFT			(14UL)
 #define ADDR_RDESC_16K_ADDR_WIDTH			(38UL)
-#define ADDR_RDESC_16K_ST_SHIFT				(63UL)
-#define ADDR_RDESC_16K_ST_WIDTH				(1UL)
+#define ADDR_RDESC_16K_ST_SHIFT				(62UL)
+#define ADDR_RDESC_16K_ST_WIDTH				(2UL)
 
 /* RmiAddrRangeDesc64KB type definitons */
 #define ADDR_RDESC_64K_SZ_SHIFT				(0UL)
@@ -49,8 +49,8 @@
 #define ADDR_RDESC_64K_CNT_WIDTH			(14UL)
 #define ADDR_RDESC_64K_ADDR_SHIFT			(16UL)
 #define ADDR_RDESC_64K_ADDR_WIDTH			(36UL)
-#define ADDR_RDESC_64K_ST_SHIFT				(63UL)
-#define ADDR_RDESC_64K_ST_WIDTH				(1UL)
+#define ADDR_RDESC_64K_ST_SHIFT				(62UL)
+#define ADDR_RDESC_64K_ST_WIDTH				(2UL)
 
 /* Set of macros to access fields for RmiAddrRangeDesc of any granule size. */
 #define ADDR_RDESC_GET_ADDR(_gsz, _desc)			\
