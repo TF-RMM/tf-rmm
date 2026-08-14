@@ -2137,11 +2137,6 @@ void smc_pdev_stream_disconnect(unsigned long pdev1_addr,
 		goto unmap_pdev2;
 	}
 
-	if (pd1->num_vdevs != 0U) {
-		rmi_rc = RMI_ERROR_DEVICE;
-		goto unmap_pdev2;
-	}
-
 	stream->state = PDEV_STREAM_DISCONNECTING;
 	stream->op_state = STREAM_OP_STATE_START;
 	pd1->op.curr = PDEV_OP_DISCONNECT;
