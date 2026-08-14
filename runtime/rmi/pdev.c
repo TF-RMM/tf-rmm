@@ -2025,6 +2025,8 @@ void smc_pdev_stream_connect(unsigned long stream_params_addr, struct smc_result
 	stream->num_addr_range = stream_params.num_addr_range;
 	stream->pd1_addr = stream_params.pdev_1;
 	stream->pd2_addr = stream_params.pdev_2;
+	stream->refresh_count = 0U;
+	stream->purge_count = 0U;
 	stream->op_state = STREAM_OP_STATE_START;
 	(void)memcpy(stream->addr_range,
 		     stream_params.addr_range,
@@ -2165,12 +2167,27 @@ unlock_pdevs:
 	res->x[0] = rmi_rc;
 }
 
+static void release_stream(struct pdev_stream *stream,
+			   struct pdev *pd1,
+			   struct pdev *pd2)
+{
+	stream->state = PDEV_STREAM_DISCONNECTED;
+	stream->taken = false;
+	pd1->associated_stream_count -= 1U;
+	pd2->associated_stream_count -= 1U;
+}
+
 /*
  * Complete an operation on a PDEV stream.
  *
  * pdev1_addr		- PA of the first PDEV object
  * pdev2_addr		- PA of the second PDEV object
  * stream_handle	- Stream handle
+ *
+ * Lock both PDEV granules before their stream auxiliary granule. Complete
+ * the stream transition once both PDEVs have completed or aborted their
+ * operations. Report the RMI result in res->x[0] with all mappings and locks
+ * released.
  */
 void smc_pdev_stream_complete(unsigned long pdev1_addr,
 			      unsigned long pdev2_addr,
@@ -2240,31 +2257,73 @@ void smc_pdev_stream_complete(unsigned long pdev1_addr,
 		goto unlock_stream;
 	}
 
-	if ((pd1->rmi_state != RMI_PDEV_STATE_READY) ||
-	    (pd1->dev_comm_state != DEV_COMM_IDLE) ||
-	    (pd2->rmi_state != RMI_PDEV_STATE_READY) ||
-	    (pd2->dev_comm_state != DEV_COMM_IDLE)) {
-		rmi_rc = RMI_ERROR_INPUT;
-		goto unmap_pdev2;
+	if (pd1->rmi_state != RMI_PDEV_STATE_ERROR) {
+		if ((pd1->rmi_state != RMI_PDEV_STATE_READY) ||
+		    (pd1->dev_comm_state != DEV_COMM_IDLE)) {
+			rmi_rc = RMI_ERROR_INPUT;
+			goto unmap_pdev2;
+		}
 	}
 
-	if ((pd1->op.curr != PDEV_OP_STREAM_COMPLETE) ||
-	    (pd2->op.curr != PDEV_OP_STREAM_COMPLETE)) {
+	if (pd2->rmi_state != RMI_PDEV_STATE_ERROR) {
+		if ((pd2->rmi_state != RMI_PDEV_STATE_READY) ||
+		    (pd2->dev_comm_state != DEV_COMM_IDLE)) {
+			rmi_rc = RMI_ERROR_INPUT;
+			goto unmap_pdev2;
+		}
+	}
+
+	if (((pd1->op.curr != PDEV_OP_STREAM_COMPLETE) &&
+	     (pd1->op.curr != PDEV_OP_STREAM_ABORTED)) ||
+	    ((pd2->op.curr != PDEV_OP_STREAM_COMPLETE) &&
+	     (pd2->op.curr != PDEV_OP_STREAM_ABORTED))) {
 		rmi_rc = RMI_ERROR_DEVICE;
 		goto unmap_pdev2;
 	}
 
 	switch (stream->state) {
 	case PDEV_STREAM_CONNECTING:
+		if ((pd1->rmi_state == RMI_PDEV_STATE_READY) &&
+		(pd1->op.curr == PDEV_OP_STREAM_COMPLETE) &&
+		(pd2->rmi_state == RMI_PDEV_STATE_READY) &&
+		(pd2->op.curr == PDEV_OP_STREAM_COMPLETE)) {
+			stream->state = PDEV_STREAM_CONNECTED;
+		} else {
+			release_stream(stream, pd1, pd2);
+		}
+		break;
 	case PDEV_STREAM_KEY_PURGING:
+		stream->state = PDEV_STREAM_CONNECTED;
+		if ((pd1->rmi_state != RMI_PDEV_STATE_ERROR) &&
+		    (pd1->op.curr == PDEV_OP_STREAM_COMPLETE) &&
+		    (pd2->rmi_state != RMI_PDEV_STATE_ERROR) &&
+		    (pd2->op.curr == PDEV_OP_STREAM_COMPLETE)) {
+			stream->purge_count += 1U;
+		}
+		break;
 	case PDEV_STREAM_KEY_REFRESHING:
 		stream->state = PDEV_STREAM_CONNECTED;
+		if ((pd1->rmi_state != RMI_PDEV_STATE_ERROR) &&
+		    (pd1->op.curr == PDEV_OP_STREAM_COMPLETE) &&
+		    (pd2->rmi_state != RMI_PDEV_STATE_ERROR) &&
+		    (pd2->op.curr == PDEV_OP_STREAM_COMPLETE)) {
+			stream->refresh_count += 1U;
+		}
 		break;
 	case PDEV_STREAM_DISCONNECTING:
-		stream->state = PDEV_STREAM_DISCONNECTED;
-		stream->taken = false;
-		pd1->associated_stream_count -= 1U;
-		pd2->associated_stream_count -= 1U;
+		if (((pd1->rmi_state == RMI_PDEV_STATE_ERROR) ||
+		    ((pd2->rmi_state == RMI_PDEV_STATE_ERROR)))) {
+			release_stream(stream, pd1, pd2);
+		} else {
+			if ((pd1->op.curr == PDEV_OP_STREAM_ABORTED) &&
+			    (pd2->op.curr == PDEV_OP_STREAM_ABORTED)) {
+				stream->state = PDEV_STREAM_CONNECTED;
+			} else {
+				assert(pd1->op.curr == PDEV_OP_STREAM_COMPLETE);
+				assert(pd2->op.curr == PDEV_OP_STREAM_COMPLETE);
+				release_stream(stream, pd1, pd2);
+			}
+		}
 		break;
 	default:
 		rmi_rc = RMI_ERROR_DEVICE;

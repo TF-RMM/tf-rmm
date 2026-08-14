@@ -41,7 +41,8 @@
 #define PDEV_OP_KEY_REFRESH			U(3)
 #define PDEV_OP_NONE				U(4)
 #define PDEV_OP_STOP				U(5)
-#define PDEV_OP_STREAM_COMPLETE			U(6)
+#define PDEV_OP_STREAM_ABORTED			U(6)
+#define PDEV_OP_STREAM_COMPLETE			U(7)
 
 /* Represents the state of a PDEV stream. RmmPdevStreamState */
 #define PDEV_STREAM_CONNECTED			U(0)
@@ -70,6 +71,8 @@ struct pdev_stream {
 	unsigned long state; /* RmmPdevStreamState */
 	enum stream_op_state op_state;
 	unsigned long ide_sid;
+	unsigned long refresh_count;
+	unsigned long purge_count;
 	unsigned long num_addr_range;
 	struct rmi_address_range addr_range[RMI_PDEV_STREAM_ADDR_RANGE_CNT];
 	bool taken;
