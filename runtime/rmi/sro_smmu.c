@@ -9,6 +9,7 @@
 #include <smmuv3_psmmu.h>
 #include <sro_context.h>
 #include <sro_smmu.h>
+#include <status.h>
 
 COMPILER_ASSERT(SRO_SMMU_RANGES == (unsigned int)PSMMU_MEM_RANGE_NUM);
 
@@ -55,9 +56,8 @@ void smmu_prepare_donate(struct sro_context *sro, enum smmu_sro_stage stage_id,
 	sro->smmu_ctx.total_transferred = 0UL;
 
 	/* RmiResult with RmiResultDataIncomplete */
-	res->x[0] = (RMI_INCOMPLETE |
-			INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_DONATE) |
-			INPLACE(RMI_OP_CAN_CANCEL_BIT, RMI_OP_CANNOT_CANCEL));
+	res->x[0] = pack_return_code_incomplete(
+			RMI_OP_MEM_REQ_DONATE, RMI_OP_CANNOT_CANCEL);
 
 	/* RmiOpMemDonateReq */
 	res->x[2] = rmi_op_donate_req_encode(requested * GRANULE_SIZE,
@@ -79,9 +79,8 @@ void smmu_prepare_reclaim(struct sro_context *sro, enum smmu_sro_stage stage_id,
 	sro->smmu_ctx.ret_err = err_code;
 
 	/* RmiResult with RmiResultDataIncomplete */
-	res->x[0] = (RMI_INCOMPLETE |
-			INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_RECLAIM) |
-			INPLACE(RMI_OP_CAN_CANCEL_BIT, RMI_OP_CANNOT_CANCEL));
+	res->x[0] = pack_return_code_incomplete(
+			RMI_OP_MEM_REQ_RECLAIM, RMI_OP_CANNOT_CANCEL);
 	/*
 	 * Seal the SRO context if requested, this happens
 	 * when reclaim is started by top level SMC handler.
@@ -222,9 +221,8 @@ check_pending:
 		/* We need to request more granules */
 		unsigned long pending = requested - sro->smmu_ctx.transferred;
 
-		res->x[0] = (RMI_INCOMPLETE |
-				INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_DONATE) |
-				INPLACE(RMI_OP_CAN_CANCEL_BIT, RMI_OP_CANNOT_CANCEL));
+		res->x[0] = pack_return_code_incomplete(
+				RMI_OP_MEM_REQ_DONATE, RMI_OP_CANNOT_CANCEL);
 
 		/* RmiOpMemDonateReq */
 		res->x[2] = rmi_op_donate_req_encode(pending * GRANULE_SIZE,
@@ -288,9 +286,8 @@ void smmu_memory_reclaim(enum smmu_sro_stage stage_id, struct smc_result *res)
 	sro->smmu_ctx.cb_id = (unsigned int)stage_id;
 
 	/* RmiResult with RmiResultDataIncomplete */
-	res->x[0] = (RMI_INCOMPLETE |
-			INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
-			INPLACE(RMI_OP_CAN_CANCEL_BIT, RMI_OP_CANNOT_CANCEL));
+	res->x[0] = pack_return_code_incomplete(
+			RMI_OP_MEM_REQ_NONE, RMI_OP_CANNOT_CANCEL);
 	res->x[1] = total;
 	res->x[2] = 0UL;
 }

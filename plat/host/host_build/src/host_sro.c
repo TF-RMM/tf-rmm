@@ -64,7 +64,9 @@ int host_sro_drive(unsigned long handle, unsigned long ret_status,
 	addr_list = (uintptr_t *)allocate_granule(1U);
 
 	while (unpack_return_code(ret_status).status == RMI_INCOMPLETE) {
-		mem_req = EXTRACT(RMI_OP_MEM_REQ, ret_status);
+		return_code_t return_code = unpack_return_code(ret_status);
+
+		mem_req = return_code.data.incomplete.mem;
 
 		if (mem_req == RMI_OP_MEM_REQ_NONE) {
 			host_rmi_op_continue(&handle, 0UL, &donate_req,

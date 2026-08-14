@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <granule.h>
 #include <sro_context.h>
+#include <status.h>
 #include <utils_def.h>
 
 static void sro_aux_granule_return_to_delegated(unsigned long granule_pa,
@@ -82,8 +83,8 @@ void sro_obj_memory_reclaim(unsigned long fid, struct smc_result *res)
 	sro->aux_op_ctx.total_transferred += to_reclaim;
 
 	/* RmiResult with RmiResultDataIncomplete */
-	res->x[0] = (RMI_INCOMPLETE |
-			INPLACE(RMI_OP_CAN_CANCEL_BIT, SRO_CAN_CANCEL_FLAG(sro)));
+	res->x[0] = pack_return_code_incomplete(
+			RMI_OP_MEM_REQ_NONE, SRO_CAN_CANCEL_FLAG(sro));
 
 	if (sro->aux_op_ctx.requested_aux_granules == 0UL) {
 		/* All granules added to the reclaim list */
@@ -178,9 +179,8 @@ void sro_obj_memory_donate(unsigned long fid, struct smc_result *res)
 					- sro->aux_op_ctx.total_transferred;
 
 		 /* RmiResult with RmiResultDataIncomplete */
-		res->x[0] = (RMI_INCOMPLETE |
-				INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_DONATE) |
-				INPLACE(RMI_OP_CAN_CANCEL_BIT, SRO_CAN_CANCEL_FLAG(sro)));
+		res->x[0] = pack_return_code_incomplete(
+				RMI_OP_MEM_REQ_DONATE, SRO_CAN_CANCEL_FLAG(sro));
 
 		/* RmiOpMemDonateReq */
 		res->x[2] = rmi_op_donate_req_encode(
@@ -193,9 +193,8 @@ void sro_obj_memory_donate(unsigned long fid, struct smc_result *res)
 		/* All the memory has been donated */
 
 		/* RmiResult with RmiResultDataIncomplete */
-		res->x[0] = (RMI_INCOMPLETE |
-				INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
-				INPLACE(RMI_OP_CAN_CANCEL_BIT, SRO_CAN_CANCEL_FLAG(sro)));
+		res->x[0] = pack_return_code_incomplete(
+				RMI_OP_MEM_REQ_NONE, SRO_CAN_CANCEL_FLAG(sro));
 
 		res->x[2] = 0UL;
 
@@ -225,9 +224,8 @@ void sro_aux_op_init_donate(struct sro_context *sro,
 	ctx->total_transferred = 0UL;
 	ctx->obj_addr = obj_addr;
 
-	res->x[0] = (RMI_INCOMPLETE |
-		     INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_DONATE) |
-		     INPLACE(RMI_OP_CAN_CANCEL_BIT, SRO_CAN_CANCEL_FLAG(sro)));
+	res->x[0] = pack_return_code_incomplete(
+			RMI_OP_MEM_REQ_DONATE, SRO_CAN_CANCEL_FLAG(sro));
 	res->x[2] = (INPLACE(RMI_OP_DONATE_BLK_SIZE, RMI_PAGE_L3) |
 		     INPLACE(RMI_OP_DONATE_BLK_COUNT, ctx->requested_aux_granules) |
 		     INPLACE(RMI_OP_DONATE_MEM_CONTIG, SRO_CONTIG_FLAG(sro)) |
@@ -265,9 +263,8 @@ void sro_aux_op_start_reclaim(struct sro_context *sro,
 	ctx->aux_granule_state = aux_granule_state;
 
 	/* RmiResult with RmiResultDataIncomplete */
-	res->x[0] = (RMI_INCOMPLETE |
-		     INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_RECLAIM) |
-		     INPLACE(RMI_OP_CAN_CANCEL_BIT, SRO_CAN_CANCEL_FLAG(sro)));
+	res->x[0] = pack_return_code_incomplete(
+			RMI_OP_MEM_REQ_RECLAIM, SRO_CAN_CANCEL_FLAG(sro));
 	res->x[1] = 0UL;
 	res->x[2] = 0UL;
 

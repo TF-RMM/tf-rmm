@@ -183,8 +183,6 @@ static unsigned long validate_map_inputs_common(unsigned long base,
 		return RMI_ERROR_INPUT;
 	}
 
-	map_size = s2tte_map_size(level);
-
 	in_par = addr_in_par(rd, base) &&
 		 addr_in_par(rd, top - GRANULE_SIZE);
 
@@ -194,8 +192,10 @@ static unsigned long validate_map_inputs_common(unsigned long base,
 		return RMI_ERROR_INPUT;
 	}
 
+	map_size = s2tte_map_size(level);
+
 	if ((top - base) < map_size) {
-		return pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
+		return pack_return_code_level(RMI_ERROR_RTT, (unsigned char)level);
 	}
 
 	*level_out = level;
@@ -221,7 +221,7 @@ static unsigned long validate_map_inputs_common(unsigned long base,
  * the caller proceeds with the per-command mapping primitive.
  *
  * On any failure: returns the RMI status the loop should bail with
- * (RMI_ERROR_INPUT for malformed input, or pack_return_code(
+ * (RMI_ERROR_INPUT for malformed input, or pack_return_code_level(
  * RMI_ERROR_RTT, level) for "doesn't fit"); *@pa_out is UNSPECIFIED.
  */
 static unsigned long map_pop_next_block(struct addr_list *list,
@@ -254,14 +254,14 @@ static unsigned long map_pop_next_block(struct addr_list *list,
 	}
 
 	if ((long)desc_level != level) {
-		return pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
+		return pack_return_code_level(RMI_ERROR_RTT, (unsigned char)level);
 	}
 
 	if ((out_top + map_size) > top) {
-		return pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
+		return pack_return_code_level(RMI_ERROR_RTT, (unsigned char)level);
 	}
 
-	if (!ALIGNED(pa, map_size)) {
+	if ((map_size == 0UL) || !ALIGNED(pa, map_size)) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -438,7 +438,7 @@ static unsigned long data_map_drain_pending(struct sro_map_ctx *ctx,
  *                    PA (idempotent, nothing to do).
  *   RMI_BUSY         slot still owes deferred maintenance from a
  *                    previous SRO (concurrent unmap drain in flight).
- *   pack_return_code(RMI_ERROR_RTT, level) slot is not unassigned, or
+ *   pack_return_code_level(RMI_ERROR_RTT, level) slot is not unassigned, or
  *                    is already assigned to a different PA.
  *
  * On any non-success return *@need_drain is left undefined.
@@ -463,14 +463,14 @@ static unsigned long data_map_one_entry(struct s2tt_context *s2_ctx,
 		 * report an RTT error.
 		 */
 		if (s2tte_pa(s2_ctx, s2tte, level) != pa) {
-			return pack_return_code(RMI_ERROR_RTT,
+			return pack_return_code_level(RMI_ERROR_RTT,
 						(unsigned char)level);
 		}
 		*need_drain = false;
 		return RMI_SUCCESS;
 	}
 	if (!s2tte_is_unassigned(s2_ctx, s2tte)) {
-		return pack_return_code(RMI_ERROR_RTT,
+		return pack_return_code_level(RMI_ERROR_RTT,
 					(unsigned char)level);
 	}
 	if (s2tte_drain_pending(s2tte)) {
@@ -584,9 +584,9 @@ void smc_rtt_data_map(unsigned long rd_addr,
 	unsigned long *s2tt = NULL;
 	unsigned long out_top = base;
 	unsigned long ret;
-	unsigned long map_size;
+	unsigned long map_size = 0UL;
 	unsigned long idx;
-	long level;
+	long level = 0L;
 	bool yielded = false;
 
 	/* Reserve an SRO context up front. */
@@ -628,7 +628,7 @@ void smc_rtt_data_map(unsigned long rd_addr,
 
 	s2tt_walk_lock_unlock(&s2_ctx, base, level, &wi);
 	if (wi.last_level != level) {
-		ret = pack_return_code(RMI_ERROR_RTT,
+		ret = pack_return_code_level(RMI_ERROR_RTT,
 				       (unsigned char)wi.last_level);
 		goto out_unlock_llt;
 	}
@@ -652,8 +652,8 @@ void smc_rtt_data_map(unsigned long rd_addr,
 	 */
 	for (idx = wi.index; idx < S2TTES_PER_S2TT; idx++) {
 		unsigned long pa = 0UL;
-		bool need_drain;
-		bool yield;
+		bool need_drain = false;
+		bool yield = false;
 
 		ret = map_pop_next_block(&list, &s2_ctx,
 					 RMI_OP_MEM_DELEGATED,
@@ -713,10 +713,8 @@ out_release_sro:
 		 * until the SRO_CONTINUE drain finalizes the slot. No
 		 * extra pin needed here.
 		 */
-		res->x[0] = RMI_INCOMPLETE |
-			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
-			    INPLACE(RMI_OP_CAN_CANCEL_BIT,
-				    RMI_OP_CANNOT_CANCEL);
+		res->x[0] = pack_return_code_incomplete(
+				RMI_OP_MEM_REQ_NONE, RMI_OP_CANNOT_CANCEL);
 		res->x[1] = (unsigned long)sro_ctx_seal();
 		return;
 	}
@@ -799,7 +797,7 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 
 	s2tt_walk_lock_unlock(s2_ctx, map_addr, S2TT_PAGE_LEVEL, &wi);
 	if (wi.last_level != S2TT_PAGE_LEVEL) {
-		ret = pack_return_code(RMI_ERROR_RTT,
+		ret = pack_return_code_level(RMI_ERROR_RTT,
 					(unsigned char)wi.last_level);
 		goto out_unlock_ll_table;
 	}
@@ -809,7 +807,7 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
 	if (!s2tte_is_unassigned(s2_ctx, s2tte)) {
-		ret = pack_return_code(RMI_ERROR_RTT,
+		ret = pack_return_code_level(RMI_ERROR_RTT,
 					(unsigned char)S2TT_PAGE_LEVEL);
 		goto out_unmap_ll_table;
 	}
@@ -962,10 +960,8 @@ void data_map_continue_handler(unsigned long fid,
 		 * re-seals the SRO context based on res->x[0] ==
 		 * RMI_INCOMPLETE.
 		 */
-		res->x[0] = RMI_INCOMPLETE |
-			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
-			    INPLACE(RMI_OP_CAN_CANCEL_BIT,
-				    RMI_OP_CANNOT_CANCEL);
+		res->x[0] = pack_return_code_incomplete(
+				RMI_OP_MEM_REQ_NONE, RMI_OP_CANNOT_CANCEL);
 		res->x[1] = 0UL;
 		return;
 	}
@@ -1076,7 +1072,7 @@ static unsigned long validate_unprot_map_inputs(unsigned long base,
  *                                              (or already did, idempotent).
  *   RMI_ERROR_INPUT                            host_s2tte is invalid for
  *                                              @level.
- *   pack_return_code(RMI_ERROR_RTT, level)     slot already drained-pending,
+ *   pack_return_code_level(RMI_ERROR_RTT, level)     slot already drained-pending,
  *                                              non-NS, or assigned to a
  *                                              different PA / encoding.
  */
@@ -1107,7 +1103,7 @@ static unsigned long unprot_map_one_entry(struct s2tt_context *s2_ctx,
 	 * starts using the new mapping.
 	 */
 	if (s2tte_drain_pending(s2tte)) {
-		return pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
+		return pack_return_code_level(RMI_ERROR_RTT, (unsigned char)level);
 	}
 
 	new_s2tte = s2tte_create_assigned_ns(s2_ctx, host_s2tte, level, 0UL);
@@ -1121,7 +1117,7 @@ static unsigned long unprot_map_one_entry(struct s2tt_context *s2_ctx,
 		    (s2tte == new_s2tte)) {
 			return RMI_SUCCESS;
 		}
-		return pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
+		return pack_return_code_level(RMI_ERROR_RTT, (unsigned char)level);
 	}
 
 	s2tte_write(&s2tt[index], new_s2tte);
@@ -1174,10 +1170,10 @@ void smc_rtt_unprot_map(unsigned long rd_addr,
 	unsigned long *s2tt = NULL;
 	unsigned long out_top = base;
 	unsigned long ret;
-	unsigned long map_size;
-	unsigned long base_attrs;
+	unsigned long map_size = 0UL;
+	unsigned long base_attrs = 0UL;
 	unsigned long idx;
-	long level;
+	long level = 0L;
 
 	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
 	if (g_rd == NULL) {
@@ -1211,7 +1207,7 @@ void smc_rtt_unprot_map(unsigned long rd_addr,
 
 	s2tt_walk_lock_unlock(&s2_ctx, base, level, &wi);
 	if (wi.last_level != level) {
-		ret = pack_return_code(RMI_ERROR_RTT,
+		ret = pack_return_code_level(RMI_ERROR_RTT,
 				       (unsigned char)wi.last_level);
 		goto out_unlock_llt;
 	}
@@ -1231,7 +1227,7 @@ void smc_rtt_unprot_map(unsigned long rd_addr,
 	 */
 	for (idx = wi.index; idx < S2TTES_PER_S2TT; idx++) {
 		unsigned long pa = 0UL;
-		bool yield;
+		bool yield = false;
 
 		ret = map_pop_next_block(&list, &s2_ctx,
 					 RMI_OP_MEM_UNDELEGATED,
@@ -1462,7 +1458,7 @@ static unsigned long dev_map_drain_pending(struct sro_map_ctx *ctx,
  * Returns:
  *   RMI_SUCCESS      slot prepared. The caller must populate the SRO
  *                    ctx and invoke dev_map_drain_pending().
- *   pack_return_code(RMI_ERROR_RTT, level)
+ *   pack_return_code_level(RMI_ERROR_RTT, level)
  *                    slot is not unassigned (empty / destroyed).
  *   RMI_BUSY         slot still owes deferred maintenance from a
  *                    previous SRO (concurrent unmap drain in flight).
@@ -1478,7 +1474,7 @@ static unsigned long dev_map_one_entry(struct s2tt_context *s2_ctx,
 	s2tte = s2tte_read(&s2tt[index]);
 	if (!(s2tte_is_unassigned_empty(s2_ctx, s2tte) ||
 	      s2tte_is_unassigned_destroyed(s2_ctx, s2tte))) {
-		return pack_return_code(RMI_ERROR_RTT, (unsigned char)level);
+		return pack_return_code_level(RMI_ERROR_RTT, (unsigned char)level);
 	}
 	if (s2tte_drain_pending(s2tte)) {
 		return RMI_BUSY;
@@ -1535,9 +1531,9 @@ void smc_rtt_dev_map(unsigned long rd_addr,
 	unsigned long *s2tt = NULL;
 	unsigned long out_top = base;
 	unsigned long ret;
-	unsigned long map_size;
+	unsigned long map_size = 0UL;
 	unsigned long idx;
-	long level;
+	long level = 0L;
 	bool yielded = false;
 
 	/* Reserve an SRO context up front. */
@@ -1602,7 +1598,7 @@ void smc_rtt_dev_map(unsigned long rd_addr,
 
 	s2tt_walk_lock_unlock(&s2_ctx, base, level, &wi);
 	if (wi.last_level != level) {
-		ret = pack_return_code(RMI_ERROR_RTT,
+		ret = pack_return_code_level(RMI_ERROR_RTT,
 				       (unsigned char)wi.last_level);
 		goto out_unlock_llt;
 	}
@@ -1613,7 +1609,7 @@ void smc_rtt_dev_map(unsigned long rd_addr,
 	for (idx = wi.index; idx < S2TTES_PER_S2TT; idx++) {
 		struct sro_map_ctx *ctx;
 		unsigned long pa = 0UL;
-		bool yield;
+		bool yield = false;
 
 		ret = map_pop_next_block(&list, &s2_ctx,
 					 RMI_OP_MEM_DELEGATED,
@@ -1659,10 +1655,8 @@ out_unlock_llt:
 	granule_unlock(wi.g_llt);
 out_release_sro:
 	if (yielded) {
-		res->x[0] = RMI_INCOMPLETE |
-			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
-			    INPLACE(RMI_OP_CAN_CANCEL_BIT,
-				    RMI_OP_CANNOT_CANCEL);
+		res->x[0] = pack_return_code_incomplete(
+				RMI_OP_MEM_REQ_NONE, RMI_OP_CANNOT_CANCEL);
 		res->x[1] = (unsigned long)sro_ctx_seal();
 		return;
 	}
@@ -1737,10 +1731,8 @@ void dev_map_continue_handler(unsigned long fid,
 	}
 
 	if (yielded) {
-		res->x[0] = RMI_INCOMPLETE |
-			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
-			    INPLACE(RMI_OP_CAN_CANCEL_BIT,
-				    RMI_OP_CANNOT_CANCEL);
+		res->x[0] = pack_return_code_incomplete(
+				RMI_OP_MEM_REQ_NONE, RMI_OP_CANNOT_CANCEL);
 		res->x[1] = 0UL;
 		return;
 	}

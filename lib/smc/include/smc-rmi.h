@@ -1236,6 +1236,14 @@ enum rmm_state {
 #define RMI_CONTINUE_KEEP_GOING		0UL
 #define RMI_CONTINUE_STOP		1UL
 
+/* Bitfields for RmiResult type */
+#define RMI_RESULT_STATUS_SHIFT		(0UL)
+#define RMI_RESULT_STATUS_WIDTH		(8UL)
+
+/* Bitfields for RmiResultDataLevel type */
+#define RMI_RESULT_LEVEL_SHIFT		(8UL)
+#define RMI_RESULT_LEVEL_WIDTH		(8UL)
+
 /* Bitfields for RmiResultDataIncomplete type */
 #define RMI_OP_MEM_REQ_SHIFT		(8UL)
 #define RMI_OP_MEM_REQ_WIDTH		(2UL)
