@@ -1240,9 +1240,13 @@ enum rmm_state {
 #define RMI_RESULT_STATUS_SHIFT		(0UL)
 #define RMI_RESULT_STATUS_WIDTH		(8UL)
 
-/* Bitfields for RmiResultDataLevel type */
+/* Level field shared by RmiResultDataLevel and RmiResultDataLevelAddr. */
 #define RMI_RESULT_LEVEL_SHIFT		(8UL)
 #define RMI_RESULT_LEVEL_WIDTH		(8UL)
+
+/* Address field for RmiResultDataLevelAddr. */
+#define RMI_RESULT_ADDR_SHIFT		(16UL)
+#define RMI_RESULT_ADDR_WIDTH		(40UL)
 
 /* Bitfields for RmiResultDataIncomplete type */
 #define RMI_OP_MEM_REQ_SHIFT		(8UL)

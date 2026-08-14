@@ -20,13 +20,20 @@ struct rmi_result_data_level {
 	unsigned char level;	/* 8-bit level field */
 };
 
+/* Logical representation of RmiResultDataLevelAddr. */
+struct rmi_result_data_level_addr {
+	unsigned char level;	/* 8-bit level field */
+	unsigned long addr;	/* Full PA represented by the 40-bit addr field */
+};
+
 /*
  * Logical representation of an RmiResult.
  *
  * The status is the discriminator for @data. RMI_INCOMPLETE selects
- * @incomplete, while RMI_ERROR_DPT, RMI_ERROR_RTT, RMI_ERROR_RTT_AUX and
- * RMI_ERROR_PSMMU_ST select @level. For all other status values the data is
- * RmiResultDataNull and no union member is active.
+ * @incomplete. RMI_ERROR_RTT, RMI_ERROR_RTT_AUX and RMI_ERROR_PSMMU_ST
+ * select @level. RMI_ERROR_DPT, RMI_ERROR_GPT and RMI_ERROR_TRACKING select
+ * @level_addr. For all other status values the data is RmiResultDataNull and
+ * no union member is active.
  *
  * This is not the RMI wire representation. Use the packing helpers below to
  * encode it into the 64-bit value returned in x0.
@@ -36,6 +43,7 @@ typedef struct {
 	union {
 		struct rmi_result_data_incomplete incomplete;
 		struct rmi_result_data_level level;
+		struct rmi_result_data_level_addr level_addr;
 	} data;
 } return_code_t;
 
@@ -55,12 +63,29 @@ static inline return_code_t make_return_code_level(unsigned int status,
 {
 	return_code_t return_code = make_return_code(status);
 
-	assert((status == RMI_ERROR_DPT) ||
-	       (status == RMI_ERROR_RTT) ||
+	assert((status == RMI_ERROR_RTT) ||
 	       (status == RMI_ERROR_RTT_AUX) ||
 	       (status == RMI_ERROR_PSMMU_ST));
 
 	return_code.data.level.level = level;
+	return return_code;
+}
+
+static inline return_code_t make_return_code_level_addr(unsigned int status,
+							unsigned char level,
+							unsigned long addr)
+{
+	return_code_t return_code = make_return_code(status);
+
+	assert((status == RMI_ERROR_DPT) ||
+	       (status == RMI_ERROR_GPT) ||
+	       (status == RMI_ERROR_TRACKING));
+	assert(ALIGNED(addr, GRANULE_SIZE));
+	assert((addr >> GRANULE_SHIFT) <
+	       (UL(1) << RMI_RESULT_ADDR_WIDTH));
+
+	return_code.data.level_addr.level = level;
+	return_code.data.level_addr.addr = addr;
 	return return_code;
 }
 
@@ -98,11 +123,23 @@ static inline unsigned long pack_struct_return_code(return_code_t return_code)
 		result |= INPLACE(RMI_OP_CAN_CANCEL_BIT,
 				  return_code.data.incomplete.cancel);
 		break;
-	case RMI_ERROR_DPT:
 	case RMI_ERROR_RTT:
 	case RMI_ERROR_RTT_AUX:
 	case RMI_ERROR_PSMMU_ST:
 		result |= INPLACE(RMI_RESULT_LEVEL, return_code.data.level.level);
+		break;
+	case RMI_ERROR_DPT:
+	case RMI_ERROR_GPT:
+	case RMI_ERROR_TRACKING:
+		assert(ALIGNED(return_code.data.level_addr.addr, GRANULE_SIZE));
+		assert((return_code.data.level_addr.addr >> GRANULE_SHIFT) <
+		       (UL(1) << RMI_RESULT_ADDR_WIDTH));
+
+		result |= INPLACE(RMI_RESULT_LEVEL,
+				  return_code.data.level_addr.level);
+		result |= INPLACE(
+				RMI_RESULT_ADDR,
+				return_code.data.level_addr.addr >> GRANULE_SHIFT);
 		break;
 	default:
 		/* RmiResultDataNull is MBZ. */
@@ -119,6 +156,17 @@ static inline unsigned long pack_return_code_level(unsigned int status,
 						   unsigned char level)
 {
 	return pack_struct_return_code(make_return_code_level(status, level));
+}
+
+/*
+ * Pack RmiResultDataLevelAddr into the binary RmiResult representation.
+ */
+static inline unsigned long pack_return_code_level_addr(unsigned int status,
+							unsigned char level,
+							unsigned long addr)
+{
+	return pack_struct_return_code(
+			make_return_code_level_addr(status, level, addr));
 }
 
 /*
@@ -147,12 +195,19 @@ static inline return_code_t unpack_return_code(unsigned long error_code)
 		return_code.data.incomplete.cancel =
 			(unsigned char)EXTRACT(RMI_OP_CAN_CANCEL_BIT, error_code);
 		break;
-	case RMI_ERROR_DPT:
 	case RMI_ERROR_RTT:
 	case RMI_ERROR_RTT_AUX:
 	case RMI_ERROR_PSMMU_ST:
 		return_code.data.level.level =
 			(unsigned char)EXTRACT(RMI_RESULT_LEVEL, error_code);
+		break;
+	case RMI_ERROR_DPT:
+	case RMI_ERROR_GPT:
+	case RMI_ERROR_TRACKING:
+		return_code.data.level_addr.level =
+			(unsigned char)EXTRACT(RMI_RESULT_LEVEL, error_code);
+		return_code.data.level_addr.addr =
+			EXTRACT(RMI_RESULT_ADDR, error_code) << GRANULE_SHIFT;
 		break;
 	default:
 		/* RmiResultDataNull has no fields to decode. */

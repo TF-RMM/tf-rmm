@@ -25,7 +25,6 @@ TEST(status_tests, null_data_is_mbz)
 TEST(status_tests, level_round_trip)
 {
 	const unsigned int statuses[] = {
-		RMI_ERROR_DPT,
 		RMI_ERROR_RTT,
 		RMI_ERROR_RTT_AUX,
 		RMI_ERROR_PSMMU_ST
@@ -41,6 +40,32 @@ TEST(status_tests, level_round_trip)
 				     encoded);
 		CHECK_EQUAL(status, decoded.status);
 		CHECK_EQUAL(level, decoded.data.level.level);
+	}
+}
+
+TEST(status_tests, level_addr_round_trip)
+{
+	const unsigned int statuses[] = {
+		RMI_ERROR_DPT,
+		RMI_ERROR_GPT,
+		RMI_ERROR_TRACKING
+	};
+	const unsigned char level = 0xABU;
+	const unsigned long addr = UL(0x123456789) << GRANULE_SHIFT;
+
+	for (unsigned int status : statuses) {
+		unsigned long encoded =
+			pack_return_code_level_addr(status, level, addr);
+		return_code_t decoded = unpack_return_code(encoded);
+
+		UNSIGNED_LONGS_EQUAL(
+			status |
+			INPLACE(RMI_RESULT_LEVEL, level) |
+			INPLACE(RMI_RESULT_ADDR, addr >> GRANULE_SHIFT),
+			encoded);
+		CHECK_EQUAL(status, decoded.status);
+		CHECK_EQUAL(level, decoded.data.level_addr.level);
+		UNSIGNED_LONGS_EQUAL(addr, decoded.data.level_addr.addr);
 	}
 }
 

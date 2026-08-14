@@ -241,12 +241,16 @@ static void rmi_log_on_exit(unsigned int handler_id,
 			INFO(" > RMI_%s", rmi_status_string[rc.status]);
 		}
 
-		/* Print RmiResultDataLevel. */
-		if ((rc.status == RMI_ERROR_DPT) ||
-		    (rc.status == RMI_ERROR_RTT) ||
+		/* Print conditional RmiResult data. */
+		if ((rc.status == RMI_ERROR_RTT) ||
 		    (rc.status == RMI_ERROR_RTT_AUX) ||
 		    (rc.status == RMI_ERROR_PSMMU_ST)) {
 			INFO(" %x", rc.data.level.level);
+		} else if ((rc.status == RMI_ERROR_DPT) ||
+			   (rc.status == RMI_ERROR_GPT) ||
+			   (rc.status == RMI_ERROR_TRACKING)) {
+			INFO(" %x %lx", rc.data.level_addr.level,
+			     rc.data.level_addr.addr);
 		}
 
 		/* Check status for commands initiated SRO */
