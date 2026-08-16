@@ -1137,7 +1137,13 @@ void smc_vdev_abort(unsigned long rd_addr,
 	buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
 
 vdev_reset_state:
-	vd->rmi_state = RMI_VDEV_STATE_ERROR;
+	if ((vd->rmi_state == RMI_VDEV_STATE_KEY_REFRESH) ||
+	    (vd->rmi_state == RMI_VDEV_STATE_KEY_PURGE)) {
+		vd->rmi_state = RMI_VDEV_STATE_LOCKED;
+	} else {
+		vd->rmi_state = RMI_VDEV_STATE_ERROR;
+	}
+
 	vd->comm_state = DEV_COMM_IDLE;
 	smc_rc = RMI_SUCCESS;
 
