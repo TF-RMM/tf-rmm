@@ -328,8 +328,13 @@ unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
 			      unsigned long dev_comm_data_addr);
 struct pdev_stream *pdev_stream_granules_lock_map(struct granule *g_streams,
 						  unsigned char stream_type);
+struct pdev_stream (*pdev_streams_granules_lock_map(struct granule *g_streams))
+	[RMI_PDEV_STREAM_TYPE_COUNT];
 void pdev_stream_granules_unmap_unlock(struct granule *g_streams,
 				       struct pdev_stream *stream,
 				       unsigned char stream_type);
+void pdev_streams_granules_unmap_unlock(
+	struct granule *g_streams,
+	struct pdev_stream (*streams)[RMI_PDEV_STREAM_TYPE_COUNT]);
 void pdev_continue_handler(unsigned long fid, struct smc_result *res);
 #endif /* DEV_H */

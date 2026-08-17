@@ -53,8 +53,8 @@ static inline bool unpack_stream_handle(unsigned long handle,
 	return true;
 }
 
-struct pdev_stream *pdev_stream_granules_lock_map(struct granule *g_streams,
-						  unsigned char stream_type)
+struct pdev_stream (*pdev_streams_granules_lock_map(struct granule *g_streams))
+	[RMI_PDEV_STREAM_TYPE_COUNT]
 {
 	struct pdev_stream_aux *stream_aux;
 
@@ -67,9 +67,38 @@ struct pdev_stream *pdev_stream_granules_lock_map(struct granule *g_streams,
 		return NULL;
 	}
 
+	return &stream_aux->streams;
+}
+
+struct pdev_stream *pdev_stream_granules_lock_map(struct granule *g_streams,
+						  unsigned char stream_type)
+{
+	struct pdev_stream (*streams)[RMI_PDEV_STREAM_TYPE_COUNT];
+
 	assert(stream_type < RMI_PDEV_STREAM_TYPE_COUNT);
 
-	return &(stream_aux->streams[stream_type]);
+	streams = pdev_streams_granules_lock_map(g_streams);
+	if (streams == NULL) {
+		return NULL;
+	}
+
+	return &(*streams)[stream_type];
+}
+
+void pdev_streams_granules_unmap_unlock(
+	struct granule *g_streams,
+	struct pdev_stream (*streams)[RMI_PDEV_STREAM_TYPE_COUNT])
+{
+	struct pdev_stream_aux *stream_aux;
+
+	assert(streams != NULL);
+
+	stream_aux = (struct pdev_stream_aux *)(
+		(uintptr_t)streams - offsetof(struct pdev_stream_aux, streams));
+	assert(GRANULE_ALIGNED(stream_aux));
+
+	buffer_unmap(stream_aux);
+	granule_unlock(g_streams);
 }
 
 void pdev_stream_granules_unmap_unlock(struct granule *g_streams,
@@ -83,14 +112,10 @@ void pdev_stream_granules_unmap_unlock(struct granule *g_streams,
 	assert(stream != NULL);
 
 	pdev_streams_addr = (uintptr_t)stream - (stream_type * sizeof(struct pdev_stream));
-
 	stream_aux = (struct pdev_stream_aux *)(
 		pdev_streams_addr - offsetof(struct pdev_stream_aux, streams));
 
-	assert(GRANULE_ALIGNED(stream_aux));
-
-	buffer_unmap(stream_aux);
-	granule_unlock(g_streams);
+	pdev_streams_granules_unmap_unlock(g_streams, &stream_aux->streams);
 }
 
 static bool pdev_hb_base_is_valid(unsigned long hb_base)

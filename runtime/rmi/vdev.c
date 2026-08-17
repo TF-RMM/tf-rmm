@@ -359,6 +359,75 @@ static unsigned long validate_vdev_params(
 	return RMI_SUCCESS;
 }
 
+static bool addr_is_within(unsigned long addr,
+			   unsigned long base,
+			   unsigned long top)
+{
+	return (addr >= base) && (addr < top);
+}
+
+static bool vdev_range_within_pdev_stream(const struct rmi_address_range *range,
+					  struct pdev_stream *stream)
+{
+	unsigned long vdev_base = range->base;
+	unsigned long vdev_top = range->top;
+	bool must_match = false;
+
+	for (size_t i = 0U; i < stream->num_addr_range; ++i) {
+		if (vdev_base >= vdev_top) {
+			return true;
+		}
+
+		struct rmi_address_range *stream_range = &stream->addr_range[i];
+		bool base_match = addr_is_within(vdev_base, stream_range->base, stream_range->top);
+
+		if (must_match && !base_match) {
+			return false;
+		}
+
+		if (base_match) {
+			vdev_base = min(vdev_top, stream_range->top);
+			must_match = true;
+		}
+	}
+	return vdev_base >= vdev_top;
+}
+
+static bool vdev_addr_range_in_pdev_streams(
+	const struct rmi_address_range *range,
+	struct pdev_stream (*streams)[RMI_PDEV_STREAM_TYPE_COUNT])
+{
+	assert(streams != NULL);
+
+	if ((*streams)[RMI_PDEV_STREAM_NCOH].taken &&
+	    vdev_range_within_pdev_stream(range, &(*streams)[RMI_PDEV_STREAM_NCOH])) {
+		return true;
+	}
+
+	if ((*streams)[RMI_PDEV_STREAM_COH].taken &&
+	    vdev_range_within_pdev_stream(range, &(*streams)[RMI_PDEV_STREAM_COH])) {
+		return true;
+	}
+
+	return false;
+}
+
+static bool vdev_addr_ranges_in_pdev_streams(
+	struct pdev_stream (*streams)[RMI_PDEV_STREAM_TYPE_COUNT],
+	const struct rmi_address_range *addr_range,
+	unsigned long num_addr_range)
+{
+	assert(num_addr_range <= 8U);
+	assert(streams != NULL);
+
+	for (size_t i = 0; i < num_addr_range; ++i) {
+		if (!vdev_addr_range_in_pdev_streams(&addr_range[i], streams)) {
+			return false;
+		}
+	}
+	return true;
+}
+
 /*
  * smc_vdev_create
  *
@@ -384,6 +453,7 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	struct smmu_stg2_config s2_cfg;
 	unsigned int sid, smmu_idx;
 	unsigned long rc;
+	struct pdev_stream (*streams)[RMI_PDEV_STREAM_TYPE_COUNT];
 	struct pdev_stream *stream;
 	uint32_t vdev_slot;
 	struct vdev_map vdev_map;
@@ -454,12 +524,19 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		goto out_unmap_pd;
 	}
 
-	stream = pdev_stream_granules_lock_map(pd->g_stream_aux, RMI_PDEV_STREAM_NCOH);
-	assert(stream != NULL);
+	streams = pdev_streams_granules_lock_map(pd->g_stream_aux);
+	assert(streams != NULL);
+	stream = &(*streams)[RMI_PDEV_STREAM_NCOH];
 
 	if (!stream->taken ||
 	    (stream->state != PDEV_STREAM_CONNECTED)) {
 		rc = RMI_ERROR_DEVICE;
+		goto out_unmap_stream;
+	}
+
+	if (!vdev_addr_ranges_in_pdev_streams(streams, vdev_params.addr_range,
+					      vdev_params.num_addr_range)) {
+		rc = RMI_ERROR_INPUT;
 		goto out_unmap_stream;
 	}
 
@@ -527,7 +604,7 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 out_unmap_vd:
 	buffer_unmap(vd);
 out_unmap_stream:
-	pdev_stream_granules_unmap_unlock(pd->g_stream_aux, stream, RMI_PDEV_STREAM_NCOH);
+	pdev_streams_granules_unmap_unlock(pd->g_stream_aux, streams);
 out_unmap_pd:
 	buffer_unmap(pd);
 out_unmap_rd:
