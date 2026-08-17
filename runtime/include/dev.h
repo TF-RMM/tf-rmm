@@ -28,8 +28,7 @@
 /* Represents operation being performed by a VDEV. RmmVdevOperation */
 #define VDEV_OP_GET_MEAS			U(0)
 #define VDEV_OP_GET_REPORT			U(1)
-#define VDEV_OP_KEY_PURGE			U(2)
-#define VDEV_OP_KEY_REFRESH			U(3)
+#define VDEV_OP_INIT				U(2)
 #define VDEV_OP_LOCK				U(4)
 #define VDEV_OP_NONE				U(5)
 #define VDEV_OP_START				U(6)

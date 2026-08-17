@@ -581,7 +581,7 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 
 	vd->rmi_state = RMI_VDEV_STATE_NEW;
 	vd->dma_state = RMI_VDEV_DMA_DISABLED;
-	vd->op = VDEV_OP_UNLOCK;
+	vd->op = VDEV_OP_INIT;
 	vd->comm_state = DEV_COMM_PENDING;
 
 	vd->sid = sid;
@@ -910,6 +910,7 @@ void smc_vdev_communicate(unsigned long rd_addr,
 	} else if (vd->comm_state == DEV_COMM_IDLE) {
 		switch (vd->op) {
 		case VDEV_OP_UNLOCK:
+		case VDEV_OP_INIT:
 			vd->rmi_state = RMI_VDEV_STATE_UNLOCKED;
 			break;
 		case VDEV_OP_LOCK:
@@ -936,11 +937,9 @@ void smc_vdev_communicate(unsigned long rd_addr,
 				vd->rmi_state = RMI_VDEV_STATE_ERROR;
 			}
 			break;
-		case VDEV_OP_KEY_REFRESH:
-			vd->rmi_state = RMI_VDEV_STATE_KEY_PURGE;
-			break;
-		case VDEV_OP_KEY_PURGE:
-			vd->rmi_state = RMI_VDEV_STATE_UNLOCKED;
+		case VDEV_OP_NONE:
+			/* No state transition if no operation is active */
+			assert(rmi_rc == RMI_ERROR_DEVICE);
 			break;
 		default:
 			assert(false);

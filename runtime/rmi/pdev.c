@@ -978,20 +978,18 @@ static int vdev_dispatch_cmd(struct pdev *pd, struct vdev *vd,
 			exit_args, tdisp_params_ptr, meas_params_ptr,
 			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_LOCK);
 		break;
+	case VDEV_OP_INIT:
+		/* no need to communicate to the device, return success */
+		(void)memset(exit_args, 0, sizeof(*exit_args));
+		rc = DEV_ASSIGN_STATUS_SUCCESS;
+		goto out;
 	case VDEV_OP_UNLOCK:
-		if (vd->rmi_state == RMI_VDEV_STATE_NEW) {
-			/* no need to communicate to the device, return success */
-			(void)memset(exit_args, 0, sizeof(*exit_args));
-			rc = DEV_ASSIGN_STATUS_SUCCESS;
-			goto out;
-		} else {
-			assert((vd->rmi_state == RMI_VDEV_STATE_STARTED) ||
-			       (vd->rmi_state == RMI_VDEV_STATE_LOCKED) ||
-			       (vd->rmi_state == RMI_VDEV_STATE_ERROR));
-			rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
-				exit_args, tdisp_params_ptr, meas_params_ptr,
-				DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP);
-		}
+		assert((vd->rmi_state == RMI_VDEV_STATE_STARTED) ||
+		       (vd->rmi_state == RMI_VDEV_STATE_LOCKED) ||
+		       (vd->rmi_state == RMI_VDEV_STATE_ERROR));
+		rc = dev_assign_dev_communicate(&pd->da_app_data, enter_args,
+			exit_args, tdisp_params_ptr, meas_params_ptr,
+			DEVICE_ASSIGN_APP_FUNC_ID_VDM_TDISP_STOP);
 		break;
 	case VDEV_OP_GET_REPORT:
 		/*
@@ -1088,7 +1086,7 @@ unsigned long dev_communicate(struct pdev *pd,
 		 */
 		if ((vd == NULL) && (pd->op.curr == PDEV_OP_STOP) &&
 		    pd->da_app_yielded) {
-			int abort_rc = dev_assign_abort_app_operation(&pd->da_app_data);
+			int abort_rc __unused = dev_assign_abort_app_operation(&pd->da_app_data);
 
 			assert(abort_rc == DEV_ASSIGN_STATUS_SUCCESS);
 			pd->da_app_yielded = false;
