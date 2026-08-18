@@ -159,11 +159,11 @@ static unsigned int granule_lock_order(unsigned char state)
 		return 2U;
 	case GRANULE_STATE_VDEV:
 		return 3U;
-	case GRANULE_STATE_DELEGATED:
-		return 4U;
-	case GRANULE_STATE_NS:
-		return 5U;
 	case GRANULE_STATE_RTT:
+		return 4U;
+	case GRANULE_STATE_DELEGATED:
+		return 5U;
+	case GRANULE_STATE_NS:
 		return 6U;
 	case GRANULE_STATE_DATA:
 		return 7U;

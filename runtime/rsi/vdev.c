@@ -212,8 +212,17 @@ void handle_rsi_vdev_get_info(struct rec *rec,
 		return;
 	}
 
-	if (!realm_mem_lock_map(rec, info_granule_address, &info_granule_va, &llt, res)) {
+	/* Claim external objects before locking the internal RTT hierarchy. */
+	rsi_rc = rsi_vdev_claim_objects(vdev_id, rec, &lock_set, true);
+	if (rsi_rc != RSI_SUCCESS) {
+		res->smc_res.x[0] = rsi_rc;
 		return;
+	}
+	assert(lock_set.vd != NULL);
+	assert(lock_set.pd != NULL);
+
+	if (!realm_mem_lock_map(rec, info_granule_address, &info_granule_va, &llt, res)) {
+		goto out_release_objects;
 	}
 
 	assert((info_granule_va != NULL) && (llt != NULL));
@@ -222,22 +231,13 @@ void handle_rsi_vdev_get_info(struct rec *rec,
 	vdev_info = (struct rsi_vdev_info *)
 		((uintptr_t)info_granule_va + (info_addr - info_granule_address));
 
-	/* claim the external objects internally */
-	rsi_rc = rsi_vdev_claim_objects(vdev_id, rec, &lock_set, true);
-	if (rsi_rc != RSI_SUCCESS) {
-		res->smc_res.x[0] = rsi_rc;
-		goto out;
-	}
-	assert(lock_set.vd != NULL);
-	assert(lock_set.pd != NULL);
-
 	vdev_get_info(lock_set.pd, lock_set.vd, vdev_info);
 	res->smc_res.x[0] = RSI_SUCCESS;
 
-out:
-	rsi_vdev_release_objects(&lock_set);
 	buffer_unmap(info_granule_va);
 	granule_unlock(llt);
+out_release_objects:
+	rsi_vdev_release_objects(&lock_set);
 }
 
 static unsigned char vdev_state_to_rsi(uint32_t vdev_rmi_state)

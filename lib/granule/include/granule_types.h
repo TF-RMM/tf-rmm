@@ -45,9 +45,10 @@
  *
  * The following locking rules must be followed:
  *
- * 1. Independently-addressed memory granules must be locked in type order:
- *    RD, REC, PDEV, VDEV, DELEGATED, NS, followed by the internal order
- *    below.
+ * 1. Memory granules must be locked in type order: RD, REC, PDEV, VDEV, RTT,
+ *    DELEGATED, NS, followed by the remaining internal order below. RTT
+ *    locking follows the hierarchy rules below, so an RTT hierarchy is fully
+ *    acquired before a DELEGATED backing granule is locked.
  *
  * 2. Independently-addressed memory granules of the same type must be locked
  *    in order of their physical address, starting with the lowest address.
@@ -56,23 +57,19 @@
  *    state must be checked against the expected state. If these do not match,
  *    the granule must be unlocked and no further granules may be locked.
  *
- * 4. Granules in an `internal` state must be locked in order of state:
- *    1. `RTT`
- *    2. `DATA`
- *    3. `REC_AUX`
- *    4. `PDEV_AUX`
- *    5. `VDEV_AUX`
- *    6. `INTERNAL`
- *    7. `PSMMU_ST_L2`
- *    8. `RD_AUX`
- *    9. `PARTIAL`
+ * 4. Granules in the remaining `internal` states must be locked in order of
+ *    state:
+ *    1. `DATA`
+ *    2. `REC_AUX`
+ *    3. `PDEV_AUX`
+ *    4. `VDEV_AUX`
+ *    5. `INTERNAL`
+ *    6. `PSMMU_ST_L2`
+ *    7. `RD_AUX`
+ *    8. `PARTIAL`
  *
  * 5. Granules in the same `internal` state must be locked in the order defined
  *    below for that specific state.
- *
- * The granule_lock_order() helper implements the type order used by
- * find_lock_two_granules() and find_lock_three_granules() for independently-
- * addressed memory granules.
  *
  * 6. RTT granules are ordered by the RTT hierarchy. RTT walks must lock the
  *    root table before child tables and use hand-over-hand locking.
@@ -88,7 +85,9 @@
  *    separately from memory granules by the device granule locking helpers.
  *    Memory granules must be locked before device granules.
  *
- * A granule's state can be changed iff the granule is locked.
+ * A granule's state can be changed iff the granule is locked. The
+ * granule_lock_order() helper implements the type order used by
+ * find_lock_two_granules() and find_lock_three_granules().
  *
  * Invariants
  * ----------
