@@ -20,11 +20,10 @@ void measurement_data_granule_measure(unsigned char rim_measurement[],
 	ASSERT(false, "measurement_data_granule_measure");
 }
 
-void measurement_realm_params_measure(unsigned char rim_measurement[],
-				      enum hash_algo algorithm,
-				      struct rmi_realm_params *realm_params)
+void measurement_init_rim(unsigned char rim_measurement[],
+				      enum hash_algo algorithm)
 {
-	ASSERT(false, "measurement_realm_params_measure");
+	ASSERT(false, "measurement_init_rim");
 }
 
 void measurement_rec_params_measure(unsigned char rim_measurement[],

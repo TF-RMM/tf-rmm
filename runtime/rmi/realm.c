@@ -905,9 +905,8 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 		init_s2_starting_level(rd, i);
 	}
 
-	measurement_realm_params_measure(rd->measurement[RIM_MEASUREMENT_SLOT],
-					 rd->algorithm,
-					 &p);
+	measurement_init_rim(rd->measurement[RIM_MEASUREMENT_SLOT],
+					 rd->algorithm);
 	rd_init_aux_granules(rd);
 
 	buffer_unmap(rd);

@@ -45,41 +45,10 @@ void measurement_data_granule_measure(unsigned char rim_measurement[],
 			       rim_measurement);
 }
 
-void measurement_realm_params_measure(unsigned char rim_measurement[],
-				      enum hash_algo algorithm,
-				      struct rmi_realm_params *realm_params)
+void measurement_init_rim(unsigned char rim_measurement[],
+				      enum hash_algo algorithm)
 {
-	/*
-	 * Allocate a zero-filled RmiRealmParams data structure
-	 * to hold the measured Realm parameters.
-	 */
-	struct rmi_realm_params rim_params = {0};
-
-	/*
-	 * The following attributes are used for calculation of the
-	 * initial RIM value of the Realm:
-	 * - flags
-	 * - s2sz
-	 * - sve_vl
-	 * - num_bps
-	 * - num_wps
-	 * - pmu_num_ctrs
-	 * - hash_algo
-	 */
-	rim_params.flags0 = realm_params->flags0;
-	rim_params.s2sz = realm_params->s2sz;
-	rim_params.sve_vl = realm_params->sve_vl;
-	rim_params.num_bps = realm_params->num_bps;
-	rim_params.num_wps = realm_params->num_wps;
-	rim_params.pmu_num_ctrs = realm_params->pmu_num_ctrs;
-	rim_params.algorithm = realm_params->algorithm;
-
-	/* Measure relevant realm params this will be the init value of RIM */
-	/* coverity[overrun-buffer-val:SUPPRESS] */
-	measurement_hash_compute(algorithm,
-			       &rim_params,
-			       sizeof(struct rmi_realm_params),
-			       rim_measurement);
+	(void)memset(rim_measurement, 0, measurement_get_size(algorithm));
 }
 
 void measurement_rec_params_measure(unsigned char rim_measurement[],
