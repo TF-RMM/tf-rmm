@@ -43,6 +43,9 @@ build:
       - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_IOMMUFD_DRIVER
       - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_VFIO_DEVICE_CDEV
       - ./scripts/config --file ${param:builddir}/.config --disable CONFIG_VFIO_CONTAINER
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_NET_9P
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_NET_9P_VIRTIO
+      - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_9P_FS
 
   kvmtool:
     repo:
@@ -57,3 +60,13 @@ build:
     repo:
         remote: https://gitlab.arm.com/linux-arm/kvm-unit-tests-cca
         revision: cca/v4
+
+run:
+  rtvars:
+    CACHE_MODEL_ENABLED:
+      type: string
+      value: 0
+
+  params:
+    # Cache modelling settings
+    -C cache_state_modelled: ${rtvar:CACHE_MODEL_ENABLED}
