@@ -1081,12 +1081,12 @@ void smc_vdev_abort(unsigned long rd_addr,
 	}
 
 	/*
-	 * If there is no active device communication, then mapping aux
-	 * granules and cancelling an existing communication is not required.
+	 * If the app is not yielded, then mapping aux granules and cancelling
+	 * an existing app operation is not required.
 	 *
 	 * todo: add helper routine dev_communicate_abort() in pdev.c
 	 */
-	if (pd->dev_comm_state != DEV_COMM_ACTIVE) {
+	if (pd->da_app_data.exit_flag != APP_EXIT_SVC_YIELD_FLAG) {
 		goto vdev_reset_state;
 	}
 
@@ -1168,14 +1168,18 @@ void smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
-	if ((vd->g_rd != g_rd) ||
-	    (vd->g_pdev != g_pdev)) {
+	if ((vd->g_rd != g_rd)) {
+		smc_rc = RMI_ERROR_INPUT;
+		goto out_err_input;
+	}
+
+	if (vd->g_pdev != g_pdev) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
 	}
 
-	if ((vd->rmi_state != RMI_VDEV_STATE_NEW) &&
-	    (vd->rmi_state != RMI_VDEV_STATE_UNLOCKED)) {
+	if ((vd->rmi_state != RMI_VDEV_STATE_UNLOCKED) ||
+	    (vd->comm_state != DEV_COMM_IDLE)) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
 	}
