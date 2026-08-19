@@ -18,9 +18,11 @@ void host_rmi_rtt_data_map_init(void *rd, void *data, uintptr_t ipa, void *src,
 		uint64_t flags, struct smc_result *res);
 
 void host_rmi_realm_activate(void *rd, struct smc_result *res);
-void host_rmi_realm_create(void *rd, void *params_ptr, struct smc_result *res);
+void host_rmi_realm_create(void *rd, void *params_ptr, void *handle,
+			   void *donate_req, struct smc_result *res);
 void host_rmi_realm_terminate(void *rd, struct smc_result *res);
-void host_rmi_realm_destroy(void *rd, struct smc_result *res);
+void host_rmi_realm_destroy(void *rd, void *destroy_handle,
+			    struct smc_result *res);
 void host_rmi_rtt_create(void *rd, void *rtt, void *ipa,
 			 unsigned int level, struct smc_result *res);
 void host_rmi_rtt_aux_create(void *rd, void *rtt, void *ipa, unsigned int level,
@@ -48,7 +50,7 @@ void host_rmi_rtt_data_map(void *rd, uintptr_t base, uintptr_t top,
 void host_rmi_rtt_unprot_map(void *rd, uintptr_t base, uintptr_t top,
 		     unsigned long flags, uintptr_t oaddr, struct smc_result *res);
 
-void host_rmi_psci_complete(void *calling_rec, void *target_rec, uintptr_t status,
+void host_rmi_psci_complete(void *calling_rec, uintptr_t status,
 		struct smc_result *res);
 void host_rmi_features(unsigned long index, struct smc_result *res);
 void host_rmi_rtt_fold(void *rd, uintptr_t ipa, uintptr_t level, struct smc_result *res);
@@ -80,8 +82,6 @@ void host_rmi_vdev_create(void *rd, void *pdev_ptr, void *vdev_ptr,
 			  void *vdev_params_ptr, struct smc_result *res);
 void host_rmi_vdev_communicate(void *rd, void *pdev_ptr, void *vdev_ptr, void *data_ptr,
 			       struct smc_result *res);
-void host_rmi_vdev_complete(void *rec_ptr, void *vdev_ptr,
-			    struct smc_result *res);
 void host_rmi_vdev_get_state(void *vdev, struct smc_result *res);
 void host_rmi_vdev_abort(void *vdev, struct smc_result *res);
 void host_rmi_vdev_unlock(void *rd, void *pdev, void *vdev,

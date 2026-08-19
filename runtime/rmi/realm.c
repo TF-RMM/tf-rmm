@@ -19,6 +19,7 @@
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
+#include <sro_context.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
@@ -26,6 +27,15 @@
 #include <vmid.h>
 
 #define RMI_FEATURE_MIN_IPA_SIZE	PARANGE_WIDTH_32BITS
+
+static unsigned int realm_num_aux_granules(void)
+{
+	/*
+	 * TODO: Make this more fine grained based on the actual maximums
+	 * provided in realm create params
+	 */
+	return MAX_RD_AUX_GRANULES;
+}
 
 void smc_realm_activate(unsigned long rd_addr, struct smc_result *res)
 {
@@ -603,105 +613,222 @@ static int generate_realm_instance_id(unsigned char *realm_instance_id, size_t l
 	return random_app_prng_get_random(random_app_data, &(realm_instance_id[1]), len - 1U);
 }
 
+static void init_obj_map(struct rd_aux *rd_aux)
+{
+	struct sarray_hdr *hnd __unused;
+
+	hnd = sarray_init_vdev_map(&rd_aux->vdev_map_hnd,
+				   rd_aux->vdev_map_mem,
+				   sizeof(rd_aux->vdev_map_mem));
+	assert(hnd != NULL);
+	hnd = sarray_init_rec_map(&rd_aux->mpidr_rec_map.rec_map_hnd,
+				   rd_aux->mpidr_rec_map.rec_map_mem,
+				   sizeof(rd_aux->mpidr_rec_map.rec_map_mem));
+	assert(hnd != NULL);
+}
+
+static void rd_init_aux_granules(struct rd *rd)
+{
+	struct rd_aux *rd_aux = buffer_rd_aux_granules_map_zeroed(
+					&rd->aux_granules[0], rd->num_rd_aux);
+
+	assert(rd_aux != NULL);
+	init_obj_map(rd_aux);
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+}
+
+/*
+ * Release Realm-owned resources as part of Realm destruction.
+ *
+ * The caller must hold the RD granule lock, ensure that all root RTT and VDEV
+ * reference counts are zero, and provide the mapped RD auxiliary data.
+ */
+static void realm_destroy_cleanup(struct rd *rd, struct rd_aux *rd_aux)
+{
+	struct granule *g_rtt;
+	unsigned int num_rtts;
+	unsigned int mecid;
+
+	num_rtts = plane_to_s2_context(rd, PLANE_0_ID)->num_root_rtts;
+	mecid = plane_to_s2_context(rd, PLANE_0_ID)->mecid;
+
+	assert(sarray_num_elems(&rd_aux->vdev_map_hnd) == 0U);
+	sarray_destroy(&rd_aux->vdev_map_hnd);
+	assert(sarray_num_elems(&rd_aux->mpidr_rec_map.rec_map_hnd) == 0U);
+	sarray_destroy(&rd_aux->mpidr_rec_map.rec_map_hnd);
+
+	/* Free root tables in all RTT trees */
+	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {
+		struct s2tt_context *s2tt_ctx = &rd->s2_ctx[i];
+
+		g_rtt = s2tt_ctx->g_rtt;
+		free_sl_rtts(g_rtt, num_rtts);
+	}
+
+	/*
+	 * All the mappings in the Realm have been removed and the TLB caches
+	 * are invalidated. Therefore, there are no TLB entries tagged with
+	 * this Realm's VMID (in this security state).
+	 * Just release the VMIDs value so they can be used in another Realm.
+	 */
+	for (unsigned int i = 0U; i < realm_num_s2_contexts(rd); i++) {
+		vmid_free(rd->s2_ctx[i].vmid);
+	}
+
+	/*
+	 * Note that there are no active S1 nor S2 mappings
+	 * using the Realm MECID and DCCIPoE is completed at this point.
+	 */
+	mecid_free(mecid);
+}
 
 void smc_realm_create(unsigned long rd_addr,
 		      unsigned long realm_params_addr,
 		      struct smc_result *res)
 {
 	struct granule *g_rd;
+	struct sro_context *sro;
+	unsigned int num_rd_aux;
+	unsigned long ret;
+
+	num_rd_aux = realm_num_aux_granules();
+	if (num_rd_aux > MAX_RD_AUX_GRANULES) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_DELEGATED);
+	if (g_rd == NULL) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	ret = sro_ctx_reserve(SMC_RMI_REALM_CREATE, num_rd_aux * GRANULE_SIZE,
+			      false, false, SMC_RMI_OP_MEM_DONATE);
+	if (ret != RMI_SUCCESS) {
+		granule_unlock(g_rd);
+		res->x[0] = ret;
+		return;
+	}
+
+	granule_unlock_transition(g_rd, GRANULE_STATE_PARTIAL);
+
+	sro = my_sro_ctx();
+	assert(sro != NULL);
+	sro->realm_ctx.realm_params_addr = realm_params_addr;
+
+	sro_aux_op_init_donate(sro, res, rd_addr,
+			       num_rd_aux, GRANULE_STATE_RD_AUX);
+}
+
+static void realm_create_continue(unsigned long fid, struct smc_result *res)
+{
+	struct sro_context *sro = my_sro_ctx();
+	struct granule *g_rd;
+	struct granule *g_aux_list[MAX_RD_AUX_GRANULES];
 	struct rd *rd;
+	struct sro_realm_ctx *realm_ctx;
 	struct rmi_realm_params p;
 	unsigned short vmid[MAX_S2_CTXS] = {[0 ... (MAX_S2_CTXS - 1)] = 0U};
 	unsigned long rtt_base[MAX_S2_CTXS] = {[0 ... (MAX_S2_CTXS - 1)] = 0U};
-	unsigned int n_vmids = 0U, n_rtts = 0U;
-	unsigned int mecid = 0U;
-	unsigned long ats_plane;
 	unsigned char realm_instance_id[REALM_INSTANCE_ID_SIZE];
-	bool rtt_tree_pp;
+	unsigned long ret = RMI_SUCCESS;
+	unsigned long ats_plane;
+	unsigned int n_vmids = 0U;
+	unsigned int n_rtts = 0U;
+	unsigned int mecid = 0U;
+	unsigned int num_rd_aux;
 	unsigned int mec_policy;
+	bool rtt_tree_pp;
 	int smmuv3_ret __unused;
 
-	if (!get_realm_params(&p, realm_params_addr)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
+	assert(sro != NULL);
+	assert(fid == SMC_RMI_OP_CONTINUE);
+	(void)fid;
+
+	realm_ctx = &sro->realm_ctx;
+	assert(sro->aux_op_ctx.total_transferred ==
+	       sro->aux_op_ctx.requested_aux_granules);
+	num_rd_aux = (unsigned int)sro->aux_op_ctx.requested_aux_granules;
+	assert(num_rd_aux <= MAX_RD_AUX_GRANULES);
+
+	if (!get_realm_params(&p, realm_ctx->realm_params_addr)) {
+		ret = RMI_ERROR_INPUT;
+		goto out_reclaim;
 	}
 
 	/* coverity[uninit_use_in_call:SUPPRESS] */
 	if (!validate_realm_params(&p, &n_vmids, &n_rtts,
 				   &rtt_tree_pp, rtt_base, &ats_plane,
 				   &mec_policy)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
+		ret = RMI_ERROR_INPUT;
+		goto out_reclaim;
 	}
 
-	if (generate_realm_instance_id(realm_instance_id, REALM_INSTANCE_ID_SIZE) != 0) {
-		res->x[0] = RMI_ERROR_GLOBAL;
-		return;
+	if (generate_realm_instance_id(realm_instance_id,
+				       REALM_INSTANCE_ID_SIZE) != 0) {
+		ret = RMI_ERROR_GLOBAL;
+		goto out_reclaim;
 	}
 
-	/* Allocate VMIDs for all planes in the realm */
+	/* Allocate VMIDs for all planes in the Realm. */
 	for (unsigned int i = 0U; i < n_vmids; i++) {
 		unsigned int allocated_vmid;
 
 		if (!vmid_alloc(&allocated_vmid)) {
-			/* Free allocated VMIDs before returning */
 			free_vmids(vmid, i);
-			res->x[0] = RMI_ERROR_GLOBAL;
-			return;
+			ret = RMI_ERROR_GLOBAL;
+			goto out_reclaim;
 		}
 		vmid[i] = (unsigned short)allocated_vmid;
 	}
 
-	/* Allocate MECID for the realm */
+	/* Allocate the MECID for the Realm. */
 	if (!mecid_alloc(&mecid, mec_policy == RMI_MEC_POLICY_SHARED)) {
-		/* Free allocated VMIDs before returning */
 		free_vmids(vmid, n_vmids);
-		res->x[0] = RMI_ERROR_GLOBAL;
-		return;
+		ret = RMI_ERROR_GLOBAL;
+		goto out_reclaim;
 	}
 
 	/*
-	 * Transition the granules for root RTT for primary and auxiliary trees.
-	 * They are unlocked after the transition, therefore we will not violate
-	 * the locking order when we acquire the lock for the RD granule further
-	 * down.
-	 * This will fail if there is any aliasing among these granules
-	 * because the granule will not be in the expected delegated state.
+	 * Transition the root RTT granules before locking the RD granule. This
+	 * also rejects aliasing with the RD or donated RD auxiliary granules.
 	 */
 	if (!transition_sl_rtts(rtt_base, p.rtt_num_start, n_rtts)) {
 		free_vmids(vmid, n_vmids);
 		mecid_free(mecid);
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
+		ret = RMI_ERROR_INPUT;
+		goto out_reclaim;
 	}
 
-	/*
-	 * Transition the RD granule. This will fail if there is any aliasing
-	 * between this granule and RTT root granules, because the granule will
-	 * not be in the expected delegated state.
-	 */
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_DELEGATED);
+	g_rd = find_lock_granule(sro->aux_op_ctx.obj_addr, GRANULE_STATE_PARTIAL);
 	if (g_rd == NULL) {
 		revert_sl_rtts(rtt_base, p.rtt_num_start, n_rtts);
 		free_vmids(vmid, n_vmids);
 		mecid_free(mecid);
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
+		ret = RMI_ERROR_INPUT;
+		goto out_reclaim;
+	}
+
+	for (unsigned int i = 0U; i < num_rd_aux; i++) {
+		struct granule *g_aux = find_granule(sro->aux_op_ctx.aux_granules_pa[i]);
+
+		assert(g_aux != NULL);
+		assert(granule_unlocked_state(g_aux) == GRANULE_STATE_RD_AUX);
+		g_aux_list[i] = g_aux;
 	}
 
 	rd = buffer_granule_map_zeroed(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
 	set_rd_state(rd, REALM_NEW);
-	set_rd_rec_count(rd, 0UL);
 
 	rd->rtt_tree_pp = rtt_tree_pp;
 	rd->num_aux_planes = p.num_aux_planes;
-	rd->rtt_s2ap_encoding = (EXTRACT(RMI_REALM_FLAGS1_S2AP_ENC, p.flags1) != 0UL);
+	rd->rtt_s2ap_encoding = (EXTRACT(RMI_REALM_FLAGS1_S2AP_ENC,
+					 p.flags1) != 0UL);
 
-	for (unsigned int idx = 0U;
-	     idx < realm_num_s2_contexts(rd);
-	     idx++) {
+	for (unsigned int idx = 0U; idx < realm_num_s2_contexts(rd); idx++) {
 		struct s2tt_context *s2tt_ctx = &rd->s2_ctx[idx];
 
 		/*
@@ -713,8 +840,8 @@ void smc_realm_create(unsigned long rd_addr,
 		 * For the mapping between Plane ID and S2 context ID, see
 		 * plane_to_s2_context() implementation.
 		 */
-		s2tt_ctx->g_rtt = find_granule(rd->rtt_tree_pp ? rtt_base[idx] :
-								 rtt_base[0]);
+		s2tt_ctx->g_rtt = find_granule(rd->rtt_tree_pp ?
+					       rtt_base[idx] : rtt_base[0]);
 		s2tt_ctx->ipa_bits = p.s2sz;
 		s2tt_ctx->s2_starting_level = (int)p.rtt_level_start;
 		s2tt_ctx->num_root_rtts = p.rtt_num_start;
@@ -728,20 +855,25 @@ void smc_realm_create(unsigned long rd_addr,
 		 * As the mapping between plane ID and S2 context ID is not
 		 * 1:1, map the corresponding Plane VMID to its S2 context.
 		 */
-		struct s2tt_context *s2tt_ctx =
-					plane_to_s2_context(rd, plane_idx);
+		struct s2tt_context *s2tt_ctx = plane_to_s2_context(rd, plane_idx);
 
 		s2tt_ctx->vmid = vmid[plane_idx];
 	}
 
 	(void)memcpy(&rd->rpv[0], &p.rpv[0], RPV_SIZE);
-	(void)memcpy(rd->realm_instance_id, realm_instance_id, REALM_INSTANCE_ID_SIZE);
+	(void)memcpy(rd->realm_instance_id, realm_instance_id,
+		     sizeof(rd->realm_instance_id));
 
 	rd->num_rec_aux = MAX_REC_AUX_GRANULES;
+	rd->num_rd_aux = num_rd_aux;
+
+	for (unsigned int i = 0U; i < rd->num_rd_aux; i++) {
+		rd->aux_granules[i] = g_aux_list[i];
+	}
 
 	rd->simd_cfg.sve_en = EXTRACT(RMI_REALM_FLAGS0_SVE, p.flags0) != 0UL;
 	if (rd->simd_cfg.sve_en) {
-		rd->simd_cfg.sve_vq = (uint32_t)p.sve_vl;
+		rd->simd_cfg.sve_vq = p.sve_vl;
 	}
 
 	if (p.algorithm == RMI_HASH_SHA_256) {
@@ -762,9 +894,11 @@ void smc_realm_create(unsigned long rd_addr,
 	rd_vdev_refcount_reset(rd);
 
 	smmuv3_ret = smmuv3_cmd_sync_init(&rd->smmu_cmd_sync,
-				  rd_addr + offsetof(struct rd, smmu_cmd_sync));
+				  sro->aux_op_ctx.obj_addr +
+				  offsetof(struct rd, smmu_cmd_sync));
 	assert(smmuv3_ret == 0);
 
+	init_rd_obj_map_epoch(rd);
 	init_overlay_permissions(rd);
 
 	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {
@@ -774,11 +908,39 @@ void smc_realm_create(unsigned long rd_addr,
 	measurement_realm_params_measure(rd->measurement[RIM_MEASUREMENT_SLOT],
 					 rd->algorithm,
 					 &p);
-	buffer_unmap(rd);
+	rd_init_aux_granules(rd);
 
+	buffer_unmap(rd);
 	granule_unlock_transition(g_rd, GRANULE_STATE_RD);
 
 	res->x[0] = RMI_SUCCESS;
+	assert(res->x[1] == 0UL);
+	assert(res->x[2] == 0UL);
+	return;
+
+out_reclaim:
+	sro_aux_op_start_reclaim(sro, res,
+				 sro->aux_op_ctx.obj_addr,
+				 false,
+				 ret,
+				 sro->aux_op_ctx.total_transferred,
+				 GRANULE_STATE_RD_AUX);
+}
+
+void realm_continue_handler(unsigned long fid, struct smc_result *res)
+{
+	const sro_handle_cb sro_callbacks[] = {
+		[SRO_OBJ_MEM_RECLAIM] = sro_obj_memory_reclaim,
+		[SRO_OBJ_MEM_DONATE] = sro_obj_memory_donate,
+		[SRO_OBJ_CREATE_CONTINUE] = realm_create_continue,
+		[SRO_OBJ_DESTROY_FINISH] = sro_aux_op_reclaim_finish
+	};
+	struct sro_context *sro = my_sro_ctx();
+
+	assert(sro != NULL);
+	assert((size_t)(sro->aux_op_ctx.cb_id) < ARRAY_SIZE(sro_callbacks));
+
+	sro_callbacks[sro->aux_op_ctx.cb_id](fid, res);
 }
 
 static unsigned long total_root_rtt_refcount(struct granule *g_rtt,
@@ -841,18 +1003,31 @@ void smc_realm_destroy(unsigned long rd_addr, struct smc_result *res)
 	struct granule *g_rd;
 	struct granule *g_rtt;
 	struct rd *rd;
-	unsigned int num_rtts, mecid;
+	struct sro_context *sro;
+	unsigned int num_rtts;
+	unsigned int num_rd_aux;
+	struct rd_aux *rd_aux;
 	int ret;
+	unsigned long ctx_reserved;
+
+	ctx_reserved = sro_ctx_reserve(SMC_RMI_REALM_DESTROY, 0UL, false, false,
+				       SMC_RMI_OP_MEM_RECLAIM);
+	if (ctx_reserved != RMI_SUCCESS) {
+		res->x[0] = ctx_reserved;
+		return;
+	}
 
 	/* RD should not be destroyed if refcount != 0. */
 	ret = find_lock_unused_granule(rd_addr, GRANULE_STATE_RD, &g_rd);
 	if (ret != 0) {
 		switch (ret) {
 		case -EINVAL:
+			sro_ctx_release();
 			res->x[0] = RMI_ERROR_INPUT;
 			return;
 		default:
 			assert(ret == -EBUSY);
+			sro_ctx_release();
 			res->x[0] = RMI_ERROR_REALM;
 			return;
 		}
@@ -866,7 +1041,6 @@ void smc_realm_destroy(unsigned long rd_addr, struct smc_result *res)
 	}
 
 	num_rtts = plane_to_s2_context(rd, PLANE_0_ID)->num_root_rtts;
-	mecid = plane_to_s2_context(rd, PLANE_0_ID)->mecid;
 
 	/* Check that root tables from all RTT trees don't hold any references */
 	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {
@@ -880,43 +1054,37 @@ void smc_realm_destroy(unsigned long rd_addr, struct smc_result *res)
 		}
 	}
 
-	/* Free root tables in all RTT trees */
-	for (unsigned int i = 0U; i < realm_num_s2_rtts(rd); i++) {
-		struct s2tt_context *s2tt_ctx = &rd->s2_ctx[i];
+	num_rd_aux = rd->num_rd_aux;
 
-		g_rtt = s2tt_ctx->g_rtt;
-		free_sl_rtts(g_rtt, num_rtts);
-	}
+	rd_aux = buffer_rd_aux_granules_map(&rd->aux_granules[0], num_rd_aux);
+	assert(rd_aux != NULL);
 
-	/*
-	 * All the mappings in the Realm have been removed and the TLB caches
-	 * are invalidated. Therefore, there are no TLB entries tagged with
-	 * this Realm's VMID (in this security state).
-	 * Just release the VMIDs value so they can be used in another Realm.
-	 */
-	for (unsigned int i = 0U; i < realm_num_s2_contexts(rd); i++) {
-		vmid_free(rd->s2_ctx[i].vmid);
+	realm_destroy_cleanup(rd, rd_aux);
+
+	buffer_rd_aux_granules_unmap(rd_aux, num_rd_aux);
+
+	sro = my_sro_ctx();
+	assert(sro != NULL);
+
+	for (unsigned int i = 0U; i < num_rd_aux; i++) {
+		sro->aux_op_ctx.aux_granules_pa[i] =
+			granule_addr(rd->aux_granules[i]);
 	}
 
 	buffer_unmap(rd);
+	granule_unlock_transition(g_rd, GRANULE_STATE_PARTIAL);
 
-	/*
-	 * The measurement data in rd will be destroyed eventually when
-	 * the granule is reclaimed for another Realm or by NS Host.
-	 */
-	granule_unlock_transition_to_delegated(g_rd);
-
-	/*
-	 * Note that there are no active S1 nor S2 mappings
-	 * using the Realm MECID and DCCIPoE is completed at this point.
-	 */
-	mecid_free(mecid);
-
-	res->x[0] = RMI_SUCCESS;
+	sro_aux_op_start_reclaim(sro, res,
+				 rd_addr,
+				 true,
+				 RMI_SUCCESS,
+				 num_rd_aux,
+				 GRANULE_STATE_RD_AUX);
 	return;
 
 error_realm:
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
+	sro_ctx_release();
 	res->x[0] = RMI_ERROR_REALM;
 }

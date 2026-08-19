@@ -97,7 +97,13 @@
 
 struct rec;
 
+/* Return true if the target REC matches the pending PSCI request. */
+bool psci_target_rec_matches(struct rec *calling_rec, struct rec *target_rec);
+
 unsigned long psci_complete_request(struct rec *calling_rec,
 				    struct rec *target_rec, unsigned long status);
+
+/* Complete a host-denied PSCI request without accessing the target REC. */
+unsigned long psci_complete_denied_request(struct rec *calling_rec);
 
 #endif /* PSCI_H */

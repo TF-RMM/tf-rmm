@@ -59,6 +59,8 @@ if __name__ == "__main__":
         RealmCreate(rd_index=rd, param_index=realm_params,
                     s2sz=0x30, num_bps=1, num_wps=1,
                     rtt_base_index=rtt_base, rtt_level_start=0, rtt_num_start=1))
+    packets.append(SroDonate(count=0))
+    packets.append(SroContinue(flags=0))
 
     # --- Create RTT sub-tables for protected IPA 0 (levels 1, 2, 3) ---
     for level in range(1, 4):
@@ -160,6 +162,8 @@ if __name__ == "__main__":
     # Destroy realm and undelegate remaining granules
     packets.append(RealmTerminate(rd_index=rd))
     packets.append(RealmDestroy(rd_index=rd))
+    packets.append(SroReclaim(list_entries=255))
+    packets.append(SroContinue(flags=0))
     packets.append(GranuleUndelegate(index=rtt_base))   # rtt[0]
     packets.append(GranuleUndelegate(index=rd))
     packets.append(GranuleUndelegate(index=rec))

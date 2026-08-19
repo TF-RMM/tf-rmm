@@ -11,11 +11,13 @@
 #include <arch.h>
 #include <attest_app.h>
 #include <gic.h>
+#include <granule.h>
 #include <pauth.h>
 #include <planes.h>
 #include <pmu.h>
 #include <ripas.h>
 #include <s2tt.h>
+#include <sarray.h>
 #include <simd.h>
 #include <sizes.h>
 #include <smc-rmi.h>
@@ -93,8 +95,6 @@ COMPILER_ASSERT((sizeof(struct pmu_state) * MAX_TOTAL_PLANES) <= REC_PMU_SIZE);
 /* Type of REC pending operation. */
 #define REC_PENDING_NONE		U(0) /* No operation is pending */
 #define REC_PENDING_PSCI_COMPLETE	U(1) /* A PSCI operation is pending */
-#define REC_PENDING_VDEV_REQUEST	U(2) /* A VDEV request is pending */
-#define REC_PENDING_VDEV_COMPLETE	U(3) /* A VDEV request has been completed. */
 
 struct granule;
 struct rd;
@@ -242,6 +242,35 @@ struct rec_plane {
 	} plane_exit_info;
 };
 
+struct rec_map {
+	SARRAY_EMBED_KEY();	/* mpidr_id is the key */
+	uintptr_t rec;		/* REC granule */
+};
+/* coverity[misra_c_2012_directive_12_3_violation:SUPPRESS] */
+/* coverity[misra_c_2012_rule_20_7_violation:SUPPRESS] */
+DEFINE_SARRAY(rec_map, struct rec_map);
+
+struct mpidr_rec_map {
+	/* mpidr to REC mapping array */
+	struct sarray_hdr rec_map_hnd;
+	struct rec_map rec_map_mem[REFCOUNT_MAX];
+};
+
+static inline struct granule *map_mpidr_to_rec(struct mpidr_rec_map *mpidr_rec_map,
+					       unsigned long mpidr)
+{
+	const struct rec_map *rec_map;
+
+	assert(mpidr_rec_map != NULL);
+	rec_map = sarray_lookup_rec_map(&mpidr_rec_map->rec_map_hnd, mpidr);
+
+	if (rec_map == NULL) {
+		return NULL;
+	}
+
+	return find_granule(rec_map->rec);
+}
+
 /*
  * The RmmRecResponse enumeration represents whether the Host accepted
  * or rejected a Realm request.
@@ -253,12 +282,21 @@ enum host_response {
 	REJECT = RMI_REJECT	/* Host rejected Realm request */
 };
 
+struct rec_rd_rec_lock_set {
+	struct granule *g_rd;
+	struct rd *rd;
+	struct rd_aux *rd_aux;
+	struct granule *g_rec;
+	struct rec *rec;
+};
+
 struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in logical order */
 	struct granule *g_rec;	/* the granule in which this REC lives */
-	unsigned long rec_idx;	/* which REC is this */
+	unsigned long mpidr;	/* MPIDR assigned by the Host */
 	bool runnable;
 
 	unsigned int pending_op; /* Type of COMPLETE operation pending */
+	uintptr_t target_rec_addr; /* valid in case pending_op is REC_PENDING_PSCI_COMPLETE */
 	bool da_enabled;
 
 	/*
@@ -327,15 +365,6 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 		bool rtt_tree_pp;
 		bool rtt_s2ap_encoding;
 	} realm_info;
-
-	/* Populated when REC issues RDEV request */
-	struct {
-		/* Virtual device ID */
-		unsigned long vdev_id;
-
-		/* PA of the vdev granule */
-		unsigned long vdev_addr;
-	} vdev;
 
 	/* Pointer to per-cpu non-secure state */
 	struct ns_state *ns;
@@ -483,27 +512,18 @@ static inline bool rec_mpidr_is_valid(unsigned long rec_mpidr)
 }
 
 /*
- * Calculate REC index from mpidr of RmiRecMpidr type value.
- * index = Aff3[31:24]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0]
- */
-static inline unsigned long rec_mpidr_to_idx(unsigned long rec_mpidr)
-{
-	return (RMI_MPIDR_AFF(0, rec_mpidr) |
-		RMI_MPIDR_AFF(1, rec_mpidr) |
-		RMI_MPIDR_AFF(2, rec_mpidr) |
-		RMI_MPIDR_AFF(3, rec_mpidr));
-}
-
-/*
- * Calculate REC index from mpidr of MPIDR_EL1 register type
+ * Convert MPIDR_EL1 register type value
  * Aff3[39:32]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0]
+ * to RmiRecMpidr format
+ * Aff3[31:24]:Aff2[23:16]:Aff1[15:8]:Aff0[3:0].
  */
-static inline unsigned long mpidr_to_rec_idx(unsigned long mpidr)
+static inline unsigned long mpidr_to_rec_mpidr(unsigned long mpidr)
 {
-	return (MPIDR_EL1_AFF(0, mpidr) |
-		MPIDR_EL1_AFF(1, mpidr) |
-		MPIDR_EL1_AFF(2, mpidr) |
-		MPIDR_EL1_AFF(3, mpidr));
+	return (mpidr & (MASK(MPIDR_EL1_AFF0)	|
+			 MASK(MPIDR_EL1_AFF1)	|
+			 MASK(MPIDR_EL1_AFF2)))	|
+		((mpidr & MASK(MPIDR_EL1_AFF3)) >>
+			(MPIDR_EL1_AFF3_SHIFT - RMI_MPIDR_AFF3_SHIFT));
 }
 
 /*
@@ -515,8 +535,8 @@ static inline unsigned long mpidr_to_rec_idx(unsigned long mpidr)
 static inline unsigned long rec_mpidr_to_mpidr(unsigned long rec_mpidr)
 {
 	return (rec_mpidr & (MASK(RMI_MPIDR_AFF0)	|
-			 MASK(RMI_MPIDR_AFF1)	|
-			 MASK(RMI_MPIDR_AFF2)))	|
+			 MASK(RMI_MPIDR_AFF1)		|
+			 MASK(RMI_MPIDR_AFF2)))		|
 		((rec_mpidr & MASK(RMI_MPIDR_AFF3)) <<
 			(MPIDR_EL1_AFF3_SHIFT - RMI_MPIDR_AFF3_SHIFT));
 }

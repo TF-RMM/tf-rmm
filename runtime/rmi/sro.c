@@ -11,6 +11,7 @@
 #include <granule.h>
 #include <granule_types.h>
 #include <limits.h>
+#include <realm.h>
 #include <rec.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
@@ -46,7 +47,9 @@ static struct rmi_handles sro_handles[] = {
 	SRO_HANDLE(RTT_DEV_MAP, dev_map_continue_handler),
 	SRO_HANDLE(RTT_DATA_UNMAP, rtt_unmap_continue_handler),
 	SRO_HANDLE(RTT_UNPROT_UNMAP, rtt_unmap_continue_handler),
-	SRO_HANDLE(RTT_DEV_UNMAP, rtt_unmap_continue_handler)
+	SRO_HANDLE(RTT_DEV_UNMAP, rtt_unmap_continue_handler),
+	SRO_HANDLE(REALM_CREATE, realm_continue_handler),
+	SRO_HANDLE(REALM_DESTROY, realm_continue_handler)
 };
 COMPILER_ASSERT(ARRAY_SIZE(sro_handles) <= SMC64_NUM_FIDS_IN_RANGE(RMI));
 

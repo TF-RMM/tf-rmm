@@ -548,8 +548,9 @@ sweep_done:
 /*
  * Drain queued backing-granule transitions with cooperative IRQ checks.
  *
- * Walks the freed descriptors in @list starting at the descriptor / block
- * cursor in @ctx and transitions every 4KB granule back to DELEGATED.
+ * Walks the freed descriptors in @list, which must be sorted by ascending PA,
+ * starting at the descriptor / block cursor in @ctx and transitions every 4KB
+ * granule back to DELEGATED.
  * ctx->pending_pa is ~0UL until the current block is entered, then tracks
  * the next granule PA to process. The per-granule action depends on @flavor:
  *
@@ -842,8 +843,8 @@ static void rtt_unmap_clear_marks_and_drop(struct sro_unmap_ctx *ctx,
  *      cleared. The drain mark and handle remain until phase 3.
  *   2. (DATA_UNMAP and DEV_UNMAP only) rtt_unmap_drain_pending():
  *      transition every queued backing granule in @list back to
- *      DELEGATED, with IRQ-yield between granules. Does not touch the
- *      leaf RTT.
+ *      DELEGATED in ascending PA order, with IRQ-yield between granules.
+ *      Does not touch the leaf RTT.
  *   3. rtt_unmap_clear_marks_and_drop(): clear the SW drain marks left behind
  *      by the sweep, then drop one leaf-RTT refcount per cleared
  *      entry. Requires the leaf locked and @s2tt mapped.
@@ -1082,6 +1083,10 @@ rtt_unmap_run(struct granule *g_rd, struct rd *rd,
 	 * causes a yield with the SRO drain cursors holding our position and
 	 * the per-entry leaf refcounts still pinning @ctx->g_llt.
 	 */
+	if (flavor != RTT_UNMAP_FLAVOR_UNPROT) {
+		addr_list_sort_by_addr(out_list);
+	}
+
 	yielded = rtt_unmap_drain_and_clear(ctx, out_list, s2tt, flavor);
 
 	if (yielded) {

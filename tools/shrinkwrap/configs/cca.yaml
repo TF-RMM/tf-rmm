@@ -26,7 +26,7 @@ build:
   linux:
     repo:
       remote: https://gitlab.arm.com/linux-arm/linux-cca
-      revision: cca-host/v14
+      revision: cca-host/v15
     prebuild:
       - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_PCI_TSM
       - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_PCI_DOE
@@ -51,7 +51,7 @@ build:
         revision: v1.7.2
       kvmtool:
         remote: https://gitlab.arm.com/linux-arm/kvmtool-cca
-        revision: cca/v12
+        revision: cca/v13
 
   kvm-unit-tests:
     repo:

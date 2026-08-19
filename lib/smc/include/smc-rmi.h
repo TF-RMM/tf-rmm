@@ -137,10 +137,12 @@
 #ifndef CBMC
 /* Maximum number of auxiliary granules required for a REC */
 #define MAX_REC_AUX_GRANULES		U(16)
+#define MAX_RD_AUX_GRANULES		U(9)
 /* Maximum number of auxiliary planes supported */
 #define MAX_AUX_PLANES			U(3)
 #else /* CBMC */
 #define MAX_REC_AUX_GRANULES		U(1)
+#define MAX_RD_AUX_GRANULES		U(1)
 #define MAX_AUX_PLANES			U(0)
 #endif /* CBMC */
 
@@ -181,9 +183,9 @@
 #define RMI_EXIT_HOST_CALL		U(5)
 #define RMI_EXIT_SERROR			U(6)
 #define RMI_EXIT_S2AP_CHANGE		U(7)
-#define RMI_EXIT_VDEV_REQUEST		U(8)
-#define RMI_EXIT_DEV_MEM_MAP		U(9)
-#define RMI_EXIT_VDEV_P2P_BINDING	U(10)
+#define RMI_EXIT_VDEV_VALIDATE_MAPPING	U(8)
+#define RMI_EXIT_VSMMU_COMMAND		U(10)
+#define RMI_EXIT_VDEV_P2P_BINDING	U(11)
 
 /* RmiRttEntryState represents the state of an RTTE */
 #define RMI_UNASSIGNED		UL(0)
@@ -494,8 +496,8 @@
 /*
  * FID: 0xC4000164
  *
- * arg0 == calling rec address
- * arg1 == target rec address
+ * arg0 == PA of the calling REC
+ * arg1 == Status of the PSCI request
  */
 #define SMC_RMI_PSCI_COMPLETE			SMC64_RMI_FID(U(0x14))
 
@@ -790,12 +792,7 @@
 #define RMI_MEC_POLICY_PRIVATE			U(1)
 
 /*
- * FID: 0xC400018E
- */
-#define SMC_RMI_VDEV_COMPLETE			SMC64_RMI_FID(U(0x3E))
-
-/*
- * FID: 0xC400018F is not used.
+ * FIDs: 0xC400018C - 0xC400018F are not used.
  */
 
 /*
@@ -1165,6 +1162,13 @@ enum rmm_state {
  * for CBMC
  */
 #define RPV_SIZE		1
+#endif
+
+/* Size of Realm Instance ID */
+#ifndef CBMC
+#define REALM_INSTANCE_ID_SIZE	33U
+#else
+#define REALM_INSTANCE_ID_SIZE	1U
 #endif
 
 /* RmiRealmFlags0 format */

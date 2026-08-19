@@ -8,10 +8,12 @@
 
 extern "C" {
 #include <arch_helpers.h>
+#include <buffer.h>
 #include <debug.h>
 #include <granule.h>
 #include <host_utils.h>
 #include <rec.h>
+#include <realm.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
@@ -708,7 +710,8 @@ TEST(rec_sro_tests, rec_create_sro_reclaim_single_batch)
 static void populate_fake_rec(uintptr_t rec_pa,
 			      struct granule *g_rd,
 			      uintptr_t *aux_pa,
-			      unsigned int num_aux)
+			      unsigned int num_aux,
+			      unsigned long mpidr)
 {
 	struct granule *g_rec = find_granule(rec_pa);
 	struct rec *rec;
@@ -718,6 +721,7 @@ static void populate_fake_rec(uintptr_t rec_pa,
 	 */
 	rec = (struct rec *)rec_pa;
 	(void)memset(rec, 0, sizeof(*rec));
+	rec->mpidr = mpidr;
 	rec->num_rec_aux = num_aux;
 	for (unsigned int i = 0U; i < num_aux; i++) {
 		rec->g_aux[i] = find_granule(aux_pa[i]);
@@ -730,6 +734,87 @@ static void populate_fake_rec(uintptr_t rec_pa,
 	granule_lock(g_rec, GRANULE_STATE_DELEGATED);
 	__granule_set_state(g_rec, GRANULE_STATE_REC);
 	granule_unlock(g_rec);
+}
+
+static struct granule *init_fake_rd(uintptr_t rd_pa)
+{
+	struct granule *g_rd = find_granule(rd_pa);
+	struct rd *rd;
+	struct rd_aux *rd_aux;
+	struct sarray_hdr *hnd;
+	uintptr_t rd_aux_pa[MAX_RD_AUX_GRANULES];
+
+	for (unsigned int i = 0U; i < MAX_RD_AUX_GRANULES; i++) {
+		rd_aux_pa[i] = test_helpers_allocate_granules(1U);
+		CHECK_TRUE(delegate_range(rd_aux_pa[i],
+					  rd_aux_pa[i] + GRANULE_SIZE));
+
+		struct granule *g_rd_aux = find_granule(rd_aux_pa[i]);
+		granule_lock(g_rd_aux, GRANULE_STATE_DELEGATED);
+		__granule_set_state(g_rd_aux, GRANULE_STATE_RD_AUX);
+		granule_unlock(g_rd_aux);
+	}
+
+	granule_lock(g_rd, GRANULE_STATE_DELEGATED);
+	__granule_set_state(g_rd, GRANULE_STATE_RD);
+	granule_refcount_inc(g_rd, 1U);
+
+	rd = (struct rd *)buffer_granule_map(g_rd, SLOT_RD);
+	CHECK_TRUE(rd != NULL);
+	(void)memset(rd, 0, sizeof(*rd));
+	rd->state_and_count = RD_PACK_SC(REALM_NEW, 0UL);
+	rd->num_rd_aux = MAX_RD_AUX_GRANULES;
+
+	for (unsigned int i = 0U; i < rd->num_rd_aux; i++) {
+		rd->aux_granules[i] = find_granule(rd_aux_pa[i]);
+	}
+
+	rd_aux = (struct rd_aux *)buffer_rd_aux_granules_map_zeroed(
+		&rd->aux_granules[0], rd->num_rd_aux);
+	CHECK_TRUE(rd_aux != NULL);
+
+	hnd = sarray_init_vdev_map(&rd_aux->vdev_map_hnd,
+				   rd_aux->vdev_map_mem,
+				   sizeof(rd_aux->vdev_map_mem));
+	CHECK_TRUE(hnd != NULL);
+
+	hnd = sarray_init_rec_map(&rd_aux->mpidr_rec_map.rec_map_hnd,
+				  rd_aux->mpidr_rec_map.rec_map_mem,
+				  sizeof(rd_aux->mpidr_rec_map.rec_map_mem));
+	CHECK_TRUE(hnd != NULL);
+
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+	buffer_unmap(rd);
+	granule_unlock(g_rd);
+
+	return g_rd;
+}
+
+static void add_fake_rec_mpidr_mapping(struct granule *g_rd,
+				 unsigned long mpidr,
+				 uintptr_t rec_pa)
+{
+	struct rd *rd;
+	struct rd_aux *rd_aux;
+	struct rec_map rec_map = {
+		.key = mpidr,
+		.rec = rec_pa
+	};
+
+	granule_lock(g_rd, GRANULE_STATE_RD);
+	rd = (struct rd *)buffer_granule_map(g_rd, SLOT_RD);
+	CHECK_TRUE(rd != NULL);
+
+	rd_aux = (struct rd_aux *)buffer_rd_aux_granules_map(
+		&rd->aux_granules[0], rd->num_rd_aux);
+	CHECK_TRUE(rd_aux != NULL);
+
+	LONGS_EQUAL(0, sarray_insert_rec_map(&rd_aux->mpidr_rec_map.rec_map_hnd,
+					     mpidr, &rec_map));
+
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+	buffer_unmap(rd);
+	granule_unlock(g_rd);
 }
 
 /*
@@ -747,17 +832,13 @@ static uintptr_t alloc_fake_rec(unsigned int num_aux,
 {
 	uintptr_t rd_pa  = test_helpers_allocate_granules(1U);
 	uintptr_t rec_pa = test_helpers_allocate_granules(1U);
+	const unsigned long mpidr = 0UL;
 
 	/* Delegate REC and RD granules */
 	CHECK_TRUE(delegate_range(rd_pa,  rd_pa  + GRANULE_SIZE));
 	CHECK_TRUE(delegate_range(rec_pa, rec_pa + GRANULE_SIZE));
 
-	/* Set up RD granule: DELEGATED -> RD with refcount 1 */
-	struct granule *g_rd = find_granule(rd_pa);
-	granule_lock(g_rd, GRANULE_STATE_DELEGATED);
-	__granule_set_state(g_rd, GRANULE_STATE_RD);
-	granule_refcount_inc(g_rd, 1U);
-	granule_unlock(g_rd);
+	struct granule *g_rd = init_fake_rd(rd_pa);
 
 	/* Delegate and set each auxiliary granule to REC_AUX */
 	for (unsigned int i = 0U; i < num_aux; i++) {
@@ -771,7 +852,8 @@ static uintptr_t alloc_fake_rec(unsigned int num_aux,
 		granule_unlock(g_aux);
 	}
 
-	populate_fake_rec(rec_pa, g_rd, aux_pa_out, num_aux);
+	populate_fake_rec(rec_pa, g_rd, aux_pa_out, num_aux, mpidr);
+	add_fake_rec_mpidr_mapping(g_rd, mpidr, rec_pa);
 
 	return rec_pa;
 }
@@ -1233,17 +1315,14 @@ TEST(rec_sro_tests, rec_destroy_reclaim_pending_entries_memmove)
 	 * descriptor by addr_list_add_block.
 	 */
 	uintptr_t aux_pa[2];
+	const unsigned long mpidr = 0UL;
 
 	uintptr_t rd_pa  = test_helpers_allocate_granules(1U);
 	uintptr_t rec_pa = test_helpers_allocate_granules(1U);
 	CHECK_TRUE(delegate_range(rd_pa,  rd_pa  + GRANULE_SIZE));
 	CHECK_TRUE(delegate_range(rec_pa, rec_pa + GRANULE_SIZE));
 
-	struct granule *g_rd = find_granule(rd_pa);
-	granule_lock(g_rd, GRANULE_STATE_DELEGATED);
-	__granule_set_state(g_rd, GRANULE_STATE_RD);
-	granule_refcount_inc(g_rd, 1U);
-	granule_unlock(g_rd);
+	struct granule *g_rd = init_fake_rd(rd_pa);
 
 	aux_pa[0] = test_helpers_allocate_granules(1U);
 	test_helpers_allocate_granules(1U);              /* gap: creates non-consecutive PA */
@@ -1257,7 +1336,8 @@ TEST(rec_sro_tests, rec_destroy_reclaim_pending_entries_memmove)
 		granule_unlock(g_aux);
 	}
 
-	populate_fake_rec(rec_pa, g_rd, aux_pa, 2U);
+	populate_fake_rec(rec_pa, g_rd, aux_pa, 2U, mpidr);
+	add_fake_rec_mpidr_mapping(g_rd, mpidr, rec_pa);
 
 	/* A delegated granule serves as the invalid (non-NS) output buf */
 	uintptr_t bad_buf = test_helpers_allocate_granules(1U);

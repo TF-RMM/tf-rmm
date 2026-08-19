@@ -31,7 +31,10 @@ enum buffer_slot {
 				 * If the max aux granules is 0, no slots will
 				 * be reserved.
 				 */
-	SLOT_RTT = U(SLOT_REC_AUX0) + MAX_REC_AUX_GRANULES,
+	SLOT_RD_AUX0 = U(SLOT_REC_AUX0) + MAX_REC_AUX_GRANULES,
+				/* Slot for mapping RD AUX granules */
+
+	SLOT_RTT = U(SLOT_RD_AUX0) + MAX_RD_AUX_GRANULES,
 	SLOT_RTT2,		/* Some commands access two RTT granules at a time
 				 * Both the RTT slots use Realm MECID when FEAT_MEC
 				 * is present.
@@ -65,6 +68,9 @@ static inline enum buffer_slot safe_cast_to_slot(enum buffer_slot slot, unsigned
 		break;
 	case SLOT_PDEV_APP_AUX0:
 		assert(val < MAX_PDEV_APP_AUX_GRANULES);
+		break;
+	case SLOT_RD_AUX0:
+		assert(val < MAX_RD_AUX_GRANULES);
 		break;
 	default:
 		assert(false);
@@ -136,9 +142,21 @@ void *buffer_rec_aux_granules_map(struct granule *g_rec_aux[],
 				  unsigned int num_aux);
 
 /*
+ * Maps the `num_aux` SLOT_RD_AUX granules.
+ */
+void *buffer_rd_aux_granules_map(struct granule *g_rd_aux[],
+				 unsigned int num_aux);
+
+/*
  * Maps and zeroes the `num_aux` SLOT_REC_AUX granules.
  */
 void *buffer_rec_aux_granules_map_zeroed(struct granule *g_rec_aux[],
+				  unsigned int num_aux);
+
+/*
+ * Maps and zeroes the `num_aux` SLOT_RD_AUX granules.
+ */
+void *buffer_rd_aux_granules_map_zeroed(struct granule *g_rd_aux[],
 				  unsigned int num_aux);
 
 /*
@@ -153,6 +171,12 @@ void *buffer_rec_aux_granules_map_el3_token_sign_slot(
  * with the one passed at the beginning of `rec_aux`.
  */
 void buffer_rec_aux_unmap(void *rec_aux, unsigned int num_aux);
+
+/*
+ * Unmaps the `num_aux` SLOT_RD_AUX buffers starting with the one passed at the
+ * beginning of `rd_aux`.
+ */
+void buffer_rd_aux_granules_unmap(void *rd_aux, unsigned int num_aux);
 
 /*
  * Maps the `num_aux` granules at 'g_pdev_aux' to buffer slot starting

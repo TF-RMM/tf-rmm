@@ -445,6 +445,33 @@ TEST(addr_list_tests, add_block_merge_with_second_descriptor)
 	check_descs_zero(&list, 2);
 }
 
+TEST(addr_list_tests, sort_by_addr_orders_output_descriptors)
+{
+	struct addr_list list;
+	unsigned long rtt_level = (unsigned long)XLAT_TABLE_LEVEL_MAX;
+	unsigned long st = RMI_OP_MEM_DELEGATED;
+	uintptr_t addr0 = granule_addr(100U);
+	uintptr_t addr1 = granule_addr(200U);
+	uintptr_t addr2 = granule_addr(300U);
+
+	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
+
+	CHECK_TRUE(addr_list_add_block(&list, addr2, rtt_level, st));
+	CHECK_TRUE(addr_list_add_block(&list, addr0, rtt_level, st));
+	CHECK_TRUE(addr_list_add_block(&list, addr1, rtt_level, st));
+	UNSIGNED_LONGS_EQUAL(3UL, list.count);
+
+	list.cur_idx = 2U;
+	addr_list_sort_by_addr(&list);
+
+	UNSIGNED_LONGS_EQUAL(0UL, list.cur_idx);
+	UNSIGNED_LONGS_EQUAL(3UL, list.count);
+	check_desc(&list, 0, addr0, 1UL, RMI_PAGE_L3, st);
+	check_desc(&list, 1, addr1, 1UL, RMI_PAGE_L3, st);
+	check_desc(&list, 2, addr2, 1UL, RMI_PAGE_L3, st);
+	check_descs_zero(&list, 3);
+}
+
 /* ================================================================
  * addr_list_add_desc() tests
  * ================================================================

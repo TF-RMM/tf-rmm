@@ -9,12 +9,14 @@
 #include <assert.h>
 #include <atomics.h>
 #include <dev.h>
+#include <granule.h>
 #include <measurement.h>
 #include <memory.h>
 #include <planes.h>
 #include <rec.h>
 #include <rsi-handler.h>
 #include <s2tt.h>
+#include <sarray.h>
 #include <smmuv3.h>
 
 #define REALM_NEW		0U
@@ -28,6 +30,25 @@
 #define S2AP_DIRECT_ENC		(false)
 #define S2AP_INDIRECT_ENC	(true)
 
+struct vdev_map {
+	SARRAY_EMBED_KEY();	/* vdev_id is the key */
+	uintptr_t vdev;		/* VDEV granule */
+};
+/* coverity[misra_c_2012_directive_12_3_violation:SUPPRESS] */
+/* coverity[misra_c_2012_rule_20_7_violation:SUPPRESS] */
+DEFINE_SARRAY(vdev_map, struct vdev_map);
+
+struct rd_aux {
+	/* vdev_id to VDEV mapping array */
+	struct sarray_hdr vdev_map_hnd;
+	struct vdev_map vdev_map_mem[RD_MAX_VDEVS(MAX_VDEVS_ORDER_PER_RD)];
+
+	struct mpidr_rec_map mpidr_rec_map;
+};
+
+COMPILER_ASSERT(MAX_RD_AUX_GRANULES >=
+		round_up(sizeof(struct rd_aux), GRANULE_SIZE) / GRANULE_SIZE);
+
 /* struct rd is protected by the rd granule lock */
 struct rd {
 	/*
@@ -38,17 +59,6 @@ struct rd {
 	 * - smc_rec_enter: atomically increments count only if state is ACTIVE
 	 * - smc_realm_terminate: atomically sets ZOMBIE only if count == 0
 	 *
-	 * 'rec_count' is accessed through dedicated primitives:
-	 *
-	 * (1) To write the value, the RMI handler must hold the rd granule
-	 *     lock and use a single copy atomic store with release semantics.
-	 *
-	 * (2) To read the value, the RMI handler must either:
-	 *     - Hold the rd granule lock and use a 64-bit single copy
-	 *       atomic load, or
-	 *     - Hold the rd reference count and use a 64-bit single copy
-	 *       atomic load with acquire semantics.
-	 *
 	 * Other members of the structure are accessed with rd granule lock held.
 	 */
 	/*
@@ -56,9 +66,6 @@ struct rd {
 	 * Accessed via CAS (lock-free) or plain atomic load under lock.
 	 */
 	unsigned long state_and_count;
-
-	/* Reference count */
-	unsigned long rec_count;
 
 	/* Realm measurement 8 bytes aligned */
 	unsigned char measurement[MEASUREMENT_SLOT_NR][MAX_MEASUREMENT_SIZE];
@@ -71,6 +78,9 @@ struct rd {
 
 	/* Number of auxiliary REC granules for the Realm */
 	unsigned int num_rec_aux;
+
+	/* Number of auxiliary RD granules for the Realm */
+	unsigned int num_rd_aux;
 
 	/* Algorithm to use for measurements */
 	enum hash_algo algorithm;
@@ -131,8 +141,14 @@ struct rd {
 	 */
 	unsigned long ats_plane;
 
+	/* epoch counter to track changes to vdev_id/mpidr obj mappings */
+	uint64_t obj_map_epoch;
+
 	/* CMD_SYNC completion state for SMMU TLB invalidations. */
 	struct smmuv3_cmd_sync smmu_cmd_sync;
+
+	/* Auxiliary granules for the Realm */
+	struct granule *aux_granules[MAX_RD_AUX_GRANULES];
 };
 COMPILER_ASSERT((U(offsetof(struct rd, measurement)) & 7U) == 0U);
 COMPILER_ASSERT((U(offsetof(struct rd, smmu_cmd_sync.completion)) & 3U) == 0U);
@@ -202,6 +218,12 @@ static inline bool rd_cas_state_if_count_zero(struct rd *rd,
 }
 
 /*
+ * Dispatch a Realm create or destroy SRO continuation using the
+ * restored SRO context.
+ */
+void realm_continue_handler(unsigned long fid, struct smc_result *res);
+
+/*
  * Atomically increments active_rec_count only if the realm state is ACTIVE.
  * Uses CAS with acquire-release semantics (lock-free).
  * Returns true on success, false if realm is not ACTIVE.
@@ -239,28 +261,38 @@ static inline void rd_active_rec_count_dec(struct rd *rd)
 }
 
 /*
- * Sets the rd's rec_count while holding the rd granule lock.
+ * Gets the object map epoch while holding the rd granule lock.
  */
-static inline void set_rd_rec_count(struct rd *rd, unsigned long val)
+static inline uint64_t get_rd_obj_map_epoch_locked(struct rd *rd)
 {
-	SCA_WRITE64_RELEASE(&rd->rec_count, val);
+	return SCA_READ64(&rd->obj_map_epoch);
 }
 
 /*
- * Gets the rd's rec_count while holding the rd granule lock.
+ * Sets the object map epoch while holding the rd granule lock.
  */
-static inline unsigned long get_rd_rec_count_locked(struct rd *rd)
+static inline void _set_rd_obj_map_epoch(struct rd *rd, uint64_t epoch)
 {
-	return SCA_READ64(&rd->rec_count);
+	SCA_WRITE64(&rd->obj_map_epoch, epoch);
 }
 
 /*
- * Gets the rd's rec_count while holding the rd's reference count, without
- * holding the rd granule lock.
+ * initialise the epoch counter of an rd while holding the rd granule lock.
  */
-static inline unsigned long get_rd_rec_count_unlocked(struct rd *rd)
+static inline void init_rd_obj_map_epoch(struct rd *rd)
 {
-	return SCA_READ64_ACQUIRE(&rd->rec_count);
+	_set_rd_obj_map_epoch(rd, 0UL);
+}
+
+/*
+ * Increments the object map epoch while holding the rd granule lock.
+ */
+static inline void inc_rd_obj_map_epoch(struct rd *rd)
+{
+	uint64_t epoch = get_rd_obj_map_epoch_locked(rd);
+
+	assert(epoch != UINT64_MAX);
+	_set_rd_obj_map_epoch(rd, epoch + 1U);
 }
 
 /*
@@ -314,6 +346,7 @@ static inline struct s2tt_context *plane_to_s2_context(struct rd *rd,
 
 	assert(plane_id < realm_num_planes(rd));
 
+	/* NOLINTNEXTLINE(clang-analyzer-core.DivideZero) */
 	index = ((plane_id + 1U) % realm_num_planes(rd));
 	return &rd->s2_ctx[index];
 }

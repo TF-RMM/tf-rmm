@@ -18,6 +18,18 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 	return 0UL;
 }
 
+unsigned long psci_complete_denied_request(struct rec *calling_rec)
+{
+	ASSERT(false, "psci_complete_denied_request");
+	return 0UL;
+}
+
+bool psci_target_rec_matches(struct rec *calling_rec, struct rec *target_rec)
+{
+	ASSERT(false, "psci_target_rec_matches");
+	return false;
+}
+
 void handle_psci(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		 struct rsi_result *res)
 {

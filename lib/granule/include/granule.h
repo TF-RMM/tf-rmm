@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <utils_def.h>
 
+#ifndef CBMC
 /* Maximum number of entries in an RTT */
 #define RTT_REFCOUNT_MAX	(unsigned short)	\
 					(GRANULE_SIZE / sizeof(uint64_t))
@@ -25,6 +26,11 @@
 /* Maximum value defined by the 'refcount' field width in granule descriptor */
 #define REFCOUNT_MAX		(unsigned short)	\
 					((U(1) << GRN_REFCOUNT_WIDTH) - U(1))
+#else /* CBMC */
+#define RTT_REFCOUNT_MAX		((unsigned short)2)
+#define PSMMU_ST_L2_REFCOUNT_MAX	((unsigned short)2)
+#define REFCOUNT_MAX			((unsigned short)2)
+#endif /* CBMC */
 
 /* RTT_REFCOUNT_MAX can't exceed REFCOUNT_MAX */
 COMPILER_ASSERT(RTT_REFCOUNT_MAX <= REFCOUNT_MAX);
@@ -128,6 +134,9 @@ static inline void __granule_assert_unlocked_invariants(struct granule *g,
 		break;
 	case GRANULE_STATE_PSMMU_ST_L2:
 		assert(REFCOUNT(g) <= PSMMU_ST_L2_REFCOUNT_MAX);
+		break;
+	case GRANULE_STATE_RD_AUX:
+		assert(REFCOUNT(g) == 0U);
 		break;
 	default:
 		/* Unknown granule type */
@@ -247,6 +256,17 @@ bool find_lock_two_granules(unsigned long addr1,
 			    unsigned long addr2,
 			    unsigned char expected_state2,
 			    struct granule **g2);
+
+bool find_lock_three_granules(
+			unsigned long addr1,
+			unsigned char expected_state1,
+			struct granule **g1,
+			unsigned long addr2,
+			unsigned char expected_state2,
+			struct granule **g2,
+			unsigned long addr3,
+			unsigned char expected_state3,
+			struct granule **g3);
 
 void granule_memzero_mapped(void *buf);
 void granule_dcci_poe(struct granule *g);

@@ -56,7 +56,7 @@ static volatile unsigned long g_sro_consumed_entries;
 /*
  * Persistent SRO state for explicit SRO commands (SRO_DONATE,
  * SRO_RECLAIM, SRO_CONTINUE). These allow the fuzz corpus to drive
- * the SRO protocol step-by-step after REC_CREATE / REC_DESTROY.
+ * the SRO protocol step-by-step after REALM/REC CREATE and DESTROY.
  */
 static unsigned long sro_ctx_handle;
 static unsigned long sro_ctx_donate_req;
@@ -378,7 +378,7 @@ void init(void)
 
 /*
  * Cancel any in-progress SRO operation to prevent assert in
- * sro_ctx_reserve() when starting a new REC_CREATE/REC_DESTROY.
+ * sro_ctx_reserve() when starting a new SRO-backed RMI command.
  */
 static void sro_cancel_if_active(struct smc_result *res)
 {
@@ -611,7 +611,6 @@ int execute(unsigned char *buffer, size_t read_res)
 		}
 
 		case COMMAND_REALM_CREATE: {
-			/* Realm create */
 			PACKET(packet_realm_create, b, packet);
 			validate_state(_granules[packet.rd_index], GRANULE_STATE_DELEGATED);
 			validate_state(_granules[packet.param_index], GRANULE_STATE_NS);
@@ -646,14 +645,26 @@ int execute(unsigned char *buffer, size_t read_res)
 			 * At this point realm_params will either cause RMI_INPUT_ERROR
 			 * or will succeed. We want to explore RMI_INPUT ERROR, so won't restrict
 			 */
-			host_rmi_realm_create(_granules[packet.rd_index], realm_params, &res);
+			sro_cancel_if_active(&res);
+			sro_ctx_handle = 0UL;
+			sro_ctx_donate_req = 0UL;
+
+			host_rmi_realm_create(_granules[packet.rd_index], realm_params,
+					      &sro_ctx_handle,
+					      &sro_ctx_donate_req, &res);
 			break;
 		}
 
 		case COMMAND_REALM_DESTROY: {
 			PACKET(packet_realm_destroy, b, packet);
 			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
-			host_rmi_realm_destroy(_granules[packet.rd_index], &res);
+
+			sro_cancel_if_active(&res);
+			sro_ctx_handle = 0UL;
+			sro_ctx_donate_req = 0UL;
+
+			host_rmi_realm_destroy(_granules[packet.rd_index],
+					       (void *)&sro_ctx_handle, &res);
 			break;
 		}
 
@@ -792,10 +803,8 @@ int execute(unsigned char *buffer, size_t read_res)
 		case COMMAND_PSCI_COMPLETE: {
 			PACKET(packet_psci_complete, b, packet);
 			validate_state(_granules[packet.calling_rec], GRANULE_STATE_REC);
-			validate_state(_granules[packet.target_rec], GRANULE_STATE_REC);
 			host_rmi_psci_complete(
 					_granules[packet.calling_rec],
-					_granules[packet.target_rec],
 					packet.status, &res);
 			break;
 		}

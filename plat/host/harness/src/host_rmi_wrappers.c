@@ -69,13 +69,20 @@ void host_rmi_realm_activate(void *rd, struct smc_result *res)
 		      0, res);
 }
 
-void host_rmi_realm_create(void *rd, void *params_ptr, struct smc_result *res)
+void host_rmi_realm_create(void *rd, void *params_ptr, void *handle,
+			   void *donate_req, struct smc_result *res)
 {
+	unsigned long *handle_ptr = (unsigned long *)handle;
+	unsigned long *req_ptr = (unsigned long *)donate_req;
+
 	handle_ns_smc(SMC_RMI_REALM_CREATE,
 		      (uintptr_t)rd,
 		      (uintptr_t)params_ptr,
 		      0, 0, 0, 0,
 		      0, res);
+
+	*handle_ptr = res->x[1];
+	*req_ptr = res->x[2];
 }
 
 void host_rmi_realm_terminate(void *rd, struct smc_result *res)
@@ -86,12 +93,16 @@ void host_rmi_realm_terminate(void *rd, struct smc_result *res)
 		      0, res);
 }
 
-void host_rmi_realm_destroy(void *rd, struct smc_result *res)
+void host_rmi_realm_destroy(void *rd, void *destroy_handle, struct smc_result *res)
 {
+	unsigned long *handle_ptr = (unsigned long *)destroy_handle;
+
 	handle_ns_smc(SMC_RMI_REALM_DESTROY,
 		      (uintptr_t)rd,
 		      0, 0, 0, 0, 0,
 		      0, res);
+
+	*handle_ptr = res->x[1];
 }
 
 void host_rmi_rec_create(void *rd, void *rec, void *params_ptr,
@@ -251,14 +262,13 @@ void host_rmi_rtt_unprot_map(void *rd, uintptr_t base, uintptr_t top,
 		      res);
 }
 
-void host_rmi_psci_complete(void *calling_rec, void *target_rec, uintptr_t status,
+void host_rmi_psci_complete(void *calling_rec, uintptr_t status,
 		struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMI_PSCI_COMPLETE,
 		      (uintptr_t)calling_rec,
-		      (uintptr_t)target_rec,
 		      status,
-		      0, 0, 0,
+		      0, 0, 0, 0,
 		      0, res);
 }
 
@@ -398,13 +408,6 @@ void host_rmi_vdev_communicate(void *rd, void *pdev_ptr, void *vdev_ptr,
 {
 	handle_ns_smc(SMC_RMI_VDEV_COMMUNICATE, (uintptr_t) rd, (uintptr_t)pdev_ptr,
 		      (uintptr_t)vdev_ptr, (uintptr_t)data_ptr, 0, 0, 0, res);
-}
-
-void host_rmi_vdev_complete(void *rec_ptr, void *vdev_ptr,
-			    struct smc_result *res)
-{
-	handle_ns_smc(SMC_RMI_VDEV_COMPLETE, (uintptr_t)rec_ptr,
-		      (uintptr_t)vdev_ptr, 0, 0, 0, 0, 0, res);
 }
 
 void host_rmi_vdev_get_state(void *vdev, struct smc_result *res)

@@ -218,12 +218,12 @@ static unsigned long rtt_create(unsigned long rd_addr,
 	struct s2tt_context *s2_ctx;
 	unsigned int rtt_err_code = (aux ? RMI_ERROR_RTT_AUX : RMI_ERROR_RTT);
 
-	if (!find_lock_two_granules(rtt_addr,
-				    GRANULE_STATE_DELEGATED,
-				    &g_tbl,
-				    rd_addr,
+	if (!find_lock_two_granules(rd_addr,
 				    GRANULE_STATE_RD,
-				    &g_rd)) {
+				    &g_rd,
+				    rtt_addr,
+				    GRANULE_STATE_DELEGATED,
+				    &g_tbl)) {
 		return RMI_ERROR_INPUT;
 	}
 

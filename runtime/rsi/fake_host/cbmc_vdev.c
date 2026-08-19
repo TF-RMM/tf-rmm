@@ -46,14 +46,6 @@ void handle_rsi_vdev_get_info(struct rec *rec,
 	ASSERT(false, "handle_rsi_vdev_get_info");
 }
 
-bool finish_rsi_vdev_get_info(struct rec *rec,
-			      struct rmi_rec_exit *rec_exit,
-			      bool *request_finished)
-{
-	ASSERT(false, "finish_rsi_vdev_get_info");
-	return true;
-}
-
 void handle_rsi_vdev_validate_mapping(struct rec *rec,
 				      struct rmi_rec_exit *rec_exit,
 				      struct rsi_result *res)

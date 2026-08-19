@@ -113,7 +113,6 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 			struct smc_result *res);
 
 void smc_psci_complete(unsigned long calling_rec_addr,
-		       unsigned long target_rec_addr,
 		       unsigned long status,
 		       struct smc_result *res);
 
@@ -218,9 +217,6 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		     unsigned long vdev_addr,
 		     unsigned long vdev_params_addr,
 		     struct smc_result *res);
-
-void smc_vdev_complete(unsigned long rec_addr, unsigned long vdev_addr,
-		       struct smc_result *res);
 
 void smc_vdev_communicate(unsigned long rd_addr,
 			  unsigned long pdev_addr,

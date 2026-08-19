@@ -50,7 +50,6 @@ struct rmm_realm Realm(uint64_t addr)
 	struct rmm_realm spec_rd = {
 		.ipa_width = s2_ctx->ipa_bits,
 		.hash_algo = rd_ptr->algorithm,
-		.rec_index = rd_ptr->rec_count,
 		.rtt_base = granule_metadata_ptr_to_pa(s2_ctx->g_rtt),
 		.rtt_level_start = s2_ctx->s2_starting_level,
 		.rtt_num_start = s2_ctx->num_root_rtts,

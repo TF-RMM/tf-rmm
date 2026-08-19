@@ -31,139 +31,94 @@
 	(COMPOSE(VDEV_INFO_FORMAT_VERSION_MAJOR, major) | \
 	 COMPOSE(VDEV_INFO_FORMAT_VERSION_MINOR, minor))
 
+struct rsi_vdev_obj {
+	struct granule *g_rd;
+	struct granule *g_pdev;
+	struct granule *g_vdev;
+	struct rd *rd;
+	struct pdev *pd;
+	struct vdev *vd;
+};
 
-static void initiate_vdev_id_mapping(struct rec *rec,
-				     unsigned long vdev_id,
-				     struct rmi_rec_exit *rec_exit,
-				     enum rsi_action *rsi_action)
-{
-	rec_set_pending_op(rec, REC_PENDING_VDEV_REQUEST);
-	rec->vdev.vdev_id = vdev_id;
-	rec_exit->exit_reason = RMI_EXIT_VDEV_REQUEST;
-	rec_exit->vdev_id_1 = vdev_id;
-	*rsi_action = EXIT_TO_HOST;
-}
+static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *rec,
+					    struct rsi_vdev_obj *lock_set, bool claim_pdev);
+
+static void rsi_vdev_release_objects(struct rsi_vdev_obj *lock_set);
 
 void handle_rsi_vdev_dma_enable(struct rec *rec,
 				struct rmi_rec_exit *rec_exit,
 				struct rsi_result *res)
 {
 	struct rec_plane *plane;
-	struct rd *rd;
-	enum rsi_action rsi_action;
-	unsigned long rsi_rc;
+	struct rsi_vdev_obj lock_set = {0};
+	unsigned long rc;
 	unsigned long vdev_id;
 	unsigned long non_ats_plane;
-
-	/* TODO_ALP17: check ats in flags */
-
-	/* RSI calls can only be issued by Plane 0 */
-	plane = rec_plane_0(rec);
-	assert(rec_is_plane_0_active(rec));
-
-	if ((!rec->da_enabled)) {
-		rsi_action = UPDATE_REC_RETURN_TO_REALM;
-		rsi_rc = RSI_ERROR_STATE;
-		goto set_rsi_action;
-	}
-
-	/* TODO_ALP17: check that vdev_id is not free */
-
-	vdev_id = plane->regs[1];
-	non_ats_plane = plane->regs[3];
-
-	granule_lock(rec->realm_info.g_rd, GRANULE_STATE_RD);
-	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
-	assert(rd != NULL);
-
-	if ((rd->num_aux_planes > 0U) &&
-	    ((non_ats_plane == 0U) || (non_ats_plane > rd->num_aux_planes))) {
-		/* TODO_ALP17: Check the above condition in latest spec */
-		rsi_action = UPDATE_REC_RETURN_TO_REALM;
-		rsi_rc = RSI_ERROR_INPUT;
-		goto rd_unmap;
-	}
-
-	initiate_vdev_id_mapping(rec, vdev_id, rec_exit, &rsi_action);
-
-	assert(((unsigned int)rsi_action & FLAG_EXIT_TO_HOST) != 0U);
-	rsi_rc = RSI_SUCCESS;
-
-rd_unmap:
-	buffer_unmap(rd);
-	granule_unlock(rec->realm_info.g_rd);
-
-set_rsi_action:
-	if (rsi_action == UPDATE_REC_RETURN_TO_REALM) {
-		res->smc_res.x[0] = rsi_rc;
-	}
-	res->action = rsi_action;
-}
-
-bool finish_rsi_vdev_dma_enable(struct rec *rec,
-				bool *request_finished)
-{
-	struct rec_plane *plane;
-	struct granule *g_vdev;
-	struct vdev *vd;
-	unsigned long rc;
 	unsigned long lock_nonce;
 	unsigned long meas_nonce;
 	unsigned long report_nonce;
-	unsigned long vdev_addr;
+
+	(void)rec_exit;
+
+	/* TODO: check ats in flags */
 
 	/* RSI calls can only be issued by Plane 0 */
 	plane = rec_plane_0(rec);
 	assert(rec_is_plane_0_active(rec));
 
+	res->action = UPDATE_REC_RETURN_TO_REALM;
+
+	if ((!rec->da_enabled)) {
+		res->smc_res.x[0] = RSI_ERROR_STATE;
+		return;
+	}
+
+	vdev_id = plane->regs[1];
+	non_ats_plane = plane->regs[3];
 	lock_nonce = plane->regs[4];
 	meas_nonce = plane->regs[5];
 	report_nonce = plane->regs[6];
 
-	/* At this point the mapping from virtual device ID to VDEV object had
-	 * been successful, and the address of the VDEV is stored in the REC by
-	 * RMM
-	 */
-	vdev_addr = rec->vdev.vdev_addr;
+	/* claim the external objects internally */
+	rc = rsi_vdev_claim_objects(vdev_id, rec, &lock_set, false);
+	if (rc != RSI_SUCCESS) {
+		res->smc_res.x[0] = rc;
+		goto out;
+	}
+	assert(lock_set.vd != NULL);
+	assert(lock_set.rd != NULL);
 
-	/* Lock the vdev granule and map it */
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		plane->regs[0] = RSI_ERROR_INPUT;
+	if ((lock_set.rd->num_aux_planes > 0U) &&
+	    ((non_ats_plane == 0U) || (non_ats_plane > lock_set.rd->num_aux_planes))) {
+		/* TODO_ALP17: Check the above condition in latest spec */
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
 		goto out;
 	}
 
-	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
-	assert(vd != NULL);
-
-	if ((vd->rmi_state != RMI_VDEV_STATE_STARTED) ||
-	    (lock_nonce != vd->attest_info.lock_nonce) ||
-	    (meas_nonce != vd->attest_info.meas_nonce) ||
-	    (report_nonce != vd->attest_info.report_nonce)) {
-		plane->regs[0] = RSI_ERROR_DEVICE;
-		goto unmap_vd;
+	if ((lock_set.vd->rmi_state != RMI_VDEV_STATE_STARTED) ||
+	    (lock_nonce != lock_set.vd->attest_info.lock_nonce) ||
+	    (meas_nonce != lock_set.vd->attest_info.meas_nonce) ||
+	    (report_nonce != lock_set.vd->attest_info.report_nonce)) {
+		res->smc_res.x[0] = RSI_ERROR_DEVICE;
+		goto out;
 	}
 
 	rc = RSI_SUCCESS;
-	if (vd->dma_state != RMI_VDEV_DMA_ENABLED) {
+	if (lock_set.vd->dma_state != RMI_VDEV_DMA_ENABLED) {
 		/* Only call the driver if not already enabled */
 		/* TODO_ALP17: set non_ats_plane in vdev */
 
-		if (smmuv3_enable_ste(vd->smmu_idx, vd->sid) != 0) {
+		if (smmuv3_enable_ste(lock_set.vd->smmu_idx, lock_set.vd->sid) != 0) {
 			rc = RSI_ERROR_DEVICE;
 		} else {
-			vd->dma_state = RMI_VDEV_DMA_ENABLED;
+			lock_set.vd->dma_state = RMI_VDEV_DMA_ENABLED;
 		}
 	}
-	plane->regs[0] = rc;
 
-unmap_vd:
-	buffer_unmap(vd);
-	granule_unlock(g_vdev);
+	res->smc_res.x[0] = rc;
 
 out:
-	*request_finished = true;
-	return true;
+	rsi_vdev_release_objects(&lock_set);
 }
 
 void handle_rsi_vdev_dma_disable(struct rec *rec,
@@ -171,112 +126,85 @@ void handle_rsi_vdev_dma_disable(struct rec *rec,
 				 struct rsi_result *res)
 {
 	struct rec_plane *plane;
-	enum rsi_action rsi_action;
-	unsigned long rsi_rc;
+	struct rsi_vdev_obj lock_set = {0};
+	unsigned long rc;
 	unsigned long vdev_id;
+
+	(void)rec_exit;
 
 	/* RSI calls can only be issued by Plane 0 */
 	plane = rec_plane_0(rec);
 	assert(rec_is_plane_0_active(rec));
 
-	if ((!rec->da_enabled)) {
-		rsi_action = UPDATE_REC_RETURN_TO_REALM;
-		rsi_rc = RSI_ERROR_STATE;
-		goto set_rsi_action;
-	}
+	res->action = UPDATE_REC_RETURN_TO_REALM;
 
-	/* TODO_ALP17: check that vdev_id is not free */
+	if ((!rec->da_enabled)) {
+		res->smc_res.x[0] = RSI_ERROR_STATE;
+		return;
+	}
 
 	vdev_id = plane->regs[1];
 
-	initiate_vdev_id_mapping(rec, vdev_id, rec_exit, &rsi_action);
-
-	assert(((unsigned int)rsi_action & FLAG_EXIT_TO_HOST) != 0U);
-	rsi_rc = RSI_SUCCESS;
-
-set_rsi_action:
-	if (rsi_action == UPDATE_REC_RETURN_TO_REALM) {
-		res->smc_res.x[0] = rsi_rc;
-	}
-	res->action = rsi_action;
-}
-
-bool finish_rsi_vdev_dma_disable(struct rec *rec,
-				 bool *request_finished)
-{
-	struct rec_plane *plane;
-	struct granule *g_vdev;
-	struct vdev *vd;
-	unsigned long vdev_addr;
-	unsigned long rc;
-
-	/* RSI calls can only be issued by Plane 0 */
-	plane = rec_plane_0(rec);
-	assert(rec_is_plane_0_active(rec));
-
-	/* At this point the mapping from virtual device ID to VDEV object had
-	 * been successful, and the address of the VDEV is stored in the REC by
-	 * RMM
-	 */
-	vdev_addr = rec->vdev.vdev_addr;
-
-	/* Lock the vdev granule and map it */
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		plane->regs[0] = RSI_ERROR_INPUT;
+	/* claim the external objects internally */
+	rc = rsi_vdev_claim_objects(vdev_id, rec, &lock_set, false);
+	if (rc != RSI_SUCCESS) {
+		res->smc_res.x[0] = rc;
 		goto out;
 	}
-
-	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
-	assert(vd != NULL);
+	assert(lock_set.vd != NULL);
 
 	rc = RSI_SUCCESS;
-	if (vd->dma_state != RMI_VDEV_DMA_DISABLED) {
+	if (lock_set.vd->dma_state != RMI_VDEV_DMA_DISABLED) {
 		/* Only call the driver if not already disabled */
-		if (smmuv3_disable_ste(vd->smmu_idx, vd->sid) != 0) {
+		if (smmuv3_disable_ste(lock_set.vd->smmu_idx, lock_set.vd->sid) != 0) {
 			rc = RSI_ERROR_DEVICE;
 		} else {
-			vd->dma_state = RMI_VDEV_DMA_DISABLED;
+			lock_set.vd->dma_state = RMI_VDEV_DMA_DISABLED;
 		}
 	}
 
-	plane->regs[0] = rc;
-
-	buffer_unmap(vd);
-	granule_unlock(g_vdev);
+	res->smc_res.x[0] = rc;
 
 out:
-	*request_finished = true;
-	return true;
+	rsi_vdev_release_objects(&lock_set);
 }
+
+static void vdev_get_info(struct pdev *pd, struct vdev *vd, struct rsi_vdev_info *vdev_info);
 
 void handle_rsi_vdev_get_info(struct rec *rec,
 			      struct rmi_rec_exit *rec_exit,
 			      struct rsi_result *res)
 {
-	unsigned long rsi_rc;
-	enum rsi_action rsi_action;
-	unsigned long info_addr;
-	unsigned long vdev_id;
+	void *info_granule_va = NULL;
+	struct rsi_vdev_info *vdev_info;
 	struct rec_plane *plane;
+	struct granule *llt = NULL;
+	struct rsi_vdev_obj lock_set = {0};
+	unsigned long info_granule_address;
+	unsigned long info_addr;
+	unsigned long rsi_rc;
+	unsigned long vdev_id;
+
+	(void)rec_exit;
 
 	/* RSI calls can only be issued by Plane 0 */
 	plane = rec_plane_0(rec);
 	assert(rec_is_plane_0_active(rec));
 
+	res->action = UPDATE_REC_RETURN_TO_REALM;
+
 	if ((!rec->da_enabled)) {
-		rsi_action = UPDATE_REC_RETURN_TO_REALM;
-		rsi_rc = RSI_ERROR_STATE;
-		goto set_rsi_action;
+		res->smc_res.x[0] = RSI_ERROR_STATE;
+		return;
 	}
 
 	vdev_id = plane->regs[1];
 	info_addr = plane->regs[2];
+	info_granule_address = info_addr & GRANULE_MASK;
 
 	if (!ALIGNED(info_addr, 512U)) {
-		rsi_action = UPDATE_REC_RETURN_TO_REALM;
-		rsi_rc = RSI_ERROR_INPUT;
-		goto set_rsi_action;
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		return;
 	}
 
 	if (!addr_in_rec_par(rec, info_addr)) {
@@ -284,16 +212,32 @@ void handle_rsi_vdev_get_info(struct rec *rec,
 		return;
 	}
 
-	initiate_vdev_id_mapping(rec, vdev_id, rec_exit, &rsi_action);
-
-	assert(((unsigned int)rsi_action & FLAG_EXIT_TO_HOST) != 0U);
-	rsi_rc = RSI_SUCCESS;
-
-set_rsi_action:
-	if (rsi_action == UPDATE_REC_RETURN_TO_REALM) {
-		res->smc_res.x[0] = rsi_rc;
+	if (!realm_mem_lock_map(rec, info_granule_address, &info_granule_va, &llt, res)) {
+		return;
 	}
-	res->action = rsi_action;
+
+	assert((info_granule_va != NULL) && (llt != NULL));
+
+	/* we know have a valid ipa with assigned and DATA */
+	vdev_info = (struct rsi_vdev_info *)
+		((uintptr_t)info_granule_va + (info_addr - info_granule_address));
+
+	/* claim the external objects internally */
+	rsi_rc = rsi_vdev_claim_objects(vdev_id, rec, &lock_set, true);
+	if (rsi_rc != RSI_SUCCESS) {
+		res->smc_res.x[0] = rsi_rc;
+		goto out;
+	}
+	assert(lock_set.vd != NULL);
+	assert(lock_set.pd != NULL);
+
+	vdev_get_info(lock_set.pd, lock_set.vd, vdev_info);
+	res->smc_res.x[0] = RSI_SUCCESS;
+
+out:
+	rsi_vdev_release_objects(&lock_set);
+	buffer_unmap(info_granule_va);
+	granule_unlock(llt);
 }
 
 static unsigned char vdev_state_to_rsi(uint32_t vdev_rmi_state)
@@ -349,218 +293,32 @@ static void vdev_get_info(struct pdev *pd, struct vdev *vd, struct rsi_vdev_info
 		     vd->ifc_report_digest.len);
 }
 
-/*
- * Return 'true' if execution should continue in the REC, otherwise return
- * 'false' to go back to the NS caller.
- */
-bool finish_rsi_vdev_get_info(struct rec *rec,
-			      struct rmi_rec_exit *rec_exit,
-			      bool *request_finished)
-{
-	unsigned long vdev_addr;
-	unsigned long info_granule_address;
-	void *info_granule_va;
-	unsigned long info_addr;
-	struct rsi_vdev_info *vdev_info;
-	struct rec_plane *plane;
-	struct granule *llt;
-	struct granule *g_pdev;
-	struct granule *g_vdev;
-	struct pdev *pd;
-	struct vdev *vd;
-	struct rsi_result res = {.action = UPDATE_REC_RETURN_TO_REALM};
-
-	/* RSI calls can only be issued by Plane 0 */
-	plane = rec_plane_0(rec);
-	assert(rec_is_plane_0_active(rec));
-
-	/* At this point the mapping from virtual device ID to VDEV object had
-	 * been successful, and the address of the VDEV is stored in the REC by
-	 * RMM
-	 */
-	vdev_addr = rec->vdev.vdev_addr;
-
-	info_addr = plane->regs[2];
-	info_granule_address = info_addr & GRANULE_MASK;
-
-	/* Validated in RSI handler */
-	assert(ALIGNED(info_addr, 512U));
-	assert(addr_in_rec_par(rec, info_addr));
-
-	if (!realm_mem_lock_map(rec, info_granule_address, &info_granule_va, &llt, &res)) {
-		/* Failed to map the address. Check res to decide what to do */
-		if (((unsigned int)res.action & FLAG_STAGE_2_ABORT) != 0U) {
-			/*
-			 * The RSI call cannot progress because the IPA that
-			 * was provided by the Realm has invalid mapping.
-			 * Emulate the data abort against that IPA so that the
-			 * host can bring the page in.
-			 */
-			/* coverity[uninit_use_in_call:SUPPRESS] */
-			emulate_stage2_data_abort(rec_exit, res.rtt_level, info_granule_address);
-
-			*request_finished = false;
-			return false;
-		}
-		assert(((unsigned int)res.action & FLAG_UPDATE_REC) != 0U);
-		/* coverity[uninit_use:SUPPRESS] */
-		plane->regs[0] = res.smc_res.x[0];
-		*request_finished = true;
-		return true;
-	}
-
-	/* coverity[uninit_use:SUPPRESS] */
-	assert((info_granule_va != NULL) && (llt != NULL));
-
-	vdev_info = (struct rsi_vdev_info *)
-		((uintptr_t)info_granule_va + (info_addr - info_granule_address));
-
-	/* Lock the vdev granule and map it, to get the pdev granule address. */
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		plane->regs[0] = RMI_ERROR_INPUT;
-		goto unmap_llt;
-	}
-
-	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
-	assert(vd != NULL);
-
-	g_pdev = vd->g_pdev;
-
-	/*
-	 * To lock and map pdev, we first need to unlock vdev, and lock the
-	 * granules again in the pdev-vdev order, so locking order is
-	 * maintained.
-	 */
-	buffer_unmap(vd);
-	granule_unlock(g_vdev);
-
-	g_pdev = find_lock_granule(granule_addr(g_pdev), GRANULE_STATE_PDEV);
-	if (g_pdev == NULL) {
-		plane->regs[0] = RSI_ERROR_INPUT;
-		goto unmap_llt;
-	}
-
-	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
-	assert(pd != NULL);
-
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		plane->regs[0] = RSI_ERROR_INPUT;
-		goto out_unmap_pd;
-	}
-
-	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
-	assert(vd != NULL);
-
-	if ((vd->g_pdev != g_pdev) ||
-	    (vd->g_rd != rec->realm_info.g_rd) ||
-	    (vd->id != rec->vdev.vdev_id)) {
-		plane->regs[0] = RSI_ERROR_INPUT;
-		goto out_unmap_vd;
-	}
-
-	vdev_get_info(pd, vd, vdev_info);
-
-	/* Update return value */
-	plane->regs[0] = RSI_SUCCESS;
-
-out_unmap_vd:
-	buffer_unmap(vd);
-	granule_unlock(g_vdev);
-out_unmap_pd:
-	buffer_unmap(pd);
-	granule_unlock(g_pdev);
-
-unmap_llt:
-	assert(((unsigned int)res.action & FLAG_EXIT_TO_HOST) == 0U);
-
-	/* coverity[uninit_use_in_call:SUPPRESS] */
-	buffer_unmap(info_granule_va);
-
-	/* Unlock last level RTT */
-	/* coverity[uninit_use_in_call:SUPPRESS] */
-	granule_unlock(llt);
-
-	*request_finished = true;
-	return true;
-}
-
 void handle_rsi_vdev_validate_mapping(struct rec *rec,
 				      struct rmi_rec_exit *rec_exit,
 				      struct rsi_result *res)
 {
 	unsigned long rsi_rc;
-	enum rsi_action rsi_action;
 	struct rec_plane *plane;
+	struct rsi_vdev_obj lock_set = {0};
 	unsigned long vdev_id;
 	unsigned long ipa_base;
 	unsigned long ipa_top;
 	unsigned long pa_base;
+	unsigned long flags;
+	unsigned long lock_nonce;
+	unsigned long meas_nonce;
+	unsigned long report_nonce;
 
 	/* RSI calls can only be issued by Plane 0 */
 	plane = rec_plane_0(rec);
 	assert(rec_is_plane_0_active(rec));
 
+	res->action = UPDATE_REC_RETURN_TO_REALM;
+
 	if ((!rec->da_enabled)) {
-		rsi_action = UPDATE_REC_RETURN_TO_REALM;
-		rsi_rc = RSI_ERROR_STATE;
-		goto set_rsi_action;
+		res->smc_res.x[0] = RSI_ERROR_STATE;
+		return;
 	}
-
-	vdev_id = plane->regs[1];
-	ipa_base = plane->regs[2];
-	ipa_top = plane->regs[3];
-	pa_base = plane->regs[4];
-
-	/* TODO_ALP17: Check vdev_id is not free */
-
-	if (!GRANULE_ALIGNED(ipa_base) ||
-	    !GRANULE_ALIGNED(ipa_top) ||
-	    !GRANULE_ALIGNED(pa_base) ||
-	    (ipa_top <= ipa_base) ||
-	    !region_in_rec_par(rec, ipa_base, ipa_top)) {
-		rsi_action = UPDATE_REC_RETURN_TO_REALM;
-		rsi_rc = RSI_ERROR_INPUT;
-		goto set_rsi_action;
-	}
-
-	initiate_vdev_id_mapping(rec, vdev_id, rec_exit, &rsi_action);
-
-	assert(((unsigned int)rsi_action & FLAG_EXIT_TO_HOST) != 0U);
-	rsi_rc = RSI_SUCCESS;
-
-set_rsi_action:
-	if (rsi_action == UPDATE_REC_RETURN_TO_REALM) {
-		res->smc_res.x[0] = rsi_rc;
-	}
-	res->action = rsi_action;
-}
-
-/*
- * Return 'true' if execution should continue in the REC, otherwise return
- * 'false' to go back to the NS caller.
- */
-bool finish_rsi_vdev_validate_mapping(struct rec *rec,
-				      struct rmi_rec_exit *rec_exit,
-				      bool *request_finished)
-{
-	unsigned long vdev_addr;
-	struct rec_plane *plane;
-	struct granule *g_vdev;
-	struct vdev *vd = NULL;
-	unsigned long ipa_base;
-	unsigned long ipa_top;
-	unsigned long pa_base;
-	unsigned long flags;
-	unsigned long vdev_id;
-	unsigned long lock_nonce;
-	unsigned long meas_nonce;
-	unsigned long report_nonce;
-	bool retval;
-
-	/* RSI calls can only be issued by Plane 0 */
-	plane = rec_plane_0(rec);
 
 	/*
 	 * X1: Realm device identifier
@@ -581,36 +339,34 @@ bool finish_rsi_vdev_validate_mapping(struct rec *rec,
 	meas_nonce = plane->regs[7];
 	report_nonce = plane->regs[8];
 
-	/* At this point the mapping from virtual device ID to VDEV object had
-	 * been successful, and the address of the VDEV is stored in the REC by
-	 * RMM
-	 */
-	vdev_addr = rec->vdev.vdev_addr;
-
-	/* Lock the vdev granule and map it */
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		plane->regs[0] = RSI_ERROR_INPUT;
-		retval = true;
-		goto out;
+	if (!GRANULE_ALIGNED(ipa_base) ||
+	    !GRANULE_ALIGNED(ipa_top) ||
+	    !GRANULE_ALIGNED(pa_base) ||
+	    (ipa_top <= ipa_base) ||
+	    !region_in_rec_par(rec, ipa_base, ipa_top)) {
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		return;
 	}
 
-	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
-	assert(vd != NULL);
+	/* claim the external objects internally */
+	rsi_rc = rsi_vdev_claim_objects(vdev_id, rec, &lock_set, false);
+	if (rsi_rc != RSI_SUCCESS) {
+		res->smc_res.x[0] = rsi_rc;
+		return;
+	}
+	assert(lock_set.vd != NULL);
 
-	if ((vd->rmi_state != RMI_VDEV_STATE_LOCKED) &&
-	    (vd->rmi_state != RMI_VDEV_STATE_STARTED)) {
-		plane->regs[0] = RSI_ERROR_INPUT;
-		retval = true;
-		goto out;
+	if ((lock_set.vd->rmi_state != RMI_VDEV_STATE_LOCKED) &&
+	    (lock_set.vd->rmi_state != RMI_VDEV_STATE_STARTED)) {
+		res->smc_res.x[0] = RSI_ERROR_INPUT;
+		goto out_unlock;
 	}
 
-	if ((lock_nonce != vd->attest_info.lock_nonce) ||
-	    (meas_nonce != vd->attest_info.meas_nonce) ||
-	    (report_nonce != vd->attest_info.report_nonce)) {
-		plane->regs[0] = RSI_ERROR_DEVICE;
-		retval = true;
-		goto out;
+	if ((lock_nonce != lock_set.vd->attest_info.lock_nonce) ||
+	    (meas_nonce != lock_set.vd->attest_info.meas_nonce) ||
+	    (report_nonce != lock_set.vd->attest_info.report_nonce)) {
+		res->smc_res.x[0] = RSI_ERROR_DEVICE;
+		goto out_unlock;
 	}
 
 	/* Update REC dev_mem */
@@ -621,23 +377,228 @@ bool finish_rsi_vdev_validate_mapping(struct rec *rec,
 	rec->dev_mem.flags = flags;
 
 	/* Update REC exit dev_mem */
-	rec_exit->exit_reason = RMI_EXIT_DEV_MEM_MAP;
+	rec_exit->exit_reason = RMI_EXIT_VDEV_VALIDATE_MAPPING;
 	rec_exit->dev_mem_base = ipa_base;
 	rec_exit->dev_mem_top = ipa_top;
 	rec_exit->dev_mem_pa = pa_base;
 	rec_exit->vdev_id_1 = vdev_id;
 
 	/* Update return value */
-	plane->regs[0] = RSI_SUCCESS;
+	res->smc_res.x[0] = RSI_SUCCESS;
 
 	/* Exit to host to process DEV mem mapping */
-	retval = false;
-out:
-	if (vd != NULL) {
-		buffer_unmap(vd);
-	}
-	granule_unlock(g_vdev);
+	res->action = UPDATE_REC_EXIT_TO_HOST;
 
-	*request_finished = true;
-	return retval;
+out_unlock:
+	rsi_vdev_release_objects(&lock_set);
+}
+
+static void rsi_vdev_release_objects(struct rsi_vdev_obj *lock_set)
+{
+	if (lock_set->vd != NULL) {
+		buffer_unmap(lock_set->vd);
+	}
+	if (lock_set->pd != NULL) {
+		buffer_unmap(lock_set->pd);
+	}
+	if (lock_set->rd != NULL) {
+		buffer_unmap(lock_set->rd);
+	}
+	if (lock_set->g_vdev != NULL) {
+		granule_unlock(lock_set->g_vdev);
+	}
+	if (lock_set->g_pdev != NULL) {
+		granule_unlock(lock_set->g_pdev);
+	}
+	if (lock_set->g_rd != NULL) {
+		granule_unlock(lock_set->g_rd);
+	}
+
+	*lock_set = (struct rsi_vdev_obj){0};
+}
+
+static bool __unused rsi_vdev_matches_map(struct rd *rd, unsigned long vdev_id,
+				 struct granule *g_vdev)
+{
+	const struct vdev_map *vdev_map;
+	struct rd_aux *rd_aux;
+	bool matches;
+
+	rd_aux = buffer_rd_aux_granules_map(&rd->aux_granules[0], rd->num_rd_aux);
+	assert(rd_aux != NULL);
+	vdev_map = sarray_lookup_vdev_map(&rd_aux->vdev_map_hnd, vdev_id);
+	matches = (vdev_map != NULL) &&
+	       ((unsigned long)vdev_map->vdev == granule_addr(g_vdev));
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+
+	return matches;
+}
+
+/*
+ * Given a vdev_id and rec, lock and map objects: rd, pdev and vdev
+ * inside an rsi handler
+ *
+ * Note: This routine acquires the lock of a cached external object.
+ * This is a deviation from the general model where all the external object
+ * addresses are provided by the caller and RMM locks them in the required
+ * locking order.
+ *
+ * In the case of a vdev rsi call, the vdev is an external object and its
+ * address is not available directly. The rd vdev_map, caches the vdev address
+ * in an sarray map and this vdev addr is locked safely without violating the
+ * locking discipline.
+ */
+static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *rec,
+					    struct rsi_vdev_obj *lock_set, bool claim_pdev)
+{
+	const struct vdev_map *vdev_map;
+	struct granule *g_rd;
+	struct granule *g_vdev;
+	struct rd *rd;
+	struct rd_aux *rd_aux;
+	struct vdev *vd;
+	unsigned long rd_addr;
+	unsigned long vdev_addr;
+	unsigned long pdev_addr = 0UL;
+	uint64_t epoch;
+
+	*lock_set = (struct rsi_vdev_obj){0};
+
+	/*
+	 * rec object has a positive refcount due to REC_ENTER, rec cannot be destroyed
+	 * rec+: REC_ENTER
+	 *
+	 * rec takes reference on RD object, i.e., rec increments rd's refcount
+	 * rec => rd
+	 *
+	 * rd has a positive ref-count due to rec
+	 * rd+: REC
+	 *
+	 * rd cannot be destroyed (but still subject to modifications)
+	 *
+	 */
+	g_rd = rec->realm_info.g_rd;
+	rd_addr = granule_addr(g_rd);
+
+	/* take rd lock to safely access the vdev_id map */
+	granule_lock(g_rd, GRANULE_STATE_RD);
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	rd_aux = buffer_rd_aux_granules_map(&rd->aux_granules[0], rd->num_rd_aux);
+	assert(rd_aux != NULL);
+	vdev_map = sarray_lookup_vdev_map(&rd_aux->vdev_map_hnd, vdev_id);
+	if (vdev_map == NULL) {
+		buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+		buffer_unmap(rd);
+		granule_unlock(g_rd);
+		/* either the host removed the vdev or the realm gave invalid id */
+		return RSI_ERROR_INPUT;
+	}
+	/* record current epoch to track any changes to vdev map */
+	epoch = get_rd_obj_map_epoch_locked(rd);
+	vdev_addr = (unsigned long)vdev_map->vdev;
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+
+	if (claim_pdev) {
+		/* Lock VDEV before caching its PDEV address. */
+		g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
+		if (g_vdev == NULL) {
+			buffer_unmap(rd);
+			granule_unlock(g_rd);
+			return RSI_INCOMPLETE;
+		}
+
+		vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+		assert(vd != NULL);
+		pdev_addr = granule_addr(vd->g_pdev);
+		buffer_unmap(vd);
+		granule_unlock(g_vdev);
+	}
+
+	buffer_unmap(rd);
+	granule_unlock(g_rd);
+
+	/* No locks held; acquire all requested objects in lock order. */
+	if (claim_pdev) {
+		if (!find_lock_three_granules(
+				rd_addr, GRANULE_STATE_RD, &lock_set->g_rd,
+				pdev_addr, GRANULE_STATE_PDEV, &lock_set->g_pdev,
+				vdev_addr, GRANULE_STATE_VDEV, &lock_set->g_vdev)) {
+			rsi_vdev_release_objects(lock_set);
+			return RSI_INCOMPLETE;
+		}
+	} else if (!find_lock_two_granules(
+			rd_addr, GRANULE_STATE_RD, &lock_set->g_rd,
+			vdev_addr, GRANULE_STATE_VDEV, &lock_set->g_vdev)) {
+		rsi_vdev_release_objects(lock_set);
+		return RSI_INCOMPLETE;
+	}
+
+	/*
+	 * rec+: REC_ENTER
+	 * rd+ : REC
+	 *
+	 * Between the unlock-lock sequence:
+	 *
+	 * 1. g_rd cannot be destroyed
+	 * 2. g_vdev can become a different type of granule
+	 * 3. vdev can be destroyed
+	 * 4. vdev can change rd ownership
+	 * 5. vdev can change parent pdev
+	 * 6. vdev_id can map to a different vdev
+	 * 7. vdev_id maps to same vdev_addr, but the vdev is created with
+	 *    different params from the 'original' vdev
+	 * 8. a new <vdev_id, vdev> can be added to the realm (spurious)
+	 * 9. an unrelated <vdev_id, vdev> can be removed from the realm (spurious)
+	 *
+	 * (1) as noted earlier this is due to positive refcount
+	 * (2) is protected by granule state match for a successful lock
+	 * (3,4,5,6,7) must go through rmi_vdev_destroy(), which would increment the epoch
+	 * (8,9) are spurious events but updates the epoch counter
+	 *
+	 * Note: The epoch counter implemented here is coarse grained (tracks
+	 * any and all modifications to the rd vdev map) and cannot easily
+	 * distinguish between an attack (7) and spurious event (8,9).
+	 * By having a more fine-grained per-mapping epoch counter, we could
+	 * track changes to a particular <vdev_id, vdev> mapping.
+	 *
+	 * Also a vdev_id from realm is inherently racy because the host can
+	 * remove/replace the device at its will without realm involvmement.
+	 * But when the realm has attested and validated the device
+	 * (rsi_validate_mapping and rsi_enable_dma) and the host removes or
+	 * replaces the device, the device consent is removed i.e., device-memory
+	 * gets unmapped and device dma/p2p consents are removed. By comparing
+	 * the lock_nonce, the realm can also detect the replacement scenario.
+	 */
+	lock_set->rd = buffer_granule_map(lock_set->g_rd, SLOT_RD);
+	if (claim_pdev) {
+		lock_set->pd = buffer_granule_map(lock_set->g_pdev, SLOT_PDEV);
+		assert(lock_set->pd != NULL);
+	}
+	lock_set->vd = buffer_granule_map(lock_set->g_vdev, SLOT_VDEV);
+	assert((lock_set->rd != NULL) && (lock_set->vd != NULL));
+
+	if (get_rd_obj_map_epoch_locked(lock_set->rd) != epoch) {
+		rsi_vdev_release_objects(lock_set);
+		/*
+		 * Any of above cases (3-9) could have happened. Returning
+		 * ERROR_INPUT here for the spurious cases is wrong. Hence
+		 * safer option is to retry the lock. If the vdev_id was removed,
+		 * a subsequent lookup would fail returning ERROR_INPUT.
+		 */
+		return RSI_INCOMPLETE;
+	}
+
+	/*
+	 * vdev and rd are locked, and the objects haven't changed in reacquire
+	 */
+
+	/* redundant safety checks */
+	assert(rsi_vdev_matches_map(lock_set->rd, vdev_id, lock_set->g_vdev));
+	assert(lock_set->vd->g_rd == lock_set->g_rd);
+	assert(lock_set->vd->id == vdev_id);
+	assert(!claim_pdev || (lock_set->vd->g_pdev == lock_set->g_pdev));
+
+	return RSI_SUCCESS;
 }

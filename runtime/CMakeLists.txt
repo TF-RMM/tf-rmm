@@ -22,7 +22,7 @@ arm_config_option(
     NAME RMM_RTT_MAP_UNMAP_CHECK_ISR_EL1
     HELP "Read ISR_EL1 to yield range-aware RTT map/unmap operations on pending IRQs"
     TYPE BOOL
-    DEFAULT OFF
+    DEFAULT ON
     ADVANCED)
 
 target_compile_definitions(rmm-runtime

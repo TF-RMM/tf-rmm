@@ -341,7 +341,11 @@ condition as a first-entry error.
 Deferred phase
 ==============
 
-After the sweep, all unmap flavours run the same deferred pipeline:
+After the sweep, DATA and DEV unmap sort the output address list in ascending
+OA order. This makes the backing-granule drain run in ascending PA order; the
+same sorted list is used later when formatting the terminal result.
+
+All unmap flavours then run the same deferred pipeline:
 
 1. Issue pending stage-2 TLB invalidations, and SMMU invalidations when device
    assignment is enabled, for entries marked with
@@ -367,7 +371,8 @@ Terminal unmap success is formatted from the output address list:
 - ``SINGLE`` encodes the first descriptor into ``x[2]``. The sweep stops at a
   PA discontinuity so the single descriptor remains contiguous.
 - ``LIST`` copies as many descriptors as allowed to the host's NS output
-  buffer and reports the copied count in ``x[3]``.
+  buffer and reports the copied count in ``x[3]``. DATA and DEV unmap copy the
+  PA-sorted list produced for the backing-granule drain.
 
 If the final copy to an NS list fails because the host changed the buffer's
 state after validation, the unmap is not rolled back. The command reports zero
@@ -410,9 +415,9 @@ The replacement S2TTE preserves the DATA RIPAS state:
 - ``assigned_destroyed`` becomes ``unassigned_destroyed`` and does not owe
   TLBI.
 
-After TLBI, every freed DATA granule is transitioned back to DELEGATED with
-cache maintenance. The old live mapping refcount on the leaf is dropped only
-after this drain and marker clearing are complete.
+After TLBI, every freed DATA granule is transitioned back to DELEGATED in
+ascending PA order with cache maintenance. The old live mapping refcount on
+the leaf is dropped only after this drain and marker clearing are complete.
 
 UNPROT map
 ==========
@@ -478,6 +483,6 @@ entries:
 - ``assigned_dev_destroyed`` becomes ``unassigned_destroyed`` and does not owe
   TLBI.
 
-After TLBI, every freed MAPPED dev granule is transitioned back to DELEGATED.
-No data-cache maintenance is required for device memory, but the drain still
-uses the same cooperative yield structure as DATA unmap.
+After TLBI, every freed MAPPED dev granule is transitioned back to DELEGATED in
+ascending PA order. No data-cache maintenance is required for device memory,
+but the drain still uses the same cooperative yield structure as DATA unmap.

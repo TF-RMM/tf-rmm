@@ -31,7 +31,7 @@ static void init_rec_sysregs(STRUCT_TYPE sysreg_state *sysregs,
 	/* Set non-zero values only */
 	sysregs->pp_sysregs.sctlr_el1 = SCTLR_EL1_FLAGS;
 	sysregs->pp_sysregs.mdscr_el1 = MDSCR_EL1_TDCC_BIT;
-	sysregs->vmpidr_el2 = mpidr | VMPIDR_EL2_RES1;
+	sysregs->vmpidr_el2 = rec_mpidr_to_mpidr(mpidr) | VMPIDR_EL2_RES1;
 	sysregs->cnthctl_el2 = CNTHCTL_EL2_NO_TRAPS;
 	sysregs->cptr_el2 = CPTR_EL2_VHE_INIT;
 }
@@ -344,6 +344,26 @@ static unsigned long get_rsi_feature_register_0(struct rd *rd)
 	return rsi_feat_reg0;
 }
 
+static bool rec_mpidr_taken(struct mpidr_rec_map *mpidr_rec_map, unsigned long mpidr)
+{
+	return map_mpidr_to_rec(mpidr_rec_map, mpidr) != NULL;
+}
+
+static void rd_add_rec(struct rd *rd, struct rmi_rec_params *p,
+			uintptr_t rec_addr, struct rd_aux *rd_aux)
+{
+	int ret __unused;
+	unsigned long mpidr = p->mpidr;
+	struct rec_map rec_map;
+
+	rec_map.rec = rec_addr;
+
+	ret = sarray_insert_rec_map(&rd_aux->mpidr_rec_map.rec_map_hnd, mpidr, &rec_map);
+	assert(ret == 0);
+
+	inc_rd_obj_map_epoch(rd);
+}
+
 /*
  * SRO handle callback for RMI_OP_CONTINUE during RMI_REC_CREATE.
  *
@@ -358,12 +378,12 @@ static void rec_create_continue(unsigned long fid, struct smc_result *res)
 	struct rec *rec;
 	struct rd *rd;
 	struct rmi_rec_params rec_params;
-	unsigned long rec_idx;
 	unsigned long ret;
 	bool ns_access_ok;
 	unsigned int num_rec_aux;
 	unsigned long rd_addr, rec_addr, rec_params_addr;
 	struct sro_context *sro = my_sro_ctx();
+	struct rd_aux *rd_aux = NULL;
 
 	assert(sro != NULL);
 	assert(fid == SMC_RMI_OP_CONTINUE);
@@ -448,10 +468,12 @@ static void rec_create_continue(unsigned long fid, struct smc_result *res)
 		ret = RMI_ERROR_REALM;
 		goto out_unmap;
 	}
+	rd_aux = buffer_rd_aux_granules_map(&rd->aux_granules[0],
+						rd->num_rd_aux);
+	assert(rd_aux != NULL);
 
-	rec_idx = get_rd_rec_count_locked(rd);
 	if (!rec_mpidr_is_valid(rec_params.mpidr) ||
-	   (rec_idx != rec_mpidr_to_idx(rec_params.mpidr))) {
+	    rec_mpidr_taken(&(rd_aux->mpidr_rec_map), rec_params.mpidr)) {
 		ret = RMI_ERROR_INPUT;
 		goto out_unmap;
 	}
@@ -466,7 +488,7 @@ static void rec_create_continue(unsigned long fid, struct smc_result *res)
 	assert(rec != NULL);
 
 	rec->g_rec = g_rec;
-	rec->rec_idx = rec_idx;
+	rec->mpidr = rec_params.mpidr;
 
 	rec->realm_info.num_aux_planes = rd->num_aux_planes;
 
@@ -514,13 +536,16 @@ static void rec_create_continue(unsigned long fid, struct smc_result *res)
 	/* Initialize system registers */
 	init_rec_regs(rec, &rec_params, rd);
 
-	set_rd_rec_count(rd, rec_idx + 1U);
+	rd_add_rec(rd, &rec_params, rec_addr, rd_aux);
 
 	buffer_unmap(rec);
 
 	ret = RMI_SUCCESS;
 
 out_unmap:
+	if (rd_aux != NULL) {
+		buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+	}
 	buffer_unmap(rd);
 
 out_unlock:
@@ -620,7 +645,10 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 	struct granule *g_rec;
 	struct granule *g_rd;
 	struct rec *rec;
+	struct rd *rd;
+	struct rd_aux *rd_aux;
 	struct sro_context *sro;
+	unsigned long mpidr;
 	int ret;
 	unsigned long ctx_reserved;
 
@@ -661,6 +689,7 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 	assert(rec != NULL);
 
 	g_rd = rec->realm_info.g_rd;
+	mpidr = rec->mpidr;
 
 	/* Clean up the attestation app spawned by the REC */
 	(void)attest_app_delete(&rec->attest_app_data);
@@ -680,6 +709,29 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 	granule_unlock_transition(g_rec, GRANULE_STATE_PARTIAL);
 
 	/*
+	 * REC is now unlocked, but the RD refcount for it is still held. So we
+	 * can be sure that the RD we are locking here is the same that
+	 * the REC was created in.
+	 */
+	granule_lock(g_rd, GRANULE_STATE_RD);
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
+
+	rd_aux = buffer_rd_aux_granules_map(
+		&rd->aux_granules[0], rd->num_rd_aux);
+	assert(rd_aux != NULL);
+
+	/* NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores) */
+	ret = sarray_delete_rec_map(&rd_aux->mpidr_rec_map.rec_map_hnd,
+				    mpidr, NULL);
+	assert(ret == 0);
+
+	inc_rd_obj_map_epoch(rd);
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+	buffer_unmap(rd);
+	granule_unlock(g_rd);
+
+	/*
 	 * Decrement refcount. The refcount should be balanced before
 	 * RMI_REC_DESTROY returns, and until this occurs a transient
 	 * over-estimate of the refcount (in-between the unlock and decreasing
@@ -696,13 +748,75 @@ void smc_rec_destroy(unsigned long rec_addr, struct smc_result *res)
 				 GRANULE_STATE_REC_AUX);
 }
 
+/*
+ * Lock and map a calling REC with a pending PSCI request.
+ *
+ * On success, the caller must unmap the REC and unlock @g_calling_rec.
+ */
+static struct rec *find_lock_map_psci_calling_rec(unsigned long calling_rec_addr,
+						  struct granule **g_calling_rec)
+{
+	struct granule *g_rec;
+	struct rec *calling_rec;
+
+	assert(g_calling_rec != NULL);
+
+	g_rec = find_lock_granule(calling_rec_addr, GRANULE_STATE_REC);
+	if (g_rec == NULL) {
+		return NULL;
+	}
+
+	/* Synchronize with REC exit before accessing mutable REC state. */
+	if (granule_refcount_read_acquire(g_rec) != 0U) {
+		granule_unlock(g_rec);
+		return NULL;
+	}
+
+	calling_rec = buffer_granule_map(g_rec, SLOT_REC);
+	assert(calling_rec != NULL);
+
+	/* The cached target address is valid only for a pending PSCI request. */
+	if (calling_rec->pending_op != REC_PENDING_PSCI_COMPLETE) {
+		buffer_unmap(calling_rec);
+		granule_unlock(g_rec);
+		return NULL;
+	}
+
+	*g_calling_rec = g_rec;
+	return calling_rec;
+}
+
+/*
+ * Complete a denied PSCI request when the target REC no longer exists at the
+ * address cached by the calling REC.
+ */
+static unsigned long smc_psci_complete_denied(unsigned long calling_rec_addr)
+{
+	struct granule *g_calling_rec;
+	struct rec *calling_rec;
+	unsigned long ret;
+
+	calling_rec = find_lock_map_psci_calling_rec(calling_rec_addr,
+						     &g_calling_rec);
+	if (calling_rec == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	ret = psci_complete_denied_request(calling_rec);
+
+	buffer_unmap(calling_rec);
+	granule_unlock(g_calling_rec);
+
+	return ret;
+}
+
 void smc_psci_complete(unsigned long calling_rec_addr,
-		       unsigned long target_rec_addr,
 		       unsigned long status,
 		       struct smc_result *res)
 {
 	struct granule *g_calling_rec, *g_target_rec;
 	struct rec  *calling_rec, *target_rec;
+	unsigned long target_rec_addr;
 	unsigned long ret;
 	void *target_rec_aux;
 
@@ -711,10 +825,17 @@ void smc_psci_complete(unsigned long calling_rec_addr,
 		return;
 	}
 
-	if (!GRANULE_ALIGNED(target_rec_addr)) {
+	calling_rec = find_lock_map_psci_calling_rec(calling_rec_addr,
+						     &g_calling_rec);
+	if (calling_rec == NULL) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
+
+	target_rec_addr = calling_rec->target_rec_addr;
+
+	buffer_unmap(calling_rec);
+	granule_unlock(g_calling_rec);
 
 	if (!find_lock_two_granules(calling_rec_addr,
 					GRANULE_STATE_REC,
@@ -722,7 +843,9 @@ void smc_psci_complete(unsigned long calling_rec_addr,
 					target_rec_addr,
 					GRANULE_STATE_REC,
 					&g_target_rec)) {
-		res->x[0] = RMI_ERROR_INPUT;
+		res->x[0] = (status == PSCI_RETURN_DENIED) ?
+				smc_psci_complete_denied(calling_rec_addr) :
+				RMI_ERROR_INPUT;
 		return;
 	}
 
@@ -731,6 +854,9 @@ void smc_psci_complete(unsigned long calling_rec_addr,
 	 * reference counter. Here, we may access the volatile (non constant)
 	 * members of REC structure (such as rec->running) only if the counter
 	 * is zero.
+	 *
+	 * This check is needed again here because rec lock is released and
+	 * locked again and REC could have started running in that window.
 	 */
 	if (granule_refcount_read_acquire(g_calling_rec) != 0U) {
 		/*
@@ -745,15 +871,26 @@ void smc_psci_complete(unsigned long calling_rec_addr,
 	assert(calling_rec != NULL);
 
 	target_rec = buffer_granule_map(g_target_rec, SLOT_REC2);
+	assert(target_rec != NULL);
+
+	/*
+	 * The cached target address may have been reused while the calling REC
+	 * lock was released, so confirm that this is still the requested REC.
+	 */
+	if (!psci_target_rec_matches(calling_rec, target_rec)) {
+		ret = (status == PSCI_RETURN_DENIED) ?
+			psci_complete_denied_request(calling_rec) : RMI_ERROR_INPUT;
+		goto out_unmap_recs;
+	}
 
 	/* Reuse the REC_AUX slots for mapping Aux granules for target REC */
 	target_rec_aux = buffer_rec_aux_granules_map(target_rec->g_aux,
 						     target_rec->num_rec_aux);
-	assert(target_rec != NULL);
 
 	ret = psci_complete_request(calling_rec, target_rec, status);
 	buffer_rec_aux_unmap(target_rec_aux, target_rec->num_rec_aux);
 
+out_unmap_recs:
 	buffer_unmap(target_rec);
 	buffer_unmap(calling_rec);
 out_unlock:

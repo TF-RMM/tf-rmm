@@ -335,6 +335,7 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	struct granule *g_pdev;
 	struct granule *g_vdev = NULL;
 	struct rd *rd;
+	struct rd_aux *rd_aux;
 	struct pdev *pd;
 	struct vdev *vd;
 	struct s2tt_context *plane_0_s2_context;
@@ -343,6 +344,8 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	unsigned long rc;
 	struct pdev_stream *stream;
 	uint32_t vdev_slot;
+	struct vdev_map vdev_map;
+	int ret;
 
 	if (!is_rmi_feat_da_enabled()) {
 		res->x[0] = SMC_NOT_SUPPORTED;
@@ -355,8 +358,9 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		return;
 	}
 
-	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
-				    pdev_addr, GRANULE_STATE_PDEV, &g_pdev)) {
+	if (!find_lock_three_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+				      pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
+				      vdev_addr, GRANULE_STATE_DELEGATED, &g_vdev)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
@@ -411,13 +415,6 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		goto out_unmap_stream;
 	}
 
-	/* Lock vdev granule and map it */
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_DELEGATED);
-	if (g_vdev == NULL) {
-		rc = RMI_ERROR_INPUT;
-		goto out_unmap_stream;
-	}
-
 	vd = buffer_granule_map_zeroed(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
@@ -428,6 +425,7 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	s2_cfg.vmid = plane_0_s2_context->vmid;
 	s2_cfg.mecid = plane_0_s2_context->mecid;
 
+	/* If the TDI is already in use, this call would fail */
 	if (smmuv3_configure_stream(pd->dev.ecam_addr,
 				   (unsigned int)vdev_params.tdi_id,
 				   &s2_cfg, &sid, &smmu_idx) != 0) {
@@ -435,13 +433,26 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		goto out_unmap_vd;
 	}
 
-	/* Initialize VDEV fields */
+	/* Initialize immutable VDEV fields before inserting into the vdev map */
 	vd->g_rd = g_rd;
 	vd->g_pdev = g_pdev;
-
-	/* TODO_ALP17: check whether vdev_id and tdi_id are free */
 	vd->id = vdev_params.vdev_id;
 	vd->tdi_id = vdev_params.tdi_id;
+
+	/* insert vdev to the vdev_map */
+	rd_aux = buffer_rd_aux_granules_map(&rd->aux_granules[0], rd->num_rd_aux);
+	assert(rd_aux != NULL);
+	vdev_map.vdev = vdev_addr;
+	ret = sarray_insert_vdev_map(&rd_aux->vdev_map_hnd, vd->id, &vdev_map);
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+	if (ret != 0) { /* error if vdev_id exists or no-space */
+		rc = RMI_ERROR_INPUT;
+		(void)smmuv3_release_ste(smmu_idx, sid);
+		goto out_unmap_vd;
+	}
+
+	/* increment the epoch to accommodate the new change to the map */
+	inc_rd_obj_map_epoch(rd);
 
 	vd->rmi_state = RMI_VDEV_STATE_NEW;
 	vd->dma_state = RMI_VDEV_DMA_DISABLED;
@@ -650,80 +661,6 @@ out:
 	res->x[0] = rmi_rc;
 }
 
-/*
- * Completes a pending VDEV request.
- *
- * rec_addr		- PA of REC
- * vdev_addr		- PA of the VDEV
- */
-void smc_vdev_complete(unsigned long rec_addr, unsigned long vdev_addr,
-		       struct smc_result *res)
-{
-	struct granule *g_rec;
-	struct granule *g_vdev;
-	struct rec *rec;
-	struct vdev *vd;
-	unsigned long rmi_rc;
-
-	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
-		return;
-	}
-
-	if (!GRANULE_ALIGNED(rec_addr) || !GRANULE_ALIGNED(vdev_addr)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	/* Lock REC granule and map it */
-	g_rec = find_lock_granule(rec_addr, GRANULE_STATE_REC);
-	if (g_rec == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-	rec = buffer_granule_map(g_rec, SLOT_REC);
-	assert(rec != NULL);
-
-	/* Lock VDEV granule and map it */
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		rmi_rc = RMI_ERROR_INPUT;
-		goto out_unmap_rec;
-	}
-	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
-	assert(vd != NULL);
-
-	/* Check if the REC pending operation is for VDEV request */
-	if ((rec->pending_op != REC_PENDING_VDEV_REQUEST)) {
-		rmi_rc = RMI_ERROR_INPUT;
-		goto out_unmap_vdev;
-	}
-
-	/* Check the Realm owner and the Device ID of the REC and VDEV */
-	if ((rec->realm_info.g_rd != vd->g_rd) || (rec->vdev.vdev_id != vd->id)) {
-		rmi_rc = RMI_ERROR_INPUT;
-		goto out_unmap_vdev;
-	}
-
-	if (vd->comm_state != DEV_COMM_IDLE) {
-		rmi_rc = RMI_ERROR_DEVICE;
-		goto out_unmap_vdev;
-	}
-
-	rec_update_pending_op(rec, REC_PENDING_VDEV_COMPLETE);
-	rec->vdev.vdev_addr = vdev_addr;
-	rmi_rc = RMI_SUCCESS;
-
-out_unmap_vdev:
-	buffer_unmap(vd);
-	granule_unlock(g_vdev);
-out_unmap_rec:
-	buffer_unmap(rec);
-	granule_unlock(g_rec);
-
-	res->x[0] = rmi_rc;
-}
-
 /* Generate random numbers as nonce
  * Returns 0 on success.
  */
@@ -777,20 +714,14 @@ void smc_vdev_communicate(unsigned long rd_addr,
 	}
 
 	/* Map PDEV and VDEV. */
-	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
-	if (g_pdev == NULL) {
+	if (!find_lock_two_granules(pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
+				    vdev_addr, GRANULE_STATE_VDEV, &g_vdev)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
-
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		rmi_rc = RMI_ERROR_INPUT;
-		goto out;
-	}
 
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
@@ -967,20 +898,14 @@ void smc_vdev_abort(unsigned long rd_addr,
 		return;
 	}
 
-	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
-	if (g_pdev == NULL) {
+	if (!find_lock_two_granules(pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
+				    vdev_addr, GRANULE_STATE_VDEV, &g_vdev)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
-
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		smc_rc = RMI_ERROR_INPUT;
-		goto out_pdev_buf_unmap;
-	}
 
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
@@ -1028,7 +953,6 @@ vdev_reset_state:
 out_vdev_buf_unmap:
 	buffer_unmap(vd);
 	granule_unlock(g_vdev);
-out_pdev_buf_unmap:
 	buffer_unmap(pd);
 	granule_unlock(g_pdev);
 
@@ -1051,8 +975,10 @@ void smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	struct rd *rd = NULL;
 	struct pdev *pd = NULL;
 	struct vdev *vd = NULL;
+	struct rd_aux *rd_aux = NULL;
 	unsigned long smc_rc;
 	uint32_t vdev_slot;
+	int ret __unused;
 
 	if (!is_rmi_feat_da_enabled()) {
 		res->x[0] = SMC_NOT_SUPPORTED;
@@ -1065,8 +991,9 @@ void smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 		return;
 	}
 
-	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
-				    pdev_addr, GRANULE_STATE_PDEV, &g_pdev)) {
+	if (!find_lock_three_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+				      pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
+				      vdev_addr, GRANULE_STATE_VDEV, &g_vdev)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
@@ -1077,12 +1004,6 @@ void smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
 
-	/* Lock vdev granule and map it */
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		smc_rc = RMI_ERROR_INPUT;
-		goto out_err_input;
-	}
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
@@ -1113,6 +1034,15 @@ void smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
 	}
+
+	rd_aux = buffer_rd_aux_granules_map(&rd->aux_granules[0], rd->num_rd_aux);
+	assert(rd_aux != NULL);
+	ret = sarray_delete_vdev_map(&rd_aux->vdev_map_hnd, vd->id, NULL);
+	assert(ret == 0);
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+
+	/* next epoch with the vdev removed */
+	inc_rd_obj_map_epoch(rd);
 
 	/* Update Realm */
 	rd_vdev_refcount_dec(rd);
@@ -1207,16 +1137,11 @@ void smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pdev_addr,
 		return;
 	}
 
-	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
-				    pdev_addr, GRANULE_STATE_PDEV, &g_pdev)) {
+	if (!find_lock_three_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+				      pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
+				      vdev_addr, GRANULE_STATE_VDEV, &g_vdev)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
-	}
-
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		smc_rc = RMI_ERROR_INPUT;
-		goto out_err_input;
 	}
 
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
@@ -1297,16 +1222,11 @@ void smc_vdev_get_interface_report(unsigned long rd_addr, unsigned long pdev_add
 		return;
 	}
 
-	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
-				    pdev_addr, GRANULE_STATE_PDEV, &g_pdev)) {
+	if (!find_lock_three_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+				      pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
+				      vdev_addr, GRANULE_STATE_VDEV, &g_vdev)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
-	}
-
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		smc_rc = RMI_ERROR_INPUT;
-		goto out_err_input;
 	}
 
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
@@ -1378,18 +1298,12 @@ void smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 		return;
 	}
 
-	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
-				    pdev_addr, GRANULE_STATE_PDEV, &g_pdev)) {
+	if (!find_lock_three_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+				      pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
+				      vdev_addr, GRANULE_STATE_VDEV, &g_vdev)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		res->x[1] = 0U;
 		return;
-	}
-
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
-		res->x[1] = 0U;
-		goto out_unlock;
 	}
 
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
