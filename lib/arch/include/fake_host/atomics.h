@@ -14,7 +14,10 @@
  */
 static inline void atomic_add_64(uint64_t *loc, uint64_t val)
 {
-	*loc += val;
+	uint64_t result;
+
+	(void)__builtin_add_overflow(*loc, val, &result);
+	*loc = result;
 }
 
 /*
@@ -25,7 +28,7 @@ static inline uint64_t atomic_load_add_64(uint64_t *loc, uint64_t val)
 {
 	uint64_t old_val = *loc;
 
-	*loc += val;
+	atomic_add_64(loc, val);
 	return old_val;
 }
 
@@ -38,7 +41,7 @@ static inline uint64_t atomic_load_add_release_64(uint64_t *loc, uint64_t val)
 {
 	uint64_t old_val = *loc;
 
-	*loc += val;
+	atomic_add_64(loc, val);
 	return old_val;
 }
 
@@ -52,7 +55,7 @@ static inline uint64_t atomic_load_add_acquire_release_64(uint64_t *loc,
 {
 	uint64_t old_val = *loc;
 
-	*loc += val;
+	atomic_add_64(loc, val);
 	return old_val;
 }
 

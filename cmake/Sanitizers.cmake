@@ -10,15 +10,18 @@
 # then restore CMAKE_C_FLAGS afterwards.
 #
 macro(strip_sanitizer_flags)
-    # Strip ICSAN flags because they trigger faults in MbedTLS and libspdm.
+    # Strip ICSAN flags because they trigger faults in MbedTLS, libspdm,
+    # and SPDM-EMU.
     if (ICSAN)
         string(REPLACE "-fno-sanitize-recover=implicit-conversion" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
         string(REPLACE "-fsanitize-trap=implicit-conversion" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
         string(REPLACE "-fsanitize=implicit-conversion" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
     endif()
 
-    # Strip IOSAN flags because they trigger faults in MbedTLS and libspdm.
+    # Strip IOSAN flags because they trigger faults in MbedTLS, libspdm,
+    # and SPDM-EMU.
     if (IOSAN)
+        string(REPLACE "-fno-sanitize-recover=unsigned-integer-overflow" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
         string(REPLACE "-fsanitize-trap=unsigned-integer-overflow" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
         string(REPLACE "-fsanitize=unsigned-integer-overflow" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
     endif()

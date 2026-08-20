@@ -1815,18 +1815,23 @@ unsigned long s2tte_pa(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 bool s2tte_is_addr_lvl_aligned(const struct s2tt_context *s2_ctx,
 			      unsigned long addr, long level)
 {
+	unsigned long levels;
+	unsigned long lsb;
+	unsigned long s2tte_oa_bits;
+
 	assert(s2_ctx != NULL);
 
 	/* cppcheck-suppress misra-c2012-10.6 */
 	__unused long min_starting_level = s2_ctx->enable_lpa2 ?
 			S2TT_MIN_STARTING_LEVEL_LPA2 : S2TT_MIN_STARTING_LEVEL;
-	unsigned long levels = (unsigned long)(S2TT_PAGE_LEVEL - level);
-	unsigned long lsb = (levels * S2TTE_STRIDE) + GRANULE_SHIFT;
-	unsigned long s2tte_oa_bits = s2_ctx->enable_lpa2 ?
-			S2TTE_OA_BITS_LPA2 : S2TTE_OA_BITS;
 
 	assert(level <= S2TT_PAGE_LEVEL);
 	assert(level >= min_starting_level);
+
+	levels = (unsigned long)(S2TT_PAGE_LEVEL - level);
+	lsb = (levels * S2TTE_STRIDE) + GRANULE_SHIFT;
+	s2tte_oa_bits = s2_ctx->enable_lpa2 ?
+		S2TTE_OA_BITS_LPA2 : S2TTE_OA_BITS;
 
 	return (addr == (addr & BIT_MASK_ULL((s2tte_oa_bits - 1U), lsb)));
 }

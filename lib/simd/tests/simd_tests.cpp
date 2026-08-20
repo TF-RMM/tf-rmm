@@ -130,7 +130,7 @@ TEST(simd, simd_init_TC2)
 	 ******************************************************************/
 
 	saved_cptr = read_cptr_el2();
-	sve_vq = SVE_VQ_ARCH_MAX;
+	sve_vq = (SVE_VQ_ARCH_MAX + 1U) * SVE_Z_REG_MIN_SIZE;
 	cb.sve_rdvl = sve_rdvl_cb;
 
 	simd_test_helpers_setup_id_regs(true, false);

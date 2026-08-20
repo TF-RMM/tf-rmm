@@ -535,10 +535,8 @@ int xlat_test_helpers_get_attrs_for_va(struct xlat_ctx *ctx,
 	for (i = 0; i < mmap_regions; i++) {
 		uint64_t mmap_min_va =
 			ctx->cfg.base_va + mmap[i].base_va;
-		uint64_t mmap_max_va = mmap_min_va +
-					    mmap[i].size - 1ULL;
 
-		if ((va >= mmap_min_va) && (va <= mmap_max_va)) {
+		if ((va >= mmap_min_va) && ((va - mmap_min_va) < mmap[i].size)) {
 			mmap_attrs = mmap[i].attr;
 			break;
 		}

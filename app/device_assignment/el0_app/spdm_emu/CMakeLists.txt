@@ -3,6 +3,8 @@
 # SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
 #
 
+include(${CMAKE_SOURCE_DIR}/cmake/Sanitizers.cmake)
+
 # Make this library as an empty interface library for CBMC build
 if(RMM_CBMC_STATIC_ANALYSIS)
     add_library(rmm-pci_tdisp_requester_lib INTERFACE)
@@ -84,6 +86,9 @@ endif()
 #
 # Add rmm-pci_doe_requester_lib
 #
+
+# SPDM-EMU is third-party code and triggers sanitizer false positives.
+strip_sanitizer_flags()
 
 add_library(rmm-pci_doe_requester_lib)
 

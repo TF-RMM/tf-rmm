@@ -288,7 +288,12 @@ static uintptr_t xlat_tables_map_region(struct xlat_ctx *ctx,
 
 		desc = table_base[table_idx];
 
-		table_idx_pa = mm->base_pa + table_idx_va - mm->base_va;
+		if (MT_TYPE(mm->attr) == MT_TRANSIENT) {
+			/* A transient mapping has no PA until it is populated. */
+			table_idx_pa = 0U;
+		} else {
+			table_idx_pa = mm->base_pa + table_idx_va - mm->base_va;
+		}
 
 		action_t action = xlat_tables_map_region_action(mm,
 			(uint32_t)(desc & DESC_MASK), table_idx_pa,
