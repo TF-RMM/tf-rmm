@@ -3398,6 +3398,58 @@ void s2tt_init_assigned_destroyed_tc6(void)
 	test_helpers_fail_if_no_assert_failed();
 }
 
+void s2tte_pending_checks_tc1(void)
+{
+	/***************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Verify that PA bits which overlap the drain-pending and
+	 * TLBI-pending fields are ignored for assigned descriptors.
+	 * Also verify that both fields are recognized on a stamped
+	 * unassigned descriptor.
+	 ***************************************************************/
+
+	unsigned long pas[] = {
+		S2TTE_SW_DRAIN_PENDING_BIT,
+		S2TTE_SW_TLBI_PENDING_BIT,
+		S2TTE_SW_DRAIN_PENDING_BIT | S2TTE_SW_TLBI_PENDING_BIT
+	};
+	unsigned long ripas[] = {
+		S2TTE_INVALID_RIPAS_EMPTY,
+		S2TTE_INVALID_RIPAS_RAM,
+		S2TTE_INVALID_RIPAS_DESTROYED
+	};
+	struct s2tt_context s2tt_ctx;
+	unsigned long s2tte;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
+
+	/*
+	 * The pending bits overlap the OA field. Assigned descriptors with
+	 * these PA bits set must not be mistaken for deferred maintenance.
+	 */
+	for (unsigned int i = 0U; i < ARRAY_SIZE(pas); i++) {
+		for (unsigned int j = 0U; j < ARRAY_SIZE(ripas); j++) {
+			s2tte = s2tt_test_create_assigned(&s2tt_ctx, pas[i],
+				S2TT_PAGE_LEVEL, ripas[j], 0UL);
+
+			CHECK_FALSE(s2tte_drain_pending(s2tte));
+			CHECK_FALSE(s2tte_tlbi_pending(s2tte));
+		}
+	}
+
+	s2tte = s2tte_create_unassigned_destroyed(&s2tt_ctx, 0UL);
+	s2tte = s2tte_set_drain_pending(s2tte, 1U);
+	CHECK_TRUE(s2tte_drain_pending(s2tte));
+	CHECK_FALSE(s2tte_tlbi_pending(s2tte));
+
+	s2tte = s2tte_set_tlbi_pending(s2tte);
+	CHECK_TRUE(s2tte_drain_pending(s2tte));
+	CHECK_TRUE(s2tte_tlbi_pending(s2tte));
+}
+
 void s2tte_pa_tc1(void)
 {
 	/***************************************************************

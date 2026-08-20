@@ -709,6 +709,11 @@ ASSERT_TEST(s2tt_lpa2_s2pie, s2tt_init_assigned_dev_dev_tc6)
 	s2tt_init_assigned_dev_dev_tc6();
 }
 
+TEST(s2tt_lpa2_s2pie, s2tte_pending_checks_tc1)
+{
+	s2tte_pending_checks_tc1();
+}
+
 TEST(s2tt_lpa2_s2pie, s2tte_pa_tc1)
 {
 	s2tte_pa_tc1();
