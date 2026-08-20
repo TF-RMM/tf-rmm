@@ -28,25 +28,6 @@ static inline uint64_t atomic_load_add_release_64(uint64_t *loc, uint64_t val)
 }
 
 /*
- * Atomically adds @val to the 64-bit value stored at memory location @loc.
- * Stores to memory with acquire and release semantics.
- * Returns the old value.
- */
-static inline uint64_t atomic_load_add_acquire_release_64(uint64_t *loc,
-							   uint64_t val)
-{
-	return __atomic_fetch_add(loc, val, __ATOMIC_ACQ_REL);
-}
-
-/*
- * Atomically adds @val to the 16-bit value stored at memory location @loc.
- */
-static inline void atomic_add_16(uint16_t *loc, uint16_t val)
-{
-	(void)__atomic_fetch_add(loc, val, __ATOMIC_RELAXED);
-}
-
-/*
  * Atomically adds @val to the 16-bit value stored at memory location @loc.
  * Returns the old value.
  */
