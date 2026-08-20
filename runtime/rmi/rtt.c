@@ -42,6 +42,24 @@ bool validate_map_addr(unsigned long map_addr,
 					  map_addr, level));
 }
 
+struct granule *find_lock_rtt_backing_granule(struct granule *g_rd,
+					      const struct s2tt_walk *wi,
+					      unsigned long backing_addr)
+{
+	assert((g_rd != NULL) && LOCKED(g_rd));
+	assert(granule_get_state(g_rd) == GRANULE_STATE_RD);
+	assert(wi != NULL);
+	assert((wi->g_llt != NULL) && LOCKED(wi->g_llt));
+	assert(granule_get_state(wi->g_llt) == GRANULE_STATE_RTT);
+
+	if ((backing_addr == granule_addr(g_rd)) ||
+	    (backing_addr == granule_addr(wi->g_llt))) {
+		return NULL;
+	}
+
+	return find_lock_granule(backing_addr, GRANULE_STATE_DELEGATED);
+}
+
 /*
  * Structure commands can operate on all RTTs except for the root RTT so
  * the minimal valid level is the stage 2 starting level + 1.
@@ -209,7 +227,7 @@ static unsigned long rtt_create(unsigned long rd_addr,
 				bool aux)
 {
 	struct granule *g_rd;
-	struct granule *g_tbl;
+	struct granule *g_tbl = NULL;
 	struct rd *rd;
 	struct s2tt_walk wi;
 	unsigned long *s2tt, *parent_s2tt, parent_s2tte;
@@ -218,12 +236,8 @@ static unsigned long rtt_create(unsigned long rd_addr,
 	struct s2tt_context *s2_ctx;
 	unsigned int rtt_err_code = (aux ? RMI_ERROR_RTT_AUX : RMI_ERROR_RTT);
 
-	if (!find_lock_two_granules(rd_addr,
-				    GRANULE_STATE_RD,
-				    &g_rd,
-				    rtt_addr,
-				    GRANULE_STATE_DELEGATED,
-				    &g_tbl)) {
+	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
+	if (g_rd == NULL) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -232,13 +246,13 @@ static unsigned long rtt_create(unsigned long rd_addr,
 
 	if (!validate_rtt_structure_cmds(map_addr, level, rd)) {
 		ret = RMI_ERROR_INPUT;
-		goto out_unlock_g_tbl;
+		goto out_unmap_rd;
 	}
 
 	if (aux) {
 		if (!validate_aux_rtt_args(rd, s2tt_index, map_addr)) {
 			ret = RMI_ERROR_INPUT;
-			goto out_unlock_g_tbl;
+			goto out_unmap_rd;
 		}
 		s2_ctx = &rd->s2_ctx[s2tt_index];
 	} else {
@@ -252,19 +266,22 @@ static unsigned long rtt_create(unsigned long rd_addr,
 	if (!s2_ctx->enable_lpa2) {
 		if ((rtt_addr >= (UL(1) << S2TT_MAX_PA_BITS))) {
 			ret = RMI_ERROR_INPUT;
-			goto out_unlock_g_tbl;
+			goto out_unmap_rd;
 		}
 	}
 
-	/*
-	 * Lock the RTT root. Enforcing locking order RD->RTT is enough to
-	 * ensure deadlock free locking guarantee.
-	 */
+	/* Lock the RTT hierarchy before claiming the delegated table granule. */
 	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
 
 	s2tt_walk_lock_unlock(s2_ctx, map_addr, level - 1L, &wi);
 	if (wi.last_level < (level - 1L)) {
 		ret = pack_return_code(rtt_err_code, (unsigned char)wi.last_level);
+		goto out_unlock_llt;
+	}
+
+	g_tbl = find_lock_rtt_backing_granule(g_rd, &wi, rtt_addr);
+	if (g_tbl == NULL) {
+		ret = RMI_ERROR_INPUT;
 		goto out_unlock_llt;
 	}
 
@@ -490,13 +507,17 @@ out_unmap_table:
 out_unlock_llt:
 	granule_unlock(wi.g_llt);
 
-out_unlock_g_tbl:
+	if (g_tbl == NULL) {
+		goto out_unmap_rd;
+	}
+
 	if (ret == RMI_SUCCESS) {
 		granule_unlock_transition(g_tbl, GRANULE_STATE_RTT);
 	} else {
 		granule_unlock(g_tbl);
 	}
 
+out_unmap_rd:
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
 	return ret;
@@ -942,6 +963,7 @@ static void rtt_destroy(unsigned long rd_addr,
 			/* Return the level of the parent table */
 			ret = pack_return_code(RMI_ERROR_RTT,
 					(unsigned char)wi.last_level);
+			granule_unlock(g_tbl);
 			goto out_unmap_parent_table;
 		}
 	}

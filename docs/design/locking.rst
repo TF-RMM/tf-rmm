@@ -215,7 +215,7 @@ For example, an |RD| describes a realm, and a |REC| describes an execution
 context within that realm, and therefore an |RD| must always exist when a |REC|
 exists. To prevent the |RMM| from destroying an |RD| while a |REC| still exists,
 the |RMM| holds a reference count on the |RD| for each |REC| associated with the
-same realm, and only when the all the RECs in a realm have been destroyed and
+same realm, and only when all the RECs in a realm have been destroyed and
 the reference count on an |RD| drops to zero, can the |RD| be destroyed and the
 granule be repurposed for other use.
 
@@ -271,13 +271,19 @@ locking/refcount implementation:
   virtual to physical address translation for the realm, accessible by the |RMM|
   and the hardware Memory Management Unit (MMU). Granule content access is
   protected by granule::lock, but hardware translation table walks may read the
-  RTT at any point in time. Multiple granules in this state can only be locked
-  at the same time if they are part of the same tree, and only in topological
-  order from root to leaf. The topological order of concatenated root level RTTs
-  is from the lowest address to the highest address. The complete internal
-  locking order for RTT granules is: RD -> [RTT] -> ... -> RTT. A reference
-  count is held on this granule for each entry in the RTT that refers to a
-  granule:
+  RTT at any point in time. Multiple granules in the same RTT tree can only be
+  locked in topological order from root to leaf. The topological order of
+  concatenated root level RTTs is from the lowest address to the highest
+  address.
+
+  An operation that accesses both the Primary and an Auxiliary RTT tree must
+  acquire the Primary RTT hierarchy before acquiring locks in the Auxiliary RTT
+  tree. If locks in both trees are held simultaneously, the Primary tree locks
+  precede the Auxiliary tree locks. Each RTT tree still follows its own
+  root-to-leaf order, and Auxiliary trees are processed one at a time. The
+  complete internal locking order for RTT granules is: RD -> [Primary RTT] ->
+  ... -> RTT -> [Auxiliary RTT] -> ... -> RTT. A reference count is held on
+  this granule for each entry in the RTT that refers to a granule:
 
 	- Table s2tte.
 
@@ -594,10 +600,13 @@ classified into two categories:
 
 We now state the locking guidelines for |RMM| as:
 
-#. Independently-addressed memory granules must be locked in type order:
-   RD, REC, PDEV, VDEV, DELEGATED, NS, followed by the internal order below.
+#. Memory granules must be locked in type order:
+   RD, REC, PDEV, VDEV, RTT, DELEGATED, NS, followed by the remaining internal
+   order below.
    The ``find_lock_two_granules()`` and ``find_lock_three_granules()`` helpers
-   implement this ordering.
+   implement this ordering. RTT locking follows the hierarchy rules below, so
+   an RTT hierarchy is fully acquired before a DELEGATED backing granule is
+   locked.
 
 #. Independently-addressed memory granules of the same type must be locked in
    order of their physical address, starting with the lowest address.
@@ -607,9 +616,9 @@ We now state the locking guidelines for |RMM| as:
    granule must be unlocked and no further granules may be locked within the
    currently-executing RMM command.
 
-#. Granules in the following `internal` states must be locked in order of state:
+#. Granules in the remaining `internal` states must be locked in order of
+   state:
 
-	- `RTT`
 	- `DATA`
 	- `REC_AUX`
 	- `PDEV_AUX`
@@ -625,7 +634,12 @@ We now state the locking guidelines for |RMM| as:
 #. RTT granules are ordered by the RTT hierarchy rather than by physical
    address. RTT walks must lock the root table before child tables and use
    hand-over-hand locking. Concatenated root-level RTTs are entered from the
-   lowest root address before locking the selected concatenated root.
+   lowest root address before locking the selected concatenated root. When an
+   operation accesses both a Primary and an Auxiliary RTT tree, it must acquire
+   the Primary RTT hierarchy before acquiring any Auxiliary RTT locks. If locks
+   in both trees are held at the same time, the Primary tree locks precede the
+   Auxiliary tree locks; each tree retains root-to-leaf ordering and Auxiliary
+   trees are processed one at a time.
 
 #. DATA granules and device granules whose ownership is obtained from a locked
    leaf RTT entry are locked under that leaf RTT according to the RTT

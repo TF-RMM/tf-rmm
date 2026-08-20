@@ -20,6 +20,17 @@ bool validate_map_addr(unsigned long map_addr,
 		       struct rd *rd);
 
 /*
+ * Lock a DELEGATED backing granule after an RTT walk.
+ *
+ * The caller must hold the RD lock and the lock on @wi->g_llt. The helper
+ * rejects aliases with either locked granule before attempting to acquire the
+ * backing lock.
+ */
+struct granule *find_lock_rtt_backing_granule(struct granule *g_rd,
+					      const struct s2tt_walk *wi,
+					      unsigned long backing_addr);
+
+/*
  * Helper to reset the Access Permissions for a protected entry.
  */
 unsigned long default_protected_ap(struct s2tt_context *s2_ctx);

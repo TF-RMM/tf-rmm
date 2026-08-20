@@ -763,8 +763,8 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 		return;
 	}
 
-	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
-				    data_addr, GRANULE_STATE_DELEGATED, &g_data)) {
+	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
+	if (g_rd == NULL) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
@@ -827,6 +827,13 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 		goto out_unmap_ll_table;
 	}
 
+	/* Lock the backing granule after RD and the RTT hierarchy. */
+	g_data = find_lock_rtt_backing_granule(g_rd, &wi, data_addr);
+	if (g_data == NULL) {
+		ret = RMI_ERROR_INPUT;
+		goto out_unmap_ll_table;
+	}
+
 	data = buffer_granule_mecid_map(g_data, SLOT_REALM, s2_ctx->mecid);
 	assert(data != NULL);
 
@@ -834,7 +841,7 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 	if (!ns_access_ok) {
 		buffer_unmap(data);
 		ret = RMI_ERROR_INPUT;
-		goto out_unmap_ll_table;
+		goto out_unlock_data;
 	}
 
 	measurement_data_granule_measure(
@@ -852,6 +859,12 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 
 	ret = RMI_SUCCESS;
 
+out_unlock_data:
+	if (ret == RMI_SUCCESS) {
+		granule_unlock_transition(g_data, GRANULE_STATE_DATA);
+	} else {
+		granule_unlock(g_data);
+	}
 out_unmap_ll_table:
 	buffer_unmap(s2tt);
 out_unlock_ll_table:
@@ -859,13 +872,6 @@ out_unlock_ll_table:
 out_unmap_rd:
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
-	if (g_data != NULL) {
-		if (ret == RMI_SUCCESS) {
-			granule_unlock_transition(g_data, GRANULE_STATE_DATA);
-		} else {
-			granule_unlock(g_data);
-		}
-	}
 
 	res->x[0] = ret;
 }
