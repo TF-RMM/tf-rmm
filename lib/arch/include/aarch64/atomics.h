@@ -14,16 +14,7 @@
  */
 static inline void atomic_add_64(uint64_t *loc, uint64_t val)
 {
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)val;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	stadd %[val], %[loc]\n"
-	: [loc] "+Q" (*loc)
-	: [val] "r" (val)
-	: "memory");
+	(void)__atomic_fetch_add(loc, val, __ATOMIC_RELAXED);
 }
 
 /*
@@ -33,21 +24,7 @@ static inline void atomic_add_64(uint64_t *loc, uint64_t val)
  */
 static inline uint64_t atomic_load_add_release_64(uint64_t *loc, uint64_t val)
 {
-	uint64_t old_val;
-
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)val;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	ldaddl %[val], %[old_val], %[loc]\n"
-	: [loc] "+Q" (*loc),
-	  [old_val] "=r" (old_val)
-	: [val] "r" (val)
-	: "memory");
-
-	return old_val;
+	return __atomic_fetch_add(loc, val, __ATOMIC_RELEASE);
 }
 
 /*
@@ -58,21 +35,7 @@ static inline uint64_t atomic_load_add_release_64(uint64_t *loc, uint64_t val)
 static inline uint64_t atomic_load_add_acquire_release_64(uint64_t *loc,
 							   uint64_t val)
 {
-	uint64_t old_val;
-
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)val;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	ldaddal %[val], %[old_val], %[loc]\n"
-	: [loc] "+Q" (*loc),
-	  [old_val] "=r" (old_val)
-	: [val] "r" (val)
-	: "memory");
-
-	return old_val;
+	return __atomic_fetch_add(loc, val, __ATOMIC_ACQ_REL);
 }
 
 /*
@@ -80,16 +43,7 @@ static inline uint64_t atomic_load_add_acquire_release_64(uint64_t *loc,
  */
 static inline void atomic_add_16(uint16_t *loc, uint16_t val)
 {
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)val;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	staddh %w[val], %[loc]\n"
-	: [loc] "+Q" (*loc)
-	: [val] "r" (val)
-	: "memory");
+	(void)__atomic_fetch_add(loc, val, __ATOMIC_RELAXED);
 }
 
 /*
@@ -98,21 +52,7 @@ static inline void atomic_add_16(uint16_t *loc, uint16_t val)
  */
 static inline uint16_t atomic_load_add_16(uint16_t *loc, uint16_t val)
 {
-	uint16_t old_val;
-
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)val;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	ldaddh %w[val], %w[old_val], %[loc]\n"
-	: [loc] "+Q" (*loc),
-	  [old_val] "=r" (old_val)
-	: [val] "r" (val)
-	: "memory");
-
-	return old_val;
+	return __atomic_fetch_add(loc, val, __ATOMIC_RELAXED);
 }
 
 /*
@@ -121,21 +61,7 @@ static inline uint16_t atomic_load_add_16(uint16_t *loc, uint16_t val)
  */
 static inline uint64_t atomic_load_add_64(uint64_t *loc, uint64_t val)
 {
-	uint64_t old_val;
-
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)val;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	ldadd %[val], %[old_val], %[loc]\n"
-	: [loc] "+Q" (*loc),
-	  [old_val] "=r" (old_val)
-	: [val] "r" (val)
-	: "memory");
-
-	return old_val;
+	return __atomic_fetch_add(loc, val, __ATOMIC_RELAXED);
 }
 
 /*
@@ -145,21 +71,7 @@ static inline uint64_t atomic_load_add_64(uint64_t *loc, uint64_t val)
  */
 static inline uint16_t atomic_load_add_release_16(uint16_t *loc, uint16_t val)
 {
-	uint16_t old_val;
-
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)val;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	ldaddlh %w[val], %w[old_val], %[loc]\n"
-	: [loc] "+Q" (*loc),
-	  [old_val] "=r" (old_val)
-	: [val] "r" (val)
-	: "memory");
-
-	return old_val;
+	return __atomic_fetch_add(loc, val, __ATOMIC_RELEASE);
 }
 
 /*
@@ -168,21 +80,7 @@ static inline uint16_t atomic_load_add_release_16(uint16_t *loc, uint16_t val)
  */
 static inline uint8_t atomic_load_add_8(uint8_t *loc, uint8_t val)
 {
-	uint8_t old_val;
-
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)val;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	ldaddb %w[val], %w[old_val], %[loc]\n"
-	: [loc] "+Q" (*loc),
-	  [old_val] "=r" (old_val)
-	: [val] "r" (val)
-	: "memory");
-
-	return old_val;
+	return __atomic_fetch_add(loc, val, __ATOMIC_RELAXED);
 }
 
 /*
@@ -192,21 +90,7 @@ static inline uint8_t atomic_load_add_8(uint8_t *loc, uint8_t val)
  */
 static inline uint8_t atomic_load_add_release_8(uint8_t *loc, uint8_t val)
 {
-	uint8_t old_val;
-
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)val;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	ldaddlb %w[val], %w[old_val], %[loc]\n"
-	: [loc] "+Q" (*loc),
-	  [old_val] "=r" (old_val)
-	: [val] "r" (val)
-	: "memory");
-
-	return old_val;
+	return __atomic_fetch_add(loc, val, __ATOMIC_RELEASE);
 }
 
 /*
@@ -216,17 +100,7 @@ static inline void atomic_bit_set_release_64(uint64_t *loc, unsigned int bit)
 {
 	uint64_t mask = (1ULL << bit);
 
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)bit;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	stsetl %[mask], %[loc]\n"
-	: [loc] "+Q" (*loc)
-	: [mask] "r" (mask)
-	: "memory"
-	);
+	(void)__atomic_fetch_or(loc, mask, __ATOMIC_RELEASE);
 }
 
 /*
@@ -236,17 +110,7 @@ static inline void atomic_bit_clear_release_64(uint64_t *loc, unsigned int bit)
 {
 	uint64_t mask = (1ULL << bit);
 
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)bit;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	stclrl %[mask], %[loc]\n"
-	: [loc] "+Q" (*loc)
-	: [mask] "r" (mask)
-	: "memory"
-	);
+	(void)__atomic_fetch_and(loc, ~mask, __ATOMIC_RELEASE);
 }
 
 /*
@@ -254,20 +118,8 @@ static inline void atomic_bit_clear_release_64(uint64_t *loc, unsigned int bit)
  */
 static inline bool atomic_test_bit_acquire_64(uint64_t *loc, unsigned int bit)
 {
-	uint64_t val;
+	uint64_t val = __atomic_load_n(loc, __ATOMIC_ACQUIRE);
 	uint64_t mask = (1ULL << bit);
-
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)bit;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	ldar %[val], %[loc]\n"
-	: [val] "=r" (val)
-	: [loc] "Q" (*loc)
-	: "memory"
-	);
 
 	return ((val & mask) != 0UL);
 }
@@ -279,21 +131,8 @@ static inline bool atomic_test_bit_acquire_64(uint64_t *loc, unsigned int bit)
  */
 static inline bool atomic_bit_set_acquire_release_64(uint64_t *loc, unsigned int bit)
 {
-	uint64_t val;
 	uint64_t mask = (1ULL << bit);
-
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)bit;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	ldsetal %[mask], %[val], %[loc]\n"
-	: [loc] "+Q" (*loc),
-	  [val] "=r" (val)
-	: [mask] "r" (mask)
-	: "memory"
-	);
+	uint64_t val = __atomic_fetch_or(loc, mask, __ATOMIC_ACQ_REL);
 
 	return ((val & mask) != 0UL);
 }
@@ -307,23 +146,9 @@ static inline bool atomic_cas_acquire_release_64(uint64_t *loc,
 						 uint64_t expected,
 						 uint64_t desired)
 {
-	uint64_t tmp = expected;
-
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)expected;
-	(void)desired;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	casal %[tmp], %[desired], %[loc]\n"
-	: [loc] "+Q" (*loc),
-	  [tmp] "+r" (tmp)
-	: [desired] "r" (desired)
-	: "memory");
-
-	/* cppcheck-suppress knownConditionTrueFalse */
-	return (tmp == expected);
+	return __atomic_compare_exchange_n(loc, &expected, desired, false,
+					   __ATOMIC_ACQ_REL,
+					   __ATOMIC_ACQUIRE);
 }
 
 /*
@@ -333,22 +158,7 @@ static inline bool atomic_cas_acquire_release_64(uint64_t *loc,
  */
 static inline uint16_t atomic_eor_16(uint16_t *loc, uint16_t val)
 {
-	uint16_t old_val;
-
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)val;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	ldeorh %w[val], %w[old_val], %[loc]\n"
-	: [loc] "+Q" (*loc),
-	  [old_val] "=r" (old_val)
-	: [val] "r" (val)
-	: "memory"
-	);
-
-	return old_val;
+	return __atomic_fetch_xor(loc, val, __ATOMIC_RELAXED);
 }
 
 /*
@@ -358,22 +168,7 @@ static inline uint16_t atomic_eor_16(uint16_t *loc, uint16_t val)
  */
 static inline uint8_t atomic_eor_8(uint8_t *loc, uint8_t val)
 {
-	uint8_t old_val;
-
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)loc;
-	(void)val;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	ldeorb %w[val], %w[old_val], %[loc]\n"
-	: [loc] "+Q" (*loc),
-	  [old_val] "=r" (old_val)
-	: [val] "r" (val)
-	: "memory"
-	);
-
-	return old_val;
+	return __atomic_fetch_xor(loc, val, __ATOMIC_RELAXED);
 }
 
 #endif /* ATOMICS_H */
