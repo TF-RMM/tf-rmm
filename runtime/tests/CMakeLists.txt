@@ -25,6 +25,12 @@ rmm_build_unittest(NAME realm_sro_tests
                    SOURCES "tests/realm_sro_tests.cpp"
                    ITERATIONS 1)
 
+rmm_build_unittest(NAME realm_bounds_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/realm_bounds_tests.cpp"
+                   ITERATIONS 1)
+
 rmm_build_unittest(NAME sro_donate_tests
                    LIBRARIES rmm-platform
                    TARGET rmm-runtime

@@ -418,11 +418,11 @@ static inline bool addr_is_contained(unsigned long container_base,
 				     unsigned long address)
 {
 	/* Sanity check the container bounds */
-	if (container_base > (container_end - 1UL)) {
+	if (container_end <= container_base) {
 		return false;
 	}
 
-	return (address >= container_base) && (address <= (container_end - 1UL));
+	return (address >= container_base) && (address < container_end);
 }
 
 /*
@@ -440,13 +440,17 @@ static inline bool region_is_contained(unsigned long container_base,
 				       unsigned long region_base,
 				       unsigned long region_end)
 {
-	/* Sanity check the region bounds */
-	if (region_base > (region_end - 1UL)) {
+	/* Sanity check the container bounds */
+	if (container_end <= container_base) {
 		return false;
 	}
 
-	return addr_is_contained(container_base, container_end, region_base) &&
-	       addr_is_contained(container_base, container_end, region_end - 1UL);
+	/* Sanity check the region bounds */
+	if (region_end <= region_base) {
+		return false;
+	}
+
+	return (region_base >= container_base) && (region_end <= container_end);
 }
 
 static inline unsigned long rec_ipa_size(struct rec *rec)
