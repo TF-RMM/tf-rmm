@@ -8,7 +8,7 @@ if __name__ == "__main__":
     """PMU flow, enable PMU with flags=0x4 and pmu_num_ctrs=0x1f on Realm Creation
 
     RmiRealmFlags fieldset:
-    0:0  | lpa2 | Whether LPA2 is enabled
+    0:0  | Reserved
     1:1  | sve  | Whether SVE is enabled
     2:2  | pmu  | Whether PMU is enabled
     63:3 | Reserved

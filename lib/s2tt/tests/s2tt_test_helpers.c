@@ -292,6 +292,14 @@ bool s2tt_test_helpers_lpa2_enabled(void)
 	return lpa2_enabled;
 }
 
+void s2tt_test_helpers_set_lpa2(struct s2tt_context *s2_ctx, bool enabled)
+{
+	s2_ctx->ipa_bits = enabled ?
+		S2TT_MAX_IPA_BITS_LPA2 : S2TT_MAX_IPA_BITS;
+	s2_ctx->s2oa_limit = enabled ?
+		(1UL << S2TT_MAX_PA_BITS_LPA2) : (1UL << S2TT_MAX_PA_BITS);
+}
+
 bool s2tt_test_helpers_s2pie_enabled(void)
 {
 	return s2pie_enabled;
@@ -319,7 +327,7 @@ unsigned long s2tt_test_create_assigned_dev_dev(const struct s2tt_context *s2tt_
 	unsigned long attr = S2TTE_TEST_DEV_ATTRS;
 
 	/* Add Shareability bits if FEAT_LPA2 is not enabled */
-	if (!s2tt_ctx->enable_lpa2) {
+	if (!s2tt_lpa2_enabled(s2tt_ctx)) {
 		attr |= S2TTE_TEST_DEV_SH;
 	}
 	return s2tte_create_assigned_dev_dev(s2tt_ctx, (pa | attr), level, ap);
@@ -349,7 +357,7 @@ void s2tt_test_init_assigned_dev_dev(const struct s2tt_context *s2tt_ctx,
 	unsigned long attr = S2TTE_TEST_DEV_ATTRS;
 
 	/* Add Shareability bits if FEAT_LPA2 is not enabled */
-	if (!s2tt_ctx->enable_lpa2) {
+	if (!s2tt_lpa2_enabled(s2tt_ctx)) {
 		attr |= S2TTE_TEST_DEV_SH;
 	}
 

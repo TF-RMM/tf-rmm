@@ -139,6 +139,9 @@ unsigned long s2tt_test_helpers_get_idx_from_addr(unsigned long addr,
 /* Helper to know whether LPA2 is enabled or not for the current test */
 bool s2tt_test_helpers_lpa2_enabled(void);
 
+/* Configure the address sizes which determine LPA2 for a test context */
+void s2tt_test_helpers_set_lpa2(struct s2tt_context *s2_ctx, bool enabled);
+
 /* Helper to know whether S2PIE and S2PO are enabled or not for the current test */
 bool s2tt_test_helpers_s2pie_enabled(void);
 

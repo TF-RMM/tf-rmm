@@ -26,7 +26,7 @@
 #include <utils_def.h>
 #include <vmid.h>
 
-#define RMI_FEATURE_MIN_IPA_SIZE	PARANGE_WIDTH_32BITS
+#define RMI_FEATURE_MIN_IPA_BITS	PARANGE_WIDTH_32BITS
 
 static unsigned int realm_num_aux_granules(void)
 {
@@ -83,11 +83,6 @@ static bool get_realm_params(struct rmi_realm_params *realm_params,
 	return ns_access_ok;
 }
 
-static bool is_lpa2_requested(struct rmi_realm_params *p)
-{
-	return (EXTRACT(RMI_REALM_FLAGS0_LPA2, p->flags0) == RMI_FEATURE_TRUE);
-}
-
 /*
  * See the library pseudocode
  * aarch64/translation/vmsa_faults/AArch64.S2InconsistentSL on which this is
@@ -123,13 +118,21 @@ static bool s2_inconsistent_sl(unsigned int ipa_bits, int sl, bool lpa2)
 	return ((ipa_bits < sl_min_ipa_bits) || (ipa_bits > sl_max_ipa_bits));
 }
 
-static bool validate_ipa_bits_and_sl(unsigned int ipa_bits, long sl, bool lpa2)
+static bool validate_ipa_bits_and_sl(unsigned int ipa_bits, long sl,
+				     unsigned long feat_reg0,
+				     unsigned long s2oa_limit)
 {
 	long min_starting_level;
 	unsigned int max_ipa_bits;
+	bool lpa2 = s2tt_lpa2_required(ipa_bits, s2oa_limit);
 
-	max_ipa_bits = (lpa2 == true) ?
-				S2TT_MAX_IPA_BITS_LPA2 : S2TT_MAX_IPA_BITS;
+	if (lpa2 &&
+	    (EXTRACT(RMI_FEATURE_REGISTER_0_LPA2, feat_reg0) ==
+	     RMI_FEATURE_FALSE)) {
+		return false;
+	}
+
+	max_ipa_bits = (lpa2) ? S2TT_MAX_IPA_BITS_LPA2 : S2TT_MAX_IPA_BITS;
 
 	/* cppcheck-suppress misra-c2012-10.6 */
 	min_starting_level = (lpa2 == true) ?
@@ -272,7 +275,8 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 				  bool *rtt_tree_pp,
 				  unsigned long *rtt_base,
 				  unsigned long *ats_plane,
-				  unsigned int *mec_policy)
+				  unsigned int *mec_policy,
+				  unsigned long *s2oa_limit)
 {
 	unsigned long feat_reg0 = get_feature_register_0();
 	unsigned long feat_reg2 = get_feature_register_2();
@@ -284,17 +288,18 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 	unsigned long feat_flags1_s2ap_enc __unused =
 		EXTRACT(RMI_REALM_FLAGS1_S2AP_ENC, p->flags1);
 	unsigned long mec_policy_param;
+	unsigned long s2oasz_bits;
 	unsigned int n_planes;
 
-	/* Validate LPA2 flag */
-	if (is_lpa2_requested(p)  &&
-	    (EXTRACT(RMI_FEATURE_REGISTER_0_LPA2, feat_reg0) ==
-							RMI_FEATURE_FALSE)) {
-		return false;
-	}
+	s2oasz_bits = EXTRACT(RMI_FEATURE_REGISTER_0_S2OASZ, feat_reg0);
+	*s2oa_limit = UL(1) << s2oasz_bits;
 
-	/* Validate S2SZ field */
-	if ((p->s2sz < RMI_FEATURE_MIN_IPA_SIZE) ||
+	/*
+	 * Validate the requested IPA width against the maximum advertised by
+	 * RMM. get_feature_register_0() limits S2SZ and S2OASZ to 48 bits when
+	 * LPA2 is not supported.
+	 */
+	if ((p->s2sz < RMI_FEATURE_MIN_IPA_BITS) ||
 	    (p->s2sz > EXTRACT(RMI_FEATURE_REGISTER_0_S2SZ, feat_reg0))) {
 		return false;
 	}
@@ -360,8 +365,8 @@ static bool validate_realm_params(struct rmi_realm_params *p,
 	}
 	*mec_policy = (unsigned int)mec_policy_param;
 
-	if (!validate_ipa_bits_and_sl(p->s2sz, p->rtt_level_start,
-						is_lpa2_requested(p))) {
+	if (!validate_ipa_bits_and_sl(p->s2sz, p->rtt_level_start, feat_reg0,
+				      *s2oa_limit)) {
 		return false;
 	}
 
@@ -734,6 +739,7 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 	unsigned char realm_instance_id[REALM_INSTANCE_ID_SIZE];
 	unsigned long ret = RMI_SUCCESS;
 	unsigned long ats_plane;
+	unsigned long s2oa_limit;
 	unsigned int n_vmids = 0U;
 	unsigned int n_rtts = 0U;
 	unsigned int mecid = 0U;
@@ -760,7 +766,7 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 	/* coverity[uninit_use_in_call:SUPPRESS] */
 	if (!validate_realm_params(&p, &n_vmids, &n_rtts,
 				   &rtt_tree_pp, rtt_base, &ats_plane,
-				   &mec_policy)) {
+				   &mec_policy, &s2oa_limit)) {
 		ret = RMI_ERROR_INPUT;
 		goto out_reclaim;
 	}
@@ -845,9 +851,9 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 		s2tt_ctx->ipa_bits = p.s2sz;
 		s2tt_ctx->s2_starting_level = (int)p.rtt_level_start;
 		s2tt_ctx->num_root_rtts = p.rtt_num_start;
-		s2tt_ctx->enable_lpa2 = is_lpa2_requested(&p);
 		s2tt_ctx->indirect_s2ap = rd->rtt_s2ap_encoding;
 		s2tt_ctx->mecid = mecid;
+		s2tt_ctx->s2oa_limit = s2oa_limit;
 	}
 
 	for (unsigned int plane_idx = 0U; plane_idx < realm_num_planes(rd); plane_idx++) {
