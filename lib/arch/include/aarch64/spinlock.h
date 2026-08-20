@@ -33,27 +33,4 @@ static inline void spinlock_release(spinlock_t *l)
 	__atomic_store_n(&l->val, 0U, __ATOMIC_RELEASE);
 }
 
-/* 8-bit spinlock */
-typedef struct {
-	unsigned char val;
-} byte_spinlock_t;
-
-__attribute__((__always_inline__))
-static inline void byte_spinlock_acquire(byte_spinlock_t *l)
-{
-	unsigned char expected = 0U;
-
-	while (!__atomic_compare_exchange_n(&l->val, &expected, 1U, false,
-					    __ATOMIC_ACQUIRE,
-					    __ATOMIC_RELAXED)) {
-		expected = 0U;
-	}
-}
-
-__attribute__((__always_inline__))
-static inline void byte_spinlock_release(byte_spinlock_t *l)
-{
-	__atomic_store_n(&l->val, 0U, __ATOMIC_RELEASE);
-}
-
 #endif /* SPINLOCK_H */
