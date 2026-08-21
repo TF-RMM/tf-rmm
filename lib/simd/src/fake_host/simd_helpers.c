@@ -42,7 +42,8 @@ uint32_t sve_rdvl(void)
 		return cb();
 	}
 
-	return 0;
+	/* RDVL returns at least the architectural minimum vector length. */
+	return SVE_Z_REG_MIN_SIZE;
 }
 
 void sve_save_vector_registers(struct sve_regs *regs, bool save_ffr)

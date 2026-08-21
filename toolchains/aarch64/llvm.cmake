@@ -77,6 +77,11 @@ endforeach()
 string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fuse-ld=lld ")
 string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-Wl,--apply-dynamic-relocs ")
 
+if (IOSAN)
+    string(APPEND CMAKE_C_FLAGS_INIT "-fsanitize-trap=unsigned-integer-overflow ")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fsanitize-trap=unsigned-integer-overflow ")
+endif()
+
 if (ICSAN)
     string(APPEND CMAKE_C_FLAGS_INIT "-fsanitize-trap=implicit-conversion ")
     string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fsanitize-trap=implicit-conversion ")

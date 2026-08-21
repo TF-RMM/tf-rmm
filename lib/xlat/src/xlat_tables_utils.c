@@ -213,7 +213,10 @@ static void xlat_tables_print_internal(struct xlat_ctx *ctx,
 		}
 
 		table_idx++;
-		table_idx_va += level_size;
+
+		if (table_idx < XLAT_GET_TABLE_ENTRIES(level)) {
+			table_idx_va += level_size;
+		}
 	}
 
 	if (multiple_row_count > 1U) {
@@ -232,8 +235,7 @@ void xlat_tables_print(struct xlat_ctx *ctx)
 	uintptr_t max_mapped_va_offset =
 			(ctx_cfg->max_mapped_va_offset + ctx_cfg->base_va);
 	uintptr_t max_allowed_va =
-			(ctx_cfg->max_va_size + ctx_cfg->base_va - 1ULL);
-
+			ctx_cfg->base_va + (ctx_cfg->max_va_size - 1ULL);
 
 	VERBOSE("Translation tables state for %s VA region:\n",
 		(ctx_cfg->region == VA_LOW_REGION) ? "Low" : "High");

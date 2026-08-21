@@ -10,14 +10,12 @@
 void *memmove(void *dst, const void *src, size_t len)
 {
 	/*
-	 * The following test makes use of unsigned arithmetic overflow to
-	 * more efficiently test the condition !(src <= dst && dst < str+len).
-	 * It also avoids the situation where the more explicit test would give
-	 * incorrect results were the calculation str+len to overflow (though
-	 * that issue is probably moot as such usage is probably undefined
-	 * behaviour and a bug anyway.
+	 * Check whether dst is before src first so address subtraction cannot
+	 * underflow. Otherwise, the subtraction safely determines whether dst
+	 * begins outside the source data without computing src + len, which
+	 * could overflow.
 	 */
-	if ((size_t)dst - (size_t)src >= len) {
+	if (((size_t)dst < (size_t)src) || (((size_t)dst - (size_t)src) >= len)) {
 		/* destination not in source data, so can safely use memcpy */
 		return memcpy(dst, src, len);
 	}

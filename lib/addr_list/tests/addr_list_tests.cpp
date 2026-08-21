@@ -963,7 +963,7 @@ TEST(addr_list_tests, validate_zero_count)
  * TC_VALIDATE_03: count > ADDR_LIST_MAX_RANGES → assert.
  * ----------------------------------------------------------------
  */
-TEST(addr_list_tests, validate_count_exceeds_max)
+ASSERT_TEST(addr_list_tests, validate_count_exceeds_max)
 {
 	struct addr_list list;
 

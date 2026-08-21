@@ -29,6 +29,11 @@ if (UBSAN)
     string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fsanitize=undefined ")
 endif()
 
+if (IOSAN)
+    string(APPEND CMAKE_C_FLAGS_INIT "-fsanitize=unsigned-integer-overflow ")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fsanitize=unsigned-integer-overflow ")
+endif()
+
 if (ICSAN)
     string(APPEND CMAKE_C_FLAGS_INIT "-fsanitize=implicit-conversion ")
     string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT "-fsanitize=implicit-conversion ")
