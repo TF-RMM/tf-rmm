@@ -14,7 +14,9 @@ description: >-
   using ``RMM_LOG_LEVEL`` btvar as well as to define the SHA/Branch of TF-A
   to be used for the particular instance of RMM to build through the
   ``TFA_REVISION`` btvar. It also allows to define the host platform through
-  the ``RMM_CONFIG`` btvar.
+  the ``RMM_CONFIG`` btvar, choose the compiler toolchain with the
+  ``RMM_TOOLCHAIN`` btvar, and enable sanitizers with the
+  ``RMM_SANITIZERS`` btvar.
 
 buildex:
   btvars:
@@ -33,6 +35,18 @@ buildex:
       type: string
       value: 'fvp_defcfg'
 
+    # Determines the RMM compiler toolchain
+    # Shrinkwrap does not package LLVM in docker yet. Use local
+    # LLVM toolchain by setting --runtime=null during LLVM build.
+    RMM_TOOLCHAIN:
+      type: string
+      value: 'gnu'
+
+    # Determines the RMM sanitizers to enable
+    RMM_SANITIZERS:
+      type: string
+      value: ''
+
     # Determines the branch or SHA to pull for TF-A which is suitable
     # for the current RMM
     TFA_REVISION:
@@ -45,6 +59,8 @@ build:
     params:
        -DLOG_LEVEL: ${btvar:RMM_LOG_LEVEL}
        -DRMM_CONFIG: ${btvar:RMM_CONFIG}
+       -DRMM_TOOLCHAIN: ${btvar:RMM_TOOLCHAIN}
+       -DRMM_SANITIZERS: ${btvar:RMM_SANITIZERS}
 
   tfa:
     repo:
