@@ -12,8 +12,14 @@ void *memcpy(void *dst, const void *src, size_t len)
 	char *d = dst;
 
 	while (len != 0U) {
-		*d++ = *s++;
+		*d = *s;
 		len--;
+
+		/* Do not form an unrepresentable one-past pointer. */
+		if (len != 0U) {
+			d++;
+			s++;
+		}
 	}
 
 	return dst;
