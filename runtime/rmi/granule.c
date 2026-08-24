@@ -13,6 +13,7 @@
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
+#include <status.h>
 
 static unsigned long dev_granule_delegate(unsigned long addr)
 {
@@ -325,5 +326,7 @@ void smc_gpt_l1_create(unsigned long addr, struct smc_result *res)
 	 * from the Host, once we have walked the GPT and if a table is
 	 * really required.
 	 */
-	res->x[0] = RMI_ERROR_GPT;
+	/* The existing L1 table is referenced by the L0 entry for @addr. */
+	res->x[0] = pack_return_code_level_addr(
+			RMI_ERROR_GPT, (unsigned char)0U, addr);
 }

@@ -80,6 +80,7 @@ static void rmi_op_dispatch(unsigned long fid,
 			    struct smc_result *res)
 {
 	struct sro_context *sro = my_sro_ctx();
+	return_code_t return_code;
 	unsigned long handle_id;
 
 	assert(sro != NULL);
@@ -92,11 +93,13 @@ static void rmi_op_dispatch(unsigned long fid,
 
 	sro_handles[handle_id].cb(fid, res);
 
-	if (unpack_return_code(res->x[0]).status == RMI_INCOMPLETE) {
-		unsigned long mem_op = EXTRACT(RMI_OP_MEM_REQ, res->x[0]);
+	return_code = unpack_return_code(res->x[0]);
+
+	if (return_code.status == RMI_INCOMPLETE) {
+		unsigned long mem_op = return_code.data.incomplete.mem;
 
 		/* Update the memory flags on the SRO context if needed */
-		sro->can_cancel = (EXTRACT(RMI_OP_CAN_CANCEL_BIT, res->x[0]) ==
+		sro->can_cancel = (return_code.data.incomplete.cancel ==
 								RMI_OP_CAN_CANCEL);
 
 		if (mem_op == RMI_OP_MEM_REQ_DONATE) {
@@ -231,7 +234,7 @@ void smc_op_mem_donate(unsigned long handle,
 
 	rc = unpack_return_code(res->x[0]);
 	if (rc.status == RMI_INCOMPLETE) {
-		mem_req = EXTRACT(RMI_OP_MEM_REQ, res->x[0]);
+		mem_req = rc.data.incomplete.mem;
 	}
 
 	/*
@@ -295,9 +298,8 @@ void smc_op_mem_reclaim(unsigned long handle,
 	}
 
 	if (list_count == 0UL) {
-		res->x[0] = (RMI_INCOMPLETE |
-				INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_RECLAIM) |
-				INPLACE(RMI_OP_CAN_CANCEL_BIT, SRO_CAN_CANCEL_FLAG(sro)));
+		res->x[0] = pack_return_code_incomplete(
+				RMI_OP_MEM_REQ_RECLAIM, SRO_CAN_CANCEL_FLAG(sro));
 		res->x[1] = 0UL;
 		goto reclaim_end;
 	}
@@ -345,9 +347,8 @@ void smc_op_mem_reclaim(unsigned long handle,
 			sro->expected_fid = sro->prev_exp_fid;
 		} else {
 			/* Still pending entries, return INCOMPLETE */
-			res->x[0] = (RMI_INCOMPLETE |
-				INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_RECLAIM) |
-				INPLACE(RMI_OP_CAN_CANCEL_BIT, SRO_CAN_CANCEL_FLAG(sro)));
+			res->x[0] = pack_return_code_incomplete(
+					RMI_OP_MEM_REQ_RECLAIM, SRO_CAN_CANCEL_FLAG(sro));
 			res->x[1] = copied;
 		}
 	}

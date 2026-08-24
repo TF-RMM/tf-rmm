@@ -313,7 +313,7 @@ TEST(rtt_data_unmap_tests, partial_non_live_l2_block_fails)
 
 	rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_ERROR_RTT, rc.status);
-	CHECK_EQUAL(2U, rc.index);
+	CHECK_EQUAL(2U, rc.data.level.level);
 	CHECK_EQUAL(0UL, res.x[1]);
 }
 
@@ -817,7 +817,7 @@ TEST(rtt_data_unmap_tests, rtte_align_base_not_l2_aligned)
 
 	return_code_t rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_ERROR_RTT, rc.status);
-	CHECK_EQUAL(2U, rc.index);
+	CHECK_EQUAL(2U, rc.data.level.level);
 	CHECK_EQUAL(0UL, res.x[1]);
 }
 
@@ -1226,7 +1226,7 @@ TEST(rtt_data_unmap_tests, device_page_first_returns_rtt_error)
 
 	rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_ERROR_RTT, rc.status);
-	CHECK_EQUAL(S2TT_PAGE_LEVEL, rc.index);
+	CHECK_EQUAL(S2TT_PAGE_LEVEL, rc.data.level.level);
 	CHECK_EQUAL(0UL, res.x[1]);
 
 	expect_ipa_assigned_dev_dev(&ctx, TEST_DATA_IPA_BASE, S2TT_PAGE_LEVEL);
@@ -1387,7 +1387,7 @@ TEST(rtt_data_unmap_tests, l2_device_block_first_returns_rtt_error)
 
 	rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_ERROR_RTT, rc.status);
-	CHECK_EQUAL(2U, rc.index);
+	CHECK_EQUAL(2U, rc.data.level.level);
 	CHECK_EQUAL(0UL, res.x[1]);
 	expect_ipa_assigned_dev_dev(&ctx, TEST_DATA_IPA_BASE, 2L);
 }
@@ -1455,7 +1455,7 @@ TEST(rtt_data_unmap_tests, l2_table_device_block_data_block_mixed)
 
 	rc = unpack_return_code(res2.x[0]);
 	CHECK_EQUAL(RMI_ERROR_RTT, rc.status);
-	CHECK_EQUAL(2U, rc.index);
+	CHECK_EQUAL(2U, rc.data.level.level);
 	CHECK_EQUAL(0UL, res2.x[1]);
 
 	expect_ipa_assigned_dev_dev(&ctx, dev_ipa, 2L);

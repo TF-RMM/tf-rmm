@@ -222,14 +222,14 @@ static bool data_unmap_pre_add_checks(struct s2tt_context *s2_ctx,
 {
 	if (s2tte_is_assigned_dev(s2_ctx, s2tte) ||
 	    s2tte_is_assigned_dev_dev(s2_ctx, s2tte, level)) {
-		res->x[0] = pack_return_code(RMI_ERROR_RTT,
+		res->x[0] = pack_return_code_level(RMI_ERROR_RTT,
 					     (unsigned char)level);
 		res->x[1] = 0UL;
 		return false;
 	}
 
 	if (not_aux_mappings(s2_ctx, s2tte, level) < map_size) {
-		res->x[0] = pack_return_code(RMI_ERROR_RTT_AUX,
+		res->x[0] = pack_return_code_level(RMI_ERROR_RTT_AUX,
 					     (unsigned char)0U);
 		res->x[1] = 0UL;
 		return false;
@@ -396,7 +396,7 @@ rtt_unmap_one_table(struct s2tt_context *s2_ctx,
 		if (!s2tte_is_live(s2_ctx, s2tte, level)) {
 			if ((addr + map_size) > top) {
 				if (idx == start_idx) {
-					res->x[0] = pack_return_code(
+					res->x[0] = pack_return_code_level(
 						RMI_ERROR_RTT,
 						(unsigned char)level);
 					res->x[1] = 0UL;
@@ -418,7 +418,7 @@ rtt_unmap_one_table(struct s2tt_context *s2_ctx,
 		if ((level < S2TT_PAGE_LEVEL) &&
 		    s2tte_is_table(s2_ctx, s2tte, level)) {
 			if (idx == start_idx) {
-				res->x[0] = pack_return_code(
+				res->x[0] = pack_return_code_level(
 					RMI_ERROR_RTT,
 					(unsigned char)level);
 				res->x[1] = 0UL;
@@ -435,7 +435,7 @@ rtt_unmap_one_table(struct s2tt_context *s2_ctx,
 		 */
 		if ((addr + map_size) > top) {
 			if (idx == start_idx) {
-				res->x[0] = pack_return_code(
+				res->x[0] = pack_return_code_level(
 					RMI_ERROR_RTT,
 					(unsigned char)level);
 				res->x[1] = 0UL;
@@ -470,7 +470,7 @@ rtt_unmap_one_table(struct s2tt_context *s2_ctx,
 			      s2tte_is_assigned_dev_destroyed(s2_ctx, s2tte,
 							      level))) {
 				if (idx == start_idx) {
-					res->x[0] = pack_return_code(
+					res->x[0] = pack_return_code_level(
 						RMI_ERROR_RTT,
 						(unsigned char)level);
 					res->x[1] = 0UL;
@@ -1048,7 +1048,7 @@ rtt_unmap_run(struct granule *g_rd, struct rd *rd,
 	 * walk lands at; the host must fold/unfold otherwise.
 	 */
 	if ((ctx->cur_base & (map_size - 1UL)) != 0UL) {
-		res->x[0] = pack_return_code(RMI_ERROR_RTT,
+		res->x[0] = pack_return_code_level(RMI_ERROR_RTT,
 					(unsigned char)level);
 		res->x[1] = 0UL;
 		res->x[2] = 0UL;
@@ -1175,10 +1175,8 @@ void rtt_unmap_continue_handler(unsigned long fid,
 		 * re-seals the SRO context based on res->x[0] ==
 		 * RMI_INCOMPLETE.
 		 */
-		res->x[0] = RMI_INCOMPLETE |
-			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
-			    INPLACE(RMI_OP_CAN_CANCEL_BIT,
-				    RMI_OP_CANNOT_CANCEL);
+		res->x[0] = pack_return_code_incomplete(
+				RMI_OP_MEM_REQ_NONE, RMI_OP_CANNOT_CANCEL);
 		res->x[1] = 0UL;
 		return;
 	}
@@ -1370,10 +1368,8 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
 		 * SRO_CONTINUE drain drops the last one; no extra pin
 		 * needed here.
 		 */
-		res->x[0] = RMI_INCOMPLETE |
-			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
-			    INPLACE(RMI_OP_CAN_CANCEL_BIT,
-				    RMI_OP_CANNOT_CANCEL);
+		res->x[0] = pack_return_code_incomplete(
+				RMI_OP_MEM_REQ_NONE, RMI_OP_CANNOT_CANCEL);
 		res->x[1] = (unsigned long)sro_ctx_seal();
 		return;
 	}
@@ -1500,10 +1496,8 @@ void smc_rtt_unprot_unmap(unsigned long rd_addr,
 	step = rtt_unmap_run(g_rd, rd, ctx, top, &sro->addr_list, res);
 
 	if (step == RTT_UNMAP_RUN_YIELD) {
-		res->x[0] = RMI_INCOMPLETE |
-			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
-			    INPLACE(RMI_OP_CAN_CANCEL_BIT,
-				    RMI_OP_CANNOT_CANCEL);
+		res->x[0] = pack_return_code_incomplete(
+				RMI_OP_MEM_REQ_NONE, RMI_OP_CANNOT_CANCEL);
 		res->x[1] = (unsigned long)sro_ctx_seal();
 		return;
 	}
@@ -1628,10 +1622,8 @@ void smc_rtt_dev_unmap(unsigned long rd_addr,
 	step = rtt_unmap_run(g_rd, rd, ctx, top, &sro->addr_list, res);
 
 	if (step == RTT_UNMAP_RUN_YIELD) {
-		res->x[0] = RMI_INCOMPLETE |
-			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
-			    INPLACE(RMI_OP_CAN_CANCEL_BIT,
-				    RMI_OP_CANNOT_CANCEL);
+		res->x[0] = pack_return_code_incomplete(
+				RMI_OP_MEM_REQ_NONE, RMI_OP_CANNOT_CANCEL);
 		res->x[1] = (unsigned long)sro_ctx_seal();
 		return;
 	}

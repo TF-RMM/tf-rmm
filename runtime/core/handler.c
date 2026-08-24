@@ -241,11 +241,16 @@ static void rmi_log_on_exit(unsigned int handler_id,
 			INFO(" > RMI_%s", rmi_status_string[rc.status]);
 		}
 
-		/* Check for index */
-		if (((function_id == SMC_RMI_REC_ENTER) &&
-		     (rc.status == RMI_ERROR_REALM)) ||
-		     (rc.status == RMI_ERROR_RTT)) {
-			INFO(" %x", rc.index);
+		/* Print conditional RmiResult data. */
+		if ((rc.status == RMI_ERROR_RTT) ||
+		    (rc.status == RMI_ERROR_RTT_AUX) ||
+		    (rc.status == RMI_ERROR_PSMMU_ST)) {
+			INFO(" %x", rc.data.level.level);
+		} else if ((rc.status == RMI_ERROR_DPT) ||
+			   (rc.status == RMI_ERROR_GPT) ||
+			   (rc.status == RMI_ERROR_TRACKING)) {
+			INFO(" %x %lx", rc.data.level_addr.level,
+			     rc.data.level_addr.addr);
 		}
 
 		/* Check status for commands initiated SRO */
@@ -260,7 +265,7 @@ static void rmi_log_on_exit(unsigned int handler_id,
 			 * If RmiResult::mem is RMI_OP_MEM_REQ_DONATE then
 			 * X2 holds an RmiOpMemDonateReq value.
 			 */
-			if (EXTRACT(RMI_OP_MEM_REQ, res->x[0]) == RMI_OP_MEM_REQ_DONATE) {
+			if (rc.data.incomplete.mem == RMI_OP_MEM_REQ_DONATE) {
 				INFO(" %lx", res->x[2]);
 			}
 		} else if ((rc.status == RMI_SUCCESS) ||

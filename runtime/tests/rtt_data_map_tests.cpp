@@ -796,7 +796,7 @@ TEST(rtt_data_map_tests, l2_map_requires_l2_sized_range)
 
 	rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_ERROR_RTT, rc.status);
-	CHECK_EQUAL(2U, rc.index);
+	CHECK_EQUAL(2U, rc.data.level.level);
 	expect_data_granule_delegated(data_base);
 }
 
@@ -822,7 +822,7 @@ TEST(rtt_data_map_tests, l3_map_requires_leaf_rtt)
 
 	rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_ERROR_RTT, rc.status);
-	CHECK_EQUAL(2U, rc.index);
+	CHECK_EQUAL(2U, rc.data.level.level);
 	expect_data_granule_delegated(data_pa);
 	expect_ipa_unassigned_no_drain(&ctx, TEST_DATA_IPA_BASE);
 }
@@ -905,7 +905,7 @@ TEST(rtt_data_map_tests, existing_mapping_to_different_pa_returns_rtt_error)
 
 	rc = unpack_return_code(res2.x[0]);
 	CHECK_EQUAL(RMI_ERROR_RTT, rc.status);
-	CHECK_EQUAL(S2TT_PAGE_LEVEL, rc.index);
+	CHECK_EQUAL(S2TT_PAGE_LEVEL, rc.data.level.level);
 	expect_data_granule_data_state(data0);
 	expect_data_granule_delegated(data1);
 	expect_ipa_assigned_ram_to_pa(&ctx, TEST_DATA_IPA_BASE, data0);
@@ -936,7 +936,7 @@ TEST(rtt_data_map_tests, l2_map_rejects_existing_l3_table)
 
 	rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_ERROR_RTT, rc.status);
-	CHECK_EQUAL(2U, rc.index);
+	CHECK_EQUAL(2U, rc.data.level.level);
 	expect_data_granules_delegated(data_base,
 				       (unsigned int)S2TTES_PER_S2TT);
 }

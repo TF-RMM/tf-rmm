@@ -7,6 +7,12 @@ target_include_directories(rmm-runtime
     PRIVATE "tests")
 
 # Add test functionality
+rmm_build_unittest(NAME status_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/status_tests.cpp"
+                   ITERATIONS 1)
+
 rmm_build_unittest(NAME rsi_logger_tests
                    LIBRARIES rmm-platform
                    TARGET rmm-runtime

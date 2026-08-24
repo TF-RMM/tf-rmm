@@ -10,6 +10,7 @@
 #include <smmuv3_psmmu.h>
 #include <sro_context.h>
 #include <sro_smmu.h>
+#include <status.h>
 #include <xlat_defs.h>
 
 /*
@@ -166,9 +167,8 @@ void psmmu_activate_start(unsigned long fid, struct smc_result *res)
 		sro->smmu_ctx.transferred = 0UL;
 
 		/* RmiResult with RmiResultDataIncomplete */
-		res->x[0] = (RMI_INCOMPLETE |
-				INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_DONATE) |
-				INPLACE(RMI_OP_CAN_CANCEL_BIT, RMI_OP_CANNOT_CANCEL));
+		res->x[0] = pack_return_code_incomplete(
+				RMI_OP_MEM_REQ_DONATE, RMI_OP_CANNOT_CANCEL);
 
 		/* RmiOpMemDonateReq */
 		res->x[2] = rmi_op_donate_req_encode(
@@ -182,9 +182,8 @@ void psmmu_activate_start(unsigned long fid, struct smc_result *res)
 	sro->smmu_ctx.cb_id = (unsigned int)SRO_ACTIVATE_FINISH;
 
 	/* RmiResult with RmiResultDataIncomplete */
-	res->x[0] = (RMI_INCOMPLETE |
-		     INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
-		     INPLACE(RMI_OP_CAN_CANCEL_BIT, RMI_OP_CANNOT_CANCEL));
+	res->x[0] = pack_return_code_incomplete(
+			RMI_OP_MEM_REQ_NONE, RMI_OP_CANNOT_CANCEL);
 	res->x[2] = 0UL;
 }
 
@@ -463,9 +462,8 @@ void psmmu_create_l2_start(unsigned long fid, struct smc_result *res)
 	sro->smmu_ctx.cb_id = (unsigned int)SRO_CREATE_L2_FINISH;
 
 	/* RmiResult with RmiResultDataIncomplete */
-	res->x[0] = (RMI_INCOMPLETE |
-		     INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
-		     INPLACE(RMI_OP_CAN_CANCEL_BIT, RMI_OP_CANNOT_CANCEL));
+	res->x[0] = pack_return_code_incomplete(
+			RMI_OP_MEM_REQ_NONE, RMI_OP_CANNOT_CANCEL);
 	res->x[2] = 0UL;
 }
 
