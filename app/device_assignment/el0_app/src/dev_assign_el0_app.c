@@ -980,7 +980,7 @@ void dev_assign_unset_pubkey(struct dev_assign_info *info)
  * Set public key context in libspdm connection
  */
 static int dev_assign_set_pubkey(uintptr_t heap,
-				     unsigned long key_sig_algo)
+				 unsigned long key_sig_algo)
 {
 	libspdm_data_parameter_t parameter;
 	libspdm_return_t status;
@@ -990,8 +990,8 @@ static int dev_assign_set_pubkey(uintptr_t heap,
 
 	info = heap_start_to_dev_assign_info(heap);
 
-	struct rmi_public_key_params *params =
-		(struct rmi_public_key_params *)get_shared_mem_start();
+	struct public_key_params *params =
+		(struct public_key_params *)get_shared_mem_start();
 
 	if ((key_sig_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P256) ||
 	    (key_sig_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P384)) {

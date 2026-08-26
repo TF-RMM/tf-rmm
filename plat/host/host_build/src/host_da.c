@@ -349,13 +349,10 @@ static int host_pdev_set_key(struct host_pdev *dev)
 	pubkey_params = allocate_granule(1U);
 	memset(pubkey_params, 0, GRANULE_SIZE);
 
-	memcpy(pubkey_params->key, dev->public_key, dev->public_key_len);
-	memcpy(pubkey_params->metadata,
-	       dev->public_key_metadata,
-	       dev->public_key_metadata_len);
+	pubkey_params->key_addr = (uintptr_t)dev->public_key;
+	pubkey_params->metadata_addr = (uintptr_t)dev->public_key_metadata;
 	pubkey_params->key_len = dev->public_key_len;
 	pubkey_params->metadata_len = dev->public_key_metadata_len;
-	pubkey_params->algo = dev->public_key_sig_algo;
 
 	host_rmi_pdev_set_pubkey(dev->ep_pdev_ptr, pubkey_params, &result);
 	if (!IS_RMI_RESULT_SUCCESS(result)) {

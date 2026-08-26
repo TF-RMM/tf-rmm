@@ -153,6 +153,20 @@ struct dev_tdisp_params {
 	uint8_t *start_interface_nonce;
 };
 
+/* cppcheck-suppress misra-c2012-2.4 */
+struct public_key_params {
+	/* Length of key data in bytes */
+	unsigned long key_len;
+	/* Length of metadata in bytes */
+	unsigned long metadata_len;
+	/* Signature algorithm */
+	unsigned char algo;
+	/* Key data */
+	unsigned char key[PUBKEY_PARAM_KEY_LEN_MAX];
+	/* Key metadata */
+	unsigned char metadata[PUBKEY_PARAM_METADATA_LEN_MAX];
+};
+
 /*
  * App functions for device communication. App uses heap available via tpidrro_el0.
  * The function execution can yield and return back to RMM. In this case
