@@ -635,13 +635,13 @@ static struct root_complex_info *get_root_complex(unsigned long ecam_addr)
 	return NULL;
 }
 
-/*
- * Check whether @ecam_addr matches a Root Complex ECAM base address from the
- * cached Root Complex topology.
- */
-bool rmm_el3_ifc_is_ecam_base_valid(unsigned long ecam_addr)
+bool rmm_el3_ifc_is_pci_segment_valid(unsigned long ecam_addr,
+				      unsigned long segment)
 {
-	return get_root_complex(ecam_addr) != NULL;
+	struct root_complex_info *root_complex = get_root_complex(ecam_addr);
+
+	return (root_complex != NULL) &&
+	       (segment == (unsigned long)root_complex->segment);
 }
 
 static bool is_bdf_valid(struct root_complex_info *root_complex,
@@ -683,6 +683,25 @@ static bool is_bdf_valid(struct root_complex_info *root_complex,
 bool rmm_el3_ifc_is_bdf_valid(unsigned long ecam_addr, unsigned int bdf)
 {
 	return is_bdf_valid(get_root_complex(ecam_addr), bdf);
+}
+
+bool rmm_el3_ifc_is_rid_range_valid(unsigned long ecam_addr,
+				    unsigned int rid_base,
+				    unsigned int rid_top)
+{
+	struct root_complex_info *root_complex = get_root_complex(ecam_addr);
+
+	if ((root_complex == NULL) || (rid_base >= rid_top)) {
+		return false;
+	}
+
+	for (unsigned int rid = rid_base; rid < rid_top; rid++) {
+		if (!is_bdf_valid(root_complex, rid)) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 bool rmm_el3_ifc_is_root_port_id_valid(unsigned long ecam_addr,
