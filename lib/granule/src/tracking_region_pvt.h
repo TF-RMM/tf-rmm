@@ -6,6 +6,7 @@
 #ifndef TRACKING_REGION_PVT_H
 #define TRACKING_REGION_PVT_H
 
+#include <dev_type.h>
 #include <rwlock.h>
 #include <tracking_region.h>
 
@@ -187,5 +188,88 @@ unsigned long tracking_region_fine_idx_to_addr(
 unsigned long tracking_region_addr_to_idx(unsigned long addr,
 					  enum tr_mem_type type,
 					  unsigned long *category);
+
+/*
+ * Lock a granule whose state and tracking representation are already pinned
+ * by the caller's ownership. @tracking_size selects fine or coarse tracking.
+ * The owner must keep the struct granule and its backing alive through acquisition
+ * and obey granule lock order. This cannot fail and does not enter a region
+ * reader gate or reject a pending transition. Never use for unowned input PAs.
+ */
+struct granule *tr_lock_owned_granule(unsigned long addr,
+		unsigned long tracking_size, unsigned char expected_state);
+
+/*
+ * Return an unlocked granule for @addr through @g when @tracking_size
+ * matches the region's coarse or fine tracking state. No lock is acquired and
+ * success does not keep the struct granule or its backing alive. Before calling,
+ * the caller must establish lifetime protection for any subsequent granule
+ * access: hold a region reader, retain ownership that pins the representation,
+ * or ensure transitions cannot run concurrently. Keep that protection until
+ * granule access ends or its lock is acquired. Use tr_find_lock_granule()
+ * to select and lock an unowned input PA together.
+ *
+ * Return RMI_SUCCESS with *@g set, RMI_BLOCKED for a pending tracking SRO,
+ * encoded RMI_ERROR_TRACKING containing @addr for a mismatch, or RMI_ERROR_INPUT
+ * for an invalid address or tracking size. Leave *@g NULL on failure.
+ */
+unsigned long tr_find_granule(unsigned long addr,
+			      unsigned long tracking_size,
+			      struct granule **g);
+
+/*
+ * Return the PA represented by fine dev_granule @g. The caller must supply a
+ * valid fine dev_granule and keep its representation alive. @type must match
+ * the device bank's coherency type. No locks are acquired; invalid inputs
+ * violate this contract and are asserted.
+ */
+unsigned long tr_dev_granule_addr(const struct dev_granule *g,
+				  enum dev_coh_type type);
+
+/*
+ * Convert a valid device PA to its fine dev_granule and return its coherency
+ * type through non-NULL @type. The caller must supply a Granule-aligned
+ * address in a configured device bank and keep the fine representation alive.
+ * Lookup failure violates this contract and is asserted.
+ */
+struct dev_granule *tr_addr_to_dev_granule(unsigned long addr,
+					   enum dev_coh_type *type);
+
+/*
+ * Return an unlocked dev_granule for @addr through @g when @tracking_size
+ * matches the region's coarse or fine tracking state. No lock is acquired and
+ * success does not keep the struct dev_granule or its backing alive. Before calling,
+ * the caller must establish lifetime protection for any subsequent dev_granule
+ * access: hold a region reader, retain ownership that pins the representation,
+ * or ensure transitions cannot run concurrently. Keep that protection until
+ * dev_granule access ends or its lock is acquired.
+ *
+ * Return RMI_SUCCESS with *@g set and *@type identifying device coherency,
+ * RMI_BLOCKED for a pending tracking SRO, encoded RMI_ERROR_TRACKING containing
+ * @addr for a mismatch, or RMI_ERROR_INPUT for an invalid address or tracking
+ * size. Leave *@g NULL on failure; *@type is then unspecified.
+ */
+unsigned long tr_find_dev_granule(unsigned long addr,
+				  unsigned long tracking_size,
+				  struct dev_granule **g,
+				  enum dev_coh_type *type);
+
+/*
+ * Lock an owned dev_granule whose state and tracking representation are
+ * pinned through acquisition. @tracking_size selects fine or coarse tracking.
+ * Obey dev_granule lock order. Unowned input PAs must use a tracking lookup.
+ * Return the locked dev_granule without entering a region gate or rejecting a
+ * pending transition. The ownership contract makes failure impossible.
+ */
+struct dev_granule *tr_lock_owned_dev_granule(unsigned long addr,
+		unsigned long tracking_size, unsigned char expected_state);
+
+/*
+ * Return an unlocked fine dev_granule, or NULL on lookup failure.
+ * The caller must provide the lifetime protection required by
+ * tr_find_dev_granule(). @type receives device coherency on success.
+ */
+struct dev_granule *tr_find_fine_dev_granule(unsigned long addr,
+					      enum dev_coh_type *type);
 
 #endif /* TRACKING_REGION_PVT_H */

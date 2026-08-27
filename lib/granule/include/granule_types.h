@@ -81,9 +81,10 @@
  *    address order before the backing granules are locked and drained.
  *
  * 8. Device granule states, DEV_GRANULE_STATE_NS,
- *    DEV_GRANULE_STATE_DELEGATED and DEV_GRANULE_STATE_MAPPED, are locked
- *    separately from memory granules by the device granule locking helpers.
- *    Memory granules must be locked before device granules.
+ *    DEV_GRANULE_STATE_DELEGATED, DEV_GRANULE_STATE_MAPPED and
+ *    DEV_GRANULE_STATE_PARTIAL, are locked separately from memory granules by
+ *    the device granule locking helpers. Memory granules must be locked before
+ *    device granules.
  *
  * A granule's state can be changed iff the granule is locked. The
  * granule_lock_order() helper implements the type order used by
@@ -243,9 +244,9 @@
 #define GRANULE_STATE_VDEV_AUX		10U
 
 /*
- * PARTIAL - This is an intermediate state which signals that the object
- * associated with this granule is partially created/destroyed. This is
- * due to an ongoing SRO flow.
+ * PARTIAL - An intermediate state which reserves a granule for an ongoing
+ * SRO. It covers partially created or destroyed objects and tracking memory
+ * participating in a stateful EL3 delegation or undelegation operation.
  */
 #define GRANULE_STATE_PARTIAL		11U
 
@@ -266,10 +267,10 @@
 #define GRANULE_STATE_LAST		GRANULE_STATE_RD_AUX
 
 /*
- * Granule descriptor bit fields:
+ * struct granule bit fields:
  *
  * @bit_lock protects the struct granule itself. Take this lock whenever
- * inspecting or modifying any other fields in this descriptor.
+ * inspecting or modifying any other fields in this struct granule.
  * [15]:	bit_lock
  *
  * @state is the state of the granule.
@@ -291,7 +292,7 @@ struct granule {
 	uint16_t	descriptor;
 };
 
-/* Granule descriptor fields definitions */
+/* Granule bit-field definitions */
 #define GRN_LOCK_SHIFT		U(15)
 #define GRN_LOCK_BIT		(U(1) << GRN_LOCK_SHIFT)
 
@@ -339,15 +340,27 @@ struct granule {
  */
 #define DEV_GRANULE_STATE_MAPPED	2U
 
+/*
+ * Dev Granule participating in an incomplete PAS transition (internal)
+ *
+ * This intermediate state reserves an active dev_granule for a range
+ * delegation or undelegation SRO while EL3 retains operation state.
+ * A coarse dev_granule also remains in this state while a partially delegated
+ * tracking region is rolled back.
+ *
+ * No references are held on this granule type.
+ */
+#define DEV_GRANULE_STATE_PARTIAL	3U
+
 struct dev_granule {
 	uint8_t		descriptor;
 };
 
 /*
- * Device granule descriptor bit fields:
+ * struct dev_granule bit fields:
  *
  * @bit_lock protects the struct dev_granule itself. Take this lock whenever
- * inspecting or modifying any other fields in this descriptor.
+ * inspecting or modifying any other fields in this struct dev_granule.
  * [7]:		bit_lock
  *
  * [6]:		reserved

@@ -107,7 +107,7 @@ static inline bool is_realm_pas_slot(enum buffer_slot slot)
 
 void *ns_buffer_granule_map(enum buffer_slot slot, struct granule *granule)
 {
-	unsigned long addr = granule_addr(granule);
+	unsigned long addr = tr_granule_addr(granule);
 
 	assert(is_ns_slot(slot));
 	return buffer_arch_map(slot, addr);
@@ -127,7 +127,7 @@ void ns_buffer_unmap(void *buf)
  */
 void *buffer_granule_map(struct granule *g, enum buffer_slot slot)
 {
-	unsigned long addr = granule_addr(g);
+	unsigned long addr = tr_granule_addr(g);
 
 	assert(is_realm_pas_slot(slot) && !is_realm_mecid_slot(slot));
 
@@ -143,7 +143,7 @@ void *buffer_granule_map(struct granule *g, enum buffer_slot slot)
 void *buffer_granule_mecid_map(struct granule *g, enum buffer_slot slot,
 		unsigned int mecid)
 {
-	unsigned long addr = granule_addr(g);
+	unsigned long addr = tr_granule_addr(g);
 
 	assert(is_realm_pas_slot(slot) && is_realm_mecid_slot(slot));
 
@@ -213,7 +213,7 @@ void buffer_granule_sanitize_addr(unsigned long addr)
 void buffer_granule_sanitize(struct granule *g)
 {
 	assert(g != NULL);
-	buffer_granule_sanitize_addr(granule_addr(g));
+	buffer_granule_sanitize_addr(tr_granule_addr(g));
 }
 
 /*
@@ -230,7 +230,7 @@ bool ns_buffer_read(enum buffer_slot slot, struct granule *ns_gr,
 	offset &= (unsigned int)(~GRANULE_MASK);
 	assert((offset + size) <= GRANULE_SIZE);
 
-	return ns_buffer_read_addr(slot, granule_addr(ns_gr), offset, size, dest);
+	return ns_buffer_read_addr(slot, tr_granule_addr(ns_gr), offset, size, dest);
 }
 
 /*
@@ -246,7 +246,7 @@ bool ns_buffer_read_unaligned(enum buffer_slot slot, struct granule *ns_gr,
 	assert(size <= GRANULE_SIZE);
 	assert((size_t)offset <= ((size_t)GRANULE_SIZE - size));
 
-	return ns_buffer_read_unaligned_addr(slot, granule_addr(ns_gr), offset,
+	return ns_buffer_read_unaligned_addr(slot, tr_granule_addr(ns_gr), offset,
 					     size, dest);
 }
 
@@ -264,7 +264,7 @@ bool ns_buffer_write(enum buffer_slot slot, struct granule *ns_gr,
 	offset &= (unsigned int)(~GRANULE_MASK);
 	assert((offset + size) <= GRANULE_SIZE);
 
-	return ns_buffer_write_addr(slot, granule_addr(ns_gr), offset, size, src);
+	return ns_buffer_write_addr(slot, tr_granule_addr(ns_gr), offset, size, src);
 }
 
 /*
@@ -292,7 +292,7 @@ bool ns_buffer_write_unaligned(enum buffer_slot slot, struct granule *ns_gr,
 	offset &= (unsigned int)(~GRANULE_MASK);
 	assert((offset + round_up(align_diff + size, 8U)) <= GRANULE_SIZE);
 
-	return ns_buffer_write_unaligned_addr(slot, granule_addr(ns_gr), offset,
+	return ns_buffer_write_unaligned_addr(slot, tr_granule_addr(ns_gr), offset,
 					      size, src, ns_start_offset);
 }
 

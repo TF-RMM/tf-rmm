@@ -23,7 +23,7 @@
 /* Maximum number of 64-byte STEs in a granule-sized PSMMU L2 Stream Table */
 #define PSMMU_ST_L2_REFCOUNT_MAX	(unsigned short)(GRANULE_SIZE / U(64))
 
-/* Maximum value defined by the 'refcount' field width in granule descriptor */
+/* Maximum value defined by the 'refcount' field width in struct granule */
 #define REFCOUNT_MAX		(unsigned short)	\
 					((U(1) << GRN_REFCOUNT_WIDTH) - U(1))
 #else /* CBMC */
@@ -38,7 +38,7 @@ COMPILER_ASSERT(RTT_REFCOUNT_MAX <= REFCOUNT_MAX);
 /* PSMMU_ST_L2_REFCOUNT_MAX can't exceed REFCOUNT_MAX */
 COMPILER_ASSERT(PSMMU_ST_L2_REFCOUNT_MAX <= REFCOUNT_MAX);
 
-/* Granule descriptor fields access macros */
+/* Granule bit-field access macros */
 #define LOCKED(g)	\
 	((SCA_READ16(&(g)->descriptor) & GRN_LOCK_BIT) != 0U)
 
@@ -189,7 +189,7 @@ static inline void __granule_set_state(struct granule *g, unsigned char state)
 /*
  * Acquire @g only while its state matches @expected_state.
  *
- * The caller must keep the descriptor stable and obey the state, address and
+ * The caller must keep the granule stable and obey the state, address and
  * RTT hierarchy ordering rules for all locks it already holds. Independently
  * supplied expected states are permitted when acquired in that order.
  *
@@ -233,7 +233,7 @@ static inline bool granule_lock_on_state_match(struct granule *g,
 /*
  * Acquire @g through a protected reference, returning with its lock held.
  *
- * The caller must keep the descriptor stable and establish the locking order
+ * The caller must keep the granule stable and establish the locking order
  * independently of its current state. Wait unconditionally so an in-progress
  * transition to @expected_state can finish, then assert that state and check
  * its invariants. A state mismatch after acquisition is a programming error.
@@ -253,53 +253,73 @@ static inline void granule_unlock(struct granule *g)
 	granule_bitlock_release(g);
 }
 
-/* Transtion state to @new_state and unlock the granule */
+/*
+ * Transition to @new_state and unlock @g.
+ *
+ * A transition to DELEGATED is valid only from NS, after a synchronous EL3
+ * transition, or from PARTIAL when an SRO publishes completed EL3 progress.
+ */
 static inline void granule_unlock_transition(struct granule *g,
 					     unsigned char new_state)
 {
 	/*
 	 * Restrict this function for transitions to non-delegated states.
-	 * The only exception is when transitioning from NS to delegated state.
+	 * NS and PARTIAL are the only states which can enter DELEGATED.
 	 */
 	assert((new_state != GRANULE_STATE_DELEGATED) ||
-		(granule_get_state(g) == GRANULE_STATE_NS));
+	       (granule_get_state(g) == GRANULE_STATE_NS) ||
+	       (granule_get_state(g) == GRANULE_STATE_PARTIAL));
 
 	__granule_set_state(g, new_state);
 	granule_unlock(g);
 }
 
 /*
- * Initialize the granule library.
+ * Return the PA represented by fine granule @g. The caller must supply a valid
+ * fine granule and keep its representation alive. No locks are acquired; an
+ * invalid granule violates this contract and is asserted.
  */
-int granule_init(uintptr_t alloc, size_t alloc_size,
-				unsigned long max_gr);
+unsigned long tr_granule_addr(const struct granule *g);
 
-unsigned long granule_addr(const struct granule *g);
-struct granule *addr_to_granule(unsigned long addr);
-struct granule *find_granule(unsigned long addr);
-struct granule *find_lock_granule(unsigned long addr,
-				  unsigned char expected_state);
+/*
+ * Return the fine granule for conventional @addr. The caller must supply a
+ * Granule-aligned address in a configured conventional bank and keep the fine
+ * representation alive. No locks are acquired; an invalid address violates
+ * this contract and is asserted.
+ */
+struct granule *tr_addr_to_granule(unsigned long addr);
 
-bool find_lock_two_granules(unsigned long addr1,
-			    unsigned char expected_state1,
-			    struct granule **g1,
-			    unsigned long addr2,
-			    unsigned char expected_state2,
-			    struct granule **g2);
+/*
+ * Find and lock a granule for @addr in @expected_state. @tracking_size selects
+ * the coarse or fine representation. The tracking-region read lock stabilizes
+ * selection until the granule lock is acquired. Return RMI_ERROR_INPUT for an
+ * invalid address, size or Granule state, RMI_BLOCKED for a pending tracking
+ * SRO, or encoded RMI_ERROR_TRACKING for an inactive representation.
+ * The caller may perform further lookups while holding the returned granule,
+ * provided that Granule locks follow the documented state and address order.
+ */
+unsigned long tr_find_lock_granule(unsigned long addr,
+				   unsigned long tracking_size,
+				   unsigned char expected_state,
+				   struct granule **g);
 
-bool find_lock_three_granules(
-			unsigned long addr1,
-			unsigned char expected_state1,
-			struct granule **g1,
-			unsigned long addr2,
-			unsigned char expected_state2,
-			struct granule **g2,
-			unsigned long addr3,
-			unsigned char expected_state3,
-			struct granule **g3);
-
+/*
+ * Return an unlocked fine granule for @addr, or NULL on lookup failure.
+ * The caller must protect its representation and metadata from before lookup
+ * until granule access ends or its lock is acquired. Retain ownership that
+ * pins the representation, or ensure tracking transitions cannot run concurrently.
+ * A non-NULL result alone does not protect its lifetime.
+ */
+struct granule *tr_find_fine_granule(unsigned long addr);
 void granule_memzero_mapped(void *buf);
 void granule_dcci_poe(struct granule *g);
+
+/*
+ * Perform the PoE cache maintenance required before returning every Granule
+ * in [@addr, @addr + @size) to DELEGATED. Both values must be Granule
+ * aligned. The operation is a no-op when FEAT_MEC is absent.
+ */
+void granule_dcci_poe_range(unsigned long addr, unsigned long size);
 
 void granule_sanitize_mapped(void *buf);
 void granule_sanitize_1_mapped(void *buf);
@@ -329,7 +349,7 @@ static inline void granule_unlock_transition_to_delegated(struct granule *g)
 }
 
 /*
- * Refcount field occupies LSB bits of the granule descriptor,
+ * Refcount field occupies LSB bits of struct granule,
  * and functions which modify its value can operate directly on
  * the whole 16-bit word without masking, provided that the result
  * doesn't exceed REFCOUNT_MAX or set to negative number.
@@ -398,43 +418,6 @@ static inline void atomic_granule_put_release(struct granule *g)
 	old_refcount = atomic_load_add_release_16(&g->descriptor,
 						(uint16_t)(-1)) & REFCOUNT_MASK;
 	assert(old_refcount != 0U);
-}
-
-/*
- * Obtain a pointer to a locked unused granule at @addr if @addr is a valid
- * granule physical address, the state of the granule at @addr is
- * @expected_state, and the granule at @addr is unused.
- *
- * Returns:
- * 0, @*g - address of the granule,
- *	if @addr is a valid granule physical address.
- * -EINVAL, @*g = NULL,
- *	if @addr is not aligned to the size of a granule,
- *	@addr is out of range, or if the state of the granule at @addr
- *	is not @expected_state.
- * -EBUSY, @*g = NULL,
- *	if the granule at @addr has a non-zero reference count.
- */
-static inline int find_lock_unused_granule(unsigned long addr,
-					   unsigned char expected_state,
-					   struct granule **g)
-{
-	*g = find_lock_granule(addr, expected_state);
-	if (*g == NULL) {
-		return -EINVAL;
-	}
-
-	/*
-	 * Granules can have lock-free access (e.g. REC), thus using acquire
-	 * semantics to avoid race conditions.
-	 */
-	if (granule_refcount_read_acquire(*g) != 0U) {
-		granule_unlock(*g);
-		*g = NULL;
-		return -EBUSY;
-	}
-
-	return 0;
 }
 
 /*
