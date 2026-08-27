@@ -10,6 +10,7 @@ Design
 
     locking
     memory-management
+    dynamic-granule-management
     rtt-map-unmap
     file-org-and-config
     pdev_aux_granules

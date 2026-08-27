@@ -10,6 +10,10 @@ commands implemented in ``runtime/rmi/rtt_map.c`` and
 ``runtime/rmi/rtt_unmap.c``. It focuses on the common flow first, then
 describes how the DATA, UNPROT and DEV flavours differ.
 
+The active coarse or fine backing-granule representation changes parts of
+the DATA and DEV flows. See :doc:`dynamic-granule-management` for their
+tracking-size validation and Granule state transitions.
+
 The commands covered here are:
 
 - ``RMI_RTT_DATA_MAP`` and ``RMI_RTT_DATA_UNMAP`` for protected Realm data.
@@ -175,7 +179,7 @@ Map flow
    For each entry in that leaf while IPA < top:
        pop one descriptor and run per-block checks
        DATA/DEV: stamp drain-pending entry and drain backing granules
-                 yield via SRO if an IRQ is pending
+                 yield via SRO if an IRQ is pending and this block has progress
        UNPROT:  write assigned_ns entry synchronously
        advance out_top
              |
@@ -236,6 +240,12 @@ to ``base`` at the requested level, and maps the leaf RTT with the Realm MECID.
 The loop then consumes one block descriptor per leaf slot until it reaches the
 end of the leaf, the requested ``top``, the descriptor list, an error, or a
 yield point.
+
+Input address-list entries are processed in list order and need not be sorted
+by PA. DATA and DEV map release each backing-granule lock before acquiring the
+next, and each tracking lookup releases its region read lock before returning.
+The leaf RTT remains locked, preserving RTT-before-backing-granule order even
+when successive PAs belong to different tracking regions.
 
 ``RMI_RTT_DATA_MAP`` and ``RMI_RTT_DEV_MAP`` reserve an SRO context before
 validation because one block can take multiple per-granule transitions. If
@@ -326,6 +336,12 @@ each live entry owned by the selected flavour, it:
 4. Stamps ``TLBI_PENDING`` when the old entry had a hardware-valid mapping.
 5. Advances ``cur_base`` to the next IPA.
 
+For a coarse DATA/DEV block, validation retains the backing lock until these
+steps succeed. The sweep then claims the whole unit as ``PARTIAL``, releases
+its lock and stops. The SRO keeps the owned object through all deferred work;
+tracking changes cannot replace it across a yield. A failure before queueing
+releases the validation lock without claiming the unit.
+
 Non-live entries are skipped. If no live entry was unmapped, the result still
 advances ``x[1]`` over the contiguous run of non-live entries in the leaf so
 the host can skip unused IPA ranges efficiently.
@@ -351,16 +367,21 @@ All unmap flavours then run the same deferred pipeline:
    assignment is enabled, for entries marked with
    ``S2TTE_SW_TLBI_PENDING_BIT`` and a matching ``S2TTE_SW_HANDLE``. Clear the
    TLBI-pending bit after each invalidation.
-2. Drain backing granules for DATA and DEV unmap. DATA transitions DATA
-   granules back to DELEGATED with the required cache maintenance. DEV
-   transitions MAPPED dev granules back to DELEGATED. UNPROT has no backing
-   granule drain.
+2. Drain backing granules for DATA and DEV unmap. DATA transitions fine DATA
+   granules or its coarse PARTIAL unit back to DELEGATED after the required
+   cache maintenance. DEV transitions fine MAPPED dev granules or its coarse
+   PARTIAL unit back to DELEGATED. UNPROT has no backing granule drain.
 3. Clear the drain-pending markers and drop the leaf RTT refcount associated
    with each stamped entry whose ``S2TTE_SW_HANDLE`` matches the current SRO.
 
 The first two phases are yieldable and sample for pending IRQs. If a yield
 occurs, the SRO context keeps the output address list, drain cursors and leaf
 metadata. ``RMI_OP_CONTINUE`` re-locks the leaf and resumes the same pipeline.
+Once invalidation completes, later drain continuations skip that phase.
+Coarse PARTIAL ownership survives both kinds of yield without a retained lock,
+including a yield waiting for SMMU CMD_SYNC. The deferred drain cannot encounter
+a pending tracking transition: fine DATA/MAPPED states or coarse PARTIAL
+ownership prevent its acceptance.
 
 Result formatting
 =================
@@ -387,14 +408,24 @@ DATA map
 
 DATA map consumes descriptors whose state is ``RMI_OP_MEM_DELEGATED`` and maps
 them inside the |PAR|. A new mapping starts from an unassigned leaf entry. The
-entry is stamped with the SRO handle and drain-pending bit, then each backing
-granule is locked in DELEGATED state, zeroed under the Realm MECID, and
-transitioned to DATA.
+entry is stamped with the SRO handle and drain-pending bit. With fine tracking,
+each backing ``struct granule`` is locked in DELEGATED state, zeroed under the
+Realm MECID, and transitioned to DATA.
+
+With coarse tracking, the SRO claims the entire ``struct granule`` as PARTIAL
+and releases its lock. It zeroes one page at a time under the Realm MECID and
+saves the next page offset across IRQ yields. PARTIAL excludes tracking changes
+and competing users, including access to the unzeroed suffix. Each continuation
+processes at least one page before yielding. After the last page, the whole
+unit transitions to DATA and its S2TTE is finalized without another yield.
+The zeroing offset is never reported as a partially completed mapping.
 
 When all granules in the block have been drained, the leaf entry is finalized
 with ``s2tte_create_assigned_unchanged()`` for the requested OA. If a backing
-granule cannot be claimed, already transitioned granules are rolled back to
-DELEGATED, the marker is cleared, and the leaf refcount is dropped.
+granule cannot be claimed, already transitioned fine granules are rolled back
+to DELEGATED, the marker is cleared, and the leaf refcount is dropped. Coarse
+zeroing has no fallible operation after the PARTIAL claim and cannot enter
+this rollback path.
 
 An existing DATA mapping to the same OA is idempotent. An existing mapping to a
 different OA, a non-unassigned entry, or an entry with a pending drain produces
@@ -415,9 +446,13 @@ The replacement S2TTE preserves the DATA RIPAS state:
 - ``assigned_destroyed`` becomes ``unassigned_destroyed`` and does not owe
   TLBI.
 
-After TLBI, every freed DATA granule is transitioned back to DELEGATED in
-ascending PA order with cache maintenance. The old live mapping refcount on
-the leaf is dropped only after this drain and marker clearing are complete.
+After TLBI, fine DATA granules return to DELEGATED in ascending PA order with
+cache maintenance. A coarse unit stays PARTIAL while cache maintenance advances
+one page at a time. Each drain continuation processes at least one page before
+yielding. Only after all pages are maintained does the whole unit become
+DELEGATED; no maintained prefix is published separately. The old mapping
+refcount on the leaf is dropped only after this drain and marker clearing
+are complete.
 
 UNPROT map
 ==========
@@ -461,6 +496,13 @@ entry is stamped with the SRO handle and drain-pending bit, then each backing
 coherency type of the first ``dev_granule`` is recorded, and every later
 granule in the block must match it.
 
+The drain yields only with a nonempty fine ``MAPPED`` prefix in the current
+block. That prefix prevents tracking transitions until completion or rollback.
+A coarse block completes in one step without yielding. If the first lookup
+encounters a pending tracking transition, the unused marker and transient
+references are cleared; the call returns ``RMI_BLOCKED``, or success for any
+earlier completed blocks, without retaining an SRO.
+
 When the block drain completes, the leaf entry is finalized with
 ``s2tte_create_assigned_dev_unchanged()``. If any backing dev granule cannot be
 claimed, or if coherency types differ within the block, already transitioned
@@ -483,6 +525,7 @@ entries:
 - ``assigned_dev_destroyed`` becomes ``unassigned_destroyed`` and does not owe
   TLBI.
 
-After TLBI, every freed MAPPED dev granule is transitioned back to DELEGATED in
-ascending PA order. No data-cache maintenance is required for device memory,
+After TLBI, every freed fine MAPPED dev granule or owned coarse PARTIAL unit
+is transitioned back to DELEGATED in ascending PA order. No data-cache
+maintenance is required for device memory,
 but the drain still uses the same cooperative yield structure as DATA unmap.
