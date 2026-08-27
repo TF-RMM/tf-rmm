@@ -12,7 +12,7 @@ static void arm_set_memory_layout(struct memory_info *plat_info,
 				  struct arm_memory_layout *memory_ptr)
 {
 	struct memory_bank *bank_ptr;
-	uint64_t num_banks, num_granules = 0UL;
+	uint64_t num_banks;
 
 	assert((plat_info != NULL) && (memory_ptr != NULL));
 	assert(!is_mmu_enabled());
@@ -32,14 +32,10 @@ static void arm_set_memory_layout(struct memory_info *plat_info,
 
 		memory_ptr->bank[i].base = base;
 		memory_ptr->bank[i].size = size;
-		memory_ptr->bank[i].start_gran_idx = num_granules;
-
-		num_granules += (size >> GRANULE_SHIFT);
 		bank_ptr++;
 	}
 
 	memory_ptr->num_banks = num_banks;
-	memory_ptr->num_granules = num_granules;
 
 	inv_dcache_range((uintptr_t)memory_ptr,
 				sizeof(struct arm_memory_layout));
