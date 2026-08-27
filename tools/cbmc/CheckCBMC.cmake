@@ -76,6 +76,17 @@ set(SMMU_MAX_SID_BITS "16")
 # Set up cbmc command line
 #
 set(cbmc_unwinds_list
+  # Allow one acquisition attempt and no waiting in the single-PE model.
+  # Assert and analysis modes check that these bounds are sufficient.
+  # Include the renamed static inline copies retained by goto-cc.
+  "--unwindset;bitlock_wait_while_8.0:1"
+  "--unwindset;bitlock_wait_while_8$link1.0:1"
+  "--unwindset;bitlock_wait_while_16.0:1"
+  "--unwindset;bitlock_wait_while_16$link1.0:1"
+  "--unwindset;dev_granule_lock_on_state_match.0:1"
+  "--unwindset;dev_granule_lock_on_state_match$link1.0:1"
+  "--unwindset;granule_lock_on_state_match.0:1"
+  "--unwindset;granule_lock_on_state_match$link1.0:1"
   "--unwindset;find_lock_granules.3:${MAX_ROOT_RTT}"
   "--unwindset;find_lock_rd_granules.0:${MAX_RTT_UNWIND}"
   "--unwindset;find_lock_rd_granules.1:${MAX_RTT_UNWIND}"
@@ -142,6 +153,7 @@ set(cbmc_flags_list
   # Optimisation flags:
   "--drop-unused-functions"
   "--reachability-slice"
+  "--slice-formula"
   )
 
 if("${RMM_CBMC_CONFIGURATION}" STREQUAL "COVERAGE")
