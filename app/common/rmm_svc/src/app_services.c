@@ -25,7 +25,8 @@ typedef uint64_t (*app_service_func)(struct app_data_cfg *app_data,
 
 struct ns_rw_data {
 	uintptr_t app_buf;
-	struct granule *ns_granule;
+	unsigned long ns_addr;
+	bool valid;
 };
 
 /* Save messages for logging to prevent interleaving */
@@ -334,7 +335,7 @@ static struct ns_rw_data validate_and_get_ns_rw_data(struct app_data_cfg *app_da
 	unsigned long buf_len,
 	bool force_alignment)
 {
-	struct ns_rw_data rw_data = {0, NULL};
+	struct ns_rw_data rw_data = { 0U, 0UL, false };
 	uintptr_t app_buf = 0;
 
 	if ((app_buf_id != APP_SERVICE_RW_NS_BUF_SHARED) &&
@@ -380,16 +381,9 @@ static struct ns_rw_data validate_and_get_ns_rw_data(struct app_data_cfg *app_da
 		return rw_data;
 	}
 
-	/* Find the ns_granule and populate it in rw_data */
-	rw_data.ns_granule = find_granule(ns_addr & GRANULE_MASK);
-	if ((rw_data.ns_granule == NULL) ||
-		(granule_unlocked_state(rw_data.ns_granule) != GRANULE_STATE_NS)) {
-		ERROR("%s ns granule not found or invalid state for ns addr 0x%lx\n",
-				__func__, ns_addr);
-		return rw_data;
-	}
-
 	rw_data.app_buf = app_buf;
+	rw_data.ns_addr = ns_addr;
+	rw_data.valid = true;
 	return rw_data;
 }
 
@@ -425,11 +419,13 @@ static uint64_t app_service_write_to_ns_buf(struct app_data_cfg *app_data,
 	struct ns_rw_data rw_data = validate_and_get_ns_rw_data(app_data, app_buf_id,
 		app_buf_offset, ns_addr, buf_len, false);
 
-	if (rw_data.ns_granule == NULL) {
+	if (!rw_data.valid) {
 		return (uint64_t)(-EINVAL);
 	}
 
-	ns_access_ok = ns_buffer_write_unaligned(SLOT_NS, rw_data.ns_granule, 0, buf_len,
+	ns_access_ok = ns_buffer_write_unaligned_addr(SLOT_NS,
+		rw_data.ns_addr & GRANULE_MASK,
+		(unsigned int)rw_data.ns_addr, buf_len,
 		(void *)rw_data.app_buf, &gr_offset);
 	if (!ns_access_ok) {
 		ERROR("%s ns buffer read failed for ns addr 0x%lx and app_buf 0x%lx\n",
@@ -473,11 +469,12 @@ static uint64_t app_service_read_from_ns_buf_aligned(struct app_data_cfg *app_da
 	struct ns_rw_data rw_data = validate_and_get_ns_rw_data(app_data, app_buf_id,
 		app_buf_offset, ns_addr, buf_len, true);
 
-	if (rw_data.ns_granule == NULL) {
+	if (!rw_data.valid) {
 		return (uint64_t)(-EINVAL);
 	}
 
-	ns_access_ok = ns_buffer_read(SLOT_NS, rw_data.ns_granule, 0, buf_len,
+	ns_access_ok = ns_buffer_read_addr(SLOT_NS, rw_data.ns_addr & GRANULE_MASK,
+		(unsigned int)rw_data.ns_addr, buf_len,
 		(void *)rw_data.app_buf);
 	if (!ns_access_ok) {
 		ERROR("%s ns buffer read failed for ns addr 0x%lx and app_buf 0x%lx\n",

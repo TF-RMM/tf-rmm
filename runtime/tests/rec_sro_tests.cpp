@@ -1142,24 +1142,20 @@ TEST(rec_sro_tests, rec_destroy_reclaim_unaligned_output)
 }
 
 /* ----------------------------------------------------------------
- * TC_DESTROY_08: NS output buffer is in DELEGATED state (not NS).
+ * TC_DESTROY_08: Tracking state does not gate an NS output buffer.
  *
- *  copy_list_to_ns() checks the granule state of the output page.
- *  When it is not NS the call returns RMI_ERROR_INPUT with zero
- *  entries written.  The SRO context survives so a valid retry
- *  succeeds.
+ *  Architectural NS access is authoritative, so the tracking granule
+ *  is not consulted when copying the output list.
  * ----------------------------------------------------------------
  */
-TEST(rec_sro_tests, rec_destroy_reclaim_non_ns_output_buffer)
+TEST(rec_sro_tests, rec_destroy_reclaim_ignores_output_tracking_state)
 {
 	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
 	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
 
-	/* A delegated granule is NOT in NS state */
+	/* Give the buffer a non-NS tracking state. */
 	uintptr_t bad_buf = test_helpers_allocate_granules(1U);
 	CHECK_TRUE(delegate_range(bad_buf, bad_buf + GRANULE_SIZE));
-
-	uintptr_t ns_buf = test_helpers_allocate_granules(1U); /* stays in NS state */
 
 	struct smc_result res = {};
 	smc_rec_destroy(rec_pa, &res);
@@ -1168,14 +1164,9 @@ TEST(rec_sro_tests, rec_destroy_reclaim_non_ns_output_buffer)
 	smc_op_mem_reclaim(handle, bad_buf,
 			   (unsigned long)MAX_REC_AUX_GRANULES, &res);
 	return_code_t rc = unpack_return_code(res.x[0]);
-	CHECK_EQUAL(RMI_ERROR_INPUT, rc.status);
-	CHECK_EQUAL(0UL, res.x[1]);
+	CHECK_EQUAL(RMI_INCOMPLETE, rc.status);
+	CHECK_EQUAL(1UL, res.x[1]);
 
-	/* Retry with valid NS buffer — should succeed */
-	drain_reclaim(handle, ns_buf,
-		      (unsigned long)MAX_REC_AUX_GRANULES,
-		      (unsigned long)MAX_REC_AUX_GRANULES,
-		      aux_pa);
 	smc_op_continue(handle, 0UL, &res);
 	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
 }
@@ -1339,7 +1330,7 @@ TEST(rec_sro_tests, rec_destroy_reclaim_pending_entries_memmove)
 	populate_fake_rec(rec_pa, g_rd, aux_pa, 2U, mpidr);
 	add_fake_rec_mpidr_mapping(g_rd, mpidr, rec_pa);
 
-	/* A delegated granule serves as the invalid (non-NS) output buf */
+	/* A delegated granule must not prevent architectural NS access. */
 	uintptr_t bad_buf = test_helpers_allocate_granules(1U);
 	CHECK_TRUE(delegate_range(bad_buf, bad_buf + GRANULE_SIZE));
 
@@ -1353,21 +1344,10 @@ TEST(rec_sro_tests, rec_destroy_reclaim_pending_entries_memmove)
 	unsigned long handle = res.x[1];
 
 	/*
-	 * Step 3: drive the callback with list_count = 2 so both descriptors
-	 * are populated, then fail the NS copy with the delegated buffer.
-	 * addr_list->count remains 2.
+	 * Step 3: populate both descriptors and copy one through a buffer whose
+	 * tracking granule is delegated. One address-list descriptor remains pending.
 	 */
-	smc_op_mem_reclaim(handle, bad_buf, 2UL, &res);
-	rc = unpack_return_code(res.x[0]);
-	CHECK_EQUAL(RMI_ERROR_INPUT, rc.status);
-	CHECK_EQUAL(0UL, res.x[1]);
-
-	/*
-	 * Step 4: retry with valid NS buffer, list_count = 1.
-	 * addr_list->count = 2 → copies 1 descriptor → memmove shifts [1]
-	 * to [0] → addr_list->count = 1 → "still pending" → RECLAIM.
-	 */
-	smc_op_mem_reclaim(handle, ns_buf, 1UL, &res);
+	smc_op_mem_reclaim(handle, bad_buf, 1UL, &res);
 	rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_INCOMPLETE, rc.status);
 	CHECK_EQUAL(1UL, res.x[1]);
@@ -1375,7 +1355,7 @@ TEST(rec_sro_tests, rec_destroy_reclaim_pending_entries_memmove)
 		    (unsigned long)EXTRACT(RMI_OP_MEM_REQ, res.x[0]));
 
 	/*
-	 * Step 5: drain the final descriptor → MEM_REQ_NONE.
+	 * Step 4: drain the remaining descriptor through the ordinary buffer.
 	 */
 	smc_op_mem_reclaim(handle, ns_buf, 1UL, &res);
 	rc = unpack_return_code(res.x[0]);
@@ -1384,7 +1364,7 @@ TEST(rec_sro_tests, rec_destroy_reclaim_pending_entries_memmove)
 	CHECK_EQUAL(RMI_OP_MEM_REQ_NONE,
 		    (unsigned long)EXTRACT(RMI_OP_MEM_REQ, res.x[0]));
 
-	/* Step 6: finish the destroy */
+	/* Step 5: finish the destroy. */
 	smc_op_continue(handle, 0UL, &res);
 	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
 }

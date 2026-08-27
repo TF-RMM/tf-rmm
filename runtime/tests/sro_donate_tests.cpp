@@ -327,12 +327,13 @@ TEST(sro_donate_tests, donate_contig_multi_entry)
 }
 
 /* ----------------------------------------------------------------
- * TC_DONATE_05: List granule address is not in NS PAS → ERROR_INPUT.
+ * TC_DONATE_05: List access does not depend on its tracking granule.
  *
- *  A delegated granule is not NS, so find_granule check fails.
+ *  Architectural NS access is authoritative, so a non-NS tracking state
+ *  does not reject the list before it is accessed.
  * ----------------------------------------------------------------
  */
-TEST(sro_donate_tests, donate_list_granule_not_ns)
+TEST(sro_donate_tests, donate_list_ignores_tracking_state)
 {
 	unsigned long xfer = GRANULE_SIZE;
 	unsigned long handle = create_donate_ctx(xfer, false);
@@ -342,7 +343,7 @@ TEST(sro_donate_tests, donate_list_granule_not_ns)
 
 	struct smc_result res = {};
 	smc_op_mem_donate(handle, del_buf, 1UL, &res);
-	CHECK_EQUAL(RMI_ERROR_INPUT, res.x[0]);
+	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
 
 	release_ctx(handle);
 }
@@ -1153,13 +1154,13 @@ TEST(sro_donate_tests, reclaim_multi_batch_memmove)
 }
 
 /* ----------------------------------------------------------------
- * TC_RECLAIM_05: Reclaim copy to non-NS granule → ERROR_INPUT.
+ * TC_RECLAIM_05: Reclaim output does not depend on tracking state.
  *
- *  Pending entries exist but the list_addr points to a delegated
- *  (non-NS) granule, so copy_list_to_ns fails.
+ *  Pending entries can be copied through a buffer whose tracking granule
+ *  is delegated because architectural NS access is authoritative.
  * ----------------------------------------------------------------
  */
-TEST(sro_donate_tests, reclaim_copy_to_non_ns_granule)
+TEST(sro_donate_tests, reclaim_copy_ignores_tracking_state)
 {
 	uintptr_t del_buf = reserve_granules(1U);
 	CHECK_TRUE(delegate_range(del_buf, del_buf + GRANULE_SIZE));
@@ -1182,11 +1183,11 @@ TEST(sro_donate_tests, reclaim_copy_to_non_ns_granule)
 	CHECK_EQUAL(RMI_INCOMPLETE, unpack_return_code(res.x[0]).status);
 	CHECK_EQUAL(1UL, res.x[1]);
 
-	/* Second call: target buffer is delegated → copy fails */
+	/* Second call: the delegated tracking granule does not gate the copy. */
 	struct smc_result res2 = {};
 	smc_op_mem_reclaim(handle, del_buf, 1UL, &res2);
-	CHECK_EQUAL(RMI_ERROR_INPUT, res2.x[0]);
-	CHECK_EQUAL(0UL, res2.x[1]);
+	CHECK_EQUAL(RMI_INCOMPLETE, unpack_return_code(res2.x[0]).status);
+	CHECK_EQUAL(1UL, res2.x[1]);
 
 	release_ctx(handle);
 	sro_install_test_handler(SMC_RMI_REC_CREATE, prev);

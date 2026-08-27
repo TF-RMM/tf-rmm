@@ -424,7 +424,6 @@ bool addr_list_partial_copy_to_host(struct addr_list *list,
 						 sizeof(unsigned long);
 	unsigned int list_count = list->count;
 	unsigned int granule_remaining;
-	struct granule *g_ns;
 
 	/*
 	 * The host buffer must lie within a single granule. Cap the write at
@@ -444,12 +443,7 @@ bool addr_list_partial_copy_to_host(struct addr_list *list,
 	list_count = MIN(list_count, ns_list_count);
 	list_count = MIN(list_count, granule_remaining);
 
-	g_ns = find_granule(ns_list_addr & GRANULE_MASK);
-	if ((g_ns == NULL) || (granule_unlocked_state(g_ns) != GRANULE_STATE_NS)) {
-		return false;
-	}
-
-	if (!ns_buffer_write(SLOT_NS, g_ns,
+	if (!ns_buffer_write_addr(SLOT_NS, ns_list_addr & GRANULE_MASK,
 			(unsigned int)(ns_list_offset * sizeof(unsigned long)),
 			(list_count * sizeof(unsigned long)),
 			 (void *)&list->range_desc[0])) {
@@ -477,7 +471,6 @@ bool addr_list_copy_from_host(struct addr_list *list,
 
 	unsigned long ns_list_offset =  (ns_list_addr & ~GRANULE_MASK) /
 						 sizeof(unsigned long);
-	struct granule *g_ns;
 
 	/* Check if an uninitialized list is being used */
 	assert(list->count == 0U);
@@ -486,12 +479,7 @@ bool addr_list_copy_from_host(struct addr_list *list,
 	assert((ns_list_offset + ns_list_count) <= (unsigned int)ADDR_LIST_MAX_RANGES);
 	assert(ALIGNED(ns_list_addr, sizeof(unsigned long)));
 
-	g_ns = find_granule(ns_list_addr & GRANULE_MASK);
-	if ((g_ns == NULL) || (granule_unlocked_state(g_ns) != GRANULE_STATE_NS)) {
-		return false;
-	}
-
-	if (!ns_buffer_read(SLOT_NS, g_ns,
+	if (!ns_buffer_read_addr(SLOT_NS, ns_list_addr & GRANULE_MASK,
 			(unsigned int)(ns_list_offset * sizeof(unsigned long)),
 			(ns_list_count * sizeof(unsigned long)),
 			(void *)&list->range_desc[0])) {

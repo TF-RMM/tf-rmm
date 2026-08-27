@@ -81,9 +81,26 @@ static inline enum buffer_slot safe_cast_to_slot(enum buffer_slot slot, unsigned
 bool check_cpu_slots_empty(void);
 void *buffer_granule_map(struct granule *g, enum buffer_slot slot);
 void *buffer_granule_mecid_map(struct granule *g, enum buffer_slot slot,
-			unsigned int mecid);
+		unsigned int mecid);
+
+/*
+ * Map the aligned Realm PA @addr with @mecid and return its slot VA.
+ * The caller must retain ownership of the physical page, for example through
+ * its locked leaf RTT, until buffer_unmap(). No granule lookup is needed.
+ */
+void *buffer_granule_mecid_map_addr(unsigned long addr, enum buffer_slot slot,
+				 unsigned int mecid);
+
+/*
+ * Map and zero the Realm granule at @addr with @mecid. The address form is
+ * used when one coarse tracking granule represents a physical range.
+ */
+void *buffer_granule_mecid_map_addr_zeroed(unsigned long addr,
+					    enum buffer_slot slot,
+					    unsigned int mecid);
 void buffer_unmap(void *buf);
 
+/* Legacy descriptor APIs retained until all callers use PA-based access. */
 bool ns_buffer_read(enum buffer_slot slot,
 		    struct granule *ns_gr,
 		    unsigned int offset,
@@ -109,9 +126,54 @@ bool ns_buffer_write_unaligned(enum buffer_slot slot,
 			       void *src,
 			       size_t *ns_start_offset);
 
-/* @TODO add unittests for ABIs */
+/* Legacy entry points used before descriptor initialization. */
 bool ns_buffer_read_early(unsigned long ns_ptr, size_t size, void *dest);
 bool ns_buffer_write_early(unsigned long ns_ptr, size_t size, void *src);
+
+/*
+ * Read from the granule-aligned NS PA @ns_addr without consulting granule
+ * tracking. Returns false if the NS address or range is invalid, or if the
+ * trapped memory access finds that the address is not accessible as NS.
+ */
+bool ns_buffer_read_addr(enum buffer_slot slot,
+			 unsigned long ns_addr,
+			 unsigned int offset,
+			 size_t size,
+			 void *dest);
+
+/*
+ * Unaligned variant of ns_buffer_read_addr(). The source offset, transfer size
+ * and destination may be unaligned, and the access must fit in one granule.
+ */
+bool ns_buffer_read_unaligned_addr(enum buffer_slot slot,
+				   unsigned long ns_addr,
+				   unsigned int offset,
+				   size_t size,
+				   void *dest);
+
+/*
+ * Write to the granule-aligned NS PA @ns_addr without consulting granule
+ * tracking. Returns false if the NS address or range is invalid, or if the
+ * trapped memory access finds that the address is not accessible as NS.
+ */
+bool ns_buffer_write_addr(enum buffer_slot slot,
+			  unsigned long ns_addr,
+			  unsigned int offset,
+			  size_t size,
+			  void *src);
+
+/*
+ * Unaligned-source variant of ns_buffer_write_addr(). The NS destination
+ * offset remains 8-byte aligned and the access must fit in one granule. It
+ * returns false for an invalid NS address or range, or an inaccessible NS
+ * address.
+ */
+bool ns_buffer_write_unaligned_addr(enum buffer_slot slot,
+				    unsigned long ns_addr,
+				    unsigned int offset,
+				    size_t size,
+				    void *src,
+				    size_t *ns_start_offset);
 
 /*
  * These helper routines are used to access NS mmio region. These regions do
@@ -203,6 +265,12 @@ void buffer_pdev_app_aux_unmap(void *pdev_aux, unsigned int num_aux);
 
 /* Sanitizes the granule based on the sanitize policy configured */
 void buffer_granule_sanitize(struct granule *g);
+
+/*
+ * Sanitize the granule at @addr using the configured policy. The address must
+ * identify a granule in Realm PAS.
+ */
+void buffer_granule_sanitize_addr(unsigned long addr);
 
 /* Maps a NS granule */
 void *ns_buffer_granule_map(enum buffer_slot slot, struct granule *granule);
