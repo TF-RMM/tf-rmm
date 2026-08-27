@@ -256,6 +256,13 @@ struct mpidr_rec_map {
 	struct rec_map rec_map_mem[REFCOUNT_MAX];
 };
 
+/*
+ * Return the REC granule registered for @mpidr, or NULL if absent.
+ * The caller must hold the owning RD lock, which prevents REC removal and
+ * fine-metadata reclamation. Lock the returned REC before releasing RD if the
+ * granule is needed afterward. No tracking lookup is needed for this owned
+ * reference, including while a tracking transition is pending.
+ */
 static inline struct granule *map_mpidr_to_rec(struct mpidr_rec_map *mpidr_rec_map,
 					       unsigned long mpidr)
 {
@@ -268,7 +275,7 @@ static inline struct granule *map_mpidr_to_rec(struct mpidr_rec_map *mpidr_rec_m
 		return NULL;
 	}
 
-	return find_granule(rec_map->rec);
+	return tr_addr_to_granule(rec_map->rec);
 }
 
 /*

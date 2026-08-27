@@ -43,9 +43,10 @@ void smc_realm_activate(unsigned long rd_addr, struct smc_result *res)
 	struct granule *g_rd;
 	unsigned long ret;
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
+				   GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -68,19 +69,12 @@ void smc_realm_activate(unsigned long rd_addr, struct smc_result *res)
 static bool get_realm_params(struct rmi_realm_params *realm_params,
 				unsigned long realm_params_addr)
 {
-	bool ns_access_ok;
-	struct granule *g_realm_params;
-
-	g_realm_params = find_granule(realm_params_addr);
-	if ((g_realm_params == NULL) ||
-		(granule_unlocked_state(g_realm_params) != GRANULE_STATE_NS)) {
+	if (!GRANULE_ALIGNED(realm_params_addr)) {
 		return false;
 	}
 
-	ns_access_ok = ns_buffer_read(SLOT_NS, g_realm_params, 0U,
-				      sizeof(*realm_params), realm_params);
-
-	return ns_access_ok;
+	return ns_buffer_read_addr(SLOT_NS, realm_params_addr, 0U,
+			      sizeof(*realm_params), realm_params);
 }
 
 /*
@@ -498,7 +492,8 @@ static void free_sl_rtts(struct granule *g_rtt, unsigned int num_rtts)
 /*
  * Iterate over all the root translation table granules for all the different
  * RTT trees that have already beein transitioned to GRANULE_STATE_RTT
- * and free them.
+ * and free them. The creation context owns these RTTs and pins their fine
+ * metadata until rollback, including while a tracking transition is pending.
  */
 static void revert_sl_rtts(unsigned long *rtt_base,
 			   unsigned int concat_tbl_cnt,
@@ -508,50 +503,50 @@ static void revert_sl_rtts(unsigned long *rtt_base,
 				rtt_tree_id < rtt_tree_cnt; rtt_tree_id++) {
 		struct granule *g;
 
-		g = find_granule(rtt_base[rtt_tree_id]);
-		assert(g != NULL);
+		g = tr_addr_to_granule(rtt_base[rtt_tree_id]);
 		free_sl_rtts(g, concat_tbl_cnt);
 	}
 }
 
 
 /*
- * Iterate over all the available root translation table granules and transition
- * them to GRANULE_STATE_DELEGATED
+ * Acquire delegated root tables and transition them to RTT for this creation
+ * context. Return the RMI status, rolling back its owned prefix on failure.
  */
-static bool transition_sl_rtts(unsigned long *rtt_base,
-			       unsigned int concat_tbl_cnt,
-			       unsigned int rtt_tree_cnt)
+static unsigned long transition_sl_rtts(unsigned long *rtt_base,
+					unsigned int concat_tbl_cnt,
+					unsigned int rtt_tree_cnt)
 {
 	unsigned int i, rtt_tree_id;
 	unsigned long rtt_addr;
+	unsigned long ret;
 	struct granule *g;
 
 	for (rtt_tree_id = 0U; rtt_tree_id < rtt_tree_cnt; rtt_tree_id++) {
 		rtt_addr = rtt_base[rtt_tree_id];
 		for (i = 0U; i < concat_tbl_cnt; i++) {
-			g = find_lock_granule(rtt_addr, GRANULE_STATE_DELEGATED);
-			if (g == NULL) {
+			ret = tr_find_lock_granule(rtt_addr, GRANULE_SIZE,
+						   GRANULE_STATE_DELEGATED, &g);
+			if (ret != RMI_SUCCESS) {
 				goto error_out;
 			}
 			granule_unlock_transition(g, GRANULE_STATE_RTT);
 			rtt_addr += GRANULE_SIZE;
 		}
 	}
-	return true;
+	return RMI_SUCCESS;
 
 error_out:
 	/* Revert partially transitioned root tree. */
 	if (i > 0U) {
-		g = find_granule(rtt_base[rtt_tree_id]);
-		assert(g != NULL);
+		g = tr_addr_to_granule(rtt_base[rtt_tree_id]);
 		free_sl_rtts(g, i);
 	}
 
 	/* Revert fully transitioned root trees. */
 	revert_sl_rtts(rtt_base, concat_tbl_cnt, rtt_tree_id);
 
-	return false;
+	return ret;
 }
 
 /*
@@ -702,9 +697,10 @@ void smc_realm_create(unsigned long rd_addr,
 		return;
 	}
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_DELEGATED);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
+				   GRANULE_STATE_DELEGATED, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -726,6 +722,12 @@ void smc_realm_create(unsigned long rd_addr,
 			       num_rd_aux, GRANULE_STATE_RD_AUX);
 }
 
+/*
+ * Complete Realm creation after donation and report the RMI status via @res.
+ * The assigned SRO owns the PARTIAL RD and its RD_AUX pages, keeping their
+ * fine struct granule objects alive until publication or rollback.
+ * Successfully transitioned root RTTs are also owned until that point.
+ */
 static void realm_create_continue(unsigned long fid, struct smc_result *res)
 {
 	struct sro_context *sro = my_sro_ctx();
@@ -800,24 +802,19 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 	 * Transition the root RTT granules before locking the RD granule. This
 	 * also rejects aliasing with the RD or donated RD auxiliary granules.
 	 */
-	if (!transition_sl_rtts(rtt_base, p.rtt_num_start, n_rtts)) {
+	ret = transition_sl_rtts(rtt_base, p.rtt_num_start, n_rtts);
+	if (ret != RMI_SUCCESS) {
 		free_vmids(vmid, n_vmids);
 		mecid_free(mecid);
-		ret = RMI_ERROR_INPUT;
 		goto out_reclaim;
 	}
 
-	g_rd = find_lock_granule(sro->aux_op_ctx.obj_addr, GRANULE_STATE_PARTIAL);
-	if (g_rd == NULL) {
-		revert_sl_rtts(rtt_base, p.rtt_num_start, n_rtts);
-		free_vmids(vmid, n_vmids);
-		mecid_free(mecid);
-		ret = RMI_ERROR_INPUT;
-		goto out_reclaim;
-	}
+	/* The SRO-owned PARTIAL state pins the fine struct granule. */
+	g_rd = tr_addr_to_granule(sro->aux_op_ctx.obj_addr);
+	granule_lock(g_rd, GRANULE_STATE_PARTIAL);
 
 	for (unsigned int i = 0U; i < num_rd_aux; i++) {
-		struct granule *g_aux = find_granule(sro->aux_op_ctx.aux_granules_pa[i]);
+		struct granule *g_aux = tr_addr_to_granule(sro->aux_op_ctx.aux_granules_pa[i]);
 
 		assert(g_aux != NULL);
 		assert(granule_unlocked_state(g_aux) == GRANULE_STATE_RD_AUX);
@@ -846,7 +843,7 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 		 * For the mapping between Plane ID and S2 context ID, see
 		 * plane_to_s2_context() implementation.
 		 */
-		s2tt_ctx->g_rtt = find_granule(rd->rtt_tree_pp ?
+		s2tt_ctx->g_rtt = tr_addr_to_granule(rd->rtt_tree_pp ?
 					       rtt_base[idx] : rtt_base[0]);
 		s2tt_ctx->ipa_bits = p.s2sz;
 		s2tt_ctx->s2_starting_level = (int)p.rtt_level_start;
@@ -973,10 +970,12 @@ void smc_realm_terminate(unsigned long rd_addr, struct smc_result *res)
 {
 	struct granule *g_rd;
 	struct rd *rd;
+	unsigned long ret;
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
+				   GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -1012,7 +1011,7 @@ void smc_realm_destroy(unsigned long rd_addr, struct smc_result *res)
 	unsigned int num_rtts;
 	unsigned int num_rd_aux;
 	struct rd_aux *rd_aux;
-	int ret;
+	unsigned long ret;
 	unsigned long ctx_reserved;
 
 	ctx_reserved = sro_ctx_reserve(SMC_RMI_REALM_DESTROY, 0UL, false, false,
@@ -1023,19 +1022,18 @@ void smc_realm_destroy(unsigned long rd_addr, struct smc_result *res)
 	}
 
 	/* RD should not be destroyed if refcount != 0. */
-	ret = find_lock_unused_granule(rd_addr, GRANULE_STATE_RD, &g_rd);
-	if (ret != 0) {
-		switch (ret) {
-		case -EINVAL:
-			sro_ctx_release();
-			res->x[0] = RMI_ERROR_INPUT;
-			return;
-		default:
-			assert(ret == -EBUSY);
-			sro_ctx_release();
-			res->x[0] = RMI_ERROR_REALM;
-			return;
-		}
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
+				  GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		sro_ctx_release();
+		res->x[0] = ret;
+		return;
+	}
+	if (granule_refcount_read_acquire(g_rd) != 0U) {
+		granule_unlock(g_rd);
+		sro_ctx_release();
+		res->x[0] = RMI_ERROR_REALM;
+		return;
 	}
 
 	rd = buffer_granule_map(g_rd, SLOT_RD);
@@ -1073,7 +1071,7 @@ void smc_realm_destroy(unsigned long rd_addr, struct smc_result *res)
 
 	for (unsigned int i = 0U; i < num_rd_aux; i++) {
 		sro->aux_op_ctx.aux_granules_pa[i] =
-			granule_addr(rd->aux_granules[i]);
+			tr_granule_addr(rd->aux_granules[i]);
 	}
 
 	buffer_unmap(rd);

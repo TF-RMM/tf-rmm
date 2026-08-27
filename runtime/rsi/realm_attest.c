@@ -120,7 +120,7 @@ void handle_rsi_attest_token_init(struct rec *rec, struct rsi_result *res)
 	 * operation.
 	 */
 	ret = attest_token_sign_ctx_init(&rec->attest_app_data,
-						granule_addr(rec->g_rec));
+						tr_granule_addr(rec->g_rec));
 	if (ret != ATTEST_TOKEN_ERR_SUCCESS) {
 		ERROR("Failed to initialize attestation token context.\n");
 		res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
@@ -164,6 +164,12 @@ static bool check_pending_irq(void)
 	return (read_isr_el1() != 0UL);
 }
 
+/*
+ * Deliver an EL3 token-signing response while keeping its REC alive. The
+ * caller holds a reference on @curr_rec; acquire the target REC lock if it
+ * differs. Return zero on delivery or if the target has gone, and -EPERM if
+ * writing the response fails.
+ */
 static __unused int write_response_to_rec(struct rec *curr_rec,
 				uintptr_t resp_granule)
 {
@@ -180,11 +186,12 @@ static __unused int write_response_to_rec(struct rec *curr_rec,
 	 * SLOT_REC, so we can avoid locking and mapping the REC and the AUX
 	 * granules.
 	 */
-	if (resp_granule != granule_addr(curr_rec->g_rec)) {
+	if (resp_granule != tr_granule_addr(curr_rec->g_rec)) {
+		unsigned long lookup_ret;
 
-		rec_granule = find_lock_granule(
-				resp_granule, GRANULE_STATE_REC);
-		if (rec_granule == NULL) {
+		lookup_ret = tr_find_lock_granule(resp_granule, GRANULE_SIZE,
+					   GRANULE_STATE_REC, &rec_granule);
+		if (lookup_ret != RMI_SUCCESS) {
 			/*
 			 * REC must have been destroyed, drop the response.
 			 */
@@ -320,12 +327,16 @@ void handle_rsi_attest_token_continue(struct rec *rec,
 	attest_token_continue_write_state(rec, res);
 }
 
+/*
+ * Extend a Realm measurement and report the RSI status through @res.
+ * The running REC pins RD, including its fine metadata, so acquire that owned
+ * descriptor directly even while a tracking transition is pending.
+ */
 void handle_rsi_measurement_extend(struct rec *rec, struct rsi_result *res)
 {
 	struct granule *g_rd;
 	struct rd *rd;
 	unsigned long index;
-	unsigned long rd_addr;
 	size_t size;
 	void *extend_measurement;
 	unsigned char *current_measurement;
@@ -343,10 +354,8 @@ void handle_rsi_measurement_extend(struct rec *rec, struct rsi_result *res)
 	 * rd lock is acquired so that measurement cannot be updated
 	 * simultaneously by another rec
 	 */
-	rd_addr = granule_addr(rec->realm_info.g_rd);
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-
-	assert(g_rd != NULL);
+	g_rd = rec->realm_info.g_rd;
+	granule_lock(g_rd, GRANULE_STATE_RD);
 
 	rd = buffer_granule_map(rec->realm_info.g_rd, SLOT_RD);
 	assert(rd != NULL);

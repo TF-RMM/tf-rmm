@@ -120,7 +120,7 @@ unsigned long get_feature_register_1(void)
 	/*
 	 * Set the order of the maximum number of RECs which
 	 * can be created per Realm.
-	 * It is set to the width of 'refcount' field of the granule descriptor.
+	 * It is set to the width of 'refcount' field of the granule.
 	 *
 	 * The maximum number of RECs is computed as follows:
 	 * MAX_RECS = (2 ^ GRN_REFCOUNT_WIDTH) - 1.

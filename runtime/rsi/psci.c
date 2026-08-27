@@ -112,6 +112,11 @@ static void psci_reset_rec(struct rec_plane *plane,
 					caller_sctlr_el1 & SCTLR_ELx_EE_BIT;
 }
 
+/*
+ * Record a CPU_ON request and forward it to the host, or report a PSCI error
+ * through @res. The running caller pins RD; hold RD while resolving the target
+ * and save only its PA for completion, which must revalidate that target.
+ */
 static void psci_cpu_on(struct rec *rec, struct rmi_rec_exit *rec_exit,
 			struct rsi_result *res)
 {
@@ -156,6 +161,9 @@ static void psci_cpu_on(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	assert(rd_aux != NULL);
 
 	g_target_cpu = map_mpidr_to_rec(&rd_aux->mpidr_rec_map, target_rec_mpidr);
+	if (g_target_cpu != NULL) {
+		rec->target_rec_addr = tr_granule_addr(g_target_cpu);
+	}
 
 	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
 	buffer_unmap(rd);
@@ -165,8 +173,6 @@ static void psci_cpu_on(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		res->smc_res.x[0] = PSCI_RETURN_INVALID_PARAMS;
 		return;
 	}
-
-	rec->target_rec_addr = granule_addr(g_target_cpu);
 
 	/* Record that a PSCI request is outstanding */
 	rec_set_pending_op(rec, REC_PENDING_PSCI_COMPLETE);
@@ -180,6 +186,11 @@ static void psci_cpu_on(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	res->action = EXIT_TO_HOST;
 }
 
+/*
+ * Report the target REC's power state through @res. The running caller pins
+ * RD. Retain RD until the target REC is locked, so its granule and metadata
+ * cannot be reclaimed between the object-map lookup and lock acquisition.
+ */
 static void psci_affinity_info(struct rec *rec,
 			       struct rsi_result *res)
 {
@@ -216,6 +227,14 @@ static void psci_affinity_info(struct rec *rec,
 	assert(rd_aux != NULL);
 
 	g_target_rec = map_mpidr_to_rec(&rd_aux->mpidr_rec_map, target_rec_mpidr);
+	if ((g_target_rec != NULL) &&
+	    !granule_lock_on_state_match(g_target_rec, GRANULE_STATE_REC)) {
+		/*
+		 * Destroy may already have changed REC to PARTIAL, but cannot
+		 * remove its map entry or reclaim metadata while RD is locked.
+		 */
+		g_target_rec = NULL;
+	}
 
 	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
 	buffer_unmap(rd);
@@ -226,21 +245,13 @@ static void psci_affinity_info(struct rec *rec,
 		return;
 	}
 
-	if (!granule_lock_on_state_match(g_target_rec, GRANULE_STATE_REC)) {
-		/* A REC has been destroyed. Permanently turned OFF */
-		res->smc_res.x[0] = PSCI_AFFINITY_INFO_OFF;
-		return;
-	}
-
 	target_rec = buffer_granule_map(g_target_rec, SLOT_REC2);
 	assert(target_rec != NULL);
 
 	if ((target_rec->realm_info.g_rd != rec->realm_info.g_rd) ||
 	    (target_rec->mpidr != target_rec_mpidr)) {
 		/*
-		 * A REC has been destroyed, and recreated with a different MPIDR
-		 * or in a separate Realm.
-		 * Permanently turned OFF.
+		 * Only report power state for the identity selected by the RD map.
 		 */
 		res->smc_res.x[0] = PSCI_AFFINITY_INFO_OFF;
 		goto out_unlock_target;

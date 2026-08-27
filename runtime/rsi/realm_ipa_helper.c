@@ -182,6 +182,9 @@ enum s2_walk_status realm_ipa_get_ripas(struct rec *rec, unsigned long start,
  * Return:
  *	- true if the mapping was successful
  *	- false if the mapping failed.
+ * The locked leaf RTT pins the mapped physical page until the caller unmaps
+ * it and releases @llt. Map that PA directly so pending or coarse tracking
+ * does not require a fine-granule lookup.
  */
 bool realm_mem_lock_map(struct rec *rec, unsigned long ipa,
 			void **va, struct granule **llt,
@@ -189,7 +192,6 @@ bool realm_mem_lock_map(struct rec *rec, unsigned long ipa,
 {
 	enum s2_walk_status walk_status;
 	struct s2_walk_result walk_res = {0};
-	struct granule *g_ipa;
 
 	assert(GRANULE_ALIGNED(ipa));
 	assert(addr_in_rec_par(rec, ipa));
@@ -217,11 +219,8 @@ bool realm_mem_lock_map(struct rec *rec, unsigned long ipa,
 		break;
 	}
 
-	/* Map Realm buffer */
-	g_ipa = find_granule(walk_res.pa);
-	assert(g_ipa != NULL);
-
-	*va = buffer_granule_mecid_map(g_ipa, SLOT_REALM,
+	/* The successful walk retains the leaf lock and pins this physical page. */
+	*va = buffer_granule_mecid_map_addr(walk_res.pa, SLOT_REALM,
 		rec->realm_info.primary_s2_ctx.mecid);
 	assert(*va != NULL);
 	*llt = walk_res.llt;
