@@ -1263,6 +1263,9 @@ enum rmm_state {
 #define RMI_OP_MEM_NON_CONTIG		0UL
 #define RMI_OP_MEM_CONTIG		1UL
 
+/* RmiOpMemReclaimFlags type definitions */
+#define RMI_OP_RECLAIM_MEM_STATE	BIT(0)
+
 /* RmiContinueFlags type definitionns */
 #define RMI_CONTINUE_BEYOND_FLAG	BIT(0)
 #define RMI_CONTINUE_KEEP_GOING		0UL

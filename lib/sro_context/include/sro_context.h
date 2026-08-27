@@ -265,6 +265,36 @@ struct sro_realm_ctx {
 	unsigned long realm_params_addr;
 };
 
+/* PAS transition state for one tracking-metadata page retained across yields. */
+struct sro_tracking_gpi_ctx {
+	struct rmm_el3_gpi_state el3;	/* Current metadata page's EL3 operation. */
+	unsigned long pa;		/* PA retained while its PAS changes. */
+	unsigned long processed_size;	/* Completed prefix of that page. */
+	bool pending;			/* Page retained even during stateless retry. */
+};
+
+/*
+ * Tracking-metadata transfer state retained across SRO calls.
+ * Operation and callback selector values are private to tracking_region_sro.c.
+ */
+struct sro_tracking_ctx {
+	struct sro_tracking_gpi_ctx gpi;	/* Current metadata page's PAS transition. */
+	unsigned long failed_donor_pa;	/* Accepted donor rejected by EL3 later. */
+	unsigned long addr;		/* Target tracking-region PA base. */
+	unsigned long tr_idx;		/* Target shared tracking-array index. */
+	unsigned long category;		/* RMI memory category supplied by Host. */
+	unsigned long target_state;	/* Requested RmiGranuleTracking value. */
+	unsigned long ret_status;	/* Result returned after any rollback. */
+	unsigned long requested_pages;	/* Total backing pages in this transfer. */
+	unsigned long transferred_pages;	/* Pages accepted from the Host. */
+	unsigned long reclaim_page;	/* Next logical page to return. */
+	int operation;			/* Tracking SRO operation selector. */
+	int callback;			/* Next tracking SRO callback selector. */
+	unsigned int array_mask;		/* Fine arrays participating in SET. */
+	/* Accepted donated page delegation failed; page remains NS and unmapped. */
+	bool failed_donor;
+};
+
 /* State retained during range delegation retry, continuation or coarse rollback. */
 struct sro_granule_delegate_ctx {
 	struct rmm_el3_gpi_state el3;	/* Shared delegation/rollback EL3 state. */
@@ -352,6 +382,7 @@ struct sro_context {
 		struct sro_unmap_ctx unmap_ctx;
 		struct sro_map_ctx map_ctx;
 		struct sro_realm_ctx realm_ctx;
+		struct sro_tracking_ctx tracking_ctx;
 		struct sro_granule_delegate_ctx granule_delegate_ctx;
 		struct sro_granule_undelegate_ctx granule_undelegate_ctx;
 	};
@@ -377,7 +408,7 @@ struct sro_context {
  * Args:
  *  size_bytes - total donation size in bytes (must be a multiple of GRANULE_SIZE)
  *  contig     - RMI_OP_MEM_CONTIG or RMI_OP_MEM_NON_CONTIG
- *  state      - RMI_OP_MEM_DELEGATED or RMI_OP_MEM_UNDELEGATED
+ *  state      - an RmiOpMemState value, including RMI_OP_MEM_CONDITIONAL
  *
  * Returns the encoded RmiOpMemDonateReq value.
  */
