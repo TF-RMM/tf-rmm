@@ -66,6 +66,12 @@ arm_config_option(
     DEFAULT OFF
     ADVANCED)
 
+arm_config_option(
+    NAME RMM_ALLOC_TRACKING_DATA
+    HELP "Preallocate fine arrays from EL3; the struct tracking_region array is always EL3-backed"
+    TYPE BOOL
+    DEFAULT ON)
+
 #
 # Enable the Stack protection compiler flag.
 # Having the PAUTH and BTI feature enabled makes the software-based
@@ -120,6 +126,11 @@ target_compile_definitions(rmm-common
 
 target_compile_definitions(rmm-common
     INTERFACE "RMM_NUM_PAGES_PER_STACK=UL(${RMM_NUM_PAGES_PER_STACK})")
+
+if(RMM_ALLOC_TRACKING_DATA)
+    target_compile_definitions(rmm-common
+        INTERFACE "RMM_ALLOC_TRACKING_DATA=1")
+endif()
 
 # Set stack protector option.
 if(STACK_PROTECTOR)
