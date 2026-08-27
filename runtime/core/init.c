@@ -26,6 +26,7 @@
 #include <smc-rsi.h>
 #include <smmuv3.h>
 #include <sro_context.h>
+#include <tracking_region.h>
 
 #ifdef NDEBUG
 #define RMM_BUILD_TYPE	"release"
@@ -105,7 +106,7 @@ uint64_t rmm_warmboot_main(void)
 	uint64_t token;
 
 	/* Initialize glob_data_pa in the current CPU's metadata page. */
-	glob_data_pa = glob_data_init(NULL, 0UL, 0UL);
+	glob_data_pa = glob_data_init(NULL);
 	pcpu_set_glob_data_pa(glob_data_pa);
 
 	/*
@@ -147,13 +148,20 @@ uint64_t rmm_warmboot_main(void)
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
 uint64_t rmm_main(void)
 {
+	const struct plat_memory_bank *conv_banks;
+	const struct plat_memory_bank *dev_ncoh_banks;
+	const struct plat_memory_bank *dev_coh_banks;
 	unsigned int rmm_el3_ifc_version = rmm_el3_ifc_get_version();
 	unsigned int manifest_version = rmm_el3_ifc_get_manifest_version();
 	unsigned long rmi_revision = rmi_get_highest_supported_version();
 	unsigned long rsi_revision = rsi_get_highest_supported_version();
+	unsigned long conv_bank_count;
+	unsigned long dev_ncoh_bank_count;
+	unsigned long dev_coh_bank_count;
 	uintptr_t alloc = 0UL;
 	uintptr_t glob_data_pa;
 	size_t alloc_size;
+	int ret;
 
 	/*
 	 * Report project name, version, build type and
@@ -190,47 +198,55 @@ uint64_t rmm_main(void)
 	       RSI_ABI_VERSION_GET_MAJOR(rsi_revision),
 	       RSI_ABI_VERSION_GET_MINOR(rsi_revision));
 
+	conv_banks = plat_get_mem_banks(RMI_MEM_CATEGORY_CONVENTIONAL,
+					&conv_bank_count);
+	dev_ncoh_banks = plat_get_mem_banks(RMI_MEM_CATEGORY_DEV_NCOH,
+					    &dev_ncoh_bank_count);
+	dev_coh_banks = plat_get_mem_banks(RMI_MEM_CATEGORY_DEV_COH,
+					   &dev_coh_bank_count);
+	if ((conv_banks == NULL) ||
+	    ((dev_ncoh_banks == NULL) && (dev_ncoh_bank_count != 0UL)) ||
+	    ((dev_coh_banks == NULL) && (dev_coh_bank_count != 0UL))) {
+		ERROR("Cannot retrieve platform memory banks.\n");
+		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_UNKNOWN_ERROR);
+	}
 
 	if (firme_init() == false) {
 		INFO("FIRME interface is not available\n");
 	}
 
-	unsigned long num_gr = plat_get_num_granules();
-	assert(num_gr != UINT64_MAX);
-
-	unsigned long num_ncoh_gr =
-			plat_get_num_dev_granules(DEV_MEM_NON_COHERENT);
-	if (num_ncoh_gr == UINT64_MAX) {
-		num_ncoh_gr = 0UL;
-	}
-
-	VERBOSE("Max granules: %lu\n", num_gr);
-	VERBOSE("Max non-coherent device granules: %lu\n", num_ncoh_gr);
-
-	glob_data_pa = glob_data_init((struct glob_data *)pcpu_get_glob_data_pa(),
-				      num_gr, num_ncoh_gr);
+	glob_data_pa = glob_data_init((struct glob_data *)pcpu_get_glob_data_pa());
 	if (glob_data_pa == 0UL) {
 		ERROR("Cannot initialize global data.\n");
 		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_NO_MEM);
 	}
 	pcpu_set_glob_data_pa(glob_data_pa);
 
-	alloc = glob_data_get_granules_va(&alloc_size);
-	assert(alloc != 0UL);
-
-	if (granule_init(alloc, alloc_size, num_gr) != 0) {
-		ERROR("Granule array init failed\n");
+	/* Bind struct tracking_region_data, reusing it unchanged after LFA. */
+	alloc = glob_data_get_tracking_region_data_va(&alloc_size);
+	if (alloc == 0UL) {
+		ERROR("Cannot retrieve the VA of struct tracking_region_data.\n");
 		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_NO_MEM);
 	}
+	ret = tracking_region_indices_init(alloc, alloc_size,
+					   conv_banks, conv_bank_count,
+					   dev_ncoh_banks,
+					   dev_ncoh_bank_count,
+					   dev_coh_banks,
+					   dev_coh_bank_count);
+	if (ret != 0) {
+		ERROR("Tracking region index initialization failed: %d\n", ret);
+		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_UNKNOWN_ERROR);
+	}
 
-	if (num_ncoh_gr > 0UL) {
-		alloc = glob_data_get_dev_granules_va(&alloc_size);
-		assert(alloc != 0UL);
-		if (dev_granule_init(alloc, alloc_size,
-				      num_ncoh_gr) != 0) {
-			ERROR("NCoh Dev granule array not initialized\n");
-			rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_NO_MEM);
-		}
+#ifdef RMM_ALLOC_TRACKING_DATA
+	ret = tracking_region_populate_from_el3(true);
+#else
+	ret = tracking_region_populate_from_el3(false);
+#endif
+	if (ret != 0) {
+		ERROR("Tracking region backing allocation failed: %d\n", ret);
+		rmm_el3_ifc_report_fail_to_el3(E_RMM_BOOT_NO_MEM);
 	}
 
 	app_info_setup();
