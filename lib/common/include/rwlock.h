@@ -28,7 +28,7 @@
  * update the count independently, so all changes must preserve unrelated bits.
  * Writers leave the gate open between attempts so existing readers can finish
  * nested lookups. Tracking transitions use the try operation to back off
- * without retaining any region or descriptor locks.
+ * without retaining any region or granule locks.
  */
 typedef struct {
 	uint64_t state;
