@@ -35,6 +35,21 @@ void smc_psmmu_activate(unsigned long psmmu_ptr, unsigned long params_ptr,
 void smc_psmmu_deactivate(unsigned long psmmu_ptr, struct smc_result *res);
 
 /*
+ * Return PSMMU information.
+ *
+ * Parameters:
+ *   psmmu_ptr	- Physical address of PSMMU identified by the base physical address of
+ *		  SMMUv3_PAGE_0 for the Non-secure SMMU instance.
+ *   info_ptr	- Physical address of PSMMU info structure.
+ *   res	- Pointer to a structure where the command result will be stored.
+ *
+ * Return:
+ *		- Command result.
+ */
+void smc_psmmu_info(unsigned long psmmu_ptr, unsigned long info_ptr,
+		    struct smc_result *res);
+
+/*
  * Create a PSMMU Level 2 Stream Table.
  *
  * Parameters:

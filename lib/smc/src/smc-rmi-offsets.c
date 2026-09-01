@@ -71,3 +71,10 @@ COMPILER_ASSERT_NO_CBMC(U(offsetof(struct psmmu_params, priq_data)) == 0x30U);
 
 COMPILER_ASSERT_NO_CBMC(sizeof(struct rmi_psmmu_params) == 0x1000UL);
 
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_psmmu_info, flags)) == 0x0U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_psmmu_info, gerror_intr_num)) == 0x8U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_psmmu_info, eventq_intr_num)) == 0x10U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_psmmu_info, priq_intr_num)) == 0x18U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_psmmu_info, cmdq_sync_intr_num)) == 0x20U);
+
+COMPILER_ASSERT_NO_CBMC(sizeof(struct rmi_psmmu_info) == 0x1000UL);

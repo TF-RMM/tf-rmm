@@ -14,6 +14,58 @@
 #include <xlat_defs.h>
 
 /*
+ * Return PSMMU information.
+ *
+ * Parameters:
+ *   psmmu_ptr	- Physical address of PSMMU identified by the base physical address of
+ *		  SMMUv3_PAGE_0 for the Non-secure SMMU instance.
+ *   info_ptr	- Physical address of PSMMU info structure.
+ *   res	- Pointer to a structure where the command result will be stored.
+ *
+ * Return:
+ *		- Command result.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+void smc_psmmu_info(unsigned long psmmu_ptr, unsigned long info_ptr,
+		    struct smc_result *res)
+{
+	struct rmi_psmmu_info info = { 0 };
+	/* Currently all features set to 0(disabled) */
+	struct granule *g_info;
+	struct smmuv3_dev *smmu;
+
+	if (!is_rmi_feat_da_enabled()) {
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
+		return;
+	}
+
+	smmu = smmuv3_psmmu_find(psmmu_ptr);
+	if (smmu == NULL) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	if (!GRANULE_ALIGNED(info_ptr)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	g_info = find_granule(info_ptr);
+	if ((g_info == NULL) ||
+	    (granule_unlocked_state(g_info) != GRANULE_STATE_NS)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	if (!ns_buffer_write(SLOT_NS, g_info, 0U, sizeof(info), &info)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	res->x[0] = RMI_SUCCESS;
+}
+
+/*
  * Activate a PSMMU.
  *
  * Parameters:
