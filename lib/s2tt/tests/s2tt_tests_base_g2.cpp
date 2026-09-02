@@ -3110,7 +3110,7 @@ void s2tt_walk_lock_unlock_tc6(void)
 
 	/* Total number of granules, included the concatenated ones */
 	const unsigned int granules = S2TTE_MAX_CONCAT_TABLES +
-				(end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2);
+				(end_level - S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U);
 
 	/*
 	 * Granules to hold the translation tables,
