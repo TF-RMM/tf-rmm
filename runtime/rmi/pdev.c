@@ -24,21 +24,6 @@
 #define RMI_PDEV_FLAGS_VALID_MASK  (MASK(RMI_PDEV_FLAGS_SPDM) | MASK(RMI_PDEV_FLAGS_CATEGORY))
 #define PCIE_BDF_VALID_MASK		((unsigned long)UINT16_MAX)
 
-/*
- * Maximum size of public key data or metadata that can be copied from
- * Non-secure memory.
- */
-#define PUBKEY_PARAM_DATA_LEN_MAX	\
-	MAX(PUBKEY_PARAM_KEY_LEN_MAX, PUBKEY_PARAM_METADATA_LEN_MAX)
-
-/*
- * Size of the temporary read buffer. Allow up to 7 extra bytes for an
- * unaligned source address, then round up to satisfy the 8-byte size and
- * destination alignment requirements of ns_buffer_read().
- */
-#define PUBKEY_PARAM_READ_BUF_SIZE	\
-	round_up(PUBKEY_PARAM_DATA_LEN_MAX + sizeof(uint64_t) - 1UL, sizeof(uint64_t))
-
 struct pdev_stream_aux {
 	struct pdev_stream streams[RMI_PDEV_STREAM_TYPE_COUNT];
 };
@@ -1264,123 +1249,54 @@ static bool public_key_len_valid(unsigned long key_len)
  * Copy a public key data range from Non-secure memory.
  *
  * The source range may start at any byte offset and span multiple granules.
- * If any part of the range lies within the public key parameter granule,
- * copy it directly from the local parameter snapshot. For all other parts,
- * validate the corresponding granule as Non-secure and copy the data using
- * 8-byte-aligned ns_buffer_read() accesses.
+ * Validate each source granule as Non-secure and copy its portion using
+ * ns_buffer_read_unaligned().
  *
  * Arguments:
  *   - src_addr:    Source PA of the data to copy.
  *   - size:        Number of bytes to copy.
- *   - params_addr: PA of the public key parameter granule.
- *   - params:      Local snapshot of the public key parameter granule.
  *   - dst:         Destination buffer in RMM memory.
  *
  * Returns:
  *   - true if the complete range was copied successfully.
- *   - false if any source granule outside the parameter granule is invalid,
- *     is not in the NS state, or cannot be accessed.
+ *   - false if any source granule is invalid, is not in the NS state, or
+ *     cannot be accessed.
  */
 static bool ns_pubkey_buffer_read(unsigned long src_addr, size_t size,
-				  unsigned long params_addr,
-				  const struct rmi_public_key_params *params,
 				  void *dst)
 {
-	unsigned char *dst_ptr = dst;
+	unsigned char *dst_bytes = dst;
 	unsigned long addr = src_addr;
-	unsigned long params_top = params_addr + GRANULE_SIZE;
 	size_t remaining = size;
+	size_t dst_offset = 0U;
 	struct granule *g;
-	uint64_t data[PUBKEY_PARAM_READ_BUF_SIZE / sizeof(uint64_t)];
-	unsigned long granule_addr;
-	unsigned long offset, aligned_offset, data_offset;
-	size_t copy_size, read_size, aligned_size;
-	bool ns_access_ok;
+	unsigned long ns_granule_addr;
+	unsigned int offset;
+	size_t copy_size;
 
-	assert(params != NULL);
 	assert(dst != NULL);
-	assert(GRANULE_ALIGNED(params_addr));
-	assert(size <= PUBKEY_PARAM_DATA_LEN_MAX);
 
 	while (remaining != 0UL) {
-		/*
-		 * The parameter granule has already been copied into @params.
-		 * Reuse the local snapshot instead of accessing NS memory again.
-		 */
-		if ((addr >= params_addr) && (addr < params_top)) {
-			offset = addr - params_addr;
-
-			/* Do not copy beyond the parameter granule boundary */
-			copy_size = MIN(remaining, GRANULE_SIZE - offset);
-
-			(void)memcpy(dst_ptr,
-				     (const unsigned char *)params + offset,
-				     copy_size);
-
-			addr += copy_size;
-			dst_ptr += copy_size;
-			remaining -= copy_size;
-			continue;
-		}
-
-		granule_addr = addr & GRANULE_MASK;
-		offset = addr & (GRANULE_SIZE - 1UL);
+		ns_granule_addr = addr & GRANULE_MASK;
+		offset = (unsigned int)(addr & (GRANULE_SIZE - 1UL));
 
 		/* Validate the source granule before accessing NS memory */
-		g = find_granule(granule_addr);
+		g = find_granule(ns_granule_addr);
 		if ((g == NULL) ||
 		    (granule_unlocked_state(g) != GRANULE_STATE_NS)) {
 			return false;
 		}
 
-		/*
-		 * Limit the requested data to the current granule. If the
-		 * range crosses a granule boundary, the next iteration
-		 * processes the following granule.
-		 */
-		copy_size = MIN(remaining, GRANULE_SIZE - offset);
+		/* Limit the requested data to the current granule. */
+		copy_size = MIN(remaining, (size_t)GRANULE_SIZE - (size_t)offset);
 
-		/*
-		 * ns_buffer_read() requires the source offset, transfer size
-		 * and destination to be 8-byte aligned. Round the source
-		 * offset down and the end of the requested range up, reading
-		 * any additional bytes required for alignment.
-		 */
-		aligned_offset = round_down(offset, sizeof(uint64_t));
-		data_offset = offset - aligned_offset;
-
-		read_size = data_offset + copy_size;
-		aligned_size = round_up(read_size, sizeof(uint64_t));
-
-		/*
-		 * The aligned range cannot extend beyond the current granule
-		 * because GRANULE_SIZE is 8-byte aligned.
-		 */
-		assert((aligned_offset + aligned_size) <= GRANULE_SIZE);
-		assert(aligned_size <= sizeof(data));
-
-		ns_access_ok = ns_buffer_read(SLOT_NS, g,
-					     aligned_offset,
-					     aligned_size,
-					     data);
-		if (!ns_access_ok) {
+		if (!ns_buffer_read_unaligned(SLOT_NS, g, offset, copy_size,
+					      &dst_bytes[dst_offset])) {
 			return false;
 		}
 
-		/*
-		 * Discard the extra bytes read for alignment and copy only
-		 * the requested source range to the destination.
-		 */
-		(void)memcpy(dst_ptr,
-			     (unsigned char *)data + data_offset,
-			     copy_size);
-
-		/*
-		 * Advance by the requested bytes only. Extra bytes read for
-		 * alignment are discarded.
-		 */
 		addr += copy_size;
-		dst_ptr += copy_size;
+		dst_offset += copy_size;
 		remaining -= copy_size;
 	}
 
@@ -1448,14 +1364,13 @@ void smc_pdev_set_pubkey(unsigned long pdev_addr,
 
 	pubkey_params.key_len = rmi_pubkey_params.key_len;
 	pubkey_params.metadata_len = rmi_pubkey_params.metadata_len;
-	pubkey_params.algo = algo_from_key_len(rmi_pubkey_params.key_len);
+	pubkey_params.algo =
+		(unsigned char)algo_from_key_len(rmi_pubkey_params.key_len);
 
 	/* Copy public key data from NS memory */
 	if (!ns_pubkey_buffer_read(
 				rmi_pubkey_params.key_addr,
 				rmi_pubkey_params.key_len,
-				pubkey_params_addr,
-				&rmi_pubkey_params,
 				pubkey_params.key)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
@@ -1466,8 +1381,6 @@ void smc_pdev_set_pubkey(unsigned long pdev_addr,
 		if (!ns_pubkey_buffer_read(
 					rmi_pubkey_params.metadata_addr,
 					rmi_pubkey_params.metadata_len,
-					pubkey_params_addr,
-					&rmi_pubkey_params,
 					pubkey_params.metadata)) {
 			res->x[0] = RMI_ERROR_INPUT;
 			return;
