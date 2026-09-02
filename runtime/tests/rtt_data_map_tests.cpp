@@ -8,6 +8,14 @@
 
 #include "rtt_data_test_helpers.h"
 
+/*
+ * Keep allocations disjoint when the data map and unmap test groups run in
+ * the same process. Split the lower 120000 granules into separate 60000-slot
+ * RTT/data pools, and split the remaining NS-list pool at index 125000.
+ */
+#define DATA_MAP_TEST_RTT_START_IDX	60000U
+#define DATA_MAP_TEST_NS_LIST_START_IDX	125000U
+
 TEST_GROUP(rtt_data_map_tests) {
 	TEST_SETUP()
 	{
@@ -15,6 +23,8 @@ TEST_GROUP(rtt_data_map_tests) {
 
 		if (!counters_initialized) {
 			reset_data_granule_allocation();
+			g_rtt_next_idx = DATA_MAP_TEST_RTT_START_IDX;
+			g_ns_list_next_idx = DATA_MAP_TEST_NS_LIST_START_IDX;
 			counters_initialized = true;
 		}
 		test_helpers_init();
