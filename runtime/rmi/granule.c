@@ -364,8 +364,8 @@ void smc_gpt_info(unsigned long base, unsigned long top,  struct smc_result *res
 	res->x[1] = base + RMM_L0GPTSZ;
 
 	/* All device and DRAM granules are statically covered for now */
-	if (find_granule(base) != NULL ||
-	    find_dev_granule(base, &type) != NULL) {
+	if ((find_granule(base) != NULL) ||
+	    (find_dev_granule(base, &type) != NULL)) {
 		res->x[2] = RMI_GPT_PAR_PLAT;
 	} else {
 		res->x[2] = RMI_GPT_PAR_RESERVED;
