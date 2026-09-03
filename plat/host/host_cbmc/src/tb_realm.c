@@ -87,6 +87,7 @@ bool valid_s2tt_context(struct s2tt_context value)
 		&& value.num_root_rtts <= MAX_ROOT_RTT_CBMC
 		&& valid_granule_metadata_ptr(value.g_rtt)
 		&& granule_unlocked_state(value.g_rtt) == GRANULE_STATE_RTT
+		&& value.s2oa_limit == (UL(1) << S2TT_MAX_PA_BITS)
 		/* TODO: what is the ranges here */
 		&& value.ipa_bits == (3 - value.s2_starting_level + 1) *
 			S2TTE_STRIDE + value.num_root_rtts
@@ -115,6 +116,7 @@ struct rd init_rd(void)
 
 	s2_ctx->num_root_rtts = num_root_rtts;
 	s2_ctx->g_rtt = g_root_rtt;
+	s2_ctx->s2oa_limit = UL(1) << S2TT_MAX_PA_BITS;
 	value.rpv[0] = 0;
 
 	/*

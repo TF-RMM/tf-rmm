@@ -70,7 +70,7 @@ unsigned long s2tte_to_pa(const struct s2tt_context *s2_ctx,
 
 	assert(s2_ctx != NULL);
 
-	lpa2 = s2_ctx->enable_lpa2;
+	lpa2 = s2tt_lpa2_enabled(s2_ctx);
 	pa &= s2tte_lvl_mask(level, lpa2);
 
 	if (lpa2) {
@@ -244,9 +244,9 @@ unsigned long pa_to_s2tte(const struct s2tt_context *s2_ctx, unsigned long pa)
 
 	assert(s2_ctx != NULL);
 
-	pa &= s2tte_ipa_lvl_mask(S2TT_PAGE_LEVEL, s2_ctx->enable_lpa2);
+	pa &= s2tte_ipa_lvl_mask(S2TT_PAGE_LEVEL, s2tt_lpa2_enabled(s2_ctx));
 
-	if (s2_ctx->enable_lpa2) {
+	if (s2tt_lpa2_enabled(s2_ctx)) {
 		tte &= ~MASK(LPA2_OA_51_50);
 		tte |= INPLACE(LPA2_S2TTE_51_50, EXTRACT(LPA2_OA_51_50, pa));
 	}
@@ -503,7 +503,7 @@ void s2tt_walk_lock_unlock(const struct s2tt_context *s2_ctx,
 	assert(map_addr < (1UL << ipa_bits));
 	assert(wi != NULL);
 
-	if (s2_ctx->enable_lpa2) {
+	if (s2tt_lpa2_enabled(s2_ctx)) {
 		assert(ipa_bits <= S2TTE_OA_BITS_LPA2);
 	} else {
 		assert(ipa_bits <= S2TTE_OA_BITS);
@@ -620,7 +620,7 @@ static unsigned long s2tte_create_assigned(const struct s2tt_context *s2_ctx,
 	if (s2tte_ripas == S2TTE_INVALID_RIPAS_RAM) {
 		unsigned long s2tte_page, s2tte_block;
 
-		if (s2_ctx->enable_lpa2) {
+		if (s2tt_lpa2_enabled(s2_ctx)) {
 			s2tte_page = S2TTE_PAGE_LPA2;
 			s2tte_block = S2TTE_BLOCK_LPA2;
 		} else {
@@ -814,7 +814,7 @@ unsigned long s2tte_create_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 	assert(s2_ctx != NULL);
 
 	/* Add Shareability bits if FEAT_LPA2 is not enabled */
-	if (!s2_ctx->enable_lpa2) {
+	if (!s2tt_lpa2_enabled(s2_ctx)) {
 		s2tte_mask |= S2TTE_SH_MASK;
 	}
 
@@ -842,7 +842,7 @@ unsigned long s2tte_create_assigned_dev_dev_coh_type(const struct s2tt_context *
 	assert(s2_ctx != NULL);
 	assert(type < DEV_MEM_MAX);
 
-	lpa2 = s2_ctx->enable_lpa2;
+	lpa2 = s2tt_lpa2_enabled(s2_ctx);
 
 	if (type == DEV_MEM_COHERENT) {
 		/* Coherent device */
@@ -893,7 +893,7 @@ unsigned long s2tte_create_assigned_ns(const struct s2tt_context *s2_ctx,
 	assert(level <= S2TT_PAGE_LEVEL);
 
 	/* The Shareability bits need to be added if FEAT_LPA2 is not enabled */
-	if (!s2_ctx->enable_lpa2) {
+	if (!s2tt_lpa2_enabled(s2_ctx)) {
 		new_s2tte |= S2TTE_SH_IS;
 	}
 
@@ -926,7 +926,7 @@ bool host_ns_s2tte_is_valid(const struct s2tt_context *s2_ctx,
 	assert(s2_ctx != NULL);
 	assert(level >= S2TT_MIN_BLOCK_LEVEL);
 
-	lpa2 = s2_ctx->enable_lpa2;
+	lpa2 = s2tt_lpa2_enabled(s2_ctx);
 
 	mask = s2tte_lvl_mask(level, lpa2) | S2TTE_NS_ATTR_MASK;
 
@@ -978,7 +978,7 @@ unsigned long host_ns_s2tte(const struct s2tt_context *s2_ctx,
 {
 	assert(s2_ctx != NULL);
 
-	unsigned long mask = s2tte_lvl_mask(level, s2_ctx->enable_lpa2)
+	unsigned long mask = s2tte_lvl_mask(level, s2tt_lpa2_enabled(s2_ctx))
 				| S2TTE_NS_ATTR_MASK;
 
 	assert(level >= S2TT_MIN_BLOCK_LEVEL);
@@ -1003,7 +1003,7 @@ unsigned long s2tte_create_table(const struct s2tt_context *s2_ctx,
 
 	assert(s2_ctx != NULL);
 
-	min_starting_level = s2_ctx->enable_lpa2 ?
+	min_starting_level = s2tt_lpa2_enabled(s2_ctx) ?
 			S2TT_MIN_STARTING_LEVEL_LPA2 : S2TT_MIN_STARTING_LEVEL;
 
 	assert(level < S2TT_PAGE_LEVEL);
@@ -1235,7 +1235,7 @@ bool s2tte_is_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 	}
 
 	attr = s2tte & (S2TTE_DEV_ATTRS_MASK | S2TTE_MEMATTR_MASK);
-	lpa2 = s2_ctx->enable_lpa2;
+	lpa2 = s2tt_lpa2_enabled(s2_ctx);
 
 	/*
 	 * Check that NS, AF and MemAttr[3:0] match with provided
@@ -1689,7 +1689,7 @@ void s2tt_init_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 	const unsigned long map_size = s2tte_map_size(level);
 
 	/* Add Shareability bits if FEAT_LPA2 is not enabled */
-	if (!s2_ctx->enable_lpa2) {
+	if (!s2tt_lpa2_enabled(s2_ctx)) {
 		s2tte_mask |= S2TTE_SH_MASK;
 	}
 
@@ -1803,7 +1803,7 @@ unsigned long s2tte_pa(const struct s2tt_context *s2_ctx, unsigned long s2tte,
 	assert(s2_ctx != NULL);
 
 	/* cppcheck-suppress misra-c2012-10.6 */
-	min_starting_level = s2_ctx->enable_lpa2 ?
+	min_starting_level = s2tt_lpa2_enabled(s2_ctx) ?
 		S2TT_MIN_STARTING_LEVEL_LPA2 : S2TT_MIN_STARTING_LEVEL;
 	assert(level >= min_starting_level);
 	assert(level <= S2TT_PAGE_LEVEL);
@@ -1826,7 +1826,7 @@ bool s2tte_is_addr_lvl_aligned(const struct s2tt_context *s2_ctx,
 	assert(s2_ctx != NULL);
 
 	/* cppcheck-suppress misra-c2012-10.6 */
-	__unused long min_starting_level = s2_ctx->enable_lpa2 ?
+	__unused long min_starting_level = s2tt_lpa2_enabled(s2_ctx) ?
 			S2TT_MIN_STARTING_LEVEL_LPA2 : S2TT_MIN_STARTING_LEVEL;
 
 	assert(level <= S2TT_PAGE_LEVEL);
@@ -1834,7 +1834,7 @@ bool s2tte_is_addr_lvl_aligned(const struct s2tt_context *s2_ctx,
 
 	levels = (unsigned long)(S2TT_PAGE_LEVEL - level);
 	lsb = (levels * S2TTE_STRIDE) + GRANULE_SHIFT;
-	s2tte_oa_bits = s2_ctx->enable_lpa2 ?
+	s2tte_oa_bits = s2tt_lpa2_enabled(s2_ctx) ?
 		S2TTE_OA_BITS_LPA2 : S2TTE_OA_BITS;
 
 	return (addr == (addr & BIT_MASK_ULL((s2tte_oa_bits - 1U), lsb)));
@@ -1962,7 +1962,7 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 	assert(table != NULL);
 	assert(s2_ctx != NULL);
 
-	if (s2_ctx->enable_lpa2) {
+	if (s2tt_lpa2_enabled(s2_ctx)) {
 		assert(level >= S2TT_MIN_STARTING_LEVEL_LPA2);
 	} else {
 		assert(level >= S2TT_MIN_STARTING_LEVEL);
@@ -2163,7 +2163,7 @@ unsigned long s2tt_skip_non_live_entries(const struct s2tt_context *s2_ctx,
 	unsigned long map_size;
 
 	/* cppcheck-suppress misra-c2012-10.6 */
-	__unused long min_starting_level = s2_ctx->enable_lpa2 ?
+	__unused long min_starting_level = s2tt_lpa2_enabled(s2_ctx) ?
 			S2TT_MIN_STARTING_LEVEL_LPA2 : S2TT_MIN_STARTING_LEVEL;
 
 	assert(wi->last_level >= min_starting_level);

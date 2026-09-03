@@ -225,6 +225,9 @@
 #define RMI_FEATURE_REGISTER_0_PMU_NUM_CTRS_SHIFT	UL(27)
 #define RMI_FEATURE_REGISTER_0_PMU_NUM_CTRS_WIDTH	UL(5)
 
+#define RMI_FEATURE_REGISTER_0_S2OASZ_SHIFT		UL(33)
+#define RMI_FEATURE_REGISTER_0_S2OASZ_WIDTH		UL(8)
+
 /* RmiFeatureRegister1 */
 #define RMI_FEATURE_REGISTER_1_INDEX			UL(1)
 
@@ -356,6 +359,14 @@
  */
 #define RMI_ACCEPT	0U
 #define RMI_REJECT	1U
+
+/*
+ * RmiGptParState enumeration for the GPT info for a given PAR
+ */
+#define RMI_GPT_PAR_RESERVED		U(0)
+#define RMI_GPT_PAR_PLAT		U(1)
+#define RMI_GPT_PAR_HOST_NOT_CREATED	U(2)
+#define RMI_GPT_PAR_HOST_CREATED	U(3)
 
 /*
  * FID: 0xC4000150
@@ -1161,6 +1172,19 @@ enum rmm_state {
  */
 #define SMC_RMI_OP_CANCEL			SMC64_RMI_FID(U(0xBA))
 
+/*
+ * FID: 0xC4000211
+ *
+ * arg0 == Base of the PAR region
+ * arg1 == Top of the PAR region
+ *
+ * ret0 == Command result.
+ * ret1 == Top of the region for which the info is returned
+ * ret2 == RmiGptParState for the region[@arg0, @ret1)
+ */
+#define SMC_RMI_GPT_INFO			SMC64_RMI_FID(U(0xC1))
+
+
 /* Size of Realm Personalization Value */
 #ifndef CBMC
 #define RPV_SIZE		64
@@ -1180,9 +1204,6 @@ enum rmm_state {
 #endif
 
 /* RmiRealmFlags0 format */
-#define RMI_REALM_FLAGS0_LPA2_SHIFT		UL(0)
-#define RMI_REALM_FLAGS0_LPA2_WIDTH		UL(1)
-
 #define RMI_REALM_FLAGS0_SVE_SHIFT		UL(1)
 #define RMI_REALM_FLAGS0_SVE_WIDTH		UL(1)
 

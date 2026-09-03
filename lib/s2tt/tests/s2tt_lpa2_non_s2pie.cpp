@@ -10,6 +10,7 @@
 #include <s2tt_tests_base_g3.h>
 
 extern "C" {
+#include <string.h>
 #include <test_helpers.h>
 #include <s2tt_test_helpers.h>
 }
@@ -23,6 +24,23 @@ TEST_GROUP(s2tt_lpa2_non_s2pie) {
 	TEST_TEARDOWN()
 	{}
 };
+
+TEST(s2tt_lpa2_non_s2pie, lpa2_is_derived_from_address_sizes)
+{
+	struct s2tt_context s2tt_ctx;
+
+	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
+	s2tt_ctx.ipa_bits = S2TT_MAX_IPA_BITS;
+	s2tt_ctx.s2oa_limit = 1UL << S2TT_MAX_PA_BITS;
+	CHECK_FALSE(s2tt_lpa2_enabled(&s2tt_ctx));
+
+	s2tt_ctx.ipa_bits = S2TT_MAX_IPA_BITS_LPA2;
+	CHECK_TRUE(s2tt_lpa2_enabled(&s2tt_ctx));
+
+	s2tt_ctx.ipa_bits = S2TT_MAX_IPA_BITS;
+	s2tt_ctx.s2oa_limit = 1UL << S2TT_MAX_PA_BITS_LPA2;
+	CHECK_TRUE(s2tt_lpa2_enabled(&s2tt_ctx));
+}
 
 TEST(s2tt_lpa2_non_s2pie, s2tte_create_unassigned_empty_tc1)
 {

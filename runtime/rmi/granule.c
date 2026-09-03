@@ -26,6 +26,10 @@ static unsigned long dev_granule_delegate(unsigned long addr)
 		return RMI_ERROR_INPUT;
 	}
 
+	if (dev_granule_unlocked_state(g) == DEV_GRANULE_STATE_DELEGATED) {
+		return RMI_SUCCESS;
+	}
+
 	if (!dev_granule_lock_on_state_match(g, DEV_GRANULE_STATE_NS)) {
 		return RMI_ERROR_INPUT;
 	}
@@ -55,6 +59,10 @@ static unsigned long dev_granule_undelegate(unsigned long addr)
 		return RMI_ERROR_INPUT;
 	}
 
+	if (dev_granule_unlocked_state(g) == DEV_GRANULE_STATE_NS) {
+		return RMI_SUCCESS;
+	}
+
 	if (!dev_granule_lock_on_state_match(g, DEV_GRANULE_STATE_DELEGATED)) {
 		return RMI_ERROR_INPUT;
 	}
@@ -80,6 +88,11 @@ unsigned long smc_granule_delegate(unsigned long addr)
 	struct granule *g = find_granule(addr);
 
 	if (g != NULL) {
+
+		if (granule_unlocked_state(g) == GRANULE_STATE_DELEGATED) {
+			return RMI_SUCCESS;
+		}
+
 		if (!granule_lock_on_state_match(g, GRANULE_STATE_NS)) {
 			return RMI_ERROR_INPUT;
 		}
@@ -155,6 +168,10 @@ unsigned long smc_granule_undelegate(unsigned long addr)
 	struct granule *g = find_granule(addr);
 
 	if (g != NULL) {
+		if (granule_unlocked_state(g) == GRANULE_STATE_NS) {
+			return RMI_SUCCESS;
+		}
+
 		if (!granule_lock_on_state_match(g, GRANULE_STATE_DELEGATED)) {
 			return RMI_ERROR_INPUT;
 		}
@@ -329,4 +346,28 @@ void smc_gpt_l1_create(unsigned long addr, struct smc_result *res)
 	/* The existing L1 table is referenced by the L0 entry for @addr. */
 	res->x[0] = pack_return_code_level_addr(
 			RMI_ERROR_GPT, (unsigned char)0U, addr);
+}
+
+void smc_gpt_info(unsigned long base, unsigned long top,  struct smc_result *res)
+{
+	unsigned int pasz = arch_feat_get_pa_width();
+	unsigned long max_pa = ((1UL << pasz) - 1UL);
+	enum dev_coh_type type;
+
+	if (!ALIGNED(base, RMM_L0GPTSZ) || !ALIGNED(top, RMM_L0GPTSZ) ||
+	    (base >= max_pa) || (top > max_pa) || (top <= base)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = base + RMM_L0GPTSZ;
+
+	/* All device and DRAM granules are statically covered for now */
+	if ((find_granule(base) != NULL) ||
+	    (find_dev_granule(base, &type) != NULL)) {
+		res->x[2] = RMI_GPT_PAR_PLAT;
+	} else {
+		res->x[2] = RMI_GPT_PAR_RESERVED;
+	}
 }

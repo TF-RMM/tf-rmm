@@ -129,7 +129,7 @@ static void invalidate_page_block_per_vmids(struct rd *rd, unsigned long map_add
 		vmid_list[i] = plane_to_s2_context(rd, i)->vmid;
 	}
 
-	s2tt_invalidate_page_block_per_vmids(rd->s2_ctx[PRIMARY_S2_CTX_ID].enable_lpa2,
+	s2tt_invalidate_page_block_per_vmids(s2tt_lpa2_enabled(&rd->s2_ctx[PRIMARY_S2_CTX_ID]),
 						vmid_list, nvmids, map_addr, level);
 
 	if (rd->da_enabled) {
@@ -159,7 +159,7 @@ static void invalidate_pages_in_block_for_contexts(struct rd *rd, unsigned long 
 		vmid_list[i] = plane_to_s2_context(rd, i)->vmid;
 	}
 
-	s2tt_invalidate_pages_in_block_per_vmids(rd->s2_ctx[PRIMARY_S2_CTX_ID].enable_lpa2,
+	s2tt_invalidate_pages_in_block_per_vmids(s2tt_lpa2_enabled(&rd->s2_ctx[PRIMARY_S2_CTX_ID]),
 							vmid_list, nvmids, map_addr);
 
 	if (rd->da_enabled) {
@@ -181,7 +181,7 @@ static void invalidate_pages_in_block_for_contexts(struct rd *rd, unsigned long 
 static void invalidate_page_block(const struct s2tt_context *s2_ctx,
 				  struct rd *rd, unsigned long map_addr, long level)
 {
-	s2tt_invalidate_page_block(s2_ctx->enable_lpa2, s2_ctx->vmid, map_addr,
+	s2tt_invalidate_page_block(s2tt_lpa2_enabled(s2_ctx), s2_ctx->vmid, map_addr,
 				   level);
 
 	if (rd->da_enabled) {
@@ -204,7 +204,7 @@ static void invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
 {
 	(void)level;
 
-	s2tt_invalidate_pages_in_block(s2_ctx->enable_lpa2, s2_ctx->vmid,
+	s2tt_invalidate_pages_in_block(s2tt_lpa2_enabled(s2_ctx), s2_ctx->vmid,
 				      map_addr);
 
 	if (rd->da_enabled) {
@@ -259,15 +259,9 @@ static unsigned long rtt_create(unsigned long rd_addr,
 		s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
 	}
 
-	/*
-	 * If LPA2 is disabled for the realm, then `rtt_addr` must not be
-	 * more than 48 bits wide.
-	 */
-	if (!s2_ctx->enable_lpa2) {
-		if ((rtt_addr >= (UL(1) << S2TT_MAX_PA_BITS))) {
-			ret = RMI_ERROR_INPUT;
-			goto out_unmap_rd;
-		}
+	if (rtt_addr >= s2_ctx->s2oa_limit) {
+		ret = RMI_ERROR_INPUT;
+		goto out_unmap_rd;
 	}
 
 	/* Lock the RTT hierarchy before claiming the delegated table granule. */
@@ -1782,7 +1776,7 @@ static unsigned long realign_pa(struct s2tt_context *s2_ctx,
 				unsigned long ipa)
 {
 	unsigned long offset = ipa -
-			(ipa & s2tte_ipa_lvl_mask(level, s2_ctx->enable_lpa2));
+			(ipa & s2tte_ipa_lvl_mask(level, s2tt_lpa2_enabled(s2_ctx)));
 
 	return pa_base + offset;
 }

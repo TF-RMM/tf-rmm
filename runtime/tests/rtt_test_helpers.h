@@ -42,6 +42,7 @@ extern "C" {
 #define TEST_NS_PA_ALT           0x240000000UL
 
 #define TEST_REALM_MECID         MECID_SHARED
+#define TEST_S2OA_LIMIT         (1UL << S2TT_MAX_PA_BITS)
 
 #define TEST_PAGE_BASE           TEST_PAR_SIZE
 #define TEST_PAGE_TOP            (TEST_PAGE_BASE + GRANULE_SIZE)
@@ -294,9 +295,9 @@ static inline void init_primary_s2_ctx(const struct test_rtt_ctx *ctx,
 	s2_ctx->s2_starting_level = 0;
 	s2_ctx->num_root_rtts = 1U;
 	s2_ctx->g_rtt = find_granule(ctx->rtt_l0);
-	s2_ctx->enable_lpa2 = false;
 	s2_ctx->indirect_s2ap = ctx->indirect_s2ap;
 	s2_ctx->mecid = TEST_REALM_MECID;
+	s2_ctx->s2oa_limit = TEST_S2OA_LIMIT;
 }
 
 /*
@@ -452,9 +453,9 @@ static inline bool create_rtt_tree_ctx(struct test_rtt_ctx *ctx)
 	s2_ctx->s2_starting_level = 0;
 	s2_ctx->num_root_rtts = 1U;
 	s2_ctx->g_rtt = g_rtt_l0;
-	s2_ctx->enable_lpa2 = false;
 	s2_ctx->indirect_s2ap = false;
 	s2_ctx->mecid = TEST_REALM_MECID;
+	s2_ctx->s2oa_limit = TEST_S2OA_LIMIT;
 	set_rd_state(rd, REALM_NEW);
 
 	buffer_unmap(rd);
@@ -533,9 +534,9 @@ static inline bool create_rtt_tree_ctx_indirect_s2ap(struct test_rtt_ctx *ctx)
 	s2_ctx->s2_starting_level = 0;
 	s2_ctx->num_root_rtts = 1U;
 	s2_ctx->g_rtt = g_rtt_l0;
-	s2_ctx->enable_lpa2 = false;
 	s2_ctx->indirect_s2ap = true;  /* INDIRECT mode for runtime context */
 	s2_ctx->mecid = TEST_REALM_MECID;
+	s2_ctx->s2oa_limit = TEST_S2OA_LIMIT;
 	set_rd_state(rd, REALM_NEW);
 
 	buffer_unmap(rd);

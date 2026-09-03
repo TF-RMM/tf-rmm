@@ -276,6 +276,8 @@ void smc_rmm_config_get(unsigned long config_ptr, struct smc_result *res);
 void smc_rmm_config_set(unsigned long config_ptr, struct smc_result *res);
 
 void smc_gpt_l1_create(unsigned long addr, struct smc_result *res);
+void smc_gpt_info(unsigned long base, unsigned long top,
+		 struct smc_result *res);
 
 void smc_op_mem_donate(unsigned long handle,
 			unsigned long list_addr,

@@ -25,9 +25,22 @@ static unsigned long feat_da_supported = RMI_FEATURE_TRUE;
 
 unsigned long get_feature_register_0(void)
 {
-	/* Set S2SZ field */
+	/*
+	 * Set S2SZ and S2OASZ fields.
+	 * The current implementation reports the same maximum for both.
+	 */
 	unsigned long s2sz = arch_feat_get_pa_width();
-	unsigned long feat_reg0 = INPLACE(RMI_FEATURE_REGISTER_0_S2SZ, s2sz);
+	unsigned long feat_reg0;
+	bool lpa2 = is_feat_lpa2_4k_2_present() && is_feat_lpa2_4k_present();
+
+	/* A 52-bit stage 2 address size requires FEAT_LPA2 at both stages. */
+	if (!lpa2 && (s2sz > S2TT_MAX_PA_BITS)) {
+		s2sz = S2TT_MAX_PA_BITS;
+	}
+
+	feat_reg0 = INPLACE(RMI_FEATURE_REGISTER_0_S2SZ, s2sz) |
+		    INPLACE(RMI_FEATURE_REGISTER_0_S2OASZ, s2sz);
+
 	struct simd_config simd_cfg = { 0 };
 
 	/*
@@ -55,7 +68,7 @@ unsigned long get_feature_register_0(void)
 	}
 
 	/* Set LPA2 field. RMM needs both Stage 1 and Stage 2 to support LPA2 */
-	if ((is_feat_lpa2_4k_2_present() && is_feat_lpa2_4k_present()) == true) {
+	if (lpa2) {
 		feat_reg0 |=
 			INPLACE(RMI_FEATURE_REGISTER_0_LPA2, RMI_FEATURE_TRUE);
 	}

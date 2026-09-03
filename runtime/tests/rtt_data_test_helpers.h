@@ -181,9 +181,9 @@ static inline void init_data_s2_ctx(const struct test_data_ctx *ctx,
 	s2_ctx->s2_starting_level = 0;
 	s2_ctx->num_root_rtts = 1U;
 	s2_ctx->g_rtt = find_granule(ctx->rtt_l0);
-	s2_ctx->enable_lpa2 = false;
 	s2_ctx->indirect_s2ap = false;
 	s2_ctx->mecid = TEST_REALM_MECID;
+	s2_ctx->s2oa_limit = TEST_S2OA_LIMIT;
 }
 
 /*
@@ -257,9 +257,9 @@ static inline bool create_data_realm_base(struct test_data_ctx *ctx)
 	s2_ctx->s2_starting_level = 0;
 	s2_ctx->num_root_rtts    = 1U;
 	s2_ctx->g_rtt            = g_rtt_l0;
-	s2_ctx->enable_lpa2      = false;
 	s2_ctx->indirect_s2ap    = false;
 	s2_ctx->mecid            = TEST_REALM_MECID;
+	s2_ctx->s2oa_limit        = TEST_S2OA_LIMIT;
 	set_rd_state(rd, REALM_NEW);
 
 	buffer_unmap(rd);

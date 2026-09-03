@@ -48,25 +48,34 @@ static const unsigned long sl0_val[] = {
 	VTCR_SL0_4K_L3
 };
 
-static unsigned long realm_vtcr_ps(unsigned int parange)
+static unsigned long realm_vtcr_ps(unsigned long s2oa_limit)
 {
-	switch (parange) {
-	case PARANGE_WIDTH_36BITS:
-		return VTCR_PS_36;
-	case PARANGE_WIDTH_40BITS:
-		return VTCR_PS_40;
-	case PARANGE_WIDTH_42BITS:
-		return VTCR_PS_42;
-	case PARANGE_WIDTH_44BITS:
-		return VTCR_PS_44;
-	case PARANGE_WIDTH_48BITS:
-		return VTCR_PS_48;
-	case PARANGE_WIDTH_52BITS:
+	if (s2oa_limit > (UL(1) << 48)) {
 		return VTCR_PS_52;
-	case PARANGE_WIDTH_32BITS:
-	default:
-		return VTCR_PS_32;
 	}
+
+	if (s2oa_limit > (UL(1) << 44)) {
+		return VTCR_PS_48;
+	}
+
+	if (s2oa_limit > (UL(1) << 42)) {
+		return VTCR_PS_44;
+	}
+
+	if (s2oa_limit > (UL(1) << 40)) {
+		return VTCR_PS_42;
+	}
+
+	if (s2oa_limit > (UL(1) << 36)) {
+		return VTCR_PS_40;
+	}
+
+	if (s2oa_limit > (UL(1) << 32)) {
+		return VTCR_PS_36;
+	}
+
+	/* Default */
+	return VTCR_PS_32;
 }
 
 unsigned long realm_vtcr(struct rd *rd)
@@ -74,9 +83,8 @@ unsigned long realm_vtcr(struct rd *rd)
 	unsigned long t0sz, sl0;
 	unsigned long vtcr = is_feat_vmid16_present() ?
 				(VTCR_FLAGS | VTCR_VS) : VTCR_FLAGS;
-	unsigned int parange = arch_feat_get_pa_width();
 	int s2_starting_level = realm_rtt_starting_level(rd);
-	bool lpa2 = rd->s2_ctx[PRIMARY_S2_CTX_ID].enable_lpa2;
+	bool lpa2 = s2tt_lpa2_enabled(&rd->s2_ctx[PRIMARY_S2_CTX_ID]);
 
 	assert(((!lpa2) && (s2_starting_level >= S2TT_MIN_STARTING_LEVEL)) ||
 	       ((lpa2) && (s2_starting_level >= S2TT_MIN_STARTING_LEVEL_LPA2)));
@@ -93,11 +101,11 @@ unsigned long realm_vtcr(struct rd *rd)
 
 	vtcr |= t0sz;
 	vtcr |= sl0;
-	vtcr |= realm_vtcr_ps(parange);
+	vtcr |= realm_vtcr_ps(rd->s2_ctx[PRIMARY_S2_CTX_ID].s2oa_limit);
 
 	if (lpa2 == true) {
 		if (s2_starting_level == -1) {
-			vtcr |= VCTR_SL2_4K_LM1;
+			vtcr |= VTCR_SL2_4K_LM1;
 		}
 		vtcr |= VTCR_DS_52BIT;
 	}
@@ -154,7 +162,7 @@ static void init_vttbr(struct rec *rec, struct rd *rd)
 {
 	for (unsigned int i = 0U; i < realm_num_planes(rd); i++) {
 		struct s2tt_context *s2_ctx = plane_to_s2_context(rd, i);
-		bool lpa2 = s2_ctx->enable_lpa2;
+		bool lpa2 = s2tt_lpa2_enabled(s2_ctx);
 		STRUCT_TYPE sysreg_state *sysregs = REC_GET_SYSREGS_FROM_AUX(rec, i);
 
 		sysregs->vttbr_el2 =

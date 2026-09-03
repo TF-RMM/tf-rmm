@@ -42,10 +42,10 @@ void s2tte_create_unassigned_empty_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	if (s2tt_ctx.indirect_s2ap) {
@@ -83,10 +83,10 @@ void s2tte_create_unassigned_ram_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	if (s2tt_ctx.indirect_s2ap) {
@@ -124,10 +124,10 @@ void s2tte_create_unassigned_destroyed_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	if (s2tt_ctx.indirect_s2ap) {
@@ -187,10 +187,10 @@ void s2tte_create_assigned_destroyed_tc1(void)
 
 		/*
 		 * Generate an s2tt context to be used for the test.
-		 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+		 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 		 * on this API, so the rest of them can be uninitialized.
 		 */
-		s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+		s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 		s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 		tte = s2tte_create_assigned_destroyed((const struct s2tt_context *)&s2tt_ctx,
@@ -251,10 +251,10 @@ void s2tte_create_assigned_destroyed_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -281,10 +281,10 @@ void s2tte_create_assigned_destroyed_tc3(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -311,10 +311,10 @@ void s2tte_create_assigned_destroyed_tc4(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -365,10 +365,10 @@ void s2tte_create_assigned_empty_tc1(void)
 
 		/*
 		 * Generate an s2tt context to be used for the test.
-		 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+		 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 		 * on this API, so the rest of them can be uninitialized.
 		 */
-		s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+		s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 		s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 		tte = s2tte_create_assigned_empty((const struct s2tt_context *)&s2tt_ctx,
@@ -429,10 +429,10 @@ void s2tte_create_assigned_empty_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -459,10 +459,10 @@ void s2tte_create_assigned_empty_tc3(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -489,10 +489,10 @@ void s2tte_create_assigned_empty_tc4(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -535,10 +535,10 @@ void s2tte_create_assigned_ram_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* Test for each possible level */
@@ -604,10 +604,10 @@ void s2tte_create_assigned_ram_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	pa += test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
@@ -636,10 +636,10 @@ void s2tte_create_assigned_ram_tc3(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -666,10 +666,10 @@ void s2tte_create_assigned_ram_tc4(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -720,10 +720,10 @@ void s2tte_create_assigned_ns_tc1(void)
 
 		/*
 		 * Generate an s2tt context to be used for the test.
-		 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+		 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 		 * on this API, so the rest of them can be uninitialized.
 		 */
-		s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+		s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 		s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 		unsigned long tte = s2tte_create_assigned_ns(
@@ -816,10 +816,10 @@ void s2tte_create_assigned_unchanged_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
@@ -901,10 +901,10 @@ void s2tte_create_assigned_unchanged_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	pa += test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
@@ -936,10 +936,10 @@ void s2tte_create_assigned_unchanged_tc3(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -969,10 +969,10 @@ void s2tte_create_assigned_unchanged_tc4(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -1003,10 +1003,10 @@ void s2tte_create_assigned_unchanged_tc5(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -1054,10 +1054,10 @@ void s2tte_create_table_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_table_lvl();
@@ -1101,10 +1101,10 @@ void s2tte_create_table_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	pa += test_helpers_get_rand_in_range(1UL, (unsigned long)GRANULE_SIZE - 1UL);
@@ -1131,10 +1131,10 @@ void s2tte_create_table_tc3(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -1159,10 +1159,10 @@ void s2tte_create_table_tc4(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -1202,10 +1202,10 @@ void host_ns_s2tte_is_valid_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
@@ -1238,10 +1238,10 @@ void host_ns_s2tte_is_valid_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
@@ -1297,10 +1297,10 @@ void host_ns_s2tte_is_valid_tc3(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/*
@@ -1333,10 +1333,10 @@ void host_ns_s2tte_is_valid_tc4(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/*
@@ -1423,10 +1423,10 @@ void host_ns_s2tte_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* Test for each possible level */
@@ -1471,10 +1471,10 @@ void host_ns_s2tte_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/*
@@ -1494,10 +1494,10 @@ void host_ns_s2tte_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	(void)host_ns_s2tte((const struct s2tt_context *)&s2tt_ctx, tte, level - 1L);
@@ -1533,10 +1533,10 @@ void host_ns_s2tte_tc3(void)
 	test_helpers_expect_assert_fail(true);
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	(void)host_ns_s2tte((const struct s2tt_context *)&s2tt_ctx, tte, level + 1L);
@@ -1564,10 +1564,10 @@ void host_ns_s2tte_tc4(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	unsigned long val_tte = s2tte_create_assigned_ns(
@@ -1599,10 +1599,10 @@ void s2tte_has_ripas_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
@@ -1654,10 +1654,10 @@ void s2tte_has_ripas_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* Generate a set of NS S2TTEs per valid level */
@@ -1717,10 +1717,10 @@ void s2tte_is_unassigned_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	tte = s2tt_test_create_unassigned(
@@ -1762,10 +1762,10 @@ void s2tte_is_unassigned_empty_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	tte = s2tte_create_unassigned_empty(
@@ -1816,10 +1816,10 @@ void s2tte_is_unassigned_ram_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	tte = s2tte_create_unassigned_ram(
@@ -1870,10 +1870,10 @@ void s2tte_is_unassigned_ns_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	tte = s2tte_create_unassigned_ns((
@@ -1925,10 +1925,10 @@ void s2tte_is_unassigned_destroyed_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	tte = s2tte_create_unassigned_destroyed(
@@ -1977,10 +1977,10 @@ void s2tte_is_assigned_empty_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
@@ -2036,10 +2036,10 @@ void s2tte_is_assigned_ns_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
@@ -2095,10 +2095,10 @@ void s2tte_is_assigned_ns_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	tte = s2tte_create_assigned_ns(
@@ -2131,10 +2131,10 @@ void s2tte_is_assigned_ram_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
@@ -2187,10 +2187,10 @@ void s2tte_is_assigned_ram_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	tte = s2tte_create_assigned_ram((const struct s2tt_context *)&s2tt_ctx,
@@ -2222,10 +2222,10 @@ void s2tte_is_assigned_destroyed_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
@@ -2278,10 +2278,10 @@ void s2tte_is_table_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_table_lvl();
@@ -2341,10 +2341,10 @@ void s2tte_get_ripas_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (unsigned int i = 0U; i < ARRAY_SIZE(ripas); i++) {
@@ -2389,10 +2389,10 @@ void s2tte_get_ripas_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	tte = s2tte_create_unassigned_destroyed(
@@ -2430,10 +2430,10 @@ void s2tte_get_ripas_tc3(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	tte = s2tte_create_unassigned_destroyed(
@@ -2464,10 +2464,10 @@ void s2tt_init_unassigned_empty_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* Generate the validation table */
@@ -2522,10 +2522,10 @@ void s2tt_init_unassigned_ram_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* Generate the validation table */
@@ -2622,10 +2622,10 @@ void s2tt_init_unassigned_destroyed_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* Generate the validation table */
@@ -2677,10 +2677,10 @@ void s2tt_init_assigned_empty_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
@@ -2727,10 +2727,10 @@ void s2tt_init_assigned_empty_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -2758,10 +2758,10 @@ void s2tt_init_assigned_empty_tc3(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -2787,10 +2787,10 @@ void s2tt_init_assigned_empty_tc4(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -2820,10 +2820,10 @@ void s2tt_init_assigned_empty_tc5(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -2866,10 +2866,10 @@ void s2tt_init_assigned_ram_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
@@ -2916,10 +2916,10 @@ void s2tt_init_assigned_ram_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -2947,10 +2947,10 @@ void s2tt_init_assigned_ram_tc3(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -2976,10 +2976,10 @@ void s2tt_init_assigned_ram_tc4(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -3009,10 +3009,10 @@ void s2tt_init_assigned_ram_tc5(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -3056,10 +3056,10 @@ void s2tt_init_assigned_ns_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
@@ -3220,10 +3220,10 @@ void s2tt_init_assigned_destroyed_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_block_lvl();
@@ -3271,10 +3271,10 @@ void s2tt_init_assigned_destroyed_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -3302,10 +3302,10 @@ void s2tt_init_assigned_destroyed_tc3(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -3332,10 +3332,10 @@ void s2tt_init_assigned_destroyed_tc4(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -3366,10 +3366,10 @@ void s2tt_init_assigned_destroyed_tc5(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	test_helpers_expect_assert_fail(true);
@@ -3423,7 +3423,7 @@ void s2tte_pending_checks_tc1(void)
 	unsigned long s2tte;
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/*
@@ -3468,10 +3468,10 @@ void s2tte_pa_tc1(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	for (long level = s2tt_test_helpers_min_table_lvl();
@@ -3527,10 +3527,10 @@ void s2tte_pa_tc2(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* pickup a random type of unassigned S2TTE to test with */
@@ -3566,10 +3566,10 @@ void s2tte_pa_tc3(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* pickup a random type of assigned S2TTE to test with */
@@ -3606,10 +3606,10 @@ void s2tte_pa_tc4(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* pickup a random type of assigned S2TTE to test with */
@@ -3646,10 +3646,10 @@ void s2tte_pa_tc5(void)
 
 	/*
 	 * Generate an s2tt context to be used for the test.
-	 * only s2tt_ctx.enable_lpa2 and s2tt_ctx.indirect_s2ap ar of use
+	 * only the derived LPA2 state and s2tt_ctx.indirect_s2ap ar of use
 	 * on this API, so the rest of them can be uninitialized.
 	 */
-	s2tt_ctx.enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
+	s2tt_test_helpers_set_lpa2(&s2tt_ctx, s2tt_test_helpers_lpa2_enabled());
 	s2tt_ctx.indirect_s2ap = s2tt_test_helpers_s2pie_enabled();
 
 	/* pickup a random type of assigned S2TTE to test with */

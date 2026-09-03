@@ -37,9 +37,6 @@ struct s2tt_context {
 	/* Virtual Machine Identifier */
 	unsigned int vmid;
 
-	/* If FEAT_LPA2 is enabled */
-	bool enable_lpa2;
-
 	/* S2AP indirect encoding enabled */
 	bool indirect_s2ap;
 
@@ -48,6 +45,9 @@ struct s2tt_context {
 
 	/* MECID to be used when rtt is accessed by RMM */
 	unsigned int mecid;
+
+	/* Exclusive upper bound for stage 2 output addresses */
+	unsigned long s2oa_limit;
 
 	/*
 	 * TODO: we will need other translation regime state, e.g. TCR, MAIR(?).
@@ -67,6 +67,32 @@ struct s2tt_context {
 #define S2TT_PAGE_LEVEL			(3)
 #define S2TT_MIN_DEV_BLOCK_LEVEL	(1)
 #define S2TT_MIN_BLOCK_LEVEL		(1)
+
+/*
+ * Return true if the stage 2 translation regime requires FEAT_LPA2.
+ * LPA2 is required when either the input or output address size exceeds
+ * the range supported by the base translation-table format.
+ */
+static inline bool s2tt_lpa2_required(unsigned int ipa_bits,
+				      unsigned long s2oa_limit)
+{
+	return ((ipa_bits > S2TT_MAX_IPA_BITS) ||
+		(s2oa_limit > (1UL << S2TT_MAX_PA_BITS)));
+}
+
+static inline bool s2tt_lpa2_enabled(const struct s2tt_context *s2_ctx)
+{
+	bool enable_lpa2;
+
+	assert(s2_ctx != NULL);
+
+	enable_lpa2 = s2tt_lpa2_required(s2_ctx->ipa_bits,
+					   s2_ctx->s2oa_limit);
+	assert(!enable_lpa2 ||
+	       (is_feat_lpa2_4k_present() && is_feat_lpa2_4k_2_present()));
+
+	return enable_lpa2;
+}
 
 /*
  * S2TTE_STRIDE: The number of bits resolved in a single level of translation

@@ -265,13 +265,8 @@ static unsigned long map_pop_next_block(struct addr_list *list,
 		return RMI_ERROR_INPUT;
 	}
 
-	/*
-	 * If LPA2 is disabled for the realm, the block's PA range must
-	 * fit in S2TT_MAX_PA_BITS. @pa is already aligned to @map_size,
-	 * so checking the end address is sufficient.
-	 */
-	if (!s2_ctx->enable_lpa2 &&
-	    ((pa + map_size) > (UL(1) << S2TT_MAX_PA_BITS))) {
+	/* @pa is aligned to @map_size, so checking the end is sufficient. */
+	if ((pa + map_size) > s2_ctx->s2oa_limit) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -783,12 +778,7 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 
 	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
 
-	/*
-	 * If LPA2 is disabled for the realm, then `data_addr` must not be
-	 * more than 48 bits wide.
-	 */
-	if (!s2_ctx->enable_lpa2 &&
-	    (data_addr >= (UL(1) << S2TT_MAX_PA_BITS))) {
+	if (data_addr >= s2_ctx->s2oa_limit) {
 		ret = RMI_ERROR_INPUT;
 		goto out_unmap_rd;
 	}

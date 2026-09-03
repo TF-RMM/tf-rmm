@@ -1294,7 +1294,8 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
 	ctx->pending_pa = ~0UL;
 	ctx->sro_handle = sro_ctx_my_handle();
 	ctx->mecid = rd->s2_ctx[PRIMARY_S2_CTX_ID].mecid;
-	ctx->enable_lpa2 = rd->s2_ctx[PRIMARY_S2_CTX_ID].enable_lpa2;
+	ctx->enable_lpa2 =
+		s2tt_lpa2_enabled(&rd->s2_ctx[PRIMARY_S2_CTX_ID]);
 	ctx->leaf_base_ipa = 0UL;
 	ctx->leaf_level = S2TT_PAGE_LEVEL;
 	ctx->smmu_tlbi_idx = 0UL;
@@ -1449,7 +1450,8 @@ void smc_rtt_unprot_unmap(unsigned long rd_addr,
 	ctx->cur_base = base;
 	ctx->sro_handle = sro_ctx_my_handle();
 	ctx->mecid = rd->s2_ctx[PRIMARY_S2_CTX_ID].mecid;
-	ctx->enable_lpa2 = rd->s2_ctx[PRIMARY_S2_CTX_ID].enable_lpa2;
+	ctx->enable_lpa2 =
+		s2tt_lpa2_enabled(&rd->s2_ctx[PRIMARY_S2_CTX_ID]);
 	ctx->leaf_base_ipa = 0UL;
 	ctx->leaf_level = S2TT_PAGE_LEVEL;
 	ctx->smmu_tlbi_idx = 0UL;
@@ -1582,7 +1584,8 @@ void smc_rtt_dev_unmap(unsigned long rd_addr,
 	ctx->pending_pa = ~0UL;
 	ctx->sro_handle = sro_ctx_my_handle();
 	ctx->mecid = rd->s2_ctx[PRIMARY_S2_CTX_ID].mecid;
-	ctx->enable_lpa2 = rd->s2_ctx[PRIMARY_S2_CTX_ID].enable_lpa2;
+	ctx->enable_lpa2 =
+		s2tt_lpa2_enabled(&rd->s2_ctx[PRIMARY_S2_CTX_ID]);
 	ctx->leaf_base_ipa = 0UL;
 	ctx->leaf_level = S2TT_PAGE_LEVEL;
 	ctx->smmu_tlbi_idx = 0UL;
