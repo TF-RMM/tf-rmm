@@ -90,6 +90,12 @@ bool ns_buffer_read(enum buffer_slot slot,
 		    size_t size,
 		    void *dest);
 
+bool ns_buffer_read_unaligned(enum buffer_slot slot,
+			      struct granule *ns_gr,
+			      unsigned int offset,
+			      size_t size,
+			      void *dest);
+
 bool ns_buffer_write(enum buffer_slot slot,
 		     struct granule *ns_gr,
 		     unsigned int offset,

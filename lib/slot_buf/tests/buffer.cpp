@@ -1454,6 +1454,254 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_TC9)
 	test_helpers_fail_if_no_assert_failed();
 }
 
+#define NS_BUF_READ_UNALIGNED_TEST_PATTERN	0xA5U
+
+TEST(slot_buffer, ns_buffer_read_unaligned_TC1)
+{
+	uintptr_t granule_addrs[2];
+	struct granule *test_granule;
+	uint64_t dest_storage[6];
+	uint64_t expected_storage[6];
+	unsigned char *src;
+	unsigned char *dest = (unsigned char *)dest_storage;
+	unsigned char *expected = (unsigned char *)expected_storage;
+	union test_harness_cbs cb;
+
+	/******************************************************************
+	 * TEST CASE 1:
+	 *
+	 * Exercise every source and destination alignment with sizes around
+	 * the 8-byte access boundary. Verify the requested data and the guard
+	 * bytes surrounding the destination.
+	 ******************************************************************/
+
+	cb.buffer_map = buffer_test_cb_map_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+
+	get_rand_granule_array(granule_addrs, 2U);
+	test_granule = addr_to_granule(granule_addrs[0]);
+	src = (unsigned char *)granule_addrs[0];
+
+	for (unsigned int i = 0U; i < GRANULE_SIZE; i++) {
+		src[i] = (unsigned char)i;
+	}
+	(void)memcpy((void *)granule_addrs[1], src, GRANULE_SIZE);
+
+	for (unsigned int src_offset = 0U; src_offset < sizeof(uint64_t);
+	     src_offset++) {
+		for (unsigned int dst_offset = 0U;
+		     dst_offset < sizeof(uint64_t); dst_offset++) {
+			for (size_t size = 0U; size <= ((2U * sizeof(uint64_t)) + 1U);
+			     size++) {
+				bool retval;
+
+				(void)memset(dest, NS_BUF_READ_UNALIGNED_TEST_PATTERN,
+					     sizeof(dest_storage));
+				(void)memset(expected, NS_BUF_READ_UNALIGNED_TEST_PATTERN,
+					     sizeof(expected_storage));
+				(void)memcpy(&expected[dst_offset], &src[src_offset], size);
+
+				retval = ns_buffer_read_unaligned(
+						SLOT_NS, test_granule, src_offset, size,
+						&dest[dst_offset]);
+
+				CHECK_TRUE(retval);
+				MEMCMP_EQUAL(expected, dest, sizeof(dest_storage));
+			}
+		}
+	}
+
+	/* Verify that reads did not modify the source granule. */
+	MEMCMP_EQUAL((void *)granule_addrs[1], src, GRANULE_SIZE);
+}
+
+struct ns_buf_read_unaligned_test_vector {
+	unsigned int offset;
+	size_t size;
+};
+
+static const struct ns_buf_read_unaligned_test_vector read_unaligned_test_vectors[] = {
+	{ 0U, GRANULE_SIZE },
+	{ 1U, GRANULE_SIZE - 1U },
+	{ 7U, GRANULE_SIZE - 7U },
+	{ 8U, GRANULE_SIZE - 8U },
+	{ 3U, 60U },
+	{ 3U, 61U },
+	{ 3U, 62U },
+	{ GRANULE_SIZE - 9U, 9U },
+	{ GRANULE_SIZE - 8U, 8U },
+	{ GRANULE_SIZE - 7U, 7U },
+	{ GRANULE_SIZE - 1U, 1U },
+	{ GRANULE_SIZE - 1U, 0U }
+};
+
+TEST(slot_buffer, ns_buffer_read_unaligned_TC2)
+{
+	uintptr_t granule_addrs[2];
+	struct granule *test_granule;
+	uint64_t dest_storage[(GRANULE_SIZE + sizeof(uint64_t)) / sizeof(uint64_t)];
+	uint64_t expected_storage[(GRANULE_SIZE + sizeof(uint64_t)) / sizeof(uint64_t)];
+	unsigned char *src;
+	unsigned char *dest = (unsigned char *)dest_storage;
+	unsigned char *expected = (unsigned char *)expected_storage;
+	union test_harness_cbs cb;
+
+	/******************************************************************
+	 * TEST CASE 2:
+	 *
+	 * Exercise exact granule boundaries, including the largest valid
+	 * ranges, the final aligned and unaligned words, and an empty range.
+	 * Repeat each range for every destination alignment.
+	 ******************************************************************/
+
+	cb.buffer_map = buffer_test_cb_map_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
+	cb.buffer_unmap = buffer_test_cb_unmap_access;
+	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
+
+	get_rand_granule_array(granule_addrs, 2U);
+	test_granule = addr_to_granule(granule_addrs[0]);
+	src = (unsigned char *)granule_addrs[0];
+
+	for (unsigned int i = 0U; i < GRANULE_SIZE; i++) {
+		src[i] = (unsigned char)(i * 3U);
+	}
+	(void)memcpy((void *)granule_addrs[1], src, GRANULE_SIZE);
+
+	for (unsigned int tv_idx = 0U;
+	     tv_idx < ARRAY_SIZE(read_unaligned_test_vectors); tv_idx++) {
+		const struct ns_buf_read_unaligned_test_vector *tv =
+			&read_unaligned_test_vectors[tv_idx];
+		unsigned int offset = tv->offset;
+
+		/* Verify that only the least significant offset bits are used. */
+		if ((tv_idx & 1U) != 0U) {
+			offset += GRANULE_SIZE;
+		}
+
+		for (unsigned int dst_offset = 0U;
+		     dst_offset < sizeof(uint64_t); dst_offset++) {
+			bool retval;
+
+			(void)memset(dest, NS_BUF_READ_UNALIGNED_TEST_PATTERN,
+				     sizeof(dest_storage));
+			(void)memset(expected, NS_BUF_READ_UNALIGNED_TEST_PATTERN,
+				     sizeof(expected_storage));
+			(void)memcpy(&expected[dst_offset], &src[tv->offset], tv->size);
+
+			retval = ns_buffer_read_unaligned(SLOT_NS, test_granule,
+							 offset, tv->size,
+							 &dest[dst_offset]);
+
+			CHECK_TRUE(retval);
+			MEMCMP_EQUAL(expected, dest, sizeof(dest_storage));
+		}
+	}
+
+	/* Verify that reads did not modify the source granule. */
+	MEMCMP_EQUAL((void *)granule_addrs[1], src, GRANULE_SIZE);
+}
+
+ASSERT_TEST(slot_buffer, ns_buffer_read_unaligned_TC3)
+{
+	uintptr_t granule_addrs[2];
+	enum buffer_slot slot;
+
+	/******************************************************************
+	 * TEST CASE 3:
+	 *
+	 * A non-NS slot is rejected.
+	 ******************************************************************/
+
+	get_rand_granule_array(granule_addrs, 2U);
+	slot = (enum buffer_slot)test_helpers_get_rand_in_range(
+						(unsigned long)(SLOT_NS + 1U),
+						(unsigned long)NR_CPU_SLOTS);
+
+	test_helpers_expect_assert_fail(true);
+	(void)ns_buffer_read_unaligned(slot, addr_to_granule(granule_addrs[0]),
+				       0U, 1U, (void *)granule_addrs[1]);
+	test_helpers_fail_if_no_assert_failed();
+}
+
+ASSERT_TEST(slot_buffer, ns_buffer_read_unaligned_TC4)
+{
+	uintptr_t granule_addr;
+
+	/******************************************************************
+	 * TEST CASE 4:
+	 *
+	 * A NULL source granule is rejected.
+	 ******************************************************************/
+
+	granule_addr = get_rand_granule_addr();
+
+	test_helpers_expect_assert_fail(true);
+	(void)ns_buffer_read_unaligned(SLOT_NS, NULL, 0U, 1U,
+				       (void *)granule_addr);
+	test_helpers_fail_if_no_assert_failed();
+}
+
+ASSERT_TEST(slot_buffer, ns_buffer_read_unaligned_TC5)
+{
+	uintptr_t granule_addr;
+
+	/******************************************************************
+	 * TEST CASE 5:
+	 *
+	 * A NULL destination is rejected.
+	 ******************************************************************/
+
+	granule_addr = get_rand_granule_addr();
+
+	test_helpers_expect_assert_fail(true);
+	(void)ns_buffer_read_unaligned(SLOT_NS, addr_to_granule(granule_addr),
+				       0U, 1U, NULL);
+	test_helpers_fail_if_no_assert_failed();
+}
+
+ASSERT_TEST(slot_buffer, ns_buffer_read_unaligned_TC6)
+{
+	uintptr_t granule_addrs[2];
+
+	/******************************************************************
+	 * TEST CASE 6:
+	 *
+	 * A range extending one byte beyond the granule is rejected.
+	 ******************************************************************/
+
+	get_rand_granule_array(granule_addrs, 2U);
+
+	test_helpers_expect_assert_fail(true);
+	(void)ns_buffer_read_unaligned(SLOT_NS,
+				       addr_to_granule(granule_addrs[0]),
+				       GRANULE_SIZE - 1U, 2U,
+				       (void *)granule_addrs[1]);
+	test_helpers_fail_if_no_assert_failed();
+}
+
+ASSERT_TEST(slot_buffer, ns_buffer_read_unaligned_TC7)
+{
+	uintptr_t granule_addrs[2];
+
+	/******************************************************************
+	 * TEST CASE 7:
+	 *
+	 * A size larger than one granule is rejected without overflow.
+	 ******************************************************************/
+
+	get_rand_granule_array(granule_addrs, 2U);
+
+	test_helpers_expect_assert_fail(true);
+	(void)ns_buffer_read_unaligned(SLOT_NS,
+				       addr_to_granule(granule_addrs[0]),
+				       0U, GRANULE_SIZE + 1U,
+				       (void *)granule_addrs[1]);
+	test_helpers_fail_if_no_assert_failed();
+}
+
 TEST(slot_buffer, ns_buffer_read_TC1)
 {
 	uintptr_t granule_addrs[3];

@@ -1225,25 +1225,82 @@ out_err_input:
 	res->x[0] = RMI_ERROR_INPUT;
 }
 
-static unsigned long get_expected_key_size(unsigned long rmi_key_algo)
+static unsigned long algo_from_key_len(unsigned long key_len)
 {
-	switch (rmi_key_algo) {
-	case RMI_SIGNATURE_ALGORITHM_ECDSA_P256:
-		return 65;
-	case RMI_SIGNATURE_ALGORITHM_ECDSA_P384:
-		return 97;
-	case RMI_SIGNATURE_ALGORITHM_RSASSA_3072:
-		return 384;
+	switch (key_len) {
+	case RMI_ALGORITHM_ECDSA_P256_LEN:
+		return RMI_SIGNATURE_ALGORITHM_ECDSA_P256;
+	case RMI_ALGORITHM_ECDSA_P384_LEN:
+		return RMI_SIGNATURE_ALGORITHM_ECDSA_P384;
 	default:
-		return 0;
+		assert(key_len == RMI_ALGORITHM_RSASSA_3072_LEN);
+		return RMI_SIGNATURE_ALGORITHM_RSASSA_3072;
 	}
 }
 
-static bool public_key_sig_algo_valid(unsigned long rmi_key_algo)
+static bool public_key_len_valid(unsigned long key_len)
 {
-	return (rmi_key_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P256) ||
-	       (rmi_key_algo == RMI_SIGNATURE_ALGORITHM_ECDSA_P384) ||
-	       (rmi_key_algo == RMI_SIGNATURE_ALGORITHM_RSASSA_3072);
+	return (key_len == RMI_ALGORITHM_ECDSA_P256_LEN) ||
+	       (key_len == RMI_ALGORITHM_ECDSA_P384_LEN) ||
+	       (key_len == RMI_ALGORITHM_RSASSA_3072_LEN);
+}
+
+/*
+ * Copy a public key data range from Non-secure memory.
+ *
+ * The source range may start at any byte offset and span multiple granules.
+ * Validate each source granule as Non-secure and copy its portion using
+ * ns_buffer_read_unaligned().
+ *
+ * Arguments:
+ *   - src_addr:    Source PA of the data to copy.
+ *   - size:        Number of bytes to copy.
+ *   - dst:         Destination buffer in RMM memory.
+ *
+ * Returns:
+ *   - true if the complete range was copied successfully.
+ *   - false if any source granule is invalid, is not in the NS state, or
+ *     cannot be accessed.
+ */
+static bool ns_pubkey_buffer_read(unsigned long src_addr, size_t size,
+				  void *dst)
+{
+	unsigned char *dst_bytes = dst;
+	unsigned long addr = src_addr;
+	size_t remaining = size;
+	size_t dst_offset = 0U;
+	struct granule *g;
+	unsigned long ns_granule_addr;
+	unsigned int offset;
+	size_t copy_size;
+
+	assert(dst != NULL);
+
+	while (remaining != 0UL) {
+		ns_granule_addr = addr & GRANULE_MASK;
+		offset = (unsigned int)(addr & (GRANULE_SIZE - 1UL));
+
+		/* Validate the source granule before accessing NS memory */
+		g = find_granule(ns_granule_addr);
+		if ((g == NULL) ||
+		    (granule_unlocked_state(g) != GRANULE_STATE_NS)) {
+			return false;
+		}
+
+		/* Limit the requested data to the current granule. */
+		copy_size = MIN(remaining, (size_t)GRANULE_SIZE - (size_t)offset);
+
+		if (!ns_buffer_read_unaligned(SLOT_NS, g, offset, copy_size,
+					      &dst_bytes[dst_offset])) {
+			return false;
+		}
+
+		addr += copy_size;
+		dst_offset += copy_size;
+		remaining -= copy_size;
+	}
+
+	return true;
 }
 
 /*
@@ -1258,11 +1315,9 @@ void smc_pdev_set_pubkey(unsigned long pdev_addr,
 {
 	struct granule *g_pdev;
 	struct granule *g_pubkey_params;
-	bool ns_access_ok;
 	struct pdev *pd;
-	struct rmi_public_key_params pubkey_params;
-	unsigned long dev_assign_public_key_sig_algo;
-	unsigned long dev_assign_public_key_expected_size;
+	struct rmi_public_key_params rmi_pubkey_params;
+	struct public_key_params pubkey_params = { 0 };
 	unsigned long smc_rc;
 	int rc;
 
@@ -1284,39 +1339,52 @@ void smc_pdev_set_pubkey(unsigned long pdev_addr,
 		return;
 	}
 
-	ns_access_ok = ns_buffer_read(SLOT_NS, g_pubkey_params, 0U,
-				      sizeof(struct rmi_public_key_params),
-				      &pubkey_params);
-	if (!ns_access_ok) {
+	if (!ns_buffer_read(SLOT_NS, g_pubkey_params, 0U,
+			      sizeof(struct rmi_public_key_params),
+			      &rmi_pubkey_params)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
 	/*
-	 * Check key_len and metadata_len with max value.
+	 * Check key_len with supported algorithm values.
 	 */
-	/* coverity[uninit_use:SUPPRESS] */
-	if ((pubkey_params.key_len > PUBKEY_PARAM_KEY_LEN_MAX) ||
-	    (pubkey_params.metadata_len > PUBKEY_PARAM_METADATA_LEN_MAX)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	/* coverity[uninit_use:SUPPRESS] */
-	dev_assign_public_key_sig_algo = pubkey_params.algo;
-	if (!public_key_sig_algo_valid(dev_assign_public_key_sig_algo)) {
+	if (!public_key_len_valid(rmi_pubkey_params.key_len)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
 	/*
-	 * Validate 'key_len' against expected key length based on algorithm
+	 * Check metadata_len with max value.
 	 */
-	dev_assign_public_key_expected_size = get_expected_key_size(dev_assign_public_key_sig_algo);
-	assert(dev_assign_public_key_expected_size != 0U);
-	if (pubkey_params.key_len != dev_assign_public_key_expected_size) {
+	if (rmi_pubkey_params.metadata_len > PUBKEY_PARAM_METADATA_LEN_MAX) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
+	}
+
+	pubkey_params.key_len = rmi_pubkey_params.key_len;
+	pubkey_params.metadata_len = rmi_pubkey_params.metadata_len;
+	pubkey_params.algo =
+		(unsigned char)algo_from_key_len(rmi_pubkey_params.key_len);
+
+	/* Copy public key data from NS memory */
+	if (!ns_pubkey_buffer_read(
+				rmi_pubkey_params.key_addr,
+				rmi_pubkey_params.key_len,
+				pubkey_params.key)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	/* Copy public key metadata from NS memory */
+	if (rmi_pubkey_params.metadata_len != 0UL) {
+		if (!ns_pubkey_buffer_read(
+					rmi_pubkey_params.metadata_addr,
+					rmi_pubkey_params.metadata_len,
+					pubkey_params.metadata)) {
+			res->x[0] = RMI_ERROR_INPUT;
+			return;
+		}
 	}
 
 	/* Lock pdev granule and map it */

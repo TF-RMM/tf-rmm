@@ -78,3 +78,9 @@ COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_psmmu_info, priq_intr_num)) == 0x1
 COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_psmmu_info, cmdq_sync_intr_num)) == 0x20U);
 
 COMPILER_ASSERT_NO_CBMC(sizeof(struct rmi_psmmu_info) == 0x1000UL);
+
+COMPILER_ASSERT_NO_CBMC(sizeof(struct rmi_public_key_params) == 0x1000UL);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_public_key_params, key_addr)) == 0x0U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_public_key_params, metadata_addr)) == 0x400U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_public_key_params, key_len)) == 0x800U);
+COMPILER_ASSERT_NO_CBMC(U(offsetof(struct rmi_public_key_params, metadata_len)) == 0x808U);

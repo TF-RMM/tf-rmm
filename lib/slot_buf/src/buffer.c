@@ -232,6 +232,97 @@ bool ns_buffer_read(enum buffer_slot slot,
 }
 
 /*
+ * Map a Non-secure granule @ns_gr into @slot and copy @size bytes at @offset
+ * into @dest. The source offset, transfer size and destination may be
+ * unaligned. Only the least significant bits of @offset are considered, and
+ * the requested range must fit within one granule.
+ *
+ * Aligned data is copied directly into @dest. An aligned temporary word is
+ * used for any unaligned prefix or suffix because memcpy_ns_read() requires
+ * its source, destination and size to be 8-byte aligned.
+ *
+ * Returns true if all requested data was copied, or false if an NS access
+ * fault prevented the complete copy. On failure, @dest may have been
+ * partially updated.
+ */
+bool ns_buffer_read_unaligned(enum buffer_slot slot,
+			      struct granule *ns_gr,
+			      unsigned int offset,
+			      size_t size,
+			      void *dest)
+{
+	unsigned char *dst = dest;
+	uint64_t data;
+	const unsigned char *data_bytes = (const unsigned char *)&data;
+	uintptr_t src;
+	size_t remaining = size;
+	size_t copy_size, aligned_size;
+	unsigned int aligned_offset, data_offset;
+	bool retval = true;
+
+	assert(is_ns_slot(slot));
+	assert(ns_gr != NULL);
+	assert(dest != NULL);
+
+	offset &= (unsigned int)(~GRANULE_MASK);
+	assert(size <= GRANULE_SIZE);
+	assert((size_t)offset <= ((size_t)GRANULE_SIZE - size));
+
+	if (size == 0U) {
+		return true;
+	}
+
+	src = (uintptr_t)ns_buffer_granule_map(slot, ns_gr);
+
+	while (remaining != 0U) {
+		/* Copy the aligned body directly into the destination. */
+		if (ALIGNED(offset, sizeof(uint64_t)) &&
+		    ALIGNED((uintptr_t)dst, sizeof(uint64_t))) {
+			aligned_size = round_down(remaining, sizeof(uint64_t));
+			if (aligned_size != 0U) {
+				retval = memcpy_ns_read(dst, (void *)(src + offset),
+							aligned_size);
+				if (!retval) {
+					break;
+				}
+
+				offset += (unsigned int)aligned_size;
+				dst = &dst[aligned_size];
+				remaining -= aligned_size;
+				continue;
+			}
+		}
+
+		/*
+		 * Read the source-aligned word containing the unaligned data and
+		 * copy only the requested bytes from it.
+		 */
+		aligned_offset = round_down(offset, sizeof(uint64_t));
+		data_offset = offset - aligned_offset;
+		copy_size = MIN(remaining,
+				    sizeof(data) - (size_t)data_offset);
+
+		assert((aligned_offset + sizeof(data)) <= GRANULE_SIZE);
+		assert((data_offset + copy_size) <= sizeof(data));
+
+		retval = memcpy_ns_read(&data, (void *)(src + aligned_offset),
+					sizeof(data));
+		if (!retval) {
+			break;
+		}
+
+		(void)memcpy(dst, &data_bytes[data_offset], copy_size);
+		offset += (unsigned int)copy_size;
+		dst = &dst[copy_size];
+		remaining -= copy_size;
+	}
+
+	ns_buffer_unmap((void *)src);
+
+	return retval;
+}
+
+/*
  * Map a Non secure granule @g into the slot @slot and write data from
  * this granule to @dest. Unmap the granule once the write is done.
  *

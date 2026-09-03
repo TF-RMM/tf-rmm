@@ -85,6 +85,6 @@ int dev_assign_abort_app_operation(struct app_data_cfg *app_data);
  *         DEV_ASSIGN_STATUS_ERROR otherwise.
  */
 int dev_assign_set_public_key(struct app_data_cfg *app_data,
-			      struct rmi_public_key_params *pubkey_params);
+			      struct public_key_params *pubkey_params);
 
 #endif /* DEV_ASSIGN_APP_H */

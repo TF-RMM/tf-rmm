@@ -1576,6 +1576,10 @@ struct rmi_rec_run {
 #define RMI_SIGNATURE_ALGORITHM_ECDSA_P256	U(1)
 #define RMI_SIGNATURE_ALGORITHM_ECDSA_P384	U(2)
 
+#define RMI_ALGORITHM_RSASSA_3072_LEN	U(384)
+#define RMI_ALGORITHM_ECDSA_P256_LEN	U(65)
+#define RMI_ALGORITHM_ECDSA_P384_LEN	U(97)
+
 /*
  * RmiDevCommEnterStatus (Name in Spec RmiDevCommStatus)
  * Represents status passed from the Host to the RMM during device communication.
@@ -1770,7 +1774,7 @@ struct rmi_pdev_params {
 };
 
 /* Max length of public key data passed in rmi_public_key_params */
-#define PUBKEY_PARAM_KEY_LEN_MAX	U(1024)
+#define PUBKEY_PARAM_KEY_LEN_MAX	RMI_ALGORITHM_RSASSA_3072_LEN
 
 /* Max length of public key metadata passed in rmi_public_key_params */
 #define PUBKEY_PARAM_METADATA_LEN_MAX	U(1024)
@@ -1782,17 +1786,14 @@ struct rmi_pdev_params {
  */
 /* cppcheck-suppress misra-c2012-2.4 */
 struct rmi_public_key_params {
-	/* Bits8: Key data */
-	SET_MEMBER_RMI(unsigned char key[PUBKEY_PARAM_KEY_LEN_MAX], 0x0, 0x400);
-	/* Bits8: Key metadata */
-	SET_MEMBER_RMI(unsigned char metadata[PUBKEY_PARAM_METADATA_LEN_MAX],
-		       0x400, 0x800);
-	/* UInt64: Length of key data in bytes */
+	/* Address of public key data */
+	SET_MEMBER_RMI(unsigned long key_addr, 0x0, 0x400);
+	/* Address of key metadata */
+	SET_MEMBER_RMI(unsigned long metadata_addr, 0x400, 0x800);
+	/* Length of key data in bytes */
 	SET_MEMBER_RMI(unsigned long key_len, 0x800, 0x808);
-	/* UInt64: Length of metadata in bytes */
-	SET_MEMBER_RMI(unsigned long metadata_len, 0x808, 0x810);
-	/* RmiSignatureAlgorithm: Signature algorithm */
-	SET_MEMBER_RMI(unsigned char algo, 0x810, 0x1000);
+	/* Length of key metadata in bytes */
+	SET_MEMBER_RMI(unsigned long metadata_len, 0x808, 0x1000);
 };
 
 /*
