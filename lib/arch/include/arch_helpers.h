@@ -97,6 +97,7 @@ DEFINE_SYSOP_TYPE_PARAM_FUNC(at, s12e1w)
 DEFINE_SYSOP_TYPE_PARAM_FUNC(at, s12e0r)
 DEFINE_SYSOP_TYPE_PARAM_FUNC(at, s12e0w)
 DEFINE_SYSOP_TYPE_PARAM_FUNC(at, s1e1r)
+DEFINE_SYSOP_ATS1E1A
 DEFINE_SYSOP_TYPE_PARAM_FUNC(at, s1e2r)
 
 /*******************************************************************************

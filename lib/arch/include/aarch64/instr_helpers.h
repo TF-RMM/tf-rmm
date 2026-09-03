@@ -155,6 +155,14 @@ static inline void (_op ## _type)(uint64_t v)		\
 /* DC ZVA, Data Cache Zero by VA instruction */
 #define DEFINE_SYSOP_DCZVA	DEFINE_SYSOP_TYPE_PARAM_FUNC(dc, zva)
 
+/* AT S1E1A, Address Translate Stage 1 EL1 without permission checks. */
+#define DEFINE_SYSOP_ATS1E1A					\
+__attribute__((__always_inline__))				\
+static inline void ats1e1a(uint64_t va)				\
+{								\
+	__asm__ ("sys #0, c7, c9, #2, %0" : : "r" (va));	\
+}
+
 #define DCCIPAE_NS_BIT		(1UL << 63)
 #define DCCIPAE_NSE_BIT		(1UL << 62)
 

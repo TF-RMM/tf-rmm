@@ -110,6 +110,29 @@ static unsigned long far_offset(unsigned long far)
 	return far & ~GRANULE_MASK;
 }
 
+static void check_failed_stage1_replay_retries_realm(unsigned long ec)
+{
+	struct exit_esr_test_context ctx;
+	unsigned long saved_par = PAR_EL1_F_BIT | 0x2468UL;
+	unsigned long saved_mmfr3 = READ_CACHED_REG(id_aa64mmfr3_el1);
+	unsigned long raw_esr = ec | ESR_EL2_ABORT_FSC_PERM_FAULT_START;
+
+	/* Fake host does not implement 128-bit system register accesses. */
+	WRITE_CACHED_REG(id_aa64mmfr3_el1, 0UL);
+
+	init_context(&ctx);
+
+	write_far_el2(unprotected_ipa());
+	write_hpfar_el2(hpfar_for_ipa(different_unprotected_ipa()));
+	write_par_el1(saved_par);
+	write_esr_el2(raw_esr);
+
+	CHECK_TRUE(handle_realm_exit(&ctx.rec, &ctx.rec_exit,
+				     ARM_EXCEPTION_SYNC_LEL));
+	WRITE_CACHED_REG(id_aa64mmfr3_el1, saved_mmfr3);
+	UNSIGNED_LONGS_EQUAL(saved_par, read_par_el1());
+}
+
 /*
  * Audit map from unit-test names to the specification rules they exercise.
  *
@@ -126,7 +149,7 @@ static unsigned long far_offset(unsigned long far)
  * nonemulatable_unprotected_data_abort_preserves_   A4.3.4.3 / DMTZMC,      D24.2 "ISS encoding for an exception from a Data Abort",
  * il_only                                           RRYVFL                  D24.2.41 "ESR_EL2, Exception Syndrome Register (EL2)",
  *                                                                              D24.2.70 "HPFAR_EL2, Hypervisor IPA Fault Address Register"
- * direct_permission_fault_uses_stage1_ipa       D1.3.2.1 / RFKLWR, D8.2.13
+ * direct_permission_fault_uses_stage1_ipa           D1.3.2.1 / RFKLWR, D8.2.13
  */
 
 } /* namespace */
@@ -413,4 +436,14 @@ TEST(exit_esr_tests, direct_permission_fault_uses_stage1_ipa)
 	UNSIGNED_LONGS_EQUAL(RMI_EXIT_SYNC, ctx.rec_exit.exit_reason);
 	UNSIGNED_LONGS_EQUAL(hpfar_for_ipa(fipa), ctx.rec_exit.hpfar);
 	UNSIGNED_LONGS_EQUAL(fipa, read_par_el1());
+}
+
+TEST(exit_esr_tests, failed_data_stage1_replay_retries_realm)
+{
+	check_failed_stage1_replay_retries_realm(ESR_EL2_EC_DATA_ABORT);
+}
+
+TEST(exit_esr_tests, failed_instruction_stage1_replay_retries_realm)
+{
+	check_failed_stage1_replay_retries_realm(ESR_EL2_EC_INST_ABORT);
 }

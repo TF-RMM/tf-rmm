@@ -148,13 +148,15 @@ static bool hpfar_is_valid_for_abort(unsigned long esr)
 
 /*
  * Translates the faulting Realm VA to IPA using the stage 1 translation
- * regime.
+ * regime. Returns false if the translation no longer succeeds.
  */
-static unsigned long fipa_from_far(unsigned long far)
+static bool fipa_from_far(unsigned long far, unsigned long *fipa)
 {
 	struct reg128 par;
 	struct reg128 saved_par;
 	bool d128 = is_feat_d128_present();
+
+	assert(fipa != NULL);
 
 	/* An AT instruction overwrites PAR_EL1, which is part of Realm state. */
 	if (d128) {
@@ -164,7 +166,18 @@ static unsigned long fipa_from_far(unsigned long far)
 		saved_par.hi = 0UL;
 	}
 
-	ats1e1r(far);
+	/*
+	 * Permission indirection and overlays can permit the faulting access
+	 * while denying an EL1 read. Both features require FEAT_ATS1A, whose
+	 * permission-agnostic translation avoids replaying a different access.
+	 * In the base permission model, an executable or writable mapping is
+	 * also readable at EL1, so AT S1E1R is sufficient.
+	 */
+	if (is_feat_s1pie_present() || is_feat_s1poe_present()) {
+		ats1e1a(far);
+	} else {
+		ats1e1r(far);
+	}
 	isb();
 
 	if (d128) {
@@ -176,12 +189,9 @@ static unsigned long fipa_from_far(unsigned long far)
 		write_par_el1(saved_par.lo);
 	}
 
-	/*
-	 * PAR_EL1.F == 1 means that the address translation instruction failed.
-	 * A direct stage 2 permission fault requires it to succeed.
-	 */
+	/* The stage 1 mapping may have changed since the original fault. */
 	if ((par.lo & PAR_EL1_F_BIT) != 0UL) {
-		panic();
+		return false;
 	}
 
 	/*
@@ -191,16 +201,19 @@ static unsigned long fipa_from_far(unsigned long far)
 	 */
 	if (d128 && ((par.hi & PAR_EL1_D128_BIT) != 0UL)) {
 		/* TODO: Extract all 44 PA bits when TF-RMM supports 56-bit PA/IPA. */
-		return par.hi & MASK(PAR_EL1_PA);
+		*fipa = par.hi & MASK(PAR_EL1_PA);
+	} else {
+		*fipa = par.lo & MASK(PAR_EL1_PA);
 	}
 
-	return par.lo & MASK(PAR_EL1_PA);
+	return true;
 }
 
 /*
- * Populates @fipa and @hpfar for this abort
+ * Populates @fipa and @hpfar for this abort. Returns false if a stage 1
+ * translation replay no longer succeeds.
  */
-static void get_abort_fault_ipa(unsigned long esr, unsigned long *fipa,
+static bool get_abort_fault_ipa(unsigned long esr, unsigned long *fipa,
 				unsigned long *hpfar)
 {
 	unsigned long far;
@@ -211,13 +224,16 @@ static void get_abort_fault_ipa(unsigned long esr, unsigned long *fipa,
 	if (hpfar_is_valid_for_abort(esr)) {
 		*hpfar = read_hpfar_el2();
 		*fipa = (*hpfar & MASK(HPFAR_EL2_FIPA)) << HPFAR_EL2_FIPA_OFFSET;
-		return;
+		return true;
 	}
 
 	far = read_far_el2();
-	*fipa = fipa_from_far(far);
+	if (!fipa_from_far(far, fipa)) {
+		return false;
+	}
 
 	*hpfar = *fipa >> HPFAR_EL2_FIPA_OFFSET;
+	return true;
 }
 
 /*
@@ -315,7 +331,10 @@ static bool handle_data_abort(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		return false;
 	}
 
-	get_abort_fault_ipa(esr, &fipa, &hpfar);
+	if (!get_abort_fault_ipa(esr, &fipa, &hpfar)) {
+		/* Retry using the current stage 1 mapping. */
+		return true;
+	}
 
 	empty_ipa = ipa_is_empty(fipa, rec);
 	if (rec_is_plane_0_active(rec)) {
@@ -401,7 +420,10 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 		return false;
 	}
 
-	get_abort_fault_ipa(esr, &fipa, &hpfar);
+	if (!get_abort_fault_ipa(esr, &fipa, &hpfar)) {
+		/* Retry using the current stage 1 mapping. */
+		return true;
+	}
 
 	empty_ipa = ipa_is_empty(fipa, rec);
 	in_par = access_in_rec_par(rec, fipa);
