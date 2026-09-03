@@ -349,6 +349,7 @@ bool addr_list_validate(struct addr_list *list, bool is_contig,
 	assert(list != NULL);
 	assert(total_mem_out != NULL);
 	assert(list->type == LIST_TYPE_INPUT);
+	/* TODO: Support RMI_OP_MEM_CONDITIONAL */
 	assert((state == RMI_OP_MEM_DELEGATED) || (state == RMI_OP_MEM_UNDELEGATED));
 
 	assert(list->count <= (unsigned int)ADDR_LIST_MAX_RANGES);
@@ -383,6 +384,7 @@ bool addr_list_validate(struct addr_list *list, bool is_contig,
 			return false;
 		}
 		/* The state in desc should match the expected state */
+		/* TODO: Handle RMI_OP_MEM_CONDITIONAL */
 		if (get_st_from_desc(list->range_desc[i]) != state) {
 			return false;
 		}

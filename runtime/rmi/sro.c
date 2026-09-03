@@ -108,11 +108,8 @@ static void rmi_op_dispatch(unsigned long fid,
 				(EXTRACT(RMI_OP_DONATE_MEM_CONTIG, res->x[2]) ==
 							RMI_OP_MEM_CONTIG);
 
-			sro->mem_state =
-				(EXTRACT(RMI_OP_DONATE_MEM_STATE, res->x[2]) ==
-							RMI_OP_MEM_DELEGATED) ?
-							RMI_OP_MEM_DELEGATED :
-							RMI_OP_MEM_UNDELEGATED;
+			/* TODO: Add support for RMI_OP_MEM_CONDITIONAL */
+			sro->mem_state = EXTRACT(RMI_OP_DONATE_MEM_STATE, res->x[2]);
 		}
 
 		/*
