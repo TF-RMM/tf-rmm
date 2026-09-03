@@ -172,6 +172,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(GPT_L1_CREATE,		1, 1, smc_gpt_l1_create,	 false, true),
 	HANDLER(GPT_INFO,		2, 3, smc_gpt_info,		 false, true),
 	HANDLER(RMM_CONFIG_GET,		1, 1, smc_rmm_config_get,	 true, true),
+	HANDLER(RMM_STATE_GET,		0, 2, smc_rmm_state_get,	 true, true),
 	HANDLER(RMM_CONFIG_SET,		1, 1, smc_rmm_config_set,	 true, true),
 	HANDLER(RMM_ACTIVATE,		0, 1, smc_rmm_activate,		 true, true),
 	HANDLER(RMM_DEACTIVATE,		0, 1, smc_rmm_deactivate,	 true, true),
@@ -371,6 +372,7 @@ void handle_ns_smc(unsigned int function_id,
 	case SMC_RMI_FEATURES:
 	case SMC_RMI_VERSION:
 	case SMC_RMI_RMM_CONFIG_GET:
+	case SMC_RMI_RMM_STATE_GET:
 	case SMC_RMI_GRANULE_TRACKING_GET:
 	case SMC_RMI_GPT_INFO:
 		break;

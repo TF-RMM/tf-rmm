@@ -922,6 +922,22 @@
 #define SMC_RMI_RMM_CONFIG_GET			SMC64_RMI_FID(U(0x9C))
 
 /*
+ * FID: 0xC40001ED is not used.
+ */
+
+/*
+ * FID: 0xC40001EE
+ *
+ *
+ * ret1 == RMM state
+ */
+#define SMC_RMI_RMM_STATE_GET			SMC64_RMI_FID(U(0x9E))
+
+/*
+ * FID: 0xC40001EF is not used.
+ */
+
+/*
  * FID: 0xC40001F1
  *
  * arg0 == start address (PA) of the granule range
@@ -1434,6 +1450,14 @@ struct rmi_rmm_config {
 #define RMI_MEM_CATEGORY_DEV_NCOH	U(1)
 #define RMI_MEM_CATEGORY_DEV_COH	U(2)
 #define RMI_MEM_CATEGORY_NONE		U(3)
+
+/*
+ * RmiRmmState
+ * RMM state
+ * Width: 8 bits
+ */
+#define RMI_RMM_STATE_INIT			U(0)
+#define RMI_RMM_STATE_ACTIVE			U(1)
 
 /*
  * The Realm attribute parameters are shared by the Host via
