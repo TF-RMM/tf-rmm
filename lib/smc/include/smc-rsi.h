@@ -436,6 +436,13 @@ struct rsi_host_call {
 #define RSI_FEATURE_TRUE			U(1)
 
 /*
+ * RsiArchDevType
+ * Architectural device type
+ * Width: 64 bits
+ */
+#define RSI_ARCH_DEV_SMMUV3			UL(0)
+
+/*
  * RsiFeatureRegister0
  * Fieldset contains feature register 0
  * Width: 64 bits

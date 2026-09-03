@@ -184,7 +184,9 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(OP_MEM_DONATE,		3, 3, smc_op_mem_donate,	 true, true),
 	HANDLER(OP_MEM_RECLAIM,		3, 2, smc_op_mem_reclaim,	 true, true),
 	HANDLER(RTT_DEV_MAP,		6, 2, smc_rtt_dev_map,		 false, true),
-	HANDLER(RTT_DEV_UNMAP,		5, 4, smc_rtt_dev_unmap,	 false, true)
+	HANDLER(RTT_DEV_UNMAP,		5, 4, smc_rtt_dev_unmap,	 false, true),
+	HANDLER(RTT_ARCH_DEV_MAP,	4, 2, smc_rtt_arch_dev_map,	 false, true),
+	HANDLER(RTT_ARCH_DEV_UNMAP,	4, 2, smc_rtt_arch_dev_unmap,	 false, true)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));

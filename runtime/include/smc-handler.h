@@ -185,6 +185,18 @@ void smc_rtt_dev_unmap(unsigned long rd_addr,
 		       unsigned long oaddr,
 		       struct smc_result *res);
 
+void smc_rtt_arch_dev_map(unsigned long rd_addr,
+			  unsigned long dev_addr,
+			  unsigned long base,
+			  unsigned long top,
+			  struct smc_result *res);
+
+void smc_rtt_arch_dev_unmap(unsigned long rd_addr,
+			    unsigned long dev_addr,
+			    unsigned long base,
+			    unsigned long top,
+			    struct smc_result *res);
+
 void smc_pdev_create(unsigned long pdev_addr,
 		     unsigned long pdev_params_addr,
 		     struct smc_result *res);

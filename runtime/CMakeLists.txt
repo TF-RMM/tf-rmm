@@ -111,6 +111,7 @@ target_sources(rmm-runtime
             "rmi/rtt.c"
             "rmi/rtt_map.c"
             "rmi/rtt_unmap.c"
+            "rmi/arch_dev.c"
             "rmi/run.c"
             "rmi/sro.c"
             "rmi/sro_smmu.c"
@@ -120,6 +121,7 @@ target_sources(rmm-runtime
 if(HOST_VARIANT STREQUAL "host_cbmc")
     target_sources(rmm-runtime
         PRIVATE "core/fake_host/cbmc_run.c"
+                "rsi/fake_host/cbmc_arch_dev.c"
                 "rsi/fake_host/cbmc_config.c"
                 "rsi/fake_host/cbmc_feature.c"
                 "rsi/fake_host/cbmc_host_call.c"
@@ -148,6 +150,7 @@ target_sources(rmm-runtime
             "rsi/realm_ipa_helper.c"
             "rsi/realm_attest.c"
             "rsi/vdev.c"
+            "rsi/arch_dev.c"
             "rsi/version.c")
 
 include (tests/CMakeLists.txt)

@@ -803,6 +803,9 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	case SMC_RSI_PLANE_SYSREG_WRITE:
 		handle_rsi_plane_sysreg_write(rec, &res);
 		break;
+	case SMC_RSI_ARCH_DEV_ACTIVATE:
+		handle_rsi_arch_dev_activate(rec, &res);
+		break;
 	case SMC_RSI_VDEV_DMA_ENABLE:
 		handle_rsi_vdev_dma_enable(rec, rec_exit, &res);
 		break;

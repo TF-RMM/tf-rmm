@@ -1043,6 +1043,30 @@
 #define SMC_RMI_RTT_DEV_UNMAP			SMC64_RMI_FID(U(0xA8))
 
 /*
+ * FID: 0xC40001F9
+ *
+ * arg0 == PA of the RD for the target Realm
+ * arg1 == PA of the device
+ * arg2 == Base of the target IPA range
+ * arg3 == Top of the target IPA range
+ *
+ * ret1 == Top IPA of range which has been mapped
+ */
+#define SMC_RMI_RTT_ARCH_DEV_MAP		SMC64_RMI_FID(U(0xA9))
+
+/*
+ * FID: 0xC40001FA
+ *
+ * arg0 == PA of the RD for the target Realm
+ * arg1 == PA of the device
+ * arg2 == Base of the target IPA range
+ * arg3 == Top of the target IPA range
+ *
+ * ret1 == Top IPA of range which has been mapped
+ */
+#define SMC_RMI_RTT_ARCH_DEV_UNMAP		SMC64_RMI_FID(U(0xAA))
+
+/*
  * FID: 0xC40001FB
  *
  * arg0 == RD address
