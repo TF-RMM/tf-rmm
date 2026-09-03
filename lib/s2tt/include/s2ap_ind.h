@@ -94,6 +94,14 @@ static inline bool s2ap_is_ovrl_perm_index_valid(unsigned long index)
 }
 
 /*
+ * Return true if @perm fits in an S2AP overlay permission-indirection field.
+ */
+static inline bool s2ap_is_perm_value_valid(unsigned long perm)
+{
+	return !!(perm < S2AP_IND_PERM_COUNT);
+}
+
+/*
  * Update the Access Permission @perm[@index] with the value @perm.
  */
 static inline unsigned long s2ap_set_overlay_perm(unsigned long reg,
@@ -101,7 +109,7 @@ static inline unsigned long s2ap_set_overlay_perm(unsigned long reg,
 						  unsigned long perm)
 {
 	assert(index < S2AP_IND_PERM_IDX_COUNT);
-	assert(perm < S2AP_IND_PERM_COUNT);
+	assert(s2ap_is_perm_value_valid(perm));
 
 	reg &= ~(S2AP_PII_MASK << ((unsigned long)S2AP_PII_WIDTH * index));
 	perm = (perm << ((unsigned long)S2AP_PII_WIDTH * index));

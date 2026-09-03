@@ -162,6 +162,12 @@ void handle_rsi_mem_get_perm_value(struct rec *rec, struct rsi_result *res)
 	res->smc_res.x[0U] = RSI_SUCCESS;
 }
 
+/*
+ * Set the overlay permission value for a non-primary Plane.
+ *
+ * The caller supplies the target Plane, overlay index, and permission label
+ * in Plane 0's registers.
+ */
 void handle_rsi_mem_set_perm_value(struct rec *rec, struct rsi_result *res)
 {
 	struct rec_plane *plane = rec_plane_0(rec);
@@ -176,7 +182,8 @@ void handle_rsi_mem_set_perm_value(struct rec *rec, struct rsi_result *res)
 
 	if (!(plane_id_is_valid(rec, plane_id) &&
 	     s2ap_is_ovrl_perm_index_valid((unsigned int)perm_index) &&
-	     (plane_id != PLANE_0_ID))) {
+	     (plane_id != PLANE_0_ID) &&
+	     s2ap_is_perm_value_valid(perm_value))) {
 		res->smc_res.x[0U] = RSI_ERROR_INPUT;
 		return;
 	}
