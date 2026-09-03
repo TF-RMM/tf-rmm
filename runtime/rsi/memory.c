@@ -220,6 +220,9 @@ void handle_rsi_mem_set_perm_index(struct rec *rec,
 	unsigned long perm_index = plane->regs[3U];
 	unsigned long cookie = plane->regs[4U];
 	bool rtt_tree_pp;
+	enum ripas ripas = RIPAS_EMPTY;
+	unsigned long ripas_top;
+	enum s2_walk_status walk_status;
 
 	rtt_tree_pp = rec->realm_info.rtt_tree_pp;
 
@@ -233,6 +236,14 @@ void handle_rsi_mem_set_perm_index(struct rec *rec,
 	if (!(region_in_rec_par(rec, base, top) &&
 	      s2ap_is_ovrl_perm_index_valid((unsigned int)perm_index) &&
 	      validate_cookie(rec, &cookie, base, rtt_tree_pp))) {
+		res->smc_res.x[0U] = RSI_ERROR_INPUT;
+		return;
+	}
+
+	/* S2AP changes are not permitted when base has RIPAS_EMPTY */
+	walk_status = realm_ipa_get_ripas(rec, base, top, &ripas_top, &ripas);
+
+	if ((walk_status != WALK_SUCCESS) || (ripas == RIPAS_EMPTY)) {
 		res->smc_res.x[0U] = RSI_ERROR_INPUT;
 		return;
 	}
