@@ -106,6 +106,12 @@ static inline void (_op ## _type)(uint64_t v)		\
 #define DEFINE_SYSOP_DCZVA
 void dczva(uint64_t addr);
 
+#define DEFINE_SYSOP_ATS1E1A				\
+static inline void ats1e1a(uint64_t va)			\
+{							\
+	(void)va;					\
+}
+
 /*
  * DC CIPAE, Data or unified Cache line Clean and Invalidate by PA to
  * PoE.
