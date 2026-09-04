@@ -16,7 +16,9 @@ void host_write_sysreg(char *reg_name, u_register_t v);
 
 struct spinlock_s;
 
-/* Fake host harness to lock and release spin lock */
+/* Fake host harness to operate on a spin lock */
+bool host_spinlock_try_acquire(struct spinlock_s *l);
+void host_spinlock_wait(struct spinlock_s *l);
 void host_spinlock_acquire(struct spinlock_s *l);
 void host_spinlock_release(struct spinlock_s *l);
 
