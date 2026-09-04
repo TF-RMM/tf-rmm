@@ -29,8 +29,10 @@
 void smc_psmmu_info(unsigned long psmmu_ptr, unsigned long info_ptr,
 		    struct smc_result *res)
 {
-	struct rmi_psmmu_info info = { 0 };
-	/* Currently all features set to 0(disabled) */
+	/* TODO: derive these from Boot Manifest */
+	struct rmi_psmmu_info info = {
+		.flags = INPLACE(RMI_PSMMU_INFO_FLAGS_IRQ_CFG, RMI_IRQ_MSI)
+	};
 	struct granule *g_info;
 	struct smmuv3_dev *smmu;
 
