@@ -183,6 +183,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PDEV_STREAM_DISCONNECT,	3, 1, smc_pdev_stream_disconnect, true, true),
 	HANDLER(PDEV_STREAM_COMPLETE,	3, 1, smc_pdev_stream_complete,	 true, true),
 	HANDLER(PDEV_STREAM_KEY_PURGE,	3, 1, smc_pdev_stream_key_purge, true, true),
+	HANDLER(PDEV_STREAM_INFO,	3, 5, smc_pdev_stream_info,	 true, true),
 	HANDLER(OP_MEM_DONATE,		3, 3, smc_op_mem_donate,	 true, true),
 	HANDLER(OP_MEM_RECLAIM,		3, 2, smc_op_mem_reclaim,	 true, true),
 	HANDLER(RTT_DEV_MAP,		6, 2, smc_rtt_dev_map,		 false, true),

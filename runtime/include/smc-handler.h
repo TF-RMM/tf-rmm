@@ -277,6 +277,11 @@ void smc_pdev_stream_key_purge(unsigned long pdev1_addr,
 			       unsigned long stream_handle,
 			       struct smc_result *res);
 
+void smc_pdev_stream_info(unsigned long pdev1_addr,
+			  unsigned long pdev2_addr,
+			  unsigned long stream_handle,
+			  struct smc_result *res);
+
 void smc_granule_tracking_get(unsigned long base, unsigned long top,
 			      struct smc_result *res);
 void smc_granule_tracking_set(unsigned long addr, unsigned long category,

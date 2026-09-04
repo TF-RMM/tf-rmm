@@ -1189,6 +1189,22 @@ enum rmm_state {
 #define SMC_RMI_PDEV_STREAM_KEY_PURGE		SMC64_RMI_FID(U(0xB7))
 
 /*
+ * FID: 0xC4000210
+ *
+ * arg0 == PA of the first PDEV object
+ * arg1 == PA of the second PDEV object
+ * arg2 == Stream handle
+ *
+ * ret1 == PDEV stream state
+ * ret2 == PDEV stream type
+ * ret3 == Per-stream count of successful key refresh operations for this IDE
+ *         PDEV stream
+ * ret4 == Per-stream count of successful key purge operations for this IDE PDEV
+ *         stream
+ */
+#define SMC_RMI_PDEV_STREAM_INFO		SMC64_RMI_FID(U(0xC0))
+
+/*
  * FID: 0xC4000208
  *
  * arg0 == Handle which identifies the operation.
@@ -2080,6 +2096,18 @@ struct rmi_psmmu_info {
 #define RMI_PDEV_STREAM_NCOH_SYS		3U
 #define RMI_PDEV_STREAM_COH_SYS			4U
 #define RMI_PDEV_STREAM_TYPE_COUNT		5U
+
+/*
+ * RmiPdevStreamState
+ * The state of a PDEV stream
+ * Width: 8 bits
+ */
+#define RMI_PDEV_STREAM_DISCONNECTED		U(0)
+#define RMI_PDEV_STREAM_CONNECTING		U(1)
+#define RMI_PDEV_STREAM_CONNECTED		U(2)
+#define RMI_PDEV_STREAM_DISCONNECTING		U(3)
+#define RMI_PDEV_STREAM_KEY_REFRESHING		U(4)
+#define RMI_PDEV_STREAM_KEY_PURGING		U(5)
 
 #define RMI_PDEV_STREAM_ADDR_RANGE_CNT		U(16)
 
