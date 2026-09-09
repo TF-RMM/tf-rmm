@@ -324,7 +324,8 @@ int vdev_find_lock_map(struct granule *g_rd, struct rd *rd,
 		       struct vdev **vd);
 
 unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
-			      unsigned long dev_comm_data_addr);
+			      unsigned long dev_comm_data_addr,
+			      int *dev_assign_status);
 struct pdev_stream *pdev_stream_granules_lock_map(struct granule *g_streams,
 						  unsigned char stream_type);
 struct pdev_stream (*pdev_streams_granules_lock_map(struct granule *g_streams))

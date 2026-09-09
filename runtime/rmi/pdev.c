@@ -1023,7 +1023,24 @@ out:
 	return rc;
 }
 
-static void set_comm_state(int rc, uint32_t *comm_state)
+static void set_pdev_comm_state(int rc, uint32_t *comm_state, unsigned long op_curr)
+{
+	if (IS_DEV_ASSIGN_STATUS_COMM_BLOCKED(rc)) {
+		*comm_state = DEV_COMM_ACTIVE;
+	} else if (rc == DEV_ASSIGN_STATUS_SUCCESS) {
+		*comm_state = DEV_COMM_IDLE;
+	} else if (rc == DEV_ASSIGN_STATUS_ERROR) {
+		if (op_curr != PDEV_OP_STOP) {
+			*comm_state = DEV_COMM_IDLE;
+		} else {
+			*comm_state = DEV_COMM_ERROR;
+		}
+	} else {
+		assert(false);
+	}
+}
+
+static void set_vdev_comm_state(int rc, uint32_t *comm_state)
 {
 	if (IS_DEV_ASSIGN_STATUS_COMM_BLOCKED(rc)) {
 		*comm_state = DEV_COMM_ACTIVE;
@@ -1037,11 +1054,13 @@ static void set_comm_state(int rc, uint32_t *comm_state)
 }
 
 unsigned long dev_communicate(struct pdev *pd,
-			      struct vdev *vd, unsigned long dev_comm_data_addr)
+			      struct vdev *vd, unsigned long dev_comm_data_addr,
+			      int *dev_assign_status)
 {
 	struct rmi_dev_comm_enter enter_args;
 	struct rmi_dev_comm_exit exit_args;
 	unsigned long comm_rc;
+	uint32_t dev_comm_state;
 	int rc;
 	void *aux_mapped_addr = NULL;
 
@@ -1055,11 +1074,14 @@ unsigned long dev_communicate(struct pdev *pd,
 		assert(vd->comm_state != DEV_COMM_ERROR);
 	}
 
+	dev_comm_state = (vd == NULL) ? pd->dev_comm_state : vd->comm_state;
+
 	/* Validate RmiDevCommEnter arguments in DevCommData */
 	/* coverity[uninit_use_in_call:SUPPRESS] */
 	comm_rc = copyin_and_validate_dev_comm_enter(dev_comm_data_addr, &enter_args,
-		pd->dev_comm_state);
+		dev_comm_state);
 	if (comm_rc != RMI_SUCCESS) {
+		*dev_assign_status = DEV_ASSIGN_STATUS_ERROR;
 		return comm_rc;
 	}
 
@@ -1080,16 +1102,27 @@ unsigned long dev_communicate(struct pdev *pd,
 	if (comm_rc != RMI_SUCCESS) {
 		/*
 		 * Communication to device has happened, but failed to copy out
-		 * to exit args. If a stop operation yielded, unwind the app
-		 * before publishing the PDEV as stopped. PDEV_DESTROY runs app
-		 * deinit and cannot do so while the app is still yielded.
+		 * to exit args. If a VDEV operation yielded, unwind the app before
+		 * publishing the VDEV as error/idle. Otherwise VDEV_ABORT rejects
+		 * the idle channel and VDEV_UNLOCK attempts to start a new command
+		 * while the app is still yielded. Also unwind a yielded PDEV stop
+		 * before publishing the PDEV as stopped. PDEV_DESTROY runs app deinit
+		 * and cannot do so while the app is still yielded.
 		 */
-		if ((vd == NULL) && (pd->op.curr == PDEV_OP_STOP) &&
-		    pd->da_app_yielded) {
+		bool unwind;
+
+		if (vd != NULL) {
+			unwind = pd->da_app_data.exit_flag == APP_EXIT_SVC_YIELD_FLAG;
+		} else {
+			unwind = (pd->op.curr == PDEV_OP_STOP) && pd->da_app_yielded;
+		}
+		if (unwind) {
 			int abort_rc __unused = dev_assign_abort_app_operation(&pd->da_app_data);
 
 			assert(abort_rc == DEV_ASSIGN_STATUS_SUCCESS);
-			pd->da_app_yielded = false;
+			if (vd == NULL) {
+				pd->da_app_yielded = false;
+			}
 		}
 		rc = DEV_ASSIGN_STATUS_ERROR;
 	}
@@ -1098,16 +1131,28 @@ unsigned long dev_communicate(struct pdev *pd,
 		buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
 	}
 
+	if (dev_assign_status != NULL) {
+		*dev_assign_status = rc;
+	}
+
 	/*
 	 * Based on the device communication results update the device comm state
 	 */
 	if (vd == NULL) {
-		set_comm_state(rc, &pd->dev_comm_state);
+		set_pdev_comm_state(rc, &pd->dev_comm_state, pd->op.curr);
 	} else {
-		set_comm_state(rc, &vd->comm_state);
+		set_vdev_comm_state(rc, &vd->comm_state);
 	}
 
 	return comm_rc;
+}
+
+bool pdev_operation_is_stream(struct pdev *pd)
+{
+	return (pd->op.curr == PDEV_OP_CONNECT) ||
+	       (pd->op.curr == PDEV_OP_DISCONNECT) ||
+	       (pd->op.curr == PDEV_OP_KEY_REFRESH) ||
+	       (pd->op.curr == PDEV_OP_KEY_PURGE);
 }
 
 /*
@@ -1124,6 +1169,7 @@ void smc_pdev_communicate(unsigned long pdev_addr,
 	struct pdev *pd;
 	struct pdev_stream *stream = NULL;
 	unsigned long rmi_rc;
+	int dev_assign_status;
 	bool update_stream_op_state = false;
 
 	if (!is_rmi_feat_da_enabled()) {
@@ -1175,21 +1221,27 @@ void smc_pdev_communicate(unsigned long pdev_addr,
 		update_stream_op_state = true;
 	}
 
-	rmi_rc = dev_communicate(pd, NULL, dev_comm_data_addr);
+	rmi_rc = dev_communicate(pd, NULL, dev_comm_data_addr, &dev_assign_status);
 
 	/*
 	 * Based on the device communication results update the device IO state
 	 * and PDEV state.
 	 */
-	if (pd->dev_comm_state == DEV_COMM_ERROR) {
+	if (dev_assign_status == DEV_ASSIGN_STATUS_ERROR) {
 		if (pd->op.curr == PDEV_OP_STOP) {
 			pd->rmi_state = RMI_PDEV_STATE_STOPPED;
 			pd->op.curr = PDEV_OP_NONE;
 			pd->op.stream_op_state = STREAM_OP_STATE_NONE;
 		} else {
+			if (pdev_operation_is_stream(pd)) {
+				pd->op.curr = PDEV_OP_STREAM_COMPLETE;
+			} else {
+				pd->op.curr = PDEV_OP_NONE;
+			}
+			pd->dev_comm_state = DEV_COMM_IDLE;
 			pd->rmi_state = RMI_PDEV_STATE_ERROR;
 		}
-	} else if (pd->dev_comm_state == DEV_COMM_IDLE) {
+	} else if (dev_assign_status == DEV_ASSIGN_STATUS_SUCCESS) {
 		if (pd->op.curr == PDEV_OP_STOP) {
 			pd->rmi_state = RMI_PDEV_STATE_STOPPED;
 			pd->op.curr = PDEV_OP_NONE;
@@ -1205,9 +1257,7 @@ void smc_pdev_communicate(unsigned long pdev_addr,
 				pd->rmi_state = RMI_PDEV_STATE_READY;
 			}
 
-			if ((pd->op.curr == PDEV_OP_CONNECT) ||
-			   (pd->op.curr == PDEV_OP_DISCONNECT) ||
-			   (pd->op.curr == PDEV_OP_KEY_REFRESH)) {
+			if (pdev_operation_is_stream(pd)) {
 				pd->op.curr = PDEV_OP_STREAM_COMPLETE;
 			} else {
 				pd->op.curr = PDEV_OP_NONE;

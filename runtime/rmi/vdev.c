@@ -914,7 +914,7 @@ void smc_vdev_communicate(unsigned long rd_addr,
 
 	/* TODO_ALP17: if PdevIsBusy(pdev) then ResultEqual(result, RMI_BUSY) */
 
-	rmi_rc = dev_communicate(pd, vd, dev_comm_data_addr);
+	rmi_rc = dev_communicate(pd, vd, dev_comm_data_addr, NULL);
 	/* Do not return early here in case of error. Instead do the state
 	 * transition below based on pd->dev_comm_state set by dev_communicate.
 	 */
@@ -922,12 +922,16 @@ void smc_vdev_communicate(unsigned long rd_addr,
 	/*
 	 * Transistion VDEV state based on device communication state.
 	 */
-	if (vd->comm_state == DEV_COMM_ERROR) {
-		vd->rmi_state = RMI_VDEV_STATE_ERROR;
-	} else if (vd->comm_state == DEV_COMM_IDLE) {
+	if (vd->comm_state == DEV_COMM_IDLE) {
 		switch (vd->op) {
 		case VDEV_OP_UNLOCK:
+			assert((vd->rmi_state == RMI_VDEV_STATE_LOCKED) ||
+			    (vd->rmi_state == RMI_VDEV_STATE_STARTED) ||
+			    (vd->rmi_state == RMI_VDEV_STATE_ERROR));
+			vd->rmi_state = RMI_VDEV_STATE_UNLOCKED;
+			break;
 		case VDEV_OP_INIT:
+			assert(vd->rmi_state == RMI_VDEV_STATE_NEW);
 			vd->rmi_state = RMI_VDEV_STATE_UNLOCKED;
 			break;
 		case VDEV_OP_LOCK:
@@ -966,6 +970,9 @@ void smc_vdev_communicate(unsigned long rd_addr,
 			assert(false);
 		}
 		vd->op = VDEV_OP_NONE;
+	} else if (vd->comm_state == DEV_COMM_ERROR) {
+		vd->rmi_state = RMI_VDEV_STATE_ERROR;
+		vd->comm_state = DEV_COMM_IDLE;
 	}
 
 out:
