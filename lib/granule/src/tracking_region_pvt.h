@@ -120,10 +120,26 @@ bool tracking_region_is_self_describing_fine_page(
 
 /*
  * Set or clear the in-progress representation-transition marker. The caller
- * must hold @tr's write lock.
+ * must hold @tr's write lock. Setting the marker also requires every active
+ * source granule locked and validated for the requested transition.
  */
 void tracking_region_transition_set_locked(struct tracking_region *tr,
 					   bool pending);
+
+/*
+ * Claim @tr for an SRO transition from @current to @target. @addr is its
+ * aligned base; @current is the caller's earlier snapshot and must differ
+ * from the valid requested @target. The caller must hold no Granule lock.
+ * Try the region writer and all source locks, validate the source, then set
+ * the marker before releasing those locks. Return RMI_BLOCKED if another SRO
+ * owns the marker or a PARTIAL source, RMI_BUSY on contention or a
+ * changed snapshot, RMI_ERROR_INPUT for an invalid source/transition, or
+ * RMI_SUCCESS with the marker owned by the caller. No locks are retained.
+ */
+unsigned long tracking_region_transition_claim(struct tracking_region *tr,
+					       unsigned long addr,
+					       enum tr_state current,
+					       enum tr_state target);
 
 /*
  * Change a tracking representation on behalf of the SRO which owns @tr's

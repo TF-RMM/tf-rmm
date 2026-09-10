@@ -165,7 +165,8 @@ bool tracking_region_get_info(unsigned long addr,
  * contention after releasing every lock acquired by this attempt; the source
  * representation is unchanged and the caller may retry. Once all locks are
  * held, no further Granule lock may be acquired before publication completes.
- * Returns an RMI status code.
+ * Return RMI_BLOCKED if an incomplete tracking SRO owns the region. Otherwise,
+ * return RMI_SUCCESS or RMI_ERROR_INPUT for invalid inputs or source state.
  */
 unsigned long tracking_region_set_tracking(unsigned long addr,
 					   unsigned long category,
