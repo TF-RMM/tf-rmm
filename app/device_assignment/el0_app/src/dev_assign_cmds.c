@@ -45,15 +45,26 @@ static int process_spdm_init_connection(void *spdm_context)
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }
 
+/*
+ * Discard state associated with a cacheable SPDM request which did not
+ * complete. In particular, an RMI_PDEV_ABORT can resume the app while it is
+ * waiting for the response, leaving the request and its partial hash pending.
+ */
+static void cache_operation_cleanup(struct dev_assign_info *info)
+{
+	(void)psa_hash_abort(&info->psa_hash_op);
+	info->spdm_request_len = 0U;
+	(void)memset(&info->cached_digest, 0, sizeof(info->cached_digest));
+	info->cached_digest_type = CACHE_TYPE_NONE;
+}
+
 static void init_connection_cleanup(struct dev_assign_info *info, bool scrub_cert_chain_hash)
 {
 	libspdm_data_parameter_t parameter;
 
+	cache_operation_cleanup(info);
 	info->spdm_cert_chain_algo = PSA_ALG_NONE;
 	info->spdm_cert_chain_len = 0U;
-	info->spdm_request_len = 0U;
-	info->cached_digest.len = 0U;
-	info->cached_digest_type = CACHE_TYPE_NONE;
 
 	if (scrub_cert_chain_hash) {
 		/* Clean up the CERT_CHAIN_HASH in the context */
@@ -95,11 +106,13 @@ int dev_assign_cmd_init_connection_main(struct dev_assign_info *info)
 	 */
 	status = libspdm_init_connection(spdm_context, false);
 	if (status != LIBSPDM_STATUS_SUCCESS) {
+		init_connection_cleanup(info, false);
 		return DEV_ASSIGN_STATUS_ERROR;
 	}
 
 	if (process_spdm_init_connection(spdm_context) !=
 			DEV_ASSIGN_STATUS_SUCCESS) {
+		init_connection_cleanup(info, false);
 		return DEV_ASSIGN_STATUS_ERROR;
 	}
 
@@ -266,6 +279,7 @@ int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
 	/* Request all measurements. */
 	status = get_measurements(info, 0xFFU, request_attribute);
 	if (status != LIBSPDM_STATUS_SUCCESS) {
+		cache_operation_cleanup(info);
 		return DEV_ASSIGN_STATUS_ERROR;
 	}
 
