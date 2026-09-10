@@ -747,14 +747,16 @@ static int copy_vdev_cached_digest(struct vdev *vdev, struct app_data_cfg *app_d
 static int pdev_dispatch_cmd_ready_rp(struct pdev *pd,
 	struct rmi_dev_comm_enter *enter_args, struct rmi_dev_comm_exit *exit_args)
 {
-	(void)enter_args;
-
 	/*
 	 * Assert that we have an active stream operation in progress (not NONE
 	 * or already RP_CONNECTED).
 	 */
 	assert((pd->op.stream_op_state != STREAM_OP_STATE_NONE) &&
 	       (pd->op.stream_op_state != STREAM_OP_STATE_RP_CONNECTED));
+
+	if (enter_args->status == RMI_DEV_COMM_ENTER_STATUS_ERROR) {
+		return DEV_ASSIGN_STATUS_ERROR;
+	}
 
 	if (pd->op.stream_op_state == STREAM_OP_STATE_START) {
 		/*
