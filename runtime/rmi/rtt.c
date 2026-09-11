@@ -42,22 +42,30 @@ bool validate_map_addr(unsigned long map_addr,
 					  map_addr, level));
 }
 
-struct granule *find_lock_rtt_backing_granule(struct granule *g_rd,
-					      const struct s2tt_walk *wi,
-					      unsigned long backing_addr)
+/*
+ * Reject aliases and lock the DELEGATED granule after the locked RD and leaf
+ * RTT. The lookup stabilizes its own region; return a tracking-aware RMI result.
+ */
+unsigned long find_lock_rtt_backing_granule(struct granule *g_rd,
+					    const struct s2tt_walk *wi,
+					    unsigned long backing_addr,
+					    struct granule **g_backing)
 {
 	assert((g_rd != NULL) && LOCKED(g_rd));
 	assert(granule_get_state(g_rd) == GRANULE_STATE_RD);
 	assert(wi != NULL);
 	assert((wi->g_llt != NULL) && LOCKED(wi->g_llt));
 	assert(granule_get_state(wi->g_llt) == GRANULE_STATE_RTT);
+	assert(g_backing != NULL);
+	*g_backing = NULL;
 
-	if ((backing_addr == granule_addr(g_rd)) ||
-	    (backing_addr == granule_addr(wi->g_llt))) {
-		return NULL;
+	if ((backing_addr == tr_granule_addr(g_rd)) ||
+	    (backing_addr == tr_granule_addr(wi->g_llt))) {
+		return RMI_ERROR_INPUT;
 	}
 
-	return find_lock_granule(backing_addr, GRANULE_STATE_DELEGATED);
+	return tr_find_lock_granule(backing_addr,
+			GRANULE_SIZE, GRANULE_STATE_DELEGATED, g_backing);
 }
 
 /*
@@ -219,6 +227,11 @@ static void invalidate_pages_in_block(const struct s2tt_context *s2_ctx,
 	}
 }
 
+/*
+ * Create a primary or auxiliary RTT, returning the command's RMI result.
+ * Lock RD, then follow RTT hierarchy order before locking the new table's
+ * DELEGATED granule. Each lookup stabilizes its own tracking region.
+ */
 static unsigned long rtt_create(unsigned long rd_addr,
 				unsigned long rtt_addr,
 				unsigned long map_addr,
@@ -236,9 +249,9 @@ static unsigned long rtt_create(unsigned long rd_addr,
 	struct s2tt_context *s2_ctx;
 	unsigned int rtt_err_code = (aux ? RMI_ERROR_RTT_AUX : RMI_ERROR_RTT);
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		return RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE, GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		return ret;
 	}
 
 	rd = buffer_granule_map(g_rd, SLOT_RD);
@@ -273,9 +286,8 @@ static unsigned long rtt_create(unsigned long rd_addr,
 		goto out_unlock_llt;
 	}
 
-	g_tbl = find_lock_rtt_backing_granule(g_rd, &wi, rtt_addr);
-	if (g_tbl == NULL) {
-		ret = RMI_ERROR_INPUT;
+	ret = find_lock_rtt_backing_granule(g_rd, &wi, rtt_addr, &g_tbl);
+	if (ret != RMI_SUCCESS) {
 		goto out_unlock_llt;
 	}
 
@@ -574,6 +586,11 @@ static bool ipa_is_aux_ref(struct rd *rd, unsigned long ipa)
 	return false;
 }
 
+/*
+ * Fold a child RTT into its parent and report the RMI result through @res.
+ * The locked parent pins the child granule through acquisition; a pending
+ * tracking transition cannot invalidate this owned RTT reference.
+ */
 static void rtt_fold(unsigned long rd_addr,
 		     unsigned long map_addr,
 		     unsigned long ulevel,
@@ -596,9 +613,10 @@ static void rtt_fold(unsigned long rd_addr,
 	tlb_handler_per_vmids_t tlb_handler_per_vmids;
 	unsigned int rtt_err_code = (aux ? RMI_ERROR_RTT_AUX : RMI_ERROR_RTT);
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
+				   GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -659,12 +677,8 @@ static void rtt_fold(unsigned long rd_addr,
 	}
 
 	rtt_addr = s2tte_pa(s2_ctx, parent_s2tte, level - 1L);
-	g_tbl = find_lock_granule(rtt_addr, GRANULE_STATE_RTT);
-
-	/*
-	 * A table descriptor S2TTE always points to a TABLE granule.
-	 */
-	assert(g_tbl != NULL);
+	g_tbl = tr_addr_to_granule(rtt_addr);
+	granule_lock(g_tbl, GRANULE_STATE_RTT);
 
 	table = buffer_granule_mecid_map(g_tbl, SLOT_RTT2, s2_ctx->mecid);
 	assert(table != NULL);
@@ -854,6 +868,11 @@ void smc_rtt_aux_fold(unsigned long rd_addr,
 	rtt_fold(rd_addr, map_addr, ulevel, index, true, res);
 }
 
+/*
+ * Remove an unused child RTT and report the RMI result through @res.
+ * The locked parent pins the child granule through acquisition; a pending
+ * tracking transition cannot invalidate this owned RTT reference.
+ */
 static void rtt_destroy(unsigned long rd_addr,
 			unsigned long map_addr,
 			unsigned long ulevel,
@@ -875,9 +894,10 @@ static void rtt_destroy(unsigned long rd_addr,
 	tlb_handler_per_vmids_t tlb_handler_per_vmids;
 	unsigned int rtt_err_code = (aux ? RMI_ERROR_RTT_AUX : RMI_ERROR_RTT);
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
+				   GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		res->x[2] = 0UL;
 		return;
 	}
@@ -927,15 +947,11 @@ static void rtt_destroy(unsigned long rd_addr,
 	rtt_addr = s2tte_pa(s2_ctx, parent_s2tte, level - 1L);
 
 	/*
-	 * Lock the RTT granule. The 'rtt_addr' is verified, thus can be treated
-	 * as an internal granule.
+	 * The locked parent keeps this child in RTT state and its metadata alive.
+	 * Acquire it directly without a new tracking lookup.
 	 */
-	g_tbl = find_lock_granule(rtt_addr, GRANULE_STATE_RTT);
-
-	/*
-	 * A table descriptor S2TTE always points to a TABLE granule.
-	 */
-	assert(g_tbl != NULL);
+	g_tbl = tr_addr_to_granule(rtt_addr);
+	granule_lock(g_tbl, GRANULE_STATE_RTT);
 
 	/*
 	 * Read the refcount value. RTT granule is always accessed locked, thus
@@ -1063,12 +1079,14 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 	struct rd *rd;
 	struct s2tt_walk wi;
 	unsigned long *s2tt, s2tte;
+	unsigned long ret;
 	long level = (long)ulevel;
 	struct s2tt_context s2_ctx;
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
+				   GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -1262,6 +1280,7 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 	unsigned long s2tte, *s2tt;
 	long level;
 	unsigned long index;
+	unsigned long ret;
 	unsigned int s2ttes_per_s2tt;
 
 	if (top <= base) {
@@ -1269,9 +1288,10 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 		return;
 	}
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
+				   GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -1363,6 +1383,11 @@ out_unmap_llt:
  * the auxiliary RTTs. This function makes use of the refcount of the granules
  * to ensure that there is no mapping in the auxiliary RTTs.
  *
+ * Fine DATA states prevent tracking transition claims during validation.
+ * TODO: Auxiliary RTT callers must retain a coarse descriptor lock across
+ * validation and handle pending transitions through the tracking APIs. A live
+ * coarse mapping alone does not prevent a split from blocking a new lookup.
+ *
  * Note that:
  *	- @s2tte is a valid (page or block) descriptor in the primary RTT tree.
  *	- The RTT where @s2tte resides is locked.
@@ -1372,25 +1397,39 @@ unsigned long not_aux_mappings(struct s2tt_context *s2_ctx,
 {
 	unsigned long map_size = s2tte_map_size((int)level);
 	unsigned long data_addr = s2tte_pa(s2_ctx, s2tte, level);
-	unsigned long offset;
+	unsigned long offset = 0UL;
 
-	for (offset = 0UL; offset < map_size; offset += GRANULE_SIZE) {
+	while (offset < map_size) {
 		/*
-		 * Do not lock the access to refcount. We are permitted to
-		 * do that because we are holding the RTT lock.
+		 * The locked leaf RTT orders this DATA lookup. Locking the active
+		 * granule also stabilizes a possible coarse-to-fine tracking
+		 * transition while its refcount is inspected.
 		 */
-		struct granule *g_data = find_granule(data_addr + offset);
+		struct granule *g_data;
+		unsigned long tracking_size;
+		unsigned long ret __unused;
 
-		assert(g_data != NULL);
+		ret = tr_find_lock_active_granule(data_addr + offset, GRANULE_STATE_DATA,
+						  &g_data, &tracking_size);
+		assert(ret == RMI_SUCCESS);
+		assert(tracking_size <= (map_size - offset));
 
-		if (granule_refcount_read(g_data) > 0U) {
+		if (granule_refcount_read_acquire(g_data) > 0U) {
+			granule_unlock(g_data);
 			break;
 		}
+		granule_unlock(g_data);
+		offset += tracking_size;
 	}
 
 	return offset;
 }
 
+/*
+ * Update RIPAS in the locked leaf @wi->g_llt over [@base, @top), stopping at
+ * its boundary or the first incompatible entry. @rd remains locked and mapped;
+ * report the RMI status and completed IPA prefix through @res.
+ */
 static void rtt_set_ripas_range(struct s2tt_context *s2_ctx,
 				unsigned long *s2tt,
 				unsigned long base,
@@ -1497,6 +1536,7 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 	struct s2tt_walk wi;
 	unsigned long *s2tt;
 	struct s2tt_context *s2_ctx;
+	unsigned long ret;
 	enum ripas ripas_val;
 	enum ripas_change_destroyed change_destroyed;
 
@@ -1505,13 +1545,14 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 		return;
 	}
 
-	if (!find_lock_two_granules(rd_addr,
+	ret = tr_find_lock_two_fine_granules(rd_addr,
 				   GRANULE_STATE_RD,
 				   &g_rd,
 				   rec_addr,
 				   GRANULE_STATE_REC,
-				   &g_rec)) {
-		res->x[0] = RMI_ERROR_INPUT;
+				   &g_rec);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -1599,19 +1640,21 @@ void smc_rtt_set_s2ap(unsigned long rd_addr, unsigned long rec_addr,
 	struct s2tt_context *s2_ctx;
 	unsigned long *s2tt;
 	unsigned long perm_index, map_size, s2tt_idx, next, s2tte;
+	unsigned long ret;
 
 	if ((top <= base) || !(GRANULE_ALIGNED(top))) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
-	if (!find_lock_two_granules(rd_addr,
+	ret = tr_find_lock_two_fine_granules(rd_addr,
 				   GRANULE_STATE_RD,
 				   &g_rd,
 				   rec_addr,
 				   GRANULE_STATE_REC,
-				   &g_rec)) {
-		res->x[0] = RMI_ERROR_INPUT;
+				   &g_rec);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -1781,6 +1824,125 @@ static unsigned long realign_pa(struct s2tt_context *s2_ctx,
 	return pa_base + offset;
 }
 
+/*
+ * Update the backing-granule refcount for one active tracking unit.
+ * @device selects conventional DATA or mapped device memory. The granule
+ * remains in its mapping state and is unlocked before return. On success,
+ * @tracking_size receives the number of bytes represented by the granule.
+ */
+static unsigned long rtt_backing_refcount_one(unsigned long addr,
+					       unsigned long remaining,
+					       bool device,
+					       bool increment,
+					       unsigned long *tracking_size)
+{
+	struct granule *g;
+	struct dev_granule *g_dev;
+	enum dev_coh_type type __unused;
+	unsigned long ret;
+
+	assert(tracking_size != NULL);
+	if (device) {
+		ret = tr_find_lock_active_dev_granule(addr,
+						      DEV_GRANULE_STATE_MAPPED,
+						      &g_dev, &type,
+						      tracking_size);
+		if (ret != RMI_SUCCESS) {
+			return ret;
+		}
+		if ((*tracking_size > remaining) ||
+		    !ALIGNED(addr, *tracking_size)) {
+			dev_granule_unlock(g_dev);
+			return pack_return_code_level_addr(
+					RMI_ERROR_TRACKING, (unsigned char)0U, addr);
+		}
+		if (increment) {
+			atomic_dev_granule_get(g_dev);
+		} else {
+			atomic_dev_granule_put(g_dev);
+		}
+		dev_granule_unlock(g_dev);
+		return RMI_SUCCESS;
+	}
+
+	ret = tr_find_lock_active_granule(addr, GRANULE_STATE_DATA, &g,
+					  tracking_size);
+	if (ret != RMI_SUCCESS) {
+		return ret;
+	}
+	if ((*tracking_size > remaining) || !ALIGNED(addr, *tracking_size)) {
+		granule_unlock(g);
+		return pack_return_code_level_addr(
+				RMI_ERROR_TRACKING, (unsigned char)0U, addr);
+	}
+	if (increment) {
+		atomic_granule_get(g);
+	} else {
+		atomic_granule_put(g);
+	}
+	granule_unlock(g);
+	return RMI_SUCCESS;
+}
+
+/*
+ * Update every active backing granule in [@addr, @addr + @size). Tracking
+ * granularity may be finer than the S2TT block and can therefore change at a
+ * tracking-region boundary. An increment failure is rolled back so no partial
+ * auxiliary reference remains. A decrement is an internal cleanup path and
+ * must describe an existing, tracking-compatible mapping.
+ * Return RMI_SUCCESS or the original lookup error after undoing the completed
+ * increment prefix. Rollback results are checked only by assertions.
+ *
+ * TODO: The auxiliary RTT rework must retain coarse granule locks through
+ * updates, rollback and unmap, using tracking APIs to handle pending transitions.
+ * A pending transition can currently fail cleanup lookups which callers assert
+ * succeed.
+ */
+static unsigned long rtt_backing_refcount_update(unsigned long addr,
+						  unsigned long size,
+						  bool device,
+						  bool increment)
+{
+	unsigned long rollback = 0UL;
+	unsigned long processed = 0UL;
+	unsigned long tracking_size;
+	unsigned long error;
+	unsigned long ret = RMI_SUCCESS;
+
+	assert((size != 0UL) && GRANULE_ALIGNED(addr) &&
+	       GRANULE_ALIGNED(size));
+
+	while (processed < size) {
+		ret = rtt_backing_refcount_one(addr + processed,
+						size - processed,
+						device, increment,
+						&tracking_size);
+		if (ret != RMI_SUCCESS) {
+			break;
+		}
+		processed += tracking_size;
+	}
+
+	if ((ret == RMI_SUCCESS) || !increment) {
+		return ret;
+	}
+
+	error = ret;
+
+	/* Undo every increment completed before the failing tracking unit. */
+	while (rollback < processed) {
+		unsigned long rollback_ret __unused;
+
+		rollback_ret = rtt_backing_refcount_one(addr + rollback,
+						      processed - rollback, device, false,
+						      &tracking_size);
+		assert(rollback_ret == RMI_SUCCESS);
+		rollback += tracking_size;
+	}
+
+	return error;
+}
+
 void smc_rtt_aux_map_protected(unsigned long rd_addr,
 			       unsigned long map_addr,
 			       unsigned long index,
@@ -1793,12 +1955,15 @@ void smc_rtt_aux_map_protected(unsigned long rd_addr,
 	struct s2tt_context *s2_ctx, *aux_s2_ctx;
 	unsigned long primary_ripas, primary_pa, aux_pa;
 	unsigned long map_size;
+	unsigned long ret;
 	long primary_level;
 	enum ripas s2tte_ripas;
+	bool device;
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
+				   GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -1876,6 +2041,8 @@ void smc_rtt_aux_map_protected(unsigned long rd_addr,
 	}
 
 	primary_pa = s2tte_pa(s2_ctx, primary_s2tte, primary_level);
+	device = s2tte_is_assigned_dev_dev(s2_ctx, primary_s2tte,
+					   primary_level);
 
 	/*
 	 * We have retrieved all the info we needed from the walk on the
@@ -1947,17 +2114,17 @@ void smc_rtt_aux_map_protected(unsigned long rd_addr,
 	}
 
 	/*
-	 * Increment the refcounter for all the DATA or DEV granules that
-	 * are going to be mapped.
+	 * Take one reference per active tracking granule. A fine-tracked
+	 * range can back a larger S2TT block, whereas a coarse granule
+	 * cannot be represented by a smaller block.
 	 */
 	map_size = s2tte_map_size(wi.last_level);
-	for (unsigned long offset = 0UL; offset < map_size; offset += GRANULE_SIZE) {
-		struct granule *g_data = find_lock_granule(aux_pa + offset,
-							   GRANULE_STATE_DATA);
-
-		assert(g_data != NULL);
-		atomic_granule_get(g_data);
-		granule_unlock(g_data);
+	ret = rtt_backing_refcount_update(aux_pa, map_size, device, true);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
+		buffer_unmap(s2tt);
+		granule_unlock(wi.g_llt);
+		goto exit_unmap_rd;
 	}
 
 	if (s2tte_is_assigned_ram(s2_ctx, primary_s2tte, primary_level)) {
@@ -1999,11 +2166,13 @@ void smc_rtt_aux_map_unprotected(unsigned long rd_addr,
 	struct s2tt_walk pri_walk, aux_walk;
 	unsigned long *pri_s2tt, *aux_s2tt, pri_s2tte, aux_s2tte;
 	struct s2tt_context *s2_ctx, *aux_s2_ctx;
+	unsigned long ret;
 	long start_level;
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
+				   GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -2091,6 +2260,14 @@ exit_unmap_rd:
 	granule_unlock(g_rd);
 }
 
+/*
+ * Remove the protected or device mapping at @unmap_addr from auxiliary RTT
+ * @index of Realm @rd_addr. Report the RMI status and, on success or an RTT
+ * error, the next IPA through @res. Lock the RD before walking the RTT and
+ * keep its leaf locked while dropping backing references and invalidating
+ * the translation. Backing-reference cleanup must succeed; its result is
+ * checked only in assertion-enabled builds.
+ */
 void smc_rtt_aux_unmap_protected(unsigned long rd_addr,
 				 unsigned long unmap_addr,
 				 unsigned long index,
@@ -2100,11 +2277,16 @@ void smc_rtt_aux_unmap_protected(unsigned long rd_addr,
 	struct rd *rd;
 	struct s2tt_walk wi;
 	unsigned long *s2tt, s2tte;
+	unsigned long pa, map_size;
+	unsigned long ret;
+	unsigned long refcount_ret __unused;
 	struct s2tt_context *s2_ctx;
+	bool device;
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
+				   GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -2140,10 +2322,7 @@ void smc_rtt_aux_unmap_protected(unsigned long rd_addr,
 
 	s2tte = s2tte_read(&s2tt[wi.index]);
 
-	/* If the IPA is not assigned on the auxiliary RTT, report and return */
-
-	unsigned long pa, map_size;
-
+	/* If the IPA is not assigned on the auxiliary RTT, report and return. */
 	if (!(s2tte_is_live(s2_ctx, s2tte, wi.last_level) ||
 	      s2tte_is_assigned_dev(s2_ctx, s2tte))) {
 		res->x[0] = pack_return_code_level(RMI_ERROR_RTT_AUX,
@@ -2160,6 +2339,7 @@ void smc_rtt_aux_unmap_protected(unsigned long rd_addr,
 	 * decrement the reference count for the associated granules.
 	 */
 	pa = s2tte_pa(s2_ctx, s2tte, wi.last_level);
+	device = s2tte_is_assigned_dev_dev(s2_ctx, s2tte, wi.last_level);
 
 	/*
 	 * Create the new S2TTE, reusing the original one so that they
@@ -2167,20 +2347,10 @@ void smc_rtt_aux_unmap_protected(unsigned long rd_addr,
 	 */
 	s2tte = s2tte_create_unassigned_empty(s2_ctx, s2tte);
 
-	/*
-	 * Decrement the refcounter for all the DATA or DEV granules that are
-	 * going to be unmapped.
-	 */
+	/* Drop the auxiliary reference from every active backing granule. */
 	map_size = s2tte_map_size(wi.last_level);
-	for (unsigned long offset = 0UL;
-	     offset < map_size; offset += GRANULE_SIZE) {
-		struct granule *g_data = find_lock_granule(pa + offset,
-						   GRANULE_STATE_DATA);
-
-		assert(g_data != NULL);
-		atomic_granule_put(g_data);
-		granule_unlock(g_data);
-	}
+	refcount_ret = rtt_backing_refcount_update(pa, map_size, device, false);
+	assert(refcount_ret == RMI_SUCCESS);
 
 	/* Decrement the refcounter for the table in the aux tree */
 	atomic_granule_put(wi.g_llt);
@@ -2214,12 +2384,14 @@ void smc_rtt_aux_unmap_unprotected(unsigned long rd_addr,
 	struct rd *rd;
 	struct s2tt_walk wi;
 	unsigned long *s2tt, s2tte;
+	unsigned long ret;
 	long start_level;
 	struct s2tt_context *s2_ctx;
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
+				   GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -2285,9 +2457,11 @@ out_unmap_rd:
 	granule_unlock(g_rd);
 }
 
+/* Validate one device RTTE and update it with the tracked coherency type. */
 static int rtt_dev_mem_set(const struct s2tt_context *s2_ctx,
 			   unsigned long *s2ttep, long level,
-			   unsigned long dev_mem_pa)
+			   unsigned long dev_mem_pa,
+			   enum dev_coh_type type)
 {
 	unsigned long s2tte;
 	int ret = 0;
@@ -2308,10 +2482,8 @@ static int rtt_dev_mem_set(const struct s2tt_context *s2_ctx,
 			return -1;
 		}
 
-		/* todo: check dev_mem_pa coherent type */
-
 		s2tte = s2tte_create_assigned_dev_dev_coh_type(s2_ctx, s2tte,
-							       level, DEV_MEM_NON_COHERENT, s2tte);
+							       level, type, s2tte);
 	} else {
 		return -1;
 	}
@@ -2320,11 +2492,18 @@ static int rtt_dev_mem_set(const struct s2tt_context *s2_ctx,
 	return ret;
 }
 
+/*
+ * Validate device RTTEs in [@base, @top) and report range progress.
+ *
+ * Before updating an entry, validate that its backing PA has an active MAPPED
+ * struct dev_granule whose granularity is no larger than the S2TT block. The tracked
+ * device type supplies the coherency attribute written into the RTTE.
+ */
 static void rtt_dev_mem_set_range(struct s2tt_context *s2_ctx,
 				  unsigned long *s2tt, unsigned long base,
 				  unsigned long top, unsigned long dev_mem_pa,
-				  bool is_coh, struct s2tt_walk *wi,
-				  struct rd *rd, struct smc_result *res)
+				  struct s2tt_walk *wi, struct rd *rd,
+				  struct smc_result *res)
 {
 	unsigned long index;
 	long level = wi->last_level;
@@ -2334,8 +2513,8 @@ static void rtt_dev_mem_set_range(struct s2tt_context *s2_ctx,
 	/* Align to the RTT level */
 	map_size = s2tte_map_size((int)level);
 	addr = base & ~(map_size - 1UL);
-
-	(void)is_coh;
+	res->x[0] = pack_return_code_level(RMI_ERROR_RTT,
+					   (unsigned char)level);
 
 	/* Make sure we don't touch a range below the requested range */
 	if (addr != base) {
@@ -2345,6 +2524,10 @@ static void rtt_dev_mem_set_range(struct s2tt_context *s2_ctx,
 	}
 
 	for (index = wi->index; index < S2TTES_PER_S2TT; index++) {
+		struct dev_granule *g_dev;
+		enum dev_coh_type type;
+		unsigned long tracking_size;
+		unsigned long tr_ret;
 		int ret;
 
 		/*
@@ -2355,7 +2538,31 @@ static void rtt_dev_mem_set_range(struct s2tt_context *s2_ctx,
 			break;
 		}
 
-		ret = rtt_dev_mem_set(s2_ctx, &s2tt[index], level, dev_mem_pa);
+		tr_ret = tr_find_lock_active_dev_granule(
+					dev_mem_pa, DEV_GRANULE_STATE_MAPPED,
+					&g_dev, &type, &tracking_size);
+		if (tr_ret != RMI_SUCCESS) {
+			if (addr == base) {
+				res->x[0] = tr_ret;
+			}
+			break;
+		}
+
+		/* A fine unit may back a block; a coarse unit may not exceed it. */
+		if ((tracking_size > map_size) ||
+		    !ALIGNED(dev_mem_pa, tracking_size)) {
+			dev_granule_unlock(g_dev);
+			if (addr == base) {
+				res->x[0] = pack_return_code_level_addr(
+						RMI_ERROR_TRACKING,
+						(unsigned char)0U, dev_mem_pa);
+			}
+			break;
+		}
+
+		ret = rtt_dev_mem_set(s2_ctx, &s2tt[index], level, dev_mem_pa,
+					  type);
+		dev_granule_unlock(g_dev);
 		if (ret < 0) {
 			break;
 		}
@@ -2379,9 +2586,6 @@ static void rtt_dev_mem_set_range(struct s2tt_context *s2_ctx,
 	if (addr > base) {
 		res->x[0] = RMI_SUCCESS;
 		res->x[1] = addr;
-	} else {
-		res->x[0] = pack_return_code_level(RMI_ERROR_RTT,
-					     (unsigned char)level);
 	}
 }
 
@@ -2396,16 +2600,18 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 	struct s2tt_walk wi;
 	struct rec *rec;
 	struct rd *rd;
-	bool is_coh;
+	unsigned long ret;
 
 	if ((top <= base) || !GRANULE_ALIGNED(top)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
-	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd, rec_addr,
-				   GRANULE_STATE_REC, &g_rec)) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_two_fine_granules(rd_addr, GRANULE_STATE_RD,
+					     &g_rd, rec_addr,
+					     GRANULE_STATE_REC, &g_rec);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -2455,10 +2661,8 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(s2tt != NULL);
 
-	/* current support DEV_MEM_NON_COHERENT */
-	is_coh = false;
-	rtt_dev_mem_set_range(s2_ctx, s2tt, base, top, dev_mem_pa, is_coh,
-			      &wi, rd, res);
+	rtt_dev_mem_set_range(s2_ctx, s2tt, base, top, dev_mem_pa, &wi, rd,
+			      res);
 
 	if (res->x[0] == RMI_SUCCESS) {
 		rec->dev_mem.addr = res->x[1];
