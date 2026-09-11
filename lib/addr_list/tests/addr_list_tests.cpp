@@ -23,7 +23,7 @@ extern "C" {
 /*
  * Helper to get a granule physical address by index.
  */
-static uintptr_t granule_addr(unsigned int idx)
+static uintptr_t tr_granule_addr(unsigned int idx)
 {
 	return host_util_get_granule_base() + (uintptr_t)idx * GRANULE_SIZE;
 }
@@ -58,7 +58,7 @@ static unsigned long rand_level(void)
 static uintptr_t rand_aligned_addr(unsigned long rtt_level)
 {
 	unsigned long rand_idx = test_helpers_get_rand_in_range(10UL, 200UL);
-	uintptr_t raw = granule_addr((unsigned int)rand_idx);
+	uintptr_t raw = tr_granule_addr((unsigned int)rand_idx);
 	unsigned long blk_size = XLAT_BLOCK_SIZE(rtt_level);
 
 	return round_up(raw, blk_size);
@@ -302,9 +302,9 @@ TEST(addr_list_tests, add_block_different_blk_size_no_merge)
 {
 	struct addr_list list;
 	unsigned long st = rand_state();
-	uintptr_t addr_l3 = granule_addr(60U);
+	uintptr_t addr_l3 = tr_granule_addr(60U);
 	unsigned long l2_size = XLAT_BLOCK_SIZE(XLAT_TABLE_LEVEL_MAX - 1);
-	uintptr_t addr_l2 = round_up(granule_addr(70U), l2_size);
+	uintptr_t addr_l2 = round_up(tr_granule_addr(70U), l2_size);
 	unsigned long l2_level = (unsigned long)XLAT_TABLE_LEVEL_MAX - 1UL;
 
 	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
@@ -356,7 +356,7 @@ TEST(addr_list_tests, add_block_max_count_overflow_creates_new_desc)
 	struct addr_list list;
 	unsigned long max_cnt = (1UL << RMI_ADDR_RDESC_4K_CNT_WIDTH) - 1UL;
 	unsigned long st = rand_state();
-	uintptr_t base = granule_addr(100U);
+	uintptr_t base = tr_granule_addr(100U);
 
 	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 
@@ -387,7 +387,7 @@ TEST(addr_list_tests, add_block_list_full)
 {
 	struct addr_list list;
 	unsigned long st = rand_state();
-	uintptr_t base = granule_addr(100U);
+	uintptr_t base = tr_granule_addr(100U);
 
 	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 
@@ -450,9 +450,9 @@ TEST(addr_list_tests, sort_by_addr_orders_output_descriptors)
 	struct addr_list list;
 	unsigned long rtt_level = (unsigned long)XLAT_TABLE_LEVEL_MAX;
 	unsigned long st = RMI_OP_MEM_DELEGATED;
-	uintptr_t addr0 = granule_addr(100U);
-	uintptr_t addr1 = granule_addr(200U);
-	uintptr_t addr2 = granule_addr(300U);
+	uintptr_t addr0 = tr_granule_addr(100U);
+	uintptr_t addr1 = tr_granule_addr(200U);
+	uintptr_t addr2 = tr_granule_addr(300U);
 
 	addr_list_init(&list, LIST_TYPE_OUTPUT, ADDR_LIST_MAX_RANGES);
 
@@ -482,7 +482,7 @@ TEST(addr_list_tests, add_desc_input_list_decodes_descriptor)
 	struct addr_list list;
 	unsigned long rtt_level = (unsigned long)XLAT_TABLE_LEVEL_MAX - 1UL;
 	unsigned long blk_size = XLAT_BLOCK_SIZE(rtt_level);
-	uintptr_t base = round_up(granule_addr(900U), blk_size);
+	uintptr_t base = round_up(tr_granule_addr(900U), blk_size);
 	unsigned long desc;
 
 	desc = INPLACE(RMI_ADDR_RDESC_4K_SZ, level_to_sz(rtt_level)) |
@@ -572,10 +572,10 @@ TEST(addr_list_tests, peek_output_list)
 TEST(addr_list_tests, peek_input_list_second_descriptor)
 {
 	struct addr_list list;
-	uintptr_t base0 = granule_addr(700U);
+	uintptr_t base0 = tr_granule_addr(700U);
 	unsigned long l2_level = (unsigned long)XLAT_TABLE_LEVEL_MAX - 1UL;
 	unsigned long l2_size = XLAT_BLOCK_SIZE(l2_level);
-	uintptr_t base1 = round_up(granule_addr(760U), l2_size);
+	uintptr_t base1 = round_up(tr_granule_addr(760U), l2_size);
 	unsigned long addr, cnt, st;
 	int level;
 
@@ -609,7 +609,7 @@ TEST(addr_list_tests, peek_out_of_range)
 	int level = 0x5;
 
 	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
-	build_input_list(&list, granule_addr(800U), 1UL,
+	build_input_list(&list, tr_granule_addr(800U), 1UL,
 			 (unsigned long)XLAT_TABLE_LEVEL_MAX,
 			 RMI_OP_MEM_DELEGATED);
 
@@ -930,7 +930,7 @@ TEST(addr_list_tests, validate_single_valid_entry)
 	unsigned long rand_cnt = (unsigned long)test_helpers_get_rand_in_range(
 					1UL, 10UL);
 	unsigned long st = rand_state();
-	uintptr_t base = granule_addr(500U);
+	uintptr_t base = tr_granule_addr(500U);
 
 	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base, rand_cnt,
@@ -988,7 +988,7 @@ TEST(addr_list_tests, validate_unaligned_base_addr)
 	unsigned long st = rand_state();
 	unsigned long l2_level = (unsigned long)XLAT_TABLE_LEVEL_MAX - 1UL;
 	unsigned long l2_size = XLAT_BLOCK_SIZE(l2_level);
-	uintptr_t base = granule_addr(510U);
+	uintptr_t base = tr_granule_addr(510U);
 
 	/* Ensure base is NOT aligned to L2 */
 	uintptr_t aligned = round_up(base, l2_size);
@@ -1023,7 +1023,7 @@ TEST(addr_list_tests, validate_wrong_state)
 }
 
 /* ----------------------------------------------------------------
- * TC_VALIDATE_06: Validate returns total memory correctly for
+ * TC_VALIDATE_08: Validate returns total memory correctly for
  *                 randomized count.
  * ----------------------------------------------------------------
  */
@@ -1046,15 +1046,15 @@ TEST(addr_list_tests, validate_total_mem_calculation)
 }
 
 /* ----------------------------------------------------------------
- * TC_VALIDATE_07: is_contig with two valid descriptors → false.
+ * TC_VALIDATE_09: is_contig with two valid descriptors → false.
  * ----------------------------------------------------------------
  */
 TEST(addr_list_tests, validate_contig_two_valid_entries)
 {
 	struct addr_list list;
 	unsigned long st = rand_state();
-	uintptr_t base0 = granule_addr(540U);
-	uintptr_t base1 = granule_addr(550U);
+	uintptr_t base0 = tr_granule_addr(540U);
+	uintptr_t base1 = tr_granule_addr(550U);
 
 	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base0, 1UL,
@@ -1068,14 +1068,14 @@ TEST(addr_list_tests, validate_contig_two_valid_entries)
 }
 
 /* ----------------------------------------------------------------
- * TC_VALIDATE_08: is_contig with non-power-of-2 total → false.
+ * TC_VALIDATE_10: is_contig with non-power-of-2 total → false.
  * ----------------------------------------------------------------
  */
 TEST(addr_list_tests, validate_contig_non_power_of_two)
 {
 	struct addr_list list;
 	unsigned long st = rand_state();
-	uintptr_t base = granule_addr(560U);
+	uintptr_t base = tr_granule_addr(560U);
 
 	/* 3 × 4KB = 12KB, not a power of 2 */
 	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
@@ -1088,7 +1088,7 @@ TEST(addr_list_tests, validate_contig_non_power_of_two)
 }
 
 /* ----------------------------------------------------------------
- * TC_VALIDATE_09: is_contig — addr not aligned to total size → false.
+ * TC_VALIDATE_11: is_contig — addr not aligned to total size → false.
  * ----------------------------------------------------------------
  */
 TEST(addr_list_tests, validate_contig_addr_not_aligned_to_total)
@@ -1099,7 +1099,7 @@ TEST(addr_list_tests, validate_contig_addr_not_aligned_to_total)
 	unsigned long total = cnt * GRANULE_SIZE; /* 8 KB */
 
 	/* Pick address aligned to 4KB but NOT to 8KB */
-	uintptr_t pool = granule_addr(570U);
+	uintptr_t pool = tr_granule_addr(570U);
 	uintptr_t aligned = round_up(pool, total);
 	uintptr_t base = aligned + GRANULE_SIZE;
 
@@ -1113,7 +1113,7 @@ TEST(addr_list_tests, validate_contig_addr_not_aligned_to_total)
 }
 
 /* ----------------------------------------------------------------
- * TC_VALIDATE_10: is_contig happy path — power-of-2, aligned → true.
+ * TC_VALIDATE_12: is_contig happy path — power-of-2, aligned → true.
  * ----------------------------------------------------------------
  */
 TEST(addr_list_tests, validate_contig_happy_path)
@@ -1123,7 +1123,7 @@ TEST(addr_list_tests, validate_contig_happy_path)
 	unsigned long cnt = 2UL;
 	unsigned long total = cnt * GRANULE_SIZE; /* 8 KB */
 
-	uintptr_t pool = granule_addr(580U);
+	uintptr_t pool = tr_granule_addr(580U);
 	uintptr_t base = round_up(pool, total);
 
 	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
@@ -1137,7 +1137,7 @@ TEST(addr_list_tests, validate_contig_happy_path)
 }
 
 /* ----------------------------------------------------------------
- * TC_VALIDATE_11: Zero-count entries are skipped during validation.
+ * TC_VALIDATE_13: Zero-count entries are skipped during validation.
  *
  * Build two non-contiguous descriptors, then reduce the first to
  * create a cnt=0 entry. Validate should skip it.
@@ -1147,8 +1147,8 @@ TEST(addr_list_tests, validate_skips_zero_count_entries)
 {
 	struct addr_list list;
 	unsigned long st = rand_state();
-	uintptr_t base0 = granule_addr(590U);
-	uintptr_t base1 = granule_addr(600U);
+	uintptr_t base0 = tr_granule_addr(590U);
+	uintptr_t base1 = tr_granule_addr(600U);
 
 	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base0, 1UL,
@@ -1171,14 +1171,14 @@ TEST(addr_list_tests, validate_skips_zero_count_entries)
 }
 
 /* ----------------------------------------------------------------
- * TC_VALIDATE_12: Total memory equals exact value → true.
+ * TC_VALIDATE_14: Total memory equals exact value → true.
  * ----------------------------------------------------------------
  */
 TEST(addr_list_tests, validate_total_equals_req_mem)
 {
 	struct addr_list list;
 	unsigned long st = rand_state();
-	uintptr_t base = granule_addr(610U);
+	uintptr_t base = tr_granule_addr(610U);
 	unsigned long rand_cnt = (unsigned long)test_helpers_get_rand_in_range(
 					1UL, 15UL);
 
@@ -1193,15 +1193,15 @@ TEST(addr_list_tests, validate_total_equals_req_mem)
 }
 
 /* ----------------------------------------------------------------
- * TC_VALIDATE_13: Non-contiguous multi-descriptor list validates.
+ * TC_VALIDATE_15: Non-contiguous multi-descriptor list validates.
  * ----------------------------------------------------------------
  */
 TEST(addr_list_tests, validate_multi_desc_within_req_mem)
 {
 	struct addr_list list;
 	unsigned long st = rand_state();
-	uintptr_t base0 = granule_addr(620U);
-	uintptr_t base1 = granule_addr(640U);
+	uintptr_t base0 = tr_granule_addr(620U);
+	uintptr_t base1 = tr_granule_addr(640U);
 
 	addr_list_init(&list, LIST_TYPE_INPUT, ADDR_LIST_MAX_RANGES);
 	build_input_list(&list, base0, 1UL,
@@ -1216,7 +1216,7 @@ TEST(addr_list_tests, validate_multi_desc_within_req_mem)
 }
 
 /* ----------------------------------------------------------------
- * TC_VALIDATE_14: UNDELEGATE state match → passes.
+ * TC_VALIDATE_16: UNDELEGATE state match → passes.
  * ----------------------------------------------------------------
  */
 TEST(addr_list_tests, validate_undelegate_state_match)
@@ -1239,7 +1239,7 @@ TEST(addr_list_tests, validate_undelegate_state_match)
 }
 
 /* ----------------------------------------------------------------
- * TC_VALIDATE_15: is_contig with only zero-count entries → true.
+ * TC_VALIDATE_17: is_contig with only zero-count entries → true.
  *
  * Build a single block, reduce it to make cnt=0, then validate
  * with is_contig.

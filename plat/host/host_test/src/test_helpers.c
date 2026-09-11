@@ -19,6 +19,7 @@
 #include <string.h>
 #include <test_private.h>
 #include <time.h>
+#include <tracking_region.h>
 #include <utest_exit.h>
 #include <xlat_tables.h>
 
@@ -44,6 +45,8 @@ static bool assert_expected;
 static bool asserted;
 
 static uintptr_t callbacks[CB_IDS];
+static bool rmm_initialized;
+static bool secondary_pes_initialized;
 
 void rmm_arch_init(void);
 
@@ -120,12 +123,17 @@ static void start_secondary_pes(void)
 	host_util_set_cpuid(0U);
 }
 
-void test_helpers_rmm_start(bool secondaries)
+/*
+ * Start the host RMM model and optionally populate all tracking metadata.
+ * Tracking SRO tests leave fine backing unpopulated and RMM in INIT. The
+ * permanent struct tracking_region array is always populated by the boot path.
+ */
+static void test_helpers_rmm_start_internal(bool secondaries,
+					    bool populate_tracking)
 {
-	static bool initialized;
-	static bool secondaries_initialized;
+	if (!rmm_initialized) {
+		int ret;
 
-	if (initialized == false) {
 		/* Enable RMM and setup basic structures for each test. */
 		host_util_setup_sysreg_and_boot_manifest();
 
@@ -134,19 +142,31 @@ void test_helpers_rmm_start(bool secondaries)
 
 		if (secondaries) {
 			start_secondary_pes();
-			secondaries_initialized = true;
+			secondary_pes_initialized = true;
 		}
 
 		/* Take a snapshot of the current sysreg status */
 		host_util_take_sysreg_snapshot();
-		initialized = true;
+
+		/* Exercise the smallest supported tracking-region layout. */
+		ret = tracking_region_configure(TRACKING_REGION_MIN_SIZE);
+		assert(ret == 0);
+		if (populate_tracking) {
+			ret = tracking_region_populate_from_el3(true);
+			assert(ret == 0);
+			tracking_region_activate(trs_fine);
+		}
+		(void)ret;
+		rmm_initialized = true;
 	} else {
+		assert(populate_tracking);
 		mec_test_reset();
+		tracking_region_fine_reset();
 
 		/* Restore the sysreg status */
 		host_util_restore_sysreg_snapshot();
 
-		if (secondaries && (secondaries_initialized == false)) {
+		if (secondaries && !secondary_pes_initialized) {
 			start_secondary_pes();
 
 			/*
@@ -154,9 +174,25 @@ void test_helpers_rmm_start(bool secondaries)
 			 * baseline once secondary PEs have been brought up.
 			 */
 			host_util_take_sysreg_snapshot();
-			secondaries_initialized = true;
+			secondary_pes_initialized = true;
 		}
 	}
+}
+
+/* Start the host RMM model with the normal, fully populated test layout. */
+void test_helpers_rmm_start(bool secondaries)
+{
+	test_helpers_rmm_start_internal(secondaries, true);
+}
+
+/*
+ * Start the host RMM model in INIT, retaining the tracking backing from boot.
+ * Call once in a fresh test process; skip further fine-array population and
+ * tracking activation. Initialize secondary PEs when @secondaries is true.
+ */
+void test_helpers_rmm_start_for_tracking_sro(bool secondaries)
+{
+	test_helpers_rmm_start_internal(secondaries, false);
 }
 
 unsigned int test_helpers_get_nr_granules(void)
@@ -330,7 +366,7 @@ void test_helpers_init(void)
 
 struct granule *test_helpers_granule_struct_base(void)
 {
-	return addr_to_granule(host_util_get_granule_base());
+	return tr_addr_to_granule(host_util_get_granule_base());
 }
 
 unsigned int test_helpers_get_random_mecid(void)

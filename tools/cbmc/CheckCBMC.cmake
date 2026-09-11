@@ -62,7 +62,6 @@ math(EXPR HOST_NCOH_DEV_SIZE "(1 << ${GRANULE_SHIFT}) * ${MAX_NUM_OF_NCOH_GRANUL
 set(HOST_NCOH_DEV_SIZE "${HOST_NCOH_DEV_SIZE}UL")
 
 set(MAX_RTT_UNWIND "6")
-set(MAX_AUX_REC "2")
 set(MAX_ROOT_RTT "3")
 set(MAX_UNWIND_FLAGS "")
 
@@ -87,25 +86,13 @@ set(cbmc_unwinds_list
   "--unwindset;dev_granule_lock_on_state_match$link1.0:1"
   "--unwindset;granule_lock_on_state_match.0:1"
   "--unwindset;granule_lock_on_state_match$link1.0:1"
-  "--unwindset;find_lock_granules.3:${MAX_ROOT_RTT}"
-  "--unwindset;find_lock_rd_granules.0:${MAX_RTT_UNWIND}"
-  "--unwindset;find_lock_rd_granules.1:${MAX_RTT_UNWIND}"
-  "--unwindset;free_rec_aux_granules.0:${MAX_AUX_REC}"
+  # Limit tracking-region bank searches to one iteration for CBMC runtime.
+  "--unwindset;tracking_region_find_addr.0:2"
+  "--unwindset;tracking_region_fine_idx_to_addr.0:2"
   "--unwindset;free_sl_rtts.0:${MAX_RTT_UNWIND}"
-  "--unwindset;init_realm_descriptor_page.0:${MAX_ROOT_RTT}"
-  "--unwindset;init_realm_descriptor_page.1:${MAX_ROOT_RTT}"
-  "--unwindset;init_rec.0:${MAX_AUX_REC}"
   "--unwindset;init_rtt_root_page.0:${MAX_ROOT_RTT}"
-  "--unwindset;init_walk_path.0:${MAX_RTT_UNWIND}"
-  "--unwindset;lock_order_invariable.0:11"
-  "--unwindset;lock_order_invariable.1:4"
-  "--unwindset;lock_order_invariable.2:"
   "--unwindset;RealmIsLive.0:${MAX_ROOT_RTT}"
   "--unwindset;RealmIsLive.2:${MAX_ROOT_RTT}"
-  "--unwindset;rtt_walk_lock_unlock.0:${MAX_RTT_UNWIND}"
-  "--unwindset;RttWalk.0:${MAX_RTT_UNWIND}"
-  "--unwindset;smc_realm_create.0:${MAX_RTT_UNWIND}"
-  "--unwindset;smc_rec_create.0:${MAX_AUX_REC}"
   "--unwindset;total_root_rtt_refcount.0:${MAX_RTT_UNWIND}"
   "--unwindset;smc_realm_destroy.0:2"
   "--unwindset;set_rd_state.0:3"

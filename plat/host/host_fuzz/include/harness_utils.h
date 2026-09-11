@@ -104,7 +104,7 @@ int test_buffer_get_data(struct test_buffer *b, void *data, size_t length)
  */
 static inline bool granule_state_is(unsigned long addr, unsigned char expected_state)
 {
-	struct granule *g_p = find_granule(addr);
+	struct granule *g_p = tr_find_fine_granule(addr);
 	if (!g_p) {
 		return false;
 	}
@@ -135,7 +135,7 @@ void debug_state(void *addr, unsigned short expected_state)
 		"GRANULE_STATE_PSMMU_ST_L2"
 	};
 
-	struct granule *g_addr = find_granule((uintptr_t)addr);
+	struct granule *g_addr = tr_find_fine_granule((uintptr_t)addr);
 	if (g_addr == NULL) {
 		INFO("%p: Granule address is NULL\n", addr);
 		return;

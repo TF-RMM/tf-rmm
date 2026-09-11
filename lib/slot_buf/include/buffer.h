@@ -100,36 +100,6 @@ void *buffer_granule_mecid_map_addr_zeroed(unsigned long addr,
 					    unsigned int mecid);
 void buffer_unmap(void *buf);
 
-/* Legacy descriptor APIs retained until all callers use PA-based access. */
-bool ns_buffer_read(enum buffer_slot slot,
-		    struct granule *ns_gr,
-		    unsigned int offset,
-		    size_t size,
-		    void *dest);
-
-bool ns_buffer_read_unaligned(enum buffer_slot slot,
-			      struct granule *ns_gr,
-			      unsigned int offset,
-			      size_t size,
-			      void *dest);
-
-bool ns_buffer_write(enum buffer_slot slot,
-		     struct granule *ns_gr,
-		     unsigned int offset,
-		     size_t size,
-		     void *src);
-
-bool ns_buffer_write_unaligned(enum buffer_slot slot,
-			       struct granule *ns_gr,
-			       unsigned int offset,
-			       size_t size,
-			       void *src,
-			       size_t *ns_start_offset);
-
-/* Legacy entry points used before descriptor initialization. */
-bool ns_buffer_read_early(unsigned long ns_ptr, size_t size, void *dest);
-bool ns_buffer_write_early(unsigned long ns_ptr, size_t size, void *src);
-
 /*
  * Read from the granule-aligned NS PA @ns_addr without consulting granule
  * tracking. Returns false if the NS address or range is invalid, or if the

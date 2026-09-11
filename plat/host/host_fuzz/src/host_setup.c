@@ -28,6 +28,7 @@
 #include <status.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <tracking_region.h>
 #include <unistd.h>
 
 /* LLVM/GCC gcov runtime: flush .gcda files */
@@ -476,10 +477,7 @@ static void fast_reset(void)
 
 	host_util_slot_reset();
 
-	alloc = glob_data_get_granules_va(&alloc_size);
-	memset((void *)alloc, 0, alloc_size);
-	alloc = glob_data_get_dev_granules_va(&alloc_size);
-	memset((void *)alloc, 0, alloc_size);
+	tracking_region_fine_reset();
 	alloc = glob_data_get_vmids_va(&alloc_size);
 	memset((void *)alloc, 0, alloc_size);
 	alloc = glob_data_get_mec_state_va(&alloc_size);

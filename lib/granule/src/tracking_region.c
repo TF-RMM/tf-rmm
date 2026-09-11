@@ -1969,3 +1969,67 @@ unsigned long tracking_region_addr_to_idx(unsigned long addr,
 
 	return tracking_region_idx;
 }
+
+/******************************************************************
+ * Test and host-platform support
+ *****************************************************************/
+
+/* Install the granule array used by the CBMC host model. */
+void tr_granule_array_set_for_test(uintptr_t data,
+				   size_t data_size,
+				   struct granule *granules,
+				   unsigned long count)
+{
+	assert((data != 0UL) && (data_size >= sizeof(*tracking_data)));
+	assert((granules != NULL) && (count != 0UL));
+	(void)data_size;
+
+	tracking_data = (struct tracking_region_data *)data;
+	tracking_data->tracking_region_size = TRACKING_REGION_MAX_SIZE;
+	tracking_data->granule_array_tr.va = (uintptr_t)granules;
+	tracking_data->granule_array_tr.size = count * sizeof(*granules);
+	tracking_data->num_tracking_granules = count;
+}
+
+/* Clear mapped fine-granule ranges without touching reserved holes. */
+static void tracking_region_fine_arrays_reset(void)
+{
+	unsigned long region_size = tracking_region_get_size();
+	size_t conv_size = tracking_region_fine_stride(
+		region_size, sizeof(struct granule)) * sizeof(struct granule);
+	size_t dev_size = tracking_region_fine_stride(
+		region_size, sizeof(struct dev_granule)) *
+			sizeof(struct dev_granule);
+
+	for (unsigned long i = 0UL;
+	     i < tracking_data->num_tracking_regions; i++) {
+		unsigned long fine_granule_idx_tr =
+			tr_idx_to_fine_granule_idx(i, TR_MEM_TYPE_CONV);
+
+		if (fine_granule_idx_tr != UINT64_MAX) {
+			(void)memset((void *)(tracking_data->granule_array_tr.va +
+					(fine_granule_idx_tr *
+					 sizeof(struct granule))),
+				     0, conv_size);
+		}
+
+		fine_granule_idx_tr = tr_idx_to_fine_granule_idx(
+							i, TR_MEM_TYPE_DEV);
+		if (fine_granule_idx_tr != UINT64_MAX) {
+			(void)memset((void *)(
+					tracking_data->dev_granule_array_tr.va +
+					(fine_granule_idx_tr *
+					 sizeof(struct dev_granule))),
+				     0, dev_size);
+		}
+	}
+}
+
+/* Reset all tracking metadata to its initial fine-tracking state. */
+void tracking_region_fine_reset(void)
+{
+	assert((tracking_data != NULL) && tracking_data->tracking_initialized);
+
+	tracking_region_fine_arrays_reset();
+	tracking_region_descriptors_init(trs_fine);
+}

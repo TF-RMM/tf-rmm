@@ -102,6 +102,7 @@ static void get_contiguous_rand_granule_array(uintptr_t *arr,
 	}
 }
 
+
 TEST_GROUP(slot_buffer) {
 	/*
 	 * For this test, TEST_SETUP() initializes RMM which includes
@@ -136,7 +137,7 @@ TEST_GROUP(slot_buffer) {
 
 TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC1)
 {
-	uintptr_t slot_va, expected_va, granule_addr;
+	uintptr_t slot_va, expected_va, tr_granule_addr;
 	struct granule *test_granule;
 	union test_harness_cbs cb;
 
@@ -156,8 +157,8 @@ TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC1)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
 
 
-	granule_addr = get_rand_granule_addr();
-	test_granule = addr_to_granule(granule_addr);
+	tr_granule_addr = get_rand_granule_addr();
+	test_granule = tr_addr_to_granule(tr_granule_addr);
 
 	for (unsigned int i = 0U; i < MAX_CPUS; i++) {
 		host_util_set_cpuid(i);
@@ -181,7 +182,7 @@ TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC1)
 			 * aarch64 VMSA.
 			 */
 			POINTERS_EQUAL(expected_va,
-				buffer_test_helpers_slot_va_from_pa(granule_addr));
+				buffer_test_helpers_slot_va_from_pa(tr_granule_addr));
 
 			/* Unmap the buffer */
 			buffer_unmap((void *)slot_va);
@@ -192,7 +193,7 @@ TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC1)
 			 * slot buffer.
 			 */
 			POINTERS_EQUAL(NULL,
-				buffer_test_helpers_slot_va_from_pa(granule_addr));
+				buffer_test_helpers_slot_va_from_pa(tr_granule_addr));
 
 		} /* For each slot type */
 	} /* For each CPU */
@@ -233,7 +234,7 @@ TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC2)
 		/* Map a granule on each CPU for the same slot */
 		for (unsigned int j = 0U; j < MAX_CPUS; j++) {
 			host_util_set_cpuid(j);
-			test_granule = addr_to_granule(granules_per_cpu[j]);
+			test_granule = tr_addr_to_granule(granules_per_cpu[j]);
 			slot_va[j] = is_realm_mecid_slot((enum buffer_slot)i) ?
 				buffer_granule_mecid_map(test_granule, (enum buffer_slot)i,
 					test_helpers_get_random_mecid()) :
@@ -328,7 +329,7 @@ TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC4)
 
 ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC5)
 {
-	uintptr_t granule_addr;
+	uintptr_t tr_granule_addr;
 	struct granule *test_granule;
 	union test_harness_cbs cb;
 	unsigned int cpuid;
@@ -346,8 +347,8 @@ ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC5)
 	cb.buffer_unmap = buffer_test_cb_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
-	granule_addr = get_rand_granule_addr();
-	test_granule = addr_to_granule(granule_addr);
+	tr_granule_addr = get_rand_granule_addr();
+	test_granule = tr_addr_to_granule(tr_granule_addr);
 	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
 								(MAX_CPUS - 1));
 	host_util_set_cpuid(cpuid);
@@ -427,6 +428,7 @@ ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC7)
 ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC8)
 {
 	union test_harness_cbs cb;
+	uintptr_t last_granule_addr;
 	unsigned int cpuid;
 	enum buffer_slot slot;
 	struct granule *test_granule;
@@ -434,8 +436,9 @@ ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC8)
 	/******************************************************************
 	 * TEST CASE 8:
 	 *
-	 * For a random CPU, try to map a granule address over the end of
-	 * the granules array to a random slot type other than SLOT_NS.
+	 * For a random CPU, try to map through the struct granule immediately
+	 * after the one representing the last valid platform Granule, using a
+	 * random slot type other than SLOT_NS.
 	 * The operation should generate an assertion failure.
 	 ******************************************************************/
 
@@ -445,8 +448,9 @@ ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC8)
 	cb.buffer_unmap = buffer_test_cb_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
-	test_granule = test_helpers_granule_struct_base() +
-				test_helpers_get_nr_granules();
+	last_granule_addr = host_util_get_granule_base() +
+		((test_helpers_get_nr_granules() - 1UL) * GRANULE_SIZE);
+	test_granule = tr_addr_to_granule(last_granule_addr) + 1U;
 	slot = (enum buffer_slot)test_helpers_get_rand_in_range(
 						(unsigned long)(SLOT_NS + 1U),
 						(unsigned long)NR_CPU_SLOTS);
@@ -461,7 +465,7 @@ ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC8)
 
 ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC9)
 {
-	uintptr_t granule_addr;
+	uintptr_t tr_granule_addr;
 	uintptr_t test_granule;
 	union test_harness_cbs cb;
 	unsigned int cpuid;
@@ -481,8 +485,8 @@ ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC9)
 	cb.buffer_unmap = buffer_test_cb_unmap_aarch64_vmsa;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
-	granule_addr = get_rand_granule_addr();
-	test_granule = (uintptr_t)addr_to_granule(granule_addr);
+	tr_granule_addr = get_rand_granule_addr();
+	test_granule = (uintptr_t)tr_addr_to_granule(tr_granule_addr);
 	test_granule += test_helpers_get_rand_in_range(1UL,
 						sizeof(struct granule) - 1);
 
@@ -498,18 +502,17 @@ ASSERT_TEST(slot_buffer, buffer_granule_map_buffer_unmap_TC9)
 	test_helpers_fail_if_no_assert_failed();
 }
 
-TEST(slot_buffer, ns_buffer_write_TC1)
+TEST(slot_buffer, ns_buffer_write_addr_TC1)
 {
 	uintptr_t granule_addrs[3];
-	struct granule *test_granule;
 	union test_harness_cbs cb;
 
 	/******************************************************************
 	 * TEST CASE 1:
 	 *
 	 * For each CPU, map a random granule to NS_SLOT and copy random
-	 * data into it through several calls to ns_buffer_write().
-	 * Then verify that for each call to ns_buffer_write(), the data
+	 * data into it through several calls to ns_buffer_write_addr().
+	 * Then verify that for each call to ns_buffer_write_addr(), the data
 	 * is properly copied without affecting other areas of the dest
 	 * granule.
 	 ******************************************************************/
@@ -532,8 +535,6 @@ TEST(slot_buffer, ns_buffer_write_TC1)
 	/* Granule to test zeroes */
 	(void)memset((void *)granule_addrs[2], 0, GRANULE_SIZE);
 
-	test_granule = addr_to_granule(granule_addrs[0]);
-
 	for (unsigned int i = 0U; i < MAX_CPUS; i++) {
 
 		/* Fill the granule with random data */
@@ -552,7 +553,7 @@ TEST(slot_buffer, ns_buffer_write_TC1)
 		 * written yet.
 		 */
 		for (unsigned int j = 0U; j < GRANULE_BLOCKS; j++) {
-			ns_buffer_write(SLOT_NS, test_granule,
+			ns_buffer_write_addr(SLOT_NS, granule_addrs[0],
 					GRANULE_BLOCK_SIZE * j,
 					GRANULE_BLOCK_SIZE,
 					(void *)(granule_addrs[1] +
@@ -575,17 +576,16 @@ TEST(slot_buffer, ns_buffer_write_TC1)
 	}
 }
 
-TEST(slot_buffer, ns_buffer_write_TC2)
+TEST(slot_buffer, ns_buffer_write_addr_TC2)
 {
 	uintptr_t granule_addrs[3];
-	struct granule *test_granule;
 	union test_harness_cbs cb;
 	int val;
 
 	/******************************************************************
 	 * TEST CASE 3:
 	 *
-	 * For every CPU, verify that ns_buffer_write() does not alter the
+	 * For every CPU, verify that ns_buffer_write_addr() does not alter the
 	 * source.
 	 ******************************************************************/
 
@@ -610,12 +610,10 @@ TEST(slot_buffer, ns_buffer_write_TC2)
 		*((int *)granule_addrs[1] + j) = val;
 	}
 
-	test_granule = addr_to_granule(granule_addrs[2]);
-
 	for (unsigned int i = 0U; i < MAX_CPUS; i++) {
 		host_util_set_cpuid(i);
 
-		ns_buffer_write(SLOT_NS, test_granule, 0U,
+		ns_buffer_write_addr(SLOT_NS, granule_addrs[2], 0U,
 			       GRANULE_SIZE, (void *)granule_addrs[0]);
 
 		/* Verify that the source has not been altered */
@@ -626,7 +624,7 @@ TEST(slot_buffer, ns_buffer_write_TC2)
 
 }
 
-TEST(slot_buffer, ns_buffer_write_TC3)
+TEST(slot_buffer, ns_buffer_write_addr_TC3)
 {
 	uintptr_t granule_addrs[2];
 	unsigned int cpu[2];
@@ -640,7 +638,7 @@ TEST(slot_buffer, ns_buffer_write_TC3)
 	 * for two random CPUs, map a random granule to their SLOT_NS, then
 	 * copy different random data to it. Verify that the data from one
 	 * CPU's SLOT_NS hasn't been leaked to the other's CPU SLOT_NS.
-	 * This test helps validating that ns_buffer_write() handles the
+	 * This test helps validating that ns_buffer_write_addr() handles the
 	 * translation contexts properly.
 	 ******************************************************************/
 
@@ -671,7 +669,7 @@ TEST(slot_buffer, ns_buffer_write_TC3)
 	for (unsigned int i = 0U; i < 2U; i++) {
 		host_util_set_cpuid(cpu[i]);
 
-		ns_buffer_write(SLOT_NS, addr_to_granule(granule_addrs[i]), 0U,
+		ns_buffer_write_addr(SLOT_NS, granule_addrs[i], 0U,
 				sizeof(long), (void *)&pattern[i]);
 	}
 
@@ -689,7 +687,7 @@ TEST(slot_buffer, ns_buffer_write_TC3)
 	CHECK_FALSE(val == pattern[0]);
 }
 
-ASSERT_TEST(slot_buffer, ns_buffer_write_TC4)
+ASSERT_TEST(slot_buffer, ns_buffer_write_addr_TC4)
 {
 	uintptr_t granule_addrs[2];
 	unsigned int cpuid;
@@ -699,9 +697,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC4)
 	/******************************************************************
 	 * TEST CASE 4:
 	 *
-	 * for a random CPU, try to call ns_buffer_write() with a
+	 * for a random CPU, try to call ns_buffer_write_addr() with a
 	 * random secure slot.
-	 * ns_buffer_write() should cause an assertion failure.
+	 * ns_buffer_write_addr() should cause an assertion failure.
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
@@ -723,23 +721,23 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC4)
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	ns_buffer_write(slot, addr_to_granule(granule_addrs[0]), 0U,
+	ns_buffer_write_addr(slot, granule_addrs[0], 0U,
 			(size_t)GRANULE_SIZE, (void *)granule_addrs[1]);
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(slot_buffer, ns_buffer_write_TC5)
+ASSERT_TEST(slot_buffer, ns_buffer_write_addr_TC5)
 {
-	uintptr_t granule_addr;
+	uintptr_t tr_granule_addr;
 	unsigned int cpuid;
 	union test_harness_cbs cb;
 
 	/******************************************************************
 	 * TEST CASE 5:
 	 *
-	 * for a random CPU, try to call ns_buffer_write() with a
+	 * for a random CPU, try to call ns_buffer_write_addr() with a
 	 * NULL pointer to copy from.
-	 * ns_buffer_write() should cause an assertion failure.
+	 * ns_buffer_write_addr() should cause an assertion failure.
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
@@ -748,125 +746,19 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC5)
 	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
-	granule_addr = get_rand_granule_addr();
+	tr_granule_addr = get_rand_granule_addr();
 
 	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
 								MAX_CPUS - 1U);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	ns_buffer_write(SLOT_NS, addr_to_granule(granule_addr), 0U,
+	ns_buffer_write_addr(SLOT_NS, tr_granule_addr, 0U,
 			(size_t)GRANULE_SIZE, NULL);
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(slot_buffer, ns_buffer_write_TC6)
-{
-	uintptr_t granule_addr;
-	unsigned int cpuid;
-	union test_harness_cbs cb;
-
-	/******************************************************************
-	 * TEST CASE 6:
-	 *
-	 * for a random CPU, try to call ns_buffer_write() with a
-	 * NULL granule to topy to.
-	 * ns_buffer_write() should cause an assertion failure.
-	 ******************************************************************/
-
-	/* Register harness callbacks to use by this test */
-	cb.buffer_map = buffer_test_cb_map_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = buffer_test_cb_unmap_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
-
-	granule_addr = get_rand_granule_addr();
-
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
-								MAX_CPUS - 1U);
-	host_util_set_cpuid(cpuid);
-
-	test_helpers_expect_assert_fail(true);
-	ns_buffer_write(SLOT_NS, NULL, 0U,
-			(size_t)GRANULE_SIZE, (void *)granule_addr);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-ASSERT_TEST(slot_buffer, ns_buffer_write_TC7)
-{
-	uintptr_t granule_addrs[2];
-	unsigned int cpuid;
-	union test_harness_cbs cb;
-	size_t size;
-
-	/******************************************************************
-	 * TEST CASE 7:
-	 *
-	 * for a random CPU, try to call ns_buffer_write() with a
-	 * size not aligned to 8 bytes.
-	 * ns_buffer_write() should cause an assertion failure.
-	 ******************************************************************/
-
-	/* Register harness callbacks to use by this test */
-	cb.buffer_map = buffer_test_cb_map_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = buffer_test_cb_unmap_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
-
-	/* Get two random granules, one for destination and one for source. */
-	get_rand_granule_array(granule_addrs, 2U);
-
-	/* Get a random size between 1 and 7 bytes */
-	size = (size_t)test_helpers_get_rand_in_range(1UL, 7UL);
-
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
-								MAX_CPUS - 1U);
-	host_util_set_cpuid(cpuid);
-
-	test_helpers_expect_assert_fail(true);
-	ns_buffer_write(SLOT_NS, addr_to_granule(granule_addrs[0]), 0U,
-			size, (void *)granule_addrs[1]);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-ASSERT_TEST(slot_buffer, ns_buffer_write_TC8)
-{
-	uintptr_t granule_addrs[2];
-	unsigned int cpuid;
-	union test_harness_cbs cb;
-	unsigned int offset;
-
-	/******************************************************************
-	 * TEST CASE 8:
-	 *
-	 * for a random CPU, try to call ns_buffer_write() with an
-	 * offset not aligned to 8 bytes.
-	 * ns_buffer_write() should cause an assertion failure.
-	 ******************************************************************/
-
-	/* Register harness callbacks to use by this test */
-	cb.buffer_map = buffer_test_cb_map_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = buffer_test_cb_unmap_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
-
-	/* Get two random granules, one for destination and one for source. */
-	get_rand_granule_array(granule_addrs, 2U);
-
-	/* Get a random offset between 1 and 7 */
-	offset = (unsigned int)test_helpers_get_rand_in_range(1UL, 7UL);
-
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
-								MAX_CPUS - 1U);
-	host_util_set_cpuid(cpuid);
-
-	test_helpers_expect_assert_fail(true);
-	ns_buffer_write(SLOT_NS, addr_to_granule(granule_addrs[0]), offset,
-			GRANULE_SIZE, (void *)granule_addrs[1]);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-ASSERT_TEST(slot_buffer, ns_buffer_write_TC9)
+ASSERT_TEST(slot_buffer, ns_buffer_write_addr_TC9)
 {
 	uintptr_t granule_addrs[2];
 	unsigned int cpuid;
@@ -875,9 +767,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC9)
 	/******************************************************************
 	 * TEST CASE 9:
 	 *
-	 * for a random CPU, try to call ns_buffer_write() with an
+	 * for a random CPU, try to call ns_buffer_write_addr() with an
 	 * source not aligned to 8 bytes.
-	 * ns_buffer_write() should cause an assertion failure.
+	 * ns_buffer_write_addr() should cause an assertion failure.
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
@@ -902,57 +794,15 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_TC9)
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	ns_buffer_write(SLOT_NS, addr_to_granule(granule_addrs[0]), 0U,
+	ns_buffer_write_addr(SLOT_NS, granule_addrs[0], 0U,
 			GRANULE_SIZE, (void *)granule_addrs[1]);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-ASSERT_TEST(slot_buffer, ns_buffer_write_TC10)
-{
-	uintptr_t granule_addrs[2];
-	unsigned int cpuid;
-	size_t size;
-	unsigned int offset;
-	union test_harness_cbs cb;
-
-	/******************************************************************
-	 * TEST CASE 10:
-	 *
-	 * for a random CPU, try to call ns_buffer_write() with an
-	 * offset + size higher than GRANULE_SIZE.
-	 * ns_buffer_write() should cause an assertion failure.
-	 ******************************************************************/
-
-	/* Register harness callbacks to use by this test */
-	cb.buffer_map = buffer_test_cb_map_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = buffer_test_cb_unmap_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
-
-	/* Get two random granules, one for destination and one for source. */
-	get_rand_granule_array(granule_addrs, 2U);
-
-	/*
-	 * offset + granule = 1.5 * granule_size.
-	 * Both parameters are properly aligned.
-	 */
-	offset = GRANULE_SIZE >> 1U;
-	size = (size_t)GRANULE_SIZE;
-
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
-								MAX_CPUS - 1U);
-	host_util_set_cpuid(cpuid);
-
-	test_helpers_expect_assert_fail(true);
-	ns_buffer_write(SLOT_NS, addr_to_granule(granule_addrs[0]), offset,
-			size, (void *)granule_addrs[1]);
 	test_helpers_fail_if_no_assert_failed();
 }
 
 #define NS_BUF_WRITE_UNALIGNED_TEST_PATTERN 0x57U
 
 struct ns_buf_write_unaligned_test_vector {
-	/* Input parameters for the ns_buffer_write_unaligned call */
+	/* Input parameters for the ns_buffer_write_unaligned_addr call */
 	unsigned long size;
 	unsigned long ns_offset; /* Offset of the result in the NS granule */
 	unsigned long src_offset; /* The offset to start copy from the src buf
@@ -988,10 +838,9 @@ struct ns_buf_write_unaligned_test_vector write_unaligned_test_vectors[] = {
 	{4084U,			8U,	4U,	true,	0},
 };
 
-TEST(slot_buffer, ns_buffer_write_unaligned_TC1)
+TEST(slot_buffer, ns_buffer_write_unaligned_addr_TC1)
 {
 	uintptr_t granule_addrs[3];
-	struct granule *test_granule;
 	union test_harness_cbs cb;
 	size_t ns_start_offset;
 	unsigned long zero = 0UL;
@@ -1000,8 +849,8 @@ TEST(slot_buffer, ns_buffer_write_unaligned_TC1)
 	 * TEST CASE 1:
 	 *
 	 * For each CPU, map a random granule to NS_SLOT and copy random
-	 * data into it through several calls to ns_buffer_write_unaligned().
-	 * Then verify that for each call to ns_buffer_write_unaligned(), the
+	 * data into it through several calls to ns_buffer_write_unaligned_addr().
+	 * Then verify that for each call to ns_buffer_write_unaligned_addr(), the
 	 * data is properly copied, and zero bytes are copied as well for ranges
 	 * that are outside of the specified source data range, but needed to be
 	 * copied because of the underlying copy mechanism.
@@ -1026,8 +875,6 @@ TEST(slot_buffer, ns_buffer_write_unaligned_TC1)
 	/* Initialise reference granule with test pattern */
 	(void)memset((void *)granule_addrs[2], NS_BUF_WRITE_UNALIGNED_TEST_PATTERN, GRANULE_SIZE);
 
-	test_granule = addr_to_granule(granule_addrs[0]);
-
 	for (unsigned int i = 0U; i < MAX_CPUS; i++) {
 
 		/* Fill the granule with random data */
@@ -1050,7 +897,7 @@ TEST(slot_buffer, ns_buffer_write_unaligned_TC1)
 
 			host_util_set_cpuid(i);
 
-			ret = ns_buffer_write_unaligned(SLOT_NS, test_granule,
+			ret = ns_buffer_write_unaligned_addr(SLOT_NS, granule_addrs[0],
 						curr_tv->ns_offset, curr_tv->size,
 						(void *)(granule_addrs[1] + curr_tv->src_offset),
 						&ns_start_offset);
@@ -1107,10 +954,9 @@ TEST(slot_buffer, ns_buffer_write_unaligned_TC1)
 	}
 }
 
-TEST(slot_buffer, ns_buffer_write_unaligned_TC2)
+TEST(slot_buffer, ns_buffer_write_unaligned_addr_TC2)
 {
 	uintptr_t granule_addrs[3];
-	struct granule *test_granule;
 	union test_harness_cbs cb;
 	unsigned long val;
 	size_t ns_start_offset;
@@ -1118,7 +964,7 @@ TEST(slot_buffer, ns_buffer_write_unaligned_TC2)
 	/******************************************************************
 	 * TEST CASE 2:
 	 *
-	 * For every CPU, verify that ns_buffer_write_unaligned() does not alter
+	 * For every CPU, verify that ns_buffer_write_unaligned_addr() does not alter
 	 * the source.
 	 ******************************************************************/
 
@@ -1143,8 +989,6 @@ TEST(slot_buffer, ns_buffer_write_unaligned_TC2)
 		*((unsigned long *)granule_addrs[1] + j) = val;
 	}
 
-	test_granule = addr_to_granule(granule_addrs[2]);
-
 	for (unsigned int i = 0U; i < MAX_CPUS; i++) {
 		host_util_set_cpuid(i);
 
@@ -1154,7 +998,7 @@ TEST(slot_buffer, ns_buffer_write_unaligned_TC2)
 			struct ns_buf_write_unaligned_test_vector *curr_tv =
 				&write_unaligned_test_vectors[tv_idx];
 
-			ns_buffer_write_unaligned(SLOT_NS, test_granule,
+			ns_buffer_write_unaligned_addr(SLOT_NS, granule_addrs[2],
 						curr_tv->ns_offset, curr_tv->size,
 						(void *)(granule_addrs[1] + curr_tv->src_offset),
 						&ns_start_offset);
@@ -1167,7 +1011,7 @@ TEST(slot_buffer, ns_buffer_write_unaligned_TC2)
 	}
 }
 
-TEST(slot_buffer, ns_buffer_write_unaligned_TC3)
+TEST(slot_buffer, ns_buffer_write_unaligned_addr_TC3)
 {
 	uintptr_t granule_addrs[2];
 	unsigned int cpu[2];
@@ -1182,7 +1026,7 @@ TEST(slot_buffer, ns_buffer_write_unaligned_TC3)
 	 * for two random CPUs, map a random granule to their SLOT_NS, then
 	 * copy different random data to it. Verify that the data from one
 	 * CPU's SLOT_NS hasn't been leaked to the other's CPU SLOT_NS.
-	 * This test helps validating that ns_buffer_write_unaligned() handles
+	 * This test helps validating that ns_buffer_write_unaligned_addr() handles
 	 * the translation contexts properly.
 	 ******************************************************************/
 
@@ -1213,7 +1057,7 @@ TEST(slot_buffer, ns_buffer_write_unaligned_TC3)
 	for (unsigned int i = 0U; i < 2U; i++) {
 		host_util_set_cpuid(cpu[i]);
 
-		ns_buffer_write_unaligned(SLOT_NS, addr_to_granule(granule_addrs[i]), 0U,
+		ns_buffer_write_unaligned_addr(SLOT_NS, granule_addrs[i], 0U,
 				sizeof(long), (void *)&pattern[i],
 				&ns_start_offset);
 	}
@@ -1232,7 +1076,7 @@ TEST(slot_buffer, ns_buffer_write_unaligned_TC3)
 	CHECK_FALSE(val == pattern[0]);
 }
 
-ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_TC4)
+ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_addr_TC4)
 {
 	uintptr_t granule_addrs[2];
 	unsigned int cpuid;
@@ -1243,9 +1087,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_TC4)
 	/******************************************************************
 	 * TEST CASE 4:
 	 *
-	 * for a random CPU, try to call ns_buffer_write_unaligned() with a
+	 * for a random CPU, try to call ns_buffer_write_unaligned_addr() with a
 	 * random secure slot.
-	 * ns_buffer_write_unaligned() should cause an assertion failure.
+	 * ns_buffer_write_unaligned_addr() should cause an assertion failure.
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
@@ -1267,15 +1111,15 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_TC4)
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	ns_buffer_write_unaligned(slot, addr_to_granule(granule_addrs[0]), 0U,
+	ns_buffer_write_unaligned_addr(slot, granule_addrs[0], 0U,
 			(size_t)GRANULE_SIZE, (void *)granule_addrs[1],
 			&ns_start_offset);
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_TC5)
+ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_addr_TC5)
 {
-	uintptr_t granule_addr;
+	uintptr_t tr_granule_addr;
 	unsigned int cpuid;
 	union test_harness_cbs cb;
 	size_t ns_start_offset;
@@ -1283,9 +1127,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_TC5)
 	/******************************************************************
 	 * TEST CASE 5:
 	 *
-	 * for a random CPU, try to call ns_buffer_write_unaligned() with a
+	 * for a random CPU, try to call ns_buffer_write_unaligned_addr() with a
 	 * NULL pointer to copy from.
-	 * ns_buffer_write_unaligned() should cause an assertion failure.
+	 * ns_buffer_write_unaligned_addr() should cause an assertion failure.
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
@@ -1294,65 +1138,28 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_TC5)
 	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
-	granule_addr = get_rand_granule_addr();
+	tr_granule_addr = get_rand_granule_addr();
 
 	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL, MAX_CPUS - 1U);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	ns_buffer_write_unaligned(SLOT_NS, addr_to_granule(granule_addr), 0U,
+	ns_buffer_write_unaligned_addr(SLOT_NS, tr_granule_addr, 0U,
 			(size_t)GRANULE_SIZE, NULL,
 			&ns_start_offset);
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_TC6)
-{
-	uintptr_t granule_addr;
-	unsigned int cpuid;
-	union test_harness_cbs cb;
-	size_t ns_start_offset;
-
-	/******************************************************************
-	 * TEST CASE 6:
-	 *
-	 * for a random CPU, try to call ns_buffer_write_unaligned() with a
-	 * NULL granule to copy to.
-	 * ns_buffer_write_unaligned() should cause an assertion failure.
-	 ******************************************************************/
-
-	/* Register harness callbacks to use by this test */
-	cb.buffer_map = buffer_test_cb_map_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = buffer_test_cb_unmap_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
-
-	granule_addr = get_rand_granule_addr();
-
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL, MAX_CPUS - 1U);
-	host_util_set_cpuid(cpuid);
-
-	test_helpers_expect_assert_fail(true);
-	ns_buffer_write_unaligned(SLOT_NS, NULL, 0U,
-			(size_t)GRANULE_SIZE, (void *)granule_addr,
-			&ns_start_offset);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_TC7)
+ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_addr_TC10)
 {
 	uintptr_t granule_addrs[2];
 	unsigned int cpuid;
 	union test_harness_cbs cb;
-	unsigned int offset;
-	size_t ns_start_offset;
 
 	/******************************************************************
-	 * TEST CASE 7:
+	 * TEST CASE 10:
 	 *
-	 * for a random CPU, try to call ns_buffer_write_unaligned() with an
-	 * offset not aligned to 8 bytes.
-	 * ns_buffer_write_unaligned() should cause an assertion failure.
+	 * Verify that a NULL output-offset pointer causes an assertion failure.
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
@@ -1361,161 +1168,17 @@ ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_TC7)
 	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
-	/* Get two random granules, one for destination and one for source. */
 	get_rand_granule_array(granule_addrs, 2U);
-
-	/* Get a random offset between 1 and 7 */
-	offset = (unsigned int)test_helpers_get_rand_in_range(1UL, 7UL);
-
 	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL, MAX_CPUS - 1U);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	ns_buffer_write_unaligned(SLOT_NS, addr_to_granule(granule_addrs[0]), offset,
-			GRANULE_SIZE, (void *)granule_addrs[1],
-			&ns_start_offset);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-
-ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_TC8)
-{
-	uintptr_t granule_addrs[2];
-	unsigned int cpuid;
-	size_t size;
-	unsigned int offset;
-	union test_harness_cbs cb;
-	size_t ns_start_offset;
-
-	/******************************************************************
-	 * TEST CASE 8:
-	 *
-	 * for a random CPU, try to call ns_buffer_write_unaligned() with an
-	 * offset + size higher than GRANULE_SIZE.
-	 * ns_buffer_write_unaligned() should cause an assertion failure.
-	 ******************************************************************/
-
-	/* Register harness callbacks to use by this test */
-	cb.buffer_map = buffer_test_cb_map_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = buffer_test_cb_unmap_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
-
-	/* Get two random granules, one for destination and one for source. */
-	get_rand_granule_array(granule_addrs, 2U);
-
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL, MAX_CPUS - 1U);
-	host_util_set_cpuid(cpuid);
-
-	offset = GRANULE_SIZE >> 1U;
-	size = (size_t)GRANULE_SIZE;
-	test_helpers_expect_assert_fail(true);
-	ns_buffer_write_unaligned(SLOT_NS, addr_to_granule(granule_addrs[0]), offset,
-			size, (void *)granule_addrs[1],
-			&ns_start_offset);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-ASSERT_TEST(slot_buffer, ns_buffer_write_unaligned_TC9)
-{
-	uintptr_t granule_addrs[2];
-	unsigned int cpuid;
-	size_t size;
-	unsigned int offset;
-	union test_harness_cbs cb;
-	size_t ns_start_offset;
-
-	/******************************************************************
-	 * TEST CASE 9:
-	 *
-	 * for a random CPU, try to call ns_buffer_write_unaligned() with an
-	 * offset + size within range, but an extra byte to be written due
-	 * to src unalignment that would cause overwrite, so assert is expected.
-	 ******************************************************************/
-
-	/* Register harness callbacks to use by this test */
-	cb.buffer_map = buffer_test_cb_map_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = buffer_test_cb_unmap_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
-
-	/* Get two random granules, one for destination and one for source. */
-	get_rand_granule_array(granule_addrs, 2U);
-
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL, MAX_CPUS - 1U);
-	host_util_set_cpuid(cpuid);
-
-	offset = GRANULE_SIZE >> 1U;
-	size = (GRANULE_SIZE >> 1U) - 2;
-	test_helpers_expect_assert_fail(true);
-	ns_buffer_write_unaligned(SLOT_NS, addr_to_granule(granule_addrs[0]), offset,
-			size, (void *)(granule_addrs[1] + 4U),
-			&ns_start_offset);
+	ns_buffer_write_unaligned_addr(SLOT_NS, granule_addrs[0], 0U,
+			sizeof(unsigned long), (void *)granule_addrs[1], NULL);
 	test_helpers_fail_if_no_assert_failed();
 }
 
 #define NS_BUF_READ_UNALIGNED_TEST_PATTERN	0xA5U
-
-TEST(slot_buffer, ns_buffer_read_unaligned_TC1)
-{
-	uintptr_t granule_addrs[2];
-	struct granule *test_granule;
-	uint64_t dest_storage[6];
-	uint64_t expected_storage[6];
-	unsigned char *src;
-	unsigned char *dest = (unsigned char *)dest_storage;
-	unsigned char *expected = (unsigned char *)expected_storage;
-	union test_harness_cbs cb;
-
-	/******************************************************************
-	 * TEST CASE 1:
-	 *
-	 * Exercise every source and destination alignment with sizes around
-	 * the 8-byte access boundary. Verify the requested data and the guard
-	 * bytes surrounding the destination.
-	 ******************************************************************/
-
-	cb.buffer_map = buffer_test_cb_map_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = buffer_test_cb_unmap_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
-
-	get_rand_granule_array(granule_addrs, 2U);
-	test_granule = addr_to_granule(granule_addrs[0]);
-	src = (unsigned char *)granule_addrs[0];
-
-	for (unsigned int i = 0U; i < GRANULE_SIZE; i++) {
-		src[i] = (unsigned char)i;
-	}
-	(void)memcpy((void *)granule_addrs[1], src, GRANULE_SIZE);
-
-	for (unsigned int src_offset = 0U; src_offset < sizeof(uint64_t);
-	     src_offset++) {
-		for (unsigned int dst_offset = 0U;
-		     dst_offset < sizeof(uint64_t); dst_offset++) {
-			for (size_t size = 0U; size <= ((2U * sizeof(uint64_t)) + 1U);
-			     size++) {
-				bool retval;
-
-				(void)memset(dest, NS_BUF_READ_UNALIGNED_TEST_PATTERN,
-					     sizeof(dest_storage));
-				(void)memset(expected, NS_BUF_READ_UNALIGNED_TEST_PATTERN,
-					     sizeof(expected_storage));
-				(void)memcpy(&expected[dst_offset], &src[src_offset], size);
-
-				retval = ns_buffer_read_unaligned(
-						SLOT_NS, test_granule, src_offset, size,
-						&dest[dst_offset]);
-
-				CHECK_TRUE(retval);
-				MEMCMP_EQUAL(expected, dest, sizeof(dest_storage));
-			}
-		}
-	}
-
-	/* Verify that reads did not modify the source granule. */
-	MEMCMP_EQUAL((void *)granule_addrs[1], src, GRANULE_SIZE);
-}
 
 struct ns_buf_read_unaligned_test_vector {
 	unsigned int offset;
@@ -1537,10 +1200,9 @@ static const struct ns_buf_read_unaligned_test_vector read_unaligned_test_vector
 	{ GRANULE_SIZE - 1U, 0U }
 };
 
-TEST(slot_buffer, ns_buffer_read_unaligned_TC2)
+TEST(slot_buffer, ns_buffer_read_unaligned_addr_TC1)
 {
 	uintptr_t granule_addrs[2];
-	struct granule *test_granule;
 	uint64_t dest_storage[(GRANULE_SIZE + sizeof(uint64_t)) / sizeof(uint64_t)];
 	uint64_t expected_storage[(GRANULE_SIZE + sizeof(uint64_t)) / sizeof(uint64_t)];
 	unsigned char *src;
@@ -1549,7 +1211,7 @@ TEST(slot_buffer, ns_buffer_read_unaligned_TC2)
 	union test_harness_cbs cb;
 
 	/******************************************************************
-	 * TEST CASE 2:
+	 * TEST CASE 1:
 	 *
 	 * Exercise exact granule boundaries, including the largest valid
 	 * ranges, the final aligned and unaligned words, and an empty range.
@@ -1562,7 +1224,6 @@ TEST(slot_buffer, ns_buffer_read_unaligned_TC2)
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
 	get_rand_granule_array(granule_addrs, 2U);
-	test_granule = addr_to_granule(granule_addrs[0]);
 	src = (unsigned char *)granule_addrs[0];
 
 	for (unsigned int i = 0U; i < GRANULE_SIZE; i++) {
@@ -1591,9 +1252,9 @@ TEST(slot_buffer, ns_buffer_read_unaligned_TC2)
 				     sizeof(expected_storage));
 			(void)memcpy(&expected[dst_offset], &src[tv->offset], tv->size);
 
-			retval = ns_buffer_read_unaligned(SLOT_NS, test_granule,
-							 offset, tv->size,
-							 &dest[dst_offset]);
+			retval = ns_buffer_read_unaligned_addr(SLOT_NS,
+							      granule_addrs[0], offset,
+							      tv->size, &dest[dst_offset]);
 
 			CHECK_TRUE(retval);
 			MEMCMP_EQUAL(expected, dest, sizeof(dest_storage));
@@ -1604,13 +1265,32 @@ TEST(slot_buffer, ns_buffer_read_unaligned_TC2)
 	MEMCMP_EQUAL((void *)granule_addrs[1], src, GRANULE_SIZE);
 }
 
-ASSERT_TEST(slot_buffer, ns_buffer_read_unaligned_TC3)
+TEST(slot_buffer, ns_buffer_read_unaligned_addr_TC2)
+{
+	uintptr_t granule_addr = get_rand_granule_addr();
+	uint64_t dest = 0UL;
+
+	/******************************************************************
+	 * TEST CASE 2:
+	 *
+	 * Invalid source addresses and ranges are rejected.
+	 ******************************************************************/
+
+	CHECK_FALSE(ns_buffer_read_unaligned_addr(SLOT_NS, granule_addr + 1UL,
+						  0U, 1U, &dest));
+	CHECK_FALSE(ns_buffer_read_unaligned_addr(SLOT_NS, granule_addr,
+						  GRANULE_SIZE - 1U, 2U, &dest));
+	CHECK_FALSE(ns_buffer_read_unaligned_addr(SLOT_NS, granule_addr, 0U,
+						  GRANULE_SIZE + 1U, &dest));
+}
+
+ASSERT_TEST(slot_buffer, ns_buffer_read_unaligned_addr_TC4)
 {
 	uintptr_t granule_addrs[2];
 	enum buffer_slot slot;
 
 	/******************************************************************
-	 * TEST CASE 3:
+	 * TEST CASE 4:
 	 *
 	 * A non-NS slot is rejected.
 	 ******************************************************************/
@@ -1621,30 +1301,12 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_unaligned_TC3)
 						(unsigned long)NR_CPU_SLOTS);
 
 	test_helpers_expect_assert_fail(true);
-	(void)ns_buffer_read_unaligned(slot, addr_to_granule(granule_addrs[0]),
-				       0U, 1U, (void *)granule_addrs[1]);
+	(void)ns_buffer_read_unaligned_addr(slot, granule_addrs[0], 0U, 1U,
+					    (void *)granule_addrs[1]);
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(slot_buffer, ns_buffer_read_unaligned_TC4)
-{
-	uintptr_t granule_addr;
-
-	/******************************************************************
-	 * TEST CASE 4:
-	 *
-	 * A NULL source granule is rejected.
-	 ******************************************************************/
-
-	granule_addr = get_rand_granule_addr();
-
-	test_helpers_expect_assert_fail(true);
-	(void)ns_buffer_read_unaligned(SLOT_NS, NULL, 0U, 1U,
-				       (void *)granule_addr);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-ASSERT_TEST(slot_buffer, ns_buffer_read_unaligned_TC5)
+ASSERT_TEST(slot_buffer, ns_buffer_read_unaligned_addr_TC5)
 {
 	uintptr_t granule_addr;
 
@@ -1657,55 +1319,14 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_unaligned_TC5)
 	granule_addr = get_rand_granule_addr();
 
 	test_helpers_expect_assert_fail(true);
-	(void)ns_buffer_read_unaligned(SLOT_NS, addr_to_granule(granule_addr),
-				       0U, 1U, NULL);
+	(void)ns_buffer_read_unaligned_addr(SLOT_NS, granule_addr, 0U, 1U,
+					    NULL);
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(slot_buffer, ns_buffer_read_unaligned_TC6)
-{
-	uintptr_t granule_addrs[2];
-
-	/******************************************************************
-	 * TEST CASE 6:
-	 *
-	 * A range extending one byte beyond the granule is rejected.
-	 ******************************************************************/
-
-	get_rand_granule_array(granule_addrs, 2U);
-
-	test_helpers_expect_assert_fail(true);
-	(void)ns_buffer_read_unaligned(SLOT_NS,
-				       addr_to_granule(granule_addrs[0]),
-				       GRANULE_SIZE - 1U, 2U,
-				       (void *)granule_addrs[1]);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-ASSERT_TEST(slot_buffer, ns_buffer_read_unaligned_TC7)
-{
-	uintptr_t granule_addrs[2];
-
-	/******************************************************************
-	 * TEST CASE 7:
-	 *
-	 * A size larger than one granule is rejected without overflow.
-	 ******************************************************************/
-
-	get_rand_granule_array(granule_addrs, 2U);
-
-	test_helpers_expect_assert_fail(true);
-	(void)ns_buffer_read_unaligned(SLOT_NS,
-				       addr_to_granule(granule_addrs[0]),
-				       0U, GRANULE_SIZE + 1U,
-				       (void *)granule_addrs[1]);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-TEST(slot_buffer, ns_buffer_read_TC1)
+TEST(slot_buffer, ns_buffer_read_addr_TC1)
 {
 	uintptr_t granule_addrs[3];
-	struct granule *test_granule;
 	union test_harness_cbs cb;
 
 	/******************************************************************
@@ -1725,7 +1346,7 @@ TEST(slot_buffer, ns_buffer_read_TC1)
 	/*
 	 * Get three random granules:
 	 * granule_addrs[0]: To be used as src for read operations (SLOT_NS).
-	 * granule_addrs[1]: Will be the dst granule for the ns_buffer_read
+	 * granule_addrs[1]: Will be the dst granule for the ns_buffer_read_addr
 	 *		     operation.
 	 * granule_addrs[2]: Just a zeroed granule to easy some tests.
 	 */
@@ -1733,8 +1354,6 @@ TEST(slot_buffer, ns_buffer_read_TC1)
 
 	/* Granule to test zeroes */
 	(void)memset((void *)granule_addrs[2], 0, GRANULE_SIZE);
-
-	test_granule = addr_to_granule(granule_addrs[0]);
 
 	for (unsigned int i = 0U; i < MAX_CPUS; i++) {
 		host_util_set_cpuid(i);
@@ -1753,7 +1372,7 @@ TEST(slot_buffer, ns_buffer_read_TC1)
 		 * read yet.
 		 */
 		for (unsigned int j = 0U; j < GRANULE_BLOCKS; j++) {
-			ns_buffer_read(SLOT_NS, test_granule,
+			ns_buffer_read_addr(SLOT_NS, granule_addrs[0],
 					GRANULE_BLOCK_SIZE * j,
 					GRANULE_BLOCK_SIZE,
 					(void *)(granule_addrs[1] +
@@ -1777,17 +1396,16 @@ TEST(slot_buffer, ns_buffer_read_TC1)
 	}
 }
 
-TEST(slot_buffer, ns_buffer_read_TC2)
+TEST(slot_buffer, ns_buffer_read_addr_TC2)
 {
 	uintptr_t granule_addrs[3];
-	struct granule *test_granule;
 	union test_harness_cbs cb;
 	int val;
 
 	/******************************************************************
 	 * TEST CASE 3:
 	 *
-	 * For every CPU, verify that ns_buffer_read() does not alter the
+	 * For every CPU, verify that ns_buffer_read_addr() does not alter the
 	 * source.
 	 ******************************************************************/
 
@@ -1812,12 +1430,10 @@ TEST(slot_buffer, ns_buffer_read_TC2)
 		*((int *)granule_addrs[1] + j) = val;
 	}
 
-	test_granule = addr_to_granule(granule_addrs[0]);
-
 	for (unsigned int i = 0U; i < MAX_CPUS; i++) {
 		host_util_set_cpuid(i);
 
-		ns_buffer_read(SLOT_NS, test_granule, 0U,
+		ns_buffer_read_addr(SLOT_NS, granule_addrs[0], 0U,
 			       GRANULE_SIZE, (void *)granule_addrs[2]);
 
 		/* Verify that the source has not been altered */
@@ -1828,7 +1444,7 @@ TEST(slot_buffer, ns_buffer_read_TC2)
 
 }
 
-TEST(slot_buffer, ns_buffer_read_TC3)
+TEST(slot_buffer, ns_buffer_read_addr_TC3)
 {
 	uintptr_t granule_addrs[2];
 	unsigned int cpu[2];
@@ -1843,7 +1459,7 @@ TEST(slot_buffer, ns_buffer_read_TC3)
 	 * their SLOT_NS, then read the SLOT_NS on each CPU and ensure that
 	 * the destination buffers contain the data from their CPU SLOT_NS
 	 * only and no leak from the other CPU has happened.
-	 * This test helps validating that ns_buffer_read() handles the
+	 * This test helps validating that ns_buffer_read_addr() handles the
 	 * translation contexts properly.
 	 ******************************************************************/
 
@@ -1872,7 +1488,7 @@ TEST(slot_buffer, ns_buffer_read_TC3)
 	for (unsigned int i = 0U; i < 2U; i++) {
 		host_util_set_cpuid(cpu[i]);
 
-		ns_buffer_read(SLOT_NS, addr_to_granule(granule_addrs[i]), 0U,
+		ns_buffer_read_addr(SLOT_NS, granule_addrs[i], 0U,
 			       sizeof(long), (void *)&dest[i]);
 	}
 
@@ -1890,7 +1506,7 @@ TEST(slot_buffer, ns_buffer_read_TC3)
 	CHECK_FALSE(val == dest[0]);
 }
 
-ASSERT_TEST(slot_buffer, ns_buffer_read_TC4)
+ASSERT_TEST(slot_buffer, ns_buffer_read_addr_TC4)
 {
 	uintptr_t granule_addrs[2];
 	unsigned int cpuid;
@@ -1900,9 +1516,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC4)
 	/******************************************************************
 	 * TEST CASE 4:
 	 *
-	 * for a random CPU, try to call ns_buffer_read() with a
+	 * for a random CPU, try to call ns_buffer_read_addr() with a
 	 * random secure slot.
-	 * ns_buffer_read() should cause an assertion failure.
+	 * ns_buffer_read_addr() should cause an assertion failure.
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
@@ -1924,23 +1540,23 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC4)
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	ns_buffer_read(slot, addr_to_granule(granule_addrs[0]), 0U,
+	ns_buffer_read_addr(slot, granule_addrs[0], 0U,
 		       (size_t)GRANULE_SIZE, (void *)granule_addrs[1]);
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(slot_buffer, ns_buffer_read_TC5)
+ASSERT_TEST(slot_buffer, ns_buffer_read_addr_TC5)
 {
-	uintptr_t granule_addr;
+	uintptr_t tr_granule_addr;
 	unsigned int cpuid;
 	union test_harness_cbs cb;
 
 	/******************************************************************
 	 * TEST CASE 5:
 	 *
-	 * for a random CPU, try to call ns_buffer_read() with a
+	 * for a random CPU, try to call ns_buffer_read_addr() with a
 	 * NULL pointer to copy to.
-	 * ns_buffer_read() should cause an assertion failure.
+	 * ns_buffer_read_addr() should cause an assertion failure.
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
@@ -1949,125 +1565,19 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC5)
 	cb.buffer_unmap = buffer_test_cb_unmap_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
 
-	granule_addr = get_rand_granule_addr();
+	tr_granule_addr = get_rand_granule_addr();
 
 	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
 								MAX_CPUS - 1U);
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	ns_buffer_read(SLOT_NS, addr_to_granule(granule_addr), 0U,
+	ns_buffer_read_addr(SLOT_NS, tr_granule_addr, 0U,
 		       (size_t)GRANULE_SIZE, NULL);
 	test_helpers_fail_if_no_assert_failed();
 }
 
-ASSERT_TEST(slot_buffer, ns_buffer_read_TC6)
-{
-	uintptr_t granule_addr;
-	unsigned int cpuid;
-	union test_harness_cbs cb;
-
-	/******************************************************************
-	 * TEST CASE 6:
-	 *
-	 * for a random CPU, try to call ns_buffer_read() with a
-	 * NULL granule to copy from.
-	 * ns_buffer_read() should cause an assertion failure.
-	 ******************************************************************/
-
-	/* Register harness callbacks to use by this test */
-	cb.buffer_map = buffer_test_cb_map_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = buffer_test_cb_unmap_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
-
-	granule_addr = get_rand_granule_addr();
-
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
-					(unsigned long)(MAX_CPUS - 1U));
-	host_util_set_cpuid(cpuid);
-
-	test_helpers_expect_assert_fail(true);
-	ns_buffer_read(SLOT_NS, NULL, 0U,
-		       (size_t)GRANULE_SIZE, (void *)granule_addr);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-ASSERT_TEST(slot_buffer, ns_buffer_read_TC7)
-{
-	uintptr_t granule_addrs[2];
-	unsigned int cpuid;
-	union test_harness_cbs cb;
-	size_t size;
-
-	/******************************************************************
-	 * TEST CASE 7:
-	 *
-	 * for a random CPU, try to call ns_buffer_read() with a
-	 * size not aligned to 8 bytes.
-	 * ns_buffer_read() should cause an assertion failure.
-	 ******************************************************************/
-
-	/* Register harness callbacks to use by this test */
-	cb.buffer_map = buffer_test_cb_map_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = buffer_test_cb_unmap_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
-
-	/* Get two random granules, one for destination and one for source. */
-	get_rand_granule_array(granule_addrs, 2U);
-
-	/* Get a random size between 1 and 7 bytes */
-	size = (size_t)test_helpers_get_rand_in_range(1UL, 7UL);
-
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
-								MAX_CPUS - 1U);
-	host_util_set_cpuid(cpuid);
-
-	test_helpers_expect_assert_fail(true);
-	ns_buffer_read(SLOT_NS, addr_to_granule(granule_addrs[0]), 0U,
-		       size, (void *)granule_addrs[1]);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-ASSERT_TEST(slot_buffer, ns_buffer_read_TC8)
-{
-	uintptr_t granule_addrs[2];
-	unsigned int cpuid;
-	union test_harness_cbs cb;
-	unsigned int offset;
-
-	/******************************************************************
-	 * TEST CASE 8:
-	 *
-	 * for a random CPU, try to call ns_buffer_read() with an
-	 * offset not aligned to 8 bytes.
-	 * ns_buffer_read() should cause an assertion failure.
-	 ******************************************************************/
-
-	/* Register harness callbacks to use by this test */
-	cb.buffer_map = buffer_test_cb_map_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = buffer_test_cb_unmap_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
-
-	/* Get two random granules, one for destination and one for source. */
-	get_rand_granule_array(granule_addrs, 2U);
-
-	/* Get a random offset between 1 and 7 */
-	offset = (unsigned int)test_helpers_get_rand_in_range(1UL, 7UL);
-
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
-					(unsigned long)(MAX_CPUS - 1U));
-	host_util_set_cpuid(cpuid);
-
-	test_helpers_expect_assert_fail(true);
-	ns_buffer_read(SLOT_NS, addr_to_granule(granule_addrs[0]), offset,
-		       GRANULE_SIZE, (void *)granule_addrs[1]);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-ASSERT_TEST(slot_buffer, ns_buffer_read_TC9)
+ASSERT_TEST(slot_buffer, ns_buffer_read_addr_TC9)
 {
 	uintptr_t granule_addrs[2];
 	unsigned int cpuid;
@@ -2076,9 +1586,9 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC9)
 	/******************************************************************
 	 * TEST CASE 9:
 	 *
-	 * for a random CPU, try to call ns_buffer_read() with a
+	 * for a random CPU, try to call ns_buffer_read_addr() with a
 	 * destination not aligned to 8 bytes.
-	 * ns_buffer_read() should cause an assertion failure.
+	 * ns_buffer_read_addr() should cause an assertion failure.
 	 ******************************************************************/
 
 	/* Register harness callbacks to use by this test */
@@ -2102,50 +1612,8 @@ ASSERT_TEST(slot_buffer, ns_buffer_read_TC9)
 	host_util_set_cpuid(cpuid);
 
 	test_helpers_expect_assert_fail(true);
-	ns_buffer_read(SLOT_NS, addr_to_granule(granule_addrs[0]), 0U,
+	ns_buffer_read_addr(SLOT_NS, granule_addrs[0], 0U,
 		       GRANULE_SIZE, (void *)granule_addrs[1]);
-	test_helpers_fail_if_no_assert_failed();
-}
-
-ASSERT_TEST(slot_buffer, ns_buffer_read_TC10)
-{
-	uintptr_t granule_addrs[2];
-	unsigned int cpuid;
-	size_t size;
-	unsigned int offset;
-	union test_harness_cbs cb;
-
-	/******************************************************************
-	 * TEST CASE 10:
-	 *
-	 * for a random CPU, try to call ns_buffer_read() with an
-	 * offset + size higher than GRANULE_SIZE.
-	 * ns_buffer_read() should cause an assertion failure.
-	 ******************************************************************/
-
-	/* Register harness callbacks to use by this test */
-	cb.buffer_map = buffer_test_cb_map_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_MAP);
-	cb.buffer_unmap = buffer_test_cb_unmap_access;
-	(void)test_helpers_register_cb(cb, CB_BUFFER_UNMAP);
-
-	/* Get two random granules, one for destination and one for source. */
-	get_rand_granule_array(granule_addrs, 2U);
-
-	/*
-	 * offset + granule = 1.5 * granule_size.
-	 * Both parameters are properly aligned.
-	 */
-	offset = GRANULE_SIZE >> 1U;
-	size = (size_t)GRANULE_SIZE;
-
-	cpuid = (unsigned int)test_helpers_get_rand_in_range(0UL,
-					(unsigned long)(MAX_CPUS - 1U));
-	host_util_set_cpuid(cpuid);
-
-	test_helpers_expect_assert_fail(true);
-	ns_buffer_read(SLOT_NS, addr_to_granule(granule_addrs[0]), offset,
-		       size, (void *)granule_addrs[1]);
 	test_helpers_fail_if_no_assert_failed();
 }
 
@@ -2183,7 +1651,7 @@ TEST(slot_buffer, buffer_granule_map_zeroed_TC1)
 	 ***************************************************************/
 
 	for (unsigned int i = 0U; i < 3U; i++) {
-		granule = addr_to_granule(addrs[i]);
+		granule = tr_addr_to_granule(addrs[i]);
 		val = (int *)addrs[i];
 
 		for (unsigned int j = 0U; j < MAX_CPUS; j++) {
@@ -2255,7 +1723,7 @@ TEST(slot_buffer, check_cpu_slots_empty_TC1)
 
 TEST(slot_buffer, check_cpu_slots_empty_TC2)
 {
-	uintptr_t granule_addr;
+	uintptr_t tr_granule_addr;
 	struct granule *test_granule;
 	union test_harness_cbs cb;
 	void *buf;
@@ -2275,8 +1743,8 @@ TEST(slot_buffer, check_cpu_slots_empty_TC2)
 	cb.buffer_va_to_slot = buffer_test_cb_va_to_slot_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
 
-	granule_addr = get_rand_granule_addr();
-	test_granule = addr_to_granule(granule_addr);
+	tr_granule_addr = get_rand_granule_addr();
+	test_granule = tr_addr_to_granule(tr_granule_addr);
 
 	enum buffer_slot slot = (enum buffer_slot)test_helpers_get_rand_in_range(
 		(unsigned long)(SLOT_NS + 1U), (unsigned long)NR_CPU_SLOTS - 1U);
@@ -2295,7 +1763,7 @@ TEST(slot_buffer, check_cpu_slots_empty_TC2)
 
 TEST(slot_buffer, buffer_granule_sanitize_TC1)
 {
-	uintptr_t granule_addr;
+	uintptr_t tr_granule_addr;
 	struct granule *test_granule;
 	union test_harness_cbs cb;
 
@@ -2313,21 +1781,21 @@ TEST(slot_buffer, buffer_granule_sanitize_TC1)
 	cb.buffer_va_to_slot = buffer_test_cb_va_to_slot_access;
 	(void)test_helpers_register_cb(cb, CB_BUFFER_VA_TO_SLOT);
 
-	granule_addr = get_rand_granule_addr();
-	test_granule = addr_to_granule(granule_addr);
+	tr_granule_addr = get_rand_granule_addr();
+	test_granule = tr_addr_to_granule(tr_granule_addr);
 
 	/* Fill the granule with a known pattern */
-	memset((void *)granule_addr, 0xAA, GRANULE_SIZE);
+	memset((void *)tr_granule_addr, 0xAA, GRANULE_SIZE);
 
 	/* Keep a copy of the original contents */
 	unsigned char before[GRANULE_SIZE];
-	memcpy(before, (void *)granule_addr, GRANULE_SIZE);
+	memcpy(before, (void *)tr_granule_addr, GRANULE_SIZE);
 
 	/* Sanitize the granule */
 	buffer_granule_sanitize(test_granule);
 
 	/* Check content changed (not same as before) */
-	CHECK_FALSE(memcmp(before, (void *)granule_addr, (size_t)GRANULE_SIZE) == 0);
+	CHECK_FALSE(memcmp(before, (void *)tr_granule_addr, (size_t)GRANULE_SIZE) == 0);
 }
 
 static void fill_buffer_with_pattern(void *buffer, size_t size,
@@ -2388,7 +1856,7 @@ TEST(slot_buffer, buffer_aux_granules_map_zeroed_TC1)
 	get_contiguous_rand_granule_array(granule_addrs, MAX_REC_AUX_GRANULES);
 
 	for (unsigned int i = 0U; i < MAX_REC_AUX_GRANULES; i++) {
-		granules[i] = addr_to_granule(granule_addrs[i]);
+		granules[i] = tr_addr_to_granule(granule_addrs[i]);
 	}
 
 	for (unsigned int i = 0U; i < MAX_REC_AUX_GRANULES; i++) {
@@ -2456,7 +1924,7 @@ TEST(slot_buffer, buffer_aux_granules_map_TC1)
 					 (const unsigned char *)pattern,
 					 sizeof(pattern));
 
-		granules[i] = addr_to_granule(addr);
+		granules[i] = tr_addr_to_granule(addr);
 	}
 
 	buf_granules = buffer_rec_aux_granules_map(granules,
@@ -2511,7 +1979,7 @@ TEST(slot_buffer, buffer_pdev_app_aux_map_zeroed_TC1)
 					MAX_PDEV_APP_AUX_GRANULES);
 
 	for (unsigned int i = 0U; i < MAX_PDEV_APP_AUX_GRANULES; i++) {
-		granules[i] = addr_to_granule(granule_addrs[i]);
+		granules[i] = tr_addr_to_granule(granule_addrs[i]);
 	}
 
 	for (unsigned int i = 0U; i < MAX_PDEV_APP_AUX_GRANULES; i++) {
@@ -2574,7 +2042,7 @@ TEST(slot_buffer, buffer_pdev_app_aux_map_TC1)
 					MAX_PDEV_APP_AUX_GRANULES);
 
 	for (unsigned int i = 0U; i < MAX_PDEV_APP_AUX_GRANULES; i++) {
-		pdev_granules[i] = addr_to_granule(granule_addrs[i]);
+		pdev_granules[i] = tr_addr_to_granule(granule_addrs[i]);
 	}
 
 	for (unsigned int i = 0U; i < MAX_PDEV_APP_AUX_GRANULES; i++) {
@@ -2584,7 +2052,7 @@ TEST(slot_buffer, buffer_pdev_app_aux_map_TC1)
 						(const unsigned char *)pattern,
 						sizeof(pattern));
 
-		pdev_granules[i] = addr_to_granule(addr);
+		pdev_granules[i] = tr_addr_to_granule(addr);
 	}
 
 	buf_pdev_granules = buffer_pdev_app_aux_map(pdev_granules,

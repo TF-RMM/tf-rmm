@@ -548,14 +548,37 @@ unsigned long host_firme_base_features(unsigned char service_id,
 	}
 }
 
+/*
+ * Model stateless GPI changes: process the whole Realm request or one NS
+ * Granule and return FIRME_SUCCESS. Output pointers must be non-NULL.
+ * No continuation cookie is created.
+ */
 unsigned long host_firme_gm_gpi_set(unsigned long base_addr,
 				    unsigned long *granule_count,
-				    unsigned long attributes)
+				    unsigned long attributes,
+				    unsigned long *cookie)
 {
+	assert((granule_count != NULL) && (cookie != NULL));
 	(void)base_addr;
-	(void)attributes;
-	*granule_count = 1UL;
+	(void)cookie;
+
+	if (attributes != GPT_GPI_REALM) {
+		*granule_count = 1UL;
+	}
 	return FIRME_SUCCESS;
+}
+
+/* The stateless model never creates a valid GPI continuation cookie. */
+unsigned long host_firme_gm_gpi_continue(unsigned long cookie,
+					 unsigned long *granule_count,
+					 unsigned long *next_cookie)
+{
+	assert((granule_count != NULL) && (next_cookie != NULL));
+	(void)cookie;
+	(void)granule_count;
+	(void)next_cookie;
+
+	return FIRME_INVALID_PARAMETERS;
 }
 
 unsigned long host_firme_mecid_refresh(unsigned long param)
@@ -602,11 +625,18 @@ void host_monitor_call(unsigned long id, struct smc_args *args,
 		res->x[0] = host_firme_base_version((unsigned char)args->v[0]);
 		break;
 	case SMC_FIRME_BASE_FEATURES:
-		res->x[0] = host_firme_base_features((unsigned char)args->v[0], (unsigned char)args->v[1], &(res->x[1]));
+		res->x[0] = host_firme_base_features(
+				(unsigned char)args->v[0],
+				(unsigned char)args->v[1], &res->x[1]);
 		break;
 	case SMC_FIRME_GM_GPI_SET:
-		res->x[0] = host_firme_gm_gpi_set(args->v[0], &args->v[1], args->v[2]);
+		res->x[0] = host_firme_gm_gpi_set(args->v[0], &args->v[1],
+						 args->v[2], &res->x[2]);
 		res->x[1] = args->v[1];
+		break;
+	case SMC_FIRME_GM_GPI_OP_CONTINUE:
+		res->x[0] = host_firme_gm_gpi_continue(
+				args->v[0], &res->x[1], &res->x[2]);
 		break;
 	case SMC_FIRME_MECID_REFRESH:
 		res->x[0] = host_firme_mecid_refresh(args->v[0]);

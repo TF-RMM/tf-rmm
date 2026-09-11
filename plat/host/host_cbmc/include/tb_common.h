@@ -100,8 +100,7 @@ void __tb_lock_invariant(struct tb_lock_status *lock_status);
 struct tb_lock_status __tb_lock_status(void);
 
 /*
- * Functions that manipulates internal states,
- * including PA, granule metadata and granule buffer, or content.
+ * Helpers for physical addresses, struct granule objects and granule buffers.
  */
 bool valid_pa(uint64_t addr);
 bool valid_granule_metadata_ptr(struct granule *p);

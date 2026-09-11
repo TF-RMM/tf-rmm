@@ -985,10 +985,10 @@ TEST(rtt_data_map_tests, l2_drain_failure_rolls_back_partial_granules)
 
 #ifdef RMM_RTT_MAP_UNMAP_CHECK_ISR_EL1
 /*
- * Yield during the DATA_MAP drain path and complete the pending operation
- * through RMI_OP_CONTINUE.
+ * An IRQ at the first drain poll must still let a single-page map complete,
+ * without retaining an empty SRO or a drain-pending marker.
  */
-TEST(rtt_data_map_tests, l3_data_map_yields_during_drain_then_continues)
+TEST(rtt_data_map_tests, l3_data_map_completes_without_empty_sro)
 {
 	struct test_data_ctx ctx;
 	struct smc_result res = {};
@@ -1007,22 +1007,18 @@ TEST(rtt_data_map_tests, l3_data_map_yields_during_drain_then_continues)
 			 make_data_map_flags(RMI_ADDR_TYPE_SINGLE),
 			 desc, &res);
 
-	CHECK_EQUAL(RMI_INCOMPLETE, unpack_return_code(res.x[0]).status);
-	expect_data_granule_delegated(data_pa);
-	CHECK_TRUE(s2tte_drain_pending(
-		read_data_ipa_raw_s2tte(&ctx, TEST_DATA_IPA_BASE)));
-
-	res = sro_complete_operation(res);
-
 	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
 	CHECK_EQUAL(TEST_DATA_PAGE_TOP, res.x[1]);
 	expect_data_granule_data_state(data_pa);
 	expect_ipa_assigned_ram_to_pa(&ctx, TEST_DATA_IPA_BASE, data_pa);
+	CHECK_FALSE(s2tte_drain_pending(
+		read_data_ipa_raw_s2tte(&ctx, TEST_DATA_IPA_BASE)));
 }
 
 /*
- * Yield again from RMI_OP_CONTINUE while the DATA_MAP drain marker is still
- * present, then complete using the original handle.
+ * Process one fine granule of an L2 block before yielding, then yield again
+ * from RMI_OP_CONTINUE while the drain marker and DATA prefix remain owned.
+ * Complete the remaining granules using the original handle.
  */
 TEST(rtt_data_map_tests, data_map_continue_yields_again_during_drain)
 {
@@ -1033,22 +1029,23 @@ TEST(rtt_data_map_tests, data_map_continue_yields_again_during_drain)
 	unsigned long desc;
 	unsigned long handle;
 
-	CHECK_TRUE(create_data_rtt_ctx(&ctx));
+	CHECK_TRUE(create_data_rtt_ctx_l2_only(&ctx));
 	CHECK_TRUE(init_ripas_range(&ctx, TEST_DATA_IPA_BASE,
-				    TEST_DATA_PAGE_TOP));
-	data_pa = reserve_delegated_granules(1U);
-	desc = make_data_map_desc(1UL, data_pa);
+				    TEST_DATA_L2_BLOCK_TOP));
+	data_pa = reserve_delegated_granules_l2_aligned(S2TTES_PER_S2TT);
+	desc = make_data_map_desc(1UL, data_pa, RMI_BLOCK_L2);
 
-	prime_isr_yield_during_data_map_drain();
+	prime_isr_yield_during_data_map_drain(3UL);
 
-	smc_rtt_data_map(ctx.rd, TEST_DATA_IPA_BASE, TEST_DATA_PAGE_TOP,
+	smc_rtt_data_map(ctx.rd, TEST_DATA_IPA_BASE, TEST_DATA_L2_BLOCK_TOP,
 			 make_data_map_flags(RMI_ADDR_TYPE_SINGLE),
 			 desc, &res);
 
 	rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_INCOMPLETE, rc.status);
 	handle = res.x[1];
-	expect_data_granule_delegated(data_pa);
+	expect_data_granule_data_state(data_pa);
+	expect_data_granules_delegated(data_pa + GRANULE_SIZE, S2TTES_PER_S2TT - 1U);
 	CHECK_TRUE(s2tte_drain_pending(
 		read_data_ipa_raw_s2tte(&ctx, TEST_DATA_IPA_BASE)));
 
@@ -1062,7 +1059,8 @@ TEST(rtt_data_map_tests, data_map_continue_yields_again_during_drain)
 	CHECK_EQUAL(RMI_OP_CANNOT_CANCEL,
 		    (unsigned long)EXTRACT(RMI_OP_CAN_CANCEL_BIT, res.x[0]));
 	CHECK_EQUAL(0UL, res.x[1]);
-	expect_data_granule_delegated(data_pa);
+	expect_data_granule_data_state(data_pa);
+	expect_data_granules_delegated(data_pa + GRANULE_SIZE, S2TTES_PER_S2TT - 1U);
 	CHECK_TRUE(s2tte_drain_pending(
 		read_data_ipa_raw_s2tte(&ctx, TEST_DATA_IPA_BASE)));
 
@@ -1070,9 +1068,9 @@ TEST(rtt_data_map_tests, data_map_continue_yields_again_during_drain)
 	smc_op_continue(handle, 0UL, &res);
 
 	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
-	CHECK_EQUAL(TEST_DATA_PAGE_TOP, res.x[1]);
-	expect_data_granule_data_state(data_pa);
-	expect_ipa_assigned_ram_to_pa(&ctx, TEST_DATA_IPA_BASE, data_pa);
+	CHECK_EQUAL(TEST_DATA_L2_BLOCK_TOP, res.x[1]);
+	expect_data_granules_data_state(data_pa, S2TTES_PER_S2TT);
+	expect_ipa_assigned_ram_to_pa(&ctx, TEST_DATA_IPA_BASE, data_pa, 2L);
 }
 
 /*
@@ -1113,8 +1111,8 @@ TEST(rtt_data_map_tests, l2_data_map_yields_during_rollback_then_continues)
 }
 
 /*
- * Reject a retry while the IPA carries the drain-pending marker, then complete
- * the original operation.
+ * Yield after processing one fine granule of an L2 block. Reject a retry while
+ * the IPA carries the drain-pending marker, then complete the original map.
  */
 TEST(rtt_data_map_tests, drain_pending_map_retry_returns_busy)
 {
@@ -1124,21 +1122,23 @@ TEST(rtt_data_map_tests, drain_pending_map_retry_returns_busy)
 	uintptr_t data_pa;
 	uintptr_t retry_pa;
 
-	CHECK_TRUE(create_data_rtt_ctx(&ctx));
+	CHECK_TRUE(create_data_rtt_ctx_l2_only(&ctx));
 	CHECK_TRUE(init_ripas_range(&ctx, TEST_DATA_IPA_BASE,
-				    TEST_DATA_PAGE_TOP));
+				    TEST_DATA_L2_BLOCK_TOP));
 
-	data_pa = reserve_delegated_granules(1U);
-	prime_isr_yield_during_data_map_drain();
-	smc_rtt_data_map(ctx.rd, TEST_DATA_IPA_BASE, TEST_DATA_PAGE_TOP,
+	data_pa = reserve_delegated_granules_l2_aligned(S2TTES_PER_S2TT);
+	prime_isr_yield_during_data_map_drain(3UL);
+	smc_rtt_data_map(ctx.rd, TEST_DATA_IPA_BASE, TEST_DATA_L2_BLOCK_TOP,
 			 make_data_map_flags(RMI_ADDR_TYPE_SINGLE),
-			 make_data_map_desc(1UL, data_pa), &res);
+			 make_data_map_desc(1UL, data_pa, RMI_BLOCK_L2), &res);
 	CHECK_EQUAL(RMI_INCOMPLETE, unpack_return_code(res.x[0]).status);
+	expect_data_granule_data_state(data_pa);
+	expect_data_granules_delegated(data_pa + GRANULE_SIZE, S2TTES_PER_S2TT - 1U);
 
-	retry_pa = reserve_delegated_granules(1U);
-	smc_rtt_data_map(ctx.rd, TEST_DATA_IPA_BASE, TEST_DATA_PAGE_TOP,
+	retry_pa = reserve_delegated_granules_l2_aligned(1U);
+	smc_rtt_data_map(ctx.rd, TEST_DATA_IPA_BASE, TEST_DATA_L2_BLOCK_TOP,
 			 make_data_map_flags(RMI_ADDR_TYPE_SINGLE),
-			 make_data_map_desc(1UL, retry_pa), &retry_res);
+			 make_data_map_desc(1UL, retry_pa, RMI_BLOCK_L2), &retry_res);
 
 	CHECK_EQUAL(RMI_BUSY, retry_res.x[0]);
 	expect_data_granule_delegated(retry_pa);
@@ -1147,8 +1147,9 @@ TEST(rtt_data_map_tests, drain_pending_map_retry_returns_busy)
 
 	res = sro_complete_operation(res);
 	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
-	expect_data_granule_data_state(data_pa);
+	CHECK_EQUAL(TEST_DATA_L2_BLOCK_TOP, res.x[1]);
+	expect_data_granules_data_state(data_pa, S2TTES_PER_S2TT);
 	expect_data_granule_delegated(retry_pa);
-	expect_ipa_assigned_ram_to_pa(&ctx, TEST_DATA_IPA_BASE, data_pa);
+	expect_ipa_assigned_ram_to_pa(&ctx, TEST_DATA_IPA_BASE, data_pa, 2L);
 }
 #endif

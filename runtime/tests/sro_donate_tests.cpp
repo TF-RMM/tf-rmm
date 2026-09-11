@@ -54,7 +54,7 @@ static unsigned long encode_addr_desc_blk(uintptr_t base, unsigned long count,
 /*
  * Helper to get a granule physical address by index.
  */
-static uintptr_t granule_addr(unsigned int idx)
+static uintptr_t tr_granule_addr(unsigned int idx)
 {
 	return host_util_get_granule_base() + (uintptr_t)idx * GRANULE_SIZE;
 }
@@ -870,7 +870,7 @@ TEST(sro_donate_tests, continue_incomplete_donate_req)
 TEST(sro_donate_tests, continue_incomplete_reclaim_req)
 {
 	g_reclaim_count = 3UL;
-	g_reclaim_base = granule_addr(10U);
+	g_reclaim_base = tr_granule_addr(10U);
 
 	sro_handle_cb prev = sro_install_test_handler(SMC_RMI_REC_CREATE,
 						      reclaim_entries_cb);
@@ -1095,7 +1095,7 @@ TEST(sro_donate_tests, reclaim_drain_single_batch)
 	uintptr_t ns_buf = reserve_granules(2U);
 
 	g_reclaim_count = 3UL;
-	g_reclaim_base = granule_addr(10U);
+	g_reclaim_base = tr_granule_addr(10U);
 
 	sro_handle_cb prev = sro_install_test_handler(SMC_RMI_REC_CREATE,
 						      reclaim_entries_cb);
@@ -1127,7 +1127,7 @@ TEST(sro_donate_tests, reclaim_multi_batch_memmove)
 	uintptr_t ns_buf = reserve_granules(2U);
 
 	g_reclaim_count = 5UL;
-	g_reclaim_base = granule_addr(20U);
+	g_reclaim_base = tr_granule_addr(20U);
 
 	sro_handle_cb prev = sro_install_test_handler(SMC_RMI_REC_CREATE,
 						      reclaim_entries_cb);
@@ -1166,7 +1166,7 @@ TEST(sro_donate_tests, reclaim_copy_ignores_tracking_state)
 	CHECK_TRUE(delegate_range(del_buf, del_buf + GRANULE_SIZE));
 
 	g_reclaim_count = 2UL;
-	g_reclaim_base = granule_addr(30U);
+	g_reclaim_base = tr_granule_addr(30U);
 
 	sro_handle_cb prev = sro_install_test_handler(SMC_RMI_REC_CREATE,
 						      reclaim_entries_cb);
@@ -1205,7 +1205,7 @@ TEST(sro_donate_tests, reclaim_list_count_clamped)
 	uintptr_t ns_buf = reserve_granules(1U);
 
 	g_reclaim_count = 4UL;
-	g_reclaim_base = granule_addr(40U);
+	g_reclaim_base = tr_granule_addr(40U);
 
 	sro_handle_cb prev = sro_install_test_handler(SMC_RMI_REC_CREATE,
 						      reclaim_entries_cb);
@@ -1316,13 +1316,13 @@ static void flow_reclaim_phase_cb(unsigned long fid, struct smc_result *res)
 		struct sro_context *sro = my_sro_ctx();
 
 		addr_list_add_block(&sro->addr_list,
-			granule_addr(50U), 3U, RMI_OP_MEM_DELEGATED);
+			tr_granule_addr(50U), 3U, RMI_OP_MEM_DELEGATED);
 		addr_list_add_block(&sro->addr_list,
-			granule_addr(60U), 3U, RMI_OP_MEM_DELEGATED);
+			tr_granule_addr(60U), 3U, RMI_OP_MEM_DELEGATED);
 		addr_list_add_block(&sro->addr_list,
-			granule_addr(70U), 3U, RMI_OP_MEM_DELEGATED);
+			tr_granule_addr(70U), 3U, RMI_OP_MEM_DELEGATED);
 		addr_list_add_block(&sro->addr_list,
-			granule_addr(80U), 3U, RMI_OP_MEM_DELEGATED);
+			tr_granule_addr(80U), 3U, RMI_OP_MEM_DELEGATED);
 		res->x[0] = RMI_INCOMPLETE |
 			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
 			    INPLACE(RMI_OP_CAN_CANCEL_BIT, RMI_OP_CAN_CANCEL);
@@ -1388,7 +1388,7 @@ static void flow_l2_phase_cb(unsigned long fid, struct smc_result *res)
 		struct sro_context *sro = my_sro_ctx();
 
 		addr_list_add_block(&sro->addr_list,
-			granule_addr(100U), 3U, RMI_OP_MEM_DELEGATED);
+			tr_granule_addr(100U), 3U, RMI_OP_MEM_DELEGATED);
 		res->x[0] = RMI_INCOMPLETE |
 			    INPLACE(RMI_OP_MEM_REQ, RMI_OP_MEM_REQ_NONE) |
 			    INPLACE(RMI_OP_CAN_CANCEL_BIT, RMI_OP_CAN_CANCEL);

@@ -172,4 +172,20 @@ unsigned long tracking_region_set_tracking(unsigned long addr,
 					   unsigned long category,
 					   unsigned long state);
 
+/***********************************************
+ * Test API, only used by host test platforms
+ **********************************************/
+
+/*
+ * Reset every represented granule to the initial fine-tracking state.
+ * This is used only by host test and fuzz setup.
+ */
+void tracking_region_fine_reset(void);
+
+/* Install the granule array used by the CBMC host model. */
+void tr_granule_array_set_for_test(uintptr_t data,
+				   size_t data_size,
+				   struct granule *granules,
+				   unsigned long count);
+
 #endif /* TRACKING_REGION_H */

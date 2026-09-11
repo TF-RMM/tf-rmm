@@ -112,9 +112,9 @@ static void start_realm_create(struct test_realm *realm)
 						 res.x[2]);
 	CHECK_EQUAL(MAX_RD_AUX_GRANULES, realm->num_aux);
 	CHECK_EQUAL(GRANULE_STATE_PARTIAL,
-		    (unsigned long)granule_unlocked_state(find_granule(realm->rd)));
+		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(realm->rd)));
 	CHECK_EQUAL(GRANULE_STATE_DELEGATED,
-		    (unsigned long)granule_unlocked_state(find_granule(realm->rtt)));
+		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(realm->rtt)));
 }
 
 static void allocate_realm_aux(struct test_realm *realm, bool separated)
@@ -150,7 +150,7 @@ static void donate_realm_aux(struct test_realm *realm)
 	for (unsigned int i = 0U; i < realm->num_aux; i++) {
 		CHECK_EQUAL(GRANULE_STATE_RD_AUX,
 			    (unsigned long)granule_unlocked_state(
-						find_granule(realm->aux[i])));
+						tr_find_fine_granule(realm->aux[i])));
 	}
 }
 
@@ -163,7 +163,7 @@ static void release_realm_create_context(struct test_realm *realm)
 static void transition_granule(uintptr_t addr, unsigned char from,
 			       unsigned char to)
 {
-	struct granule *g = find_granule(addr);
+	struct granule *g = tr_find_fine_granule(addr);
 
 	CHECK_TRUE(g != NULL);
 	granule_lock(g, from);
@@ -196,7 +196,7 @@ static void init_destroy_realm(struct test_realm *realm, bool separated_aux)
 					  realm->aux[i] + GRANULE_SIZE));
 		transition_granule(realm->aux[i], GRANULE_STATE_DELEGATED,
 				   GRANULE_STATE_RD_AUX);
-		g_aux[i] = find_granule(realm->aux[i]);
+		g_aux[i] = tr_find_fine_granule(realm->aux[i]);
 
 		if (separated_aux && ((i + 1U) < realm->num_aux)) {
 			(void)test_helpers_allocate_granules(1U);
@@ -219,7 +219,7 @@ static void init_destroy_realm(struct test_realm *realm, bool separated_aux)
 	(void)memset(rd, 0, sizeof(*rd));
 	set_rd_state(rd, REALM_NEW);
 	rd->num_rd_aux = realm->num_aux;
-	rd->s2_ctx[0].g_rtt = find_granule(realm->rtt);
+	rd->s2_ctx[0].g_rtt = tr_find_fine_granule(realm->rtt);
 	rd->s2_ctx[0].num_root_rtts = 1U;
 	rd->s2_ctx[0].vmid = (unsigned short)vmid;
 	rd->s2_ctx[0].mecid = mecid;
@@ -245,7 +245,7 @@ static unsigned long start_realm_destroy(struct test_realm *realm)
 	CHECK_EQUAL(RMI_OP_MEM_REQ_RECLAIM,
 		    (unsigned long)EXTRACT(RMI_OP_MEM_REQ, res.x[0]));
 	CHECK_EQUAL(GRANULE_STATE_PARTIAL,
-		    (unsigned long)granule_unlocked_state(find_granule(realm->rd)));
+		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(realm->rd)));
 
 	return res.x[1];
 }
@@ -253,14 +253,14 @@ static unsigned long start_realm_destroy(struct test_realm *realm)
 static void check_realm_destroyed(const struct test_realm *realm)
 {
 	CHECK_EQUAL(GRANULE_STATE_DELEGATED,
-		    (unsigned long)granule_unlocked_state(find_granule(realm->rd)));
+		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(realm->rd)));
 	CHECK_EQUAL(GRANULE_STATE_DELEGATED,
-		    (unsigned long)granule_unlocked_state(find_granule(realm->rtt)));
+		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(realm->rtt)));
 
 	for (unsigned int i = 0U; i < realm->num_aux; i++) {
 		CHECK_EQUAL(GRANULE_STATE_DELEGATED,
 			    (unsigned long)granule_unlocked_state(
-						find_granule(realm->aux[i])));
+						tr_find_fine_granule(realm->aux[i])));
 	}
 }
 
@@ -346,11 +346,11 @@ TEST(realm_sro_tests, realm_create_donation_failure_rolls_back)
 	smc_op_continue(realm.handle, 0UL, &res);
 	CHECK_EQUAL(RMI_ERROR_INPUT, res.x[0]);
 	CHECK_EQUAL(GRANULE_STATE_DELEGATED,
-		    (unsigned long)granule_unlocked_state(find_granule(realm.rd)));
+		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(realm.rd)));
 	CHECK_EQUAL(GRANULE_STATE_DELEGATED,
-		    (unsigned long)granule_unlocked_state(find_granule(realm.rtt)));
+		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(realm.rtt)));
 	CHECK_EQUAL(GRANULE_STATE_DELEGATED,
-		    (unsigned long)granule_unlocked_state(find_granule(realm.aux[0])));
+		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(realm.aux[0])));
 }
 
 /*
@@ -383,7 +383,7 @@ TEST(realm_sro_tests, realm_create_copies_params_during_continue)
 	CHECK_EQUAL(RMI_OP_MEM_REQ_RECLAIM,
 		    (unsigned long)EXTRACT(RMI_OP_MEM_REQ, res.x[0]));
 	CHECK_EQUAL(GRANULE_STATE_DELEGATED,
-		    (unsigned long)granule_unlocked_state(find_granule(realm.rtt)));
+		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(realm.rtt)));
 
 	smc_op_mem_reclaim(realm.handle, realm.addr_list, realm.num_aux, &res);
 	rc = unpack_return_code(res.x[0]);
@@ -394,11 +394,11 @@ TEST(realm_sro_tests, realm_create_copies_params_during_continue)
 	smc_op_continue(realm.handle, 0UL, &res);
 	CHECK_EQUAL(RMI_ERROR_INPUT, res.x[0]);
 	CHECK_EQUAL(GRANULE_STATE_DELEGATED,
-		    (unsigned long)granule_unlocked_state(find_granule(realm.rd)));
+		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(realm.rd)));
 	for (unsigned int i = 0U; i < realm.num_aux; i++) {
 		CHECK_EQUAL(GRANULE_STATE_DELEGATED,
 			    (unsigned long)granule_unlocked_state(
-						find_granule(realm.aux[i])));
+						tr_find_fine_granule(realm.aux[i])));
 	}
 }
 

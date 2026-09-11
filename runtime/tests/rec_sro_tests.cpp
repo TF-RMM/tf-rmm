@@ -713,7 +713,7 @@ static void populate_fake_rec(uintptr_t rec_pa,
 			      unsigned int num_aux,
 			      unsigned long mpidr)
 {
-	struct granule *g_rec = find_granule(rec_pa);
+	struct granule *g_rec = tr_find_fine_granule(rec_pa);
 	struct rec *rec;
 
 	/* Write the rec fields before changing the granule state so we avoid
@@ -724,7 +724,7 @@ static void populate_fake_rec(uintptr_t rec_pa,
 	rec->mpidr = mpidr;
 	rec->num_rec_aux = num_aux;
 	for (unsigned int i = 0U; i < num_aux; i++) {
-		rec->g_aux[i] = find_granule(aux_pa[i]);
+		rec->g_aux[i] = tr_find_fine_granule(aux_pa[i]);
 	}
 	rec->realm_info.g_rd = g_rd;
 	/* rec->attest_app_data is zeroed; app_delete_instance returns early
@@ -738,7 +738,7 @@ static void populate_fake_rec(uintptr_t rec_pa,
 
 static struct granule *init_fake_rd(uintptr_t rd_pa)
 {
-	struct granule *g_rd = find_granule(rd_pa);
+	struct granule *g_rd = tr_find_fine_granule(rd_pa);
 	struct rd *rd;
 	struct rd_aux *rd_aux;
 	struct sarray_hdr *hnd;
@@ -749,7 +749,7 @@ static struct granule *init_fake_rd(uintptr_t rd_pa)
 		CHECK_TRUE(delegate_range(rd_aux_pa[i],
 					  rd_aux_pa[i] + GRANULE_SIZE));
 
-		struct granule *g_rd_aux = find_granule(rd_aux_pa[i]);
+		struct granule *g_rd_aux = tr_find_fine_granule(rd_aux_pa[i]);
 		granule_lock(g_rd_aux, GRANULE_STATE_DELEGATED);
 		__granule_set_state(g_rd_aux, GRANULE_STATE_RD_AUX);
 		granule_unlock(g_rd_aux);
@@ -766,7 +766,7 @@ static struct granule *init_fake_rd(uintptr_t rd_pa)
 	rd->num_rd_aux = MAX_RD_AUX_GRANULES;
 
 	for (unsigned int i = 0U; i < rd->num_rd_aux; i++) {
-		rd->aux_granules[i] = find_granule(rd_aux_pa[i]);
+		rd->aux_granules[i] = tr_find_fine_granule(rd_aux_pa[i]);
 	}
 
 	rd_aux = (struct rd_aux *)buffer_rd_aux_granules_map_zeroed(
@@ -846,7 +846,7 @@ static uintptr_t alloc_fake_rec(unsigned int num_aux,
 		CHECK_TRUE(delegate_range(aux_pa_out[i],
 					  aux_pa_out[i] + GRANULE_SIZE));
 
-		struct granule *g_aux = find_granule(aux_pa_out[i]);
+		struct granule *g_aux = tr_find_fine_granule(aux_pa_out[i]);
 		granule_lock(g_aux, GRANULE_STATE_DELEGATED);
 		__granule_set_state(g_aux, GRANULE_STATE_REC_AUX);
 		granule_unlock(g_aux);
@@ -946,7 +946,7 @@ TEST(rec_sro_tests, rec_destroy_invalid_address)
 
 /* ----------------------------------------------------------------
  * TC_DESTROY_02: Granule is in DELEGATED state, not REC.
- *                find_lock_unused_granule() fails → RMI_ERROR_INPUT.
+ *                the REC state lookup fails → RMI_ERROR_INPUT.
  * ----------------------------------------------------------------
  */
 TEST(rec_sro_tests, rec_destroy_granule_not_in_rec_state)
@@ -961,7 +961,7 @@ TEST(rec_sro_tests, rec_destroy_granule_not_in_rec_state)
 
 /* ----------------------------------------------------------------
  * TC_DESTROY_03: REC is currently running (refcount != 0).
- *                find_lock_unused_granule() returns -EBUSY →
+ *                the REC has a nonzero reference count →
  *                RMI_ERROR_REC.
  * ----------------------------------------------------------------
  */
@@ -971,7 +971,7 @@ TEST(rec_sro_tests, rec_destroy_busy_rec)
 	CHECK_TRUE(delegate_range(rec_pa, rec_pa + GRANULE_SIZE));
 
 	/* Force the granule to REC state, then bump the refcount to 1 */
-	struct granule *g_rec = find_granule(rec_pa);
+	struct granule *g_rec = tr_find_fine_granule(rec_pa);
 	granule_lock(g_rec, GRANULE_STATE_DELEGATED);
 	__granule_set_state(g_rec, GRANULE_STATE_REC);
 	granule_refcount_inc(g_rec, 1U);
@@ -1019,7 +1019,7 @@ TEST(rec_sro_tests, rec_destroy_single_batch_reclaim)
 
 	/* REC granule is in PARTIAL state during the SRO flow */
 	CHECK_EQUAL(GRANULE_STATE_PARTIAL,
-		    (unsigned long)granule_unlocked_state(find_granule(rec_pa)));
+		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(rec_pa)));
 
 	unsigned long handle = res.x[1];
 	/* handle is the pool index; 0 is a valid first-slot handle */
@@ -1037,13 +1037,13 @@ TEST(rec_sro_tests, rec_destroy_single_batch_reclaim)
 
 	/* REC granule must now be DELEGATED after the full flow */
 	CHECK_EQUAL(GRANULE_STATE_DELEGATED,
-		    (unsigned long)granule_unlocked_state(find_granule(rec_pa)));
+		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(rec_pa)));
 
 	/* All auxiliary granules must now be DELEGATED */
 	for (unsigned int i = 0U; i < MAX_REC_AUX_GRANULES; i++) {
 		CHECK_EQUAL(GRANULE_STATE_DELEGATED,
 			    (unsigned long)granule_unlocked_state(
-						find_granule(aux_pa[i])));
+						tr_find_fine_granule(aux_pa[i])));
 	}
 }
 
@@ -1321,7 +1321,7 @@ TEST(rec_sro_tests, rec_destroy_reclaim_pending_entries_memmove)
 
 	for (unsigned int i = 0U; i < 2U; i++) {
 		CHECK_TRUE(delegate_range(aux_pa[i], aux_pa[i] + GRANULE_SIZE));
-		struct granule *g_aux = find_granule(aux_pa[i]);
+		struct granule *g_aux = tr_find_fine_granule(aux_pa[i]);
 		granule_lock(g_aux, GRANULE_STATE_DELEGATED);
 		__granule_set_state(g_aux, GRANULE_STATE_REC_AUX);
 		granule_unlock(g_aux);

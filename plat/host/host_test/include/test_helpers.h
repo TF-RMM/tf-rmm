@@ -189,6 +189,14 @@ void test_helpers_fail_if_no_assert_failed(void);
 void test_helpers_rmm_start(bool secondaries);
 
 /*
+ * Start RMM in INIT, retaining the tracking backing allocated at boot.
+ * Skip further fine-array population and tracking activation.
+ * Call once in a fresh test process. If @secondaries is true, also initialize
+ * the secondary PEs.
+ */
+void test_helpers_rmm_start_for_tracking_sro(bool secondaries);
+
+/*
  * Helper function to get the total number of memory granules available
  * to the system.
  */

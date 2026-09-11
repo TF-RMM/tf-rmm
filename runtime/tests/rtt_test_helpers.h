@@ -294,7 +294,7 @@ static inline void init_primary_s2_ctx(const struct test_rtt_ctx *ctx,
 	s2_ctx->ipa_bits = TEST_IPA_BITS;
 	s2_ctx->s2_starting_level = 0;
 	s2_ctx->num_root_rtts = 1U;
-	s2_ctx->g_rtt = find_granule(ctx->rtt_l0);
+	s2_ctx->g_rtt = tr_find_fine_granule(ctx->rtt_l0);
 	s2_ctx->indirect_s2ap = ctx->indirect_s2ap;
 	s2_ctx->mecid = TEST_REALM_MECID;
 	s2_ctx->s2oa_limit = TEST_S2OA_LIMIT;
@@ -416,7 +416,7 @@ static inline bool create_rtt_tree_ctx(struct test_rtt_ctx *ctx)
 	ctx->rtt_l2 = reserve_delegated_granules(1U);
 	ctx->rtt_l3 = reserve_delegated_granules(1U);
 
-	struct granule *g_rtt_l0 = find_granule(ctx->rtt_l0);
+	struct granule *g_rtt_l0 = tr_find_fine_granule(ctx->rtt_l0);
 
 	granule_lock(g_rtt_l0, GRANULE_STATE_DELEGATED);
 	granule_unlock_transition(g_rtt_l0, GRANULE_STATE_RTT);
@@ -440,7 +440,7 @@ static inline bool create_rtt_tree_ctx(struct test_rtt_ctx *ctx)
 	buffer_unmap(tbl);
 	granule_unlock(g_rtt_l0);
 
-	struct granule *g_rd = find_granule(ctx->rd);
+	struct granule *g_rd = tr_find_fine_granule(ctx->rd);
 	struct rd *rd;
 	struct s2tt_context *s2_ctx;
 
@@ -497,7 +497,7 @@ static inline bool create_rtt_tree_ctx_indirect_s2ap(struct test_rtt_ctx *ctx)
 	ctx->rtt_l2 = reserve_delegated_granules(1U);
 	ctx->rtt_l3 = reserve_delegated_granules(1U);
 
-	struct granule *g_rtt_l0 = find_granule(ctx->rtt_l0);
+	struct granule *g_rtt_l0 = tr_find_fine_granule(ctx->rtt_l0);
 
 	granule_lock(g_rtt_l0, GRANULE_STATE_DELEGATED);
 	granule_unlock_transition(g_rtt_l0, GRANULE_STATE_RTT);
@@ -521,7 +521,7 @@ static inline bool create_rtt_tree_ctx_indirect_s2ap(struct test_rtt_ctx *ctx)
 	buffer_unmap(tbl);
 	granule_unlock(g_rtt_l0);
 
-	struct granule *g_rd = find_granule(ctx->rd);
+	struct granule *g_rd = tr_find_fine_granule(ctx->rd);
 	struct rd *rd;
 	struct s2tt_context *s2_ctx;
 
@@ -607,7 +607,7 @@ static inline bool populate_list_granule(uintptr_t list_pa,
 					 int *levels,
 					 unsigned int num_blocks)
 {
-	struct granule *g_list = find_granule(list_pa);
+	struct granule *g_list = tr_find_fine_granule(list_pa);
 	unsigned long *list_contents;
 
 	list_contents = (unsigned long *)ns_buffer_granule_map(SLOT_NS, g_list);

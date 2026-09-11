@@ -12,8 +12,10 @@
 #include "tb_common.h"
 #include "tb_granules.h"
 #include "tb_realm.h"
+#include "tracking_region.h"
 
 struct granule host_granules[HOST_NR_GRANULES] = {0};
+static unsigned char host_tracking_region_data[TRACKING_REGION_DATA_SIZE];
 
 void __init_global_state(unsigned long cmd)
 {
@@ -23,7 +25,10 @@ void __init_global_state(unsigned long cmd)
 	/* Set up all the system register */
 	host_util_setup_sysreg_and_boot_manifest();
 	arch_features_query_el3_support();
-	granule_init((uintptr_t)host_granules, sizeof(host_granules), HOST_NR_GRANULES);
+	tr_granule_array_set_for_test(
+			(uintptr_t)host_tracking_region_data,
+			sizeof(host_tracking_region_data),
+			host_granules, HOST_NR_GRANULES);
 
 	switch (cmd) {
 	case SMC_RMI_REALM_ACTIVATE:
