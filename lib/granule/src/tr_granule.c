@@ -1209,3 +1209,70 @@ void granule_range_delegate_fine_dev_unlock(unsigned long addr,
 		}
 	}
 }
+
+/*
+ * Publish [@addr, @addr + @size) from PARTIAL as DELEGATED or NS.
+ * Both arguments must be Granule aligned. @device selects dev_granules when
+ * true, or granules otherwise. @delegated selects DELEGATED rather than NS.
+ * The caller must own every PARTIAL granule in the range, pinning fine
+ * tracking even while a representation transition is pending, and hold no
+ * Granule lock. Acquire and release each granule in ascending PA order
+ * without entering a region reader gate.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+void granule_delegate_fine_transition(unsigned long addr,
+				      unsigned long size,
+				      bool device, bool delegated)
+{
+	assert(GRANULE_ALIGNED(addr) && GRANULE_ALIGNED(size));
+	for (unsigned long offset = 0UL; offset < size;
+	     offset += GRANULE_SIZE) {
+		if (device) {
+			struct dev_granule *g;
+
+			g = tr_lock_owned_dev_granule(addr + offset, GRANULE_SIZE,
+						      DEV_GRANULE_STATE_PARTIAL);
+			dev_granule_unlock_transition(g, delegated ?
+				DEV_GRANULE_STATE_DELEGATED : DEV_GRANULE_STATE_NS);
+		} else {
+			struct granule *g;
+
+			g = tr_lock_owned_granule(addr + offset, GRANULE_SIZE,
+						  GRANULE_STATE_PARTIAL);
+			granule_unlock_transition(g, delegated ?
+				GRANULE_STATE_DELEGATED : GRANULE_STATE_NS);
+		}
+	}
+}
+
+/*
+ * Publish a coarse granule or dev_granule from PARTIAL as DELEGATED or NS.
+ * @addr must be aligned to the configured region size, supplied as
+ * @tracking_size. @device selects dev_granules when true, or granules
+ * otherwise; @delegated selects DELEGATED rather than NS. The caller must own
+ * the PARTIAL granule, pinning its coarse representation, and hold no
+ * Granule lock. Acquire its lock without entering a region reader gate and
+ * release it after publishing the state.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+void granule_delegate_coarse_transition(unsigned long addr,
+					unsigned long tracking_size,
+					bool device, bool delegated)
+{
+	assert(tracking_size == tracking_region_get_size());
+	if (device) {
+		struct dev_granule *g;
+
+		g = tr_lock_owned_dev_granule(addr, tracking_size,
+					      DEV_GRANULE_STATE_PARTIAL);
+		dev_granule_unlock_transition(g, delegated ?
+				DEV_GRANULE_STATE_DELEGATED : DEV_GRANULE_STATE_NS);
+	} else {
+		struct granule *g;
+
+		g = tr_lock_owned_granule(addr, tracking_size,
+					  GRANULE_STATE_PARTIAL);
+		granule_unlock_transition(g, delegated ?
+				GRANULE_STATE_DELEGATED : GRANULE_STATE_NS);
+	}
+}

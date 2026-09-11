@@ -18,4 +18,12 @@ struct smc_result;
 void granule_delegate_start(unsigned long addr, unsigned long end_addr,
 			    struct smc_result *res);
 
+/*
+ * Resume the matching range operation for RMI_OP_CONTINUE. The generic SRO
+ * dispatcher must own the context and is responsible for sealing it again
+ * after RMI_INCOMPLETE or releasing it after a terminal result. @res receives
+ * the continuation result; no Granule lock remains held on return.
+ */
+void granule_delegate_continue(unsigned long fid, struct smc_result *res);
+
 #endif /* GRANULE_SRO_H */

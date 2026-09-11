@@ -372,6 +372,32 @@ void granule_range_delegate_fine_unlock(unsigned long addr,
 						unsigned long delegated_count,
 						bool incomplete);
 
+/*
+ * Publish [@addr, @addr + @size) from PARTIAL as DELEGATED or NS.
+ * Both arguments must be Granule aligned. @device selects dev_granules when
+ * true, or granules otherwise. @delegated selects DELEGATED rather than NS.
+ * The caller must own every PARTIAL granule in the range, pinning fine
+ * tracking even while a representation transition is pending, and hold no
+ * Granule lock. Acquire and release each granule in ascending PA order
+ * without entering a region reader gate.
+ */
+void granule_delegate_fine_transition(unsigned long addr,
+				      unsigned long size,
+				      bool device, bool delegated);
+
+/*
+ * Publish a coarse granule or dev_granule from PARTIAL as DELEGATED or NS.
+ * @addr must be aligned to the configured region size, supplied as
+ * @tracking_size. @device selects dev_granules when true, or granules
+ * otherwise; @delegated selects DELEGATED rather than NS. The caller must own
+ * the PARTIAL granule, pinning its coarse representation, and hold no
+ * Granule lock. Acquire its lock without entering a region reader gate and
+ * release it after publishing the state.
+ */
+void granule_delegate_coarse_transition(unsigned long addr,
+					unsigned long tracking_size,
+					bool device, bool delegated);
+
 
 /*
  * Return an unlocked fine granule for @addr, or NULL on lookup failure.

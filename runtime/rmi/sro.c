@@ -9,6 +9,7 @@
 #include <debug.h>
 #include <dev.h>
 #include <granule.h>
+#include <granule_sro.h>
 #include <granule_types.h>
 #include <limits.h>
 #include <realm.h>
@@ -49,7 +50,9 @@ static struct rmi_handles sro_handles[] = {
 	SRO_HANDLE(RTT_UNPROT_UNMAP, rtt_unmap_continue_handler),
 	SRO_HANDLE(RTT_DEV_UNMAP, rtt_unmap_continue_handler),
 	SRO_HANDLE(REALM_CREATE, realm_continue_handler),
-	SRO_HANDLE(REALM_DESTROY, realm_continue_handler)
+	SRO_HANDLE(REALM_DESTROY, realm_continue_handler),
+	SRO_HANDLE(GRANULE_RANGE_DELEGATE,
+		   granule_delegate_continue),
 };
 COMPILER_ASSERT(ARRAY_SIZE(sro_handles) <= SMC64_NUM_FIDS_IN_RANGE(RMI));
 

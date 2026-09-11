@@ -475,6 +475,203 @@ static unsigned long granule_range_delegate_one(unsigned long addr,
 	return ret;
 }
 
+/* Return an SRO response which asks the Host to invoke RMI_OP_CONTINUE. */
+static void granule_delegate_yield(struct smc_result *res)
+{
+	assert(res != NULL);
+	res->x[0] = pack_return_code_incomplete(
+			RMI_OP_MEM_REQ_NONE, RMI_OP_CANNOT_CANCEL);
+	res->x[1] = 0UL;
+	res->x[2] = 0UL;
+}
+
+/*
+ * Resume the Realm transition phase of a range delegation.
+ *
+ * FIRME reports progress for this invocation only. Fine granules can
+ * publish each completed Granule immediately. A coarse granule stays
+ * PARTIAL until the entire tracking region is delegated. Stateless partial
+ * success and BUSY yield before retrying a coarse suffix with GPI_SET.
+ * A conflict or permanent failure rolls back a partially delegated coarse
+ * region before reporting RMI_BLOCKED or RMI_ERROR_TRACKING respectively.
+ * Fine progress instead completes the SRO once EL3 releases its stateful
+ * operation, even on a suffix error. A conflict without accumulated progress
+ * restores the source granules and returns RMI_BLOCKED immediately.
+ * INCOMPLETE and continuation BUSY retain the operation and returned cookie;
+ * BUSY adds no progress. All other responses invalidate the saved cookie.
+ */
+static void granule_delegate_resume_realm(
+				struct sro_granule_delegate_ctx *ctx,
+				struct smc_result *res)
+{
+	unsigned long processed_size;
+	unsigned long progress;
+	unsigned long remaining;
+	int ret;
+
+	assert((ctx != NULL) && (ctx->rollback_status == RMI_SUCCESS));
+	processed_size = ctx->processed_size;
+	ret = rmm_el3_ifc_gtsi_step(ctx->addr, ctx->size, true,
+				  &processed_size, &ctx->el3);
+	progress = processed_size - ctx->processed_size;
+
+	/*
+	 * Publish the newly completed fine-granule prefix before advancing the
+	 * progress cursor. A coarse granule covers the whole tracking region
+	 * and must remain PARTIAL until every Granule has reached Realm PAS.
+	 */
+	if ((ctx->tracking_size == GRANULE_SIZE) && (progress > 0UL)) {
+		granule_delegate_fine_transition(
+				ctx->addr + ctx->processed_size, progress, ctx->device, true);
+	}
+	ctx->processed_size += progress;
+
+	if (ctx->el3.incomplete) {
+		granule_delegate_yield(res);
+		return;
+	}
+	/*
+	 * Coarse progress must reach the region boundary before being reported.
+	 * Fine progress can complete now; retry contention only if neither EL3
+	 * nor the already-delegated prefix has advanced the original Host cursor.
+	 */
+	if (granule_delegate_can_retry(ret) &&
+	    (ctx->processed_size < ctx->size) &&
+	    ((ctx->tracking_size > GRANULE_SIZE) ||
+	     ((ctx->processed_size == 0UL) && (ctx->addr == ctx->host_addr)))) {
+		granule_delegate_yield(res);
+		return;
+	}
+
+	/*
+	 * A terminal EL3 response can leave part of a fine-tracked request
+	 * unprocessed. The processed prefix was published as DELEGATED above;
+	 * restore the remaining granules from PARTIAL to NS so their states
+	 * continue to describe their PAS.
+	 *
+	 * Report progress relative to the original Host cursor. This includes any
+	 * leading DELEGATED granules skipped before the EL3 request, as well as
+	 * the prefix processed by EL3. If neither advanced the cursor, report the
+	 * terminal failure at the original address.
+	 */
+	if (ctx->tracking_size == GRANULE_SIZE) {
+		remaining = ctx->size - ctx->processed_size;
+		if (remaining > 0UL) {
+			granule_delegate_fine_transition(
+				ctx->addr + ctx->processed_size, remaining,
+				ctx->device, false);
+		}
+		if ((ctx->addr + ctx->processed_size) > ctx->host_addr) {
+			res->x[0] = RMI_SUCCESS;
+			res->x[1] = ctx->addr + ctx->processed_size;
+		} else {
+			res->x[0] = (ret == E_RMM_AGAIN) ? RMI_BLOCKED : RMI_ERROR_INPUT;
+			res->x[1] = ctx->host_addr;
+		}
+		return;
+	}
+
+	/*
+	 * Fine tracking has returned above. Publish the coarse granule as
+	 * DELEGATED only after its entire tracking region is in Realm PAS.
+	 */
+	if (ctx->processed_size == ctx->size) {
+		granule_delegate_coarse_transition(ctx->addr, ctx->tracking_size,
+						  ctx->device, true);
+		res->x[0] = RMI_SUCCESS;
+		res->x[1] = ctx->addr + ctx->size;
+		return;
+	}
+	if (ctx->processed_size == 0UL) {
+		granule_delegate_coarse_transition(ctx->addr, ctx->tracking_size,
+						  ctx->device, false);
+		res->x[0] = (ret == E_RMM_AGAIN) ? RMI_BLOCKED : RMI_ERROR_INPUT;
+		res->x[1] = ctx->host_addr;
+		return;
+	}
+
+	/*
+	 * A conflict or permanent error left a prefix which the coarse granule
+	 * cannot represent as delegated.
+	 * Keep it in PARTIAL state and yield before returning the delegated prefix
+	 * to NS through the rollback phase. The granule is restored to NS only
+	 * after that rollback completes.
+	 */
+	ctx->rollback_status = (ret == E_RMM_AGAIN) ? RMI_BLOCKED :
+						granule_tracking_error(ctx->addr);
+	granule_delegate_yield(res);
+}
+
+/*
+ * Return a partially delegated coarse tracking region to Non-secure PAS.
+ * Stateless rollback progress is restarted with GPI_SET; cookie-bearing
+ * progress is resumed with GPI_OP_CONTINUE. Busy responses yield while the
+ * granule stays PARTIAL. Undelegation cannot conflict because the SRO owns
+ * the prefix. Only a completed rollback restores the granule to NS and
+ * reports the saved RMI_BLOCKED or RMI_ERROR_TRACKING status to the Host.
+ */
+static void granule_delegate_resume_rollback(
+				struct sro_granule_delegate_ctx *ctx,
+				struct smc_result *res)
+{
+	unsigned long previous_size;
+	unsigned long progress;
+	int ret;
+
+	assert((ctx != NULL) && (ctx->rollback_status != RMI_SUCCESS) &&
+	       (ctx->rollback_size < ctx->processed_size));
+
+	previous_size = ctx->rollback_size;
+	ret = rmm_el3_ifc_gtsi_step(ctx->addr, ctx->processed_size, false,
+				  &ctx->rollback_size, &ctx->el3);
+	progress = ctx->rollback_size - previous_size;
+	if (ctx->el3.incomplete) {
+		granule_delegate_yield(res);
+		return;
+	}
+
+	if ((ret == E_RMM_BUSY) && (progress == 0UL)) {
+		granule_delegate_yield(res);
+		return;
+	}
+
+	assert((ret == E_RMM_OK) && (progress > 0UL));
+
+	if (ctx->rollback_size < ctx->processed_size) {
+		granule_delegate_yield(res);
+		return;
+	}
+
+	granule_delegate_coarse_transition(ctx->addr, ctx->tracking_size,
+						  ctx->device, false);
+	res->x[0] = ctx->rollback_status;
+	res->x[1] = ctx->host_addr;
+}
+
+/*
+ * Continue a pending range delegation or its coarse rollback, using GPI_SET
+ * for a stateless suffix and GPI_OP_CONTINUE while a cookie remains valid.
+ * The generic SRO dispatcher seals the context again for RMI_INCOMPLETE and
+ * releases it after a terminal RMI result.
+ */
+void granule_delegate_continue(unsigned long fid,
+			       struct smc_result *res)
+{
+	struct sro_context *sro = my_sro_ctx();
+	struct sro_granule_delegate_ctx *ctx;
+
+	assert((sro != NULL) && (fid == SMC_RMI_OP_CONTINUE));
+	assert(sro->init_command == SMC_RMI_GRANULE_RANGE_DELEGATE);
+	(void)fid;
+	ctx = &sro->granule_delegate_ctx;
+
+	if (ctx->rollback_status != RMI_SUCCESS) {
+		granule_delegate_resume_rollback(ctx, res);
+	} else {
+		granule_delegate_resume_realm(ctx, res);
+	}
+}
+
 /*
  * Begin delegation or skip a contiguous prefix of the tracking region containing
  * @addr. @addr and @end_addr must be Granule aligned with @end_addr > @addr.
