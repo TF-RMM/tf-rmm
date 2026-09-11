@@ -748,6 +748,575 @@ unsigned long tracking_region_get_rmm_config_size(void)
 	return size;
 }
 
+/* Allocate EL3 backing memory and make a reserved array VA usable. */
+static int tracking_array_populate(struct tracking_array_mapping *mapping,
+				   size_t size,
+				   const char *name)
+{
+	uintptr_t pa;
+	int ret;
+
+	assert(mapping != NULL);
+	assert(name != NULL);
+	assert((size != 0UL) && GRANULE_ALIGNED(size));
+	assert(size <= mapping->size);
+
+	/* LFA reuses the mappings committed by the previous image. */
+	if (mapping->state == TRACKING_REGIONS_COMMITTED) {
+		return 0;
+	}
+
+	assert(mapping->state == TRACKING_REGIONS_RESERVED);
+
+	INFO("Requesting %lu pages from EL3 for %s\n",
+	     size / GRANULE_SIZE, name);
+
+	ret = rmm_el3_ifc_reserve_memory(size, 0U, GRANULE_SIZE,
+					 &pa);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = tracking_region_arch_populate(mapping->va, pa, size);
+	if (ret != 0) {
+		return ret;
+	}
+
+	(void)memset((void *)mapping->va, 0, size);
+	mapping->state = TRACKING_REGIONS_COMMITTED;
+
+	return 0;
+}
+
+/* Convert an RMI memory category to the internal region composition. */
+static enum tr_mem_cat tracking_region_mem_cat_from_category(
+						unsigned long category)
+{
+	switch (category) {
+	case RMI_MEM_CATEGORY_CONVENTIONAL:
+		return mc_conv;
+	case RMI_MEM_CATEGORY_DEV_NCOH:
+		return mc_dev_ncoh;
+	case RMI_MEM_CATEGORY_DEV_COH:
+		return mc_dev_coh;
+	default:
+		assert(false); /* mc_diverse is an internal type */
+		return mc_diverse;
+	}
+}
+
+/*
+ * Find the struct tracking_memory_bank for @addr, irrespective of memory type.
+ *
+ * The PA ranges in the conventional and device struct tracking_memory_bank
+ * arrays are validated not to overlap, so at most one lookup can succeed.
+ * On success, return the matching struct tracking_memory_bank and set
+ * @tracking_region_idx and @granule_idx to the shared tracking-region and
+ * type-local fine-granule indices for @addr. Return NULL if @addr is outside
+ * every bank; the output indices are then unspecified.
+ */
+static const struct tracking_memory_bank *tracking_memory_bank_find_any(
+						unsigned long addr,
+						unsigned long *tracking_region_idx,
+						unsigned long *granule_idx)
+{
+	const struct tracking_memory_bank *bank;
+
+	bank = tracking_region_find_addr(addr, TR_MEM_TYPE_CONV,
+					 tracking_region_idx, granule_idx);
+	if (bank != NULL) {
+		return bank;
+	}
+
+	return tracking_region_find_addr(addr, TR_MEM_TYPE_DEV,
+					 tracking_region_idx, granule_idx);
+}
+
+/*
+ * Determine the memory composition of the tracking region starting at @base.
+ *
+ * @base must be aligned to the configured tracking-region size and identify a
+ * represented region. Walk every bank segment intersecting the complete
+ * region. Return its memory category only when the region has no holes and all
+ * segments have the same category; otherwise return mc_diverse. A diverse
+ * result prevents the region from using a single coarse granule.
+ */
+static enum tr_mem_cat tracking_region_composition(unsigned long base)
+{
+	unsigned long cursor = base;
+	unsigned long top = base + tracking_region_get_size();
+	enum tr_mem_cat category = mc_conv;
+	bool category_set = false;
+
+	/*
+	 * Walk the bank segments covering the region and retain a category only
+	 * when every address is covered by banks of that category.
+	 */
+	while (cursor < top) {
+		const struct tracking_memory_bank *bank;
+		enum tr_mem_cat bank_category;
+		unsigned long granule_idx __unused;
+		unsigned long tracking_region_idx __unused;
+		unsigned long bank_top;
+
+		bank = tracking_memory_bank_find_any(cursor,
+						    &tracking_region_idx,
+						    &granule_idx);
+
+		/*
+		 * A hole makes the whole region non-homogeneous and unsuitable
+		 * for coarse tracking.
+		 */
+		if (bank == NULL) {
+			return mc_diverse;
+		}
+
+		bank_category =
+			tracking_region_mem_cat_from_category(bank->category);
+		/* Establish the category, then require every following bank to match. */
+		if (!category_set) {
+			category = bank_category;
+			category_set = true;
+		} else if (category != bank_category) {
+			return mc_diverse;
+		}
+
+		/* Continue at the next bank boundary, capped by the region end. */
+		bank_top = bank->base + bank->size;
+		cursor = (bank_top < top) ? bank_top : top;
+	}
+
+	assert(category_set);
+	return category;
+}
+
+/*
+ * Initialize the shared struct tracking_region array with @state.
+ *
+ * The indices in struct tracking_memory_bank and the active region count must
+ * already describe the selected layout. tracking_data->tracking_regions must
+ * point to writable backing.
+ * @state is trs_fine when all fine-granule backing is available, or
+ * trs_coarse when fine backing will be donated on demand. The caller must
+ * exclude concurrent granule lookups while this function initializes each
+ * struct tracking_region, including its lock.
+ *
+ * Each compressed index is resolved to a representative bank address, then
+ * classified using the complete aligned region containing that address. A
+ * region containing a hole or multiple memory categories is mc_diverse. Such a
+ * region is initialized as trs_none when @state is trs_coarse because one
+ * coarse granule cannot represent its contents.
+ */
+static void tracking_region_descriptors_init(enum tr_state state)
+{
+	const struct tracking_memory_bank_storage *storage =
+		&tracking_data->banks;
+	unsigned long region_size = tracking_region_get_size();
+
+	assert((state == trs_fine) || (state == trs_coarse));
+
+	/*
+	 * Walk the shared, compressed tracking-region index space and initialize
+	 * each struct tracking_region as follows:
+	 *
+	 * 1. Find a valid address for the index, preferring a conventional bank
+	 *    and falling back to a device bank. Every index must be represented
+	 *    by at least one of them.
+	 * 2. Align the address to the tracking-region boundary and inspect the
+	 *    complete region to determine whether its composition is homogeneous
+	 *    or diverse.
+	 * 3. Replace a requested COARSE state with NONE for a diverse region,
+	 *    since one coarse granule cannot represent mixed memory or holes.
+	 * 4. Clear the inactive coarse granule and encode the composition and initial
+	 *    state in the struct tracking_region.
+	 */
+	for (unsigned long i = 0UL;
+	     i < tracking_data->num_tracking_regions; i++) {
+		unsigned long base;
+		enum tr_mem_cat category;
+		enum tr_state region_state = state;
+
+		base = tracking_region_lookup_by_idx(storage->conv_banks,
+				tracking_data->num_conv_tracking_banks, i,
+				sizeof(struct granule), NULL);
+		if (base == UINT64_MAX) {
+			/* This index is represented only by device memory. */
+			base = tracking_region_lookup_by_idx(storage->dev_banks,
+					tracking_data->num_dev_tracking_banks, i,
+					sizeof(struct dev_granule), NULL);
+		}
+		assert(base != UINT64_MAX);
+
+		/*
+		 * The lookup returns an address inside a bank, not necessarily the
+		 * tracking-region start. Round it down so the composition check covers
+		 * the entire region, including any leading hole or memory of another
+		 * category.
+		 */
+		category = tracking_region_composition(
+					round_down(base, region_size));
+
+		/* A diverse region has no valid coarse representation. */
+		if ((category == mc_diverse) && (state == trs_coarse)) {
+			region_state = trs_none;
+		}
+
+		/* Clear the inactive struct granule before publishing the initial state. */
+		tracking_data->tracking_regions[i].coarse_granule.descriptor = 0U;
+		rwlock_init(&tracking_data->tracking_regions[i].lock);
+		tracking_data->tracking_regions[i].descriptor =
+			(uint8_t)(INPLACE(TR_MEM_CAT, (unsigned long)category) |
+				  INPLACE(TR_STATE, (unsigned long)region_state));
+	}
+}
+
+/*
+ * Map shared tracking-region index @tr_idx to the start of its type-local fine
+ * granule range.
+ *
+ * Conventional and device memory share the struct tracking_region array, but
+ * each memory type has a separate compact fine-granule array. First find a
+ * valid address of @type represented by @tr_idx and obtain the granule index
+ * for that address. A bank may start after the aligned region boundary, so
+ * subtract the address's granule offset within the region to recover the first
+ * granule slot reserved for the complete region.
+ *
+ * Multiple banks of the same type can intersect one tracking region. Index
+ * assignment maps all such banks to the same fine-granule range, so any
+ * matching bank yields the same first index. Return UINT64_MAX when @tr_idx has
+ * no bank of @type.
+ */
+static unsigned long tr_idx_to_fine_granule_idx(unsigned long tr_idx,
+						enum tr_mem_type type)
+{
+	const struct tracking_memory_bank_storage *storage =
+		&tracking_data->banks;
+	const struct tracking_memory_bank *banks;
+	size_t entry_size;
+	unsigned long addr;
+	unsigned long granule_idx = UINT64_MAX;
+	unsigned long region_size = tracking_region_get_size();
+	unsigned int count;
+
+	assert((type == TR_MEM_TYPE_CONV) || (type == TR_MEM_TYPE_DEV));
+
+	if (type == TR_MEM_TYPE_CONV) {
+		banks = storage->conv_banks;
+		count = tracking_data->num_conv_tracking_banks;
+		entry_size = sizeof(struct granule);
+	} else {
+		banks = storage->dev_banks;
+		count = tracking_data->num_dev_tracking_banks;
+		entry_size = sizeof(struct dev_granule);
+	}
+
+	/* Find one valid address and its corresponding fine-granule index. */
+	addr = tracking_region_lookup_by_idx(banks, count, tr_idx, entry_size,
+					     &granule_idx);
+	if (addr == UINT64_MAX) {
+		return UINT64_MAX;
+	}
+	assert(granule_idx != UINT64_MAX);
+
+	/* Back up over any leading hole to the region's first reserved slot. */
+	return granule_idx -
+	       ((addr - round_down(addr, region_size)) >> GRANULE_SHIFT);
+}
+
+/*
+ * Return the page-aligned VA span for the active struct tracking_region array.
+ *
+ * Cold boot reserves enough VA for the largest supported layout, which may be
+ * larger than the layout subsequently selected by RMI_RMM_CONFIG_SET. Starting
+ * at the reservation base, include only the active struct tracking_region objects
+ * and round their size up to complete Granules. Cold boot populates the full
+ * reservation from EL3; this range identifies the currently selected layout.
+ *
+ * @base receives the granule-aligned start of the reservation and @pages
+ * receives the nonzero number of Granules in the active span. The reservation
+ * does not need to have backing when this function is called.
+ */
+void tracking_region_array_active_range(uintptr_t *base, unsigned long *pages)
+{
+	size_t size;
+
+	assert((tracking_data != NULL) && (base != NULL) && (pages != NULL));
+	assert(tracking_data->num_tracking_regions != 0UL);
+	size = round_up(tracking_data->num_tracking_regions *
+			sizeof(struct tracking_region), GRANULE_SIZE);
+	assert(size <= tracking_data->tracking_region_array.size);
+	*base = tracking_data->tracking_region_array.va;
+	*pages = size / GRANULE_SIZE;
+}
+
+/*
+ * Return the fine-granule page range for memory @type in region @tr_idx.
+ *
+ * Fine granules and dev_granules occupy separate compact arrays. When
+ * the selected type intersects the region, @base receives the granule-aligned
+ * start of that region's range and @pages receives its size in Granules. The
+ * range includes granule slots for intra-region holes and page-alignment
+ * padding, allowing its backing to be donated or reclaimed independently of
+ * adjacent regions.
+ *
+ * @tr_idx must identify an active struct tracking_region and @type must be
+ * TR_MEM_TYPE_CONV or TR_MEM_TYPE_DEV. Return true when the region contains
+ * memory of @type. Return false, without updating @base or @pages, when it does
+ * not. The returned VA range is reserved but need not currently have backing.
+ */
+bool tracking_region_fine_page_range(unsigned long tr_idx,
+				     enum tr_mem_type type,
+				     uintptr_t *base,
+				     unsigned long *pages)
+{
+	struct tracking_array_mapping *mapping;
+	unsigned long fine_idx;
+	size_t entry_size;
+	size_t size;
+
+	assert((tracking_data != NULL) && (base != NULL) && (pages != NULL));
+	assert(tr_idx < tracking_data->num_tracking_regions);
+	fine_idx = tr_idx_to_fine_granule_idx(tr_idx, type);
+	if (fine_idx == UINT64_MAX) {
+		return false;
+	}
+
+	if (type == TR_MEM_TYPE_CONV) {
+		mapping = &tracking_data->granule_array_tr;
+		entry_size = sizeof(struct granule);
+	} else {
+		assert(type == TR_MEM_TYPE_DEV);
+		mapping = &tracking_data->dev_granule_array_tr;
+		entry_size = sizeof(struct dev_granule);
+	}
+
+	size = tracking_region_fine_stride(tracking_region_get_size(),
+					   entry_size) * entry_size;
+	*base = round_down(mapping->va + (fine_idx * entry_size),
+			   GRANULE_SIZE);
+	*pages = size / GRANULE_SIZE;
+	assert((size != 0UL) && GRANULE_ALIGNED(size));
+	assert(GRANULE_ALIGNED(*base));
+	return true;
+}
+
+/*
+ * Return whether tracking-metadata VA @va currently has a backing page.
+ */
+bool tracking_region_page_is_mapped(uintptr_t va)
+{
+	return tracking_region_arch_is_mapped(va);
+}
+
+/*
+ * Translate tracking-metadata VA @va to its backing physical address.
+ *
+ * @va must lie within a tracking-metadata reservation and its page must already
+ * be populated. The architecture-specific implementation asserts these
+ * preconditions.
+ */
+uintptr_t tracking_region_page_to_pa(uintptr_t va)
+{
+	return tracking_region_arch_to_pa(va);
+}
+
+/*
+ * Map backing Granule @pa at reserved tracking-metadata address @va.
+ *
+ * Both addresses must be granule aligned, and @va must identify an unpopulated
+ * page in a tracking-metadata reservation. Return 0 on success or a negative
+ * error code from the architecture-specific mapping operation.
+ */
+int tracking_region_page_populate(uintptr_t va, uintptr_t pa)
+{
+	return tracking_region_arch_populate(va, pa, GRANULE_SIZE);
+}
+
+/*
+ * Remove the backing from tracking-metadata page @va without releasing its VA.
+ *
+ * @va must be granule aligned and identify a populated page within a
+ * tracking-metadata reservation. The page can subsequently be populated with
+ * different backing while retaining the same virtual address. Return 0 on
+ * success or a negative error code from the architecture-specific operation.
+ */
+int tracking_region_page_depopulate(uintptr_t va)
+{
+	return tracking_region_arch_depopulate(va, GRANULE_SIZE);
+}
+
+/*
+ * Resolve an SRO SET_TRACKING target to its struct tracking_region.
+ *
+ * @addr must be tracking-region aligned and @category must be a valid RMI
+ * memory category. When @addr belongs to a bank, its category must match
+ * @category. When @addr lies in a leading hole, accept it only if populated
+ * memory occurs later in the same region. Such a region is diverse, so the
+ * subsequent transition validates which target states it can represent.
+ *
+ * On success, set @tr_idx to the shared tracking-region index and @tr to its
+ * struct tracking_region. Return false when tracking is not initialized or the
+ * target cannot be resolved; the output values are then unspecified.
+ */
+bool tracking_region_set_tracking_find(unsigned long addr,
+				       unsigned long category,
+				       unsigned long *tr_idx,
+				       struct tracking_region **tr)
+{
+	const struct tracking_memory_bank *bank;
+	unsigned long granule_idx __unused;
+	unsigned long top;
+
+	assert((tr_idx != NULL) && (tr != NULL));
+	if ((tracking_data == NULL) || !tracking_data->tracking_initialized ||
+	    (tracking_data->tracking_regions == NULL) ||
+	    (category > RMI_MEM_CATEGORY_NONE) ||
+	    ((addr & (tracking_region_get_size() - 1UL)) != 0UL)) {
+		return false;
+	}
+
+	bank = tracking_memory_bank_find_any(addr, tr_idx, &granule_idx);
+	if (bank != NULL) {
+		if (bank->category != category) {
+			return false;
+		}
+	} else {
+		if (addr > (UINT64_MAX - tracking_region_get_size())) {
+			return false;
+		}
+		top = addr + tracking_region_get_size();
+		if (!tracking_region_find_after_base(addr, top, tr_idx)) {
+			return false;
+		}
+	}
+
+	assert(*tr_idx < tracking_data->num_tracking_regions);
+	*tr = &tracking_data->tracking_regions[*tr_idx];
+	return true;
+}
+
+/*
+ * Determine whether Granule @addr is self-describing metadata for @tr.
+ *
+ * A Granule is self-describing when its PA backs a mapped page in either
+ * type-local fine-granule range belonging to the same tracking region that
+ * contains the Granule. Check both the fine granule and dev_granule
+ * arrays because their backing always comes from conventional memory. Return
+ * true when a matching mapped page is found, or false otherwise.
+ */
+bool tracking_region_is_self_describing_fine_page(
+						const struct tracking_region *tr,
+						unsigned long addr)
+{
+	const enum tr_mem_type types[] = {
+		TR_MEM_TYPE_CONV,
+		TR_MEM_TYPE_DEV
+	};
+	unsigned long tr_idx;
+
+	assert((tracking_data != NULL) && (tr != NULL));
+	tr_idx = (unsigned long)(tr - tracking_data->tracking_regions);
+	assert(tr_idx < tracking_data->num_tracking_regions);
+
+	for (unsigned int i = 0U; i < ARRAY_SIZE(types); i++) {
+		uintptr_t base;
+		unsigned long pages;
+
+		if (!tracking_region_fine_page_range(tr_idx, types[i],
+						     &base, &pages)) {
+			continue;
+		}
+		for (unsigned long page = 0UL; page < pages; page++) {
+			uintptr_t va = base + (page * GRANULE_SIZE);
+
+			if (tracking_region_arch_is_mapped(va) &&
+			    (tracking_region_arch_to_pa(va) == addr)) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+/*
+ * Allocate the permanent struct tracking_region array from EL3-private memory.
+ * @fine also populates both fine arrays; otherwise their backing is donated
+ * through SET_TRACKING. Reserve the complete layout capacity during cold boot.
+ * struct tracking_region_data records the array VAs, sizes and mapping states;
+ * the mappings and their backing are retained across LFA.
+ * Return 0 on success or a negative error code on allocation or mapping failure.
+ */
+int tracking_region_populate_from_el3(bool fine)
+{
+	int ret;
+
+	assert(tracking_data != NULL);
+	assert(tracking_data->num_tracking_regions != 0UL);
+	assert(tracking_data->tracking_region_array.size != 0UL);
+
+	ret = tracking_array_populate(&tracking_data->tracking_region_array,
+				      tracking_data->tracking_region_array.size,
+				      "struct tracking_region array");
+	if (ret != 0) {
+		return ret;
+	}
+
+	if (fine && (tracking_data->granule_array_tr.size != 0UL)) {
+		ret = tracking_array_populate(&tracking_data->granule_array_tr,
+				      tracking_data->granule_array_tr.size,
+				      "tracking conventional-granule array");
+		if (ret != 0) {
+			return ret;
+		}
+	}
+
+	if (fine && (tracking_data->dev_granule_array_tr.size != 0UL)) {
+		ret = tracking_array_populate(&tracking_data->dev_granule_array_tr,
+				      tracking_data->dev_granule_array_tr.size,
+				      "tracking device-granule array");
+		if (ret != 0) {
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * Initialize the configured tracking layout using mapped, zeroed backing.
+ * @state selects FINE or COARSE; diverse regions become NONE for COARSE.
+ * Fine initialization requires both fine arrays to be populated. The permanent
+ * struct tracking_region array uses EL3-private memory allocated during cold boot.
+ * This infallible activation step holds the layout lock to exclude configuration
+ * and tracking-info queries. The caller excludes other granule users.
+ */
+void tracking_region_activate(enum tr_state state)
+{
+	spinlock_acquire(&tracking_layout_lock);
+	assert((state == trs_fine) || (state == trs_coarse));
+	assert(tracking_data != NULL);
+	assert(tracking_data->num_tracking_regions != 0UL);
+	assert(tracking_region_arch_is_mapped(tracking_data->tracking_region_array.va));
+	assert(!tracking_data->tracking_initialized);
+	assert(tracking_data->tracking_regions == NULL);
+	if (state == trs_fine) {
+		assert((tracking_data->granule_array_tr.size == 0UL) ||
+		       (tracking_data->granule_array_tr.state ==
+			TRACKING_REGIONS_COMMITTED));
+		assert((tracking_data->dev_granule_array_tr.size == 0UL) ||
+		       (tracking_data->dev_granule_array_tr.state ==
+			TRACKING_REGIONS_COMMITTED));
+	}
+
+	tracking_data->tracking_regions = (struct tracking_region *)
+					tracking_data->tracking_region_array.va;
+	tracking_region_descriptors_init(state);
+	tracking_data->tracking_region_array.state = TRACKING_REGIONS_COMMITTED;
+	tracking_data->tracking_initialized = true;
+	spinlock_release(&tracking_layout_lock);
+}
+
 /*
  * Binary-search the selected struct tracking_memory_bank array for @addr.
  * On success, return the matching struct tracking_memory_bank and the
