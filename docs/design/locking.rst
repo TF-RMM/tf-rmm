@@ -308,15 +308,24 @@ locking/refcount implementation:
   and RD_AUX granules are locked only when the corresponding parent object or
   SRO flow already provides the necessary ownership.
 
-* **Partial:** These are granules whose object is partially created or partially
-  destroyed by an ongoing SRO flow. A PARTIAL granule is locked as the object
-  that owns the SRO operation.
+* **Partial:** This intermediate state reserves a ``granule`` or
+  ``dev_granule`` for an ongoing SRO. It is used during object creation or
+  destruction, delegation or undelegation, coarse DATA map zeroing, and
+  coarse DATA/DEV unmap invalidation and drain. Ownership persists across
+  yields without retaining the granule lock. Other RMM operations cannot
+  reuse the granule, and tracking transitions cannot replace its
+  representation. The owning SRO acquires the granule lock when required,
+  following the lock order for its object or memory operation.
 
 * **Internal:** These are granules owned by |RMM| for internal use which do not
   yet have a more specific granule state. This state is currently used by the
   SMMU driver for donated PSMMU memory while it is staged for driver use, or
   after a driver object has been torn down and before the memory is reclaimed by
-  the host. No reference counts are held on this granule type.
+  the host. It is also used for Host-donated pages which back fine-tracking
+  metadata. This includes self-describing pages whose backing PA lies in the
+  tracking region represented by that metadata; their fine granules remain
+  INTERNAL while the fine representation is active. No reference counts are
+  held on this granule type.
 
 * **PSMMU L2 Stream Table:** These are granules containing SMMUv3 Level 2
   Stream Tables. Granule content access is protected by the SMMUv3 device lock.
@@ -377,63 +386,70 @@ instead the following should be used:
 	:caption: **Granule locking operations**
 
 	/*
-	 * Acquires a lock (or spins until the lock is available), then checks
-	 * if the granule is in the `expected_state`. If the `expected_state`
-	 * is matched, then returns `true`. Otherwise, releases the lock and
-	 * returns `false`.
+	 * Acquire an independently addressed Granule only while its state matches.
+	 * Check the state before acquisition, throughout contention and after
+	 * acquiring the lock. Return true with the lock held in expected_state,
+	 * or false without holding it on a mismatch. The caller must keep the
+	 * granule stable and acquire locks in the required order.
 	 */
 	bool granule_lock_on_state_match(struct granule *g,
 					 unsigned char expected_state);
 
 	/*
-	 * Used when we're certain of the state of an object (e.g. because we
-	 * hold a reference to it) or when locking objects whose reference is
-	 * obtained from another object, after that object is locked.
+	 * Acquire through a protected reference with a guaranteed state after
+	 * acquisition. Wait unconditionally for the lock, then assert the expected
+	 * state and check its invariants. The caller must establish the locking
+	 * order independently of the object's current state.
 	 */
 	void granule_lock(struct granule *g,
 			  unsigned char expected_state);
 
 	/*
-	 * Obtains a pointer to a locked granule at `addr` if `addr` is a valid
-	 * granule physical address and the state of the granule at `addr` is
-	 * `expected_state`.
+	 * Finds and locks the granule at `addr` for `tracking_size`. Returns
+	 * an encoded RMI_ERROR_TRACKING result containing `addr` if the tracking
+	 * granularity does not match, or RMI_ERROR_INPUT if the address, size or
+	 * Granule state is invalid. An incomplete tracking SRO returns RMI_BLOCKED.
 	 */
-	struct granule *find_lock_granule(unsigned long addr,
-					  unsigned char expected_state);
+	unsigned long tr_find_lock_granule(unsigned long addr,
+					   unsigned long tracking_size,
+					   unsigned char expected_state,
+					   struct granule **g);
 
 	/*
 	 * Find two granules and lock them in lock order. Granules of
-	 * the same type are locked in order of their address.
+	 * the same type are locked in order of their address. Returns an RMI
+	 * result and leaves no Granule locked on failure.
 	 */
-	bool find_lock_two_granules(unsigned long addr1,
-				    unsigned char expected_state1,
-				    struct granule **g1,
-				    unsigned long addr2,
-				    unsigned char expected_state2,
-				    struct granule **g2);
+	unsigned long tr_find_lock_two_fine_granules(unsigned long addr1,
+				       unsigned char expected_state1,
+				       struct granule **g1,
+				       unsigned long addr2,
+				       unsigned char expected_state2,
+				       struct granule **g2);
 
 	/*
 	 * Find three granules and lock them in lock order. Granules of
-	 * the same type are locked in order of their address.
+	 * the same type are locked in order of their address. Returns an RMI
+	 * result and leaves no Granule locked on failure.
 	 */
-	bool find_lock_three_granules(unsigned long addr1,
-				      unsigned char expected_state1,
-				      struct granule **g1,
-				      unsigned long addr2,
-				      unsigned char expected_state2,
-				      struct granule **g2,
-				      unsigned long addr3,
-				      unsigned char expected_state3,
-				      struct granule **g3);
+	unsigned long tr_find_lock_three_fine_granules(unsigned long addr1,
+					 unsigned char expected_state1,
+					 struct granule **g1,
+					 unsigned long addr2,
+					 unsigned char expected_state2,
+					 struct granule **g2,
+					 unsigned long addr3,
+					 unsigned char expected_state3,
+					 struct granule **g3);
 
 	/*
 	 * Obtain a pointer to a locked granule at `addr` which is unused
 	 * (refcount = 0), if `addr` is a valid granule physical address and the
 	 * state of the granule at `addr` is `expected_state`.
 	 */
-	int find_lock_unused_granule(unsigned long addr,
-				     unsigned char expected_state,
-				     struct granule **g);
+	int tr_find_lock_unused_fine_granule(unsigned long addr,
+					      unsigned char expected_state,
+					      struct granule **g);
 
 .. code-block:: C
 	:caption: **Granule unlocking operations**
@@ -598,22 +614,24 @@ classified into two categories:
 	- GRANULE_STATE_RD_AUX
 	- GRANULE_STATE_PARTIAL
 
+.. _locking_granule_order:
+
 We now state the locking guidelines for |RMM| as:
 
-#. Memory granules must be locked in type order:
+#. Independently-addressed memory granules must be locked in type order:
    RD, REC, PDEV, VDEV, RTT, DELEGATED, NS, followed by the remaining internal
    order below.
-   The ``find_lock_two_granules()`` and ``find_lock_three_granules()`` helpers
-   implement this ordering. RTT locking follows the hierarchy rules below, so
-   an RTT hierarchy is fully acquired before a DELEGATED backing granule is
-   locked.
+   The ``tr_find_lock_two_fine_granules()`` and
+   ``tr_find_lock_three_fine_granules()`` helpers
+   implement this ordering.
 
 #. Independently-addressed memory granules of the same type must be locked in
    order of their physical address, starting with the lowest address.
 
-#. Once a granule expected to be in an `external` state has been locked, its
-   state must be checked against the expected state. If these do not match, the
-   granule must be unlocked and no further granules may be locked within the
+#. An independently-addressed granule's state must be checked before
+   acquisition, throughout contention and after acquiring its lock. A mismatch
+   must stop acquisition without waiting for the granule to reach the expected
+   state. Release any acquired locks and do not acquire further granules within the
    currently-executing RMM command.
 
 #. Granules in the remaining `internal` states must be locked in order of
@@ -697,6 +715,108 @@ also causes a conservative retry.
 
 At Realm creation, ``obj_map_epoch`` is initialized to 0. Every RD object-map
 change advances this counter.
+
+Tracking-region representation locking
+***************************************
+
+A tracking region can represent its memory with either one coarse granule
+or a set of fine granules. These are ``struct granule`` objects for
+conventional memory and ``struct dev_granule`` objects for device memory.
+Both types can be coarse or fine. Each ``struct tracking_region`` object has
+a reader-writer lock protecting the active representation.
+Granule lookup paths take the lock for reading, while tracking-state
+transitions take it for writing.
+
+The following figure shows the two representations of one tracking region.
+Only one representation is active at a time; the inactive representation is
+prepared by a transition before it becomes active.
+
+.. code-block:: text
+
+   Coarse representation                 Fine representation
+
+   +-------------------+                 +-----+-----+-----+-----+
+   |        C          |       or        | F0  | F1  | ... | Fn  |
+   +-------------------+                 +-----+-----+-----+-----+
+   one granule for the region            one granule per physical Granule
+
+   The tracking-region reader-writer lock protects the choice between C and
+   F0...Fn.  The selected granule's Granule lock protects that granule.
+
+Tracking configuration, activation and queries share a global layout spinlock.
+A query holds it while locating a region and reading its state, so the layout
+cannot change during the query.
+
+Granule lookups follow the :ref:`locking-order rules <locking_granule_order>`:
+conventional Granule locks follow the global state and physical address order,
+RTTs follow their hierarchy, and device Granule locks follow ascending physical
+addresses. Each lookup acquires its own tracking-region reader, selects the
+active representation, locks the granule, then releases the reader. The acquired
+granule lock pins that representation until the caller releases it.
+
+Use ``tr_find_lock_*()`` for unowned PAs. Unlocked lookups do not pin metadata.
+Owned-granule helpers require ownership that pins both state and representation;
+they must not bypass validation of an unowned PA.
+
+``tr_find_lock_two_fine_granules()`` and
+``tr_find_lock_three_fine_granules()`` lock independent fine granules by state,
+then by ascending PA within each state. Coarse tracking causes them to release
+earlier locks and return ``RMI_ERROR_TRACKING``. RTT, DATA and auxiliary
+granules follow their hierarchy or ownership rules.
+
+A tracking API may acquire its temporary region reader while the caller holds
+earlier Granule locks. Readers may also nest inside the tracking implementation.
+This is safe because tracking writers never wait for readers or Granule locks
+while retaining the reader gate:
+
+#. Try the region writer. Acquire the reader gate and inspect the reader count
+   while the gate excludes new readers. If either the gate or an existing
+   reader is busy, return ``RMI_BUSY`` without retaining the gate.
+#. Try each source granule lock once. On contention, release the acquired
+   granule prefix and the region writer, then return ``RMI_BUSY``.
+#. Once all source granules are locked and valid, initialize the inactive
+   representation, publish the new tracking state, release the source locks
+   and finally release the region writer. This section must not wait for
+   another Granule lock.
+
+Tracking SROs use the same source locking and validation before publishing a
+pending marker. A failed claim publishes no marker. An SRO retaining donated
+metadata yields ``RMI_INCOMPLETE`` on contention. Live fine objects and
+``PARTIAL`` ownership prevent transition claims; unlocked coarse DATA/MAPPED
+granules can split.
+
+A reader arriving while the writer holds the region lock waits at the gate.
+After the writer releases the lock, the reader selects whichever representation
+is then active. If the writer backed off, the representation is unchanged.
+An admitted reader prevents writer acquisition.
+
+For example, an RMI caller can hold a coarse granule and make another lookup
+in the same region while a tracking transition attempts to split it:
+
+.. code-block:: text
+
+   RMI CPU                                    Transition CPU
+   -------                                    --------------
+   read_lock(region)
+   select and lock coarse granule C
+   read_unlock(region)                        try_write_lock(region): succeeds
+                                              try_lock(C): fails
+                                              write_unlock(region)
+                                              return RMI_BUSY
+   read_lock(region): can proceed
+   perform later lookup in Granule lock order
+   read_unlock(region)
+   unlock granules                            retry can now complete
+
+The same rule breaks a cycle when a different reader waits for an RMI caller's
+Granule: that reader prevents writer acquisition, so the RMI caller can still
+enter the reader gate to finish its own lookups. State-aware Granule locking
+remains necessary to preserve the state and address order between ordinary
+callers; writer backoff does not replace that ordering.
+
+See :doc:`dynamic-granule-management` for storage, allocation, allowed
+transitions, reference counts and RMI behavior. Map/unmap address-list ordering
+and SRO behavior are described in :doc:`rtt-map-unmap`.
 
 References
 ----------
