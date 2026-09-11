@@ -224,14 +224,19 @@ struct sro_unmap_ctx {
  * @g_llt taken when the marker is stamped; that refcount is the same
  * one the finalize step keeps to represent the eventual live mapping.
  *
- * DATA_MAP drains by transitioning, mapping and zeroing each backing
- * granule. DEV_MAP drains by locking each backing dev_granule and
+ * DATA_MAP zeroes fine backing granules before transitioning them to DATA.
+ * For coarse backing it owns @g_coarse in PARTIAL state while zeroing the
+ * region page by page. That state keeps its tracking representation stable
+ * across yields. @pending_off counts zeroed bytes until the entire coarse
+ * region can transition to DATA; it is not independently mapped progress.
+ * DEV_MAP drains by locking each backing dev_granule and
  * unlock-transitioning it from DELEGATED to MAPPED. On a pending IRQ
  * the @pending_off cursor records the next byte offset still owing the
  * drain so the SRO continue path can resume in-place. If a drain-time
  * error starts rollback, @rollback is set, @ret_err records the
  * terminal error, and @pending_off is reused as the count of already
- * drained bytes still to roll back. When the drain completes, the leaf
+ * drained fine bytes still to roll back. Coarse DATA_MAP has no fallible
+ * operation after claiming @g_coarse. When the drain completes, the leaf
  * s2tte is rewritten to the command-specific assigned form for the
  * target PA, replacing the SW marker.
  *
@@ -246,6 +251,7 @@ struct sro_unmap_ctx {
  */
 struct sro_map_ctx {
 	struct granule *g_llt;		/* Leaf RTT pinned across yields */
+	struct granule *g_coarse;		/* DATA_MAP owns this PARTIAL coarse unit */
 	unsigned long rd_addr;		/* RD address for continue */
 	unsigned long pa;		/* Block-aligned target PA */
 	unsigned long ipa;		/* IPA the block maps to */

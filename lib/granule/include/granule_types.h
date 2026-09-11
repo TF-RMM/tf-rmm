@@ -250,6 +250,7 @@
  * PARTIAL - An intermediate state which reserves a granule for an ongoing
  * SRO. It covers partially created or destroyed objects and tracking memory
  * participating in a stateful EL3 delegation or undelegation operation.
+ * It also reserves a coarse DATA_MAP unit while its pages are being zeroed.
  */
 #define GRANULE_STATE_PARTIAL		11U
 
