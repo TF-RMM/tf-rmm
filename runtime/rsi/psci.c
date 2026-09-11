@@ -298,6 +298,15 @@ static void psci_system_off_reset(struct rec *rec,
 	res->action = EXIT_TO_HOST;
 }
 
+/*
+ * The SMCCC function identifier is passed in W0. Keep all PSCI dispatch and
+ * deferred completion checks consistent by ignoring X0[63:32].
+ */
+static unsigned int psci_function_id(const struct rec_plane *plane)
+{
+	return (unsigned int)plane->regs[0];
+}
+
 static void psci_features(struct rec_plane *plane, struct rsi_result *res)
 {
 	unsigned int psci_func_id = (unsigned int)plane->regs[1];
@@ -328,7 +337,7 @@ void handle_psci(struct rec *rec,
 		 struct rsi_result *res)
 {
 	struct rec_plane *plane = rec_active_plane(rec);
-	unsigned int function_id = (unsigned int)plane->regs[0];
+	unsigned int function_id = psci_function_id(plane);
 
 	switch (function_id) {
 	case SMC32_PSCI_VERSION:
@@ -410,6 +419,7 @@ static unsigned long complete_psci_cpu_on(struct rec *target_rec,
 unsigned long psci_complete_denied_request(struct rec *calling_rec)
 {
 	struct rec_plane *calling_plane = rec_active_plane(calling_rec);
+	unsigned int function_id = psci_function_id(calling_plane);
 
 	/* PSCI requests can only be done by Plane 0 */
 	assert(calling_plane == rec_plane_0(calling_rec));
@@ -418,7 +428,7 @@ unsigned long psci_complete_denied_request(struct rec *calling_rec)
 		return RMI_ERROR_INPUT;
 	}
 
-	switch (calling_plane->regs[0]) {
+	switch (function_id) {
 	case SMC32_PSCI_CPU_ON:
 	case SMC64_PSCI_CPU_ON:
 		calling_plane->regs[0] = PSCI_RETURN_DENIED;
@@ -449,6 +459,7 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 	unsigned long ret = RMI_SUCCESS;
 	unsigned long rec_ret = PSCI_RETURN_NOT_SUPPORTED;
 	struct rec_plane *calling_plane = rec_active_plane(calling_rec);
+	unsigned int function_id = psci_function_id(calling_plane);
 	STRUCT_TYPE sysreg_state *calling_sysregs =
 					rec_active_plane_sysregs(calling_rec);
 
@@ -463,7 +474,7 @@ unsigned long psci_complete_request(struct rec *calling_rec,
 		return RMI_ERROR_INPUT;
 	}
 
-	switch (calling_plane->regs[0]) {
+	switch (function_id) {
 	case SMC32_PSCI_CPU_ON:
 	case SMC64_PSCI_CPU_ON:
 		if ((status != PSCI_RETURN_SUCCESS) &&
