@@ -125,3 +125,625 @@ static unsigned long tracking_region_lookup_by_idx(
 					unsigned long tr_idx,
 					size_t entry_size,
 					unsigned long *granule_idx);
+
+/*
+ * Return the granule-array stride for one region. Each fine tracking region has
+ * a page-aligned range so its metadata can be reclaimed independently.
+ */
+static unsigned long tracking_region_fine_stride(unsigned long region_size,
+						 size_t entry_size)
+{
+	size_t raw_size;
+	size_t stride;
+
+	assert((entry_size != 0UL) &&
+	       ((region_size == TRACKING_REGION_MIN_SIZE) ||
+		(region_size == TRACKING_REGION_MAX_SIZE)));
+	raw_size = (region_size / GRANULE_SIZE) * entry_size;
+	stride = round_up(raw_size, GRANULE_SIZE);
+	assert((stride >= raw_size) && ((stride % entry_size) == 0UL));
+
+	return stride / entry_size;
+}
+
+/*
+ * Copy one category of platform banks into a struct tracking_memory_bank array.
+ *
+ * @platform_banks contains @count struct plat_memory_bank entries and may be
+ * NULL only when @count is zero. Zero-sized banks are ignored. Every other bank
+ * must have a granule-aligned base and size, and its address range must not overflow.
+ * Starting at *@num_banks, append a struct tracking_memory_bank for each valid
+ * range to @banks and record @category, without exceeding @capacity. The caller
+ * subsequently sorts the array and validates that its ranges do not overlap.
+ *
+ * Return 0 on success, -EINVAL for a missing array or unaligned bank,
+ * -EOVERFLOW for a wrapping address range, or -ENOSPC when @banks is full.
+ * Entries appended before an error are not rolled back because initialization
+ * failure is boot-fatal.
+ */
+static int tracking_region_copy_bank_category(
+				   const struct plat_memory_bank *platform_banks,
+				   unsigned long count,
+				   unsigned long category,
+				   struct tracking_memory_bank *banks,
+				   unsigned int capacity,
+				   unsigned int *num_banks)
+{
+	assert(banks != NULL);
+	assert(num_banks != NULL);
+	assert(category <= RMI_MEM_CATEGORY_DEV_COH);
+
+	if ((platform_banks == NULL) && (count != 0UL)) {
+		ERROR("%s: missing bank array for category %lu\n",
+		      __func__, category);
+		return -EINVAL;
+	}
+
+	for (unsigned long i = 0UL; i < count; i++) {
+		const struct plat_memory_bank *bank = &platform_banks[i];
+
+		if (bank->size == 0UL) {
+			continue;
+		}
+		if (!GRANULE_ALIGNED(bank->base) ||
+		    !GRANULE_ALIGNED(bank->size)) {
+			ERROR("%s %lu: bank is not granule aligned\n",
+			      __func__, category);
+			return -EINVAL;
+		}
+		if (bank->base > (UINT64_MAX - bank->size)) {
+			ERROR("%s %lu: bank range overflows\n",
+			      __func__, category);
+			return -EOVERFLOW;
+		}
+
+		if (*num_banks >= capacity) {
+			ERROR("%s %lu: capacity %u exceeded\n",
+			      __func__, category, capacity);
+			return -ENOSPC;
+		}
+
+		banks[*num_banks].base = bank->base;
+		banks[*num_banks].size = bank->size;
+		banks[*num_banks].category = (uint8_t)category;
+		(*num_banks)++;
+	}
+
+	return 0;
+}
+
+/*
+ * Sort the struct tracking_memory_bank array @banks by base and assert that
+ * the resulting ranges do not overlap.
+ */
+static void tracking_region_sort_and_validate_banks(
+					struct tracking_memory_bank *banks,
+					unsigned int count)
+{
+	for (unsigned int i = 1U; i < count; i++) {
+		struct tracking_memory_bank bank = banks[i];
+		unsigned int j = i;
+
+		while ((j > 0U) && (banks[j - 1U].base > bank.base)) {
+			banks[j] = banks[j - 1U];
+			j--;
+		}
+
+		banks[j] = bank;
+	}
+
+	for (unsigned int i = 0U; i < count; i++) {
+		assert(banks[i].base <= (UINT64_MAX - banks[i].size));
+		if (i > 0U) {
+			assert((banks[i - 1U].base + banks[i - 1U].size) <=
+			       banks[i].base);
+		}
+	}
+}
+
+/*
+ * Assert that the raw conventional and device PA ranges do not overlap. Bank
+ * boundaries need not be tracking-region aligned, so disjoint banks may lie
+ * within the same tracking region and share its index.
+ */
+static void tracking_memory_banks_validate_no_overlap(
+				const struct tracking_memory_bank_storage *storage,
+				unsigned int conv_count,
+				unsigned int dev_count)
+{
+	for (unsigned int i = 0U; i < conv_count; i++) {
+		const struct tracking_memory_bank *conv __unused =
+			&storage->conv_banks[i];
+		unsigned long conv_end __unused = conv->base + conv->size;
+
+		for (unsigned int j = 0U; j < dev_count; j++) {
+			const struct tracking_memory_bank *dev __unused =
+				&storage->dev_banks[j];
+			unsigned long dev_end __unused = dev->base + dev->size;
+
+			assert((conv_end <= dev->base) ||
+			       (dev_end <= conv->base));
+		}
+	}
+}
+
+/*
+ * Build the compressed, shared tracking-region index space across conventional
+ * and device memory banks.
+ *
+ * @storage contains two struct tracking_memory_bank arrays, one per memory
+ * type. @conv_count and @dev_count select their populated entries, which must
+ * have already been sorted and checked for overlap. @region_size is the
+ * configured tracking-region size. A temporary PA-ordered view leaves the
+ * stored arrays unchanged.
+ * Complete aligned holes consume no array entry, while disjoint banks which
+ * intersect the same tracking region share an index.
+ *
+ * The function sets @tracking_start_idx in each struct tracking_memory_bank
+ * to its first shared index and returns the number of struct tracking_region
+ * objects required by the layout.
+ */
+static unsigned long tracking_memory_banks_assign_shared_indices(
+				struct tracking_memory_bank_storage *storage,
+				unsigned int conv_count,
+				unsigned int dev_count,
+				unsigned long region_size)
+{
+	struct tracking_memory_bank *banks[MAX_TRACKING_MEMORY_BANKS];
+	unsigned int count = conv_count + dev_count;
+	unsigned long current_top = 0UL;
+	unsigned long num_regions = 0UL;
+
+	assert(count <= MAX_TRACKING_MEMORY_BANKS);
+	assert((region_size == TRACKING_REGION_MIN_SIZE) ||
+	       (region_size == TRACKING_REGION_MAX_SIZE));
+
+	/* Build a combined view without moving either struct tracking_memory_bank array. */
+	for (unsigned int i = 0U; i < conv_count; i++) {
+		banks[i] = &storage->conv_banks[i];
+	}
+
+	for (unsigned int i = 0U; i < dev_count; i++) {
+		banks[conv_count + i] = &storage->dev_banks[i];
+	}
+
+	/*
+	 * Sort the temporary pointer table by PA so both memory types receive
+	 * indices from one address-ordered space without rearranging their arrays.
+	 */
+	for (unsigned int i = 0U; i < count; i++) {
+		for (unsigned int j = i + 1U; j < count; j++) {
+			if (banks[j]->base < banks[i]->base) {
+				struct tracking_memory_bank *bank = banks[i];
+
+				banks[i] = banks[j];
+				banks[j] = bank;
+			}
+		}
+	}
+
+	/*
+	 * Assign shared indices in PA order. Complete holes are omitted, while
+	 * banks intersecting the same aligned tracking region reuse its index.
+	 *
+	 * PA:    | CONV bank | DEV bank | full hole | CONV bank |
+	 * TR:    |----------- TR 0 -----|  omitted  |--- TR 1 --|
+	 * index: |             0        |           |    1      |
+	 */
+	for (unsigned int i = 0U; i < count; i++) {
+		struct tracking_memory_bank *bank = banks[i];
+		unsigned long base = round_down(bank->base, region_size);
+		unsigned long start_idx;
+		unsigned long top;
+
+		top = round_up(bank->base + bank->size, region_size);
+		if ((i == 0U) || (base >= current_top)) {
+			start_idx = num_regions;
+			num_regions += (top - base) / region_size;
+			current_top = top;
+		} else {
+			unsigned long overlap_regions;
+
+			overlap_regions = (current_top - base) / region_size;
+			/* Disjoint PA banks can share only one boundary region. */
+			assert(overlap_regions <= 1UL);
+			assert(overlap_regions <= num_regions);
+			start_idx = num_regions - overlap_regions;
+
+			if (top > current_top) {
+				num_regions += (top - current_top) / region_size;
+				current_top = top;
+			}
+		}
+
+		assert(start_idx <= UINT32_MAX);
+		bank->tracking_start_idx = (uint32_t)start_idx;
+	}
+
+	return num_regions;
+}
+
+/*
+ * Build the type-local fine-granule index space for @banks.
+ *
+ * @banks contains @count struct tracking_memory_bank entries describing
+ * PA-ordered, non-overlapping banks of one memory type. In each entry, set
+ * @granule_start_idx to the first granule slot for the aligned tracking region
+ * containing its base. Disjoint banks which intersect the same tracking region
+ * share that region's granule range.
+ *
+ * A represented tracking region reserves a complete page-aligned granule
+ * stride. This includes slots for intra-region holes and any page padding, so
+ * address-to-index conversion remains arithmetic and each region's metadata can
+ * be populated or reclaimed independently. Entire tracking-region holes between
+ * banks are omitted from the compact array.
+ *
+ * PA:    | hole | bank A | hole | bank B | full TR hole |  bank C   |
+ * TR:    |------------- TR 0 ------------|   omitted    |-- TR 1 ---|
+ * array: |-------- full TR 0 slots ------|              | TR 1 slots|
+ *
+ * Banks A and B have start index 0. Bank C starts after one complete granule
+ * stride. @region_size must be a supported tracking-region size and @entry_size
+ * is sizeof(struct granule) or sizeof(struct dev_granule). Return the total
+ * number of array slots, including page-alignment padding, required by the
+ * compact array.
+ */
+static unsigned long tracking_memory_banks_assign_fine_indices(
+					struct tracking_memory_bank *banks,
+					unsigned int count,
+					unsigned long region_size,
+					size_t entry_size)
+{
+	unsigned long current_top = 0UL;
+	unsigned long num_granules = 0UL;
+	unsigned long descriptors_per_region =
+		tracking_region_fine_stride(region_size, entry_size);
+
+	assert((region_size == TRACKING_REGION_MIN_SIZE) ||
+	       (region_size == TRACKING_REGION_MAX_SIZE));
+
+	for (unsigned int i = 0U; i < count; i++) {
+		struct tracking_memory_bank *bank = &banks[i];
+		unsigned long base = round_down(bank->base, region_size);
+		unsigned long top =
+			round_up(bank->base + bank->size, region_size);
+		unsigned long start_idx;
+
+		if ((i == 0U) || (base >= current_top)) {
+			start_idx = num_granules;
+			num_granules += ((top - base) / region_size) *
+					descriptors_per_region;
+			current_top = top;
+		} else {
+			unsigned long overlap_regions =
+				(current_top - base) / region_size;
+			unsigned long overlap = overlap_regions *
+						 descriptors_per_region;
+
+			/* Disjoint banks can share only one tracking region. */
+			assert(overlap_regions <= 1UL);
+			assert(overlap <= num_granules);
+			start_idx = num_granules - overlap;
+			if (top > current_top) {
+				num_granules +=
+					((top - current_top) / region_size) *
+						descriptors_per_region;
+				current_top = top;
+			}
+		}
+
+		bank->granule_start_idx = start_idx;
+	}
+
+	return num_granules;
+}
+
+/*
+ * Reserve VA for an array of @count entries, each @entry_size bytes.
+ *
+ * The required size is rounded up to a granule boundary and recorded in
+ * @mapping in the reserved state. Backing is populated separately by the EL3
+ * allocation path or from Host-donated pages. If @mapping already describes a
+ * reservation, leave it unchanged and verify that it is large enough. @name is
+ * used only for diagnostic logging.
+ *
+ * An empty array succeeds without modifying @mapping. Return 0 on success,
+ * -EOVERFLOW if the rounded size cannot be represented, -ERANGE if an existing
+ * reservation is too small, or an error from the architecture reservation.
+ */
+static int tracking_array_reserve(struct tracking_array_mapping *mapping,
+				  unsigned long count,
+				  size_t entry_size,
+				  const char *name)
+{
+	size_t required_size;
+	int ret;
+
+	assert(mapping != NULL);
+	assert(entry_size != 0UL);
+	assert(name != NULL);
+
+	if (count == 0UL) {
+		return 0;
+	}
+	if (count > ((SIZE_MAX - (GRANULE_SIZE - 1UL)) / entry_size)) {
+		return -EOVERFLOW;
+	}
+
+	required_size = round_up(count * entry_size, GRANULE_SIZE);
+	if (mapping->size != 0UL) {
+		return (required_size <= mapping->size) ? 0 : -ERANGE;
+	}
+
+	ret = tracking_region_arch_reserve(required_size, &mapping->va);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mapping->size = required_size;
+	mapping->state = TRACKING_REGIONS_RESERVED;
+
+	INFO("Reserved %s VA: 0x%lx, size: 0x%lx\n",
+	     name, mapping->va, mapping->size);
+
+	return 0;
+}
+
+/*
+ * Initialize the persistent tracking-region layout and its VA reservations.
+ *
+ * @data must identify granule-aligned storage for struct tracking_region_data,
+ * and @data_size must cover the structure. During cold boot, the function
+ * copies the platform's struct plat_memory_bank arrays into the embedded
+ * struct tracking_memory_bank arrays for conventional and device memory,
+ * and validates their PA ranges.
+ * It then builds the shared tracking-region and fine-granule indices,
+ * reserving enough VA for either supported region size.
+ * Metadata backing is populated separately.
+ *
+ * The initial configuration uses 1 GiB tracking regions. RMI_RMM_CONFIG_SET may
+ * select 2 MiB regions before granule initialization. On LFA, the initialized
+ * struct tracking_region_data, including its indices and mappings, is reused
+ * unchanged.
+ *
+ * A bank-list pointer may be NULL only when its corresponding count is zero.
+ * Return 0 on success, or a negative error code for an invalid @data or
+ * @data_size, an invalid or unrepresentable bank list, or a VA reservation
+ * failure.
+ */
+int tracking_region_indices_init(
+		uintptr_t data,
+		size_t data_size,
+		const struct plat_memory_bank *conv_banks,
+		unsigned long conv_bank_count,
+		const struct plat_memory_bank *dev_ncoh_banks,
+		unsigned long dev_ncoh_bank_count,
+		const struct plat_memory_bank *dev_coh_banks,
+		unsigned long dev_coh_bank_count)
+{
+	struct tracking_memory_bank_storage *storage;
+	unsigned long conv_granules_2mb;
+	unsigned long conv_granules_1gb;
+	unsigned long dev_granules_2mb;
+	unsigned long dev_granules_1gb;
+	unsigned long max_conv_granules;
+	unsigned long max_dev_granules;
+	unsigned long max_region_count;
+	unsigned long default_region_count;
+	unsigned int conv_count = 0U;
+	unsigned int dev_count = 0U;
+	int ret;
+
+	if ((data == 0UL) || (data_size < sizeof(*tracking_data)) ||
+	    !GRANULE_ALIGNED(data)) {
+		return -EINVAL;
+	}
+
+	tracking_data = (struct tracking_region_data *)data;
+	if (tracking_data->tracking_region_size != 0UL) {
+		/*
+		 * glob_data_init() already validated the persistent layout version.
+		 * A configured size marks completed cold-boot initialization, so LFA
+		 * reuses the indices in struct tracking_memory_bank, mappings and
+		 * granule state.
+		 */
+		return 0;
+	}
+
+	storage = &tracking_data->banks;
+
+	ret = tracking_region_copy_bank_category(conv_banks, conv_bank_count,
+					     RMI_MEM_CATEGORY_CONVENTIONAL,
+					     storage->conv_banks,
+					     MAX_CONV_TRACKING_MEMORY_BANKS,
+					     &conv_count);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = tracking_region_copy_bank_category(dev_ncoh_banks,
+					     dev_ncoh_bank_count,
+					     RMI_MEM_CATEGORY_DEV_NCOH,
+					     storage->dev_banks,
+					     MAX_DEV_TRACKING_MEMORY_BANKS,
+					     &dev_count);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = tracking_region_copy_bank_category(dev_coh_banks,
+					     dev_coh_bank_count,
+					     RMI_MEM_CATEGORY_DEV_COH,
+					     storage->dev_banks,
+					     MAX_DEV_TRACKING_MEMORY_BANKS,
+					     &dev_count);
+	if (ret != 0) {
+		return ret;
+	}
+
+	if ((conv_count == 0U) && (dev_count == 0U)) {
+		return -EINVAL;
+	}
+
+	/* Keep each list ordered for binary lookup and validate its PA ranges. */
+	tracking_region_sort_and_validate_banks(storage->conv_banks,
+						conv_count);
+	tracking_region_sort_and_validate_banks(storage->dev_banks,
+						dev_count);
+	tracking_memory_banks_validate_no_overlap(storage, conv_count,
+						  dev_count);
+
+	/*
+	 * A 2 MiB size creates the most struct tracking_region objects. Fine-array
+	 * requirements depend on bank-boundary padding and the granule stride,
+	 * so calculate both supported sizes. Calculate the default 1 GiB layout last
+	 * to leave the indices in struct tracking_memory_bank ready for initial use.
+	 */
+	max_region_count = tracking_memory_banks_assign_shared_indices(storage,
+				conv_count, dev_count, TRACKING_REGION_MIN_SIZE);
+	default_region_count = tracking_memory_banks_assign_shared_indices(storage,
+				conv_count, dev_count, TRACKING_REGION_MAX_SIZE);
+	conv_granules_2mb = tracking_memory_banks_assign_fine_indices(storage->conv_banks,
+		conv_count, TRACKING_REGION_MIN_SIZE, sizeof(struct granule));
+	conv_granules_1gb = tracking_memory_banks_assign_fine_indices(storage->conv_banks,
+		conv_count, TRACKING_REGION_MAX_SIZE, sizeof(struct granule));
+	dev_granules_2mb = tracking_memory_banks_assign_fine_indices(storage->dev_banks,
+		dev_count, TRACKING_REGION_MIN_SIZE, sizeof(struct dev_granule));
+	dev_granules_1gb = tracking_memory_banks_assign_fine_indices(storage->dev_banks,
+		dev_count, TRACKING_REGION_MAX_SIZE, sizeof(struct dev_granule));
+	max_conv_granules = MAX(conv_granules_2mb, conv_granules_1gb);
+	max_dev_granules = MAX(dev_granules_2mb, dev_granules_1gb);
+
+	ret = tracking_array_reserve(&tracking_data->tracking_region_array,
+				     max_region_count,
+				     sizeof(struct tracking_region),
+				     "struct tracking_region array");
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = tracking_array_reserve(&tracking_data->granule_array_tr,
+				     max_conv_granules,
+				     sizeof(struct granule),
+				     "tracking granule array");
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = tracking_array_reserve(&tracking_data->dev_granule_array_tr,
+				     max_dev_granules,
+				     sizeof(struct dev_granule),
+				     "tracking device-granule array");
+	if (ret != 0) {
+		return ret;
+	}
+
+	tracking_data->num_conv_tracking_banks = conv_count;
+	tracking_data->num_dev_tracking_banks = dev_count;
+	tracking_data->num_tracking_regions = default_region_count;
+	tracking_data->num_tracking_granules = conv_granules_1gb;
+	tracking_data->num_tracking_dev_granules = dev_granules_1gb;
+	tracking_data->tracking_region_size = TRACKING_REGION_MAX_SIZE;
+
+	return 0;
+}
+
+/*
+ * Select and build the active tracking-region layout before RMM activation.
+ *
+ * Cold boot installs the default maximum-size layout while reserving VA for
+ * the worst supported metadata density. RMI_RMM_CONFIG_SET calls this before
+ * granule initialization to select the Host-requested size. A request for
+ * the current size succeeds without rebuilding the indices. A size change
+ * rebuilds the shared tracking-region indices, the type-local fine-granule
+ * indices, and their active counts without changing the existing VA
+ * reservations or backing.
+ *
+ * The global layout lock excludes configuration reads, activation and
+ * tracking-info queries while indices are rebuilt. The LFA path reuses the
+ * persisted indices and does not call this function.
+ * @tr_size must be TRACKING_REGION_MIN_SIZE or TRACKING_REGION_MAX_SIZE.
+ * Returns 0 on success, or -EINVAL when struct tracking_region_data is
+ * unavailable, @tr_size is not supported, or tracking granules have already
+ * been initialized.
+ */
+int tracking_region_configure(unsigned long tr_size)
+{
+	struct tracking_memory_bank_storage *storage;
+	unsigned long conv_granules;
+	unsigned long dev_granules;
+	unsigned long region_count;
+	int ret = 0;
+
+	if ((tracking_data == NULL) ||
+	    ((tr_size != TRACKING_REGION_MIN_SIZE) &&
+	     (tr_size != TRACKING_REGION_MAX_SIZE))) {
+		return -EINVAL;
+	}
+
+	spinlock_acquire(&tracking_layout_lock);
+	if (tracking_data->tracking_initialized) {
+		ret = -EINVAL;
+		goto out;
+	}
+	if (tracking_data->tracking_region_size == tr_size) {
+		goto out;
+	}
+
+	storage = &tracking_data->banks;
+	region_count = tracking_memory_banks_assign_shared_indices(storage,
+				tracking_data->num_conv_tracking_banks,
+				tracking_data->num_dev_tracking_banks, tr_size);
+	conv_granules = tracking_memory_banks_assign_fine_indices(storage->conv_banks,
+			tracking_data->num_conv_tracking_banks, tr_size,
+			sizeof(struct granule));
+	dev_granules = tracking_memory_banks_assign_fine_indices(storage->dev_banks,
+			tracking_data->num_dev_tracking_banks, tr_size,
+			sizeof(struct dev_granule));
+
+	/* Boot reserved each VA array for the largest supported layout. */
+	assert(region_count <=
+	       (tracking_data->tracking_region_array.size /
+		sizeof(struct tracking_region)));
+	assert(conv_granules <=
+	       (tracking_data->granule_array_tr.size / sizeof(struct granule)));
+	assert(dev_granules <=
+	       (tracking_data->dev_granule_array_tr.size /
+		sizeof(struct dev_granule)));
+
+	tracking_data->num_tracking_regions = region_count;
+	tracking_data->num_tracking_granules = conv_granules;
+	tracking_data->num_tracking_dev_granules = dev_granules;
+	tracking_data->tracking_region_size = tr_size;
+out:
+	spinlock_release(&tracking_layout_lock);
+	return ret;
+}
+
+/*
+ * Return the configured tracking-region size in bytes without taking a lock.
+ * The caller must ensure configuration cannot run concurrently.
+ */
+unsigned long tracking_region_get_size(void)
+{
+	assert((tracking_data != NULL) &&
+	       (tracking_data->tracking_region_size != 0UL));
+
+	return tracking_data->tracking_region_size;
+}
+
+/*
+ * Return the configured size in bytes for RMI_RMM_CONFIG_GET, serializing the
+ * read with configuration and activation. The caller must not hold the layout
+ * lock, a tracking-region lock or a Granule lock. No lock remains held on return.
+ */
+unsigned long tracking_region_get_rmm_config_size(void)
+{
+	unsigned long size;
+
+	spinlock_acquire(&tracking_layout_lock);
+	size = tracking_region_get_size();
+	spinlock_release(&tracking_layout_lock);
+
+	return size;
+}
