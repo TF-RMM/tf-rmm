@@ -24,6 +24,7 @@
 #include <stddef.h>
 /* coverity[unnecessary_header:SUPPRESS] */
 #include <string.h>
+#include <tracking_region.h>
 #include <utils_def.h>
 #include <xlat_defs.h>
 
@@ -55,6 +56,7 @@ static struct rmi_handles sro_handles[] = {
 		   granule_delegate_continue),
 	SRO_HANDLE(GRANULE_RANGE_UNDELEGATE,
 		   granule_undelegate_continue),
+	SRO_HANDLE(GRANULE_TRACKING_SET, tracking_region_sro_handler),
 };
 COMPILER_ASSERT(ARRAY_SIZE(sro_handles) <= SMC64_NUM_FIDS_IN_RANGE(RMI));
 
@@ -81,8 +83,13 @@ sro_handle_cb sro_install_test_handler(unsigned long command, sro_handle_cb cb)
 	return old;
 }
 
-static void rmi_op_dispatch(unsigned long fid,
-			    struct smc_result *res)
+/*
+ * Dispatch one follow-up call and update the active SRO's next-call contract.
+ * The context must already be assigned to the current PE. Conditional memory
+ * state is retained verbatim so the command callback can enforce its
+ * address-dependent donation rules.
+ */
+static void rmi_op_dispatch(unsigned long fid, struct smc_result *res)
 {
 	struct sro_context *sro = my_sro_ctx();
 	return_code_t return_code;
@@ -113,8 +120,9 @@ static void rmi_op_dispatch(unsigned long fid,
 				(EXTRACT(RMI_OP_DONATE_MEM_CONTIG, res->x[2]) ==
 							RMI_OP_MEM_CONTIG);
 
-			/* TODO: Add support for RMI_OP_MEM_CONDITIONAL */
-			sro->mem_state = EXTRACT(RMI_OP_DONATE_MEM_STATE, res->x[2]);
+			sro->mem_state = EXTRACT(RMI_OP_DONATE_MEM_STATE,
+						     res->x[2]);
+			assert(sro->mem_state <= RMI_OP_MEM_CONDITIONAL);
 		}
 
 		/*
