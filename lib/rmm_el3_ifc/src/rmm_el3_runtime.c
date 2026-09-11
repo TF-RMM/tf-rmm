@@ -579,21 +579,40 @@ static void rmm_el3_ifc_gtsi_assert_undelegate_status(
 }
 
 /*
- * Delegate a Granule-aligned range to Realm PAS. FIRME accepts the complete
- * range as a Granule count and can report stateless partial progress. The
- * compatibility path expands it into legacy single-Granule GTSI calls.
+ * Delegate the Granule-aligned range [@addr, @addr + @size) to Realm PAS.
  *
- * Return the mapped EL3 status independently of @processed_size, which receives
- * the prefix changed to Realm PAS. The caller applies its tracking policy to
- * decide whether to report progress, retry the suffix or roll back the prefix.
- * Issue one FIRME request so the caller can yield between retries.
- * The FIRME response helper treats success without progress as fatal.
+ * Args:
+ *	- addr:	Base PA of the range. Must be Granule-aligned.
+ *	- size:	Size of the range in bytes. Must be a nonzero multiple of
+ *		GRANULE_SIZE.
+ *	- processed_size:	Receives the delegated prefix in bytes, independently
+ *				of the returned status. Zero if EL3 supplies no valid
+ *				progress count.
+ *	- cookie:		Receives the FIRME cookie only on E_RMM_IN_PROGRESS.
+ *				Unchanged otherwise; no continuation cookie is valid.
+ *
+ * FIRME is invoked once. The legacy GTSI interface is invoked once per Granule
+ * until completion, error or a pending interrupt. Both preserve any delegated
+ * prefix alongside the mapped EL3 status. The caller retains ownership of the
+ * range and decides whether its tracking granularity permits reporting
+ * progress, requires a suffix retry, or requires rollback after a conflict
+ * or permanent failure.
+ *
+ * Return:
+ *	- E_RMM_OK: EL3 processed a non-empty prefix, possibly smaller than @size.
+ *	- E_RMM_IN_PROGRESS: FIRME retained a stateful operation and returned a
+ *			     cookie. The prefix may be empty.
+ *	- E_RMM_AGAIN: FIRME reported a stateless conflict, possibly with progress.
+ *		       Any retry of the suffix must use GPI_SET.
+ *	- E_RMM_BUSY: EL3 made no progress and retained no stateful operation.
+ *	- E_RMM_UNK, E_RMM_BAD_ADDR, E_RMM_BAD_PAS, E_RMM_NOMEM, E_RMM_INVAL,
+ *	  E_RMM_FAULT, E_RMM_NOTSUP or E_RMM_DENIED:
+ *	  EL3 rejected the operation. @processed_size may still be nonzero.
  */
-/* cppcheck-suppress misra-c2012-8.7 */
-int rmm_el3_ifc_gtsi_delegate(unsigned long addr,
-			    unsigned long size,
-			    unsigned long *processed_size,
-			    unsigned long *cookie)
+static int rmm_el3_ifc_gtsi_delegate(unsigned long addr,
+				   unsigned long size,
+				   unsigned long *processed_size,
+				   unsigned long *cookie)
 {
 	assert(GRANULE_ALIGNED(addr) && (size != 0UL) && GRANULE_ALIGNED(size) &&
 	       (processed_size != NULL) && (cookie != NULL));
@@ -610,21 +629,34 @@ int rmm_el3_ifc_gtsi_delegate(unsigned long addr,
 }
 
 /*
- * Undelegate a Granule-aligned range to NS PAS. Issue at most one FIRME call
- * so a caller can yield after stateless partial progress. The compatibility
- * path expands the range into legacy single-Granule GTSI calls.
+ * Undelegate the granule-aligned range [@addr, @addr + @size) to NS PAS.
  *
- * @processed_size receives the successfully undelegated prefix. A caller must
- * continue from that boundary until it reaches its required tracking unit.
+ * Args:
+ *	- addr:	Base PA of the range. Must be Granule-aligned.
+ *	- size:	Size of the range in bytes. Must be a nonzero multiple of
+ *		GRANULE_SIZE.
+ *	- processed_size:	Receives the size of the prefix changed to NS PAS.
+ *	- cookie:		Receives the FIRME cookie when the operation is
+ *				incomplete. Unchanged for the legacy interface.
  *
- * Return: The standardized RMM-EL3 status associated with the reported
- * progress.
+ * At most one FIRME call is issued, allowing the caller to yield after a
+ * stateless partial response or retain a cookie for stateful continuation. The
+ * legacy GTSI interface is invoked once per Granule until completion. Any
+ * legacy failure is logged and causes a panic.
+ *
+ * Return:
+ *	- E_RMM_OK: EL3 processed a non-empty prefix.
+ *	- E_RMM_IN_PROGRESS: FIRME retained a stateful operation and returned a
+ *			     cookie.
+ *	- E_RMM_BUSY: FIRME made no progress; the caller can retry the request.
+ *
+ * RMM owns every input Granule and validates the range before this call.
+ * Therefore, any other EL3 status is an interface contract violation.
  */
-/* cppcheck-suppress misra-c2012-8.7 */
-int rmm_el3_ifc_gtsi_undelegate(unsigned long addr,
-				unsigned long size,
-				unsigned long *processed_size,
-				unsigned long *cookie)
+static int rmm_el3_ifc_gtsi_undelegate(unsigned long addr,
+				     unsigned long size,
+				     unsigned long *processed_size,
+				     unsigned long *cookie)
 {
 	int ret;
 
@@ -641,19 +673,38 @@ int rmm_el3_ifc_gtsi_undelegate(unsigned long addr,
 							 processed_size);
 	}
 
-	rmm_el3_ifc_gtsi_assert_undelegate_status(ret, *processed_size);
 	return ret;
 }
 
 /*
- * Resume a stateful FIRME GPI transition and report this invocation's
- * progress. This function is reached only after GPI_SET returned a cookie, so
- * no legacy GTSI equivalent is required.
+ * Resume a stateful FIRME GPI transition identified by @cookie.
+ *
+ * @remaining_size is the Granule-aligned size which has not yet been
+ * processed by the operation.
+ * @processed_size receives the number of bytes processed by this invocation.
+ * @next_cookie receives the returned cookie when FIRME returns INCOMPLETE
+ * or BUSY. BUSY retains the existing operation and adds no progress; its
+ * UNKNOWN count is ignored.
+ *
+ * Return:
+ *	- E_RMM_OK: FIRME ended the operation after processing a non-empty
+ *		    prefix. The prefix may be smaller than @remaining_size; no
+ *		    continuation cookie is retained in this case.
+ *	- E_RMM_IN_PROGRESS: FIRME retained the operation and returned a new
+ *			     cookie.
+ *	- E_RMM_BUSY: FIRME made no progress and returned a cookie for the retained
+ *		      operation. Use it for another GPI_OP_CONTINUE.
+ *	- E_RMM_AGAIN: FIRME reported a conflict and invalidated the cookie.
+ *		       Retain @processed_size; any retry of the suffix uses
+ *		       GPI_SET after yielding.
+ *	- E_RMM_UNK, E_RMM_INVAL, E_RMM_NOTSUP or E_RMM_DENIED:
+ *	  Standardized reason that FIRME stopped processing. @processed_size may
+ *	  still describe a non-empty prefix.
  */
-int rmm_el3_ifc_gtsi_continue(unsigned long cookie,
-			      unsigned long remaining_size,
-			      unsigned long *processed_size,
-			      unsigned long *next_cookie)
+static int rmm_el3_ifc_gtsi_continue(unsigned long cookie,
+				   unsigned long remaining_size,
+				   unsigned long *processed_size,
+				   unsigned long *next_cookie)
 {
 	unsigned long ret;
 

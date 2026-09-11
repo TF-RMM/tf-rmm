@@ -278,6 +278,18 @@ struct sro_granule_delegate_ctx {
 	bool device;			/* Whether dev_granules are used. */
 };
 
+/* State retained while a fine run or coarse unit is undelegated to NS PAS. */
+struct sro_granule_undelegate_ctx {
+	struct rmm_el3_gpi_state el3;	/* Shared undelegation EL3 state. */
+	unsigned long host_addr;		/* Initial RMI range cursor. */
+	unsigned long addr;		/* Base PA of the original EL3 request. */
+	unsigned long size;		/* Size of the original EL3 request. */
+	unsigned long tracking_size;	/* Size represented by one granule. */
+	unsigned long sanitize_offset;	/* Next conventional page to sanitize. */
+	unsigned long undelegated_size;	/* Prefix already changed to NS PAS. */
+	bool device;			/* Whether dev_granules are used. */
+};
+
 struct sro_context {
 	/* State of this context */
 	enum sro_state state;
@@ -341,6 +353,7 @@ struct sro_context {
 		struct sro_map_ctx map_ctx;
 		struct sro_realm_ctx realm_ctx;
 		struct sro_granule_delegate_ctx granule_delegate_ctx;
+		struct sro_granule_undelegate_ctx granule_undelegate_ctx;
 	};
 };
 

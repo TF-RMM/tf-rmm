@@ -53,6 +53,8 @@ static struct rmi_handles sro_handles[] = {
 	SRO_HANDLE(REALM_DESTROY, realm_continue_handler),
 	SRO_HANDLE(GRANULE_RANGE_DELEGATE,
 		   granule_delegate_continue),
+	SRO_HANDLE(GRANULE_RANGE_UNDELEGATE,
+		   granule_undelegate_continue),
 };
 COMPILER_ASSERT(ARRAY_SIZE(sro_handles) <= SMC64_NUM_FIDS_IN_RANGE(RMI));
 

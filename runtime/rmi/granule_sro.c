@@ -672,6 +672,422 @@ void granule_delegate_continue(unsigned long fid,
 	}
 }
 
+/* Return whether a pending interrupt requires range undelegation to yield. */
+static bool granule_undelegate_irq_pending(void)
+{
+	return read_isr_el1() != 0UL;
+}
+
+/*
+ * Initialize a fine run or coarse unit for return to Non-secure PAS. The run
+ * starts at @addr after any NS prefix skipped from @host_addr. @size is a
+ * nonzero multiple of @tracking_size; @device selects the granule array.
+ */
+static void granule_undelegate_ctx_init(struct sro_granule_undelegate_ctx *ctx,
+				      unsigned long host_addr, unsigned long addr,
+				      unsigned long size, unsigned long tracking_size,
+				      bool device)
+{
+	assert((ctx != NULL) && (addr >= host_addr) && ALIGNED(addr, tracking_size) &&
+	       (size != 0UL) && ALIGNED(size, tracking_size));
+
+	ctx->host_addr = host_addr;
+	ctx->addr = addr;
+	ctx->size = size;
+	ctx->tracking_size = tracking_size;
+	ctx->sanitize_offset = 0UL;
+	ctx->undelegated_size = 0UL;
+	ctx->el3 = (struct rmm_el3_gpi_state){0};
+	ctx->device = device;
+}
+
+/*
+ * Sanitize the conventional pages in @ctx before any of them are exposed to
+ * Non-secure PAS. Return false after observing a pending interrupt, including
+ * after the last page, preserving the next page offset for RMI_OP_CONTINUE.
+ * The whole batch is sanitized before calling EL3. Keep the full validated
+ * range so EL3 can optimize its processing. Device memory is not sanitized.
+ */
+static bool granule_undelegate_sanitize(struct sro_granule_undelegate_ctx *ctx)
+{
+	assert(ctx != NULL);
+
+	if (ctx->device) {
+		return true;
+	}
+
+	while (ctx->sanitize_offset < ctx->size) {
+		buffer_granule_sanitize_addr(ctx->addr + ctx->sanitize_offset);
+		ctx->sanitize_offset += GRANULE_SIZE;
+
+		if (granule_undelegate_irq_pending()) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/*
+ * Resume sanitization and EL3 undelegation of a fine run or coarse unit.
+ *
+ * Sanitization always completes before the first GPI change, so every prefix
+ * which FIRME exposes to Non-secure PAS is already cleared. One FIRME request
+ * is issued per invocation. Stateless progress is restarted with GPI_SET;
+ * stateful progress retains the cookie and is resumed with GPI_OP_CONTINUE.
+ * RMM owns the range, so an EL3 conflict or rejection violates the interface
+ * contract for both the initial request and continuation.
+ *
+ * Publish fine progress as NS after each EL3 call. Once no cookie remains,
+ * return RMI_SUCCESS for an accumulated prefix and restore the untouched fine
+ * suffix to DELEGATED. Coarse progress must reach the whole tracking unit.
+ * Return RMI_INCOMPLETE while an SRO must retain ownership. With no progress,
+ * an initial fine BUSY returns RMI_BUSY; an existing SRO retries.
+ * Other fine failures return RMI_ERROR_INPUT. No granule lock is retained.
+ */
+static unsigned long granule_range_undelegate_resume(struct sro_granule_undelegate_ctx *ctx,
+						   bool entry_call)
+{
+	unsigned long completed_size;
+	unsigned long processed_size;
+	unsigned long remaining;
+	int ret;
+
+	assert(ctx != NULL);
+	if (!granule_undelegate_sanitize(ctx)) {
+		return RMI_INCOMPLETE;
+	}
+
+	completed_size = ctx->undelegated_size;
+	ret = rmm_el3_ifc_gtsi_step(ctx->addr, ctx->size, false,
+				  &completed_size, &ctx->el3);
+	processed_size = completed_size - ctx->undelegated_size;
+	if ((ctx->tracking_size == GRANULE_SIZE) && (processed_size != 0UL)) {
+		/* EL3 has returned this cleared prefix to NS; release its granules. */
+		granule_delegate_fine_transition(ctx->addr + ctx->undelegated_size,
+						processed_size, ctx->device, false);
+	}
+	ctx->undelegated_size += processed_size;
+	if (ctx->el3.incomplete) {
+		return RMI_INCOMPLETE;
+	}
+	if (ctx->tracking_size == GRANULE_SIZE) {
+		unsigned long result = RMI_SUCCESS;
+
+		/*
+		 * Report an error only if neither EL3 nor an already-NS prefix
+		 * advanced the Host cursor.
+		 */
+		if ((ctx->undelegated_size == 0UL) && (ctx->addr == ctx->host_addr)) {
+			if (ret == E_RMM_BUSY) {
+				/*
+				 * BUSY permits retry. Keep an existing
+				 * SRO and its sanitization work for RMI_OP_CONTINUE.
+				 * An initial call releases the range and SRO so the
+				 * Host can retry the request.
+				 */
+				if (!entry_call) {
+					return RMI_INCOMPLETE;
+				}
+				result = RMI_BUSY;
+			} else {
+				/* A permanent failure with no progress ends the operation. */
+				result = RMI_ERROR_INPUT;
+			}
+		}
+		remaining = ctx->size - ctx->undelegated_size;
+		if (remaining != 0UL) {
+			/* The suffix remains in Realm PAS and can be retried by the Host. */
+			granule_delegate_fine_transition(ctx->addr + ctx->undelegated_size,
+							remaining, ctx->device, true);
+		}
+		return result;
+	}
+	/*
+	 * Only coarse tracking reaches here. Stateless BUSY leaves no cookie or
+	 * new progress, so retain ownership and retry GPI_SET through the SRO.
+	 */
+	if ((ret == E_RMM_BUSY) && (processed_size == 0UL)) {
+		return RMI_INCOMPLETE;
+	}
+	/*
+	 * SUCCESS must advance. A conflict or rejection violates EL3's contract
+	 * for this validated, RMM-owned range.
+	 */
+	assert((ret == E_RMM_OK) && (processed_size > 0UL));
+
+	if (ctx->undelegated_size < ctx->size) {
+		/*
+		 * A coarse granule cannot publish an NS prefix independently.
+		 * Keep it PARTIAL and retry only the remaining suffix via the SRO.
+		 */
+		return RMI_INCOMPLETE;
+	}
+
+	assert((ctx->undelegated_size == ctx->size) && (ctx->size == ctx->tracking_size));
+	granule_range_undelegate_commit(ctx->addr, ctx->tracking_size, ctx->device);
+	return RMI_SUCCESS;
+}
+
+/*
+ * Run the range-undelegate SRO for an entry call or RMI_OP_CONTINUE.
+ *
+ * An entry call owns a newly reserved context and therefore seals it on yield
+ * or releases it on synchronous completion. The generic continuation layer
+ * performs those lifecycle operations for a continuation call. Terminal results
+ * report the completed prefix, including any NS prefix skipped before the SRO.
+ */
+static void granule_range_undelegate_run(bool entry_call,
+					 struct smc_result *res)
+{
+	struct sro_context *sro = my_sro_ctx();
+	struct sro_granule_undelegate_ctx *ctx;
+	unsigned long ret;
+
+	assert((sro != NULL) && (res != NULL));
+	ctx = &sro->granule_undelegate_ctx;
+
+	ret = granule_range_undelegate_resume(ctx, entry_call);
+	if (ret != RMI_INCOMPLETE) {
+		res->x[0] = ret;
+		res->x[1] = ctx->addr + ctx->undelegated_size;
+		res->x[2] = 0UL;
+		if (entry_call) {
+			sro_ctx_release();
+		}
+		return;
+	}
+
+	res->x[0] = pack_return_code_incomplete(
+			RMI_OP_MEM_REQ_NONE, RMI_OP_CANNOT_CANCEL);
+	res->x[1] = entry_call ? (unsigned long)sro_ctx_seal() : 0UL;
+	res->x[2] = 0UL;
+}
+
+/*
+ * Claim a maximal fine DELEGATED run for undelegation. The caller holds no
+ * locks; @host_addr includes any leading NS prefix skipped before @addr.
+ * The run ends at @end_addr or a state, bank, tracking-region or device
+ * coherency boundary. Reserve an SRO before marking the run PARTIAL, then
+ * release its locks before sanitization. Return status, progress or an SRO
+ * request in @res; a reservation failure leaves the run DELEGATED and unlocked.
+ */
+static void granule_range_undelegate_fine(unsigned long host_addr, unsigned long addr,
+					unsigned long end_addr, bool device,
+					struct smc_result *res)
+{
+	unsigned long count;
+	unsigned long ret;
+	struct sro_context *sro;
+
+	if (device) {
+		enum dev_coh_type type;
+
+		ret = tr_find_lock_fine_dev_granule_run(addr, end_addr,
+				DEV_GRANULE_STATE_DELEGATED, &type, &count);
+	} else {
+		ret = tr_find_lock_fine_granule_run(addr, end_addr,
+						GRANULE_STATE_DELEGATED, &count);
+	}
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
+		return;
+	}
+	ret = sro_ctx_reserve(SMC_RMI_GRANULE_RANGE_UNDELEGATE, 0UL,
+			      false, false, SMC_RMI_OP_CONTINUE);
+	if (ret != RMI_SUCCESS) {
+		granule_range_undelegate_fine_unlock(addr, count, device, false);
+		res->x[0] = ret;
+		return;
+	}
+	sro = my_sro_ctx();
+	granule_undelegate_ctx_init(&sro->granule_undelegate_ctx, host_addr, addr,
+				    count * GRANULE_SIZE, GRANULE_SIZE, device);
+	granule_range_undelegate_fine_unlock(addr, count, device, true);
+	granule_range_undelegate_run(true, res);
+}
+
+/*
+ * Undelegate or skip a device tracking range beginning at @addr.
+ * @host_addr is the original RMI cursor. The caller holds no Granule lock and
+ * initializes @res->x[0] to RMI_ERROR_INPUT and @res->x[1] to @addr. All input
+ * addresses are Granule aligned, with @host_addr <= @addr < @end_addr. Return
+ * the operation status and progress or SRO request in @res.
+ *
+ * Source granules become PARTIAL before their locks are released. An NS
+ * granule is skipped without reserving an SRO and sets @already_ns true.
+ * All granule locks are released before returning or running an SRO.
+ */
+static void granule_range_undelegate_device(unsigned long host_addr, unsigned long addr,
+					  unsigned long end_addr, struct smc_result *res,
+					  bool *already_ns)
+{
+	struct dev_granule *g;
+	struct sro_context *sro;
+	unsigned long tracking_size;
+	unsigned long ret;
+	bool in_target;
+
+	assert((res != NULL) && (already_ns != NULL));
+	*already_ns = false;
+
+	ret = granule_range_lock_device(addr, DEV_GRANULE_STATE_DELEGATED,
+					DEV_GRANULE_STATE_NS, &g,
+					&tracking_size, &in_target);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
+		return;
+	}
+	if (!granule_range_tracking_fits(addr, end_addr, tracking_size)) {
+		dev_granule_unlock(g);
+		res->x[0] = granule_tracking_error(addr);
+		return;
+	}
+	if (in_target) {
+		dev_granule_unlock(g);
+		*already_ns = true;
+		res->x[0] = RMI_SUCCESS;
+		res->x[1] = addr + tracking_size;
+		return;
+	}
+	if (tracking_size == GRANULE_SIZE) {
+		dev_granule_unlock(g);
+		granule_range_undelegate_fine(host_addr, addr, end_addr, true, res);
+		return;
+	}
+
+	ret = sro_ctx_reserve(SMC_RMI_GRANULE_RANGE_UNDELEGATE, 0UL,
+			      false, false, SMC_RMI_OP_CONTINUE);
+	if (ret != RMI_SUCCESS) {
+		dev_granule_unlock(g);
+		res->x[0] = ret;
+		return;
+	}
+	sro = my_sro_ctx();
+	granule_undelegate_ctx_init(&sro->granule_undelegate_ctx, host_addr, addr,
+				  tracking_size, tracking_size, true);
+	dev_granule_unlock_transition(g, DEV_GRANULE_STATE_PARTIAL);
+	granule_range_undelegate_run(true, res);
+}
+
+/*
+ * Undelegate or skip a conventional or device tracking range beginning at @addr.
+ * A conventional lookup returning RMI_ERROR_INPUT permits a device lookup at
+ * the same address. Fine tracking processes a maximal DELEGATED run; coarse
+ * tracking processes one unit. Source granules become PARTIAL before their
+ * locks are released and sanitization begins. An NS granule is skipped
+ * without reserving an SRO and sets @already_ns true.
+ *
+ * @host_addr is the original RMI cursor. The caller holds no Granule lock and
+ * initializes @res->x[0] to RMI_ERROR_INPUT and @res->x[1] to @addr. All input
+ * addresses are Granule aligned, with @host_addr <= @addr < @end_addr. Return
+ * status, progress or an SRO request in @res, with no granule lock held.
+ */
+static void granule_range_undelegate_one(unsigned long host_addr, unsigned long addr,
+				       unsigned long end_addr, struct smc_result *res,
+				       bool *already_ns)
+{
+	struct granule *g;
+	struct sro_context *sro;
+	unsigned long tracking_size;
+	unsigned long ret;
+	bool in_target;
+
+	assert((res != NULL) && (already_ns != NULL));
+	*already_ns = false;
+
+	ret = granule_range_lock_conventional(addr, GRANULE_STATE_DELEGATED,
+					       GRANULE_STATE_NS, &g,
+					       &tracking_size, &in_target);
+	if (ret == RMI_ERROR_INPUT) {
+		granule_range_undelegate_device(host_addr, addr, end_addr, res, already_ns);
+		return;
+	}
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
+		return;
+	}
+	if (!granule_range_tracking_fits(addr, end_addr, tracking_size)) {
+		granule_unlock(g);
+		res->x[0] = granule_tracking_error(addr);
+		return;
+	}
+
+	if (in_target) {
+		granule_unlock(g);
+		*already_ns = true;
+		res->x[0] = RMI_SUCCESS;
+		res->x[1] = addr + tracking_size;
+		return;
+	}
+
+	if (tracking_size == GRANULE_SIZE) {
+		granule_unlock(g);
+		granule_range_undelegate_fine(host_addr, addr, end_addr, false, res);
+		return;
+	}
+
+	/*
+	 * Only coarse tracking reaches here. Start an SRO to undelegate the
+	 * entire range represented by the coarse granule.
+	 */
+
+	ret = sro_ctx_reserve(SMC_RMI_GRANULE_RANGE_UNDELEGATE, 0UL,
+			      false, false, SMC_RMI_OP_CONTINUE);
+	if (ret != RMI_SUCCESS) {
+		granule_unlock(g);
+		res->x[0] = ret;
+		return;
+	}
+	sro = my_sro_ctx();
+	granule_undelegate_ctx_init(&sro->granule_undelegate_ctx, host_addr, addr,
+				  tracking_size, tracking_size, false);
+	granule_unlock_transition(g, GRANULE_STATE_PARTIAL);
+	granule_range_undelegate_run(true, res);
+}
+
+/*
+ * Begin undelegation within the tracking region containing @addr. The caller
+ * holds no locks; @addr and @end_addr are Granule aligned and @end_addr > @addr.
+ * Skip leading NS granules, then process one contiguous fine DELEGATED run
+ * or one coarse unit. Report skipped and undelegated bytes through @res->x[1].
+ * A failure after a skipped prefix returns that prefix as RMI_SUCCESS; the
+ * Host retries at the returned cursor. An unfinished SRO returns its handle.
+ */
+void granule_undelegate_start(unsigned long addr, unsigned long end_addr,
+			     struct smc_result *res)
+{
+	unsigned long cursor = addr;
+	unsigned long region_size = tracking_region_get_size();
+	unsigned long region_remaining = region_size - (addr & (region_size - 1UL));
+	unsigned long region_top = end_addr;
+	bool already_ns;
+
+	if ((end_addr - addr) > region_remaining) {
+		/* The comparison ensures this addition cannot overflow. */
+		region_top = addr + region_remaining;
+	}
+
+	do {
+		unsigned int status;
+
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = cursor;
+		granule_range_undelegate_one(addr, cursor, region_top, res, &already_ns);
+		status = unpack_return_code(res->x[0]).status;
+		if (status != RMI_SUCCESS) {
+			if ((status != RMI_INCOMPLETE) && (cursor > addr)) {
+				/* Preserve the NS prefix and expose the suffix error on retry. */
+				res->x[0] = RMI_SUCCESS;
+				res->x[1] = cursor;
+			}
+			return;
+		}
+		assert((res->x[1] > cursor) && (res->x[1] <= region_top));
+		cursor = res->x[1];
+	} while (already_ns && (cursor < region_top));
+}
+
 /*
  * Begin delegation or skip a contiguous prefix of the tracking region containing
  * @addr. @addr and @end_addr must be Granule aligned with @end_addr > @addr.
@@ -746,4 +1162,20 @@ void granule_delegate_start(unsigned long addr,
 
 	res->x[0] = RMI_SUCCESS;
 	res->x[1] = cursor;
+}
+
+/*
+ * Continue a range undelegation after an interrupt or stateless FIRME partial
+ * response. The generic SRO dispatcher owns sealing and releasing the context.
+ */
+void granule_undelegate_continue(unsigned long fid,
+				 struct smc_result *res)
+{
+	struct sro_context *sro __unused = my_sro_ctx();
+
+	assert((sro != NULL) && (fid == SMC_RMI_OP_CONTINUE));
+	assert(sro->init_command == SMC_RMI_GRANULE_RANGE_UNDELEGATE);
+	(void)fid;
+
+	granule_range_undelegate_run(false, res);
 }

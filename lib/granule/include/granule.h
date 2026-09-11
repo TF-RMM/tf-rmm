@@ -398,6 +398,31 @@ void granule_delegate_coarse_transition(unsigned long addr,
 					unsigned long tracking_size,
 					bool device, bool delegated);
 
+/*
+ * Publish a completed PAS transition by changing an owned granule or
+ * dev_granule to NS. @addr must be aligned to @tracking_size, which selects
+ * the fine or coarse representation. @device selects dev_granules when true,
+ * or granules otherwise. The caller must have completed sanitization where
+ * required and returned the entire tracking unit to Non-secure PAS. It must
+ * own the PARTIAL granule, pinning its state and representation, and hold
+ * no Granule lock. Acquire and release the granule lock without entering a
+ * region reader gate.
+ */
+void granule_range_undelegate_commit(unsigned long addr,
+				     unsigned long tracking_size,
+				     bool device);
+
+/*
+ * Release @count locked fine DELEGATED granules or dev_granules in PA order.
+ * The caller owns the run beginning at Granule-aligned @addr. @device selects
+ * dev_granules when true, or granules otherwise. If an SRO was @reserved,
+ * publish PARTIAL before releasing each lock so the SRO retains the range and
+ * its tracking representation across a yield. Otherwise leave the granules
+ * DELEGATED. No region reader is acquired.
+ */
+void granule_range_undelegate_fine_unlock(unsigned long addr, unsigned long count,
+					bool device, bool reserved);
+
 
 /*
  * Return an unlocked fine granule for @addr, or NULL on lookup failure.

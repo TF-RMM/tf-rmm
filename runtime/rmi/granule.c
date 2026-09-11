@@ -4,20 +4,14 @@
  */
 
 #include <arch_features.h>
-#include <arch_helpers.h>
 #include <assert.h>
 #include <buffer.h>
-#include <debug.h>
-#include <dev_granule.h>
 #include <glob_data.h>
-#include <granule.h>
 #include <granule_sro.h>
-#include <mec.h>
-#include <rmm_el3_ifc.h>
+#include <memory.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
-#include <sro_context.h>
 #include <status.h>
 #include <stdbool.h>
 #include <tracking_region.h>
@@ -44,41 +38,12 @@ void smc_granule_range_delegate(unsigned long addr,
 	granule_delegate_start(addr, end_addr, res);
 }
 
-static unsigned long dev_granule_undelegate(unsigned long addr)
-{
-	enum dev_coh_type type;
-
-	/* Try to find device granule */
-	struct dev_granule *g = find_dev_granule(addr, &type);
-
-	if (g == NULL) {
-		return RMI_ERROR_INPUT;
-	}
-
-	if (dev_granule_unlocked_state(g) == DEV_GRANULE_STATE_NS) {
-		return RMI_SUCCESS;
-	}
-
-	if (!dev_granule_lock_on_state_match(g, DEV_GRANULE_STATE_DELEGATED)) {
-		return RMI_ERROR_INPUT;
-	}
-
-	/*
-	 * A delegated device granule should only be undelegated on request from RMM.
-	 * If this call fails, we have an unrecoverable error in EL3/RMM.
-	 */
-	if (rmm_el3_ifc_gtsi_undelegate(addr) != SMC_SUCCESS) {
-		ERROR("Granule 0x%lx undelegate call failed\n", addr);
-		dev_granule_unlock(g);
-		panic();
-	}
-
-	dev_granule_set_state(g, DEV_GRANULE_STATE_NS);
-	dev_granule_unlock(g);
-	return RMI_SUCCESS;
-}
-
-/* @TODO Enhance implementation later */
+/*
+ * Validate a Host range and begin undelegating a fine run or coarse unit.
+ * Both addresses must be Granule aligned and define a non-empty range. @res
+ * receives the RMI status and committed range boundary, or an SRO handle when
+ * sanitization or EL3 progress must resume. The caller must hold no Granule lock.
+ */
 void smc_granule_range_undelegate(unsigned long addr,
 				  unsigned long end_addr,
 				  struct smc_result *res)
@@ -86,54 +51,13 @@ void smc_granule_range_undelegate(unsigned long addr,
 	res->x[0] = RMI_ERROR_INPUT;
 	res->x[1] = addr;
 
-	/* Simplified implementation undelegates exactly one granule. */
 	if (!ALIGNED(addr, GRANULE_SIZE) ||
 	    !ALIGNED(end_addr, GRANULE_SIZE) ||
-	    (end_addr < (addr + GRANULE_SIZE))) {
+	    (end_addr <= addr)) {
 		return;
 	}
 
-	res->x[0] = smc_granule_undelegate(addr);
-	if (res->x[0] == RMI_SUCCESS) {
-		res->x[1] = addr + GRANULE_SIZE;
-	}
-}
-
-unsigned long smc_granule_undelegate(unsigned long addr)
-{
-	/* Try to find memory granule */
-	struct granule *g = find_granule(addr);
-
-	if (g != NULL) {
-		if (granule_unlocked_state(g) == GRANULE_STATE_NS) {
-			return RMI_SUCCESS;
-		}
-
-		if (!granule_lock_on_state_match(g, GRANULE_STATE_DELEGATED)) {
-			return RMI_ERROR_INPUT;
-		}
-
-		/* Scrub any Realm world data before returning granule to NS */
-		buffer_granule_sanitize(g);
-
-		/* DCCI PoPA as part of undelegate in EL3 will flush to PoE */
-
-		/*
-		 * A delegated memory granule should only be undelegated on request from RMM.
-		 * If this call fails, we have an unrecoverable error in EL3/RMM.
-		 */
-		if (rmm_el3_ifc_gtsi_undelegate(addr) != SMC_SUCCESS) {
-			ERROR("Granule 0x%lx undelegate call failed\n", addr);
-			granule_unlock(g);
-			panic();
-		}
-
-		granule_unlock_transition(g, GRANULE_STATE_NS);
-		return RMI_SUCCESS;
-	}
-
-	/* Undelegate device granule */
-	return dev_granule_undelegate(addr);
+	granule_undelegate_start(addr, end_addr, res);
 }
 
 /* The implementation currently supports only the 4 KiB RMI Granule size. */

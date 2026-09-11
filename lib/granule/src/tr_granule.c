@@ -724,7 +724,7 @@ unsigned long tr_find_lock_active_dev_granule(unsigned long addr,
  * state before acquisition and after contention so a state boundary cannot
  * introduce a lock-order violation. Stop before a different bank, region,
  * coherency type, or Granule state so the caller can pass a homogeneous
- * NS-only range to EL3.
+ * range in the requested state to EL3.
  */
 /* cppcheck-suppress misra-c2012-8.7 */
 unsigned long tr_find_lock_fine_dev_granule_run(
@@ -1274,5 +1274,73 @@ void granule_delegate_coarse_transition(unsigned long addr,
 					  GRANULE_STATE_PARTIAL);
 		granule_unlock_transition(g, delegated ?
 				GRANULE_STATE_DELEGATED : GRANULE_STATE_NS);
+	}
+}
+
+/*
+ * Publish a completed PAS transition by changing an owned granule or
+ * dev_granule to NS. @addr must be aligned to @tracking_size, which selects
+ * the fine or coarse representation. @device selects dev_granules when true,
+ * or granules otherwise. The caller must have completed sanitization where
+ * required and returned the entire tracking unit to Non-secure PAS. It must
+ * own the PARTIAL granule, pinning its state and representation, and hold
+ * no Granule lock. Acquire and release the granule lock without entering a
+ * region reader gate.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+void granule_range_undelegate_commit(unsigned long addr,
+				     unsigned long tracking_size,
+				     bool device)
+{
+	if (device) {
+		struct dev_granule *g_dev;
+
+		g_dev = tr_lock_owned_dev_granule(addr, tracking_size,
+						  DEV_GRANULE_STATE_PARTIAL);
+		dev_granule_unlock_transition(g_dev, DEV_GRANULE_STATE_NS);
+	} else {
+		struct granule *g;
+
+		g = tr_lock_owned_granule(addr, tracking_size,
+					  GRANULE_STATE_PARTIAL);
+		granule_unlock_transition(g, GRANULE_STATE_NS);
+	}
+}
+
+/*
+ * Release @count locked fine DELEGATED granules or dev_granules in PA order.
+ * The caller owns the run beginning at Granule-aligned @addr. @device selects
+ * dev_granules when true, or granules otherwise. If an SRO was @reserved,
+ * publish PARTIAL before releasing each lock so the SRO retains the range and
+ * its tracking representation across a yield. Otherwise leave the granules
+ * DELEGATED. No region reader is acquired.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+void granule_range_undelegate_fine_unlock(unsigned long addr, unsigned long count,
+					bool device, bool reserved)
+{
+	assert(GRANULE_ALIGNED(addr) && (count != 0UL));
+	for (unsigned long i = 0UL; i < count; i++) {
+		unsigned long pa = addr + (i * GRANULE_SIZE);
+
+		if (device) {
+			enum dev_coh_type type;
+			struct dev_granule *g = tr_addr_to_dev_granule(pa, &type);
+
+			(void)type;
+			if (reserved) {
+				dev_granule_unlock_transition(g, DEV_GRANULE_STATE_PARTIAL);
+			} else {
+				dev_granule_unlock(g);
+			}
+		} else {
+			struct granule *g = tr_addr_to_granule(pa);
+
+			if (reserved) {
+				granule_unlock_transition(g, GRANULE_STATE_PARTIAL);
+			} else {
+				granule_unlock(g);
+			}
+		}
 	}
 }
