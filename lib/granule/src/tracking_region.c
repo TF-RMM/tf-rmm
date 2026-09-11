@@ -747,3 +747,656 @@ unsigned long tracking_region_get_rmm_config_size(void)
 
 	return size;
 }
+
+/*
+ * Binary-search the selected struct tracking_memory_bank array for @addr.
+ * On success, return the matching struct tracking_memory_bank and the
+ * corresponding shared tracking-region and type-local fine-granule indices.
+ * Return NULL if no bank of @type contains @addr.
+ */
+static const struct tracking_memory_bank *tracking_region_find_addr(
+					unsigned long addr,
+					enum tr_mem_type type,
+					unsigned long *tracking_region_idx,
+					unsigned long *granule_idx)
+{
+	const struct tracking_memory_bank_storage *storage =
+		&tracking_data->banks;
+	const struct tracking_memory_bank *banks;
+	unsigned long granule_stride;
+	unsigned long region_size = tracking_region_get_size();
+	unsigned int count;
+	unsigned int l = 0U;
+	unsigned int r;
+
+	assert(tracking_region_idx != NULL);
+	assert(granule_idx != NULL);
+
+	if (type == TR_MEM_TYPE_CONV) {
+		banks = storage->conv_banks;
+		count = tracking_data->num_conv_tracking_banks;
+		granule_stride = tracking_region_fine_stride(
+					region_size, sizeof(struct granule));
+	} else if (type == TR_MEM_TYPE_DEV) {
+		banks = storage->dev_banks;
+		count = tracking_data->num_dev_tracking_banks;
+		granule_stride = tracking_region_fine_stride(
+					region_size, sizeof(struct dev_granule));
+	} else {
+		return NULL;
+	}
+
+	if (count == 0U) {
+		return NULL;
+	}
+
+	r = count - 1U;
+	while (l <= r) {
+		const struct tracking_memory_bank *bank;
+		unsigned int i = l + ((r - l) / 2U);
+
+		assert(i < count);
+		bank = &banks[i];
+		if (addr < bank->base) {
+			if (i == 0U) {
+				break;
+			}
+			r = i - 1U;
+		} else if (addr >= (bank->base + bank->size)) {
+			l = i + 1U;
+		} else {
+			/*
+			 * tracking_base is the aligned base of the first tracking
+			 * region intersecting the bank, which may precede bank->base.
+			 * region_base is the aligned base of the tracking region
+			 * containing addr.
+			 */
+			unsigned long tracking_base =
+				round_down(bank->base, region_size);
+			unsigned long region_base =
+				round_down(addr, region_size);
+			/* Number of tracking regions from the bank's first region. */
+			unsigned long region_offset =
+				(region_base - tracking_base) / region_size;
+			/* Granule offset within the region containing addr. */
+			unsigned long granule_offset =
+				(addr - region_base) >> GRANULE_SHIFT;
+
+			*tracking_region_idx =
+				(unsigned long)bank->tracking_start_idx +
+				region_offset;
+			/*
+			 * Each preceding region occupies a full granule stride,
+			 * including padding. Then select the granule within this region.
+			 */
+			*granule_idx = bank->granule_start_idx +
+				(region_offset * granule_stride) + granule_offset;
+			return bank;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ * Iterate over banks of @type overlapping the tracking region at @base.
+ * @base must be tracking-region aligned. Initialize @cursor to zero for
+ * each new region/type combination and preserve it between calls.
+ *
+ * Return true with one bank's non-empty portion inside the region as
+ * [@start, @end), set @fine_idx to the type-local fine-granule index
+ * for @start, and advance @cursor. Holes are skipped.
+ *
+ * Return false when no more banks overlap the region.
+ */
+bool tracking_region_next_bank_range(unsigned long base,
+				     enum tr_mem_type type,
+				     unsigned int *cursor,
+				     unsigned long *start,
+				     unsigned long *end,
+				     unsigned long *fine_idx)
+{
+	const struct tracking_memory_bank_storage *storage;
+	const struct tracking_memory_bank *banks;
+	unsigned long granule_stride;
+	unsigned long region_size = tracking_region_get_size();
+	unsigned long top;
+	unsigned int count;
+
+	assert((tracking_data != NULL) && (cursor != NULL) &&
+	       (start != NULL) && (end != NULL) && (fine_idx != NULL));
+	assert(ALIGNED(base, region_size));
+	assert(base <= (UINT64_MAX - region_size));
+
+	storage = &tracking_data->banks;
+	if (type == TR_MEM_TYPE_CONV) {
+		banks = storage->conv_banks;
+		count = tracking_data->num_conv_tracking_banks;
+		granule_stride = tracking_region_fine_stride(
+					region_size, sizeof(struct granule));
+	} else {
+		assert(type == TR_MEM_TYPE_DEV);
+		banks = storage->dev_banks;
+		count = tracking_data->num_dev_tracking_banks;
+		granule_stride = tracking_region_fine_stride(
+					region_size, sizeof(struct dev_granule));
+	}
+	top = base + region_size;
+
+	while (*cursor < count) {
+		const struct tracking_memory_bank *bank = &banks[*cursor];
+		unsigned long bank_top = bank->base + bank->size;
+		unsigned long tr_offset;
+		unsigned long descriptor_slots;
+		unsigned long descriptor_offset;
+
+		(*cursor)++;
+		if (bank->base >= top) {
+			return false;
+		}
+		if (bank_top <= base) {
+			continue;
+		}
+
+		*start = (bank->base > base) ? bank->base : base;
+		*end = (bank_top < top) ? bank_top : top;
+
+		/* Number of regions from the bank's first region to this one. */
+		tr_offset = (base - round_down(bank->base, region_size)) /
+			    region_size;
+
+		/* Each region reserves a full granule stride, including padding. */
+		descriptor_slots = tr_offset * granule_stride;
+
+		/* Granule offset of *start within the current tracking region. */
+		descriptor_offset = (*start - base) >> GRANULE_SHIFT;
+
+		/* Type-local fine-granule index for *start. */
+		*fine_idx = bank->granule_start_idx +
+			    descriptor_slots + descriptor_offset;
+		assert(*start < *end);
+		return true;
+	}
+
+	return false;
+}
+
+/*
+ * Find the struct tracking_region for @addr in memory of @type.
+ *
+ * Return NULL if the struct tracking_region array is unavailable or @addr does
+ * not belong to a configured bank of @type. The returned struct tracking_region
+ * is not locked.
+ */
+struct tracking_region *tracking_region_find(unsigned long addr,
+					     enum tr_mem_type type)
+{
+	unsigned long idx;
+
+	if ((tracking_data == NULL) ||
+	    (tracking_data->tracking_regions == NULL)) {
+		return NULL;
+	}
+
+	idx = tracking_region_addr_to_idx(addr, type, NULL);
+	if (idx >= tracking_data->num_tracking_regions) {
+		return NULL;
+	}
+
+	return &tracking_data->tracking_regions[idx];
+}
+
+/*
+ * Return the start of the next populated range in (@addr, @limit).
+ *
+ * Conventional and device memory use separate PA-ordered arrays of
+ * struct tracking_memory_bank. The first bank base greater than @addr in each
+ * array is therefore its only candidate; return the earlier candidate. If
+ * neither array has a bank starting before @limit, return @limit. The result
+ * marks the end of the unpopulated range that begins at @addr.
+ */
+static unsigned long tracking_memory_bank_next_base(unsigned long addr,
+					     unsigned long limit)
+{
+	const struct tracking_memory_bank_storage *storage =
+		&tracking_data->banks;
+	const struct tracking_memory_bank *bank_lists[] = {
+		storage->conv_banks,
+		storage->dev_banks
+	};
+	const unsigned int bank_counts[] = {
+		tracking_data->num_conv_tracking_banks,
+		tracking_data->num_dev_tracking_banks
+	};
+	unsigned long next = limit;
+
+	for (unsigned int list = 0U; list < ARRAY_SIZE(bank_lists); list++) {
+		for (unsigned int i = 0U; i < bank_counts[list]; i++) {
+			unsigned long base = bank_lists[list][i].base;
+
+			if (base > addr) {
+				if (base < next) {
+					next = base;
+				}
+				break;
+			}
+		}
+	}
+
+	return next;
+}
+
+/*
+ * Resolve the tracking-region index when @base lies in a hole but
+ * a memory bank starts later within the same tracking region.
+ *
+ * @base and @top delimit one tracking region. Find the first populated bank in
+ * (@base, @top), then use an address in that bank to obtain the shared region
+ * index. The bank's category is irrelevant because the unpopulated prefix
+ * already makes the region diverse.
+ *
+ * tracking_region_set_tracking_find() uses the returned index to select the
+ * shared struct tracking_region for the requested transition. It also
+ * returns the index to SRO callers, which use it to locate the region's
+ * type-local fine-metadata ranges. @idx is not a fine-granule array index.
+ *
+ * Return true with @idx set when the region contains a populated bank after
+ * @base. Return false when the remainder of the region is unpopulated.
+ */
+static bool tracking_region_find_after_base(unsigned long base,
+					    unsigned long top,
+					    unsigned long *idx)
+{
+	const struct tracking_memory_bank *bank __unused;
+	unsigned long granule_idx __unused;
+	unsigned long next;
+
+	assert((idx != NULL) && (base < top));
+
+	next = tracking_memory_bank_next_base(base, top);
+	if (next >= top) {
+		return false;
+	}
+
+	bank = tracking_memory_bank_find_any(next, idx, &granule_idx);
+	assert(bank != NULL);
+	return true;
+}
+
+/*
+ * Return the memory category and tracking state at @addr.
+ *
+ * @limit is an exclusive upper bound. On success, @region_top receives the
+ * first address after @addr at which the category or tracking-region state may
+ * differ, capped at @limit. For a populated address, stop at the end of the
+ * containing bank or current tracking region, whichever occurs first. For an
+ * unpopulated address, stop at the start of the next bank.
+ *
+ * For a populated address, return the bank category and the state of its
+ * shared struct tracking_region, or trs_none before activation. For an
+ * unpopulated address, report RMI_MEM_CATEGORY_NONE and trs_reserved.
+ *
+ * Hold the global layout lock from index lookup through state inspection so
+ * configuration and activation cannot invalidate the selected
+ * struct tracking_region.
+ * Acquire the region read lock inside that lock when reading an initialized
+ * struct tracking_region. The caller must not hold a region or Granule lock.
+ * No lock remains held on return.
+ *
+ * Return true with all outputs set when @addr is below @limit. Return false
+ * when the requested interval is empty; the outputs are then unspecified.
+ */
+bool tracking_region_get_info(unsigned long addr,
+			      unsigned long limit,
+			      unsigned long *category,
+			      enum tr_state *state,
+			      unsigned long *region_top)
+{
+	const struct tracking_memory_bank *bank;
+	unsigned long granule_idx __unused;
+	unsigned long idx;
+	unsigned long region_size;
+	unsigned long top;
+
+	assert((category != NULL) && (state != NULL) &&
+	       (region_top != NULL));
+	assert(tracking_data != NULL);
+
+	if (addr >= limit) {
+		return false;
+	}
+
+	spinlock_acquire(&tracking_layout_lock);
+	assert(tracking_data->num_tracking_regions != 0UL);
+	region_size = tracking_region_get_size();
+	idx = UINT64_MAX;
+	bank = tracking_memory_bank_find_any(addr, &idx, &granule_idx);
+	top = round_down(addr, region_size) + region_size;
+	if (top > limit) {
+		top = limit;
+	}
+
+	if (bank != NULL) {
+		unsigned long bank_top = bank->base + bank->size;
+
+		assert(idx < tracking_data->num_tracking_regions);
+		*category = bank->category;
+		if (bank_top < top) {
+			top = bank_top;
+		}
+	} else {
+		*category = RMI_MEM_CATEGORY_NONE;
+		/* NONE/RESERVED remains unchanged until the next populated bank. */
+		top = tracking_memory_bank_next_base(addr, limit);
+	}
+
+	if (idx == UINT64_MAX) {
+		*state = trs_reserved;
+	} else if (!tracking_data->tracking_initialized) {
+		*state = trs_none;
+	} else {
+		assert(idx < tracking_data->num_tracking_regions);
+		tracking_region_read_lock(&tracking_data->tracking_regions[idx]);
+		*state = tracking_region_get_state(
+					&tracking_data->tracking_regions[idx]);
+		tracking_region_read_unlock(
+					&tracking_data->tracking_regions[idx]);
+	}
+
+	assert(top > addr);
+	*region_top = top;
+	spinlock_release(&tracking_layout_lock);
+	return true;
+}
+
+/*
+ * Convert @addr to an index in the fine-granule array selected by @type.
+ *
+ * @addr must be Granule-aligned and belong to a configured bank of @type. The
+ * returned type-local index includes granule slots reserved for any holes
+ * within a tracking region. If @category is non-NULL, set it to the exact RMI
+ * memory category of the containing bank.
+ *
+ * Return UINT64_MAX if @addr is unaligned, @type is invalid, or no selected
+ * bank contains @addr. This lookup does not access or lock the granule.
+ */
+unsigned long tracking_region_fine_addr_to_idx(
+					unsigned long addr,
+					enum tr_mem_type type,
+					unsigned long *category)
+{
+	const struct tracking_memory_bank *bank;
+	unsigned long granule_idx;
+	unsigned long tracking_region_idx __unused;
+
+	assert((tracking_data != NULL) &&
+	       (tracking_data->num_tracking_regions != 0UL));
+
+	if (!GRANULE_ALIGNED(addr)) {
+		return UINT64_MAX;
+	}
+
+	bank = tracking_region_find_addr(addr, type, &tracking_region_idx,
+					 &granule_idx);
+	if (bank == NULL) {
+		return UINT64_MAX;
+	}
+
+	if (category != NULL) {
+		*category = bank->category;
+	}
+
+	return granule_idx;
+}
+
+/*
+ * Convert @idx in the fine-granule array selected by @type to a PA.
+ *
+ * Each bank reserves a fixed granule stride for every tracking region it
+ * intersects. The stride includes slots for holes and page-alignment padding.
+ * Locate the struct tracking_memory_bank whose reserved granule-array span
+ * contains @idx, derive the corresponding Granule address, and accept it only
+ * when that address lies within the bank's PA range.
+ * A tracking region shared by multiple banks may require checking more than
+ * one reserved span.
+ *
+ * If @category is non-NULL, set it to the exact RMI memory category of the
+ * containing bank. Return UINT64_MAX when @type or @idx is invalid, or when
+ * @idx selects padding or an unpopulated hole. This lookup does not access or
+ * lock the granule.
+ */
+unsigned long tracking_region_fine_idx_to_addr(
+					unsigned long idx,
+					enum tr_mem_type type,
+					unsigned long *category)
+{
+	const struct tracking_memory_bank_storage *storage =
+		&tracking_data->banks;
+	const struct tracking_memory_bank *banks;
+	unsigned long granule_stride;
+	unsigned long region_size = tracking_region_get_size();
+	unsigned long granules_per_region = region_size / GRANULE_SIZE;
+	unsigned int count;
+
+	assert((tracking_data != NULL) &&
+	       (tracking_data->num_tracking_regions != 0UL));
+
+	if (type == TR_MEM_TYPE_CONV) {
+		banks = storage->conv_banks;
+		count = tracking_data->num_conv_tracking_banks;
+		granule_stride = tracking_region_fine_stride(
+					region_size, sizeof(struct granule));
+		if (idx >= tracking_data->num_tracking_granules) {
+			return UINT64_MAX;
+		}
+	} else if (type == TR_MEM_TYPE_DEV) {
+		banks = storage->dev_banks;
+		count = tracking_data->num_dev_tracking_banks;
+		granule_stride = tracking_region_fine_stride(
+					region_size, sizeof(struct dev_granule));
+		if (idx >= tracking_data->num_tracking_dev_granules) {
+			return UINT64_MAX;
+		}
+	} else {
+		return UINT64_MAX;
+	}
+
+	/* A shared boundary tracking region may be represented by multiple banks. */
+	for (unsigned int i = 0U; i < count; i++) {
+		const struct tracking_memory_bank *bank = &banks[i];
+		unsigned long tracking_base =
+			round_down(bank->base, region_size);
+		unsigned long tracking_top =
+			round_up(bank->base + bank->size, region_size);
+		unsigned long bank_regions =
+			(tracking_top - tracking_base) / region_size;
+		unsigned long bank_descriptors = bank_regions * granule_stride;
+
+		if ((idx >= bank->granule_start_idx) &&
+		    (idx < (bank->granule_start_idx + bank_descriptors))) {
+			unsigned long relative = idx - bank->granule_start_idx;
+			unsigned long offset = relative % granule_stride;
+			unsigned long addr;
+
+			/* Page-alignment padding does not describe a PA. */
+			if (offset >= granules_per_region) {
+				continue;
+			}
+			addr = tracking_base +
+				((relative / granule_stride) * region_size) +
+				(offset << GRANULE_SHIFT);
+
+			if ((addr < bank->base) ||
+			    (addr >= (bank->base + bank->size))) {
+				continue;
+			}
+			if (category != NULL) {
+				*category = bank->category;
+			}
+			return addr;
+		}
+	}
+
+	return UINT64_MAX;
+}
+
+/*
+ * Return the fine granule at @idx.
+ *
+ * @idx is a type-local index into the fine granule array and must be smaller
+ * than the configured granule count. This accessor does not verify that the
+ * slot represents populated memory and does not acquire any lock. The caller
+ * must provide the locking required for its operation.
+ */
+struct granule *tr_fine_granule_from_idx(unsigned long idx)
+{
+	struct granule *granules =
+		(struct granule *)tracking_data->granule_array_tr.va;
+
+	assert((granules != NULL) &&
+	       (idx < tracking_data->num_tracking_granules));
+
+	return &granules[idx];
+}
+
+/* Return the index of fine granule @g. */
+unsigned long tr_fine_granule_to_idx(const struct granule *g)
+{
+	const struct granule *granules =
+		(const struct granule *)tracking_data->granule_array_tr.va;
+	unsigned long idx;
+
+	assert((g != NULL) && (granules != NULL));
+	assert(ALIGNED_TO_ARRAY(g, granules));
+
+	idx = ((uintptr_t)g - (uintptr_t)granules) / sizeof(*g);
+	assert(idx < tracking_data->num_tracking_granules);
+
+	return idx;
+}
+
+/* Return the fine dev_granule at @idx. */
+struct dev_granule *tr_fine_dev_granule_from_idx(unsigned long idx)
+{
+	struct dev_granule *granules =
+		(struct dev_granule *)tracking_data->dev_granule_array_tr.va;
+
+	assert((granules != NULL) &&
+	       (idx < tracking_data->num_tracking_dev_granules));
+
+	return &granules[idx];
+}
+
+/* Return the index of fine dev_granule @g. */
+unsigned long tr_fine_dev_granule_to_idx(const struct dev_granule *g)
+{
+	const struct dev_granule *granules =
+		(const struct dev_granule *)tracking_data->dev_granule_array_tr.va;
+	unsigned long idx;
+
+	assert((g != NULL) && (granules != NULL));
+	/* cppcheck-suppress moduloofone */
+	assert(ALIGNED_TO_ARRAY(g, granules));
+
+	idx = ((uintptr_t)g - (uintptr_t)granules) / sizeof(*g);
+	assert(idx < tracking_data->num_tracking_dev_granules);
+
+	return idx;
+}
+
+/*
+ * Return a physical address within both region @tr_idx and a bank in @banks.
+ * If non-NULL, @granule_idx receives the fine-granule index for
+ * that address. Return UINT64_MAX if no bank intersects the region.
+ *
+ * @banks contains @count struct tracking_memory_bank entries of one type
+ * (conventional or device). @entry_size is the size of struct granule or
+ * struct dev_granule for @type.
+ * If multiple disjoint banks share @tr_idx, their aligned granule-array
+ * range is identical and the first match is sufficient.
+ */
+static unsigned long tracking_region_lookup_by_idx(
+					const struct tracking_memory_bank *banks,
+					unsigned int count,
+					unsigned long tr_idx,
+					size_t entry_size,
+					unsigned long *granule_idx)
+{
+	unsigned long region_size = tracking_region_get_size();
+	unsigned long granule_stride =
+		tracking_region_fine_stride(region_size, entry_size);
+
+	for (unsigned int i = 0U; i < count; i++) {
+		const struct tracking_memory_bank *bank = &banks[i];
+		unsigned long bank_count_regions;
+		unsigned long tracking_base;
+		unsigned long tracking_top;
+
+		tracking_base = round_down(bank->base, region_size);
+		tracking_top =
+			round_up(bank->base + bank->size, region_size);
+		bank_count_regions =
+			(tracking_top - tracking_base) / region_size;
+		if ((tr_idx >= (unsigned long)bank->tracking_start_idx) &&
+		    (tr_idx < ((unsigned long)bank->tracking_start_idx +
+			    bank_count_regions))) {
+			unsigned long addr = tracking_base +
+				((tr_idx - (unsigned long)bank->tracking_start_idx) *
+				 region_size);
+
+			/* The region can start with a hole before the first bank address. */
+			if (addr < bank->base) {
+				addr = bank->base;
+			}
+			assert(addr < (bank->base + bank->size));
+			if (granule_idx != NULL) {
+				unsigned long region_base =
+					round_down(addr, region_size);
+
+				/* Select the region range, then the valid Granule within it. */
+				*granule_idx = bank->granule_start_idx +
+					((tr_idx -
+					  (unsigned long)bank->tracking_start_idx) *
+					 granule_stride) +
+					((addr - region_base) >> GRANULE_SHIFT);
+			}
+			return addr;
+		}
+	}
+
+	return UINT64_MAX;
+}
+
+/*
+ * Binary-search the selected struct tracking_memory_bank array to validate
+ * @addr and calculate its compressed struct tracking_region array index.
+ * If non-NULL, @category receives the exact memory category. Return UINT64_MAX
+ * when @addr is invalid for @type.
+ */
+unsigned long tracking_region_addr_to_idx(unsigned long addr,
+					  enum tr_mem_type type,
+					  unsigned long *category)
+{
+	const struct tracking_memory_bank *bank;
+	unsigned long granule_idx __unused;
+	unsigned long tracking_region_idx;
+
+	assert((tracking_data != NULL) &&
+	       (tracking_data->num_tracking_regions != 0UL));
+
+	if (!GRANULE_ALIGNED(addr)) {
+		return UINT64_MAX;
+	}
+
+	bank = tracking_region_find_addr(addr, type, &tracking_region_idx,
+					 &granule_idx);
+	if (bank == NULL) {
+		return UINT64_MAX;
+	}
+
+	if (category != NULL) {
+		*category = bank->category;
+	}
+
+	return tracking_region_idx;
+}
