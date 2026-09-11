@@ -304,6 +304,45 @@ unsigned long tr_find_lock_granule(unsigned long addr,
 				   struct granule **g);
 
 /*
+ * Find and lock one granule in the active fine or coarse representation.
+ * @addr must be Granule aligned; @g and @tracking_size must be non-NULL.
+ * On RMI_SUCCESS, *@g is locked in @expected_state and *@tracking_size reports
+ * GRANULE_SIZE for fine tracking or the configured region size for coarse
+ * tracking. The region read lock covers size discovery through granule
+ * locking so the returned size describes the locked representation.
+ *
+ * For range operations, the caller must use the returned size to validate
+ * alignment, range extent and any S2TT block before changing granule state.
+ * Return an encoded RMI_ERROR_TRACKING containing @addr when the region has no
+ * usable representation, RMI_BLOCKED for a pending tracking SRO, or
+ * RMI_ERROR_INPUT for an invalid address or Granule-state mismatch. On failure,
+ * leave *@g NULL and *@tracking_size unspecified.
+ *
+ * An SRO caller must yield and retry on RMI_BLOCKED without waiting while
+ * holding other Granule locks. On success the caller owns only *@g's lock.
+ * Keep it through processing and any state change to exclude tracking
+ * transitions and transition claims.
+ */
+unsigned long tr_find_lock_active_granule(unsigned long addr,
+					  unsigned char expected_state,
+					  struct granule **g,
+					  unsigned long *tracking_size);
+
+/*
+ * Lock the longest run of fine granules beginning at @addr that are all in
+ * @expected_state. The run is bounded by @end_addr, the current tracking region,
+ * a memory-bank boundary, or the first granule in another state.
+ * @count receives the number of locked granules. The caller owns the locks for
+ * [@addr, @addr + (@count * GRANULE_SIZE)) and must release them in PA order or
+ * reverse PA order. Each state is validated before lock acquisition and
+ * revalidated after contention. Returns an encoded tracking-aware RMI result.
+ */
+unsigned long tr_find_lock_fine_granule_run(unsigned long addr,
+					     unsigned long end_addr,
+					     unsigned char expected_state,
+					     unsigned long *count);
+
+/*
  * Return an unlocked fine granule for @addr, or NULL on lookup failure.
  * The caller must protect its representation and metadata from before lookup
  * until granule access ends or its lock is acquired. Retain ownership that

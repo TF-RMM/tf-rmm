@@ -242,7 +242,9 @@ struct dev_granule *tr_addr_to_dev_granule(unsigned long addr,
  * the caller must establish lifetime protection for any subsequent dev_granule
  * access: hold a region reader, retain ownership that pins the representation,
  * or ensure transitions cannot run concurrently. Keep that protection until
- * dev_granule access ends or its lock is acquired.
+ * dev_granule access ends or its lock is acquired. Use
+ * tr_find_lock_active_dev_granule() to select and lock the current representation
+ * of an unowned input PA.
  *
  * Return RMI_SUCCESS with *@g set and *@type identifying device coherency,
  * RMI_BLOCKED for a pending tracking SRO, encoded RMI_ERROR_TRACKING containing

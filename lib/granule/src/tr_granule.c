@@ -374,7 +374,9 @@ unsigned long tr_find_granule(unsigned long addr,
  * that accesses the result must prevent tracking transitions from before this
  * call until it finishes using the dev_granule or acquires its lock. Use a
  * region reader, existing ownership that pins the representation, or an
- * environment where transitions cannot run concurrently.
+ * environment where transitions cannot run concurrently. For an unowned input
+ * PA, use tr_find_lock_active_dev_granule() to select and lock the current
+ * representation.
  *
  * Return RMI_SUCCESS with *@g set and *@type identifying device coherency.
  * On failure, leave *@g NULL and return RMI_ERROR_INPUT for an invalid address
@@ -467,6 +469,339 @@ unsigned long tr_find_lock_granule(unsigned long addr,
 					      expected_state, g);
 	tracking_region_read_unlock(tr);
 	return tr_encode_lookup_result(ret, addr);
+}
+
+/*
+ * Find the granule currently representing @addr, lock it in @expected_state,
+ * and report the size of the physical range it represents in *@tracking_size.
+ *
+ * Hold the region read lock from size discovery through granule locking so
+ * the returned granule and size describe the same tracking representation.
+ * Release the read lock before returning, including on failure.
+ *
+ * On RMI_SUCCESS, *@g is locked in @expected_state and *@tracking_size reports
+ * GRANULE_SIZE for fine tracking or the configured region size for coarse
+ * tracking. On failure, leave *@g NULL and *@tracking_size unspecified. See
+ * granule.h for input and range contracts. Errors are unencoded: RMI_BLOCKED for
+ * a pending transition, RMI_ERROR_TRACKING for no representation, or
+ * RMI_ERROR_INPUT for an invalid address/state.
+ */
+static unsigned long tr_lock_active_granule(unsigned long addr,
+					  unsigned char expected_state,
+					  struct granule **g,
+					  unsigned long *tracking_size)
+{
+	struct tracking_region *tr;
+	unsigned long ret;
+
+	assert((g != NULL) && (tracking_size != NULL));
+	*g = NULL;
+
+	if (!GRANULE_ALIGNED(addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	tr = tracking_region_find(addr, TR_MEM_TYPE_CONV);
+	if (tr == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	tracking_region_read_lock(tr);
+	ret = tr_active_tracking_size(tr, tracking_size);
+	if (ret == RMI_SUCCESS) {
+		ret = tr_find_lock_granule_read_locked(tr, addr,
+						      *tracking_size,
+						      expected_state, g);
+	}
+	tracking_region_read_unlock(tr);
+
+	return ret;
+}
+
+/*
+ * Lock an active granule and encode lookup failures for RMI and SRO callers.
+ * On success, return only the granule lock with no region reader held.
+ * SRO callers must yield and retry on RMI_BLOCKED. See granule.h for input,
+ * output and locking contracts.
+ */
+unsigned long tr_find_lock_active_granule(unsigned long addr,
+					unsigned char expected_state,
+					struct granule **g,
+					unsigned long *tracking_size)
+{
+	return tr_encode_lookup_result(
+			tr_lock_active_granule(addr, expected_state, g, tracking_size), addr);
+}
+
+/*
+ * Lock the longest run of fine granules in @expected_state.
+ *
+ * Retain the tracking-region read lock while collecting the run so a tracking
+ * transition cannot replace the fine representation between granule lock
+ * acquisitions. Check each granule's state before acquiring it so the run
+ * cannot violate the global state lock order when a state boundary is reached.
+ * A state, bank, or region boundary terminates a non-empty run successfully;
+ * the caller can process that prefix and discover the boundary state in its
+ * next range invocation.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+unsigned long tr_find_lock_fine_granule_run(unsigned long addr,
+					     unsigned long end_addr,
+					     unsigned char expected_state,
+					     unsigned long *count)
+{
+	struct tracking_region *tr;
+	unsigned long tracking_size;
+	unsigned long cursor;
+	unsigned long locked = 0UL;
+	unsigned long ret;
+
+	assert(count != NULL);
+	*count = 0UL;
+	if (!GRANULE_ALIGNED(addr) || !GRANULE_ALIGNED(end_addr) ||
+	    (end_addr <= addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	tr = tracking_region_find(addr, TR_MEM_TYPE_CONV);
+	if (tr == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	tracking_region_read_lock(tr);
+	ret = tr_active_tracking_size(tr, &tracking_size);
+	if (ret != RMI_SUCCESS) {
+		goto out;
+	}
+	if (tracking_size != GRANULE_SIZE) {
+		ret = RMI_ERROR_TRACKING;
+		goto out;
+	}
+
+	for (cursor = addr; cursor < end_addr; cursor += GRANULE_SIZE) {
+		struct granule *g;
+
+		if (tracking_region_find(cursor, TR_MEM_TYPE_CONV) != tr) {
+			assert(ret == RMI_SUCCESS);
+			break;
+		}
+
+		ret = tr_select_granule(tr, cursor, GRANULE_SIZE, &g);
+		if ((ret == RMI_SUCCESS) &&
+		    !granule_lock_on_state_match(g, expected_state)) {
+			ret = RMI_ERROR_INPUT;
+		}
+		if (ret != RMI_SUCCESS) {
+			/*
+			 * Return any locked prefix as a successful run so the caller
+			 * can process it before handling the failing address on its
+			 * next lookup. If nothing was locked, preserve the error.
+			 */
+			if (locked != 0UL) {
+				ret = RMI_SUCCESS;
+			}
+			break;
+		}
+		locked++;
+	}
+
+out:
+	tracking_region_read_unlock(tr);
+	if (ret != RMI_SUCCESS) {
+		/* A non-empty locked prefix is always returned as a success. */
+		assert(locked == 0UL);
+		return tr_encode_lookup_result(ret, addr);
+	}
+
+	assert(locked != 0UL);
+	*count = locked;
+	return RMI_SUCCESS;
+}
+
+/*
+ * Select and lock a dev_granule under @tr's read lock.
+ * Earlier granule locks must precede @expected_state and @addr in the
+ * locking order. Return RMI_SUCCESS with *@g locked, a selection error, or
+ * RMI_ERROR_INPUT without retaining *@g's lock on a state mismatch.
+ */
+static unsigned long tr_find_lock_dev_granule_read_locked(
+					struct tracking_region *tr,
+					unsigned long addr,
+					unsigned long tracking_size,
+					unsigned char expected_state,
+					struct dev_granule **g,
+					enum dev_coh_type *type)
+{
+	unsigned long ret;
+
+	ret = tr_select_dev_granule(tr, addr, tracking_size, g, type);
+	if (ret != RMI_SUCCESS) {
+		return ret;
+	}
+
+	if (!dev_granule_lock_on_state_match(*g, expected_state)) {
+		*g = NULL;
+		return RMI_ERROR_INPUT;
+	}
+
+	return RMI_SUCCESS;
+}
+
+/*
+ * Find the dev_granule currently representing @addr, lock it in @expected_state,
+ * and report the size of the physical range it represents in *@tracking_size.
+ *
+ * Hold the region read lock from size discovery through dev_granule locking so
+ * the returned dev_granule and size describe the same tracking representation.
+ * Release the read lock before returning, including on failure.
+ *
+ * On RMI_SUCCESS, *@g is locked in @expected_state, *@type reports its coherency
+ * type and *@tracking_size reports GRANULE_SIZE for fine tracking or the
+ * configured region size for coarse tracking. On failure, leave *@g NULL;
+ * *@type and *@tracking_size are unspecified. See dev_granule.h for input,
+ * range-validation contracts. Errors are unencoded: RMI_BLOCKED for a pending
+ * transition, RMI_ERROR_TRACKING for no representation, or RMI_ERROR_INPUT for
+ * an invalid address/state.
+ */
+static unsigned long tr_lock_active_dev_granule(
+					unsigned long addr,
+					unsigned char expected_state,
+					struct dev_granule **g,
+					enum dev_coh_type *type,
+					unsigned long *tracking_size)
+{
+	struct tracking_region *tr;
+	unsigned long ret;
+
+	assert((g != NULL) && (type != NULL) && (tracking_size != NULL));
+	*g = NULL;
+
+	if (!GRANULE_ALIGNED(addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	tr = tracking_region_find(addr, TR_MEM_TYPE_DEV);
+	if (tr == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	tracking_region_read_lock(tr);
+	ret = tr_active_tracking_size(tr, tracking_size);
+	if (ret == RMI_SUCCESS) {
+		ret = tr_find_lock_dev_granule_read_locked(tr, addr,
+							  *tracking_size,
+							  expected_state,
+							  g, type);
+	}
+	tracking_region_read_unlock(tr);
+
+	return ret;
+}
+
+/*
+ * Lock an active dev_granule and encode lookup failures for RMI and SRO callers.
+ * On success, return only the dev_granule lock with no region reader held.
+ * SRO callers must yield and retry on RMI_BLOCKED. See dev_granule.h for input,
+ * output and locking contracts.
+ */
+unsigned long tr_find_lock_active_dev_granule(unsigned long addr,
+					unsigned char expected_state,
+					struct dev_granule **g,
+					enum dev_coh_type *type,
+					unsigned long *tracking_size)
+{
+	return tr_encode_lookup_result(
+		tr_lock_active_dev_granule(addr, expected_state, g, type, tracking_size), addr);
+}
+
+/*
+ * Lock the longest run of fine dev_granules in @expected_state.
+ *
+ * The tracking-region read lock stabilizes the fine representation while the
+ * granules are acquired in ascending PA order. Check each granule's
+ * state before acquisition and after contention so a state boundary cannot
+ * introduce a lock-order violation. Stop before a different bank, region,
+ * coherency type, or Granule state so the caller can pass a homogeneous
+ * NS-only range to EL3.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+unsigned long tr_find_lock_fine_dev_granule_run(
+					unsigned long addr,
+					unsigned long end_addr,
+					unsigned char expected_state,
+					enum dev_coh_type *type,
+					unsigned long *count)
+{
+	struct tracking_region *tr;
+	unsigned long tracking_size;
+	unsigned long cursor;
+	unsigned long locked = 0UL;
+	unsigned long ret;
+
+	assert((type != NULL) && (count != NULL));
+	*count = 0UL;
+	if (!GRANULE_ALIGNED(addr) || !GRANULE_ALIGNED(end_addr) ||
+	    (end_addr <= addr)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	tr = tracking_region_find(addr, TR_MEM_TYPE_DEV);
+	if (tr == NULL) {
+		return RMI_ERROR_INPUT;
+	}
+
+	tracking_region_read_lock(tr);
+	ret = tr_active_tracking_size(tr, &tracking_size);
+	if (ret != RMI_SUCCESS) {
+		goto out;
+	}
+	if (tracking_size != GRANULE_SIZE) {
+		ret = RMI_ERROR_TRACKING;
+		goto out;
+	}
+
+	for (cursor = addr; cursor < end_addr; cursor += GRANULE_SIZE) {
+		enum dev_coh_type current_type;
+		struct dev_granule *g;
+
+		if (tracking_region_find(cursor, TR_MEM_TYPE_DEV) != tr) {
+			break;
+		}
+
+		ret = tr_select_dev_granule(tr, cursor, GRANULE_SIZE, &g,
+					    &current_type);
+		if ((ret == RMI_SUCCESS) &&
+		    !dev_granule_lock_on_state_match(g, expected_state)) {
+			ret = RMI_ERROR_INPUT;
+		}
+		if (ret != RMI_SUCCESS) {
+			if (locked != 0UL) {
+				ret = RMI_SUCCESS;
+			}
+			break;
+		}
+		if ((locked != 0UL) && (current_type != *type)) {
+			dev_granule_unlock(g);
+			ret = RMI_SUCCESS;
+			break;
+		}
+		if (locked == 0UL) {
+			*type = current_type;
+		}
+		locked++;
+	}
+
+out:
+	tracking_region_read_unlock(tr);
+	if (ret != RMI_SUCCESS) {
+		/* A non-empty locked prefix is always returned as a success. */
+		assert(locked == 0UL);
+		return tr_encode_lookup_result(ret, addr);
+	}
+
+	assert(locked != 0UL);
+	*count = locked;
+	return RMI_SUCCESS;
 }
 
 /*

@@ -217,6 +217,51 @@ static inline void dev_granule_unlock_transition(struct dev_granule *g,
 	dev_granule_unlock(g);
 }
 
+/*
+ * Find and lock one dev_granule in the active fine or coarse representation.
+ * @addr must be Granule aligned; @g, @type and @tracking_size must be non-NULL.
+ * On RMI_SUCCESS, *@g is locked in @expected_state, *@type reports its coherency
+ * type and *@tracking_size reports GRANULE_SIZE for fine tracking or the
+ * configured region size for coarse tracking. The region read lock covers
+ * size discovery through dev_granule locking so the returned size describes
+ * the locked representation.
+ *
+ * For range operations, the caller must use the returned size to validate
+ * alignment, range extent and any S2TT block before changing dev_granule state.
+ * Return an encoded RMI_ERROR_TRACKING containing @addr when the region has no
+ * usable representation, RMI_BLOCKED for a pending tracking SRO, or
+ * RMI_ERROR_INPUT for an invalid address or Granule-state mismatch. On failure,
+ * leave *@g NULL; *@type and *@tracking_size are unspecified.
+ *
+ * An SRO caller must yield and retry on RMI_BLOCKED without waiting while
+ * holding other Granule locks. On success the caller owns only *@g's lock.
+ * Keep it through processing and any state change to exclude tracking
+ * transitions and transition claims.
+ */
+unsigned long tr_find_lock_active_dev_granule(
+					unsigned long addr,
+					unsigned char expected_state,
+					struct dev_granule **g,
+					enum dev_coh_type *type,
+					unsigned long *tracking_size);
+
+/*
+ * Lock the longest run of fine dev_granules beginning at @addr that are all in
+ * @expected_state and have one coherency type. The run is bounded by @end_addr,
+ * the current tracking region, a memory-bank or coherency boundary, or the
+ * first dev_granule in another state. @count receives the number of locked
+ * dev_granules and @type receives their coherency type. The caller owns the
+ * locks for the returned PA range. Each state is validated before lock
+ * acquisition and revalidated after contention.
+ * Returns an encoded tracking-aware RMI result.
+ */
+unsigned long tr_find_lock_fine_dev_granule_run(
+					unsigned long addr,
+					unsigned long end_addr,
+					unsigned char expected_state,
+					enum dev_coh_type *type,
+					unsigned long *count);
+
 
 /*
  * Refcount field occupies LSB bits of struct dev_granule,
