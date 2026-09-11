@@ -14,6 +14,8 @@
 #include <tracking_region_pvt.h>
 #include <utils_def.h>
 
+#define TR_GRANULE_SET_MAX	U(3)
+
 /* Return whether @size selects the configured coarse or fine granularity. */
 static bool tr_tracking_size_valid(unsigned long size)
 {
@@ -802,6 +804,233 @@ out:
 	assert(locked != 0UL);
 	*count = locked;
 	return RMI_SUCCESS;
+}
+
+struct tr_granule_set {
+	unsigned long addr;
+	struct granule *g;
+	struct granule **g_ret;
+	unsigned char state;
+};
+
+/* Return the global lock order for @state. */
+static unsigned int tr_granule_lock_order(unsigned char state)
+{
+	switch (state) {
+	case GRANULE_STATE_RD:
+		return 0U;
+	case GRANULE_STATE_REC:
+		return 1U;
+	case GRANULE_STATE_PDEV:
+		return 2U;
+	case GRANULE_STATE_VDEV:
+		return 3U;
+	case GRANULE_STATE_RTT:
+		return 4U;
+	case GRANULE_STATE_DELEGATED:
+		return 5U;
+	case GRANULE_STATE_NS:
+		return 6U;
+	case GRANULE_STATE_DATA:
+		return 7U;
+	case GRANULE_STATE_REC_AUX:
+		return 8U;
+	case GRANULE_STATE_PDEV_AUX:
+		return 9U;
+	case GRANULE_STATE_VDEV_AUX:
+		return 10U;
+	case GRANULE_STATE_INTERNAL:
+		return 11U;
+	case GRANULE_STATE_PSMMU_ST_L2:
+		return 12U;
+	case GRANULE_STATE_RD_AUX:
+		return 13U;
+	case GRANULE_STATE_PARTIAL:
+		return 14U;
+	default:
+		assert(false);
+		return ~0U;
+	}
+}
+
+/* Return whether @a must be locked after @b. */
+static bool tr_granule_set_after(const struct tr_granule_set *a,
+				 const struct tr_granule_set *b)
+{
+	unsigned int order_a = tr_granule_lock_order(a->state);
+	unsigned int order_b = tr_granule_lock_order(b->state);
+
+	if (order_a != order_b) {
+		return order_a > order_b;
+	}
+
+	return a->addr > b->addr;
+}
+
+/* Return whether @gs contains the same address more than once. */
+static bool tr_granule_set_has_duplicate_addr(
+					const struct tr_granule_set *gs,
+					unsigned long n)
+{
+	for (unsigned long i = 0UL; i < n; i++) {
+		for (unsigned long j = i + 1UL; j < n; j++) {
+			if (gs[i].addr == gs[j].addr) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+/* Sort granules into global lock order. */
+static void tr_sort_granules(struct tr_granule_set *gs, unsigned long n)
+{
+	for (unsigned long i = 1UL; i < n; i++) {
+		struct tr_granule_set temp = gs[i];
+		unsigned long j = i;
+
+		while ((j > 0UL) &&
+		       tr_granule_set_after(&gs[j - 1UL], &temp)) {
+			gs[j] = gs[j - 1UL];
+			j--;
+		}
+		if (i != j) {
+			gs[j] = temp;
+		}
+	}
+}
+
+/*
+ * Lock @n independently addressed fine granules in state and PA order,
+ * rejecting duplicate addresses. Each lookup acquires its own region reader
+ * while earlier granule locks pin their representations. Publish output
+ * pointers and return RMI_SUCCESS only after all locks succeed; otherwise
+ * release the prefix and return the first failing lookup's tracking-aware
+ * RMI error. Callers must initialize the output pointers to NULL and obey the
+ * locking contract in granule.h.
+ */
+static unsigned long tr_find_lock_fine_granules(struct tr_granule_set *gs,
+					      unsigned long n)
+{
+	unsigned long ret;
+	unsigned long i;
+
+	assert((gs != NULL) && (n > 0UL) && (n <= TR_GRANULE_SET_MAX));
+
+	if (tr_granule_set_has_duplicate_addr(gs, n)) {
+		return RMI_ERROR_INPUT;
+	}
+
+	/* Keep address validation ahead of granule acquisition. */
+	for (i = 0UL; i < n; i++) {
+		if (!GRANULE_ALIGNED(gs[i].addr) ||
+		    (tracking_region_find(gs[i].addr, TR_MEM_TYPE_CONV) == NULL)) {
+			return RMI_ERROR_INPUT;
+		}
+	}
+
+	tr_sort_granules(gs, n);
+	/* Each acquired granule pins its representation during later lookups. */
+	for (i = 0UL; i < n; i++) {
+		ret = tr_find_lock_granule(gs[i].addr, GRANULE_SIZE,
+					    gs[i].state, &gs[i].g);
+		if (ret != RMI_SUCCESS) {
+			goto out_err;
+		}
+	}
+
+	for (i = 0UL; i < n; i++) {
+		*gs[i].g_ret = gs[i].g;
+	}
+
+	return RMI_SUCCESS;
+
+out_err:
+	while (i != 0UL) {
+		granule_unlock(gs[--i].g);
+	}
+
+	return ret;
+}
+
+/*
+ * Find and lock two fine granules in global state and PA order.
+ * See granule.h for the address, state and locking contracts.
+ * Return an RMI result, leaving both outputs NULL and no locks held on failure.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+unsigned long tr_find_lock_two_fine_granules(
+			unsigned long addr1,
+			unsigned char expected_state1,
+			struct granule **g1,
+			unsigned long addr2,
+			unsigned char expected_state2,
+			struct granule **g2)
+{
+	struct tr_granule_set gs[] = {
+		{
+			.addr = addr1,
+			.g_ret = g1,
+			.state = expected_state1
+		},
+		{
+			.addr = addr2,
+			.g_ret = g2,
+			.state = expected_state2
+		}
+	};
+
+	assert((g1 != NULL) && (g2 != NULL));
+	*g1 = NULL;
+	*g2 = NULL;
+
+	/* All helper accesses are bounded by the exact element count passed here. */
+	/* coverity[overrun-buffer-val:SUPPRESS] */
+	return tr_find_lock_fine_granules(gs, ARRAY_SIZE(gs));
+}
+
+/*
+ * Find and lock three fine granules in global state and PA order.
+ * See granule.h for the address, state and locking contracts.
+ * Return an RMI result, leaving all outputs NULL and no locks held on failure.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+unsigned long tr_find_lock_three_fine_granules(
+			unsigned long addr1,
+			unsigned char expected_state1,
+			struct granule **g1,
+			unsigned long addr2,
+			unsigned char expected_state2,
+			struct granule **g2,
+			unsigned long addr3,
+			unsigned char expected_state3,
+			struct granule **g3)
+{
+	struct tr_granule_set gs[] = {
+		{
+			.addr = addr1,
+			.g_ret = g1,
+			.state = expected_state1
+		},
+		{
+			.addr = addr2,
+			.g_ret = g2,
+			.state = expected_state2
+		},
+		{
+			.addr = addr3,
+			.g_ret = g3,
+			.state = expected_state3
+		}
+	};
+
+	assert((g1 != NULL) && (g2 != NULL) && (g3 != NULL));
+	*g1 = NULL;
+	*g2 = NULL;
+	*g3 = NULL;
+
+	return tr_find_lock_fine_granules(gs, ARRAY_SIZE(gs));
 }
 
 /*

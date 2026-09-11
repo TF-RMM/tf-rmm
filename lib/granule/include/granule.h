@@ -342,6 +342,7 @@ unsigned long tr_find_lock_fine_granule_run(unsigned long addr,
 					     unsigned char expected_state,
 					     unsigned long *count);
 
+
 /*
  * Return an unlocked fine granule for @addr, or NULL on lookup failure.
  * The caller must protect its representation and metadata from before lookup
@@ -350,6 +351,44 @@ unsigned long tr_find_lock_fine_granule_run(unsigned long addr,
  * A non-NULL result alone does not protect its lifetime.
  */
 struct granule *tr_find_fine_granule(unsigned long addr);
+
+/*
+ * Find and lock two independently addressed fine granules in global state
+ * order and then PA order. Both addresses must be Granule aligned and the
+ * output locations must be non-NULL. Respect the order of any locks already
+ * held. RTT, DATA and auxiliary granules require their own hierarchy and
+ * ownership rules instead of this independent-address ordering.
+ *
+ * Return RMI_SUCCESS with both granules locked in their expected states,
+ * RMI_BLOCKED for a pending tracking SRO, encoded RMI_ERROR_TRACKING with the
+ * failing PA if fine tracking is unavailable, or RMI_ERROR_INPUT for an invalid
+ * address, duplicate address or Granule state. On failure, leave both outputs
+ * NULL and no additional locks held.
+ */
+unsigned long tr_find_lock_two_fine_granules(unsigned long addr1,
+					     unsigned char expected_state1,
+					     struct granule **g1,
+					     unsigned long addr2,
+					     unsigned char expected_state2,
+					     struct granule **g2);
+
+/*
+ * Find and lock three independently addressed fine granules in global state
+ * and PA order. The address, output and locking contracts, and return values,
+ * are the same as tr_find_lock_two_fine_granules(). On failure, leave all three
+ * outputs NULL and no additional locks held.
+ */
+unsigned long tr_find_lock_three_fine_granules(
+			unsigned long addr1,
+			unsigned char expected_state1,
+			struct granule **g1,
+			unsigned long addr2,
+			unsigned char expected_state2,
+			struct granule **g2,
+			unsigned long addr3,
+			unsigned char expected_state3,
+			struct granule **g3);
+
 void granule_memzero_mapped(void *buf);
 void granule_dcci_poe(struct granule *g);
 

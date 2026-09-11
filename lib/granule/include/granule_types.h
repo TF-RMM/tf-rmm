@@ -53,9 +53,11 @@
  * 2. Independently-addressed memory granules of the same type must be locked
  *    in order of their physical address, starting with the lowest address.
  *
- * 3. Once a granule expected to be in an `external` state has been locked, its
- *    state must be checked against the expected state. If these do not match,
- *    the granule must be unlocked and no further granules may be locked.
+ * 3. An independently-addressed granule's state must be checked before
+ *    acquisition, throughout contention and after acquiring its lock. A
+ *    mismatch must stop acquisition without waiting for the granule to reach
+ *    the expected state.
+ *    Release any acquired locks and do not acquire further granules.
  *
  * 4. Granules in the remaining `internal` states must be locked in order of
  *    state:
@@ -88,7 +90,8 @@
  *
  * A granule's state can be changed iff the granule is locked. The
  * granule_lock_order() helper implements the type order used by
- * find_lock_two_granules() and find_lock_three_granules().
+ * tr_find_lock_two_fine_granules() and tr_find_lock_three_fine_granules()
+ * for independently-addressed memory granules.
  *
  * Invariants
  * ----------
