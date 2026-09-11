@@ -144,11 +144,12 @@ struct sro_pdev_ctx {
 };
 
 struct granule;
+struct dev_granule;
 struct s2tt_context;
 
 /*
- * State carried by an in-flight RMI_RTT_DATA_UNMAP or RMI_RTT_UNPROT_UNMAP
- * across one or more RMI_OP_CONTINUE round-trips.
+ * State carried by an in-flight RMI_RTT_DATA_UNMAP, RMI_RTT_DEV_UNMAP or
+ * RMI_RTT_UNPROT_UNMAP across RMI_OP_CONTINUE round-trips.
  *
  * RMI_RTT_DATA_UNMAP additionally defers the per-entry leaf-RTT
  * refcount drops (one per live entry the sweep freed) and a per-DATA
@@ -157,10 +158,20 @@ struct s2tt_context;
  * cursors point to the next granule to drain inside @addr_list so
  * the SRO_CONTINUE entry can resume in-place. RMI_RTT_UNPROT_UNMAP
  * does not own DATA granules, so the drain cursors stay zero; the
- * extra @g_llt refcount taken at yield time is what pins the leaf.
+ * per-entry @g_llt references pin the leaf.
+ *
+ * Coarse DATA/DEV unmap owns one whole tracking region in PARTIAL state
+ * through invalidation and drain. @g_coarse or @g_coarse_dev retains that
+ * ownership without holding a lock across yields. For DATA, @pending_pa
+ * advances by one page of cache maintenance while the whole unit stays
+ * PARTIAL. Only the completed unit is published as DELEGATED.
  */
 struct sro_unmap_ctx {
+	unsigned long backing_addr;	/* PA selecting the sole backing region */
 	struct granule *g_llt;		/* Leaf RTT pinned across yields */
+	struct granule *g_coarse;		/* Coarse DATA_UNMAP owns this PARTIAL unit */
+	struct dev_granule *g_coarse_dev;	/* Coarse DEV_UNMAP owns this PARTIAL unit */
+	bool tlbi_done;			/* Invalidation completed before the drain */
 	unsigned long oaddr;		/* LIST: NS PA of output buffer */
 	unsigned long cur_base;		/* Next IPA to sweep; also out_top */
 	unsigned int oaddr_type;	/* RmiAddrType: NONE / SINGLE / LIST */

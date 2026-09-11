@@ -251,6 +251,7 @@
  * SRO. It covers partially created or destroyed objects and tracking memory
  * participating in a stateful EL3 delegation or undelegation operation.
  * It also reserves a coarse DATA_MAP unit while its pages are being zeroed.
+ * Coarse DATA_UNMAP keeps its unit PARTIAL through invalidation and cache maintenance.
  */
 #define GRANULE_STATE_PARTIAL		11U
 
@@ -345,12 +346,13 @@ struct granule {
 #define DEV_GRANULE_STATE_MAPPED	2U
 
 /*
- * Dev Granule participating in an incomplete PAS transition (internal)
+ * Dev Granule owned by an incomplete stateful operation (internal)
  *
  * This intermediate state reserves an active dev_granule for a range
  * delegation or undelegation SRO while EL3 retains operation state.
  * A coarse dev_granule also remains in this state while a partially delegated
  * tracking region is rolled back.
+ * Coarse DEV_UNMAP also uses it to reserve a unit through invalidation and drain.
  *
  * No references are held on this granule type.
  */

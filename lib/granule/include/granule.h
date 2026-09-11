@@ -257,7 +257,8 @@ static inline void granule_unlock(struct granule *g)
  * Transition to @new_state and unlock @g.
  *
  * A transition to DELEGATED is valid only from NS, after a synchronous EL3
- * transition, or from PARTIAL when an SRO publishes completed EL3 progress.
+ * transition, or from PARTIAL when an SRO publishes completed EL3 progress
+ * or a coarse unmap whose invalidation and cache maintenance have finished.
  */
 static inline void granule_unlock_transition(struct granule *g,
 					     unsigned char new_state)
