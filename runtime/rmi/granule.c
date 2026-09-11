@@ -11,6 +11,7 @@
 #include <dev_granule.h>
 #include <glob_data.h>
 #include <granule.h>
+#include <granule_sro.h>
 #include <mec.h>
 #include <rmm_el3_ifc.h>
 #include <smc-handler.h>
@@ -21,37 +22,26 @@
 #include <stdbool.h>
 #include <tracking_region.h>
 
-static unsigned long dev_granule_delegate(unsigned long addr)
+/*
+ * Validate a Host range and start delegation at its active tracking size.
+ * Both addresses must be Granule aligned and define a non-empty range. @res
+ * receives the RMI status and progress address, or an SRO handle when the
+ * operation must resume. The caller must hold no Granule lock.
+ */
+void smc_granule_range_delegate(unsigned long addr,
+				unsigned long end_addr,
+				struct smc_result *res)
 {
-	enum dev_coh_type type;
+	res->x[0] = RMI_ERROR_INPUT;
+	res->x[1] = addr;
 
-	/* Try to find device granule */
-	struct dev_granule *g = find_dev_granule(addr, &type);
-
-	if (g == NULL) {
-		return RMI_ERROR_INPUT;
+	if (!ALIGNED(addr, GRANULE_SIZE) ||
+	    !ALIGNED(end_addr, GRANULE_SIZE) ||
+	    (end_addr <= addr)) {
+		return;
 	}
 
-	if (dev_granule_unlocked_state(g) == DEV_GRANULE_STATE_DELEGATED) {
-		return RMI_SUCCESS;
-	}
-
-	if (!dev_granule_lock_on_state_match(g, DEV_GRANULE_STATE_NS)) {
-		return RMI_ERROR_INPUT;
-	}
-
-	/*
-	 * It is possible that the device granule was delegated by EL3
-	 * to Secure on request from SPM and hence this request can fail.
-	 */
-	if (rmm_el3_ifc_gtsi_delegate(addr) != SMC_SUCCESS) {
-		dev_granule_unlock(g);
-		return RMI_ERROR_INPUT;
-	}
-
-	dev_granule_set_state(g, DEV_GRANULE_STATE_DELEGATED);
-	dev_granule_unlock(g);
-	return RMI_SUCCESS;
+	granule_delegate_start(addr, end_addr, res);
 }
 
 static unsigned long dev_granule_undelegate(unsigned long addr)
@@ -86,65 +76,6 @@ static unsigned long dev_granule_undelegate(unsigned long addr)
 	dev_granule_set_state(g, DEV_GRANULE_STATE_NS);
 	dev_granule_unlock(g);
 	return RMI_SUCCESS;
-}
-
-unsigned long smc_granule_delegate(unsigned long addr)
-{
-	/* Try to find memory granule */
-	struct granule *g = find_granule(addr);
-
-	if (g != NULL) {
-
-		if (granule_unlocked_state(g) == GRANULE_STATE_DELEGATED) {
-			return RMI_SUCCESS;
-		}
-
-		if (!granule_lock_on_state_match(g, GRANULE_STATE_NS)) {
-			return RMI_ERROR_INPUT;
-		}
-
-		/*
-		 * It is possible that the memory granule was delegated by EL3
-		 * to Secure on request from SPM and hence this request can fail.
-		 */
-		if (rmm_el3_ifc_gtsi_delegate(addr) != SMC_SUCCESS) {
-			granule_unlock(g);
-			return RMI_ERROR_INPUT;
-		}
-
-		/*
-		 * The granule will be initialized later when the granule transitions
-		 * to other states. RMM does not scrub here as the initilization makes
-		 * the scrub redundant.
-		 */
-		granule_unlock_transition(g, GRANULE_STATE_DELEGATED);
-
-		return RMI_SUCCESS;
-	}
-
-	/* Delegate device granule */
-	return dev_granule_delegate(addr);
-}
-
-/* @TODO Enhance implementation later */
-void smc_granule_range_delegate(unsigned long addr,
-				unsigned long end_addr,
-				struct smc_result *res)
-{
-	res->x[0] = RMI_ERROR_INPUT;
-	res->x[1] = addr;
-
-	/* Simplified implementation delegates exactly one granule. */
-	if (!ALIGNED(addr, GRANULE_SIZE) ||
-	    !ALIGNED(end_addr, GRANULE_SIZE) ||
-	    (end_addr < (addr + GRANULE_SIZE))) {
-		return;
-	}
-
-	res->x[0] = smc_granule_delegate(addr);
-	if (res->x[0] == RMI_SUCCESS) {
-		res->x[1] = addr + GRANULE_SIZE;
-	}
 }
 
 /* @TODO Enhance implementation later */

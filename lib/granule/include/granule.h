@@ -342,6 +342,36 @@ unsigned long tr_find_lock_fine_granule_run(unsigned long addr,
 					     unsigned char expected_state,
 					     unsigned long *count);
 
+/*
+ * Lock a granule for a range in either @source_state or @target_state.
+ * The states must differ and all output pointers must be non-NULL.
+ * The caller must hold no Granule lock. On RMI_SUCCESS, @g is locked,
+ * @tracking_size identifies the active representation, and @in_target reports
+ * whether the granule is in @target_state. Return the tracking-aware lookup
+ * error with no lock held on failure; the outputs are then unspecified.
+ */
+unsigned long granule_range_lock_conventional(
+					unsigned long addr,
+					unsigned char source_state,
+					unsigned char target_state,
+					struct granule **g,
+					unsigned long *tracking_size,
+					bool *in_target);
+
+/*
+ * Publish delegation progress for a locked run of fine granules.
+ * The caller owns @locked_count consecutive NS granules starting at aligned
+ * @addr, with @delegated_count <= @locked_count. Change the delegated prefix to
+ * DELEGATED. Change the remaining granules to PARTIAL if @incomplete, or
+ * leave them NS otherwise. Release every granule lock in ascending PA order
+ * without acquiring a region reader. The caller must retain ownership of any
+ * PARTIAL granules until their PAS transition completes or rolls back.
+ */
+void granule_range_delegate_fine_unlock(unsigned long addr,
+						unsigned long locked_count,
+						unsigned long delegated_count,
+						bool incomplete);
+
 
 /*
  * Return an unlocked fine granule for @addr, or NULL on lookup failure.

@@ -1068,3 +1068,144 @@ struct dev_granule *tr_find_fine_dev_granule(unsigned long addr,
 
 	return g;
 }
+
+/*
+ * Lock a granule for a range in either @source_state or @target_state.
+ * The states must differ and all output pointers must be non-NULL.
+ * The caller must hold no Granule lock. On RMI_SUCCESS, @g is locked,
+ * @tracking_size identifies the active representation, and @in_target reports
+ * whether the granule is in @target_state. Return the tracking-aware lookup
+ * error with no lock held on failure; the outputs are then unspecified.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+unsigned long granule_range_lock_conventional(
+					unsigned long addr,
+					unsigned char source_state,
+					unsigned char target_state,
+					struct granule **g,
+					unsigned long *tracking_size,
+					bool *in_target)
+{
+	unsigned long ret;
+
+	ret = tr_find_lock_active_granule(addr, source_state, g,
+					  tracking_size);
+	if (ret == RMI_SUCCESS) {
+		*in_target = false;
+		return ret;
+	}
+	if (ret != RMI_ERROR_INPUT) {
+		return ret;
+	}
+
+	ret = tr_find_lock_active_granule(addr, target_state, g,
+					  tracking_size);
+	if (ret == RMI_SUCCESS) {
+		*in_target = true;
+	}
+	return ret;
+}
+
+/*
+ * Lock a dev_granule for a range in either @source_state or @target_state.
+ * The states must differ and all output pointers must be non-NULL.
+ * On RMI_SUCCESS, @g is locked, @tracking_size identifies the active
+ * representation, and @in_target reports whether it is in @target_state. The
+ * caller must hold no Granule lock. Return the tracking-aware lookup error with
+ * no lock held on failure; the outputs are then unspecified. Lookup validates
+ * the device coherency type, which is not otherwise needed by this operation.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+unsigned long granule_range_lock_device(unsigned long addr,
+					unsigned char source_state,
+					unsigned char target_state,
+					struct dev_granule **g,
+					unsigned long *tracking_size,
+					bool *in_target)
+{
+	enum dev_coh_type type __unused;
+	unsigned long ret;
+
+	ret = tr_find_lock_active_dev_granule(addr, source_state, g, &type,
+					      tracking_size);
+	if (ret == RMI_SUCCESS) {
+		*in_target = false;
+		return ret;
+	}
+	if (ret != RMI_ERROR_INPUT) {
+		return ret;
+	}
+
+	ret = tr_find_lock_active_dev_granule(addr, target_state, g, &type,
+					      tracking_size);
+	if (ret == RMI_SUCCESS) {
+		*in_target = true;
+	}
+	return ret;
+}
+
+/*
+ * Publish delegation progress for a locked run of fine granules.
+ * The caller owns @locked_count consecutive NS granules starting at aligned
+ * @addr, with @delegated_count <= @locked_count. Change the delegated prefix to
+ * DELEGATED. Change the remaining granules to PARTIAL if @incomplete, or
+ * leave them NS otherwise. Release every granule lock in ascending PA order
+ * without acquiring a region reader. The caller must retain ownership of any
+ * PARTIAL granules until their PAS transition completes or rolls back.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+void granule_range_delegate_fine_unlock(unsigned long addr,
+						unsigned long locked_count,
+						unsigned long delegated_count,
+						bool incomplete)
+{
+	assert(delegated_count <= locked_count);
+
+	for (unsigned long i = 0UL; i < locked_count; i++) {
+		struct granule *g =
+			tr_addr_to_granule(addr + (i * GRANULE_SIZE));
+
+		if (i < delegated_count) {
+			granule_unlock_transition(g, GRANULE_STATE_DELEGATED);
+		} else if (incomplete) {
+			granule_unlock_transition(g, GRANULE_STATE_PARTIAL);
+		} else {
+			granule_unlock(g);
+		}
+	}
+}
+
+/*
+ * Publish delegation progress for a locked run of fine dev_granules.
+ * The caller owns @locked_count consecutive NS dev_granules starting at aligned
+ * @addr, with @delegated_count <= @locked_count. Change the delegated prefix to
+ * DELEGATED. Change the remaining dev_granules to PARTIAL if @incomplete, or
+ * leave them NS otherwise. Release every dev_granule lock in ascending PA order
+ * without acquiring a region reader. The caller must retain ownership of any
+ * PARTIAL dev_granules until their PAS transition completes or rolls back.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+void granule_range_delegate_fine_dev_unlock(unsigned long addr,
+					    unsigned long locked_count,
+					    unsigned long delegated_count,
+					    bool incomplete)
+{
+	assert(delegated_count <= locked_count);
+
+	for (unsigned long i = 0UL; i < locked_count; i++) {
+		enum dev_coh_type type;
+		struct dev_granule *g = tr_addr_to_dev_granule(
+					addr + (i * GRANULE_SIZE), &type);
+
+		(void)type;
+		if (i < delegated_count) {
+			dev_granule_unlock_transition(
+					g, DEV_GRANULE_STATE_DELEGATED);
+		} else if (incomplete) {
+			dev_granule_unlock_transition(
+					g, DEV_GRANULE_STATE_PARTIAL);
+		} else {
+			dev_granule_unlock(g);
+		}
+	}
+}

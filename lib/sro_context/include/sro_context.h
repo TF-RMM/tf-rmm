@@ -8,6 +8,7 @@
 
 #include <addr_list.h>
 #include <dev_type.h>
+#include <rmm_el3_gpi.h>
 #include <smc-rmi.h>
 #include <smc.h>
 #include <smmuv3.h>
@@ -264,6 +265,19 @@ struct sro_realm_ctx {
 	unsigned long realm_params_addr;
 };
 
+/* State retained during range delegation retry, continuation or coarse rollback. */
+struct sro_granule_delegate_ctx {
+	struct rmm_el3_gpi_state el3;	/* Shared delegation/rollback EL3 state. */
+	unsigned long host_addr;		/* Initial RMI range cursor. */
+	unsigned long addr;		/* Base PA of the original EL3 request. */
+	unsigned long size;		/* Size of the original EL3 request. */
+	unsigned long tracking_size;	/* Size represented by one granule. */
+	unsigned long processed_size;	/* Accumulated prefix changed to Realm PAS. */
+	unsigned long rollback_size;	/* Prefix returned to NS during rollback. */
+	unsigned long rollback_status;	/* RMI_SUCCESS unless rolling back to an error. */
+	bool device;			/* Whether dev_granules are used. */
+};
+
 struct sro_context {
 	/* State of this context */
 	enum sro_state state;
@@ -326,6 +340,7 @@ struct sro_context {
 		struct sro_unmap_ctx unmap_ctx;
 		struct sro_map_ctx map_ctx;
 		struct sro_realm_ctx realm_ctx;
+		struct sro_granule_delegate_ctx granule_delegate_ctx;
 	};
 };
 

@@ -103,6 +103,7 @@ target_sources(rmm-runtime
     PRIVATE "rmi/activate.c"
             "rmi/feature.c"
             "rmi/granule.c"
+            "rmi/granule_sro.c"
             "rmi/pdev.c"
             "rmi/psmmu.c"
             "rmi/realm.c"

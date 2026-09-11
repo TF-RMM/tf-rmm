@@ -262,7 +262,35 @@ unsigned long tr_find_lock_fine_dev_granule_run(
 					enum dev_coh_type *type,
 					unsigned long *count);
 
+/*
+ * Lock a dev_granule for a range in either @source_state or @target_state.
+ * The states must differ and all output pointers must be non-NULL.
+ * On RMI_SUCCESS, @g is locked, @tracking_size identifies the active
+ * representation, and @in_target reports whether it is in @target_state. The
+ * caller must hold no Granule lock. Return the tracking-aware lookup error with
+ * no lock held on failure; the outputs are then unspecified. Lookup validates
+ * the device coherency type, which is not otherwise needed by this operation.
+ */
+unsigned long granule_range_lock_device(unsigned long addr,
+					unsigned char source_state,
+					unsigned char target_state,
+					struct dev_granule **g,
+					unsigned long *tracking_size,
+					bool *in_target);
 
+/*
+ * Publish delegation progress for a locked run of fine dev_granules.
+ * The caller owns @locked_count consecutive NS dev_granules starting at aligned
+ * @addr, with @delegated_count <= @locked_count. Change the delegated prefix to
+ * DELEGATED. Change the remaining dev_granules to PARTIAL if @incomplete, or
+ * leave them NS otherwise. Release every dev_granule lock in ascending PA order
+ * without acquiring a region reader. The caller must retain ownership of any
+ * PARTIAL dev_granules until their PAS transition completes or rolls back.
+ */
+void granule_range_delegate_fine_dev_unlock(unsigned long addr,
+					    unsigned long locked_count,
+					    unsigned long delegated_count,
+					    bool incomplete);
 
 /*
  * Refcount field occupies LSB bits of struct dev_granule,
