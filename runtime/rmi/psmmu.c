@@ -33,7 +33,6 @@ void smc_psmmu_info(unsigned long psmmu_ptr, unsigned long info_ptr,
 	struct rmi_psmmu_info info = {
 		.flags = INPLACE(RMI_PSMMU_INFO_FLAGS_IRQ_CFG, RMI_IRQ_MSI)
 	};
-	struct granule *g_info;
 	struct smmuv3_dev *smmu;
 
 	if (!is_rmi_feat_da_enabled()) {
@@ -52,14 +51,8 @@ void smc_psmmu_info(unsigned long psmmu_ptr, unsigned long info_ptr,
 		return;
 	}
 
-	g_info = find_granule(info_ptr);
-	if ((g_info == NULL) ||
-	    (granule_unlocked_state(g_info) != GRANULE_STATE_NS)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	if (!ns_buffer_write(SLOT_NS, g_info, 0U, sizeof(info), &info)) {
+	if (!ns_buffer_write_addr(SLOT_NS, info_ptr, 0U,
+				  sizeof(info), &info)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
@@ -82,7 +75,6 @@ void smc_psmmu_info(unsigned long psmmu_ptr, unsigned long info_ptr,
 void smc_psmmu_activate(unsigned long psmmu_ptr, unsigned long params_ptr,
 			struct smc_result *res)
 {
-	struct granule *g_smmu_params;
 	struct psmmu_params params;
 	struct smmuv3_dev *smmu;
 	struct sro_context *sro;
@@ -93,6 +85,10 @@ void smc_psmmu_activate(unsigned long psmmu_ptr, unsigned long params_ptr,
 		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
+	if (!GRANULE_ALIGNED(params_ptr)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
 
 	smmu = smmuv3_psmmu_find(psmmu_ptr);
 	if (smmu == NULL) {
@@ -100,14 +96,7 @@ void smc_psmmu_activate(unsigned long psmmu_ptr, unsigned long params_ptr,
 		return;
 	}
 
-	g_smmu_params = find_granule(params_ptr);
-	if ((g_smmu_params == NULL) ||
-		(granule_unlocked_state(g_smmu_params) != GRANULE_STATE_NS)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	if (!ns_buffer_read(SLOT_NS, g_smmu_params, 0U,
+	if (!ns_buffer_read_addr(SLOT_NS, params_ptr, 0U,
 				sizeof(struct psmmu_params), &params)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
@@ -202,7 +191,8 @@ void psmmu_activate_start(unsigned long fid, struct smc_result *res)
 		 * The command failed, so request the host to reclaim
 		 * the donated memory and return.
 		 */
-		smmu_prepare_reclaim(sro, SRO_RECLAIM_START, RMI_ERROR_INPUT, false, res);
+		smmu_prepare_reclaim(sro, SRO_RECLAIM_START,
+				     sro->smmu_ctx.ret_err, false, res);
 		return;
 	}
 
@@ -502,8 +492,6 @@ void psmmu_create_l2_start(unsigned long fid, struct smc_result *res)
 	/* Return an error if memory donation fails */
 	if (ret < 0) {
 		/* Return the error from RMI_PSMMU_ST_L2_CREATE */
-		sro->smmu_ctx.ret_err = RMI_ERROR_INPUT;
-
 		/*
 		 * Setup the callback for the next stage.
 		 * There is nothing to reclaim, exit command with an error.

@@ -428,7 +428,7 @@ static bool __unused rsi_vdev_matches_map(struct rd *rd, unsigned long vdev_id,
 	assert(rd_aux != NULL);
 	vdev_map = sarray_lookup_vdev_map(&rd_aux->vdev_map_hnd, vdev_id);
 	matches = (vdev_map != NULL) &&
-	       ((unsigned long)vdev_map->vdev == granule_addr(g_vdev));
+	       ((unsigned long)vdev_map->vdev == tr_granule_addr(g_vdev));
 	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
 
 	return matches;
@@ -437,6 +437,11 @@ static bool __unused rsi_vdev_matches_map(struct rd *rd, unsigned long vdev_id,
 /*
  * Given a vdev_id and rec, lock and map objects: rd, pdev and vdev
  * inside an rsi handler
+ *
+ * REC_ENTER protects the running REC with a reference and releases its lock.
+ * Keep that lock released while acquiring RD here: PSCI AFFINITY_INFO can
+ * hold this RD while waiting for this REC's lock. Holding REC here would
+ * invert the RD-before-REC order and could deadlock with AFFINITY_INFO.
  *
  * Note: This routine acquires the lock of a cached external object.
  * This is a deviation from the general model where all the external object
@@ -478,7 +483,7 @@ static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *r
 	 *
 	 */
 	g_rd = rec->realm_info.g_rd;
-	rd_addr = granule_addr(g_rd);
+	rd_addr = tr_granule_addr(g_rd);
 
 	/* take rd lock to safely access the vdev_id map */
 	granule_lock(g_rd, GRANULE_STATE_RD);
@@ -501,9 +506,12 @@ static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *r
 	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
 
 	if (claim_pdev) {
+		unsigned long ret;
+
 		/* Lock VDEV before caching its PDEV address. */
-		g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-		if (g_vdev == NULL) {
+		ret = tr_find_lock_granule(vdev_addr, GRANULE_SIZE,
+					   GRANULE_STATE_VDEV, &g_vdev);
+		if (ret != RMI_SUCCESS) {
 			buffer_unmap(rd);
 			granule_unlock(g_rd);
 			return RSI_INCOMPLETE;
@@ -511,7 +519,7 @@ static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *r
 
 		vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 		assert(vd != NULL);
-		pdev_addr = granule_addr(vd->g_pdev);
+		pdev_addr = tr_granule_addr(vd->g_pdev);
 		buffer_unmap(vd);
 		granule_unlock(g_vdev);
 	}
@@ -521,16 +529,18 @@ static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *r
 
 	/* No locks held; acquire all requested objects in lock order. */
 	if (claim_pdev) {
-		if (!find_lock_three_granules(
+		if (tr_find_lock_three_fine_granules(
 				rd_addr, GRANULE_STATE_RD, &lock_set->g_rd,
 				pdev_addr, GRANULE_STATE_PDEV, &lock_set->g_pdev,
-				vdev_addr, GRANULE_STATE_VDEV, &lock_set->g_vdev)) {
+				vdev_addr, GRANULE_STATE_VDEV, &lock_set->g_vdev) !=
+					RMI_SUCCESS) {
 			rsi_vdev_release_objects(lock_set);
 			return RSI_INCOMPLETE;
 		}
-	} else if (!find_lock_two_granules(
+	} else if (tr_find_lock_two_fine_granules(
 			rd_addr, GRANULE_STATE_RD, &lock_set->g_rd,
-			vdev_addr, GRANULE_STATE_VDEV, &lock_set->g_vdev)) {
+			vdev_addr, GRANULE_STATE_VDEV, &lock_set->g_vdev) !=
+				RMI_SUCCESS) {
 		rsi_vdev_release_objects(lock_set);
 		return RSI_INCOMPLETE;
 	}
