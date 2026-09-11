@@ -491,8 +491,8 @@ void psmmu_create_l2_start(unsigned long fid, struct smc_result *res)
 
 	/* Return an error if memory donation fails */
 	if (ret < 0) {
-		/* Return the error from RMI_PSMMU_ST_L2_CREATE */
 		/*
+		 * smmu_memory_donate() has recorded the error in smmu_ctx.ret_err.
 		 * Setup the callback for the next stage.
 		 * There is nothing to reclaim, exit command with an error.
 		 */

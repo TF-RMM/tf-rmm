@@ -66,8 +66,17 @@ static bool in_rmm_rw_range(uintptr_t address)
 	return (address >= RMM_RW_RANGE_START) && (address < RMM_RW_RANGE_END);
 }
 
+/*
+ * Map an app-owned REC_AUX or PDEV_AUX page and retain the lock on its struct granule
+ * until unmap_page(). The caller must pin the owning REC/PDEV or creation
+ * context. Return the mapped VA, or NULL for an unexpected auxiliary state.
+ * RMM-private pages are already mapped and need no granule lock.
+ */
 static void *map_page_to_slot(uintptr_t pa, enum buffer_slot slot)
 {
+	struct granule *app_data_granule;
+	unsigned char state;
+
 	/* See whether the pa is in the rmm RW area */
 	if (in_rmm_rw_range(pa)) {
 		return (void *)pa;
@@ -77,17 +86,13 @@ static void *map_page_to_slot(uintptr_t pa, enum buffer_slot slot)
 	 * after validating they belong to the particular type : REC_AUX or
 	 * PDEV_AUX.
 	 */
-	/* First assume delegated REC_AUX granule */
-	struct granule *app_data_granule = find_lock_granule(pa, GRANULE_STATE_REC_AUX);
-
-	if (app_data_granule == NULL) {
-		/* Try PDEV_AUX Granule next */
-		app_data_granule = find_lock_granule(pa, GRANULE_STATE_PDEV_AUX);
-		if (app_data_granule == NULL) {
-			ERROR("ERROR %s:%d\n", __func__, __LINE__);
-			return NULL;
-		}
+	app_data_granule = tr_addr_to_granule(pa);
+	state = granule_unlocked_state(app_data_granule);
+	if ((state != GRANULE_STATE_REC_AUX) && (state != GRANULE_STATE_PDEV_AUX)) {
+		ERROR("ERROR %s:%d\n", __func__, __LINE__);
+		return NULL;
 	}
+	granule_lock(app_data_granule, state);
 	return buffer_granule_map(app_data_granule, slot);
 }
 
@@ -106,6 +111,7 @@ static void *slot_map_app_reg_ctx_page(uintptr_t pa)
 	return map_page_to_slot(pa, SLOT_APP_INIT);
 }
 
+/* Unmap a page acquired by map_page_to_slot() and release its retained lock. */
 static void unmap_page(uintptr_t pa, void *va)
 {
 	struct granule *g;
@@ -114,7 +120,8 @@ static void unmap_page(uintptr_t pa, void *va)
 		return;
 	}
 	buffer_unmap(va);
-	g = find_granule(pa);
+	/* The retained lock pins the struct granule despite a pending transition. */
+	g = tr_addr_to_granule(pa);
 	granule_unlock(g);
 }
 

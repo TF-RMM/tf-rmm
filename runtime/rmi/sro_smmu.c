@@ -102,7 +102,7 @@ void smmu_prepare_reclaim(struct sro_context *sro, enum smmu_sro_stage stage_id,
  * Each donated granule is transitioned from DELEGATED to INTERNAL state.
  * On failure mid-range the already-transitioned granules within that range
  * are rolled back inline (they cannot be tracked via smmu_range[].base for later
- * reclaim).
+ * reclaim). This INTERNAL prefix remains SRO-owned through any rollback.
  *
  * On success the base PA is recorded in smmu_range[range_idx].base and the
  * transferred / total_transferred counters are updated.
@@ -165,9 +165,11 @@ int smmu_memory_donate(struct sro_context *sro, struct smc_result *res)
 	/* Transition each granule within the range */
 	for (unsigned long g = 0UL; g < num_grans; g++) {
 		struct granule *donated_gr;
+		unsigned long ret;
 
-		donated_gr = find_lock_granule(pa, GRANULE_STATE_DELEGATED);
-		if (donated_gr == NULL) {
+		ret = tr_find_lock_granule(pa, GRANULE_SIZE,
+					   GRANULE_STATE_DELEGATED, &donated_gr);
+		if (ret != RMI_SUCCESS) {
 			/*
 			 * Roll back granules already transitioned within this range.
 			 * A partial range cannot be tracked for reclaim.
@@ -177,13 +179,17 @@ int smmu_memory_donate(struct sro_context *sro, struct smc_result *res)
 			for (unsigned long r = 0UL; r < g; r++) {
 				struct granule *gr;
 
-				gr = find_lock_granule(rpa, GRANULE_STATE_INTERNAL);
-				assert(gr != NULL);
+				/* The donated prefix is already owned in INTERNAL state. */
+				gr = tr_addr_to_granule(rpa);
+				granule_lock(gr, GRANULE_STATE_INTERNAL);
 				granule_unlock_transition_to_delegated(gr);
 				rpa += GRANULE_SIZE;
 			}
 
-			/* Trigger reclaim for all granules donated so far */
+			/* Preserve the granule lookup failure for the Host. */
+			sro->smmu_ctx.ret_err = ret;
+
+			/* Trigger reclaim for all granules donated so far. */
 			return -1;
 		}
 
@@ -235,7 +241,11 @@ check_pending:
 	return 1;
 }
 
-/* This function is called to start a memory reclaim of the memory donated */
+/*
+ * Start reclaim of the INTERNAL pages owned by the assigned SMMU SRO.
+ * Ownership pins each granule until it is returned to DELEGATED, even
+ * during a pending tracking transition. Report progress through @res.
+ */
 void smmu_memory_reclaim(enum smmu_sro_stage stage_id, struct smc_result *res)
 {
 	struct sro_context *sro = my_sro_ctx();
@@ -263,9 +273,8 @@ void smmu_memory_reclaim(enum smmu_sro_stage stage_id, struct smc_result *res)
 			struct granule *gr;
 			bool add_ret __unused;
 
-			gr = find_lock_granule(granule_pa,
-						GRANULE_STATE_INTERNAL);
-			assert(gr != NULL);
+			gr = tr_addr_to_granule(granule_pa);
+			granule_lock(gr, GRANULE_STATE_INTERNAL);
 			granule_unlock_transition_to_delegated(gr);
 
 			add_ret = addr_list_add_block(

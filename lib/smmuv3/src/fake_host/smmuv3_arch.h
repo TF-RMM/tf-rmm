@@ -222,6 +222,8 @@ static inline void smmuv3_arch_sync_cmdq(void *prod_reg, void *cons_reg)
 
 /*
  * Architecture-specific PSMMU reset (fake_host).
+ * The test harness excludes concurrent users; the published L1 entries own
+ * their L2 tables until reset returns them to INTERNAL.
  */
 static inline void smmuv3_arch_psmmu_reset(struct smmuv3_dev *smmu)
 {
@@ -247,6 +249,7 @@ static inline void smmuv3_arch_psmmu_reset(struct smmuv3_dev *smmu)
 		for (unsigned long l1_idx = 0UL; l1_idx < num_l1_ents; l1_idx++) {
 			uintptr_t l2tab_pa, l2tab_va;
 			struct granule *g_l2tab;
+			unsigned short refcount;
 
 			/* Check physical address of L2 Stream Table */
 			if (smmu->strtab_base[l1_idx] == 0UL) {
@@ -262,16 +265,13 @@ static inline void smmuv3_arch_psmmu_reset(struct smmuv3_dev *smmu)
 			/* Decommit and depopulate L2 Stream Table */
 			decommit_depopulate(l2tab_va, GRANULE_SIZE);
 
-			g_l2tab = find_lock_granule(l2tab_pa,
-						    GRANULE_STATE_PSMMU_ST_L2);
-			if (g_l2tab != NULL) {
-				unsigned short refcount = granule_refcount_read(g_l2tab);
-
-				if (refcount != 0U) {
-					granule_refcount_dec(g_l2tab, refcount);
-				}
-				granule_unlock_transition(g_l2tab, GRANULE_STATE_INTERNAL);
+			g_l2tab = tr_addr_to_granule(l2tab_pa);
+			granule_lock(g_l2tab, GRANULE_STATE_PSMMU_ST_L2);
+			refcount = granule_refcount_read(g_l2tab);
+			if (refcount != 0U) {
+				granule_refcount_dec(g_l2tab, refcount);
 			}
+			granule_unlock_transition(g_l2tab, GRANULE_STATE_INTERNAL);
 
 			/* Remove L1STD entry for L2 Stream Table */
 			smmu->strtab_base[l1_idx] = 0UL;

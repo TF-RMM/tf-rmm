@@ -244,7 +244,8 @@ bool smmuv3_psmmu_validate_sid(struct smmuv3_dev *smmu, unsigned long sid)
 
 /*
  * Validate a L2 Stream Table entry.
- * Must be called with smmu->lock held.
+ * Must be called with smmu->lock held, which pins a published L2 table and
+ * its fine metadata even while a tracking transition is pending.
  *
  * When l2tab_pa is NULL, validates that the entry is free (for create).
  * When l2tab_pa is non-NULL, validates that the entry exists with zero
@@ -287,8 +288,8 @@ static int validate_st_l2(struct smmuv3_dev *smmu, unsigned long l1_idx,
 		}
 
 		pa = smmu_l1std_l2tab_pa(smmu, l1_idx);
-		g_l2tab = find_lock_granule(pa, GRANULE_STATE_PSMMU_ST_L2);
-		assert(g_l2tab != NULL);
+		g_l2tab = tr_addr_to_granule(pa);
+		granule_lock(g_l2tab, GRANULE_STATE_PSMMU_ST_L2);
 
 		refcount = granule_refcount_read(g_l2tab);
 		granule_unlock(g_l2tab);
@@ -325,6 +326,13 @@ void smmuv3_psmmu_get_donated(struct smmuv3_dev *smmu, uintptr_t *range_base,
 	range_size[(unsigned int)PSMMU_MEM_RANGE_EVTQ] = smmu->evtq_size / GRANULE_SIZE;
 }
 
+/*
+ * Map and clear the donated L1 stream table at @l1_st_pa, then publish it.
+ * The activation SRO owns the backing and keeps the PSMMU in PSMMU_BUSY;
+ * this function takes no lock. Return 0 on success or -ENOMEM after undoing
+ * a failed mapping or commit. Depopulation of an uncommitted mapping must
+ * succeed, and its result is checked in assertion-enabled builds.
+ */
 int smmuv3_psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa)
 {
 	uintptr_t l1_va;
@@ -348,8 +356,9 @@ int smmuv3_psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa)
 
 	ret = smmuv3_arch_commit_clear(l1_va, size);
 	if (ret != 0) {
-		ret = smmuv3_arch_depopulate(l1_va, size);
-		assert(ret == 0);
+		int cleanup_ret __unused = smmuv3_arch_depopulate(l1_va, size);
+
+		assert(cleanup_ret == 0);
 		return -ENOMEM;
 	}
 
@@ -366,6 +375,13 @@ int smmuv3_psmmu_register_st_l1(struct smmuv3_dev *smmu, uintptr_t l1_st_pa)
 	return 0;
 }
 
+/*
+ * Install the SRO-owned INTERNAL page @l2tab_pa as an L2 stream table.
+ * The donation pins its struct granule before publication; smmu->lock protects
+ * the published table and rollback. Return 0 or a negative error code.
+ * Depopulation after a failed commit must succeed; only assertion-enabled
+ * builds inspect that cleanup result.
+ */
 int smmuv3_psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 				uintptr_t l2tab_pa)
 {
@@ -400,20 +416,15 @@ int smmuv3_psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 
 	ret = smmuv3_arch_commit_clear(l2tab_va, GRANULE_SIZE);
 	if (ret != 0) {
-		ret = smmuv3_arch_depopulate(l2tab_va, GRANULE_SIZE);
-		assert(ret == 0);
+		int cleanup_ret __unused = smmuv3_arch_depopulate(l2tab_va, GRANULE_SIZE);
+
+		assert(cleanup_ret == 0);
 		spinlock_release(&smmu->lock);
 		return -ENOMEM;
 	}
 
-	g_l2tab = find_lock_granule(l2tab_pa, GRANULE_STATE_INTERNAL);
-	if (g_l2tab == NULL) {
-		decommit_depopulate(l2tab_va, GRANULE_SIZE);
-		spinlock_release(&smmu->lock);
-		SMMU_ERROR(smmu, "Failed to lock L2 Stream Table granule 0x%lx\n",
-				l2tab_pa);
-		return -EINVAL;
-	}
+	g_l2tab = tr_addr_to_granule(l2tab_pa);
+	granule_lock(g_l2tab, GRANULE_STATE_INTERNAL);
 	granule_unlock_transition(g_l2tab, GRANULE_STATE_PSMMU_ST_L2);
 
 	SMMU_DEBUG("smmu->strtab_base[%lu] 0x%lx @0x%lx\n",
@@ -433,8 +444,8 @@ int smmuv3_psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 		smmu->strtab_base[l1_idx] = 0UL;
 		dsb(ish);
 
-		g_l2tab = find_lock_granule(l2tab_pa, GRANULE_STATE_PSMMU_ST_L2);
-		assert(g_l2tab != NULL);
+		/* smmu->lock retains ownership after removing the L1 entry. */
+		granule_lock(g_l2tab, GRANULE_STATE_PSMMU_ST_L2);
 		granule_unlock_transition(g_l2tab, GRANULE_STATE_INTERNAL);
 
 		/* Decommit and depopulate L2 Stream Table */
@@ -455,6 +466,11 @@ int smmuv3_psmmu_register_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	return ret;
 }
 
+/*
+ * Remove an unused L2 stream table, returning its PA through @l2tab_pa.
+ * smmu->lock pins the table through removal and transition back to INTERNAL.
+ * Return 0 or a negative error code.
+ */
 int smmuv3_psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 				uintptr_t *l2tab_pa)
 {
@@ -494,8 +510,8 @@ int smmuv3_psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	/* Invalidate configuration structure */
 	ret = inval_cached_ste(smmu, sid, false);
 
-	g_l2tab = find_lock_granule(*l2tab_pa, GRANULE_STATE_PSMMU_ST_L2);
-	assert(g_l2tab != NULL);
+	g_l2tab = tr_addr_to_granule(*l2tab_pa);
+	granule_lock(g_l2tab, GRANULE_STATE_PSMMU_ST_L2);
 	assert(granule_refcount_read(g_l2tab) == 0U);
 	granule_unlock_transition(g_l2tab, GRANULE_STATE_INTERNAL);
 
@@ -507,6 +523,13 @@ int smmuv3_psmmu_release_st_l2(struct smmuv3_dev *smmu, unsigned long sid,
 	return ret;
 }
 
+/*
+ * Map and clear the donated command and event queues, then publish them.
+ * The activation SRO owns @cmdq_pa and @evtq_pa and keeps the PSMMU in
+ * PSMMU_BUSY; no lock is acquired here. Return 0 on success or -ENOMEM
+ * after undoing the mappings created by this call. Depopulation of the
+ * uncommitted queue must succeed; its result is used only by assertions.
+ */
 int smmuv3_psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
 				 uintptr_t evtq_pa)
 {
@@ -541,10 +564,12 @@ int smmuv3_psmmu_register_queues(struct smmuv3_dev *smmu, uintptr_t cmdq_pa,
 
 		ret = smmuv3_arch_commit_clear(granules_va[i], granules_sz[i]);
 		if (ret != 0) {
+			int cleanup_ret __unused;
+
 			/* Current entry is populated only - depopulate */
-			ret = smmuv3_arch_depopulate(granules_va[i],
-							granules_sz[i]);
-			assert(ret == 0);
+			cleanup_ret = smmuv3_arch_depopulate(granules_va[i],
+							   granules_sz[i]);
+			assert(cleanup_ret == 0);
 
 			/* Previous entries are committed - decommit + depopulate */
 			for (unsigned int j = 0U; j < i; j++) {
