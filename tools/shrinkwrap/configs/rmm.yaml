@@ -10,13 +10,12 @@ description: >-
   In order to use this overlay, the RMM_SRC btvar must be defined containing
   the absolute path for the local TF-RMM repository.
 
-  The overlay allows to overwrite the default log level for TF-RMM, by
-  using ``RMM_LOG_LEVEL`` btvar as well as to define the SHA/Branch of TF-A
-  to be used for the particular instance of RMM to build through the
-  ``TFA_REVISION`` btvar. It also allows to define the host platform through
-  the ``RMM_CONFIG`` btvar, choose the compiler toolchain with the
-  ``RMM_TOOLCHAIN`` btvar, and enable sanitizers with the
-  ``RMM_SANITIZERS`` btvar.
+  ``RMM_LOG_LEVEL`` overrides the default TF-RMM log level, and
+  ``TFA_REVISION`` selects the TF-A SHA or branch for this RMM build.
+  ``RMM_CONFIG``, ``RMM_TOOLCHAIN``, and ``RMM_SANITIZERS`` select the
+  target platform, compiler toolchain, and enabled sanitizers. Set
+  ``RMM_ALLOC_TRACKING_DATA`` to control whether EL3 allocates granule
+  tracking metadata during RMM activation.
 
 buildex:
   btvars:
@@ -47,6 +46,11 @@ buildex:
       type: string
       value: ''
 
+    # Control EL3 allocation of granule tracking metadata during RMM activation
+    RMM_ALLOC_TRACKING_DATA:
+      type: string
+      value: 'ON'
+
     # Determines the branch or SHA to pull for TF-A which is suitable
     # for the current RMM
     TFA_REVISION:
@@ -61,6 +65,7 @@ build:
        -DRMM_CONFIG: ${btvar:RMM_CONFIG}
        -DRMM_TOOLCHAIN: ${btvar:RMM_TOOLCHAIN}
        -DRMM_SANITIZERS: ${btvar:RMM_SANITIZERS}
+       -DRMM_ALLOC_TRACKING_DATA: ${btvar:RMM_ALLOC_TRACKING_DATA}
 
   tfa:
     repo:
