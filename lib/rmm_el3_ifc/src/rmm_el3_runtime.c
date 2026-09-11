@@ -3,10 +3,12 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <arch_helpers.h>
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
 #include <firme.h>
+#include <rmm_el3_gpi.h>
 #include <rmm_el3_ifc.h>
 #include <rmm_el3_ifc_priv.h>
 #include <spinlock.h>
@@ -23,6 +25,23 @@
 
 /* Spinlock used to protect the EL3<->RMM shared area */
 static spinlock_t shared_area_lock = {0U};
+
+/*
+ * Convert a legacy GTSI SMCCC status to an RMM-EL3 interface status.
+ * Unknown legacy values are not exposed to callers.
+ */
+static int rmm_el3_ifc_gtsi_legacy_status(unsigned long status)
+{
+	switch (status) {
+	case SMC_SUCCESS:
+		return E_RMM_OK;
+	case SMC_INVALID_PARAMETER:
+		return E_RMM_INVAL;
+	case SMC_NOT_SUPPORTED:
+	default:
+		return E_RMM_UNK;
+	}
+}
 
 /* Helper to detect whether EL3_TOKEN_SIGN is supported by EL3 */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
@@ -358,28 +377,331 @@ int rmm_el3_ifc_reserve_memory(size_t required_size, unsigned int flags,
 	return 0;
 }
 
-/* cppcheck-suppress misra-c2012-8.7 */
-unsigned long rmm_el3_ifc_gtsi_delegate(unsigned long addr)
+/*
+ * Delegate [@addr, @addr + @size) through the legacy single-Granule GTSI
+ * interface. Stop after a completed Granule if an interrupt is pending, or at
+ * the first rejected Granule. Preserve the completed prefix so the caller can
+ * apply its tracking policy.
+ *
+ * @processed_size receives the prefix which remains delegated.
+ *
+ * Return E_RMM_OK for the completed or interrupted prefix, or the standardized
+ * EL3 error even when earlier Granules were successfully delegated.
+ */
+static int rmm_el3_ifc_gtsi_delegate_legacy(unsigned long addr,
+					     unsigned long size,
+					     unsigned long *processed_size)
 {
-	if (firme_supports_gpi_set()) {
-		/* Transition 1 NS granule to REALM state. */
-		return monitor_call(SMC_FIRME_GM_GPI_SET, addr, 1, GPT_GPI_REALM,
-					0UL, 0UL, 0UL);
-	} else {
-		return monitor_call(SMC_RMM_GTSI_DELEGATE, addr,
-					0UL, 0UL, 0UL, 0UL, 0UL);
+	unsigned long offset = 0UL;
+
+	assert(processed_size != NULL);
+	*processed_size = 0UL;
+
+	while (offset < size) {
+		unsigned long ret;
+
+		ret = monitor_call(SMC_RMM_GTSI_DELEGATE, addr + offset,
+				   0UL, 0UL, 0UL, 0UL, 0UL);
+		if (ret != SMC_SUCCESS) {
+			*processed_size = offset;
+			return rmm_el3_ifc_gtsi_legacy_status(ret);
+		}
+		offset += GRANULE_SIZE;
+		/* Yield after progress so E_RMM_OK never reports an empty prefix. */
+		if (read_isr_el1() != 0UL) {
+			break;
+		}
 	}
+
+	*processed_size = offset;
+	return E_RMM_OK;
 }
 
-/* cppcheck-suppress misra-c2012-8.7 */
-unsigned long rmm_el3_ifc_gtsi_undelegate(unsigned long addr)
+/*
+ * Undelegate [@addr, @addr + @size) through the legacy single-Granule GTSI
+ * interface. The caller owns every input Granule in Realm PAS and must retain
+ * that ownership until the transition completes.
+ *
+ * @processed_size receives the size of the successfully undelegated prefix.
+ *
+ * Return E_RMM_OK after the complete range was undelegated. An EL3 failure
+ * violates the ownership contract: log the failing PA and status, then panic.
+ */
+static int rmm_el3_ifc_gtsi_undelegate_legacy(unsigned long addr,
+					       unsigned long size,
+					       unsigned long *processed_size)
 {
-	if (firme_supports_gpi_set()) {
-		/* Transition 1 REALM granule to NS state. */
-		return monitor_call(SMC_FIRME_GM_GPI_SET, addr, 1, GPT_GPI_NS,
-					0UL, 0UL, 0UL);
-	} else {
-		return monitor_call(SMC_RMM_GTSI_UNDELEGATE, addr,
-					0UL, 0UL, 0UL, 0UL, 0UL);
+	assert(processed_size != NULL);
+	*processed_size = 0UL;
+
+	for (unsigned long offset = 0UL; offset < size;
+	     offset += GRANULE_SIZE) {
+		unsigned long ret;
+
+		ret = monitor_call(SMC_RMM_GTSI_UNDELEGATE, addr + offset,
+				   0UL, 0UL, 0UL, 0UL, 0UL);
+		if (ret != SMC_SUCCESS) {
+			ERROR("GTSI undelegation failed at 0x%lx: status 0x%lx\n",
+			      addr + offset, ret);
+			panic();
+		}
+
+		*processed_size += GRANULE_SIZE;
 	}
+
+	return E_RMM_OK;
+}
+
+/*
+ * Apply @target_gpi to [@addr, @addr + @size) with one FIRME call.
+ *
+ * @processed_size receives the size of the stateless prefix processed by the
+ * call. FIRME_SUCCESS, FIRME_DENIED, FIRME_INCOMPLETE, FIRME_OP_CONFLICT and
+ * FIRME_NOT_FOUND can all report such progress. @cookie receives the stateful
+ * operation cookie when FIRME_INCOMPLETE is returned.
+ * A success response without progress violates FIRME's result contract:
+ * log the failing PA and panic, including when assertions are disabled.
+ *
+ * Return: The signed W0 FIRME status extended to match the FIRME constants.
+ */
+static unsigned long rmm_el3_ifc_firme_gpi_set(unsigned long addr,
+						unsigned long size,
+						unsigned int target_gpi,
+						unsigned long *processed_size,
+						unsigned long *cookie)
+{
+	unsigned long granule_count = size / GRANULE_SIZE;
+	struct smc_result smc_res;
+	/* cppcheck-suppress misra-c2012-9.3 */
+	struct smc_args smc_args = SMC_ARGS_3(addr, granule_count, target_gpi);
+	unsigned long ret;
+	unsigned long processed_count;
+
+	assert((processed_size != NULL) && (cookie != NULL));
+	*processed_size = 0UL;
+
+	monitor_call_with_arg_res(SMC_FIRME_GM_GPI_SET, &smc_args, &smc_res);
+	/* FIRME defines a signed 32-bit status; the upper X0 bits are ignored. */
+	ret = (unsigned long)(int32_t)smc_res.x[0];
+	if ((ret != FIRME_SUCCESS) && (ret != FIRME_DENIED) &&
+	    (ret != FIRME_INCOMPLETE) &&
+	    (ret != FIRME_OP_CONFLICT) && (ret != FIRME_NOT_FOUND)) {
+		return ret;
+	}
+
+	processed_count = smc_res.x[1];
+	assert(processed_count <= granule_count);
+	/* FIRME SUCCESS requires progress, but can leave a stateless suffix. */
+	if ((ret == FIRME_SUCCESS) && (processed_count == 0UL)) {
+		ERROR("FIRME GPI_SET succeeded without progress at 0x%lx\n", addr);
+		panic();
+	}
+
+	/* The other accepted statuses must leave at least one Granule unprocessed. */
+	assert((ret == FIRME_SUCCESS) || (processed_count < granule_count));
+	*processed_size = processed_count * GRANULE_SIZE;
+	if (ret == FIRME_INCOMPLETE) {
+		*cookie = smc_res.x[2];
+	}
+	return ret;
+}
+
+/*
+ * Resume the FIRME GPI transition identified by @cookie.
+ *
+ * A valid Granule count is returned for statuses which end a stateful phase
+ * or pause it again with FIRME_INCOMPLETE. FIRME_BUSY reports no progress but
+ * retains the existing operation; use its returned cookie for the next call.
+ * Other statuses have no valid outputs.
+ * A success response without progress is logged with its cookie and causes
+ * a panic, including when assertions are disabled.
+ * Return the signed W0 FIRME status extended to match the FIRME constants.
+ */
+static unsigned long rmm_el3_ifc_firme_gpi_continue(
+						unsigned long cookie,
+						unsigned long remaining_size,
+						unsigned long *processed_size,
+						unsigned long *next_cookie)
+{
+	unsigned long granule_count = remaining_size / GRANULE_SIZE;
+	struct smc_result smc_res;
+	/* cppcheck-suppress misra-c2012-9.3 */
+	struct smc_args smc_args = SMC_ARGS_1(cookie);
+	unsigned long ret;
+
+	assert((remaining_size != 0UL) && GRANULE_ALIGNED(remaining_size) &&
+	       (processed_size != NULL) && (next_cookie != NULL));
+	(void)granule_count;
+	*processed_size = 0UL;
+
+	monitor_call_with_arg_res(SMC_FIRME_GM_GPI_OP_CONTINUE,
+				  &smc_args, &smc_res);
+	/* FIRME defines a signed 32-bit status; the upper X0 bits are ignored. */
+	ret = (unsigned long)(int32_t)smc_res.x[0];
+	if ((ret == FIRME_SUCCESS) || (ret == FIRME_DENIED) ||
+	    (ret == FIRME_INCOMPLETE) || (ret == FIRME_OP_CONFLICT) ||
+	    (ret == FIRME_NOT_FOUND)) {
+		unsigned long processed_count = smc_res.x[1];
+
+		assert(processed_count <= granule_count);
+		/* FIRME requires SUCCESS to report at least one processed Granule. */
+		if ((ret == FIRME_SUCCESS) && (processed_count == 0UL)) {
+			ERROR("FIRME GPI_OP_CONTINUE succeeded without progress: cookie 0x%lx\n",
+			      cookie);
+			panic();
+		}
+		assert((ret != FIRME_INCOMPLETE) ||
+		       (processed_count < granule_count));
+		*processed_size = processed_count * GRANULE_SIZE;
+	}
+	if ((ret == FIRME_INCOMPLETE) || (ret == FIRME_BUSY)) {
+		*next_cookie = smc_res.x[2];
+	}
+
+	return ret;
+}
+
+/*
+ * Enforce the result contract for an undelegation request.
+ *
+ * RMM owns the input Granules and validates the request parameters. EL3 can
+ * therefore make progress, retain the operation, or ask RMM to retry, but it
+ * cannot conflict with another operation or reject the request. Check both
+ * the initial request and continuation, before publishing progress or state.
+ */
+static void rmm_el3_ifc_gtsi_assert_undelegate_status(
+						int status __unused,
+						unsigned long processed_size __unused)
+{
+	assert(((status == E_RMM_OK) && (processed_size > 0UL)) ||
+	       (status == E_RMM_IN_PROGRESS) ||
+	       ((status == E_RMM_BUSY) && (processed_size == 0UL)));
+}
+
+/*
+ * Delegate a Granule-aligned range to Realm PAS. FIRME accepts the complete
+ * range as a Granule count and can report stateless partial progress. The
+ * compatibility path expands it into legacy single-Granule GTSI calls.
+ *
+ * Return the mapped EL3 status independently of @processed_size, which receives
+ * the prefix changed to Realm PAS. The caller applies its tracking policy to
+ * decide whether to report progress, retry the suffix or roll back the prefix.
+ * Issue one FIRME request so the caller can yield between retries.
+ * The FIRME response helper treats success without progress as fatal.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+int rmm_el3_ifc_gtsi_delegate(unsigned long addr,
+			    unsigned long size,
+			    unsigned long *processed_size,
+			    unsigned long *cookie)
+{
+	assert(GRANULE_ALIGNED(addr) && (size != 0UL) && GRANULE_ALIGNED(size) &&
+	       (processed_size != NULL) && (cookie != NULL));
+	*processed_size = 0UL;
+	if (firme_supports_gpi_set()) {
+		unsigned long ret;
+
+		ret = rmm_el3_ifc_firme_gpi_set(addr, size, GPT_GPI_REALM,
+						 processed_size, cookie);
+		return firme_errno_to_rmm_errno(ret);
+	}
+
+	return rmm_el3_ifc_gtsi_delegate_legacy(addr, size, processed_size);
+}
+
+/*
+ * Undelegate a Granule-aligned range to NS PAS. Issue at most one FIRME call
+ * so a caller can yield after stateless partial progress. The compatibility
+ * path expands the range into legacy single-Granule GTSI calls.
+ *
+ * @processed_size receives the successfully undelegated prefix. A caller must
+ * continue from that boundary until it reaches its required tracking unit.
+ *
+ * Return: The standardized RMM-EL3 status associated with the reported
+ * progress.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+int rmm_el3_ifc_gtsi_undelegate(unsigned long addr,
+				unsigned long size,
+				unsigned long *processed_size,
+				unsigned long *cookie)
+{
+	int ret;
+
+	assert(GRANULE_ALIGNED(addr) && (size != 0UL) && GRANULE_ALIGNED(size) &&
+	       (processed_size != NULL) && (cookie != NULL));
+	if (firme_supports_gpi_set()) {
+		unsigned long firme_ret;
+
+		firme_ret = rmm_el3_ifc_firme_gpi_set(addr, size, GPT_GPI_NS,
+						       processed_size, cookie);
+		ret = firme_errno_to_rmm_errno(firme_ret);
+	} else {
+		ret = rmm_el3_ifc_gtsi_undelegate_legacy(addr, size,
+							 processed_size);
+	}
+
+	rmm_el3_ifc_gtsi_assert_undelegate_status(ret, *processed_size);
+	return ret;
+}
+
+/*
+ * Resume a stateful FIRME GPI transition and report this invocation's
+ * progress. This function is reached only after GPI_SET returned a cookie, so
+ * no legacy GTSI equivalent is required.
+ */
+int rmm_el3_ifc_gtsi_continue(unsigned long cookie,
+			      unsigned long remaining_size,
+			      unsigned long *processed_size,
+			      unsigned long *next_cookie)
+{
+	unsigned long ret;
+
+	assert(firme_supports_gpi_set());
+	ret = rmm_el3_ifc_firme_gpi_continue(cookie, remaining_size,
+						 processed_size, next_cookie);
+	return firme_errno_to_rmm_errno(ret);
+}
+
+/*
+ * Advance one PAS transition and retain its progress and continuation state.
+ * Enforce the owned-range result contract for every undelegation step,
+ * including EL3 continuations and rollback of an unsuccessful delegation.
+ */
+/* cppcheck-suppress misra-c2012-8.7 */
+int rmm_el3_ifc_gtsi_step(unsigned long addr, unsigned long size, bool delegate,
+			unsigned long *processed_size, struct rmm_el3_gpi_state *state)
+{
+	unsigned long remaining;
+	unsigned long progress;
+	unsigned long next_cookie = 0UL;
+	int ret;
+
+	assert((processed_size != NULL) && (state != NULL));
+	assert(GRANULE_ALIGNED(addr) && GRANULE_ALIGNED(size) &&
+	       GRANULE_ALIGNED(*processed_size) && (*processed_size < size) &&
+	       ((addr + size) > addr));
+	remaining = size - *processed_size;
+
+	if (state->incomplete) {
+		ret = rmm_el3_ifc_gtsi_continue(state->cookie, remaining,
+					      &progress, &next_cookie);
+	} else if (delegate) {
+		ret = rmm_el3_ifc_gtsi_delegate(addr + *processed_size, remaining,
+					      &progress, &next_cookie);
+	} else {
+		ret = rmm_el3_ifc_gtsi_undelegate(addr + *processed_size, remaining,
+						&progress, &next_cookie);
+	}
+
+	if (!delegate) {
+		rmm_el3_ifc_gtsi_assert_undelegate_status(ret, progress);
+	}
+
+	assert((progress <= remaining) && GRANULE_ALIGNED(progress));
+	*processed_size += progress;
+	state->incomplete = (ret == E_RMM_IN_PROGRESS) ||
+			   (state->incomplete && (ret == E_RMM_BUSY));
+	state->cookie = state->incomplete ? next_cookie : 0UL;
+	return ret;
 }
