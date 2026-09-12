@@ -588,8 +588,29 @@ static bool handle_wfx_exception(struct rec *rec,
 	bool ret;
 
 	if (rec_is_plane_0_active(rec)) {
-		/* WFx calls from Plane 0 are forwarded to the host */
-		rec_exit->esr = (esr & (MASK(ESR_EL2_EC) | ESR_EL2_WFx_TI_BIT));
+		/*
+		 * WFx calls from Plane 0 are forwarded to the host.
+		 *
+		 * DEN0137 A4.3.4.1: the host receives ESR.EC and the full
+		 * ISS.TI field, RV set for a timed instruction and RN zero
+		 * (RYQWST), and for WFIT/WFET the timeout value in gprs[0]
+		 * (RBPYBC).
+		 */
+		rec_exit->esr = esr & (MASK(ESR_EL2_EC) |
+				       MASK(ESR_EL2_WFx_TI));
+
+		if ((esr & ESR_EL2_WFx_TI_TIMED_BIT) != 0UL) {
+			unsigned int rn =
+				(unsigned int)EXTRACT(ESR_EL2_WFx_RN, esr);
+
+			rec_exit->esr |= ESR_EL2_WFx_RV_BIT;
+
+			/* Xt == XZR reads as zero */
+			rec_exit->gprs[0] =
+				(rn < RMM_REC_SAVED_GEN_REG_COUNT) ?
+				rec_active_plane(rec)->regs[rn] : 0UL;
+		}
+
 		advance_pc();
 		return false;
 	}

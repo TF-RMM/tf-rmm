@@ -484,8 +484,15 @@
 #define ESR_EL2_SYSREG_TRAP_CRM_SHIFT	1
 #define ESR_EL2_SYSREG_TRAP_CRM_WIDTH	U(4)
 
-/* WFx ESR fields */
+/* WFx ESR fields (ISS encoding for an exception from a WF* instruction) */
 #define ESR_EL2_WFx_TI_BIT		(UL(1) << 0)
+#define ESR_EL2_WFx_TI_SHIFT		UL(0)
+#define ESR_EL2_WFx_TI_WIDTH		UL(2)
+/* TI[1] set: WFIT or WFET (FEAT_WFxT) */
+#define ESR_EL2_WFx_TI_TIMED_BIT	(UL(1) << 1)
+#define ESR_EL2_WFx_RV_BIT		(UL(1) << 2)
+#define ESR_EL2_WFx_RN_SHIFT		UL(5)
+#define ESR_EL2_WFx_RN_WIDTH		UL(5)
 
 /* xVC ESR fields */
 #define ESR_EL2_xVC_IMM_SHIFT		0

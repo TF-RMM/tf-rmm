@@ -78,3 +78,9 @@ rmm_build_unittest(NAME rtt_data_unmap_tests
                    TARGET rmm-runtime
                    SOURCES "tests/rtt_data_unmap_tests.cpp"
                    ITERATIONS 1)
+
+rmm_build_unittest(NAME wfxt_exit_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/wfxt_exit_tests.cpp"
+                   ITERATIONS 1)
