@@ -688,42 +688,26 @@ bool rmm_el3_ifc_is_bdf_valid(unsigned long ecam_addr, unsigned int bdf)
 bool rmm_el3_ifc_is_root_port_id_valid(unsigned long ecam_addr,
 				       unsigned int root_port_id)
 {
-	struct root_complex_list *rc_list;
 	struct root_complex_info *root_complex;
-	uint64_t num_root_complexes;
+	struct root_port_info *rp_info;
+	uint32_t num_root_ports;
 
-	assert(local_core_manifest != NULL);
-
-	rc_list = &local_core_manifest->plat_root_complex;
-	num_root_complexes = rc_list->num_root_complex;
-	root_complex = rc_list->root_complex;
-
-	if ((num_root_complexes == 0UL) || (root_complex == NULL)) {
+	root_complex = get_root_complex(ecam_addr);
+	if (root_complex == NULL) {
 		return false;
 	}
 
-	for (uint64_t rc_idx = 0UL; rc_idx < num_root_complexes; rc_idx++) {
-		struct root_port_info *rp_info;
-		uint32_t num_root_ports;
+	rp_info = root_complex->root_ports;
+	num_root_ports = root_complex->num_root_ports;
 
-		if (root_complex[rc_idx].ecam_base != ecam_addr) {
-			continue;
-		}
-
-		rp_info = root_complex[rc_idx].root_ports;
-		num_root_ports = root_complex[rc_idx].num_root_ports;
-
-		if ((num_root_ports == 0U) || (rp_info == NULL)) {
-			return false;
-		}
-
-		for (uint32_t rp_idx = 0U; rp_idx < num_root_ports; rp_idx++) {
-			if (rp_info[rp_idx].root_port_id == root_port_id) {
-				return true;
-			}
-		}
-
+	if ((num_root_ports == 0U) || (rp_info == NULL)) {
 		return false;
+	}
+
+	for (uint32_t rp_idx = 0U; rp_idx < num_root_ports; rp_idx++) {
+		if (rp_info[rp_idx].root_port_id == root_port_id) {
+			return true;
+		}
 	}
 
 	return false;
@@ -736,65 +720,48 @@ bool rmm_el3_ifc_is_root_port_id_valid(unsigned long ecam_addr,
 int rmm_el3_ifc_bdf_to_smmu(unsigned long ecam_addr, unsigned int bdf,
 			    unsigned int *smmu_idx, unsigned int *sid)
 {
-	struct root_complex_list *rc_list;
 	struct root_complex_info *root_complex;
-	uint64_t num_root_complexes;
+	struct root_port_info *rp_info;
+	uint32_t num_root_ports;
 
 	assert(smmu_idx != NULL);
 	assert(sid != NULL);
-	assert(local_core_manifest != NULL);
 
-	rc_list = &local_core_manifest->plat_root_complex;
-	num_root_complexes = rc_list->num_root_complex;
-	root_complex = rc_list->root_complex;
-
-	if ((num_root_complexes == 0UL) || (root_complex == NULL)) {
+	root_complex = get_root_complex(ecam_addr);
+	if (root_complex == NULL) {
 		return E_RMM_INVAL;
 	}
 
-	/* Find the Root Complex matching the ECAM base address */
-	for (uint64_t rc_idx = 0UL; rc_idx < num_root_complexes; rc_idx++) {
-		struct root_port_info *rp_info;
-		uint32_t num_root_ports;
+	rp_info = root_complex->root_ports;
+	num_root_ports = root_complex->num_root_ports;
 
-		if (root_complex[rc_idx].ecam_base != ecam_addr) {
+	if ((num_root_ports == 0U) || (rp_info == NULL)) {
+		return E_RMM_INVAL;
+	}
+
+	/* Iterate over all Root Ports */
+	for (uint32_t rp_idx = 0U; rp_idx < num_root_ports; rp_idx++) {
+		struct bdf_mapping_info *bdf_info =
+					rp_info[rp_idx].bdf_mappings;
+		uint32_t num_bdf_mappings =
+					rp_info[rp_idx].num_bdf_mappings;
+
+		if ((num_bdf_mappings == 0U) || (bdf_info == NULL)) {
 			continue;
 		}
 
-		rp_info = root_complex[rc_idx].root_ports;
-		num_root_ports = root_complex[rc_idx].num_root_ports;
-
-		if ((num_root_ports == 0U) || (rp_info == NULL)) {
-			return E_RMM_INVAL;
-		}
-
-		/* Iterate over all Root Ports */
-		for (uint32_t rp_idx = 0U; rp_idx < num_root_ports; rp_idx++) {
-			struct bdf_mapping_info *bdf_info =
-						rp_info[rp_idx].bdf_mappings;
-			uint32_t num_bdf_mappings =
-						rp_info[rp_idx].num_bdf_mappings;
-
-			if ((num_bdf_mappings == 0U) || (bdf_info == NULL)) {
-				continue;
-			}
-
-			/* Iterate over all BDF Mappings */
-			for (uint32_t map_idx = 0U;
-			     map_idx < num_bdf_mappings; map_idx++) {
-				if ((bdf >= bdf_info[map_idx].mapping_base) &&
-				    (bdf <= bdf_info[map_idx].mapping_top)) {
-					*smmu_idx = (unsigned int)
-							bdf_info[map_idx].smmu_idx;
-					*sid = bdf + ((unsigned int)
-							bdf_info[map_idx].mapping_off << 16);
-					return E_RMM_OK;
-				}
+		/* Iterate over all BDF Mappings */
+		for (uint32_t map_idx = 0U;
+		     map_idx < num_bdf_mappings; map_idx++) {
+			if ((bdf >= bdf_info[map_idx].mapping_base) &&
+			    (bdf <= bdf_info[map_idx].mapping_top)) {
+				*smmu_idx = (unsigned int)
+						bdf_info[map_idx].smmu_idx;
+				*sid = bdf + ((unsigned int)
+						bdf_info[map_idx].mapping_off << 16);
+				return E_RMM_OK;
 			}
 		}
-
-		/* ECAM matched but BDF not found in this Root Complex */
-		return E_RMM_INVAL;
 	}
 
 	return E_RMM_INVAL;
