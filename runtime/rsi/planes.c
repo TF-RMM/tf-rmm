@@ -62,8 +62,9 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 
 	assert((run != NULL) && (llt != NULL));
 
-	/* AArch32 execution is not supported */
-	if ((run->enter.pstate & SPSR_EL2_nRW_AARCH32) != 0UL) {
+	/* AArch32 and EL2 execution are not supported */
+	if ((run->enter.pstate & (SPSR_EL2_nRW_AARCH32 |
+				  SPSR_EL2_MODE_EL2_BIT)) != 0UL) {
 		res->smc_res.x[0] = RSI_ERROR_INPUT;
 		goto unmap;
 	}
