@@ -265,10 +265,9 @@ bool gic_validate_vgic(void)
 }
 
 /*
- * Checks whether any virtual interrupt is pending via the List Registers
- * or a maintenance interrupt is pending via ICH_MISR_EL2.
+ * Checks whether any virtual interrupt is pending via the List Registers.
  */
-bool gic_is_any_interrupt_pending(void)
+bool gic_is_interrupt_pending(void)
 {
 	struct gic_cpu_state gicstate = {0};
 
@@ -276,12 +275,21 @@ bool gic_is_any_interrupt_pending(void)
 	read_lrs(&gicstate);
 
 	for (unsigned int i = 0U; i <= gic_virt_feature.nr_lrs; i++) {
-		if (gicstate.ich_lr_el2[i] != 0U) {
+		unsigned long state =
+			gicstate.ich_lr_el2[i] & ICH_LR_STATE_MASK;
+
+		if ((state == ICH_LR_STATE_PENDING) ||
+		    (state == ICH_LR_STATE_PENDING_ACTIVE)) {
 			return true;
 		}
 	}
 
-	return (read_ich_misr_el2() & ICH_MISR_EL2_MASK) != 0UL;
+	return false;
+}
+
+bool gic_is_maint_interrupt_pending(struct gic_cpu_state *gicstate)
+{
+	return (gicstate->ich_misr_el2 & ICH_MISR_EL2_MASK) != 0UL;
 }
 
 /* Save ICH_AP0R<n>_EL2 and ICH_AP1R<n>_EL2 registers [n...0] */

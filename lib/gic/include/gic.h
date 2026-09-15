@@ -206,7 +206,8 @@ bool gic_validate_lrs(unsigned long *gicv3_lrs);
  */
 bool gic_validate_vgic(void);
 
-bool gic_is_any_interrupt_pending(void);
+bool gic_is_interrupt_pending(void);
+bool gic_is_maint_interrupt_pending(struct gic_cpu_state *gicstate);
 void gic_restore_state(struct gic_cpu_state *gicstate);
 void gic_save_state(struct gic_cpu_state *gicstate);
 void gic_disable_virtual_cpuif(void);
