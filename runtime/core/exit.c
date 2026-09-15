@@ -1021,12 +1021,26 @@ static void handle_plane_exit_syndrome(struct rsi_plane_exit *exit,
 				       struct rec_plane *plane,
 				       unsigned long exit_reason)
 {
+	unsigned long esr = plane->plane_exit_info.esr;
+	unsigned long ec = esr & MASK(ESR_EL2_EC);
+
 	/* Get the most recent value for pstate */
 	exit->reason = (unsigned char)exit_reason;
 	exit->elr_el2 = plane->pc;
-	exit->esr_el2 = plane->plane_exit_info.esr;
-	exit->far_el2 = plane->plane_exit_info.far;
-	exit->hpfar_el2 = plane->plane_exit_info.hpfar;
+
+	if (exit_reason == RSI_EXIT_SYNC) {
+		exit->esr_el2 = esr;
+
+		if ((ec == ESR_EL2_EC_DATA_ABORT) &&
+		    ((esr & ESR_EL2_ABORT_ISV_BIT) != 0UL)) {
+			exit->far_el2 = plane->plane_exit_info.far;
+		}
+
+		if ((ec == ESR_EL2_EC_DATA_ABORT) ||
+		    (ec == ESR_EL2_EC_INST_ABORT)) {
+			exit->hpfar_el2 = plane->plane_exit_info.hpfar;
+		}
+	}
 
 	exit->pstate = plane->pstate;
 	exit->sctlr_el1 = plane->plane_exit_info.sctlr_el1;
