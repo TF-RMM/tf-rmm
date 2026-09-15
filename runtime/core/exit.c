@@ -1127,6 +1127,7 @@ bool handle_plane_n_exit(struct rec *rec,
 	unsigned long run_ipa, ret;
 	struct granule *gr;
 	struct rsi_plane_run *run;
+	bool plane_n_gic_owner;
 
 	assert(!rec_is_plane_0_active(rec));
 
@@ -1134,6 +1135,7 @@ bool handle_plane_n_exit(struct rec *rec,
 	plane_n = rec_active_plane(rec);
 	sysreg_0 = rec_plane_0_sysregs(rec);
 	sysreg_n = rec_active_plane_sysregs(rec);
+	plane_n_gic_owner = (rec->gic_owner != PLANE_0_ID);
 
 	/* RSI_PLANE_ENTER receives the run structure IPA on the second arg */
 	run_ipa = plane_0->regs[2];
@@ -1209,7 +1211,7 @@ out_return_to_plane_0:
 	plane_0->regs[3] = 0UL;
 
 	/* Return GIC ownership to Plane 0 if it was owned by the previous plane */
-	if (rec->gic_owner != PLANE_0_ID) {
+	if (plane_n_gic_owner) {
 		rec->gic_owner = PLANE_0_ID;
 	}
 
@@ -1233,11 +1235,11 @@ out_return_to_plane_0:
 
 		assert(rec->ns != NULL);
 
-		/* Restore NS vGIC state if PN did not own gic */
-		if (PLANE_0_ID == rec->gic_owner) {
+		/* Restore NS vGIC state if Pn did not own the GIC. */
+		if (!plane_n_gic_owner) {
 			gic_restore_state(&rec->ns->sysregs.gicstate);
 		}
-		/* If PN was gic owner, retain vGIC state */
+		/* If Pn owned the GIC, retain its state for the new owner, P0. */
 
 		/*
 		 * Since we are returning to P0, we need to undo
