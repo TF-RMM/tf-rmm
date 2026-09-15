@@ -271,7 +271,10 @@ static bool handle_sync_external_abort(struct rec *rec,
 		 * Report the exception to the host.
 		 * The REC restarts the same instruction.
 		 */
-		rec_exit->esr = esr & ESR_NONEMULATED_ABORT_MASK;
+		rec_exit->esr = esr &
+			(((esr & MASK(ESR_EL2_EC)) == ESR_EL2_EC_INST_ABORT) ?
+			 ESR_INSTRUCTION_ABORT_MASK :
+			 ESR_NONEMULATED_ABORT_MASK);
 
 		/*
 		 * The value of the HPFAR_EL2 is not provided to the host as
@@ -471,7 +474,7 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 
 	/* The rest of instruction aborts are reported to the host */
 	rec_exit->hpfar = hpfar;
-	rec_exit->esr = esr & ESR_NONEMULATED_ABORT_MASK;
+	rec_exit->esr = esr & ESR_INSTRUCTION_ABORT_MASK;
 	rec_exit->rtt_tree = (unsigned long)active_s2_context_idx(rec);
 
 	return false;

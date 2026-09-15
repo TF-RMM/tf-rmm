@@ -37,7 +37,7 @@ static constexpr unsigned long DATA_ABORT_HOST_COMMON_ESR_MASK =
 	MASK(ESR_EL2_ABORT_FSC);
 
 static constexpr unsigned long INSTRUCTION_ABORT_HOST_ESR_MASK =
-	DATA_ABORT_HOST_COMMON_ESR_MASK;
+	DATA_ABORT_HOST_COMMON_ESR_MASK & ~ESR_EL2_ABORT_FNV_BIT;
 
 static constexpr unsigned long EMULATABLE_DATA_ABORT_HOST_ESR_MASK =
 	DATA_ABORT_HOST_COMMON_ESR_MASK |
@@ -305,6 +305,8 @@ TEST(exit_esr_tests, instruction_abort_exposes_only_sync_abort_fields)
 	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.gprs[0]);
 	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.rtt_tree);
 	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.esr & MASK(ESR_EL2_IL));
+	UNSIGNED_LONGS_EQUAL(0UL,
+		ctx.rec_exit.esr & ESR_EL2_ABORT_FNV_BIT);
 	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.esr & ESR_EL2_ABORT_S1PTW_BIT);
 }
 

@@ -429,6 +429,13 @@
 		ESR_EL2_ABORT_EA_BIT	| \
 		MASK(ESR_EL2_ABORT_FSC))
 
+/* The ESR fields reported to the host on an Instruction Abort. */
+#define ESR_INSTRUCTION_ABORT_MASK	( \
+		MASK(ESR_EL2_EC)	| \
+		MASK(ESR_EL2_ABORT_SET) | \
+		ESR_EL2_ABORT_EA_BIT	| \
+		MASK(ESR_EL2_ABORT_FSC))
+
 #define ESR_EMULATED_ABORT_MASK		   ( \
 		ESR_NONEMULATED_ABORT_MASK | \
 		ESR_EL2_ABORT_ISV_BIT	   | \
