@@ -288,6 +288,7 @@ The available Overlays are sumarized in the next table
    model-wait-debugger.yaml,Overlay to configure the |FVP| model to listen for Iris connections on port 7100 and make it wait until a debugger is connected before starting execution
    model-enable-s2pie-s2poe.yaml,Overlay to enable ``FEAT_S2PIE`` and ``FEAT_S2POE`` on the |FVP| model at run time.
    model-enable-feat_d128.yaml,Overlay used to enable ``FEAT_D128`` on the |FVP| model at runtime.
+   rmm-tftf-2mb-tracking.yaml,Overlay to configure TFTF Realm tests to use 2 MB RMM tracking regions.
    rmm-debug.yaml,Overlay to build |RMM| (as well as |TF-A|) in debug mode
    clean.yaml,Overlay used to avoid an exception with ``Shrinkwrap clean`` in which a path with a valid format needs to be specified for |RMM|
 
