@@ -11,15 +11,16 @@ extern "C" {
 #include <arch_helpers.h>
 #include <esr.h>
 #include <exit.h>
+#include <granule.h>
 #include <host_utils.h>
+#include <mec.h>
 #include <rec.h>
+#include <s2tt.h>
 #include <smc-rmi.h>
 #include <string.h>
 #include <test_helpers.h>
 #include <utils_def.h>
 }
-
-namespace {
 
 /*
  * Host-visible ESR field masks derived from DEN0137 beta2 A4.3.4.x / A4.3.10
@@ -153,7 +154,6 @@ static void check_failed_stage1_replay_retries_realm(unsigned long ec)
  * direct_permission_fault_uses_stage1_ipa           D1.3.2.1 / RFKLWR, D8.2.13
  */
 
-} /* namespace */
 
 TEST_GROUP(exit_esr_tests) {
 	TEST_SETUP()
@@ -310,6 +310,128 @@ TEST(exit_esr_tests, instruction_abort_exposes_only_sync_abort_fields)
 	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.esr & ESR_EL2_ABORT_S1PTW_BIT);
 }
 
+/*
+ * DEN0137 A4.3.4.2 (RMGWRC): verify ESR sanitization on a normal
+ * Instruction Abort REC exit. Set up an unassigned RAM entry in a level 1
+ * root RTT and simulate a level 1 stage 2 translation fault at a Protected
+ * IPA from Plane 0. This reaches handle_instruction_abort()'s final
+ * reporting path after the external-abort and Realm-injection checks.
+ *
+ * FnV is architecturally RES0 for translation faults. Deliberately set it
+ * in the synthetic syndrome, together with IL and S1PTW, to verify that
+ * these fields are removed from the host-visible ESR. The expected mask
+ * permits only EC, SET, EA and IFSC.
+ *
+ * Verify RMI_EXIT_SYNC, preservation of the fault IPA in HPFAR, and zero
+ * FAR, gprs[0] and RTT tree index for the primary tree. Seed FAR_EL2 with
+ * a nonzero address to detect accidental forwarding. The faulting PC must
+ * remain unchanged so the instruction can be retried, and last_run_info
+ * must retain the original ESR independently of Host-visible sanitization.
+ */
+TEST(exit_esr_tests, instruction_translation_fault_clears_fnv)
+{
+	struct exit_esr_test_context ctx;
+	uintptr_t rtt_addr = test_helpers_allocate_granules(1U);
+	unsigned long raw_hpfar = hpfar_for_ipa(GRANULE_SIZE);
+	unsigned long raw_esr = ESR_EL2_EC_INST_ABORT |
+				MASK(ESR_EL2_IL) |
+				ESR_EL2_ABORT_FNV_BIT |
+				ESR_EL2_ABORT_S1PTW_BIT |
+				(ESR_EL2_ABORT_FSC_TRANSLATION_FAULT_L0 + 1UL);
+	bool resume;
+
+	init_context(&ctx);
+
+	/* An unassigned RAM entry in a level 1 root RTT causes a REC exit. */
+	struct s2tt_context *s2_ctx = &ctx.rec.realm_info.primary_s2_ctx;
+
+	s2_ctx->ipa_bits = S2TT_MIN_IPA_BITS;
+	s2_ctx->s2_starting_level = 1;
+	s2_ctx->num_root_rtts = 1U;
+	s2_ctx->mecid = MECID_SHARED;
+	s2_ctx->g_rtt = find_granule(rtt_addr);
+	CHECK_TRUE(s2_ctx->g_rtt != NULL);
+	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_NS);
+	s2tt_init_unassigned_ram(s2_ctx, (unsigned long *)rtt_addr, 0UL);
+	granule_unlock_transition(s2_ctx->g_rtt, GRANULE_STATE_RTT);
+
+	/* FnV is RES0 for translation faults; set it to test sanitization. */
+	write_elr_el2(0x4000UL);
+	write_far_el2(0xdecafbadUL);
+	write_hpfar_el2(raw_hpfar);
+	write_esr_el2(raw_esr);
+
+	resume = handle_realm_exit(&ctx.rec, &ctx.rec_exit, ARM_EXCEPTION_SYNC_LEL);
+
+	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_RTT);
+	(void)memset((void *)rtt_addr, 0, GRANULE_SIZE);
+	granule_unlock_transition(s2_ctx->g_rtt, GRANULE_STATE_NS);
+
+	CHECK_FALSE(resume);
+	UNSIGNED_LONGS_EQUAL(RMI_EXIT_SYNC, ctx.rec_exit.exit_reason);
+	UNSIGNED_LONGS_EQUAL(raw_esr & INSTRUCTION_ABORT_HOST_ESR_MASK,
+			    ctx.rec_exit.esr);
+	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.esr & ESR_EL2_ABORT_FNV_BIT);
+	UNSIGNED_LONGS_EQUAL(raw_hpfar, ctx.rec_exit.hpfar);
+	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.far);
+	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.gprs[0]);
+	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.rtt_tree);
+	UNSIGNED_LONGS_EQUAL(0x4000UL, read_elr_el2());
+	UNSIGNED_LONGS_EQUAL(raw_esr, ctx.rec.plane[0].last_run_info.esr);
+}
+
+/*
+ * DEN0137 A4.3.4.3 (RRYVFL): verify that a Data Abort REC exit preserves
+ * FnV. Simulate a restartable Synchronous External Abort from Plane 0
+ * using DFSC == SEA and SET == UEO. This exercises the Data Abort branch
+ * of handle_sync_external_abort(), which must keep using the mask that
+ * includes FnV when Instruction Abort reporting uses its dedicated mask.
+ * Together with instruction_abort_exposes_only_sync_abort_fields, this
+ * checks the distinct FnV treatment for both external-abort branches.
+ *
+ * Set FnV in the input syndrome and verify that the host-visible ESR
+ * retains EC, SET, FnV, EA and DFSC. Include IL, S1PTW and WnR in the
+ * synthetic syndrome to check that these fields are stripped on this
+ * external-abort path.
+ *
+ * Verify RMI_EXIT_SYNC and zero FAR, HPFAR, gprs[0] and RTT tree index.
+ * Seed FAR_EL2 and HPFAR_EL2 with nonzero values to detect accidental
+ * forwarding. The faulting PC must remain unchanged so the restartable
+ * abort can be retried on the next REC entry.
+ */
+TEST(exit_esr_tests, external_data_abort_preserves_fnv)
+{
+	struct exit_esr_test_context ctx;
+	unsigned long raw_esr = ESR_EL2_EC_DATA_ABORT |
+				MASK(ESR_EL2_IL) |
+				ESR_EL2_ABORT_SET_UEO |
+				ESR_EL2_ABORT_FNV_BIT |
+				ESR_EL2_ABORT_EA_BIT |
+				ESR_EL2_ABORT_S1PTW_BIT |
+				ESR_EL2_ABORT_WNR_BIT |
+				ESR_EL2_ABORT_FSC_SEA;
+
+	init_context(&ctx);
+
+	write_elr_el2(0x5000UL);
+	write_far_el2(0xdecafbadUL);
+	write_hpfar_el2(0x1234UL);
+	write_esr_el2(raw_esr);
+
+	CHECK_FALSE(handle_realm_exit(&ctx.rec, &ctx.rec_exit, ARM_EXCEPTION_SYNC_LEL));
+	UNSIGNED_LONGS_EQUAL(RMI_EXIT_SYNC, ctx.rec_exit.exit_reason);
+	UNSIGNED_LONGS_EQUAL(raw_esr & DATA_ABORT_HOST_COMMON_ESR_MASK,
+			    ctx.rec_exit.esr);
+	UNSIGNED_LONGS_EQUAL(ESR_EL2_ABORT_FNV_BIT,
+			    ctx.rec_exit.esr & ESR_EL2_ABORT_FNV_BIT);
+	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.far);
+	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.hpfar);
+	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.gprs[0]);
+	UNSIGNED_LONGS_EQUAL(0UL, ctx.rec_exit.rtt_tree);
+	UNSIGNED_LONGS_EQUAL(0x5000UL, read_elr_el2());
+}
+
+
 TEST(exit_esr_tests, emulatable_data_abort_strips_srt_sse_and_s1ptw)
 {
 	/*
@@ -413,6 +535,20 @@ TEST(exit_esr_tests, nonemulatable_unprotected_data_abort_preserves_il_and_wnr)
 			     ctx.rec_exit.esr & ESR_EL2_ABORT_WNR_BIT);
 }
 
+/*
+ * Inject a direct stage 2 Data Abort permission fault with S1PTW clear.
+ * Seed HPFAR_EL2 with a stale IPA and provide a different, successful
+ * stage 1 translation result in PAR_EL1 for the faulting FAR_EL2 address.
+ * Direct permission faults leave HPFAR_EL2 UNKNOWN, so the exit handler
+ * must reconstruct the fault IPA using stage 1 translation replay.
+ *
+ * Verify RMI_EXIT_SYNC and HPFAR encoded from the translated IPA. Distinct
+ * input addresses catch accidental reuse of the stale HPFAR_EL2 value.
+ * Also verify that PAR_EL1 retains its saved value after replay. The test
+ * temporarily disables D128 because the fake host supports only 64-bit
+ * system register accesses. See the permission-fault references in the
+ * audit map above.
+ */
 TEST(exit_esr_tests, direct_permission_fault_uses_stage1_ipa)
 {
 	struct exit_esr_test_context ctx;
@@ -441,11 +577,33 @@ TEST(exit_esr_tests, direct_permission_fault_uses_stage1_ipa)
 	UNSIGNED_LONGS_EQUAL(fipa, read_par_el1());
 }
 
+/*
+ * Inject a direct stage 2 Data Abort permission fault and make the stage 1
+ * translation replay fail by setting PAR_EL1.F. The helper supplies a
+ * stale HPFAR_EL2 and disables D128 to use the fake host's 64-bit register
+ * path. This models a stage 1 mapping that no longer translates when RMM
+ * tries to recover the fault IPA.
+ *
+ * Verify that handle_realm_exit() requests a Realm retry and preserves the
+ * saved PAR_EL1 value, including its failure bit. This checks that failed
+ * IPA recovery takes the retry path without corrupting Realm PAR state.
+ */
 TEST(exit_esr_tests, failed_data_stage1_replay_retries_realm)
 {
 	check_failed_stage1_replay_retries_realm(ESR_EL2_EC_DATA_ABORT);
 }
 
+/*
+ * Inject a direct stage 2 Instruction Abort permission fault and make the
+ * stage 1 translation replay fail by setting PAR_EL1.F. The helper seeds
+ * a stale HPFAR_EL2 and uses the fake host's 64-bit register path with
+ * D128 disabled, exercising failed IPA recovery for an instruction fetch.
+ *
+ * Verify that handle_realm_exit() requests a Realm retry and preserves the
+ * complete saved PAR_EL1 value. This covers the Instruction Abort caller
+ * of the replay helper as well as restoration of Realm translation state
+ * when the replay cannot provide a usable IPA.
+ */
 TEST(exit_esr_tests, failed_instruction_stage1_replay_retries_realm)
 {
 	check_failed_stage1_replay_retries_realm(ESR_EL2_EC_INST_ABORT);
