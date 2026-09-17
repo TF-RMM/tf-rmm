@@ -455,30 +455,40 @@ void smc_rec_enter(unsigned long rec_addr,
 	/* If active plane is not P0 ... */
 	if (!rec_is_plane_0_active(rec)) {
 		bool report_err = false;
+		STRUCT_TYPE sysreg_state *plane_sysregs =
+			rec_active_plane_sysregs(rec);
 
 		/*
-		 * ... and either REC_ENTRY_FLAG_FORCE_P0 or
-		 * REC_ENTRY_FLAG_INJECT_SEA are set, then exit the plane
-		 * with sync exception and go back to P0. Else...
+		 * ... and REC_ENTRY_FLAG_INJECT_SEA is set, then exit the
+		 * Plane with a synchronous exception and go back to P0.
 		 */
-		if (((rec_run.enter.flags &
-			(REC_ENTRY_FLAG_FORCE_P0 | REC_ENTRY_FLAG_INJECT_SEA)) != 0UL)) {
+		if ((rec_run.enter.flags & REC_ENTRY_FLAG_INJECT_SEA) != 0UL) {
 			report_err = !handle_plane_n_exit(rec, &rec_run.exit,
-						ARM_EXCEPTION_SYNC_LEL, false);
+						RSI_EXIT_SYNC, false);
 		/*
 		 * ... if the active plane is not the current GIC owner and there
 		 * is a pending interrupt, then exit the plane with IRQ exception
 		 * and go back to P0.
 		 *
-		 * Note, in both cases, that we do not need to save PN context
+		 * QZFYT requires maintenance status to come from ICH_MISR_EL2
+		 * saved at the most recent Pn exit.
+		 *
+		 * In all cases, we do not need to save Pn context
 		 * back to the REC, as it was already saved when RMM first
 		 * received the interrupt and exited to NS.
 		 * GIC state is preserved
 		 */
 		} else if ((rec->active_plane_id != rec->gic_owner) &&
-			   gic_is_any_interrupt_pending()) {
+			   (gic_is_interrupt_pending() ||
+			    gic_is_maint_interrupt_pending(
+				    &plane_sysregs->gicstate))) {
 			report_err = !handle_plane_n_exit(rec, &rec_run.exit,
-						ARM_EXCEPTION_IRQ_LEL, false);
+						RSI_EXIT_IRQ, false);
+		/* ... or perform a Host-requested exit to P0. */
+		} else if ((rec_run.enter.flags &
+			    REC_ENTRY_FLAG_FORCE_P0) != 0UL) {
+			report_err = !handle_plane_n_exit(rec, &rec_run.exit,
+						RSI_EXIT_HOST, false);
 		}
 
 		if (report_err) {

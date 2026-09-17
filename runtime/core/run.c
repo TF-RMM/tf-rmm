@@ -19,6 +19,7 @@
 #include <s2tt.h>
 #include <simd.h>
 #include <smc-rmi.h>
+#include <smc-rsi.h>
 #include <timers.h>
 #include <types.h>
 
@@ -481,7 +482,7 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 
 				/* Switch to P0 to handle timer interrupt */
 				plane_n_exited = handle_plane_n_exit(rec, rec_exit,
-							ARM_EXCEPTION_IRQ_LEL, true);
+							RSI_EXIT_IRQ, true);
 
 				if (!plane_n_exited) {
 					/*

@@ -357,7 +357,7 @@ static bool handle_data_abort(struct rec *rec, struct rmi_rec_exit *rec_exit,
 		if (abort_is_permission_fault(esr) || empty_ipa) {
 			assert(access_in_rec_par(rec, fipa));
 			return handle_plane_n_exit(rec, rec_exit,
-						   ARM_EXCEPTION_SYNC_LEL, true);
+						   RSI_EXIT_SYNC, true);
 		}
 	}
 
@@ -450,7 +450,7 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 		 */
 		if (abort_is_permission_fault(esr) || empty_ipa || !in_par) {
 			return handle_plane_n_exit(rec, rec_exit,
-						   ARM_EXCEPTION_SYNC_LEL, true);
+						   RSI_EXIT_SYNC, true);
 		}
 	}
 
@@ -494,7 +494,7 @@ static bool handle_simd_exception(struct rec *rec, struct rmi_rec_exit *rec_exit
 		 * for Stage 2 fixup. Once the fixup is done, the SIMD instruction
 		 * can be retried to trigger the exception and try again.
 		 */
-		return handle_plane_n_exit(rec, rec_exit, ARM_EXCEPTION_SYNC_LEL, true);
+		return handle_plane_n_exit(rec, rec_exit, RSI_EXIT_SYNC, true);
 	}
 
 	/*
@@ -596,7 +596,7 @@ static bool handle_wfx_exception(struct rec *rec,
 
 	/* WFx call from Plane N are forwarded to Plane 0 */
 	advance_pc();
-	ret = handle_plane_n_exit(rec, rec_exit, ARM_EXCEPTION_SYNC_LEL, true);
+	ret = handle_plane_n_exit(rec, rec_exit, RSI_EXIT_SYNC, true);
 
 	if (!ret) {
 		/*
@@ -631,7 +631,7 @@ static bool handle_hvc_exception(struct rec *rec,
 	 * the instruction following the one that caused the exception. In
 	 * the case of an HVC instruction, the PC is already advanced.
 	 */
-	ret = handle_plane_n_exit(rec, rec_exit, ARM_EXCEPTION_SYNC_LEL, true);
+	ret = handle_plane_n_exit(rec, rec_exit, RSI_EXIT_SYNC, true);
 
 	if (!ret) {
 		/*
@@ -670,7 +670,7 @@ static bool handle_rsi_from_pn(struct rec *rec, struct rmi_rec_exit *rec_exit,
 	}
 
 	*p0_return = handle_plane_n_exit(rec, rec_exit,
-					 ARM_EXCEPTION_SYNC_LEL, true);
+					 RSI_EXIT_SYNC, true);
 
 	return true;
 }
@@ -1021,34 +1021,45 @@ static void handle_plane_exit_syndrome(struct rsi_plane_exit *exit,
 				       struct rec_plane *plane,
 				       unsigned long exit_reason)
 {
+	unsigned long esr = plane->plane_exit_info.esr;
+	unsigned long ec = esr & MASK(ESR_EL2_EC);
+
 	/* Get the most recent value for pstate */
 	exit->reason = (unsigned char)exit_reason;
 	exit->elr_el2 = plane->pc;
-	exit->esr_el2 = plane->plane_exit_info.esr;
-	exit->far_el2 = plane->plane_exit_info.far;
-	exit->hpfar_el2 = plane->plane_exit_info.hpfar;
 
-	exit->pstate = plane->pstate;
+	if ((exit_reason == RSI_EXIT_SYNC) ||
+	    (exit_reason == RSI_EXIT_HOST)) {
+		exit->esr_el2 = esr;
+		exit->pstate = plane->pstate;
+	}
+
+	if (exit_reason == RSI_EXIT_SYNC) {
+		if ((ec == ESR_EL2_EC_DATA_ABORT) &&
+		    ((esr & ESR_EL2_ABORT_ISV_BIT) != 0UL)) {
+			exit->far_el2 = plane->plane_exit_info.far;
+		}
+
+		if ((ec == ESR_EL2_EC_DATA_ABORT) ||
+		    (ec == ESR_EL2_EC_INST_ABORT)) {
+			exit->hpfar_el2 = plane->plane_exit_info.hpfar;
+		}
+	}
+
 	exit->sctlr_el1 = plane->plane_exit_info.sctlr_el1;
 	exit->vbar_el1 = plane->plane_exit_info.vbar_el1;
 	exit->elr_el1 = plane->plane_exit_info.elr_el1;
 	exit->pmu_ovf_status = plane->plane_exit_info.pmu_ovf_status;
 }
 
-static void do_handle_plane_exit(int exception, struct rsi_plane_exit *exit,
+static void do_handle_plane_exit(unsigned char exit_reason,
+				 struct rsi_plane_exit *exit,
 				 struct rec_plane *plane)
 {
-	switch (exception) {
-	case ARM_EXCEPTION_SYNC_LEL:
-		handle_plane_exit_syndrome(exit, plane, RSI_EXIT_SYNC);
-		break;
-	case ARM_EXCEPTION_IRQ_LEL:
-		handle_plane_exit_syndrome(exit, plane, RSI_EXIT_IRQ);
-		break;
-	default:
-		ERROR("Unhandled Plane exit exception: 0x%x\n", exception);
-		assert(false);
-	}
+	assert((exit_reason == RSI_EXIT_SYNC) ||
+	       (exit_reason == RSI_EXIT_IRQ) ||
+	       (exit_reason == RSI_EXIT_HOST));
+	handle_plane_exit_syndrome(exit, plane, exit_reason);
 }
 
 static void copy_timer_state_to_plane_exit(STRUCT_TYPE sysreg_state * sysregs,
@@ -1103,7 +1114,7 @@ static void copy_state_to_plane_exit(struct rec_plane *plane,
  */
 bool handle_plane_n_exit(struct rec *rec,
 			 struct rmi_rec_exit *rec_exit,
-			 int exception,
+			 unsigned char exit_reason,
 			 bool save_restore_plane_state)
 {
 	enum s2_walk_status walk_status;
@@ -1113,6 +1124,7 @@ bool handle_plane_n_exit(struct rec *rec,
 	unsigned long run_ipa, ret;
 	struct granule *gr;
 	struct rsi_plane_run *run;
+	bool plane_n_gic_owner;
 
 	assert(!rec_is_plane_0_active(rec));
 
@@ -1120,6 +1132,7 @@ bool handle_plane_n_exit(struct rec *rec,
 	plane_n = rec_active_plane(rec);
 	sysreg_0 = rec_plane_0_sysregs(rec);
 	sysreg_n = rec_active_plane_sysregs(rec);
+	plane_n_gic_owner = (rec->gic_owner != PLANE_0_ID);
 
 	/* RSI_PLANE_ENTER receives the run structure IPA on the second arg */
 	run_ipa = plane_0->regs[2];
@@ -1179,7 +1192,7 @@ bool handle_plane_n_exit(struct rec *rec,
 	copy_state_to_plane_exit(plane_n, sysreg_n, &run->exit);
 
 	/* Populate other fields of exit structure */
-	do_handle_plane_exit(exception, &run->exit, plane_n);
+	do_handle_plane_exit(exit_reason, &run->exit, plane_n);
 
 	/* Unmap rsi_plane_run granule */
 	buffer_unmap(run);
@@ -1195,7 +1208,7 @@ out_return_to_plane_0:
 	plane_0->regs[3] = 0UL;
 
 	/* Return GIC ownership to Plane 0 if it was owned by the previous plane */
-	if (rec->gic_owner != PLANE_0_ID) {
+	if (plane_n_gic_owner) {
 		rec->gic_owner = PLANE_0_ID;
 	}
 
@@ -1219,11 +1232,11 @@ out_return_to_plane_0:
 
 		assert(rec->ns != NULL);
 
-		/* Restore NS vGIC state if PN did not own gic */
-		if (PLANE_0_ID == rec->gic_owner) {
+		/* Restore NS vGIC state if Pn did not own the GIC. */
+		if (!plane_n_gic_owner) {
 			gic_restore_state(&rec->ns->sysregs.gicstate);
 		}
-		/* If PN was gic owner, retain vGIC state */
+		/* If Pn owned the GIC, retain its state for the new owner, P0. */
 
 		/*
 		 * Since we are returning to P0, we need to undo
