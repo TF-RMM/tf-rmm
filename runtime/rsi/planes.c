@@ -41,6 +41,7 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	unsigned long run_ipa = plane_0->regs[2];
 	struct granule *llt = NULL;
 	struct rsi_plane_run *run = NULL;
+	struct rsi_plane_enter entry;
 
 	res->action = UPDATE_REC_RETURN_TO_REALM;
 
@@ -62,14 +63,22 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 
 	assert((run != NULL) && (llt != NULL));
 
-	/* AArch32 execution is not supported */
-	if ((run->enter.pstate & SPSR_EL2_nRW_AARCH32) != 0UL) {
+	/*
+	 * The run structure is Realm-owned and can be modified concurrently.
+	 * Take a private copy so that validation and use operate on the same
+	 * values.
+	 */
+	entry = run->enter;
+
+	/* AArch32 and EL2 execution are not supported */
+	if ((entry.pstate & (SPSR_EL2_nRW_AARCH32 |
+				  SPSR_EL2_MODE_EL2_BIT)) != 0UL) {
 		res->smc_res.x[0] = RSI_ERROR_INPUT;
 		goto unmap;
 	}
 
-	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_OWN_GIC) == 0UL) {
-		if (gic_validate_lrs((unsigned long *)&run->enter.gicv3_lrs) == false) {
+	if ((entry.flags & RSI_PLANE_ENTER_FLAGS_OWN_GIC) == 0UL) {
+		if (gic_validate_lrs((unsigned long *)&entry.gicv3_lrs) == false) {
 			res->smc_res.x[0] = RSI_ERROR_INPUT;
 			goto unmap;
 		}
@@ -87,7 +96,7 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	plane_n = rec_activate_plane_n(rec, (unsigned int)plane_idx);
 	sysreg_n = rec_active_plane_sysregs(rec);
 
-	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_OWN_GIC) != 0UL) {
+	if ((entry.flags & RSI_PLANE_ENTER_FLAGS_OWN_GIC) != 0UL) {
 		rec->gic_owner = (unsigned int)plane_idx;
 		/* Reflect NS programmed vGIC state */
 	} else {
@@ -96,24 +105,24 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 		gic_save_state(&rec->ns->sysregs.gicstate);
 		/* Init vGIC state from `enter` structure */
 		gic_init_vgic_state(&sysreg_n->gicstate,
-			(unsigned long *)&run->enter.gicv3_lrs, run->enter.gicv3_hcr);
+			(unsigned long *)&entry.gicv3_lrs, entry.gicv3_hcr);
 	}
 
 	/* Copy target Plane state from entry structure to REC */
-	copy_state_from_plane_entry(plane_n, sysreg_n, &run->enter);
+	copy_state_from_plane_entry(plane_n, sysreg_n, &entry);
 
 	/* Initialize trap control bits */
 	sysreg_n->hcr_el2 = rec->common_sysregs.hcr_el2;
 
-	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_TRAP_WFI) != RSI_NO_TRAP) {
+	if ((entry.flags & RSI_PLANE_ENTER_FLAGS_TRAP_WFI) != RSI_NO_TRAP) {
 		sysreg_n->hcr_el2 |= HCR_TWI;
 	}
 
-	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_TRAP_WFE) != RSI_NO_TRAP) {
+	if ((entry.flags & RSI_PLANE_ENTER_FLAGS_TRAP_WFE) != RSI_NO_TRAP) {
 		sysreg_n->hcr_el2 |= HCR_TWE;
 	}
 
-	if ((run->enter.flags & RSI_PLANE_ENTER_FLAGS_TRAP_SIMD) != RSI_NO_TRAP) {
+	if ((entry.flags & RSI_PLANE_ENTER_FLAGS_TRAP_SIMD) != RSI_NO_TRAP) {
 		SIMD_DISABLE_ALL_CPTR_FLAGS((sysreg_n->cptr_el2));
 	} else {
 		/* Propagate cptr_el2 configuration from P0 to PN */
@@ -121,10 +130,10 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 	}
 
 	plane_n->trap_simd =
-		((run->enter.flags & RSI_PLANE_ENTER_FLAGS_TRAP_SIMD) != RSI_NO_TRAP);
+		((entry.flags & RSI_PLANE_ENTER_FLAGS_TRAP_SIMD) != RSI_NO_TRAP);
 
 	plane_n->trap_hc =
-		((run->enter.flags & RSI_PLANE_ENTER_FLAGS_TRAP_HC) != RSI_NO_TRAP);
+		((entry.flags & RSI_PLANE_ENTER_FLAGS_TRAP_HC) != RSI_NO_TRAP);
 
 	/* Change active Plane */
 	res->action = PLANE_CHANGED_RETURN_TO_REALM;
