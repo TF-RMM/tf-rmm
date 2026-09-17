@@ -6,98 +6,64 @@
 #ifndef SPINLOCK_H
 #define SPINLOCK_H
 
-/*
- * Trivial spinlock implementations, per ARM DDI 0487J.a, section K13.3.1
- */
+#include <stdbool.h>
+
+/* Trivial spinlock implementations using compiler atomic builtins. */
 
 /* 32-bit spinlock */
 typedef struct {
 	unsigned int val;
 } spinlock_t;
 
+/* Try to acquire @l without waiting, with acquire memory ordering. */
+__attribute__((__always_inline__))
+static inline bool spinlock_try_acquire(spinlock_t *l)
+{
+	unsigned int expected = 0U;
+
+	return __atomic_compare_exchange_n(&l->val, &expected, 1U, false,
+					   __ATOMIC_ACQUIRE,
+					   __ATOMIC_RELAXED);
+}
+
+/* Wait until @l is observed unlocked without acquiring it. */
+__attribute__((__always_inline__))
+static inline void spinlock_wait(spinlock_t *l)
+{
+	/* To avoid misra-c2012-2.7 warnings */
+	(void)l;
+	unsigned int value;
+
+	/*
+	 * Establish an exclusive reservation before waiting so that the
+	 * releasing PE's store generates an event and wakes this PE.
+	 */
+	/* cppcheck-suppress misra-c2012-17.3 */
+	asm volatile(
+	"1:	ldxr	%w[value], %[lock]\n"
+	"	cbz	%w[value], 2f\n"
+	"	wfe\n"
+	"	b	1b\n"
+	"2:\n"
+	: [value] "=&r" (value)
+	: [lock] "Q" (l->val)
+	: "memory"
+	);
+}
+
 __attribute__((__always_inline__))
 static inline void spinlock_acquire(spinlock_t *l)
 {
-	unsigned int tmp;
-
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)l;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	sevl\n"
-	"	prfm	pstl1keep, %[lock]\n"
-	"1:\n"
-	"	wfe\n"
-	"	ldaxr	%w[tmp], %[lock]\n"
-	"	cbnz	%w[tmp], 1b\n"
-	"	stxr	%w[tmp], %w[one], %[lock]\n"
-	"	cbnz	%w[tmp], 1b\n"
-	: [lock] "+Q" (l->val),
-	  [tmp] "=&r" (tmp)
-	: [one] "r" (1)
-	: "memory"
-	);
+	do {
+		/* Avoid issuing a CAS while the lock is observed as held. */
+		spinlock_wait(l);
+	} while (!spinlock_try_acquire(l));
 }
 
 __attribute__((__always_inline__))
 static inline void spinlock_release(spinlock_t *l)
 {
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)l;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	stlr	wzr, %[lock]\n"
-	: [lock] "+Q" (l->val)
-	:
-	: "memory"
-	);
-}
-
-/* 8-bit spinlock */
-typedef struct {
-	unsigned char val;
-} byte_spinlock_t;
-
-__attribute__((__always_inline__))
-static inline void byte_spinlock_acquire(byte_spinlock_t *l)
-{
-	unsigned int tmp;
-
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)l;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	sevl\n"
-	"	prfm	pstl1keep, %[lock]\n"
-	"1:\n"
-	"	wfe\n"
-	"	ldaxrb	%w[tmp], %[lock]\n"
-	"	cbnz	%w[tmp], 1b\n"
-	"	stxrb	%w[tmp], %w[one], %[lock]\n"
-	"	cbnz	%w[tmp], 1b\n"
-	: [lock] "+Q" (l->val),
-	  [tmp] "=&r" (tmp)
-	: [one] "r" (1)
-	: "memory"
-	);
-}
-
-__attribute__((__always_inline__))
-static inline void byte_spinlock_release(byte_spinlock_t *l)
-{
-	/* To avoid misra-c2012-2.7 warnings */
-	(void)l;
-
-	/* cppcheck-suppress misra-c2012-17.3 */
-	asm volatile(
-	"	stlrb	wzr, %[lock]\n"
-	: [lock] "+Q" (l->val)
-	:
-	: "memory"
-	);
+	__atomic_store_n(&l->val, 0U, __ATOMIC_RELEASE);
 }
 
 #endif /* SPINLOCK_H */
