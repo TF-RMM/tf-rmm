@@ -1597,29 +1597,40 @@ void smc_rtt_set_ripas(unsigned long rd_addr,
 	/* Walk to the deepest level possible */
 	s2tt_walk_lock_unlock(s2_ctx, base, S2TT_PAGE_LEVEL, &wi);
 
-	/*
-	 * Base has to be aligned to the level at which
-	 * it is mapped in RTT.
-	 */
-	if (!validate_map_addr(base, wi.last_level, rd)) {
-		res->x[0] = pack_return_code_level(RMI_ERROR_RTT,
-						(unsigned char)wi.last_level);
-		goto out_unlock_llt;
-	}
-
 	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx->mecid);
 	assert(s2tt != NULL);
 
-	rtt_set_ripas_range(s2_ctx, s2tt, base, top, &wi,
-			    rd->rtt_tree_pp, ripas_val,
-			    change_destroyed, res, rd);
+	/*
+	 * Base has to be aligned to the level at which it is mapped in RTT,
+	 * unless the entry already has the requested RIPAS: base_align in
+	 * DEN0137 B4.5.71.2 only holds if ripas_pre != rec.ripas_value.
+	 * In that case nothing needs to change; report the part of the
+	 * request covered by this entry as done.
+	 */
+	if (!validate_map_addr(base, wi.last_level, rd)) {
+		unsigned long s2tte = s2tte_read(&s2tt[wi.index]);
+		unsigned long map_size = s2tte_map_size((int)wi.last_level);
+		unsigned long entry_top = (base & ~(map_size - 1UL)) + map_size;
+
+		if (s2tte_has_ripas(s2_ctx, s2tte, wi.last_level) &&
+		    (s2tte_get_ripas(s2_ctx, s2tte) == ripas_val)) {
+			res->x[0] = RMI_SUCCESS;
+			res->x[1] = MIN(top, entry_top);
+		} else {
+			res->x[0] = pack_return_code_level(RMI_ERROR_RTT,
+						(unsigned char)wi.last_level);
+		}
+	} else {
+		rtt_set_ripas_range(s2_ctx, s2tt, base, top, &wi,
+				    rd->rtt_tree_pp, ripas_val,
+				    change_destroyed, res, rd);
+	}
 
 	if (res->x[0] == RMI_SUCCESS) {
 		rec->set_ripas.addr = res->x[1];
 	}
 
 	buffer_unmap(s2tt);
-out_unlock_llt:
 	granule_unlock(wi.g_llt);
 	buffer_unmap(rd);
 out_unmap_rec:
