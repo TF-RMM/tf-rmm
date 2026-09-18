@@ -241,7 +241,8 @@ static void psci_affinity_info(struct rec *rec,
 	granule_unlock(rec->realm_info.g_rd);
 
 	if (g_target_rec == NULL) {
-		res->smc_res.x[0] = PSCI_AFFINITY_INFO_OFF;
+		/* target_match: the MPIDR does not identify a REC in this Realm */
+		res->smc_res.x[0] = PSCI_RETURN_INVALID_PARAMS;
 		return;
 	}
 
