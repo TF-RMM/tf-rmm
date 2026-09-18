@@ -1019,7 +1019,7 @@ bool handle_realm_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int excep
 
 static void handle_plane_exit_syndrome(struct rsi_plane_exit *exit,
 				       struct rec_plane *plane,
-				       unsigned long exit_reason)
+				       unsigned int exit_reason)
 {
 	unsigned long esr = plane->plane_exit_info.esr;
 	unsigned long ec = esr & MASK(ESR_EL2_EC);
@@ -1052,7 +1052,7 @@ static void handle_plane_exit_syndrome(struct rsi_plane_exit *exit,
 	exit->pmu_ovf_status = plane->plane_exit_info.pmu_ovf_status;
 }
 
-static void do_handle_plane_exit(unsigned char exit_reason,
+static void do_handle_plane_exit(unsigned int exit_reason,
 				 struct rsi_plane_exit *exit,
 				 struct rec_plane *plane)
 {
@@ -1114,7 +1114,7 @@ static void copy_state_to_plane_exit(struct rec_plane *plane,
  */
 bool handle_plane_n_exit(struct rec *rec,
 			 struct rmi_rec_exit *rec_exit,
-			 unsigned char exit_reason,
+			 unsigned int exit_reason,
 			 bool save_restore_plane_state)
 {
 	enum s2_walk_status walk_status;

@@ -13,6 +13,6 @@ struct rmi_rec_exit;
 
 bool handle_realm_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int exception);
 bool handle_plane_n_exit(struct rec *rec, struct rmi_rec_exit *rec_exit,
-			 unsigned char exit_reason, bool save_restore_plane_state);
+			 unsigned int exit_reason, bool save_restore_plane_state);
 
 #endif /* EXIT_H */
