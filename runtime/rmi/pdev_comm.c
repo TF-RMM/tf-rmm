@@ -111,15 +111,25 @@ void pdev_comm_complete(struct pdev *pd, int app_rc, bool app_unwound)
 	pdev_comm_complete_operation(pd, app_rc == DEV_ASSIGN_STATUS_SUCCESS);
 }
 
-/* Apply the current implementation's PDEV_ABORT state transition. */
+/*
+ * Apply PDEV_ABORT after the app has unwound, with the PDEV lock held.
+ * Device exchanges are not reverted: beta-3's stream_cannot_revert_*
+ * conditions require ERROR and STREAM_COMPLETE for stream operations.
+ * Preserve stream bookkeeping until STREAM_COMPLETE commits the stream
+ * transition; other aborted operations have no remaining completion step.
+ */
 void pdev_comm_abort(struct pdev *pd)
 {
 	assert(pd != NULL);
 	assert(pd->dev_comm_state != DEV_COMM_IDLE);
 
 	pd->rmi_state = RMI_PDEV_STATE_ERROR;
-	if (pdev_comm_operation_is_stream(pd->op.curr)) {
+	if (pdev_comm_operation_is_stream(pd->op.curr) ||
+	    (pd->op.curr == PDEV_OP_STREAM_COMPLETE)) {
 		pd->op.curr = PDEV_OP_STREAM_COMPLETE;
+	} else {
+		pd->op.curr = PDEV_OP_NONE;
+		pd->op.stream_op_state = STREAM_OP_STATE_NONE;
 	}
 	pd->dev_comm_state = DEV_COMM_IDLE;
 }
