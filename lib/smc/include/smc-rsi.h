@@ -63,6 +63,14 @@
  */
 #define RSI_NO_CHANGE_DESTROYED	U(0)
 
+/* RsiRipasChangeFlags: destroyed, bit 0; bits 63:1 reserved (SBZ) */
+#define RSI_RIPAS_CHANGE_FLAGS_DESTROYED_SHIFT	UL(0)
+#define RSI_RIPAS_CHANGE_FLAGS_DESTROYED_WIDTH	UL(1)
+
+/* RSI_IPA_STATE_SET ripas input: X3[7:0]; X3[63:8] SBZ */
+#define RSI_IPA_STATE_SET_RIPAS_SHIFT	UL(0)
+#define RSI_IPA_STATE_SET_RIPAS_WIDTH	UL(8)
+
 /* A RIPAS change from DESTROYED should be permitted */
 #define RSI_CHANGE_DESTROYED	U(1)
 

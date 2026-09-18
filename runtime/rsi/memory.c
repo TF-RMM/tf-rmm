@@ -15,6 +15,7 @@
 #include <s2ap_ind.h>
 #include <s2tt.h>
 #include <smc-rsi.h>
+#include <utils_def.h>
 
 void handle_rsi_ipa_state_set(struct rec *rec,
 			      struct rmi_rec_exit *rec_exit,
@@ -23,9 +24,11 @@ void handle_rsi_ipa_state_set(struct rec *rec,
 	struct rec_plane *plane = rec_plane_0(rec);
 	unsigned long base = plane->regs[1];
 	unsigned long top = plane->regs[2];
-	enum ripas ripas_val = (enum ripas)plane->regs[3];
+	enum ripas ripas_val = (enum ripas)EXTRACT(RSI_IPA_STATE_SET_RIPAS,
+							   plane->regs[3]);
 	enum ripas_change_destroyed change_destroyed =
-			(enum ripas_change_destroyed)plane->regs[4];
+			(enum ripas_change_destroyed)EXTRACT(
+				RSI_RIPAS_CHANGE_FLAGS_DESTROYED, plane->regs[4]);
 
 	/* Only Plane 0 can isuue RSI calls */
 	assert(rec_is_plane_0_active(rec));
