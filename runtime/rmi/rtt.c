@@ -2667,7 +2667,11 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 		goto out_unmap_vdev;
 	}
 
-	if ((vd->attest_info.lock_nonce != rec->vdev_freshness_1.lock_nonce) ||
+	/* UNLOCK can be pending while the VDEV still appears LOCKED/STARTED. */
+	if (((vd->rmi_state != RMI_VDEV_STATE_LOCKED) &&
+	     (vd->rmi_state != RMI_VDEV_STATE_STARTED)) ||
+	    (vd->comm_state != DEV_COMM_IDLE) ||
+	    (vd->attest_info.lock_nonce != rec->vdev_freshness_1.lock_nonce) ||
 	    (vd->attest_info.meas_nonce != rec->vdev_freshness_1.meas_nonce) ||
 	    (vd->attest_info.report_nonce != rec->vdev_freshness_1.report_nonce)) {
 		res->x[0] = RMI_ERROR_DEVICE;
