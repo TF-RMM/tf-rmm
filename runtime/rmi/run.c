@@ -522,6 +522,16 @@ void smc_rec_enter(unsigned long rec_addr,
 	reset_last_run_info(plane);
 
 	sysregs->hcr_el2 = rec->common_sysregs.hcr_el2;
+
+	/* Restore the WFx traps which P0 requested on Plane entry. */
+	if (!rec_is_plane_0_active(rec)) {
+		if (plane->trap_wfi) {
+			sysregs->hcr_el2 |= HCR_TWI;
+		}
+		if (plane->trap_wfe) {
+			sysregs->hcr_el2 |= HCR_TWE;
+		}
+	}
 	if ((rec_run.enter.flags & REC_ENTRY_FLAG_TRAP_WFI) != 0UL) {
 		sysregs->hcr_el2 |= HCR_TWI;
 	}

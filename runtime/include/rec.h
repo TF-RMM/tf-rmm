@@ -211,6 +211,8 @@ struct rec_plane {
 
 	bool trap_hc;
 	bool trap_simd;
+	bool trap_wfi;
+	bool trap_wfe;
 
 	STRUCT_TYPE {
 		/*
