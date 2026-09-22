@@ -4,6 +4,7 @@
  */
 
 #include <buffer.h>
+#include <errno.h>
 #include <realm.h>
 #include <rec.h>
 #include <rsi-handler.h>
@@ -456,16 +457,15 @@ static bool __unused rsi_vdev_matches_map(struct rd *rd, unsigned long vdev_id,
 static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *rec,
 					    struct rsi_vdev_obj *lock_set, bool claim_pdev)
 {
-	const struct vdev_map *vdev_map;
 	struct granule *g_rd;
 	struct granule *g_vdev;
 	struct rd *rd;
-	struct rd_aux *rd_aux;
 	struct vdev *vd;
 	unsigned long rd_addr;
 	unsigned long vdev_addr;
-	unsigned long pdev_addr = 0UL;
+	unsigned long pdev_addr;
 	uint64_t epoch;
+	int ret;
 
 	*lock_set = (struct rsi_vdev_obj){0};
 
@@ -490,55 +490,34 @@ static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *r
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
-	rd_aux = buffer_rd_aux_granules_map(&rd->aux_granules[0], rd->num_rd_aux);
-	assert(rd_aux != NULL);
-	vdev_map = sarray_lookup_vdev_map(&rd_aux->vdev_map_hnd, vdev_id);
-	if (vdev_map == NULL) {
-		buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+	ret = vdev_find_lock_map(g_rd, rd, vdev_id, &g_vdev, &vd);
+	if (ret != 0) {
 		buffer_unmap(rd);
 		granule_unlock(g_rd);
-		/* either the host removed the vdev or the realm gave invalid id */
-		return RSI_ERROR_INPUT;
+		return (ret == -ENOENT) ? RSI_ERROR_INPUT : RSI_INCOMPLETE;
 	}
-	/* record current epoch to track any changes to vdev map */
+
+	if (!claim_pdev) {
+		lock_set->g_rd = g_rd;
+		lock_set->g_vdev = g_vdev;
+		lock_set->rd = rd;
+		lock_set->vd = vd;
+		return RSI_SUCCESS;
+	}
+
+	/* Cache the parent under the VDEV lock before acquiring PDEV in order. */
 	epoch = get_rd_obj_map_epoch_locked(rd);
-	vdev_addr = (unsigned long)vdev_map->vdev;
-	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
-
-	if (claim_pdev) {
-		unsigned long ret;
-
-		/* Lock VDEV before caching its PDEV address. */
-		ret = tr_find_lock_granule(vdev_addr, GRANULE_SIZE,
-					   GRANULE_STATE_VDEV, &g_vdev);
-		if (ret != RMI_SUCCESS) {
-			buffer_unmap(rd);
-			granule_unlock(g_rd);
-			return RSI_INCOMPLETE;
-		}
-
-		vd = buffer_granule_map(g_vdev, SLOT_VDEV);
-		assert(vd != NULL);
-		pdev_addr = tr_granule_addr(vd->g_pdev);
-		buffer_unmap(vd);
-		granule_unlock(g_vdev);
-	}
-
+	vdev_addr = tr_granule_addr(g_vdev);
+	pdev_addr = tr_granule_addr(vd->g_pdev);
+	buffer_unmap(vd);
+	granule_unlock(g_vdev);
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
 
 	/* No locks held; acquire all requested objects in lock order. */
-	if (claim_pdev) {
-		if (tr_find_lock_three_fine_granules(
-				rd_addr, GRANULE_STATE_RD, &lock_set->g_rd,
-				pdev_addr, GRANULE_STATE_PDEV, &lock_set->g_pdev,
-				vdev_addr, GRANULE_STATE_VDEV, &lock_set->g_vdev) !=
-					RMI_SUCCESS) {
-			rsi_vdev_release_objects(lock_set);
-			return RSI_INCOMPLETE;
-		}
-	} else if (tr_find_lock_two_fine_granules(
+	if (tr_find_lock_three_fine_granules(
 			rd_addr, GRANULE_STATE_RD, &lock_set->g_rd,
+			pdev_addr, GRANULE_STATE_PDEV, &lock_set->g_pdev,
 			vdev_addr, GRANULE_STATE_VDEV, &lock_set->g_vdev) !=
 				RMI_SUCCESS) {
 		rsi_vdev_release_objects(lock_set);
@@ -582,10 +561,8 @@ static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *r
 	 * the lock_nonce, the realm can also detect the replacement scenario.
 	 */
 	lock_set->rd = buffer_granule_map(lock_set->g_rd, SLOT_RD);
-	if (claim_pdev) {
-		lock_set->pd = buffer_granule_map(lock_set->g_pdev, SLOT_PDEV);
-		assert(lock_set->pd != NULL);
-	}
+	lock_set->pd = buffer_granule_map(lock_set->g_pdev, SLOT_PDEV);
+	assert(lock_set->pd != NULL);
 	lock_set->vd = buffer_granule_map(lock_set->g_vdev, SLOT_VDEV);
 	assert((lock_set->rd != NULL) && (lock_set->vd != NULL));
 
@@ -608,7 +585,7 @@ static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *r
 	assert(rsi_vdev_matches_map(lock_set->rd, vdev_id, lock_set->g_vdev));
 	assert(lock_set->vd->g_rd == lock_set->g_rd);
 	assert(lock_set->vd->id == vdev_id);
-	assert(!claim_pdev || (lock_set->vd->g_pdev == lock_set->g_pdev));
+	assert(lock_set->vd->g_pdev == lock_set->g_pdev);
 
 	return RSI_SUCCESS;
 }

@@ -2594,13 +2594,10 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 			  struct smc_result *res)
 {
 	struct granule *g_rd, *g_rec, *g_vdev;
-	const struct vdev_map *vdev_map;
 	struct s2tt_context *s2_ctx;
 	unsigned long dev_mem_pa;
-	unsigned long vdev_addr;
 	unsigned long *s2tt;
 	struct s2tt_walk wi;
-	struct rd_aux *rd_aux;
 	struct vdev *vd;
 	struct rec *rec;
 	struct rd *rd;
@@ -2611,6 +2608,7 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 		return;
 	}
 
+	/* Lock in RD, REC, VDEV, RTT order and retain VDEV through the update. */
 	ret = tr_find_lock_two_fine_granules(rd_addr, GRANULE_STATE_RD,
 					     &g_rd, rec_addr,
 					     GRANULE_STATE_REC, &g_rec);
@@ -2641,37 +2639,24 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
-	/* The RD lock keeps the VDEV ID mapping stable until validation ends. */
-	rd_aux = buffer_rd_aux_granules_map(&rd->aux_granules[0], rd->num_rd_aux);
-	assert(rd_aux != NULL);
-	vdev_map = sarray_lookup_vdev_map(&rd_aux->vdev_map_hnd, rec->vdev_id_1);
-	if (vdev_map == NULL) {
-		buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+	/* Resolve the pending request's VDEV ID through the RD-owned map.
+	 * Reject the request if the VDEV is no longer present. */
+	if (vdev_find_lock_map(g_rd, rd, rec->vdev_id_1, &g_vdev, &vd) != 0) {
 		res->x[0] = RMI_ERROR_INPUT;
 		goto out_unmap_rd;
-	}
-	vdev_addr = (unsigned long)vdev_map->vdev;
-	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
-
-	/* Lock in RD, REC, VDEV, RTT order and retain VDEV through the update. */
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
-		goto out_unmap_rd;
-	}
-	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
-	assert(vd != NULL);
-
-	if ((vd->g_rd != g_rd) || (vd->id != rec->vdev_id_1)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		goto out_unmap_vdev;
 	}
 
 	/* UNLOCK can be pending while the VDEV still appears LOCKED/STARTED. */
 	if (((vd->rmi_state != RMI_VDEV_STATE_LOCKED) &&
 	     (vd->rmi_state != RMI_VDEV_STATE_STARTED)) ||
-	    (vd->comm_state != DEV_COMM_IDLE) ||
-	    (vd->attest_info.lock_nonce != rec->vdev_freshness_1.lock_nonce) ||
+	    (vd->comm_state != DEV_COMM_IDLE)) {
+		res->x[0] = RMI_ERROR_DEVICE;
+		goto out_unmap_vdev;
+	}
+
+	/* Compare current VDEV freshness with the nonces saved in the Realm's request.
+	 * Reject stale requests after a lock, measurement or interface-report update. */
+	if ((vd->attest_info.lock_nonce != rec->vdev_freshness_1.lock_nonce) ||
 	    (vd->attest_info.meas_nonce != rec->vdev_freshness_1.meas_nonce) ||
 	    (vd->attest_info.report_nonce != rec->vdev_freshness_1.report_nonce)) {
 		res->x[0] = RMI_ERROR_DEVICE;

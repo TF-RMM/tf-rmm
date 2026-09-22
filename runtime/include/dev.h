@@ -308,6 +308,22 @@ struct vdev {
 };
 COMPILER_ASSERT(sizeof(struct vdev) <= GRANULE_SIZE);
 
+struct rd;
+
+/*
+ * Look up, lock and map a VDEV while the caller holds g_rd locked and rd
+ * mapped. Any other held locks must precede VDEV in the granule lock order.
+ * RD auxiliary slots and SLOT_VDEV must be available.
+ *
+ * On success, return 0 with *g_vdev locked and *vd mapped in SLOT_VDEV.
+ * The caller must unmap *vd and unlock *g_vdev. The RD lock is not released.
+ * On failure, return -ENOENT for an absent ID or -EINVAL for an invalid VDEV;
+ * both outputs are NULL and no additional locks or mappings are retained.
+ */
+int vdev_find_lock_map(struct granule *g_rd, struct rd *rd,
+		       unsigned long vdev_id, struct granule **g_vdev,
+		       struct vdev **vd);
+
 unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
 			      unsigned long dev_comm_data_addr);
 struct pdev_stream *pdev_stream_granules_lock_map(struct granule *g_streams,
