@@ -362,19 +362,19 @@ void handle_rsi_vdev_validate_mapping(struct rec *rec,
 		goto out_unlock;
 	}
 
-	if ((lock_nonce != lock_set.vd->attest_info.lock_nonce) ||
-	    (meas_nonce != lock_set.vd->attest_info.meas_nonce) ||
-	    (report_nonce != lock_set.vd->attest_info.report_nonce)) {
-		res->smc_res.x[0] = RSI_ERROR_DEVICE;
-		goto out_unlock;
-	}
-
 	/* Update REC dev_mem */
 	rec->dev_mem.base = ipa_base;
 	rec->dev_mem.top = ipa_top;
 	rec->dev_mem.addr = ipa_base;
 	rec->dev_mem.pa = pa_base;
 	rec->dev_mem.flags = flags;
+	rec->vdev_id_1 = vdev_id;
+	/* RMI_RTT_DEV_VALIDATE checks freshness supplied by the Realm. */
+	rec->vdev_freshness_1 = (struct vdev_attest_info) {
+		.lock_nonce = lock_nonce,
+		.meas_nonce = meas_nonce,
+		.report_nonce = report_nonce
+	};
 
 	/* Update REC exit dev_mem */
 	rec_exit->exit_reason = RMI_EXIT_VDEV_VALIDATE_MAPPING;

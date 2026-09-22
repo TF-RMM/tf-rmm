@@ -2593,11 +2593,15 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 			  unsigned long base, unsigned long top,
 			  struct smc_result *res)
 {
-	struct granule *g_rd, *g_rec;
+	struct granule *g_rd, *g_rec, *g_vdev;
+	const struct vdev_map *vdev_map;
 	struct s2tt_context *s2_ctx;
 	unsigned long dev_mem_pa;
+	unsigned long vdev_addr;
 	unsigned long *s2tt;
 	struct s2tt_walk wi;
+	struct rd_aux *rd_aux;
+	struct vdev *vd;
 	struct rec *rec;
 	struct rd *rd;
 	unsigned long ret;
@@ -2637,6 +2641,39 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 
+	/* The RD lock keeps the VDEV ID mapping stable until validation ends. */
+	rd_aux = buffer_rd_aux_granules_map(&rd->aux_granules[0], rd->num_rd_aux);
+	assert(rd_aux != NULL);
+	vdev_map = sarray_lookup_vdev_map(&rd_aux->vdev_map_hnd, rec->vdev_id_1);
+	if (vdev_map == NULL) {
+		buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+		res->x[0] = RMI_ERROR_INPUT;
+		goto out_unmap_rd;
+	}
+	vdev_addr = (unsigned long)vdev_map->vdev;
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+
+	/* Lock in RD, REC, VDEV, RTT order and retain VDEV through the update. */
+	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
+	if (g_vdev == NULL) {
+		res->x[0] = RMI_ERROR_INPUT;
+		goto out_unmap_rd;
+	}
+	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
+	assert(vd != NULL);
+
+	if ((vd->g_rd != g_rd) || (vd->id != rec->vdev_id_1)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		goto out_unmap_vdev;
+	}
+
+	if ((vd->attest_info.lock_nonce != rec->vdev_freshness_1.lock_nonce) ||
+	    (vd->attest_info.meas_nonce != rec->vdev_freshness_1.meas_nonce) ||
+	    (vd->attest_info.report_nonce != rec->vdev_freshness_1.report_nonce)) {
+		res->x[0] = RMI_ERROR_DEVICE;
+		goto out_unmap_vdev;
+	}
+
 	/*
 	 * At this point, we know base == rec->dev_mem.addr and thus must be
 	 * aligned to GRANULE size.
@@ -2672,6 +2709,12 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 	buffer_unmap(s2tt);
 out_unlock_llt:
 	granule_unlock(wi.g_llt);
+
+out_unmap_vdev:
+	buffer_unmap(vd);
+	granule_unlock(g_vdev);
+
+out_unmap_rd:
 	buffer_unmap(rd);
 
 out_unmap_rec:
