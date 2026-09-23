@@ -75,6 +75,17 @@ static inline uint8_t atomic_load_add_release_8(uint8_t *loc, uint8_t val)
 }
 
 /*
+ * Atomically set @bit at @loc with relaxed ordering, preserving other bits.
+ * @loc must point to an aligned 64-bit value and @bit must be less than 64.
+ */
+static inline void atomic_bit_set_64(uint64_t *loc, unsigned int bit)
+{
+	uint64_t mask = (1ULL << bit);
+
+	(void)__atomic_fetch_or(loc, mask, __ATOMIC_RELAXED);
+}
+
+/*
  * Atomically set bit @bit in value pointed to by @loc with release semantics.
  */
 static inline void atomic_bit_set_release_64(uint64_t *loc, unsigned int bit)
@@ -82,6 +93,17 @@ static inline void atomic_bit_set_release_64(uint64_t *loc, unsigned int bit)
 	uint64_t mask = (1ULL << bit);
 
 	(void)__atomic_fetch_or(loc, mask, __ATOMIC_RELEASE);
+}
+
+/*
+ * Atomically clear @bit at @loc with relaxed ordering, preserving other bits.
+ * @loc must point to an aligned 64-bit value and @bit must be less than 64.
+ */
+static inline void atomic_bit_clear_64(uint64_t *loc, unsigned int bit)
+{
+	uint64_t mask = (1ULL << bit);
+
+	(void)__atomic_fetch_and(loc, ~mask, __ATOMIC_RELAXED);
 }
 
 /*

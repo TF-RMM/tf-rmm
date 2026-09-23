@@ -96,6 +96,18 @@ static inline uint8_t atomic_load_add_release_8(uint8_t *loc, uint8_t val)
 }
 
 /*
+ * Set @bit at @loc in the single-thread host, preserving other bits.
+ * @loc must point to a 64-bit value and @bit must be less than 64.
+ * This models a relaxed atomic update without inter-PE ordering.
+ */
+static inline void atomic_bit_set_64(uint64_t *loc, unsigned int bit)
+{
+	uint64_t mask = (1ULL << bit);
+
+	*loc |= mask;
+}
+
+/*
  * Atomically set bit @bit in value pointed to by @val with release semantics.
  */
 static inline void atomic_bit_set_release_64(uint64_t *loc, unsigned int bit)
@@ -103,6 +115,18 @@ static inline void atomic_bit_set_release_64(uint64_t *loc, unsigned int bit)
 	uint64_t mask = (1UL << bit);
 
 	*loc |= mask;
+}
+
+/*
+ * Clear @bit at @loc in the single-thread host, preserving other bits.
+ * @loc must point to a 64-bit value and @bit must be less than 64.
+ * This models a relaxed atomic update without inter-PE ordering.
+ */
+static inline void atomic_bit_clear_64(uint64_t *loc, unsigned int bit)
+{
+	uint64_t mask = (1ULL << bit);
+
+	*loc &= ~mask;
 }
 
 /*

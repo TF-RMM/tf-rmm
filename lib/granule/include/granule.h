@@ -187,34 +187,64 @@ static inline void __granule_set_state(struct granule *g, unsigned char state)
 }
 
 /*
- * Acquire the bitlock and then check expected state
- * Fails if unexpected locking sequence detected.
- * Also asserts if invariant conditions are met.
+ * Acquire @g only while its state matches @expected_state.
+ *
+ * The caller must keep the descriptor stable and obey the state, address and
+ * RTT hierarchy ordering rules for all locks it already holds. Independently
+ * supplied expected states are permitted when acquired in that order.
+ *
+ * Check the state before acquisition and throughout contention, so an
+ * unexpected state cannot introduce a lock-order inversion. Recheck after
+ * acquiring the lock to close the race with the unlocked read.
+ *
+ * Return true with @g locked in @expected_state, or false without holding
+ * its lock on a state mismatch. The caller must release any earlier locks
+ * when abandoning a collection after a mismatch.
  */
 static inline bool granule_lock_on_state_match(struct granule *g,
 						unsigned char expected_state)
 {
-	granule_bitlock_acquire(g);
+	assert(g != NULL);
 
-	if (granule_get_state(g) != expected_state) {
-		granule_bitlock_release(g);
-		return false;
+	for (;;) {
+		if (STATE(g) != expected_state) {
+			return false;
+		}
+		if (granule_bitlock_try_acquire(g)) {
+			if (granule_get_state(g) != expected_state) {
+				granule_bitlock_release(g);
+				return false;
+			}
+
+			__granule_assert_unlocked_invariants(g, expected_state);
+			return true;
+		}
+
+		/*
+		 * Another PE may acquire the lock after a state change
+		 * before we observe the unlock. Include state in the wait
+		 * condition so the STATE(g) check above can reject a
+		 * mismatch even if the lock has already been taken again.
+		 */
+		granule_bitlock_wait(g, expected_state);
 	}
-
-	__granule_assert_unlocked_invariants(g, expected_state);
-	return true;
 }
 
 /*
- * Used when we're certain of the type of an object (e.g. because we hold a
- * reference to it). In these cases we should never fail to acquire the lock.
+ * Acquire @g through a protected reference, returning with its lock held.
+ *
+ * The caller must keep the descriptor stable and establish the locking order
+ * independently of its current state. Wait unconditionally so an in-progress
+ * transition to @expected_state can finish, then assert that state and check
+ * its invariants. A state mismatch after acquisition is a programming error.
  */
 static inline void granule_lock(struct granule *g,
 				unsigned char expected_state)
 {
-	__unused bool locked = granule_lock_on_state_match(g, expected_state);
+	granule_bitlock_acquire(g);
 
-	assert(locked);
+	assert(granule_get_state(g) == expected_state);
+	__granule_assert_unlocked_invariants(g, expected_state);
 }
 
 static inline void granule_unlock(struct granule *g)
