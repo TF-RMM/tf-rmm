@@ -271,7 +271,10 @@ static bool handle_sync_external_abort(struct rec *rec,
 		 * Report the exception to the host.
 		 * The REC restarts the same instruction.
 		 */
-		rec_exit->esr = esr & ESR_NONEMULATED_ABORT_MASK;
+		rec_exit->esr = esr &
+			(((esr & MASK(ESR_EL2_EC)) == ESR_EL2_EC_INST_ABORT) ?
+			 ESR_INSTRUCTION_ABORT_MASK :
+			 ESR_NONEMULATED_ABORT_MASK);
 
 		/*
 		 * The value of the HPFAR_EL2 is not provided to the host as
@@ -471,7 +474,7 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 
 	/* The rest of instruction aborts are reported to the host */
 	rec_exit->hpfar = hpfar;
-	rec_exit->esr = esr & ESR_NONEMULATED_ABORT_MASK;
+	rec_exit->esr = esr & ESR_INSTRUCTION_ABORT_MASK;
 	rec_exit->rtt_tree = (unsigned long)active_s2_context_idx(rec);
 
 	return false;
@@ -588,8 +591,29 @@ static bool handle_wfx_exception(struct rec *rec,
 	bool ret;
 
 	if (rec_is_plane_0_active(rec)) {
-		/* WFx calls from Plane 0 are forwarded to the host */
-		rec_exit->esr = (esr & (MASK(ESR_EL2_EC) | ESR_EL2_WFx_TI_BIT));
+		/*
+		 * WFx calls from Plane 0 are forwarded to the host.
+		 *
+		 * DEN0137 A4.3.4.1: the host receives ESR.EC and the full
+		 * ISS.TI field, RV set for a timed instruction and RN zero
+		 * (RYQWST), and for WFIT/WFET the timeout value in gprs[0]
+		 * (RBPYBC).
+		 */
+		rec_exit->esr = esr & (MASK(ESR_EL2_EC) |
+				       MASK(ESR_EL2_WFx_TI));
+
+		if ((esr & ESR_EL2_WFx_TI_TIMED_BIT) != 0UL) {
+			unsigned int rn =
+				(unsigned int)EXTRACT(ESR_EL2_WFx_RN, esr);
+
+			rec_exit->esr |= ESR_EL2_WFx_RV_BIT;
+
+			/* Xt == XZR reads as zero */
+			rec_exit->gprs[0] =
+				(rn < RMM_REC_SAVED_GEN_REG_COUNT) ?
+				rec_active_plane(rec)->regs[rn] : 0UL;
+		}
+
 		advance_pc();
 		return false;
 	}

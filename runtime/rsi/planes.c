@@ -134,6 +134,10 @@ void handle_rsi_plane_enter(struct rec *rec, struct rsi_result *res)
 
 	plane_n->trap_hc =
 		((entry.flags & RSI_PLANE_ENTER_FLAGS_TRAP_HC) != RSI_NO_TRAP);
+	plane_n->trap_wfi =
+		((entry.flags & RSI_PLANE_ENTER_FLAGS_TRAP_WFI) != RSI_NO_TRAP);
+	plane_n->trap_wfe =
+		((entry.flags & RSI_PLANE_ENTER_FLAGS_TRAP_WFE) != RSI_NO_TRAP);
 
 	/* Change active Plane */
 	res->action = PLANE_CHANGED_RETURN_TO_REALM;
