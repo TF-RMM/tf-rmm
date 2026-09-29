@@ -171,9 +171,10 @@ bool host_util_pas_set(unsigned long addr, unsigned long granule_count,
 		       bool realm);
 
 /*
- * Return whether an NS access to @buf covers only backed pages in NS PAS.
- * Resolve slot aliases to their current PAs; direct addresses are used by MMIO.
- * Empty accesses and accesses with PAS checks disabled succeed.
+ * Return whether an NS access to @buf covers only backed pages in NS PAS or
+ * backed ECAM MMIO. Resolve slot aliases to their current PAs; direct addresses
+ * are used by MMIO. Empty accesses and accesses with PAS checks disabled
+ * succeed.
  */
 bool host_util_ns_access_valid(const void *buf, unsigned long size);
 #endif /* !CBMC */

@@ -143,6 +143,23 @@ bool host_util_pas_set(unsigned long addr, unsigned long granule_count,
 	return true;
 }
 
+static bool host_range_contains(unsigned long base, unsigned long range_size,
+				unsigned long addr, unsigned long size)
+{
+	return (size != 0UL) && (addr >= base) &&
+	       ((addr - base) < range_size) &&
+	       (size <= (range_size - (addr - base)));
+}
+
+/* The backed ECAM windows have no granule PAS entries to look up. */
+static bool host_ecam_access_valid(unsigned long addr, unsigned long size)
+{
+	return host_range_contains(host_utils_pci_get_ecam_base(), SZ_4K,
+				   addr, size) ||
+	       host_range_contains(host_utils_pci_get_ecam_base_1(), SZ_4K,
+				   addr, size);
+}
+
 /*
  * Model the recovered GPF result at the point of NS access, before memcpy can
  * touch a protected page. Slot mappings do not freeze the page's PAS.
@@ -171,7 +188,7 @@ bool host_util_ns_access_valid(const void *buf, unsigned long size)
 	}
 
 	if (!host_pa_range_index(addr, size, &index)) {
-		return false;
+		return host_ecam_access_valid(addr, size);
 	}
 
 	last = index + (((addr % GRANULE_SIZE) + size - 1UL) / GRANULE_SIZE);
