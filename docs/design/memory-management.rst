@@ -22,10 +22,12 @@ Spaces (PAS):
 Realm PAS at boot time by the EL3 Firmware. This is a static carveout and it
 is never changed during the lifetime of the system.
 
-The size of the |RMM| data is fixed at build time. The majority of this is the
-granules array (see `Granule state tracking`_ below), whose size is
-configurable and proportional to the maximum amount of delegable DRAM supported
-by the system.
+|RMM| tracks conventional memory with ``struct granule`` and device memory
+with ``struct dev_granule``. Either struct can represent a complete tracking
+region when coarse, or one physical Granule when fine. Fine arrays are page
+aligned so their backing memory can be allocated and reclaimed independently
+for each region. See :doc:`dynamic-granule-management` for the array layout,
+allocation modes and representation transitions.
 
 Realm data and metadata are in Realm PAS memory, which is delegated to the
 Realm PAS by the Host at runtime. The |RMM| ABI ensures that this memory cannot
@@ -40,15 +42,19 @@ NS data as part of RMI handling.
 Granule state tracking
 ----------------------
 
-The |RMM| manages a data structure called the `granules` array, which is
-stored in |RMM| data memory.
+The |RMM| stores fine tracking metadata in compact arrays of ``struct granule``
+for conventional memory and ``struct dev_granule`` for device memory.
 
-The `granules` array contains one entry for every Granule of physical
-memory which was in Non-secure PAS at |RMM| boot and can be delegated.
+The arrays contain one entry for every Granule position in a represented
+tracking region. Each represented region has one ``struct tracking_region``.
+Indices in ``struct tracking_memory_bank`` map physical addresses to the
+``struct tracking_region`` array and the fine granule arrays, omitting complete
+tracking-region holes between banks. The active ``granule`` or ``dev_granule``
+can be coarse or fine according to the tracking state and allocation mode.
+Coarse granules are embedded in ``struct tracking_region``.
 
-Each entry in the `granules` array contains a field `granule_state` which
-records the *state* of the Granule and which can be one of the states as
-listed below:
+For conventional memory, a ``granule`` records the *state* of the memory it
+represents. The states are listed below:
 
 -  NS: Not Realm PAS (i.e. Non-secure PAS, Root PAS or Secure PAS)
 -  Delegated: Realm PAS, but not yet assigned a purpose as either Realm

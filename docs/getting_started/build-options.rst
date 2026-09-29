@@ -310,6 +310,7 @@ The |RMM| build system supports the following CMake build options.
    RMM_CBMC_SINGLE_TESTBENCH	,			,OFF			,"Run CBMC on a single testbench instead on all of them"
    RMM_EL3_COMPAT_RESERVE_MEM	,ON | OFF		,ON			,"Enable compatibility for reserve memory capability from EL3."
    RMM_MEM_SCRUB_METHOD 	,0 - 2			,0			,"Memory Scrub method selection when granule are returned to NS Host."
+   RMM_ALLOC_TRACKING_DATA	,ON | OFF		,ON			,"Preallocate the fine granule arrays from EL3 during RMM boot."
    RMM_VA_POOL_SIZE		,			,0x40000000		,"Size of the dynamic virtual address pool"
    ATTEST_PLAT_TOKEN_SIZE	,			,0x1000			,"Maximum size in bytes expected for the Attestation platform token"
    PLAT_ARM_MAX_MEM_BANKS	,			,2			,"Maximum possible number of DRAM and COH/NCOH device memory banks allowed in Arm platform layer"

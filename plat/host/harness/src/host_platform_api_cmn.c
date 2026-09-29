@@ -3,7 +3,6 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include <assert.h>
 #include <debug.h>
 #include <host_console.h>
 #include <host_utils.h>
@@ -25,6 +24,9 @@
  * Space to model the RMM reserved mem, used to emulate EL3 memory allocation.
  */
 static unsigned char rmm_reserve_memory[HOST_RESERVE_MEM_SIZE] __aligned(GRANULE_SIZE);
+static struct plat_memory_bank host_dram_banks[1];
+static struct plat_memory_bank host_dev_ncoh_banks[1];
+static struct plat_memory_bank host_dev_coh_banks[1];
 
 /* Define the EL3-RMM interface compatibility callbacks */
 static struct rmm_el3_compat_callbacks callbacks = {
@@ -84,55 +86,37 @@ void plat_setup(uint64_t x0, uint64_t x1,
 	plat_warmboot_setup(x0, x1, x2, x3);
 }
 
-unsigned long plat_granule_addr_to_idx(unsigned long addr)
+/* Return the static host platform memory bank array for the RMI @category. */
+const struct plat_memory_bank *plat_get_mem_banks(
+					unsigned long category,
+					unsigned long *num_banks)
 {
-	if (!(GRANULE_ALIGNED(addr) &&
-		(addr < (host_util_get_granule_base() + HOST_DRAM_SIZE)) &&
-		(addr >= host_util_get_granule_base()))) {
-		return UINT64_MAX;
+	struct plat_memory_bank *banks;
+
+	if (num_banks == NULL) {
+		return NULL;
 	}
 
-	return (addr - host_util_get_granule_base()) / GRANULE_SIZE;
-}
-
-unsigned long plat_granule_idx_to_addr(unsigned long idx)
-{
-	assert(idx < HOST_NR_GRANULES);
-	return host_util_get_granule_base() + (idx * GRANULE_SIZE);
-}
-
-unsigned long plat_get_num_granules(void)
-{
-	return HOST_NR_GRANULES;
-}
-
-unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_coh_type *type)
-{
-	if (!(GRANULE_ALIGNED(addr) &&
-		(addr < (host_util_get_dev_granule_base() + HOST_NCOH_DEV_SIZE)) &&
-		(addr >= host_util_get_dev_granule_base()))) {
-		return UINT64_MAX;
+	switch (category) {
+	case RMI_MEM_CATEGORY_CONVENTIONAL:
+		banks = host_dram_banks;
+		banks[0].base = host_util_get_granule_base();
+		banks[0].size = HOST_DRAM_SIZE;
+		*num_banks = 1UL;
+		break;
+	case RMI_MEM_CATEGORY_DEV_NCOH:
+		banks = host_dev_ncoh_banks;
+		banks[0].base = host_util_get_dev_granule_base();
+		banks[0].size = HOST_NCOH_DEV_SIZE;
+		*num_banks = 1UL;
+		break;
+	case RMI_MEM_CATEGORY_DEV_COH:
+		banks = host_dev_coh_banks;
+		*num_banks = 0UL;
+		break;
+	default:
+		return NULL;
 	}
 
-	*type = DEV_MEM_NON_COHERENT;
-	return (addr - host_util_get_dev_granule_base()) / GRANULE_SIZE;
-}
-
-unsigned long plat_dev_granule_idx_to_addr(unsigned long idx, enum dev_coh_type type)
-{
-	(void)type;
-
-	/* No coherent device memory */
-	assert(type == DEV_MEM_NON_COHERENT);
-	assert(idx < HOST_NR_NCOH_GRANULES);
-	return host_util_get_dev_granule_base() + (idx * GRANULE_SIZE);
-}
-
-unsigned long plat_get_num_dev_granules(enum dev_coh_type type)
-{
-	if (type == DEV_MEM_NON_COHERENT) {
-		return HOST_NR_NCOH_GRANULES;
-	}
-
-	return UINT64_MAX;
+	return banks;
 }

@@ -1263,6 +1263,9 @@ enum rmm_state {
 #define RMI_OP_MEM_NON_CONTIG		0UL
 #define RMI_OP_MEM_CONTIG		1UL
 
+/* RmiOpMemReclaimFlags type definitions */
+#define RMI_OP_RECLAIM_MEM_STATE	BIT(0)
+
 /* RmiContinueFlags type definitionns */
 #define RMI_CONTINUE_BEYOND_FLAG	BIT(0)
 #define RMI_CONTINUE_KEEP_GOING		0UL
@@ -1319,6 +1322,7 @@ enum rmm_state {
 
 /* Tracking Region Size with GRANULE_SIZE = 4KB */
 #define RMI_GRAN_4KB_TRACKING_REGION_SIZE_1GB		UL(0)
+#define RMI_GRAN_4KB_TRACKING_REGION_SIZE_2MB		UL(1)
 
 /* Tracking Region Size with GRANULE_SIZE = 16KB */
 #define RMI_GRAN_16KB_TRACKING_REGION_SIZE_32MB		UL(0)
@@ -1389,11 +1393,13 @@ struct rmi_rmm_config {
 #define RMI_TRACKING_NONE		U(1)
 #define RMI_TRACKING_FINE		U(2)
 #define RMI_TRACKING_COARSE		U(3)
+#define RMI_TRACKING_INTERMEDIATE	U(4)
 
 /* RmiMemCategory type */
 #define RMI_MEM_CATEGORY_CONVENTIONAL	U(0)
 #define RMI_MEM_CATEGORY_DEV_NCOH	U(1)
 #define RMI_MEM_CATEGORY_DEV_COH	U(2)
+#define RMI_MEM_CATEGORY_NONE		U(3)
 
 /*
  * The Realm attribute parameters are shared by the Host via

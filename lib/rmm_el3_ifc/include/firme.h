@@ -20,7 +20,7 @@
 #define FIRME_BUSY			UL(-6)
 #define FIRME_OP_CONFLICT		UL(-7)
 #define FIRME_EXISTS			UL(-8)
-#define FIRME_NO_ENTRY			UL(-9)
+#define FIRME_NOT_FOUND			UL(-9)
 #define FIRME_NO_MEMORY			UL(-10)
 #define FIRME_BAD_DATA			UL(-11)
 
@@ -36,6 +36,7 @@
 #define SMC_FIRME_IDE_KEYSET_GO		SMC64_STD_FID(FIRME, U(4)) /* FID 0xC400 0404 */
 #define SMC_FIRME_IDE_KEYSET_STOP	SMC64_STD_FID(FIRME, U(5)) /* FID 0xC400 0405 */
 #define SMC_FIRME_MECID_REFRESH		SMC64_STD_FID(FIRME, U(7)) /* FID 0xC400 0407 */
+#define SMC_FIRME_GM_GPI_OP_CONTINUE	SMC64_STD_FID(FIRME, U(0x12))
 
 /* FIRME_VERSION definitions */
 
@@ -127,12 +128,18 @@ static inline bool firme_supports_ ## abi(void) 			\
 #define FIRME_MECID_FR1_COMMON_MECID_WIDTH_BITS_SHIFT	U(0)
 #define FIRME_MECID_FR1_COMMON_MECID_WIDTH_BITS_WIDTH	UL(4)
 
-/* This helper converts FIRME status to RMM EL3 interface status */
+/*
+ * Convert FIRME status to RMM EL3 interface status. E_RMM_AGAIN preserves an
+ * operation conflict separately from BUSY: a GPI conflict invalidates the
+ * continuation cookie and requires a fresh GPI_SET for the remaining range.
+ * FIRME_INCOMPLETE maps to E_RMM_IN_PROGRESS for a retained operation.
+ * Status is a signed W0 value; ignore any upper X0 bits supplied by a caller.
+ */
 static inline int firme_errno_to_rmm_errno(uint64_t firme_errno)
 {
 	int rc;
 
-	switch (firme_errno) {
+	switch ((uint64_t)(int32_t)firme_errno) {
 	case FIRME_SUCCESS:
 		rc = E_RMM_OK;
 		break;
@@ -142,8 +149,14 @@ static inline int firme_errno_to_rmm_errno(uint64_t firme_errno)
 	case FIRME_INVALID_PARAMETERS:
 		rc = E_RMM_INVAL;
 		break;
+	case FIRME_INCOMPLETE:
+		rc = E_RMM_IN_PROGRESS;
+		break;
 	case FIRME_BUSY:
 		rc = E_RMM_BUSY;
+		break;
+	case FIRME_OP_CONFLICT:
+		rc = E_RMM_AGAIN;
 		break;
 	case FIRME_DENIED:
 		rc = E_RMM_DENIED;

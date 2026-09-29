@@ -10,6 +10,7 @@
 #include <granule_types.h>
 #include <rmm_el3_compat.h>
 #include <sro_context.h>
+#include <tracking_region.h>
 
 /* Platform header for RMM EL3 compatibility */
 
@@ -53,6 +54,7 @@
 	(((RMM_VA_POOL_SIZE / UL(0x40000000)) * 513U + 1U) * GRANULE_SIZE) + /* VA space pages: (GB * 513) + 1 */ \
 	(((cmn_xlat) + 5U) * GRANULE_SIZE) + \
 	GLOB_DATA_MAX_SIZE + /* glob_data granule */ \
+	TRACKING_REGION_DATA_SIZE + /* struct tracking_region_data */ \
 	round_up(SRO_CTX_POOL_SIZE, GRANULE_SIZE) + /* SRO context related data */ \
 	SMMU_MEM_SIZE(RMM_MAX_SMMUS, 16U, SMMU_STRTAB_SPLIT)) /* SMMU allocations */
 

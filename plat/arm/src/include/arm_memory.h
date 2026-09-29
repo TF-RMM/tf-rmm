@@ -6,23 +6,15 @@
 #ifndef ARM_MEMORY_H
 #define ARM_MEMORY_H
 
+#include <platform_api.h>
 #include <rmm_el3_ifc.h>
 #include <stddef.h>
 #include <stdint.h>
 
 /* Arm platform memory management structures */
-struct arm_memory_bank {
-	uint64_t base;			/* bank base address */
-	uint64_t size;			/* size of this bank */
-	/* This idx is a cumulative granule count of previous banks */
-	uint64_t start_gran_idx;	/* start granule index for this bank */
-};
-
 struct arm_memory_layout {
-	unsigned long num_granules;	/* number of granules */
 	unsigned long num_banks;	/* number of memory banks */
-	struct arm_memory_bank bank[PLAT_ARM_MAX_MEM_BANKS];
-					/* sorted array of memory banks */
+	struct plat_memory_bank bank[PLAT_ARM_MAX_MEM_BANKS];
 };
 
 void arm_set_dram_layout(struct memory_info *plat_dram);

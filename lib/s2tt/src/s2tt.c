@@ -439,7 +439,7 @@ static struct granule *find_next_level_idx(const struct s2tt_context *s2_ctx,
 		return NULL;
 	}
 
-	return addr_to_granule(table_entry_to_phys(s2_ctx, entry));
+	return tr_addr_to_granule(table_entry_to_phys(s2_ctx, entry));
 }
 
 static struct granule *find_lock_next_level(const struct s2tt_context *s2_ctx,
@@ -516,11 +516,17 @@ void s2tt_walk_lock_unlock(const struct s2tt_context *s2_ctx,
 	if (sl_idx >= S2TTES_PER_S2TT) {
 		unsigned int tt_num = (unsigned int)(sl_idx >> S2TTE_STRIDE);
 		struct granule *g_concat_root;
+		unsigned long concat_root_addr;
 
 		assert(tt_num < s2_ctx->num_root_rtts);
 
-		g_concat_root = (struct granule *)((uintptr_t)g_root +
-					(tt_num * sizeof(struct granule)));
+		/*
+		 * Concatenated roots are PA-contiguous, but their fine struct granule objects
+		 * need not be contiguous across a tracking-region boundary.
+		 */
+		concat_root_addr = tr_granule_addr(g_root) +
+				   ((unsigned long)tt_num * GRANULE_SIZE);
+		g_concat_root = tr_addr_to_granule(concat_root_addr);
 
 		granule_lock(g_concat_root, GRANULE_STATE_RTT);
 		granule_unlock(g_root);

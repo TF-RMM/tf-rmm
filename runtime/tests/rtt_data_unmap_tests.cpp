@@ -56,7 +56,8 @@ static bool setup_and_map_pages(struct test_data_ctx *ctx,
 		return false;
 	}
 
-	uintptr_t data_base = reserve_delegated_granules(n);
+	/* These tests expect one sweep; keep the backing in one tracking region. */
+	uintptr_t data_base = reserve_delegated_granules_l2_aligned(n);
 
 	if (!map_data_pages(ctx, ipa_base, data_base, n)) {
 		return false;

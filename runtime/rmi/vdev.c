@@ -285,16 +285,8 @@ static unsigned long validate_vdev_params(
 	unsigned long vdev_params_addr,
 	struct rmi_vdev_params *vdev_params)
 {
-	struct granule *g_vdev_params;
-
-	/* Map and copy VDEV parameters */
-	g_vdev_params = find_granule(vdev_params_addr);
-	if ((g_vdev_params == NULL) ||
-	    (granule_unlocked_state(g_vdev_params) != GRANULE_STATE_NS)) {
-		return RMI_ERROR_INPUT;
-	}
-
-	if (!ns_buffer_read(SLOT_NS, g_vdev_params, 0U,
+	/* Map and copy VDEV parameters. */
+	if (!ns_buffer_read_addr(SLOT_NS, vdev_params_addr, 0U,
 			    sizeof(struct rmi_vdev_params), vdev_params)) {
 		return RMI_ERROR_INPUT;
 	}
@@ -358,10 +350,11 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		return;
 	}
 
-	if (!find_lock_three_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+	rc = tr_find_lock_three_fine_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
 				      pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
-				      vdev_addr, GRANULE_STATE_DELEGATED, &g_vdev)) {
-		res->x[0] = RMI_ERROR_INPUT;
+				      vdev_addr, GRANULE_STATE_DELEGATED, &g_vdev);
+	if (rc != RMI_SUCCESS) {
+		res->x[0] = rc;
 		return;
 	}
 
@@ -420,7 +413,7 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 
 	plane_0_s2_context = plane_to_s2_context(rd, PLANE_0_ID);
 
-	s2_cfg.s2ttb = granule_addr(plane_0_s2_context->g_rtt) & MASK(TTBRx_EL2_BADDR);
+	s2_cfg.s2ttb = tr_granule_addr(plane_0_s2_context->g_rtt) & MASK(TTBRx_EL2_BADDR);
 	s2_cfg.vtcr = realm_vtcr(rd);
 	s2_cfg.vmid = plane_0_s2_context->vmid;
 	s2_cfg.mecid = plane_0_s2_context->mecid;
@@ -498,7 +491,28 @@ out_unmap_rd:
 }
 
 /*
+ * Validate a host-supplied parent PA before taking any other object lock.
+ * Return its tracking-aware lookup result and retain no granule pointer or
+ * lock. Later identity checks use the parents pinned by the locked VDEV.
+ */
+static unsigned long vdev_check_parent(unsigned long addr, unsigned char state)
+{
+	struct granule *g;
+	unsigned long ret;
+
+	ret = tr_find_lock_granule(addr, GRANULE_SIZE, state, &g);
+	if (ret == RMI_SUCCESS) {
+		granule_unlock(g);
+	}
+	return ret;
+}
+
+/*
  * smc_vdev_lock
+ *
+ * Validate parent states under their locks, then release those locks before
+ * acquiring the operation locks. The locked VDEV pins the parents used for
+ * identity checks. Report the RMI result through @res with all locks released.
  *
  * rd_addr		- PA of RD
  * pdev_addr		- PA of the PDEV
@@ -507,8 +521,6 @@ out_unmap_rd:
 void smc_vdev_lock(unsigned long rd_addr, unsigned long pdev_addr,
 		   unsigned long vdev_addr, struct smc_result *res)
 {
-	struct granule *g_rd;
-	struct granule *g_pdev;
 	struct granule *g_vdev;
 	struct vdev *vdev;
 	unsigned long rmi_rc;
@@ -525,35 +537,34 @@ void smc_vdev_lock(unsigned long rd_addr, unsigned long pdev_addr,
 		return;
 	}
 
-	g_rd = find_granule(rd_addr);
-	if ((g_rd == NULL) ||
-	    (granule_unlocked_state(g_rd) != GRANULE_STATE_RD)) {
-		res->x[0] = RMI_ERROR_INPUT;
+	rmi_rc = vdev_check_parent(rd_addr, GRANULE_STATE_RD);
+	if (rmi_rc != RMI_SUCCESS) {
+		res->x[0] = rmi_rc;
 		return;
 	}
 
-	g_pdev = find_granule(pdev_addr);
-	if ((g_pdev == NULL) ||
-	    (granule_unlocked_state(g_pdev) != GRANULE_STATE_PDEV)) {
-		res->x[0] = RMI_ERROR_INPUT;
+	rmi_rc = vdev_check_parent(pdev_addr, GRANULE_STATE_PDEV);
+	if (rmi_rc != RMI_SUCCESS) {
+		res->x[0] = rmi_rc;
 		return;
 	}
 
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	rmi_rc = tr_find_lock_granule(vdev_addr, GRANULE_SIZE,
+				      GRANULE_STATE_VDEV, &g_vdev);
+	if (rmi_rc != RMI_SUCCESS) {
+		res->x[0] = rmi_rc;
 		return;
 	}
 
 	vdev = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vdev != NULL);
 
-	if (vdev->g_rd != g_rd) {
+	if (tr_granule_addr(vdev->g_rd) != rd_addr) {
 		rmi_rc = RMI_ERROR_INPUT;
 		goto out;
 	}
 
-	if ((vdev->g_pdev != g_pdev) ||
+	if ((tr_granule_addr(vdev->g_pdev) != pdev_addr) ||
 	    (vdev->rmi_state != RMI_VDEV_STATE_UNLOCKED) ||
 	    (vdev->comm_state != DEV_COMM_IDLE)) {
 		rmi_rc = RMI_ERROR_DEVICE;
@@ -583,6 +594,10 @@ out:
 /*
  * smc_vdev_start
  *
+ * Validate parent states under their locks, then release those locks before
+ * acquiring the operation locks. The locked VDEV pins the parents used for
+ * identity checks. Report the RMI result through @res with all locks released.
+ *
  * rd_addr		- PA of RD
  * pdev_addr		- PA of the PDEV
  * vdev_addr		- PA of the VDEV
@@ -590,8 +605,6 @@ out:
 void smc_vdev_start(unsigned long rd_addr, unsigned long pdev_addr,
 		    unsigned long vdev_addr, struct smc_result *res)
 {
-	struct granule *g_rd;
-	struct granule *g_pdev;
 	struct granule *g_vdev;
 	struct vdev *vdev;
 	unsigned long rmi_rc;
@@ -608,35 +621,34 @@ void smc_vdev_start(unsigned long rd_addr, unsigned long pdev_addr,
 		return;
 	}
 
-	g_rd = find_granule(rd_addr);
-	if ((g_rd == NULL) ||
-	    (granule_unlocked_state(g_rd) != GRANULE_STATE_RD)) {
-		res->x[0] = RMI_ERROR_INPUT;
+	rmi_rc = vdev_check_parent(rd_addr, GRANULE_STATE_RD);
+	if (rmi_rc != RMI_SUCCESS) {
+		res->x[0] = rmi_rc;
 		return;
 	}
 
-	g_pdev = find_granule(pdev_addr);
-	if ((g_pdev == NULL) ||
-	    (granule_unlocked_state(g_pdev) != GRANULE_STATE_PDEV)) {
-		res->x[0] = RMI_ERROR_INPUT;
+	rmi_rc = vdev_check_parent(pdev_addr, GRANULE_STATE_PDEV);
+	if (rmi_rc != RMI_SUCCESS) {
+		res->x[0] = rmi_rc;
 		return;
 	}
 
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	rmi_rc = tr_find_lock_granule(vdev_addr, GRANULE_SIZE,
+				      GRANULE_STATE_VDEV, &g_vdev);
+	if (rmi_rc != RMI_SUCCESS) {
+		res->x[0] = rmi_rc;
 		return;
 	}
 
 	vdev = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vdev != NULL);
 
-	if (vdev->g_rd != g_rd) {
+	if (tr_granule_addr(vdev->g_rd) != rd_addr) {
 		rmi_rc = RMI_ERROR_INPUT;
 		goto out;
 	}
 
-	if ((vdev->g_pdev != g_pdev) ||
+	if ((tr_granule_addr(vdev->g_pdev) != pdev_addr) ||
 	    (vdev->rmi_state != RMI_VDEV_STATE_LOCKED) ||
 	    (vdev->comm_state != DEV_COMM_IDLE)) {
 		rmi_rc = RMI_ERROR_DEVICE;
@@ -675,6 +687,10 @@ static int generate_attest_info_nonce(unsigned long *nonce)
 /*
  * smc_vdev_communicate
  *
+ * Validate parent states under their locks, then release those locks before
+ * acquiring the operation locks. The locked VDEV pins the parents used for
+ * identity checks. Report the RMI result through @res with all locks released.
+ *
  * rd_addr		- PA of the RD
  * pdev_addr		- PA of the PDEV
  * vdev_addr		- PA of the VDEV
@@ -688,8 +704,6 @@ void smc_vdev_communicate(unsigned long rd_addr,
 {
 	struct granule *g_pdev = NULL;
 	struct granule *g_vdev = NULL;
-	struct granule *g_dev_comm_data;
-	struct granule *g_rd = NULL;
 	struct pdev *pd = NULL;
 	struct vdev *vd = NULL;
 	unsigned long rmi_rc;
@@ -705,18 +719,20 @@ void smc_vdev_communicate(unsigned long rd_addr,
 		return;
 	}
 
-	/* Check RD */
-	g_rd = find_granule(rd_addr);
-	if ((g_rd == NULL) ||
-	    (granule_unlocked_state(g_rd) != GRANULE_STATE_RD)) {
-		res->x[0] = RMI_ERROR_INPUT;
+	/* Check RD while preserving a tracking lookup error for the host. */
+	rmi_rc = vdev_check_parent(rd_addr, GRANULE_STATE_RD);
+	if (rmi_rc != RMI_SUCCESS) {
+		res->x[0] = rmi_rc;
 		return;
 	}
 
 	/* Map PDEV and VDEV. */
-	if (!find_lock_two_granules(pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
-				    vdev_addr, GRANULE_STATE_VDEV, &g_vdev)) {
-		res->x[0] = RMI_ERROR_INPUT;
+	rmi_rc = tr_find_lock_two_fine_granules(pdev_addr,
+						GRANULE_STATE_PDEV, &g_pdev,
+						vdev_addr, GRANULE_STATE_VDEV,
+						&g_vdev);
+	if (rmi_rc != RMI_SUCCESS) {
+		res->x[0] = rmi_rc;
 		return;
 	}
 
@@ -726,14 +742,7 @@ void smc_vdev_communicate(unsigned long rd_addr,
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
-	if (vd->g_rd != g_rd) {
-		rmi_rc = RMI_ERROR_INPUT;
-		goto out;
-	}
-
-	g_dev_comm_data = find_granule(dev_comm_data_addr);
-	if ((g_dev_comm_data == NULL) ||
-		(granule_unlocked_state(g_dev_comm_data) != GRANULE_STATE_NS)) {
+	if (tr_granule_addr(vd->g_rd) != rd_addr) {
 		rmi_rc = RMI_ERROR_INPUT;
 		goto out;
 	}
@@ -745,7 +754,7 @@ void smc_vdev_communicate(unsigned long rd_addr,
 
 	/* TODO_ALP17: if PdevIsBusy(pdev) then ResultEqual(result, RMI_BUSY) */
 
-	rmi_rc = dev_communicate(pd, vd, g_dev_comm_data);
+	rmi_rc = dev_communicate(pd, vd, dev_comm_data_addr);
 	/* Do not return early here in case of error. Instead do the state
 	 * transition below based on pd->dev_comm_state set by dev_communicate.
 	 */
@@ -823,6 +832,7 @@ void smc_vdev_get_state(unsigned long vdev_addr, struct smc_result *res)
 {
 	struct granule *g_vdev;
 	struct vdev *vd;
+	unsigned long ret;
 
 	if (!is_rmi_feat_da_enabled()) {
 		res->x[0] = SMC_NOT_SUPPORTED;
@@ -834,9 +844,11 @@ void smc_vdev_get_state(unsigned long vdev_addr, struct smc_result *res)
 	}
 
 	/* Lock vdev granule and map it */
-	g_vdev = find_lock_granule(vdev_addr, GRANULE_STATE_VDEV);
-	if (g_vdev == NULL) {
-		goto out_err_input;
+	ret = tr_find_lock_granule(vdev_addr, GRANULE_SIZE,
+				   GRANULE_STATE_VDEV, &g_vdev);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
+		return;
 	}
 
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
@@ -857,6 +869,10 @@ out_err_input:
 /*
  * smc_vdev_abort
  *
+ * Validate parent states under their locks, then release those locks before
+ * acquiring the operation locks. The locked VDEV pins the parents used for
+ * identity checks. Report the RMI result through @res with all locks released.
+ *
  * rd_addr	- PA of RD
  * pdev_addr	- PA of the PDEV
  * vdev_addr	- PA of the VDEV
@@ -867,7 +883,6 @@ void smc_vdev_abort(unsigned long rd_addr,
 		    struct smc_result *res)
 {
 	int rc __unused;
-	struct granule *g_rd;
 	struct granule *g_pdev;
 	struct granule *g_vdev;
 	void *aux_mapped_addr;
@@ -888,19 +903,21 @@ void smc_vdev_abort(unsigned long rd_addr,
 	}
 
 	/*
-	 * RD is not used by the current implementation, but still check
-	 * according to spec
+	 * Validate the supplied RD before acquiring PDEV and VDEV. Its PA is
+	 * compared with the parent pinned by VDEV once that object is locked.
 	 */
-	g_rd = find_granule(rd_addr);
-	if ((g_rd == NULL) ||
-	    (granule_unlocked_state(g_rd) != GRANULE_STATE_RD)) {
-		res->x[0] = RMI_ERROR_INPUT;
+	smc_rc = vdev_check_parent(rd_addr, GRANULE_STATE_RD);
+	if (smc_rc != RMI_SUCCESS) {
+		res->x[0] = smc_rc;
 		return;
 	}
 
-	if (!find_lock_two_granules(pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
-				    vdev_addr, GRANULE_STATE_VDEV, &g_vdev)) {
-		res->x[0] = RMI_ERROR_INPUT;
+	smc_rc = tr_find_lock_two_fine_granules(pdev_addr,
+						GRANULE_STATE_PDEV, &g_pdev,
+						vdev_addr, GRANULE_STATE_VDEV,
+						&g_vdev);
+	if (smc_rc != RMI_SUCCESS) {
+		res->x[0] = smc_rc;
 		return;
 	}
 
@@ -915,7 +932,7 @@ void smc_vdev_abort(unsigned long rd_addr,
 		goto out_vdev_buf_unmap;
 	}
 
-	if ((vd->g_rd != g_rd) || (vd->g_pdev != g_pdev)) {
+	if ((tr_granule_addr(vd->g_rd) != rd_addr) || (vd->g_pdev != g_pdev)) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_vdev_buf_unmap;
 	}
@@ -991,10 +1008,11 @@ void smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 		return;
 	}
 
-	if (!find_lock_three_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+	smc_rc = tr_find_lock_three_fine_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
 				      pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
-				      vdev_addr, GRANULE_STATE_VDEV, &g_vdev)) {
-		res->x[0] = RMI_ERROR_INPUT;
+				      vdev_addr, GRANULE_STATE_VDEV, &g_vdev);
+	if (smc_rc != RMI_SUCCESS) {
+		res->x[0] = smc_rc;
 		return;
 	}
 
@@ -1095,16 +1113,12 @@ static unsigned long validate_vdev_get_measurements_params(
 	unsigned long params_addr,
 	struct rmi_vdev_measure_params *measurement_params)
 {
-	struct granule *g_vdev_measurements_params;
-
-	/* Map and copy VDEV parameters */
-	g_vdev_measurements_params = find_granule(params_addr);
-	if ((g_vdev_measurements_params == NULL) ||
-	    (granule_unlocked_state(g_vdev_measurements_params) != GRANULE_STATE_NS)) {
+	if (!GRANULE_ALIGNED(params_addr)) {
 		return RMI_ERROR_INPUT;
 	}
 
-	if (!ns_buffer_read(SLOT_NS, g_vdev_measurements_params, 0U,
+	/* Map and copy VDEV parameters. */
+	if (!ns_buffer_read_addr(SLOT_NS, params_addr, 0U,
 			    sizeof(struct rmi_vdev_measure_params), measurement_params)) {
 		return RMI_ERROR_INPUT;
 	}
@@ -1137,10 +1151,11 @@ void smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pdev_addr,
 		return;
 	}
 
-	if (!find_lock_three_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+	smc_rc = tr_find_lock_three_fine_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
 				      pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
-				      vdev_addr, GRANULE_STATE_VDEV, &g_vdev)) {
-		res->x[0] = RMI_ERROR_INPUT;
+				      vdev_addr, GRANULE_STATE_VDEV, &g_vdev);
+	if (smc_rc != RMI_SUCCESS) {
+		res->x[0] = smc_rc;
 		return;
 	}
 
@@ -1222,10 +1237,11 @@ void smc_vdev_get_interface_report(unsigned long rd_addr, unsigned long pdev_add
 		return;
 	}
 
-	if (!find_lock_three_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+	smc_rc = tr_find_lock_three_fine_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
 				      pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
-				      vdev_addr, GRANULE_STATE_VDEV, &g_vdev)) {
-		res->x[0] = RMI_ERROR_INPUT;
+				      vdev_addr, GRANULE_STATE_VDEV, &g_vdev);
+	if (smc_rc != RMI_SUCCESS) {
+		res->x[0] = smc_rc;
 		return;
 	}
 
@@ -1284,6 +1300,7 @@ void smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 	struct granule *g_vdev = NULL;
 	struct dev_tdisp_params *tdisp_params;
 	struct vdev *vd = NULL;
+	unsigned long smc_rc;
 
 	if (!is_rmi_feat_da_enabled()) {
 		res->x[0] = SMC_NOT_SUPPORTED;
@@ -1298,10 +1315,11 @@ void smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 		return;
 	}
 
-	if (!find_lock_three_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+	smc_rc = tr_find_lock_three_fine_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
 				      pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
-				      vdev_addr, GRANULE_STATE_VDEV, &g_vdev)) {
-		res->x[0] = RMI_ERROR_INPUT;
+				      vdev_addr, GRANULE_STATE_VDEV, &g_vdev);
+	if (smc_rc != RMI_SUCCESS) {
+		res->x[0] = smc_rc;
 		res->x[1] = 0U;
 		return;
 	}
@@ -1341,16 +1359,32 @@ void smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 
 		for (unsigned long addr = base; addr < top; addr += GRANULE_SIZE) {
 			enum dev_coh_type type;
-			struct dev_granule *g =
-				find_lock_dev_granule(addr, DEV_GRANULE_STATE_MAPPED, &type);
+			struct dev_granule *g;
+			unsigned long tracking_size;
+			unsigned long ret;
+
+			ret = tr_find_lock_active_dev_granule(
+					addr, DEV_GRANULE_STATE_MAPPED,
+					&g, &type, &tracking_size);
 
 			/*
-			 * If the granule is in DEV_GRANULE_STATE_MAPPED state,
-			 * then the unlocking of the VDEV cannot be continued
+			 * Probing any address in a coarse granule must detect a
+			 * mapping owned by this VDEV range.
+			 *
+			 * TODO: Optimize to check state and extent under the same region
+			 * read lock, then skip to the end of an unmapped unit, capped at top.
+			 * Addr may start inside a coarse unit, so simply adding tracking_size
+			 * is unsafe.
 			 */
-			if (g != NULL) {
+			if (ret == RMI_SUCCESS) {
 				dev_granule_unlock(g);
 				res->x[0] = RMI_ERROR_GRANULE;
+				res->x[1] = addr;
+				goto out_unlock;
+			}
+			/* A blocked lookup cannot establish that the range is unmapped. */
+			if (ret != RMI_ERROR_INPUT) {
+				res->x[0] = ret;
 				res->x[1] = addr;
 				goto out_unlock;
 			}

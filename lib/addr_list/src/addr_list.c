@@ -341,7 +341,15 @@ bool addr_list_peek_desc(const struct addr_list *list, unsigned int idx,
 	return true;
 }
 
-/* Perform the necessary validation on the address list */
+/*
+ * Validate an input address list and calculate its total memory size.
+ *
+ * @state is the state requested by the active SRO. A conditional request
+ * accepts either state which can be encoded in an input range descriptor;
+ * address-specific state requirements remain the responsibility of the SRO.
+ * Return true and update @total_mem_out for a valid list, or false without
+ * relying on any list entry when an architectural constraint is violated.
+ */
 /* cppcheck-suppress misra-c2012-8.7 */
 bool addr_list_validate(struct addr_list *list, bool is_contig,
 		unsigned long *total_mem_out, unsigned long state)
@@ -349,8 +357,9 @@ bool addr_list_validate(struct addr_list *list, bool is_contig,
 	assert(list != NULL);
 	assert(total_mem_out != NULL);
 	assert(list->type == LIST_TYPE_INPUT);
-	/* TODO: Support RMI_OP_MEM_CONDITIONAL */
-	assert((state == RMI_OP_MEM_DELEGATED) || (state == RMI_OP_MEM_UNDELEGATED));
+	assert((state == RMI_OP_MEM_DELEGATED) ||
+	       (state == RMI_OP_MEM_UNDELEGATED) ||
+	       (state == RMI_OP_MEM_CONDITIONAL));
 
 	assert(list->count <= (unsigned int)ADDR_LIST_MAX_RANGES);
 
@@ -383,9 +392,21 @@ bool addr_list_validate(struct addr_list *list, bool is_contig,
 		if (get_cnt_from_desc(list->range_desc[i]) > get_max_block_cnt()) {
 			return false;
 		}
-		/* The state in desc should match the expected state */
-		/* TODO: Handle RMI_OP_MEM_CONDITIONAL */
-		if (get_st_from_desc(list->range_desc[i]) != state) {
+		/* Conditional requests accept either architected donor state. */
+		if ((state != RMI_OP_MEM_CONDITIONAL) &&
+		    (get_st_from_desc(list->range_desc[i]) != state)) {
+			return false;
+		}
+
+		/*
+		 * CONDITIONAL applies only to the donation request. Each input
+		 * descriptor must still encode DELEGATED or UNDELEGATED.
+		 */
+		if ((state == RMI_OP_MEM_CONDITIONAL) &&
+		    (get_st_from_desc(list->range_desc[i]) !=
+					RMI_OP_MEM_DELEGATED) &&
+		    (get_st_from_desc(list->range_desc[i]) !=
+					RMI_OP_MEM_UNDELEGATED)) {
 			return false;
 		}
 
@@ -424,7 +445,6 @@ bool addr_list_partial_copy_to_host(struct addr_list *list,
 						 sizeof(unsigned long);
 	unsigned int list_count = list->count;
 	unsigned int granule_remaining;
-	struct granule *g_ns;
 
 	/*
 	 * The host buffer must lie within a single granule. Cap the write at
@@ -444,12 +464,7 @@ bool addr_list_partial_copy_to_host(struct addr_list *list,
 	list_count = MIN(list_count, ns_list_count);
 	list_count = MIN(list_count, granule_remaining);
 
-	g_ns = find_granule(ns_list_addr & GRANULE_MASK);
-	if ((g_ns == NULL) || (granule_unlocked_state(g_ns) != GRANULE_STATE_NS)) {
-		return false;
-	}
-
-	if (!ns_buffer_write(SLOT_NS, g_ns,
+	if (!ns_buffer_write_addr(SLOT_NS, ns_list_addr & GRANULE_MASK,
 			(unsigned int)(ns_list_offset * sizeof(unsigned long)),
 			(list_count * sizeof(unsigned long)),
 			 (void *)&list->range_desc[0])) {
@@ -477,7 +492,6 @@ bool addr_list_copy_from_host(struct addr_list *list,
 
 	unsigned long ns_list_offset =  (ns_list_addr & ~GRANULE_MASK) /
 						 sizeof(unsigned long);
-	struct granule *g_ns;
 
 	/* Check if an uninitialized list is being used */
 	assert(list->count == 0U);
@@ -486,12 +500,7 @@ bool addr_list_copy_from_host(struct addr_list *list,
 	assert((ns_list_offset + ns_list_count) <= (unsigned int)ADDR_LIST_MAX_RANGES);
 	assert(ALIGNED(ns_list_addr, sizeof(unsigned long)));
 
-	g_ns = find_granule(ns_list_addr & GRANULE_MASK);
-	if ((g_ns == NULL) || (granule_unlocked_state(g_ns) != GRANULE_STATE_NS)) {
-		return false;
-	}
-
-	if (!ns_buffer_read(SLOT_NS, g_ns,
+	if (!ns_buffer_read_addr(SLOT_NS, ns_list_addr & GRANULE_MASK,
 			(unsigned int)(ns_list_offset * sizeof(unsigned long)),
 			(ns_list_count * sizeof(unsigned long)),
 			(void *)&list->range_desc[0])) {

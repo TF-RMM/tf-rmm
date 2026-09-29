@@ -12,14 +12,15 @@
 #include <errno.h>
 #include <granule_lock.h>
 #include <memory.h>
+#include <smc-rmi.h>
 #include <stdbool.h>
 #include <utils_def.h>
 
-/* Maximum value defined by the 'refcount' field width in dev_granule descriptor */
+/* Maximum value defined by the 'refcount' field width in struct dev_granule */
 #define DEV_REFCOUNT_MAX	(unsigned char)	\
 					((U(1) << DEV_GRN_REFCOUNT_WIDTH) - U(1))
 
-/* Dev Granule descriptor fields access macros */
+/* dev_granule bit-field access macros */
 #define DEV_LOCKED(g)	\
 	((SCA_READ8(&(g)->descriptor) & DEV_GRN_LOCK_BIT) != 0U)
 
@@ -81,9 +82,12 @@ static inline void __dev_granule_assert_unlocked_invariants(struct dev_granule *
 		/* cppcheck-suppress misra-c2012-17.3 */
 		assert(DEV_REFCOUNT(g) == 0U);
 		break;
-	case DEV_GRANULE_STATE_MAPPED:
+	case DEV_GRANULE_STATE_PARTIAL:
 		/* cppcheck-suppress misra-c2012-17.3 */
 		assert(DEV_REFCOUNT(g) == 0U);
+		break;
+	case DEV_GRANULE_STATE_MAPPED:
+		/* Every representable refcount is valid for a mapped granule. */
 		break;
 	default:
 		/* Unknown dev_granule type */
@@ -140,7 +144,7 @@ static inline void dev_granule_set_state(struct dev_granule *g, unsigned char st
 /*
  * Acquire @g only while its state matches @expected_state.
  *
- * The caller must keep the descriptor stable and obey the state, address and
+ * The caller must keep the dev_granule stable and obey the state, address and
  * RTT hierarchy ordering rules for all locks it already holds. Independently
  * supplied expected states are permitted when acquired in that order.
  *
@@ -185,7 +189,7 @@ static inline bool dev_granule_lock_on_state_match(struct dev_granule *g,
 /*
  * Acquire @g through a protected reference, returning with its lock held.
  *
- * The caller must keep the descriptor stable and establish the locking order
+ * The caller must keep the dev_granule stable and establish the locking order
  * independently of its current state. Wait unconditionally so an in-progress
  * transition to @expected_state can finish, then assert that state and check
  * its invariants. A state mismatch after acquisition is a programming error.
@@ -214,92 +218,82 @@ static inline void dev_granule_unlock_transition(struct dev_granule *g,
 }
 
 /*
- * Initialize the device granule library.
+ * Find and lock one dev_granule in the active fine or coarse representation.
+ * @addr must be Granule aligned; @g, @type and @tracking_size must be non-NULL.
+ * On RMI_SUCCESS, *@g is locked in @expected_state, *@type reports its coherency
+ * type and *@tracking_size reports GRANULE_SIZE for fine tracking or the
+ * configured region size for coarse tracking. The region read lock covers
+ * size discovery through dev_granule locking so the returned size describes
+ * the locked representation.
+ *
+ * For range operations, the caller must use the returned size to validate
+ * alignment, range extent and any S2TT block before changing dev_granule state.
+ * Return an encoded RMI_ERROR_TRACKING containing @addr when the region has no
+ * usable representation, RMI_BLOCKED for a pending tracking SRO, or
+ * RMI_ERROR_INPUT for an invalid address or Granule-state mismatch. On failure,
+ * leave *@g NULL; *@type and *@tracking_size are unspecified.
+ *
+ * An SRO caller must yield and retry on RMI_BLOCKED without waiting while
+ * holding other Granule locks. On success the caller owns only *@g's lock.
+ * Keep it through processing and any state change to exclude tracking
+ * transitions and transition claims.
  */
-int dev_granule_init(uintptr_t alloc, size_t alloc_size,
-		unsigned long max_ncoh_granules);
+unsigned long tr_find_lock_active_dev_granule(
+					unsigned long addr,
+					unsigned char expected_state,
+					struct dev_granule **g,
+					enum dev_coh_type *type,
+					unsigned long *tracking_size);
 
 /*
- * Takes a valid pointer to a struct dev_granule, corresponding to device memory
- * coherency type and returns the dev_granule physical address.
- *
- * This is purely a lookup, and provides no guarantees about the attributes of
- * the dev_granule (i.e. whether it is locked, its state or its reference count).
+ * Lock the longest run of fine dev_granules beginning at @addr that are all in
+ * @expected_state and have one coherency type. The run is bounded by @end_addr,
+ * the current tracking region, a memory-bank or coherency boundary, or the
+ * first dev_granule in another state. @count receives the number of locked
+ * dev_granules and @type receives their coherency type. The caller owns the
+ * locks for the returned PA range. Each state is validated before lock
+ * acquisition and revalidated after contention.
+ * Returns an encoded tracking-aware RMI result.
  */
-unsigned long dev_granule_addr(const struct dev_granule *g, enum dev_coh_type type);
+unsigned long tr_find_lock_fine_dev_granule_run(
+					unsigned long addr,
+					unsigned long end_addr,
+					unsigned char expected_state,
+					enum dev_coh_type *type,
+					unsigned long *count);
 
 /*
- * Takes an aligned dev_granule address, returns a pointer to the corresponding
- * struct dev_granule and sets device granule coherency type in address passed
- * in @type.
- *
- * This is purely a lookup, and provides no guarantees about the attributes of
- * the granule (i.e. whether it is locked, its state or its reference count).
+ * Lock a dev_granule for a range in either @source_state or @target_state.
+ * The states must differ and all output pointers must be non-NULL.
+ * On RMI_SUCCESS, @g is locked, @tracking_size identifies the active
+ * representation, and @in_target reports whether it is in @target_state. The
+ * caller must hold no Granule lock. Return the tracking-aware lookup error with
+ * no lock held on failure; the outputs are then unspecified. Lookup validates
+ * the device coherency type, which is not otherwise needed by this operation.
  */
-struct dev_granule *addr_to_dev_granule(unsigned long addr, enum dev_coh_type *type);
+unsigned long granule_range_lock_device(unsigned long addr,
+					unsigned char source_state,
+					unsigned char target_state,
+					struct dev_granule **g,
+					unsigned long *tracking_size,
+					bool *in_target);
 
 /*
- * Verifies whether @addr is a valid dev_granule physical address, returns
- * a pointer to the corresponding struct dev_granule and sets device granule type.
- *
- * This is purely a lookup, and provides no guarantees w.r.t the state of the
- * granule (e.g. locking).
- *
- * Returns:
- *     Pointer to the struct dev_granule if @addr is a valid dev_granule physical
- *     address and device granule coherency type in address passed in @type.
- *     NULL if any of:
- *     - @addr is not aligned to the size of a granule.
- *     - @addr is out of range.
+ * Publish delegation progress for a locked run of fine dev_granules.
+ * The caller owns @locked_count consecutive NS dev_granules starting at aligned
+ * @addr, with @delegated_count <= @locked_count. Change the delegated prefix to
+ * DELEGATED. Change the remaining dev_granules to PARTIAL if @incomplete, or
+ * leave them NS otherwise. Release every dev_granule lock in ascending PA order
+ * without acquiring a region reader. The caller must retain ownership of any
+ * PARTIAL dev_granules until their PAS transition completes or rolls back.
  */
-struct dev_granule *find_dev_granule(unsigned long addr, enum dev_coh_type *type);
+void granule_range_delegate_fine_dev_unlock(unsigned long addr,
+					    unsigned long locked_count,
+					    unsigned long delegated_count,
+					    bool incomplete);
 
 /*
- * Obtain a pointer to a locked dev_granule at @addr if @addr is a valid dev_granule
- * physical address and the state of the dev_granule at @addr is @expected_state and
- * set device granule coherency type.
- *
- * Returns:
- *	A valid dev_granule pointer if @addr is a valid dev_granule physical address
- *	and device granule type in address passed in @type.
- *	NULL if any of:
- *	- @addr is not aligned to the size of a granule.
- *	- @addr is out of range.
- *	- if the state of the dev_granule at @addr is not @expected_state.
- *	The system coherent memory space associated with dev_granule is returned in
- *	@type output parameter.
- */
-struct dev_granule *find_lock_dev_granule(unsigned long addr,
-					  unsigned char expected_state,
-					  enum dev_coh_type *type);
-
-/*
- * Obtain a pointer to an array of @n locked dev_granules at @addr if @addr is a
- * valid dev_granule physical address and the states of all @n dev_granules in
- * array at @addr are @expected_state.
- *
- * Returns:
- *	A valid pointer to the 1st dev_granule in array if @addr is a valid
- *	dev_granule physical address.
- *	NULL if any of:
- *	- @addr is not aligned to the size of a granule.
- *	- @addr is out of range.
- *	- if the states of all dev_granules in array at @addr are not @expected_state.
- *	- if not all @n dev_granules in array have the same coherency type.
- *	The coherency type associated with dev_granules is returned in
- *	@type output parameter.
- *
- * Locking only succeeds if all @n the dev_granules are in their expected states and
- * have the same coherency memory type.
- * If the function fails, no lock is held.
- */
-struct dev_granule *find_lock_dev_granules(unsigned long addr,
-					   unsigned char expected_state,
-					   unsigned long n,
-					   enum dev_coh_type *type);
-
-/*
- * Refcount field occupies LSB bits of the dev_granule descriptor,
+ * Refcount field occupies LSB bits of struct dev_granule,
  * and functions which modify its value can operate directly on
  * the whole 8-bit word without masking, provided that the result
  * doesn't exceed DEV_REFCOUNT_MAX or set to negative number.

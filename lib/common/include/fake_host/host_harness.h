@@ -109,7 +109,12 @@ unsigned long host_firme_base_features(unsigned char service_id,
 
 unsigned long host_firme_gm_gpi_set(unsigned long base_addr,
 				    unsigned long *granule_count,
-				    unsigned long attributes);
+				    unsigned long attributes,
+				    unsigned long *cookie);
+
+unsigned long host_firme_gm_gpi_continue(unsigned long cookie,
+					 unsigned long *granule_count,
+					 unsigned long *next_cookie);
 
 unsigned long host_firme_mecid_refresh(unsigned long param);
 void host_firme_set_mecid_width(unsigned int width);

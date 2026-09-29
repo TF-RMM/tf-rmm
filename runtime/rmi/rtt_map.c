@@ -23,6 +23,7 @@
 #include <status.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <tracking_region.h>
 
 /*
  * Map/Unmap commands can operate up to a level 1 block entry so min_level is
@@ -74,11 +75,57 @@ static bool rtt_map_irq_pending(void)
 }
 
 /*
+ * Build @list_out from a SINGLE descriptor or a snapshot of an NS input LIST.
+ * Return RMI_SUCCESS or RMI_ERROR_INPUT for invalid list shape or NS access.
+ */
+static unsigned long map_read_list(unsigned long oaddr_type, unsigned long list_count,
+				   unsigned long oaddr, struct addr_list *list_out)
+{
+	if (oaddr_type == RMI_ADDR_TYPE_SINGLE) {
+		addr_list_init(list_out, LIST_TYPE_INPUT, 1U);
+		if (!addr_list_add_desc(list_out, oaddr)) {
+			return RMI_ERROR_INPUT;
+		}
+	} else if (oaddr_type == RMI_ADDR_TYPE_LIST) {
+		/*
+		 * LIST: @oaddr is the NS PA of a granule containing
+		 * descriptors; @list_count is the host-supplied number
+		 * of valid entries. Reject 0 / out-of-range up front,
+		 * then clip to the descriptor slots that fit between
+		 * @oaddr and the end of its granule.
+		 */
+		unsigned long offset = oaddr & (GRANULE_SIZE - 1UL);
+		unsigned long granule_remaining;
+
+		if (!ALIGNED(offset, sizeof(unsigned long))) {
+			return RMI_ERROR_INPUT;
+		}
+		granule_remaining = (GRANULE_SIZE - offset) /
+					sizeof(unsigned long);
+		list_count = MIN(list_count, granule_remaining);
+		if (list_count == 0UL) {
+			return RMI_ERROR_INPUT;
+		}
+		addr_list_init(list_out, LIST_TYPE_INPUT,
+			       (unsigned int)list_count);
+		if (!addr_list_copy_from_host(list_out, oaddr,
+					      (unsigned int)list_count)) {
+			return RMI_ERROR_INPUT;
+		}
+	} else {
+		return RMI_ERROR_INPUT;
+	}
+
+	return RMI_SUCCESS;
+}
+
+/*
  * Shared input validator for the range-aware map commands
  * (RMI_RTT_DATA_MAP, RMI_RTT_UNPROT_MAP, RMI_RTT_DEV_MAP). Rejects
- * realms not in NEW or ACTIVE state, then builds the descriptor list,
- * derives the walk level/block size from the first descriptor, and
- * runs the common range checks against @rd.
+ * realms not in NEW or ACTIVE state, derives the walk level/block size from
+ * the first descriptor, and runs the common range checks against locked @rd.
+ * Snapshot the input list here so later host writes cannot change the ranges
+ * validated and processed by this invocation.
  *
  * Parameters that select per-command behaviour:
  *   @oaddr_type     - already extracted from the per-command flags
@@ -121,6 +168,7 @@ static unsigned long validate_map_inputs_common(unsigned long base,
 	long level;
 	int first_level;
 	bool in_par;
+	unsigned long ret;
 
 	if ((get_rd_state_locked(rd) != REALM_NEW) &&
 	    (get_rd_state_locked(rd) != REALM_ACTIVE)) {
@@ -131,39 +179,9 @@ static unsigned long validate_map_inputs_common(unsigned long base,
 		return RMI_ERROR_INPUT;
 	}
 
-	if (oaddr_type == RMI_ADDR_TYPE_SINGLE) {
-		addr_list_init(list_out, LIST_TYPE_INPUT, 1U);
-		if (!addr_list_add_desc(list_out, oaddr)) {
-			return RMI_ERROR_INPUT;
-		}
-	} else if (oaddr_type == RMI_ADDR_TYPE_LIST) {
-		/*
-		 * LIST: @oaddr is the NS PA of a granule containing
-		 * descriptors; @list_count is the host-supplied number
-		 * of valid entries. Reject 0 / out-of-range up front,
-		 * then clip to the descriptor slots that fit between
-		 * @oaddr and the end of its granule.
-		 */
-		unsigned long offset = oaddr & (GRANULE_SIZE - 1UL);
-		unsigned long granule_remaining;
-
-		if (!ALIGNED(offset, sizeof(unsigned long))) {
-			return RMI_ERROR_INPUT;
-		}
-		granule_remaining = (GRANULE_SIZE - offset) /
-					sizeof(unsigned long);
-		list_count = MIN(list_count, granule_remaining);
-		if (list_count == 0UL) {
-			return RMI_ERROR_INPUT;
-		}
-		addr_list_init(list_out, LIST_TYPE_INPUT,
-			       (unsigned int)list_count);
-		if (!addr_list_copy_from_host(list_out, oaddr,
-					      (unsigned int)list_count)) {
-			return RMI_ERROR_INPUT;
-		}
-	} else {
-		return RMI_ERROR_INPUT;
+	ret = map_read_list(oaddr_type, list_count, oaddr, list_out);
+	if (ret != RMI_SUCCESS) {
+		return ret;
 	}
 
 	/*
@@ -276,13 +294,28 @@ static unsigned long map_pop_next_block(struct addr_list *list,
 /*
  * Roll back a drain-time failure after the leaf slot has been stamped.
  * Every granule below @ctx->pending_off was drained by this SRO. Walk
- * the cursor backwards, returning each granule to DELEGATED. On a
- * pending IRQ leave @ctx->pending_off pointing to the remaining rollback
- * span and return with *@yielded set so RMI_OP_CONTINUE can resume.
+ * the cursor backwards, returning each granule to DELEGATED. On an IRQ,
+ * leave @ctx->pending_off at the remaining rollback span
+ * and return with *@yielded set so RMI_OP_CONTINUE can resume.
  * Once the cursor reaches zero, clear the leaf marker, drop the
  * refcount taken when the marker was stamped, and return @ctx->ret_err.
  *
  * Caller contract: @ctx->g_llt is locked and @s2tt is its mapping.
+ * Each lookup locks the current granule until it is returned to DELEGATED.
+ *
+ * Rollback covers only the current S2TT block. Each block starts with
+ * @ctx->pending_off == 0; previously completed blocks are not rolled back.
+ * The block cannot exceed the tracking-region size, and each tracking unit
+ * must fit in its unprocessed suffix. A coarse struct granule therefore
+ * requires map_size == tracking_size and @ctx->pending_off == 0.
+ *
+ * Failure before claiming that coarse unit leaves an empty rollback span.
+ * After claiming it as PARTIAL, zeroing can yield but has no fallible
+ * operation. Completion transitions the whole unit to DATA and finalizes
+ * the entry. A coarse unit therefore cannot reach this rollback path.
+ *
+ * Any non-empty rollback span contains only fine DATA granules; their state
+ * prevents another tracking transition, including across IRQ yields.
  */
 static unsigned long data_map_rollback_pending(struct sro_map_ctx *ctx,
 					       unsigned long *s2tt,
@@ -290,23 +323,35 @@ static unsigned long data_map_rollback_pending(struct sro_map_ctx *ctx,
 {
 	unsigned long stamped;
 
+	assert(ctx->g_coarse == NULL);
 	*yielded = false;
 
 	while (ctx->pending_off > 0UL) {
 		struct granule *g_data;
+		unsigned long rollback_addr;
+		unsigned long tracking_size;
+		unsigned long ret __unused;
 
 		if (rtt_map_irq_pending()) {
 			*yielded = true;
 			return RMI_SUCCESS;
 		}
 
-		ctx->pending_off -= GRANULE_SIZE;
-
-		g_data = find_lock_granule(ctx->pa + ctx->pending_off,
-					   GRANULE_STATE_DATA);
-		if (g_data != NULL) {
-			granule_unlock_transition_to_delegated(g_data);
-		}
+		/* Lock the last DATA granule still owned by this rollback. */
+		rollback_addr = ctx->pa + ctx->pending_off - GRANULE_SIZE;
+		ret = tr_find_lock_active_granule(rollback_addr,
+						 GRANULE_STATE_DATA, &g_data,
+						 &tracking_size);
+		/*
+		 * The remaining fine DATA granules keep tracking stable, so this
+		 * lookup cannot return RMI_BLOCKED, even after an IRQ yield.
+		 */
+		assert(ret == RMI_SUCCESS);
+		assert(tracking_size == GRANULE_SIZE);
+		assert(round_down(rollback_addr, tracking_size) ==
+		       (ctx->pa + ctx->pending_off - tracking_size));
+		granule_unlock_transition_to_delegated(g_data);
+		ctx->pending_off -= tracking_size;
 	}
 
 	stamped = s2tte_read(&s2tt[ctx->index]);
@@ -321,34 +366,80 @@ static unsigned long data_map_rollback_pending(struct sro_map_ctx *ctx,
 }
 
 /*
- * Yieldable per-granule drain for an in-flight RMI_RTT_DATA_MAP block,
+ * Zero the coarse DATA_MAP unit owned by @ctx->g_coarse in PARTIAL state.
+ * That state excludes other users and tracking transitions, so zeroing needs
+ * no granule lock. The caller holds the leaf RTT lock and its pinned reference.
+ * @pending_off records zeroed bytes, not completed mappings. Process at least
+ * one page before yielding, and finish without yielding after the last page.
+ * Return false on an IRQ with more pages remaining, preserving ownership.
+ * Return true after changing the whole unit to DATA and clearing @g_coarse;
+ * the caller must then finalize the S2TTE without a fallible operation.
+ */
+static bool data_map_zero_coarse(struct sro_map_ctx *ctx,
+				 const struct s2tt_context *s2_ctx)
+{
+	unsigned long map_size = s2tte_map_size(ctx->level);
+
+	assert(ctx->g_coarse != NULL);
+	assert(map_size == tracking_region_get_size());
+	assert((ctx->pending_off < map_size) && GRANULE_ALIGNED(ctx->pending_off));
+
+	while (ctx->pending_off < map_size) {
+		void *data = buffer_granule_mecid_map_addr_zeroed(
+				ctx->pa + ctx->pending_off, SLOT_REALM, s2_ctx->mecid);
+
+		buffer_unmap(data);
+		ctx->pending_off += GRANULE_SIZE;
+		if ((ctx->pending_off < map_size) && rtt_map_irq_pending()) {
+			return false;
+		}
+	}
+
+	granule_lock(ctx->g_coarse, GRANULE_STATE_PARTIAL);
+	granule_unlock_transition(ctx->g_coarse, GRANULE_STATE_DATA);
+	ctx->g_coarse = NULL;
+	return true;
+}
+
+/*
+ * Yieldable backing-memory drain for an in-flight RMI_RTT_DATA_MAP block,
  * plus the finalize of the leaf s2tte on drain completion. Resumes from
  * @ctx->pending_off and advances it past every granule it has claimed
  * and zeroed. Each iteration:
  *
- *   1. If enabled, sample ISR_EL1; on a pending physical IRQ return true
- *      with the cursor pointing at the next pending granule.
- *   2. find_lock_granule(pa, DELEGATED) and keep it locked.
- *      On failure switch to rollback. Rollback is also yieldable; when
- *      complete it clears the leaf marker and returns RMI_ERROR_INPUT.
- *   3. buffer_granule_mecid_map_zeroed(SLOT_REALM, s2_ctx->mecid):
- *      the slow part. Zeroes the locked granule under the realm's MEC,
- *      then transitions it to DATA and unlocks it.
+ *   1. If enabled, sample ISR_EL1. A pending physical IRQ yields only after
+ *      some backing memory has been processed in this block, leaving the
+ *      cursor at the next pending granule.
+ *   2. Lock the active fine or coarse granule at the pending PA. Its
+ *      tracking granularity must fit within the target S2TT block.
+ *      On failure, roll back the processed prefix, clear the leaf marker,
+ *      and return the lookup error. A pending tracking transition can only
+ *      occur before any backing memory is processed, so its empty rollback
+ *      clears the marker without retaining an SRO. Rollback may yield on IRQ.
+ *   3. For fine tracking, zero the locked granule under the Realm's MEC,
+ *      then transition it to DATA. For coarse tracking, claim the whole
+ *      unit as PARTIAL and zero it page by page with IRQ checks. Resume
+ *      this owned unit directly after a yield, without another lookup.
  *
  * On drain completion the leaf s2tte at &s2tt[@ctx->index] is
  * rewritten from the drain-pending marker to the assigned form for
  * @ctx->pa, preserving RIPAS / AP from the still-stamped s2tte.
  *
- * Caller contract: the leaf RTT granule (@ctx->g_llt) is locked and
- * @s2tt is its mapping for the duration of the call. Called from
- * both data_map_one_entry (entry path) and data_map_continue_handler
+ * Caller contract: the block fits in one tracking region. Each fine granule
+ * stays locked throughout processing and its state transition. A fine DATA
+ * prefix prevents transition claims between iterations; a coarse PARTIAL
+ * granule pins its whole unit across zeroing and yields. The leaf RTT granule
+ * (@ctx->g_llt) is locked and @s2tt is its mapping for the duration of the call.
+ * Called from both smc_rtt_data_map (entry path) and data_map_continue_handler
  * (continue path); both arrange the lock+map before invoking.
+ * A backing address that aliases @ctx->g_llt is rejected by the state-aware
+ * lookup before it attempts to acquire the leaf's lock again. The SRO retains
+ * the leaf reference and the validated PA and level across every continuation.
  *
- * Returns RMI_SUCCESS with *@yielded set on IRQ-yield during drain or
- * rollback, RMI_SUCCESS with *@yielded clear when the cursor reaches
- * the block size for @ctx->level (drain complete, s2tte finalized), or
- * RMI_ERROR_INPUT if a backing granule cannot be claimed and rollback
- * has completed.
+ * Returns RMI_SUCCESS with *@yielded set for an IRQ while unfinished DATA
+ * work remains, or with *@yielded clear when the block is fully mapped.
+ * Return RMI_BLOCKED, RMI_ERROR_INPUT or RMI_ERROR_TRACKING after cleaning up
+ * a backing granule failure. No continuation is retained for an empty block.
  */
 static unsigned long data_map_drain_pending(struct sro_map_ctx *ctx,
 					    const struct s2tt_context *s2_ctx,
@@ -366,28 +457,70 @@ static unsigned long data_map_drain_pending(struct sro_map_ctx *ctx,
 
 	while (ctx->pending_off < map_size) {
 		struct granule *g_data;
+		unsigned long tracking_size;
+		unsigned long ret;
 		void *data;
 
-		if (rtt_map_irq_pending()) {
+		/* Resume coarse zeroing using the SRO's PARTIAL ownership. */
+		if (ctx->g_coarse != NULL) {
+			*yielded = !data_map_zero_coarse(ctx, s2_ctx);
+			if (*yielded) {
+				return RMI_SUCCESS;
+			}
+			break;
+		}
+
+		/* Retain an SRO only once this block has unfinished DATA work. */
+		if (rtt_map_irq_pending() && (ctx->pending_off != 0UL)) {
 			*yielded = true;
 			return RMI_SUCCESS;
 		}
 
-		/* pending_off advances from zero, so locks are taken in ascending PA order. */
-		g_data = find_lock_granule(ctx->pa + ctx->pending_off,
-					   GRANULE_STATE_DELEGATED);
-		if (g_data == NULL) {
+		/* pending_off advances in active tracking-granularity units. */
+		ret = tr_find_lock_active_granule(ctx->pa + ctx->pending_off,
+						 GRANULE_STATE_DELEGATED,
+						 &g_data, &tracking_size);
+		if (ret != RMI_SUCCESS) {
+			/*
+			 * A DATA prefix prevents tracking transitions. If tracking
+			 * is blocked before any progress, discard the unused marker
+			 * and return the conflict without retaining a continuation.
+			 */
+			assert((ret != RMI_BLOCKED) || (ctx->pending_off == 0UL));
 			ctx->rollback = true;
-			ctx->ret_err = RMI_ERROR_INPUT;
+			ctx->ret_err = ret;
 			return data_map_rollback_pending(ctx, s2tt, yielded);
 		}
 
-		data = buffer_granule_mecid_map_zeroed(g_data, SLOT_REALM,
-						       s2_ctx->mecid);
+		/*
+		 * Reject a mapping block smaller than its coarse tracking unit.
+		 * This can fail only on the first lookup; a DATA prefix pins fine tracking.
+		 */
+		if ((tracking_size > (map_size - ctx->pending_off)) ||
+		    !ALIGNED(ctx->pa + ctx->pending_off, tracking_size)) {
+			granule_unlock(g_data);
+			ctx->rollback = true;
+			ctx->ret_err = pack_return_code_level_addr(
+					RMI_ERROR_TRACKING, (unsigned char)0U,
+					ctx->pa + ctx->pending_off);
+			return data_map_rollback_pending(ctx, s2tt, yielded);
+		}
+
+		/* Claim the coarse unit as PARTIAL so zeroing can yield. */
+		if (tracking_size != GRANULE_SIZE) {
+			assert((ctx->pending_off == 0UL) && (tracking_size == map_size));
+			/* PARTIAL reserves the whole unit, including its unzeroed suffix. */
+			ctx->g_coarse = g_data;
+			granule_unlock_transition(g_data, GRANULE_STATE_PARTIAL);
+			continue;
+		}
+
+		data = buffer_granule_mecid_map_addr_zeroed(ctx->pa + ctx->pending_off,
+							 SLOT_REALM, s2_ctx->mecid);
 		buffer_unmap(data);
 		granule_unlock_transition(g_data, GRANULE_STATE_DATA);
 
-		ctx->pending_off += GRANULE_SIZE;
+		ctx->pending_off += tracking_size;
 	}
 
 	stamped = s2tte_read(&s2tt[ctx->index]);
@@ -414,16 +547,17 @@ static unsigned long data_map_drain_pending(struct sro_map_ctx *ctx,
  *
  * Sequence:
  *
- *   1. Stamp the leaf s2tte with S2TTE_SW_DRAIN_PENDING + the SRO
+ *   1. Validate the current leaf s2tte before preparing a new mapping.
+ *   2. Stamp the leaf s2tte with S2TTE_SW_DRAIN_PENDING + the SRO
  *      handle. The architectural form stays unassigned so concurrent
  *      RIPAS / map / unmap callers see RMI_BUSY / -EAGAIN via the
  *      existing s2tte_drain_pending() checks. Take one refcount on
  *      @g_llt: it pins the leaf across yields and is the same
  *      refcount the finalized live mapping retains.
- *   2. The drain phase zeroes then transitions each backing granule
- *      from DELEGATED to DATA. On the first transition failure the
- *      drain rolls back the granules already taken, clears the marker
- *      and returns RMI_ERROR_INPUT.
+ *   3. The drain phase zeroes then transitions each backing granule
+ *      from DELEGATED to DATA, using PARTIAL ownership during coarse
+ *      zeroing. On lookup failure the drain rolls back any fine prefix,
+ *      clears the marker and returns the lookup error.
  *
  * Returns:
  *   RMI_SUCCESS      slot prepared. *@need_drain is true if the slot
@@ -436,7 +570,13 @@ static unsigned long data_map_drain_pending(struct sro_map_ctx *ctx,
  *   pack_return_code_level(RMI_ERROR_RTT, level) slot is not unassigned, or
  *                    is already assigned to a different PA.
  *
- * On any non-success return *@need_drain is left undefined.
+ * For an existing mapping, return backing lookup or tracking-size errors
+ * if its active DATA granule cannot be locked or does not fit the block.
+ *
+ * The block must fit in one tracking region. The drain holds each fine
+ * granule's lock through zeroing and its state change; coarse zeroing retains
+ * PARTIAL ownership across yields. On any non-success return *@need_drain
+ * is left undefined.
  */
 static unsigned long data_map_one_entry(struct s2tt_context *s2_ctx,
 					unsigned long *s2tt,
@@ -452,14 +592,33 @@ static unsigned long data_map_one_entry(struct s2tt_context *s2_ctx,
 	if (s2tte_is_assigned_ram(s2_ctx, s2tte, level) ||
 	    s2tte_is_assigned_empty(s2_ctx, s2tte, level) ||
 	    s2tte_is_assigned_destroyed(s2_ctx, s2tte, level)) {
+		struct granule *g_data;
+		unsigned long tracking_size;
+		unsigned long ret;
+
 		/*
 		 * Already mapped: only treat as idempotent success if
-		 * the existing OA matches the requested PA, otherwise
-		 * report an RTT error.
+		 * the existing OA matches the requested PA and its active
+		 * tracking unit fits in this S2TT block.
 		 */
 		if (s2tte_pa(s2_ctx, s2tte, level) != pa) {
 			return pack_return_code_level(RMI_ERROR_RTT,
 						(unsigned char)level);
+		}
+
+		ret = tr_find_lock_active_granule(pa, GRANULE_STATE_DATA,
+						  &g_data, &tracking_size);
+		if (ret != RMI_SUCCESS) {
+			return ret;
+		}
+		if ((tracking_size > s2tte_map_size(level)) ||
+		    !ALIGNED(pa, tracking_size)) {
+			ret = pack_return_code_level_addr(
+					RMI_ERROR_TRACKING, (unsigned char)0U, pa);
+		}
+		granule_unlock(g_data);
+		if (ret != RMI_SUCCESS) {
+			return ret;
 		}
 		*need_drain = false;
 		return RMI_SUCCESS;
@@ -488,7 +647,9 @@ static unsigned long data_map_one_entry(struct s2tt_context *s2_ctx,
  * Validate inputs to RMI_RTT_DATA_MAP. Thin wrapper around
  * validate_map_inputs_common() that decodes RmiRttProtMapFlags
  * (OADDR_TYPE / LIST_COUNT). Descriptors must carry
- * RMI_OP_MEM_DELEGATED and the range must lie inside PAR.
+ * RMI_OP_MEM_DELEGATED and the range must lie inside PAR. @rd is locked;
+ * @list_out receives a snapshot of the input descriptors.
+ * Return RMI_SUCCESS with the selected level/size or the validation error.
  */
 static unsigned long validate_data_map_inputs(unsigned long base,
 					      unsigned long top,
@@ -515,6 +676,7 @@ static unsigned long validate_data_map_inputs(unsigned long base,
  * Initialize an SRO map context for a single in-flight block.
  * Called when a map helper has stamped the leaf s2tte with the
  * drain-pending marker and the per-granule drain is about to start.
+ * No coarse unit is owned until DATA_MAP claims it as PARTIAL.
  */
 static void sro_map_ctx_init(struct sro_map_ctx *ctx,
 			     struct granule *g_llt,
@@ -526,6 +688,7 @@ static void sro_map_ctx_init(struct sro_map_ctx *ctx,
 			     long level)
 {
 	ctx->g_llt = g_llt;
+	ctx->g_coarse = NULL;
 	ctx->rd_addr = rd_addr;
 	ctx->pa = pa;
 	ctx->ipa = ipa;
@@ -547,11 +710,19 @@ static void sro_map_ctx_init(struct sro_map_ctx *ctx,
  * stopping above the requested level, leaf-table exhaustion) also stops
  * the iteration and returns to the host.
  *
- * DATA_MAP stamps the leaf S2TTE with a drain-pending marker, then
- * runs a yieldable per-granule drain. Each backing granule is claimed
- * from DELEGATED, zeroed, and transitioned to DATA before the cursor
- * advances. On IRQ-yield the call seals an SRO context and returns
- * RMI_INCOMPLETE so the host can resume via RMI_OP_CONTINUE.
+ * DATA_MAP stamps the leaf S2TTE with a drain-pending marker, then runs a
+ * yieldable backing-memory drain. Each active fine or coarse granule must
+ * fit within the S2TT block. Its physical Granules are zeroed before it is
+ * transitioned from DELEGATED to DATA. An IRQ seals an SRO and returns
+ * RMI_INCOMPLETE only when unfinished DATA work remains in the current block.
+ * A tracking conflict before processing clears the unused marker and reports
+ * RMI_BLOCKED, or RMI_SUCCESS for any previously completed blocks.
+ *
+ * Granule lookups manage tracking synchronization internally. Keep each fine
+ * granule locked until its processing and state change are complete. Coarse
+ * units remain PARTIAL while zeroing, including across yields. Each block
+ * must fit in one physical tracking region. Complete each block before
+ * starting the next, which may use a different tracking region.
  *
  * @flags encodes RmiRttProtMapFlags (oaddr_type at bits 1:0,
  * list_count at bits 15:2). Other flag fields are ignored.
@@ -593,9 +764,9 @@ void smc_rtt_data_map(unsigned long rd_addr,
 		return;
 	}
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		ret = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(rd_addr,
+			GRANULE_SIZE, GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
 		goto out_release_sro;
 	}
 
@@ -655,6 +826,10 @@ void smc_rtt_data_map(unsigned long rd_addr,
 					 level, map_size, out_top, top,
 					 &pa, &yield);
 		if (yield || (ret != RMI_SUCCESS)) {
+			goto done;
+		}
+		if (map_size > tracking_region_get_size()) {
+			ret = pack_return_code_level_addr(RMI_ERROR_TRACKING, 0U, pa);
 			goto done;
 		}
 
@@ -723,7 +898,9 @@ out_release_sro:
  * Implementation of RMI_RTT_DATA_MAP_INIT. Populates the delegated
  * granule @data_addr from the NS granule at @src_addr, measures it
  * under @flags, and installs an assigned_ram DATA mapping at
- * @map_addr in the realm identified by @rd_addr.
+ * @map_addr in the realm identified by @rd_addr. Lock RD, then the RTT
+ * hierarchy, then the DELEGATED memory. Each lookup stabilizes its own region.
+ * Return the command's RMI result through @res, with all locks released.
  */
 void smc_rtt_data_map_init(unsigned long rd_addr,
 			   unsigned long data_addr,
@@ -734,7 +911,6 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 {
 	struct granule *g_data = NULL;
 	struct granule *g_rd;
-	struct granule *g_src;
 	struct rd *rd;
 	struct s2tt_walk wi;
 	struct s2tt_context *s2_ctx;
@@ -743,23 +919,17 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 	void *data;
 	unsigned long ret;
 
-	if ((flags != RMI_NO_MEASURE_CONTENT) &&
-	    (flags != RMI_MEASURE_CONTENT)) {
+	if (!GRANULE_ALIGNED(src_addr) ||
+	    ((flags != RMI_NO_MEASURE_CONTENT) &&
+	     (flags != RMI_MEASURE_CONTENT))) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
-	g_src = find_granule(src_addr);
-	if ((g_src == NULL) ||
-	    (granule_unlocked_state(g_src) != GRANULE_STATE_NS)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
+	ret = tr_find_lock_granule(rd_addr,
+			GRANULE_SIZE, GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		goto out;
 	}
 
 	rd = buffer_granule_map(g_rd, SLOT_RD);
@@ -816,16 +986,16 @@ void smc_rtt_data_map_init(unsigned long rd_addr,
 	}
 
 	/* Lock the backing granule after RD and the RTT hierarchy. */
-	g_data = find_lock_rtt_backing_granule(g_rd, &wi, data_addr);
-	if (g_data == NULL) {
-		ret = RMI_ERROR_INPUT;
+	ret = find_lock_rtt_backing_granule(g_rd, &wi, data_addr, &g_data);
+	if (ret != RMI_SUCCESS) {
 		goto out_unmap_ll_table;
 	}
 
 	data = buffer_granule_mecid_map(g_data, SLOT_REALM, s2_ctx->mecid);
 	assert(data != NULL);
 
-	ns_access_ok = ns_buffer_read(SLOT_NS, g_src, 0U, GRANULE_SIZE, data);
+	ns_access_ok = ns_buffer_read_addr(SLOT_NS, src_addr, 0U,
+				       GRANULE_SIZE, data);
 	if (!ns_access_ok) {
 		buffer_unmap(data);
 		ret = RMI_ERROR_INPUT;
@@ -860,6 +1030,7 @@ out_unlock_ll_table:
 out_unmap_rd:
 	buffer_unmap(rd);
 	granule_unlock(g_rd);
+out:
 
 	res->x[0] = ret;
 }
@@ -875,6 +1046,11 @@ out_unmap_rd:
  * RD -> RTT lock order. The extra refcount taken at stamp time (and
  * inherited as the live mapping's refcount on completion) pins the
  * leaf across the yield.
+ * The drain locks each fine granule through processing and its state change.
+ * A continuation owns either a fine DATA prefix or a coarse PARTIAL unit;
+ * both prevent tracking transitions while yielded. Coarse zeroing resumes
+ * from its saved page offset and publishes no mapping until the whole unit
+ * is zeroed. No granule locks survive a return to the Host.
  *
  * Output on completion:
  *   x[0] = RMI_SUCCESS
@@ -915,8 +1091,9 @@ void data_map_continue_handler(unsigned long fid,
 	 * On drain completion the drain itself finalizes the leaf s2tte;
 	 * on yield the slot is left stamped with the drain-pending marker.
 	 */
-	g_rd = find_lock_granule(ctx->rd_addr, GRANULE_STATE_RD);
-	assert(g_rd != NULL);
+	/* The pinned leaf retains its RTT hierarchy and RD across the yield. */
+	g_rd = tr_addr_to_granule(ctx->rd_addr);
+	granule_lock(g_rd, GRANULE_STATE_RD);
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 	s2_ctx = rd->s2_ctx[PRIMARY_S2_CTX_ID];
@@ -1171,9 +1348,10 @@ void smc_rtt_unprot_map(unsigned long rd_addr,
 	unsigned long idx;
 	long level = 0L;
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
+				   GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -1275,7 +1453,9 @@ static bool block_in_vdev_range(const struct rmi_address_range *ranges,
  * Validate inputs to RMI_RTT_DEV_MAP. Thin wrapper around
  * validate_map_inputs_common() that decodes RmiRttProtMapFlags
  * (OADDR_TYPE / LIST_COUNT). Descriptors must carry
- * RMI_OP_MEM_DELEGATED and the range must lie inside PAR.
+ * RMI_OP_MEM_DELEGATED and the range must lie inside PAR. @rd is locked;
+ * @list_out receives a snapshot of the input descriptors.
+ * Return RMI_SUCCESS with the selected level/size or the validation error.
  */
 static unsigned long validate_dev_map_inputs(unsigned long base,
 					     unsigned long top,
@@ -1302,13 +1482,28 @@ static unsigned long validate_dev_map_inputs(unsigned long base,
  * Roll back a drain-time failure after the leaf slot has been stamped.
  * Every dev_granule below @ctx->pending_off was transitioned to MAPPED
  * by this SRO. Walk the cursor backwards, returning each dev_granule
- * to DELEGATED. On a pending IRQ leave @ctx->pending_off pointing to
- * the remaining rollback span and return with *@yielded set so
- * RMI_OP_CONTINUE can resume. Once the cursor reaches zero, clear the
+ * to DELEGATED. On an IRQ leave @ctx->pending_off at the remaining rollback
+ * span and return with *@yielded set so RMI_OP_CONTINUE can resume.
+ * Once the cursor reaches zero, clear the
  * leaf marker, drop the refcount taken when the marker was stamped,
  * and return @ctx->ret_err.
  *
  * Caller contract: @ctx->g_llt is locked and @s2tt is its mapping.
+ * Each lookup locks the current dev_granule until it is returned to DELEGATED.
+ *
+ * Rollback covers only the current S2TT block. Each block starts with
+ * @ctx->pending_off == 0; previously completed blocks are not rolled back.
+ * The block cannot exceed the tracking-region size, and each tracking unit
+ * must fit in its unprocessed suffix. A coarse struct dev_granule therefore
+ * requires map_size == tracking_size and @ctx->pending_off == 0.
+ *
+ * Failure before transitioning that coarse unit leaves an empty rollback span.
+ * Otherwise, the whole unit is transitioned under its lock, and the entry is
+ * finalized without another yield or fallible operation. A coarse unit
+ * therefore cannot reach the rollback loop.
+ *
+ * Any non-empty rollback span contains only fine MAPPED dev_granules; their
+ * state prevents another tracking transition, including across IRQ yields.
  */
 static unsigned long dev_map_rollback_pending(struct sro_map_ctx *ctx,
 					      unsigned long *s2tt,
@@ -1321,21 +1516,31 @@ static unsigned long dev_map_rollback_pending(struct sro_map_ctx *ctx,
 	while (ctx->pending_off > 0UL) {
 		struct dev_granule *g_dev;
 		enum dev_coh_type type;
+		unsigned long rollback_addr;
+		unsigned long tracking_size;
+		unsigned long ret __unused;
 
 		if (rtt_map_irq_pending()) {
 			*yielded = true;
 			return RMI_SUCCESS;
 		}
 
-		ctx->pending_off -= GRANULE_SIZE;
-
-		g_dev = find_lock_dev_granule(ctx->pa + ctx->pending_off,
-					      DEV_GRANULE_STATE_MAPPED,
-					      &type);
-		if (g_dev != NULL) {
-			dev_granule_unlock_transition(g_dev,
+		/* Lock the last MAPPED dev_granule still owned by this rollback. */
+		rollback_addr = ctx->pa + ctx->pending_off - GRANULE_SIZE;
+		ret = tr_find_lock_active_dev_granule(rollback_addr,
+					    DEV_GRANULE_STATE_MAPPED,
+					    &g_dev, &type, &tracking_size);
+		/*
+		 * The remaining fine MAPPED dev_granules keep tracking stable, so
+		 * this lookup cannot return RMI_BLOCKED, even after an IRQ yield.
+		 */
+		assert(ret == RMI_SUCCESS);
+		assert(tracking_size == GRANULE_SIZE);
+		assert(round_down(rollback_addr, tracking_size) ==
+		       (ctx->pa + ctx->pending_off - tracking_size));
+		dev_granule_unlock_transition(g_dev,
 						      DEV_GRANULE_STATE_DELEGATED);
-		}
+		ctx->pending_off -= tracking_size;
 	}
 
 	stamped = s2tte_read(&s2tt[ctx->index]);
@@ -1350,16 +1555,16 @@ static unsigned long dev_map_rollback_pending(struct sro_map_ctx *ctx,
 }
 
 /*
- * Yieldable per-granule drain for an in-flight RMI_RTT_DEV_MAP block,
+ * Yieldable backing-memory drain for an in-flight RMI_RTT_DEV_MAP block,
  * plus the finalize of the leaf s2tte on drain completion. Resumes
  * from @ctx->pending_off and advances it past every granule it has
  * transitioned. Each iteration:
  *
- *   1. If enabled, sample ISR_EL1; on a pending physical IRQ return true
- *      with the cursor pointing at the next pending granule.
- *   2. find_lock_dev_granule(pa, DELEGATED, &type). On failure switch
- *      to rollback. Rollback is also yieldable; when complete it
- *      clears the leaf marker and returns RMI_ERROR_INPUT.
+ *   1. If enabled, sample ISR_EL1; yield on a pending physical IRQ only
+ *      after this block has a MAPPED prefix.
+ *   2. Lock the active fine or coarse dev_granule. Its tracking
+ *      granularity must fit within the target S2TT block. On failure switch
+ *      to rollback, including RMI_BLOCKED before any memory is processed.
  *   3. On the first iteration (pending_off == 0), pin @ctx->coh_type
  *      to the type just locked. On subsequent iterations reject any
  *      mismatch with yieldable rollback + RMI_ERROR_INPUT so the
@@ -1370,16 +1575,21 @@ static unsigned long dev_map_rollback_pending(struct sro_map_ctx *ctx,
  * from the drain-pending marker to the assigned form for @ctx->pa,
  * preserving RIPAS / dev attrs from the still-stamped s2tte.
  *
- * Caller contract: the leaf RTT granule (@ctx->g_llt) is locked and
- * @s2tt is its mapping for the duration of the call. Called from both
- * dev_map_one_entry (entry path) and dev_map_continue_handler (continue
- * path); both arrange the lock+map before invoking.
+ * Caller contract: the block fits in one tracking region. Each dev_granule stays
+ * locked throughout processing and its state transition. A fine MAPPED
+ * prefix prevents transition claims between iterations and across yields.
+ * A valid coarse mapping covers the whole block and completes without yielding.
+ * The leaf RTT granule (@ctx->g_llt) is locked and @s2tt is its mapping for the
+ * duration of the call. Called from both smc_rtt_dev_map (entry path) and
+ * dev_map_continue_handler (continue path); both arrange the lock+map first.
  *
- * Returns RMI_SUCCESS with *@yielded set on IRQ-yield during drain or
- * rollback, RMI_SUCCESS with *@yielded clear when the cursor reaches
- * the block size for @ctx->level (drain complete, s2tte finalized), or
- * RMI_ERROR_INPUT if a backing granule cannot be claimed or has a
- * mismatching coh_type and rollback has completed.
+ * Returns RMI_SUCCESS with *@yielded set for an IRQ during drain or rollback
+ * while a MAPPED prefix remains. Return RMI_SUCCESS with *@yielded clear when
+ * the block is fully mapped and its s2tte finalized.
+ * Return RMI_BLOCKED after clearing an unused marker if the first lookup
+ * encounters a pending tracking transition.
+ * Return RMI_ERROR_INPUT or RMI_ERROR_TRACKING after a backing dev_granule or
+ * coherency-type failure has been rolled back.
  */
 static unsigned long dev_map_drain_pending(struct sro_map_ctx *ctx,
 					   const struct s2tt_context *s2_ctx,
@@ -1398,18 +1608,40 @@ static unsigned long dev_map_drain_pending(struct sro_map_ctx *ctx,
 	while (ctx->pending_off < map_size) {
 		struct dev_granule *g_dev;
 		enum dev_coh_type type;
+		unsigned long tracking_size;
+		unsigned long ret;
 
-		if (rtt_map_irq_pending()) {
+		/* A MAPPED prefix must pin fine tracking before retaining an SRO. */
+		if (rtt_map_irq_pending() && (ctx->pending_off != 0UL)) {
 			*yielded = true;
 			return RMI_SUCCESS;
 		}
 
-		g_dev = find_lock_dev_granule(ctx->pa + ctx->pending_off,
-					      DEV_GRANULE_STATE_DELEGATED,
-					      &type);
-		if (g_dev == NULL) {
+		ret = tr_find_lock_active_dev_granule(ctx->pa + ctx->pending_off,
+						DEV_GRANULE_STATE_DELEGATED,
+						&g_dev, &type, &tracking_size);
+		if (ret != RMI_SUCCESS) {
+			/*
+			 * A fine MAPPED prefix prevents tracking transitions. An
+			 * initial conflict clears the unused marker and reference
+			 * through rollback instead of retaining an empty SRO.
+			 */
+			assert((ret != RMI_BLOCKED) || (ctx->pending_off == 0UL));
 			ctx->rollback = true;
-			ctx->ret_err = RMI_ERROR_INPUT;
+			ctx->ret_err = ret;
+			return dev_map_rollback_pending(ctx, s2tt, yielded);
+		}
+		/*
+		 * Reject a mapping block smaller than its coarse tracking unit.
+		 * This can fail only on the first lookup; a MAPPED prefix pins fine tracking.
+		 */
+		if ((tracking_size > (map_size - ctx->pending_off)) ||
+		    !ALIGNED(ctx->pa + ctx->pending_off, tracking_size)) {
+			dev_granule_unlock(g_dev);
+			ctx->rollback = true;
+			ctx->ret_err = pack_return_code_level_addr(
+					RMI_ERROR_TRACKING, (unsigned char)0U,
+					ctx->pa + ctx->pending_off);
 			return dev_map_rollback_pending(ctx, s2tt, yielded);
 		}
 
@@ -1424,7 +1656,7 @@ static unsigned long dev_map_drain_pending(struct sro_map_ctx *ctx,
 
 		dev_granule_unlock_transition(g_dev, DEV_GRANULE_STATE_MAPPED);
 
-		ctx->pending_off += GRANULE_SIZE;
+		ctx->pending_off += tracking_size;
 	}
 
 	stamped = s2tte_read(&s2tt[ctx->index]);
@@ -1491,16 +1723,25 @@ static unsigned long dev_map_one_entry(struct s2tt_context *s2_ctx,
  * a time and transitions DELEGATED -> MAPPED. On an IRQ-yield
  * mid-drain the call seals an SRO context and returns RMI_INCOMPLETE
  * so the host can resume via RMI_OP_CONTINUE.
+ * An SRO is retained only with a fine MAPPED prefix in the current block.
+ * An initial tracking conflict clears the unused marker and references,
+ * returning RMI_BLOCKED or success for any earlier completed blocks.
+ *
+ * Validate both object addresses before acquiring their fine granules in
+ * RD -> VDEV lock order. A lookup failure releases any acquired lock.
  *
  * The walk level is taken from the SZ field of the first descriptor;
  * supported levels are L1/L2 blocks and L3 pages. A later descriptor
  * at a different level stops the iteration.
+ * Each dev_granule remains locked until its state change is complete. Each block
+ * must fit in one physical tracking region and completes before the next block,
+ * which may use a different region.
  *
  * @flags encodes RmiRttProtMapFlags: OADDR_TYPE selects SINGLE / LIST,
  * LIST_COUNT is the descriptor count for LIST.
  *
  * Output on terminal progress:
- *   x[0] = RMI_SUCCESS | RMI_ERROR_*
+ *   x[0] = RMI_SUCCESS | RMI_BLOCKED | RMI_ERROR_*
  *   x[1] = out_top (IPA past the last successfully mapped block)
  *
  * Output on yield (drain of one block in flight):
@@ -1540,9 +1781,10 @@ void smc_rtt_dev_map(unsigned long rd_addr,
 		return;
 	}
 
-	if (!find_lock_two_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
-				    vdev_addr, GRANULE_STATE_VDEV, &g_vdev)) {
-		ret = RMI_ERROR_INPUT;
+	ret = tr_find_lock_two_fine_granules(
+			rd_addr, GRANULE_STATE_RD, &g_rd,
+			vdev_addr, GRANULE_STATE_VDEV, &g_vdev);
+	if (ret != RMI_SUCCESS) {
 		goto out_release_sro;
 	}
 
@@ -1614,7 +1856,10 @@ void smc_rtt_dev_map(unsigned long rd_addr,
 		if (yield || (ret != RMI_SUCCESS)) {
 			goto done;
 		}
-
+		if (map_size > tracking_region_get_size()) {
+			ret = pack_return_code_level_addr(RMI_ERROR_TRACKING, 0U, pa);
+			goto done;
+		}
 		if (!block_in_vdev_range(vdev_ranges, n_vdev_ranges,
 					 pa, map_size)) {
 			ret = RMI_ERROR_INPUT;
@@ -1670,6 +1915,11 @@ out_release_sro:
  * The RD granule is locked before the leaf RTT to preserve the normal
  * RD -> RTT lock order. The extra refcount taken at stamp time pins
  * the leaf RTT across the yield.
+ * The drain locks each current dev_granule through processing and its state
+ * change. The fine MAPPED prefix prevents tracking transitions throughout
+ * the yield and any rollback. No dev_granule locks survive a return to the Host.
+ * A failure rolls back this block and reports the original error, or success
+ * for any earlier completed blocks.
  *
  * Output on completion:
  *   x[0] = RMI_SUCCESS
@@ -1699,8 +1949,9 @@ void dev_map_continue_handler(unsigned long fid,
 	ctx = &sro->map_ctx;
 	assert(ctx->g_llt != NULL);
 
-	g_rd = find_lock_granule(ctx->rd_addr, GRANULE_STATE_RD);
-	assert(g_rd != NULL);
+	/* The pinned leaf retains its RTT hierarchy and RD across the yield. */
+	g_rd = tr_addr_to_granule(ctx->rd_addr);
+	granule_lock(g_rd, GRANULE_STATE_RD);
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
 	s2_ctx = rd->s2_ctx[PRIMARY_S2_CTX_ID];

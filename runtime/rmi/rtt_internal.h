@@ -24,11 +24,15 @@ bool validate_map_addr(unsigned long map_addr,
  *
  * The caller must hold the RD lock and the lock on @wi->g_llt. The helper
  * rejects aliases with either locked granule before attempting to acquire the
- * backing lock.
+ * backing lock. On success, return RMI_SUCCESS and the locked granule in
+ * @g_backing. Otherwise return the lookup error, including an encoded tracking
+ * result when @backing_addr is not fine tracked. The lookup acquires its own
+ * region reader while the caller retains the RD and leaf RTT locks.
  */
-struct granule *find_lock_rtt_backing_granule(struct granule *g_rd,
-					      const struct s2tt_walk *wi,
-					      unsigned long backing_addr);
+unsigned long find_lock_rtt_backing_granule(struct granule *g_rd,
+					    const struct s2tt_walk *wi,
+					    unsigned long backing_addr,
+					    struct granule **g_backing);
 
 /*
  * Helper to reset the Access Permissions for a protected entry.
@@ -41,7 +45,8 @@ unsigned long default_protected_ap(struct s2tt_context *s2_ctx);
  * of the first granule within the block whose refcount is non-zero,
  * or the block size if every granule is free of aux mappings.
  *
- * Caller must hold the RTT lock covering @s2tte.
+ * Caller must hold the RTT lock covering @s2tte and prevent a tracking
+ * transition from becoming pending during validation of the mapped memory.
  */
 unsigned long not_aux_mappings(struct s2tt_context *s2_ctx,
 			       unsigned long s2tte, long level);

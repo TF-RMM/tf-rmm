@@ -23,6 +23,7 @@
 #include <sro_context.h>
 #include <status.h>
 #include <stddef.h>
+#include <tracking_region.h>
 #include <xlat_low_va.h>
 
 /*
@@ -97,7 +98,6 @@ static unsigned long validate_unmap_inputs(unsigned long base,
 		}
 		break;
 	case RMI_ADDR_TYPE_LIST: {
-		struct granule *g_ns;
 		unsigned long offset_slots;
 		unsigned long granule_remaining;
 
@@ -107,12 +107,6 @@ static unsigned long validate_unmap_inputs(unsigned long base,
 		if (!ALIGNED(oaddr, sizeof(unsigned long))) {
 			return RMI_ERROR_INPUT;
 		}
-		g_ns = find_granule(oaddr & GRANULE_MASK);
-		if ((g_ns == NULL) ||
-		    (granule_unlocked_state(g_ns) != GRANULE_STATE_NS)) {
-			return RMI_ERROR_INPUT;
-		}
-
 		/*
 		 * The host buffer cannot cross a granule. Clip @list_count
 		 * to the descriptor slots that fit between @oaddr and the
@@ -197,28 +191,15 @@ static bool rtt_unmap_irq_pending(void)
 }
 
 /*
- * DATA-only pre-add checks for a single sweepable entry.
+ * Return whether @s2tte represents conventional data for DATA_UNMAP.
  *
- * Returns true when the entry is sweepable. On false the entry must
- * not be unmapped and @res->x[] is populated with the would-be error
- * frame:
- *   - Wrong type: assigned_dev / assigned_dev_dev entries belong to
- *     a device, not to realm data, so RMI_RTT_DATA_UNMAP must not
- *     free them (the host has to use the matching device-unmap
- *     command). Frame: RMI_ERROR_RTT(level), x[1] = 0.
- *   - Auxiliary mappings: refuse to free an entry whose IPA still
- *     has a live mapping in an auxiliary RTT. Frame:
- *     RMI_ERROR_RTT_AUX(0), x[1] = 0.
- *
- * The caller decides whether to surface the error (first iteration
- * of the sweep) or simply stop with partial progress (later
- * iterations, where the host can reissue and the error then becomes
- * a first-iteration error).
+ * Device mappings must be rejected before looking up conventional backing
+ * granules. On failure, populate @res with the RTT error required for a
+ * mapping owned by the device-unmap command.
  */
-static bool data_unmap_pre_add_checks(struct s2tt_context *s2_ctx,
-				      unsigned long s2tte, long level,
-				      unsigned long map_size,
-				      struct smc_result *res)
+static bool data_unmap_flavor_valid(struct s2tt_context *s2_ctx,
+				    unsigned long s2tte, long level,
+				    struct smc_result *res)
 {
 	if (s2tte_is_assigned_dev(s2_ctx, s2tte) ||
 	    s2tte_is_assigned_dev_dev(s2_ctx, s2tte, level)) {
@@ -228,14 +209,111 @@ static bool data_unmap_pre_add_checks(struct s2tt_context *s2_ctx,
 		return false;
 	}
 
-	if (not_aux_mappings(s2_ctx, s2tte, level) < map_size) {
-		res->x[0] = pack_return_code_level(RMI_ERROR_RTT_AUX,
-					     (unsigned char)0U);
-		res->x[1] = 0UL;
-		return false;
-	}
-
 	return true;
+}
+
+/* Validation retains one coarse lock until the sweep claims it or stops. */
+struct rtt_unmap_coarse_lock {
+	struct granule *data;
+	struct dev_granule *dev;
+};
+
+/* Release a validated coarse unit that was not claimed by the sweep. */
+static void rtt_unmap_coarse_unlock(struct rtt_unmap_coarse_lock *coarse)
+{
+	if (coarse->data != NULL) {
+		granule_unlock(coarse->data);
+		coarse->data = NULL;
+	}
+	if (coarse->dev != NULL) {
+		dev_granule_unlock(coarse->dev);
+		coarse->dev = NULL;
+	}
+}
+
+/*
+ * Claim a queued coarse unit for @ctx before any deferred work can yield.
+ * The leaf is locked and its S2TTE carries this SRO's drain-pending marker.
+ * Transfer the validated, locked source to PARTIAL ownership and unlock it;
+ * @ctx keeps that ownership until the whole unit can become DELEGATED.
+ */
+static void rtt_unmap_coarse_claim(struct sro_unmap_ctx *ctx,
+				 struct rtt_unmap_coarse_lock *coarse)
+{
+	assert((ctx->g_coarse == NULL) && (ctx->g_coarse_dev == NULL));
+	assert((coarse->data == NULL) || (coarse->dev == NULL));
+	if (coarse->data != NULL) {
+		ctx->g_coarse = coarse->data;
+		coarse->data = NULL;
+		granule_unlock_transition(ctx->g_coarse, GRANULE_STATE_PARTIAL);
+	} else if (coarse->dev != NULL) {
+		ctx->g_coarse_dev = coarse->dev;
+		coarse->dev = NULL;
+		dev_granule_unlock_transition(ctx->g_coarse_dev, DEV_GRANULE_STATE_PARTIAL);
+	}
+}
+
+/*
+ * Validate the DATA/MAPPED granules covering one S2TT block and reject any
+ * auxiliary references before removing its primary mapping. The leaf is locked.
+ * Return an encoded lookup/tracking/auxiliary error, or RMI_SUCCESS.
+ *
+ * Fine DATA/MAPPED states prevent SET_TRACKING from accepting a transition, so
+ * fine locks can be released after validation. A coarse DATA/MAPPED granule
+ * can transition to fine: retain its lock in @coarse until the caller has
+ * queued the block and claimed it as PARTIAL. If the block cannot be queued,
+ * the caller must release this lock without changing its state.
+ */
+static unsigned long rtt_unmap_tracking_validate(
+					unsigned long pa,
+					unsigned long map_size,
+					enum rtt_unmap_flavor flavor,
+					struct rtt_unmap_coarse_lock *coarse)
+{
+	unsigned long offset = 0UL;
+
+	assert((coarse->data == NULL) && (coarse->dev == NULL));
+	assert(flavor != RTT_UNMAP_FLAVOR_UNPROT);
+	while (offset < map_size) {
+		struct granule *g = NULL;
+		struct dev_granule *g_dev = NULL;
+		enum dev_coh_type type;
+		unsigned long addr = pa + offset;
+		unsigned long tracking_size;
+		unsigned long ret;
+		bool has_aux;
+
+		if (flavor == RTT_UNMAP_FLAVOR_DATA) {
+			ret = tr_find_lock_active_granule(addr, GRANULE_STATE_DATA,
+							&g, &tracking_size);
+		} else {
+			ret = tr_find_lock_active_dev_granule(addr, DEV_GRANULE_STATE_MAPPED,
+							&g_dev, &type, &tracking_size);
+		}
+		if (ret != RMI_SUCCESS) {
+			return ret;
+		}
+		has_aux = (g != NULL) ? (granule_refcount_read_acquire(g) != 0U) :
+				       (dev_granule_refcount_read_acquire(g_dev) != 0U);
+		if ((tracking_size > (map_size - offset)) || !ALIGNED(addr, tracking_size)) {
+			ret = pack_return_code_level_addr(RMI_ERROR_TRACKING, 0U, addr);
+		} else if (has_aux) {
+			ret = pack_return_code_level(RMI_ERROR_RTT_AUX, 0U);
+		}
+		if ((ret == RMI_SUCCESS) && (tracking_size == tracking_region_get_size())) {
+			coarse->data = g;
+			coarse->dev = g_dev;
+		} else if (g != NULL) {
+			granule_unlock(g);
+		} else {
+			dev_granule_unlock(g_dev);
+		}
+		if (ret != RMI_SUCCESS) {
+			return ret;
+		}
+		offset += tracking_size;
+	}
+	return RMI_SUCCESS;
 }
 
 /*
@@ -337,6 +415,7 @@ static unsigned long unmap_make_new_s2tte(struct s2tt_context *s2_ctx,
  * The sweep stops at the first of:
  *   - top (caller-supplied range end; each entry must fit fully),
  *   - end of the leaf table (S2TTES_PER_S2TT),
+ *   - a DATA/DEV block outside the selected physical tracking region,
  *   - non-live entries, including drain-pending entries, are skipped,
  *   - a wrong-flavor live entry (DATA or DEV),
  *   - any entry that has live mappings in auxiliary RTTs (DATA only),
@@ -350,6 +429,12 @@ static unsigned long unmap_make_new_s2tte(struct s2tt_context *s2_ctx,
  * conditions instead stop with partial progress; the host reissues
  * from the live entry, where the condition then becomes a first-
  * iteration error.
+ *
+ * For DATA/DEV, validate each block under the leaf RTT lock. Fine DATA/MAPPED
+ * states prevent transitions from being accepted. Retain a coarse granule
+ * in @coarse until the block is queued, then claim it as PARTIAL and stop.
+ * The SRO owns it across invalidation and drain, including yields. Unqueued
+ * coarse units remain locked for the caller to release. Stay within one region.
  *
  * Returns DATA_UNMAP_STEP_ERROR when an error must be reported to the
  * host (res->x[] already populated). Otherwise returns
@@ -368,7 +453,8 @@ rtt_unmap_one_table(struct s2tt_context *s2_ctx,
 		    struct addr_list *out_list,
 		    struct sro_unmap_ctx *ctx,
 		    enum rtt_unmap_flavor flavor,
-		    struct smc_result *res)
+		    struct smc_result *res,
+		    struct rtt_unmap_coarse_lock *coarse)
 {
 	unsigned long idx = start_idx;
 	unsigned long addr = start_addr;
@@ -445,17 +531,13 @@ rtt_unmap_one_table(struct s2tt_context *s2_ctx,
 		}
 
 		/*
-		 * Per-flavor pre-add checks. UNPROT: after the non-live
-		 * skip and the TABLE check, the only remaining state in
-		 * the unprotected ipa space is assigned_ns. DATA: reject
-		 * device flavors and auxiliary mappings. DEV: only the
-		 * assigned_dev_* flavors are valid; any other live state
-		 * errors on the first iteration / stops thereafter.
+		 * Validate the S2TTE flavor before selecting its backing-memory
+		 * descriptor. A mapping owned by another unmap command must report
+		 * an RTT error rather than a tracking lookup error.
 		 */
 		switch (flavor) {
 		case RTT_UNMAP_FLAVOR_DATA:
-			if (!data_unmap_pre_add_checks(s2_ctx, s2tte, level,
-						       map_size, res)) {
+			if (!data_unmap_flavor_valid(s2_ctx, s2tte, level, res)) {
 				if (idx == start_idx) {
 					return DATA_UNMAP_STEP_ERROR;
 				}
@@ -485,8 +567,40 @@ rtt_unmap_one_table(struct s2tt_context *s2_ctx,
 			break;
 		}
 
-
 		pa = s2tte_pa(s2_ctx, s2tte, level);
+		if (flavor != RTT_UNMAP_FLAVOR_UNPROT) {
+			unsigned long ret;
+
+			if (map_size > tracking_region_get_size()) {
+				if (idx == start_idx) {
+					res->x[0] = pack_return_code_level_addr(
+							RMI_ERROR_TRACKING, 0U, pa);
+					res->x[1] = 0UL;
+					return DATA_UNMAP_STEP_ERROR;
+				}
+				break;
+			}
+			/*
+			 * Keep the batch in one region: an owned coarse unit must be
+			 * the only block in the deferred drain.
+			 */
+			if ((ctx->backing_addr != ~0UL) &&
+			    (round_down(pa, tracking_region_get_size()) !=
+			     round_down(ctx->backing_addr, tracking_region_get_size()))) {
+				break;
+			}
+			ctx->backing_addr = pa;
+			/* Retain the coarse lock until the queued block is claimed as PARTIAL. */
+			ret = rtt_unmap_tracking_validate(pa, map_size, flavor, coarse);
+			if (ret != RMI_SUCCESS) {
+				if (idx == start_idx) {
+					res->x[0] = ret;
+					res->x[1] = 0UL;
+					return DATA_UNMAP_STEP_ERROR;
+				}
+				break;
+			}
+		}
 
 		/*
 		 * Generic SINGLE PA-contiguity check: stop at the
@@ -538,6 +652,11 @@ rtt_unmap_one_table(struct s2tt_context *s2_ctx,
 		prev_pa = pa;
 		idx++;
 		addr += map_size;
+		if ((coarse->data != NULL) || (coarse->dev != NULL)) {
+			/* Claim the whole queued unit before invalidation or drain can yield. */
+			rtt_unmap_coarse_claim(ctx, coarse);
+			break;
+		}
 	}
 
 sweep_done:
@@ -546,47 +665,101 @@ sweep_done:
 }
 
 /*
- * Drain queued backing-granule transitions with cooperative IRQ checks.
+ * Drain the sole coarse unit owned by @ctx up to its exclusive @end, after
+ * all invalidations complete. The caller holds the leaf lock and initializes
+ * @pending_pa. PARTIAL ownership pins the backing representation while its
+ * lock is released. DATA cache maintenance advances @pending_pa one page at
+ * a time, doing at least one page per invocation before an IRQ yield.
+ * Return true with ownership and progress retained on yield. Otherwise publish
+ * the whole unit as DELEGATED, clear its owned pointer and return false.
+ */
+static bool rtt_unmap_drain_coarse(struct sro_unmap_ctx *ctx,
+				 unsigned long end)
+{
+	assert(ALIGNED(ctx->backing_addr, tracking_region_get_size()));
+	if (ctx->g_coarse != NULL) {
+		assert(ctx->g_coarse_dev == NULL);
+		while (ctx->pending_pa < end) {
+			granule_dcci_poe_range(ctx->pending_pa, GRANULE_SIZE);
+			ctx->pending_pa += GRANULE_SIZE;
+			if ((ctx->pending_pa < end) && rtt_unmap_irq_pending()) {
+				return true;
+			}
+		}
+		/* No prefix becomes DELEGATED before the whole unit is maintained. */
+		granule_lock(ctx->g_coarse, GRANULE_STATE_PARTIAL);
+		granule_unlock_transition(ctx->g_coarse, GRANULE_STATE_DELEGATED);
+		ctx->g_coarse = NULL;
+	} else {
+		assert(ctx->g_coarse_dev != NULL);
+		dev_granule_lock(ctx->g_coarse_dev, DEV_GRANULE_STATE_PARTIAL);
+		dev_granule_unlock_transition(ctx->g_coarse_dev, DEV_GRANULE_STATE_DELEGATED);
+		ctx->g_coarse_dev = NULL;
+	}
+	return false;
+}
+
+/*
+ * Drain fine DATA/MAPPED memory from @ctx->pending_pa to the exclusive @end,
+ * after invalidation. The caller holds the leaf lock and initializes the cursor.
+ * DATA returns to DELEGATED through the cache-maintenance helper; DEV needs no
+ * cache maintenance. Remaining DATA/MAPPED states prevent tracking transitions,
+ * so each lookup must succeed.
  *
- * Walks the freed descriptors in @list, which must be sorted by ascending PA,
- * starting at the descriptor / block cursor in @ctx and transitions every 4KB
- * granule back to DELEGATED.
- * ctx->pending_pa is ~0UL until the current block is entered, then tracks
- * the next granule PA to process. The per-granule action depends on @flavor:
+ * Return true on a pending IRQ with the cursor at the next undone granule,
+ * or false when the block is complete. No backing-granule lock is retained.
+ */
+static bool rtt_unmap_drain_fine(struct sro_unmap_ctx *ctx,
+			       unsigned long end,
+			       enum rtt_unmap_flavor flavor)
+{
+	while (ctx->pending_pa < end) {
+		unsigned long tracking_size;
+
+		if (rtt_unmap_irq_pending()) {
+			return true;
+		}
+
+		if (flavor == RTT_UNMAP_FLAVOR_DATA) {
+			struct granule *g_data;
+			unsigned long ret __unused;
+
+			ret = tr_find_lock_active_granule(ctx->pending_pa,
+					GRANULE_STATE_DATA, &g_data, &tracking_size);
+			assert(ret == RMI_SUCCESS);
+			assert(tracking_size == GRANULE_SIZE);
+			granule_unlock_transition_to_delegated(g_data);
+		} else {
+			struct dev_granule *g_dev;
+			__unused enum dev_coh_type type;
+			unsigned long ret __unused;
+
+			ret = tr_find_lock_active_dev_granule(ctx->pending_pa,
+					DEV_GRANULE_STATE_MAPPED, &g_dev, &type,
+					&tracking_size);
+			assert(ret == RMI_SUCCESS);
+			assert(tracking_size == GRANULE_SIZE);
+			dev_granule_unlock_transition(g_dev, DEV_GRANULE_STATE_DELEGATED);
+		}
+
+		ctx->pending_pa += tracking_size;
+	}
+
+	return false;
+}
+
+/*
+ * Walk queued address ranges and drain their backing memory after invalidation.
+ * The leaf must be locked and @list sorted by ascending PA. Fine DATA/MAPPED
+ * states or coarse PARTIAL ownership prevent tracking changes across yields.
+ * UNPROT has no backing-memory drain and must not call this helper.
  *
- *   - DATA: find the DATA granule and run
- *     granule_unlock_transition_to_delegated(), which performs the
- *     cache maintenance needed before the host may reclaim the page;
- *   - DEV:  find the MAPPED dev_granule and transition it to
- *     DELEGATED; no cache maintenance is needed for device memory;
- *   - UNPROT: no per-granule work (RMI_RTT_UNPROT_UNMAP releases NS
- *     mappings only, not their backing granules) so this helper is
- *     never called for that flavor.
- *
- * For DATA the cache maintenance is the slow part of the operation,
- * so a pending physical IRQ is sampled between every granule. DEV
- * pays the same cost for uniform response time.
- *
- * Runs after the TLBI pass has invalidated the stage-2 (and SMMU)
- * mappings for the freed entries, so by the time a granule is taken
- * to DELEGATED here no stale translation can still resolve to it.
- *
- * The leaf-RTT refcount drops associated with the freed entries are
- * NOT issued here. They are owned by the clear-marks phase of
- * rtt_unmap_drain_and_clear(), which runs after this drain returns
- * success and emits them in one batch. Until then the still-held
- * refcounts naturally pin the leaf (and transitively the RTT chain
- * and RD) across any TLBI-pass or drain-pass yield.
- *
- * On a pending IRQ the cursors are updated to the next undone granule
- * and the function returns true (yielded). Otherwise the cursors are
- * advanced past the end of the list and the function returns false.
- *
- * This helper is called both from the runner after each leaf sweep and
- * from the SRO_OP_CONTINUE entry point, so a yield can interrupt at any
- * granule boundary and be resumed on the next call with no other state.
- *
- * The list is not modified by this routine.
+ * Both tracking modes share the list/block cursors and initialize @pending_pa
+ * on block entry. The selected drain helper resumes at that PA and either
+ * yields with progress retained or completes the block. Return true on yield,
+ * or false once every block is drained. The list remains intact for Host output.
+ * Leaf references and S2TTE pending markers are retained until the caller's
+ * non-yieldable clear-marks pass, keeping the RTT chain and RD alive.
  */
 static bool rtt_unmap_drain_pending(struct sro_unmap_ctx *ctx,
 				    struct addr_list *list,
@@ -599,7 +772,7 @@ static bool rtt_unmap_drain_pending(struct sro_unmap_ctx *ctx,
 		unsigned long base, blk_size, cnt, st;
 		unsigned long blk_base, blk_end;
 		int level;
-		bool ok;
+		bool ok, yielded;
 
 		ok = addr_list_peek_desc(list, ctx->pending_desc_idx,
 					 &base, &level, &cnt, &st);
@@ -633,31 +806,17 @@ static bool rtt_unmap_drain_pending(struct sro_unmap_ctx *ctx,
 		assert(ctx->pending_pa >= blk_base);
 		assert(ctx->pending_pa < blk_end);
 
-		while (ctx->pending_pa < blk_end) {
-			if (rtt_unmap_irq_pending()) {
-				return true;
-			}
-
-			if (flavor == RTT_UNMAP_FLAVOR_DATA) {
-				struct granule *g_data;
-
-				g_data = find_lock_granule(ctx->pending_pa,
-						GRANULE_STATE_DATA);
-				assert(g_data != NULL);
-				granule_unlock_transition_to_delegated(g_data);
-			} else {
-				struct dev_granule *g_dev;
-				__unused enum dev_coh_type type;
-
-				g_dev = find_lock_dev_granule(ctx->pending_pa,
-						DEV_GRANULE_STATE_MAPPED,
-						&type);
-				assert(g_dev != NULL);
-				dev_granule_unlock_transition(g_dev,
-						DEV_GRANULE_STATE_DELEGATED);
-			}
-
-			ctx->pending_pa += GRANULE_SIZE;
+		if ((ctx->g_coarse != NULL) || (ctx->g_coarse_dev != NULL)) {
+			/* The owned coarse unit is the sole queued block. */
+			assert((list->count == 1U) && (cnt == 1UL));
+			assert(blk_base == ctx->backing_addr);
+			assert(blk_size == tracking_region_get_size());
+			yielded = rtt_unmap_drain_coarse(ctx, blk_end);
+		} else {
+			yielded = rtt_unmap_drain_fine(ctx, blk_end, flavor);
+		}
+		if (yielded) {
+			return true;
 		}
 
 		ctx->pending_pa = ~0UL;
@@ -748,13 +907,21 @@ static bool rtt_unmap_invalidate_pending(struct sro_unmap_ctx *ctx,
  * a pending IRQ the function returns true (yielded). Entries belonging
  * to other in-flight SROs are left untouched. Caller must hold the
  * leaf RTT lock and have @s2tt mapped.
+ *
+ * On completion, set @ctx->tlbi_done and return false. Later calls return
+ * false without rescanning or sampling IRQs, allowing the drain to progress.
  */
 static bool rtt_unmap_tlbi_pending(struct sro_unmap_ctx *ctx,
 				   unsigned long *s2tt)
 {
-	unsigned long map_size = s2tte_map_size((int)ctx->leaf_level);
+	unsigned long map_size;
 	unsigned long i;
 
+	if (ctx->tlbi_done) {
+		return false;
+	}
+
+	map_size = s2tte_map_size((int)ctx->leaf_level);
 	if (ctx->smmu_tlbi_pending) {
 		unsigned long s2tte;
 
@@ -796,6 +963,7 @@ static bool rtt_unmap_tlbi_pending(struct sro_unmap_ctx *ctx,
 		}
 	}
 
+	ctx->tlbi_done = true;
 	return false;
 }
 
@@ -853,9 +1021,10 @@ static void rtt_unmap_clear_marks_and_drop(struct sro_unmap_ctx *ctx,
  * or is skipped for UNPROT. All flavors hold one leaf-RTT refcount per
  * stamped entry until phase 3, so mark clearing is identical.
  *
- * Returns true if any phase yields for a pending IRQ, including while waiting
- * for CMD_SYNC completion. On resume the caller simply re-invokes this helper
- * (re-mapping @s2tt under the leaf lock).
+ * Return true if a phase yields for a pending IRQ, including during CMD_SYNC.
+ * On resume the caller re-maps @s2tt under the leaf lock and invokes this helper.
+ * The TLBI helper remembers completion so drain continuations skip its pass.
+ * Coarse PARTIAL ownership survives every yield without a lock.
  */
 static bool rtt_unmap_drain_and_clear(struct sro_unmap_ctx *ctx,
 				      struct addr_list *list,
@@ -964,6 +1133,9 @@ static void rtt_unmap_format_result(unsigned int oaddr_type,
  * then on the runner uses only the stack copy of the primary S2 context.
  * The held RTT lock prevents the realm from being torn down underneath
  * it.
+ * For DATA/DEV, the sweep claims each queued coarse unit as PARTIAL before
+ * deferred work. Fine DATA/MAPPED states also prevent tracking transitions
+ * without a retained reader. A later region ends the prefix.
  *
  * Returns RTT_UNMAP_RUN_YIELD when the deferred work yielded on a pending IRQ
  * while progress has been made (out_list non-empty). This includes an IRQ
@@ -1004,6 +1176,7 @@ rtt_unmap_run(struct granule *g_rd, struct rd *rd,
 	      struct addr_list *out_list,
 	      struct smc_result *res)
 {
+	struct rtt_unmap_coarse_lock coarse = { 0 };
 	struct s2tt_walk wi;
 	struct s2tt_context s2_ctx;
 	unsigned long *s2tt;
@@ -1037,8 +1210,11 @@ rtt_unmap_run(struct granule *g_rd, struct rd *rd,
 	s2tt = buffer_granule_mecid_map(wi.g_llt, SLOT_RTT, s2_ctx.mecid);
 	assert(s2tt != NULL);
 
-	/* Track the currently-locked leaf for the deferred work. */
+	/* Track the locked leaf and initialize ownership before the only sweep. */
 	ctx->g_llt = wi.g_llt;
+	ctx->g_coarse = NULL;
+	ctx->g_coarse_dev = NULL;
+	ctx->tlbi_done = false;
 
 	level = wi.last_level;
 	map_size = s2tte_map_size((int)level);
@@ -1071,7 +1247,7 @@ rtt_unmap_run(struct granule *g_rd, struct rd *rd,
 				   wi.index, ctx->cur_base,
 				   top, level, map_size,
 				   out_list,
-				   ctx, flavor, res);
+				   ctx, flavor, res, &coarse);
 	if (step == DATA_UNMAP_STEP_ERROR) {
 		/* res->x[] populated by helper. */
 		goto out_unmap_ll;
@@ -1118,6 +1294,7 @@ rtt_unmap_run(struct granule *g_rd, struct rd *rd,
 	}
 
 out_unmap_ll:
+	rtt_unmap_coarse_unlock(&coarse);
 	buffer_unmap(s2tt);
 	granule_unlock(wi.g_llt);
 	return ret;
@@ -1138,6 +1315,9 @@ out_unmap_ll:
  * RD is not touched here: the leaf RTT granule pinned by the still-
  * held per-entry refcounts keeps the RTT chain (and RD) alive across
  * the yield.
+ * Fine DATA/MAPPED states and coarse PARTIAL ownership pin the backing
+ * representation. Resume the owned coarse unit or look up the next fine
+ * granule. No granule lock is kept across a return to the Host.
  */
 void rtt_unmap_continue_handler(unsigned long fid,
 				struct smc_result *res)
@@ -1163,8 +1343,7 @@ void rtt_unmap_continue_handler(unsigned long fid,
 	granule_lock(ctx->g_llt, GRANULE_STATE_RTT);
 	s2tt = buffer_granule_mecid_map(ctx->g_llt, SLOT_RTT, ctx->mecid);
 	assert(s2tt != NULL);
-	yielded = rtt_unmap_drain_and_clear(ctx, &sro->addr_list, s2tt,
-					    flavor);
+	yielded = rtt_unmap_drain_and_clear(ctx, &sro->addr_list, s2tt, flavor);
 	buffer_unmap(s2tt);
 	granule_unlock(ctx->g_llt);
 
@@ -1203,6 +1382,9 @@ void rtt_unmap_continue_handler(unsigned long fid,
  * leaf table containing @base and stops at top or the end of that leaf.
  * If the request spans further leaves, the host retries with the returned
  * out_top as the new base.
+ * Each mapped block must fit in one physical tracking region. Stop before
+ * another region. The sweep claims coarse DATA as PARTIAL through deferred work,
+ * keeping ownership across yields. Continuation resumes its owned unit directly.
  *
  * On a pending physical IRQ, including while waiting for SMMU CMD_SYNC
  * completion, the sweep yields cooperatively. If progress was made
@@ -1259,9 +1441,13 @@ void smc_rtt_data_unmap(unsigned long rd_addr,
 		return;
 	}
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
+	sro = my_sro_ctx();
+	ctx = &sro->unmap_ctx;
+	ctx->backing_addr = ~0UL;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE, GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
 		sro_ctx_release();
+		res->x[0] = ret;
 		return;
 	}
 
@@ -1418,9 +1604,11 @@ void smc_rtt_unprot_unmap(unsigned long rd_addr,
 		return;
 	}
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
+				   GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
 		sro_ctx_release();
+		res->x[0] = ret;
 		return;
 	}
 
@@ -1519,6 +1707,9 @@ void smc_rtt_unprot_unmap(unsigned long rd_addr,
  * CMD_SYNC completion, an SRO context is sealed and RMI_INCOMPLETE is
  * returned; the host must call
  * RMI_OP_CONTINUE with the returned handle to resume.
+ * As for DATA_UNMAP, each block must fit in one tracking region; stop before
+ * another region. Claim coarse MAPPED memory as PARTIAL through deferred
+ * work, keeping ownership across yields until invalidation and drain complete.
  *
  * Supports oaddr_type NONE, SINGLE and LIST.
  */
@@ -1549,9 +1740,13 @@ void smc_rtt_dev_unmap(unsigned long rd_addr,
 		return;
 	}
 
-	g_rd = find_lock_granule(rd_addr, GRANULE_STATE_RD);
-	if (g_rd == NULL) {
+	sro = my_sro_ctx();
+	ctx = &sro->unmap_ctx;
+	ctx->backing_addr = ~0UL;
+	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE, GRANULE_STATE_RD, &g_rd);
+	if (ret != RMI_SUCCESS) {
 		sro_ctx_release();
+		res->x[0] = ret;
 		return;
 	}
 

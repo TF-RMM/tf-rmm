@@ -89,10 +89,6 @@ endif()
 add_subdirectory("${RMM_SOURCE_DIR}/drivers/pl011" ${RMM_BINARY_DIR}/drivers/pl011)
 add_subdirectory("${RMM_SOURCE_DIR}/plat/common" ${RMM_BINARY_DIR}/plat/common)
 
-if(PLAT_ARM_MAX_MEM_BANKS EQUAL 0x0)
-    message(FATAL_ERROR "Invalid PLAT_ARM_MAX_MEM_BANKS")
-endif()
-
 target_compile_definitions(rmm-plat-arm
     PRIVATE "PLAT_ARM_MAX_MEM_BANKS=U(${PLAT_ARM_MAX_MEM_BANKS})")
 

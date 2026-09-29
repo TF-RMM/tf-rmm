@@ -107,15 +107,10 @@ static inline bool is_realm_pas_slot(enum buffer_slot slot)
 
 void *ns_buffer_granule_map(enum buffer_slot slot, struct granule *granule)
 {
-	unsigned long addr = granule_addr(granule);
+	unsigned long addr = tr_granule_addr(granule);
 
 	assert(is_ns_slot(slot));
 	return buffer_arch_map(slot, addr);
-}
-
-static void *ns_buffer_map_early(unsigned long addr)
-{
-	return buffer_arch_map(SLOT_NS, addr);
 }
 
 void ns_buffer_unmap(void *buf)
@@ -132,7 +127,7 @@ void ns_buffer_unmap(void *buf)
  */
 void *buffer_granule_map(struct granule *g, enum buffer_slot slot)
 {
-	unsigned long addr = granule_addr(g);
+	unsigned long addr = tr_granule_addr(g);
 
 	assert(is_realm_pas_slot(slot) && !is_realm_mecid_slot(slot));
 
@@ -148,12 +143,35 @@ void *buffer_granule_map(struct granule *g, enum buffer_slot slot)
 void *buffer_granule_mecid_map(struct granule *g, enum buffer_slot slot,
 		unsigned int mecid)
 {
-	unsigned long addr = granule_addr(g);
+	unsigned long addr = tr_granule_addr(g);
 
 	assert(is_realm_pas_slot(slot) && is_realm_mecid_slot(slot));
 
 	mec_realm_mecid_s1_init(mecid);
 	return buffer_arch_map(slot, addr);
+}
+
+/* Map an owned Realm page by PA, without requiring a granule lookup. */
+void *buffer_granule_mecid_map_addr(unsigned long addr, enum buffer_slot slot,
+				 unsigned int mecid)
+{
+	assert(GRANULE_ALIGNED(addr));
+	assert(is_realm_pas_slot(slot) && is_realm_mecid_slot(slot));
+
+	mec_realm_mecid_s1_init(mecid);
+	return buffer_arch_map(slot, addr);
+}
+
+/* Map and zero an owned Realm granule selected by physical address. */
+void *buffer_granule_mecid_map_addr_zeroed(unsigned long addr,
+					    enum buffer_slot slot,
+					    unsigned int mecid)
+{
+	void *buf;
+
+	buf = buffer_granule_mecid_map_addr(addr, slot, mecid);
+	granule_memzero_mapped(buf);
+	return buf;
 }
 
 void buffer_unmap(void *buf)
@@ -165,19 +183,19 @@ void buffer_unmap(void *buf)
 	}
 }
 
-void buffer_granule_sanitize(struct granule *g)
+void buffer_granule_sanitize_addr(unsigned long addr)
 {
 	void *buf;
 
+	assert(GRANULE_ALIGNED(addr));
+
 #if (RMM_MEM_SCRUB_METHOD == 1)
 	/* Any Slot which uses RMM MECID will do, use SLOT_RD for now */
-	buf = buffer_granule_map(g, SLOT_RD);
+	buf = buffer_arch_map(SLOT_RD, addr);
 	granule_sanitize_1_mapped(buf);
-	buffer_unmap(buf);
+	buffer_arch_unmap(buf);
 #elif (RMM_MEM_SCRUB_METHOD == 2)
 	/* A Slot which uses Realm MECID needs to be used */
-	unsigned long addr = granule_addr(g);
-
 	mec_init_scrub_mecid_s1();
 	buf = buffer_arch_map(SLOT_REALM, addr);
 	granule_sanitize_mapped(buf);
@@ -185,46 +203,61 @@ void buffer_granule_sanitize(struct granule *g)
 	mec_reset_scrub_mecid_s1();
 #else
 	/* Any Slot which uses RMM MECID will do, use SLOT_RD for now */
-	buf = buffer_granule_map(g, SLOT_RD);
+	buf = buffer_arch_map(SLOT_RD, addr);
 	granule_sanitize_mapped(buf);
-	buffer_unmap(buf);
+	buffer_arch_unmap(buf);
 #endif
 }
 
+/* Sanitize the physical granule represented by @g. */
+void buffer_granule_sanitize(struct granule *g)
+{
+	assert(g != NULL);
+	buffer_granule_sanitize_addr(tr_granule_addr(g));
+}
+
 /*
- * Map a Non secure granule @g into the slot @slot and read data from
- * this granule to @dest. Unmap the granule once the read is done.
+ * Map the Non-secure granule at @ns_addr into @slot and read data from it
+ * into @dest. Unmap the granule once the read is done.
  *
  * It returns 'true' on success or `false` if not all data are copied.
  * Only the least significant bits of @offset are considered, which allows the
  * full PA of a non-granule aligned buffer to be used for the @offset parameter.
  */
-bool ns_buffer_read(enum buffer_slot slot,
-		    struct granule *ns_gr,
-		    unsigned int offset,
-		    size_t size,
-		    void *dest)
+bool ns_buffer_read_addr(enum buffer_slot slot,
+			 unsigned long ns_addr,
+			 unsigned int offset,
+			 size_t size,
+			 void *dest)
 {
 	uintptr_t src;
 	bool retval;
 
 	assert(is_ns_slot(slot));
-	assert(ns_gr != NULL);
 	assert(dest != NULL);
+	assert(ALIGNED(dest, 8U));
 
 	/*
 	 * To simplify the trapping mechanism around NS access,
 	 * memcpy_ns_read uses a single 8-byte LDR instruction and
 	 * all parameters must be aligned accordingly.
 	 */
-	assert(ALIGNED(size, 8U));
-	assert(ALIGNED(offset, 8U));
-	assert(ALIGNED(dest, 8U));
+	if (!GRANULE_ALIGNED(ns_addr) || !ALIGNED(size, 8U) ||
+	    !ALIGNED(offset, 8U)) {
+		return false;
+	}
 
 	offset &= (unsigned int)(~GRANULE_MASK);
-	assert((offset + size) <= GRANULE_SIZE);
+	if (size > (GRANULE_SIZE - offset)) {
+		return false;
+	}
 
-	src = (uintptr_t)ns_buffer_granule_map(slot, ns_gr);
+	/* The trapped access provides the authoritative NS PAS validation. */
+	src = (uintptr_t)buffer_arch_map(slot, ns_addr);
+	if (src == (uintptr_t)NULL) {
+		return false;
+	}
+
 	retval = memcpy_ns_read(dest, (void *)(src + offset), size);
 	ns_buffer_unmap((void *)src);
 
@@ -232,8 +265,8 @@ bool ns_buffer_read(enum buffer_slot slot,
 }
 
 /*
- * Map a Non-secure granule @ns_gr into @slot and copy @size bytes at @offset
- * into @dest. The source offset, transfer size and destination may be
+ * Map the Non-secure granule at @ns_addr into @slot and copy @size bytes at
+ * @offset into @dest. The source offset, transfer size and destination may be
  * unaligned. Only the least significant bits of @offset are considered, and
  * the requested range must fit within one granule.
  *
@@ -241,15 +274,16 @@ bool ns_buffer_read(enum buffer_slot slot,
  * used for any unaligned prefix or suffix because memcpy_ns_read() requires
  * its source, destination and size to be 8-byte aligned.
  *
- * Returns true if all requested data was copied, or false if an NS access
- * fault prevented the complete copy. On failure, @dest may have been
- * partially updated.
+ * Returns true if all requested data was copied. Returns false if @ns_addr or
+ * the requested range is invalid, the mapping cannot be created, or an NS
+ * access fault prevents the complete copy. On an access fault, @dest may have
+ * been partially updated.
  */
-bool ns_buffer_read_unaligned(enum buffer_slot slot,
-			      struct granule *ns_gr,
-			      unsigned int offset,
-			      size_t size,
-			      void *dest)
+bool ns_buffer_read_unaligned_addr(enum buffer_slot slot,
+				   unsigned long ns_addr,
+				   unsigned int offset,
+				   size_t size,
+				   void *dest)
 {
 	unsigned char *dst = dest;
 	uint64_t data;
@@ -261,18 +295,26 @@ bool ns_buffer_read_unaligned(enum buffer_slot slot,
 	bool retval = true;
 
 	assert(is_ns_slot(slot));
-	assert(ns_gr != NULL);
 	assert(dest != NULL);
 
+	if (!GRANULE_ALIGNED(ns_addr)) {
+		return false;
+	}
+
 	offset &= (unsigned int)(~GRANULE_MASK);
-	assert(size <= GRANULE_SIZE);
-	assert((size_t)offset <= ((size_t)GRANULE_SIZE - size));
+	if ((size > GRANULE_SIZE) ||
+	    ((size_t)offset > ((size_t)GRANULE_SIZE - size))) {
+		return false;
+	}
 
 	if (size == 0U) {
 		return true;
 	}
 
-	src = (uintptr_t)ns_buffer_granule_map(slot, ns_gr);
+	src = (uintptr_t)buffer_arch_map(slot, ns_addr);
+	if (src == (uintptr_t)NULL) {
+		return false;
+	}
 
 	while (remaining != 0U) {
 		/* Copy the aligned body directly into the destination. */
@@ -323,39 +365,47 @@ bool ns_buffer_read_unaligned(enum buffer_slot slot,
 }
 
 /*
- * Map a Non secure granule @g into the slot @slot and write data from
- * this granule to @dest. Unmap the granule once the write is done.
+ * Map the Non-secure granule at @ns_addr into @slot and write data from
+ * @src to it. Unmap the granule once the write is done.
  *
  * It returns 'true' on success or `false` if not all data are copied.
  * Only the least significant bits of @offset are considered, which allows the
  * full PA of a non-granule aligned buffer to be used for the @offset parameter.
  */
-bool ns_buffer_write(enum buffer_slot slot,
-		     struct granule *ns_gr,
-		     unsigned int offset,
-		     size_t size,
-		     void *src)
+bool ns_buffer_write_addr(enum buffer_slot slot,
+			  unsigned long ns_addr,
+			  unsigned int offset,
+			  size_t size,
+			  void *src)
 {
 	uintptr_t dest;
 	bool retval;
 
 	assert(is_ns_slot(slot));
-	assert(ns_gr != NULL);
 	assert(src != NULL);
+	assert(ALIGNED(src, 8U));
 
 	/*
 	 * To simplify the trapping mechanism around NS access,
 	 * memcpy_ns_write uses a single 8-byte STR instruction and
 	 * all parameters must be aligned accordingly.
 	 */
-	assert(ALIGNED(size, 8U));
-	assert(ALIGNED(offset, 8U));
-	assert(ALIGNED(src, 8U));
+	if (!GRANULE_ALIGNED(ns_addr) || !ALIGNED(size, 8U) ||
+	    !ALIGNED(offset, 8U)) {
+		return false;
+	}
 
 	offset &= (unsigned int)(~GRANULE_MASK);
-	assert((offset + size) <= GRANULE_SIZE);
+	if (size > (GRANULE_SIZE - offset)) {
+		return false;
+	}
 
-	dest = (uintptr_t)ns_buffer_granule_map(slot, ns_gr);
+	/* The trapped access provides the authoritative NS PAS validation. */
+	dest = (uintptr_t)buffer_arch_map(slot, ns_addr);
+	if (dest == (uintptr_t)NULL) {
+		return false;
+	}
+
 	retval = memcpy_ns_write((void *)(dest + offset), src, size);
 	ns_buffer_unmap((void *)dest);
 
@@ -390,13 +440,13 @@ static bool ns_buffer_write_unaligned_small(uintptr_t dest,
 }
 
 /*
- * Copies 'size' bytes from 'src' to 'ns_gr' at the offset 'offset'. The
+ * Copies 'size' bytes from 'src' to @ns_addr at the offset 'offset'. The
  * function uses an optimized version of memcpy ('memcpy_ns_write') that expects
  * 'dest', 'src' and 'size' to be aligned at 8 bytes.
  * This function uses a temporary buffer, in case 'src' and or 'size' is not
  * aligned. Offset is expected to be 8 byte aligned.
- * If 'src' is not aligned, extra bytes are copied at the beginning of ns_gr to
- * make the copy eight aligned. If len is not aligned some extra bytes are
+ * If 'src' is not aligned, extra bytes are copied at the beginning of the NS
+ * buffer to make the copy eight aligned. If len is not aligned some extra bytes are
  * copied in the end.
  * The number of bytes to be copied (counting the extra bytes for the alignment)
  * must be smaller than GRANULE_SIZE.
@@ -406,12 +456,12 @@ static bool ns_buffer_write_unaligned_small(uintptr_t dest,
  * false otherwise.
  * ns_start_offset should only be relied on if the function returns true.
  */
-bool ns_buffer_write_unaligned(enum buffer_slot slot,
-			       struct granule *ns_gr,
-			       unsigned int offset,
-			       size_t size,
-			       void *src,
-			       size_t *ns_start_offset)
+bool ns_buffer_write_unaligned_addr(enum buffer_slot slot,
+				    unsigned long ns_addr,
+				    unsigned int offset,
+				    size_t size,
+				    void *src,
+				    size_t *ns_start_offset)
 {
 	uintptr_t dest;
 	size_t align_diff;
@@ -420,21 +470,24 @@ bool ns_buffer_write_unaligned(enum buffer_slot slot,
 	bool retval = false;
 
 	assert(is_ns_slot(slot));
-	assert(ns_gr != NULL);
 	assert(src != NULL);
+	assert(ns_start_offset != NULL);
+
+	if (!GRANULE_ALIGNED(ns_addr) || !ALIGNED(offset, 8U)) {
+		return false;
+	}
 
 	if (size == 0U) {
+		*ns_start_offset = 0U;
 		return true;
 	}
 
 	/*
 	 * To simplify the trapping mechanism around NS access,
-	 * ns_buffer_write_unaligned uses a single 8-byte STR instruction.
+	 * ns_buffer_write_unaligned_addr uses a single 8-byte STR instruction.
 	 * In case 'src' and size is not aligned, a temporary 8 aligned buffer
 	 * is used to do the copy. Offset must be aligned.
 	 */
-	assert(ALIGNED(offset, 8U));
-
 	offset &= (unsigned int)(~GRANULE_MASK);
 
 	aligned_src = (void *)round_down((uintptr_t)src, 8U);
@@ -446,9 +499,16 @@ bool ns_buffer_write_unaligned(enum buffer_slot slot,
 	 * Make sure that the byte that are necessary to be written fit inside a
 	 * granule.
 	 */
-	assert((offset + round_up(align_diff + size, 8U)) <= GRANULE_SIZE);
+	if ((size > (GRANULE_SIZE - offset)) ||
+	    (round_up(align_diff + size, 8U) > (GRANULE_SIZE - offset))) {
+		return false;
+	}
 
-	dest = (uintptr_t)ns_buffer_granule_map(slot, ns_gr);
+	/* The trapped access provides the authoritative NS PAS validation. */
+	dest = (uintptr_t)buffer_arch_map(slot, ns_addr);
+	if (dest == (uintptr_t)NULL) {
+		return false;
+	}
 
 	if (align_diff > 0U) {
 		size_t unaligned_size = min(size, 8U - align_diff);
@@ -488,38 +548,6 @@ unmap:
 	ns_buffer_unmap((void *)dest);
 
 	*ns_start_offset = align_diff;
-
-	return retval;
-}
-
-/* API to read NS PA before RMM is activated - granule tracking system is ready */
-bool ns_buffer_read_early(unsigned long ns_ptr, size_t size, void *dest)
-{
-	uintptr_t src;
-	bool retval;
-	unsigned long offset = ns_ptr & (GRANULE_SIZE - 1UL);
-
-	ns_ptr &= GRANULE_MASK;
-
-	src = (uintptr_t)ns_buffer_map_early(ns_ptr);
-	retval = memcpy_ns_read(dest, (void *)(src + offset), size);
-	ns_buffer_unmap((void *)src);
-
-	return retval;
-}
-
-/* API to write NS PA before RMM is activated - granule tracking system is ready */
-bool ns_buffer_write_early(unsigned long ns_ptr, size_t size, void *src)
-{
-	uintptr_t dst;
-	bool retval;
-	unsigned long offset = ns_ptr & (GRANULE_SIZE - 1UL);
-
-	ns_ptr &= GRANULE_MASK;
-
-	dst = (uintptr_t)ns_buffer_map_early(ns_ptr);
-	retval = memcpy_ns_write((void *)(dst + offset), src, size);
-	ns_buffer_unmap((void *)dst);
 
 	return retval;
 }

@@ -9,14 +9,28 @@ target_link_libraries(rmm-lib-granule
     PUBLIC rmm-lib-arch
            rmm-lib-common
     PRIVATE rmm-lib-debug
-            rmm-lib-smc)
+            rmm-lib-rmm_el3_ifc
+            rmm-lib-smc
+            rmm-lib-sro_context
+            rmm-lib-xlat
+            rmm-lib-xlat_low_va)
 
 target_include_directories(rmm-lib-granule
     PUBLIC "include"
-           "include/${RMM_ARCH}")
+           "include/${RMM_ARCH}"
+    PRIVATE "src"
+            "src/${RMM_ARCH}")
 
 target_sources(rmm-lib-granule
-    PRIVATE "src/dev_granule.c"
-            "src/granule.c")
+    PRIVATE "src/granule.c"
+            "src/tr_granule.c"
+            "src/tracking_region.c"
+            "src/tracking_region_sro.c"
+            "src/tracking_region_transition.c")
+
+if(RMM_ARCH STREQUAL fake_host)
+    target_sources(rmm-lib-granule
+        PRIVATE "src/fake_host/tracking_region_arch.c")
+endif()
 
 include (tests/CMakeLists.txt)

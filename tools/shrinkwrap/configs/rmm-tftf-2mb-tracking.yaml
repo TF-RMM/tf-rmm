@@ -1,0 +1,15 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Overlay to configure TFTF Realm tests to use 2 MB RMM tracking regions
+  instead of the default 1 GB tracking regions.
+
+build:
+  tftf:
+    params:
+      RMM_2MB_TRACKING: 1

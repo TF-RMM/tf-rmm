@@ -6,54 +6,26 @@
 #ifndef PLATFORM_API_H
 #define PLATFORM_API_H
 
-#include <dev_type.h>
+#include <smc-rmi.h>
 #include <stdint.h>
+
+struct plat_memory_bank {
+	unsigned long base;
+	unsigned long size;
+};
 
 void plat_warmboot_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3);
 void plat_setup(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3, uint64_t x4);
 
 /*
- * Takes an aligned granule address, validates it and if valid returns the
- * index in the struct granules array or UINT64_MAX in case of an error.
- *
- * This function also validates that the granule address is a valid
- * page address.
+ * Returns the platform-owned static memory bank array for the RMI memory
+ * @category and writes its number of entries to @num_banks. The array is
+ * ordered by address and remains valid after this function returns. The caller
+ * must not modify it. Returns NULL for an invalid category or a NULL
+ * @num_banks.
  */
-unsigned long plat_granule_addr_to_idx(unsigned long addr);
-
-/*
- * Returns the number of granules available in the system.
- * If no granules are available, UINT64_MAX is returned.
- */
-unsigned long plat_get_num_granules(void);
-
-/*
- * Takes an aligned dev_granule address, validates it and if valid returns the
- * index in the struct dev_granules array or UINT64_MAX in case of an error.
- *
- * This function also validates that the dev_granule address is a valid page
- * address and returns device granule coherency type if the addr is valid.
- */
-unsigned long plat_dev_granule_addr_to_idx(unsigned long addr, enum dev_coh_type *type);
-
-/*
- * Returns the number of device granules available in the system.
- * If no granules are available, UINT64_MAX is returned.
- */
-unsigned long plat_get_num_dev_granules(enum dev_coh_type type);
-
-/*
- * Takes an index in the struct granules array and returns the aligned granule
- * address. The index must be within the number of granules expected by the
- * platform.
- */
-unsigned long plat_granule_idx_to_addr(unsigned long idx);
-
-/*
- * Takes an index in the struct dev_granules array and returns the aligned
- * dev_granule address of the specified device type. The index must be within
- * the number of dev_granules expected by the platform.
- */
-unsigned long plat_dev_granule_idx_to_addr(unsigned long idx, enum dev_coh_type type);
+const struct plat_memory_bank *plat_get_mem_banks(
+					unsigned long category,
+					unsigned long *num_banks);
 
 #endif /* PLATFORM_API_H */

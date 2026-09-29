@@ -309,7 +309,7 @@ struct vdev {
 COMPILER_ASSERT(sizeof(struct vdev) <= GRANULE_SIZE);
 
 unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
-			      struct granule *g_dev_comm_data);
+			      unsigned long dev_comm_data_addr);
 struct pdev_stream *pdev_stream_granules_lock_map(struct granule *g_streams,
 						  unsigned char stream_type);
 void pdev_stream_granules_unmap_unlock(struct granule *g_streams,

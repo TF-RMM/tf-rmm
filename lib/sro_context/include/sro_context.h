@@ -8,6 +8,7 @@
 
 #include <addr_list.h>
 #include <dev_type.h>
+#include <rmm_el3_gpi.h>
 #include <smc-rmi.h>
 #include <smc.h>
 #include <smmuv3.h>
@@ -143,11 +144,12 @@ struct sro_pdev_ctx {
 };
 
 struct granule;
+struct dev_granule;
 struct s2tt_context;
 
 /*
- * State carried by an in-flight RMI_RTT_DATA_UNMAP or RMI_RTT_UNPROT_UNMAP
- * across one or more RMI_OP_CONTINUE round-trips.
+ * State carried by an in-flight RMI_RTT_DATA_UNMAP, RMI_RTT_DEV_UNMAP or
+ * RMI_RTT_UNPROT_UNMAP across RMI_OP_CONTINUE round-trips.
  *
  * RMI_RTT_DATA_UNMAP additionally defers the per-entry leaf-RTT
  * refcount drops (one per live entry the sweep freed) and a per-DATA
@@ -156,10 +158,20 @@ struct s2tt_context;
  * cursors point to the next granule to drain inside @addr_list so
  * the SRO_CONTINUE entry can resume in-place. RMI_RTT_UNPROT_UNMAP
  * does not own DATA granules, so the drain cursors stay zero; the
- * extra @g_llt refcount taken at yield time is what pins the leaf.
+ * per-entry @g_llt references pin the leaf.
+ *
+ * Coarse DATA/DEV unmap owns one whole tracking region in PARTIAL state
+ * through invalidation and drain. @g_coarse or @g_coarse_dev retains that
+ * ownership without holding a lock across yields. For DATA, @pending_pa
+ * advances by one page of cache maintenance while the whole unit stays
+ * PARTIAL. Only the completed unit is published as DELEGATED.
  */
 struct sro_unmap_ctx {
+	unsigned long backing_addr;	/* PA selecting the sole backing region */
 	struct granule *g_llt;		/* Leaf RTT pinned across yields */
+	struct granule *g_coarse;		/* Coarse DATA_UNMAP owns this PARTIAL unit */
+	struct dev_granule *g_coarse_dev;	/* Coarse DEV_UNMAP owns this PARTIAL unit */
+	bool tlbi_done;			/* Invalidation completed before the drain */
 	unsigned long oaddr;		/* LIST: NS PA of output buffer */
 	unsigned long cur_base;		/* Next IPA to sweep; also out_top */
 	unsigned int oaddr_type;	/* RmiAddrType: NONE / SINGLE / LIST */
@@ -223,14 +235,19 @@ struct sro_unmap_ctx {
  * @g_llt taken when the marker is stamped; that refcount is the same
  * one the finalize step keeps to represent the eventual live mapping.
  *
- * DATA_MAP drains by transitioning, mapping and zeroing each backing
- * granule. DEV_MAP drains by locking each backing dev_granule and
+ * DATA_MAP zeroes fine backing granules before transitioning them to DATA.
+ * For coarse backing it owns @g_coarse in PARTIAL state while zeroing the
+ * region page by page. That state keeps its tracking representation stable
+ * across yields. @pending_off counts zeroed bytes until the entire coarse
+ * region can transition to DATA; it is not independently mapped progress.
+ * DEV_MAP drains by locking each backing dev_granule and
  * unlock-transitioning it from DELEGATED to MAPPED. On a pending IRQ
  * the @pending_off cursor records the next byte offset still owing the
  * drain so the SRO continue path can resume in-place. If a drain-time
  * error starts rollback, @rollback is set, @ret_err records the
  * terminal error, and @pending_off is reused as the count of already
- * drained bytes still to roll back. When the drain completes, the leaf
+ * drained fine bytes still to roll back. Coarse DATA_MAP has no fallible
+ * operation after claiming @g_coarse. When the drain completes, the leaf
  * s2tte is rewritten to the command-specific assigned form for the
  * target PA, replacing the SW marker.
  *
@@ -245,6 +262,7 @@ struct sro_unmap_ctx {
  */
 struct sro_map_ctx {
 	struct granule *g_llt;		/* Leaf RTT pinned across yields */
+	struct granule *g_coarse;		/* DATA_MAP owns this PARTIAL coarse unit */
 	unsigned long rd_addr;		/* RD address for continue */
 	unsigned long pa;		/* Block-aligned target PA */
 	unsigned long ipa;		/* IPA the block maps to */
@@ -262,6 +280,61 @@ struct sro_map_ctx {
  */
 struct sro_realm_ctx {
 	unsigned long realm_params_addr;
+};
+
+/* PAS transition state for one tracking-metadata page retained across yields. */
+struct sro_tracking_gpi_ctx {
+	struct rmm_el3_gpi_state el3;	/* Current metadata page's EL3 operation. */
+	unsigned long pa;		/* PA retained while its PAS changes. */
+	unsigned long processed_size;	/* Completed prefix of that page. */
+	bool pending;			/* Page retained even during stateless retry. */
+};
+
+/*
+ * Tracking-metadata transfer state retained across SRO calls.
+ * Operation and callback selector values are private to tracking_region_sro.c.
+ */
+struct sro_tracking_ctx {
+	struct sro_tracking_gpi_ctx gpi;	/* Current metadata page's PAS transition. */
+	unsigned long failed_donor_pa;	/* Accepted donor rejected by EL3 later. */
+	unsigned long addr;		/* Target tracking-region PA base. */
+	unsigned long tr_idx;		/* Target shared tracking-array index. */
+	unsigned long category;		/* RMI memory category supplied by Host. */
+	unsigned long target_state;	/* Requested RmiGranuleTracking value. */
+	unsigned long ret_status;	/* Result returned after any rollback. */
+	unsigned long requested_pages;	/* Total backing pages in this transfer. */
+	unsigned long transferred_pages;	/* Pages accepted from the Host. */
+	unsigned long reclaim_page;	/* Next logical page to return. */
+	int operation;			/* Tracking SRO operation selector. */
+	int callback;			/* Next tracking SRO callback selector. */
+	unsigned int array_mask;		/* Fine arrays participating in SET. */
+	/* Accepted donated page delegation failed; page remains NS and unmapped. */
+	bool failed_donor;
+};
+
+/* State retained during range delegation retry, continuation or coarse rollback. */
+struct sro_granule_delegate_ctx {
+	struct rmm_el3_gpi_state el3;	/* Shared delegation/rollback EL3 state. */
+	unsigned long host_addr;		/* Initial RMI range cursor. */
+	unsigned long addr;		/* Base PA of the original EL3 request. */
+	unsigned long size;		/* Size of the original EL3 request. */
+	unsigned long tracking_size;	/* Size represented by one granule. */
+	unsigned long processed_size;	/* Accumulated prefix changed to Realm PAS. */
+	unsigned long rollback_size;	/* Prefix returned to NS during rollback. */
+	unsigned long rollback_status;	/* RMI_SUCCESS unless rolling back to an error. */
+	bool device;			/* Whether dev_granules are used. */
+};
+
+/* State retained while a fine run or coarse unit is undelegated to NS PAS. */
+struct sro_granule_undelegate_ctx {
+	struct rmm_el3_gpi_state el3;	/* Shared undelegation EL3 state. */
+	unsigned long host_addr;		/* Initial RMI range cursor. */
+	unsigned long addr;		/* Base PA of the original EL3 request. */
+	unsigned long size;		/* Size of the original EL3 request. */
+	unsigned long tracking_size;	/* Size represented by one granule. */
+	unsigned long sanitize_offset;	/* Next conventional page to sanitize. */
+	unsigned long undelegated_size;	/* Prefix already changed to NS PAS. */
+	bool device;			/* Whether dev_granules are used. */
 };
 
 struct sro_context {
@@ -326,6 +399,9 @@ struct sro_context {
 		struct sro_unmap_ctx unmap_ctx;
 		struct sro_map_ctx map_ctx;
 		struct sro_realm_ctx realm_ctx;
+		struct sro_tracking_ctx tracking_ctx;
+		struct sro_granule_delegate_ctx granule_delegate_ctx;
+		struct sro_granule_undelegate_ctx granule_undelegate_ctx;
 	};
 };
 
@@ -349,7 +425,7 @@ struct sro_context {
  * Args:
  *  size_bytes - total donation size in bytes (must be a multiple of GRANULE_SIZE)
  *  contig     - RMI_OP_MEM_CONTIG or RMI_OP_MEM_NON_CONTIG
- *  state      - RMI_OP_MEM_DELEGATED or RMI_OP_MEM_UNDELEGATED
+ *  state      - an RmiOpMemState value, including RMI_OP_MEM_CONDITIONAL
  *
  * Returns the encoded RmiOpMemDonateReq value.
  */

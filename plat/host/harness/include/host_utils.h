@@ -151,6 +151,31 @@ void *host_util_slot_map(unsigned int slot, unsigned long addr);
 void host_util_slot_unmap(void *buf);
 unsigned int host_util_buf_to_slot(void *buf);
 void host_util_slot_reset(void);
+
+/*
+ * Enable or disable simulated NS/Realm PAS checks. Enabling starts with all
+ * modeled DRAM and device pages in NS PAS. Calls to the model must be serialized
+ * by the harness; no RMM tracking metadata or locks are used.
+ */
+void host_util_pas_enable(bool enable);
+
+/* Restore all modeled pages to their initial NS PAS between fuzz iterations. */
+void host_util_pas_reset(void);
+
+/*
+ * Set the PAS of an aligned range of @granule_count pages. Return false for an
+ * empty, unaligned or unbacked range, without changing any page. When PAS checks
+ * are disabled, return true without changing the model.
+ */
+bool host_util_pas_set(unsigned long addr, unsigned long granule_count,
+		       bool realm);
+
+/*
+ * Return whether an NS access to @buf covers only backed pages in NS PAS.
+ * Resolve slot aliases to their current PAs; direct addresses are used by MMIO.
+ * Empty accesses and accesses with PAS checks disabled succeed.
+ */
+bool host_util_ns_access_valid(const void *buf, unsigned long size);
 #endif /* !CBMC */
 
 /*

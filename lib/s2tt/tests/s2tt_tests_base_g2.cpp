@@ -2436,14 +2436,18 @@ static void populate_s2tts(struct s2tt_context *s2tt_ctx,
 	unsigned long ap = s2tt_test_generate_ap(false);
 	long level;
 	unsigned long granule_base = host_util_get_granule_base();
-	struct granule *str_granule_base = test_helpers_granule_struct_base();
 	unsigned int n_granules = S2TTE_MAX_CONCAT_TABLES +
 					(S2TT_TEST_HELPERS_MAX_LVL -
 					 S2TT_TEST_HELPERS_MIN_LVL_LPA2 + 1U);
 
-	/* Initialize the granules for the translaton tables */
+	/*
+	 * Fine-granule arrays are page aligned for each tracking region, so
+	 * physically adjacent granules are not necessarily adjacent struct granule objects.
+	 * Resolve every table PA independently before initializing its struct granule.
+	 */
 	for (unsigned int i = 0U; i < n_granules; i++) {
-		tt_granules[i] = str_granule_base + i;
+		tt_granules[i] = tr_addr_to_granule(granule_base +
+						(i * GRANULE_SIZE));
 		s2tt_test_granule_set_state(tt_granules[i], GRANULE_STATE_RTT);
 		s2tt_test_granule_set_lock(tt_granules[i], false);
 	};
@@ -2549,7 +2553,7 @@ static void populate_s2tts(struct s2tt_context *s2tt_ctx,
 	}
 
 	/* Generate the expected validation granule */
-	*val_tt_granule = addr_to_granule(tt_walk[end_lvl + 1]);
+	*val_tt_granule = tr_addr_to_granule(tt_walk[end_lvl + 1]);
 }
 
 void s2tt_walk_lock_unlock_tc1(void)
@@ -2722,7 +2726,7 @@ void s2tt_walk_lock_unlock_tc1(void)
 	 * (Test 2a)
 	 */
 	end_level_x = S2TT_TEST_HELPERS_MAX_LVL - 1U;
-	val_tt_granule = addr_to_granule(tt_walk[end_level_x + 1U]);
+	val_tt_granule = tr_addr_to_granule(tt_walk[end_level_x + 1U]);
 
 	s2tt_walk_lock_unlock((const struct s2tt_context *)&s2tt_ctx,
 			      pa, end_level_x, &wi);

@@ -109,11 +109,15 @@ static inline void prime_isr_yield_in_drain(void)
 				test_isr_el1_wr, S2TTES_PER_S2TT + 1UL);
 }
 
-static inline void prime_isr_yield_during_data_map_drain(void)
+/*
+ * Inject one IRQ after @countdown ISR reads: 2 targets the first drain poll,
+ * while 3 allows one fine granule to reach DATA before interrupting an L2 map.
+ */
+static inline void prime_isr_yield_during_data_map_drain(unsigned long countdown = 2UL)
 {
 	host_util_set_sysreg_cb("isr_el1",
 				test_isr_el1_rd_yield_on_countdown,
-				test_isr_el1_wr, 2UL);
+				test_isr_el1_wr, countdown);
 }
 
 static inline void prime_isr_yield_during_data_map_rollback(void)
@@ -180,7 +184,7 @@ static inline void init_data_s2_ctx(const struct test_data_ctx *ctx,
 	s2_ctx->ipa_bits = TEST_IPA_BITS;
 	s2_ctx->s2_starting_level = 0;
 	s2_ctx->num_root_rtts = 1U;
-	s2_ctx->g_rtt = find_granule(ctx->rtt_l0);
+	s2_ctx->g_rtt = tr_find_fine_granule(ctx->rtt_l0);
 	s2_ctx->indirect_s2ap = false;
 	s2_ctx->mecid = TEST_REALM_MECID;
 	s2_ctx->s2oa_limit = TEST_S2OA_LIMIT;
@@ -231,7 +235,7 @@ static inline bool create_data_realm_base(struct test_data_ctx *ctx)
 
 	(void)memset(&tmp_ctx, 0, sizeof(tmp_ctx));
 
-	g_rtt_l0 = find_granule(ctx->rtt_l0);
+	g_rtt_l0 = tr_find_fine_granule(ctx->rtt_l0);
 	granule_lock(g_rtt_l0, GRANULE_STATE_DELEGATED);
 	granule_unlock_transition(g_rtt_l0, GRANULE_STATE_RTT);
 
@@ -247,7 +251,7 @@ static inline bool create_data_realm_base(struct test_data_ctx *ctx)
 	buffer_unmap(tbl);
 	granule_unlock(g_rtt_l0);
 
-	g_rd = find_granule(ctx->rd);
+	g_rd = tr_find_fine_granule(ctx->rd);
 	granule_lock(g_rd, GRANULE_STATE_DELEGATED);
 	rd = (struct rd *)buffer_granule_map_zeroed(g_rd, SLOT_RD);
 	CHECK_TRUE(rd != NULL);
@@ -539,7 +543,7 @@ static inline bool install_assigned_destroyed_mapping(
  */
 static inline void expect_data_granule_delegated(uintptr_t pa)
 {
-	struct granule *g = find_granule(pa);
+	struct granule *g = tr_find_fine_granule(pa);
 
 	CHECK_TRUE(g != NULL);
 	CHECK_EQUAL((int)GRANULE_STATE_DELEGATED,
@@ -652,7 +656,7 @@ static inline unsigned long decode_rdesc_state(unsigned long rdesc)
  */
 static inline unsigned long read_list_entry(uintptr_t list_pa, unsigned int i)
 {
-	struct granule *g_list = find_granule(list_pa);
+	struct granule *g_list = tr_find_fine_granule(list_pa);
 	unsigned long *list_contents;
 	unsigned long val;
 
@@ -669,7 +673,7 @@ static inline unsigned long read_list_entry(uintptr_t list_pa, unsigned int i)
 static inline void write_list_input_entry(uintptr_t list_pa, unsigned int i,
 					  unsigned long desc)
 {
-	struct granule *g_list = find_granule(list_pa);
+	struct granule *g_list = tr_find_fine_granule(list_pa);
 	unsigned long *list_contents;
 
 	list_contents = (unsigned long *)ns_buffer_granule_map(SLOT_NS, g_list);
@@ -709,7 +713,7 @@ static inline unsigned long make_data_map_flags(unsigned long oaddr_type,
  */
 static inline void expect_data_granule_data_state(uintptr_t pa)
 {
-	struct granule *g = find_granule(pa);
+	struct granule *g = tr_find_fine_granule(pa);
 
 	CHECK_TRUE(g != NULL);
 	CHECK_EQUAL((int)GRANULE_STATE_DATA, (int)granule_unlocked_state(g));
@@ -782,7 +786,7 @@ static inline unsigned long read_data_ipa_raw_s2tte(
 static inline void force_realm_state(const struct test_data_ctx *ctx,
 				     unsigned long new_state)
 {
-	struct granule *g_rd = find_granule(ctx->rd);
+	struct granule *g_rd = tr_find_fine_granule(ctx->rd);
 	struct rd *rd;
 
 	granule_lock(g_rd, GRANULE_STATE_RD);

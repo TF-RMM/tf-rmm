@@ -160,6 +160,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PSMMU_ST_L2_DESTROY,	2, 1, smc_psmmu_st_l2_destroy,	 true, true),
 	HANDLER(PSMMU_INFO,		2, 1, smc_psmmu_info,		 true, true),
 	HANDLER(GRANULE_TRACKING_GET,	2, 4, smc_granule_tracking_get,	 true, true),
+	HANDLER(GRANULE_TRACKING_SET,	3, 1, smc_granule_tracking_set,	 true, true),
 	HANDLER(GPT_L1_CREATE,		1, 1, smc_gpt_l1_create,	 false, true),
 	HANDLER(GPT_INFO,		2, 3, smc_gpt_info,		 false, true),
 	HANDLER(RMM_CONFIG_GET,		1, 1, smc_rmm_config_get,	 true, true),
@@ -287,6 +288,13 @@ static void rmi_log_on_exit(unsigned int handler_id,
 	}
 }
 
+/*
+ * Dispatch a Non-secure SMC using @function_id (X0) and @arg0..@arg6 (X1..X7).
+ * @res receives the SMC status and output registers. The current CPU must have
+ * no mapped buffer slots and its Non-secure SIMD state must not be saved.
+ * SRO follow-ups bypass the activation-state check in every configuration;
+ * their handlers validate the supplied operation handle.
+ */
 /* cppcheck-suppress misra-c2012-8.4 */
 /* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
 /* coverity[misra_c_2012_rule_8_7_violation:SUPPRESS] */
@@ -342,6 +350,12 @@ void handle_ns_smc(unsigned int function_id,
 	case SMC_RMI_RMM_CONFIG_GET:
 	case SMC_RMI_GRANULE_TRACKING_GET:
 	case SMC_RMI_GPT_INFO:
+		break;
+	case SMC_RMI_OP_CANCEL:
+	case SMC_RMI_OP_CONTINUE:
+	case SMC_RMI_OP_MEM_DONATE:
+	case SMC_RMI_OP_MEM_RECLAIM:
+		/* Each SRO handler validates its operation handle. */
 		break;
 	case SMC_RMI_RMM_CONFIG_SET:
 	case SMC_RMI_RMM_ACTIVATE:

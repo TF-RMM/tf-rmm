@@ -312,7 +312,6 @@ void smc_rec_enter(unsigned long rec_addr,
 		   struct smc_result *res)
 {
 	struct granule *g_rec;
-	struct granule *g_run;
 	struct granule *g_rd;
 	struct rec *rec;
 	struct rec_plane *plane;
@@ -321,7 +320,6 @@ void smc_rec_enter(unsigned long rec_addr,
 	struct rmi_rec_run rec_run;
 	unsigned long ret;
 	bool success;
-	int rc;
 	void *rec_aux;
 
 	/*
@@ -331,25 +329,28 @@ void smc_rec_enter(unsigned long rec_addr,
 	 */
 	(void)memset(&rec_run.exit, 0, sizeof(struct rmi_rec_exit));
 
-	g_run = find_granule(rec_run_addr);
-	if ((g_run == NULL) ||
-		(granule_unlocked_state(g_run) != GRANULE_STATE_NS)) {
+	if (!GRANULE_ALIGNED(rec_run_addr)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
 	/* For a REC to be runnable, it should be unused (refcount = 0) */
-	rc = find_lock_unused_granule(rec_addr, GRANULE_STATE_REC, &g_rec);
-	if (rc != 0) {
-		switch (rc) {
-		case -EINVAL:
-			res->x[0] = RMI_ERROR_INPUT;
-			return;
-		default:
-			assert(rc == -EBUSY);
-			res->x[0] = RMI_ERROR_REC;
-			return;
-		}
+	ret = tr_find_lock_granule(rec_addr, GRANULE_SIZE,
+				  GRANULE_STATE_REC, &g_rec);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
+		return;
+	}
+	/*
+	 * REC exit drops its reference with release ordering without holding
+	 * the granule lock. It can do so after this PE acquires the lock, so
+	 * an acquire read of zero is needed to observe the previous execution's
+	 * writes before accessing the REC.
+	 */
+	if (granule_refcount_read_acquire(g_rec) != 0U) {
+		granule_unlock(g_rec);
+		res->x[0] = RMI_ERROR_REC;
+		return;
 	}
 
 	rec = buffer_granule_map(g_rec, SLOT_REC);
@@ -378,7 +379,7 @@ void smc_rec_enter(unsigned long rec_addr,
 	/* Unlock the granule before switching to realm world. */
 	granule_unlock(g_rec);
 
-	success = ns_buffer_read(SLOT_NS, g_run, 0U,
+	success = ns_buffer_read_addr(SLOT_NS, rec_run_addr, 0U,
 				 sizeof(struct rmi_rec_enter), &rec_run.enter);
 
 	if (!success) {
@@ -551,8 +552,8 @@ out_unmap_buffers:
 	buffer_unmap(rec);
 
 	if (ret == RMI_SUCCESS) {
-		if (!ns_buffer_write(
-			SLOT_NS, g_run,
+		if (!ns_buffer_write_addr(
+			SLOT_NS, rec_run_addr,
 			(unsigned int)offsetof(struct rmi_rec_run, exit),
 			sizeof(struct rmi_rec_exit), &rec_run.exit)) {
 			ret = RMI_ERROR_INPUT;

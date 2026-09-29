@@ -7,6 +7,7 @@
 
 #ifdef CBMC
 
+#include <rmm_el3_gpi.h>
 #include <stdbool.h>
 #include <tb_common.h>
 
@@ -62,15 +63,19 @@ int rmm_el3_ifc_init(unsigned long x0, unsigned long x1, unsigned long x2,
 	return 0;
 }
 
-unsigned long rmm_el3_ifc_gtsi_delegate(unsigned long addr)
+/*
+ * PAS transition steps are outside the supported CBMC entry points.
+ * Assert if reached; the return value is only a placeholder.
+ */
+int rmm_el3_ifc_gtsi_step(unsigned long addr, unsigned long size, bool delegate,
+			unsigned long *processed_size, struct rmm_el3_gpi_state *state)
 {
-	ASSERT(false, "rmm_el3_ifc_gtsi_delegate");
-	return 0;
-}
-
-unsigned long rmm_el3_ifc_gtsi_undelegate(unsigned long addr)
-{
-	ASSERT(false, "rmm_el3_ifc_gtsi_undelegate");
+	(void)addr;
+	(void)size;
+	(void)delegate;
+	(void)processed_size;
+	(void)state;
+	ASSERT(false, "rmm_el3_ifc_gtsi_step");
 	return 0;
 }
 

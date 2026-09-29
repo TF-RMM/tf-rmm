@@ -225,7 +225,6 @@ void smc_pdev_create(unsigned long pdev_addr,
 		     struct smc_result *res)
 {
 	struct sro_context *sro;
-	struct granule *g_pdev_params;
 	struct granule *gr;
 	struct rmi_pdev_params pdev_params; /* this consumes 4k of stack */
 	bool ns_access_ok;
@@ -243,15 +242,8 @@ void smc_pdev_create(unsigned long pdev_addr,
 		return;
 	}
 
-	/* Map and copy PDEV parameters */
-	g_pdev_params = find_granule(pdev_params_addr);
-	if ((g_pdev_params == NULL) ||
-	    (granule_unlocked_state(g_pdev_params) != GRANULE_STATE_NS)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	ns_access_ok = ns_buffer_read(SLOT_NS, g_pdev_params, 0U,
+	/* Map and copy PDEV parameters. */
+	ns_access_ok = ns_buffer_read_addr(SLOT_NS, pdev_params_addr, 0U,
 				      sizeof(struct rmi_pdev_params),
 				      &pdev_params);
 	if (!ns_access_ok) {
@@ -294,9 +286,10 @@ void smc_pdev_create(unsigned long pdev_addr,
 		return;
 	}
 
-	gr = find_lock_granule(pdev_addr, GRANULE_STATE_DELEGATED);
-	if (gr == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(pdev_addr, GRANULE_SIZE,
+				   GRANULE_STATE_DELEGATED, &gr);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -333,6 +326,11 @@ void smc_pdev_create(unsigned long pdev_addr,
 			       GRANULE_STATE_PDEV_AUX);
 }
 
+/*
+ * Complete PDEV creation after donation and report the RMI result via @res.
+ * The assigned SRO owns the PARTIAL PDEV and its PDEV_AUX pages, keeping
+ * their fine struct granule objects alive until publication or rollback.
+ */
 static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 {
 	struct granule *g_pdev;
@@ -382,19 +380,16 @@ static void pdev_create_continue_ep(unsigned long fid, struct smc_result *res)
 	for (unsigned int i = 0U; i < num_aux_granules; i++) {
 		unsigned long addr = all_aux_granule_pas[i];
 
-		all_aux_granules[i] = find_granule(addr);
+		all_aux_granules[i] = tr_addr_to_granule(addr);
 
 		/* The granules should have been transitioned during donation */
 		assert(all_aux_granules[i] != NULL);
 		assert(granule_unlocked_state(all_aux_granules[i]) == GRANULE_STATE_PDEV_AUX);
 	}
 
-	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(sro->aux_op_ctx.obj_addr, GRANULE_STATE_PARTIAL);
-	if (g_pdev == NULL) {
-		smc_rc = RMI_ERROR_INPUT;
-		goto out_restore_pdev_aux_granule_state;
-	}
+	/* The SRO-owned PARTIAL state pins the fine struct granule. */
+	g_pdev = tr_addr_to_granule(sro->aux_op_ctx.obj_addr);
+	granule_lock(g_pdev, GRANULE_STATE_PARTIAL);
 
 	pd = buffer_granule_map_zeroed(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
@@ -527,11 +522,13 @@ static unsigned long pdev_create_continue_rp(unsigned long pdev_addr,
 	struct pdev *pd;
 	unsigned long ecam_addr;
 	unsigned long bdf;
+	unsigned long ret;
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_DELEGATED);
-	if (g_pdev == NULL) {
-		return RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(pdev_addr, GRANULE_SIZE,
+				   GRANULE_STATE_DELEGATED, &g_pdev);
+	if (ret != RMI_SUCCESS) {
+		return ret;
 	}
 
 	pd = buffer_granule_map_zeroed(g_pdev, SLOT_PDEV);
@@ -588,18 +585,21 @@ void pdev_continue_handler(unsigned long fid, struct smc_result *res)
 	sro_callbacks[sro->aux_op_ctx.cb_id](fid, res);
 }
 
-/* Validate RmiDevCommData.RmiDevCommEnter argument passed by Host */
+/*
+ * Copy and validate the Host's RmiDevCommEnter before device processing.
+ * Return RMI_ERROR_INPUT for invalid arguments or inaccessible NS buffers,
+ * RMI_ERROR_DEVICE for an unexpected status while communication is pending,
+ * or RMI_SUCCESS. NS-access checks do not require fine tracking or pin the PAS.
+ */
 static unsigned long copyin_and_validate_dev_comm_enter(
-				  struct granule *g_dev_comm_data,
+				  unsigned long dev_comm_data_addr,
 				  struct rmi_dev_comm_enter *enter_args,
 				  unsigned int dev_comm_state)
 {
-	struct granule *g_buf;
 	bool ns_access_ok;
+	uint64_t probe;
 
-	assert(g_dev_comm_data != NULL);
-
-	ns_access_ok = ns_buffer_read(SLOT_NS, g_dev_comm_data,
+	ns_access_ok = ns_buffer_read_addr(SLOT_NS, dev_comm_data_addr,
 				      RMI_DEV_COMM_ENTER_OFFSET,
 				      sizeof(struct rmi_dev_comm_enter),
 				      enter_args);
@@ -618,16 +618,20 @@ static unsigned long copyin_and_validate_dev_comm_enter(
 		return RMI_ERROR_INPUT;
 	}
 
-	/* Check if request and response buffers are in NS PAS */
-	g_buf = find_granule(enter_args->req_addr);
-	if ((g_buf == NULL) ||
-	    (granule_unlocked_state(g_buf) != GRANULE_STATE_NS)) {
+	/*
+	 * Probe both buffers even if this call will not use them, so an NS-access
+	 * failure is reported before entering the app. Accessibility can still
+	 * change after these checks; subsequent accesses must remain fault-contained.
+	 */
+	ns_access_ok = ns_buffer_read_addr(SLOT_NS, enter_args->req_addr,
+					 0U, sizeof(probe), &probe);
+	if (!ns_access_ok) {
 		return RMI_ERROR_INPUT;
 	}
 
-	g_buf = find_granule(enter_args->resp_addr);
-	if ((g_buf == NULL) ||
-	    (granule_unlocked_state(g_buf) != GRANULE_STATE_NS)) {
+	ns_access_ok = ns_buffer_read_addr(SLOT_NS, enter_args->resp_addr,
+					 0U, sizeof(probe), &probe);
+	if (!ns_access_ok) {
 		return RMI_ERROR_INPUT;
 	}
 
@@ -641,14 +645,12 @@ static unsigned long copyin_and_validate_dev_comm_enter(
 /*
  * copyout DevCommExitArgs
  */
-static unsigned long copyout_dev_comm_exit(struct granule *g_dev_comm_data,
+static unsigned long copyout_dev_comm_exit(unsigned long dev_comm_data_addr,
 					   struct rmi_dev_comm_exit *exit_args)
 {
 	bool ns_access_ok;
 
-	assert(g_dev_comm_data != NULL);
-
-	ns_access_ok = ns_buffer_write(SLOT_NS, g_dev_comm_data,
+	ns_access_ok = ns_buffer_write_addr(SLOT_NS, dev_comm_data_addr,
 				       RMI_DEV_COMM_EXIT_OFFSET,
 				       sizeof(struct rmi_dev_comm_exit),
 				       exit_args);
@@ -1003,7 +1005,7 @@ static void set_comm_state(int rc, uint32_t *comm_state)
 }
 
 unsigned long dev_communicate(struct pdev *pd,
-			      struct vdev *vd, struct granule *g_dev_comm_data)
+			      struct vdev *vd, unsigned long dev_comm_data_addr)
 {
 	struct rmi_dev_comm_enter enter_args;
 	struct rmi_dev_comm_exit exit_args;
@@ -1027,7 +1029,7 @@ unsigned long dev_communicate(struct pdev *pd,
 
 	/* Validate RmiDevCommEnter arguments in DevCommData */
 	/* coverity[uninit_use_in_call:SUPPRESS] */
-	comm_rc = copyin_and_validate_dev_comm_enter(g_dev_comm_data, &enter_args,
+	comm_rc = copyin_and_validate_dev_comm_enter(dev_comm_data_addr, &enter_args,
 		pd->dev_comm_state);
 	if (comm_rc != RMI_SUCCESS) {
 		return comm_rc;
@@ -1049,7 +1051,7 @@ unsigned long dev_communicate(struct pdev *pd,
 		buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
 	}
 
-	comm_rc = copyout_dev_comm_exit(g_dev_comm_data,
+	comm_rc = copyout_dev_comm_exit(dev_comm_data_addr,
 				       &exit_args);
 	if (comm_rc != RMI_SUCCESS) {
 		/*
@@ -1083,7 +1085,6 @@ void smc_pdev_communicate(unsigned long pdev_addr,
 			  struct smc_result *res)
 {
 	struct granule *g_pdev;
-	struct granule *g_dev_comm_data;
 	struct pdev *pd;
 	struct pdev_stream *stream = NULL;
 	unsigned long rmi_rc;
@@ -1102,21 +1103,15 @@ void smc_pdev_communicate(unsigned long pdev_addr,
 	/* TODO_ALP17: Ensure PdevIsBusy == False */
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
-	if (g_pdev == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	rmi_rc = tr_find_lock_granule(pdev_addr, GRANULE_SIZE,
+				      GRANULE_STATE_PDEV, &g_pdev);
+	if (rmi_rc != RMI_SUCCESS) {
+		res->x[0] = rmi_rc;
 		return;
 	}
 
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
-
-	g_dev_comm_data = find_granule(dev_comm_data_addr);
-	if ((g_dev_comm_data == NULL) ||
-		(granule_unlocked_state(g_dev_comm_data) != GRANULE_STATE_NS)) {
-		rmi_rc = RMI_ERROR_INPUT;
-		goto out_pdev_buf_unmap;
-	}
 
 	assert(pd->g_pdev == g_pdev);
 
@@ -1131,7 +1126,7 @@ void smc_pdev_communicate(unsigned long pdev_addr,
 		update_stream_op_state = true;
 	}
 
-	rmi_rc = dev_communicate(pd, NULL, g_dev_comm_data);
+	rmi_rc = dev_communicate(pd, NULL, dev_comm_data_addr);
 
 	/*
 	 * Based on the device communication results update the device IO state
@@ -1170,7 +1165,6 @@ void smc_pdev_communicate(unsigned long pdev_addr,
 		pdev_stream_granules_unmap_unlock(pd->g_stream_aux, stream, pd->op.op_stream_type);
 	}
 
-out_pdev_buf_unmap:
 	buffer_unmap(pd);
 	granule_unlock(g_pdev);
 
@@ -1189,6 +1183,7 @@ void smc_pdev_get_state(unsigned long pdev_addr, struct smc_result *res)
 {
 	struct granule *g_pdev;
 	struct pdev *pd;
+	unsigned long ret;
 
 	if (!is_rmi_feat_da_enabled()) {
 		res->x[0] = SMC_NOT_SUPPORTED;
@@ -1200,9 +1195,11 @@ void smc_pdev_get_state(unsigned long pdev_addr, struct smc_result *res)
 	}
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
-	if (g_pdev == NULL) {
-		goto out_err_input;
+	ret = tr_find_lock_granule(pdev_addr, GRANULE_SIZE,
+				   GRANULE_STATE_PDEV, &g_pdev);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
+		return;
 	}
 
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
@@ -1249,8 +1246,8 @@ static bool public_key_len_valid(unsigned long key_len)
  * Copy a public key data range from Non-secure memory.
  *
  * The source range may start at any byte offset and span multiple granules.
- * Validate each source granule as Non-secure and copy its portion using
- * ns_buffer_read_unaligned().
+ * Copy each source granule portion using the address-based Non-secure access
+ * helper, which validates the PAS through the trapped access.
  *
  * Arguments:
  *   - src_addr:    Source PA of the data to copy.
@@ -1269,7 +1266,6 @@ static bool ns_pubkey_buffer_read(unsigned long src_addr, size_t size,
 	unsigned long addr = src_addr;
 	size_t remaining = size;
 	size_t dst_offset = 0U;
-	struct granule *g;
 	unsigned long ns_granule_addr;
 	unsigned int offset;
 	size_t copy_size;
@@ -1280,18 +1276,12 @@ static bool ns_pubkey_buffer_read(unsigned long src_addr, size_t size,
 		ns_granule_addr = addr & GRANULE_MASK;
 		offset = (unsigned int)(addr & (GRANULE_SIZE - 1UL));
 
-		/* Validate the source granule before accessing NS memory */
-		g = find_granule(ns_granule_addr);
-		if ((g == NULL) ||
-		    (granule_unlocked_state(g) != GRANULE_STATE_NS)) {
-			return false;
-		}
-
 		/* Limit the requested data to the current granule. */
 		copy_size = MIN(remaining, (size_t)GRANULE_SIZE - (size_t)offset);
 
-		if (!ns_buffer_read_unaligned(SLOT_NS, g, offset, copy_size,
-					      &dst_bytes[dst_offset])) {
+		if (!ns_buffer_read_unaligned_addr(SLOT_NS, ns_granule_addr,
+						   offset, copy_size,
+						   &dst_bytes[dst_offset])) {
 			return false;
 		}
 
@@ -1314,7 +1304,7 @@ void smc_pdev_set_pubkey(unsigned long pdev_addr,
 			 struct smc_result *res)
 {
 	struct granule *g_pdev;
-	struct granule *g_pubkey_params;
+	bool ns_access_ok;
 	struct pdev *pd;
 	struct rmi_public_key_params rmi_pubkey_params;
 	struct public_key_params pubkey_params = { 0 };
@@ -1331,17 +1321,11 @@ void smc_pdev_set_pubkey(unsigned long pdev_addr,
 		return;
 	}
 
-	/* Map and copy public key parameter */
-	g_pubkey_params = find_granule(pubkey_params_addr);
-	if ((g_pubkey_params == NULL) ||
-	    (granule_unlocked_state(g_pubkey_params) != GRANULE_STATE_NS)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	if (!ns_buffer_read(SLOT_NS, g_pubkey_params, 0U,
-			      sizeof(struct rmi_public_key_params),
-			      &rmi_pubkey_params)) {
+	/* Map and copy public key parameter. */
+	ns_access_ok = ns_buffer_read_addr(SLOT_NS, pubkey_params_addr, 0U,
+				      sizeof(struct rmi_public_key_params),
+				      &rmi_pubkey_params);
+	if (!ns_access_ok) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
@@ -1388,9 +1372,10 @@ void smc_pdev_set_pubkey(unsigned long pdev_addr,
 	}
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
-	if (g_pdev == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	smc_rc = tr_find_lock_granule(pdev_addr, GRANULE_SIZE,
+				      GRANULE_STATE_PDEV, &g_pdev);
+	if (smc_rc != RMI_SUCCESS) {
+		res->x[0] = smc_rc;
 		return;
 	}
 
@@ -1448,9 +1433,10 @@ void smc_pdev_stop(unsigned long pdev_addr, struct smc_result *res)
 	}
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
-	if (g_pdev == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	smc_rc = tr_find_lock_granule(pdev_addr, GRANULE_SIZE,
+				      GRANULE_STATE_PDEV, &g_pdev);
+	if (smc_rc != RMI_SUCCESS) {
+		res->x[0] = smc_rc;
 		return;
 	}
 
@@ -1504,9 +1490,10 @@ void smc_pdev_abort(unsigned long pdev_addr, struct smc_result *res)
 	}
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
-	if (g_pdev == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	smc_rc = tr_find_lock_granule(pdev_addr, GRANULE_SIZE,
+				      GRANULE_STATE_PDEV, &g_pdev);
+	if (smc_rc != RMI_SUCCESS) {
+		res->x[0] = smc_rc;
 		return;
 	}
 
@@ -1576,9 +1563,10 @@ void smc_pdev_destroy(unsigned long pdev_addr, struct smc_result *res)
 	}
 
 	/* Lock pdev granule and map it */
-	g_pdev = find_lock_granule(pdev_addr, GRANULE_STATE_PDEV);
-	if (g_pdev == NULL) {
-		res->x[0] = RMI_ERROR_INPUT;
+	ret = tr_find_lock_granule(pdev_addr, GRANULE_SIZE,
+				   GRANULE_STATE_PDEV, &g_pdev);
+	if (ret != RMI_SUCCESS) {
+		res->x[0] = ret;
 		return;
 	}
 
@@ -1625,14 +1613,14 @@ void smc_pdev_destroy(unsigned long pdev_addr, struct smc_result *res)
 		num_vdev_range_aux_granules;
 
 	sro->aux_op_ctx.aux_granules_pa[PDEV_STREAM_AUX_GRANULE_IDX] =
-		granule_addr(pd->g_stream_aux);
+		tr_granule_addr(pd->g_stream_aux);
 	for (unsigned int i = 0U; i < num_vdev_range_aux_granules; i++) {
 		sro->aux_op_ctx.aux_granules_pa[PDEV_VDEV_RANGES_AUX_GRANULE_IDX + i] =
-			granule_addr(pd->g_vdevs_ranges_aux[i]);
+			tr_granule_addr(pd->g_vdevs_ranges_aux[i]);
 	}
 	for (unsigned int i = 0U; i < pd->num_app_aux; i++) {
 		sro->aux_op_ctx.aux_granules_pa[app_aux_start_idx + i] =
-			granule_addr(pd->g_app_aux[i]);
+			tr_granule_addr(pd->g_app_aux[i]);
 	}
 	sro->aux_op_ctx.requested_aux_granules = app_aux_start_idx + pd->num_app_aux;
 
@@ -1681,13 +1669,14 @@ void smc_pdev_stream_key_refresh(unsigned long pdev1_addr,
 		return;
 	}
 
-	if (!find_lock_two_granules(pdev1_addr,
+	rmi_rc = tr_find_lock_two_fine_granules(pdev1_addr,
 				GRANULE_STATE_PDEV,
 				&g_pdev1,
 				pdev2_addr,
 				GRANULE_STATE_PDEV,
-				&g_pdev2)) {
-		res->x[0] = RMI_ERROR_INPUT;
+				&g_pdev2);
+	if (rmi_rc != RMI_SUCCESS) {
+		res->x[0] = rmi_rc;
 		return;
 	}
 
@@ -1797,7 +1786,6 @@ static unsigned long validate_pdev_stream_params(struct rmi_pdev_stream_params *
  */
 void smc_pdev_stream_connect(unsigned long stream_params_addr, struct smc_result *res)
 {
-	struct granule *g_stream_params;
 	struct granule *g_pdev1;
 	struct granule *g_pdev2;
 	struct rmi_pdev_stream_params stream_params;
@@ -1818,15 +1806,8 @@ void smc_pdev_stream_connect(unsigned long stream_params_addr, struct smc_result
 		return;
 	}
 
-	/* Map and copy Stream parameters */
-	g_stream_params = find_granule(stream_params_addr);
-	if ((g_stream_params == NULL) ||
-	    (granule_unlocked_state(g_stream_params) != GRANULE_STATE_NS)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	ns_access_ok = ns_buffer_read(SLOT_NS, g_stream_params, 0U,
+	/* Map and copy Stream parameters. */
+	ns_access_ok = ns_buffer_read_addr(SLOT_NS, stream_params_addr, 0U,
 				      sizeof(struct rmi_pdev_stream_params),
 				      &stream_params);
 	if (!ns_access_ok) {
@@ -1848,13 +1829,14 @@ void smc_pdev_stream_connect(unsigned long stream_params_addr, struct smc_result
 		return;
 	}
 
-	if (!find_lock_two_granules(stream_params.pdev_1,
+	params_res = tr_find_lock_two_fine_granules(stream_params.pdev_1,
 				GRANULE_STATE_PDEV,
 				&g_pdev1,
 				stream_params.pdev_2,
 				GRANULE_STATE_PDEV,
-				&g_pdev2)) {
-		res->x[0] = RMI_ERROR_INPUT;
+				&g_pdev2);
+	if (params_res != RMI_SUCCESS) {
+		res->x[0] = params_res;
 		return;
 	}
 
@@ -1969,13 +1951,14 @@ void smc_pdev_stream_disconnect(unsigned long pdev1_addr,
 		return;
 	}
 
-	if (!find_lock_two_granules(pdev1_addr,
+	rmi_rc = tr_find_lock_two_fine_granules(pdev1_addr,
 				GRANULE_STATE_PDEV,
 				&g_pdev1,
 				pdev2_addr,
 				GRANULE_STATE_PDEV,
-				&g_pdev2)) {
-		res->x[0] = RMI_ERROR_INPUT;
+				&g_pdev2);
+	if (rmi_rc != RMI_SUCCESS) {
+		res->x[0] = rmi_rc;
 		return;
 	}
 
@@ -2087,13 +2070,14 @@ void smc_pdev_stream_complete(unsigned long pdev1_addr,
 		return;
 	}
 
-	if (!find_lock_two_granules(pdev1_addr,
+	rmi_rc = tr_find_lock_two_fine_granules(pdev1_addr,
 				GRANULE_STATE_PDEV,
 				&g_pdev1,
 				pdev2_addr,
 				GRANULE_STATE_PDEV,
-				&g_pdev2)) {
-		res->x[0] = RMI_ERROR_INPUT;
+				&g_pdev2);
+	if (rmi_rc != RMI_SUCCESS) {
+		res->x[0] = rmi_rc;
 		return;
 
 	}

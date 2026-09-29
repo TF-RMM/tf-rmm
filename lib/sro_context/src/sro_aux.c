@@ -9,18 +9,25 @@
 #include <status.h>
 #include <utils_def.h>
 
+/*
+ * Return an auxiliary granule owned by this SRO to DELEGATED. Its auxiliary
+ * state pins fine metadata until this transition, including while SET_TRACKING
+ * is pending. @aux_granule_state must match the state recorded at donation.
+ */
 static void sro_aux_granule_return_to_delegated(unsigned long granule_pa,
 						unsigned char aux_granule_state)
 {
 	struct granule *gr;
 
-	gr = find_lock_granule(granule_pa, aux_granule_state);
-	assert(gr != NULL);
+	gr = tr_addr_to_granule(granule_pa);
+	granule_lock(gr, aux_granule_state);
 	granule_unlock_transition_to_delegated(gr);
 }
 
 /*
  * SRO handle callback to finish a SRO reclaim flow with the stored RmiResult.
+ * The assigned SRO owns the PARTIAL object and pins its fine metadata until
+ * it is returned to DELEGATED. Report the saved result through @res.
  */
 /* cppcheck-suppress misra-c2012-8.7 */
 void sro_aux_op_reclaim_finish(unsigned long fid, struct smc_result *res)
@@ -37,8 +44,8 @@ void sro_aux_op_reclaim_finish(unsigned long fid, struct smc_result *res)
 	 * and communicated to NS Host. Return the partially destroyed object
 	 * granule to DELEGATED.
 	 */
-	gr = find_lock_granule(sro->aux_op_ctx.obj_addr, GRANULE_STATE_PARTIAL);
-	assert(gr != NULL);
+	gr = tr_addr_to_granule(sro->aux_op_ctx.obj_addr);
+	granule_lock(gr, GRANULE_STATE_PARTIAL);
 	granule_unlock_transition_to_delegated(gr);
 
 	/* Return the error code from object create/destroy */
@@ -126,6 +133,7 @@ void sro_obj_memory_donate(unsigned long fid, struct smc_result *res)
 						      &block_level,
 						      &st)) {
 		struct granule *donated_gr;
+		unsigned long ret;
 
 		/* This is checked by the SRO framework, assert the same. */
 		assert(st == RMI_OP_MEM_DELEGATED);
@@ -137,10 +145,11 @@ void sro_obj_memory_donate(unsigned long fid, struct smc_result *res)
 		assert(block_level == 3);
 
 		/* Try to transition the donated granule */
-		donated_gr = find_lock_granule(granule_pa, GRANULE_STATE_DELEGATED);
+		ret = tr_find_lock_granule(granule_pa, GRANULE_SIZE,
+					   GRANULE_STATE_DELEGATED,
+					   &donated_gr);
 
-
-		if (donated_gr == NULL) {
+		if (ret != RMI_SUCCESS) {
 			if (donated_granules == 0UL) {
 				/*
 				 * Failed on the very first granule in the list.
@@ -150,7 +159,7 @@ void sro_obj_memory_donate(unsigned long fid, struct smc_result *res)
 				sro_aux_op_start_reclaim(sro, res,
 					sro->aux_op_ctx.obj_addr,
 					false,
-					RMI_ERROR_INPUT, sro->aux_op_ctx.total_transferred,
+					ret, sro->aux_op_ctx.total_transferred,
 					sro->aux_op_ctx.aux_granule_state);
 				return;
 			}
@@ -233,6 +242,11 @@ void sro_aux_op_init_donate(struct sro_context *sro,
 	res->x[1] = sro_ctx_seal();
 }
 
+/*
+ * Start reclaim of the PARTIAL object and auxiliary pages owned by @sro.
+ * Their states pin the fine granules across tracking-transition attempts.
+ * Report the reclaim request through @res, sealing the context if requested.
+ */
 void sro_aux_op_start_reclaim(struct sro_context *sro,
 			      struct smc_result *res,
 			      unsigned long obj_addr,
@@ -250,7 +264,7 @@ void sro_aux_op_start_reclaim(struct sro_context *sro,
 	ctx->obj_addr = obj_addr;
 
 	/* Assert that the obj granule state is PARTIAL */
-	assert(granule_unlocked_state(find_granule(ctx->obj_addr))
+	assert(granule_unlocked_state(tr_addr_to_granule(ctx->obj_addr))
 		== GRANULE_STATE_PARTIAL);
 
 	/* Setup the callback for the next stage */

@@ -59,7 +59,7 @@ static void setup_test_pdev(struct pdev *pd,
 
 	for (unsigned int i = 0U; i < num_range_pages; ++i) {
 		(void)memset((void *)range_page_addrs[i], 0, GRANULE_SIZE);
-		pd->g_vdevs_ranges_aux[i] = addr_to_granule(range_page_addrs[i]);
+		pd->g_vdevs_ranges_aux[i] = tr_addr_to_granule(range_page_addrs[i]);
 	}
 }
 

@@ -1135,6 +1135,8 @@ static void copy_state_to_plane_exit(struct rec_plane *plane,
  *
  * Note that this function expects the PC on Plane N to point to the instruction
  * after the one that caused the exception.
+ * The successful walk pins the run buffer through its locked leaf RTT. Map
+ * its PA directly, including while its tracking representation is changing.
  */
 bool handle_plane_n_exit(struct rec *rec,
 			 struct rmi_rec_exit *rec_exit,
@@ -1146,7 +1148,6 @@ bool handle_plane_n_exit(struct rec *rec,
 	struct rec_plane *plane_0, *plane_n;
 	STRUCT_TYPE sysreg_state *sysreg_0, *sysreg_n;
 	unsigned long run_ipa, ret;
-	struct granule *gr;
 	struct rsi_plane_run *run;
 	bool plane_n_gic_owner;
 
@@ -1205,8 +1206,7 @@ bool handle_plane_n_exit(struct rec *rec,
 	}
 
 	/* Map rsi_plane_run granule to RMM address space */
-	gr = find_granule(walk_res.pa);
-	run = (struct rsi_plane_run *)buffer_granule_mecid_map(gr, SLOT_REALM,
+	run = (struct rsi_plane_run *)buffer_granule_mecid_map_addr(walk_res.pa, SLOT_REALM,
 		rec->realm_info.primary_s2_ctx.mecid);
 
 	/* Zero the exit structure */

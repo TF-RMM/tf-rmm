@@ -687,10 +687,6 @@ int rmm_el3_ifc_get_platform_token(uintptr_t buf, size_t buflen,
 unsigned long rmm_el3_ifc_mec_refresh(unsigned short mecid,
 					bool is_destroy);
 
-unsigned long rmm_el3_ifc_gtsi_delegate(unsigned long addr);
-
-unsigned long rmm_el3_ifc_gtsi_undelegate(unsigned long addr);
-
 /*
  * Reserve RMM private memory from EL3.
  * available from the RMM-EL3 interface v0.7 onwards.

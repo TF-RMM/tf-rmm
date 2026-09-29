@@ -4,123 +4,24 @@
  */
 
 #include <arch_features.h>
+#include <assert.h>
 #include <buffer.h>
-#include <debug.h>
-#include <dev_granule.h>
-#include <granule.h>
-#include <mec.h>
-#include <rmm_el3_ifc.h>
+#include <glob_data.h>
+#include <granule_sro.h>
+#include <memory.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
 #include <status.h>
+#include <stdbool.h>
+#include <tracking_region.h>
 
-static unsigned long dev_granule_delegate(unsigned long addr)
-{
-	enum dev_coh_type type;
-
-	/* Try to find device granule */
-	struct dev_granule *g = find_dev_granule(addr, &type);
-
-	if (g == NULL) {
-		return RMI_ERROR_INPUT;
-	}
-
-	if (dev_granule_unlocked_state(g) == DEV_GRANULE_STATE_DELEGATED) {
-		return RMI_SUCCESS;
-	}
-
-	if (!dev_granule_lock_on_state_match(g, DEV_GRANULE_STATE_NS)) {
-		return RMI_ERROR_INPUT;
-	}
-
-	/*
-	 * It is possible that the device granule was delegated by EL3
-	 * to Secure on request from SPM and hence this request can fail.
-	 */
-	if (rmm_el3_ifc_gtsi_delegate(addr) != SMC_SUCCESS) {
-		dev_granule_unlock(g);
-		return RMI_ERROR_INPUT;
-	}
-
-	dev_granule_set_state(g, DEV_GRANULE_STATE_DELEGATED);
-	dev_granule_unlock(g);
-	return RMI_SUCCESS;
-}
-
-static unsigned long dev_granule_undelegate(unsigned long addr)
-{
-	enum dev_coh_type type;
-
-	/* Try to find device granule */
-	struct dev_granule *g = find_dev_granule(addr, &type);
-
-	if (g == NULL) {
-		return RMI_ERROR_INPUT;
-	}
-
-	if (dev_granule_unlocked_state(g) == DEV_GRANULE_STATE_NS) {
-		return RMI_SUCCESS;
-	}
-
-	if (!dev_granule_lock_on_state_match(g, DEV_GRANULE_STATE_DELEGATED)) {
-		return RMI_ERROR_INPUT;
-	}
-
-	/*
-	 * A delegated device granule should only be undelegated on request from RMM.
-	 * If this call fails, we have an unrecoverable error in EL3/RMM.
-	 */
-	if (rmm_el3_ifc_gtsi_undelegate(addr) != SMC_SUCCESS) {
-		ERROR("Granule 0x%lx undelegate call failed\n", addr);
-		dev_granule_unlock(g);
-		panic();
-	}
-
-	dev_granule_set_state(g, DEV_GRANULE_STATE_NS);
-	dev_granule_unlock(g);
-	return RMI_SUCCESS;
-}
-
-unsigned long smc_granule_delegate(unsigned long addr)
-{
-	/* Try to find memory granule */
-	struct granule *g = find_granule(addr);
-
-	if (g != NULL) {
-
-		if (granule_unlocked_state(g) == GRANULE_STATE_DELEGATED) {
-			return RMI_SUCCESS;
-		}
-
-		if (!granule_lock_on_state_match(g, GRANULE_STATE_NS)) {
-			return RMI_ERROR_INPUT;
-		}
-
-		/*
-		 * It is possible that the memory granule was delegated by EL3
-		 * to Secure on request from SPM and hence this request can fail.
-		 */
-		if (rmm_el3_ifc_gtsi_delegate(addr) != SMC_SUCCESS) {
-			granule_unlock(g);
-			return RMI_ERROR_INPUT;
-		}
-
-		/*
-		 * The granule will be initialized later when the granule transitions
-		 * to other states. RMM does not scrub here as the initilization makes
-		 * the scrub redundant.
-		 */
-		granule_unlock_transition(g, GRANULE_STATE_DELEGATED);
-
-		return RMI_SUCCESS;
-	}
-
-	/* Delegate device granule */
-	return dev_granule_delegate(addr);
-}
-
-/* @TODO Enhance implementation later */
+/*
+ * Validate a Host range and start delegation at its active tracking size.
+ * Both addresses must be Granule aligned and define a non-empty range. @res
+ * receives the RMI status and progress address, or an SRO handle when the
+ * operation must resume. The caller must hold no Granule lock.
+ */
 void smc_granule_range_delegate(unsigned long addr,
 				unsigned long end_addr,
 				struct smc_result *res)
@@ -128,20 +29,21 @@ void smc_granule_range_delegate(unsigned long addr,
 	res->x[0] = RMI_ERROR_INPUT;
 	res->x[1] = addr;
 
-	/* Simplified implementation delegates exactly one granule. */
 	if (!ALIGNED(addr, GRANULE_SIZE) ||
 	    !ALIGNED(end_addr, GRANULE_SIZE) ||
-	    (end_addr < (addr + GRANULE_SIZE))) {
+	    (end_addr <= addr)) {
 		return;
 	}
 
-	res->x[0] = smc_granule_delegate(addr);
-	if (res->x[0] == RMI_SUCCESS) {
-		res->x[1] = addr + GRANULE_SIZE;
-	}
+	granule_delegate_start(addr, end_addr, res);
 }
 
-/* @TODO Enhance implementation later */
+/*
+ * Validate a Host range and begin undelegating a fine run or coarse unit.
+ * Both addresses must be Granule aligned and define a non-empty range. @res
+ * receives the RMI status and committed range boundary, or an SRO handle when
+ * sanitization or EL3 progress must resume. The caller must hold no Granule lock.
+ */
 void smc_granule_range_undelegate(unsigned long addr,
 				  unsigned long end_addr,
 				  struct smc_result *res)
@@ -149,151 +51,172 @@ void smc_granule_range_undelegate(unsigned long addr,
 	res->x[0] = RMI_ERROR_INPUT;
 	res->x[1] = addr;
 
-	/* Simplified implementation undelegates exactly one granule. */
 	if (!ALIGNED(addr, GRANULE_SIZE) ||
 	    !ALIGNED(end_addr, GRANULE_SIZE) ||
-	    (end_addr < (addr + GRANULE_SIZE))) {
+	    (end_addr <= addr)) {
 		return;
 	}
 
-	res->x[0] = smc_granule_undelegate(addr);
-	if (res->x[0] == RMI_SUCCESS) {
-		res->x[1] = addr + GRANULE_SIZE;
-	}
+	granule_undelegate_start(addr, end_addr, res);
 }
 
-unsigned long smc_granule_undelegate(unsigned long addr)
-{
-	/* Try to find memory granule */
-	struct granule *g = find_granule(addr);
-
-	if (g != NULL) {
-		if (granule_unlocked_state(g) == GRANULE_STATE_NS) {
-			return RMI_SUCCESS;
-		}
-
-		if (!granule_lock_on_state_match(g, GRANULE_STATE_DELEGATED)) {
-			return RMI_ERROR_INPUT;
-		}
-
-		/* Scrub any Realm world data before returning granule to NS */
-		buffer_granule_sanitize(g);
-
-		/* DCCI PoPA as part of undelegate in EL3 will flush to PoE */
-
-		/*
-		 * A delegated memory granule should only be undelegated on request from RMM.
-		 * If this call fails, we have an unrecoverable error in EL3/RMM.
-		 */
-		if (rmm_el3_ifc_gtsi_undelegate(addr) != SMC_SUCCESS) {
-			ERROR("Granule 0x%lx undelegate call failed\n", addr);
-			granule_unlock(g);
-			panic();
-		}
-
-		granule_unlock_transition(g, GRANULE_STATE_NS);
-		return RMI_SUCCESS;
-	}
-
-	/* Undelegate device granule */
-	return dev_granule_undelegate(addr);
-}
-
-/*
- * For this implementation, the only supported system granularity is
- * 4KB, thus the valid tracking size can only be 1GB.
- *
- * @TODO.This needs to be made dynamic later.
- */
-/* RMI interface defined value for the Granule and TrackingRegion Sizes we use */
+/* The implementation currently supports only the 4 KiB RMI Granule size. */
 #define RMI_GRANULE_SIZE		RMI_GRANULE_SIZE_4KB
-#define RMI_TRACKING_REGION_SIZE	RMI_GRAN_4KB_TRACKING_REGION_SIZE_1GB
-/* Internal only symbol for the size */
-#define RMM_INTERNAL_TRACKING_REGION_SIZE	(1UL << 30UL) /* 1GB */
+
+/* Decode the tracking-region size for a 4 KiB RMI Granule. */
+static bool rmi_tracking_region_size_decode(unsigned long encoded,
+					    unsigned long *size)
+{
+	assert(size != NULL);
+
+	switch (encoded) {
+	case RMI_GRAN_4KB_TRACKING_REGION_SIZE_2MB:
+		*size = TRACKING_REGION_MIN_SIZE;
+		return true;
+	case RMI_GRAN_4KB_TRACKING_REGION_SIZE_1GB:
+		*size = TRACKING_REGION_MAX_SIZE;
+		return true;
+	default:
+		return false;
+	}
+}
+
+/* Encode the configured size for the Beta 3 RmiRmmConfig structure. */
+static unsigned long rmi_tracking_region_size_encode(unsigned long size)
+{
+	if (size == TRACKING_REGION_MIN_SIZE) {
+		return RMI_GRAN_4KB_TRACKING_REGION_SIZE_2MB;
+	}
+
+	assert(size == TRACKING_REGION_MAX_SIZE);
+	return RMI_GRAN_4KB_TRACKING_REGION_SIZE_1GB;
+}
 
 /*
- * TODO This is a dummy implementation. RMM statically tracks all of memory.
- * The granule tracking implementation will be enhanced later to support
- * mixed memory types. Also end is currently returned as it is
- * back to the caller in res->x[3].
+ * Query the longest prefix of [@base, @top) with one memory category and
+ * tracking state. Return the RMI status and, on success, category, state and
+ * prefix end in @res. The tracking-info helper serializes each region query.
+ * @base and @top must be Granule-aligned and define a non-empty range.
+ * The exclusive @top may equal the size of the PA space.
  */
-void smc_granule_tracking_get(unsigned long start,
-			      unsigned long end,
+void smc_granule_tracking_get(unsigned long base,
+			      unsigned long top,
 			      struct smc_result *res)
 {
-	struct granule *g;
-	struct dev_granule *dg;
-	enum dev_coh_type type;
 	unsigned int pasz = arch_feat_get_pa_width();
-	unsigned long max_pa = ((1UL << pasz) - 1UL);
+	unsigned long pa_size = 1UL << pasz;
+	unsigned long category;
+	unsigned long cursor;
+	unsigned long region_top;
+	enum tr_state state;
 
 	res->x[0] = RMI_ERROR_INPUT;
 
-	/* Reject invalid address range or addresses beyond implemented PA size */
-	if ((start > max_pa) || (end > max_pa) || (start > end) ||
-	    ((end - start) < GRANULE_SIZE)) {
+	if ((base > pa_size) || (top > pa_size) || (base >= top) ||
+	    !GRANULE_ALIGNED(base) || !GRANULE_ALIGNED(top)) {
 		return;
 	}
 
-	if (!GRANULE_ALIGNED(start) || !GRANULE_ALIGNED(end)) {
+	if (!tracking_region_get_info(base, top, &category, &state,
+				      &region_top)) {
 		return;
 	}
 
-	g = find_granule(start);
-	if (g != NULL) {
-		res->x[0] = RMI_SUCCESS;
-		res->x[1] = RMI_MEM_CATEGORY_CONVENTIONAL;
-		res->x[2] = RMI_TRACKING_FINE;
-		res->x[3] = end;
-		return;
+	cursor = region_top;
+	while (cursor < top) {
+		unsigned long next_category;
+		unsigned long next_top;
+		enum tr_state next_state;
+
+		if (!tracking_region_get_info(cursor, top, &next_category,
+					      &next_state, &next_top) ||
+		    (next_category != category) || (next_state != state)) {
+			break;
+		}
+		cursor = next_top;
 	}
 
-	/* Try to find device granule */
-	dg = find_dev_granule(start, &type);
-	if (dg != NULL) {
-		res->x[0] = RMI_SUCCESS;
-		res->x[2] = RMI_TRACKING_FINE;
-		res->x[1] = (type == DEV_MEM_NON_COHERENT) ?
-				RMI_MEM_CATEGORY_DEV_NCOH :
-				RMI_MEM_CATEGORY_DEV_COH;
-		res->x[3] = end;
-		return;
-	}
-
-	/*
-	 * Aligned region with no granule or device mapped: report
-	 * that the region is valid but currently untracked.
-	 */
 	res->x[0] = RMI_SUCCESS;
-	res->x[1] = RMI_MEM_CATEGORY_CONVENTIONAL;
-	res->x[2] = RMI_TRACKING_NONE;
-	res->x[3] = end;
+	res->x[1] = category;
+	res->x[2] = (unsigned long)state;
+	res->x[3] = cursor;
 }
 
+void smc_granule_tracking_set(unsigned long addr,
+			      unsigned long category,
+			      unsigned long state,
+			      struct smc_result *res)
+{
+	unsigned int pasz = arch_feat_get_pa_width();
+	unsigned long max_pa = ((1UL << pasz) - 1UL);
+	unsigned long region_size = tracking_region_get_size();
+
+	res->x[0] = RMI_ERROR_INPUT;
+
+	if ((addr > max_pa) ||
+	    ((addr & (region_size - 1UL)) != 0UL)) {
+		return;
+	}
+
+	/* TODO: Intermediate tracking needs to be implemented later */
+	if ((state == RMI_TRACKING_RESERVED) ||
+	    (state == RMI_TRACKING_INTERMEDIATE) ||
+	    (state > RMI_TRACKING_INTERMEDIATE)) {
+		return;
+	}
+
+#ifdef RMM_ALLOC_TRACKING_DATA
+	res->x[0] = tracking_region_set_tracking(addr, category, state);
+#else
+	tracking_region_set_sro(addr, category, state, res);
+#endif
+}
+
+/*
+ * Configure Granule tracking from the RmiRmmConfig structure at @config_ptr.
+ * The structure must start at an aligned Non-secure granule and contain
+ * supported Granule and tracking-region sizes. An INIT-to-INTERMEDIATE claim
+ * serializes index rebuilding with configuration and activation on other PEs;
+ * INIT is restored before return. @res receives the RMI command status.
+ */
 void smc_rmm_config_set(unsigned long config_ptr, struct smc_result *res)
 {
 	struct rmi_rmm_config cfg = { 0 };
-	struct granule *g_cfg;
+	unsigned long tracking_region_size;
+	bool transitioned;
+	int ret;
 
 	if ((config_ptr == 0UL) || !ALIGNED(config_ptr, SZ_4K)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
-	g_cfg = find_granule(config_ptr);
-	if ((g_cfg == NULL) || (granule_unlocked_state(g_cfg) != GRANULE_STATE_NS)) {
+	if (!ns_buffer_read_addr(SLOT_NS, config_ptr, 0U,
+				 sizeof(cfg), &cfg)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
-	if (!ns_buffer_read_early(config_ptr, sizeof(cfg), &cfg)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	/* TODO: At the moment, only 4KB granularity size is supported */
 	if ((cfg.rmi_granule_size != RMI_GRANULE_SIZE) ||
-	    (cfg.tracking_region_size != RMI_TRACKING_REGION_SIZE)) {
+	    !rmi_tracking_region_size_decode(cfg.tracking_region_size,
+					     &tracking_region_size)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	/* Serialize index rebuilding with other configuration and activation calls. */
+	if (!glob_data_transition_rmm_state(RMM_STATE_INIT,
+					   RMM_STATE_INTERMEDIATE)) {
+		res->x[0] = RMI_ERROR_GLOBAL;
+		return;
+	}
+
+	ret = tracking_region_configure(tracking_region_size);
+	transitioned = glob_data_transition_rmm_state(RMM_STATE_INTERMEDIATE,
+						      RMM_STATE_INIT);
+	assert(transitioned);
+	(void)transitioned;
+	if (ret != 0) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
@@ -301,26 +224,27 @@ void smc_rmm_config_set(unsigned long config_ptr, struct smc_result *res)
 	res->x[0] = RMI_SUCCESS;
 }
 
+/*
+ * Return the supported Granule size and configured tracking-region size at
+ * @config_ptr. The output structure must start at an aligned Non-secure
+ * granule. Read the configured size under the global layout lock and release
+ * it before writing the output. @res receives the RMI command status.
+ */
 void smc_rmm_config_get(unsigned long config_ptr, struct smc_result *res)
 {
 	struct rmi_rmm_config cfg = { 0 };
-	struct granule *g_cfg;
 
 	if ((config_ptr == 0UL) || !ALIGNED(config_ptr, SZ_4K)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
-	}
-
-	g_cfg = find_granule(config_ptr);
-	if ((g_cfg == NULL) || (granule_unlocked_state(g_cfg) != GRANULE_STATE_NS)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
 	cfg.rmi_granule_size = RMI_GRANULE_SIZE;
-	cfg.tracking_region_size = RMI_TRACKING_REGION_SIZE;
+	cfg.tracking_region_size = rmi_tracking_region_size_encode(
+					tracking_region_get_rmm_config_size());
 
-	if (!ns_buffer_write_early(config_ptr, sizeof(cfg), &cfg)) {
+	if (!ns_buffer_write_addr(SLOT_NS, config_ptr, 0U,
+				  sizeof(cfg), &cfg)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
@@ -348,11 +272,19 @@ void smc_gpt_l1_create(unsigned long addr, struct smc_result *res)
 			RMI_ERROR_GPT, (unsigned char)0U, addr);
 }
 
+/*
+ * Report whether the GPT L0 range at @base covers platform-managed memory.
+ * @base and @top must describe a non-empty, L0-aligned range within the PA
+ * width. On success, @res identifies the next L0 boundary and whether that
+ * range is platform or reserved memory.
+ */
 void smc_gpt_info(unsigned long base, unsigned long top,  struct smc_result *res)
 {
 	unsigned int pasz = arch_feat_get_pa_width();
 	unsigned long max_pa = ((1UL << pasz) - 1UL);
-	enum dev_coh_type type;
+	unsigned long category;
+	unsigned long region_top;
+	enum tr_state state;
 
 	if (!ALIGNED(base, RMM_L0GPTSZ) || !ALIGNED(top, RMM_L0GPTSZ) ||
 	    (base >= max_pa) || (top > max_pa) || (top <= base)) {
@@ -360,12 +292,18 @@ void smc_gpt_info(unsigned long base, unsigned long top,  struct smc_result *res
 		return;
 	}
 
-	res->x[0] = RMI_SUCCESS;
 	res->x[1] = base + RMM_L0GPTSZ;
 
-	/* All device and DRAM granules are statically covered for now */
-	if ((find_granule(base) != NULL) ||
-	    (find_dev_granule(base, &type) != NULL)) {
+	if (!tracking_region_get_info(base, res->x[1], &category, &state,
+				      &region_top)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	res->x[0] = RMI_SUCCESS;
+
+	/* All device and DRAM memory is statically covered for now. */
+	if (category != RMI_MEM_CATEGORY_NONE) {
 		res->x[2] = RMI_GPT_PAR_PLAT;
 	} else {
 		res->x[2] = RMI_GPT_PAR_RESERVED;

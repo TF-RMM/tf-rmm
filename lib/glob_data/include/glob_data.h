@@ -8,13 +8,14 @@
 
 #include <mec.h>
 #include <smc-rmi.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <utils_def.h>
 #include <vmid.h>
 #include <xlat_low_va.h>
 
-#define GLOBDATA_VERSION		1UL
+#define GLOBDATA_VERSION		2UL
 #define GLOB_DATA_MAX_SIZE		(round_up(sizeof(struct glob_data), GRANULE_SIZE))
 
 /* NOLINTNEXTLINE(clang-analyzer-optin.performance.Padding) as fields are in logical order*/
@@ -27,15 +28,10 @@ struct glob_data {
 	uintptr_t glob_data_va;
 	size_t glob_data_size;
 
-	/* Memory for struct granule array */
-	uintptr_t granules_pa;
-	uintptr_t granules_va;
-	size_t granules_size;
-
-	/* Memory for struct dev_granule array */
-	uintptr_t dev_granules_pa;
-	uintptr_t dev_granules_va;
-	size_t dev_granules_size;
+	/* PA, VA and allocation size of struct tracking_region_data. */
+	uintptr_t tracking_region_data_pa;
+	uintptr_t tracking_region_data_va;
+	size_t tracking_region_data_sz;
 
 	/* Memory for SMMU driver */
 	uintptr_t smmu_driv_hdl_va;
@@ -60,16 +56,24 @@ struct glob_data {
 	unsigned long fw_img_sequence;
 };
 
-uintptr_t glob_data_init(struct glob_data *gl,
-		unsigned long max_gr, unsigned long max_dev_gr);
-
-uintptr_t glob_data_get_granules_va(size_t *alloc_size);
-uintptr_t glob_data_get_dev_granules_va(size_t *alloc_size);
+uintptr_t glob_data_init(struct glob_data *gl);
 uintptr_t glob_data_get_smmu_driv_hdl_va(size_t *alloc_size);
 uintptr_t glob_data_get_vmids_va(size_t *alloc_size);
 uintptr_t glob_data_get_mec_state_va(size_t *alloc_size);
+uintptr_t glob_data_get_tracking_region_data_va(size_t *alloc_size);
 enum rmm_state glob_data_get_rmm_state(void);
-void glob_data_set_rmm_state(enum rmm_state state);
+
+/*
+ * Atomically change the global RMM state from @expected to @new_state. This
+ * serializes callers which claim an RMM lifecycle phase before modifying
+ * shared initialization data.
+ *
+ * Return true when the transition is committed, or false when global data is
+ * unavailable or the current state does not match @expected. The function
+ * does not wait for a mismatched state to change.
+ */
+bool glob_data_transition_rmm_state(enum rmm_state expected,
+				    enum rmm_state new_state);
 uintptr_t glob_data_get_sro_ctx_va(size_t *alloc_size);
 unsigned long glob_data_get_fw_img_sequence(void);
 

@@ -53,9 +53,11 @@
  * 2. Independently-addressed memory granules of the same type must be locked
  *    in order of their physical address, starting with the lowest address.
  *
- * 3. Once a granule expected to be in an `external` state has been locked, its
- *    state must be checked against the expected state. If these do not match,
- *    the granule must be unlocked and no further granules may be locked.
+ * 3. An independently-addressed granule's state must be checked before
+ *    acquisition, throughout contention and after acquiring its lock. A
+ *    mismatch must stop acquisition without waiting for the granule to reach
+ *    the expected state.
+ *    Release any acquired locks and do not acquire further granules.
  *
  * 4. Granules in the remaining `internal` states must be locked in order of
  *    state:
@@ -81,13 +83,15 @@
  *    address order before the backing granules are locked and drained.
  *
  * 8. Device granule states, DEV_GRANULE_STATE_NS,
- *    DEV_GRANULE_STATE_DELEGATED and DEV_GRANULE_STATE_MAPPED, are locked
- *    separately from memory granules by the device granule locking helpers.
- *    Memory granules must be locked before device granules.
+ *    DEV_GRANULE_STATE_DELEGATED, DEV_GRANULE_STATE_MAPPED and
+ *    DEV_GRANULE_STATE_PARTIAL, are locked separately from memory granules by
+ *    the device granule locking helpers. Memory granules must be locked before
+ *    device granules.
  *
  * A granule's state can be changed iff the granule is locked. The
  * granule_lock_order() helper implements the type order used by
- * find_lock_two_granules() and find_lock_three_granules().
+ * tr_find_lock_two_fine_granules() and tr_find_lock_three_fine_granules()
+ * for independently-addressed memory granules.
  *
  * Invariants
  * ----------
@@ -243,9 +247,11 @@
 #define GRANULE_STATE_VDEV_AUX		10U
 
 /*
- * PARTIAL - This is an intermediate state which signals that the object
- * associated with this granule is partially created/destroyed. This is
- * due to an ongoing SRO flow.
+ * PARTIAL - An intermediate state which reserves a granule for an ongoing
+ * SRO. It covers partially created or destroyed objects and tracking memory
+ * participating in a stateful EL3 delegation or undelegation operation.
+ * It also reserves a coarse DATA_MAP unit while its pages are being zeroed.
+ * Coarse DATA_UNMAP keeps its unit PARTIAL through invalidation and cache maintenance.
  */
 #define GRANULE_STATE_PARTIAL		11U
 
@@ -266,10 +272,10 @@
 #define GRANULE_STATE_LAST		GRANULE_STATE_RD_AUX
 
 /*
- * Granule descriptor bit fields:
+ * struct granule bit fields:
  *
  * @bit_lock protects the struct granule itself. Take this lock whenever
- * inspecting or modifying any other fields in this descriptor.
+ * inspecting or modifying any other fields in this struct granule.
  * [15]:	bit_lock
  *
  * @state is the state of the granule.
@@ -291,7 +297,7 @@ struct granule {
 	uint16_t	descriptor;
 };
 
-/* Granule descriptor fields definitions */
+/* Granule bit-field definitions */
 #define GRN_LOCK_SHIFT		U(15)
 #define GRN_LOCK_BIT		(U(1) << GRN_LOCK_SHIFT)
 
@@ -339,15 +345,28 @@ struct granule {
  */
 #define DEV_GRANULE_STATE_MAPPED	2U
 
+/*
+ * Dev Granule owned by an incomplete stateful operation (internal)
+ *
+ * This intermediate state reserves an active dev_granule for a range
+ * delegation or undelegation SRO while EL3 retains operation state.
+ * A coarse dev_granule also remains in this state while a partially delegated
+ * tracking region is rolled back.
+ * Coarse DEV_UNMAP also uses it to reserve a unit through invalidation and drain.
+ *
+ * No references are held on this granule type.
+ */
+#define DEV_GRANULE_STATE_PARTIAL	3U
+
 struct dev_granule {
 	uint8_t		descriptor;
 };
 
 /*
- * Device granule descriptor bit fields:
+ * struct dev_granule bit fields:
  *
  * @bit_lock protects the struct dev_granule itself. Take this lock whenever
- * inspecting or modifying any other fields in this descriptor.
+ * inspecting or modifying any other fields in this struct dev_granule.
  * [7]:		bit_lock
  *
  * [6]:		reserved

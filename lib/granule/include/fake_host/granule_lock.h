@@ -18,7 +18,7 @@ static inline bool granule_bitlock_try_acquire(struct granule *g)
 
 /*
  * Wait without acquiring @g until it is unlocked or leaves @expected_state.
- * The caller must keep @g's descriptor stable throughout the wait.
+ * The caller must keep @g alive throughout the wait.
  */
 static inline void granule_bitlock_wait(struct granule *g,
 				       unsigned char expected_state)
@@ -48,7 +48,7 @@ static inline bool dev_granule_bitlock_try_acquire(struct dev_granule *g)
 
 /*
  * Wait without acquiring device @g until it is unlocked or leaves
- * @expected_state. The caller must keep @g's descriptor stable throughout.
+ * @expected_state. The caller must keep @g alive throughout.
  */
 static inline void dev_granule_bitlock_wait(struct dev_granule *g,
 					   unsigned char expected_state)

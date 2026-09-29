@@ -1178,6 +1178,11 @@ static int change_ste(unsigned int smmu_idx, unsigned int sid, bool enable)
 	return ret;
 }
 
+/*
+ * Release a disabled STE, returning 0 or a negative error code.
+ * smmu->lock pins its published L2 table through the refcount update, so a
+ * pending tracking transition cannot invalidate the owned struct granule.
+ */
 int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid)
 {
 	struct smmuv3_dev *smmu;
@@ -1216,8 +1221,8 @@ int smmuv3_release_ste(unsigned int smmu_idx, unsigned int sid)
 	}
 
 	l2tab_pa = smmu_l1std_l2tab_pa(smmu, l1_idx);
-	g_l2tab = find_lock_granule(l2tab_pa, GRANULE_STATE_PSMMU_ST_L2);
-	assert(g_l2tab != NULL);
+	g_l2tab = tr_addr_to_granule(l2tab_pa);
+	granule_lock(g_l2tab, GRANULE_STATE_PSMMU_ST_L2);
 
 	if (granule_refcount_read(g_l2tab) == 0U) {
 		granule_unlock(g_l2tab);
@@ -1268,6 +1273,11 @@ int smmuv3_disable_ste(unsigned int smmu_idx, unsigned int sid)
 	return change_ste(smmu_idx, sid, false);
 }
 
+/*
+ * Configure an STE and return its SID and SMMU index on success.
+ * smmu->lock pins the published L2 table through refcount update and rollback;
+ * lock its struct granule directly. Return 0 or a negative error code.
+ */
 int smmuv3_configure_stream(unsigned long ecam_addr, unsigned int tdi_id,
 			    struct smmu_stg2_config *s2_cfg,
 			    unsigned int *sid_ptr, unsigned int *idx_ptr)
@@ -1333,8 +1343,8 @@ int smmuv3_configure_stream(unsigned long ecam_addr, unsigned int tdi_id,
 	}
 
 	l2tab_pa = smmu_l1std_l2tab_pa(smmu, l1_idx);
-	g_l2tab = find_lock_granule(l2tab_pa, GRANULE_STATE_PSMMU_ST_L2);
-	assert(g_l2tab != NULL);
+	g_l2tab = tr_addr_to_granule(l2tab_pa);
+	granule_lock(g_l2tab, GRANULE_STATE_PSMMU_ST_L2);
 
 	assert(granule_refcount_read(g_l2tab) < STRTAB_L1_STE_MAX);
 	/* Increment number of configured STEs */

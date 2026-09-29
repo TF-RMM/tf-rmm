@@ -28,6 +28,7 @@
 #include <status.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <tracking_region.h>
 #include <unistd.h>
 
 /* LLVM/GCC gcov runtime: flush .gcda files */
@@ -323,9 +324,11 @@ void handle_ns_smc(unsigned long function_id,
 		   unsigned long arg6,
 		   struct smc_result *res);
 
+/* Boot the fuzz instance with PAS checks enabled before any NS buffer access. */
 void init(void)
 {
 	install_crash_handlers();
+	host_util_pas_enable(true);
 
 	host_util_set_cpuid(0U);
 
@@ -455,7 +458,7 @@ void app_reset(void)
 
 /*
  * Lightweight per-iteration reset: only clears granule allocation
- * state and tracking arrays.  Skips the expensive app teardown /
+ * state, tracking arrays and simulated PAS. Skips the expensive app teardown /
  * crypto-key regeneration done by the full reset().
  */
 static void fast_reset(void)
@@ -475,11 +478,9 @@ static void fast_reset(void)
 	sro_ctx_init(sro_va, sro_sz);
 
 	host_util_slot_reset();
+	host_util_pas_reset();
 
-	alloc = glob_data_get_granules_va(&alloc_size);
-	memset((void *)alloc, 0, alloc_size);
-	alloc = glob_data_get_dev_granules_va(&alloc_size);
-	memset((void *)alloc, 0, alloc_size);
+	tracking_region_fine_reset();
 	alloc = glob_data_get_vmids_va(&alloc_size);
 	memset((void *)alloc, 0, alloc_size);
 	alloc = glob_data_get_mec_state_va(&alloc_size);
