@@ -349,7 +349,7 @@ TEST(exit_esr_tests, instruction_translation_fault_clears_fnv)
 	s2_ctx->s2_starting_level = 1;
 	s2_ctx->num_root_rtts = 1U;
 	s2_ctx->mecid = MECID_SHARED;
-	s2_ctx->g_rtt = find_granule(rtt_addr);
+	s2_ctx->g_rtt = tr_find_fine_granule(rtt_addr);
 	CHECK_TRUE(s2_ctx->g_rtt != NULL);
 	granule_lock(s2_ctx->g_rtt, GRANULE_STATE_NS);
 	s2tt_init_unassigned_ram(s2_ctx, (unsigned long *)rtt_addr, 0UL);
