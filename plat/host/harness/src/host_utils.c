@@ -16,6 +16,9 @@
 #include <gic.h>
 #include <host_utils.h>
 #include <host_utils_pci.h>
+#ifndef CBMC
+#include <limits.h>
+#endif
 #include <rmm_el3_ifc.h>
 #include <sizes.h>
 #ifndef CBMC
@@ -72,6 +75,113 @@ static void host_util_init_memfd(void)
  */
 static unsigned char *host_slot_region;
 static bool host_slot_active[(unsigned int)NR_CPU_SLOTS];
+static unsigned long host_slot_pa[(unsigned int)NR_CPU_SLOTS];
+
+/* PAS is independent of RMM's granule states, including PARTIAL and INTERNAL. */
+static bool host_pas_enabled;
+static bool host_realm_pas[HOST_NR_GRANULES + HOST_NR_NCOH_GRANULES];
+
+/*
+ * Resolve a nonempty byte range within one modeled bank to its first page.
+ * Subtraction-based bounds checks also reject wrapping ranges.
+ */
+static bool host_pa_range_index(unsigned long addr, unsigned long size,
+				unsigned long *index)
+{
+	unsigned long base = (unsigned long)host_dram_buffer;
+	unsigned long bank_size = HOST_DRAM_SIZE;
+	unsigned long first = 0UL;
+
+	if ((addr < base) || ((addr - base) >= bank_size)) {
+		base = (unsigned long)host_dev_ncoh_buffer;
+		bank_size = HOST_NCOH_DEV_SIZE;
+		first = HOST_NR_GRANULES;
+	}
+
+	if ((size == 0UL) || (addr < base) ||
+	    ((addr - base) >= bank_size) ||
+	    (size > (bank_size - (addr - base)))) {
+		return false;
+	}
+
+	*index = first + ((addr - base) / GRANULE_SIZE);
+	return true;
+}
+
+/* Reset the serialized PAS model without changing whether checks are enabled. */
+void host_util_pas_reset(void)
+{
+	(void)memset(host_realm_pas, 0, sizeof(host_realm_pas));
+}
+
+/* Opt in to PAS checks with an initial NS image, or disable them for mocks. */
+void host_util_pas_enable(bool enable)
+{
+	host_util_pas_reset();
+	host_pas_enabled = enable;
+}
+
+/* Record exactly the page range successfully processed by simulated EL3. */
+bool host_util_pas_set(unsigned long addr, unsigned long granule_count,
+		       bool realm)
+{
+	unsigned long index;
+
+	if (!host_pas_enabled) {
+		return true;
+	}
+
+	if (!GRANULE_ALIGNED(addr) ||
+	    (granule_count > (ULONG_MAX / GRANULE_SIZE)) ||
+	    !host_pa_range_index(addr, granule_count * GRANULE_SIZE, &index)) {
+		return false;
+	}
+
+	for (unsigned long i = 0UL; i < granule_count; i++) {
+		host_realm_pas[index + i] = realm;
+	}
+	return true;
+}
+
+/*
+ * Model the recovered GPF result at the point of NS access, before memcpy can
+ * touch a protected page. Slot mappings do not freeze the page's PAS.
+ */
+bool host_util_ns_access_valid(const void *buf, unsigned long size)
+{
+	unsigned long addr = (unsigned long)buf;
+	unsigned long slot_base = (unsigned long)host_slot_region;
+	unsigned long index, last;
+
+	if (!host_pas_enabled || (size == 0UL)) {
+		return true;
+	}
+
+	/* Direct addresses can precede the slot region; avoid unsigned wrap. */
+	if ((addr >= slot_base) &&
+	    ((addr - slot_base) < ((unsigned long)NR_CPU_SLOTS * GRANULE_SIZE))) {
+		unsigned long offset = addr - slot_base;
+		unsigned long slot = offset / GRANULE_SIZE;
+
+		offset %= GRANULE_SIZE;
+		/* Invalid slot use is an RMM bug, not a recoverable GPF. */
+		assert((slot == (unsigned long)SLOT_NS) && host_slot_active[slot]);
+		assert(size <= (GRANULE_SIZE - offset));
+		addr = host_slot_pa[slot] + offset;
+	}
+
+	if (!host_pa_range_index(addr, size, &index)) {
+		return false;
+	}
+
+	last = index + (((addr % GRANULE_SIZE) + size - 1UL) / GRANULE_SIZE);
+	for (; index <= last; index++) {
+		if (host_realm_pas[index]) {
+			return false;
+		}
+	}
+	return true;
+}
 
 __attribute__((constructor))
 static void host_slot_region_init(void)
@@ -92,34 +202,42 @@ unsigned int host_util_buf_to_slot(void *buf)
 	return (unsigned int)(offset / GRANULE_SIZE);
 }
 
+/*
+ * Map one backed page and retain its PA for NS access checks. Invalid NS
+ * addresses return NULL; invalid internal mappings remain harness assertions.
+ */
 void *host_util_slot_map(unsigned int slot, unsigned long addr)
 {
 	unsigned long dram_base = (unsigned long)host_dram_buffer;
-	unsigned long dev_base = (unsigned long)host_dev_ncoh_buffer;
+	unsigned long index;
+	unsigned char *slot_va;
+	__unused void *p;
 	int fd;
 	off_t file_offset;
 
 	assert(slot < NR_CPU_SLOTS);
 
-	if (addr >= dram_base && addr < dram_base + HOST_DRAM_SIZE) {
-		fd = host_dram_memfd;
-		file_offset = (off_t)(addr - dram_base);
-	} else if (addr >= dev_base && addr < dev_base + HOST_NCOH_DEV_SIZE) {
-		fd = host_dev_memfd;
-		file_offset = (off_t)(addr - dev_base);
-	} else {
-		assert(false);
+	if (!GRANULE_ALIGNED(addr) ||
+	    !host_pa_range_index(addr, GRANULE_SIZE, &index)) {
+		assert(slot == (unsigned int)SLOT_NS);
 		return NULL;
 	}
 
-	unsigned char *slot_va = host_slot_region + (size_t)slot * GRANULE_SIZE;
-	void *p __attribute__((unused));
+	if (index < HOST_NR_GRANULES) {
+		fd = host_dram_memfd;
+		file_offset = (off_t)(addr - dram_base);
+	} else {
+		fd = host_dev_memfd;
+		file_offset = (off_t)((index - HOST_NR_GRANULES) * GRANULE_SIZE);
+	}
 
+	slot_va = &host_slot_region[(size_t)slot * GRANULE_SIZE];
 	p = mmap(slot_va, GRANULE_SIZE, PROT_READ | PROT_WRITE,
 		 MAP_FIXED | MAP_SHARED, fd, file_offset);
 	assert(p == (void *)slot_va);
 
 	host_slot_active[slot] = true;
+	host_slot_pa[slot] = addr;
 	return (void *)slot_va;
 }
 

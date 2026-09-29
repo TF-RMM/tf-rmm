@@ -259,14 +259,26 @@ static unsigned int host_firme_mecid_width = HOST_FIRME_MECID_WIDTH_MAX;
 static bool host_firme_mecid_refresh_enabled = true;
 static bool host_firme_mecid_fr1_enabled = true;
 
+/* Copy NS data, returning the recovered GPF result if the PAS model denies it. */
 bool host_memcpy_ns_read(void *dest, const void *ns_src, unsigned long size)
 {
+#ifndef CBMC
+	if (!host_util_ns_access_valid(ns_src, size)) {
+		return false;
+	}
+#endif
 	(void)memcpy(dest, ns_src, size);
 	return true;
 }
 
+/* A denied NS write must return before modifying any protected memory. */
 bool host_memcpy_ns_write(void *ns_dest, const void *src, unsigned long size)
 {
+#ifndef CBMC
+	if (!host_util_ns_access_valid(ns_dest, size)) {
+		return false;
+	}
+#endif
 	(void)memcpy(ns_dest, src, size);
 	return true;
 }
@@ -551,7 +563,8 @@ unsigned long host_firme_base_features(unsigned char service_id,
 /*
  * Model stateless GPI changes: process the whole Realm request or one NS
  * Granule and return FIRME_SUCCESS. Output pointers must be non-NULL.
- * No continuation cookie is created.
+ * Update the optional PAS model for that prefix only. An unbacked prefix
+ * returns FIRME_INVALID_PARAMETERS without changing PAS. No cookie is created.
  */
 unsigned long host_firme_gm_gpi_set(unsigned long base_addr,
 				    unsigned long *granule_count,
@@ -562,9 +575,20 @@ unsigned long host_firme_gm_gpi_set(unsigned long base_addr,
 	(void)base_addr;
 	(void)cookie;
 
+	if ((*granule_count == 0UL) ||
+	    ((attributes != GPT_GPI_REALM) && (attributes != GPT_GPI_NS))) {
+		return FIRME_INVALID_PARAMETERS;
+	}
+
 	if (attributes != GPT_GPI_REALM) {
 		*granule_count = 1UL;
 	}
+#ifndef CBMC
+	if (!host_util_pas_set(base_addr, *granule_count,
+			       attributes == GPT_GPI_REALM)) {
+		return FIRME_INVALID_PARAMETERS;
+	}
+#endif
 	return FIRME_SUCCESS;
 }
 
@@ -606,6 +630,10 @@ void host_firme_enable_mecid_fr1(bool enable)
 }
 
 
+/*
+ * Dispatch simulated EL3 services. Successful legacy GTSI calls also update
+ * the optional PAS model; reject unbacked addresses when that model is active.
+ */
 void host_monitor_call(unsigned long id, struct smc_args *args,
 		       struct smc_result *res)
 {
@@ -617,9 +645,21 @@ void host_monitor_call(unsigned long id, struct smc_args *args,
 	switch (id) {
 	case SMC_RMM_GTSI_DELEGATE:
 		res->x[0] = host_gtsi_delegate(args->v[0]);
+#ifndef CBMC
+		if ((res->x[0] == SMC_SUCCESS) &&
+		    !host_util_pas_set(args->v[0], 1UL, true)) {
+			res->x[0] = SMC_INVALID_PARAMETER;
+		}
+#endif
 		break;
 	case SMC_RMM_GTSI_UNDELEGATE:
 		res->x[0] = host_gtsi_undelegate(args->v[0]);
+#ifndef CBMC
+		if ((res->x[0] == SMC_SUCCESS) &&
+		    !host_util_pas_set(args->v[0], 1UL, false)) {
+			res->x[0] = SMC_INVALID_PARAMETER;
+		}
+#endif
 		break;
 	case SMC_FIRME_BASE_VERSION:
 		res->x[0] = host_firme_base_version((unsigned char)args->v[0]);
