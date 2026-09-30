@@ -172,6 +172,13 @@ static int print_code(char *buf, size_t len, unsigned long res)
 	return snprintf(buf, len, " > %lx", res);
 }
 
+/*
+ * Log an RSI or other SMC exit according to its per-FID policy.
+ * args must contain the call's inputs (up to ten registers) if logged.
+ * regs must contain the status and logged outputs (up to nine registers)
+ * when ret_to_rec is true. Dispatch-only exits do not read regs.
+ * Logged returning calls include the configured outputs on success and error.
+ */
 /* cppcheck-suppress misra-c2012-8.4 */
 /* cppcheck-suppress misra-c2012-8.7 */
 void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
@@ -183,7 +190,6 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 	char *buf;
 	unsigned int num;
 	int cnt;
-	bool is_non_error = false;
 
 	/*
 	 * Apply per-FID policy before formatting any arguments. Unsupported
@@ -197,9 +203,8 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 			}
 		} else {
 			return_code_t rc = unpack_return_code(regs[0]);
-
-			is_non_error = ((rc.status == RSI_SUCCESS) ||
-					(rc.status == RSI_INCOMPLETE));
+			bool is_non_error = ((rc.status == RSI_SUCCESS) ||
+					    (rc.status == RSI_INCOMPLETE));
 
 			if ((is_non_error && !logger->log_on_success) ||
 			    (!is_non_error && !logger->log_on_error)) {
@@ -223,7 +228,7 @@ void rsi_log_on_exit(unsigned int function_id, unsigned long args[],
 	if (logger != NULL) {
 		/* Print status */
 		cnt = print_status(buf, len, regs[0]);
-		num = is_non_error ? logger->num_vals : 0U;
+		num = logger->num_vals;
 	} else {
 		/* Print result code */
 		cnt = print_code(buf, len, regs[0]);

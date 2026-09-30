@@ -144,6 +144,7 @@ TEST(rsi_logger_tests, suppressed_calls_do_not_read_arguments)
 	STRCMP_EQUAL("", output);
 }
 
+/* Verify logged successes and errors use the configured output counts. */
 TEST(rsi_logger_tests, logs_errors_and_selected_successes)
 {
 	unsigned long args[10] = {0UL};
@@ -153,6 +154,7 @@ TEST(rsi_logger_tests, logs_errors_and_selected_successes)
 	log_output = capture_log();
 	rsi_log_on_exit(SMC_RSI_VERSION, args, regs, true);
 	regs[0] = RSI_ERROR_STATE;
+	regs[1] = 0x1234UL;
 	rsi_log_on_exit(SMC_RSI_ATTEST_TOKEN_CONTINUE, args, regs, true);
 	regs[0] = RSI_ERROR_INPUT;
 	rsi_log_on_exit(SMC_RSI_HOST_CALL, args, regs, true);
@@ -163,11 +165,30 @@ TEST(rsi_logger_tests, logs_errors_and_selected_successes)
 	STRCMP_CONTAINS("SMC_RSI_VERSION", output);
 	STRCMP_CONTAINS(" > RSI_SUCCESS 0 0\n", output);
 	STRCMP_CONTAINS("SMC_RSI_ATTEST_TOKEN_CONTINUE", output);
-	STRCMP_CONTAINS(" > RSI_ERROR_STATE\n", output);
+	STRCMP_CONTAINS(" > RSI_ERROR_STATE 1234\n", output);
 	STRCMP_CONTAINS("SMC_RSI_HOST_CALL", output);
 	STRCMP_CONTAINS(" > RSI_ERROR_INPUT\n", output);
 	STRCMP_CONTAINS("SMC_RSI_VDEV_DMA_DISABLE", output);
 	STRCMP_CONTAINS(" > RSI_ERROR_DEVICE\n", output);
+}
+
+/* Verify failed version negotiation logs both supported revision bounds. */
+TEST(rsi_logger_tests, logs_version_error_bounds)
+{
+	unsigned long args[] = {MAKE_RSI_REVISION(1UL, 2UL)};
+	unsigned long regs[] = {
+		RSI_ERROR_INPUT,
+		MAKE_RSI_REVISION(1UL, 1UL),
+		MAKE_RSI_REVISION(1UL, 1UL)
+	};
+	char output[128];
+
+	log_output = capture_log();
+	rsi_log_on_exit(SMC_RSI_VERSION, args, regs, true);
+	read_log(log_output, saved_stdout, output, sizeof(output));
+
+	STRCMP_CONTAINS("SMC_RSI_VERSION", output);
+	STRCMP_CONTAINS(" 10002 > RSI_ERROR_INPUT 10001 10001\n", output);
 }
 
 TEST(rsi_logger_tests, terminates_unsupported_dispatch_entries)
