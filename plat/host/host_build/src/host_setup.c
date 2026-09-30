@@ -685,6 +685,7 @@ int main(int argc, char *argv[])
 	int rc = 0;
 	bool realm_created = false;
 
+	host_util_pas_enable(true);
 	host_util_initialise_app_headers(argc, argv);
 
 	char *base_dir = host_util_get_base_dir(argv[0]);
