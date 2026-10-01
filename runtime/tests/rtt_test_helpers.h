@@ -17,6 +17,11 @@ extern "C" {
 #include <mec.h>
 #include <planes.h>
 #include <realm.h>
+}
+
+#include <rmi_test_helpers.h>
+
+extern "C" {
 #include <s2tt.h>
 #include <s2tt_ap.h>
 #include <smc-handler.h>
@@ -40,9 +45,6 @@ extern "C" {
 /* Test NS PA used in oaddr descriptors. */
 #define TEST_NS_PA               0x200000000UL
 #define TEST_NS_PA_ALT           0x240000000UL
-
-#define TEST_REALM_MECID         MECID_SHARED
-#define TEST_S2OA_LIMIT         (1UL << S2TT_MAX_PA_BITS)
 
 #define TEST_PAGE_BASE           TEST_PAR_SIZE
 #define TEST_PAGE_TOP            (TEST_PAGE_BASE + GRANULE_SIZE)
@@ -123,28 +125,23 @@ static inline void reset_granule_allocation(void)
 	g_ns_list_next_idx = 100000U;
 }
 
-/*
- * Reserve n consecutive granules for test use and delegate them.
- * Allocates from a global pool tracking the next available index.
- * Automatically delegates granules to RMM via RMI_GRANULE_RANGE_DELEGATE.
- * NOTE: Must call reset_granule_allocation() in TEST_TEARDOWN to reuse granules.
- *
- * @n: Number of granules to reserve
- * @return: Physical address of first reserved granule
- */
-static inline uintptr_t reserve_delegated_granules(unsigned int n)
+/* Allocate fresh NS granules from the RTT/data pool without changing state. */
+static inline uintptr_t allocate_rtt_granules(unsigned int n)
 {
 	unsigned int nr = test_helpers_get_nr_granules();
+	uintptr_t base = granule_addr_rtt(g_rtt_next_idx);
 
 	CHECK_TRUE((g_rtt_next_idx + n) <= nr);
-	uintptr_t base = granule_addr_rtt(g_rtt_next_idx);
-	uintptr_t end = base + (uintptr_t)n * GRANULE_SIZE;
-
 	g_rtt_next_idx += n;
+	return base;
+}
 
-	/* Delegate the granule range to RMM */
-	CHECK_TRUE(delegate_range_rtt(base, end));
+/* Allocate and delegate n consecutive granules from the RTT/data pool. */
+static inline uintptr_t reserve_delegated_granules(unsigned int n)
+{
+	uintptr_t base = allocate_rtt_granules(n);
 
+	rmi_test_delegate(base, n);
 	return base;
 }
 
@@ -279,25 +276,24 @@ static inline unsigned long make_unmap_flags_none(void)
 	return make_unmap_flags(RMI_ADDR_TYPE_NONE, 0UL);
 }
 
-/*
- * Initialize S2TT context for primary address space (direct S2AP mode).
- * Sets up the address translation context for RTT walks with test-specific
- * configuration: 40-bit IPA, single root RTT, no LPA2, direct mode.
- *
- * @ctx: Test RTT context containing root RTT granule address
- * @s2_ctx: S2TT context to initialize
- */
+/* Copy a Realm's primary S2 context under its RD lock for use in RTT walks. */
+static inline void read_test_s2_ctx(uintptr_t rd_pa, struct s2tt_context *s2_ctx)
+{
+	struct granule *g_rd = tr_find_fine_granule(rd_pa);
+	struct rd *rd;
+
+	granule_lock(g_rd, GRANULE_STATE_RD);
+	rd = (struct rd *)buffer_granule_map(g_rd, SLOT_RD);
+	*s2_ctx = rd->s2_ctx[PRIMARY_S2_CTX_ID];
+	buffer_unmap(rd);
+	granule_unlock(g_rd);
+}
+
+/* Read the RMI-created primary S2 context used by this RTT test. */
 static inline void init_primary_s2_ctx(const struct test_rtt_ctx *ctx,
 				      struct s2tt_context *s2_ctx)
 {
-	(void)memset(s2_ctx, 0, sizeof(*s2_ctx));
-	s2_ctx->ipa_bits = TEST_IPA_BITS;
-	s2_ctx->s2_starting_level = 0;
-	s2_ctx->num_root_rtts = 1U;
-	s2_ctx->g_rtt = tr_find_fine_granule(ctx->rtt_l0);
-	s2_ctx->indirect_s2ap = ctx->indirect_s2ap;
-	s2_ctx->mecid = TEST_REALM_MECID;
-	s2_ctx->s2oa_limit = TEST_S2OA_LIMIT;
+	read_test_s2_ctx(ctx->rd, s2_ctx);
 }
 
 /*
@@ -395,152 +391,39 @@ static inline unsigned long decode_single_oaddr_pa(unsigned long out_range)
 }
 
 /*
- * Create and initialize a complete RTT context for tests (direct S2AP mode).
- * Allocates and delegates granules for:
- * - RD (Realm Descriptor)
- * - RTT L0, L1, L2, L3 tables
- * Sets up realm hierarchy with protected (PAR) and unprotected IPA spaces.
- * Initializes s2ap in direct addressing mode.
- *
- * @ctx: Test RTT context to populate
- * @return: true on success, false on initialization failure
+ * Create a 40-bit Realm through RMI using the RTT/data allocator. Return its
+ * RD PA and save the root RTT PA in @root. The caller has booted RMM and holds
+ * no granule locks. RMI initializes all root entries and S2 context fields.
+ * test_helpers_rmm_start() resets these fixtures between test cases.
  */
-static inline bool create_rtt_tree_ctx(struct test_rtt_ctx *ctx)
+static inline uintptr_t create_rtt_realm(uintptr_t *root, bool indirect_s2ap)
 {
-	struct smc_result res = {};
+	struct rmi_test_realm realm;
+	struct rmi_realm_params *params;
 
-	ctx->indirect_s2ap = false;
-	ctx->rd = reserve_delegated_granules(1U);
-	ctx->rtt_l0 = reserve_delegated_granules(1U);
-	ctx->rtt_l1 = reserve_delegated_granules(1U);
-	ctx->rtt_l2 = reserve_delegated_granules(1U);
-	ctx->rtt_l3 = reserve_delegated_granules(1U);
-
-	struct granule *g_rtt_l0 = tr_find_fine_granule(ctx->rtt_l0);
-
-	granule_lock(g_rtt_l0, GRANULE_STATE_DELEGATED);
-	granule_unlock_transition(g_rtt_l0, GRANULE_STATE_RTT);
-
-	struct s2tt_context tmp_ctx;
-	unsigned long *tbl;
-
-	(void)memset(&tmp_ctx, 0, sizeof(tmp_ctx));
-	tmp_ctx.indirect_s2ap = false;
-
-	granule_lock(g_rtt_l0, GRANULE_STATE_RTT);
-	tbl = (unsigned long *)buffer_granule_mecid_map(g_rtt_l0, SLOT_RTT,
-							TEST_REALM_MECID);
-	CHECK_TRUE(tbl != NULL);
-	/* Entry 0 => PAR (protected), entry 1 => Unprotected IPA space */
-	tbl[0] = s2tte_create_unassigned_empty(&tmp_ctx, 0UL);
-	tbl[1] = s2tte_create_unassigned_ns(NULL, 0UL);
-	for (unsigned int i = 2U; i < S2TTES_PER_S2TT; i++) {
-		tbl[i] = 0UL;
-	}
-	buffer_unmap(tbl);
-	granule_unlock(g_rtt_l0);
-
-	struct granule *g_rd = tr_find_fine_granule(ctx->rd);
-	struct rd *rd;
-	struct s2tt_context *s2_ctx;
-
-	granule_lock(g_rd, GRANULE_STATE_DELEGATED);
-	rd = (struct rd *)buffer_granule_map_zeroed(g_rd, SLOT_RD);
-	CHECK_TRUE(rd != NULL);
-
-	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
-	s2_ctx->ipa_bits = TEST_IPA_BITS;
-	s2_ctx->s2_starting_level = 0;
-	s2_ctx->num_root_rtts = 1U;
-	s2_ctx->g_rtt = g_rtt_l0;
-	s2_ctx->indirect_s2ap = false;
-	s2_ctx->mecid = TEST_REALM_MECID;
-	s2_ctx->s2oa_limit = TEST_S2OA_LIMIT;
-	set_rd_state(rd, REALM_NEW);
-
-	buffer_unmap(rd);
-	granule_unlock_transition(g_rd, GRANULE_STATE_RD);
-
-	smc_rtt_create(ctx->rd, ctx->rtt_l1, TEST_PAGE_BASE, 1UL, &res);
-	if (res.x[0] != RMI_SUCCESS) {
-		return false;
-	}
-	smc_rtt_create(ctx->rd, ctx->rtt_l2, TEST_PAGE_BASE, 2UL, &res);
-	if (res.x[0] != RMI_SUCCESS) {
-		return false;
-	}
-	smc_rtt_create(ctx->rd, ctx->rtt_l3, TEST_PAGE_BASE, 3UL, &res);
-	if (res.x[0] != RMI_SUCCESS) {
-		return false;
-	}
-
-	return true;
+	rmi_test_realm_prepare(&realm, allocate_rtt_granules);
+	params = (struct rmi_realm_params *)realm.params;
+	params->s2sz = TEST_IPA_BITS;
+	params->flags1 = INPLACE(RMI_REALM_FLAGS1_S2AP_ENC,
+				indirect_s2ap ? RMI_S2AP_INDIRECT : RMI_S2AP_DIRECT);
+	rmi_test_realm_create(&realm);
+	*root = realm.rtt;
+	return realm.rd;
 }
 
 /*
- * Create and initialize RTT context with indirect S2AP addressing mode.
- * Similar to create_rtt_tree_ctx() but uses indirect_s2ap = true.
- * Allocates RD, RTT L0-L3, and sets up hierarchy for indirect addressing.
- * Used to test MAP/UNMAP operations with indirect PA lookup.
- *
- * @ctx: Test RTT context to populate
- * @return: true on success, false on initialization failure
+ * Create a Realm and its unprotected L1-L3 RTT hierarchy through RMI.
+ * Select the S2AP encoding via Realm parameters. Return true on success.
  */
-static inline bool create_rtt_tree_ctx_indirect_s2ap(struct test_rtt_ctx *ctx)
+static inline bool create_rtt_tree(struct test_rtt_ctx *ctx, bool indirect_s2ap)
 {
 	struct smc_result res = {};
 
-	ctx->indirect_s2ap = true;
-	ctx->rd = reserve_delegated_granules(1U);
-	ctx->rtt_l0 = reserve_delegated_granules(1U);
+	ctx->indirect_s2ap = indirect_s2ap;
+	ctx->rd = create_rtt_realm(&ctx->rtt_l0, indirect_s2ap);
 	ctx->rtt_l1 = reserve_delegated_granules(1U);
 	ctx->rtt_l2 = reserve_delegated_granules(1U);
 	ctx->rtt_l3 = reserve_delegated_granules(1U);
-
-	struct granule *g_rtt_l0 = tr_find_fine_granule(ctx->rtt_l0);
-
-	granule_lock(g_rtt_l0, GRANULE_STATE_DELEGATED);
-	granule_unlock_transition(g_rtt_l0, GRANULE_STATE_RTT);
-
-	struct s2tt_context tmp_ctx;
-	unsigned long *tbl;
-
-	(void)memset(&tmp_ctx, 0, sizeof(tmp_ctx));
-	tmp_ctx.indirect_s2ap = true;  /* INDIRECT mode for entry creation */
-
-	granule_lock(g_rtt_l0, GRANULE_STATE_RTT);
-	tbl = (unsigned long *)buffer_granule_mecid_map(g_rtt_l0, SLOT_RTT,
-							TEST_REALM_MECID);
-	CHECK_TRUE(tbl != NULL);
-	/* Entry 0 => PAR (protected), entry 1 => Unprotected IPA space */
-	tbl[0] = s2tte_create_unassigned_empty(&tmp_ctx, 0UL);
-	tbl[1] = s2tte_create_unassigned_ns(NULL, 0UL);
-	for (unsigned int i = 2U; i < S2TTES_PER_S2TT; i++) {
-		tbl[i] = 0UL;
-	}
-	buffer_unmap(tbl);
-	granule_unlock(g_rtt_l0);
-
-	struct granule *g_rd = tr_find_fine_granule(ctx->rd);
-	struct rd *rd;
-	struct s2tt_context *s2_ctx;
-
-	granule_lock(g_rd, GRANULE_STATE_DELEGATED);
-	rd = (struct rd *)buffer_granule_map_zeroed(g_rd, SLOT_RD);
-	CHECK_TRUE(rd != NULL);
-
-	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
-	s2_ctx->ipa_bits = TEST_IPA_BITS;
-	s2_ctx->s2_starting_level = 0;
-	s2_ctx->num_root_rtts = 1U;
-	s2_ctx->g_rtt = g_rtt_l0;
-	s2_ctx->indirect_s2ap = true;  /* INDIRECT mode for runtime context */
-	s2_ctx->mecid = TEST_REALM_MECID;
-	s2_ctx->s2oa_limit = TEST_S2OA_LIMIT;
-	set_rd_state(rd, REALM_NEW);
-
-	buffer_unmap(rd);
-	granule_unlock_transition(g_rd, GRANULE_STATE_RD);
 
 	smc_rtt_create(ctx->rd, ctx->rtt_l1, TEST_PAGE_BASE, 1UL, &res);
 	if (res.x[0] != RMI_SUCCESS) {
@@ -551,11 +434,19 @@ static inline bool create_rtt_tree_ctx_indirect_s2ap(struct test_rtt_ctx *ctx)
 		return false;
 	}
 	smc_rtt_create(ctx->rd, ctx->rtt_l3, TEST_PAGE_BASE, 3UL, &res);
-	if (res.x[0] != RMI_SUCCESS) {
-		return false;
-	}
+	return res.x[0] == RMI_SUCCESS;
+}
 
-	return true;
+/* Create the direct-S2AP RTT fixture, returning true on success. */
+static inline bool create_rtt_tree_ctx(struct test_rtt_ctx *ctx)
+{
+	return create_rtt_tree(ctx, false);
+}
+
+/* Create the indirect-S2AP RTT fixture, returning true on success. */
+static inline bool create_rtt_tree_ctx_indirect_s2ap(struct test_rtt_ctx *ctx)
+{
+	return create_rtt_tree(ctx, true);
 }
 
 /*
