@@ -18,7 +18,8 @@
 
 static uint8_t shared_buffer[GRANULE_SIZE] __aligned(GRANULE_SIZE);
 
-#define MAX_APP_INSTANCES 16
+/* Keep transient slots available after every CPU has a persistent instance. */
+#define MAX_APP_INSTANCES (MAX_CPUS + 16U)
 
 struct app_instance_data_t {
 	/* Process pipe fds — set by run_app_instance() before each resume */

@@ -22,6 +22,7 @@ arm_config_option(
 
 target_link_libraries(rmm-plat-host_test
     PRIVATE rmm-lib
+            rmm-el2-stub
             CppUTest
     PUBLIC  rmm-host-harness # Needed to export host_utils.h
 )

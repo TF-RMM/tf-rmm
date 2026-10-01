@@ -16,7 +16,7 @@ target_include_directories(rmm-app-random-stub
     PUBLIC "include"
     PRIVATE "../../common/include")
 
-if((HOST_VARIANT STREQUAL "host_cbmc") OR (HOST_VARIANT STREQUAL "host_test"))
+if(HOST_VARIANT STREQUAL "host_cbmc")
     target_sources(rmm-app-random-stub
         PRIVATE "src/no_app_support/random_app.c"
         )

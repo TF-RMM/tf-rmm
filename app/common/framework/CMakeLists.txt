@@ -39,7 +39,7 @@ if(APP_FW_LOGGING)
         PRIVATE "APP_FW_LOGGING=1")
 endif()
 
-if((HOST_VARIANT STREQUAL "host_cbmc") OR (HOST_VARIANT STREQUAL "host_test"))
+if(HOST_VARIANT STREQUAL "host_cbmc")
     target_sources(rmm-app-cmn-fw
         PRIVATE "src/no_app_support/app.c"
                 "src/no_app_support/app_header.c"

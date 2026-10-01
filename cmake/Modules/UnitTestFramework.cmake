@@ -74,6 +74,12 @@ if(RMM_UNITTESTS)
         COMMAND ctest "${CMAKE_CTEST_ARGUMENTS}" -C "$<CONFIG>"
         DEPENDS rmm_core.elf rmm_core.map
     )
+
+    # Stage the app ELFs beside the test runner before CTest starts.
+    add_dependencies(run-unittests
+        rmm-attestation-app
+        rmm-random-app
+        rmm-dev-assign-app)
 endif()
 
 function(rmm_build_unittest)

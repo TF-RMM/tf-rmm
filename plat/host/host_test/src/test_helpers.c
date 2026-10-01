@@ -50,6 +50,7 @@ static bool secondary_pes_initialized;
 
 void rmm_arch_init(void);
 
+/* Boot the primary PE, including its real host app instances, once per process. */
 static void start_primary_pe(void)
 {
 	host_util_set_cpuid(0U);
@@ -79,11 +80,7 @@ static void start_primary_pe(void)
 	 */
 	xlat_enable_mmu_el2();
 
-	/*
-	 * rmm_main() finishhes the warmboot path.
-	 *
-	 * Note: It is expected that the attestation init will fail.
-	 */
+	/* rmm_main() finishes the warmboot path. */
 	per_cpu_token[0] = rmm_main();
 }
 
