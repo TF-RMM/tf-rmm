@@ -12,8 +12,13 @@ extern "C" {
 #include <debug.h>
 #include <granule.h>
 #include <host_utils.h>
-#include <rec.h>
 #include <realm.h>
+#include <rec.h>
+}
+
+#include <rmi_test_helpers.h>
+
+extern "C" {
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
@@ -69,11 +74,9 @@ struct test_realm {
 };
 
 /*
- * Set up a minimal test context. We do NOT call smc_realm_create because
- * it triggers attestation hashing that requires the EL0 app context
- * (unavailable in CppUTest). smc_rec_create only reserves an SRO context
- * and stores addresses — it does not validate them until the CONTINUE
- * phase — so arbitrary addresses suffice for testing the donation flow.
+ * Set up a minimal context for donation tests. smc_rec_create only reserves
+ * an SRO context and stores addresses; it validates the Realm during
+ * OP_CONTINUE. These tests stop before that phase, so no Realm is required.
  */
 static bool create_test_context(struct test_realm *r)
 {
@@ -117,35 +120,61 @@ static bool initiate_rec_create(struct test_realm *r,
 	return true;
 }
 
+/* Create a valid Realm and REC; retain AUX addresses for reclaim checks. */
+static uintptr_t create_rec_for_destroy(struct rmi_test_realm *realm,
+				       struct rmi_test_rec *rec, bool separated = false)
+{
+	rmi_test_realm_prepare(realm);
+	rmi_test_realm_create(realm);
+	rmi_test_rec_create(realm, rec, separated);
+	return rec->rec;
+}
+
 /* ================================================================
  * Test Group
  * ================================================================
  */
 TEST_GROUP(rec_sro_tests) {
+	struct rmi_test_realm destroy_realm;
+	struct rmi_test_rec destroy_rec;
+
+	/* Boot the test platform and start with no owned Realm or REC. */
 	TEST_SETUP()
 	{
+		destroy_realm = {};
+		destroy_rec = {};
 		test_helpers_init();
 		test_helpers_rmm_start(false);
 		host_util_set_cpuid(0U);
 		test_helpers_expect_assert_fail(false);
-
-		/*
-		 * Do NOT reset g_next_idx between tests.
-		 * Granule states persist across tests (delegate is
-		 * permanent), so each test must use fresh granules.
-		 * The first test initialises the index on first use.
-		 */
 	}
+
+	/* Release the real objects used by destroy tests through their RMI ABIs. */
 	TEST_TEARDOWN()
 	{
+		if (destroy_rec.num_aux != 0U) {
+			struct granule *g_rec = tr_find_fine_granule(destroy_rec.rec);
+
+			if (granule_unlocked_state(g_rec) == GRANULE_STATE_REC) {
+				struct smc_result res = {};
+
+				smc_rec_destroy(destroy_rec.rec, &res);
+				CHECK_EQUAL(RMI_INCOMPLETE, unpack_return_code(res.x[0]).status);
+				rmi_test_reclaim(res.x[1], destroy_realm.addr_list,
+						 destroy_rec.num_aux);
+			}
+		}
+		if (destroy_realm.num_aux != 0U) {
+			rmi_test_realm_destroy(&destroy_realm);
+		}
 	}
 };
 
 /*
  * TC1: Happy path - donate exactly MAX_REC_AUX_GRANULES with CNT=1.
  *      The donation phase should complete and request OP_CONTINUE.
- *      We do not invoke OP_CONTINUE because the continuation path
- *      calls into attestation code that requires EL0 app context.
+ *      Stop before OP_CONTINUE to isolate the donation handshake. The
+ *      realm_sro_tests lifecycle test covers completion with real apps.
  */
 TEST(rec_sro_tests, rec_create_sro_happy_path)
 {
@@ -690,173 +719,10 @@ TEST(rec_sro_tests, rec_create_sro_reclaim_single_batch)
  * reclaims every auxiliary granule via the SRO OP_MEM_RECLAIM
  * protocol before freeing the SRO context with OP_CONTINUE.
  *
- * Setup helper: build a minimal but valid fake REC granule together
- * with its RD and auxiliary granules so that smc_rec_destroy can
- * traverse the full reclaim state machine.
+ * The shared fixture creates the Realm and REC through their RMI ABIs,
+ * including donation and continuation, before exercising reclamation.
  * ================================================================
  */
-
-/*
- * Populate a fake REC granule at @rec_pa.
- *
- * Preconditions:
- *  - @rec_pa is already in DELEGATED state.
- *  - @g_rd   is already in RD state with refcount == 1.
- *  - @aux_pa[0..num_aux-1] are already in REC_AUX state.
- *
- * Postcondition: the granule at @rec_pa is in GRANULE_STATE_REC with
- * refcount 0.  The struct rec content reflects the provided parameters.
- */
-static void populate_fake_rec(uintptr_t rec_pa,
-			      struct granule *g_rd,
-			      uintptr_t *aux_pa,
-			      unsigned int num_aux,
-			      unsigned long mpidr)
-{
-	struct granule *g_rec = tr_find_fine_granule(rec_pa);
-	struct rec *rec;
-
-	/* Write the rec fields before changing the granule state so we avoid
-	 * touching memory that is in REC state without holding the lock.
-	 */
-	rec = (struct rec *)rec_pa;
-	(void)memset(rec, 0, sizeof(*rec));
-	rec->mpidr = mpidr;
-	rec->num_rec_aux = num_aux;
-	for (unsigned int i = 0U; i < num_aux; i++) {
-		rec->g_aux[i] = tr_find_fine_granule(aux_pa[i]);
-	}
-	rec->realm_info.g_rd = g_rd;
-	/* rec->attest_app_data is zeroed; app_delete_instance returns early
-	 * when app_id == 0 and get_app_process_data() finds no entry.
-	 */
-	/* Transition DELEGATED -> REC */
-	granule_lock(g_rec, GRANULE_STATE_DELEGATED);
-	__granule_set_state(g_rec, GRANULE_STATE_REC);
-	granule_unlock(g_rec);
-}
-
-static struct granule *init_fake_rd(uintptr_t rd_pa)
-{
-	struct granule *g_rd = tr_find_fine_granule(rd_pa);
-	struct rd *rd;
-	struct rd_aux *rd_aux;
-	struct sarray_hdr *hnd;
-	uintptr_t rd_aux_pa[MAX_RD_AUX_GRANULES];
-
-	for (unsigned int i = 0U; i < MAX_RD_AUX_GRANULES; i++) {
-		rd_aux_pa[i] = test_helpers_allocate_granules(1U);
-		CHECK_TRUE(delegate_range(rd_aux_pa[i],
-					  rd_aux_pa[i] + GRANULE_SIZE));
-
-		struct granule *g_rd_aux = tr_find_fine_granule(rd_aux_pa[i]);
-		granule_lock(g_rd_aux, GRANULE_STATE_DELEGATED);
-		__granule_set_state(g_rd_aux, GRANULE_STATE_RD_AUX);
-		granule_unlock(g_rd_aux);
-	}
-
-	granule_lock(g_rd, GRANULE_STATE_DELEGATED);
-	__granule_set_state(g_rd, GRANULE_STATE_RD);
-	granule_refcount_inc(g_rd, 1U);
-
-	rd = (struct rd *)buffer_granule_map(g_rd, SLOT_RD);
-	CHECK_TRUE(rd != NULL);
-	(void)memset(rd, 0, sizeof(*rd));
-	rd->state_and_count = RD_PACK_SC(REALM_NEW, 0UL);
-	rd->num_rd_aux = MAX_RD_AUX_GRANULES;
-
-	for (unsigned int i = 0U; i < rd->num_rd_aux; i++) {
-		rd->aux_granules[i] = tr_find_fine_granule(rd_aux_pa[i]);
-	}
-
-	rd_aux = (struct rd_aux *)buffer_rd_aux_granules_map_zeroed(
-		&rd->aux_granules[0], rd->num_rd_aux);
-	CHECK_TRUE(rd_aux != NULL);
-
-	hnd = sarray_init_vdev_map(&rd_aux->vdev_map_hnd,
-				   rd_aux->vdev_map_mem,
-				   sizeof(rd_aux->vdev_map_mem));
-	CHECK_TRUE(hnd != NULL);
-
-	hnd = sarray_init_rec_map(&rd_aux->mpidr_rec_map.rec_map_hnd,
-				  rd_aux->mpidr_rec_map.rec_map_mem,
-				  sizeof(rd_aux->mpidr_rec_map.rec_map_mem));
-	CHECK_TRUE(hnd != NULL);
-
-	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
-	buffer_unmap(rd);
-	granule_unlock(g_rd);
-
-	return g_rd;
-}
-
-static void add_fake_rec_mpidr_mapping(struct granule *g_rd,
-				 unsigned long mpidr,
-				 uintptr_t rec_pa)
-{
-	struct rd *rd;
-	struct rd_aux *rd_aux;
-	struct rec_map rec_map = {
-		.key = mpidr,
-		.rec = rec_pa
-	};
-
-	granule_lock(g_rd, GRANULE_STATE_RD);
-	rd = (struct rd *)buffer_granule_map(g_rd, SLOT_RD);
-	CHECK_TRUE(rd != NULL);
-
-	rd_aux = (struct rd_aux *)buffer_rd_aux_granules_map(
-		&rd->aux_granules[0], rd->num_rd_aux);
-	CHECK_TRUE(rd_aux != NULL);
-
-	LONGS_EQUAL(0, sarray_insert_rec_map(&rd_aux->mpidr_rec_map.rec_map_hnd,
-					     mpidr, &rec_map));
-
-	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
-	buffer_unmap(rd);
-	granule_unlock(g_rd);
-}
-
-/*
- * Allocate and fully configure a fake REC for use in destroy tests.
- *
- * Reserves fresh granules from the global pool, delegates them, sets up
- * the RD granule with refcount 1, and places each auxiliary granule in
- * REC_AUX state.
- *
- * Returns the PA of the REC granule.  On any setup failure the function
- * issues a CppUTest CHECK_TRUE failure and returns ~0UL.
- */
-static uintptr_t alloc_fake_rec(unsigned int num_aux,
-				uintptr_t aux_pa_out[])
-{
-	uintptr_t rd_pa  = test_helpers_allocate_granules(1U);
-	uintptr_t rec_pa = test_helpers_allocate_granules(1U);
-	const unsigned long mpidr = 0UL;
-
-	/* Delegate REC and RD granules */
-	CHECK_TRUE(delegate_range(rd_pa,  rd_pa  + GRANULE_SIZE));
-	CHECK_TRUE(delegate_range(rec_pa, rec_pa + GRANULE_SIZE));
-
-	struct granule *g_rd = init_fake_rd(rd_pa);
-
-	/* Delegate and set each auxiliary granule to REC_AUX */
-	for (unsigned int i = 0U; i < num_aux; i++) {
-		aux_pa_out[i] = test_helpers_allocate_granules(1U);
-		CHECK_TRUE(delegate_range(aux_pa_out[i],
-					  aux_pa_out[i] + GRANULE_SIZE));
-
-		struct granule *g_aux = tr_find_fine_granule(aux_pa_out[i]);
-		granule_lock(g_aux, GRANULE_STATE_DELEGATED);
-		__granule_set_state(g_aux, GRANULE_STATE_REC_AUX);
-		granule_unlock(g_aux);
-	}
-
-	populate_fake_rec(rec_pa, g_rd, aux_pa_out, num_aux, mpidr);
-	add_fake_rec_mpidr_mapping(g_rd, mpidr, rec_pa);
-
-	return rec_pa;
-}
 
 /*
  * Drive the full reclaim phase for an already-started REC_DESTROY.
@@ -967,26 +833,21 @@ TEST(rec_sro_tests, rec_destroy_granule_not_in_rec_state)
  */
 TEST(rec_sro_tests, rec_destroy_busy_rec)
 {
-	uintptr_t rec_pa = test_helpers_allocate_granules(1U);
-	CHECK_TRUE(delegate_range(rec_pa, rec_pa + GRANULE_SIZE));
-
-	/* Force the granule to REC state, then bump the refcount to 1 */
+	uintptr_t rec_pa = create_rec_for_destroy(&destroy_realm, &destroy_rec);
 	struct granule *g_rec = tr_find_fine_granule(rec_pa);
-	granule_lock(g_rec, GRANULE_STATE_DELEGATED);
-	__granule_set_state(g_rec, GRANULE_STATE_REC);
+	struct smc_result res = {};
+
+	/* Model an active REC by holding one reference to the real object. */
+	granule_lock(g_rec, GRANULE_STATE_REC);
 	granule_refcount_inc(g_rec, 1U);
 	granule_unlock(g_rec);
 
-	struct smc_result res = {};
 	smc_rec_destroy(rec_pa, &res);
 	CHECK_EQUAL(RMI_ERROR_REC, res.x[0]);
 
-	/* Clean up: remove the artificial refcount so the granule can be
-	 * garbage-collected if the pool is reused later in the suite.
-	 */
+	/* Drop the simulated running reference before fixture teardown. */
 	granule_lock(g_rec, GRANULE_STATE_REC);
 	atomic_granule_put(g_rec);
-	__granule_set_state(g_rec, GRANULE_STATE_DELEGATED);
 	granule_unlock(g_rec);
 }
 
@@ -1005,8 +866,7 @@ TEST(rec_sro_tests, rec_destroy_busy_rec)
  */
 TEST(rec_sro_tests, rec_destroy_single_batch_reclaim)
 {
-	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
-	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
+	uintptr_t rec_pa = create_rec_for_destroy(&destroy_realm, &destroy_rec);
 	uintptr_t ns_buf = test_helpers_allocate_granules(1U);
 
 	struct smc_result res = {};
@@ -1025,7 +885,7 @@ TEST(rec_sro_tests, rec_destroy_single_batch_reclaim)
 	/* handle is the pool index; 0 is a valid first-slot handle */
 
 	/* Reclaim all aux granules in one call */
-	smc_op_mem_reclaim(handle, ns_buf, MAX_REC_AUX_GRANULES, &res);
+	smc_op_mem_reclaim(handle, ns_buf, destroy_rec.num_aux, &res);
 	rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_INCOMPLETE, rc.status);
 	CHECK_EQUAL(RMI_OP_MEM_REQ_NONE,
@@ -1040,10 +900,10 @@ TEST(rec_sro_tests, rec_destroy_single_batch_reclaim)
 		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(rec_pa)));
 
 	/* All auxiliary granules must now be DELEGATED */
-	for (unsigned int i = 0U; i < MAX_REC_AUX_GRANULES; i++) {
+	for (unsigned int i = 0U; i < destroy_rec.num_aux; i++) {
 		CHECK_EQUAL(GRANULE_STATE_DELEGATED,
 			    (unsigned long)granule_unlocked_state(
-						tr_find_fine_granule(aux_pa[i])));
+						tr_find_fine_granule(destroy_rec.aux[i])));
 	}
 }
 
@@ -1058,8 +918,7 @@ TEST(rec_sro_tests, rec_destroy_single_batch_reclaim)
  */
 TEST(rec_sro_tests, rec_destroy_multi_batch_reclaim)
 {
-	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
-	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
+	uintptr_t rec_pa = create_rec_for_destroy(&destroy_realm, &destroy_rec);
 	uintptr_t ns_buf = test_helpers_allocate_granules(1U);
 
 	struct smc_result res = {};
@@ -1071,8 +930,8 @@ TEST(rec_sro_tests, rec_destroy_multi_batch_reclaim)
 
 	/* Drain one entry at a time */
 	drain_reclaim(handle, ns_buf,
-		      (unsigned long)MAX_REC_AUX_GRANULES, 1UL,
-		      aux_pa);
+		      (unsigned long)destroy_rec.num_aux, 1UL,
+		      destroy_rec.aux);
 
 	/* After all reclaimed, OP_CONTINUE finalises the destroy */
 	smc_op_continue(handle, 0UL, &res);
@@ -1088,8 +947,7 @@ TEST(rec_sro_tests, rec_destroy_multi_batch_reclaim)
  */
 TEST(rec_sro_tests, rec_destroy_reclaim_invalid_handle)
 {
-	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
-	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
+	uintptr_t rec_pa = create_rec_for_destroy(&destroy_realm, &destroy_rec);
 	uintptr_t ns_buf = test_helpers_allocate_granules(1U);
 
 	struct smc_result res = {};
@@ -1102,9 +960,9 @@ TEST(rec_sro_tests, rec_destroy_reclaim_invalid_handle)
 
 	/* The real context is still usable */
 	drain_reclaim(real_handle, ns_buf,
-		      (unsigned long)MAX_REC_AUX_GRANULES,
-		      (unsigned long)MAX_REC_AUX_GRANULES,
-		      aux_pa);
+		      (unsigned long)destroy_rec.num_aux,
+		      (unsigned long)destroy_rec.num_aux,
+		      destroy_rec.aux);
 	smc_op_continue(real_handle, 0UL, &res);
 	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
 }
@@ -1119,8 +977,7 @@ TEST(rec_sro_tests, rec_destroy_reclaim_invalid_handle)
  */
 TEST(rec_sro_tests, rec_destroy_reclaim_unaligned_output)
 {
-	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
-	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
+	uintptr_t rec_pa = create_rec_for_destroy(&destroy_realm, &destroy_rec);
 	uintptr_t ns_buf = test_helpers_allocate_granules(1U);
 
 	struct smc_result res = {};
@@ -1129,14 +986,14 @@ TEST(rec_sro_tests, rec_destroy_reclaim_unaligned_output)
 
 	/* Misalign by 3 bytes */
 	smc_op_mem_reclaim(handle, ns_buf + 3UL,
-			   (unsigned long)MAX_REC_AUX_GRANULES, &res);
+			   (unsigned long)destroy_rec.num_aux, &res);
 	CHECK_EQUAL(RMI_ERROR_INPUT, res.x[0]);
 
 	/* Retry with the properly aligned buffer */
 	drain_reclaim(handle, ns_buf,
-		      (unsigned long)MAX_REC_AUX_GRANULES,
-		      (unsigned long)MAX_REC_AUX_GRANULES,
-		      aux_pa);
+		      (unsigned long)destroy_rec.num_aux,
+		      (unsigned long)destroy_rec.num_aux,
+		      destroy_rec.aux);
 	smc_op_continue(handle, 0UL, &res);
 	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
 }
@@ -1150,8 +1007,7 @@ TEST(rec_sro_tests, rec_destroy_reclaim_unaligned_output)
  */
 TEST(rec_sro_tests, rec_destroy_reclaim_ignores_output_tracking_state)
 {
-	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
-	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
+	uintptr_t rec_pa = create_rec_for_destroy(&destroy_realm, &destroy_rec);
 
 	/* Give the buffer a non-NS tracking state. */
 	uintptr_t bad_buf = test_helpers_allocate_granules(1U);
@@ -1162,7 +1018,7 @@ TEST(rec_sro_tests, rec_destroy_reclaim_ignores_output_tracking_state)
 	unsigned long handle = res.x[1];
 
 	smc_op_mem_reclaim(handle, bad_buf,
-			   (unsigned long)MAX_REC_AUX_GRANULES, &res);
+			   (unsigned long)destroy_rec.num_aux, &res);
 	return_code_t rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_INCOMPLETE, rc.status);
 	CHECK_EQUAL(1UL, res.x[1]);
@@ -1178,8 +1034,7 @@ TEST(rec_sro_tests, rec_destroy_reclaim_ignores_output_tracking_state)
  */
 TEST(rec_sro_tests, rec_destroy_wrong_fid_continue_before_reclaim)
 {
-	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
-	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
+	uintptr_t rec_pa = create_rec_for_destroy(&destroy_realm, &destroy_rec);
 	uintptr_t ns_buf = test_helpers_allocate_granules(1U);
 
 	struct smc_result res = {};
@@ -1198,8 +1053,11 @@ TEST(rec_sro_tests, rec_destroy_wrong_fid_continue_before_reclaim)
 	 * reclaim sequence.
 	 */
 	smc_op_mem_reclaim(handle, ns_buf,
-			   (unsigned long)MAX_REC_AUX_GRANULES, &res);
+			   (unsigned long)destroy_rec.num_aux, &res);
 	CHECK_EQUAL(RMI_INCOMPLETE, unpack_return_code(res.x[0]).status);
+	res = {};
+	smc_op_continue(handle, 0UL, &res);
+	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
 }
 
 /* ----------------------------------------------------------------
@@ -1212,8 +1070,7 @@ TEST(rec_sro_tests, rec_destroy_wrong_fid_continue_before_reclaim)
  */
 TEST(rec_sro_tests, rec_destroy_cancel_not_allowed)
 {
-	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
-	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
+	uintptr_t rec_pa = create_rec_for_destroy(&destroy_realm, &destroy_rec);
 	uintptr_t ns_buf = test_helpers_allocate_granules(1U);
 
 	struct smc_result res = {};
@@ -1226,9 +1083,9 @@ TEST(rec_sro_tests, rec_destroy_cancel_not_allowed)
 
 	/* Context still alive; complete the reclaim normally */
 	drain_reclaim(handle, ns_buf,
-		      (unsigned long)MAX_REC_AUX_GRANULES,
-		      (unsigned long)MAX_REC_AUX_GRANULES,
-		      aux_pa);
+		      (unsigned long)destroy_rec.num_aux,
+		      (unsigned long)destroy_rec.num_aux,
+		      destroy_rec.aux);
 	smc_op_continue(handle, 0UL, &res);
 	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
 }
@@ -1241,14 +1098,12 @@ TEST(rec_sro_tests, rec_destroy_cancel_not_allowed)
  *  than available the framework clamps list_count automatically and
  *  returns INCOMPLETE + RECLAIM until the tail is exhausted.
  *
- *  This test uses MAX_REC_AUX_GRANULES auxiliary granules and passes
- *  ADDR_LIST_MAX_RANGES + 1 as the count, verifying the clamping path.
+ *  Pass ADDR_LIST_MAX_RANGES + 1 as the count to verify the clamping path.
  * ----------------------------------------------------------------
  */
 TEST(rec_sro_tests, rec_destroy_reclaim_oversized_batch_clamped)
 {
-	uintptr_t aux_pa[MAX_REC_AUX_GRANULES];
-	uintptr_t rec_pa = alloc_fake_rec(MAX_REC_AUX_GRANULES, aux_pa);
+	uintptr_t rec_pa = create_rec_for_destroy(&destroy_realm, &destroy_rec);
 	uintptr_t ns_buf = test_helpers_allocate_granules(1U);
 
 	struct smc_result res = {};
@@ -1258,9 +1113,8 @@ TEST(rec_sro_tests, rec_destroy_reclaim_oversized_batch_clamped)
 	/*
 	 * Request more than ADDR_LIST_MAX_RANGES in a single call.
 	 * The framework silently clamps list_count to ADDR_LIST_MAX_RANGES.
-	 * With MAX_REC_AUX_GRANULES (16) << ADDR_LIST_MAX_RANGES (512),
-	 * all granules are reclaimed in one call and mem_req transitions
-	 * to NONE immediately.
+	 * The REC's auxiliary pages fit in the clamped list, so mem_req
+	 * transitions to NONE immediately.
 	 */
 	smc_op_mem_reclaim(handle, ns_buf,
 			   ADDR_LIST_MAX_RANGES + 1UL, &res);
@@ -1274,61 +1128,16 @@ TEST(rec_sro_tests, rec_destroy_reclaim_oversized_batch_clamped)
 	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
 }
 
-/* ----------------------------------------------------------------
- * TC_DESTROY_12: Exercises the "still pending entries" path in
- *                smc_op_mem_reclaim that performs a memmove of
- *                remaining entries.
- *
- *  This path requires addr_list->count > list_count so that a single
- *  copy call does not drain the whole list.  Consecutive aux granules
- *  compact into one descriptor, so this test uses two non-consecutive
- *  aux granules (separated by a gap) to produce two descriptors.
- *
- *  Steps:
- *   1. Build a fake REC with 2 non-consecutive aux granules.
- *   2. REC_DESTROY → INCOMPLETE (RECLAIM).
- *   3. OP_MEM_RECLAIM with a delegated (non-NS) output buffer and
- *      list_count = 2.  Callback fills both descriptors but the NS
- *      copy fails → addr_list->count stays at 2.
- *   4. Retry with valid NS buffer, list_count = 1.  Copies descriptor
- *      [0], memmoves descriptor [1] to front → addr_list->count = 1
- *      → "still pending" branch → RECLAIM.
- *   5. One more call drains descriptor [1] → MEM_REQ_NONE.
- *   6. OP_CONTINUE → RMI_SUCCESS.
- * ----------------------------------------------------------------
+/*
+ * Copy one descriptor through a delegated output buffer, leaving the remaining
+ * entries pending. Retry through an ordinary NS buffer and complete reclaim.
+ * Non-consecutive AUX pages prevent descriptor coalescing, exercising the
+ * memmove of pending entries with a REC created through RMI.
  */
 TEST(rec_sro_tests, rec_destroy_reclaim_pending_entries_memmove)
 {
-	/*
-	 * Allocate 2 non-consecutive aux granules by inserting a 1-granule
-	 * gap between them.  The gap PA is never delegated, so the two aux
-	 * PAs differ by 2 * GRANULE_SIZE and cannot be merged into one
-	 * descriptor by addr_list_add_block.
-	 */
-	uintptr_t aux_pa[2];
-	const unsigned long mpidr = 0UL;
-
-	uintptr_t rd_pa  = test_helpers_allocate_granules(1U);
-	uintptr_t rec_pa = test_helpers_allocate_granules(1U);
-	CHECK_TRUE(delegate_range(rd_pa,  rd_pa  + GRANULE_SIZE));
-	CHECK_TRUE(delegate_range(rec_pa, rec_pa + GRANULE_SIZE));
-
-	struct granule *g_rd = init_fake_rd(rd_pa);
-
-	aux_pa[0] = test_helpers_allocate_granules(1U);
-	test_helpers_allocate_granules(1U);              /* gap: creates non-consecutive PA */
-	aux_pa[1] = test_helpers_allocate_granules(1U);
-
-	for (unsigned int i = 0U; i < 2U; i++) {
-		CHECK_TRUE(delegate_range(aux_pa[i], aux_pa[i] + GRANULE_SIZE));
-		struct granule *g_aux = tr_find_fine_granule(aux_pa[i]);
-		granule_lock(g_aux, GRANULE_STATE_DELEGATED);
-		__granule_set_state(g_aux, GRANULE_STATE_REC_AUX);
-		granule_unlock(g_aux);
-	}
-
-	populate_fake_rec(rec_pa, g_rd, aux_pa, 2U, mpidr);
-	add_fake_rec_mpidr_mapping(g_rd, mpidr, rec_pa);
+	/* Separate the actual requested AUX pages so each needs a descriptor. */
+	uintptr_t rec_pa = create_rec_for_destroy(&destroy_realm, &destroy_rec, true);
 
 	/* A delegated granule must not prevent architectural NS access. */
 	uintptr_t bad_buf = test_helpers_allocate_granules(1U);
@@ -1344,8 +1153,8 @@ TEST(rec_sro_tests, rec_destroy_reclaim_pending_entries_memmove)
 	unsigned long handle = res.x[1];
 
 	/*
-	 * Step 3: populate both descriptors and copy one through a buffer whose
-	 * tracking granule is delegated. One address-list descriptor remains pending.
+	 * Copy one entry through a buffer whose tracking granule is delegated.
+	 * The remaining address-list descriptors must stay pending.
 	 */
 	smc_op_mem_reclaim(handle, bad_buf, 1UL, &res);
 	rc = unpack_return_code(res.x[0]);
@@ -1355,16 +1164,16 @@ TEST(rec_sro_tests, rec_destroy_reclaim_pending_entries_memmove)
 		    (unsigned long)EXTRACT(RMI_OP_MEM_REQ, res.x[0]));
 
 	/*
-	 * Step 4: drain the remaining descriptor through the ordinary buffer.
+	 * Drain the remaining descriptors through the ordinary buffer.
 	 */
-	smc_op_mem_reclaim(handle, ns_buf, 1UL, &res);
+	smc_op_mem_reclaim(handle, ns_buf, destroy_rec.num_aux - 1U, &res);
 	rc = unpack_return_code(res.x[0]);
 	CHECK_EQUAL(RMI_INCOMPLETE, rc.status);
-	CHECK_EQUAL(1UL, res.x[1]);
+	CHECK_EQUAL(destroy_rec.num_aux - 1U, res.x[1]);
 	CHECK_EQUAL(RMI_OP_MEM_REQ_NONE,
 		    (unsigned long)EXTRACT(RMI_OP_MEM_REQ, res.x[0]));
 
-	/* Step 5: finish the destroy. */
+	/* Finish the destroy after reclaiming every auxiliary page. */
 	smc_op_continue(handle, 0UL, &res);
 	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
 }

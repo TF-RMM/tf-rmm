@@ -7,30 +7,23 @@
 #include <CppUTest/TestHarness.h>
 
 extern "C" {
-#include <arch_features.h>
 #include <buffer.h>
 #include <granule.h>
 #include <host_utils.h>
-#include <mec.h>
 #include <realm.h>
+#include <rec.h>
+}
+
+#include <rmi_test_helpers.h>
+
+extern "C" {
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <sro_context.h>
 #include <status.h>
 #include <string.h>
 #include <test_helpers.h>
-#include <vmid.h>
 }
-
-struct test_realm {
-	uintptr_t rd;
-	uintptr_t params;
-	uintptr_t rtt;
-	uintptr_t addr_list;
-	uintptr_t aux[MAX_RD_AUX_GRANULES];
-	unsigned long handle;
-	unsigned int num_aux;
-};
 
 static unsigned long encode_addr_desc(uintptr_t base, unsigned long count,
 				      unsigned long state)
@@ -61,36 +54,8 @@ static bool delegate_range(uintptr_t start, uintptr_t end)
 	return true;
 }
 
-static void init_realm_params(struct rmi_realm_params *params,
-			      uintptr_t rtt)
-{
-	(void)memset(params, 0, sizeof(*params));
-	params->s2sz = arch_feat_get_pa_width();
-	params->rtt_base = rtt;
-	params->rtt_num_start = 1U;
-	params->num_bps = 1U;
-	params->num_wps = 1U;
-	params->algorithm = RMI_HASH_SHA_256;
-}
-
-static void init_test_realm(struct test_realm *realm)
-{
-	struct rmi_realm_params *params;
-
-	(void)memset(realm, 0, sizeof(*realm));
-	realm->rd = test_helpers_allocate_granules(1U);
-	realm->params = test_helpers_allocate_granules(1U);
-	realm->rtt = test_helpers_allocate_granules(1U);
-	realm->addr_list = test_helpers_allocate_granules(1U);
-
-	CHECK_TRUE(delegate_range(realm->rd, realm->rd + GRANULE_SIZE));
-	CHECK_TRUE(delegate_range(realm->rtt, realm->rtt + GRANULE_SIZE));
-
-	params = (struct rmi_realm_params *)realm->params;
-	init_realm_params(params, realm->rtt);
-}
-
-static void start_realm_create(struct test_realm *realm)
+/* Start creation of a prepared Realm and check the initial donation request. */
+static void start_realm_create(struct rmi_test_realm *realm)
 {
 	struct smc_result res = {};
 	return_code_t rc;
@@ -117,7 +82,8 @@ static void start_realm_create(struct test_realm *realm)
 		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(realm->rtt)));
 }
 
-static void allocate_realm_aux(struct test_realm *realm, bool separated)
+/* Build a donation list, optionally separating AUX pages to prevent coalescing. */
+static void allocate_realm_aux(struct rmi_test_realm *realm, bool separated)
 {
 	unsigned long *addr_list = (unsigned long *)realm->addr_list;
 
@@ -134,7 +100,8 @@ static void allocate_realm_aux(struct test_realm *realm, bool separated)
 	}
 }
 
-static void donate_realm_aux(struct test_realm *realm)
+/* Donate the prepared AUX list and check the state before OP_CONTINUE. */
+static void donate_realm_aux(struct rmi_test_realm *realm)
 {
 	struct smc_result res = {};
 	return_code_t rc;
@@ -154,84 +121,22 @@ static void donate_realm_aux(struct test_realm *realm)
 	}
 }
 
-static void release_realm_create_context(struct test_realm *realm)
+/* Release the SRO after a donation-only test; the next test resets its granules. */
+static void release_realm_create_context(struct rmi_test_realm *realm)
 {
 	CHECK_TRUE(sro_ctx_find(realm->handle));
 	sro_ctx_release();
 }
 
-static void transition_granule(uintptr_t addr, unsigned char from,
-			       unsigned char to)
+/* Create a valid Realm through RMI before testing its destroy protocol. */
+static void init_destroy_realm(struct rmi_test_realm *realm, bool separated_aux)
 {
-	struct granule *g = tr_find_fine_granule(addr);
-
-	CHECK_TRUE(g != NULL);
-	granule_lock(g, from);
-	granule_unlock_transition(g, to);
+	rmi_test_realm_prepare(realm);
+	rmi_test_realm_create(realm, separated_aux);
 }
 
-static void init_destroy_realm(struct test_realm *realm, bool separated_aux)
-{
-	struct granule *g_aux[MAX_RD_AUX_GRANULES];
-	struct sarray_hdr *map;
-	struct rd_aux *rd_aux;
-	struct rd *rd;
-	unsigned int mecid;
-	unsigned int vmid;
-
-	(void)memset(realm, 0, sizeof(*realm));
-	realm->rd = test_helpers_allocate_granules(1U);
-	realm->rtt = test_helpers_allocate_granules(1U);
-	realm->addr_list = test_helpers_allocate_granules(1U);
-	realm->num_aux = MAX_RD_AUX_GRANULES;
-
-	CHECK_TRUE(delegate_range(realm->rd, realm->rd + GRANULE_SIZE));
-	CHECK_TRUE(delegate_range(realm->rtt, realm->rtt + GRANULE_SIZE));
-	transition_granule(realm->rtt, GRANULE_STATE_DELEGATED,
-			   GRANULE_STATE_RTT);
-
-	for (unsigned int i = 0U; i < realm->num_aux; i++) {
-		realm->aux[i] = test_helpers_allocate_granules(1U);
-		CHECK_TRUE(delegate_range(realm->aux[i],
-					  realm->aux[i] + GRANULE_SIZE));
-		transition_granule(realm->aux[i], GRANULE_STATE_DELEGATED,
-				   GRANULE_STATE_RD_AUX);
-		g_aux[i] = tr_find_fine_granule(realm->aux[i]);
-
-		if (separated_aux && ((i + 1U) < realm->num_aux)) {
-			(void)test_helpers_allocate_granules(1U);
-		}
-	}
-
-	rd_aux = (struct rd_aux *)
-		buffer_rd_aux_granules_map_zeroed(g_aux, realm->num_aux);
-	CHECK_TRUE(rd_aux != NULL);
-	map = sarray_init_vdev_map(&rd_aux->vdev_map_hnd,
-				   rd_aux->vdev_map_mem,
-				   sizeof(rd_aux->vdev_map_mem));
-	CHECK_TRUE(map != NULL);
-	buffer_rd_aux_granules_unmap(rd_aux, realm->num_aux);
-
-	CHECK_TRUE(vmid_alloc(&vmid));
-	CHECK_TRUE(mecid_alloc(&mecid, true));
-
-	rd = (struct rd *)realm->rd;
-	(void)memset(rd, 0, sizeof(*rd));
-	set_rd_state(rd, REALM_NEW);
-	rd->num_rd_aux = realm->num_aux;
-	rd->s2_ctx[0].g_rtt = tr_find_fine_granule(realm->rtt);
-	rd->s2_ctx[0].num_root_rtts = 1U;
-	rd->s2_ctx[0].vmid = (unsigned short)vmid;
-	rd->s2_ctx[0].mecid = mecid;
-	for (unsigned int i = 0U; i < realm->num_aux; i++) {
-		rd->aux_granules[i] = g_aux[i];
-	}
-
-	transition_granule(realm->rd, GRANULE_STATE_DELEGATED,
-			   GRANULE_STATE_RD);
-}
-
-static unsigned long start_realm_destroy(struct test_realm *realm)
+/* Terminate a Realm with no RECs or child RTTs; return its destroy SRO handle. */
+static unsigned long start_realm_destroy(struct rmi_test_realm *realm)
 {
 	struct smc_result res = {};
 	return_code_t rc;
@@ -250,7 +155,8 @@ static unsigned long start_realm_destroy(struct test_realm *realm)
 	return res.x[1];
 }
 
-static void check_realm_destroyed(const struct test_realm *realm)
+/* Check that destruction returned the RD, root RTT and AUX pages to DELEGATED. */
+static void check_realm_destroyed(const struct rmi_test_realm *realm)
 {
 	CHECK_EQUAL(GRANULE_STATE_DELEGATED,
 		    (unsigned long)granule_unlocked_state(tr_find_fine_granule(realm->rd)));
@@ -288,16 +194,16 @@ TEST_GROUP(realm_sro_tests) {
  */
 TEST(realm_sro_tests, realm_create_donate_requests_continue)
 {
-	struct test_realm realm;
+	struct rmi_test_realm realm;
 
-	init_test_realm(&realm);
+	rmi_test_realm_prepare(&realm);
 	start_realm_create(&realm);
 	allocate_realm_aux(&realm, false);
 	donate_realm_aux(&realm);
 
 	/*
-	 * The next continuation performs attestation hashing, which requires
-	 * the EL0 app context unavailable in CppUTest.
+	 * This test stops at the donation boundary. The lifecycle test below
+	 * exercises creation through completion with the real apps.
 	 */
 	release_realm_create_context(&realm);
 }
@@ -312,13 +218,13 @@ TEST(realm_sro_tests, realm_create_donate_requests_continue)
  */
 TEST(realm_sro_tests, realm_create_donation_failure_rolls_back)
 {
-	struct test_realm realm;
+	struct rmi_test_realm realm;
 	struct smc_result res = {};
 	return_code_t rc;
 	unsigned long *addr_list;
 	uintptr_t bad_aux;
 
-	init_test_realm(&realm);
+	rmi_test_realm_prepare(&realm);
 	start_realm_create(&realm);
 	allocate_realm_aux(&realm, false);
 
@@ -363,12 +269,12 @@ TEST(realm_sro_tests, realm_create_donation_failure_rolls_back)
  */
 TEST(realm_sro_tests, realm_create_copies_params_during_continue)
 {
-	struct test_realm realm;
+	struct rmi_test_realm realm;
 	struct rmi_realm_params *params;
 	struct smc_result res = {};
 	return_code_t rc;
 
-	init_test_realm(&realm);
+	rmi_test_realm_prepare(&realm);
 	start_realm_create(&realm);
 	allocate_realm_aux(&realm, false);
 	donate_realm_aux(&realm);
@@ -410,7 +316,7 @@ TEST(realm_sro_tests, realm_create_copies_params_during_continue)
  */
 TEST(realm_sro_tests, realm_destroy_reclaims_aux_and_finishes)
 {
-	struct test_realm realm;
+	struct rmi_test_realm realm;
 	struct smc_result res = {};
 	return_code_t rc;
 	unsigned long handle;
@@ -439,7 +345,7 @@ TEST(realm_sro_tests, realm_destroy_reclaims_aux_and_finishes)
  */
 TEST(realm_sro_tests, realm_destroy_reclaims_multiple_batches)
 {
-	struct test_realm realm;
+	struct rmi_test_realm realm;
 	struct smc_result res = {};
 	return_code_t rc;
 	unsigned long handle;
