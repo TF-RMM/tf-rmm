@@ -1041,6 +1041,11 @@ bool handle_realm_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int excep
 	return false;
 }
 
+/*
+ * Populate the Plane exit syndrome from the saved Plane N state. The caller
+ * must validate exit_reason as RSI_EXIT_SYNC, RSI_EXIT_IRQ or RSI_EXIT_HOST
+ * and zero the syndrome fields not defined for the reason.
+ */
 static void handle_plane_exit_syndrome(struct rsi_plane_exit *exit,
 				       struct rec_plane *plane,
 				       unsigned int exit_reason)
@@ -1048,7 +1053,7 @@ static void handle_plane_exit_syndrome(struct rsi_plane_exit *exit,
 	unsigned long esr = plane->plane_exit_info.esr;
 	unsigned long ec = esr & MASK(ESR_EL2_EC);
 
-	/* Get the most recent value for pstate */
+	/* The validated exit reason fits in the one-byte ABI field. */
 	exit->reason = (unsigned char)exit_reason;
 	exit->elr_el2 = plane->pc;
 
@@ -1076,6 +1081,10 @@ static void handle_plane_exit_syndrome(struct rsi_plane_exit *exit,
 	exit->pmu_ovf_status = plane->plane_exit_info.pmu_ovf_status;
 }
 
+/*
+ * Validate the Plane exit reason and populate the syndrome from saved state.
+ * The caller must zero the exit syndrome fields and provide the exiting Plane N.
+ */
 static void do_handle_plane_exit(unsigned int exit_reason,
 				 struct rsi_plane_exit *exit,
 				 struct rec_plane *plane)
@@ -1113,6 +1122,8 @@ static void copy_state_to_plane_exit(struct rec_plane *plane,
 
 /*
  * Handles the exit from plane N
+ * The caller must hold the REC reference, with Plane N active.
+ * @exit_reason must be RSI_EXIT_SYNC, RSI_EXIT_IRQ or RSI_EXIT_HOST.
  *
  * If 'true' is returned:
  * - The Realm has switched to Plane 0. This include changes to the
