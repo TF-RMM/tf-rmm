@@ -689,9 +689,11 @@ static int copy_pdev_cached_digest(struct pdev *pdev, struct app_data_cfg *app_d
 		return copy_cached_digest(shared_ret, &(pdev->vca_digest));
 	} else if (shared_ret->cached_digest_type == CACHE_TYPE_CERT) {
 		return copy_cached_digest(shared_ret, &(pdev->cert_digest));
+	} else if (shared_ret->cached_digest_type == CACHE_TYPE_NONE) {
+		return DEV_ASSIGN_STATUS_SUCCESS;
 	}
-	assert(shared_ret->cached_digest_type == CACHE_TYPE_NONE);
-	return DEV_ASSIGN_STATUS_SUCCESS;
+	assert(false);
+	return DEV_ASSIGN_STATUS_ERROR;
 }
 
 static int copy_vdev_cached_digest(struct vdev *vdev, struct app_data_cfg *app_data)
@@ -705,9 +707,11 @@ static int copy_vdev_cached_digest(struct vdev *vdev, struct app_data_cfg *app_d
 		return copy_cached_digest(shared_ret, &(vdev->meas_digest));
 	} else if (shared_ret->cached_digest_type == CACHE_TYPE_INTERFACE_REPORT) {
 		return copy_cached_digest(shared_ret, &(vdev->ifc_report_digest));
+	} else if (shared_ret->cached_digest_type == CACHE_TYPE_NONE) {
+		return DEV_ASSIGN_STATUS_SUCCESS;
 	}
-	assert(shared_ret->cached_digest_type == CACHE_TYPE_NONE);
-	return DEV_ASSIGN_STATUS_SUCCESS;
+	assert(false);
+	return DEV_ASSIGN_STATUS_ERROR;
 }
 
 
