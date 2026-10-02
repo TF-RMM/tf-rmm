@@ -39,6 +39,19 @@ void host_buffer_arch_unmap(void *buf)
 	}
 }
 
+/* Return the host MMIO address; fake-host mappings do not distinguish PAS. */
+void *host_mmio_arch_map(unsigned long addr, uint64_t pas_type)
+{
+	(void)pas_type;
+	return (void *)addr;
+}
+
+/* Host MMIO addresses require no mapping resources to release. */
+void host_mmio_arch_unmap(void *mmio)
+{
+	(void)mmio;
+}
+
 /*
  * Harness corresponding to CB_BUFFER_VA_TO_SLOT.
  * This harness searches for a valid pointer to CB_BUFFER_VA_TO_SLOT and calls it.

@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <errno.h>
+#include <glob_data.h>
 #include <granule.h>
 #include <host_utils.h>
 #include <limits.h>
@@ -50,6 +51,7 @@ static bool secondary_pes_initialized;
 
 void rmm_arch_init(void);
 
+/* Boot the primary PE, including its real host app instances, once per process. */
 static void start_primary_pe(void)
 {
 	host_util_set_cpuid(0U);
@@ -79,11 +81,7 @@ static void start_primary_pe(void)
 	 */
 	xlat_enable_mmu_el2();
 
-	/*
-	 * rmm_main() finishhes the warmboot path.
-	 *
-	 * Note: It is expected that the attestation init will fail.
-	 */
+	/* rmm_main() finishes the warmboot path. */
 	per_cpu_token[0] = rmm_main();
 }
 
@@ -127,6 +125,8 @@ static void start_secondary_pes(void)
  * Start the host RMM model and optionally populate all tracking metadata.
  * Tracking SRO tests leave fine backing unpopulated and RMM in INIT. The
  * permanent struct tracking_region array is always populated by the boot path.
+ * Subsequent tests discard the prior granule metadata and Realm resource
+ * allocations. Tests must destroy any REC app instances before this reset.
  */
 static void test_helpers_rmm_start_internal(bool secondaries,
 					    bool populate_tracking)
@@ -159,9 +159,15 @@ static void test_helpers_rmm_start_internal(bool secondaries,
 		(void)ret;
 		rmm_initialized = true;
 	} else {
+		size_t alloc_size;
+		uintptr_t alloc;
+
 		assert(populate_tracking);
 		mec_test_reset();
 		tracking_region_fine_reset();
+		/* Release VMIDs belonging to the Realms discarded by the reset. */
+		alloc = glob_data_get_vmids_va(&alloc_size);
+		(void)memset((unsigned long *)alloc, 0, alloc_size);
 
 		/* Restore the sysreg status */
 		host_util_restore_sysreg_snapshot();

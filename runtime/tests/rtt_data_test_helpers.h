@@ -173,21 +173,11 @@ static inline uintptr_t reserve_delegated_granules_l2_aligned(unsigned int n)
 	return reserve_delegated_granules(n);
 }
 
-/*
- * Initialize a primary S2TT context for data tests.
- * Uses the same settings as init_primary_s2_ctx() in the unprot helpers.
- */
+/* Read the RMI-created primary S2 context used by this protected-data test. */
 static inline void init_data_s2_ctx(const struct test_data_ctx *ctx,
-				    struct s2tt_context *s2_ctx)
+				  struct s2tt_context *s2_ctx)
 {
-	(void)memset(s2_ctx, 0, sizeof(*s2_ctx));
-	s2_ctx->ipa_bits = TEST_IPA_BITS;
-	s2_ctx->s2_starting_level = 0;
-	s2_ctx->num_root_rtts = 1U;
-	s2_ctx->g_rtt = tr_find_fine_granule(ctx->rtt_l0);
-	s2_ctx->indirect_s2ap = false;
-	s2_ctx->mecid = TEST_REALM_MECID;
-	s2_ctx->s2oa_limit = TEST_S2OA_LIMIT;
+	read_test_s2_ctx(ctx->rd, s2_ctx);
 }
 
 /*
@@ -217,58 +207,10 @@ static inline bool read_data_ipa_s2tte(const struct test_data_ctx *ctx,
 	return true;
 }
 
-/*
- * Create RD and RTT L0 for data tests.
- * L0[0] = unassigned_empty (protected/PAR), remaining entries = 0.
- */
+/* Create a Realm and root RTT through RMI; protected IPAs start EMPTY. */
 static inline bool create_data_realm_base(struct test_data_ctx *ctx)
 {
-	struct s2tt_context tmp_ctx;
-	unsigned long *tbl;
-	struct granule *g_rtt_l0;
-	struct granule *g_rd;
-	struct rd *rd;
-	struct s2tt_context *s2_ctx;
-
-	ctx->rd    = reserve_delegated_granules(1U);
-	ctx->rtt_l0 = reserve_delegated_granules(1U);
-
-	(void)memset(&tmp_ctx, 0, sizeof(tmp_ctx));
-
-	g_rtt_l0 = tr_find_fine_granule(ctx->rtt_l0);
-	granule_lock(g_rtt_l0, GRANULE_STATE_DELEGATED);
-	granule_unlock_transition(g_rtt_l0, GRANULE_STATE_RTT);
-
-	granule_lock(g_rtt_l0, GRANULE_STATE_RTT);
-	tbl = (unsigned long *)buffer_granule_mecid_map(g_rtt_l0, SLOT_RTT,
-							TEST_REALM_MECID);
-	CHECK_TRUE(tbl != NULL);
-	/* Entry 0: PAR (protected) initialised as unassigned_empty */
-	tbl[0] = s2tte_create_unassigned_empty(&tmp_ctx, 0UL);
-	for (unsigned int i = 1U; i < S2TTES_PER_S2TT; i++) {
-		tbl[i] = 0UL;
-	}
-	buffer_unmap(tbl);
-	granule_unlock(g_rtt_l0);
-
-	g_rd = tr_find_fine_granule(ctx->rd);
-	granule_lock(g_rd, GRANULE_STATE_DELEGATED);
-	rd = (struct rd *)buffer_granule_map_zeroed(g_rd, SLOT_RD);
-	CHECK_TRUE(rd != NULL);
-
-	s2_ctx = &rd->s2_ctx[PRIMARY_S2_CTX_ID];
-	s2_ctx->ipa_bits         = TEST_IPA_BITS;
-	s2_ctx->s2_starting_level = 0;
-	s2_ctx->num_root_rtts    = 1U;
-	s2_ctx->g_rtt            = g_rtt_l0;
-	s2_ctx->indirect_s2ap    = false;
-	s2_ctx->mecid            = TEST_REALM_MECID;
-	s2_ctx->s2oa_limit        = TEST_S2OA_LIMIT;
-	set_rd_state(rd, REALM_NEW);
-
-	buffer_unmap(rd);
-	granule_unlock_transition(g_rd, GRANULE_STATE_RD);
-
+	ctx->rd = create_rtt_realm(&ctx->rtt_l0, false);
 	return true;
 }
 
