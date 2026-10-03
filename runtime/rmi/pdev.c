@@ -2180,6 +2180,7 @@ void smc_pdev_stream_key_purge(unsigned long pdev1_addr,
 	res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 }
 
+/* Translate a valid internal stream state to its RMI ABI encoding. */
 static unsigned long pdev_stream_state_to_rmi(unsigned long state)
 {
 	switch (state) {
@@ -2207,6 +2208,12 @@ static unsigned long pdev_stream_state_to_rmi(unsigned long state)
  * pdev1_addr		- PA of the first PDEV object
  * pdev2_addr		- PA of the second PDEV object, when required
  * stream_handle	- Stream handle
+ *
+ * System streams ignore pdev2_addr. Acquire the required PDEV granules in
+ * global lock order before locking their owned stream auxiliary granule.
+ * Return the input or tracking error in res->x[0], or RMI_SUCCESS with
+ * stream state/type in res->x[1:2] and placeholder zero key-operation counts
+ * in res->x[3:4]. No mappings or locks remain held on return.
  */
 void smc_pdev_stream_info(unsigned long pdev1_addr,
 			  unsigned long pdev2_addr,
@@ -2218,16 +2225,13 @@ void smc_pdev_stream_info(unsigned long pdev1_addr,
 	struct pdev_stream *stream;
 	struct pdev *pd1;
 	unsigned long pdev1_addr_handle;
+	unsigned long rmi_rc;
 	unsigned char stream_type = RMI_PDEV_STREAM_TYPE_COUNT;
+	bool pdev2_required;
 
 	if (!is_rmi_feat_da_enabled()) {
 		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
-	}
-
-	if (!GRANULE_ALIGNED(pdev1_addr) ||
-	    !GRANULE_ALIGNED(pdev2_addr)) {
-		goto out_err_input;
 	}
 
 	if ((!unpack_stream_handle(stream_handle, &pdev1_addr_handle, &stream_type)) ||
@@ -2236,49 +2240,54 @@ void smc_pdev_stream_info(unsigned long pdev1_addr,
 		return;
 	}
 
-	if (!find_lock_two_granules(pdev1_addr, GRANULE_STATE_PDEV,
-					&g_pdev1, pdev2_addr,
-					GRANULE_STATE_PDEV, &g_pdev2)) {
-		goto out_err_input;
+	/* System streams have no second PDEV to validate or lock. */
+	pdev2_required = (stream_type != RMI_PDEV_STREAM_NCOH_SYS) &&
+			 (stream_type != RMI_PDEV_STREAM_COH_SYS);
+	if (pdev2_required) {
+		rmi_rc = tr_find_lock_two_fine_granules(pdev1_addr, GRANULE_STATE_PDEV,
+						      &g_pdev1, pdev2_addr,
+						      GRANULE_STATE_PDEV, &g_pdev2);
+	} else {
+		rmi_rc = tr_find_lock_granule(pdev1_addr, GRANULE_SIZE,
+					      GRANULE_STATE_PDEV, &g_pdev1);
+	}
+	if (rmi_rc != RMI_SUCCESS) {
+		res->x[0] = rmi_rc;
+		return;
 	}
 
+	rmi_rc = RMI_ERROR_INPUT;
 	pd1 = buffer_granule_map(g_pdev1, SLOT_PDEV);
 	if (pd1 == NULL) {
 		goto out_unlock;
 	}
 
 	stream = pdev_stream_granules_lock_map(pd1->g_stream_aux, stream_type);
-	assert(stream != NULL);
+	if (stream == NULL) {
+		goto out_unmap;
+	}
 
 	if (!stream->taken ||
 	    (stream->pd1_addr != pdev1_addr) ||
-	    (stream->pd2_addr != pdev2_addr)) {
-		pdev_stream_granules_unmap_unlock(pd1->g_stream_aux, stream,
-						 stream_type);
-		buffer_unmap(pd1);
-		goto out_unlock;
+	    (pdev2_required && (stream->pd2_addr != pdev2_addr))) {
+		goto out_stream;
 	}
 
-	res->x[0] = RMI_SUCCESS;
+	rmi_rc = RMI_SUCCESS;
 	res->x[1] = pdev_stream_state_to_rmi(stream->state);
 	res->x[2] = stream_type;
 	/* TODO: Track and return the successful key refresh and purge counts. */
 	res->x[3] = 0UL;
 	res->x[4] = 0UL;
 
+out_stream:
 	pdev_stream_granules_unmap_unlock(pd1->g_stream_aux, stream, stream_type);
+out_unmap:
 	buffer_unmap(pd1);
-	granule_unlock(g_pdev1);
-	if (g_pdev2 != NULL) {
-		granule_unlock(g_pdev2);
-	}
-	return;
-
 out_unlock:
 	granule_unlock(g_pdev1);
 	if (g_pdev2 != NULL) {
 		granule_unlock(g_pdev2);
 	}
-out_err_input:
-	res->x[0] = RMI_ERROR_INPUT;
+	res->x[0] = rmi_rc;
 }
