@@ -1318,6 +1318,125 @@ void tracking_region_activate(enum tr_state state)
 }
 
 /*
+ * Check every represented granule in @bank without visiting holes or inactive
+ * fine metadata. @type selects the conventional or device representation.
+ * The caller holds the layout lock and excludes all RMI calls, so unlocked
+ * state reads remain stable. Return false for any non-NS granule or pending
+ * tracking transition, retaining no locks and leaving metadata unchanged.
+ */
+static bool tracking_bank_is_undelegated(const struct tracking_memory_bank *bank,
+				       enum tr_mem_type type)
+{
+	unsigned long addr = bank->base;
+	unsigned long bank_top = bank->base + bank->size;
+	unsigned long region_size = tracking_region_get_size();
+
+	while (addr < bank_top) {
+		struct tracking_region *tr;
+		const struct tracking_memory_bank *found;
+		unsigned long idx;
+		unsigned long fine_idx;
+		unsigned long top = MIN(bank_top,
+				       round_down(addr, region_size) + region_size);
+		enum tr_state state;
+
+		found = tracking_region_find_addr(addr, type, &idx, &fine_idx);
+		assert(found == bank);
+		(void)found;
+		tr = &tracking_data->tracking_regions[idx];
+		if (tracking_region_transition_pending(tr)) {
+			return false;
+		}
+		state = tracking_region_get_state(tr);
+		if (state == trs_coarse) {
+			if (type == TR_MEM_TYPE_CONV) {
+				if (granule_unlocked_state(&tr->coarse_granule) !=
+				    GRANULE_STATE_NS) {
+					return false;
+				}
+			} else if (dev_granule_unlocked_state(
+						&tr->coarse_dev_granule) !=
+				   DEV_GRANULE_STATE_NS) {
+				return false;
+			}
+		} else if (state == trs_fine) {
+			for (unsigned long i = 0UL;
+			     i < ((top - addr) / GRANULE_SIZE); i++) {
+				if (type == TR_MEM_TYPE_CONV) {
+					if (granule_unlocked_state(
+						tr_fine_granule_from_idx(fine_idx + i)) !=
+					    GRANULE_STATE_NS) {
+						return false;
+					}
+				} else if (dev_granule_unlocked_state(
+						tr_fine_dev_granule_from_idx(fine_idx + i)) !=
+					   DEV_GRANULE_STATE_NS) {
+					return false;
+				}
+			}
+		} else {
+			/* NONE regions cannot contain delegated granules. */
+			assert(state == trs_none);
+		}
+		addr = top;
+	}
+
+	return true;
+}
+
+/*
+ * Validate all active tracking representations before discarding the layout.
+ * The caller excludes every other RMI call and unfinished SRO, and retains
+ * that exclusion until it publishes INIT. Hold the layout lock to serialize
+ * layout queries. Return false without mutation if any granule is non-NS or
+ * a tracking transition is pending; otherwise retain backing and return true.
+ */
+bool tracking_region_deactivate(void)
+{
+	const struct tracking_memory_bank_storage *storage;
+	bool success = false;
+
+	assert((tracking_data != NULL) && tracking_data->tracking_initialized);
+	spinlock_acquire(&tracking_layout_lock);
+	storage = &tracking_data->banks;
+	for (unsigned int i = 0U;
+	     i < tracking_data->num_conv_tracking_banks; i++) {
+		if (!tracking_bank_is_undelegated(&storage->conv_banks[i],
+						TR_MEM_TYPE_CONV)) {
+			goto out;
+		}
+	}
+	for (unsigned int i = 0U;
+	     i < tracking_data->num_dev_tracking_banks; i++) {
+		if (!tracking_bank_is_undelegated(&storage->dev_banks[i],
+						TR_MEM_TYPE_DEV)) {
+			goto out;
+		}
+	}
+
+	/*
+	 * Inactive fine descriptors can retain old states after a transition to
+	 * COARSE or NONE. Clear preallocated arrays before a new layout reuses
+	 * them. Host-donated backing has already been reclaimed: its INTERNAL
+	 * granules would otherwise have prevented successful validation.
+	 */
+	if (tracking_data->granule_array_tr.state == TRACKING_REGIONS_COMMITTED) {
+		(void)memset((void *)tracking_data->granule_array_tr.va, 0,
+			     tracking_data->granule_array_tr.size);
+	}
+	if (tracking_data->dev_granule_array_tr.state == TRACKING_REGIONS_COMMITTED) {
+		(void)memset((void *)tracking_data->dev_granule_array_tr.va, 0,
+			     tracking_data->dev_granule_array_tr.size);
+	}
+	tracking_data->tracking_initialized = false;
+	tracking_data->tracking_regions = NULL;
+	success = true;
+out:
+	spinlock_release(&tracking_layout_lock);
+	return success;
+}
+
+/*
  * Binary-search the selected struct tracking_memory_bank array for @addr.
  * On success, return the matching struct tracking_memory_bank and the
  * corresponding shared tracking-region and type-local fine-granule indices.
