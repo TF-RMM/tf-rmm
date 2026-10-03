@@ -1144,7 +1144,7 @@ void smc_rtt_read_entry(unsigned long rd_addr,
 	} else if (s2tte_is_assigned_dev_destroyed(&s2_ctx, s2tte,
 							wi.last_level)) {
 		res->x[2] = RMI_ASSIGNED_DEV;
-		res->x[3] = 0UL;
+		res->x[3] = s2tte_pa(&s2_ctx, s2tte, wi.last_level);
 		res->x[4] = (unsigned long)RIPAS_DESTROYED;
 	} else if (s2tte_is_assigned_dev_dev(&s2_ctx, s2tte, wi.last_level)) {
 		res->x[2] = RMI_ASSIGNED_DEV;

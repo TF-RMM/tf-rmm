@@ -90,3 +90,9 @@ rmm_build_unittest(NAME psci_features_tests
                    TARGET rmm-runtime
                    SOURCES "tests/psci_features_tests.cpp"
                    ITERATIONS 1)
+
+rmm_build_unittest(NAME rtt_read_entry_dev_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/rtt_read_entry_dev_tests.cpp"
+                   ITERATIONS 1)
