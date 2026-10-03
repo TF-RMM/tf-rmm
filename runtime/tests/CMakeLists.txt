@@ -7,6 +7,13 @@ target_include_directories(rmm-runtime
     PRIVATE "tests")
 
 # Add test functionality
+rmm_build_unittest(NAME rmm_deactivate_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/rmm_deactivate_tests.cpp"
+                   ADDITIONAL_TEST_GROUPS rmm_deactivate_boot_tests
+                   ITERATIONS 1)
+
 rmm_build_unittest(NAME status_tests
                    LIBRARIES rmm-platform
                    TARGET rmm-runtime

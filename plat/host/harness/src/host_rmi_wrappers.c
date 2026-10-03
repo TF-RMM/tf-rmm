@@ -31,6 +31,13 @@ void host_rmm_activate(struct smc_result *res)
 		      res);
 }
 
+/* Invoke RMM deactivation without arguments; @res receives the RMI result. */
+void host_rmm_deactivate(struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_RMM_DEACTIVATE,
+		      0, 0, 0, 0, 0, 0, 0, res);
+}
+
 void host_rmi_granule_range_delegate(void *granule_start, void *granule_end,
 				     struct smc_result *res)
 {
