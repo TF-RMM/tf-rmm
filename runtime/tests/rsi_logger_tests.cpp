@@ -222,13 +222,15 @@ TEST(rsi_logger_tests, terminates_unsupported_dispatch_entries)
 	STRCMP_EQUAL("", entries);
 }
 
+/* Lower FIDs, including PSCI_FEATURES, must use generic logging without wrapping. */
 TEST(rsi_logger_tests, logs_non_rsi_fids_and_table_boundaries)
 {
 	unsigned long args[10] = {0UL};
 	unsigned long regs[4] = {SMC_UNKNOWN};
 	const unsigned int ids[] = {
 		0U, ~0U, SMC_RSI_VERSION - 1U,
-		SMC_RSI_PLANE_SYSREG_WRITE + 1U, SMC32_PSCI_FID_MIN
+		SMC_RSI_PLANE_SYSREG_WRITE + 1U, SMC32_PSCI_FID_MIN,
+		SMC32_PSCI_FEATURES, SMCCC_VERSION
 	};
 	char output[1024];
 
@@ -244,6 +246,8 @@ TEST(rsi_logger_tests, logs_non_rsi_fids_and_table_boundaries)
 	STRCMP_CONTAINS("SMC_c400018f", output);
 	STRCMP_CONTAINS("SMC_c40001b0", output);
 	STRCMP_CONTAINS("PSCI_84000000", output);
+	STRCMP_CONTAINS("PSCI_8400000a", output);
+	STRCMP_CONTAINS("SMC_80000000", output);
 	STRCMP_CONTAINS("PSCI_c4000014", output);
 	STRCMP_CONTAINS(" > ffffffffffffffff 0 0 0\n", output);
 }

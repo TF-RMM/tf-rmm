@@ -93,9 +93,19 @@ static const char * const rsi_status_string[] = {
 /* cppcheck-suppress misra-c2012-17.3 */
 COMPILER_ASSERT(ARRAY_SIZE(rsi_status_string) == RSI_ERROR_COUNT_MAX);
 
+/*
+ * Return the logging policy for an RSI table entry, or NULL for other FIDs.
+ * Check the lower bound before subtracting: PSCI and SMCCC IDs can be below
+ * the RSI range, and an unsigned wrap would trip the overflow sanitizer.
+ */
 static const struct rsi_handler *fid_to_rsi_logger(unsigned int id)
 {
-	unsigned int offset = id - SMC_RSI_VERSION;
+	unsigned int offset;
+
+	if (id < SMC_RSI_VERSION) {
+		return NULL;
+	}
+	offset = id - SMC_RSI_VERSION;
 
 	return (offset < ARRAY_SIZE(rsi_logger)) ? &rsi_logger[offset] : NULL;
 }
