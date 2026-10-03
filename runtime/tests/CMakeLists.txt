@@ -84,3 +84,9 @@ rmm_build_unittest(NAME wfxt_exit_tests
                    TARGET rmm-runtime
                    SOURCES "tests/wfxt_exit_tests.cpp"
                    ITERATIONS 1)
+
+rmm_build_unittest(NAME psci_features_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/psci_features_tests.cpp"
+                   ITERATIONS 1)

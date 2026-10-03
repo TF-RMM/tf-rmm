@@ -323,6 +323,7 @@ static void psci_features(struct rec_plane *plane, struct rsi_result *res)
 	unsigned int psci_func_id = (unsigned int)plane->regs[1];
 
 	switch (psci_func_id) {
+	case SMC32_PSCI_VERSION:
 	case SMC32_PSCI_CPU_SUSPEND:
 	case SMC64_PSCI_CPU_SUSPEND:
 	case SMC32_PSCI_CPU_OFF:
