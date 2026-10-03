@@ -527,6 +527,12 @@ unsigned long sro_ctx_reserve(unsigned long command, unsigned long xfer,
 void sro_ctx_release(void);
 
 /*
+ * Return whether all SRO contexts are free under the pool lock. The caller
+ * must exclude new RMI calls if it relies on the result remaining true.
+ */
+bool sro_ctx_is_idle(void);
+
+/*
  * Seal an SRO context upon exiting to Host.
  */
 unsigned int sro_ctx_seal(void);
