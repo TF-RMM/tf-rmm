@@ -257,6 +257,12 @@ static unsigned long rtt_create(unsigned long rd_addr,
 	s2tt = buffer_granule_mecid_map(g_tbl, SLOT_RTT2, s2_ctx->mecid);
 	assert(s2tt != NULL);
 
+	/* An SRO owns this slot; unfolding must not discard its marker. */
+	if (s2tte_drain_pending(parent_s2tte)) {
+		ret = RMI_BLOCKED;
+		goto out_unmap_table;
+	}
+
 	if (s2tte_is_unassigned_empty(s2_ctx, parent_s2tte)) {
 		s2tt_init_unassigned_empty(s2_ctx, s2tt, parent_s2tte);
 
@@ -628,6 +634,14 @@ static void rtt_fold(unsigned long rd_addr,
 	assert(table != NULL);
 
 	s2tte = s2tte_read(&table[0U]);
+
+	/* A full table can contain live-counted SRO markers instead of mappings. */
+	for (unsigned long i = 0UL; i < S2TTES_PER_S2TT; i++) {
+		if (s2tte_drain_pending(s2tte_read(&table[i]))) {
+			ret = RMI_BLOCKED;
+			goto out_unmap_table;
+		}
+	}
 
 	/*
 	 * The command can succeed only if all 512 S2TTEs are of the same type.
@@ -1702,6 +1716,12 @@ void smc_rtt_set_s2ap(unsigned long rd_addr, unsigned long rec_addr,
 		}
 
 		s2tte = s2tte_read(&s2tt[wi.index]);
+		/* Do not modify an entry owned by an in-flight map or unmap. */
+		if (s2tte_drain_pending(s2tte)) {
+			res->x[0] = (next == base) ? RMI_BLOCKED : RMI_SUCCESS;
+			res->x[1] = next;
+			goto out_unmap_s2tt;
+		}
 		if (s2tte_is_table(s2_ctx, s2tte, wi.last_level)) {
 			/*
 			 * We need to walk one more level to continue the
