@@ -2593,11 +2593,12 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 			  unsigned long base, unsigned long top,
 			  struct smc_result *res)
 {
-	struct granule *g_rd, *g_rec;
+	struct granule *g_rd, *g_rec, *g_vdev;
 	struct s2tt_context *s2_ctx;
 	unsigned long dev_mem_pa;
 	unsigned long *s2tt;
 	struct s2tt_walk wi;
+	struct vdev *vd;
 	struct rec *rec;
 	struct rd *rd;
 	unsigned long ret;
@@ -2607,6 +2608,7 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 		return;
 	}
 
+	/* Lock in RD, REC, VDEV, RTT order and retain VDEV through the update. */
 	ret = tr_find_lock_two_fine_granules(rd_addr, GRANULE_STATE_RD,
 					     &g_rd, rec_addr,
 					     GRANULE_STATE_REC, &g_rec);
@@ -2636,6 +2638,30 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 
 	rd = buffer_granule_map(g_rd, SLOT_RD);
 	assert(rd != NULL);
+
+	/* Resolve the pending request's VDEV ID through the RD-owned map.
+	 * Reject the request if the VDEV is no longer present. */
+	if (vdev_find_lock_map(g_rd, rd, rec->vdev_id_1, &g_vdev, &vd) != 0) {
+		res->x[0] = RMI_ERROR_INPUT;
+		goto out_unmap_rd;
+	}
+
+	/* UNLOCK can be pending while the VDEV still appears LOCKED/STARTED. */
+	if (((vd->rmi_state != RMI_VDEV_STATE_LOCKED) &&
+	     (vd->rmi_state != RMI_VDEV_STATE_STARTED)) ||
+	    (vd->comm_state != DEV_COMM_IDLE)) {
+		res->x[0] = RMI_ERROR_DEVICE;
+		goto out_unmap_vdev;
+	}
+
+	/* Compare current VDEV freshness with the nonces saved in the Realm's request.
+	 * Reject stale requests after a lock, measurement or interface-report update. */
+	if ((vd->attest_info.lock_nonce != rec->vdev_freshness_1.lock_nonce) ||
+	    (vd->attest_info.meas_nonce != rec->vdev_freshness_1.meas_nonce) ||
+	    (vd->attest_info.report_nonce != rec->vdev_freshness_1.report_nonce)) {
+		res->x[0] = RMI_ERROR_DEVICE;
+		goto out_unmap_vdev;
+	}
 
 	/*
 	 * At this point, we know base == rec->dev_mem.addr and thus must be
@@ -2672,6 +2698,12 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 	buffer_unmap(s2tt);
 out_unlock_llt:
 	granule_unlock(wi.g_llt);
+
+out_unmap_vdev:
+	buffer_unmap(vd);
+	granule_unlock(g_vdev);
+
+out_unmap_rd:
 	buffer_unmap(rd);
 
 out_unmap_rec:

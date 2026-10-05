@@ -10,6 +10,7 @@
 
 #include <arch.h>
 #include <attest_app.h>
+#include <dev.h>
 #include <gic.h>
 #include <granule.h>
 #include <pauth.h>
@@ -346,6 +347,10 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 		/* Host response to device memory mapping validation request */
 		enum host_response response;
 	} dev_mem;
+
+	/* VDEV identity and freshness saved for pending mapping validation. */
+	unsigned long vdev_id_1;
+	struct vdev_attest_info vdev_freshness_1;
 
 	/*
 	 * Populated when the REC issues a request to change

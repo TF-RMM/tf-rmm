@@ -10,6 +10,7 @@
 #include <dev.h>
 #include <dev_assign_app.h>
 #include <dev_granule.h>
+#include <errno.h>
 #include <feature.h>
 #include <granule.h>
 #include <random_app.h>
@@ -22,6 +23,53 @@
 #include <string.h>
 #include <utils_def.h>
 #include <vdev_test.h>
+
+int vdev_find_lock_map(struct granule *g_rd, struct rd *rd,
+		       unsigned long vdev_id, struct granule **g_vdev,
+		       struct vdev **vd)
+{
+	const struct vdev_map *vdev_map;
+	struct granule *g;
+	struct rd_aux *rd_aux;
+	struct vdev *vdev;
+	unsigned long vdev_addr;
+
+	assert((g_rd != NULL) && LOCKED(g_rd));
+	assert(granule_get_state(g_rd) == GRANULE_STATE_RD);
+	assert((rd != NULL) && (g_vdev != NULL) && (vd != NULL));
+
+	*g_vdev = NULL;
+	*vd = NULL;
+
+	/* The caller's RD lock keeps the VDEV ID mapping stable. */
+	rd_aux = buffer_rd_aux_granules_map(&rd->aux_granules[0], rd->num_rd_aux);
+	assert(rd_aux != NULL);
+	vdev_map = sarray_lookup_vdev_map(&rd_aux->vdev_map_hnd, vdev_id);
+	if (vdev_map == NULL) {
+		buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+		return -ENOENT;
+	}
+	vdev_addr = (unsigned long)vdev_map->vdev;
+	buffer_rd_aux_granules_unmap(rd_aux, rd->num_rd_aux);
+
+	/* The locked RD pins the mapped VDEV and its fine tracking metadata. */
+	g = tr_addr_to_granule(vdev_addr);
+	granule_lock(g, GRANULE_STATE_VDEV);
+	vdev = buffer_granule_map(g, SLOT_VDEV);
+	assert(vdev != NULL);
+
+	/* Verify that the resolved VDEV belongs to this Realm and matches the saved ID.
+	 * The RD lock and map invariants should already guarantee both properties. */
+	if ((vdev->g_rd != g_rd) || (vdev->id != vdev_id)) {
+		buffer_unmap(vdev);
+		granule_unlock(g);
+		return -EINVAL;
+	}
+
+	*g_vdev = g;
+	*vd = vdev;
+	return 0;
+}
 
 static bool rmi_addr_ranges_valid(struct rmi_address_range *addr_range,
 				  unsigned long addr_range_cnt)
