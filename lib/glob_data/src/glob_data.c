@@ -4,6 +4,7 @@
  */
 
 #include <assert.h>
+#include <atomics.h>
 #include <debug.h>
 #include <glob_data.h>
 #include <mapped_va_arch.h>
@@ -147,6 +148,24 @@ unsigned long glob_data_get_fw_img_sequence(void)
 	return glob->fw_img_sequence;
 }
 
+/*
+ * Return the next EL3 signing ticket and atomically advance the retained
+ * counter. Global data must be initialized; no caller-held lock is needed.
+ * A 64-bit counter takes about 580 years to wrap at one ticket per nanosecond.
+ */
+uint64_t glob_data_next_token_sign_ticket(void)
+{
+	assert(glob != NULL);
+
+	return atomic_load_add_64(&glob->el3_token_sign_ticket, 1UL);
+}
+
+/*
+ * Initialize global data during primary CPU boot, before concurrent users.
+ * A non-NULL gl is the PA of retained data from the previous firmware image;
+ * reuse it only when its version matches, preserving the signing counter.
+ * Return its PA on success (also when already initialized), or zero on error.
+ */
 uintptr_t glob_data_init(struct glob_data *gl)
 {
 	int ret;
@@ -274,6 +293,8 @@ uintptr_t glob_data_init(struct glob_data *gl)
 
 	/* Initialize the firmware image sequence at 1 for the first image */
 	new_gl->fw_img_sequence = 1UL;
+	/* Only cold boot may reset the EL3 signing ticket sequence. */
+	new_gl->el3_token_sign_ticket = 1UL;
 
 	glob = new_gl;
 
