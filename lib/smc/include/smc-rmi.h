@@ -922,6 +922,22 @@
 #define SMC_RMI_RMM_CONFIG_GET			SMC64_RMI_FID(U(0x9C))
 
 /*
+ * FID: 0xC40001ED is not used.
+ */
+
+/*
+ * FID: 0xC40001EE
+ *
+ *
+ * ret1 == RMM state
+ */
+#define SMC_RMI_RMM_STATE_GET			SMC64_RMI_FID(U(0x9E))
+
+/*
+ * FID: 0xC40001EF is not used.
+ */
+
+/*
  * FID: 0xC40001F1
  *
  * arg0 == start address (PA) of the granule range
@@ -1043,6 +1059,30 @@
 #define SMC_RMI_RTT_DEV_UNMAP			SMC64_RMI_FID(U(0xA8))
 
 /*
+ * FID: 0xC40001F9
+ *
+ * arg0 == PA of the RD for the target Realm
+ * arg1 == PA of the device
+ * arg2 == Base of the target IPA range
+ * arg3 == Top of the target IPA range
+ *
+ * ret1 == Top IPA of range which has been mapped
+ */
+#define SMC_RMI_RTT_ARCH_DEV_MAP		SMC64_RMI_FID(U(0xA9))
+
+/*
+ * FID: 0xC40001FA
+ *
+ * arg0 == PA of the RD for the target Realm
+ * arg1 == PA of the device
+ * arg2 == Base of the target IPA range
+ * arg3 == Top of the target IPA range
+ *
+ * ret1 == Top IPA of range which has been mapped
+ */
+#define SMC_RMI_RTT_ARCH_DEV_UNMAP		SMC64_RMI_FID(U(0xAA))
+
+/*
  * FID: 0xC40001FB
  *
  * arg0 == RD address
@@ -1147,6 +1187,22 @@ enum rmm_state {
  * arg2 == Stream handle
  */
 #define SMC_RMI_PDEV_STREAM_KEY_PURGE		SMC64_RMI_FID(U(0xB7))
+
+/*
+ * FID: 0xC4000210
+ *
+ * arg0 == PA of the first PDEV object
+ * arg1 == PA of the second PDEV object
+ * arg2 == Stream handle
+ *
+ * ret1 == PDEV stream state
+ * ret2 == PDEV stream type
+ * ret3 == Per-stream count of successful key refresh operations for this IDE
+ *         PDEV stream
+ * ret4 == Per-stream count of successful key purge operations for this IDE PDEV
+ *         stream
+ */
+#define SMC_RMI_PDEV_STREAM_INFO		SMC64_RMI_FID(U(0xC0))
 
 /*
  * FID: 0xC4000208
@@ -1410,6 +1466,14 @@ struct rmi_rmm_config {
 #define RMI_MEM_CATEGORY_DEV_NCOH	U(1)
 #define RMI_MEM_CATEGORY_DEV_COH	U(2)
 #define RMI_MEM_CATEGORY_NONE		U(3)
+
+/*
+ * RmiRmmState
+ * RMM state
+ * Width: 8 bits
+ */
+#define RMI_RMM_STATE_INIT			U(0)
+#define RMI_RMM_STATE_ACTIVE			U(1)
 
 /*
  * The Realm attribute parameters are shared by the Host via
@@ -2032,6 +2096,18 @@ struct rmi_psmmu_info {
 #define RMI_PDEV_STREAM_NCOH_SYS		3U
 #define RMI_PDEV_STREAM_COH_SYS			4U
 #define RMI_PDEV_STREAM_TYPE_COUNT		5U
+
+/*
+ * RmiPdevStreamState
+ * The state of a PDEV stream
+ * Width: 8 bits
+ */
+#define RMI_PDEV_STREAM_DISCONNECTED		U(0)
+#define RMI_PDEV_STREAM_CONNECTING		U(1)
+#define RMI_PDEV_STREAM_CONNECTED		U(2)
+#define RMI_PDEV_STREAM_DISCONNECTING		U(3)
+#define RMI_PDEV_STREAM_KEY_REFRESHING		U(4)
+#define RMI_PDEV_STREAM_KEY_PURGING		U(5)
 
 #define RMI_PDEV_STREAM_ADDR_RANGE_CNT		U(16)
 

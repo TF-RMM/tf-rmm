@@ -402,6 +402,16 @@ void host_rmi_pdev_stream_key_refresh(void *pdev1, void *pdev2,
 		      stream_handle, 0, 0, 0, 0, res);
 }
 
+void host_rmi_pdev_stream_info(void *pdev1, void *pdev2,
+			       unsigned long stream_handle,
+			       struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_PDEV_STREAM_INFO,
+		      (uintptr_t)pdev1,
+		      (uintptr_t)pdev2,
+		      stream_handle, 0, 0, 0, 0, res);
+}
+
 void host_rmi_vdev_create(void *rd, void *pdev_ptr, void *vdev_ptr,
 			  void *vdev_params_ptr, struct smc_result *res)
 {

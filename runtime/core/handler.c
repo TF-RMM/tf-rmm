@@ -170,8 +170,10 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(GRANULE_TRACKING_GET,	2, 4, smc_granule_tracking_get,	 true, true),
 	HANDLER(GRANULE_TRACKING_SET,	3, 1, smc_granule_tracking_set,	 true, true),
 	HANDLER(GPT_L1_CREATE,		1, 1, smc_gpt_l1_create,	 false, true),
+	HANDLER(GPT_L1_DESTROY,		1, 1, smc_gpt_l1_destroy,	 false, true),
 	HANDLER(GPT_INFO,		2, 3, smc_gpt_info,		 false, true),
 	HANDLER(RMM_CONFIG_GET,		1, 1, smc_rmm_config_get,	 true, true),
+	HANDLER(RMM_STATE_GET,		0, 2, smc_rmm_state_get,	 true, true),
 	HANDLER(RMM_CONFIG_SET,		1, 1, smc_rmm_config_set,	 true, true),
 	HANDLER(RMM_ACTIVATE,		0, 1, smc_rmm_activate,		 true, true),
 	HANDLER(RMM_DEACTIVATE,		0, 1, smc_rmm_deactivate,	 true, true),
@@ -181,10 +183,13 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PDEV_STREAM_DISCONNECT,	3, 1, smc_pdev_stream_disconnect, true, true),
 	HANDLER(PDEV_STREAM_COMPLETE,	3, 1, smc_pdev_stream_complete,	 true, true),
 	HANDLER(PDEV_STREAM_KEY_PURGE,	3, 1, smc_pdev_stream_key_purge, true, true),
+	HANDLER(PDEV_STREAM_INFO,	3, 5, smc_pdev_stream_info,	 true, true),
 	HANDLER(OP_MEM_DONATE,		3, 3, smc_op_mem_donate,	 true, true),
 	HANDLER(OP_MEM_RECLAIM,		3, 2, smc_op_mem_reclaim,	 true, true),
 	HANDLER(RTT_DEV_MAP,		6, 2, smc_rtt_dev_map,		 false, true),
-	HANDLER(RTT_DEV_UNMAP,		5, 4, smc_rtt_dev_unmap,	 false, true)
+	HANDLER(RTT_DEV_UNMAP,		5, 4, smc_rtt_dev_unmap,	 false, true),
+	HANDLER(RTT_ARCH_DEV_MAP,	4, 2, smc_rtt_arch_dev_map,	 false, true),
+	HANDLER(RTT_ARCH_DEV_UNMAP,	4, 2, smc_rtt_arch_dev_unmap,	 false, true)
 };
 
 COMPILER_ASSERT(ARRAY_SIZE(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
@@ -369,6 +374,7 @@ void handle_ns_smc(unsigned int function_id,
 	case SMC_RMI_FEATURES:
 	case SMC_RMI_VERSION:
 	case SMC_RMI_RMM_CONFIG_GET:
+	case SMC_RMI_RMM_STATE_GET:
 	case SMC_RMI_GRANULE_TRACKING_GET:
 	case SMC_RMI_GPT_INFO:
 		break;

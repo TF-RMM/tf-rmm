@@ -79,6 +79,9 @@ void host_rmi_pdev_stream_complete(void *pdev1, void *pdev2,
 void host_rmi_pdev_stream_key_refresh(void *pdev1, void *pdev2,
 				      unsigned long stream_handle,
 				      struct smc_result *res);
+void host_rmi_pdev_stream_info(void *pdev1, void *pdev2,
+			       unsigned long stream_handle,
+			       struct smc_result *res);
 void host_rmi_vdev_create(void *rd, void *pdev_ptr, void *vdev_ptr,
 			  void *vdev_params_ptr, struct smc_result *res);
 void host_rmi_vdev_communicate(void *rd, void *pdev_ptr, void *vdev_ptr, void *data_ptr,

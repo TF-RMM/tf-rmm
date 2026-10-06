@@ -254,22 +254,49 @@ void smc_rmm_config_get(unsigned long config_ptr, struct smc_result *res)
 
 /* FIXME: This should come from FIRME ABI */
 #define RMM_L0GPTSZ	SZ_1G
+
+static bool gpt_addr_is_valid(unsigned long addr)
+{
+	unsigned int pasz = arch_feat_get_pa_width();
+	unsigned long max_pa = ((1UL << pasz) - 1UL);
+
+	return (addr <= max_pa) && ALIGNED(addr, RMM_L0GPTSZ);
+}
+
 void smc_gpt_l1_create(unsigned long addr, struct smc_result *res)
 {
-	if (!ALIGNED(addr, RMM_L0GPTSZ)) {
+	if (!gpt_addr_is_valid(addr)) {
 		res->x[0] = RMI_ERROR_INPUT;
 		return;
 	}
 
 	/*
-	 * FIXME:  We have statically created L1 GPTs, thus return ERROR_GPT.
+	 * TODO: Check that the PAR has a host-created L1GPT.
+	 */
+	/*
+	 * FIXME:  We have statically created L1 GPTs, thus return RMI_ERROR_GLOBAL.
 	 * For Dynamic GPT, we need the SRO and request memory
 	 * from the Host, once we have walked the GPT and if a table is
 	 * really required.
 	 */
 	/* The existing L1 table is referenced by the L0 entry for @addr. */
 	res->x[0] = pack_return_code_level_addr(
-			RMI_ERROR_GPT, (unsigned char)0U, addr);
+			RMI_ERROR_GLOBAL, (unsigned char)0U, addr);
+}
+
+void smc_gpt_l1_destroy(unsigned long addr, struct smc_result *res)
+{
+	if (!gpt_addr_is_valid(addr)) {
+		res->x[0] = RMI_ERROR_INPUT;
+		return;
+	}
+
+	/*
+	 * TODO: Check that the PAR has a host-created L1GPT.
+	 * TODO: Check that all entries in the L1GPT have the same GPI.
+	 * To be implemented: destroy the L1GPT using the SRO reclaim flow.
+	 */
+	res->x[0] = RMI_ERROR_GLOBAL;
 }
 
 /*

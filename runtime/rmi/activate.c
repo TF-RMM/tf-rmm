@@ -84,6 +84,20 @@ void smc_rmm_deactivate(struct smc_result *res)
 	res->x[0] = RMI_SUCCESS;
 }
 
+/*
+ * Return the architectural RMM state. The ABI encoding is deliberately
+ * translated from the internal state, whose enum also contains an
+ * intermediate value.
+ */
+void smc_rmm_state_get(struct smc_result *res)
+{
+	enum rmm_state state = glob_data_get_rmm_state();
+
+	res->x[0] = RMI_SUCCESS;
+	res->x[1] = (state == RMM_STATE_ACTIVE) ?
+			RMI_RMM_STATE_ACTIVE : RMI_RMM_STATE_INIT;
+}
+
 /* cppcheck-suppress misra-c2012-8.7 */
 enum rmm_state get_rmm_active_state(void)
 {

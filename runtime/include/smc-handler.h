@@ -185,6 +185,18 @@ void smc_rtt_dev_unmap(unsigned long rd_addr,
 		       unsigned long oaddr,
 		       struct smc_result *res);
 
+void smc_rtt_arch_dev_map(unsigned long rd_addr,
+			  unsigned long dev_addr,
+			  unsigned long base,
+			  unsigned long top,
+			  struct smc_result *res);
+
+void smc_rtt_arch_dev_unmap(unsigned long rd_addr,
+			    unsigned long dev_addr,
+			    unsigned long base,
+			    unsigned long top,
+			    struct smc_result *res);
+
 void smc_pdev_create(unsigned long pdev_addr,
 		     unsigned long pdev_params_addr,
 		     struct smc_result *res);
@@ -265,16 +277,23 @@ void smc_pdev_stream_key_purge(unsigned long pdev1_addr,
 			       unsigned long stream_handle,
 			       struct smc_result *res);
 
+void smc_pdev_stream_info(unsigned long pdev1_addr,
+			  unsigned long pdev2_addr,
+			  unsigned long stream_handle,
+			  struct smc_result *res);
+
 void smc_granule_tracking_get(unsigned long base, unsigned long top,
 			      struct smc_result *res);
 void smc_granule_tracking_set(unsigned long addr, unsigned long category,
 			      unsigned long state, struct smc_result *res);
 void smc_rmm_activate(struct smc_result *res);
 void smc_rmm_deactivate(struct smc_result *res);
+void smc_rmm_state_get(struct smc_result *res);
 void smc_rmm_config_get(unsigned long config_ptr, struct smc_result *res);
 void smc_rmm_config_set(unsigned long config_ptr, struct smc_result *res);
 
 void smc_gpt_l1_create(unsigned long addr, struct smc_result *res);
+void smc_gpt_l1_destroy(unsigned long addr, struct smc_result *res);
 void smc_gpt_info(unsigned long base, unsigned long top,
 		 struct smc_result *res);
 
