@@ -103,3 +103,9 @@ rmm_build_unittest(NAME rtt_read_entry_dev_tests
                    TARGET rmm-runtime
                    SOURCES "tests/rtt_read_entry_dev_tests.cpp"
                    ITERATIONS 1)
+
+rmm_build_unittest(NAME hash_algo_sha384_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/hash_algo_sha384_tests.cpp"
+                   ITERATIONS 1)

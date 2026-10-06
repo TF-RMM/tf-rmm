@@ -112,8 +112,10 @@ unsigned long get_feature_register_1(void)
 
 	/* We only support 4K */
 	feat_reg1 = INPLACE(RMI_FEATURE_REGISTER_1_RMI_GRAN_SZ_4K, RMI_FEATURE_TRUE);
-	/* Set support for SHA256 and SHA512 hash algorithms */
+	/* Set support for SHA256, SHA384 and SHA512 hash algorithms */
 	feat_reg1 |= INPLACE(RMI_FEATURE_REGISTER_1_HASH_SHA_256,
+			    RMI_FEATURE_TRUE) |
+			INPLACE(RMI_FEATURE_REGISTER_1_HASH_SHA_384,
 			    RMI_FEATURE_TRUE) |
 			INPLACE(RMI_FEATURE_REGISTER_1_HASH_SHA_512,
 			    RMI_FEATURE_TRUE);
