@@ -37,9 +37,6 @@ extern "C" {
  * granule the way the Realm would.
  */
 
-#define HASH_TEST_RTT_START_IDX		100000U
-#define HASH_TEST_NS_LIST_START_IDX	126400U
-
 struct config_test_context {
 	STRUCT_TYPE sysreg_state sysregs[1];
 	struct rec rec;
@@ -48,16 +45,9 @@ struct config_test_context {
 TEST_GROUP(hash_algo_sha384_tests) {
 	TEST_SETUP()
 	{
-		static bool counters_initialized;
-
-		if (!counters_initialized) {
-			reset_data_granule_allocation();
-			g_rtt_next_idx = HASH_TEST_RTT_START_IDX;
-			g_ns_list_next_idx = HASH_TEST_NS_LIST_START_IDX;
-			counters_initialized = true;
-		}
 		test_helpers_init();
 		test_helpers_rmm_start(false);
+		reset_data_granule_allocation();
 		host_util_set_cpuid(0U);
 		test_helpers_expect_assert_fail(false);
 	}
@@ -116,7 +106,7 @@ static unsigned char run_realm_config(struct config_test_context *ctx,
 	ctx->rec.realm_info.num_aux_planes = 0U;
 	ctx->rec.realm_info.algorithm = algorithm;
 
-	g_rd = find_granule(data.rd);
+	g_rd = tr_find_fine_granule(data.rd);
 	CHECK_TRUE(g_rd != NULL);
 	granule_lock(g_rd, GRANULE_STATE_RD);
 	rd = (struct rd *)buffer_granule_map(g_rd, SLOT_RD);
