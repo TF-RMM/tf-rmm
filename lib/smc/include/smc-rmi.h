@@ -1081,6 +1081,16 @@
 #define SMC_RMI_RMM_ACTIVATE			SMC64_RMI_FID(U(0xB2))
 
 /*
+ * FID: 0xC400020F
+ *
+ * Deactivate the RMM once all Host-managed granules are undelegated.
+ * This command may initiate a memory-transferring Stateful RMI Operation.
+ *
+ * ret0 == Command result.
+ */
+#define SMC_RMI_RMM_DEACTIVATE			SMC64_RMI_FID(U(0xBF))
+
+/*
  * Possible states of the RMM. Note that some SMCs can only be
  * dispatched when state is RMM_STATE_ACTIVE.
  */

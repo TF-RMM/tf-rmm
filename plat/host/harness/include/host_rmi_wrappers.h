@@ -10,6 +10,7 @@
 
 void host_rmi_version(unsigned long rmi_version, struct smc_result *res);
 void host_rmm_activate(struct smc_result *res);
+void host_rmm_deactivate(struct smc_result *res);
 void host_rmi_granule_range_delegate(void *granule_start, void *granule_end,
 				     struct smc_result *res);
 void host_rmi_granule_range_undelegate(void *granule_start, void *granule_end,

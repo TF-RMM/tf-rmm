@@ -118,6 +118,16 @@ int tracking_region_populate_from_el3(bool fine);
  */
 void tracking_region_activate(enum tr_state state);
 
+/*
+ * Discard the active tracking layout only if every conventional and device
+ * granule is undelegated and no tracking transition is pending. Return false
+ * without changes otherwise. Retain EL3-private backing and configuration,
+ * allowing subsequent configuration and activation after success.
+ * The caller must exclude all other RMI calls and unfinished SROs throughout
+ * validation and publication of the global INIT state. No locks are retained.
+ */
+bool tracking_region_deactivate(void);
+
 struct smc_result;
 
 /*

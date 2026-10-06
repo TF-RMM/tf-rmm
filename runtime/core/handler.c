@@ -14,6 +14,7 @@
 #include <pcpu_data.h>
 #include <psmmu.h>
 #include <run.h>
+#include <rwlock.h>
 #include <simd.h>
 #include <smc-handler.h>
 #include <smc-rmi.h>
@@ -25,6 +26,13 @@
 
 /* Maximum number of supported arguments */
 #define MAX_NUM_ARGS		7U
+
+/*
+ * RMI calls share this lock from lifecycle validation through handler exit.
+ * Deactivation takes it exclusively before inspecting or discarding tracking
+ * metadata. Acquire it before any lifecycle, layout, SRO or granule lock.
+ */
+static rwlock_t rmi_dispatch_lock;
 
 #define RMI_STATUS_STRING(_id)[RMI_##_id] = #_id
 
@@ -166,6 +174,7 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(RMM_CONFIG_GET,		1, 1, smc_rmm_config_get,	 true, true),
 	HANDLER(RMM_CONFIG_SET,		1, 1, smc_rmm_config_set,	 true, true),
 	HANDLER(RMM_ACTIVATE,		0, 1, smc_rmm_activate,		 true, true),
+	HANDLER(RMM_DEACTIVATE,		0, 1, smc_rmm_deactivate,	 true, true),
 	HANDLER(OP_CANCEL,		1, 1, smc_op_cancel,		 true, true),
 	HANDLER(OP_CONTINUE,		2, 3, smc_op_continue,		 true, true),
 	HANDLER(PDEV_STREAM_CONNECT,	1, 2, smc_pdev_stream_connect,	 true, true),
@@ -294,6 +303,8 @@ static void rmi_log_on_exit(unsigned int handler_id,
  * no mapped buffer slots and its Non-secure SIMD state must not be saved.
  * SRO follow-ups bypass the activation-state check in every configuration;
  * their handlers validate the supplied operation handle.
+ * Deactivation exclusively owns the dispatch lock; all other calls share it.
+ * A deactivation racing an executing RMI returns RMI_BUSY without side effects.
  */
 /* cppcheck-suppress misra-c2012-8.4 */
 /* coverity[misra_c_2012_rule_8_4_violation:SUPPRESS] */
@@ -343,6 +354,16 @@ void handle_ns_smc(unsigned int function_id,
 		return;
 	}
 
+	/* Exclude all in-flight users before deactivation examines the layout. */
+	if (function_id == SMC_RMI_RMM_DEACTIVATE) {
+		if (!rwlock_write_try_acquire(&rmi_dispatch_lock)) {
+			res->x[0] = RMI_BUSY;
+			return;
+		}
+	} else {
+		rwlock_read_acquire(&rmi_dispatch_lock);
+	}
+
 	/* Check RMM activation state for the RMIs */
 	switch (function_id) {
 	case SMC_RMI_FEATURES:
@@ -362,14 +383,14 @@ void handle_ns_smc(unsigned int function_id,
 		if (get_rmm_active_state() != RMM_STATE_INIT) {
 			ERROR("RMM is in invalid state\n");
 			res->x[0] = RMI_ERROR_GLOBAL;
-			return;
+			goto out;
 		}
 		break;
 	default:
 		if (get_rmm_active_state() != RMM_STATE_ACTIVE) {
 			ERROR("RMM is in invalid state\n");
 			res->x[0] = RMI_ERROR_GLOBAL;
-			return;
+			goto out;
 		}
 		break;
 	}
@@ -429,6 +450,12 @@ void handle_ns_smc(unsigned int function_id,
 	assert(check_cpu_slots_empty());
 	/* Check that MECID regs are reset before exit from RMM */
 	assert(is_mec_reset_realm_mecid());
+out:
+	if (function_id == SMC_RMI_RMM_DEACTIVATE) {
+		rwlock_write_release(&rmi_dispatch_lock);
+	} else {
+		rwlock_read_release(&rmi_dispatch_lock);
+	}
 }
 
 /*

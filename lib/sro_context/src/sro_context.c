@@ -14,6 +14,28 @@ static struct sro_ctx_pool *pool;
 static struct sro_cpu_ctx_ref cpu_sro_ctx[MAX_CPUS];
 static spinlock_t sro_spinlock;
 
+/*
+ * Check for unfinished operations, including sealed contexts between RMI calls.
+ * Hold the pool lock for a consistent snapshot; retain no lock on return.
+ * The caller must exclude RMI entry to keep an idle pool stable afterwards.
+ */
+bool sro_ctx_is_idle(void)
+{
+	bool idle = true;
+
+	assert((pool != NULL) && pool->init);
+	spinlock_acquire(&sro_spinlock);
+	for (unsigned long i = 0UL; i < pool->ctx_count; i++) {
+		if (pool->ctxs[i].state != SRO_STATE_FREE) {
+			idle = false;
+			break;
+		}
+	}
+	spinlock_release(&sro_spinlock);
+
+	return idle;
+}
+
 static inline void sro_ctx_zero(unsigned int cpuid)
 {
 	struct sro_context *ctx = cpu_sro_ctx[cpuid].ctx;
