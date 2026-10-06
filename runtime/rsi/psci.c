@@ -389,6 +389,17 @@ void handle_psci(struct rec *rec,
 	}
 }
 
+/* Clear all saved general-purpose registers */
+static void zero_plane_gprs(struct rec_plane *target_plane)
+{
+	assert(target_plane != NULL);
+
+	/* X31 is XZR register, so no need to set to zero */
+	for (unsigned int i = 0U; i < ARRAY_SIZE(target_plane->regs); i++) {
+		target_plane->regs[i] = 0UL;
+	}
+}
+
 /*
  * In the following two functions, it is only safe to access the runnable field
  * on the target_rec once the target_rec is no longer running on another PE and
@@ -423,6 +434,7 @@ static unsigned long complete_psci_cpu_on(struct rec *target_rec,
 	}
 
 	psci_reset_rec(target_plane, target_sysregs, caller_sctlr_el1);
+	zero_plane_gprs(target_plane);
 	target_plane->regs[0] = context_id;
 	target_plane->pc = entry_point_address;
 	target_rec->runnable = true;
