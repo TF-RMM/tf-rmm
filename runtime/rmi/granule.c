@@ -280,8 +280,7 @@ void smc_gpt_l1_create(unsigned long addr, struct smc_result *res)
 	 * really required.
 	 */
 	/* The existing L1 table is referenced by the L0 entry for @addr. */
-	res->x[0] = pack_return_code_level_addr(
-			RMI_ERROR_GLOBAL, (unsigned char)0U, addr);
+	res->x[0] = RMI_ERROR_GLOBAL;
 }
 
 void smc_gpt_l1_destroy(unsigned long addr, struct smc_result *res)
