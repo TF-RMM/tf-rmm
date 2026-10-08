@@ -376,12 +376,11 @@ void s2tt_invalidate_page_block_per_vmids(bool enable_lpa2,
 					  unsigned int *vmid_list, unsigned int nvmids,
 					  unsigned long addr, long level);
 void s2tt_invalidate_pages_in_block(bool enable_lpa2, unsigned int vmid,
-				    unsigned long addr);
+				    unsigned long addr, long level);
 void s2tt_invalidate_pages_in_block_per_vmids(bool enable_lpa2,
 					      unsigned int *vmid_list,
 					      unsigned int nvmids,
-					      unsigned long addr);
-
+					      unsigned long addr, long level);
 bool s2tt_is_unassigned_empty_block(const struct s2tt_context *s2_ctx,
 				    unsigned long *table, unsigned long s2tte_ap);
 bool s2tt_is_unassigned_ram_block(const struct s2tt_context *s2_ctx,

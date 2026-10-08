@@ -151,12 +151,14 @@ TEST(s2tt_tlbi, page_block_visits_each_vmid_and_restores_vttbr)
  *   s2tt_invalidate_pages_in_block().
  *
  * Aim:
- *   Verify that invalidating pages within a block selects the requested VMID
- *   and restores the full caller VTTBR_EL2.
+ *   Verify that range and VMID-wide invalidation of a removed table select
+ *   the requested VMID and restore the full caller VTTBR_EL2.
  *
  * Method:
  *   With the register observer installed, invalidate pages in the block at
- *   IPA zero for VMID 0x1234. Repeat with LPA2 disabled and enabled.
+ *   IPA zero for VMID 0x1234 at child levels 1 through 3. This exercises
+ *   VMID-wide maintenance above 1GB and range maintenance at 1GB and 2MB.
+ *   Repeat with LPA2 disabled and enabled.
  *
  * Expected results:
  *   Each call produces exactly two writes: the VMID-only value for 0x1234
@@ -168,8 +170,10 @@ TEST(s2tt_tlbi, pages_in_block_selects_vmid_and_restores_vttbr)
 	unsigned int vmid = 0x1234U;
 
 	for (bool lpa2 : lpa2_modes) {
-		s2tt_invalidate_pages_in_block(lpa2, vmid, 0UL);
-		check_vmid_switches(&vmid, 1U);
+		for (long level = S2TT_MIN_BLOCK_LEVEL; level <= S2TT_PAGE_LEVEL; level++) {
+			s2tt_invalidate_pages_in_block(lpa2, vmid, 0UL, level);
+			check_vmid_switches(&vmid, 1U);
+		}
 	}
 }
 
@@ -185,7 +189,8 @@ TEST(s2tt_tlbi, pages_in_block_selects_vmid_and_restores_vttbr)
  *
  * Method:
  *   Invalidate pages in the block at IPA zero for VMIDs {2, 0, 0x1234}, in
- *   both LPA2 modes. Check the observer trace after each API call.
+ *   both LPA2 modes and at child levels 1 through 3, covering VMID-wide
+ *   and range maintenance. Check the observer trace after each API call.
  *
  * Expected results:
  *   The three VMID-only writes match the list, including VMID zero. A fourth
@@ -197,8 +202,11 @@ TEST(s2tt_tlbi, pages_in_block_visits_each_vmid_and_restores_vttbr)
 	unsigned int vmids[] = {2U, 0U, 0x1234U};
 
 	for (bool lpa2 : lpa2_modes) {
-		s2tt_invalidate_pages_in_block_per_vmids(lpa2, vmids, ARRAY_SIZE(vmids), 0UL);
-		check_vmid_switches(vmids, ARRAY_SIZE(vmids));
+		for (long level = S2TT_MIN_BLOCK_LEVEL; level <= S2TT_PAGE_LEVEL; level++) {
+			s2tt_invalidate_pages_in_block_per_vmids(lpa2, vmids, ARRAY_SIZE(vmids),
+								0UL, level);
+			check_vmid_switches(vmids, ARRAY_SIZE(vmids));
+		}
 	}
 }
 

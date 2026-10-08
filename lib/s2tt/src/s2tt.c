@@ -137,8 +137,8 @@ static void stage2_tlbi_ipa_range(unsigned long ipa, unsigned long size,
 }
 
 /*
- * Invalidates S2 TLB entries from [@ipa, @ipa + @size) region tagged with a
- * VMID for each one passed @vmid_list.
+ * Invalidate at least [@ipa, @ipa + @size) for each VMID in @vmid_list.
+ * Ranges above an L1 block (1 GiB) use a VMID-wide stage-1+2 TLBI instead.
  */
 static void stage2_tlbi_ipa_per_vmids(bool enable_lpa2,
 				      unsigned int *vmid_list,
@@ -180,20 +180,17 @@ static void stage2_tlbi_ipa_per_vmids(bool enable_lpa2,
 		write_vttbr_el2(INPLACE(VTTBR_EL2_VMID, vmid_list[i]));
 		isb();
 
-		/*
-		 * Invalidate entries in S2 TLB caches that
-		 * match both `ipa` & the `current vmid`.
-		 */
-		stage2_tlbi_ipa_range(ipa, size, enable_lpa2);
-		dsb(ish);
+		if (size > s2tte_map_size(S2TT_MIN_BLOCK_LEVEL)) {
+			/* Higher-level tables can require many range TLBIs. */
+			tlbivmalls12e1is();
+		} else {
+			/* Invalidate only the requested stage-2 IPA range. */
+			stage2_tlbi_ipa_range(ipa, size, enable_lpa2);
+			dsb(ish);
 
-		/*
-		 * According to Section D8.17.6.1, rule ILRXYX of Arm ARM Version L.b,
-		 * we must invalidate all of Stage-1 after invalidating Stage-2.
-		 * Note that since {E2H, TGE} is {1, 0}, this invalidate applies to
-		 * Stage 1 of current VMID.
-		 */
-		tlbivmalle1is();
+			/* Stage-1 must follow the stage-2 invalidation. */
+			tlbivmalle1is();
+		}
 		dsb(ish);
 		isb();
 	}
@@ -329,31 +326,25 @@ void s2tt_invalidate_page_block_per_vmids(bool enable_lpa2,
 }
 
 /*
- * Invalidate S2 TLB entries with @addr IPA.
- * Call this function after:
- * 1a. A L2 table desc has been removed, where
- * 1b. Some S2TTEs in the table that the L2 table desc was pointed to were valid.
+ * Invalidate the IPA range covered by a removed table at @level. Its parent
+ * entry at @level - 1 may have pointed to valid translations throughout the
+ * table, including when the parent is above L2.
  */
 void s2tt_invalidate_pages_in_block(bool enable_lpa2, unsigned int vmid,
-				    unsigned long addr)
+				    unsigned long addr, long level)
 {
 	stage2_tlbi_ipa_per_vmids(enable_lpa2, &vmid, 1U, addr,
-				      BLOCK_L2_SIZE);
+				      s2tte_map_size(level - 1L));
 }
 
-/*
- * Invalidate S2 TLB entries with @addr IPA for the list of VMIDS @vmid_list.
- * Call this function after:
- * 1a. A L2 table desc has been removed, where
- * 1b. Some S2TTEs in the table that the L2 table desc was pointed to were valid.
- */
+/* Invalidate the full range of an entry at @level - 1 for each VMID. */
 void s2tt_invalidate_pages_in_block_per_vmids(bool enable_lpa2,
 					      unsigned int *vmid_list,
 					      unsigned int nvmids,
-					      unsigned long addr)
+					      unsigned long addr, long level)
 {
 	stage2_tlbi_ipa_per_vmids(enable_lpa2, vmid_list, nvmids, addr,
-				      BLOCK_L2_SIZE);
+				      s2tte_map_size(level - 1L));
 }
 
 /*

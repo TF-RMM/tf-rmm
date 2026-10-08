@@ -164,7 +164,7 @@ static void invalidate_page_block(struct s2tt_context *s2_ctx, struct rd *rd,
 	}
 }
 
-/* Invalidate entries cached through a removed TABLE. */
+/* A removed TABLE with valid leaves needs invalidation of its full coverage. */
 static void invalidate_pages_in_block(struct s2tt_context *s2_ctx, struct rd *rd,
 				      unsigned long map_addr, long level)
 {
@@ -172,7 +172,7 @@ static void invalidate_pages_in_block(struct s2tt_context *s2_ctx, struct rd *rd
 	unsigned int nvmids = rtt_tlbi_vmids(rd, s2_ctx, !addr_in_par(rd, map_addr), vmids);
 
 	s2tt_invalidate_pages_in_block_per_vmids(s2tt_lpa2_enabled(s2_ctx), vmids, nvmids,
-						 map_addr);
+						 map_addr, level);
 	if (rd->da_enabled) {
 		int ret = smmuv3_inv_at_level_per_vmids(vmids, nvmids, map_addr, level,
 							S2TTES_PER_S2TT, false,
