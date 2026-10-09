@@ -1,0 +1,22 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+#
+
+%YAML 1.2
+---
+description: >-
+  Restore zeroed Linux ITS allocations after sharing their pages.
+  RMM_SRC must point to the local TF-RMM repository. Remove this layer once
+  the Linux revision used by cca.yaml includes the fix.
+
+build:
+  linux:
+    prebuild:
+      - linux_its_patch="${btvar:RMM_SRC}/tools/shrinkwrap/patches/linux-its-zero-shared.patch"
+      # Allow repeated builds, including Linux trees patched manually.
+      # An incompatible patch must fail the build rather than be ignored.
+      - |
+        if ! git apply --reverse --check "$$linux_its_patch" 2>/dev/null; then
+          git apply "$$linux_its_patch"
+        fi
