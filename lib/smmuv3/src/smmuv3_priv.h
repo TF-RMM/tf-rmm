@@ -377,6 +377,8 @@ typedef __uint128_t	uint128_t;
 #define NUM_SHIFT		U(12)
 #define NUM_WIDTH		U(5)
 #define SCALE_SHIFT		U(20)
+/* Bit 25 is RES0 without FEAT_DS. */
+#define SCALE_WIDTH		U(6)
 
 /* CMD_TLBI_S2_IPA[127:64] */
 #define LEAF_BIT		BIT(0)
