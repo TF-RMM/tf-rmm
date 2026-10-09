@@ -1,0 +1,28 @@
+Subject: [PATCH] firmware: arm_rmm: Accept platform-allocated GPTs
+
+RMI_GPT_L1_CREATE returns RMI_ERROR_GLOBAL for platform-allocated PARs.
+The current RMM uses statically allocated GPTs, so Linux must accept this
+status when initializing metadata. Preserve RMI_ERROR_GPT handling for
+tables which have already been created by the host.
+
+---
+ drivers/firmware/arm_rmm/rmi.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/firmware/arm_rmm/rmi.c b/drivers/firmware/arm_rmm/rmi.c
+index 5c4d16f6ea52..de252dab2c45 100644
+--- a/drivers/firmware/arm_rmm/rmi.c
++++ b/drivers/firmware/arm_rmm/rmi.c
+@@ -697,8 +697,11 @@ static int rmi_create_gpts(phys_addr_t start, phys_addr_t end)
+ 		/*
+ 		 * Make sure the L1 GPT tables are created for the region.
+ 		 * RMI_ERROR_GPT indicates the L1 table already exists.
++		 * The current RMM returns RMI_ERROR_GLOBAL for static tables.
+ 		 */
+-		if (ret != RMI_SUCCESS && RMI_RETURN_STATUS(ret) != RMI_ERROR_GPT) {
++		if (ret != RMI_SUCCESS &&
++		    RMI_RETURN_STATUS(ret) != RMI_ERROR_GPT &&
++		    RMI_RETURN_STATUS(ret) != RMI_ERROR_GLOBAL) {
+ 			pr_err("GPT Level1 table missing for %llx\n", start);
+ 			kfree(sro);
+ 			return -ENOMEM;

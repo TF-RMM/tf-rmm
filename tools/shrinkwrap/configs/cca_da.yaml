@@ -18,6 +18,7 @@ layers:
   # Include layers from RMM repo
   - rmm.yaml
   - rmm-debug.yaml
+  - linux-gpt-fix.yaml
   - model-enable-da.yaml
 
 build:
