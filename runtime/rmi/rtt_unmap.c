@@ -1648,26 +1648,18 @@ void smc_rtt_unprot_unmap(unsigned long rd_addr,
 	/*
 	 * Cache the VMID set and DA flag the deferred TLBI pass needs
 	 * to invalidate the freed entries on RMI_OP_CONTINUE without
-	 * re-acquiring the RD granule. Direct (single-VMID) realms
-	 * collapse onto a 1-entry list so the per-VMID call serves
-	 * both encodings.
+	 * re-acquiring the RD granule. Lower NS RTTs can be shared by
+	 * every Plane even with direct permissions and separate roots.
+	 * Invalidating all Realm VMIDs also preserves copied root blocks:
+	 * their independent descriptors are unchanged.
 	 */
-	struct s2tt_context *primary_ctx =
-		&rd->s2_ctx[PRIMARY_S2_CTX_ID];
+	unsigned int nplanes = realm_num_planes(rd);
 
-	if (primary_ctx->indirect_s2ap) {
-		unsigned int nplanes = realm_num_planes(rd);
-
-		assert(nplanes <= MAX_TOTAL_PLANES);
-		for (unsigned int i = 0U; i < nplanes; i++) {
-			ctx->vmid_list[i] =
-				plane_to_s2_context(rd, i)->vmid;
-		}
-		ctx->nvmids = nplanes;
-	} else {
-		ctx->vmid_list[0] = primary_ctx->vmid;
-		ctx->nvmids = 1U;
+	assert(nplanes <= MAX_TOTAL_PLANES);
+	for (unsigned int i = 0U; i < nplanes; i++) {
+		ctx->vmid_list[i] = plane_to_s2_context(rd, i)->vmid;
 	}
+	ctx->nvmids = nplanes;
 	ctx->da_enabled = rd->da_enabled;
 
 	switch (oaddr_type) {
