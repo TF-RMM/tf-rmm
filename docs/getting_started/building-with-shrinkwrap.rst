@@ -103,7 +103,11 @@ a realm using kvmtool from the /cca directory (that was created above):
     .. code-block:: shell
 
        cd /cca
-       ./lkvm run --realm -c 2 -m 256 --disk guest-disk.img --kernel Image -p "earlycon=uart,mmio,0x101000000 root=/dev/vda2"
+       ./lkvm run --realm -c 2 -m 256 --disk guest-disk.img --kernel Image \
+           -p "earlycon=uart,mmio,0x101000000 root=/dev/vda2 swiotlb=16384"
+
+The ``swiotlb=16384`` guest kernel parameter requests 32 MiB of DMA bounce
+buffers to avoid ``swiotlb buffer is full`` errors during boot.
 
 You should see the realm guest booting to shell. You can now test the basic
 functionality of RMM by running some commands in the realm shell, for example:
@@ -170,7 +174,9 @@ above):
     .. code-block:: shell
 
        cd /cca
-       ./lkvm run --realm -c 2 -m 256 --disk guest-disk.img --kernel Image -p "earlycon=uart,mmio,0x101000000 root=/dev/vda2" --viommu --vfio-pci 0000:02:00.0
+       ./lkvm run --realm -c 2 -m 256 --disk guest-disk.img --kernel Image \
+           -p "earlycon=uart,mmio,0x101000000 root=/dev/vda2" \
+           --vfio-pci 0000:02:00.0
 
 
 Be patient while this boots to the shell.

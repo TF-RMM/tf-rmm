@@ -26,7 +26,7 @@ build:
   linux:
     repo:
       remote: https://gitlab.arm.com/linux-arm/linux-cca
-      revision: scratch/cca-tdisp-integration-v7
+      revision: cca/cca-host/kvm-v23/integration
     prebuild:
       - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_PCI_TSM
       - ./scripts/config --file ${param:builddir}/.config --enable CONFIG_PCI_DOE
@@ -54,7 +54,7 @@ build:
         revision: v1.7.2
       kvmtool:
         remote: https://gitlab.arm.com/linux-arm/kvmtool-cca
-        revision: scratch/cca-tdisp-integration-v7
+        revision: cca/kvm-v18
 
   kvm-unit-tests:
     repo:
@@ -63,6 +63,13 @@ build:
 
 run:
   rtvars:
+    CMDLINE:
+      type: string
+      # Enable KVM support for Realm guests.
+      value: >-
+        console=ttyAMA0 earlycon=pl011,0x1c090000 root=/dev/vda ip=dhcp
+        kvm-arm.mode=rmm
+
     CACHE_MODEL_ENABLED:
       type: string
       value: 0
