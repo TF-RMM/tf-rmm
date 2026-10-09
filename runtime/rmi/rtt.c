@@ -340,7 +340,7 @@ static unsigned long rtt_create(unsigned long rd_addr,
 		 * Break before make. This may cause spurious S2 aborts.
 		 */
 		s2tte_write(&parent_s2tt[wi.index], 0UL);
-		invalidate_page_block(s2_ctx, rd, map_addr, level);
+		invalidate_page_block(s2_ctx, rd, map_addr, level - 1L);
 
 		block_pa = s2tte_pa(s2_ctx, parent_s2tte, level - 1L);
 
@@ -366,7 +366,7 @@ static unsigned long rtt_create(unsigned long rd_addr,
 		 */
 		s2tte_write(&parent_s2tt[wi.index], 0UL);
 		/* Lower NS RTTs can be shared by all Plane VMIDs. */
-		invalidate_page_block(s2_ctx, rd, map_addr, level);
+		invalidate_page_block(s2_ctx, rd, map_addr, level - 1L);
 
 		block_pa = s2tte_pa(s2_ctx, parent_s2tte, level - 1L);
 
@@ -432,7 +432,7 @@ static unsigned long rtt_create(unsigned long rd_addr,
 		 */
 		s2tte_write(&parent_s2tt[wi.index], 0UL);
 
-		invalidate_page_block(s2_ctx, rd, map_addr, level);
+		invalidate_page_block(s2_ctx, rd, map_addr, level - 1L);
 
 		block_pa = s2tte_pa(s2_ctx, parent_s2tte, level - 1L);
 
