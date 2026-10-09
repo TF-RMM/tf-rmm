@@ -240,8 +240,8 @@ int smmuv3_inv_entries(unsigned int smmu_idx, unsigned int vmid,
  *   addr	 - Base address of the block.
  *   level	 - RTT mapped level.
  *   num_entrs	 - Number of entries to invalidate.
- *   leaf	 - If 'true', validate only cached entries
- *		   for the last level of translation table walk.
+ *   leaf	 - If 'true', only last-level cached entries must be invalidated.
+ *		   Otherwise cached intermediate table entries are included.
  *   cmd_sync	 - Initialized CMD_SYNC completion state.
  *
  * Return:
@@ -267,8 +267,8 @@ int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
  *   addr	 - Base address of the block.
  *   level	 - RTT mapped level.
  *   num_entrs	 - Number of entries to invalidate.
- *   leaf	 - If 'true', invalidate only cached entries for the last
- *		   level of translation table walk.
+ *   leaf	 - If 'true', only last-level cached entries must be invalidated.
+ *		   Otherwise cached intermediate table entries are included.
  *   cmd_sync	 - Initialized CMD_SYNC completion state.
  *
  * Return:
@@ -290,8 +290,8 @@ int smmuv3_inv_at_level_per_vmids_submit(unsigned int *vmid_list,
  *   addr	 - Base address of the block.
  *   level	 - RTT mapped level.
  *   num_entrs	 - Number of entries to invalidate.
- *   leaf	 - If 'true', validate only cached entries
- *		   for the last level of translation table walk.
+ *   leaf	 - If 'true', only last-level cached entries must be invalidated.
+ *		   Otherwise cached intermediate table entries are included.
  *   cmd_sync	 - Initialized CMD_SYNC completion state.
  *
  * Return:
