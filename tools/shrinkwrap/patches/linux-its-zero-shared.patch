@@ -1,0 +1,28 @@
+Subject: [PATCH] irqchip/gic-v3-its: Zero allocations after sharing pages
+
+A confidential-computing state transition need not preserve the contents
+of an allocation. Restore the __GFP_ZERO contract after successfully
+sharing the pages with set_memory_decrypted().
+
+---
+ drivers/irqchip/irq-gic-v3-its.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/irqchip/irq-gic-v3-its.c b/drivers/irqchip/irq-gic-v3-its.c
+index e9807af23537..48868bf7349c 100644
+--- a/drivers/irqchip/irq-gic-v3-its.c
++++ b/drivers/irqchip/irq-gic-v3-its.c
+@@ -231,6 +231,13 @@ static struct page *its_alloc_pages_node(int node, gfp_t gfp,
+ 	if (ret)
+ 		return NULL;
+ 
++	/*
++	 * A confidential-computing state transition need not preserve the old
++	 * contents. Restore the allocation contract after the page is shared.
++	 */
++	if (gfp & __GFP_ZERO)
++		memset(page_address(page), 0, PAGE_SIZE << order);
++
+ 	return page;
+ }
+ 
