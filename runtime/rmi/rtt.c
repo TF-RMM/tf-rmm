@@ -141,9 +141,9 @@ static unsigned int rtt_tlbi_vmids(struct rd *rd, struct s2tt_context *s2_ctx, b
 	return 1U;
 }
 
-/* Invalidate a page or block for the selected VMIDs. */
+/* Invalidate a leaf page/block, or evict an empty TABLE when @leaf is false. */
 static void invalidate_page_block(struct s2tt_context *s2_ctx, struct rd *rd,
-				  unsigned long map_addr, long level)
+				  unsigned long map_addr, long level, bool leaf)
 {
 	unsigned int vmids[MAX_TOTAL_PLANES];
 	unsigned int nvmids = rtt_tlbi_vmids(rd, s2_ctx, !addr_in_par(rd, map_addr), vmids);
@@ -151,8 +151,10 @@ static void invalidate_page_block(struct s2tt_context *s2_ctx, struct rd *rd,
 	s2tt_invalidate_page_block_per_vmids(s2tt_lpa2_enabled(s2_ctx), vmids, nvmids,
 					     map_addr, level);
 	if (rd->da_enabled) {
+		/* Empty-table removal includes walk caches and needs no level hint. */
 		int ret = smmuv3_inv_at_level_per_vmids(vmids, nvmids, map_addr,
-							level, 1UL, true, &rd->smmu_cmd_sync);
+							leaf ? level : S2TT_PAGE_LEVEL,
+							1UL, leaf, &rd->smmu_cmd_sync);
 
 		if (ret != 0) {
 			ERROR("RTT: SMMU TLBI failed (%d)\n", ret);
@@ -337,7 +339,7 @@ static unsigned long rtt_create(unsigned long rd_addr,
 		 * Break before make. This may cause spurious S2 aborts.
 		 */
 		s2tte_write(&parent_s2tt[wi.index], 0UL);
-		invalidate_page_block(s2_ctx, rd, map_addr, level - 1L);
+		invalidate_page_block(s2_ctx, rd, map_addr, level - 1L, true);
 
 		block_pa = s2tte_pa(s2_ctx, parent_s2tte, level - 1L);
 
@@ -363,7 +365,7 @@ static unsigned long rtt_create(unsigned long rd_addr,
 		 */
 		s2tte_write(&parent_s2tt[wi.index], 0UL);
 		/* Lower NS RTTs can be shared by all Plane VMIDs. */
-		invalidate_page_block(s2_ctx, rd, map_addr, level - 1L);
+		invalidate_page_block(s2_ctx, rd, map_addr, level - 1L, true);
 
 		block_pa = s2tte_pa(s2_ctx, parent_s2tte, level - 1L);
 
@@ -429,7 +431,7 @@ static unsigned long rtt_create(unsigned long rd_addr,
 		 */
 		s2tte_write(&parent_s2tt[wi.index], 0UL);
 
-		invalidate_page_block(s2_ctx, rd, map_addr, level - 1L);
+		invalidate_page_block(s2_ctx, rd, map_addr, level - 1L, true);
 
 		block_pa = s2tte_pa(s2_ctx, parent_s2tte, level - 1L);
 
@@ -760,13 +762,25 @@ static void rtt_fold(unsigned long rd_addr,
 		goto out_unmap_table;
 	}
 
+	bool valid_leaves = s2tte_is_assigned_ram(s2_ctx, parent_s2tte, level - 1L) ||
+			    s2tte_is_assigned_ns(s2_ctx, parent_s2tte, level - 1L) ||
+			    s2tte_is_assigned_dev_dev(s2_ctx, parent_s2tte, level - 1L);
+
 	/*
 	 * Break before make.
 	 */
 	s2tte_write(&parent_s2tt[wi.index], 0UL);
 
-	/* The removed TABLE requires walk-cache and full-range invalidation. */
-	invalidate_pages_in_block(s2_ctx, rd, map_addr, level);
+	/*
+	 * Shared NS descendants can be cached under every Plane's VMID.
+	 * Invalidate all contexts before releasing the folded table, even
+	 * when it held no valid leaves and only walk caches need eviction.
+	 */
+	if (valid_leaves) {
+		invalidate_pages_in_block(s2_ctx, rd, map_addr, level);
+	} else {
+		invalidate_page_block(s2_ctx, rd, map_addr, level, false);
+	}
 
 	ret = RMI_SUCCESS;
 	res->x[1] = rtt_addr;
@@ -932,8 +946,12 @@ static void rtt_destroy(unsigned long rd_addr,
 	 */
 	s2tte_write(&parent_s2tt[wi.index], 0UL);
 
-	/* The removed TABLE requires walk-cache and full-range invalidation. */
-	invalidate_pages_in_block(s2_ctx, rd, map_addr, level);
+	/* Shared NS RTTs require invalidation under every Plane's VMID. */
+	if (!in_par) {
+		invalidate_pages_in_block(s2_ctx, rd, map_addr, level);
+	} else {
+		invalidate_page_block(s2_ctx, rd, map_addr, level, false);
+	}
 
 	s2tte_write(&parent_s2tt[wi.index], parent_s2tte);
 
@@ -1446,7 +1464,7 @@ static void rtt_set_ripas_range(struct s2tt_context *s2_ctx,
 
 		/* Handle TLBI */
 		if (ret != 0) {
-			invalidate_page_block(s2_ctx, rd, addr, level);
+			invalidate_page_block(s2_ctx, rd, addr, level, true);
 		}
 
 		addr += map_size;
@@ -1736,7 +1754,7 @@ void smc_rtt_set_s2ap(unsigned long rd_addr, unsigned long rec_addr,
 		/* Only invalidate for valid entries */
 		if (s2tte_is_assigned_ram(s2_ctx, s2tte, wi.last_level) ||
 		    s2tte_is_assigned_dev_dev(s2_ctx, s2tte, wi.last_level)) {
-			invalidate_page_block(s2_ctx, rd, next, wi.last_level);
+			invalidate_page_block(s2_ctx, rd, next, wi.last_level, true);
 		}
 
 		wi.index++;
@@ -2307,7 +2325,7 @@ void smc_rtt_aux_unmap_protected(unsigned long rd_addr,
 
 	s2tte_write(&s2tt[wi.index], s2tte);
 
-	invalidate_page_block(s2_ctx, rd, unmap_addr, wi.last_level);
+	invalidate_page_block(s2_ctx, rd, unmap_addr, wi.last_level, true);
 
 	res->x[0] = RMI_SUCCESS;
 	res->x[1] = s2tt_skip_non_live_entries(s2_ctx, unmap_addr, s2tt, &wi);
@@ -2383,7 +2401,7 @@ void smc_rtt_aux_unmap_unprotected(unsigned long rd_addr,
 		/* Decrement the refcounter for the parent table in the aux tree */
 		atomic_granule_put(wi.g_llt);
 
-		invalidate_page_block(s2_ctx, rd, unmap_addr, wi.last_level);
+		invalidate_page_block(s2_ctx, rd, unmap_addr, wi.last_level, true);
 	}
 
 	res->x[0] = RMI_SUCCESS;
@@ -2509,7 +2527,7 @@ static void rtt_dev_mem_set_range(struct s2tt_context *s2_ctx,
 
 		/* Handle TLBI */
 		if (ret != 0) {
-			invalidate_page_block(s2_ctx, rd, addr, level);
+			invalidate_page_block(s2_ctx, rd, addr, level, true);
 		}
 
 		addr += map_size;
