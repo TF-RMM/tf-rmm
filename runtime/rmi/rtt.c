@@ -1734,7 +1734,8 @@ void smc_rtt_set_s2ap(unsigned long rd_addr, unsigned long rec_addr,
 		s2tte_write(&s2tt[wi.index], s2tte);
 
 		/* Only invalidate for valid entries */
-		if (s2tte_is_assigned_ram(s2_ctx, s2tte, wi.last_level)) {
+		if (s2tte_is_assigned_ram(s2_ctx, s2tte, wi.last_level) ||
+		    s2tte_is_assigned_dev_dev(s2_ctx, s2tte, wi.last_level)) {
 			invalidate_page_block(s2_ctx, rd, next, wi.last_level);
 		}
 
