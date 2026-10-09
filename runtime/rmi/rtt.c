@@ -29,9 +29,6 @@
 #include <xlat_defs.h>
 #include <xlat_tables.h>
 
-typedef void (*tlb_handler_t)(struct s2tt_context *s2tt_ctx,
-			      struct rd *rd, unsigned long addr, long level);
-
 bool validate_map_addr(unsigned long map_addr,
 		       long level,
 		       struct rd *rd)
@@ -560,7 +557,6 @@ static void rtt_fold(unsigned long rd_addr,
 	unsigned long s2tte;
 	struct s2tt_context *s2_ctx;
 	bool in_par;
-	tlb_handler_t tlb_handler;
 	unsigned int rtt_err_code = (aux ? RMI_ERROR_RTT_AUX : RMI_ERROR_RTT);
 
 	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
@@ -769,15 +765,8 @@ static void rtt_fold(unsigned long rd_addr,
 	 */
 	s2tte_write(&parent_s2tt[wi.index], 0UL);
 
-	if (s2tte_is_assigned_ram(s2_ctx, parent_s2tte, level - 1L) ||
-	    s2tte_is_assigned_ns(s2_ctx, parent_s2tte, level - 1L)  ||
-	    s2tte_is_assigned_dev_dev(s2_ctx, parent_s2tte, level - 1L)) {
-		tlb_handler = invalidate_pages_in_block;
-	} else {
-		tlb_handler = invalidate_page_block;
-	}
-
-	tlb_handler(s2_ctx, rd, map_addr, level);
+	/* The removed TABLE requires walk-cache and full-range invalidation. */
+	invalidate_pages_in_block(s2_ctx, rd, map_addr, level);
 
 	ret = RMI_SUCCESS;
 	res->x[1] = rtt_addr;
@@ -839,7 +828,6 @@ static void rtt_destroy(unsigned long rd_addr,
 	unsigned long ret;
 	struct s2tt_context *s2_ctx;
 	bool in_par, skip_non_live = false;
-	tlb_handler_t tlb_handler;
 	unsigned int rtt_err_code = (aux ? RMI_ERROR_RTT_AUX : RMI_ERROR_RTT);
 
 	ret = tr_find_lock_granule(rd_addr, GRANULE_SIZE,
@@ -944,18 +932,8 @@ static void rtt_destroy(unsigned long rd_addr,
 	 */
 	s2tte_write(&parent_s2tt[wi.index], 0UL);
 
-	if (in_par) {
-		/* For protected IPA, all S2TTEs in the RTT will be invalid */
-		tlb_handler = invalidate_page_block;
-	} else {
-		/*
-		 * For unprotected IPA, invalidate the TLB for the entire range
-		 * mapped by the RTT as it may have valid NS mappings.
-		 */
-		tlb_handler = invalidate_pages_in_block;
-	}
-
-	tlb_handler(s2_ctx, rd, map_addr, level);
+	/* The removed TABLE requires walk-cache and full-range invalidation. */
+	invalidate_pages_in_block(s2_ctx, rd, map_addr, level);
 
 	s2tte_write(&parent_s2tt[wi.index], parent_s2tte);
 
