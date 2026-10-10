@@ -1,0 +1,36 @@
+From 565bac8e155050b24e566540a239fb3ab6e90028 Mon Sep 17 00:00:00 2001
+From: Mate Toth-Pal <mate.toth-pal@arm.com>
+Date: Sat, 10 Oct 2026 04:43:22 +0000
+Subject: [PATCH] arm64: kvm: set Realm max_num_vdevs for RMM DA support
+
+Populate max_num_vdevs from feature register 2 using
+RMI_FEATURE_REGISTER_2_REALM_MAX_VDEVS_ORDER when DA is enabled, so
+Realm creation remains compatible with the updated tf-rmm behavior.
+---
+ arch/arm64/kvm/rmi.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/kvm/rmi.c b/arch/arm64/kvm/rmi.c
+index ddd01950adf7..84d07a9382de 100644
+--- a/arch/arm64/kvm/rmi.c
++++ b/arch/arm64/kvm/rmi.c
+@@ -574,8 +574,15 @@ static int realm_create_rd(struct kvm *kvm)
+ 		goto out_undelegate_tables;
+ 
+ 	/* For now default enable DA */
+-	if (rmm_has_reg2_feature(RMI_FEATURE_REGISTER_2_DA))
++	if (rmm_has_reg2_feature(RMI_FEATURE_REGISTER_2_DA)) {
++		u64 feat_reg2 = rmi_feat_reg(2);
++		u64 max_vdevs_order;
++
+ 		params->flags0 |= RMI_REALM_PARAM_FLAG_DA;
++		max_vdevs_order = u64_get_bits(
++			feat_reg2, RMI_FEATURE_REGISTER_2_REALM_MAX_VDEVS_ORDER);
++		params->max_num_vdevs = 1ULL << max_vdevs_order;
++	}
+ 	params_phys = virt_to_phys(params);
+ 
+ 	if (rmi_realm_create(rd_phys, params_phys, realm->sro)) {
+-- 
+2.34.1
+
