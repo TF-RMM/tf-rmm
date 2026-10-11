@@ -12,7 +12,6 @@
 #include <smc-handler.h>
 #include <smc-rmi.h>
 #include <smc.h>
-#include <status.h>
 #include <stdbool.h>
 #include <tracking_region.h>
 
