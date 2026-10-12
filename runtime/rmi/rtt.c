@@ -1427,8 +1427,10 @@ unsigned long not_aux_mappings(struct s2tt_context *s2_ctx,
 
 /*
  * Update RIPAS in the locked leaf @wi->g_llt over [@base, @top), stopping at
- * its boundary or the first incompatible entry. @rd remains locked and mapped;
- * report the RMI status and completed IPA prefix through @res.
+ * its boundary or the first incompatible entry. A partial final entry can be
+ * completed when its RIPAS already matches, without changing the descriptor.
+ * @rd remains locked and mapped; report the RMI status and completed IPA prefix
+ * through @res.
  */
 static void rtt_set_ripas_range(struct s2tt_context *s2_ctx,
 				unsigned long *s2tt,
@@ -1460,10 +1462,17 @@ static void rtt_set_ripas_range(struct s2tt_context *s2_ctx,
 		int ret;
 
 		/*
-		 * Break on "top_align" failure condition,
-		 * or if this entry crosses the range.
+		 * This entry extends beyond top. Changing it would affect IPAs outside
+		 * the request. If its RIPAS already matches, advance to top without
+		 * modifying the entry; otherwise stop before it.
 		 */
 		if ((addr + map_size) > top) {
+			unsigned long s2tte = s2tte_read(&s2tt[index]);
+
+			if (s2tte_has_ripas(s2_ctx, s2tte, level) &&
+			    (s2tte_get_ripas(s2_ctx, s2tte) == ripas_val)) {
+				addr = top;
+			}
 			break;
 		}
 

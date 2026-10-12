@@ -27,9 +27,9 @@ extern "C" {
  *
  * The tests build a Realm whose protected IPA space is mapped down to
  * level 2 only, so a 4KB request inside the first 2MB block terminates the
- * walk at level 2 with an unaligned base. The REC carries the pending
- * request that handle_rsi_ipa_state_set() records; the entry's RIPAS is
- * EMPTY as left by RMI_RTT_CREATE.
+ * walk at level 2 even when it starts at the block's base. The REC carries
+ * the pending request that handle_rsi_ipa_state_set() records; the entry's
+ * RIPAS is EMPTY as left by RMI_RTT_CREATE.
  */
 
 #define SET_RIPAS_ALIGN_TEST_RTT_START_IDX	114000U
@@ -171,6 +171,50 @@ TEST(rtt_set_ripas_align_tests, aligned_base_changes_ripas)
 	UNSIGNED_LONGS_EQUAL(TEST_DATA_L2_BLOCK_TOP, res.x[1]);
 	UNSIGNED_LONGS_EQUAL(TEST_DATA_L2_BLOCK_TOP, rec_next_addr(rec_pa));
 	expect_entry_ripas(&ctx, TEST_DATA_IPA_BASE, (unsigned long)RIPAS_RAM);
+}
+
+/*
+ * A request starting at an aligned base can end inside an entry whose RIPAS
+ * already matches. The whole requested range is complete without unfolding.
+ */
+TEST(rtt_set_ripas_align_tests, aligned_base_matching_ripas_succeeds)
+{
+	struct test_data_ctx ctx;
+	struct smc_result res = {};
+	uintptr_t rec_pa;
+
+	create_realm_to_level2(&ctx);
+	rec_pa = create_requesting_rec(&ctx, TEST_DATA_IPA_BASE,
+				       TEST_DATA_PAGE_TOP, RIPAS_EMPTY);
+
+	smc_rtt_set_ripas(ctx.rd, rec_pa, TEST_DATA_IPA_BASE,
+			  TEST_DATA_PAGE_TOP, &res);
+
+	UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
+	UNSIGNED_LONGS_EQUAL(TEST_DATA_PAGE_TOP, res.x[1]);
+	UNSIGNED_LONGS_EQUAL(TEST_DATA_PAGE_TOP, rec_next_addr(rec_pa));
+	expect_entry_ripas(&ctx, TEST_DATA_IPA_BASE, (unsigned long)RIPAS_EMPTY);
+}
+
+/* A partial level 2 entry cannot be changed to a different RIPAS. */
+TEST(rtt_set_ripas_align_tests, aligned_base_different_ripas_fails)
+{
+	struct test_data_ctx ctx;
+	struct smc_result res = {};
+	uintptr_t rec_pa;
+
+	create_realm_to_level2(&ctx);
+	rec_pa = create_requesting_rec(&ctx, TEST_DATA_IPA_BASE,
+				       TEST_DATA_PAGE_TOP, RIPAS_RAM);
+
+	smc_rtt_set_ripas(ctx.rd, rec_pa, TEST_DATA_IPA_BASE,
+			  TEST_DATA_PAGE_TOP, &res);
+
+	UNSIGNED_LONGS_EQUAL(pack_return_code_level(RMI_ERROR_RTT,
+						    (unsigned char)2U),
+			     res.x[0]);
+	UNSIGNED_LONGS_EQUAL(TEST_DATA_IPA_BASE, rec_next_addr(rec_pa));
+	expect_entry_ripas(&ctx, TEST_DATA_IPA_BASE, (unsigned long)RIPAS_EMPTY);
 }
 
 /*
