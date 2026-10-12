@@ -365,31 +365,44 @@ static bool addr_is_within(unsigned long addr,
 	return (addr >= base) && (addr < top);
 }
 
+/*
+ * Return true if one PDEV stream covers the complete VDEV address range.
+ * The stream data must remain stable for this check. Stream ranges retain
+ * Host order, so each pass finds the range that extends coverage farthest
+ * from the first uncovered address. Each successful pass advances past a
+ * range end, requiring at most num_addr_range passes.
+ */
 static bool vdev_range_within_pdev_stream(const struct rmi_address_range *range,
-					  struct pdev_stream *stream)
+					  const struct pdev_stream *stream)
 {
-	unsigned long vdev_base = range->base;
-	unsigned long vdev_top = range->top;
-	bool must_match = false;
+	unsigned long covered_top = range->base;
+
+	if (covered_top >= range->top) {
+		return true;
+	}
 
 	for (size_t i = 0U; i < stream->num_addr_range; ++i) {
-		if (vdev_base >= vdev_top) {
-			return true;
+		unsigned long next_top = covered_top;
+
+		for (size_t j = 0U; j < stream->num_addr_range; ++j) {
+			const struct rmi_address_range *stream_range = &stream->addr_range[j];
+
+			if (addr_is_within(covered_top, stream_range->base, stream_range->top) &&
+			    (stream_range->top > next_top)) {
+				next_top = stream_range->top;
+			}
 		}
 
-		struct rmi_address_range *stream_range = &stream->addr_range[i];
-		bool base_match = addr_is_within(vdev_base, stream_range->base, stream_range->top);
-
-		if (must_match && !base_match) {
+		if (next_top == covered_top) {
 			return false;
 		}
-
-		if (base_match) {
-			vdev_base = min(vdev_top, stream_range->top);
-			must_match = true;
+		if (next_top >= range->top) {
+			return true;
 		}
+		covered_top = next_top;
 	}
-	return vdev_base >= vdev_top;
+
+	return false;
 }
 
 static bool vdev_addr_range_in_pdev_streams(
@@ -425,6 +438,19 @@ static bool vdev_addr_ranges_in_pdev_streams(
 		}
 	}
 	return true;
+}
+
+/*
+ * Exercise the VDEV_CREATE coverage rule using test-owned PDEV stream data.
+ * Return true when each VDEV range is covered by one taken stream. The caller
+ * keeps the stream data stable and passes a valid VDEV range count.
+ */
+bool vdev_test_addr_ranges_in_pdev_streams(
+	struct pdev_stream (*streams)[RMI_PDEV_STREAM_TYPE_COUNT],
+	const struct rmi_address_range *addr_range,
+	unsigned long num_addr_range)
+{
+	return vdev_addr_ranges_in_pdev_streams(streams, addr_range, num_addr_range);
 }
 
 /*

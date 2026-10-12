@@ -11,9 +11,8 @@
 #include <stdint.h>
 
 /*
- * Test-only wrappers that expose static PDEV vdev-range slot helpers so
- * unit tests can exercise multi-page slot storage without going through
- * the full device assignment object flows.
+ * Test-only wrappers that expose static PDEV vdev-range slot and stream
+ * coverage helpers without going through the full device assignment flows.
  *
  * Implemented in runtime/rmi/vdev.c.
  */
@@ -28,5 +27,11 @@ bool vdev_test_pdev_vdev_ranges_overlap(
 	const struct pdev *pd,
 	const struct rmi_address_range *addr_range,
 	unsigned long addr_range_cnt);
+
+/* Check the VDEV_CREATE stream coverage rule using test-owned stream data. */
+bool vdev_test_addr_ranges_in_pdev_streams(
+	struct pdev_stream (*streams)[RMI_PDEV_STREAM_TYPE_COUNT],
+	const struct rmi_address_range *addr_range,
+	unsigned long num_addr_range);
 
 #endif /* VDEV_TEST_H */
