@@ -1431,8 +1431,11 @@ out_cleanup:
 	return rc;
 }
 
-/* Bind the vdev to the Realm */
-int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id)
+/*
+ * Bind a VDEV to the Realm and leave its INIT operation pending. Return the
+ * VDEV ID on success, or -1 if setup or RMI_VDEV_CREATE fails.
+ */
+int host_vdev_create_pending(struct host_realm *realm, unsigned long host_vdev_tdi_id)
 {
 	struct rmi_vdev_params *vdev_params;
 	struct smc_result result;
@@ -1470,14 +1473,30 @@ int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id)
 		host_vdev_cleanup(h_vdev);
 		return -1;
 	}
+	return host_vdev_id;
+}
+
+/*
+ * Create a VDEV and complete its initial communication. Return the VDEV ID
+ * on success, or -1 if creation or communication fails.
+ */
+int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id)
+{
+	int host_vdev_id;
+
+	host_vdev_id = host_vdev_create_pending(realm, host_vdev_tdi_id);
+	if (host_vdev_id < 0) {
+		return -1;
+	}
+
 	/*
 	 * Drive VDEV communication once after create so VDEV/PDEV communication
 	 * state is settled.
 	 */
-	if (host_dev_communicate(realm, h_pdev, true, h_vdev,
+	if (host_dev_communicate(realm, &gbl_host_pdev, true, &gbl_host_vdev,
 				 RMI_VDEV_STATE_UNLOCKED, false) != 0) {
 		ERROR("VDEV create -> UNLOCKED transition failed\n");
-		host_vdev_cleanup(h_vdev);
+		host_vdev_cleanup(&gbl_host_vdev);
 		return -1;
 	}
 	return host_vdev_id;

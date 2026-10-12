@@ -312,6 +312,90 @@ TEST(host_da_e2e_tests, pdev_stop_copyout)
 }
 
 /*
+ * Verify the explicit INIT operation from VDEV_CREATE to VDEV_UNLOCKED.
+ *
+ * Setup: Create a DA-enabled Realm and PDEV, then create a VDEV without
+ * driving its initial communication.
+ * Action: Reject an unsolicited response, then communicate with status NONE.
+ * Expected: CREATE leaves INIT pending in NEW; the rejected input preserves
+ * that state; completion returns no device request and clears the operation.
+ */
+TEST(host_da_e2e_tests, vdev_init_operation)
+{
+	struct rmi_test_realm realm;
+	struct host_realm host_realm = {};
+	struct rmi_realm_params *params;
+	struct smc_result result = {};
+	struct host_pdev *pdev;
+	struct host_vdev *vdev;
+	struct rmi_dev_comm_data *comm;
+	struct vdev_operation_snapshot snapshot;
+	void *endpoint;
+	void *vdev_obj;
+	int pdev_id;
+	int vdev_id;
+
+	/* Enable DA and reserve one VDEV slot before creating the Realm. */
+	rmi_test_realm_prepare(&realm);
+	params = (struct rmi_realm_params *)realm.params;
+	params->flags0 = INPLACE(RMI_REALM_FLAGS0_DA, RMI_FEATURE_TRUE);
+	params->max_num_vdevs = 1UL;
+	rmi_test_realm_create(&realm);
+	smc_realm_activate(realm.rd, &result);
+	CHECK_EQUAL(RMI_SUCCESS, result.x[0]);
+	host_realm.rd = (void *)realm.rd;
+
+	/* Establish SPDM/IDE and a PSMMU stream table for the Realm device. */
+	pdev_id = host_pdev_probe_and_setup();
+	CHECK_TRUE(pdev_id > 0);
+	CHECK_EQUAL(0, host_psmmu_setup(0U, (unsigned long)pdev_id));
+	/* Leave CREATE at NEW/PENDING so INIT can be tested before completion. */
+	vdev_id = host_vdev_create_pending(&host_realm, (unsigned long)pdev_id);
+	CHECK_EQUAL(HOST_DA_VDEV_ID, vdev_id);
+	pdev = host_pdev_current();
+	vdev = host_vdev_current();
+	endpoint = host_pdev_ptr(pdev, true);
+	vdev_obj = host_vdev_ptr(vdev);
+	comm = host_vdev_comm_data(vdev);
+
+	CHECK_EQUAL(RMI_VDEV_STATE_NEW, vdev_state(vdev_obj));
+	snapshot = vdev_operation_state(vdev_obj);
+	CHECK_EQUAL(VDEV_OP_INIT, snapshot.op);
+	CHECK_EQUAL(DEV_COMM_PENDING, snapshot.comm_state);
+
+	/* No request has been sent yet, so a Host response must be rejected. */
+	comm->enter.status = RMI_DEV_COMM_ENTER_STATUS_RESPONSE;
+	comm->enter.resp_len = 1U;
+	host_rmi_vdev_communicate(host_realm.rd, endpoint, vdev_obj, comm, &result);
+	CHECK_EQUAL(RMI_ERROR_DEVICE, result.x[0]);
+	CHECK_EQUAL(RMI_VDEV_STATE_NEW, vdev_state(vdev_obj));
+	snapshot = vdev_operation_state(vdev_obj);
+	CHECK_EQUAL(VDEV_OP_INIT, snapshot.op);
+	CHECK_EQUAL(DEV_COMM_PENDING, snapshot.comm_state);
+
+	/* INIT needs no device exchange; seed stale output to check it is cleared. */
+	comm->enter.status = RMI_DEV_COMM_ENTER_STATUS_NONE;
+	comm->enter.resp_len = 0U;
+	comm->exit.flags = RMI_DEV_COMM_EXIT_FLAGS_REQ_SEND_BIT;
+	comm->exit.req_len = 1UL;
+	host_rmi_vdev_communicate(host_realm.rd, endpoint, vdev_obj, comm, &result);
+	CHECK_EQUAL(RMI_SUCCESS, result.x[0]);
+	UNSIGNED_LONGS_EQUAL(0UL, comm->exit.flags);
+	UNSIGNED_LONGS_EQUAL(0UL, comm->exit.req_len);
+	CHECK_EQUAL(RMI_VDEV_STATE_UNLOCKED, vdev_state(vdev_obj));
+	snapshot = vdev_operation_state(vdev_obj);
+	CHECK_EQUAL(VDEV_OP_NONE, snapshot.op);
+	CHECK_EQUAL(DEV_COMM_IDLE, snapshot.comm_state);
+
+	/* INIT is now IDLE/UNLOCKED and the VDEV can be destroyed directly. */
+	CHECK_EQUAL(0, host_vdev_reclaim(&host_realm, vdev_id));
+	/* Reclaim root port ID 0 and the endpoint after dropping VDEV references. */
+	CHECK_EQUAL(0, host_pdev_reclaim(0));
+	CHECK_EQUAL(0, host_pdev_reclaim(pdev_id));
+	rmi_test_realm_destroy(&realm);
+}
+
+/*
  * Verify VDEV validation while LOCK has a pending communication request.
  *
  * Setup: Create a DA-enabled Realm, establish the endpoint SPDM session and

@@ -38,6 +38,7 @@ rmm_build_unittest(NAME host_da_e2e_tests
                        pdev_yielded_abort_stop
                        pdev_failed_abort_stop
                        pdev_stop_copyout
+                       vdev_init_operation
                        vdev_pending_input
                        vdev_destroy_pending_lock
                        vdev_destroy_yielded_owner
@@ -47,6 +48,7 @@ set_tests_properties(
     host_da_e2e_tests::pdev_yielded_abort_stop
     host_da_e2e_tests::pdev_failed_abort_stop
     host_da_e2e_tests::pdev_stop_copyout
+    host_da_e2e_tests::vdev_init_operation
     host_da_e2e_tests::vdev_pending_input
     host_da_e2e_tests::vdev_destroy_pending_lock
     host_da_e2e_tests::vdev_destroy_yielded_owner

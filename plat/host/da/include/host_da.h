@@ -44,6 +44,12 @@ int host_sro_drive(unsigned long handle, unsigned long ret_status,
 int host_pdev_probe_and_setup(void);
 int host_psmmu_setup(unsigned int smmu_idx, unsigned long sid);
 
+/*
+ * Create a VDEV with INIT communication pending. Return its ID or -1 on
+ * failure. The caller must complete communication before normal use.
+ */
+int host_vdev_create_pending(struct host_realm *realm, unsigned long host_vdev_tdi_id);
+
 /* Assign, run and reclaim DA devices; return IDs or zero on success. */
 int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id);
 int host_realm_run_da(struct host_realm *realm);
