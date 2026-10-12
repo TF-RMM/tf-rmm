@@ -217,6 +217,8 @@ struct pdev {
 
 	/* DA app cfg */
 	struct app_data_cfg da_app_data;
+	/* PDEV or VDEV granule whose operation yielded the DA app, or NULL. */
+	struct granule *da_app_yield_owner;
 };
 COMPILER_ASSERT(sizeof(struct pdev) <= GRANULE_SIZE);
 
@@ -326,7 +328,9 @@ int vdev_find_lock_map(struct granule *g_rd, struct rd *rd,
 		       struct vdev **vd);
 
 unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
+			      struct granule *g_vdev,
 			      unsigned long dev_comm_data_addr);
+int dev_abort_app_if_owner(struct pdev *pd, struct granule *owner);
 struct pdev_stream *pdev_stream_granules_lock_map(struct granule *g_streams,
 						  unsigned char stream_type);
 struct pdev_stream (*pdev_streams_granules_lock_map(struct granule *g_streams))

@@ -6,6 +6,7 @@
 #include <CppUTest/TestHarness.h>
 
 extern "C" {
+#include <app.h>
 #include <dev.h>
 #include <pdev_comm.h>
 #include <string.h>
@@ -152,4 +153,27 @@ TEST(pdev_comm_tests, stream_abort_remains_completable)
 
 	pdev_comm_stream_complete(&pd);
 	CHECK_EQUAL(PDEV_OP_NONE, pd.op.curr);
+}
+
+/*
+ * A pending operation on another VDEV, or on the PDEV, must not unwind the
+ * DA app yielded for the first VDEV. The app is deliberately not initialized:
+ * calling its abort path here would be invalid and fail the test.
+ */
+TEST(pdev_comm_tests, abort_non_owner_preserves_yielded_app)
+{
+	struct granule first_vdev = {};
+	struct granule second_vdev = {};
+	struct granule pdev_granule = {};
+
+	pd.g_pdev = &pdev_granule;
+	pd.da_app_yield_owner = &first_vdev;
+	pd.da_app_data.exit_flag = APP_EXIT_SVC_YIELD_FLAG;
+
+	CHECK_EQUAL(DEV_ASSIGN_STATUS_SUCCESS,
+		    dev_abort_app_if_owner(&pd, &second_vdev));
+	CHECK_EQUAL(DEV_ASSIGN_STATUS_SUCCESS,
+		    dev_abort_app_if_owner(&pd, &pdev_granule));
+	POINTERS_EQUAL(&first_vdev, pd.da_app_yield_owner);
+	CHECK_EQUAL(APP_EXIT_SVC_YIELD_FLAG, pd.da_app_data.exit_flag);
 }

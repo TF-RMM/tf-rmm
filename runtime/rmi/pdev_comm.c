@@ -16,7 +16,7 @@ static bool pdev_comm_operation_is_stream(unsigned long op)
 	       (op == PDEV_OP_KEY_PURGE);
 }
 
-/* Initialize the states for the first PDEV_COMMUNICATE after creation. */
+/* Initialize PDEV communication and clear any yielded app owner. */
 void pdev_comm_init(struct pdev *pd)
 {
 	assert(pd != NULL);
@@ -25,6 +25,7 @@ void pdev_comm_init(struct pdev *pd)
 	pd->dev_comm_state = DEV_COMM_PENDING;
 	pd->op.curr = PDEV_OP_NONE;
 	pd->op.stream_op_state = STREAM_OP_STATE_NONE;
+	pd->da_app_yield_owner = NULL;
 }
 
 /* Begin an operation after its command-specific checks have passed. */

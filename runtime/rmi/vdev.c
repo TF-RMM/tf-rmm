@@ -849,7 +849,8 @@ static bool vdev_seq_increment(uint64_t *seq)
  *
  * Validate parent states under their locks, then release those locks before
  * acquiring the operation locks. The locked VDEV pins the parents used for
- * identity checks. Report the RMI result through @res with all locks released.
+ * identity checks. Report the RMI result through @res with all locks released,
+ * including RMI_BUSY when another device operation owns the yielded DA app.
  *
  * rd_addr		- PA of the RD
  * pdev_addr		- PA of the PDEV
@@ -940,7 +941,7 @@ void smc_vdev_communicate(unsigned long rd_addr,
 
 	/* TODO_ALP17: if PdevIsBusy(pdev) then ResultEqual(result, RMI_BUSY) */
 
-	rmi_rc = dev_communicate(pd, vd, dev_comm_data_addr);
+	rmi_rc = dev_communicate(pd, vd, g_vdev, dev_comm_data_addr);
 	/* Do not return early here in case of error. Instead do the state
 	 * transition below based on vd->comm_state set by dev_communicate.
 	 */
@@ -1071,7 +1072,8 @@ out_err_input:
  *
  * Validate parent states under their locks, then release those locks before
  * acquiring the operation locks. The locked VDEV pins the parents used for
- * identity checks. Report the RMI result through @res with all locks released.
+ * identity checks. Unwind the shared DA app only if this VDEV owns its yielded
+ * operation. Report the RMI result through @res with all locks released.
  *
  * rd_addr	- PA of RD
  * pdev_addr	- PA of the PDEV
@@ -1085,7 +1087,6 @@ void smc_vdev_abort(unsigned long rd_addr,
 	int rc;
 	struct granule *g_pdev;
 	struct granule *g_vdev;
-	void *aux_mapped_addr;
 	unsigned long smc_rc;
 	struct pdev *pd;
 	struct vdev *vd;
@@ -1137,39 +1138,18 @@ void smc_vdev_abort(unsigned long rd_addr,
 		goto out_vdev_buf_unmap;
 	}
 
-	/*
-	 * If the app is not yielded, then mapping aux granules and cancelling
-	 * an existing app operation is not required.
-	 *
-	 * todo: add helper routine dev_communicate_abort() in pdev.c
-	 */
-	if (pd->da_app_data.exit_flag != APP_EXIT_SVC_YIELD_FLAG) {
-		goto vdev_reset_state;
-	}
-
-	/* Map PDEV aux granules */
-	/* coverity[overrun-buffer-val:SUPPRESS] */
-	aux_mapped_addr = buffer_pdev_app_aux_map(pd->g_app_aux, pd->num_app_aux);
-	assert(aux_mapped_addr != NULL);
-
-	/* Resume with an error until the DA app has left any SPDM exchange. */
-	rc = dev_assign_abort_app_operation(&pd->da_app_data);
-
-	/* Unmap all PDEV aux granules */
-	buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
+	rc = dev_abort_app_if_owner(pd, g_vdev);
 	if (rc != DEV_ASSIGN_STATUS_SUCCESS) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_vdev_buf_unmap;
 	}
 
-vdev_reset_state:
 	if ((vd->rmi_state == RMI_VDEV_STATE_KEY_REFRESH) ||
 	    (vd->rmi_state == RMI_VDEV_STATE_KEY_PURGE)) {
 		vd->rmi_state = RMI_VDEV_STATE_LOCKED;
 	} else {
 		vd->rmi_state = RMI_VDEV_STATE_ERROR;
 	}
-
 	vd->comm_state = DEV_COMM_IDLE;
 	smc_rc = RMI_SUCCESS;
 
@@ -1184,6 +1164,12 @@ out_vdev_buf_unmap:
 
 /*
  * smc_vdev_destroy
+ *
+ * Destroy an unlocked VDEV which does not own a yielded DA app operation,
+ * including one whose communication is pending. The caller supplies the RD
+ * and PDEV that own this VDEV; all three are locked while checking state and
+ * app ownership and releasing resources. Return the RMI result via res,
+ * with RMI_ERROR_DEVICE if the VDEV still owns a yielded app operation.
  *
  * rd_addr	- PA of RD
  * pdev_addr	- PA of the PDEV
@@ -1242,7 +1228,15 @@ void smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	}
 
 	if ((vd->rmi_state != RMI_VDEV_STATE_UNLOCKED) ||
-	    (vd->comm_state != DEV_COMM_IDLE)) {
+	    ((vd->comm_state != DEV_COMM_IDLE) &&
+	     (vd->comm_state != DEV_COMM_PENDING))) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_err_input;
+	}
+
+	/* A pending communication state can still belong to a yielded app. */
+	if ((pd->da_app_data.exit_flag == APP_EXIT_SVC_YIELD_FLAG) &&
+	    (pd->da_app_yield_owner == g_vdev)) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
 	}

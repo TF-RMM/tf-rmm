@@ -1033,17 +1033,67 @@ static void vdev_set_comm_state(int rc, bool app_unwound, uint32_t *comm_state)
 	}
 }
 
+/*
+ * Abort the shared DA app only when its yielded operation belongs to owner.
+ * The caller holds the PDEV lock and any VDEV lock for owner. Return a DA app
+ * status; a failed unwind leaves the owner recorded for a later retry.
+ */
+int dev_abort_app_if_owner(struct pdev *pd, struct granule *owner)
+{
+	void *aux_mapped_addr = NULL;
+	int rc;
+
+	assert((pd != NULL) && (owner != NULL));
+
+	if ((PDEV_CATEGORY(pd) == RMI_PDEV_ROOTPORT) ||
+	    (pd->da_app_data.exit_flag != APP_EXIT_SVC_YIELD_FLAG)) {
+		pd->da_app_yield_owner = NULL;
+		return DEV_ASSIGN_STATUS_SUCCESS;
+	}
+	if (pd->da_app_yield_owner != owner) {
+		return DEV_ASSIGN_STATUS_SUCCESS;
+	}
+
+	if (pd->num_app_aux > 0U) {
+		/* coverity[overrun-buffer-val:SUPPRESS] */
+		aux_mapped_addr = buffer_pdev_app_aux_map(pd->g_app_aux, pd->num_app_aux);
+	}
+
+	rc = dev_assign_abort_app_operation(&pd->da_app_data);
+
+	if (aux_mapped_addr != NULL) {
+		buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
+	}
+	if (rc == DEV_ASSIGN_STATUS_SUCCESS) {
+		pd->da_app_yield_owner = NULL;
+	}
+
+	return rc;
+}
+
+/*
+ * Dispatch PDEV or VDEV communication and complete its state transition.
+ * The caller holds the PDEV granule lock and, for a VDEV, its granule lock.
+ * g_vdev is that locked VDEV granule, or NULL for PDEV communication. Return
+ * RMI_BUSY if a different operation owns the yielded app, otherwise an RMI
+ * status for host buffer access. The app result updates state separately.
+ */
 unsigned long dev_communicate(struct pdev *pd,
-			      struct vdev *vd, unsigned long dev_comm_data_addr)
+			      struct vdev *vd, struct granule *g_vdev,
+			      unsigned long dev_comm_data_addr)
 {
 	struct rmi_dev_comm_enter enter_args;
 	struct rmi_dev_comm_exit exit_args;
+	struct granule *owner;
 	unsigned long comm_rc;
 	int rc;
 	bool app_unwound;
 	void *aux_mapped_addr = NULL;
 
 	assert(pd != NULL);
+	assert((vd == NULL) == (g_vdev == NULL));
+	owner = (vd == NULL) ? pd->g_pdev : g_vdev;
+	assert(owner != NULL);
 
 	if (vd == NULL) {
 		assert(pd->dev_comm_state != DEV_COMM_IDLE);
@@ -1059,6 +1109,10 @@ unsigned long dev_communicate(struct pdev *pd,
 		(vd == NULL) ? pd->dev_comm_state : vd->comm_state);
 	if (comm_rc != RMI_SUCCESS) {
 		return comm_rc;
+	}
+	if ((pd->da_app_data.exit_flag == APP_EXIT_SVC_YIELD_FLAG) &&
+	    (pd->da_app_yield_owner != owner)) {
+		return RMI_BUSY;
 	}
 
 	/* Map app PDEV aux granules to slot starting SLOT_PDEV_APP_AUX0 */
@@ -1105,6 +1159,7 @@ unsigned long dev_communicate(struct pdev *pd,
 	if (aux_mapped_addr != NULL) {
 		buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
 	}
+	pd->da_app_yield_owner = app_unwound ? NULL : owner;
 
 	/* A rejected input returned above has no state transition. */
 	if (vd == NULL) {
@@ -1121,7 +1176,7 @@ unsigned long dev_communicate(struct pdev *pd,
  *
  * pdev_addr	- PA of the PDEV
  * data_addr	- PA of the communication data structure
- * res		- RMI status returned to the Host
+ * res		- RMI status; RMI_BUSY if another operation owns the DA app
  *
  * The PDEV granule remains locked through communication and stream sync.
  */
@@ -1184,7 +1239,7 @@ void smc_pdev_communicate(unsigned long pdev_addr,
 		update_stream_op_state = true;
 	}
 
-	rmi_rc = dev_communicate(pd, NULL, dev_comm_data_addr);
+	rmi_rc = dev_communicate(pd, NULL, NULL, dev_comm_data_addr);
 
 	if (update_stream_op_state) {
 		stream->op_state = pd->op.stream_op_state;
@@ -1498,7 +1553,8 @@ out_pdev_buf_unmap:
 }
 
 /*
- * Abort communication and make the PDEV idle only after its app exits.
+ * Abort PDEV communication and make it idle after its app exits. A yielded
+ * operation owned by a child VDEV is left running.
  *
  * pdev_addr	- PA of the PDEV
  * res		- RMI status; RMI_ERROR_DEVICE if the app remains yielded
@@ -1509,7 +1565,6 @@ void smc_pdev_abort(unsigned long pdev_addr, struct smc_result *res)
 	struct granule *g_pdev;
 	unsigned long smc_rc;
 	struct pdev *pd;
-	void *aux_mapped_addr = NULL;
 
 	if (!is_rmi_feat_da_enabled()) {
 		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
@@ -1541,27 +1596,11 @@ void smc_pdev_abort(unsigned long pdev_addr, struct smc_result *res)
 		goto out_pdev_buf_unmap;
 	}
 
-	if ((PDEV_CATEGORY(pd) != RMI_PDEV_ROOTPORT) &&
-	    (pd->da_app_data.exit_flag == APP_EXIT_SVC_YIELD_FLAG)) {
-		if (pd->num_app_aux > 0U) {
-			/* coverity[overrun-buffer-val:SUPPRESS] */
-			aux_mapped_addr = buffer_pdev_app_aux_map(pd->g_app_aux,
-							pd->num_app_aux);
-		}
-
-		/*
-		 * A failed SPDM exchange can start another one before exiting. The
-		 * abort helper keeps resuming with an error until the app unwinds.
-		 */
-		rc = dev_assign_abort_app_operation(&pd->da_app_data);
-
-		if (aux_mapped_addr != NULL) {
-			buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
-		}
-		if (rc != DEV_ASSIGN_STATUS_SUCCESS) {
-			smc_rc = RMI_ERROR_DEVICE;
-			goto out_pdev_buf_unmap;
-		}
+	/* The shared app may instead be yielded for a child VDEV. */
+	rc = dev_abort_app_if_owner(pd, g_pdev);
+	if (rc != DEV_ASSIGN_STATUS_SUCCESS) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_pdev_buf_unmap;
 	}
 
 	pdev_comm_abort(pd);
