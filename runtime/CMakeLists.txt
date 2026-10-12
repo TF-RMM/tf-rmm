@@ -154,4 +154,4 @@ target_sources(rmm-runtime
             "rsi/arch_dev.c"
             "rsi/version.c")
 
-include (tests/CMakeLists.txt)
+rmm_unittest_include(tests/CMakeLists.txt)

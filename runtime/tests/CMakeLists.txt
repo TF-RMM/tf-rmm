@@ -26,6 +26,27 @@ rmm_build_unittest(NAME pdev_comm_tests
                    SOURCES "tests/pdev_comm_tests.cpp"
                    ITERATIONS 1)
 
+target_include_directories(rmm-runtime
+    PRIVATE "${CMAKE_SOURCE_DIR}/plat/host/da/include"
+            "${CMAKE_SOURCE_DIR}/ext/minicoro")
+
+rmm_build_unittest(NAME host_da_e2e_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/host_da_e2e_tests.cpp"
+                   RUN_ISOLATED_TESTS
+                       pdev_yielded_abort_stop
+                       pdev_failed_abort_stop
+                       pdev_stop_copyout
+                       vdev_pending_input)
+
+set_tests_properties(
+    host_da_e2e_tests::pdev_yielded_abort_stop
+    host_da_e2e_tests::pdev_failed_abort_stop
+    host_da_e2e_tests::pdev_stop_copyout
+    host_da_e2e_tests::vdev_pending_input
+    PROPERTIES RUN_SERIAL TRUE TIMEOUT 120)
+
 rmm_build_unittest(NAME rsi_logger_tests
                    LIBRARIES rmm-platform
                    TARGET rmm-runtime
