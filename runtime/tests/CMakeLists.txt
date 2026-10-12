@@ -40,7 +40,8 @@ rmm_build_unittest(NAME host_da_e2e_tests
                        pdev_stop_copyout
                        vdev_pending_input
                        vdev_destroy_pending_lock
-                       vdev_destroy_yielded_owner)
+                       vdev_destroy_yielded_owner
+                       vdev_freshness_lifecycle)
 
 set_tests_properties(
     host_da_e2e_tests::pdev_yielded_abort_stop
@@ -49,6 +50,7 @@ set_tests_properties(
     host_da_e2e_tests::vdev_pending_input
     host_da_e2e_tests::vdev_destroy_pending_lock
     host_da_e2e_tests::vdev_destroy_yielded_owner
+    host_da_e2e_tests::vdev_freshness_lifecycle
     PROPERTIES RUN_SERIAL TRUE TIMEOUT 120)
 
 rmm_build_unittest(NAME rsi_logger_tests

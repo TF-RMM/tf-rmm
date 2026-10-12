@@ -2654,7 +2654,7 @@ void smc_rtt_dev_validate(unsigned long rd_addr, unsigned long rec_addr,
 		goto out_unmap_vdev;
 	}
 
-	/* Compare current VDEV freshness with the nonces saved in the Realm's request.
+	/* Compare current VDEV freshness with the values saved in the Realm's request.
 	 * Reject stale requests after a lock, measurement or interface-report update. */
 	if ((vd->freshness.lock_seq != rec->vdev_freshness_1.lock_seq) ||
 	    (vd->freshness.meas_seq != rec->vdev_freshness_1.meas_seq) ||

@@ -556,16 +556,39 @@ static int host_pdev_cache_device_object(struct host_pdev *h_pdev,
 	return rc;
 }
 
+/*
+ * Append a VDEV measurement or interface-report fragment to the Host cache.
+ * Return 0 on success, or -1 for an unsupported object or exhausted cache.
+ */
 static int host_vdev_cache_device_object(struct host_vdev *h_vdev,
 					 uint8_t dev_obj_id,
 					 const uint8_t *dev_obj_buf,
 					 unsigned long dev_obj_buf_len)
 {
-	(void)h_vdev;
-	(void)dev_obj_id;
-	(void)dev_obj_buf;
-	(void)dev_obj_buf_len;
-	return -1;
+	uint8_t *cache;
+	size_t *cache_len;
+	size_t cache_max_len;
+
+	if (dev_obj_id == RMI_DEV_COMM_OBJECT_MEASUREMENTS) {
+		cache = h_vdev->meas;
+		cache_len = &h_vdev->meas_len;
+		cache_max_len = (size_t)HOST_VDEV_MEAS_LEN_MAX;
+	} else if (dev_obj_id == RMI_DEV_COMM_OBJECT_INTERFACE_REPORT) {
+		cache = h_vdev->ifc_report;
+		cache_len = &h_vdev->ifc_report_len;
+		cache_max_len = (size_t)HOST_VDEV_IFC_REPORT_LEN_MAX;
+	} else {
+		return -1;
+	}
+
+	if ((cache == NULL) || (*cache_len > cache_max_len) ||
+	    (dev_obj_buf_len > cache_max_len - *cache_len)) {
+		return -1;
+	}
+
+	(void)memcpy(cache + *cache_len, dev_obj_buf, dev_obj_buf_len);
+	*cache_len += dev_obj_buf_len;
+	return 0;
 }
 
 static int host_dev_cache_device_object(struct host_pdev *h_pdev,

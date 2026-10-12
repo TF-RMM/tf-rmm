@@ -14,6 +14,8 @@ extern "C" {
 #include <host_da.h>
 #include <host_rmi_wrappers.h>
 #include <host_utils.h>
+#include <realm.h>
+#include <rec.h>
 }
 
 #include <rmi_test_helpers.h>
@@ -94,6 +96,63 @@ static struct vdev_operation_snapshot vdev_operation_state(void *vdev_addr)
 	granule_unlock(g_vdev);
 
 	return snapshot;
+}
+
+/* Copy freshness from an existing VDEV under its granule lock. */
+static struct vdev_freshness vdev_freshness(void *vdev_addr)
+{
+	struct granule *g_vdev = tr_addr_to_granule((uintptr_t)vdev_addr);
+	struct vdev *vd;
+	struct vdev_freshness freshness;
+
+	granule_lock(g_vdev, GRANULE_STATE_VDEV);
+	vd = (struct vdev *)buffer_granule_map(g_vdev, SLOT_VDEV);
+	CHECK_TRUE(vd != NULL);
+	freshness = vd->freshness;
+	buffer_unmap(vd);
+	granule_unlock(g_vdev);
+
+	return freshness;
+}
+
+/* Read the Realm-wide lock counter from an existing RD under its lock. */
+static uint64_t realm_vdev_lock_sequence(uintptr_t rd_addr)
+{
+	struct granule *g_rd = tr_addr_to_granule(rd_addr);
+	struct rd *rd;
+	uint64_t sequence;
+
+	granule_lock(g_rd, GRANULE_STATE_RD);
+	rd = (struct rd *)buffer_granule_map(g_rd, SLOT_RD);
+	CHECK_TRUE(rd != NULL);
+	sequence = rd->last_vdev_lock_seq;
+	buffer_unmap(rd);
+	granule_unlock(g_rd);
+
+	return sequence;
+}
+
+/*
+ * Save a completed VDEV operation's freshness and IPA range in an existing
+ * REC under its lock, modeling a Realm's pending device mapping request.
+ */
+static void set_pending_vdev_mapping(uintptr_t rec_addr,
+				     const struct vdev_freshness *freshness,
+				     unsigned long ipa)
+{
+	struct granule *g_rec = tr_addr_to_granule(rec_addr);
+	struct rec *rec;
+
+	granule_lock(g_rec, GRANULE_STATE_REC);
+	rec = (struct rec *)buffer_granule_map(g_rec, SLOT_REC);
+	CHECK_TRUE(rec != NULL);
+	rec->dev_mem.base = ipa;
+	rec->dev_mem.addr = ipa;
+	rec->dev_mem.top = ipa + GRANULE_SIZE;
+	rec->vdev_id_1 = HOST_DA_VDEV_ID;
+	rec->vdev_freshness_1 = *freshness;
+	buffer_unmap(rec);
+	granule_unlock(g_rec);
 }
 
 /*
@@ -467,4 +526,153 @@ TEST(host_da_e2e_tests, vdev_destroy_yielded_owner)
 	CHECK_EQUAL(1U, pd->num_vdevs);
 	buffer_unmap(pd);
 	granule_unlock(g_pdev);
+}
+
+/*
+ * Verify freshness across completed device requests, relock and replacement.
+ * RMI_RTT_DEV_VALIDATE must reject a pending request after each freshness
+ * change, including recreation of the same VDEV ID.
+ */
+TEST(host_da_e2e_tests, vdev_freshness_lifecycle)
+{
+	struct rmi_test_realm realm;
+	struct rmi_test_rec rec;
+	struct host_realm host_realm = {};
+	struct rmi_realm_params *params;
+	struct rmi_vdev_measure_params *measure_params;
+	struct vdev_freshness freshness;
+	struct smc_result result = {};
+	struct host_pdev *pdev;
+	struct host_vdev *vdev;
+	void *endpoint;
+	void *vdev_obj;
+	const unsigned long ipa = 0x400000UL;
+	int pdev_id;
+	int vdev_id;
+	int rc;
+
+	/* Enable DA and reserve one VDEV slot before creating the Realm. */
+	rmi_test_realm_prepare(&realm);
+	params = (struct rmi_realm_params *)realm.params;
+	params->flags0 = INPLACE(RMI_REALM_FLAGS0_DA, RMI_FEATURE_TRUE);
+	params->max_num_vdevs = 1UL;
+	rmi_test_realm_create(&realm);
+	rmi_test_rec_create(&realm, &rec);
+	smc_realm_activate(realm.rd, &result);
+	CHECK_EQUAL(RMI_SUCCESS, result.x[0]);
+	host_realm.rd = (void *)realm.rd;
+
+	/* Establish SPDM/IDE and a PSMMU stream table for the Realm device. */
+	pdev_id = host_pdev_probe_and_setup();
+	CHECK_TRUE(pdev_id > 0);
+	CHECK_EQUAL(0, host_psmmu_setup(0U, (unsigned long)pdev_id));
+	vdev_id = host_vdev_assign(&host_realm, (unsigned long)pdev_id);
+	CHECK_EQUAL(HOST_DA_VDEV_ID, vdev_id);
+	pdev = host_pdev_current();
+	vdev = host_vdev_current();
+	endpoint = host_pdev_ptr(pdev, true);
+	vdev_obj = host_vdev_ptr(vdev);
+
+	/* INIT leaves all freshness counters at zero; no lock epoch exists yet. */
+	freshness = vdev_freshness(vdev_obj);
+	UNSIGNED_LONGS_EQUAL(0UL, freshness.lock_seq);
+	UNSIGNED_LONGS_EQUAL(0UL, freshness.meas_seq);
+	UNSIGNED_LONGS_EQUAL(0UL, freshness.report_seq);
+	UNSIGNED_LONGS_EQUAL(0UL, realm_vdev_lock_sequence(realm.rd));
+
+	/* Complete the first LOCK and snapshot epoch 1 in a pending REC mapping. */
+	host_rmi_vdev_lock(host_realm.rd, endpoint, vdev_obj, &result);
+	CHECK_EQUAL(RMI_SUCCESS, result.x[0]);
+	rc = host_dev_communicate(&host_realm, pdev, true, vdev,
+				  RMI_VDEV_STATE_LOCKED, false);
+	CHECK_EQUAL(0, rc);
+	freshness = vdev_freshness(vdev_obj);
+	UNSIGNED_LONGS_EQUAL(1UL, freshness.lock_seq);
+	UNSIGNED_LONGS_EQUAL(0UL, freshness.meas_seq);
+	UNSIGNED_LONGS_EQUAL(0UL, freshness.report_seq);
+	UNSIGNED_LONGS_EQUAL(1UL, realm_vdev_lock_sequence(realm.rd));
+	set_pending_vdev_mapping(rec.rec, &freshness, ipa);
+
+	/* Measurements advance meas_seq and invalidate the REC's earlier snapshot. */
+	measure_params = (struct rmi_vdev_measure_params *)allocate_granule(1U);
+	(void)memset(measure_params, 0, sizeof(*measure_params));
+	smc_vdev_get_measurements(realm.rd, (uintptr_t)endpoint,
+				  (uintptr_t)vdev_obj, (uintptr_t)measure_params, &result);
+	CHECK_EQUAL(RMI_SUCCESS, result.x[0]);
+	rc = host_dev_communicate(&host_realm, pdev, true, vdev,
+				  RMI_VDEV_STATE_LOCKED, false);
+	CHECK_EQUAL(0, rc);
+	freshness = vdev_freshness(vdev_obj);
+	UNSIGNED_LONGS_EQUAL(1UL, freshness.lock_seq);
+	UNSIGNED_LONGS_EQUAL(1UL, freshness.meas_seq);
+	UNSIGNED_LONGS_EQUAL(0UL, freshness.report_seq);
+	smc_rtt_dev_validate(realm.rd, rec.rec, ipa, ipa + GRANULE_SIZE, &result);
+	CHECK_EQUAL(RMI_ERROR_DEVICE, result.x[0]);
+	set_pending_vdev_mapping(rec.rec, &freshness, ipa);
+
+	/* Advance report_seq against the REC snapshot saved after measurements. */
+	smc_vdev_get_interface_report(realm.rd, (uintptr_t)endpoint,
+				      (uintptr_t)vdev_obj, &result);
+	CHECK_EQUAL(RMI_SUCCESS, result.x[0]);
+	rc = host_dev_communicate(&host_realm, pdev, true, vdev,
+				  RMI_VDEV_STATE_LOCKED, false);
+	CHECK_EQUAL(0, rc);
+	freshness = vdev_freshness(vdev_obj);
+	UNSIGNED_LONGS_EQUAL(1UL, freshness.lock_seq);
+	UNSIGNED_LONGS_EQUAL(1UL, freshness.meas_seq);
+	UNSIGNED_LONGS_EQUAL(1UL, freshness.report_seq);
+	smc_rtt_dev_validate(realm.rd, rec.rec, ipa, ipa + GRANULE_SIZE, &result);
+	CHECK_EQUAL(RMI_ERROR_DEVICE, result.x[0]);
+	set_pending_vdev_mapping(rec.rec, &freshness, ipa);
+
+	/* Relock advances lock_seq and resets measurement/report freshness to zero. */
+	host_rmi_vdev_unlock(host_realm.rd, endpoint, vdev_obj, &result);
+	CHECK_EQUAL(RMI_SUCCESS, result.x[0]);
+	rc = host_dev_communicate(&host_realm, pdev, true, vdev,
+				  RMI_VDEV_STATE_UNLOCKED, false);
+	CHECK_EQUAL(0, rc);
+	host_rmi_vdev_lock(host_realm.rd, endpoint, vdev_obj, &result);
+	CHECK_EQUAL(RMI_SUCCESS, result.x[0]);
+	rc = host_dev_communicate(&host_realm, pdev, true, vdev,
+				  RMI_VDEV_STATE_LOCKED, false);
+	CHECK_EQUAL(0, rc);
+	freshness = vdev_freshness(vdev_obj);
+	UNSIGNED_LONGS_EQUAL(2UL, freshness.lock_seq);
+	UNSIGNED_LONGS_EQUAL(0UL, freshness.meas_seq);
+	UNSIGNED_LONGS_EQUAL(0UL, freshness.report_seq);
+	UNSIGNED_LONGS_EQUAL(2UL, realm_vdev_lock_sequence(realm.rd));
+	smc_rtt_dev_validate(realm.rd, rec.rec, ipa, ipa + GRANULE_SIZE, &result);
+	CHECK_EQUAL(RMI_ERROR_DEVICE, result.x[0]);
+
+	/* Reuse the VDEV ID: its next lock must get a new Realm-wide epoch. */
+	CHECK_EQUAL(0, host_vdev_reclaim(&host_realm, vdev_id));
+	vdev_id = host_vdev_assign(&host_realm, (unsigned long)pdev_id);
+	CHECK_EQUAL(HOST_DA_VDEV_ID, vdev_id);
+	vdev_obj = host_vdev_ptr(host_vdev_current());
+	freshness = vdev_freshness(vdev_obj);
+	UNSIGNED_LONGS_EQUAL(0UL, freshness.lock_seq);
+	UNSIGNED_LONGS_EQUAL(2UL, realm_vdev_lock_sequence(realm.rd));
+	host_rmi_vdev_lock(host_realm.rd, endpoint, vdev_obj, &result);
+	CHECK_EQUAL(RMI_SUCCESS, result.x[0]);
+	rc = host_dev_communicate(&host_realm, pdev, true,
+				  host_vdev_current(), RMI_VDEV_STATE_LOCKED, false);
+	CHECK_EQUAL(0, rc);
+	freshness = vdev_freshness(vdev_obj);
+	UNSIGNED_LONGS_EQUAL(3UL, freshness.lock_seq);
+	UNSIGNED_LONGS_EQUAL(0UL, freshness.meas_seq);
+	UNSIGNED_LONGS_EQUAL(0UL, freshness.report_seq);
+	UNSIGNED_LONGS_EQUAL(3UL, realm_vdev_lock_sequence(realm.rd));
+	smc_rtt_dev_validate(realm.rd, rec.rec, ipa, ipa + GRANULE_SIZE, &result);
+	CHECK_EQUAL(RMI_ERROR_DEVICE, result.x[0]);
+
+	CHECK_EQUAL(0, host_vdev_reclaim(&host_realm, vdev_id));
+	/* Reclaim root port ID 0 and the endpoint after dropping VDEV references. */
+	CHECK_EQUAL(0, host_pdev_reclaim(0));
+	CHECK_EQUAL(0, host_pdev_reclaim(pdev_id));
+	/* REC destruction returns its auxiliary granules for reclamation. */
+	result = {};
+	smc_rec_destroy(rec.rec, &result);
+	CHECK_EQUAL(RMI_INCOMPLETE, unpack_return_code(result.x[0]).status);
+	rmi_test_reclaim(result.x[1], realm.addr_list, rec.num_aux);
+	rmi_test_realm_destroy(&realm);
 }

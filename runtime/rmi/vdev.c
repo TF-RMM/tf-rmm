@@ -847,10 +847,10 @@ static bool vdev_seq_increment(uint64_t *seq)
 /*
  * smc_vdev_communicate
  *
- * Validate parent states under their locks, then release those locks before
- * acquiring the operation locks. The locked VDEV pins the parents used for
- * identity checks. Report the RMI result through @res with all locks released,
- * including RMI_BUSY when another device operation owns the yielded DA app.
+ * Lock RD, PDEV and VDEV in type order and retain their locks while running
+ * device communication and updating VDEV freshness. Report the RMI result
+ * through @res after releasing all locks, including RMI_BUSY when another
+ * device operation owns the yielded DA app.
  *
  * rd_addr		- PA of the RD
  * pdev_addr		- PA of the PDEV
