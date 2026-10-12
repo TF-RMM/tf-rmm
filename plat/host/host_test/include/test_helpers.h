@@ -9,6 +9,18 @@
 #include <assert.h>
 #include <stdbool.h>
 
+/* Preserve the test runner path so DA cases can find the staged responder. */
+void test_helpers_set_executable_path(const char *path);
+
+/* Launch the staged SPDM responder for an isolated DA test case. */
+void test_helpers_spdm_responder_start(void);
+
+/* Fail a selected NS page's nth map once during a DA regression. */
+void host_da_test_fail_ns_map(unsigned long addr, unsigned int occurrence);
+
+/* Return whether the most recently armed DA NS map fault fired. */
+bool host_da_test_ns_map_faulted(void);
+
 /*
  * Definitions used for assertion tests.
  * clang++ older than v14 can cause problems when enabling

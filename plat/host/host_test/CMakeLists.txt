@@ -23,6 +23,7 @@ arm_config_option(
 target_link_libraries(rmm-plat-host_test
     PRIVATE rmm-lib
             rmm-el2-stub
+            rmm-host-da
             CppUTest
     PUBLIC  rmm-host-harness # Needed to export host_utils.h
 )
@@ -33,7 +34,8 @@ target_include_directories(rmm-plat-host_test
 
 target_include_directories(rmm-plat-host_test
     PUBLIC "include"
-    PRIVATE "src")
+    PRIVATE "src"
+            "${CMAKE_SOURCE_DIR}/ext/minicoro")
 
 target_sources(rmm-plat-host_test
     PRIVATE "src/test_main.cpp"

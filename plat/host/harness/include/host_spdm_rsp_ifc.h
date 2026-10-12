@@ -7,6 +7,8 @@
 #define HOST_SPDM_RSP_IFC_H
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #define SPDM_RSP_DEFAULT_HOST_ADDR	"127.0.0.1"
 #define SPDM_RSP_EMU1_PORT		2323

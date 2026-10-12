@@ -20,9 +20,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Create a simple 4 level (Lvl 0 - LvL 3) RTT structure */
-#define RTT_COUNT 4
-
 /* Define the EL3-RMM interface version as set from EL3 */
 #define EL3_IFC_ABI_VERSION		\
 	RMM_EL3_IFC_MAKE_VERSION(RMM_EL3_IFC_VERS_MAJOR, RMM_EL3_IFC_VERS_MINOR)
