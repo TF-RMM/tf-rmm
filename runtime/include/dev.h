@@ -217,7 +217,6 @@ struct pdev {
 
 	/* DA app cfg */
 	struct app_data_cfg da_app_data;
-	bool da_app_yielded;
 };
 COMPILER_ASSERT(sizeof(struct pdev) <= GRANULE_SIZE);
 
@@ -327,8 +326,7 @@ int vdev_find_lock_map(struct granule *g_rd, struct rd *rd,
 		       struct vdev **vd);
 
 unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
-			      unsigned long dev_comm_data_addr,
-			      int *dev_assign_status);
+			      unsigned long dev_comm_data_addr);
 struct pdev_stream *pdev_stream_granules_lock_map(struct granule *g_streams,
 						  unsigned char stream_type);
 struct pdev_stream (*pdev_streams_granules_lock_map(struct granule *g_streams))

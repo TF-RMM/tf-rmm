@@ -20,6 +20,12 @@ rmm_build_unittest(NAME status_tests
                    SOURCES "tests/status_tests.cpp"
                    ITERATIONS 1)
 
+rmm_build_unittest(NAME pdev_comm_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/pdev_comm_tests.cpp"
+                   ITERATIONS 1)
+
 rmm_build_unittest(NAME rsi_logger_tests
                    LIBRARIES rmm-platform
                    TARGET rmm-runtime

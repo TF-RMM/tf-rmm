@@ -105,6 +105,7 @@ target_sources(rmm-runtime
             "rmi/granule.c"
             "rmi/granule_sro.c"
             "rmi/pdev.c"
+            "rmi/pdev_comm.c"
             "rmi/psmmu.c"
             "rmi/realm.c"
             "rmi/rec.c"

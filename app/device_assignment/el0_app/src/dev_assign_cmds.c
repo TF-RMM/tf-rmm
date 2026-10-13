@@ -311,6 +311,9 @@ int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info)
 	int rc = DEV_ASSIGN_STATUS_SUCCESS;
 	libspdm_return_t status;
 
+	/* GET_VERSION must not inherit a request from an aborted operation. */
+	cache_operation_cleanup(info);
+
 	if (info->session_id != 0U) {
 		/* Terminate the connection. This closes the secure session */
 		status = libspdm_stop_session(info->libspdm_ctx,

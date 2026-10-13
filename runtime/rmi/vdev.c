@@ -914,9 +914,9 @@ void smc_vdev_communicate(unsigned long rd_addr,
 
 	/* TODO_ALP17: if PdevIsBusy(pdev) then ResultEqual(result, RMI_BUSY) */
 
-	rmi_rc = dev_communicate(pd, vd, dev_comm_data_addr, NULL);
+	rmi_rc = dev_communicate(pd, vd, dev_comm_data_addr);
 	/* Do not return early here in case of error. Instead do the state
-	 * transition below based on pd->dev_comm_state set by dev_communicate.
+	 * transition below based on vd->comm_state set by dev_communicate.
 	 */
 
 	/*
@@ -1056,7 +1056,7 @@ void smc_vdev_abort(unsigned long rd_addr,
 		    unsigned long vdev_addr,
 		    struct smc_result *res)
 {
-	int rc __unused;
+	int rc;
 	struct granule *g_pdev;
 	struct granule *g_vdev;
 	void *aux_mapped_addr;
@@ -1126,15 +1126,15 @@ void smc_vdev_abort(unsigned long rd_addr,
 	aux_mapped_addr = buffer_pdev_app_aux_map(pd->g_app_aux, pd->num_app_aux);
 	assert(aux_mapped_addr != NULL);
 
-	/*
-	 * This will resume the blocked CMA SPDM command and the recv callback
-	 * handler will return error and abort the command.
-	 */
+	/* Resume with an error until the DA app has left any SPDM exchange. */
 	rc = dev_assign_abort_app_operation(&pd->da_app_data);
-	assert(rc == 0);
 
 	/* Unmap all PDEV aux granules */
 	buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
+	if (rc != DEV_ASSIGN_STATUS_SUCCESS) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_vdev_buf_unmap;
+	}
 
 vdev_reset_state:
 	if ((vd->rmi_state == RMI_VDEV_STATE_KEY_REFRESH) ||
