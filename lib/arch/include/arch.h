@@ -1220,6 +1220,8 @@
 				 SCTLR_ELx_nTWE_BIT	/* Don't trap WFE from EL0 to EL2 */ | \
 				 SCTLR_ELx_WXN_BIT	/* W implies XN */ | \
 				 SCTLR_ELx_TSCXT_BIT	/* Trap EL0 accesss to SCXTNUM_EL0 */ | \
+				 SCTLR_ELx_BT1_BIT	/* Give EL2 PAC prologues BTI.c
+							 * landing-pad semantics */ | \
 				 SCTLR_ELx_EPAN_BIT	/* Ensure PAN applies also applies to
 							 * execute-only EL0 pages (FEAT_PAN3).
 							 * Also see runtime/core/init.c. */ | \
