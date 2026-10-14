@@ -1,7 +1,7 @@
-From 90c2d7faeb675daa60eb704c31d64ec693a1f482 Mon Sep 17 00:00:00 2001
+From e20f63a576e7027ff23ccefa37e4764a66c36650 Mon Sep 17 00:00:00 2001
 From: Mate Toth-Pal <mate.toth-pal@arm.com>
 Date: Thu, 27 Feb 2025 13:00:13 +0000
-Subject: [PATCH 3/3] refactor: alloc: Use the heap structure provided by app
+Subject: [PATCH 3/4] refactor: alloc: Use the heap structure provided by app
 
 ---
  include/mbedtls/memory_buffer_alloc.h |  36 +++++
@@ -550,5 +550,5 @@ index 79b0a8b..630120b 100644
      p = mbedtls_calloc(1, 1);
      q = mbedtls_calloc(1, 128);
 -- 
-2.34.1
+2.43.0
 

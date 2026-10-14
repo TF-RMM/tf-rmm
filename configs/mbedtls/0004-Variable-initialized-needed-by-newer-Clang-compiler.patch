@@ -1,0 +1,25 @@
+From 02269f7c7138cd05ca52527106f2f68e7d884801 Mon Sep 17 00:00:00 2001
+From: Attila Hannibal <attila.hannibal@arm.com>
+Date: Wed, 14 Oct 2026 10:01:14 +0200
+Subject: [PATCH 4/4] Variable initialized, needed by newer Clang compiler
+
+---
+ library/x509_crt.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/library/x509_crt.c b/library/x509_crt.c
+index 53cdcf0..d181ec2 100644
+--- a/library/x509_crt.c
++++ b/library/x509_crt.c
+@@ -2525,7 +2525,7 @@ static int x509_crt_verify_chain(
+     int signature_is_good;
+     unsigned self_cnt;
+     mbedtls_x509_crt *cur_trust_ca = NULL;
+-    mbedtls_x509_time now;
++    mbedtls_x509_time now = { 0 };
+ 
+ #if defined(MBEDTLS_HAVE_TIME_DATE)
+     if (mbedtls_x509_time_gmtime(mbedtls_time(NULL), &now) != 0) {
+-- 
+2.43.0
+
