@@ -1330,6 +1330,14 @@ static unsigned long validate_vdev_get_measurements_params(
 	return RMI_SUCCESS;
 }
 
+/*
+ * Queue measurements for an idle VDEV independently of PDEV communication.
+ * rd_addr, pdev_addr and vdev_addr are PAs of the owning RD, PDEV and VDEV;
+ * params_addr is the PA of Non-secure measurement parameters. The handler
+ * validates and locks all three objects before checking VDEV ownership and
+ * communication state. Return the RMI status in res->x[0], with success
+ * leaving the measurement operation pending for VDEV_COMMUNICATE.
+ */
 void smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pdev_addr,
 			       unsigned long vdev_addr, unsigned long params_addr,
 			       struct smc_result *res)
@@ -1339,7 +1347,6 @@ void smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pdev_addr,
 	struct granule *g_vdev = NULL;
 	struct dev_meas_params *spdm_meas_params;
 	struct rmi_vdev_measure_params measurement_params;
-	struct pdev *pd = NULL;
 	struct vdev *vd = NULL;
 
 	unsigned long smc_rc;
@@ -1366,16 +1373,13 @@ void smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pdev_addr,
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
-	if ((vd->g_rd != g_rd) ||
-	    (vd->g_pdev != g_pdev)) {
-		smc_rc = RMI_ERROR_DEVICE;
+	if (vd->g_rd != g_rd) {
+		smc_rc = RMI_ERROR_INPUT;
 		goto out_err_input;
 	}
 
-	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
-	assert(pd != NULL);
-
-	if (pd->dev_comm_state != DEV_COMM_IDLE) {
+	if ((vd->g_pdev != g_pdev) ||
+	    (vd->comm_state != DEV_COMM_IDLE)) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
 	}
@@ -1406,9 +1410,6 @@ out_err_input:
 		granule_unlock(g_vdev);
 	}
 
-	if (pd != NULL) {
-		buffer_unmap(pd);
-	}
 	if (g_pdev != NULL) {
 		granule_unlock(g_pdev);
 	}

@@ -513,13 +513,17 @@ TEST(host_da_e2e_tests, vdev_destroy_pending_lock)
 }
 
 /*
- * GET_MEASUREMENTS currently replaces an active LOCK's communication state
- * with PENDING without unwinding its app. DESTROY must preserve the yielded
- * app's VDEV owner so ABORT can unwind it. This isolated case ends after
- * verifying that the app has exited and its ownership has been released.
+ * GET_MEASUREMENTS admission depends on VDEV communication, independently of
+ * PDEV communication, and must preserve pending and active LOCK operations.
+ * DESTROY must preserve the yielded app's VDEV owner so ABORT can unwind it. This
+ * isolated case ends after verifying that the app has exited and its
+ * ownership has been released.
  */
 TEST(host_da_e2e_tests, vdev_destroy_yielded_owner)
 {
+	const unsigned int pdev_comm_states[] = {
+		DEV_COMM_PENDING, DEV_COMM_ACTIVE, DEV_COMM_ERROR
+	};
 	struct rmi_test_realm realm;
 	struct host_realm host_realm = {};
 	struct rmi_realm_params *params;
@@ -560,10 +564,53 @@ TEST(host_da_e2e_tests, vdev_destroy_yielded_owner)
 	g_pdev = tr_addr_to_granule((uintptr_t)endpoint);
 	g_vdev = tr_addr_to_granule((uintptr_t)vdev_obj);
 	comm = host_vdev_comm_data(vdev);
+	/* Supply valid parameters so rejection tests busy communication alone. */
+	measure_params = (struct rmi_vdev_measure_params *)allocate_granule(1U);
+	(void)memset(measure_params, 0, sizeof(*measure_params));
 
-	/* Queue LOCK, then start its app and leave it yielded awaiting Host transport. */
+	/*
+	 * Model each non-idle PDEV communication state without starting PDEV app
+	 * work. An idle VDEV must still accept measurements. Restore the fixture's
+	 * PDEV state before driving the real measurement exchanges to completion.
+	 */
+	for (unsigned int i = 0U; i < ARRAY_SIZE(pdev_comm_states); i++) {
+		granule_lock(g_pdev, GRANULE_STATE_PDEV);
+		pd = (struct pdev *)buffer_granule_map(g_pdev, SLOT_PDEV);
+		CHECK_EQUAL(DEV_COMM_IDLE, pd->dev_comm_state);
+		pd->dev_comm_state = pdev_comm_states[i];
+		buffer_unmap(pd);
+		granule_unlock(g_pdev);
+
+		smc_vdev_get_measurements(realm.rd, (uintptr_t)endpoint, (uintptr_t)vdev_obj,
+					 (uintptr_t)measure_params, &result);
+		CHECK_EQUAL(RMI_SUCCESS, result.x[0]);
+		snapshot = vdev_operation_state(vdev_obj);
+		CHECK_EQUAL(VDEV_OP_GET_MEAS, snapshot.op);
+		CHECK_EQUAL(DEV_COMM_PENDING, snapshot.comm_state);
+
+		granule_lock(g_pdev, GRANULE_STATE_PDEV);
+		pd = (struct pdev *)buffer_granule_map(g_pdev, SLOT_PDEV);
+		CHECK_EQUAL(pdev_comm_states[i], pd->dev_comm_state);
+		pd->dev_comm_state = DEV_COMM_IDLE;
+		buffer_unmap(pd);
+		granule_unlock(g_pdev);
+		CHECK_EQUAL(0, host_dev_communicate(&host_realm, pdev, true, vdev,
+						RMI_VDEV_STATE_UNLOCKED, false));
+		snapshot = vdev_operation_state(vdev_obj);
+		CHECK_EQUAL(DEV_COMM_IDLE, snapshot.comm_state);
+	}
+
+	/* Pending LOCK must not be replaced before its first COMMUNICATE call. */
 	host_rmi_vdev_lock(host_realm.rd, endpoint, vdev_obj, &result);
 	CHECK_EQUAL(RMI_SUCCESS, result.x[0]);
+	smc_vdev_get_measurements(realm.rd, (uintptr_t)endpoint, (uintptr_t)vdev_obj,
+				 (uintptr_t)measure_params, &result);
+	CHECK_EQUAL(RMI_ERROR_DEVICE, result.x[0]);
+	snapshot = vdev_operation_state(vdev_obj);
+	CHECK_EQUAL(VDEV_OP_LOCK, snapshot.op);
+	CHECK_EQUAL(DEV_COMM_PENDING, snapshot.comm_state);
+
+	/* Start LOCK and leave its app yielded awaiting Host transport. */
 	comm->enter.status = RMI_DEV_COMM_ENTER_STATUS_NONE;
 	comm->enter.resp_len = 0U;
 	host_rmi_vdev_communicate(host_realm.rd, endpoint, vdev_obj, comm, &result);
@@ -573,22 +620,21 @@ TEST(host_da_e2e_tests, vdev_destroy_yielded_owner)
 	CHECK_EQUAL(VDEV_OP_LOCK, snapshot.op);
 	CHECK_EQUAL(DEV_COMM_ACTIVE, snapshot.comm_state);
 
-	measure_params = (struct rmi_vdev_measure_params *)allocate_granule(1U);
-	(void)memset(measure_params, 0, sizeof(*measure_params));
+	/* Active LOCK must also retain its operation and resume state on rejection. */
 	smc_vdev_get_measurements(realm.rd, (uintptr_t)endpoint, (uintptr_t)vdev_obj,
 				 (uintptr_t)measure_params, &result);
-	CHECK_EQUAL(RMI_SUCCESS, result.x[0]);
+	CHECK_EQUAL(RMI_ERROR_DEVICE, result.x[0]);
 	snapshot = vdev_operation_state(vdev_obj);
-	CHECK_EQUAL(VDEV_OP_GET_MEAS, snapshot.op);
-	CHECK_EQUAL(DEV_COMM_PENDING, snapshot.comm_state);
+	CHECK_EQUAL(VDEV_OP_LOCK, snapshot.op);
+	CHECK_EQUAL(DEV_COMM_ACTIVE, snapshot.comm_state);
 
-	/* The yielded app still owns the VDEV while its RMI state is UNLOCKED. */
+	/* A yielded LOCK still owns the VDEV even though its RMI state is UNLOCKED. */
 	host_rmi_vdev_destroy(host_realm.rd, endpoint, vdev_obj, &result);
 	CHECK_EQUAL(RMI_ERROR_DEVICE, result.x[0]);
 	CHECK_EQUAL(RMI_VDEV_STATE_UNLOCKED, vdev_state(vdev_obj));
 	snapshot = vdev_operation_state(vdev_obj);
-	CHECK_EQUAL(VDEV_OP_GET_MEAS, snapshot.op);
-	CHECK_EQUAL(DEV_COMM_PENDING, snapshot.comm_state);
+	CHECK_EQUAL(VDEV_OP_LOCK, snapshot.op);
+	CHECK_EQUAL(DEV_COMM_ACTIVE, snapshot.comm_state);
 	granule_lock(g_pdev, GRANULE_STATE_PDEV);
 	pd = (struct pdev *)buffer_granule_map(g_pdev, SLOT_PDEV);
 	CHECK_EQUAL(APP_EXIT_SVC_YIELD_FLAG, pd->da_app_data.exit_flag);
