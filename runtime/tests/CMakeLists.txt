@@ -115,3 +115,9 @@ rmm_build_unittest(NAME psci_affinity_info_tests
                    TARGET rmm-runtime
                    SOURCES "tests/psci_affinity_info_tests.cpp"
                    ITERATIONS 1)
+
+rmm_build_unittest(NAME rtt_set_ripas_align_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/rtt_set_ripas_align_tests.cpp"
+                   ITERATIONS 1)
