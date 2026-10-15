@@ -51,7 +51,8 @@ void smc_rmm_activate(struct smc_result *res)
  * Deactivate an ACTIVE RMM, returning RMI_ERROR_GLOBAL if any Host-managed
  * granule is still in use. The dispatcher must exclude every other RMI call
  * until this handler returns, including SRO follow-ups and tracking queries.
- * Return RMI_BUSY while an unfinished SRO can still refer to the layout.
+ * Return RMI_BLOCKED while an unfinished SRO can still refer to the layout;
+ * the Host must finish that operation before retrying deactivation.
  *
  * Activation uses only EL3-private backing, so there is no donated memory to
  * reclaim here. Retain that backing and the configuration for reactivation.
@@ -69,7 +70,7 @@ void smc_rmm_deactivate(struct smc_result *res)
 
 	/* A sealed SRO may retain metadata pointers even with no delegated pages. */
 	if (!sro_ctx_is_idle()) {
-		res->x[0] = RMI_BUSY;
+		res->x[0] = RMI_BLOCKED;
 		return;
 	}
 	if (!tracking_region_deactivate()) {

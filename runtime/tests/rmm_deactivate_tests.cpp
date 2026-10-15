@@ -346,7 +346,7 @@ TEST(rmm_deactivate_boot_tests, boot_backing)
  * memory, then attempt deactivation. Find and release the sealed context
  * before retrying. No executing RMI or delegated granule masks the SRO check.
  *
- * Expected: The first attempt returns RMI_BUSY and leaves RMM ACTIVE; the
+ * Expected: The first attempt returns RMI_BLOCKED and leaves RMM ACTIVE; the
  * sealed context remains accessible by its handle. After releasing that
  * context, deactivation returns RMI_SUCCESS.
  */
@@ -359,7 +359,7 @@ TEST(rmm_deactivate_tests, pending_sro)
 		0UL, false, false, SMC_RMI_OP_CONTINUE));
 	handle = sro_ctx_seal();
 	host_rmm_deactivate(&res);
-	CHECK_EQUAL(RMI_BUSY, res.x[0]);
+	CHECK_EQUAL(RMI_BLOCKED, res.x[0]);
 	CHECK_EQUAL(RMM_STATE_ACTIVE, glob_data_get_rmm_state());
 	CHECK_TRUE(sro_ctx_find(handle));
 	sro_ctx_release();
