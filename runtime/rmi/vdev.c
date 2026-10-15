@@ -459,7 +459,7 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	int ret;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -659,7 +659,7 @@ void smc_vdev_lock(unsigned long rd_addr, unsigned long pdev_addr,
 	struct dev_tdisp_params *tdisp_params;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -743,7 +743,7 @@ void smc_vdev_start(unsigned long rd_addr, unsigned long pdev_addr,
 	struct dev_tdisp_params *tdisp_params;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -845,7 +845,7 @@ void smc_vdev_communicate(unsigned long rd_addr,
 	unsigned long rmi_rc;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1009,7 +1009,7 @@ void smc_vdev_get_state(unsigned long vdev_addr, struct smc_result *res)
 	unsigned long ret;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1065,7 +1065,7 @@ void smc_vdev_abort(unsigned long rd_addr,
 	struct vdev *vd;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1178,7 +1178,7 @@ void smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	int ret __unused;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1325,7 +1325,7 @@ void smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pdev_addr,
 	unsigned long smc_rc;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1411,7 +1411,7 @@ void smc_vdev_get_interface_report(unsigned long rd_addr, unsigned long pdev_add
 	unsigned long smc_rc;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1487,7 +1487,7 @@ void smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 	unsigned long smc_rc;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		res->x[1] = 0U;
 		return;
 	}

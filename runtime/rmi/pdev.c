@@ -257,7 +257,7 @@ void smc_pdev_create(unsigned long pdev_addr,
 	unsigned int max_num_vdevs;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1175,7 +1175,7 @@ void smc_pdev_communicate(unsigned long pdev_addr,
 	bool update_stream_op_state = false;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1293,7 +1293,7 @@ void smc_pdev_get_state(unsigned long pdev_addr, struct smc_result *res)
 	unsigned long ret;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1419,7 +1419,7 @@ void smc_pdev_set_pubkey(unsigned long pdev_addr,
 	int rc;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1530,7 +1530,7 @@ void smc_pdev_stop(unsigned long pdev_addr, struct smc_result *res)
 	struct pdev *pd;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1594,7 +1594,7 @@ void smc_pdev_abort(unsigned long pdev_addr, struct smc_result *res)
 	void *aux_mapped_addr;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1688,7 +1688,7 @@ void smc_pdev_destroy(unsigned long pdev_addr, struct smc_result *res)
 	size_t app_aux_start_idx;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1794,7 +1794,7 @@ void smc_pdev_stream_key_refresh(unsigned long pdev1_addr,
 	unsigned long handle_pdev1_addr;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1932,7 +1932,7 @@ void smc_pdev_stream_connect(unsigned long stream_params_addr, struct smc_result
 	__unused int rc;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -2072,7 +2072,7 @@ void smc_pdev_stream_disconnect(unsigned long pdev1_addr,
 
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -2201,7 +2201,7 @@ void smc_pdev_stream_complete(unsigned long pdev1_addr,
 	unsigned char stream_type = RMI_PDEV_STREAM_TYPE_COUNT;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
