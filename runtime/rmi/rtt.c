@@ -1349,6 +1349,14 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 		}
 
 		s2tte = s2tte_read(&s2tt[index]);
+		/* Complete the owning map/unmap before changing this entry. */
+		if (s2tte_drain_pending(s2tte)) {
+			if (addr == base) {
+				res->x[0] = RMI_BLOCKED;
+				goto out_unmap_llt;
+			}
+			break;
+		}
 		/*
 		 * The walk covers every VOID and DATA entry whatever its
 		 * RIPAS, so entries left DESTROYED by an unmap become RAM
@@ -1371,6 +1379,9 @@ void smc_rtt_init_ripas(unsigned long rd_addr,
 	}
 
 	if (addr > base) {
+		/* Measure the completed range once, with the RD still locked. */
+		measurement_init_ripas_measure(rd->measurement[RIM_MEASUREMENT_SLOT],
+					       rd->algorithm, base, addr);
 		res->x[0] = RMI_SUCCESS;
 		res->x[1] = addr;
 	} else {

@@ -168,3 +168,9 @@ rmm_build_unittest(NAME rtt_init_ripas_destroyed_tests
                    TARGET rmm-runtime
                    SOURCES "tests/rtt_init_ripas_destroyed_tests.cpp"
                    ITERATIONS 1)
+
+rmm_build_unittest(NAME rtt_init_ripas_measurement_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/rtt_init_ripas_measurement_tests.cpp"
+                   ITERATIONS 1)
