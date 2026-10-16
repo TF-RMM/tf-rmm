@@ -25,26 +25,17 @@
  * run the handler over four pages.
  */
 
-#define INIT_RIPAS_TEST_RTT_START_IDX		119000U
-#define INIT_RIPAS_TEST_NS_LIST_START_IDX	127700U
-
 #define INIT_RIPAS_TEST_PAGES	4UL
 #define INIT_RIPAS_TEST_PAGE(n)	(TEST_DATA_IPA_BASE + ((n) * GRANULE_SIZE))
 #define INIT_RIPAS_TEST_TOP	INIT_RIPAS_TEST_PAGE(INIT_RIPAS_TEST_PAGES)
 
 TEST_GROUP(rtt_init_ripas_destroyed_tests) {
+	/* Reset the host model before reusing the standard granule pools. */
 	TEST_SETUP()
 	{
-		static bool counters_initialized;
-
-		if (!counters_initialized) {
-			reset_data_granule_allocation();
-			g_rtt_next_idx = INIT_RIPAS_TEST_RTT_START_IDX;
-			g_ns_list_next_idx = INIT_RIPAS_TEST_NS_LIST_START_IDX;
-			counters_initialized = true;
-		}
 		test_helpers_init();
 		test_helpers_rmm_start(false);
+		reset_data_granule_allocation();
 		host_util_set_cpuid(0U);
 		test_helpers_expect_assert_fail(false);
 	}
@@ -105,6 +96,11 @@ static void expect_assigned_ram(const struct test_data_ctx *ctx,
 	UNSIGNED_LONGS_EQUAL(pa, s2tte_pa(&s2_ctx, s2tte, level));
 }
 
+/*
+ * Initialize a four-page range containing an unassigned DESTROYED entry.
+ * Verify success, out_top reaching the requested top, and all four entries
+ * becoming unassigned RAM.
+ */
 TEST(rtt_init_ripas_destroyed_tests, unassigned_destroyed_entry_becomes_ram)
 {
 	struct test_data_ctx ctx;
@@ -123,6 +119,12 @@ TEST(rtt_init_ripas_destroyed_tests, unassigned_destroyed_entry_becomes_ram)
 	}
 }
 
+/*
+ * Initialize a four-page range containing an assigned DESTROYED entry.
+ * Verify success, out_top reaching the requested top, and the assigned entry
+ * becoming RAM with its PA preserved while surrounding entries become
+ * unassigned RAM.
+ */
 TEST(rtt_init_ripas_destroyed_tests, assigned_destroyed_entry_becomes_ram)
 {
 	struct test_data_ctx ctx;
@@ -146,7 +148,11 @@ TEST(rtt_init_ripas_destroyed_tests, assigned_destroyed_entry_becomes_ram)
 	expect_unassigned_ram(&ctx, INIT_RIPAS_TEST_PAGE(3));
 }
 
-/* An entry that is neither VOID nor DATA still ends the walk. */
+/*
+ * Initialize a four-page range containing a device entry at the third page.
+ * Verify success for the preceding two pages, which become unassigned RAM,
+ * and out_top stopping at the device entry's IPA.
+ */
 TEST(rtt_init_ripas_destroyed_tests, device_entry_still_stops_the_walk)
 {
 	struct test_data_ctx ctx;

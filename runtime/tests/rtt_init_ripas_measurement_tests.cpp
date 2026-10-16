@@ -153,6 +153,10 @@ static unsigned long install_pending_entry(const struct test_data_ctx *ctx,
 	return s2tte;
 }
 
+/*
+ * Initialize four pages with SHA-256 and verify that RIM matches one
+ * measurement of the entire range, with unused measurement bytes zero.
+ */
 TEST(rtt_init_ripas_measurement_tests, sha256_measures_multi_page_range_once)
 {
 	prepare(&ctx, initial_rim, HASH_SHA_256);
@@ -161,6 +165,10 @@ TEST(rtt_init_ripas_measurement_tests, sha256_measures_multi_page_range_once)
 	expect_rim(&ctx, sha256_range_rim);
 }
 
+/*
+ * Initialize four pages with SHA-384 and verify that RIM matches one
+ * measurement of the entire range, with unused measurement bytes zero.
+ */
 TEST(rtt_init_ripas_measurement_tests, sha384_measures_multi_page_range_once)
 {
 	prepare(&ctx, initial_rim, HASH_SHA_384);
@@ -169,6 +177,10 @@ TEST(rtt_init_ripas_measurement_tests, sha384_measures_multi_page_range_once)
 	expect_rim(&ctx, sha384_range_rim);
 }
 
+/*
+ * Initialize four pages with SHA-512 and verify that RIM matches one
+ * measurement of the entire range.
+ */
 TEST(rtt_init_ripas_measurement_tests, sha512_measures_multi_page_range_once)
 {
 	prepare(&ctx, initial_rim, HASH_SHA_512);
@@ -177,6 +189,10 @@ TEST(rtt_init_ripas_measurement_tests, sha512_measures_multi_page_range_once)
 	expect_rim(&ctx, sha512_range_rim);
 }
 
+/*
+ * Initialize the same range twice. Verify that the second call extends the
+ * previous RIM even though all entries already have RIPAS_RAM.
+ */
 TEST(rtt_init_ripas_measurement_tests, already_ram_extends_previous_rim)
 {
 	static const unsigned char expected[MAX_MEASUREMENT_SIZE] = {
@@ -195,6 +211,10 @@ TEST(rtt_init_ripas_measurement_tests, already_ram_extends_previous_rim)
 	expect_rim(&ctx, expected);
 }
 
+/*
+ * Place a device entry at the third page of a four-page range. Verify that
+ * out_top stops there and RIM measures only the preceding two pages.
+ */
 TEST(rtt_init_ripas_measurement_tests, device_limits_measured_range_to_out_top)
 {
 	unsigned long stop = TEST_DATA_IPA_BASE + 2UL * GRANULE_SIZE;
@@ -208,6 +228,11 @@ TEST(rtt_init_ripas_measurement_tests, device_limits_measured_range_to_out_top)
 	expect_rim(&ctx, sha256_partial_rim);
 }
 
+/*
+ * Mark the first entry as drain-pending with EMPTY, RAM and DESTROYED RIPAS.
+ * Verify RMI_BLOCKED with RIM and the entry, including its SRO handle and
+ * any TLBI marker, unchanged.
+ */
 TEST(rtt_init_ripas_measurement_tests, pending_first_entry_preserves_rim)
 {
 	const enum ripas states[] = { RIPAS_EMPTY, RIPAS_RAM, RIPAS_DESTROYED };
@@ -227,6 +252,11 @@ TEST(rtt_init_ripas_measurement_tests, pending_first_entry_preserves_rim)
 	}
 }
 
+/*
+ * Mark the third entry as drain-pending with EMPTY, RAM and DESTROYED RIPAS.
+ * Verify success with out_top at that entry, RIM measuring only the first
+ * two pages, and the pending entry and its markers unchanged.
+ */
 TEST(rtt_init_ripas_measurement_tests, pending_entry_limits_measured_range)
 {
 	const enum ripas states[] = { RIPAS_EMPTY, RIPAS_RAM, RIPAS_DESTROYED };
@@ -243,6 +273,10 @@ TEST(rtt_init_ripas_measurement_tests, pending_entry_limits_measured_range)
 	}
 }
 
+/*
+ * Request two pages spanning an L3 table boundary. Verify that out_top stops
+ * at the boundary and RIM measures only the last page of the first table.
+ */
 TEST(rtt_init_ripas_measurement_tests, table_boundary_limits_measured_range)
 {
 	static const unsigned char expected[MAX_MEASUREMENT_SIZE] = {
@@ -259,6 +293,10 @@ TEST(rtt_init_ripas_measurement_tests, table_boundary_limits_measured_range)
 	expect_rim(&ctx, expected);
 }
 
+/*
+ * Initialize an aligned L2 block without an L3 table. Verify that out_top
+ * reaches the requested top and RIM measures the entire block once.
+ */
 TEST(rtt_init_ripas_measurement_tests, measures_block_range)
 {
 	static const unsigned char expected[MAX_MEASUREMENT_SIZE] = {
@@ -274,6 +312,10 @@ TEST(rtt_init_ripas_measurement_tests, measures_block_range)
 	expect_rim(&ctx, expected);
 }
 
+/*
+ * Place a device entry at the start of the requested range. Verify an L3
+ * RMI_ERROR_RTT result with RIM unchanged because no progress was made.
+ */
 TEST(rtt_init_ripas_measurement_tests, incompatible_first_entry_preserves_rim)
 {
 	struct smc_result res = {};
@@ -290,6 +332,10 @@ TEST(rtt_init_ripas_measurement_tests, incompatible_first_entry_preserves_rim)
 	expect_rim(&ctx, initial_rim);
 }
 
+/*
+ * Start inside an L2 block without an L3 table. Verify that the misaligned
+ * base produces an L2 RMI_ERROR_RTT result and leaves RIM unchanged.
+ */
 TEST(rtt_init_ripas_measurement_tests, unaligned_block_base_preserves_rim)
 {
 	struct smc_result res = {};
@@ -301,6 +347,10 @@ TEST(rtt_init_ripas_measurement_tests, unaligned_block_base_preserves_rim)
 	expect_rim(&ctx, initial_rim);
 }
 
+/*
+ * End the requested range inside its first L2 block. Verify an L2
+ * RMI_ERROR_RTT result with RIM unchanged because no whole entry fits.
+ */
 TEST(rtt_init_ripas_measurement_tests, top_inside_first_block_preserves_rim)
 {
 	struct smc_result res = {};
@@ -312,6 +362,10 @@ TEST(rtt_init_ripas_measurement_tests, top_inside_first_block_preserves_rim)
 	expect_rim(&ctx, initial_rim);
 }
 
+/*
+ * Request an empty range with equal base and top. Verify RMI_ERROR_INPUT
+ * and that RIM remains unchanged.
+ */
 TEST(rtt_init_ripas_measurement_tests, empty_range_preserves_rim)
 {
 	struct smc_result res = {};
@@ -322,6 +376,10 @@ TEST(rtt_init_ripas_measurement_tests, empty_range_preserves_rim)
 	expect_rim(&ctx, initial_rim);
 }
 
+/*
+ * Activate the Realm before requesting RIPAS initialization. Verify
+ * RMI_ERROR_REALM and that the rejected request leaves RIM unchanged.
+ */
 TEST(rtt_init_ripas_measurement_tests, active_realm_preserves_rim)
 {
 	struct smc_result res = {};
