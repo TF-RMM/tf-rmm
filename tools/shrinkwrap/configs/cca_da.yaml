@@ -19,6 +19,7 @@ layers:
   - rmm.yaml
   - rmm-debug.yaml
   - linux-gpt-fix.yaml
+  - linux-max-vdev-num-fix.yaml
   - model-enable-da.yaml
 
 build:

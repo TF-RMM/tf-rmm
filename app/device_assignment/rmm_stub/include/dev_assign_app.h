@@ -66,12 +66,11 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
  * Arguments:
  * app_data - Pointer to app_data_cfg. This is opaque to caller
  *
- * This command updates the status field of the struct rmi_dev_comm_enter
- * is going to be read by spdm_send_message. The value is set to error, and the
- * app is resumed, which causes the app to abort the operation and return with
- * error.
+ * Each yield is resumed with RMI_DEV_COMM_ENTER_STATUS_ERROR. An SPDM command
+ * can yield again while unwinding, so this retries up to a bounded limit.
  *
- * Returns DEV_ASSIGN_STATUS_SUCCESS.
+ * Returns DEV_ASSIGN_STATUS_SUCCESS only after the app has exited, or
+ * DEV_ASSIGN_STATUS_ERROR if it remains yielded or returns an invalid status.
  */
 int dev_assign_abort_app_operation(struct app_data_cfg *app_data);
 

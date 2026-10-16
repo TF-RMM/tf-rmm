@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <glob_data.h>
 #include <granule.h>
+#include <host_da.h>
 #include <host_utils.h>
 #include <limits.h>
 #include <mec.h>
@@ -48,6 +49,25 @@ static bool asserted;
 static uintptr_t callbacks[CB_IDS];
 static bool rmm_initialized;
 static bool secondary_pes_initialized;
+static const char *test_executable_path;
+
+/* Retain argv[0] through the test run so DA fixtures can locate staged files. */
+void test_helpers_set_executable_path(const char *path)
+{
+	assert(path != NULL);
+	test_executable_path = path;
+}
+
+/* Start the responder staged beside the test runner; main reaps it on exit. */
+void test_helpers_spdm_responder_start(void)
+{
+	char *base_dir;
+
+	assert(test_executable_path != NULL);
+	base_dir = host_util_get_base_dir(test_executable_path);
+	host_util_launch_spdm_responder_emu(base_dir);
+	free(base_dir);
+}
 
 void rmm_arch_init(void);
 
@@ -238,6 +258,18 @@ uintptr_t test_helpers_allocate_granules_aligned(unsigned int n)
 	assert((g_alloc_idx + n) <= HOST_NR_GRANULES);
 	g_alloc_idx += n;
 	return aligned_addr;
+}
+
+/* Adapt the host_build DA fixture to the host_test bump allocator. */
+void *allocate_granule(unsigned int num_granules)
+{
+	return (void *)test_helpers_allocate_granules(num_granules);
+}
+
+/* Align a contiguous SRO donation by its power-of-two granule count. */
+void *allocate_granule_aligned(unsigned int num_granules)
+{
+	return (void *)test_helpers_allocate_granules_aligned(num_granules);
 }
 
 unsigned long test_helpers_get_rand_in_range(unsigned long min,

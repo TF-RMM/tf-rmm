@@ -6,10 +6,14 @@
 #ifndef HOST_CRYPTO_UTILS_H
 #define HOST_CRYPTO_UTILS_H
 
+#include <stddef.h>
+#include <stdint.h>
+
 #define PUBLIC_KEY_ALGO_ECDSA_ECC_NIST_P256	0x10
 #define PUBLIC_KEY_ALGO_ECDSA_ECC_NIST_P384	0x20
 #define PUBLIC_KEY_ALGO_RSASSA_3072		0x30
 
+/* Extract the leaf key and metadata; return zero on success or nonzero on failure. */
 int host_get_public_key_from_cert_chain(uint8_t *cert_chain,
 					size_t cert_chain_len,
 					void *public_key,

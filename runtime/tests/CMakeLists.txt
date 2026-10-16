@@ -20,6 +20,41 @@ rmm_build_unittest(NAME status_tests
                    SOURCES "tests/status_tests.cpp"
                    ITERATIONS 1)
 
+rmm_build_unittest(NAME pdev_comm_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/pdev_comm_tests.cpp"
+                   ITERATIONS 1)
+
+target_include_directories(rmm-runtime
+    PRIVATE "${CMAKE_SOURCE_DIR}/plat/host/da/include"
+            "${CMAKE_SOURCE_DIR}/ext/minicoro")
+
+rmm_build_unittest(NAME host_da_e2e_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/host_da_e2e_tests.cpp"
+                   RUN_ISOLATED_TESTS
+                       pdev_yielded_abort_stop
+                       pdev_failed_abort_stop
+                       pdev_stop_copyout
+                       vdev_init_operation
+                       vdev_pending_input
+                       vdev_destroy_pending_lock
+                       vdev_destroy_yielded_owner
+                       vdev_freshness_lifecycle)
+
+set_tests_properties(
+    host_da_e2e_tests::pdev_yielded_abort_stop
+    host_da_e2e_tests::pdev_failed_abort_stop
+    host_da_e2e_tests::pdev_stop_copyout
+    host_da_e2e_tests::vdev_init_operation
+    host_da_e2e_tests::vdev_pending_input
+    host_da_e2e_tests::vdev_destroy_pending_lock
+    host_da_e2e_tests::vdev_destroy_yielded_owner
+    host_da_e2e_tests::vdev_freshness_lifecycle
+    PROPERTIES RUN_SERIAL TRUE TIMEOUT 120)
+
 rmm_build_unittest(NAME rsi_logger_tests
                    LIBRARIES rmm-platform
                    TARGET rmm-runtime
@@ -66,6 +101,12 @@ rmm_build_unittest(NAME vdev_range_slot_tests
                    LIBRARIES rmm-platform
                    TARGET rmm-runtime
                    SOURCES "tests/vdev_range_slot_tests.cpp"
+                   ITERATIONS 1)
+
+rmm_build_unittest(NAME vdev_stream_range_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/vdev_stream_range_tests.cpp"
                    ITERATIONS 1)
 
 rmm_build_unittest(NAME exit_esr_tests

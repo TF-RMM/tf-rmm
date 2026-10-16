@@ -75,12 +75,21 @@ if(RMM_UNITTESTS)
         DEPENDS rmm_core.elf rmm_core.map
     )
 
-    # Stage the app ELFs beside the test runner before CTest starts.
+    # Stage the app ELFs and SPDM responder before CTest starts.
     add_dependencies(run-unittests
         rmm-attestation-app
         rmm-random-app
-        rmm-dev-assign-app)
+        rmm-dev-assign-app
+        stage-spdm-emu)
 endif()
+
+# Include unit-test CMake files only when tests are enabled. Keep the caller's
+# scope so included files behave exactly as they do with include().
+macro(rmm_unittest_include file)
+    if(RMM_UNITTESTS)
+        include("${file}")
+    endif()
+endmacro()
 
 function(rmm_build_unittest)
     if(RMM_UNITTESTS)

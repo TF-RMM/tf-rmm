@@ -5,7 +5,7 @@
 
 #include <assert.h>
 #include <debug.h>
-#include <host_realm.h>
+#include <host_da.h>
 #include <host_rmi_wrappers.h>
 #include <smc-rmi.h>
 #include <status.h>
@@ -14,9 +14,6 @@
 #include <xlat_defs.h>
 
 #define IS_RMI_RESULT_SUCCESS(_r)	((_r).x[0] == RMI_SUCCESS)
-
-void *allocate_granule(unsigned int num_granules);
-void *allocate_granule_aligned(unsigned int num_granules);
 
 /*
  * Iteratively delegate a range of granules.

@@ -433,10 +433,20 @@ void host_rmi_vdev_get_state(void *vdev, struct smc_result *res)
 		      0, 0, 0, 0, 0, 0, res);
 }
 
-void host_rmi_vdev_abort(void *vdev, struct smc_result *res)
+/* Dispatch VDEV_LOCK with its parent addresses and return the RMI result. */
+void host_rmi_vdev_lock(void *rd, void *pdev, void *vdev,
+			struct smc_result *res)
 {
-	handle_ns_smc(SMC_RMI_VDEV_ABORT, (uintptr_t)vdev,
-		      0, 0, 0, 0, 0, 0, res);
+	handle_ns_smc(SMC_RMI_VDEV_LOCK, (uintptr_t)rd,
+		      (uintptr_t)pdev, (uintptr_t)vdev, 0, 0, 0, 0, res);
+}
+
+/* Dispatch VDEV_ABORT with all three addresses required by the RMI ABI. */
+void host_rmi_vdev_abort(void *rd, void *pdev, void *vdev,
+			 struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_VDEV_ABORT, (uintptr_t)rd,
+		      (uintptr_t)pdev, (uintptr_t)vdev, 0, 0, 0, 0, res);
 }
 
 void host_rmi_vdev_unlock(void *rd, void *pdev, void *vdev,

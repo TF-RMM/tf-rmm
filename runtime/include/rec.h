@@ -350,7 +350,7 @@ struct rec { /* NOLINT: Suppressing optin.performance.Padding as fields are in l
 
 	/* VDEV identity and freshness saved for pending mapping validation. */
 	unsigned long vdev_id_1;
-	struct vdev_attest_info vdev_freshness_1;
+	struct vdev_freshness vdev_freshness_1;
 
 	/*
 	 * Populated when the REC issues a request to change

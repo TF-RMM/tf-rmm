@@ -105,6 +105,7 @@ target_sources(rmm-runtime
             "rmi/granule.c"
             "rmi/granule_sro.c"
             "rmi/pdev.c"
+            "rmi/pdev_comm.c"
             "rmi/psmmu.c"
             "rmi/realm.c"
             "rmi/rec.c"
@@ -153,4 +154,4 @@ target_sources(rmm-runtime
             "rsi/arch_dev.c"
             "rsi/version.c")
 
-include (tests/CMakeLists.txt)
+rmm_unittest_include(tests/CMakeLists.txt)

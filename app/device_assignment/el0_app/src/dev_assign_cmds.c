@@ -45,10 +45,24 @@ static int process_spdm_init_connection(void *spdm_context)
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }
 
+/*
+ * Discard state associated with a cacheable SPDM request which did not
+ * complete. In particular, an RMI_PDEV_ABORT can resume the app while it is
+ * waiting for the response, leaving the request and its partial hash pending.
+ */
+static void cache_operation_cleanup(struct dev_assign_info *info)
+{
+	(void)psa_hash_abort(&info->psa_hash_op);
+	info->spdm_request_len = 0U;
+	(void)memset(&info->cached_digest, 0, sizeof(info->cached_digest));
+	info->cached_digest_type = CACHE_TYPE_NONE;
+}
+
 static void init_connection_cleanup(struct dev_assign_info *info, bool scrub_cert_chain_hash)
 {
 	libspdm_data_parameter_t parameter;
 
+	cache_operation_cleanup(info);
 	info->spdm_cert_chain_algo = PSA_ALG_NONE;
 	info->spdm_cert_chain_len = 0U;
 
@@ -92,11 +106,13 @@ int dev_assign_cmd_init_connection_main(struct dev_assign_info *info)
 	 */
 	status = libspdm_init_connection(spdm_context, false);
 	if (status != LIBSPDM_STATUS_SUCCESS) {
+		init_connection_cleanup(info, false);
 		return DEV_ASSIGN_STATUS_ERROR;
 	}
 
 	if (process_spdm_init_connection(spdm_context) !=
 			DEV_ASSIGN_STATUS_SUCCESS) {
+		init_connection_cleanup(info, false);
 		return DEV_ASSIGN_STATUS_ERROR;
 	}
 
@@ -263,6 +279,7 @@ int dev_assign_cmd_get_measurements_main(struct dev_assign_info *info)
 	/* Request all measurements. */
 	status = get_measurements(info, 0xFFU, request_attribute);
 	if (status != LIBSPDM_STATUS_SUCCESS) {
+		cache_operation_cleanup(info);
 		return DEV_ASSIGN_STATUS_ERROR;
 	}
 
@@ -292,17 +309,20 @@ int dev_assign_cmd_ide_disconnect(struct dev_assign_info *info)
 int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info)
 {
 	int rc = DEV_ASSIGN_STATUS_SUCCESS;
+	libspdm_return_t status;
+
+	/* GET_VERSION must not inherit a request from an aborted operation. */
+	cache_operation_cleanup(info);
 
 	if (info->session_id != 0U) {
 		/* Terminate the connection. This closes the secure session */
-		libspdm_return_t status = libspdm_stop_session(info->libspdm_ctx,
+		status = libspdm_stop_session(info->libspdm_ctx,
 					      info->session_id,
 					      0 /* end_session_attributes */);
 
 		if (status != LIBSPDM_STATUS_SUCCESS) {
 			ERROR("SPDM_END_SESSION failed: 0x%x\n", status);
 			rc = DEV_ASSIGN_STATUS_ERROR;
-			/*assert(false);*/
 		} else {
 			INFO("SPDM_END_SESSION completed: 0x%x\n", status);
 			info->session_id = 0U;
@@ -310,7 +330,11 @@ int dev_assign_cmd_stop_connection_main(struct dev_assign_info *info)
 	}
 
 	/* Send GET_VERSION, this resets the SPDM connection */
-	(void)libspdm_init_connection(info->libspdm_ctx, true);
+	status = libspdm_init_connection(info->libspdm_ctx, true);
+	if (status != LIBSPDM_STATUS_SUCCESS) {
+		ERROR("SPDM connection reset failed: 0x%x\n", status);
+		rc = DEV_ASSIGN_STATUS_ERROR;
+	}
 
 	/*
 	 * Unset public key context in libspdm connection once the connection is

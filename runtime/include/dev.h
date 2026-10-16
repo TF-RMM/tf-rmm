@@ -28,8 +28,7 @@
 /* Represents operation being performed by a VDEV. RmmVdevOperation */
 #define VDEV_OP_GET_MEAS			U(0)
 #define VDEV_OP_GET_REPORT			U(1)
-#define VDEV_OP_KEY_PURGE			U(2)
-#define VDEV_OP_KEY_REFRESH			U(3)
+#define VDEV_OP_INIT				U(2)
 #define VDEV_OP_LOCK				U(4)
 #define VDEV_OP_NONE				U(5)
 #define VDEV_OP_START				U(6)
@@ -42,7 +41,8 @@
 #define PDEV_OP_KEY_REFRESH			U(3)
 #define PDEV_OP_NONE				U(4)
 #define PDEV_OP_STOP				U(5)
-#define PDEV_OP_STREAM_COMPLETE			U(6)
+#define PDEV_OP_STREAM_ABORTED			U(6)
+#define PDEV_OP_STREAM_COMPLETE			U(7)
 
 /* Represents the state of a PDEV stream. RmmPdevStreamState */
 #define PDEV_STREAM_CONNECTED			U(0)
@@ -71,6 +71,8 @@ struct pdev_stream {
 	unsigned long state; /* RmmPdevStreamState */
 	enum stream_op_state op_state;
 	unsigned long ide_sid;
+	unsigned long refresh_count;
+	unsigned long purge_count;
 	unsigned long num_addr_range;
 	struct rmi_address_range addr_range[RMI_PDEV_STREAM_ADDR_RANGE_CNT];
 	bool taken;
@@ -99,7 +101,7 @@ struct pcie_dev {
 };
 
 #define PDEV_MAX_VDEVS(vdevs_order)	((1UL << (vdevs_order)) - 1U)
-#define RD_MAX_VDEVS(vdevs_order)	((1UL << (vdevs_order)) - 1U)
+#define RD_MAX_VDEVS(vdevs_order)	(1UL << (vdevs_order))
 #define PDEV_VDEV_SLOT_INVALID		((unsigned int)-1)
 
 struct pdev_vdev_range_slot {
@@ -215,14 +217,15 @@ struct pdev {
 
 	/* DA app cfg */
 	struct app_data_cfg da_app_data;
-	bool da_app_yielded;
+	/* PDEV or VDEV granule whose operation yielded the DA app, or NULL. */
+	struct granule *da_app_yield_owner;
 };
 COMPILER_ASSERT(sizeof(struct pdev) <= GRANULE_SIZE);
 
-struct vdev_attest_info {
-	unsigned long lock_nonce;
-	unsigned long meas_nonce;
-	unsigned long report_nonce;
+struct vdev_freshness {
+	uint64_t lock_seq;
+	uint64_t meas_seq;
+	uint64_t report_seq;
 };
 
 /*
@@ -271,7 +274,7 @@ struct vdev {
 	struct dev_obj_digest meas_digest;
 	struct dev_obj_digest ifc_report_digest;
 
-	struct vdev_attest_info attest_info;
+	struct vdev_freshness freshness;
 
 	/*
 	 * Device interface operation that is in progress. RmmVdevOperation
@@ -325,11 +328,18 @@ int vdev_find_lock_map(struct granule *g_rd, struct rd *rd,
 		       struct vdev **vd);
 
 unsigned long dev_communicate(struct pdev *pd, struct vdev *vd,
+			      struct granule *g_vdev,
 			      unsigned long dev_comm_data_addr);
+int dev_abort_app_if_owner(struct pdev *pd, struct granule *owner);
 struct pdev_stream *pdev_stream_granules_lock_map(struct granule *g_streams,
 						  unsigned char stream_type);
+struct pdev_stream (*pdev_streams_granules_lock_map(struct granule *g_streams))
+	[RMI_PDEV_STREAM_TYPE_COUNT];
 void pdev_stream_granules_unmap_unlock(struct granule *g_streams,
 				       struct pdev_stream *stream,
 				       unsigned char stream_type);
+void pdev_streams_granules_unmap_unlock(
+	struct granule *g_streams,
+	struct pdev_stream (*streams)[RMI_PDEV_STREAM_TYPE_COUNT]);
 void pdev_continue_handler(unsigned long fid, struct smc_result *res);
 #endif /* DEV_H */

@@ -9,6 +9,9 @@
  #include <dev_assign_structs.h>
  #include <string.h>
 
+/* Bound work per RMI call; a later abort can continue from another yield. */
+#define DEV_ASSIGN_ABORT_MAX_RESUMES	16U
+
 /* Add declaration to prevent static checker error */
 void dev_assign_app_get_bss(uintptr_t *bss_pa, size_t *bss_size);
 
@@ -150,10 +153,12 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 	return rc;
 }
 
+/* Resume with an error until the DA app exits or the retry limit is reached. */
 int dev_assign_abort_app_operation(struct app_data_cfg *app_data)
 {
-	unsigned long rc __unused;
+	unsigned long rc = (unsigned long)DEV_ASSIGN_STATUS_ERROR;
 	struct rmi_dev_comm_enter *shared;
+	unsigned int attempts;
 
 	/*
 	 * If the app isn't in yielded state, then there's nothing to do here.
@@ -162,18 +167,24 @@ int dev_assign_abort_app_operation(struct app_data_cfg *app_data)
 		return DEV_ASSIGN_STATUS_SUCCESS;
 	}
 
-	/*
-	 * The app copies the enter_args from the shared page. So set the status
-	 * on the shared page to error, which will result app return
-	 * immediately, unwinding its stack, and returning error.
-	 */
+	/* An app command may start another SPDM exchange after the first fails. */
 	app_map_shared_page(app_data);
 	assert(app_data->el2_shared_page != NULL);
 	shared = app_data->el2_shared_page;
-	shared->status = (unsigned char)RMI_DEV_COMM_ENTER_STATUS_ERROR;
-	rc = app_resume(app_data);
-	assert(rc == (unsigned long)DEV_ASSIGN_STATUS_ERROR);
+	for (attempts = 0U;
+	     (attempts < DEV_ASSIGN_ABORT_MAX_RESUMES) &&
+	     (app_data->exit_flag == APP_EXIT_SVC_YIELD_FLAG);
+	     attempts++) {
+		shared->status = (unsigned char)RMI_DEV_COMM_ENTER_STATUS_ERROR;
+		rc = app_resume(app_data);
+	}
 	app_unmap_shared_page(app_data);
+
+	if ((app_data->exit_flag == APP_EXIT_SVC_YIELD_FLAG) ||
+	    ((rc != (unsigned long)DEV_ASSIGN_STATUS_SUCCESS) &&
+	     (rc != (unsigned long)DEV_ASSIGN_STATUS_ERROR))) {
+		return DEV_ASSIGN_STATUS_ERROR;
+	}
 
 	return DEV_ASSIGN_STATUS_SUCCESS;
 }

@@ -46,6 +46,16 @@ static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *r
 
 static void rsi_vdev_release_objects(struct rsi_vdev_obj *lock_set);
 
+static bool vdev_freshness_matches(const struct vdev *vd,
+				   unsigned long lock_seq,
+				   unsigned long meas_seq,
+				   unsigned long report_seq)
+{
+	return (lock_seq == vd->freshness.lock_seq) &&
+	       (meas_seq == vd->freshness.meas_seq) &&
+	       (report_seq == vd->freshness.report_seq);
+}
+
 void handle_rsi_vdev_dma_enable(struct rec *rec,
 				struct rmi_rec_exit *rec_exit,
 				struct rsi_result *res)
@@ -55,9 +65,9 @@ void handle_rsi_vdev_dma_enable(struct rec *rec,
 	unsigned long rc;
 	unsigned long vdev_id;
 	unsigned long non_ats_plane;
-	unsigned long lock_nonce;
-	unsigned long meas_nonce;
-	unsigned long report_nonce;
+	unsigned long lock_seq;
+	unsigned long meas_seq;
+	unsigned long report_seq;
 
 	(void)rec_exit;
 
@@ -76,9 +86,9 @@ void handle_rsi_vdev_dma_enable(struct rec *rec,
 
 	vdev_id = plane->regs[1];
 	non_ats_plane = plane->regs[3];
-	lock_nonce = plane->regs[4];
-	meas_nonce = plane->regs[5];
-	report_nonce = plane->regs[6];
+	lock_seq = plane->regs[4];
+	meas_seq = plane->regs[5];
+	report_seq = plane->regs[6];
 
 	/* claim the external objects internally */
 	rc = rsi_vdev_claim_objects(vdev_id, rec, &lock_set, false);
@@ -97,9 +107,7 @@ void handle_rsi_vdev_dma_enable(struct rec *rec,
 	}
 
 	if ((lock_set.vd->rmi_state != RMI_VDEV_STATE_STARTED) ||
-	    (lock_nonce != lock_set.vd->attest_info.lock_nonce) ||
-	    (meas_nonce != lock_set.vd->attest_info.meas_nonce) ||
-	    (report_nonce != lock_set.vd->attest_info.report_nonce)) {
+	    !vdev_freshness_matches(lock_set.vd, lock_seq, meas_seq, report_seq)) {
 		res->smc_res.x[0] = RSI_ERROR_DEVICE;
 		goto out;
 	}
@@ -258,8 +266,8 @@ static unsigned char vdev_state_to_rsi(uint32_t vdev_rmi_state)
 }
 
 /*
- * Copy device info and attestation digest of VCA, certificate, public key,
- * device measurements to buffer 'vdev_info'
+ * Copy device info, VDEV freshness, and attestation digests of VCA,
+ * certificate, public key, and device measurements to buffer 'vdev_info'
  */
 static void vdev_get_info(struct pdev *pd, struct vdev *vd, struct rsi_vdev_info *vdev_info)
 {
@@ -272,9 +280,9 @@ static void vdev_get_info(struct pdev *pd, struct vdev *vd, struct rsi_vdev_info
 	vdev_info->cert_id = pd->dev.cert_slot_id;
 	vdev_info->hash_algo = pd->rmi_hash_algo;
 
-	vdev_info->lock_nonce = vd->attest_info.lock_nonce;
-	vdev_info->meas_nonce = vd->attest_info.meas_nonce;
-	vdev_info->report_nonce = vd->attest_info.report_nonce;
+	vdev_info->lock_seq = vd->freshness.lock_seq;
+	vdev_info->meas_seq = vd->freshness.meas_seq;
+	vdev_info->report_seq = vd->freshness.report_seq;
 
 	/* Return hardcoded format type */
 	vdev_info->format_type = (unsigned char)RSI_VDEV_REPORT_FORMAT_TDISP;
@@ -306,9 +314,9 @@ void handle_rsi_vdev_validate_mapping(struct rec *rec,
 	unsigned long ipa_top;
 	unsigned long pa_base;
 	unsigned long flags;
-	unsigned long lock_nonce;
-	unsigned long meas_nonce;
-	unsigned long report_nonce;
+	unsigned long lock_seq;
+	unsigned long meas_seq;
+	unsigned long report_seq;
 
 	/* RSI calls can only be issued by Plane 0 */
 	plane = rec_plane_0(rec);
@@ -327,18 +335,18 @@ void handle_rsi_vdev_validate_mapping(struct rec *rec,
 	 * X3: Top of target IPA region
 	 * X4: Base of target PA region
 	 * X5: Flags of type RsiDevMemFlagsFlags
-	 * X6: Nonce generated on most recent
-	 * X7: GET_MEASUREMENT request sequence number
-	 * X8: GET_INTERFACE_REPORT request sequence number
+	 * X6: Most recent VDEV lock sequence
+	 * X7: Most recent GET_MEASUREMENTS completion sequence
+	 * X8: Most recent GET_INTERFACE_REPORT completion sequence
 	 */
 	vdev_id = plane->regs[1];
 	ipa_base = plane->regs[2];
 	ipa_top = plane->regs[3];
 	pa_base = plane->regs[4];
 	flags = plane->regs[5];
-	lock_nonce = plane->regs[6];
-	meas_nonce = plane->regs[7];
-	report_nonce = plane->regs[8];
+	lock_seq = plane->regs[6];
+	meas_seq = plane->regs[7];
+	report_seq = plane->regs[8];
 
 	if (!GRANULE_ALIGNED(ipa_base) ||
 	    !GRANULE_ALIGNED(ipa_top) ||
@@ -371,10 +379,10 @@ void handle_rsi_vdev_validate_mapping(struct rec *rec,
 	rec->dev_mem.flags = flags;
 	rec->vdev_id_1 = vdev_id;
 	/* RMI_RTT_DEV_VALIDATE checks freshness supplied by the Realm. */
-	rec->vdev_freshness_1 = (struct vdev_attest_info) {
-		.lock_nonce = lock_nonce,
-		.meas_nonce = meas_nonce,
-		.report_nonce = report_nonce
+	rec->vdev_freshness_1 = (struct vdev_freshness) {
+		.lock_seq = lock_seq,
+		.meas_seq = meas_seq,
+		.report_seq = report_seq
 	};
 
 	/* Update REC exit dev_mem */
@@ -558,7 +566,7 @@ static unsigned long rsi_vdev_claim_objects(unsigned long vdev_id, struct rec *r
 	 * (rsi_validate_mapping and rsi_enable_dma) and the host removes or
 	 * replaces the device, the device consent is removed i.e., device-memory
 	 * gets unmapped and device dma/p2p consents are removed. By comparing
-	 * the lock_nonce, the realm can also detect the replacement scenario.
+	 * the lock sequence, the realm can also detect the replacement scenario.
 	 */
 	lock_set->rd = buffer_granule_map(lock_set->g_rd, SLOT_RD);
 	lock_set->pd = buffer_granule_map(lock_set->g_pdev, SLOT_PDEV);

@@ -13,7 +13,6 @@
 #include <errno.h>
 #include <feature.h>
 #include <granule.h>
-#include <random_app.h>
 #include <realm.h>
 #include <sizes.h>
 #include <smc-handler.h>
@@ -276,6 +275,7 @@ static void pdev_clear_vdev_ranges(struct pdev *pd, uint32_t slot_idx)
 	slot->active = false;
 	slot->num_addr_range = 0U;
 	(void)memset(slot->addr_range, 0, sizeof(slot->addr_range));
+	/* coverity[uninit_use_in_call:SUPPRESS] */
 	buffer_unmap(slots);
 }
 
@@ -289,6 +289,7 @@ static bool pdev_vdev_range_slot_is_active(const struct pdev *pd, uint32_t slot_
 
 	slot = pdev_vdev_range_slot_map(pd, slot_idx, &slots);
 	active = slot->active;
+	/* coverity[uninit_use_in_call:SUPPRESS] */
 	buffer_unmap(slots);
 
 	return active;
@@ -357,6 +358,101 @@ static unsigned long validate_vdev_params(
 	return RMI_SUCCESS;
 }
 
+static bool addr_is_within(unsigned long addr,
+			   unsigned long base,
+			   unsigned long top)
+{
+	return (addr >= base) && (addr < top);
+}
+
+/*
+ * Return true if one PDEV stream covers the complete VDEV address range.
+ * The stream data must remain stable for this check. Stream ranges retain
+ * Host order, so each pass finds the range that extends coverage farthest
+ * from the first uncovered address. Each successful pass advances past a
+ * range end, requiring at most num_addr_range passes.
+ */
+static bool vdev_range_within_pdev_stream(const struct rmi_address_range *range,
+					  const struct pdev_stream *stream)
+{
+	unsigned long covered_top = range->base;
+
+	if (covered_top >= range->top) {
+		return true;
+	}
+
+	for (size_t i = 0U; i < stream->num_addr_range; ++i) {
+		unsigned long next_top = covered_top;
+
+		for (size_t j = 0U; j < stream->num_addr_range; ++j) {
+			const struct rmi_address_range *stream_range = &stream->addr_range[j];
+
+			if (addr_is_within(covered_top, stream_range->base, stream_range->top) &&
+			    (stream_range->top > next_top)) {
+				next_top = stream_range->top;
+			}
+		}
+
+		if (next_top == covered_top) {
+			return false;
+		}
+		if (next_top >= range->top) {
+			return true;
+		}
+		covered_top = next_top;
+	}
+
+	return false;
+}
+
+static bool vdev_addr_range_in_pdev_streams(
+	const struct rmi_address_range *range,
+	struct pdev_stream (*streams)[RMI_PDEV_STREAM_TYPE_COUNT])
+{
+	assert(streams != NULL);
+
+	if ((*streams)[RMI_PDEV_STREAM_NCOH].taken &&
+	    vdev_range_within_pdev_stream(range, &(*streams)[RMI_PDEV_STREAM_NCOH])) {
+		return true;
+	}
+
+	if ((*streams)[RMI_PDEV_STREAM_COH].taken &&
+	    vdev_range_within_pdev_stream(range, &(*streams)[RMI_PDEV_STREAM_COH])) {
+		return true;
+	}
+
+	return false;
+}
+
+static bool vdev_addr_ranges_in_pdev_streams(
+	struct pdev_stream (*streams)[RMI_PDEV_STREAM_TYPE_COUNT],
+	const struct rmi_address_range *addr_range,
+	unsigned long num_addr_range)
+{
+	assert(num_addr_range <= 8U);
+	assert(streams != NULL);
+
+	for (size_t i = 0; i < num_addr_range; ++i) {
+		if (!vdev_addr_range_in_pdev_streams(&addr_range[i], streams)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/*
+ * Exercise the VDEV_CREATE coverage rule using test-owned PDEV stream data.
+ * Return true when each VDEV range is covered by one taken stream. The caller
+ * keeps the stream data stable and passes a valid VDEV range count.
+ */
+bool vdev_test_addr_ranges_in_pdev_streams(
+	struct pdev_stream (*streams)[RMI_PDEV_STREAM_TYPE_COUNT],
+	const struct rmi_address_range *addr_range,
+	unsigned long num_addr_range)
+{
+	return vdev_addr_ranges_in_pdev_streams(streams, addr_range, num_addr_range);
+}
+
 /*
  * smc_vdev_create
  *
@@ -382,13 +478,14 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 	struct smmu_stg2_config s2_cfg;
 	unsigned int sid, smmu_idx;
 	unsigned long rc;
+	struct pdev_stream (*streams)[RMI_PDEV_STREAM_TYPE_COUNT];
 	struct pdev_stream *stream;
 	uint32_t vdev_slot;
 	struct vdev_map vdev_map;
 	int ret;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -411,6 +508,11 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 
 	if (!rd->da_enabled) {
 		rc = RMI_ERROR_REALM;
+		goto out_unmap_rd;
+	}
+
+	if (rd->max_num_vdevs == rd_vdev_refcount_get(rd)) {
+		rc = RMI_ERROR_DEVICE;
 		goto out_unmap_rd;
 	}
 
@@ -447,12 +549,19 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 		goto out_unmap_pd;
 	}
 
-	stream = pdev_stream_granules_lock_map(pd->g_stream_aux, RMI_PDEV_STREAM_NCOH);
-	assert(stream != NULL);
+	streams = pdev_streams_granules_lock_map(pd->g_stream_aux);
+	assert(streams != NULL);
+	stream = &(*streams)[RMI_PDEV_STREAM_NCOH];
 
 	if (!stream->taken ||
 	    (stream->state != PDEV_STREAM_CONNECTED)) {
 		rc = RMI_ERROR_DEVICE;
+		goto out_unmap_stream;
+	}
+
+	if (!vdev_addr_ranges_in_pdev_streams(streams, vdev_params.addr_range,
+					      vdev_params.num_addr_range)) {
+		rc = RMI_ERROR_INPUT;
 		goto out_unmap_stream;
 	}
 
@@ -497,8 +606,9 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 
 	vd->rmi_state = RMI_VDEV_STATE_NEW;
 	vd->dma_state = RMI_VDEV_DMA_DISABLED;
-	vd->op = VDEV_OP_UNLOCK;
+	vd->op = VDEV_OP_INIT;
 	vd->comm_state = DEV_COMM_PENDING;
+	vd->freshness = (struct vdev_freshness){ 0 };
 
 	vd->sid = sid;
 	vd->smmu_idx = smmu_idx;
@@ -520,7 +630,7 @@ void smc_vdev_create(unsigned long rd_addr, unsigned long pdev_addr,
 out_unmap_vd:
 	buffer_unmap(vd);
 out_unmap_stream:
-	pdev_stream_granules_unmap_unlock(pd->g_stream_aux, stream, RMI_PDEV_STREAM_NCOH);
+	pdev_streams_granules_unmap_unlock(pd->g_stream_aux, streams);
 out_unmap_pd:
 	buffer_unmap(pd);
 out_unmap_rd:
@@ -575,7 +685,7 @@ void smc_vdev_lock(unsigned long rd_addr, unsigned long pdev_addr,
 	struct dev_tdisp_params *tdisp_params;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -659,7 +769,7 @@ void smc_vdev_start(unsigned long rd_addr, unsigned long pdev_addr,
 	struct dev_tdisp_params *tdisp_params;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -721,23 +831,26 @@ out:
 	res->x[0] = rmi_rc;
 }
 
-/* Generate random numbers as nonce
- * Returns 0 on success.
- */
-static int generate_attest_info_nonce(unsigned long *nonce)
+static bool vdev_seq_increment(uint64_t *seq)
 {
-	struct app_data_cfg *random_app_data = random_app_get_data_cfg();
+	assert(seq != NULL);
 
-	assert(nonce != NULL);
-	return random_app_prng_get_random(random_app_data, (uint8_t *)nonce, sizeof(*nonce));
+	if (*seq == UINT64_MAX) {
+		return false;
+	}
+
+	*seq += 1U;
+
+	return true;
 }
 
 /*
  * smc_vdev_communicate
  *
- * Validate parent states under their locks, then release those locks before
- * acquiring the operation locks. The locked VDEV pins the parents used for
- * identity checks. Report the RMI result through @res with all locks released.
+ * Lock RD, PDEV and VDEV in type order and retain their locks while running
+ * device communication and updating VDEV freshness. Report the RMI result
+ * through @res after releasing all locks, including RMI_BUSY when another
+ * device operation owns the yielded DA app.
  *
  * rd_addr		- PA of the RD
  * pdev_addr		- PA of the PDEV
@@ -752,12 +865,14 @@ void smc_vdev_communicate(unsigned long rd_addr,
 {
 	struct granule *g_pdev = NULL;
 	struct granule *g_vdev = NULL;
+	struct granule *g_rd = NULL;
+	struct rd *rd = NULL;
 	struct pdev *pd = NULL;
 	struct vdev *vd = NULL;
 	unsigned long rmi_rc;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -767,22 +882,18 @@ void smc_vdev_communicate(unsigned long rd_addr,
 		return;
 	}
 
-	/* Check RD while preserving a tracking lookup error for the host. */
-	rmi_rc = vdev_check_parent(rd_addr, GRANULE_STATE_RD);
+	/* Lock RD, PDEV and VDEV. */
+	rmi_rc = tr_find_lock_three_fine_granules(rd_addr, GRANULE_STATE_RD, &g_rd,
+						  pdev_addr, GRANULE_STATE_PDEV, &g_pdev,
+						  vdev_addr, GRANULE_STATE_VDEV, &g_vdev);
 	if (rmi_rc != RMI_SUCCESS) {
 		res->x[0] = rmi_rc;
 		return;
 	}
 
-	/* Map PDEV and VDEV. */
-	rmi_rc = tr_find_lock_two_fine_granules(pdev_addr,
-						GRANULE_STATE_PDEV, &g_pdev,
-						vdev_addr, GRANULE_STATE_VDEV,
-						&g_vdev);
-	if (rmi_rc != RMI_SUCCESS) {
-		res->x[0] = rmi_rc;
-		return;
-	}
+	/* Map RD, PDEV and VDEV. */
+	rd = buffer_granule_map(g_rd, SLOT_RD);
+	assert(rd != NULL);
 
 	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
 	assert(pd != NULL);
@@ -800,57 +911,95 @@ void smc_vdev_communicate(unsigned long rd_addr,
 		goto out;
 	}
 
+	/*
+	 * Reject before calling dev_communicate() so that the completion
+	 * handling below cannot process an existing communication state as the
+	 * result of this call.
+	 */
+	if ((vd->comm_state == DEV_COMM_IDLE) ||
+	    (vd->comm_state == DEV_COMM_ERROR)) {
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto out;
+	}
+
+	/*
+	 * Check that a new freshness value can be allocated before
+	 * communicating with the device. Once communication has taken place the
+	 * device operation may have completed, so discovering exhaustion
+	 * afterwards could leave the device and the VDEV in inconsistent
+	 * states.
+	 */
+	if (((vd->op == VDEV_OP_LOCK) &&
+	     (rd->last_vdev_lock_seq == UINT64_MAX)) ||
+	    ((vd->op == VDEV_OP_GET_MEAS) &&
+	     (vd->freshness.meas_seq == UINT64_MAX)) ||
+	    ((vd->op == VDEV_OP_GET_REPORT) &&
+	     (vd->freshness.report_seq == UINT64_MAX))) {
+		rmi_rc = RMI_ERROR_DEVICE;
+		goto out;
+	}
+
 	/* TODO_ALP17: if PdevIsBusy(pdev) then ResultEqual(result, RMI_BUSY) */
 
-	rmi_rc = dev_communicate(pd, vd, dev_comm_data_addr);
+	rmi_rc = dev_communicate(pd, vd, g_vdev, dev_comm_data_addr);
 	/* Do not return early here in case of error. Instead do the state
-	 * transition below based on pd->dev_comm_state set by dev_communicate.
+	 * transition below based on vd->comm_state set by dev_communicate.
 	 */
 
 	/*
 	 * Transistion VDEV state based on device communication state.
 	 */
-	if (vd->comm_state == DEV_COMM_ERROR) {
-		vd->rmi_state = RMI_VDEV_STATE_ERROR;
-	} else if (vd->comm_state == DEV_COMM_IDLE) {
+	if (vd->comm_state == DEV_COMM_IDLE) {
 		switch (vd->op) {
 		case VDEV_OP_UNLOCK:
+			assert((vd->rmi_state == RMI_VDEV_STATE_LOCKED) ||
+			    (vd->rmi_state == RMI_VDEV_STATE_STARTED) ||
+			    (vd->rmi_state == RMI_VDEV_STATE_ERROR));
+			vd->rmi_state = RMI_VDEV_STATE_UNLOCKED;
+			break;
+		case VDEV_OP_INIT:
+			assert(vd->rmi_state == RMI_VDEV_STATE_NEW);
 			vd->rmi_state = RMI_VDEV_STATE_UNLOCKED;
 			break;
 		case VDEV_OP_LOCK:
-			vd->rmi_state = RMI_VDEV_STATE_LOCKED;
-			/* coverity[overrun-buffer-val:SUPPRESS] */
-			if (generate_attest_info_nonce(&(vd->attest_info.lock_nonce)) != 0) {
+			if (!vdev_seq_increment(&rd->last_vdev_lock_seq)) {
+				rmi_rc = RMI_ERROR_DEVICE;
 				vd->rmi_state = RMI_VDEV_STATE_ERROR;
+				break;
 			}
+			vd->rmi_state = RMI_VDEV_STATE_LOCKED;
+			vd->freshness.lock_seq = rd->last_vdev_lock_seq;
+			vd->freshness.meas_seq = 0U;
+			vd->freshness.report_seq = 0U;
 			break;
 		case VDEV_OP_START:
 			vd->rmi_state = RMI_VDEV_STATE_STARTED;
 			break;
 		case VDEV_OP_GET_MEAS:
 			/* The get measurement operation doesn't change the VDEV's state */
-			/* coverity[overrun-buffer-val:SUPPRESS] */
-			if (generate_attest_info_nonce(&(vd->attest_info.meas_nonce)) != 0) {
+			if (!vdev_seq_increment(&vd->freshness.meas_seq)) {
+				rmi_rc = RMI_ERROR_DEVICE;
 				vd->rmi_state = RMI_VDEV_STATE_ERROR;
 			}
 			break;
 		case VDEV_OP_GET_REPORT:
 			/* The get if report operation doesn't change the VDEV's state */
-			/* coverity[overrun-buffer-val:SUPPRESS] */
-			if (generate_attest_info_nonce(&(vd->attest_info.report_nonce)) != 0) {
+			if (!vdev_seq_increment(&vd->freshness.report_seq)) {
+				rmi_rc = RMI_ERROR_DEVICE;
 				vd->rmi_state = RMI_VDEV_STATE_ERROR;
 			}
 			break;
-		case VDEV_OP_KEY_REFRESH:
-			vd->rmi_state = RMI_VDEV_STATE_KEY_PURGE;
-			break;
-		case VDEV_OP_KEY_PURGE:
-			vd->rmi_state = RMI_VDEV_STATE_UNLOCKED;
+		case VDEV_OP_NONE:
+			/* No state transition if no operation is active */
+			assert(rmi_rc == RMI_ERROR_DEVICE);
 			break;
 		default:
 			assert(false);
 		}
 		vd->op = VDEV_OP_NONE;
+	} else if (vd->comm_state == DEV_COMM_ERROR) {
+		vd->rmi_state = RMI_VDEV_STATE_ERROR;
+		vd->comm_state = DEV_COMM_IDLE;
 	}
 
 out:
@@ -863,7 +1012,11 @@ out:
 	if (pd != NULL) {
 		buffer_unmap(pd);
 	}
+	if (rd != NULL) {
+		buffer_unmap(rd);
+	}
 	granule_unlock(g_pdev);
+	granule_unlock(g_rd);
 
 	res->x[0] = rmi_rc;
 }
@@ -883,7 +1036,7 @@ void smc_vdev_get_state(unsigned long vdev_addr, struct smc_result *res)
 	unsigned long ret;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -919,7 +1072,8 @@ out_err_input:
  *
  * Validate parent states under their locks, then release those locks before
  * acquiring the operation locks. The locked VDEV pins the parents used for
- * identity checks. Report the RMI result through @res with all locks released.
+ * identity checks. Unwind the shared DA app only if this VDEV owns its yielded
+ * operation. Report the RMI result through @res with all locks released.
  *
  * rd_addr	- PA of RD
  * pdev_addr	- PA of the PDEV
@@ -930,16 +1084,15 @@ void smc_vdev_abort(unsigned long rd_addr,
 		    unsigned long vdev_addr,
 		    struct smc_result *res)
 {
-	int rc __unused;
+	int rc;
 	struct granule *g_pdev;
 	struct granule *g_vdev;
-	void *aux_mapped_addr;
 	unsigned long smc_rc;
 	struct pdev *pd;
 	struct vdev *vd;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -985,33 +1138,18 @@ void smc_vdev_abort(unsigned long rd_addr,
 		goto out_vdev_buf_unmap;
 	}
 
-	/*
-	 * If there is no active device communication, then mapping aux
-	 * granules and cancelling an existing communication is not required.
-	 *
-	 * todo: add helper routine dev_communicate_abort() in pdev.c
-	 */
-	if (pd->dev_comm_state != DEV_COMM_ACTIVE) {
-		goto vdev_reset_state;
+	rc = dev_abort_app_if_owner(pd, g_vdev);
+	if (rc != DEV_ASSIGN_STATUS_SUCCESS) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_vdev_buf_unmap;
 	}
 
-	/* Map PDEV aux granules */
-	/* coverity[overrun-buffer-val:SUPPRESS] */
-	aux_mapped_addr = buffer_pdev_app_aux_map(pd->g_app_aux, pd->num_app_aux);
-	assert(aux_mapped_addr != NULL);
-
-	/*
-	 * This will resume the blocked CMA SPDM command and the recv callback
-	 * handler will return error and abort the command.
-	 */
-	rc = dev_assign_abort_app_operation(&pd->da_app_data);
-	assert(rc == 0);
-
-	/* Unmap all PDEV aux granules */
-	buffer_pdev_app_aux_unmap(aux_mapped_addr, pd->num_app_aux);
-
-vdev_reset_state:
-	vd->rmi_state = RMI_VDEV_STATE_ERROR;
+	if ((vd->rmi_state == RMI_VDEV_STATE_KEY_REFRESH) ||
+	    (vd->rmi_state == RMI_VDEV_STATE_KEY_PURGE)) {
+		vd->rmi_state = RMI_VDEV_STATE_LOCKED;
+	} else {
+		vd->rmi_state = RMI_VDEV_STATE_ERROR;
+	}
 	vd->comm_state = DEV_COMM_IDLE;
 	smc_rc = RMI_SUCCESS;
 
@@ -1026,6 +1164,12 @@ out_vdev_buf_unmap:
 
 /*
  * smc_vdev_destroy
+ *
+ * Destroy an unlocked VDEV which does not own a yielded DA app operation,
+ * including one whose communication is pending. The caller supplies the RD
+ * and PDEV that own this VDEV; all three are locked while checking state and
+ * app ownership and releasing resources. Return the RMI result via res,
+ * with RMI_ERROR_DEVICE if the VDEV still owns a yielded app operation.
  *
  * rd_addr	- PA of RD
  * pdev_addr	- PA of the PDEV
@@ -1046,7 +1190,7 @@ void smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	int ret __unused;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1073,14 +1217,26 @@ void smc_vdev_destroy(unsigned long rd_addr, unsigned long pdev_addr,
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
-	if ((vd->g_rd != g_rd) ||
-	    (vd->g_pdev != g_pdev)) {
+	if ((vd->g_rd != g_rd)) {
+		smc_rc = RMI_ERROR_INPUT;
+		goto out_err_input;
+	}
+
+	if (vd->g_pdev != g_pdev) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
 	}
 
-	if ((vd->rmi_state != RMI_VDEV_STATE_NEW) &&
-	    (vd->rmi_state != RMI_VDEV_STATE_UNLOCKED)) {
+	if ((vd->rmi_state != RMI_VDEV_STATE_UNLOCKED) ||
+	    ((vd->comm_state != DEV_COMM_IDLE) &&
+	     (vd->comm_state != DEV_COMM_PENDING))) {
+		smc_rc = RMI_ERROR_DEVICE;
+		goto out_err_input;
+	}
+
+	/* A pending communication state can still belong to a yielded app. */
+	if ((pd->da_app_data.exit_flag == APP_EXIT_SVC_YIELD_FLAG) &&
+	    (pd->da_app_yield_owner == g_vdev)) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
 	}
@@ -1174,6 +1330,14 @@ static unsigned long validate_vdev_get_measurements_params(
 	return RMI_SUCCESS;
 }
 
+/*
+ * Queue measurements for an idle VDEV independently of PDEV communication.
+ * rd_addr, pdev_addr and vdev_addr are PAs of the owning RD, PDEV and VDEV;
+ * params_addr is the PA of Non-secure measurement parameters. The handler
+ * validates and locks all three objects before checking VDEV ownership and
+ * communication state. Return the RMI status in res->x[0], with success
+ * leaving the measurement operation pending for VDEV_COMMUNICATE.
+ */
 void smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pdev_addr,
 			       unsigned long vdev_addr, unsigned long params_addr,
 			       struct smc_result *res)
@@ -1183,13 +1347,12 @@ void smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pdev_addr,
 	struct granule *g_vdev = NULL;
 	struct dev_meas_params *spdm_meas_params;
 	struct rmi_vdev_measure_params measurement_params;
-	struct pdev *pd = NULL;
 	struct vdev *vd = NULL;
 
 	unsigned long smc_rc;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1210,16 +1373,13 @@ void smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pdev_addr,
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
-	if ((vd->g_rd != g_rd) ||
-	    (vd->g_pdev != g_pdev)) {
-		smc_rc = RMI_ERROR_DEVICE;
+	if (vd->g_rd != g_rd) {
+		smc_rc = RMI_ERROR_INPUT;
 		goto out_err_input;
 	}
 
-	pd = buffer_granule_map(g_pdev, SLOT_PDEV);
-	assert(pd != NULL);
-
-	if (pd->dev_comm_state != DEV_COMM_IDLE) {
+	if ((vd->g_pdev != g_pdev) ||
+	    (vd->comm_state != DEV_COMM_IDLE)) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
 	}
@@ -1250,9 +1410,6 @@ out_err_input:
 		granule_unlock(g_vdev);
 	}
 
-	if (pd != NULL) {
-		buffer_unmap(pd);
-	}
 	if (g_pdev != NULL) {
 		granule_unlock(g_pdev);
 	}
@@ -1275,7 +1432,7 @@ void smc_vdev_get_interface_report(unsigned long rd_addr, unsigned long pdev_add
 	unsigned long smc_rc;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		return;
 	}
 
@@ -1351,7 +1508,7 @@ void smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 	unsigned long smc_rc;
 
 	if (!is_rmi_feat_da_enabled()) {
-		res->x[0] = SMC_NOT_SUPPORTED;
+		res->x[0] = RMI_ERROR_NOT_SUPPORTED;
 		res->x[1] = 0U;
 		return;
 	}

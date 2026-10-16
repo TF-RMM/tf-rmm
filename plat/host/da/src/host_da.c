@@ -7,7 +7,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <host_crypto_utils.h>
-#include <host_realm.h>
+#include <host_da.h>
 #include <host_rmi_wrappers.h>
 #include <host_spdm_rsp_ifc.h>
 #include <host_utils.h>
@@ -115,9 +115,52 @@ struct host_vdev {
 static struct host_pdev gbl_host_pdev;
 static struct host_vdev gbl_host_vdev;
 
-void *allocate_granule(unsigned int num_granules);
+/* Return the singleton PDEV context; callers serialize Host DA operations. */
+struct host_pdev *host_pdev_current(void)
+{
+	return &gbl_host_pdev;
+}
 
-static void host_pdev_cleanup(struct host_pdev *dev, bool ep_pdev)
+/* Return the singleton VDEV context; callers serialize Host DA operations. */
+struct host_vdev *host_vdev_current(void)
+{
+	return &gbl_host_vdev;
+}
+
+/* Return the selected RMI object address, possibly NULL before PDEV setup. */
+void *host_pdev_ptr(struct host_pdev *pdev, bool endpoint)
+{
+	assert(pdev != NULL);
+	return endpoint ? pdev->ep_pdev_ptr : pdev->rp_pdev_ptr;
+}
+
+/* Return the NS PDEV communication page, possibly NULL before setup. */
+struct rmi_dev_comm_data *host_pdev_comm_data(struct host_pdev *pdev)
+{
+	assert(pdev != NULL);
+	return pdev->dev_comm_data;
+}
+
+/* Return the VDEV RMI object address, possibly NULL before VDEV setup. */
+void *host_vdev_ptr(struct host_vdev *vdev)
+{
+	assert(vdev != NULL);
+	return vdev->vdev_ptr;
+}
+
+/* Return the NS VDEV communication page, possibly NULL before setup. */
+struct rmi_dev_comm_data *host_vdev_comm_data(struct host_vdev *vdev)
+{
+	assert(vdev != NULL);
+	return vdev->dev_comm_data;
+}
+
+/*
+ * Release Host resources when the selected RMI PDEV object is absent, either
+ * because creation has not completed or teardown has finished. No RMM locks
+ * may be held.
+ */
+void host_pdev_cleanup(struct host_pdev *dev, bool ep_pdev)
 {
 	unsigned long *pdev_id;
 	void **pdev_ptr;
@@ -286,7 +329,12 @@ static int host_vdev_get_state(struct host_vdev *h_vdev, unsigned char *state)
 	return 0;
 }
 
-static int host_pdev_create(struct host_pdev *h_pdev, bool ep_pdev)
+/*
+ * Create a prepared endpoint or root-port PDEV through RMI. The PDEV granule
+ * must already be delegated. Drive endpoint donation and return zero on
+ * success or -1 on an RMI/SRO failure.
+ */
+int host_pdev_create(struct host_pdev *h_pdev, bool ep_pdev)
 {
 	struct rmi_pdev_params *pdev_params;
 	struct smc_result result;
@@ -336,7 +384,10 @@ static int host_pdev_create(struct host_pdev *h_pdev, bool ep_pdev)
 		}
 		result.x[0] = RMI_SUCCESS;
 	}
-	CHECK_RMI_RESULT();
+	if (!IS_RMI_RESULT_SUCCESS(result)) {
+		ERROR("PDEV create failed: %lu\n", result.x[0]);
+		return -1;
+	}
 
 	return 0;
 }
@@ -390,7 +441,11 @@ static int host_pdev_abort(struct host_pdev *dev, bool ep_pdev)
 	return 0;
 }
 
-static int host_pdev_destroy(struct host_pdev *dev, bool ep_pdev)
+/*
+ * Destroy a STOPPED endpoint or root-port PDEV through RMI. Drive endpoint
+ * reclaim and return zero on success or -1 on an RMI/SRO failure.
+ */
+int host_pdev_destroy(struct host_pdev *dev, bool ep_pdev)
 {
 	struct smc_result result;
 	u_register_t destroy_handle = 0UL;
@@ -501,16 +556,39 @@ static int host_pdev_cache_device_object(struct host_pdev *h_pdev,
 	return rc;
 }
 
+/*
+ * Append a VDEV measurement or interface-report fragment to the Host cache.
+ * Return 0 on success, or -1 for an unsupported object or exhausted cache.
+ */
 static int host_vdev_cache_device_object(struct host_vdev *h_vdev,
 					 uint8_t dev_obj_id,
 					 const uint8_t *dev_obj_buf,
 					 unsigned long dev_obj_buf_len)
 {
-	(void)h_vdev;
-	(void)dev_obj_id;
-	(void)dev_obj_buf;
-	(void)dev_obj_buf_len;
-	return -1;
+	uint8_t *cache;
+	size_t *cache_len;
+	size_t cache_max_len;
+
+	if (dev_obj_id == RMI_DEV_COMM_OBJECT_MEASUREMENTS) {
+		cache = h_vdev->meas;
+		cache_len = &h_vdev->meas_len;
+		cache_max_len = (size_t)HOST_VDEV_MEAS_LEN_MAX;
+	} else if (dev_obj_id == RMI_DEV_COMM_OBJECT_INTERFACE_REPORT) {
+		cache = h_vdev->ifc_report;
+		cache_len = &h_vdev->ifc_report_len;
+		cache_max_len = (size_t)HOST_VDEV_IFC_REPORT_LEN_MAX;
+	} else {
+		return -1;
+	}
+
+	if ((cache == NULL) || (*cache_len > cache_max_len) ||
+	    (dev_obj_buf_len > cache_max_len - *cache_len)) {
+		return -1;
+	}
+
+	(void)memcpy(cache + *cache_len, dev_obj_buf, dev_obj_buf_len);
+	*cache_len += dev_obj_buf_len;
+	return 0;
 }
 
 static int host_dev_cache_device_object(struct host_pdev *h_pdev,
@@ -884,7 +962,11 @@ out_free:
 	return rc;
 }
 
-static int host_pdev_stream_disconnect(struct host_pdev *pdev)
+/*
+ * Disconnect and complete the active PDEV stream. Return zero if no stream
+ * exists or after successful completion; return -1 on an RMI/DA failure.
+ */
+int host_pdev_stream_disconnect(struct host_pdev *pdev)
 {
 	struct smc_result result;
 
@@ -940,10 +1022,11 @@ static int host_pdev_do_ide_ops(struct host_pdev *pdev)
 }
 
 /*
- * Allocate granules needed for a PDEV object like device communication data,
- * response buffer, PDEV AUX granules and memory required to store cert_chain
+ * Connect the responder and allocate Host resources for one endpoint pair.
+ * No RMI PDEV object is created here. Return zero on success or -1 after
+ * cleaning up a failed setup. The caller must have booted an active RMM.
  */
-static int host_pdev_setup(struct host_pdev *dev)
+int host_pdev_setup(struct host_pdev *dev)
 {
 	struct smc_result result;
 	int rc = -1;
@@ -1348,8 +1431,11 @@ out_cleanup:
 	return rc;
 }
 
-/* Bind the vdev to the Realm */
-int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id)
+/*
+ * Bind a VDEV to the Realm and leave its INIT operation pending. Return the
+ * VDEV ID on success, or -1 if setup or RMI_VDEV_CREATE fails.
+ */
+int host_vdev_create_pending(struct host_realm *realm, unsigned long host_vdev_tdi_id)
 {
 	struct rmi_vdev_params *vdev_params;
 	struct smc_result result;
@@ -1387,14 +1473,30 @@ int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id)
 		host_vdev_cleanup(h_vdev);
 		return -1;
 	}
+	return host_vdev_id;
+}
+
+/*
+ * Create a VDEV and complete its initial communication. Return the VDEV ID
+ * on success, or -1 if creation or communication fails.
+ */
+int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id)
+{
+	int host_vdev_id;
+
+	host_vdev_id = host_vdev_create_pending(realm, host_vdev_tdi_id);
+	if (host_vdev_id < 0) {
+		return -1;
+	}
+
 	/*
 	 * Drive VDEV communication once after create so VDEV/PDEV communication
 	 * state is settled.
 	 */
-	if (host_dev_communicate(realm, h_pdev, true, h_vdev,
+	if (host_dev_communicate(realm, &gbl_host_pdev, true, &gbl_host_vdev,
 				 RMI_VDEV_STATE_UNLOCKED, false) != 0) {
 		ERROR("VDEV create -> UNLOCKED transition failed\n");
-		host_vdev_cleanup(h_vdev);
+		host_vdev_cleanup(&gbl_host_vdev);
 		return -1;
 	}
 	return host_vdev_id;
@@ -1460,7 +1562,8 @@ out_destroy:
 }
 
 /*
- * Run realm to call DA related RSI to get device attestation records
+ * Enter the prepared Realm REC for DA RSI calls. The Realm and REC must be
+ * active; return zero on its expected FIQ exit, or -1 on an RMI/exit failure.
  */
 int host_realm_run_da(struct host_realm *realm)
 {
@@ -1470,7 +1573,10 @@ int host_realm_run_da(struct host_realm *realm)
 	/* Run the Realm to call DA RSIs */
 	memset(realm->rec_run, 0, sizeof(*realm->rec_run));
 	host_rmi_rec_enter(realm->rec, realm->rec_run, &result);
-	CHECK_RMI_RESULT();
+	if (!IS_RMI_RESULT_SUCCESS(result)) {
+		ERROR("DA REC_ENTER failed: %lu\n", result.x[0]);
+		return -1;
+	}
 	exit_reason = realm->rec_run->exit.exit_reason;
 
 	if (exit_reason == RMI_EXIT_FIQ) {

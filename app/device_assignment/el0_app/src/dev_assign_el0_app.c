@@ -125,7 +125,9 @@ static libspdm_return_t spdm_send_message(void *spdm_context,
 		APP_SERVICE_RW_NS_BUF_HEAP, (unsigned long)buf_offset,
 		info->enter_args.req_addr, request_size_align);
 	/* NS start offset is expected to be 0. */
-	assert(*((size_t *)info->shared_buf) == 0U);
+	if (*((size_t *)info->shared_buf) != 0U) {
+		return LIBSPDM_STATUS_SEND_FAIL;
+	}
 
 	if (rc != 0) {
 		return LIBSPDM_STATUS_SEND_FAIL;
