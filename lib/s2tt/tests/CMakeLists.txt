@@ -8,6 +8,7 @@ target_include_directories(rmm-lib-s2tt
 
 # Add test functionality
 rmm_build_unittest(NAME s2tt_tlbi_range
+		   ADDITIONAL_TEST_GROUPS s2tt_tlbi
 		   TARGET rmm-lib-s2tt
 		   LIBRARIES rmm-platform rmm-lib-xlat
 		   SOURCES "tests/s2tt_tlbi_range_tests.cpp"
