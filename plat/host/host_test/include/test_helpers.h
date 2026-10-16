@@ -20,6 +20,12 @@ void host_da_test_fail_ns_map(unsigned long addr, unsigned int occurrence);
 
 /* Return whether the most recently armed DA NS map fault fired. */
 bool host_da_test_ns_map_faulted(void);
+/* Optional platform resources initialized by test_helpers_rmm_start(). */
+#define TEST_HELPERS_SECONDARIES	(1U << 0)
+#define TEST_HELPERS_SMMU		(1U << 1)
+
+/* The non-BTM host SMMU supports MSI completion of explicit TLBI commands. */
+#define TEST_HELPERS_SMMU_IDX	1U
 
 /*
  * Definitions used for assertion tests.
@@ -193,12 +199,15 @@ void test_helpers_expect_assert_fail(bool expected);
 void test_helpers_fail_if_no_assert_failed(void);
 
 /*
- * Helper function to fully initialize RMM.
+ * Initialize RMM and reset the previous test's metadata and SMMU backing.
+ * Tests must release locks and complete SROs before starting the next test.
  *
  * Args
- *	secondaries - If true, support for secondary PEs is enabled.
+ *	flags - TEST_HELPERS_SECONDARIES enables secondary PEs;
+ *		TEST_HELPERS_SMMU activates both host PSMMUs.
+ *		Existing false/true arguments select primary/all PEs only.
  */
-void test_helpers_rmm_start(bool secondaries);
+void test_helpers_rmm_start(unsigned int flags);
 
 /*
  * Start RMM in INIT, retaining the tracking backing allocated at boot.
@@ -209,8 +218,7 @@ void test_helpers_rmm_start(bool secondaries);
 void test_helpers_rmm_start_for_tracking_sro(bool secondaries);
 
 /*
- * Helper function to get the total number of memory granules available
- * to the system.
+ * Return the granule pool size available to tests, excluding any SMMU backing.
  */
 unsigned int test_helpers_get_nr_granules(void);
 

@@ -11,6 +11,7 @@
 #include <glob_data.h>
 #include <granule.h>
 #include <host_da.h>
+#include <host_rmi_wrappers.h>
 #include <host_utils.h>
 #include <limits.h>
 #include <mec.h>
@@ -143,6 +144,7 @@ static void start_secondary_pes(void)
 
 /*
  * Start the host RMM model and optionally populate all tracking metadata.
+ * Normal tests activate RMM through RMI after populating fine backing.
  * Tracking SRO tests leave fine backing unpopulated and RMM in INIT. The
  * permanent struct tracking_region array is always populated by the boot path.
  * Subsequent tests discard the prior granule metadata and Realm resource
@@ -172,9 +174,14 @@ static void test_helpers_rmm_start_internal(bool secondaries,
 		ret = tracking_region_configure(TRACKING_REGION_MIN_SIZE);
 		assert(ret == 0);
 		if (populate_tracking) {
+			struct smc_result res = {0};
+
 			ret = tracking_region_populate_from_el3(true);
 			assert(ret == 0);
-			tracking_region_activate(trs_fine);
+			host_rmm_activate(&res);
+			assert(res.x[0] == RMI_SUCCESS);
+			/* Tests use fine metadata even with coarse boot tracking. */
+			tracking_region_fine_reset();
 		}
 		(void)ret;
 		rmm_initialized = true;
@@ -205,10 +212,18 @@ static void test_helpers_rmm_start_internal(bool secondaries,
 	}
 }
 
-/* Start the host RMM model with the normal, fully populated test layout. */
-void test_helpers_rmm_start(bool secondaries)
+/*
+ * Reset the fully populated host test layout and initialize requested devices.
+ * Stop the preceding test's SMMUs before discarding their granule metadata. Tests
+ * must release locks and complete pending SROs before calling this function.
+ */
+void test_helpers_rmm_start(unsigned int flags)
 {
-	test_helpers_rmm_start_internal(secondaries, true);
+	test_smmu_stop();
+	test_helpers_rmm_start_internal((flags & TEST_HELPERS_SECONDARIES) != 0U, true);
+	if ((flags & TEST_HELPERS_SMMU) != 0U) {
+		test_smmu_start();
+	}
 }
 
 /*
@@ -221,9 +236,10 @@ void test_helpers_rmm_start_for_tracking_sro(bool secondaries)
 	test_helpers_rmm_start_internal(secondaries, false);
 }
 
+/* Return the test pool size, excluding backing reserved by shared SMMU setup. */
 unsigned int test_helpers_get_nr_granules(void)
 {
-	return HOST_NR_GRANULES;
+	return test_smmu_granule_limit();
 }
 
 /*
@@ -237,15 +253,22 @@ void test_helpers_allocate_reset(void)
 	g_alloc_idx = 1U;
 }
 
+/* Allocate @n test granules below the SMMU reservation; advance the pool cursor. */
 uintptr_t test_helpers_allocate_granules(unsigned int n)
 {
-	assert((g_alloc_idx + n) <= HOST_NR_GRANULES);
-	uintptr_t base = host_util_get_granule_base() +
-			 (uintptr_t)g_alloc_idx * GRANULE_SIZE;
+	uintptr_t base;
+
+	assert((g_alloc_idx + n) <= test_helpers_get_nr_granules());
+	base = host_util_get_granule_base() + (uintptr_t)g_alloc_idx * GRANULE_SIZE;
 	g_alloc_idx += n;
 	return base;
 }
 
+/*
+ * Allocate @n test granules aligned to their total byte size, advancing the
+ * pool cursor past alignment padding. @n must be a nonzero power of two;
+ * the allocation must fit below backing reserved by shared SMMU setup.
+ */
 uintptr_t test_helpers_allocate_granules_aligned(unsigned int n)
 {
 	uintptr_t pool_base = host_util_get_granule_base();
@@ -255,7 +278,7 @@ uintptr_t test_helpers_allocate_granules_aligned(unsigned int n)
 
 	g_alloc_idx = (unsigned int)((aligned_addr - pool_base) / GRANULE_SIZE);
 
-	assert((g_alloc_idx + n) <= HOST_NR_GRANULES);
+	assert((g_alloc_idx + n) <= test_helpers_get_nr_granules());
 	g_alloc_idx += n;
 	return aligned_addr;
 }

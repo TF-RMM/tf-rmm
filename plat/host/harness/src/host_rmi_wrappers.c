@@ -579,6 +579,14 @@ void host_rmi_psmmu_activate(unsigned long psmmu_ptr, void *params_ptr,
 	*req = res->x[2];
 }
 
+/* Invoke PSMMU deactivation; @res receives the status and reclaim SRO handle. */
+void host_rmi_psmmu_deactivate(unsigned long psmmu_ptr, struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_PSMMU_DEACTIVATE,
+		      psmmu_ptr,
+		      0, 0, 0, 0, 0, 0, res);
+}
+
 void host_rmi_psmmu_st_l2_create(unsigned long psmmu_ptr, unsigned long sid,
 				 void *handle, void *donate_req,
 				 struct smc_result *res)

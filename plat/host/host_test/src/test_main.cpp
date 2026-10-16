@@ -15,11 +15,13 @@ extern "C" {
 
 extern "C" {
 #include <test_helpers.h>
+#include <test_private.h>
 }
 
 /*
- * Register the host app executables and runner path before tests can boot RMM.
- * Stop any remaining responder, reap app processes, and preserve the test result.
+ * Register the host app executables before tests can boot RMM. Reap the app
+ * processes and release shared SMMU backing after the suite. Return the
+ * CppUTest result unchanged.
  */
 int main(int argc, char **argv)
 {
@@ -29,6 +31,7 @@ int main(int argc, char **argv)
 	test_helpers_set_executable_path(argv[0]);
 	result = CommandLineTestRunner::RunAllTests(argc, argv);
 	host_util_stop_spdm_responder();
+	test_smmu_stop();
 	app_processes_cleanup();
 
 	return result;

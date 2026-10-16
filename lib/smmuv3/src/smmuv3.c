@@ -398,7 +398,8 @@ static int check_cmdq_err(struct smmuv3_dev *smmu)
  * Wait for commands followed by a non-MSI CMD_SYNC to be consumed. This is
  * used for regular command sequences and works whether or not FEAT_MSI is
  * implemented. FEAT_SEV allows WFE while polling; otherwise the consumer
- * register is polled continuously.
+ * register is polled continuously. The caller serializes submissions to
+ * @smmu. Return 0 when empty or -ETIMEDOUT if consumption does not finish.
  */
 int wait_cmdq_empty(struct smmuv3_dev *smmu)
 {
@@ -408,8 +409,8 @@ int wait_cmdq_empty(struct smmuv3_dev *smmu)
 	assert(smmu->cmdq.prod_reg != NULL);
 	assert(smmu->cmdq.cons_reg != NULL);
 
-	/* On fake_host, simulate instant command processing */
-	smmuv3_arch_sync_cmdq(smmu->cmdq.prod_reg, smmu->cmdq.cons_reg);
+	/* Let fake_host process commands without bypassing a paused CMD_SYNC. */
+	smmuv3_arch_sync_cmdq(smmu);
 
 	prod_reg = read32(smmu->cmdq.prod_reg);
 
@@ -456,6 +457,11 @@ int wait_cmdq_empty(struct smmuv3_dev *smmu)
 	return -ETIMEDOUT;
 }
 
+/*
+ * Append @cmd to @smmu's mapped queue; the caller serializes submissions.
+ * Return 0 after publishing the producer, or -ETIMEDOUT if the queue stays
+ * full. Notify the host emulator only after the command is visible.
+ */
 static int send_cmd(struct smmuv3_dev *smmu, uint128_t cmd)
 {
 	uint32_t wrap_bit = U(1) << smmu->config.cmdq_log2size;
@@ -502,7 +508,7 @@ static int send_cmd(struct smmuv3_dev *smmu, uint128_t cmd)
 	prod_reg &= ((wrap_bit << 1) - 1U);
 
 	write32(prod_reg, smmu->cmdq.prod_reg);
-	smmuv3_arch_process_cmd(cmd, smmu->cmdq.prod_reg, smmu->cmdq.cons_reg);
+	smmuv3_arch_sync_cmdq(smmu);
 	return 0;
 }
 

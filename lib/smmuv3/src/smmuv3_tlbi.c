@@ -92,6 +92,11 @@ static int poll_cmd_sync_all(struct smmuv3_cmd_sync *cmd_sync)
 	return -ETIMEDOUT;
 }
 
+/*
+ * Return true once every completion word in initialized @cmd_sync is zero.
+ * The caller keeps the state alive and does not reuse it while commands are
+ * pending; acquire reads observe the SMMUs' coherent completion writes.
+ */
 bool smmuv3_cmd_sync_is_complete(struct smmuv3_cmd_sync *cmd_sync)
 {
 	assert(cmd_sync_is_initialized(cmd_sync));

@@ -17,6 +17,9 @@
 /* Total number of non-coherent device granules on the current platform */
 #define HOST_NR_NCOH_GRANULES		(HOST_NCOH_DEV_SIZE/GRANULE_SIZE)
 
+/* Number of SMMUs described by the host boot manifest. */
+#define HOST_NR_SMMUS			(2U)
+
 /* Maximum number of sysregs for which we can install callbacks */
 #define SYSREG_MAX_CBS		(36U)
 
