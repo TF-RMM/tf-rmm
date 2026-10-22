@@ -1693,9 +1693,9 @@ void s2tt_init_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 	s2tte &= s2tte_mask;
 
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
+		/* The constructor takes an encoded descriptor, including PA[51:50]. */
 		s2tt[i] = s2tte_create_assigned_dev_dev(s2_ctx,
-							s2tte | pa, level,
-							s2tte_ap);
+				s2tte | pa_to_s2tte(s2_ctx, pa), level, s2tte_ap);
 		pa += map_size;
 	}
 
