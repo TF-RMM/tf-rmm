@@ -157,6 +157,12 @@ rmm_build_unittest(NAME hash_algo_sha384_tests
                    SOURCES "tests/hash_algo_sha384_tests.cpp"
                    ITERATIONS 1)
 
+rmm_build_unittest(NAME measurement_extend_tests
+                   LIBRARIES rmm-platform
+                   TARGET rmm-runtime
+                   SOURCES "tests/measurement_extend_tests.cpp"
+                   ITERATIONS 1)
+
 rmm_build_unittest(NAME psci_affinity_info_tests
                    LIBRARIES rmm-platform
                    TARGET rmm-runtime
