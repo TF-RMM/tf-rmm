@@ -1945,16 +1945,16 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 			     unsigned long *table,
 			     long level,
 			     s2tte_type_level_checker s2tte_is_x,
-			     bool check_ns_attrs, unsigned long s2tte_ap,
+			     bool check_attrs, unsigned long s2tte_ap,
 			     bool dev)
 {
 	unsigned long base_pa;
 	unsigned long map_size;
 	unsigned long s2tte;
-	unsigned long s2tt_ns_attrs;
+	unsigned long s2tt_attrs;
 	unsigned int i;
 	unsigned long expected_ap = 0UL;
-	unsigned long ns_attr_mask = S2TTE_NS_ATTR_MASK;
+	unsigned long attr_mask = S2TTE_MEMATTR_MASK;
 
 	assert(table != NULL);
 	assert(s2_ctx != NULL);
@@ -1989,9 +1989,9 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 		return false;
 	}
 
-	ns_attr_mask |= (s2_ctx->indirect_s2ap) ?
+	attr_mask |= (s2_ctx->indirect_s2ap) ?
 		S2TTE_PI_INDEX_MASK : S2TTE_RW_AP_MASK;
-	s2tt_ns_attrs = (s2tte & ns_attr_mask);
+	s2tt_attrs = (s2tte & attr_mask);
 
 	for (i = 1U; i < S2TTES_PER_S2TT; i++) {
 		unsigned long expected_pa = base_pa + (i * map_size);
@@ -2006,20 +2006,21 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 			return false;
 		}
 
-		if (!check_ns_attrs) {
+		if (!check_attrs || dev) {
 			if (expected_ap != s2tte_get_ap(s2_ctx, s2tte, dev)) {
 				return false;
 			}
 		}
 
-		if (check_ns_attrs) {
-			unsigned long ns_attrs = (s2tte & ns_attr_mask);
+		if (check_attrs) {
+			unsigned long attrs = (s2tte & attr_mask);
 
 			/*
-			 * We match all the attributes in the S2TTE
-			 * except for the AF bit.
+			 * Match memory attributes and access permissions.
+			 * The type checker validates the other attributes,
+			 * including device shareability when LPA2 is disabled.
 			 */
-			if (s2tt_ns_attrs != ns_attrs) {
+			if (s2tt_attrs != attrs) {
 				return false;
 			}
 		}
@@ -2115,14 +2116,14 @@ bool s2tt_maps_assigned_dev_destroyed_block(const struct s2tt_context *s2_ctx,
 /*
  * Returns true if all s2ttes in @table are assigned_dev_dev, they refer to a
  * contiguous block of granules aligned to @level - 1 and the access permissions
- * match the ones @s2tte_ap.
+ * match the ones @s2tte_ap. All entries must have the same memory attributes.
  */
 bool s2tt_maps_assigned_dev_dev_block(const struct s2tt_context *s2_ctx,
 					unsigned long *table, long level,
 					unsigned long s2tte_ap)
 {
 	return table_maps_block(s2_ctx, table, level,
-				s2tte_is_assigned_dev_dev, false, s2tte_ap, true);
+				s2tte_is_assigned_dev_dev, true, s2tte_ap, true);
 }
 
 /*
