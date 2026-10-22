@@ -743,10 +743,8 @@ static void rtt_fold(unsigned long rd_addr,
 									   s2tte);
 		} else if (s2tt_maps_assigned_dev_dev_block(s2_ctx, table, level,
 							    s2tte)) {
-			parent_s2tte = s2tte_create_assigned_dev_dev(s2_ctx,
-									s2tte,
-									level - 1L,
-									s2tte);
+			parent_s2tte = s2tte_create_assigned_dev_dev_from_pa(s2_ctx,
+					block_pa, s2tte, level - 1L, s2tte);
 		/* The table contains mixed entries that cannot be folded */
 		} else {
 			ret = pack_return_code_level(rtt_err_code, (unsigned char)level);
@@ -2099,14 +2097,8 @@ void smc_rtt_aux_map_protected(unsigned long rd_addr,
 		s2tte = s2tte_create_assigned_ram(aux_s2_ctx, aux_pa,
 						  wi.last_level, s2tte);
 	} else {
-		/*
-		 * Reset the IPA off the s2tte with the realigned IPA to
-		 * create the assigned dev dev mapping.
-		 */
-		s2tte &= s2tte_to_pa(aux_s2_ctx, UINT64_MAX, S2TT_PAGE_LEVEL);
-		s2tte |= pa_to_s2tte(aux_s2_ctx, aux_pa);
-		s2tte = s2tte_create_assigned_dev_dev(aux_s2_ctx, aux_pa,
-						      wi.last_level, s2tte);
+		s2tte = s2tte_create_assigned_dev_dev_from_pa(aux_s2_ctx, aux_pa,
+					primary_s2tte, wi.last_level, s2tte);
 	}
 
 	/* Increment the refcount of the table in the aux tree */
@@ -2440,7 +2432,7 @@ static int rtt_dev_mem_set(const struct s2tt_context *s2_ctx,
 			return -1;
 		}
 
-		s2tte = s2tte_create_assigned_dev_dev_coh_type(s2_ctx, s2tte,
+		s2tte = s2tte_create_assigned_dev_dev_coh_type(s2_ctx, pa,
 							       level, type, s2tte);
 	} else {
 		return -1;

@@ -774,16 +774,16 @@ unsigned long s2tte_create_assigned_dev_unchanged(const struct s2tt_context *s2_
  * to be disabled.
  */
 static unsigned long create_assigned_dev_dev_attr(const struct s2tt_context *s2_ctx,
-						  unsigned long s2tte,
+						  unsigned long pa,
 						  unsigned long attr, long level,
 						  unsigned long s2tte_ap)
 {
-	unsigned long pa, new_s2tte;
+	unsigned long new_s2tte;
 
 	assert(level >= S2TT_MIN_DEV_BLOCK_LEVEL);
 	assert(level <= S2TT_PAGE_LEVEL);
 
-	pa = s2tte_to_pa(s2_ctx, s2tte, level);
+	assert(s2tte_is_addr_lvl_aligned(s2_ctx, pa, level));
 
 	new_s2tte = attr | pa_to_s2tte(s2_ctx, pa) | s2tte_get_ap(s2_ctx, s2tte_ap, true);
 
@@ -795,15 +795,15 @@ static unsigned long create_assigned_dev_dev_attr(const struct s2tt_context *s2_
 }
 
 /*
- * Creates a valid assigned_dev_dev s2tte at @level with attributes passed in
- * @s2tte and the access permissions passed in @s2tte_ap.
+ * Creates a valid assigned_dev_dev s2tte for raw @pa at @level, with memory
+ * attributes from @source and access permissions from @s2tte_ap.
  *
  * Note that the execution permissions at @s2tte_ap will be overridden
  * to be disabled.
  */
-unsigned long s2tte_create_assigned_dev_dev(const struct s2tt_context *s2_ctx,
-					    unsigned long s2tte, long level,
-					    unsigned long s2tte_ap)
+unsigned long s2tte_create_assigned_dev_dev_from_pa(const struct s2tt_context *s2_ctx,
+					    unsigned long pa, unsigned long source,
+						 long level, unsigned long s2tte_ap)
 {
 	unsigned long s2tte_mask = (S2TTE_DEV_ATTRS_MASK | S2TTE_MEMATTR_MASK);
 	unsigned long attr;
@@ -816,20 +816,20 @@ unsigned long s2tte_create_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 	}
 
 	/* Get attributes */
-	attr = s2tte & s2tte_mask;
+	attr = source & s2tte_mask;
 
-	return create_assigned_dev_dev_attr(s2_ctx, s2tte, attr, level, s2tte_ap);
+	return create_assigned_dev_dev_attr(s2_ctx, pa, attr, level, s2tte_ap);
 }
 
 /*
- * Creates a valid assigned_dev_dev s2tte at @level with attributes based on
- * device coherency passed in @type and the access permissions in @s2tte_ap.
+ * Creates a valid assigned_dev_dev s2tte for raw @pa at @level. Memory attributes
+ * follow device coherency @type; access permissions come from @s2tte_ap.
  *
  * Note that the execution permissions at @s2tte_ap will be overridden
  * to be disabled.
  */
 unsigned long s2tte_create_assigned_dev_dev_coh_type(const struct s2tt_context *s2_ctx,
-						     unsigned long s2tte, long level,
+						     unsigned long pa, long level,
 						     enum dev_coh_type type,
 						     unsigned long s2tte_ap)
 {
@@ -859,7 +859,7 @@ unsigned long s2tte_create_assigned_dev_dev_coh_type(const struct s2tt_context *
 		}
 	}
 
-	return create_assigned_dev_dev_attr(s2_ctx, s2tte, attr, level, s2tte_ap);
+	return create_assigned_dev_dev_attr(s2_ctx, pa, attr, level, s2tte_ap);
 }
 
 /*
@@ -1676,8 +1676,6 @@ void s2tt_init_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 				unsigned long pa, long level,
 				unsigned long s2tte_ap)
 {
-	unsigned long s2tte_mask = (S2TTE_DEV_ATTRS_MASK | S2TTE_MEMATTR_MASK);
-
 	assert(s2tt != NULL);
 	assert(level >= S2TT_MIN_DEV_BLOCK_LEVEL);
 	assert(level <= S2TT_PAGE_LEVEL);
@@ -1685,17 +1683,9 @@ void s2tt_init_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 
 	const unsigned long map_size = s2tte_map_size(level);
 
-	/* Add Shareability bits if FEAT_LPA2 is not enabled */
-	if (!s2tt_lpa2_enabled(s2_ctx)) {
-		s2tte_mask |= S2TTE_SH_MASK;
-	}
-
-	s2tte &= s2tte_mask;
-
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
-		/* The constructor takes an encoded descriptor, including PA[51:50]. */
-		s2tt[i] = s2tte_create_assigned_dev_dev(s2_ctx,
-				s2tte | pa_to_s2tte(s2_ctx, pa), level, s2tte_ap);
+		s2tt[i] = s2tte_create_assigned_dev_dev_from_pa(s2_ctx, pa, s2tte,
+							     level, s2tte_ap);
 		pa += map_size;
 	}
 
