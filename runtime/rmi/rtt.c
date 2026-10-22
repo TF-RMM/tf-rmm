@@ -961,7 +961,10 @@ static void rtt_destroy(unsigned long rd_addr,
 
 out_unmap_parent_table:
 	if (skip_non_live) {
-		res->x[2] = s2tt_skip_non_live_entries(s2_ctx, map_addr,
+		/* The walk can stop above the requested parent level. */
+		unsigned long addr = round_down(map_addr, s2tte_map_size(wi.last_level));
+
+		res->x[2] = s2tt_skip_non_live_entries(s2_ctx, addr,
 						       parent_s2tt, &wi);
 	} else {
 		res->x[2] = map_addr;
