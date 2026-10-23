@@ -3,134 +3,160 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include <CppUTest/CommandLineTestRunner.h>
 #include <CppUTest/TestHarness.h>
 
 extern "C" {
+#include <buffer.h>
 #include <dev.h>
+#include <glob_data.h>
+#include <host_da.h>
+#include <host_rmi_wrappers.h>
+#include <host_utils.h>
+#include <string.h>
+#include <test_helpers.h>
 }
 
-#include "rtt_data_test_helpers.h"
-
 /*
- * RMI_PDEV_ABORT during a stream operation, and the RMI_PDEV_STREAM_COMPLETE
- * that follows it.
- *
- * DEN0137 2.0-bet3 B4.5.18.3: when the aborted operation is a stream
- * operation that cannot be reverted, pdev.op becomes
- * PDEV_OP_STREAM_COMPLETE and pdev.state becomes PDEV_ERROR
- * (stream_cannot_revert_op, stream_cannot_revert_state); comm_state
- * becomes DEV_COMM_IDLE. B4.5.25: RMI_PDEV_STREAM_COMPLETE accepts a PDEV
- * in PDEV_ERROR (pdev_1_state, pdev_1_comm_state) and then disconnects and
- * releases the stream (connect_err_abrt_*, disconnect_error*).
- *
- * The tests install two PDEV objects and their stream granule directly,
- * with the stream in the middle of a disconnect or connect, the way
- * vdev_ownership_tests.cpp installs device objects. The PDEVs have no app
- * auxiliary granules, so the abort does not reach the device assignment
- * app.
+ * Create PDEVs and streams through RMI, using the host DA driver and SPDM
+ * responder for device communication. The fixture recreates the devices
+ * and responder for every test.
+ * Aborted stream operations must remain available to STREAM_COMPLETE so it
+ * can release the stream and its PDEV associations.
  */
 
-#define ABORT_TEST_RTT_START_IDX	119800U
-#define ABORT_TEST_NS_LIST_START_IDX	128000U
+/* Finish STOP even when the PDEV remains in ERROR until its app exits. */
+static void stop_and_destroy(struct host_pdev *pdev, bool ep)
+{
+	void *addr = host_pdev_ptr(pdev, ep);
+	struct rmi_dev_comm_data *comm = host_pdev_comm_data(pdev);
+	struct smc_result res = {};
 
-#define ABORT_TEST_STREAM_TYPE		((unsigned char)RMI_PDEV_STREAM_NCOH)
+	host_rmi_pdev_stop(addr, &res);
+	UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
+	comm->enter.status = RMI_DEV_COMM_ENTER_STATUS_NONE;
+	comm->enter.resp_len = 0U;
+	for (unsigned int attempt = 0U; attempt < 16U; attempt++) {
+		host_rmi_pdev_communicate(addr, comm, &res);
+		UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
+		host_rmi_pdev_get_state(addr, &res);
+		UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
+		if (res.x[1] == RMI_PDEV_STATE_STOPPED) {
+			break;
+		}
+		/* Fail remaining exchanges, as in the existing abort/STOP tests. */
+		comm->enter.status = RMI_DEV_COMM_ENTER_STATUS_ERROR;
+		comm->enter.resp_len = 0U;
+	}
+	UNSIGNED_LONGS_EQUAL(RMI_PDEV_STATE_STOPPED, res.x[1]);
+	CHECK_EQUAL(0, host_pdev_destroy(pdev, ep));
+	host_pdev_cleanup(pdev, ep);
+}
 
-struct abort_test_objects {
-	uintptr_t pd1;
-	uintptr_t pd2;
-	uintptr_t stream_aux;
+static unsigned long begin_connect(struct host_pdev *pdev)
+{
+	struct rmi_pdev_stream_params *params;
+	struct smc_result res = {};
 	unsigned long handle;
-};
+
+	params = (struct rmi_pdev_stream_params *)allocate_granule(1U);
+	(void)memset(params, 0, sizeof(*params));
+	params->stream_type = RMI_PDEV_STREAM_NCOH;
+	params->pdev_1 = (unsigned long)host_pdev_ptr(pdev, true);
+	params->pdev_2 = (unsigned long)host_pdev_ptr(pdev, false);
+	host_rmi_pdev_stream_connect(params, &handle, &res);
+	UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
+	return handle;
+}
+
+static void communicate(struct host_pdev *pdev, bool ep, bool wait_for_stream)
+{
+	CHECK_EQUAL(0, host_dev_communicate(NULL, pdev, ep, NULL,
+					 RMI_PDEV_STATE_READY, wait_for_stream));
+}
+
+/* The root port and endpoint must each wait for the other before finishing. */
+static void complete_communication(struct host_pdev *pdev)
+{
+	communicate(pdev, false, true);
+	communicate(pdev, true, true);
+	communicate(pdev, false, false);
+	communicate(pdev, true, false);
+}
+
+static void complete_stream(struct host_pdev *pdev, unsigned long handle)
+{
+	struct smc_result res = {};
+
+	host_rmi_pdev_stream_complete(host_pdev_ptr(pdev, true),
+				      host_pdev_ptr(pdev, false), handle, &res);
+	UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
+}
+
+static void begin_disconnect(struct host_pdev *pdev, unsigned long handle)
+{
+	struct smc_result res = {};
+
+	host_rmi_pdev_stream_disconnect(host_pdev_ptr(pdev, true),
+					host_pdev_ptr(pdev, false), handle, &res);
+	UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
+}
+
+static void disconnect_stream(struct host_pdev *pdev, unsigned long handle)
+{
+	begin_disconnect(pdev, handle);
+	complete_communication(pdev);
+	complete_stream(pdev, handle);
+}
 
 TEST_GROUP(pdev_abort_stream_tests) {
+	struct host_pdev *pdev;
+	void *endpoint;
+	void *root_port;
+	unsigned long handle;
+	int pdev_id;
+
 	TEST_SETUP()
 	{
-		static bool counters_initialized;
-
-		if (!counters_initialized) {
-			reset_data_granule_allocation();
-			g_rtt_next_idx = ABORT_TEST_RTT_START_IDX;
-			g_ns_list_next_idx = ABORT_TEST_NS_LIST_START_IDX;
-			counters_initialized = true;
-		}
+		pdev_id = 0;
 		test_helpers_init();
+		host_util_pas_enable(true);
+		test_helpers_allocate_reset();
 		test_helpers_rmm_start(false);
 		host_util_set_cpuid(0U);
 		test_helpers_expect_assert_fail(false);
+		if (glob_data_get_rmm_state() == RMM_STATE_INIT) {
+			CHECK_TRUE(glob_data_transition_rmm_state(RMM_STATE_INIT,
+								RMM_STATE_ACTIVE));
+		}
+		CHECK_EQUAL(RMM_STATE_ACTIVE, glob_data_get_rmm_state());
+		test_helpers_spdm_responder_start();
+
+		pdev_id = host_pdev_probe_and_setup();
+		CHECK_TRUE(pdev_id > 0);
+		pdev = host_pdev_current();
+		endpoint = host_pdev_ptr(pdev, true);
+		root_port = host_pdev_ptr(pdev, false);
+		/* Leave the session established and start a fresh stream operation. */
+		CHECK_EQUAL(0, host_pdev_stream_disconnect(pdev));
+		handle = begin_connect(pdev);
 	}
 
 	TEST_TEARDOWN()
 	{
+		/* Successful tests release the stream before reclaiming its PDEVs. */
+		if (pdev_id > 0) {
+			stop_and_destroy(pdev, false);
+			stop_and_destroy(pdev, true);
+		}
+		host_util_stop_spdm_responder();
+		host_util_pas_enable(false);
 	}
 };
 
-/* Turn a delegated granule into a READY PDEV taking part in one stream. */
-static void install_pdev(uintptr_t pdev_pa, uintptr_t stream_aux_pa,
-			 unsigned long op, unsigned int comm_state)
+/* Inspect an ABI-created PDEV without changing its state. */
+static void read_pdev(void *pdev_addr, struct pdev *out)
 {
-	struct granule *g_pdev = tr_find_fine_granule(pdev_pa);
-	struct pdev *pd;
-
-	granule_lock(g_pdev, GRANULE_STATE_DELEGATED);
-	pd = (struct pdev *)buffer_granule_map_zeroed(g_pdev, SLOT_PDEV);
-	CHECK_TRUE(pd != NULL);
-	pd->g_pdev = g_pdev;
-	pd->rmi_state = RMI_PDEV_STATE_READY;
-	pd->dev_comm_state = comm_state;
-	pd->op.curr = op;
-	pd->op.op_stream_type = ABORT_TEST_STREAM_TYPE;
-	pd->g_stream_aux = tr_find_fine_granule(stream_aux_pa);
-	pd->associated_stream_count = 1UL;
-	buffer_unmap(pd);
-	granule_unlock_transition(g_pdev, GRANULE_STATE_PDEV);
-}
-
-/* Turn a delegated granule into the stream granule of @pd1 and @pd2. */
-static void install_stream(uintptr_t stream_aux_pa, uintptr_t pd1,
-			   uintptr_t pd2, unsigned long state)
-{
-	struct granule *g_aux = tr_find_fine_granule(stream_aux_pa);
-	struct pdev_stream *streams;
-
-	granule_lock(g_aux, GRANULE_STATE_DELEGATED);
-	streams = (struct pdev_stream *)buffer_granule_map_zeroed(
-						g_aux, SLOT_PDEV_STREAM);
-	CHECK_TRUE(streams != NULL);
-	streams[ABORT_TEST_STREAM_TYPE].pd1_addr = pd1;
-	streams[ABORT_TEST_STREAM_TYPE].pd2_addr = pd2;
-	streams[ABORT_TEST_STREAM_TYPE].state = state;
-	streams[ABORT_TEST_STREAM_TYPE].op_state = STREAM_OP_STATE_START;
-	streams[ABORT_TEST_STREAM_TYPE].taken = true;
-	buffer_unmap(streams);
-	granule_unlock_transition(g_aux, GRANULE_STATE_PDEV_AUX);
-}
-
-/*
- * Build a stream in @stream_state between two PDEVs. pd1 is in @pd1_op with
- * communication @pd1_comm; pd2 is in @pd2_op with communication @pd2_comm.
- */
-static void build_objects(struct abort_test_objects *o,
-			  unsigned long stream_state,
-			  unsigned long pd1_op, unsigned int pd1_comm,
-			  unsigned long pd2_op, unsigned int pd2_comm)
-{
-	uintptr_t base = reserve_delegated_granules(3U);
-
-	o->pd1 = base;
-	o->pd2 = base + GRANULE_SIZE;
-	o->stream_aux = base + (2UL * GRANULE_SIZE);
-	/* The stream handle is the first PDEV address plus the stream type. */
-	o->handle = o->pd1 + ABORT_TEST_STREAM_TYPE;
-
-	install_stream(o->stream_aux, o->pd1, o->pd2, stream_state);
-	install_pdev(o->pd1, o->stream_aux, pd1_op, pd1_comm);
-	install_pdev(o->pd2, o->stream_aux, pd2_op, pd2_comm);
-}
-
-static void read_pdev(uintptr_t pdev_pa, struct pdev *out)
-{
-	struct granule *g_pdev = tr_find_fine_granule(pdev_pa);
+	struct granule *g_pdev = tr_find_fine_granule((uintptr_t)pdev_addr);
 	struct pdev *pd;
 
 	granule_lock(g_pdev, GRANULE_STATE_PDEV);
@@ -141,132 +167,200 @@ static void read_pdev(uintptr_t pdev_pa, struct pdev *out)
 	granule_unlock(g_pdev);
 }
 
-static void read_stream(uintptr_t stream_aux_pa, struct pdev_stream *out)
+/* Inspect the stream owned by the endpoint, including after it is released. */
+static void read_stream(void *endpoint, struct pdev_stream *out)
 {
-	struct granule *g_aux = tr_find_fine_granule(stream_aux_pa);
+	struct pdev pd;
 	struct pdev_stream *streams;
 
-	granule_lock(g_aux, GRANULE_STATE_PDEV_AUX);
-	streams = (struct pdev_stream *)buffer_granule_map(g_aux,
+	read_pdev(endpoint, &pd);
+	granule_lock(pd.g_stream_aux, GRANULE_STATE_PDEV_AUX);
+	streams = (struct pdev_stream *)buffer_granule_map(pd.g_stream_aux,
 							   SLOT_PDEV_STREAM);
 	CHECK_TRUE(streams != NULL);
-	(void)memcpy(out, &streams[ABORT_TEST_STREAM_TYPE], sizeof(*out));
+	(void)memcpy(out, &streams[RMI_PDEV_STREAM_NCOH], sizeof(*out));
 	buffer_unmap(streams);
-	granule_unlock(g_aux);
+	granule_unlock(pd.g_stream_aux);
 }
 
+/*
+ * Verify that aborting active stream communication preserves its completion step.
+ *
+ * Setup: Create the endpoint and root-port PDEVs through RMI, establish their
+ * stream, and start a disconnect. Let the root port wait for the endpoint,
+ * then yield the endpoint app on its first device request.
+ * Action: Abort the endpoint, abort the waiting root port, and call
+ * RMI_PDEV_STREAM_COMPLETE.
+ * Expected: The endpoint abort succeeds and leaves the PDEV in ERROR with
+ * IDLE communication and PDEV_OP_STREAM_COMPLETE. Stream completion succeeds,
+ * and teardown can stop and destroy both PDEVs.
+ */
 TEST(pdev_abort_stream_tests, abort_of_stream_operation_leaves_it_to_stream_complete)
 {
-	struct abort_test_objects o;
 	struct smc_result res = {};
+	struct rmi_dev_comm_data *comm = host_pdev_comm_data(pdev);
 	struct pdev pd;
 
-	build_objects(&o, PDEV_STREAM_DISCONNECTING,
-		      PDEV_OP_DISCONNECT, DEV_COMM_PENDING,
-		      PDEV_OP_DISCONNECT, DEV_COMM_PENDING);
+	complete_communication(pdev);
+	complete_stream(pdev, handle);
+	begin_disconnect(pdev, handle);
+	communicate(pdev, false, true);
+	/* Abort while the endpoint app is waiting for its first device response. */
+	comm->enter.status = RMI_DEV_COMM_ENTER_STATUS_NONE;
+	comm->enter.resp_len = 0U;
+	host_rmi_pdev_communicate(endpoint, comm, &res);
+	UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
+	CHECK_TRUE((comm->exit.flags & RMI_DEV_COMM_EXIT_FLAGS_REQ_SEND_BIT) != 0U);
+	read_pdev(endpoint, &pd);
+	UNSIGNED_LONGS_EQUAL(DEV_COMM_ACTIVE, pd.dev_comm_state);
+	UNSIGNED_LONGS_EQUAL(PDEV_OP_DISCONNECT, pd.op.curr);
 
-	smc_pdev_abort(o.pd1, &res);
+	host_rmi_pdev_abort(endpoint, &res);
 
 	UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
-	read_pdev(o.pd1, &pd);
+	read_pdev(endpoint, &pd);
 	UNSIGNED_LONGS_EQUAL(DEV_COMM_IDLE, pd.dev_comm_state);
 	UNSIGNED_LONGS_EQUAL(PDEV_OP_STREAM_COMPLETE, pd.op.curr);
 	UNSIGNED_LONGS_EQUAL(RMI_PDEV_STATE_ERROR, pd.rmi_state);
+	host_rmi_pdev_abort(root_port, &res);
+	UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
+	complete_stream(pdev, handle);
 }
 
-/* Nothing to abort: the command fails and the PDEV is untouched. */
+/*
+ * Verify that ABORT rejects idle communication without losing stream completion.
+ *
+ * Setup: Create both PDEVs and start a stream connect through RMI. Finish
+ * communication on both sides, leaving stream completion pending.
+ * Action: Call RMI_PDEV_ABORT on the endpoint, then complete the stream and
+ * disconnect it normally.
+ * Expected: ABORT returns RMI_ERROR_DEVICE. The endpoint remains READY with
+ * IDLE communication and PDEV_OP_STREAM_COMPLETE. Stream completion and the
+ * subsequent disconnect succeed.
+ */
 TEST(pdev_abort_stream_tests, abort_with_idle_communication_is_rejected)
 {
-	struct abort_test_objects o;
 	struct smc_result res = {};
 	struct pdev pd;
 
-	build_objects(&o, PDEV_STREAM_DISCONNECTING,
-		      PDEV_OP_DISCONNECT, DEV_COMM_IDLE,
-		      PDEV_OP_DISCONNECT, DEV_COMM_PENDING);
-
-	smc_pdev_abort(o.pd1, &res);
+	complete_communication(pdev);
+	host_rmi_pdev_abort(endpoint, &res);
 
 	UNSIGNED_LONGS_EQUAL(RMI_ERROR_DEVICE, res.x[0]);
-	read_pdev(o.pd1, &pd);
-	UNSIGNED_LONGS_EQUAL(PDEV_OP_DISCONNECT, pd.op.curr);
+	read_pdev(endpoint, &pd);
+	UNSIGNED_LONGS_EQUAL(DEV_COMM_IDLE, pd.dev_comm_state);
+	UNSIGNED_LONGS_EQUAL(PDEV_OP_STREAM_COMPLETE, pd.op.curr);
 	UNSIGNED_LONGS_EQUAL(RMI_PDEV_STATE_READY, pd.rmi_state);
+	complete_stream(pdev, handle);
+	disconnect_stream(pdev, handle);
 }
 
+/*
+ * Verify that completing an aborted disconnect releases the stream associations.
+ *
+ * Setup: Create both PDEVs and connect their stream through RMI. Start a
+ * disconnect, leaving communication PENDING on both sides.
+ * Action: Abort both PDEVs before either begins disconnect communication,
+ * then call RMI_PDEV_STREAM_COMPLETE.
+ * Expected: Both aborts and stream completion succeed. The stream becomes
+ * DISCONNECTED and its slot is released. Both PDEVs have PDEV_OP_NONE and
+ * zero associated streams, allowing teardown to stop and destroy them.
+ */
 TEST(pdev_abort_stream_tests, stream_complete_after_abort_disconnects_the_stream)
 {
-	struct abort_test_objects o;
 	struct smc_result res = {};
 	struct pdev_stream stream;
 	struct pdev pd;
 
-	build_objects(&o, PDEV_STREAM_DISCONNECTING,
-		      PDEV_OP_DISCONNECT, DEV_COMM_PENDING,
-		      PDEV_OP_DISCONNECT, DEV_COMM_PENDING);
-	smc_pdev_abort(o.pd1, &res);
+	complete_communication(pdev);
+	complete_stream(pdev, handle);
+	begin_disconnect(pdev, handle);
+	/* Abort both sides before either starts communication. */
+	host_rmi_pdev_abort(endpoint, &res);
 	UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
-	smc_pdev_abort(o.pd2, &res);
+	host_rmi_pdev_abort(root_port, &res);
 	UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
 
-	smc_pdev_stream_complete(o.pd1, o.pd2, o.handle, &res);
+	complete_stream(pdev, handle);
 
-	UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
-	read_stream(o.stream_aux, &stream);
+	read_stream(endpoint, &stream);
 	UNSIGNED_LONGS_EQUAL(PDEV_STREAM_DISCONNECTED, stream.state);
 	CHECK_FALSE(stream.taken);
-	read_pdev(o.pd1, &pd);
+	read_pdev(endpoint, &pd);
 	UNSIGNED_LONGS_EQUAL(PDEV_OP_NONE, pd.op.curr);
 	UNSIGNED_LONGS_EQUAL(0UL, pd.associated_stream_count);
-	read_pdev(o.pd2, &pd);
+	read_pdev(root_port, &pd);
 	UNSIGNED_LONGS_EQUAL(PDEV_OP_NONE, pd.op.curr);
 	UNSIGNED_LONGS_EQUAL(0UL, pd.associated_stream_count);
 }
 
-/* A connect aborted on one side is torn down by STREAM_COMPLETE. */
+/*
+ * Verify that a connect aborted on one side releases the stream.
+ *
+ * Setup: Create both PDEVs and start a stream connect through RMI. Finish
+ * root-port communication so it is IDLE with PDEV_OP_STREAM_COMPLETE, while
+ * the endpoint still waits for stream synchronization.
+ * Action: Abort the endpoint and call RMI_PDEV_STREAM_COMPLETE with the
+ * normally completed root port.
+ * Expected: The abort and stream completion succeed. The stream becomes
+ * DISCONNECTED, its slot is released, and both PDEV association counts reach
+ * zero. Teardown can stop and destroy both PDEVs.
+ */
 TEST(pdev_abort_stream_tests, stream_complete_after_aborted_connect_releases_the_stream)
 {
-	struct abort_test_objects o;
 	struct smc_result res = {};
 	struct pdev_stream stream;
 	struct pdev pd;
 
-	build_objects(&o, PDEV_STREAM_CONNECTING,
-		      PDEV_OP_CONNECT, DEV_COMM_PENDING,
-		      PDEV_OP_STREAM_COMPLETE, DEV_COMM_IDLE);
-	smc_pdev_abort(o.pd1, &res);
+	communicate(pdev, false, true);
+	communicate(pdev, true, true);
+	/* Finish the root port while the endpoint still waits for stream sync. */
+	communicate(pdev, false, false);
+	read_pdev(root_port, &pd);
+	UNSIGNED_LONGS_EQUAL(PDEV_OP_STREAM_COMPLETE, pd.op.curr);
+	UNSIGNED_LONGS_EQUAL(DEV_COMM_IDLE, pd.dev_comm_state);
+	host_rmi_pdev_abort(endpoint, &res);
 	UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
 
-	smc_pdev_stream_complete(o.pd1, o.pd2, o.handle, &res);
+	complete_stream(pdev, handle);
 
-	UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
-	read_stream(o.stream_aux, &stream);
+	read_stream(endpoint, &stream);
 	UNSIGNED_LONGS_EQUAL(PDEV_STREAM_DISCONNECTED, stream.state);
 	CHECK_FALSE(stream.taken);
-	read_pdev(o.pd1, &pd);
+	read_pdev(endpoint, &pd);
 	UNSIGNED_LONGS_EQUAL(0UL, pd.associated_stream_count);
-	read_pdev(o.pd2, &pd);
+	read_pdev(root_port, &pd);
 	UNSIGNED_LONGS_EQUAL(0UL, pd.associated_stream_count);
 }
 
-/* Without an abort a finished connect still ends in CONNECTED. */
+/*
+ * Verify that a successful connect keeps the stream and its association.
+ *
+ * Setup: Create both PDEVs and start a stream connect through RMI, then
+ * finish communication on both sides without an abort or device error.
+ * Action: Call RMI_PDEV_STREAM_COMPLETE and query RMI_PDEV_STREAM_INFO.
+ * Expected: Completion succeeds and both the ABI query and internal stream
+ * state report CONNECTED. The stream slot remains allocated, and the endpoint
+ * has PDEV_OP_NONE with one associated stream. A normal disconnect releases
+ * the stream before teardown stops and destroys the PDEVs.
+ */
 TEST(pdev_abort_stream_tests, stream_complete_without_error_connects)
 {
-	struct abort_test_objects o;
 	struct smc_result res = {};
 	struct pdev_stream stream;
 	struct pdev pd;
 
-	build_objects(&o, PDEV_STREAM_CONNECTING,
-		      PDEV_OP_STREAM_COMPLETE, DEV_COMM_IDLE,
-		      PDEV_OP_STREAM_COMPLETE, DEV_COMM_IDLE);
+	complete_communication(pdev);
+	complete_stream(pdev, handle);
 
-	smc_pdev_stream_complete(o.pd1, o.pd2, o.handle, &res);
-
+	host_rmi_pdev_stream_info(endpoint, root_port, handle, &res);
 	UNSIGNED_LONGS_EQUAL(RMI_SUCCESS, res.x[0]);
-	read_stream(o.stream_aux, &stream);
+	UNSIGNED_LONGS_EQUAL(RMI_PDEV_STREAM_CONNECTED, res.x[1]);
+	read_stream(endpoint, &stream);
 	UNSIGNED_LONGS_EQUAL(PDEV_STREAM_CONNECTED, stream.state);
 	CHECK_TRUE(stream.taken);
-	read_pdev(o.pd1, &pd);
+	read_pdev(endpoint, &pd);
 	UNSIGNED_LONGS_EQUAL(PDEV_OP_NONE, pd.op.curr);
 	UNSIGNED_LONGS_EQUAL(1UL, pd.associated_stream_count);
+	disconnect_stream(pdev, handle);
 }

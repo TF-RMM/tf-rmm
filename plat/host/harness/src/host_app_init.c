@@ -94,6 +94,11 @@ void host_util_launch_spdm_responder_emu(char *base_dir)
 	}
 
 	if (pid == 0) {
+		/* Keep the shell, responder and optional logger in one process group. */
+		if (setpgid(0, 0) != 0) {
+			ERROR("Failed to create responder process group: %s\n", strerror(errno));
+			_exit(1);
+		}
 #if ENABLE_SPDM_EMU_DEBUG
 		/* BANNED-API-CHECK[IGNORE] */
 		if (snprintf(cmd, sizeof(cmd),
@@ -186,7 +191,7 @@ void host_util_initialise_app_headers(int argc, char *argv[])
 }
 
 /*
- * Stop the SPDM responder process if it's running.
+ * Stop the responder and its shell or logging helpers if they are running.
  */
 void host_util_stop_spdm_responder(void)
 {
@@ -194,7 +199,7 @@ void host_util_stop_spdm_responder(void)
 
 	if (spdm_responder_pid > 0) {
 		INFO("Stopping SPDM responder (PID: %d)\n", spdm_responder_pid);
-		kill(spdm_responder_pid, SIGTERM);
+		kill(-spdm_responder_pid, SIGTERM);
 
 		/* Wait for the process to terminate */
 		waitpid(spdm_responder_pid, &status, 0);

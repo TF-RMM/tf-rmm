@@ -180,3 +180,6 @@ rmm_build_unittest(NAME pdev_abort_stream_tests
                    TARGET rmm-runtime
                    SOURCES "tests/pdev_abort_stream_tests.cpp"
                    ITERATIONS 1)
+
+set_tests_properties(pdev_abort_stream_tests
+    PROPERTIES RUN_SERIAL TRUE TIMEOUT 120)
