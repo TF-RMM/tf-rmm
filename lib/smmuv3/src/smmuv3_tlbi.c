@@ -361,71 +361,8 @@ int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
 			unsigned long num_entrs, bool leaf,
 			struct smmuv3_cmd_sync *cmd_sync)
 {
-	struct smmuv3_driv *driv = get_smmuv3_driver();
-
-	/* Calculate number of translation granules */
-	unsigned long num_grans = num_entrs * (XLAT_BLOCK_SIZE(level) / GRANULE_SIZE);
-	bool poll_sync = false;
-
-	assert(driv != NULL);
-	assert(ALIGNED(addr, XLAT_BLOCK_SIZE(level)));
-
-	/* Broadcast TLB maintenance is supported on all SMMUs */
-	if (get_smmu_broadcast_tlb()) {
-		return 0;
-	}
-
-	assert(cmd_sync_is_initialized(cmd_sync));
-
-	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
-		SCA_WRITE32(&cmd_sync->completion[i], 0U);
-	}
-
-	/*
-	 * Acquire all SMMU locks to ensure that concurrent operations,
-	 * for example updating an STE, do not touch shared structures.
-	 */
-	spinlock_smmu(0UL, true);
-
-	for (unsigned long i = 0UL; i < driv->num_smmus; i++) {
-		struct smmuv3_dev *smmu = &driv->smmuv3_devs[i];
-
-		/*
-		 * Check that SMMU state is PSMMU_ACTIVE
-		 * and it participates in broadcast TLB maintenance.
-		 */
-		if ((smmu->state == PSMMU_ACTIVE) &&
-		   ((smmu->config.features & FEAT_BTM) == 0U)) {
-			int ret;
-
-			SCA_WRITE32(&cmd_sync->completion[i], U(-1));
-
-			ret = tlbi_ipa_single(smmu, vmid, addr, num_grans, level, leaf);
-			if (ret != 0) {
-				/* Release the remaining SMMU locks */
-				spinlock_smmu(i, false);
-				return ret;
-			}
-
-			ret = prepare_send_cmd_sync(smmu,
-					cmd_sync->completion_pa +
-					(i * sizeof(cmd_sync->completion[0])), 0U);
-			if (ret != 0) {
-				SMMU_ERROR(smmu, "Failed to send CMD_%s\n", "SYNC");
-				spinlock_smmu(i, false);
-				return ret;
-			}
-			poll_sync = true;
-
-		}
-		spinlock_release(&smmu->lock);
-	}
-
-	if (poll_sync) {
-		/* Wait for completion on all SMMUs */
-		return poll_cmd_sync_all(cmd_sync);
-	}
-	return 0;
+	return smmuv3_inv_at_level_per_vmids(&vmid, 1U, addr, level,
+					  num_entrs, leaf, cmd_sync);
 }
 
 /*
