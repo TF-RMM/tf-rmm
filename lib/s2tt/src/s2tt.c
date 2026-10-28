@@ -137,8 +137,8 @@ static void stage2_tlbi_ipa_range(unsigned long ipa, unsigned long size,
 }
 
 /*
- * Invalidates S2 TLB entries from [@ipa, @ipa + @size) region tagged with a
- * VMID for each one passed @vmid_list.
+ * Invalidate at least [@ipa, @ipa + @size) for each VMID in @vmid_list.
+ * Ranges above an L1 block (1 GiB) use a VMID-wide stage-1+2 TLBI instead.
  */
 static void stage2_tlbi_ipa_per_vmids(bool enable_lpa2,
 				      unsigned int *vmid_list,
@@ -180,20 +180,17 @@ static void stage2_tlbi_ipa_per_vmids(bool enable_lpa2,
 		write_vttbr_el2(INPLACE(VTTBR_EL2_VMID, vmid_list[i]));
 		isb();
 
-		/*
-		 * Invalidate entries in S2 TLB caches that
-		 * match both `ipa` & the `current vmid`.
-		 */
-		stage2_tlbi_ipa_range(ipa, size, enable_lpa2);
-		dsb(ish);
+		if (size > s2tte_map_size(S2TT_MIN_BLOCK_LEVEL)) {
+			/* Higher-level tables can require many range TLBIs. */
+			tlbivmalls12e1is();
+		} else {
+			/* Invalidate only the requested stage-2 IPA range. */
+			stage2_tlbi_ipa_range(ipa, size, enable_lpa2);
+			dsb(ish);
 
-		/*
-		 * According to Section D8.17.6.1, rule ILRXYX of Arm ARM Version L.b,
-		 * we must invalidate all of Stage-1 after invalidating Stage-2.
-		 * Note that since {E2H, TGE} is {1, 0}, this invalidate applies to
-		 * Stage 1 of current VMID.
-		 */
-		tlbivmalle1is();
+			/* Stage-1 must follow the stage-2 invalidation. */
+			tlbivmalle1is();
+		}
 		dsb(ish);
 		isb();
 	}
@@ -329,31 +326,25 @@ void s2tt_invalidate_page_block_per_vmids(bool enable_lpa2,
 }
 
 /*
- * Invalidate S2 TLB entries with @addr IPA.
- * Call this function after:
- * 1a. A L2 table desc has been removed, where
- * 1b. Some S2TTEs in the table that the L2 table desc was pointed to were valid.
+ * Invalidate the IPA range covered by a removed table at @level. Its parent
+ * entry at @level - 1 may have pointed to valid translations throughout the
+ * table, including when the parent is above L2.
  */
 void s2tt_invalidate_pages_in_block(bool enable_lpa2, unsigned int vmid,
-				    unsigned long addr)
+				    unsigned long addr, long level)
 {
 	stage2_tlbi_ipa_per_vmids(enable_lpa2, &vmid, 1U, addr,
-				      BLOCK_L2_SIZE);
+				      s2tte_map_size(level - 1L));
 }
 
-/*
- * Invalidate S2 TLB entries with @addr IPA for the list of VMIDS @vmid_list.
- * Call this function after:
- * 1a. A L2 table desc has been removed, where
- * 1b. Some S2TTEs in the table that the L2 table desc was pointed to were valid.
- */
+/* Invalidate the full range of an entry at @level - 1 for each VMID. */
 void s2tt_invalidate_pages_in_block_per_vmids(bool enable_lpa2,
 					      unsigned int *vmid_list,
 					      unsigned int nvmids,
-					      unsigned long addr)
+					      unsigned long addr, long level)
 {
 	stage2_tlbi_ipa_per_vmids(enable_lpa2, vmid_list, nvmids, addr,
-				      BLOCK_L2_SIZE);
+				      s2tte_map_size(level - 1L));
 }
 
 /*
@@ -783,16 +774,16 @@ unsigned long s2tte_create_assigned_dev_unchanged(const struct s2tt_context *s2_
  * to be disabled.
  */
 static unsigned long create_assigned_dev_dev_attr(const struct s2tt_context *s2_ctx,
-						  unsigned long s2tte,
+						  unsigned long pa,
 						  unsigned long attr, long level,
 						  unsigned long s2tte_ap)
 {
-	unsigned long pa, new_s2tte;
+	unsigned long new_s2tte;
 
 	assert(level >= S2TT_MIN_DEV_BLOCK_LEVEL);
 	assert(level <= S2TT_PAGE_LEVEL);
 
-	pa = s2tte_to_pa(s2_ctx, s2tte, level);
+	assert(s2tte_is_addr_lvl_aligned(s2_ctx, pa, level));
 
 	new_s2tte = attr | pa_to_s2tte(s2_ctx, pa) | s2tte_get_ap(s2_ctx, s2tte_ap, true);
 
@@ -804,15 +795,15 @@ static unsigned long create_assigned_dev_dev_attr(const struct s2tt_context *s2_
 }
 
 /*
- * Creates a valid assigned_dev_dev s2tte at @level with attributes passed in
- * @s2tte and the access permissions passed in @s2tte_ap.
+ * Creates a valid assigned_dev_dev s2tte for raw @pa at @level, with memory
+ * attributes from @source and access permissions from @s2tte_ap.
  *
  * Note that the execution permissions at @s2tte_ap will be overridden
  * to be disabled.
  */
-unsigned long s2tte_create_assigned_dev_dev(const struct s2tt_context *s2_ctx,
-					    unsigned long s2tte, long level,
-					    unsigned long s2tte_ap)
+unsigned long s2tte_create_assigned_dev_dev_from_pa(const struct s2tt_context *s2_ctx,
+					    unsigned long pa, unsigned long source,
+						 long level, unsigned long s2tte_ap)
 {
 	unsigned long s2tte_mask = (S2TTE_DEV_ATTRS_MASK | S2TTE_MEMATTR_MASK);
 	unsigned long attr;
@@ -825,20 +816,20 @@ unsigned long s2tte_create_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 	}
 
 	/* Get attributes */
-	attr = s2tte & s2tte_mask;
+	attr = source & s2tte_mask;
 
-	return create_assigned_dev_dev_attr(s2_ctx, s2tte, attr, level, s2tte_ap);
+	return create_assigned_dev_dev_attr(s2_ctx, pa, attr, level, s2tte_ap);
 }
 
 /*
- * Creates a valid assigned_dev_dev s2tte at @level with attributes based on
- * device coherency passed in @type and the access permissions in @s2tte_ap.
+ * Creates a valid assigned_dev_dev s2tte for raw @pa at @level. Memory attributes
+ * follow device coherency @type; access permissions come from @s2tte_ap.
  *
  * Note that the execution permissions at @s2tte_ap will be overridden
  * to be disabled.
  */
 unsigned long s2tte_create_assigned_dev_dev_coh_type(const struct s2tt_context *s2_ctx,
-						     unsigned long s2tte, long level,
+						     unsigned long pa, long level,
 						     enum dev_coh_type type,
 						     unsigned long s2tte_ap)
 {
@@ -868,7 +859,7 @@ unsigned long s2tte_create_assigned_dev_dev_coh_type(const struct s2tt_context *
 		}
 	}
 
-	return create_assigned_dev_dev_attr(s2_ctx, s2tte, attr, level, s2tte_ap);
+	return create_assigned_dev_dev_attr(s2_ctx, pa, attr, level, s2tte_ap);
 }
 
 /*
@@ -1685,8 +1676,6 @@ void s2tt_init_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 				unsigned long pa, long level,
 				unsigned long s2tte_ap)
 {
-	unsigned long s2tte_mask = (S2TTE_DEV_ATTRS_MASK | S2TTE_MEMATTR_MASK);
-
 	assert(s2tt != NULL);
 	assert(level >= S2TT_MIN_DEV_BLOCK_LEVEL);
 	assert(level <= S2TT_PAGE_LEVEL);
@@ -1694,17 +1683,9 @@ void s2tt_init_assigned_dev_dev(const struct s2tt_context *s2_ctx,
 
 	const unsigned long map_size = s2tte_map_size(level);
 
-	/* Add Shareability bits if FEAT_LPA2 is not enabled */
-	if (!s2tt_lpa2_enabled(s2_ctx)) {
-		s2tte_mask |= S2TTE_SH_MASK;
-	}
-
-	s2tte &= s2tte_mask;
-
 	for (unsigned int i = 0U; i < S2TTES_PER_S2TT; i++) {
-		s2tt[i] = s2tte_create_assigned_dev_dev(s2_ctx,
-							s2tte | pa, level,
-							s2tte_ap);
+		s2tt[i] = s2tte_create_assigned_dev_dev_from_pa(s2_ctx, pa, s2tte,
+							     level, s2tte_ap);
 		pa += map_size;
 	}
 
@@ -1954,16 +1935,16 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 			     unsigned long *table,
 			     long level,
 			     s2tte_type_level_checker s2tte_is_x,
-			     bool check_ns_attrs, unsigned long s2tte_ap,
+			     bool check_attrs, unsigned long s2tte_ap,
 			     bool dev)
 {
 	unsigned long base_pa;
 	unsigned long map_size;
 	unsigned long s2tte;
-	unsigned long s2tt_ns_attrs;
+	unsigned long s2tt_attrs;
 	unsigned int i;
 	unsigned long expected_ap = 0UL;
-	unsigned long ns_attr_mask = S2TTE_NS_ATTR_MASK;
+	unsigned long attr_mask = S2TTE_MEMATTR_MASK;
 
 	assert(table != NULL);
 	assert(s2_ctx != NULL);
@@ -1998,9 +1979,9 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 		return false;
 	}
 
-	ns_attr_mask |= (s2_ctx->indirect_s2ap) ?
+	attr_mask |= (s2_ctx->indirect_s2ap) ?
 		S2TTE_PI_INDEX_MASK : S2TTE_RW_AP_MASK;
-	s2tt_ns_attrs = (s2tte & ns_attr_mask);
+	s2tt_attrs = (s2tte & attr_mask);
 
 	for (i = 1U; i < S2TTES_PER_S2TT; i++) {
 		unsigned long expected_pa = base_pa + (i * map_size);
@@ -2015,20 +1996,21 @@ static bool table_maps_block(const struct s2tt_context *s2_ctx,
 			return false;
 		}
 
-		if (!check_ns_attrs) {
+		if (!check_attrs || dev) {
 			if (expected_ap != s2tte_get_ap(s2_ctx, s2tte, dev)) {
 				return false;
 			}
 		}
 
-		if (check_ns_attrs) {
-			unsigned long ns_attrs = (s2tte & ns_attr_mask);
+		if (check_attrs) {
+			unsigned long attrs = (s2tte & attr_mask);
 
 			/*
-			 * We match all the attributes in the S2TTE
-			 * except for the AF bit.
+			 * Match memory attributes and access permissions.
+			 * The type checker validates the other attributes,
+			 * including device shareability when LPA2 is disabled.
 			 */
-			if (s2tt_ns_attrs != ns_attrs) {
+			if (s2tt_attrs != attrs) {
 				return false;
 			}
 		}
@@ -2124,14 +2106,14 @@ bool s2tt_maps_assigned_dev_destroyed_block(const struct s2tt_context *s2_ctx,
 /*
  * Returns true if all s2ttes in @table are assigned_dev_dev, they refer to a
  * contiguous block of granules aligned to @level - 1 and the access permissions
- * match the ones @s2tte_ap.
+ * match the ones @s2tte_ap. All entries must have the same memory attributes.
  */
 bool s2tt_maps_assigned_dev_dev_block(const struct s2tt_context *s2_ctx,
 					unsigned long *table, long level,
 					unsigned long s2tte_ap)
 {
 	return table_maps_block(s2_ctx, table, level,
-				s2tte_is_assigned_dev_dev, false, s2tte_ap, true);
+				s2tte_is_assigned_dev_dev, true, s2tte_ap, true);
 }
 
 /*

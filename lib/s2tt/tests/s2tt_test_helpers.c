@@ -330,7 +330,7 @@ unsigned long s2tt_test_create_assigned_dev_dev(const struct s2tt_context *s2tt_
 	if (!s2tt_lpa2_enabled(s2tt_ctx)) {
 		attr |= S2TTE_TEST_DEV_SH;
 	}
-	return s2tte_create_assigned_dev_dev(s2tt_ctx, (pa | attr), level, ap);
+	return s2tte_create_assigned_dev_dev_from_pa(s2tt_ctx, pa, attr, level, ap);
 }
 
 unsigned long s2tt_test_create_assigned_dev(const struct s2tt_context *s2tt_ctx,

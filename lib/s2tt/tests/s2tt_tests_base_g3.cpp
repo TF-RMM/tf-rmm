@@ -1008,13 +1008,26 @@ void s2tte_is_assigned_dev_dev_tc2(void)
 
 void s2tte_is_assigned_dev_dev_tc3(void)
 {
-	/***************************************************************
-	 * TEST CASE 3:
+	/*
+	 * TC3: Reject device descriptors interpreted at incompatible levels.
 	 *
-	 * Calling s2tte_create_assigned_dev_dev() test
-	 * s2tte_is_assigned_dev_dev() with invalid levels.
-	 ***************************************************************/
-
+	 * Public APIs tested:
+	 *   s2tte_create_assigned_dev_dev_from_pa(),
+	 *   s2tte_is_assigned_dev_dev().
+	 *
+	 * Aim:
+	 *   Verify that a valid device block descriptor is not recognized as
+	 *   assigned device memory at an unsupported level or at page level.
+	 *
+	 * Method:
+	 *   Use the fixture's LPA2 and S2PIE settings to create a device entry
+	 *   at the minimum device block level through the test helper. Query
+	 *   that entry at one level below the minimum and at the page level.
+	 *
+	 * Expected results:
+	 *   Both recognition calls return false, preserving the distinction
+	 *   between block and page descriptor encodings.
+	 */
 	unsigned long pa = 0UL;
 	unsigned long tte;
 	long level = s2tt_test_helpers_min_dev_block_lvl();

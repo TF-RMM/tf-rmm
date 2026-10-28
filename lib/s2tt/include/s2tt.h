@@ -240,11 +240,12 @@ unsigned long s2tte_create_assigned_dev_empty(const struct s2tt_context *s2_ctx,
 unsigned long s2tte_create_assigned_dev_destroyed(const struct s2tt_context *s2_ctx,
 						  unsigned long pa, long level,
 						  unsigned long s2tte_ap);
-unsigned long s2tte_create_assigned_dev_dev(const struct s2tt_context *s2_ctx,
-					    unsigned long s2tte, long level,
-					    unsigned long s2tte_ap);
+/* Device constructors take raw PAs; @source supplies only memory attributes. */
+unsigned long s2tte_create_assigned_dev_dev_from_pa(const struct s2tt_context *s2_ctx,
+					    unsigned long pa, unsigned long source,
+					    long level, unsigned long s2tte_ap);
 unsigned long s2tte_create_assigned_dev_dev_coh_type(const struct s2tt_context *s2_ctx,
-						     unsigned long s2tte, long level,
+						     unsigned long pa, long level,
 						     enum dev_coh_type type,
 						     unsigned long s2tte_ap);
 unsigned long s2tte_create_assigned_dev_unchanged(const struct s2tt_context *s2_ctx,
@@ -376,12 +377,11 @@ void s2tt_invalidate_page_block_per_vmids(bool enable_lpa2,
 					  unsigned int *vmid_list, unsigned int nvmids,
 					  unsigned long addr, long level);
 void s2tt_invalidate_pages_in_block(bool enable_lpa2, unsigned int vmid,
-				    unsigned long addr);
+				    unsigned long addr, long level);
 void s2tt_invalidate_pages_in_block_per_vmids(bool enable_lpa2,
 					      unsigned int *vmid_list,
 					      unsigned int nvmids,
-					      unsigned long addr);
-
+					      unsigned long addr, long level);
 bool s2tt_is_unassigned_empty_block(const struct s2tt_context *s2_ctx,
 				    unsigned long *table, unsigned long s2tte_ap);
 bool s2tt_is_unassigned_ram_block(const struct s2tt_context *s2_ctx,

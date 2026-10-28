@@ -270,39 +270,66 @@ void s2tt_invalidate_page_block_tc4(void)
 
 void s2tt_invalidate_pages_in_block_tc1(void)
 {
-	/***************************************************************
-	 * TEST CASE 1:
+	/*
+	 * TC1: Invalidate the pages covered by a level-3 table.
 	 *
-	 * Invoke s2tt_invalidate_pages_in_block() with valid parameters.
-	 * Note that this test can only validate the fake_host platform
-	 * implementation.
-	 ***************************************************************/
-
+	 * Public APIs tested:
+	 *   s2tt_invalidate_pages_in_block().
+	 *
+	 * Aim:
+	 *   Exercise the level-aware range path with a valid nonzero VMID and
+	 *   an IPA aligned to the level-2 block covered by the removed table.
+	 *
+	 * Method:
+	 *   Use the fixture's LPA2 setting, generate an aligned IPA and random
+	 *   VMID, then invalidate with child level S2TT_PAGE_LEVEL.
+	 *
+	 * Expected results:
+	 *   The host call completes without an assertion. The separate TLBI
+	 *   observer tests verify VMID selection and VTTBR_EL2 restoration.
+	 */
 	struct s2tt_context s2tt_ctx;
 	bool enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
 
 	(void)memset(&s2tt_ctx, 0, sizeof(s2tt_ctx));
 
-	unsigned long ipa = s2tt_test_helpers_gen_addr(S2TT_TEST_HELPERS_MAX_LVL, true);
+	unsigned long ipa = s2tt_test_helpers_gen_addr(S2TT_MIN_BLOCK_LEVEL + 1L,
+							     true);
 
 	s2tt_ctx.vmid = (unsigned int)test_helpers_get_rand_in_range(
 			2UL, (1UL << VTTBR_EL2_VMID_WIDTH) - 1UL);
 
-	s2tt_invalidate_pages_in_block(enable_lpa2, s2tt_ctx.vmid, ipa);
+	s2tt_invalidate_pages_in_block(enable_lpa2, s2tt_ctx.vmid, ipa,
+					S2TT_PAGE_LEVEL);
 
 	TEST_EXIT;
 }
 
 void s2tt_invalidate_pages_in_block_tc2(void)
 {
-	/***************************************************************
-	 * TEST CASE 2:
+	/*
+	 * TC2: Exercise VMID-wide invalidation for a level-1 table.
 	 *
-	 * Invoke s2tt_invalidate_pages_in_block() with the configured LPA2 setting.
-	 ***************************************************************/
+	 * Public APIs tested:
+	 *   s2tt_invalidate_pages_in_block().
+	 *
+	 * Aim:
+	 *   Cover a removed table whose 512GiB range exceeds the largest
+	 *   supported block size and therefore requires VMID-wide maintenance.
+	 *
+	 * Method:
+	 *   Use the fixture's LPA2 setting and call the helper at IPA zero for
+	 *   VMID zero with child level S2TT_MIN_BLOCK_LEVEL.
+	 *
+	 * Expected results:
+	 *   The host call accepts the level and completes without an assertion.
+	 *   Dedicated TLBI observer tests verify the saved translation context.
+	 */
 	bool enable_lpa2 = s2tt_test_helpers_lpa2_enabled();
 
-	s2tt_invalidate_pages_in_block(enable_lpa2, 0U, 0UL);
+	/* A level-1 table spans 512 GiB, exceeding the L1 block size. */
+	s2tt_invalidate_pages_in_block(enable_lpa2, 0U, 0UL,
+					S2TT_MIN_BLOCK_LEVEL);
 
 	TEST_EXIT;
 }
