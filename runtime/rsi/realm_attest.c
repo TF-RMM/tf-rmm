@@ -20,7 +20,10 @@
 #define MAX_MEASUREMENT_WORDS	(MAX_MEASUREMENT_SIZE / sizeof(unsigned long))
 
 /*
- * Function to continue with the token write operation
+ * Continue copying a token from the app heap while the caller holds the REC
+ * execution reference and maps its AUX pages. Report status through @res,
+ * returning RSI_ERROR_UNKNOWN if the app supplies a length exceeding its
+ * token buffer's capacity.
  */
 static void attest_token_continue_write_state(struct rec *rec,
 					      struct rsi_result *res)
@@ -34,6 +37,7 @@ static void attest_token_continue_write_state(struct rec *rec,
 	struct rec_attest_data *attest_data = rec->aux_data.attest_data;
 	enum attest_token_err_t ret;
 	struct granule *llt = NULL;
+	struct attest_heap_shared *heap_shared;
 
 	if (!realm_mem_lock_map(rec, realm_att_token_ipa, &realm_att_token, &llt, res)) {
 		/* In case of failure res is updated */
@@ -58,6 +62,13 @@ static void attest_token_continue_write_state(struct rec *rec,
 			goto out_unmap;
 		}
 
+		/* Validate the EL0 length before reading the app's token buffer. */
+		if (attest_token_len > ATTEST_TOKEN_BUF_SIZE) {
+			ERROR("CCA token length exceeds buffer capacity.\n");
+			res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
+			goto out_unmap;
+		}
+
 		attest_data->rmm_cca_token_len = attest_token_len;
 	} else {
 		attest_token_len = attest_data->rmm_cca_token_len;
@@ -66,7 +77,7 @@ static void attest_token_continue_write_state(struct rec *rec,
 	length = (size < attest_token_len) ? size : attest_token_len;
 
 	/* Copy attestation token */
-	struct attest_heap_shared *heap_shared = app_get_heap_ptr(&rec->attest_app_data);
+	heap_shared = app_get_heap_ptr(&rec->attest_app_data);
 	(void)memcpy((void *)((uintptr_t)realm_att_token + offset),
 		     (void *)(&heap_shared->cca_attest_token_buf[
 				attest_data->rmm_cca_token_copied_len]),
