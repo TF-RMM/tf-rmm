@@ -218,8 +218,6 @@ static int tlbi_ipa_single(struct smmuv3_dev *smmu, unsigned int vmid,
 		    (EXTRACT(TTL, param1) == 0UL)) {
 			param1 &= ~MASK(TG);
 		}
-		assert((EXTRACT(TG, param1) == 0UL) || (num != 1UL) ||
-		       (scale != 0U) || (EXTRACT(TTL, param1) != 0UL));
 
 		/* Bits [63:0] = VMID + SCALE + NUM */
 		param0 = vmid_param0 | INPLACE(SCALE, scale) | INPLACE(NUM, num - 1UL);

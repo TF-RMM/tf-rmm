@@ -3,9 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
-#include <CppUTest/TestHarness.h>
-
-extern "C" {
+#include <assert.h>
 #include <host_rmi_wrappers.h>
 #include <host_utils.h>
 #include <status.h>
@@ -13,7 +11,6 @@ extern "C" {
 #include <test_helpers.h>
 #include <test_private.h>
 #include <xlat_defs.h>
-}
 
 static unsigned int active_smmus;
 static uintptr_t ns_buf;
@@ -32,10 +29,10 @@ static uintptr_t reserve_smmu_memory(size_t size)
 	uintptr_t top = pool_base + (uintptr_t)first_smmu_granule * GRANULE_SIZE;
 	uintptr_t base;
 
-	CHECK_TRUE(size <= (uintptr_t)first_smmu_granule * GRANULE_SIZE);
+	assert(size <= (uintptr_t)first_smmu_granule * GRANULE_SIZE);
 	base = round_down(top - size, size);
 
-	CHECK_TRUE(base > pool_base);
+	assert(base > pool_base);
 	first_smmu_granule = (unsigned int)((base - pool_base) / GRANULE_SIZE);
 	return base;
 }
@@ -44,12 +41,12 @@ static uintptr_t reserve_smmu_memory(size_t size)
 static void delegate_smmu_memory(uintptr_t base, size_t size)
 {
 	uintptr_t top = base + size;
-	struct smc_result res = {};
+	struct smc_result res = {0};
 
 	while (base < top) {
 		host_rmi_granule_range_delegate((void *)base, (void *)top, &res);
-		CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
-		CHECK_TRUE((res.x[1] > base) && (res.x[1] <= top));
+		assert(res.x[0] == RMI_SUCCESS);
+		assert((res.x[1] > base) && (res.x[1] <= top));
 		base = res.x[1];
 	}
 }
@@ -58,12 +55,12 @@ static void delegate_smmu_memory(uintptr_t base, size_t size)
 static void undelegate_smmu_memory(uintptr_t base, size_t size)
 {
 	uintptr_t top = base + size;
-	struct smc_result res = {};
+	struct smc_result res = {0};
 
 	while (base < top) {
 		host_rmi_granule_range_undelegate((void *)base, (void *)top, &res);
-		CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
-		CHECK_TRUE((res.x[1] > base) && (res.x[1] <= top));
+		assert(res.x[0] == RMI_SUCCESS);
+		assert((res.x[1] > base) && (res.x[1] <= top));
 		base = res.x[1];
 	}
 }
@@ -71,18 +68,18 @@ static void undelegate_smmu_memory(uintptr_t base, size_t size)
 /* Activate one host PSMMU and complete its memory donation SRO. */
 static void activate_smmu(unsigned int idx)
 {
-	struct smc_result res = {};
+	struct smc_result res = {0};
 	unsigned long psmmu_ptr = host_util_get_smmu_ns_base(idx);
 	unsigned long handle, donate_req;
 	unsigned long *addr_list = (unsigned long *)ns_buf;
 
-	CHECK_TRUE(psmmu_ptr != 0UL);
+	assert(psmmu_ptr != 0UL);
 
 	/* Reuse the shared NS page after activation consumes its parameters. */
 	(void)memset((void *)ns_buf, 0, GRANULE_SIZE);
 	host_rmi_psmmu_activate(psmmu_ptr, (void *)ns_buf,
 				&handle, &donate_req, &res);
-	CHECK_EQUAL(RMI_INCOMPLETE, unpack_return_code(res.x[0]).status);
+	assert(unpack_return_code(res.x[0]).status == RMI_INCOMPLETE);
 
 	while (EXTRACT(RMI_OP_MEM_REQ, res.x[0]) == RMI_OP_MEM_REQ_DONATE) {
 		unsigned long block_size = EXTRACT(RMI_OP_DONATE_BLK_SIZE, donate_req);
@@ -92,19 +89,19 @@ static void activate_smmu(unsigned int idx)
 		uintptr_t base = reserve_smmu_memory(size);
 		unsigned long consumed;
 
-		CHECK_EQUAL(RMI_OP_MEM_CONTIG, EXTRACT(RMI_OP_DONATE_MEM_CONTIG, donate_req));
+		assert(EXTRACT(RMI_OP_DONATE_MEM_CONTIG, donate_req) == RMI_OP_MEM_CONTIG);
 		delegate_smmu_memory(base, size);
 		addr_list[0] = INPLACE(RMI_ADDR_RDESC_4K_SZ, block_size) |
 			       INPLACE(RMI_ADDR_RDESC_4K_CNT, count) |
 			       INPLACE(RMI_ADDR_RDESC_4K_ADDR, base >> GRANULE_SHIFT) |
 			       INPLACE(RMI_ADDR_RDESC_4K_ST, RMI_OP_MEM_DELEGATED);
 		host_rmi_op_mem_donate(handle, addr_list, 1UL, &donate_req, &consumed, &res);
-		CHECK_EQUAL(RMI_INCOMPLETE, unpack_return_code(res.x[0]).status);
-		UNSIGNED_LONGS_EQUAL(size / GRANULE_SIZE, consumed);
+		assert(unpack_return_code(res.x[0]).status == RMI_INCOMPLETE);
+		assert(consumed == size / GRANULE_SIZE);
 	}
-	CHECK_EQUAL(RMI_OP_MEM_REQ_NONE, EXTRACT(RMI_OP_MEM_REQ, res.x[0]));
+	assert(EXTRACT(RMI_OP_MEM_REQ, res.x[0]) == RMI_OP_MEM_REQ_NONE);
 	host_rmi_op_continue(&handle, 0UL, &donate_req, &res);
-	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
+	assert(res.x[0] == RMI_SUCCESS);
 }
 
 /*
@@ -114,7 +111,7 @@ static void activate_smmu(unsigned int idx)
  */
 void test_smmu_start(void)
 {
-	CHECK_EQUAL(0U, active_smmus);
+	assert(active_smmus == 0U);
 	ns_buf = reserve_smmu_memory(GRANULE_SIZE);
 
 	for (unsigned int i = 0U; i < HOST_NR_SMMUS; i++) {
@@ -126,20 +123,20 @@ void test_smmu_start(void)
 /* Deactivate one PSMMU, reclaim its donated memory, and return it to NS. */
 static void deactivate_smmu(unsigned int idx)
 {
-	struct smc_result res = {};
+	struct smc_result res = {0};
 	unsigned long *addr_list = (unsigned long *)ns_buf;
 	unsigned long handle, donate_req;
 
 	host_rmi_psmmu_deactivate(host_util_get_smmu_ns_base(idx), &res);
-	CHECK_EQUAL(RMI_INCOMPLETE, unpack_return_code(res.x[0]).status);
+	assert(unpack_return_code(res.x[0]).status == RMI_INCOMPLETE);
 	handle = res.x[1];
 	while (EXTRACT(RMI_OP_MEM_REQ, res.x[0]) == RMI_OP_MEM_REQ_RECLAIM) {
 		unsigned long entries;
 
 		host_rmi_op_mem_reclaim(handle, addr_list,
 					GRANULE_SIZE / sizeof(addr_list[0]), &entries, &res);
-		CHECK_EQUAL(RMI_INCOMPLETE, unpack_return_code(res.x[0]).status);
-		CHECK_TRUE((entries > 0UL) && (entries <= GRANULE_SIZE / sizeof(addr_list[0])));
+		assert(unpack_return_code(res.x[0]).status == RMI_INCOMPLETE);
+		assert((entries > 0UL) && (entries <= GRANULE_SIZE / sizeof(addr_list[0])));
 		/* The final batch also returns ownership of every listed range. */
 		for (unsigned long i = 0UL; i < entries; i++) {
 			unsigned long desc = addr_list[i];
@@ -148,13 +145,13 @@ static void deactivate_smmu(unsigned int idx)
 			unsigned long size = EXTRACT(RMI_ADDR_RDESC_4K_CNT, desc) *
 				XLAT_BLOCK_SIZE((long)XLAT_TABLE_LEVEL_MAX - (long)block_size);
 
-			CHECK_EQUAL(RMI_OP_MEM_DELEGATED, EXTRACT(RMI_ADDR_RDESC_4K_ST, desc));
+			assert(EXTRACT(RMI_ADDR_RDESC_4K_ST, desc) == RMI_OP_MEM_DELEGATED);
 			undelegate_smmu_memory(base, size);
 		}
 	}
-	CHECK_EQUAL(RMI_OP_MEM_REQ_NONE, EXTRACT(RMI_OP_MEM_REQ, res.x[0]));
+	assert(EXTRACT(RMI_OP_MEM_REQ, res.x[0]) == RMI_OP_MEM_REQ_NONE);
 	host_rmi_op_continue(&handle, 0UL, &donate_req, &res);
-	CHECK_EQUAL(RMI_SUCCESS, res.x[0]);
+	assert(res.x[0] == RMI_SUCCESS);
 }
 
 /*

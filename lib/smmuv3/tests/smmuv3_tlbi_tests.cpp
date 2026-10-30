@@ -651,19 +651,22 @@ TEST(smmuv3_tlbi_active_psmmu, paused_cmd_sync_blocks_synchronous_invalidation)
  *   Position the producer at the last slot, pause CMD_SYNC, then submit a
  *   page invalidation so its MSI CMD_SYNC lands in slot zero. Queue two more
  *   MSI writes carrying 1 and 2 to the same destination, each with a SEV
- *   CMD_SYNC. Inspect the paused state, resume and inspect the final state.
+ *   CMD_SYNC. Check both wrap bits after crossing the boundary and again
+ *   after resuming and draining the queue.
  *
  * Expected results:
  *   Submissions return 0. While paused, both destinations remain UINT32_MAX
- *   and the consumer stops at slot zero with the correct wrap bit. Resuming
- *   completes the original invalidation, leaves 2 in the later destination
- *   and consumes all seven commands in the submitted sequence.
+ *   and the consumer stops at slot zero. Both wrap bits toggle at the boundary
+ *   and retain their new values after draining. Resuming completes the
+ *   original invalidation, leaves 2 in the later destination and consumes all
+ *   seven commands in the submitted sequence.
  */
 TEST(smmuv3_tlbi_active_psmmu, paused_cmd_sync_preserves_wrapped_queue_order)
 {
 	uint32_t entries = U(1) << smmu->config.cmdq_log2size;
 	uint32_t mask = (entries << 1) - 1U;
 	uint32_t start_prod;
+	uint32_t expected_wrap;
 	unsigned int vmid = 1U;
 
 	CHECK_EQUAL(0, smmuv3_cmd_sync_init(&pending_sync, (uintptr_t)&pending_sync));
@@ -673,11 +676,18 @@ TEST(smmuv3_tlbi_active_psmmu, paused_cmd_sync_preserves_wrapped_queue_order)
 		CHECK_EQUAL(0, prepare_send_command(smmu, CMD_SYNC, 0UL, 0UL));
 	}
 	start_prod = read32(smmu->cmdq.prod_reg);
+	/* Both indices must start at the last slot with matching wrap bits. */
+	UNSIGNED_LONGS_EQUAL(start_prod, read32(smmu->cmdq.cons_reg));
+	/* The bit above the queue index toggles on crossing the ring boundary. */
+	expected_wrap = (start_prod & entries) ^ entries;
 	/* Hold the first CMD_SYNC as submission crosses the ring boundary. */
 	CHECK_EQUAL(0, smmuv3_arch_pause_cmd_sync(smmu, true));
 	/* Publishing the wrapped sequence must succeed while completion is held. */
 	CHECK_EQUAL(0, smmuv3_inv_at_level_per_vmids_submit(&vmid, 1U,
 				0UL, S2TT_PAGE_LEVEL, 1UL, true, &pending_sync));
+	/* Submission and TLBI consumption must each toggle their wrap bit. */
+	UNSIGNED_LONGS_EQUAL(expected_wrap, read32(smmu->cmdq.prod_reg) & entries);
+	UNSIGNED_LONGS_EQUAL(expected_wrap, read32(smmu->cmdq.cons_reg) & entries);
 	/* Queue a distinct value behind the stalled completion to track ordering. */
 	CHECK_EQUAL(0, prepare_send_cmd_sync(smmu, (uintptr_t)&later_completion, 1U));
 	/* A later write to the same word must eventually replace the first value. */
@@ -690,6 +700,9 @@ TEST(smmuv3_tlbi_active_psmmu, paused_cmd_sync_preserves_wrapped_queue_order)
 	UNSIGNED_LONGS_EQUAL((start_prod + 1U) & mask, read32(smmu->cmdq.cons_reg));
 	/* Release the pause and drain all queued writes in submission order. */
 	CHECK_EQUAL(0, smmuv3_arch_pause_cmd_sync(smmu, false));
+	/* Draining the remaining commands must not cross another ring boundary. */
+	UNSIGNED_LONGS_EQUAL(expected_wrap, read32(smmu->cmdq.prod_reg) & entries);
+	UNSIGNED_LONGS_EQUAL(expected_wrap, read32(smmu->cmdq.cons_reg) & entries);
 	/* The first MSI must clear the original invalidation's pending word. */
 	CHECK_TRUE(smmuv3_cmd_sync_is_complete(&pending_sync));
 	/* The final value must come from the second of the two later MSI writes. */
