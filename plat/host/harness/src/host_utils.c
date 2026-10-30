@@ -305,7 +305,7 @@ static unsigned char host_smmu_ns_page[SZ_64K] __aligned(SZ_64K);
 static unsigned char host_smmu_r_page[2U * SZ_64K] __aligned(SZ_64K);
 static unsigned char host_smmu_ns_page_1[SZ_64K] __aligned(SZ_64K);
 static unsigned char host_smmu_r_page_1[2U * SZ_64K] __aligned(SZ_64K);
-static struct smmu_info host_smmu_info[2U];
+static struct smmu_info host_smmu_info[HOST_NR_SMMUS];
 
 unsigned long host_util_get_granule_base(void)
 {
@@ -487,7 +487,7 @@ void host_util_setup_sysreg_and_boot_manifest(void)
 	host_smmu_info[0].smmu_r_base = (uint64_t)(uintptr_t)host_smmu_r_page;
 	host_smmu_info[1].smmu_base = (uint64_t)(uintptr_t)host_smmu_ns_page_1;
 	host_smmu_info[1].smmu_r_base = (uint64_t)(uintptr_t)host_smmu_r_page_1;
-	boot_manifest->plat_smmu.num_smmus = 2UL;
+	boot_manifest->plat_smmu.num_smmus = ARRAY_SIZE(host_smmu_info);
 	boot_manifest->plat_smmu.smmus = host_smmu_info;
 	boot_manifest->plat_smmu.checksum = 0UL;
 

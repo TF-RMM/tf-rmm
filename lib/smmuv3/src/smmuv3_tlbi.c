@@ -92,6 +92,11 @@ static int poll_cmd_sync_all(struct smmuv3_cmd_sync *cmd_sync)
 	return -ETIMEDOUT;
 }
 
+/*
+ * Return true once every completion word in initialized @cmd_sync is zero.
+ * The caller keeps the state alive and does not reuse it while commands are
+ * pending; acquire reads observe the SMMUs' coherent completion writes.
+ */
 bool smmuv3_cmd_sync_is_complete(struct smmuv3_cmd_sync *cmd_sync)
 {
 	assert(cmd_sync_is_initialized(cmd_sync));
@@ -121,6 +126,15 @@ void smmuv3_cmd_sync_wait(void)
 	}
 }
 
+/*
+ * Submit IPA invalidations for @num_grans 4KB granules starting at @addr.
+ * Callers derive @num_grans from whole level-sized address ranges and align
+ * @addr to XLAT_BLOCK_SIZE(tgt_lvl). Levels 1-3 supply a TTL hint; levels 0
+ * and -1 omit the hint and span multiple granules per entry.
+ * Preserve @leaf in every command. The caller holds @smmu's lock and keeps
+ * its queue mapped; it must submit CMD_SYNC separately to observe completion.
+ * Return 0 after submission, or the command queue's negative error code.
+ */
 static int tlbi_ipa_single(struct smmuv3_dev *smmu, unsigned int vmid,
 			   unsigned long addr, unsigned long num_grans,
 			   long tgt_lvl, bool leaf)
@@ -190,6 +204,16 @@ static int tlbi_ipa_single(struct smmuv3_dev *smmu, unsigned int vmid,
 
 		assert(num != 0UL);
 		assert(covered <= num_grans);
+
+		/*
+		 * Avoid the reserved encoding TG != 0 with NUM == SCALE == TTL == 0.
+		 * The raw count @num is encoded as NUM = num - 1.
+		 * Callers supply a TTL hint for levels 1-3. At levels 0 and -1,
+		 * whole level-sized address ranges split into multi-page chunks
+		 * without a single-page remainder. Catch future changes that break
+		 * this invariant.
+		 */
+		assert((num != 1UL) || (scale != 0U) || (EXTRACT(TTL, tg_ttl) != 0UL));
 
 		/* Bits [63:0] = VMID + SCALE + NUM */
 		param0 = vmid_param0 | INPLACE(SCALE, scale) | INPLACE(NUM, num - 1UL);
@@ -369,10 +393,12 @@ int smmuv3_inv_at_level(unsigned int vmid, unsigned long addr, long level,
  * Invalidate @num_entrs S2 TLB entries with @addr IPA from the region tagged
  * with a VMID at leaf @level for each of @nvmids passed in @vmid_list.
  *
- * Call this function after:
- * 1a. A L2 table desc has been removed, where
- * 1b. Some S2TTEs in the table that the L2 table desc was pointed to were valid.
- * Note. This function is called with @addr aligned to the (@level - 1) boundary.
+ * RTT_FOLD and RTT_DESTROY modify L1 TABLE descriptors when removing
+ * their L2 child tables, as well as L2 descriptors for L3 child tables.
+ *
+ * A caller can use @num_entrs entries at @level to invalidate all cached
+ * translations beneath a removed table descriptor. In that case, @addr is
+ * aligned to the parent level (@level - 1) boundary.
  */
 int smmuv3_inv_at_level_per_vmids_submit(unsigned int *vmid_list,
 					 unsigned int nvmids,

@@ -107,12 +107,11 @@ static inline int smmuv3_arch_wait_for_ack(uintptr_t r_base, uint32_t ack_offset
  * Architecture-specific command queue synchronization.
  *
  * On real hardware, the SMMU processes commands asynchronously.
- * No action is needed; wait_cmdq_empty() polls the consumer register.
+ * No action is needed for @smmu; wait_cmdq_empty() polls the consumer register.
  */
-static inline void smmuv3_arch_sync_cmdq(void *prod_reg, void *cons_reg)
+static inline void smmuv3_arch_sync_cmdq(struct smmuv3_dev *smmu)
 {
-	(void)prod_reg;
-	(void)cons_reg;
+	(void)smmu;
 }
 
 /*
@@ -124,17 +123,6 @@ static inline void smmuv3_arch_sync_cmdq(void *prod_reg, void *cons_reg)
 static inline void smmuv3_arch_psmmu_reset(struct smmuv3_dev *smmu)
 {
 	(void)smmu;
-}
-
-/*
- * Architecture-specific notification of a command queue submission.
- */
-static inline void smmuv3_arch_process_cmd(uint128_t cmd, void *prod_reg,
-					  void *cons_reg)
-{
-	(void)cmd;
-	(void)prod_reg;
-	(void)cons_reg;
 }
 
 #endif /* SMMUV3_ARCH_H */

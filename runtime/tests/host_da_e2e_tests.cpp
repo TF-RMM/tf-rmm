@@ -9,7 +9,6 @@ extern "C" {
 #include <app.h>
 #include <buffer.h>
 #include <dev.h>
-#include <glob_data.h>
 #include <granule.h>
 #include <host_da.h>
 #include <host_rmi_wrappers.h>
@@ -42,9 +41,6 @@ TEST_GROUP(host_da_e2e_tests) {
 		test_helpers_rmm_start(false);
 		host_util_set_cpuid(0U);
 		test_helpers_expect_assert_fail(false);
-		/* The unit-test boot populates tracking but leaves the RMI gate in INIT. */
-		CHECK_TRUE(glob_data_transition_rmm_state(RMM_STATE_INIT,
-							RMM_STATE_ACTIVE));
 		test_helpers_spdm_responder_start();
 	}
 

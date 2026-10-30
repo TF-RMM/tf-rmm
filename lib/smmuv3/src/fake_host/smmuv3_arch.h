@@ -207,18 +207,21 @@ static inline int smmuv3_arch_wait_for_ack(uintptr_t r_base, uint32_t ack_offset
 }
 
 /*
- * Architecture-specific command queue synchronization (fake_host).
- *
- * On fake_host there is no hardware to consume commands from the queue.
- * Simulate instant command processing by advancing the consumer register
- * to match the producer register.
+ * Consume queued commands for @smmu in order, stopping before CMD_SYNC if
+ * paused. Emulate MSI completion writes before advancing the consumer.
+ * The caller serializes queue access and keeps its backing mapped.
  */
-static inline void smmuv3_arch_sync_cmdq(void *prod_reg, void *cons_reg)
-{
-	uint32_t prod = *(uint32_t *)prod_reg;
+void smmuv3_arch_sync_cmdq(struct smmuv3_dev *smmu);
 
-	*(uint32_t *)cons_reg = prod;
-}
+/*
+ * Pause CMD_SYNC processing for one fake-host SMMU, or resume and drain its
+ * queue when @pause is false. Later commands, including wake-up events, stay
+ * queued behind the paused CMD_SYNC. Other SMMUs continue processing commands.
+ * Resume before resetting the device or releasing its queue and MSI
+ * completion buffers.
+ * Return 0 on success, -EINVAL for NULL, or -ENOMEM if all pause slots are used.
+ */
+int smmuv3_arch_pause_cmd_sync(struct smmuv3_dev *smmu, bool pause);
 
 /*
  * Architecture-specific PSMMU reset (fake_host).
@@ -298,30 +301,6 @@ static inline void smmuv3_arch_psmmu_reset(struct smmuv3_dev *smmu)
 	smmu->cmdq_pa = 0UL;
 	smmu->evtq_pa = 0UL;
 	smmu->state = PSMMU_INACTIVE;
-}
-
-/* Process a command immediately and emulate CMD_SYNC MSI completion. */
-static inline void smmuv3_arch_process_cmd(uint128_t cmd, void *prod_reg,
-					  void *cons_reg)
-{
-	uint64_t cmd_lo = (uint64_t)cmd;
-	uint64_t cmd_hi = (uint64_t)(cmd >> 64);
-	uint32_t *msi_addr;
-
-	/*
-	 * fake_host uses identity address translation, so CMD_SYNC.MSIAddress
-	 * in cmd is directly a host pointer. Emulate the SMMU's coherent
-	 * 32-bit MSI write of MSIData in cmd to the completion word. A zero
-	 * MSIAddress does not generate an MSI.
-	 */
-	if ((EXTRACT(CMD, cmd_lo) == CMD_SYNC) &&
-	    (EXTRACT(CS, cmd_lo) == SIG_IRQ) &&
-	    (cmd_hi != 0UL)) {
-		msi_addr = (uint32_t *)(uintptr_t)cmd_hi;
-		*msi_addr = (uint32_t)(cmd_lo >> MSIDATA_SHIFT);
-	}
-
-	smmuv3_arch_sync_cmdq(prod_reg, cons_reg);
 }
 
 #endif /* SMMUV3_ARCH_H */
