@@ -42,6 +42,6 @@ target_sources(rmm-plat-host_test
             "src/utest_exit.cpp"
             "src/host_harness.c"
             "src/test_helpers.c"
-            "src/test_smmu.cpp")
+            "src/test_smmu.c")
 
 add_library(rmm-platform ALIAS rmm-plat-host_test)

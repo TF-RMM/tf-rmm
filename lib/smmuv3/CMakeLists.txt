@@ -81,7 +81,7 @@ target_sources(rmm-lib-smmuv3
             "src/smmuv3_tlbi.c")
 
 if(RMM_ARCH STREQUAL fake_host)
-    target_sources(rmm-lib-smmuv3 PRIVATE "src/fake_host/smmuv3_cmdq.c")
+    target_sources(rmm-lib-smmuv3 PRIVATE "src/fake_host/smmv3_arch.c")
 endif()
 
 include("tests/CMakeLists.txt")

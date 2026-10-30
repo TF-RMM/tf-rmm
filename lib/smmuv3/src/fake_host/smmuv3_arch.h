@@ -7,10 +7,8 @@
 #define SMMUV3_ARCH_H
 
 #include <errno.h>
-#include <granule.h>
 #include <linux/memfd.h>
 #include <smmuv3_priv.h>
-#include <smmuv3_psmmu.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -217,90 +215,17 @@ void smmuv3_arch_sync_cmdq(struct smmuv3_dev *smmu);
  * Pause CMD_SYNC processing for one fake-host SMMU, or resume and drain its
  * queue when @pause is false. Later commands, including wake-up events, stay
  * queued behind the paused CMD_SYNC. Other SMMUs continue processing commands.
- * Resume before resetting the device or releasing its queue and MSI
- * completion buffers.
+ * Keep the queue and MSI completion buffers alive until the device is
+ * resumed or reset.
  * Return 0 on success, -EINVAL for NULL, or -ENOMEM if all pause slots are used.
  */
 int smmuv3_arch_pause_cmd_sync(struct smmuv3_dev *smmu, bool pause);
 
 /*
- * Architecture-specific PSMMU reset (fake_host).
- * The test harness excludes concurrent users; the published L1 entries own
- * their L2 tables until reset returns them to INTERNAL.
+ * Reset a fake-host PSMMU and clear only its CMD_SYNC pause.
+ * The test harness excludes concurrent users and keeps pending MSI
+ * destinations alive until reset returns.
  */
-static inline void smmuv3_arch_psmmu_reset(struct smmuv3_dev *smmu)
-{
-	assert(smmu != NULL);
-
-	if (smmu->state == PSMMU_ACTIVE) {
-		smmu_off(smmu);
-	}
-
-	/* Check L1 Stream Table refcount */
-	if (smmu->l1_refcnt != 0U) {
-		unsigned long num_l1_ents;
-
-		assert(smmu_va_is_committed(smmu->strtab_base));
-
-		/* Number of L2 Tables */
-		num_l1_ents = 1UL << (smmu->strtab_sid_bits - SMMU_STRTAB_SPLIT);
-
-		/*
-		 * Force-cleanup any L2 Stream Tables that are still committed
-		 * in the L2 pool.
-		 */
-		for (unsigned long l1_idx = 0UL; l1_idx < num_l1_ents; l1_idx++) {
-			uintptr_t l2tab_pa, l2tab_va;
-			struct granule *g_l2tab;
-			unsigned short refcount;
-
-			/* Check physical address of L2 Stream Table */
-			if (smmu->strtab_base[l1_idx] == 0UL) {
-				continue;
-			}
-
-			/* Get L2 Stream Table PA from L1 Table */
-			l2tab_pa = smmu_l1std_l2tab_pa(smmu, l1_idx);
-
-			/* Compute L2 Stream Table VA from the reserved pool */
-			l2tab_va = smmu_l2tab_va(smmu, l1_idx);
-
-			/* Decommit and depopulate L2 Stream Table */
-			decommit_depopulate(l2tab_va, GRANULE_SIZE);
-
-			g_l2tab = tr_addr_to_granule(l2tab_pa);
-			granule_lock(g_l2tab, GRANULE_STATE_PSMMU_ST_L2);
-			refcount = granule_refcount_read(g_l2tab);
-			if (refcount != 0U) {
-				granule_refcount_dec(g_l2tab, refcount);
-			}
-			granule_unlock_transition(g_l2tab, GRANULE_STATE_INTERNAL);
-
-			/* Remove L1STD entry for L2 Stream Table */
-			smmu->strtab_base[l1_idx] = 0UL;
-			dsb(ish);
-
-			/* Decrement L1 Stream Table refcount */
-			if (--smmu->l1_refcnt == 0U) {
-				break;
-			}
-		}
-	}
-
-	/*
-	 * Force-cleanup any L1 Stream Table and queues that are still mapped.
-	 */
-	smmuv3_psmmu_unmap(smmu);
-
-	/*
-	 * Clear runtime state but preserve the reserved VA tags in
-	 * strtab_base, cmdq.q_base, evtq.q_base set at boot.
-	 * smmuv3_psmmu_unmap() has already re-tagged them as uncommitted.
-	 */
-	smmu->l1_st_pa = 0UL;
-	smmu->cmdq_pa = 0UL;
-	smmu->evtq_pa = 0UL;
-	smmu->state = PSMMU_INACTIVE;
-}
+void smmuv3_arch_psmmu_reset(struct smmuv3_dev *smmu);
 
 #endif /* SMMUV3_ARCH_H */

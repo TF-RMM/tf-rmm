@@ -8,7 +8,7 @@
  *
  * Inspect TLBI fields, MSI completion writes and command order in fake_host
  * queues. Active PSMMU tests also cover deferred completion, timeouts,
- * broadcast maintenance.
+ * broadcast maintenance and the shared fixture's device lifecycle.
  * API lists identify the behavior under test; calls used only for setup
  * or inspection are omitted. Indirect API coverage is explicitly marked.
  */
@@ -145,7 +145,145 @@ TEST_GROUP(smmuv3_tlbi_active_psmmu)
 };
 
 /*
- * TC1: Preserve page and block invalidation hints.
+ * Verify an unhinted one-page command, optionally after a 64-page range.
+ * @pages must be 1 or 65. The caller must boot the host RMM first; the
+ * shared test setup must have activated the non-BTM host PSMMU.
+ */
+static void check_unhinted_single_page_command(unsigned long pages)
+{
+	uint32_t start_prod;
+	struct smmuv3_cmd_sync sync = {};
+	unsigned long base = 1UL << 29;
+	unsigned long last = (pages == 1UL) ? 0UL : 1UL;
+	uint128_t cmd;
+	uint64_t lo, hi;
+
+	CHECK_TRUE((pages == 1UL) || (pages == 65UL));
+
+	start_prod = read32(smmu->cmdq.prod_reg);
+	CHECK_EQUAL(0, smmuv3_cmd_sync_init(&sync, (uintptr_t)&sync));
+	CHECK_EQUAL(0, smmuv3_inv_at_level(2U, base, 3L, pages, false, &sync));
+	cmd = tlbi_test_smmu_command(smmu, start_prod, last);
+	lo = (uint64_t)cmd;
+	hi = (uint64_t)(cmd >> 64);
+
+	/* The tail command must use the stage-2 IPA invalidation opcode. */
+	UNSIGNED_LONGS_EQUAL(CMD_TLBI_S2_IPA, lo & 0xFFUL);
+	/* The command invalidates VMID 2, matching the fixture's Realm VMID. */
+	UNSIGNED_LONGS_EQUAL(2UL, EXTRACT(VMID, lo));
+	/* The command targets the final page, either the only page or the range tail. */
+	UNSIGNED_LONGS_EQUAL(base + (pages - 1UL) * GRANULE_SIZE,
+			     hi & BIT_MASK_ULL(55U, 12U));
+	/* Unhinted one-page encodings must leave TG clear. */
+	UNSIGNED_LONGS_EQUAL(0UL, EXTRACT(TG, hi));
+	/* Non-leaf invalidations must not carry a TTL hint. */
+	UNSIGNED_LONGS_EQUAL(0UL, EXTRACT(TTL, hi));
+	/* A table invalidation must not be restricted to leaf entries. */
+	CHECK_FALSE((hi & LEAF_BIT) != 0UL);
+	/* NUM and SCALE both zero encode a single-page non-range invalidation. */
+	UNSIGNED_LONGS_EQUAL(0UL, EXTRACT(NUM, lo));
+	UNSIGNED_LONGS_EQUAL(0UL, EXTRACT(SCALE, lo));
+	if (pages != 1UL) {
+		tlbi_test_smmu_check_tlbi(smmu, start_prod, 0UL, 2U, base,
+					(pages - 1UL) * GRANULE_SIZE, 0UL, false);
+	}
+	/* The host PSMMU uses MSI completion followed by a SEV CMD_SYNC. */
+	UNSIGNED_LONGS_EQUAL(last + 3UL, tlbi_test_smmu_command_count(smmu, start_prod));
+}
+
+/*
+ * TC1: Encode an unhinted single page without a reserved range.
+ *
+ * Public APIs tested:
+ *   smmuv3_inv_at_level(), smmuv3_cmd_sync_init().
+ *
+ * Aim:
+ *   Verify that a non-leaf request with no TTL hint avoids the reserved TG !=
+ *   0, NUM = SCALE = TTL = 0 range encoding.
+ *
+ * Method:
+ *   Use the active non-BTM PSMMU fixture. Submit one level-3 page at
+ *   IPA 1UL << 29 for VMID 2 with leaf=false. Decode the TLBI and inspect
+ *   the consumed command count.
+ *
+ * Expected results:
+ *   The call succeeds. The command retains the IPA and VMID, clears LEAF and
+ *   encodes TG, TTL, NUM and SCALE as zero. Exactly three commands are
+ *   consumed: the TLBI and its MSI/SEV completion pair.
+ */
+TEST(smmuv3_tlbi_active_psmmu, unhinted_single_page_tlbi_uses_nonrange_encoding)
+{
+	check_unhinted_single_page_command(1UL);
+}
+
+/*
+ * TC2: Encode the final page of an unhinted range legally.
+ *
+ * Public APIs tested:
+ *   smmuv3_inv_at_level(), smmuv3_cmd_sync_init().
+ *
+ * Aim:
+ *   Verify that range decomposition switches to non-range encoding for a
+ *   one-page remainder without losing coverage or adding a TTL hint.
+ *
+ * Method:
+ *   On the active non-BTM fixture, invalidate 65 level-3 pages from
+ *   IPA 1UL << 29 for VMID 2 with leaf=false. Inspect both TLBIs and the
+ *   consumed command count.
+ *
+ * Expected results:
+ *   The first TLBI covers 64 pages using TG_4KB, TTL zero and LEAF clear. The
+ *   second targets base + 64 * GRANULE_SIZE with TG, TTL, NUM and SCALE zero
+ *   and LEAF clear. Four commands, including one MSI/SEV pair, are consumed.
+ */
+TEST(smmuv3_tlbi_active_psmmu, unhinted_range_tail_uses_nonrange_encoding)
+{
+	check_unhinted_single_page_command(65UL);
+}
+
+/*
+ * TC3: Invalidate removed-table coverage without level hints.
+ *
+ * Public APIs tested:
+ *   smmuv3_inv_at_level_per_vmids_submit(), smmuv3_cmd_sync_is_complete().
+ *
+ * Aim:
+ *   Verify that an invalidation for a removed table covers all of its entries
+ *   without restricting the leaf levels affected by the command.
+ *
+ * Method:
+ *   With both host PSMMUs active, submit S2TTES_PER_S2TT entries for VMID 2
+ *   at IPA 1UL << 30. Repeat at entry levels 2 and 3, corresponding to
+ *   removed L1 and L2 tables. Inspect the non-BTM device queue and completion
+ *   object.
+ *
+ * Expected results:
+ *   Submission succeeds and the host emulator reports completion. The TLBI
+ *   retains VMID/base, uses TG_4KB with TTL zero and LEAF clear, and covers
+ *   1GB or 2MB respectively. Each request consumes one TLBI and one MSI/SEV
+ *   pair.
+ */
+TEST(smmuv3_tlbi_active_psmmu, removed_tables_invalidate_all_walk_levels)
+{
+	struct smmuv3_cmd_sync sync = {};
+	unsigned int vmids[] = {2U};
+	unsigned long base = 1UL << 30;
+
+	CHECK_EQUAL(0, smmuv3_cmd_sync_init(&sync, (uintptr_t)&sync));
+	for (long level = 2L; level <= 3L; level++) {
+		uint32_t start_prod = read32(smmu->cmdq.prod_reg);
+
+		CHECK_EQUAL(0, smmuv3_inv_at_level_per_vmids_submit(vmids, ARRAY_SIZE(vmids),
+				base, level, S2TTES_PER_S2TT, false, &sync));
+		CHECK_TRUE(smmuv3_cmd_sync_is_complete(&sync));
+		tlbi_test_smmu_check_tlbi(smmu, start_prod, 0UL, 2U, base,
+					XLAT_BLOCK_SIZE(level - 1L), 0UL, false);
+		UNSIGNED_LONGS_EQUAL(3UL, tlbi_test_smmu_command_count(smmu, start_prod));
+	}
+}
+
+/*
+ * TC4: Preserve page and block invalidation hints.
  *
  * Public APIs tested:
  *   smmuv3_inv_at_level().
@@ -184,7 +322,7 @@ TEST(smmuv3_tlbi_active_psmmu, leaf_page_and_block_preserve_level_hint)
 }
 
 /*
- * TC2: Invalidate every VMID with one shared completion sequence.
+ * TC5: Invalidate every VMID with one shared completion sequence.
  *
  * Public APIs tested:
  *   smmuv3_inv_at_level_per_vmids().
@@ -222,7 +360,7 @@ TEST(smmuv3_tlbi_active_psmmu, vmid_list_emits_each_invalidation)
 }
 
 /*
- * TC3: Preserve asynchronous invalidation fields and completion commands.
+ * TC6: Preserve asynchronous invalidation fields and completion commands.
  *
  * Public APIs tested:
  *   smmuv3_inv_at_level_per_vmids_submit(), smmuv3_cmd_sync_is_complete().
@@ -232,13 +370,13 @@ TEST(smmuv3_tlbi_active_psmmu, vmid_list_emits_each_invalidation)
  *   fields and appends the correct MSI/SEV completion sequence.
  *
  * Method:
- *   Submit one level-2 block and then one level-3 page for VMIDs 2 and 1 via
+ *   Submit leaf mappings and full TABLE ranges for VMIDs 2 and 1 via
  *   smmuv3_inv_at_level_per_vmids_submit(). Decode all four commands for each
  *   request and query completion with fake_host processing left unpaused.
  *
  * Expected results:
  *   Each submission returns 0 and consumes two TLBIs in VMID order, with the
- *   requested IPA, mapping size, granule, TTL and leaf bit. The following
+ *   requested IPA and coverage; only leaf requests carry TTL. The following
  *   MSI CMD_SYNC writes zero to this PSMMU's completion word, followed by a
  *   SIG_SEV CMD_SYNC. Immediate fake_host processing leaves the object complete.
  */
@@ -249,52 +387,44 @@ TEST(smmuv3_tlbi_active_psmmu, async_vmid_list_preserves_range_and_hints)
 	unsigned long base = 1UL << 30;
 
 	CHECK_EQUAL(0, smmuv3_cmd_sync_init(&sync, (uintptr_t)&sync));
-	/* Exercise the same checks for a level-2 block and a level-3 page. */
 	for (long level = 2L; level <= 3L; level++) {
-		uint32_t start_prod = read32(smmu->cmdq.prod_reg);
-		unsigned long count = 1UL;
-		unsigned long size = count * XLAT_BLOCK_SIZE(level);
-		uint128_t cmd;
-		uint64_t lo, hi;
+		for (bool leaf : {false, true}) {
+			uint32_t start_prod = read32(smmu->cmdq.prod_reg);
+			unsigned long count = leaf ? 1UL : S2TTES_PER_S2TT;
+			unsigned long size = count * XLAT_BLOCK_SIZE(level);
+			uint128_t cmd;
+			uint64_t lo, hi;
 
-		/* Both VMIDs must be accepted in one submission without polling for completion. */
-		CHECK_EQUAL(0, smmuv3_inv_at_level_per_vmids_submit(vmids,
-				ARRAY_SIZE(vmids), base, level, count, true, &sync));
-		for (unsigned int i = 0U; i < ARRAY_SIZE(vmids); i++) {
-			/* Verify VMID order, IPA coverage, granule, TTL and leaf hint. */
-			tlbi_test_smmu_check_tlbi(smmu, start_prod, i, vmids[i],
-				base, size, (unsigned long)level, true);
+			CHECK_EQUAL(0, smmuv3_inv_at_level_per_vmids_submit(vmids,
+					ARRAY_SIZE(vmids), base, level, count, leaf, &sync));
+			for (unsigned int i = 0U; i < ARRAY_SIZE(vmids); i++) {
+				tlbi_test_smmu_check_tlbi(smmu, start_prod, i, vmids[i],
+					base, size, leaf ? (unsigned long)level : 0UL, leaf);
+			}
+			/* Two VMID TLBIs share one MSI/SEV pair. */
+			UNSIGNED_LONGS_EQUAL(4UL,
+				tlbi_test_smmu_command_count(smmu, start_prod));
+			cmd = tlbi_test_smmu_command(smmu, start_prod, ARRAY_SIZE(vmids));
+			lo = (uint64_t)cmd;
+			hi = (uint64_t)(cmd >> MSIADDR_SHIFT);
+			/* The first completion command writes the MSI completion word. */
+			UNSIGNED_LONGS_EQUAL(CMD_SYNC, EXTRACT(CMD, lo));
+			UNSIGNED_LONGS_EQUAL(SIG_IRQ, EXTRACT(CS, lo));
+			UNSIGNED_LONGS_EQUAL(0UL, lo >> MSIDATA_SHIFT);
+			UNSIGNED_LONGS_EQUAL((uintptr_t)&sync.completion[TEST_HELPERS_SMMU_IDX],
+					     hi);
+			cmd = tlbi_test_smmu_command(smmu, start_prod, ARRAY_SIZE(vmids) + 1U);
+			lo = (uint64_t)cmd;
+			/* The second completion command wakes waiters with SEV. */
+			UNSIGNED_LONGS_EQUAL(CMD_SYNC, EXTRACT(CMD, lo));
+			UNSIGNED_LONGS_EQUAL(SIG_SEV, EXTRACT(CS, lo));
+			CHECK_TRUE(smmuv3_cmd_sync_is_complete(&sync));
 		}
-		/* Two TLBIs share one MSI/SEV pair; no extra per-VMID synchronization is needed. */
-		UNSIGNED_LONGS_EQUAL(4UL,
-			tlbi_test_smmu_command_count(smmu, start_prod));
-
-		/* The command immediately after the TLBIs must synchronize their completion. */
-		cmd = tlbi_test_smmu_command(smmu, start_prod, ARRAY_SIZE(vmids));
-		lo = (uint64_t)cmd;
-		hi = (uint64_t)(cmd >> MSIADDR_SHIFT);
-		UNSIGNED_LONGS_EQUAL(CMD_SYNC, EXTRACT(CMD, lo));
-		/* SIG_IRQ selects the MSI write used by the driver to observe completion. */
-		UNSIGNED_LONGS_EQUAL(SIG_IRQ, EXTRACT(CS, lo));
-		/* Writing zero changes the destination word from pending to complete. */
-		UNSIGNED_LONGS_EQUAL(0UL, lo >> MSIDATA_SHIFT);
-		/* The MSI must target this PSMMU's word within the shared completion object. */
-		UNSIGNED_LONGS_EQUAL((uintptr_t)&sync.completion[TEST_HELPERS_SMMU_IDX],
-				     hi);
-
-		/* A separate CMD_SYNC follows the MSI write to notify a waiting CPU. */
-		cmd = tlbi_test_smmu_command(smmu, start_prod, ARRAY_SIZE(vmids) + 1U);
-		lo = (uint64_t)cmd;
-		UNSIGNED_LONGS_EQUAL(CMD_SYNC, EXTRACT(CMD, lo));
-		/* SIG_SEV requests the event that lets a WFE waiter recheck completion. */
-		UNSIGNED_LONGS_EQUAL(SIG_SEV, EXTRACT(CS, lo));
-		/* Unpaused fake_host must leave every MSI completion word at zero. */
-		CHECK_TRUE(smmuv3_cmd_sync_is_complete(&sync));
 	}
 }
 
 /*
- * TC4: Select event signalling for regular CMD_SYNC.
+ * TC7: Select event signalling for regular CMD_SYNC.
  *
  * Public APIs tested:
  *   None.
@@ -343,7 +473,7 @@ TEST(smmuv3_tlbi, cmd_sync_sev_command)
 }
 
 /*
- * TC5: Synchronize by queue polling without MSI or event signalling.
+ * TC8: Synchronize by queue polling without MSI or event signalling.
  *
  * Public APIs tested:
  *   None.
@@ -392,7 +522,7 @@ TEST(smmuv3_tlbi, cmd_sync_poll_without_msi)
 }
 
 /*
- * TC6: Defer completion and the following event command on one PSMMU.
+ * TC9: Defer completion and the following event command on one PSMMU.
  *
  * Public APIs tested:
  *   smmuv3_inv_at_level_per_vmids_submit(), smmuv3_cmd_sync_is_complete().
@@ -463,7 +593,7 @@ TEST(smmuv3_tlbi_active_psmmu, paused_cmd_sync_defers_completion_and_wakeup)
 }
 
 /*
- * TC7: Time out a synchronous invalidation while CMD_SYNC is paused.
+ * TC10: Time out a synchronous invalidation while CMD_SYNC is paused.
  *
  * Public APIs tested:
  *   smmuv3_inv_at_level_per_vmids(), smmuv3_cmd_sync_is_complete().
@@ -505,7 +635,7 @@ TEST(smmuv3_tlbi_active_psmmu, paused_cmd_sync_blocks_synchronous_invalidation)
 }
 
 /*
- * TC8: Preserve deferred MSI write order across a queue wrap.
+ * TC11: Preserve deferred MSI write order across a queue wrap.
  *
  * Public APIs tested:
  *   smmuv3_inv_at_level_per_vmids_submit(), smmuv3_cmd_sync_is_complete().
@@ -521,19 +651,22 @@ TEST(smmuv3_tlbi_active_psmmu, paused_cmd_sync_blocks_synchronous_invalidation)
  *   Position the producer at the last slot, pause CMD_SYNC, then submit a
  *   page invalidation so its MSI CMD_SYNC lands in slot zero. Queue two more
  *   MSI writes carrying 1 and 2 to the same destination, each with a SEV
- *   CMD_SYNC. Inspect the paused state, resume and inspect the final state.
+ *   CMD_SYNC. Check both wrap bits after crossing the boundary and again
+ *   after resuming and draining the queue.
  *
  * Expected results:
  *   Submissions return 0. While paused, both destinations remain UINT32_MAX
- *   and the consumer stops at slot zero with the correct wrap bit. Resuming
- *   completes the original invalidation, leaves 2 in the later destination
- *   and consumes all seven commands in the submitted sequence.
+ *   and the consumer stops at slot zero. Both wrap bits toggle at the boundary
+ *   and retain their new values after draining. Resuming completes the
+ *   original invalidation, leaves 2 in the later destination and consumes all
+ *   seven commands in the submitted sequence.
  */
 TEST(smmuv3_tlbi_active_psmmu, paused_cmd_sync_preserves_wrapped_queue_order)
 {
 	uint32_t entries = U(1) << smmu->config.cmdq_log2size;
 	uint32_t mask = (entries << 1) - 1U;
 	uint32_t start_prod;
+	uint32_t expected_wrap;
 	unsigned int vmid = 1U;
 
 	CHECK_EQUAL(0, smmuv3_cmd_sync_init(&pending_sync, (uintptr_t)&pending_sync));
@@ -543,11 +676,18 @@ TEST(smmuv3_tlbi_active_psmmu, paused_cmd_sync_preserves_wrapped_queue_order)
 		CHECK_EQUAL(0, prepare_send_command(smmu, CMD_SYNC, 0UL, 0UL));
 	}
 	start_prod = read32(smmu->cmdq.prod_reg);
+	/* Both indices must start at the last slot with matching wrap bits. */
+	UNSIGNED_LONGS_EQUAL(start_prod, read32(smmu->cmdq.cons_reg));
+	/* The bit above the queue index toggles on crossing the ring boundary. */
+	expected_wrap = (start_prod & entries) ^ entries;
 	/* Hold the first CMD_SYNC as submission crosses the ring boundary. */
 	CHECK_EQUAL(0, smmuv3_arch_pause_cmd_sync(smmu, true));
 	/* Publishing the wrapped sequence must succeed while completion is held. */
 	CHECK_EQUAL(0, smmuv3_inv_at_level_per_vmids_submit(&vmid, 1U,
 				0UL, S2TT_PAGE_LEVEL, 1UL, true, &pending_sync));
+	/* Submission and TLBI consumption must each toggle their wrap bit. */
+	UNSIGNED_LONGS_EQUAL(expected_wrap, read32(smmu->cmdq.prod_reg) & entries);
+	UNSIGNED_LONGS_EQUAL(expected_wrap, read32(smmu->cmdq.cons_reg) & entries);
 	/* Queue a distinct value behind the stalled completion to track ordering. */
 	CHECK_EQUAL(0, prepare_send_cmd_sync(smmu, (uintptr_t)&later_completion, 1U));
 	/* A later write to the same word must eventually replace the first value. */
@@ -560,6 +700,9 @@ TEST(smmuv3_tlbi_active_psmmu, paused_cmd_sync_preserves_wrapped_queue_order)
 	UNSIGNED_LONGS_EQUAL((start_prod + 1U) & mask, read32(smmu->cmdq.cons_reg));
 	/* Release the pause and drain all queued writes in submission order. */
 	CHECK_EQUAL(0, smmuv3_arch_pause_cmd_sync(smmu, false));
+	/* Draining the remaining commands must not cross another ring boundary. */
+	UNSIGNED_LONGS_EQUAL(expected_wrap, read32(smmu->cmdq.prod_reg) & entries);
+	UNSIGNED_LONGS_EQUAL(expected_wrap, read32(smmu->cmdq.cons_reg) & entries);
 	/* The first MSI must clear the original invalidation's pending word. */
 	CHECK_TRUE(smmuv3_cmd_sync_is_complete(&pending_sync));
 	/* The final value must come from the second of the two later MSI writes. */
@@ -569,7 +712,7 @@ TEST(smmuv3_tlbi_active_psmmu, paused_cmd_sync_preserves_wrapped_queue_order)
 }
 
 /*
- * TC9: Skip explicit invalidation commands on a BTM PSMMU.
+ * TC12: Skip explicit invalidation commands on a BTM PSMMU.
  *
  * Public APIs tested:
  *   smmuv3_inv(), smmuv3_inv_entries(), smmuv3_inv_at_level(),
@@ -624,7 +767,7 @@ TEST(smmuv3_tlbi_active_psmmu, btm_psmmu_skips_explicit_tlbi)
 }
 
 /*
- * TC10: Initialize completion storage and reject invalid arguments.
+ * TC13: Initialize completion storage and reject invalid arguments.
  *
  * Public APIs tested:
  *   smmuv3_cmd_sync_init().
@@ -668,7 +811,7 @@ TEST(smmuv3_tlbi, cmd_sync_init)
 }
 
 /*
- * TC11: Include the final SMMU slot in aggregate completion checks.
+ * TC14: Include the final SMMU slot in aggregate completion checks.
  *
  * Public APIs tested:
  *   smmuv3_cmd_sync_is_complete().
@@ -702,4 +845,83 @@ TEST(smmuv3_tlbi, cmd_sync_completion)
 	cmd_sync.completion[RMM_MAX_SMMUS - 1U] = 0U;
 	/* Clearing the only pending word must restore aggregate completion. */
 	CHECK_TRUE(smmuv3_cmd_sync_is_complete(&cmd_sync));
+}
+
+/*
+ * TC15: Preserve the leaf bit at levels 0 and -1 without a TTL hint.
+ *
+ * Public APIs tested:
+ *   smmuv3_inv_at_level().
+ *
+ * Aim:
+ *   Verify LEAF and TTL in every generated TLBI for leaf requests at levels
+ *   0 and -1, covering both one and multiple invalidation commands.
+ *
+ * Method:
+ *   Submit one and 65 blocks at level 0 and one block at level -1 through
+ *   smmuv3_inv_at_level() on the active non-BTM PSMMU with leaf=true.
+ *   Inspect each TLBI's VMID, IPA, range coverage and hints. These ranges
+ *   cannot produce a single-page command, so this does not exercise
+ *   non-range encoding.
+ *
+ * Expected results:
+ *   All calls succeed and cover each requested range exactly. Every TLBI has
+ *   LEAF set, TTL zero and TG_4KB. Each request consumes one or two TLBIs
+ *   followed by the MSI/SEV completion pair.
+ */
+TEST(smmuv3_tlbi_active_psmmu, levels_zero_and_minus_one_preserve_leaf)
+{
+	const struct {
+		long level;
+		unsigned long blocks;
+		unsigned long commands;
+	} cases[] = {
+		{0L, 1UL, 1UL},
+		{0L, 65UL, 2UL},
+		{-1L, 1UL, 1UL}
+	};
+	struct smmuv3_cmd_sync sync = {};
+
+	/* Initialize the MSI destinations used by synchronous invalidation. */
+	CHECK_EQUAL(0, smmuv3_cmd_sync_init(&sync, (uintptr_t)&sync));
+	for (unsigned int i = 0U; i < ARRAY_SIZE(cases); i++) {
+		const unsigned long base = XLAT_BLOCK_SIZE(cases[i].level);
+		const unsigned long block_granules = base / GRANULE_SIZE;
+		uint32_t start_prod = read32(smmu->cmdq.prod_reg);
+		unsigned long remaining = cases[i].blocks * block_granules;
+		unsigned long next_ipa = base;
+
+		CHECK_EQUAL(0, smmuv3_inv_at_level(2U, base, cases[i].level,
+						 cases[i].blocks, true, &sync));
+		CHECK_TRUE(smmuv3_cmd_sync_is_complete(&sync));
+		/* All TLBIs in the request share one MSI/SEV completion pair. */
+		UNSIGNED_LONGS_EQUAL(cases[i].commands + 2UL,
+				     tlbi_test_smmu_command_count(smmu, start_prod));
+
+		for (unsigned long j = 0UL; j < cases[i].commands; j++) {
+			uint128_t cmd = tlbi_test_smmu_command(smmu, start_prod, j);
+			uint64_t lo = (uint64_t)cmd;
+			uint64_t hi = (uint64_t)(cmd >> 64);
+			unsigned long covered = (EXTRACT(NUM, lo) + 1UL) << EXTRACT(SCALE, lo);
+
+			/* Each range chunk must invalidate stage-2 translations by IPA. */
+			UNSIGNED_LONGS_EQUAL(CMD_TLBI_S2_IPA, EXTRACT(CMD, lo));
+			/* Range splitting must preserve the requested VMID. */
+			UNSIGNED_LONGS_EQUAL(2UL, EXTRACT(VMID, lo));
+			/* Chunks must be contiguous, with no gaps or overlap. */
+			UNSIGNED_LONGS_EQUAL(next_ipa, hi & BIT_MASK_ULL(55U, 12U));
+			/* Levels 0 and -1 have no TTL hint encoding for the 4KB granule. */
+			UNSIGNED_LONGS_EQUAL(0UL, EXTRACT(TTL, hi));
+			/* Multi-page ranges retain the 4KB granule encoding. */
+			UNSIGNED_LONGS_EQUAL(TG_4KB, EXTRACT(TG, hi));
+			/* Omitting TTL must preserve the caller's leaf-only request. */
+			CHECK_TRUE((hi & LEAF_BIT) != 0UL);
+			/* Each chunk must advance without overrunning the request. */
+			CHECK_TRUE((covered > 0UL) && (covered <= remaining));
+			next_ipa += covered * GRANULE_SIZE;
+			remaining -= covered;
+		}
+		/* Together, the commands must cover every requested granule. */
+		UNSIGNED_LONGS_EQUAL(0UL, remaining);
+	}
 }
