@@ -267,6 +267,12 @@ static bool is_attest_token_re_init_needed(struct rec_attest_data *attest_data)
 		(attest_data->fw_img_sequence != glob_data_get_fw_img_sequence());
 }
 
+/*
+ * Continue token generation or copying, restarting the operation after LFA
+ * when needed. The caller holds the REC execution reference and maps its AUX
+ * pages. Report status through @res and IRQ exits through @rec_exit.
+ * Unexpected initialization or signing failures return RSI_ERROR_UNKNOWN.
+ */
 void handle_rsi_attest_token_continue(struct rec *rec,
 				      struct rmi_rec_exit *rec_exit,
 				      struct rsi_result *res)
@@ -304,12 +310,8 @@ void handle_rsi_attest_token_continue(struct rec *rec,
 
 	if (!attest_data->rmm_cca_token_challenge_set) {
 		/*
-		 * The challenge should have been set in the initial call to
-		 * RSI_ATTEST_TOKEN_INIT, if it was not set, it means the initial
-		 * call was not made or failed, and therefore the attestation token
-		 * process has not been properly initialized, or this is a call
-		 * after LFA and therefore the stored challenge is to be used,
-		 * which has to be valid in order to proceed.
+		 * RSI_ATTEST_TOKEN_INIT must have set the challenge before
+		 * continuing token generation.
 		 */
 		res->smc_res.x[0] = RSI_ERROR_STATE;
 		return;
@@ -324,7 +326,7 @@ void handle_rsi_attest_token_continue(struct rec *rec,
 		 */
 		if (!realm_attest_token_init(rec, NULL)) {
 			ERROR("Failed to re-initialize attestation after LFA.\n");
-			res->smc_res.x[0] = RSI_ERROR_STATE;
+			res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
 			return;
 		}
 	}
@@ -336,23 +338,9 @@ void handle_rsi_attest_token_continue(struct rec *rec,
 		ret = attest_realm_token_sign(&rec->attest_app_data,
 					&(attest_data->rmm_realm_token_len));
 
-		if (ret == ATTEST_TOKEN_ERR_INVALID_STATE) {
-			/*
-			 * Before this call the initial attestation token call
-			 * (SMC_RSI_ATTEST_TOKEN_INIT) must have been executed
-			 * successfully.
-			 *
-			 * TODO: This check might have become redundant as
-			 * attest_data->rmm_cca_token_challenge_set is now
-			 * checked at the beginning of this function. Further
-			 * analysis is required to determine whether it should
-			 * be kept or not.
-			 */
-			res->smc_res.x[0] = RSI_ERROR_STATE;
-			return;
-		} else if ((ret != ATTEST_TOKEN_ERR_COSE_SIGN_IN_PROGRESS) &&
-			(ret != ATTEST_TOKEN_ERR_SUCCESS)) {
-			/* Accessible only in case of failure during token signing */
+		if ((ret != ATTEST_TOKEN_ERR_COSE_SIGN_IN_PROGRESS) &&
+		    (ret != ATTEST_TOKEN_ERR_SUCCESS)) {
+			/* An invalid app state here is also an internal failure. */
 			ERROR("Realm token signing failed.\n");
 			res->smc_res.x[0] = RSI_ERROR_UNKNOWN;
 			return;

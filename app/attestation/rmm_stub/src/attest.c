@@ -44,6 +44,12 @@ static unsigned long global_init_attest_app(struct app_data_cfg *app_data)
 	return ret;
 }
 
+/*
+ * Initialize shared attestation state once per image on the primary CPU,
+ * after global data setup and before any REC runs. With ATTEST_EL3_TOKEN_SIGN
+ * enabled, reserve the EL3 ticket boundary so old responses cannot enter a
+ * retained token context after LFA. Return zero on success or an initialization error.
+ */
 int attest_app_global_init(void)
 {
 	struct app_data_cfg app_data;
@@ -51,6 +57,10 @@ int attest_app_global_init(void)
 	int ret = 0;
 	unsigned long uret = 0;
 	unsigned int cpuid = my_cpuid();
+
+#if ATTEST_EL3_TOKEN_SIGN
+	attest_el3_token_sign_init();
+#endif
 
 	/*
 	 * Reuse the pages that were allocated for the per-cpu instances.

@@ -25,8 +25,11 @@ void attest_do_extend(struct app_data_cfg *app_data,
 		      unsigned char *out,
 		      size_t out_size);
 
-/* Do the global initialisation for the attestation app
- * This function gets the RAK from EL3, and stores it in the app keystore.
+/*
+ * Initialize shared attestation state once per image on the primary CPU,
+ * after global data setup and before any REC runs. Retrieves the RAK and,
+ * when ATTEST_EL3_TOKEN_SIGN is enabled, establishes the EL3 response ticket
+ * boundary. Return zero on success or an initialization error.
  */
 int attest_app_global_init(void);
 
@@ -63,12 +66,21 @@ int attest_app_el3_token_write_response_to_ctx(struct app_data_cfg *app_data,
 					       uint8_t signature_buf[]);
 
 /*
- * Write the response from EL3 to the context. The response is written only if the context
- * is valid and the response is for the right request. If the function returns an error
- * the caller must treat it as a fatal error. The cookie is checked against the per cpu
- * response buffer to ensure that the response is for the right request.
- * The caller must ensure that the REC granule lock is held so that it cannot be deleted
- * while the response is being written.
+ * Reserve the EL3 signing ticket boundary for this image. Called once on the
+ * primary CPU after global data setup, before any REC enqueues or receives
+ * a response. This API is private to the RMM stub and is available only when
+ * ATTEST_EL3_TOKEN_SIGN is enabled.
+ */
+void attest_el3_token_sign_init(void);
+
+/*
+ * Write the per-CPU EL3 response to the context if the cookie matches and
+ * the request was issued by this image. Old-image responses are discarded
+ * before entering the app, whose retained heap may have an obsolete layout.
+ * The app checks that a current-image response matches its active request.
+ * The caller must pin the REC with a reference or its granule lock.
+ * Return zero on delivery or discard, -EINVAL for a cookie mismatch, or the
+ * app's error. The caller must treat nonzero returns as fatal errors.
  */
 int attest_el3_token_write_response_to_ctx(struct app_data_cfg *app_data, uintptr_t cookie);
 
