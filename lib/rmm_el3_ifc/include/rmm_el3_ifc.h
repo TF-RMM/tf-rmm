@@ -921,16 +921,25 @@ int rmm_el3_ifc_rp_ide_key_set_stop(unsigned long ecam_addr, unsigned long rp_id
 				    unsigned long ide_sid);
 
 /*
- * Check whether @ecam_addr matches a Root Complex ECAM base address from the
- * cached Boot Manifest.
+ * Check whether @segment matches the PCIe segment identifier of the Root
+ * Complex identified by @ecam_addr in the cached Boot Manifest.
  */
-bool rmm_el3_ifc_is_ecam_base_valid(unsigned long ecam_addr);
+bool rmm_el3_ifc_is_pci_segment_valid(unsigned long ecam_addr,
+				      unsigned long segment);
 
 /*
  * Check whether endpoint @bdf is covered by any BDF mapping in the Root
  * Complex identified by @ecam_addr in the cached Boot Manifest.
  */
 bool rmm_el3_ifc_is_bdf_valid(unsigned long ecam_addr, unsigned int bdf);
+
+/*
+ * Check whether every RID in the non-empty range [@rid_base, @rid_top) is
+ * covered by BDF mappings in the Root Complex identified by @ecam_addr.
+ */
+bool rmm_el3_ifc_is_rid_range_valid(unsigned long ecam_addr,
+				    unsigned int rid_base,
+				    unsigned int rid_top);
 
 /*
  * Check whether @root_port_id matches any Root Port in the Root Complex

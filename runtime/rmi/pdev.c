@@ -119,12 +119,14 @@ void pdev_stream_granules_unmap_unlock(struct granule *g_streams,
 	pdev_streams_granules_unmap_unlock(g_streams, &stream_aux->streams);
 }
 
-static bool pdev_hb_base_is_valid(unsigned long hb_base)
+static bool pdev_routing_id_is_valid(unsigned long hb_base,
+				     unsigned long routing_id)
 {
-	return rmm_el3_ifc_is_ecam_base_valid(hb_base);
+	return rmm_el3_ifc_is_pci_segment_valid(hb_base, routing_id);
 }
 
-static bool pdev_pci_id_is_valid(unsigned long hb_base, unsigned long bdf,
+static bool pdev_pci_id_is_valid(unsigned long hb_base,
+				 unsigned long bdf,
 				 unsigned long flags)
 {
 	if ((bdf & ~PCIE_BDF_VALID_MASK) != 0UL) {
@@ -145,20 +147,45 @@ static unsigned int pdev_get_max_num_vdevs(unsigned int rid_base,
 }
 
 /*
- * TODO:
- * Check that the device identifier is not equal to the device identifier of
- * another PDEV.
+ * For an integrated PDEV the range [pdev.rid_base, pdev.rid_top) falls within the
+ * platform-assigned RID range for the corresponding device.
+ */
+static bool pdev_rid_range_is_valid(unsigned long hb_base,
+				    unsigned int rid_base,
+				    unsigned int rid_top)
+{
+	/* rid_top is exclusive, so it may be one past the last 16-bit RID. */
+	if ((rid_base >= rid_top) ||
+	    (rid_top > ((unsigned int)UINT16_MAX + 1U))) {
+		return false;
+	}
+
+	if (pdev_get_max_num_vdevs(rid_base, rid_top) >
+	    PDEV_MAX_VDEVS(MAX_VDEVS_ORDER_PER_PDEV)) {
+		return false;
+	}
+
+	return rmm_el3_ifc_is_rid_range_valid(hb_base, rid_base, rid_top);
+}
+
+/*
+ * - The hb_base, routing_id, pdev_id are valid for the platform.
+ * - If communication with the device does not use SPDM, id_index is 0.
+ * - The parameters are consistent with the PDEV invariants.
+ *
+ * - hb_base: Base address of the host bridge. For PCIe devices, this is the CPU-visible
+ *	      physical base address of the host bridge ECAM configuration window
+ * - routing_id: PCIe segment identifier
+ * - pdev_id: Device id. For PCIe devices this is the BDF id.
+ * For RootPort devices hash_algo, rid_base and rid_top ignored,
+ * check only for endpoint devices.
  */
 static unsigned long validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
 {
 	if ((PDEV_CATEGORY_FROM_FLAGS(pd_params->flags) != RMI_PDEV_ROOTPORT)) {
-		if (pd_params->rid_base >= pd_params->rid_top) {
-			return RMI_ERROR_INPUT;
-		}
-		unsigned int max_num_vdevs =
-			pdev_get_max_num_vdevs(pd_params->rid_base, pd_params->rid_top);
-
-		if (max_num_vdevs > PDEV_MAX_VDEVS(MAX_VDEVS_ORDER_PER_PDEV)) {
+		if (!pdev_rid_range_is_valid(pd_params->hb_base,
+					     pd_params->rid_base,
+					     pd_params->rid_top)) {
 			return RMI_ERROR_INPUT;
 		}
 
@@ -175,32 +202,27 @@ static unsigned long validate_rmi_pdev_params(struct rmi_pdev_params *pd_params)
 		return RMI_ERROR_INPUT;
 	}
 
+	if ((EXTRACT(RMI_PDEV_FLAGS_SPDM, pd_params->flags) ==
+	     RMI_PDEV_SPDM_FALSE) && (pd_params->id_index != 0UL)) {
+		return RMI_ERROR_INPUT;
+	}
+
 	/*
-	 * Validate RmiPdevFlags. RMM supports PCIE off-chip device represented
-	 */
-	/* TODO_ALP17: Check whether [n]coh_addr is checked during mem validate */
-	/* TODO_ALP17: Add address range checking if RMI_PDEV_FLAGS_NCOH_ADDR
-	 * is set.
-	 */
-	/*
-	 * Only off-chip end point devices are supported for now.
-	 * They are expect to be selective trust devices supporting SPDM.
-	 * For Rootports we don't have any flag requirements.
+	 * This implementation supports Root Ports and off-chip accelerator
+	 * endpoints. Off-chip endpoints require SPDM; on-chip endpoints are
+	 * not supported.
 	 */
 	/* coverity[uninit_use:SUPPRESS] */
 	if ((PDEV_CATEGORY_FROM_FLAGS(pd_params->flags) == RMI_PDEV_ENDPOINT_ACCEL_OFF_CHIP)) {
 		if ((EXTRACT(RMI_PDEV_FLAGS_SPDM, pd_params->flags) != RMI_PDEV_SPDM_TRUE)) {
-			return RMI_ERROR_NOT_SUPPORTED;
+			return RMI_ERROR_INPUT;
 		}
 	} else if (PDEV_CATEGORY_FROM_FLAGS(pd_params->flags) != RMI_PDEV_ROOTPORT) {
-		return RMI_ERROR_NOT_SUPPORTED;
-	}
-
-	if (pd_params->routing_id > (unsigned long)(UINT16_MAX)) {
 		return RMI_ERROR_INPUT;
 	}
 
-	if (!pdev_hb_base_is_valid(pd_params->hb_base) ||
+	if (!pdev_routing_id_is_valid(pd_params->hb_base,
+				      pd_params->routing_id) ||
 	    !pdev_pci_id_is_valid(pd_params->hb_base, pd_params->pdev_id,
 				  pd_params->flags)) {
 		return RMI_ERROR_INPUT;

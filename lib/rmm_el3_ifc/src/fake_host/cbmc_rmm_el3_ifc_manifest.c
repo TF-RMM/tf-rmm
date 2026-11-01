@@ -23,9 +23,11 @@ int rmm_el3_ifc_bdf_to_smmu(unsigned long ecam_addr, unsigned int bdf,
 	return 0;
 }
 
-bool rmm_el3_ifc_is_ecam_base_valid(unsigned long ecam_addr)
+bool rmm_el3_ifc_is_pci_segment_valid(unsigned long ecam_addr,
+				      unsigned long segment)
 {
 	(void)ecam_addr;
+	(void)segment;
 	return true;
 }
 
@@ -33,6 +35,16 @@ bool rmm_el3_ifc_is_bdf_valid(unsigned long ecam_addr, unsigned int bdf)
 {
 	(void)ecam_addr;
 	(void)bdf;
+	return true;
+}
+
+bool rmm_el3_ifc_is_rid_range_valid(unsigned long ecam_addr,
+				    unsigned int rid_base,
+				    unsigned int rid_top)
+{
+	(void)ecam_addr;
+	(void)rid_base;
+	(void)rid_top;
 	return true;
 }
 
