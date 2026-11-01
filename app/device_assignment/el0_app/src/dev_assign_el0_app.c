@@ -676,8 +676,11 @@ static int dev_assign_cache_algorithms_rsp(struct dev_assign_info *info,
 }
 
 /*
- * Calculate the MEASUREMENTS response length from its fields and the saved
- * request. Return -1 if a required field extends beyond message_size.
+ * Calculate the MEASUREMENTS response length within the decoded message_size.
+ * info must retain the pending GET_MEASUREMENTS request, which determines the
+ * response layout. On success, store the length in response_len and return 0.
+ * Return -1 for inconsistent or truncated messages, or if the negotiated
+ * signature size cannot be determined.
  */
 static int dev_assign_measurements_rsp_len(struct dev_assign_info *info,
 					   spdm_measurements_response_t *meas_rsp,
@@ -692,14 +695,12 @@ static int dev_assign_measurements_rsp_len(struct dev_assign_info *info,
 	uint32_t base_asym_algo;
 	uint16_t opaque_len;
 
-	/*
-	 * Derive the SPDM response length from its fields and the saved request so
-	 * that only the complete MEASUREMENTS response is cached.
-	 */
+	/* The saved request supplies the version and signature requirement. */
 	if (info->spdm_request_len < sizeof(spdm_message_header_t)) {
 		return -1;
 	}
 	meas_req = (const spdm_message_header_t *)info->spdm_request;
+	/* Require matching request metadata before interpreting the response. */
 	if ((meas_req->request_response_code != (uint8_t)SPDM_GET_MEASUREMENTS) ||
 	    (message_size < sizeof(*meas_rsp)) ||
 	    (meas_rsp->header.spdm_version != meas_req->spdm_version)) {
@@ -708,6 +709,10 @@ static int dev_assign_measurements_rsp_len(struct dev_assign_info *info,
 
 	length = sizeof(*meas_rsp) +
 		(size_t)libspdm_read_uint24(meas_rsp->measurement_record_length);
+	/*
+	 * Check the record boundary first to avoid unsigned underflow. Both
+	 * signed and unsigned responses carry the nonce and opaque-length field.
+	 */
 	if ((length > message_size) ||
 	    ((message_size - length) < (U(SPDM_NONCE_SIZE) + sizeof(opaque_len)))) {
 		return -1;
@@ -715,14 +720,20 @@ static int dev_assign_measurements_rsp_len(struct dev_assign_info *info,
 
 	length += U(SPDM_NONCE_SIZE);
 	opaque_len = libspdm_read_uint16(&rsp_data[length]);
+	/* Apply SPDM's opaque-data limit even if more bytes were received. */
 	if (opaque_len > U(SPDM_MAX_OPAQUE_DATA_SIZE)) {
 		return -1;
 	}
 	length += sizeof(opaque_len) + (size_t)opaque_len;
 
+	/* SPDM 1.3 adds RequesterContext to signed and unsigned responses. */
 	if (meas_req->spdm_version >= U(SPDM_MESSAGE_VERSION_13)) {
 		length += U(SPDM_REQ_CONTEXT_SIZE);
 	}
+	/*
+	 * A signature is present only when requested; its size follows the
+	 * negotiated BaseAsymAlgo.
+	 */
 	if ((meas_req->param1 &
 	     U(SPDM_GET_MEASUREMENTS_REQUEST_ATTRIBUTES_GENERATE_SIGNATURE)) != 0u) {
 		param.location = LIBSPDM_DATA_LOCATION_CONNECTION;
@@ -734,11 +745,13 @@ static int dev_assign_measurements_rsp_len(struct dev_assign_info *info,
 		}
 		/* coverity[uninit_use_in_call:SUPPRESS] */
 		data_size = libspdm_get_asym_signature_size(base_asym_algo);
+		/* An unsupported algorithm must not be treated as no signature. */
 		if (data_size == 0U) {
 			return -1;
 		}
 		length += data_size;
 	}
+	/* Require the complete response, while excluding any trailing bytes. */
 	if (length > message_size) {
 		return -1;
 	}
@@ -764,7 +777,11 @@ static int dev_assign_cache_measurements(struct dev_assign_info *info,
 				  cache_len, CACHE_TYPE_MEAS, CACHE_COMM_DIR_RESP, hash_op_flags);
 }
 
-/* Process SPDM VDM response */
+/*
+ * Cache TDISP interface-report data from a decoded SPDM VDM response bounded by
+ * message_size. Return 0 on success or if the response is not an interface
+ * report, and -1 for truncated data, an invalid report portion or a cache error.
+ */
 static int cache_spdm_vdm_response(struct dev_assign_info *info,
 				   void *spdm_response,
 				   size_t message_size)
@@ -787,7 +804,7 @@ static int cache_spdm_vdm_response(struct dev_assign_info *info,
 	if ((doe_vdm_hdr->standard_id != (uint16_t)SPDM_STANDARD_ID_PCISIG) ||
 	    (doe_vdm_hdr->vendor_id != (uint16_t)SPDM_VENDOR_ID_PCISIG) ||
 	    (doe_vdm_hdr->pci_protocol.protocol_id != (uint8_t)PCI_PROTOCOL_ID_TDISP)) {
-		ERROR("Invalid DOE VDM header.\n");
+		INFO("Skipping cache for non-TDISP VDM response.\n");
 		return 0;
 	}
 	if ((message_size - sizeof(pci_doe_spdm_vendor_defined_response_t)) <
