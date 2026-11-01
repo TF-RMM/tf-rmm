@@ -76,6 +76,7 @@ size_t app_get_required_granule_count(unsigned long app_id);
  * Arguments:
  *	- app_data: Pointer to the config to be initialised
  *	- app_id: The id of the app to be initialised
+ *	- reset_on_lfa: Flag indicating whether the app should be reset on LFA
  *	- granule_pas: An array of Granule PAS that can be used for per instance
  *        data in the app
  *	- granule_count: The number of elements in the granule_pas array.
@@ -98,6 +99,7 @@ size_t app_get_required_granule_count(unsigned long app_id);
  */
 int app_new_instance(struct app_data_cfg *app_data,
 		      unsigned long app_id,
+		      bool reset_on_lfa,
 		      uintptr_t granule_pas[],
 		      size_t granule_count,
 		      void *granule_va_start,
@@ -176,6 +178,21 @@ void app_map_shared_page(struct app_data_cfg *app_data);
  *	- app_data: An initialised app config
  */
 void app_unmap_shared_page(struct app_data_cfg *app_data);
+
+/*
+ * Check if the app image sequence number in the app data config matches the
+ * current firmware image sequence number. This can be used by the app to check
+ * if it is running with the expected firmware image (e.g. after an LFA
+ * update).
+ *
+ * Arguments:
+ *	- app_data: An initialised app config
+ *
+ * Return:
+ *	- true if the app image sequence number matches the current firmware image
+ *	  sequence number, false otherwise.
+ */
+bool is_app_fw_img_sequence_current(struct app_data_cfg *app_data);
 
 #endif /* __ASSEMBLER__ */
 #endif /* APP_H */

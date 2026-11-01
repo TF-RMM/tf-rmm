@@ -63,6 +63,7 @@ int attest_app_global_init(void)
 
 	ret = app_new_instance(&app_data,
 				ATTESTATION_APP_ID,
+				true, /* reset_on_lfa */
 				granule_pas,
 				ARRAY_SIZE(granule_pas),
 				rmm_attest_app_pages[cpuid][0], 0);
@@ -121,6 +122,7 @@ void attest_app_init_per_cpu_instance(void)
 	 */
 	ret = app_new_instance(&rmm_attest_app_datas[cpuid],
 			ATTESTATION_APP_ID,
+			true, /* reset_on_lfa */
 			granule_pas,
 			ATTESTATION_APP_PAGE_COUNT,
 			&rmm_attest_app_pages[cpuid][0][0],

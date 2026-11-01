@@ -270,6 +270,7 @@ void app_processes_cleanup(void)
 
 int app_new_instance(struct app_data_cfg *app_data,
 		      unsigned long app_id,
+		      bool reset_on_lfa,
 		      uintptr_t granule_pas[],
 		      size_t granule_count,
 		      void *granule_va_start,
@@ -279,6 +280,7 @@ int app_new_instance(struct app_data_cfg *app_data,
 	unsigned long command;
 	size_t heap_size;
 
+	(void)reset_on_lfa;
 	(void)granule_pas;
 	(void)granule_count;
 	(void)granule_va_start;
@@ -557,4 +559,10 @@ int32_t mbedtls_psa_external_get_random(
 	*output_length = output_size;
 
 	return 0;
+}
+
+bool is_app_fw_img_sequence_current(struct app_data_cfg *app_data)
+{
+	(void)app_data;
+	return true;
 }

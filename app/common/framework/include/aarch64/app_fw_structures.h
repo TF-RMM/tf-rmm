@@ -94,6 +94,9 @@ struct app_data_cfg {
 	/* Sequence of the firmware image used to initialize the app */
 	unsigned long app_fw_img_sequence;
 
+	/* Flag indicating whether the app should be reset on LFA */
+	bool reset_on_lfa;
+
 	uintptr_t granule_pas[APP_MAX_PAGES];
 	size_t granule_pa_count;
 	void *granule_va_start;

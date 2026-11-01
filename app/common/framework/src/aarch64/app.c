@@ -342,11 +342,16 @@ static int app_heap_xlat_map(struct app_data_cfg *app_data,
 	      next_granule_idx, granule_pas, granule_count);
 }
 
-static int init_app_reg_ctx(struct app_data_cfg *app_data)
+static int init_app_reg_ctx(struct app_data_cfg *app_data,
+					struct app_reg_ctx *app_reg_ctx)
 {
+	bool unmap_app_reg_ctx = false;
 
-	struct app_reg_ctx *app_reg_ctx =
-		(struct app_reg_ctx *)slot_map_page_to_init(app_data->app_reg_ctx_pa);
+	if (app_reg_ctx == NULL) {
+		app_reg_ctx = (struct app_reg_ctx *)slot_map_page_to_init(
+						app_data->app_reg_ctx_pa);
+		unmap_app_reg_ctx = true;
+	}
 
 	if (app_reg_ctx == NULL) {
 		ERROR("%s (%u): Failed to map app_reg_ctx page\n", __func__, __LINE__);
@@ -363,12 +368,15 @@ static int init_app_reg_ctx(struct app_data_cfg *app_data)
 				       SPSR_EL2_D_BIT;
 	app_reg_ctx->pc = app_data->entry_point;
 
-	unmap_page(app_data->app_reg_ctx_pa, app_reg_ctx);
+	if (unmap_app_reg_ctx) {
+		unmap_page(app_data->app_reg_ctx_pa, app_reg_ctx);
+	}
 	return 0;
 }
 
 static int app_init_cfg_data(struct app_data_cfg *app_data,
-			      bool new_instance)
+			     struct app_reg_ctx *app_reg_ctx,
+			     bool reset)
 {
 	struct app_header *app_header = NULL;
 	int ret = 0;
@@ -396,10 +404,7 @@ static int app_init_cfg_data(struct app_data_cfg *app_data,
 		return -ENOMEM;
 	}
 
-	if (!new_instance) {
-		/* For an existing instance, reset the translation context */
-		(void)memset((void *)&app_data->app_va_xlat_ctx, 0, sizeof(struct xlat_ctx));
-	}
+	(void)memset((void *)&app_data->app_va_xlat_ctx, 0, sizeof(struct xlat_ctx));
 
 	size_t stack_size = app_header->stack_page_count * GRANULE_SIZE;
 	size_t heap_size = app_header->heap_page_count * GRANULE_SIZE;
@@ -411,9 +416,9 @@ static int app_init_cfg_data(struct app_data_cfg *app_data,
 		app_data->granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE]);
 
 	ret = init_app_translation(app_data->app_id,
-						app_data,
-						app_data->granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE],
-						page_table);
+				app_data,
+				app_data->granule_pas[GRANULE_PA_IDX_APP_PAGE_TABLE],
+				page_table);
 	if (ret != 0) {
 		goto unmap_page_table;
 	}
@@ -454,8 +459,8 @@ static int app_init_cfg_data(struct app_data_cfg *app_data,
 	app_data->app_reg_ctx_pa =
 		app_data->granule_pas[GRANULE_PA_IDX_APP_REG_CTX];
 
-	if (new_instance) {
-		ret = init_app_reg_ctx(app_data);
+	if (reset) {
+		ret = init_app_reg_ctx(app_data, app_reg_ctx);
 		if (ret != 0) {
 			goto unmap_page_table;
 		}
@@ -469,6 +474,7 @@ unmap_page_table:
 
 int app_new_instance(struct app_data_cfg *app_data,
 			unsigned long app_id,
+			bool reset_on_lfa,
 			uintptr_t granule_pas[],
 			size_t granule_count,
 			void *granule_va_start,
@@ -487,6 +493,7 @@ int app_new_instance(struct app_data_cfg *app_data,
 
 	app_data->app_id = app_id;
 	app_data->app_fw_img_sequence = glob_fw_img_sequence;
+	app_data->reset_on_lfa = reset_on_lfa;
 
 	/*
 	 * Copy info about the app granules, as it will be needed to re-initialize
@@ -497,7 +504,7 @@ int app_new_instance(struct app_data_cfg *app_data,
 	app_data->granule_pa_count = granule_count;
 	app_data->granule_va_start = granule_va_start;
 
-	return app_init_cfg_data(app_data, true);
+	return app_init_cfg_data(app_data, NULL, true);
 }
 
 /* Stub for function used in fake_host */
@@ -675,10 +682,15 @@ static void app_run_internal(struct app_data_cfg *app_data,
 	unsigned long glob_data_fw_img_sequence = glob_data_get_fw_img_sequence();
 	assert(glob_data_fw_img_sequence != 0UL);
 
-	if (glob_data_fw_img_sequence != app_data->app_fw_img_sequence) {
-		if (app_init_cfg_data(app_data, false) != 0) {
-			ERROR("%s (%u): Failed to re-initialise app data\n", __func__,
-				__LINE__);
+	if (!is_app_fw_img_sequence_current(app_data)) {
+		/*
+		 * Live Firmware Activation (LFA) has been detected. App is set to be
+		 * fully reset if app_data->reset_on_lfa is true
+		 */
+		if (app_init_cfg_data(app_data, app_reg_ctx,
+					app_data->reset_on_lfa) != 0) {
+			ERROR("%s (%u): Failed to re-initialise app data\n",
+				__func__, __LINE__);
 			panic();
 		}
 		app_data->app_fw_img_sequence = glob_data_fw_img_sequence;
@@ -820,5 +832,13 @@ unsigned long app_resume(struct app_data_cfg *app_data)
 
 void app_abort(struct app_data_cfg *app_data)
 {
-	(void)init_app_reg_ctx(app_data);
+	(void)init_app_reg_ctx(app_data, NULL);
+}
+
+bool is_app_fw_img_sequence_current(struct app_data_cfg *app_data)
+{
+	unsigned long glob_fw_img_sequence = glob_data_get_fw_img_sequence();
+	assert(glob_fw_img_sequence != 0UL);
+
+	return (glob_fw_img_sequence == app_data->app_fw_img_sequence);
 }

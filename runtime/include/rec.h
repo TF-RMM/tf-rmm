@@ -97,6 +97,8 @@ COMPILER_ASSERT((sizeof(struct pmu_state) * MAX_TOTAL_PLANES) <= REC_PMU_SIZE);
 #define REC_PENDING_NONE		U(0) /* No operation is pending */
 #define REC_PENDING_PSCI_COMPLETE	U(1) /* A PSCI operation is pending */
 
+#define ATTEST_CHALLENGE_SIZE_UL	(ATTEST_CHALLENGE_SIZE / sizeof(unsigned long))
+
 struct granule;
 struct rd;
 
@@ -183,6 +185,15 @@ struct rec_attest_data {
 
 	/* Number of CCA token bytes left to copy to the Realm */
 	size_t rmm_cca_token_len;
+
+	/* Attestation challenge */
+	unsigned long rmm_cca_token_challenge[ATTEST_CHALLENGE_SIZE_UL];
+
+	/* Flag to indicate whether the challenge has been set */
+	bool rmm_cca_token_challenge_set;
+
+	/* Firmware sequence used to initialize the attestation operation. */
+	unsigned long fw_img_sequence;
 };
 COMPILER_ASSERT(sizeof(struct rec_attest_data) <= GRANULE_SIZE);
 
