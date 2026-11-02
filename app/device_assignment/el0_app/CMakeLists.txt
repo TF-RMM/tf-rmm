@@ -68,5 +68,7 @@ if(RMM_ARCH STREQUAL fake_host)
         PRIVATE "src/fake_host/dev_assign_app_host.c")
 endif()
 
+rmm_unittest_include("tests/CMakeLists.txt")
+
 # Propagate EL0_APP_BIN_LIST to parent scope
 set(EL0_APP_BIN_LIST ${EL0_APP_BIN_LIST} PARENT_SCOPE)

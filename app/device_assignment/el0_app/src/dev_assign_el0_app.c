@@ -10,6 +10,7 @@
 #include <el0_app_helpers.h>
 #include <industry_standard/pci_tdisp.h>
 #include <industry_standard/pcidoe.h>
+#include <internal/libspdm_common_lib.h>
 #include <library/spdm_crypt_lib.h>
 #include <mbedtls/memory_buffer_alloc.h>
 #include <psa/crypto.h>
@@ -417,6 +418,9 @@ spdm_transport_encode_message(void *spdm_context, const uint32_t *session_id,
 	(void)is_app_message;
 	info = spdm_to_dev_assign_info(spdm_context);
 
+	if (message_size < sizeof(spdm_message_header_t)) {
+		return LIBSPDM_STATUS_INVALID_PARAMETER;
+	}
 	spdm_header = message;
 
 	if (spdm_header->request_response_code == U(SPDM_GET_VERSION)) {
@@ -559,6 +563,9 @@ static int cma_spdm_cache_certificate(struct dev_assign_info *info,
 	if (cert_rsp->remainder_length == 0U) {
 		hash_op_flags |= HASH_OP_FLAG_FINISH;
 	}
+	if (cache_len == 0U) {
+		return -1;
+	}
 
 	/*
 	 * Compute the hash for the entire spdm_certificate_response. This hash
@@ -592,11 +599,17 @@ static int cma_spdm_cache_certificate(struct dev_assign_info *info,
 
 /* Process device version response */
 static int dev_assign_cache_versions_rsp(struct dev_assign_info *info,
-					 spdm_version_response_t *version_rsp)
+					 spdm_version_response_t *version_rsp,
+					 size_t message_size)
 {
-	size_t version_entry_count = version_rsp->version_number_entry_count;
+	size_t version_entry_count;
 	size_t cache_offset, cache_len;
 	uint8_t hash_op_flags;
+
+	if (message_size < sizeof(spdm_version_response_t)) {
+		return -1;
+	}
+	version_entry_count = version_rsp->version_number_entry_count;
 
 	if (version_entry_count > (size_t)LIBSPDM_MAX_VERSION_COUNT) {
 		ERROR("Version entry count is larger than expected.\n");
@@ -607,6 +620,9 @@ static int dev_assign_cache_versions_rsp(struct dev_assign_info *info,
 	cache_offset = 0U;
 	cache_len = sizeof(spdm_version_response_t) +
 		(version_entry_count * sizeof(spdm_version_number_t));
+	if (cache_len > message_size) {
+		return -1;
+	}
 	hash_op_flags = (HASH_OP_FLAG_UPDATE);
 
 	return dev_assign_dev_comm_set_cache(info, version_rsp, cache_offset,
@@ -615,7 +631,8 @@ static int dev_assign_cache_versions_rsp(struct dev_assign_info *info,
 
 /* Process device capabilities response */
 static int dev_assign_cache_capabilities_rsp(struct dev_assign_info *info,
-					     spdm_capabilities_response_t *capabilities_rsp)
+					     spdm_capabilities_response_t *capabilities_rsp,
+					     size_t message_size)
 {
 	uint8_t hash_op_flags;
 	size_t cache_offset, cache_len;
@@ -625,20 +642,32 @@ static int dev_assign_cache_capabilities_rsp(struct dev_assign_info *info,
 	/* VCA contains the SPDM headers as well */
 	cache_offset = 0U;
 	cache_len = sizeof(spdm_capabilities_response_t);
+	if (cache_len > message_size) {
+		return -1;
+	}
 	return dev_assign_dev_comm_set_cache(info, capabilities_rsp, cache_offset,
 				  cache_len, CACHE_TYPE_VCA, CACHE_COMM_DIR_RESP, hash_op_flags);
 }
 
 /* Process device algorithms response */
 static int dev_assign_cache_algorithms_rsp(struct dev_assign_info *info,
-					    spdm_algorithms_response_t *algorithms_rsp)
+					    spdm_algorithms_response_t *algorithms_rsp,
+					    size_t message_size)
 {
 	uint8_t hash_op_flags;
 	size_t cache_offset, cache_len;
 
+	if (message_size < sizeof(spdm_algorithms_response_t)) {
+		return -1;
+	}
+
 	/* VCA contains the SPDM headers as well */
 	cache_offset = 0U;
 	cache_len = algorithms_rsp->length;
+	if ((cache_len < sizeof(spdm_algorithms_response_t)) ||
+	    (cache_len > message_size)) {
+		return -1;
+	}
 
 	hash_op_flags = (HASH_OP_FLAG_UPDATE | HASH_OP_FLAG_FINISH);
 
@@ -646,7 +675,79 @@ static int dev_assign_cache_algorithms_rsp(struct dev_assign_info *info,
 				  cache_len, CACHE_TYPE_VCA, CACHE_COMM_DIR_RESP, hash_op_flags);
 }
 
-/* Process device measurements response */
+/*
+ * Calculate the MEASUREMENTS response length from its fields and the saved
+ * request. Return -1 if a required field extends beyond message_size.
+ */
+static int dev_assign_measurements_rsp_len(struct dev_assign_info *info,
+					   spdm_measurements_response_t *meas_rsp,
+					   size_t message_size, size_t *response_len)
+{
+	const spdm_message_header_t *meas_req;
+	const uint8_t *rsp_data = (const uint8_t *)meas_rsp;
+	libspdm_data_parameter_t param = { 0 };
+	libspdm_return_t status;
+	size_t length;
+	size_t data_size;
+	uint32_t base_asym_algo;
+	uint16_t opaque_len;
+
+	/*
+	 * Derive the SPDM response length from its fields and the saved request so
+	 * that only the complete MEASUREMENTS response is cached.
+	 */
+	if (info->spdm_request_len < sizeof(spdm_message_header_t)) {
+		return -1;
+	}
+	meas_req = (const spdm_message_header_t *)info->spdm_request;
+	if ((meas_req->request_response_code != (uint8_t)SPDM_GET_MEASUREMENTS) ||
+	    (message_size < sizeof(*meas_rsp)) ||
+	    (meas_rsp->header.spdm_version != meas_req->spdm_version)) {
+		return -1;
+	}
+
+	length = sizeof(*meas_rsp) +
+		(size_t)libspdm_read_uint24(meas_rsp->measurement_record_length);
+	if ((length > message_size) ||
+	    ((message_size - length) < (U(SPDM_NONCE_SIZE) + sizeof(opaque_len)))) {
+		return -1;
+	}
+
+	length += U(SPDM_NONCE_SIZE);
+	opaque_len = libspdm_read_uint16(&rsp_data[length]);
+	if (opaque_len > U(SPDM_MAX_OPAQUE_DATA_SIZE)) {
+		return -1;
+	}
+	length += sizeof(opaque_len) + (size_t)opaque_len;
+
+	if (meas_req->spdm_version >= U(SPDM_MESSAGE_VERSION_13)) {
+		length += U(SPDM_REQ_CONTEXT_SIZE);
+	}
+	if ((meas_req->param1 &
+	     U(SPDM_GET_MEASUREMENTS_REQUEST_ATTRIBUTES_GENERATE_SIGNATURE)) != 0u) {
+		param.location = LIBSPDM_DATA_LOCATION_CONNECTION;
+		data_size = sizeof(base_asym_algo);
+		status = libspdm_get_data(info->libspdm_ctx, LIBSPDM_DATA_BASE_ASYM_ALGO,
+					  &param, &base_asym_algo, &data_size);
+		if (status != LIBSPDM_STATUS_SUCCESS) {
+			return -1;
+		}
+		/* coverity[uninit_use_in_call:SUPPRESS] */
+		data_size = libspdm_get_asym_signature_size(base_asym_algo);
+		if (data_size == 0U) {
+			return -1;
+		}
+		length += data_size;
+	}
+	if (length > message_size) {
+		return -1;
+	}
+	*response_len = length;
+
+	return 0;
+}
+
+/* Cache the complete MEASUREMENTS response described by the saved request. */
 static int dev_assign_cache_measurements(struct dev_assign_info *info,
 					 spdm_measurements_response_t *meas_rsp,
 					 size_t message_size)
@@ -654,13 +755,10 @@ static int dev_assign_cache_measurements(struct dev_assign_info *info,
 	size_t cache_offset, cache_len;
 	uint8_t hash_op_flags = HASH_OP_FLAG_UPDATE | HASH_OP_FLAG_FINISH;
 
-	/*
-	 * TODO: Here we are using the size of the message as it was reported by
-	 * libspdm to the decode callback, instead of calculating the expected
-	 * size based in the request parameters.
-	 */
+	if (dev_assign_measurements_rsp_len(info, meas_rsp, message_size, &cache_len) != 0) {
+		return -1;
+	}
 	cache_offset = 0U;
-	cache_len = message_size;
 
 	return dev_assign_dev_comm_set_cache(info, meas_rsp, cache_offset,
 				  cache_len, CACHE_TYPE_MEAS, CACHE_COMM_DIR_RESP, hash_op_flags);
@@ -669,7 +767,7 @@ static int dev_assign_cache_measurements(struct dev_assign_info *info,
 /* Process SPDM VDM response */
 static int cache_spdm_vdm_response(struct dev_assign_info *info,
 				   void *spdm_response,
-				   size_t transport_message_size)
+				   size_t message_size)
 {
 	pci_doe_spdm_vendor_defined_response_t *doe_vdm_rsp;
 	pci_doe_spdm_vendor_defined_header_t *doe_vdm_hdr;
@@ -677,6 +775,10 @@ static int cache_spdm_vdm_response(struct dev_assign_info *info,
 	size_t cache_offset, cache_len;
 	uint8_t hash_op_flags;
 	int rc;
+
+	if (message_size < sizeof(pci_doe_spdm_vendor_defined_response_t)) {
+		return -1;
+	}
 
 	doe_vdm_rsp = (pci_doe_spdm_vendor_defined_response_t *)spdm_response;
 
@@ -688,6 +790,10 @@ static int cache_spdm_vdm_response(struct dev_assign_info *info,
 		ERROR("Invalid DOE VDM header.\n");
 		return 0;
 	}
+	if ((message_size - sizeof(pci_doe_spdm_vendor_defined_response_t)) <
+	    sizeof(pci_tdisp_header_t)) {
+		return -1;
+	}
 
 	ifc_rsp = (pci_tdisp_device_interface_report_response_t *)
 		((uintptr_t)doe_vdm_rsp +
@@ -696,6 +802,19 @@ static int cache_spdm_vdm_response(struct dev_assign_info *info,
 	/* Check if TDISP message is TDISP_DEVICE_INTERFACE_REPORT */
 	if (ifc_rsp->header.message_type != (uint8_t)PCI_TDISP_DEVICE_INTERFACE_REPORT) {
 		return 0;
+	}
+	if ((message_size - sizeof(pci_doe_spdm_vendor_defined_response_t)) <
+	    sizeof(*ifc_rsp)) {
+		return -1;
+	}
+
+	cache_offset = sizeof(pci_doe_spdm_vendor_defined_response_t) +
+		sizeof(pci_tdisp_device_interface_report_response_t);
+	cache_len = ifc_rsp->portion_length;
+	if ((cache_len == 0U) || (cache_len > message_size) ||
+	    (cache_offset > (message_size - cache_len))) {
+		ERROR("Invalid cache_offset or cache_len.\n");
+		return -1;
 	}
 
 	/* Set hash flags based on start of cache response */
@@ -714,16 +833,6 @@ static int cache_spdm_vdm_response(struct dev_assign_info *info,
 		 * get_interface_report
 		 */
 		info->cache_tdisp_if_report = false;
-	}
-
-	cache_offset = sizeof(pci_doe_spdm_vendor_defined_response_t) +
-		sizeof(pci_tdisp_device_interface_report_response_t);
-	cache_len = ifc_rsp->portion_length;
-
-	if ((cache_len > transport_message_size) ||
-	    (cache_offset > (transport_message_size - cache_len))) {
-		ERROR("Invalid cache_offset or cache_len.\n");
-		return -1;
 	}
 
 	rc = dev_assign_dev_comm_set_cache(info, spdm_response, cache_offset,
@@ -751,6 +860,9 @@ spdm_transport_decode_secured_message(struct dev_assign_info *info,
 	/* No transport headers, set secured message and its size */
 	sec_msg = transport_message;
 	sec_msg_size = transport_message_size;
+	if (sec_msg_size < sizeof(spdm_secured_message_a_data_header1_t)) {
+		return LIBSPDM_STATUS_RECEIVE_FAIL;
+	}
 
 	/*
 	 * Last message was sent inside session, get session ID from the
@@ -823,7 +935,7 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 		}
 	}
 
-	if (transport_message_size < sizeof(spdm_message_header_t)) {
+	if (*message_size < sizeof(spdm_message_header_t)) {
 		return LIBSPDM_STATUS_RECEIVE_FAIL;
 	}
 	spdm_hdr = (spdm_message_header_t *)*message;
@@ -833,32 +945,34 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 	 * measurements once the message is decrypted.
 	 */
 	if (spdm_hdr->request_response_code == (uint8_t)SPDM_VERSION) {
-		rc = dev_assign_cache_versions_rsp(info, (spdm_version_response_t *)spdm_hdr);
+		rc = dev_assign_cache_versions_rsp(info,
+			(spdm_version_response_t *)spdm_hdr, *message_size);
 		if (rc != 0) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}
 	} else if (spdm_hdr->request_response_code == (uint8_t)SPDM_CAPABILITIES) {
 		rc = dev_assign_cache_capabilities_rsp(info,
-			(spdm_capabilities_response_t *)spdm_hdr);
+			(spdm_capabilities_response_t *)spdm_hdr, *message_size);
 		if (rc != 0) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}
 	} else if (spdm_hdr->request_response_code == (uint8_t)SPDM_ALGORITHMS) {
-		rc = dev_assign_cache_algorithms_rsp(info, (spdm_algorithms_response_t *)spdm_hdr);
+		rc = dev_assign_cache_algorithms_rsp(info,
+			(spdm_algorithms_response_t *)spdm_hdr, *message_size);
 		if (rc != 0) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}
 	} else if (spdm_hdr->request_response_code == (uint8_t)SPDM_CERTIFICATE) {
 		spdm_certificate_response_t *cert_rsp;
 
-		if (transport_message_size < sizeof(spdm_certificate_response_t)) {
+		if (*message_size < sizeof(spdm_certificate_response_t)) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}
 		cert_rsp = (spdm_certificate_response_t *)spdm_hdr;
 
 		/* Make sure portion length is in bounds of the message size. */
 		if (cert_rsp->portion_length  >
-			(transport_message_size - sizeof(spdm_certificate_response_t))) {
+			(*message_size - sizeof(spdm_certificate_response_t))) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}
 
@@ -870,12 +984,12 @@ spdm_transport_decode_message(void *spdm_context, uint32_t **session_id,
 		spdm_measurements_response_t *meas_rsp;
 
 		meas_rsp = (spdm_measurements_response_t *)spdm_hdr;
-		rc = dev_assign_cache_measurements(info, meas_rsp, transport_message_size);
+		rc = dev_assign_cache_measurements(info, meas_rsp, *message_size);
 		if (rc != 0) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}
 	} else if (spdm_hdr->request_response_code == (uint8_t)SPDM_VENDOR_DEFINED_RESPONSE) {
-		rc = cache_spdm_vdm_response(info, (void *)spdm_hdr, transport_message_size);
+		rc = cache_spdm_vdm_response(info, (void *)spdm_hdr, *message_size);
 		if (rc != 0) {
 			return LIBSPDM_STATUS_RECEIVE_FAIL;
 		}

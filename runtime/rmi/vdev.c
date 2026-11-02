@@ -1398,6 +1398,8 @@ void smc_vdev_get_measurements(unsigned long rd_addr, unsigned long pdev_addr,
 	} else {
 		spdm_meas_params->raw = false;
 	}
+	(void)memcpy(spdm_meas_params->nonce, measurement_params.nonce,
+		     sizeof(spdm_meas_params->nonce));
 
 	vd->op = VDEV_OP_GET_MEAS;
 	vd->comm_state = DEV_COMM_PENDING;

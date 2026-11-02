@@ -74,6 +74,7 @@ static unsigned long vdev_state(void *vdev)
 struct vdev_operation_snapshot {
 	unsigned long op;
 	uint32_t comm_state;
+	struct dev_meas_params meas_params;
 };
 
 /* Read the pending operation and communication state under the VDEV lock. */
@@ -88,6 +89,7 @@ static struct vdev_operation_snapshot vdev_operation_state(void *vdev_addr)
 	CHECK_TRUE(vd != NULL);
 	snapshot.op = vd->op;
 	snapshot.comm_state = vd->comm_state;
+	snapshot.meas_params = vd->op_params.meas_params;
 	buffer_unmap(vd);
 	granule_unlock(g_vdev);
 
@@ -563,6 +565,10 @@ TEST(host_da_e2e_tests, vdev_destroy_yielded_owner)
 	/* Supply valid parameters so rejection tests busy communication alone. */
 	measure_params = (struct rmi_vdev_measure_params *)allocate_granule(1U);
 	(void)memset(measure_params, 0, sizeof(*measure_params));
+	measure_params->flags = INPLACE(RMI_VDEV_MEASURE_FLAGS_RAW, 1UL);
+	for (unsigned int i = 0U; i < VDEV_MEAS_PARAM_NONCE_LEN; i++) {
+		measure_params->nonce[i] = (unsigned char)(i + 1U);
+	}
 
 	/*
 	 * Model each non-idle PDEV communication state without starting PDEV app
@@ -583,6 +589,9 @@ TEST(host_da_e2e_tests, vdev_destroy_yielded_owner)
 		snapshot = vdev_operation_state(vdev_obj);
 		CHECK_EQUAL(VDEV_OP_GET_MEAS, snapshot.op);
 		CHECK_EQUAL(DEV_COMM_PENDING, snapshot.comm_state);
+		CHECK_TRUE(snapshot.meas_params.raw);
+		MEMCMP_EQUAL(measure_params->nonce, snapshot.meas_params.nonce,
+			     VDEV_MEAS_PARAM_NONCE_LEN);
 
 		granule_lock(g_pdev, GRANULE_STATE_PDEV);
 		pd = (struct pdev *)buffer_granule_map(g_pdev, SLOT_PDEV);
