@@ -301,12 +301,14 @@ void smc_gpt_l1_destroy(unsigned long addr, struct smc_result *res)
  * Report whether the GPT L0 range at @base covers platform-managed memory.
  * @base and @top must describe a non-empty, L0-aligned range within the PA
  * width. On success, @res identifies the next L0 boundary and whether that
- * range is platform or reserved memory.
+ * range is platform or reserved memory. Skip holes within the PAR before
+ * deciding whether it contains any platform-managed memory.
  */
 void smc_gpt_info(unsigned long base, unsigned long top,  struct smc_result *res)
 {
 	unsigned int pasz = arch_feat_get_pa_width();
 	unsigned long max_pa = ((1UL << pasz) - 1UL);
+	unsigned long cursor = base;
 	unsigned long category;
 	unsigned long region_top;
 	enum tr_state state;
@@ -318,19 +320,23 @@ void smc_gpt_info(unsigned long base, unsigned long top,  struct smc_result *res
 	}
 
 	res->x[1] = base + RMM_L0GPTSZ;
+	res->x[2] = RMI_GPT_PAR_RESERVED;
 
-	if (!tracking_region_get_info(base, res->x[1], &category, &state,
-				      &region_top)) {
-		res->x[0] = RMI_ERROR_INPUT;
-		return;
+	while (cursor < res->x[1]) {
+		if (!tracking_region_get_info(cursor, res->x[1], &category,
+					      &state, &region_top)) {
+			res->x[0] = RMI_ERROR_INPUT;
+			return;
+		}
+
+		/* All device and DRAM memory is statically covered for now. */
+		if (category != RMI_MEM_CATEGORY_NONE) {
+			res->x[2] = RMI_GPT_PAR_PLAT;
+			break;
+		}
+
+		cursor = region_top;
 	}
 
 	res->x[0] = RMI_SUCCESS;
-
-	/* All device and DRAM memory is statically covered for now. */
-	if (category != RMI_MEM_CATEGORY_NONE) {
-		res->x[2] = RMI_GPT_PAR_PLAT;
-	} else {
-		res->x[2] = RMI_GPT_PAR_RESERVED;
-	}
 }
