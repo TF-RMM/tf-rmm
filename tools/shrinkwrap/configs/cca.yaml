@@ -61,7 +61,7 @@ build:
   kvm-unit-tests:
     repo:
         remote: https://gitlab.arm.com/linux-arm/kvm-unit-tests-cca
-        revision: cca/v4
+        revision: cca/v5
 
 run:
   rtvars:

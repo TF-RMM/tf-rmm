@@ -14,6 +14,8 @@
 #include <string.h>
 #include <utils_def.h>
 
+static const uint8_t zero_padding[MAX_MEASUREMENT_SIZE] = {0};
+
 /* cppcheck-suppress misra-c2012-8.7 */
 unsigned long app_do_hash(enum hash_algo algorithm,
 		    size_t size,
@@ -67,7 +69,6 @@ unsigned long app_do_extend(enum hash_algo algorithm,
 	size_t hash_size;
 	__unused psa_status_t ret;
 	psa_hash_operation_t operation = PSA_HASH_OPERATION_INIT;
-	size_t current_measurement_size;
 
 	switch (algorithm) {
 	case HASH_SHA_256:
@@ -83,9 +84,6 @@ unsigned long app_do_extend(enum hash_algo algorithm,
 		assert(false);
 	}
 
-	/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
-	current_measurement_size = (size_t)PSA_HASH_LENGTH(psa_algorithm);
-
 	struct attest_extend_measurement_buffers *buffers =
 		(struct attest_extend_measurement_buffers *)shared;
 	struct attest_extend_measurement_return_buffer *ret_buffer =
@@ -96,17 +94,26 @@ unsigned long app_do_extend(enum hash_algo algorithm,
 	ret = psa_hash_setup(&operation, psa_algorithm);
 	assert(ret == PSA_SUCCESS);
 
-	assert(current_measurement_size <= buffers->current_measurement_buf_size);
+	assert(buffers->current_measurement_buf_size >= MAX_MEASUREMENT_SIZE);
+	assert(extend_measurement_size <= MAX_MEASUREMENT_SIZE);
 	assert(extend_measurement_size <= buffers->extend_measurement_buf_size);
 
+	/*
+	 * DEN0137 2.0-bet3 B3.122: hash the 64-byte old REM followed by the
+	 * contribution zero-padded to 64 bytes, regardless of the hash algorithm.
+	 */
 	ret = psa_hash_update(&operation,
 			      &buffers->buf[buffers->current_measurement_buf_offset],
-			      current_measurement_size);
+			      MAX_MEASUREMENT_SIZE);
 	assert(ret == PSA_SUCCESS);
 
 	ret = psa_hash_update(&operation,
 			      &buffers->buf[buffers->extend_measurement_buf_offset],
 			      extend_measurement_size);
+	assert(ret == PSA_SUCCESS);
+
+	ret = psa_hash_update(&operation, zero_padding,
+			      MAX_MEASUREMENT_SIZE - extend_measurement_size);
 	assert(ret == PSA_SUCCESS);
 
 	ret = psa_hash_finish(&operation,

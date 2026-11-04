@@ -90,9 +90,9 @@ void measurement_extend(void *app_data_cfg,
 			unsigned char *out,
 			size_t out_size)
 {
-	/* We limit the maximum size of the payload to be of GRANULE_SIZE */
+	/* A REM contribution is at most 64 bytes. */
 	assert(current_measurement != NULL);
-	assert(extend_measurement_size <= GRANULE_SIZE);
+	assert(extend_measurement_size <= MAX_MEASUREMENT_SIZE);
 	assert(extend_measurement != NULL);
 	assert(out != NULL);
 
