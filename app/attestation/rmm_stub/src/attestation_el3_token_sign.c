@@ -6,21 +6,24 @@
 #include <app.h>
 #include <app_common.h>
 #include <assert.h>
-#include <atomics.h>
 #include <attest_app.h>
 #include <cpuid.h>
 #include <debug.h>
 #include <errno.h>
+#include <glob_data.h>
 #include <rmm_el3_ifc.h>
 #include <spinlock.h>
 #include <stdbool.h>
 #include <string.h>
 
-static uint64_t el3_token_sign_ticket = 1;
-
 static struct el3_token_sign_response token_sign_response[MAX_CPUS] = { 0 };
 
 /*
+ * Enqueue a signing request using a ticket retained across LFA. Global data
+ * must be initialized. Return zero on success, -EINVAL for invalid input,
+ * -EAGAIN when EL3 asks for a retry, or -EPERM for other EL3 failures. A ticket
+ * is consumed on every enqueue attempt, including failed attempts.
+ *
  * Callback is called with lock held for the context and imposes lock ordering.
  * Since this function holds the lock for the shared buffer, the lock ordering
  * ctx->lock -> rmm_el3_ifc_get_shared_buf_locked() is expected to be followed.
@@ -46,12 +49,7 @@ int el3_token_sign_queue_try_enqueue(struct service_el3_token_sign_request *requ
 	(void)memcpy((void *)(req->hash_buf), request->hash_buf,
 		request->hash_buf_len);
 
-	/*
-	 * Overflow of the 64 bit number will occur after ~580 years at
-	 * 1 ns resolution. Even if it does overflow, the ticket will be
-	 * 0 and is still valid. Overflow is not expected to be a problem.
-	 */
-	req->req_ticket = atomic_load_add_64(&el3_token_sign_ticket, 1);
+	req->req_ticket = glob_data_next_token_sign_ticket();
 	request->ticket = req->req_ticket;
 
 	ret = rmm_el3_ifc_push_el3_token_sign_request(req);

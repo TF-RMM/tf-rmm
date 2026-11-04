@@ -13,6 +13,13 @@ unsigned long glob_data_get_fw_img_sequence(void)
 	return 0UL;
 }
 
+/* CBMC does not model EL3 signing; fail if a ticket is requested. */
+uint64_t glob_data_next_token_sign_ticket(void)
+{
+	ASSERT(false, "glob_data_next_token_sign_ticket");
+	return 0UL;
+}
+
 uintptr_t glob_data_init(struct glob_data *gl)
 {
 	ASSERT(false, "glob_data_init");

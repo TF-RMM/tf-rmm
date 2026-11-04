@@ -54,6 +54,9 @@ struct glob_data {
 
 	/* Firmware image sequence*/
 	unsigned long fw_img_sequence;
+
+	/* Next EL3 signing ticket, retained across firmware activations. */
+	uint64_t el3_token_sign_ticket;
 };
 
 uintptr_t glob_data_init(struct glob_data *gl);
@@ -76,5 +79,12 @@ bool glob_data_transition_rmm_state(enum rmm_state expected,
 				    enum rmm_state new_state);
 uintptr_t glob_data_get_sro_ctx_va(size_t *alloc_size);
 unsigned long glob_data_get_fw_img_sequence(void);
+
+/*
+ * Allocate an EL3 signing ticket atomically from initialized global data.
+ * The sequence starts at one on cold boot and is preserved across LFA so
+ * delayed responses cannot match a restarted attestation operation.
+ */
+uint64_t glob_data_next_token_sign_ticket(void);
 
 #endif /* GLOBDATA_H */

@@ -10,6 +10,7 @@ target_link_libraries(rmm-app-attestation-stub
     rmm-lib-arch
     rmm-lib-common
     rmm-lib-debug
+    rmm-lib-glob_data
     rmm-lib-rmm_el3_ifc
     rmm-lib-simd
     rmm-lib-smc)
