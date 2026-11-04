@@ -1133,7 +1133,12 @@ void smc_vdev_abort(unsigned long rd_addr,
 		goto out_vdev_buf_unmap;
 	}
 
-	if ((tr_granule_addr(vd->g_rd) != rd_addr) || (vd->g_pdev != g_pdev)) {
+	if (tr_granule_addr(vd->g_rd) != rd_addr) {
+		smc_rc = RMI_ERROR_INPUT;
+		goto out_vdev_buf_unmap;
+	}
+
+	if (vd->g_pdev != g_pdev) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_vdev_buf_unmap;
 	}
@@ -1455,8 +1460,12 @@ void smc_vdev_get_interface_report(unsigned long rd_addr, unsigned long pdev_add
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
-	if ((vd->g_rd != g_rd) ||
-	    (vd->g_pdev != g_pdev)) {
+	if (vd->g_rd != g_rd) {
+		smc_rc = RMI_ERROR_INPUT;
+		goto out_err_input;
+	}
+
+	if (vd->g_pdev != g_pdev) {
 		smc_rc = RMI_ERROR_DEVICE;
 		goto out_err_input;
 	}
@@ -1534,8 +1543,13 @@ void smc_vdev_unlock(unsigned long rd_addr, unsigned long pdev_addr,
 	vd = buffer_granule_map(g_vdev, SLOT_VDEV);
 	assert(vd != NULL);
 
-	if ((vd->g_rd != g_rd) ||
-	    (vd->g_pdev != g_pdev)) {
+	if (vd->g_rd != g_rd) {
+		res->x[0] = RMI_ERROR_INPUT;
+		res->x[1] = 0U;
+		goto out_unlock;
+	}
+
+	if (vd->g_pdev != g_pdev) {
 		res->x[0] = RMI_ERROR_DEVICE;
 		res->x[1] = 0U;
 		goto out_unlock;
