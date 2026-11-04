@@ -39,6 +39,9 @@ void handle_rsi_realm_config(struct rec *rec, struct rsi_result *res)
 
 	assert((config != NULL) && (llt != NULL));
 
+	/* Unused bits of RsiRealmConfig are MBZ. */
+	(void)memset(config, 0, sizeof(*config));
+
 	/* Populate config structure */
 	config->ipa_width = rec->realm_info.primary_s2_ctx.ipa_bits;
 	switch (rec->realm_info.algorithm) {
