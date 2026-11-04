@@ -230,6 +230,203 @@ Mappings when using statically allocated pages for RMM app RW memory:
 
 |RMM app memory static|
 
+.. _el0_app_lfa:
+
+*************************************
+Live Firmware Activation for EL0 apps
+*************************************
+
+Live Firmware Activation (LFA) replaces the running RMM image while retaining
+objects such as RECs, PDEVs and their auxiliary granules. During image initialization,
+``app_info_setup()`` parses the new app headers and ``app_framework_setup()``
+prepares the translation configuration shared by instances of each app. App
+global initialization, including ``attest_app_global_init()``, also runs for
+the new image. Instances in the new image's static per-CPU storage are
+initialized during boot. Instances retained with RECs or PDEVs have their
+mappings refreshed lazily on the next ``app_run()`` or ``app_resume()`` call.
+Their saved execution context is reset only when ``reset_on_lfa`` is true.
+
+LFA compatibility contract
+==========================
+
+A replacement image must preserve the AUX-granule layout of retained app
+instances, including the backing-granule assignments and sizes of the
+register context, page table, shared page, stack and heap.
+
+For attestation, ``struct attest_heap_t`` and its embedded structures must
+retain the same member sizes, offsets and interpretation. This includes the
+``struct attest_heap_shared`` prefix at the start of the heap and, when
+``ATTEST_EL3_TOKEN_SIGN`` is enabled, ``struct t_cose_el3_token_sign_ctx``.
+The heap must also retain its EL0 virtual address, so stored pointers to
+heap objects continue to refer to the same objects. Preserving AUX backing
+alone does not guarantee this virtual-address compatibility.
+
+These requirements apply even when ``reset_on_lfa`` is true. Resetting the
+execution context preserves heap and stack contents. Firmware sequence
+checks detect an image change; they do not validate the compatibility of
+retained layouts or relocate stored pointers.
+
+Firmware generation tracking
+============================
+
+The firmware sequence identifies an activation of RMM. The app and attestation
+operation fields store snapshots of that sequence:
+
+.. list-table:: Firmware sequence fields
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Field
+     - Meaning and update point
+   * - ``struct glob_data::fw_img_sequence``
+     - Starts at one on cold boot. When the new image reuses retained global
+       data, ``glob_data_init()`` increments it once during initialization.
+       Further calls in the same image return the existing global data.
+   * - ``struct app_data_cfg::app_fw_img_sequence``
+     - Records the generation used to initialize an app instance. Set by
+       ``app_new_instance()`` and updated after successful LFA reinitialization.
+   * - ``struct rec_attest_data::fw_img_sequence``
+     - Records the generation used to initialize a token operation. Updated
+       only after ``realm_attest_token_init()`` succeeds, so a failed setup
+       is not recorded as current.
+
+``glob_data_get_fw_img_sequence()`` returns the current firmware generation;
+zero denotes uninitialized global data and is invalid for app initialization.
+``is_app_fw_img_sequence_current()`` compares the instance's snapshot with that
+generation. A mismatch requires refreshing the instance even if its app binary
+has not changed. This sequence comparison does not establish data-layout
+compatibility: the retained global-data version is checked separately against
+``GLOBDATA_VERSION``.
+
+Reinitializing a retained instance
+==================================
+
+Before executing a retained app instance, the AArch64 entry paths prepare it
+for the current firmware:
+
+#. ``app_run()`` and ``app_resume()`` call ``app_reinit_on_lfa()``. If the
+   instance's firmware sequence is current, preparation returns immediately.
+#. On a sequence mismatch, ``app_init_cfg_data()`` rebuilds the instance's
+   translation tables and mapping metadata using the new app header and its
+   retained backing-granule information.
+#. The instance's ``reset_on_lfa`` policy is passed as ``reset_reg_ctx``. When
+   true, ``init_app_reg_ctx()`` initializes PC to the app entry point, SP to the
+   new stack top, PSTATE to the initial EL0 execution state, and the saved
+   TTBR1_EL2 to the app's translation-table configuration.
+#. After successful reinitialization, ``app_reinit_on_lfa()`` records the
+   current firmware sequence in the instance. A reinitialization failure
+   causes RMM to panic.
+
+.. list-table:: Register-context initialization policy
+   :header-rows: 1
+   :widths: 35 20 45
+
+   * - Operation
+     - ``reset_reg_ctx``
+     - Effect
+   * - Creation of any app instance
+     - ``true``
+     - Initialize the register context, regardless of ``reset_on_lfa``.
+   * - Attestation app after LFA
+     - ``true``
+     - Restart execution at the new app entry point.
+   * - Device-assignment or random app after LFA
+     - ``false``
+     - Rebuild mappings and preserve the saved execution context, including
+       the continuation of a yielded operation.
+
+Restarting the app preserves the contents of its heap and stack.
+App-specific initialization is responsible for
+establishing valid operation state before using retained, layout-dependent
+data. Apps that preserve execution across LFA require the replacement image to
+remain compatible with their saved PC, stack and other retained state.
+
+Attestation operation state across LFA
+======================================
+
+The app-instance sequence records framework initialization, including mapping
+and register-context preparation. The separate token sequence records
+initialization of the attestation operation. A measurement extension after LFA
+can refresh the REC's app instance and update ``app_fw_img_sequence`` without
+calling ``realm_attest_token_init()``. The token operation still belongs to
+the previous image.
+
+For example, consider an operation started in firmware generation 7:
+
+.. list-table:: Independent app and token generations
+   :header-rows: 1
+   :widths: 52 16 16 16
+
+   * - Event
+     - Current firmware
+     - App sequence
+     - Token sequence
+   * - Token initialization succeeds
+     - 7
+     - 7
+     - 7
+   * - LFA occurs before token copying starts
+     - 8
+     - 7
+     - 7
+   * - Measurement extension invokes the app
+     - 8
+     - 8
+     - 7
+   * - Token continuation arrives
+     - 8
+     - 8
+     - 7
+   * - Token reinitialization succeeds
+     - 8
+     - 8
+     - 8
+
+At continuation, the app sequence is current, but the token's private signing
+state may depend on globals or crypto contexts recreated during LFA. Checking
+only the app sequence would miss the need to restart generation. The separate
+``rec_attest_data::fw_img_sequence`` detects that the token operation has not
+yet been initialized for the current image.
+
+``RSI_ATTESTATION_TOKEN_INIT`` saves the Realm's challenge in REC auxiliary
+data. If ``RSI_ATTESTATION_TOKEN_CONTINUE`` detects an older token generation
+and no token bytes have been returned, it calls
+``realm_attest_token_init()`` with that saved challenge before signing again.
+This also handles an interrupted signing operation or a zero-sized copy that
+completed signing without returning token bytes.
+
+Once copying starts, token generation is complete and a firmware-generation
+mismatch does not restart the operation. The complete serialized token remains in
+``attest_heap_shared::cca_attest_token_buf`` at the start of the app heap.
+An LFA-compatible replacement must preserve the heap's backing granules and
+the layout of this shared prefix. Register-context reinitialization preserves
+the heap contents, and measurement calls leave the token buffer unchanged.
+Subsequent fragments are copied directly from that buffer across LFA, until
+the copy finishes or the Realm starts a new token operation.
+
+When ``ATTEST_EL3_TOKEN_SIGN`` is enabled,
+``glob_data::el3_token_sign_ticket`` provides a separate request counter. It
+starts at one on cold boot and is advanced atomically by
+``glob_data_next_token_sign_ticket()`` for each enqueue attempt. It survives
+LFA without being reset, so a restarted operation receives a different ticket
+and a delayed response cannot match the new request's ticket. This counter
+tracks ticket allocations; it is independent of the firmware-generation
+sequence.
+
+When ``ATTEST_EL3_TOKEN_SIGN`` is enabled, RMM reserves one ticket as the
+current image's response boundary during global attestation initialization,
+before any REC runs. Responses with tickets at or below that boundary are
+discarded in EL2 before entering the app.
+
+This boundary is an additional hardening measure. Under the compatibility
+contract, the retained lock and buffer pointers remain valid, but unfinished
+token operations restart after LFA. An old response delivered before that
+restart would only update state that is subsequently discarded. Rejecting
+it in EL2 avoids entering the app and accessing obsolete operation state,
+including when another REC delivers the response. Responses for requests
+issued by the current image are still checked against the active request's
+ticket inside the app.
+
 *********************
 RMM App Service Calls
 *********************

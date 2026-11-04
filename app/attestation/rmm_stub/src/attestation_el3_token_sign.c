@@ -17,6 +17,19 @@
 #include <string.h>
 
 static struct el3_token_sign_response token_sign_response[MAX_CPUS] = { 0 };
+static uint64_t token_sign_ticket_boundary;
+
+/*
+ * Reserve a ticket separating requests from this image and earlier images.
+ * Available only when ATTEST_EL3_TOKEN_SIGN is enabled.
+ * Called once on the primary CPU during image initialization, after global
+ * data is available and before any REC can enqueue or receive a response.
+ * The boundary is immutable while RECs run and needs no additional locking.
+ */
+void attest_el3_token_sign_init(void)
+{
+	token_sign_ticket_boundary = glob_data_next_token_sign_ticket();
+}
 
 /*
  * Enqueue a signing request using a ticket retained across LFA. Global data
@@ -106,6 +119,12 @@ int attest_el3_token_sign_pull_response_from_el3(uintptr_t *cookie)
 	return 0;
 }
 
+/*
+ * Deliver the per-CPU response only if its cookie matches and its ticket was
+ * allocated by this image. The caller pins the REC with a reference or lock.
+ * Return zero for delivery or an old-image response, -EINVAL for a cookie
+ * mismatch, or the error returned by the app.
+ */
 int attest_el3_token_write_response_to_ctx(struct app_data_cfg *app_data, uintptr_t cookie)
 {
 	struct el3_token_sign_response *el3_resp = &token_sign_response[my_cpuid()];
@@ -114,6 +133,16 @@ int attest_el3_token_write_response_to_ctx(struct app_data_cfg *app_data, uintpt
 		VERBOSE("Response for REC granule %lx not found\n",
 			 el3_resp->cookie);
 		return -EINVAL;
+	}
+
+	/*
+	 * Another REC can receive this response before the target restarts its
+	 * token operation after LFA. Its retained heap may contain incompatible
+	 * locks and pointers, even if a measurement call refreshed its mappings.
+	 * Reject old tickets before entering the app or touching that heap.
+	 */
+	if (el3_resp->req_ticket <= token_sign_ticket_boundary) {
+		return 0;
 	}
 
 	return attest_app_el3_token_write_response_to_ctx(app_data,

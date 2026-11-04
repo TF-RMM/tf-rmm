@@ -342,16 +342,17 @@ static int app_heap_xlat_map(struct app_data_cfg *app_data,
 	      next_granule_idx, granule_pas, granule_count);
 }
 
-static int init_app_reg_ctx(struct app_data_cfg *app_data,
-					struct app_reg_ctx *app_reg_ctx)
+/*
+ * Initialize PC, SP, PSTATE and the saved TTBR using a temporary mapping of the
+ * register context. The caller must own the inactive app instance. For an
+ * AUX-backed context, SLOT_APP_INIT must be free. General-purpose registers
+ * are preserved.
+ * Return 0 on success or -EINVAL if the register context cannot be mapped.
+ */
+static int init_app_reg_ctx(struct app_data_cfg *app_data)
 {
-	bool unmap_app_reg_ctx = false;
-
-	if (app_reg_ctx == NULL) {
-		app_reg_ctx = (struct app_reg_ctx *)slot_map_page_to_init(
-						app_data->app_reg_ctx_pa);
-		unmap_app_reg_ctx = true;
-	}
+	struct app_reg_ctx *app_reg_ctx =
+		(struct app_reg_ctx *)slot_map_page_to_init(app_data->app_reg_ctx_pa);
 
 	if (app_reg_ctx == NULL) {
 		ERROR("%s (%u): Failed to map app_reg_ctx page\n", __func__, __LINE__);
@@ -368,15 +369,26 @@ static int init_app_reg_ctx(struct app_data_cfg *app_data,
 				       SPSR_EL2_D_BIT;
 	app_reg_ctx->pc = app_data->entry_point;
 
-	if (unmap_app_reg_ctx) {
-		unmap_page(app_data->app_reg_ctx_pa, app_reg_ctx);
-	}
+	unmap_page(app_data->app_reg_ctx_pa, app_reg_ctx);
 	return 0;
 }
 
+/*
+ * Initialize the app configuration and rebuild its translation tables. The
+ * caller must have exclusive access to the inactive app instance, with its app
+ * ID and backing granule information populated in @app_data.
+ *
+ * Set @reset_reg_ctx for new instances or apps restarted after LFA. This resets
+ * PC, SP, PSTATE and the saved TTBR, preserving heap and stack contents and
+ * general-purpose registers. Clear it to preserve the saved execution context,
+ * including a yielded operation, while rebuilding the mappings.
+ *
+ * When resetting, the register context is mapped and unmapped internally;
+ * SLOT_APP_INIT must be free for an AUX-backed context. Return 0 on success or
+ * a negative error code on failure.
+ */
 static int app_init_cfg_data(struct app_data_cfg *app_data,
-			     struct app_reg_ctx *app_reg_ctx,
-			     bool reset)
+			     bool reset_reg_ctx)
 {
 	struct app_header *app_header = NULL;
 	int ret = 0;
@@ -459,8 +471,8 @@ static int app_init_cfg_data(struct app_data_cfg *app_data,
 	app_data->app_reg_ctx_pa =
 		app_data->granule_pas[GRANULE_PA_IDX_APP_REG_CTX];
 
-	if (reset) {
-		ret = init_app_reg_ctx(app_data, app_reg_ctx);
+	if (reset_reg_ctx) {
+		ret = init_app_reg_ctx(app_data);
 		if (ret != 0) {
 			goto unmap_page_table;
 		}
@@ -504,7 +516,7 @@ int app_new_instance(struct app_data_cfg *app_data,
 	app_data->granule_pa_count = granule_count;
 	app_data->granule_va_start = granule_va_start;
 
-	return app_init_cfg_data(app_data, NULL, true);
+	return app_init_cfg_data(app_data, true);
 }
 
 /* Stub for function used in fake_host */
@@ -672,29 +684,45 @@ static uint64_t encode_heap_data(unsigned long heap_va, size_t heap_size)
 	return heap_va | heap_page_count;
 }
 
-static void app_run_internal(struct app_data_cfg *app_data,
-				struct app_reg_ctx *app_reg_ctx)
+/*
+ * Refresh an inactive app instance after LFA. The caller must serialize access
+ * to the instance. For an AUX-backed context, keep SLOT_APP_INIT free for reset.
+ * Return with current firmware metadata, or panic if reinitialization fails.
+ */
+static void app_reinit_on_lfa(struct app_data_cfg *app_data)
 {
-	unsigned long old_hcr_el2 = read_hcr_el2();
-	unsigned long old_elr_el2 = read_elr_el2();
-	unsigned long old_spsr_el2 = read_spsr_el2();
-
 	unsigned long glob_data_fw_img_sequence = glob_data_get_fw_img_sequence();
+
 	assert(glob_data_fw_img_sequence != 0UL);
+	assert(!app_data->app_entered);
 
 	if (!is_app_fw_img_sequence_current(app_data)) {
 		/*
-		 * Live Firmware Activation (LFA) has been detected. App is set to be
-		 * fully reset if app_data->reset_on_lfa is true
+		 * LFA requires fresh mappings for every app. Only apps that opt in
+		 * restart at their entry point; others keep their saved execution
+		 * context.
 		 */
-		if (app_init_cfg_data(app_data, app_reg_ctx,
-					app_data->reset_on_lfa) != 0) {
+		if (app_init_cfg_data(app_data, app_data->reset_on_lfa) != 0) {
 			ERROR("%s (%u): Failed to re-initialise app data\n",
 				__func__, __LINE__);
 			panic();
 		}
 		app_data->app_fw_img_sequence = glob_data_fw_img_sequence;
 	}
+}
+
+/*
+ * Run an inactive app instance after LFA preparation, with its register context
+ * already mapped. The caller must serialize access to the instance and keep
+ * @app_reg_ctx mapped. Return when the app exits or yields, handling service
+ * calls internally.
+ */
+static void app_run_internal(struct app_data_cfg *app_data,
+				struct app_reg_ctx *app_reg_ctx)
+{
+	unsigned long old_hcr_el2 = read_hcr_el2();
+	unsigned long old_elr_el2 = read_elr_el2();
+	unsigned long old_spsr_el2 = read_spsr_el2();
 
 	write_hcr_el2(HCR_EL2_APP);
 	/*
@@ -769,6 +797,12 @@ static void app_run_internal(struct app_data_cfg *app_data,
 	isb();
 }
 
+/*
+ * Start a call on an inactive, non-yielded app instance owned by the caller.
+ * For an AUX-backed context, SLOT_APP_INIT must be free. LFA preparation
+ * precedes mapping the context for execution. Return X0 on exit; the return
+ * value is invalid on yield.
+ */
 unsigned long app_run(struct app_data_cfg *app_data,
 			  unsigned long app_func_id,
 			  unsigned long arg0,
@@ -778,14 +812,16 @@ unsigned long app_run(struct app_data_cfg *app_data,
 {
 	/* Special init pattern to detect incorrect use of retval when yielded */
 	unsigned long retval = 0x0F0F0F0F;
-	struct app_reg_ctx *app_reg_ctx =
-		(struct app_reg_ctx *)
-		slot_map_app_reg_ctx_page(app_data->app_reg_ctx_pa);
-
-	assert(app_reg_ctx != NULL);
+	struct app_reg_ctx *app_reg_ctx;
 
 	/* This function should not be called if the EL0 app was yeilded */
 	assert(app_data->exit_flag != APP_EXIT_SVC_YIELD_FLAG);
+
+	/* Reset may acquire SLOT_APP_INIT and the context granule lock. */
+	app_reinit_on_lfa(app_data);
+	app_reg_ctx = (struct app_reg_ctx *)
+		slot_map_app_reg_ctx_page(app_data->app_reg_ctx_pa);
+	assert(app_reg_ctx != NULL);
 
 	app_reg_ctx->app_regs[0] = app_func_id;
 	app_reg_ctx->app_regs[1] = arg0;
@@ -806,17 +842,25 @@ unsigned long app_run(struct app_data_cfg *app_data,
 }
 
 
+/*
+ * Resume an inactive, yielded app instance owned by the caller. For an
+ * AUX-backed context, SLOT_APP_INIT must be free for LFA preparation and the
+ * subsequent execution mapping.
+ * Return X0 on exit; the return value is invalid if the app yields again.
+ */
 unsigned long app_resume(struct app_data_cfg *app_data)
 {
 	unsigned long retval = 0xF0F0F0F0U;
-	struct app_reg_ctx *app_reg_ctx =
-		(struct app_reg_ctx *)
-		slot_map_app_reg_ctx_page(app_data->app_reg_ctx_pa);
-
-	assert(app_reg_ctx != NULL);
+	struct app_reg_ctx *app_reg_ctx;
 
 	/* This function should only be called if the EL0 app was yeilded */
 	assert(app_data->exit_flag == APP_EXIT_SVC_YIELD_FLAG);
+
+	/* Reset must finish before execution holds the context granule lock. */
+	app_reinit_on_lfa(app_data);
+	app_reg_ctx = (struct app_reg_ctx *)
+		slot_map_app_reg_ctx_page(app_data->app_reg_ctx_pa);
+	assert(app_reg_ctx != NULL);
 
 	app_run_internal(app_data, app_reg_ctx);
 
@@ -830,9 +874,14 @@ unsigned long app_resume(struct app_data_cfg *app_data)
 	return retval;
 }
 
+/*
+ * Reset the execution context of an inactive app instance owned by the caller.
+ * For an AUX-backed context, SLOT_APP_INIT must be free. Heap, stack and
+ * general-purpose registers are preserved.
+ */
 void app_abort(struct app_data_cfg *app_data)
 {
-	(void)init_app_reg_ctx(app_data, NULL);
+	(void)init_app_reg_ctx(app_data);
 }
 
 bool is_app_fw_img_sequence_current(struct app_data_cfg *app_data)
