@@ -789,10 +789,10 @@ int execute(unsigned char *buffer, size_t read_res)
 			break;
 		}
 
-		case COMMAND_RTT_UNMAP_UNPROTECTED: {
-			PACKET(packet_rtt_unmap_unprotected, b, packet);
+		case COMMAND_RTT_UNPROT_UNMAP: {
+			PACKET(packet_rtt_unprot_unmap, b, packet);
 			validate_state(_granules[packet.rd_index], GRANULE_STATE_RD);
-			host_rmi_rtt_unmap_unprotected(
+			host_rmi_rtt_unprot_unmap(
 					_granules[packet.rd_index],
 					packet.base,
 					packet.top,
