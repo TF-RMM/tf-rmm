@@ -31,6 +31,6 @@
 #define CCA_PLAT_TOKEN				(44234)
 #define CCA_REALM_DELEGATED_TOKEN		(44241)
 
-#define CCA_REALM_PROFILE_STR			"tag:arm.com,2024:realm#2.0.0"
+#define CCA_REALM_PROFILE_STR			"tag:arm.com,2026:realm#2.0.0"
 
 #endif /* ATTESTATION_DEFS_PRIV_H */
