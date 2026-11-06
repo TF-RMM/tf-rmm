@@ -333,10 +333,11 @@ static int dev_assign_dev_comm_set_cache(struct dev_assign_info *info, void *cac
 		info->exit_args.cache_rsp_len = cache_len;
 
 		if (cache_type == CACHE_TYPE_VCA) {
-			info->exit_args.cache_obj_id = (unsigned char)RMI_DEV_COMM_OBJECT_VCA;
+			info->exit_args.cache_obj_id =
+				(unsigned char)RMI_DEV_COMM_OBJECT_PROTOCOL_DATA;
 		} else if (cache_type == CACHE_TYPE_CERT) {
 			info->exit_args.cache_obj_id =
-				(unsigned char)RMI_DEV_COMM_OBJECT_CERTIFICATE;
+				(unsigned char)RMI_DEV_COMM_OBJECT_IDENTITY;
 		} else if (cache_type == CACHE_TYPE_MEAS) {
 			info->exit_args.cache_obj_id =
 				(unsigned char)RMI_DEV_COMM_OBJECT_MEASUREMENTS;

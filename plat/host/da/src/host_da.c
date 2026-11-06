@@ -519,7 +519,7 @@ static int host_pdev_cache_device_object(struct host_pdev *h_pdev,
 	 * During PDEV communicate device object of type certificate or VCA is
 	 * cached
 	 */
-	if (dev_obj_id == RMI_DEV_COMM_OBJECT_CERTIFICATE) {
+	if (dev_obj_id == RMI_DEV_COMM_OBJECT_IDENTITY) {
 		if ((h_pdev->cert_chain_len + dev_obj_buf_len) >
 		    (size_t)HOST_PDEV_CERT_LEN_MAX) {
 			return -1;
@@ -535,7 +535,7 @@ static int host_pdev_cache_device_object(struct host_pdev *h_pdev,
 		       dev_obj_buf_len);
 		h_pdev->cert_chain_len += dev_obj_buf_len;
 		rc = 0;
-	} else if (dev_obj_id == RMI_DEV_COMM_OBJECT_VCA) {
+	} else if (dev_obj_id == RMI_DEV_COMM_OBJECT_PROTOCOL_DATA) {
 		if ((h_pdev->vca_len + dev_obj_buf_len) >
 		    (size_t)HOST_PDEV_VCA_LEN_MAX) {
 			return -1;
@@ -1500,6 +1500,49 @@ int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id)
 		return -1;
 	}
 	return host_vdev_id;
+}
+
+/*
+ * Issue VDEV_LOCK and drive SPDM communication until the VDEV is LOCKED
+ * and exit flags are clear.
+ */
+int host_vdev_lock(struct host_realm *realm, int host_vdev_id)
+{
+	struct host_pdev *h_pdev;
+	struct host_vdev *h_vdev;
+	struct smc_result result;
+	void *vdev_ptr;
+	int rc;
+
+	assert(realm != NULL);
+	assert(host_vdev_id >= 0);
+
+	vdev_ptr = host_find_vdev_from_id((unsigned long)host_vdev_id);
+	if (vdev_ptr == NULL) {
+		return -1;
+	}
+
+	h_vdev = get_host_vdev_from_ptr(vdev_ptr);
+	h_pdev = get_host_pdev_from_ptr(host_find_pdev_from_vdev(vdev_ptr));
+	if ((h_vdev == NULL) || (h_pdev == NULL)) {
+		return -1;
+	}
+
+	host_rmi_vdev_lock(realm->rd, h_vdev->pdev_ptr, vdev_ptr, &result);
+	if (!IS_RMI_RESULT_SUCCESS(result)) {
+		ERROR("RMI_VDEV_LOCK failed: %lu\n", result.x[0]);
+		return -1;
+	}
+
+	rc = host_dev_communicate(realm, h_pdev, true, h_vdev,
+				  RMI_VDEV_STATE_LOCKED, false);
+	if (rc != 0) {
+		ERROR("VDEV lock -> LOCKED communication failed\n");
+		return rc;
+	}
+
+	INFO("VDEV lock -> LOCKED communication completed\n");
+	return 0;
 }
 
 int host_vdev_reclaim(struct host_realm *realm, int host_vdev_id)

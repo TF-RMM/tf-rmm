@@ -1512,7 +1512,7 @@ struct rmi_realm_params {
 	/* Measurement algorithm */
 	SET_MEMBER_RMI(unsigned char algorithm, 0x30, 0x38);		/* 0x30 */
 	/* Number of auxiliary Planes */
-	SET_MEMBER_RMI(unsigned int num_aux_planes, 0x38, 0x400);
+	SET_MEMBER_RMI(unsigned int num_aux_planes, 0x38, 0x400);	/* 0x38 */
 	/* Realm Personalization Value */
 	SET_MEMBER_RMI(unsigned char rpv[RPV_SIZE], 0x400, 0x440);	/* 0x400 */
 	/*
@@ -1747,8 +1747,8 @@ struct rmi_dev_comm_enter {
  * requested to cache.
  * Width: 8 bits
  */
-#define RMI_DEV_COMM_OBJECT_VCA			U(0)
-#define RMI_DEV_COMM_OBJECT_CERTIFICATE		U(1)
+#define RMI_DEV_COMM_OBJECT_PROTOCOL_DATA	U(0)
+#define RMI_DEV_COMM_OBJECT_IDENTITY		U(1)
 #define RMI_DEV_COMM_OBJECT_MEASUREMENTS	U(2)
 #define RMI_DEV_COMM_OBJECT_INTERFACE_REPORT	U(3)
 
