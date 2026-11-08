@@ -12,10 +12,10 @@ arm_config_option(
 
 if(HOST_VARIANT STREQUAL host_test)
     # Disable CppUtest self tests
-    set(TESTS "OFF" CACHE STRING "Compile and run CppUTest tests")
+    set(CPPUTEST_BUILD_TESTING "OFF" CACHE BOOL "Compile and run CppUTest tests")
 
     # Disable CppUtest Extension Library
-    set(EXTENSIONS "OFF" CACHE STRING "Use the CppUTest extension library")
+    set(CPPUTEST_EXTENSIONS "OFF" CACHE BOOL "Use the CppUTest extension library")
 endif()
 
 add_subdirectory("host_el2_el0_cmn")

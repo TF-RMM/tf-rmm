@@ -197,7 +197,7 @@ void host_pdev_cleanup(struct host_pdev *dev, bool ep_pdev)
 
 }
 
-static void host_vdev_cleanup(struct host_vdev *dev)
+void host_vdev_cleanup(struct host_vdev *dev)
 {
 	struct smc_result result;
 

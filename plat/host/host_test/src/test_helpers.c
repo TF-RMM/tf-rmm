@@ -67,7 +67,7 @@ void test_helpers_spdm_responder_start(void)
 	assert(test_executable_path != NULL);
 	base_dir = host_util_get_base_dir(test_executable_path);
 	host_util_launch_spdm_responder_emu(base_dir);
-	free(base_dir);
+	(free)(base_dir);
 }
 
 void rmm_arch_init(void);
