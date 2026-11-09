@@ -213,7 +213,7 @@ void xlat_stitch_l1_multiple_blocks_tc1(void)
 	ret = xlat_stitch_test_helper(XLAT_BLOCK_SIZE(1), XLAT_BLOCK_SIZE(1) * 4,
 				      child_alloc, num_tables);
 	CHECK_EQUAL(0, ret);
-	free(child_alloc);
+	(free)(child_alloc);
 }
 
 /*

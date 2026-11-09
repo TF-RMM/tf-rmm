@@ -661,6 +661,8 @@ TEST(host_da_e2e_tests, vdev_destroy_yielded_owner)
 	CHECK_EQUAL(1U, pd->num_vdevs);
 	buffer_unmap(pd);
 	granule_unlock(g_pdev);
+	host_vdev_cleanup(vdev);
+	host_pdev_cleanup(pdev, true);
 }
 
 /*

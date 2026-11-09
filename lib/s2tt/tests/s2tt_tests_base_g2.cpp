@@ -2135,7 +2135,8 @@ void s2tt_skip_non_live_entries_tc1(void)
 	for (long level = s2tt_test_helpers_min_table_lvl();
 	     level <= S2TT_TEST_HELPERS_MAX_LVL; level++) {
 
-		unsigned long entry_ipa, ret_ipa, expected_ipa, ipa;
+		unsigned long entry_ipa, ret_ipa, ipa;
+		unsigned long expected_ipa = 0;
 		unsigned long ap = s2tt_test_generate_ap(false);
 		unsigned long s2tt[S2TTES_PER_S2TT];
 		unsigned int tte_idx, cb_idx = 0U;

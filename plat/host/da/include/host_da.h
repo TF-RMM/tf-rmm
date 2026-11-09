@@ -78,6 +78,7 @@ int host_pdev_stream_disconnect(struct host_pdev *pdev);
 
 /* Release Host-side PDEV resources once its RMI object is absent. */
 void host_pdev_cleanup(struct host_pdev *pdev, bool endpoint);
+void host_vdev_cleanup(struct host_vdev *dev);
 
 /*
  * Drive PDEV/VDEV communication until the requested state and exit condition.

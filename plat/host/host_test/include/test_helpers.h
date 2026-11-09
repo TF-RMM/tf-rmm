@@ -8,6 +8,7 @@
 
 #include <assert.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 /* Preserve the test runner path so DA cases can find the staged responder. */
 void test_helpers_set_executable_path(const char *path);
