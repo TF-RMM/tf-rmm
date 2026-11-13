@@ -154,7 +154,12 @@ int dev_assign_dev_communicate(struct app_data_cfg *app_data,
 	return rc;
 }
 
-/* Resume with an error until the DA app exits or the retry limit is reached. */
+/*
+ * Resume with an error until the DA app exits or the retry limit is reached.
+ * The caller owns the app instance and maps any AUX backing; this function
+ * maps the shared page. Return SUCCESS if no unwind is needed or the app exits
+ * with a valid status, otherwise ERROR so a later abort can continue unwinding.
+ */
 int dev_assign_abort_app_operation(struct app_data_cfg *app_data)
 {
 	unsigned long rc = (unsigned long)DEV_ASSIGN_STATUS_ERROR;
@@ -176,6 +181,8 @@ int dev_assign_abort_app_operation(struct app_data_cfg *app_data)
 	     (attempts < DEV_ASSIGN_ABORT_MAX_RESUMES) &&
 	     (app_data->exit_flag == APP_EXIT_SVC_YIELD_FLAG);
 	     attempts++) {
+		/* Replace the exit header with an error entry before every resume. */
+		(void)memset(shared, 0, sizeof(*shared));
 		shared->status = (unsigned char)RMI_DEV_COMM_ENTER_STATUS_ERROR;
 		rc = app_resume(app_data);
 	}

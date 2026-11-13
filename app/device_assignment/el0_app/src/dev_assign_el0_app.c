@@ -18,12 +18,23 @@
 #include <smc-rmi.h>
 #include <string.h>
 
+/*
+ * Copy communication inputs and clear exit flags for an exclusively owned app
+ * instance with a valid shared buffer. Preserve private operation parameters
+ * on error so abort can resume without supplying new ones.
+ */
 static void copy_enter_args_from_shared(struct dev_assign_info *info)
 {
 	struct dev_comm_enter_shared *shared = (struct dev_comm_enter_shared *)info->shared_buf;
 
 	assert(shared != NULL);
 	info->enter_args = shared->rmi_dev_comm_enter;
+	(void)memset(&info->exit_args, 0, sizeof(info->exit_args));
+
+	/* Abort resumes can leave the shared page in the previous exit layout. */
+	if (info->enter_args.status == RMI_DEV_COMM_ENTER_STATUS_ERROR) {
+		return;
+	}
 
 	info->dev_assign_op_params.param_type = shared->dev_assign_op_params.param_type;
 	if (shared->dev_assign_op_params.param_type == DEV_ASSIGN_OP_PARAMS_TDISP) {
@@ -44,8 +55,6 @@ static void copy_enter_args_from_shared(struct dev_assign_info *info)
 		/* Copy over measurement parameters */
 		info->dev_assign_op_params.meas_params = shared->dev_assign_op_params.meas_params;
 	}
-
-	(void)memset(&info->exit_args, 0, sizeof(info->exit_args));
 }
 
 static void copy_back_exit_args_to_shared(struct dev_assign_info *info)
