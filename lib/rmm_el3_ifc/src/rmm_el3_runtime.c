@@ -757,12 +757,22 @@ int rmm_el3_ifc_gtsi_step(unsigned long addr, unsigned long size, bool delegate,
 	return ret;
 }
 
+/*
+ * Notify EL3 of the current LFA permission and return its status unchanged.
+ * Warn when EL3 does not support the notification.
+ */
 /* cppcheck-suppress misra-c2012-8.7 */
 unsigned long rmm_el3_ifc_lfa_allow(bool lfa_allowed)
 {
+	unsigned long ret;
+
 	/* TODO: implement FIRME support when spec is available. */
 
-	return monitor_call(SMC_RMM_LFA_ALLOW,
-				(unsigned long)lfa_allowed,
-				0UL, 0UL, 0UL, 0UL, 0UL);
+	ret = monitor_call(SMC_RMM_LFA_ALLOW, (unsigned long)lfa_allowed,
+			   0UL, 0UL, 0UL, 0UL, 0UL);
+	if (ret == (unsigned long)E_RMM_UNK) {
+		WARN("EL3 does not support LFA policy notifications\n");
+	}
+
+	return ret;
 }

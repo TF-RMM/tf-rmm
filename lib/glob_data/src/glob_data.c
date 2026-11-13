@@ -307,6 +307,12 @@ uintptr_t glob_data_init(struct glob_data *gl)
 	return new_gl->glob_data_pa;
 }
 
+/*
+ * Add a denial while the caller holds the new Realm's RD lock. Serialize
+ * counter updates and EL3 notifications, publishing the first reference only
+ * after EL3 accepts the denial. Return 0 on success, -EINVAL without global
+ * data, or -EIO on notification failure with the count unchanged.
+ */
 int glob_data_lfa_disallow_get(void)
 {
 	if (glob == NULL) {
@@ -317,7 +323,11 @@ int glob_data_lfa_disallow_get(void)
 	spinlock_acquire(&lfa_disallow_lock);
 
 	if (glob->lfa_disallow_realm_num == 0UL) {
-		(void)rmm_el3_ifc_lfa_allow(false);
+		if (rmm_el3_ifc_lfa_allow(false) != (unsigned long)E_RMM_OK) {
+			/* Leave zero so later creators retry the denial notification. */
+			spinlock_release(&lfa_disallow_lock);
+			return -EIO;
+		}
 	}
 	glob->lfa_disallow_realm_num++;
 

@@ -698,6 +698,7 @@ static void realm_destroy_cleanup(struct rd *rd, struct rd_aux *rd_aux)
 	 */
 	mecid_free(mecid);
 
+	/* Release the LFA denial if the Realm had a DISALLOW policy. */
 	if (rd->lfa_policy == RMI_LFA_POLICY_DISALLOW) {
 		lfa_disallow_ret = glob_data_lfa_disallow_put();
 		assert(lfa_disallow_ret == 0);
@@ -749,6 +750,8 @@ void smc_realm_create(unsigned long rd_addr,
  * The assigned SRO owns the PARTIAL RD and its RD_AUX pages, keeping their
  * fine struct granule objects alive until publication or rollback.
  * Successfully transitioned root RTTs are also owned until that point.
+ * A failed LFA denial releases the root RTTs, VMIDs and MECID, then reclaims
+ * the donated auxiliary granules before reporting RMI_ERROR_GLOBAL.
  */
 static void realm_create_continue(unsigned long fid, struct smc_result *res)
 {
@@ -773,7 +776,6 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 	bool rtt_tree_pp;
 	int smmuv3_ret __unused;
 	unsigned int lfa_policy;
-	int lfa_disallow_ret __unused;
 
 	assert(sro != NULL);
 	assert(fid == SMC_RMI_OP_CONTINUE);
@@ -838,6 +840,18 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 	/* The SRO-owned PARTIAL state pins the fine struct granule. */
 	g_rd = tr_addr_to_granule(sro->aux_op_ctx.obj_addr);
 	granule_lock(g_rd, GRANULE_STATE_PARTIAL);
+
+	/* No recoverable failure follows a successful denial acquisition. */
+	if ((lfa_policy == RMI_LFA_POLICY_DISALLOW) &&
+	    (glob_data_lfa_disallow_get() != 0)) {
+		/* Release PARTIAL before taking RTT locks during rollback. */
+		granule_unlock(g_rd);
+		revert_sl_rtts(rtt_base, p.rtt_num_start, n_rtts);
+		free_vmids(vmid, n_vmids);
+		mecid_free(mecid);
+		ret = RMI_ERROR_GLOBAL;
+		goto out_reclaim;
+	}
 
 	for (unsigned int i = 0U; i < num_rd_aux; i++) {
 		struct granule *g_aux = tr_addr_to_granule(sro->aux_op_ctx.aux_granules_pa[i]);
@@ -941,11 +955,6 @@ static void realm_create_continue(unsigned long fid, struct smc_result *res)
 	measurement_init_rim(rd->measurement[RIM_MEASUREMENT_SLOT],
 					 rd->algorithm);
 	rd_init_aux_granules(rd);
-
-	if (lfa_policy == RMI_LFA_POLICY_DISALLOW) {
-		lfa_disallow_ret = glob_data_lfa_disallow_get();
-		assert(lfa_disallow_ret == 0);
-	}
 
 	buffer_unmap(rd);
 	granule_unlock_transition(g_rd, GRANULE_STATE_RD);

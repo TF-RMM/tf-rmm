@@ -86,8 +86,9 @@ unsigned long glob_data_get_fw_img_sequence(void);
 /*
  * Add or remove a Realm's LFA denial, serializing count changes and EL3
  * notifications. Return 0 on success, or -EINVAL if global data is
- * unavailable.
- * The caller must hold the RD lock; put requires a matching get.
+ * unavailable. Get also returns -EIO if EL3 fails to accept the denial,
+ * leaving the count unchanged.
+ * The caller must hold the RD lock; put requires a successful get.
  */
 int glob_data_lfa_disallow_get(void);
 int glob_data_lfa_disallow_put(void);

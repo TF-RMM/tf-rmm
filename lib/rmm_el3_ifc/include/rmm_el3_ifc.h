@@ -125,7 +125,7 @@
 #define RESERVE_MEM_FLAG_LOCAL_CPU	UL(1)
 
 					/* 0xc40001bc */
-#define SMC_RMM_LFA_ALLOW			SMC64_STD_FID(RMM_EL3, U(12))
+#define SMC_RMM_LFA_ALLOW		SMC64_STD_FID(RMM_EL3, U(12))
 
 /************************
  * Version related macros
