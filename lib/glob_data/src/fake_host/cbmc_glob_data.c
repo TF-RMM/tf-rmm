@@ -71,3 +71,16 @@ uintptr_t glob_data_get_sro_ctx_va(size_t *alloc_size)
 	ASSERT(false, "glob_data_get_sro_ctx_va");
 	return 0UL;
 }
+
+/* LFA policy counters are outside the supported CBMC entry points. */
+int glob_data_lfa_disallow_get(void)
+{
+	ASSERT(false, "glob_data_lfa_disallow_get");
+	return 0;
+}
+
+int glob_data_lfa_disallow_put(void)
+{
+	ASSERT(false, "glob_data_lfa_disallow_put");
+	return 0;
+}

@@ -633,6 +633,7 @@ void host_firme_enable_mecid_fr1(bool enable)
 /*
  * Dispatch simulated EL3 services. Successful legacy GTSI calls also update
  * the optional PAS model; reject unbacked addresses when that model is active.
+ * LFA notifications succeed because this model does not activate firmware.
  */
 void host_monitor_call(unsigned long id, struct smc_args *args,
 		       struct smc_result *res)
@@ -774,6 +775,9 @@ void host_monitor_call(unsigned long id, struct smc_args *args,
 		res->x[1] = args->v[1];
 		break;
 	}
+	case SMC_RMM_LFA_ALLOW:
+		res->x[0] = E_RMM_OK;
+		break;
 	default:
 		VERBOSE("Unimplemented monitor call id %lx\n", id);
 		res->x[0] = ~0LU;
