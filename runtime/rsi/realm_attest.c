@@ -518,9 +518,8 @@ void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 
 	/*
 	 * Copy up to (SMC_RESULT_REGS - 1) measurement words into the
-	 * smc_result output registers (x[1..]).  Algorithms with fewer
-	 * words than available result slots (e.g. SHA-256 / 4 words) will
-	 * only fill what they have; the remaining slots stay zero.
+	 * smc_result output registers (x[1..]). Unused result slots still
+	 * hold the caller's register values and are cleared below.
 	 */
 	res_words = (cnt < U(SMC_RESULT_REGS - 1UL)) ?
 					cnt : U(SMC_RESULT_REGS - 1UL);
@@ -539,9 +538,17 @@ void handle_rsi_measurement_read(struct rec *rec, struct rsi_result *res)
 		plane->regs[i + 1U] = *measurement_value_part;
 	}
 
-	/* Zero-initialize unused area */
+	/*
+	 * Pad the measurement to 512 bits. The return path overwrites X0-X7
+	 * from smc_res, so clear their padding there. Clear X8 directly in
+	 * the saved Realm registers.
+	 */
 	for (; i < MAX_MEASUREMENT_WORDS; i++) {
-		plane->regs[i + 1U] = 0UL;
+		if ((i + 1U) < (unsigned int)ARRAY_SIZE(res->smc_res.x)) {
+			res->smc_res.x[i + 1U] = 0UL;
+		} else {
+			plane->regs[i + 1U] = 0UL;
+		}
 	}
 
 	buffer_unmap(rd);
