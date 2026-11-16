@@ -28,6 +28,7 @@ static unsigned char cached_response[GRANULE_SIZE];
 static struct dev_comm_exit_shared cache_exit;
 static unsigned int cache_writes;
 static unsigned int cache_yields;
+static bool abort_on_yield;
 
 static struct dev_assign_info *info;
 static libspdm_context_t *context;
@@ -75,12 +76,24 @@ extern "C" unsigned long el0_app_service_call(unsigned long service,
 	return 0UL;
 }
 
-/* Capture the cache request, then resume with empty communication parameters. */
+/*
+ * Capture the exit request, then resume normally or with an abort status.
+ * An abort leaves invalid entry parameters to detect reads of the exit layout.
+ */
 extern "C" void el0_app_yield(void)
 {
+	struct dev_comm_enter_shared *shared = (struct dev_comm_enter_shared *)shared_buf;
+
 	cache_exit = *(struct dev_comm_exit_shared *)shared_buf;
 	cache_yields++;
-	(void)memset(shared_buf, 0, sizeof(shared_buf));
+	if (!abort_on_yield) {
+		(void)memset(shared_buf, 0, sizeof(shared_buf));
+		return;
+	}
+	(void)memset(&shared->dev_assign_op_params, 0xff,
+		     sizeof(shared->dev_assign_op_params));
+	shared->dev_assign_op_params.param_type = DEV_ASSIGN_OP_PARAMS_TDISP;
+	shared->rmi_dev_comm_enter.status = RMI_DEV_COMM_ENTER_STATUS_ERROR;
 }
 
 
@@ -104,6 +117,7 @@ static void reset_cache(void)
 	(void)memset(request, 0, sizeof(request));
 	cache_writes = 0U;
 	cache_yields = 0U;
+	abort_on_yield = false;
 	request_len = 0U;
 }
 
@@ -730,6 +744,49 @@ TEST(dev_assign_response_tests, measurements_invalid_fields)
 		}
 		expect_rejected(complete);
 	}
+}
+
+/*
+ * TC12: Preserve private operation parameters when an error resumes a yield.
+ *
+ * Public APIs tested:
+ *   el0_app_entry_func() and the send_message callback it registers.
+ *
+ * Aim:
+ *   Unwind an aborted exchange without interpreting stale shared output as
+ *   entry parameters or reading invalid boolean representations.
+ *
+ * Method:
+ *   Seed private TDISP parameters with TDI 0x1234, a valid input nonce filled
+ *   with 0x5a, and nonce_is_output false. Send eight bytes, then resume the
+ *   yield with ERROR and a shared TDISP parameter payload filled with 0xff.
+ *
+ * Expected results:
+ *   One copyout and one yield occur. The send returns LIBSPDM_STATUS_SEND_FAIL,
+ *   the saved status is ERROR, exit flags are cleared, and private operation
+ *   parameters are unchanged. UBSAN reports no invalid boolean load.
+ */
+TEST(dev_assign_response_tests, abort_preserves_operation_params)
+{
+	struct dev_assign_op_params saved;
+
+	info->dev_assign_op_params.param_type = DEV_ASSIGN_OP_PARAMS_TDISP;
+	info->dev_assign_op_params.tdisp_params.tdi_id = 0x1234U;
+	info->dev_assign_op_params.tdisp_params.nonce_ptr_is_valid = true;
+	info->dev_assign_op_params.tdisp_params.nonce_is_output = false;
+	(void)memset(info->dev_assign_op_params.tdisp_params.start_interface_nonce_buffer,
+		     0x5a, RDEV_START_INTERFACE_NONCE_SIZE);
+	saved = info->dev_assign_op_params;
+	(void)memset(info->send_recv_buffer, 0xa5, 8U);
+	abort_on_yield = true;
+
+	UNSIGNED_LONGS_EQUAL(LIBSPDM_STATUS_SEND_FAIL,
+		context->send_message(context, 8U, info->send_recv_buffer, 10UL));
+	UNSIGNED_LONGS_EQUAL(1U, cache_writes);
+	UNSIGNED_LONGS_EQUAL(1U, cache_yields);
+	UNSIGNED_LONGS_EQUAL(RMI_DEV_COMM_ENTER_STATUS_ERROR, info->enter_args.status);
+	UNSIGNED_LONGS_EQUAL(0UL, info->exit_args.flags);
+	MEMCMP_EQUAL(&saved, &info->dev_assign_op_params, sizeof(saved));
 }
 
 /* Run independently of the RMM executable and its app service implementation. */
