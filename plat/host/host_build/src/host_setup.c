@@ -783,6 +783,13 @@ int main(int argc, char *argv[])
 			ERROR("ERROR: host_realm_run_da_rsi failed\n");
 			goto out_cleanup;
 		}
+
+		/* Retrieve SPDM measurements and cache the request/response transcript. */
+		rc = host_realm_run_da_measurements(&g_realm);
+		if (rc != 0) {
+			ERROR("ERROR: host_realm_run_da_measurements failed\n");
+			goto out_cleanup;
+		}
 	}
 
 out_cleanup:
