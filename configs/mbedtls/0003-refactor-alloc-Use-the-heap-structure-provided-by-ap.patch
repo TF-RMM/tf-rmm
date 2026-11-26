@@ -470,7 +470,7 @@ index 79b0a8b..630120b 100644
      mbedtls_platform_set_calloc_free(buffer_alloc_calloc_mutexed,
                                       buffer_alloc_free_mutexed);
  #else
-@@ -583,22 +572,24 @@ void mbedtls_memory_buffer_alloc_init(unsigned char *buf, size_t len)
+@@ -583,24 +572,26 @@ void mbedtls_memory_buffer_alloc_init(unsigned char *buf, size_t len)
  
      memset(buf, 0, len);
  
@@ -479,12 +479,14 @@ index 79b0a8b..630120b 100644
 +    heap->buf = buf;
 +    heap->len = len;
  
--    heap.first = (memory_header *) buf;
+     /* Double casting is required to prevent compilation warning on Clang-based
+      * compilers when "-Wcast-align" is used. */
+-    heap.first = (memory_header *) (void *) buf;
 -    heap.first->size = len - sizeof(memory_header);
 -    heap.first->magic1 = MAGIC1;
 -    heap.first->magic2 = MAGIC2;
 -    heap.first_free = heap.first;
-+    heap->first = (memory_header *) buf;
++    heap->first = (memory_header *) (void *) buf;
 +    heap->first->size = len - sizeof(memory_header);
 +    heap->first->magic1 = MAGIC1;
 +    heap->first->magic2 = MAGIC2;
