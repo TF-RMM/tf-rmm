@@ -770,10 +770,24 @@ int main(int argc, char *argv[])
 			goto out_cleanup;
 		}
 
+		/* Exercise the SPDM device communication flow using VDEV_LOCK. */
+		rc = host_vdev_lock(&g_realm, host_vdev_id);
+		if (rc != 0) {
+			ERROR("ERROR: host_vdev_lock failed\n");
+			goto out_cleanup;
+		}
+
 		/* Run rec to invoke DA related RSIs */
 		rc = host_realm_run_da(&g_realm);
 		if (rc != 0) {
 			ERROR("ERROR: host_realm_run_da_rsi failed\n");
+			goto out_cleanup;
+		}
+
+		/* Retrieve SPDM measurements and cache the request/response transcript. */
+		rc = host_realm_run_da_measurements(&g_realm);
+		if (rc != 0) {
+			ERROR("ERROR: host_realm_run_da_measurements failed\n");
 			goto out_cleanup;
 		}
 	}

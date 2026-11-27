@@ -52,7 +52,14 @@ int host_vdev_create_pending(struct host_realm *realm, unsigned long host_vdev_t
 
 /* Assign, run and reclaim DA devices; return IDs or zero on success. */
 int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id);
+/* Lock an assigned VDEV and complete SPDM communication; return zero on success. */
+int host_vdev_lock(struct host_realm *realm, int host_vdev_id);
+/* Retrieve and cache measurements using a caller-supplied nonce. */
+int host_vdev_get_measurements(struct host_realm *realm, int host_vdev_id,
+			      const unsigned char nonce[VDEV_MEAS_PARAM_NONCE_LEN]);
 int host_realm_run_da(struct host_realm *realm);
+/* Run the basic Host-driven measurement flow after VDEV locking. */
+int host_realm_run_da_measurements(struct host_realm *realm);
 int host_pdev_reclaim(int host_pdev_id);
 int host_vdev_reclaim(struct host_realm *realm, int host_vdev_id);
 

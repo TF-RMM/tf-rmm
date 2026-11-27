@@ -223,8 +223,8 @@ class RTTReadEntry(Packet):
     ]
 
 
-class RTTUnmapUnprotected(Packet):
-    name = "RTT Unmap Unprotected"
+class RTTUnprotUnmap(Packet):
+    name = "RTT Unprot Unmap"
     fields_desc = [
         ByteField("rd_index", 0),
         LELongField("base", 0),
@@ -368,7 +368,7 @@ bind_layers(RMI, RTTDestroy, command=14)
 bind_layers(RMI, RTTMapUnprotected, command=15)
 # < reserved command 16>
 bind_layers(RMI, RTTReadEntry, command=17)  # <I> s2tte states uncovered
-bind_layers(RMI, RTTUnmapUnprotected, command=18)
+bind_layers(RMI, RTTUnprotUnmap, command=18)
 # < reserved command 19>
 bind_layers(RMI, PsciComplete, command=20)
 bind_layers(RMI, Features, command=21)

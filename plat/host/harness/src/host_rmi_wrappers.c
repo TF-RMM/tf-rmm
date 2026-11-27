@@ -208,7 +208,7 @@ void host_rmi_rtt_read_entry(void *rd, uintptr_t ipa, uintptr_t level, struct sm
 		      0, res);
 }
 
-void host_rmi_rtt_unmap_unprotected(void *rd,
+void host_rmi_rtt_unprot_unmap(void *rd,
 			unsigned long base,
 			unsigned long top,
 			unsigned long flags,
@@ -438,6 +438,29 @@ void host_rmi_vdev_lock(void *rd, void *pdev, void *vdev,
 			struct smc_result *res)
 {
 	handle_ns_smc(SMC_RMI_VDEV_LOCK, (uintptr_t)rd,
+		      (uintptr_t)pdev, (uintptr_t)vdev, 0, 0, 0, 0, res);
+}
+
+void host_rmi_vdev_start(void *rd, void *pdev, void *vdev,
+			 struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_VDEV_START, (uintptr_t)rd,
+		      (uintptr_t)pdev, (uintptr_t)vdev, 0, 0, 0, 0, res);
+}
+
+void host_rmi_vdev_get_measurements(void *rd, void *pdev, void *vdev,
+				    void *vdev_measure_params_ptr,
+				    struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_VDEV_GET_MEASUREMENTS, (uintptr_t)rd,
+		      (uintptr_t)pdev, (uintptr_t)vdev,
+		      (uintptr_t)vdev_measure_params_ptr, 0, 0, 0, res);
+}
+
+void host_rmi_vdev_get_interface_report(void *rd, void *pdev, void *vdev,
+					struct smc_result *res)
+{
+	handle_ns_smc(SMC_RMI_VDEV_GET_INTERFACE_REPORT, (uintptr_t)rd,
 		      (uintptr_t)pdev, (uintptr_t)vdev, 0, 0, 0, 0, res);
 }
 

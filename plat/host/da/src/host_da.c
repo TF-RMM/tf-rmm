@@ -519,7 +519,7 @@ static int host_pdev_cache_device_object(struct host_pdev *h_pdev,
 	 * During PDEV communicate device object of type certificate or VCA is
 	 * cached
 	 */
-	if (dev_obj_id == RMI_DEV_COMM_OBJECT_CERTIFICATE) {
+	if (dev_obj_id == RMI_DEV_COMM_OBJECT_IDENTITY) {
 		if ((h_pdev->cert_chain_len + dev_obj_buf_len) >
 		    (size_t)HOST_PDEV_CERT_LEN_MAX) {
 			return -1;
@@ -535,7 +535,7 @@ static int host_pdev_cache_device_object(struct host_pdev *h_pdev,
 		       dev_obj_buf_len);
 		h_pdev->cert_chain_len += dev_obj_buf_len;
 		rc = 0;
-	} else if (dev_obj_id == RMI_DEV_COMM_OBJECT_VCA) {
+	} else if (dev_obj_id == RMI_DEV_COMM_OBJECT_PROTOCOL_DATA) {
 		if ((h_pdev->vca_len + dev_obj_buf_len) >
 		    (size_t)HOST_PDEV_VCA_LEN_MAX) {
 			return -1;
@@ -1502,6 +1502,96 @@ int host_vdev_assign(struct host_realm *realm, unsigned long host_vdev_tdi_id)
 	return host_vdev_id;
 }
 
+/*
+ * Issue VDEV_LOCK and drive SPDM communication until the VDEV is LOCKED
+ * and exit flags are clear.
+ */
+int host_vdev_lock(struct host_realm *realm, int host_vdev_id)
+{
+	struct host_pdev *h_pdev;
+	struct host_vdev *h_vdev;
+	struct smc_result result;
+	void *vdev_ptr;
+	int rc;
+
+	assert(realm != NULL);
+	assert(host_vdev_id >= 0);
+
+	vdev_ptr = host_find_vdev_from_id((unsigned long)host_vdev_id);
+	if (vdev_ptr == NULL) {
+		return -1;
+	}
+
+	h_vdev = get_host_vdev_from_ptr(vdev_ptr);
+	h_pdev = get_host_pdev_from_ptr(host_find_pdev_from_vdev(vdev_ptr));
+	if ((h_vdev == NULL) || (h_pdev == NULL)) {
+		return -1;
+	}
+
+	host_rmi_vdev_lock(realm->rd, h_vdev->pdev_ptr, vdev_ptr, &result);
+	if (!IS_RMI_RESULT_SUCCESS(result)) {
+		ERROR("RMI_VDEV_LOCK failed: %lu\n", result.x[0]);
+		return -1;
+	}
+
+	rc = host_dev_communicate(realm, h_pdev, true, h_vdev,
+				  RMI_VDEV_STATE_LOCKED, false);
+	if (rc != 0) {
+		ERROR("VDEV lock -> LOCKED communication failed\n");
+		return rc;
+	}
+
+	INFO("VDEV lock -> LOCKED communication completed\n");
+	return 0;
+}
+
+/* Retrieve and cache the SPDM measurement transcript. */
+int host_vdev_get_measurements(struct host_realm *realm, int host_vdev_id,
+			      const unsigned char nonce[VDEV_MEAS_PARAM_NONCE_LEN])
+{
+	struct host_vdev *h_vdev;
+	struct host_pdev *h_pdev;
+	struct rmi_vdev_measure_params *params;
+	struct smc_result result;
+	unsigned char state;
+	void *vdev_ptr;
+
+	assert(realm != NULL);
+	assert(nonce != NULL);
+
+	vdev_ptr = host_find_vdev_from_id((unsigned long)host_vdev_id);
+	if (vdev_ptr == NULL) {
+		return -1;
+	}
+	h_vdev = get_host_vdev_from_ptr(vdev_ptr);
+	h_pdev = get_host_pdev_from_ptr(host_find_pdev_from_vdev(vdev_ptr));
+	if ((h_vdev == NULL) || (h_pdev == NULL) ||
+	    (host_dev_get_state(h_pdev, true, h_vdev, &state) != 0)) {
+		return -1;
+	}
+
+	params = allocate_granule(1U);
+	(void)memset(params, 0, sizeof(*params));
+	(void)memcpy(params->nonce, nonce, sizeof(params->nonce));
+	host_rmi_vdev_get_measurements(realm->rd, h_vdev->pdev_ptr,
+				       vdev_ptr, params, &result);
+	if (!IS_RMI_RESULT_SUCCESS(result)) {
+		ERROR("RMI_VDEV_GET_MEASUREMENTS failed: %lu\n", result.x[0]);
+		return -1;
+	}
+
+	/* Each retrieval replaces the previous request/response transcript. */
+	h_vdev->meas_len = 0U;
+	if ((host_dev_communicate(realm, h_pdev, true, h_vdev, state, false) != 0) ||
+	    (h_vdev->meas_len == 0U)) {
+		ERROR("VDEV measurement communication failed\n");
+		return -1;
+	}
+
+	INFO("VDEV measurements cached: %zu bytes\n", h_vdev->meas_len);
+	return 0;
+}
+
 int host_vdev_reclaim(struct host_realm *realm, int host_vdev_id)
 {
 	void *rd_ptr;
@@ -1585,4 +1675,16 @@ int host_realm_run_da(struct host_realm *realm)
 	}
 	ERROR("Unexpected REC exit reason during DA flow: %lu\n", exit_reason);
 	return -1;
+}
+
+/* Basic Host-driven measurement exercise for an assigned, locked VDEV. */
+int host_realm_run_da_measurements(struct host_realm *realm)
+{
+	unsigned char nonce[VDEV_MEAS_PARAM_NONCE_LEN];
+
+	/* Deterministic nonce for this fake-host exercise. */
+	for (size_t i = 0U; i < sizeof(nonce); i++) {
+		nonce[i] = (unsigned char)(i + 1U);
+	}
+	return host_vdev_get_measurements(realm, HOST_DA_VDEV_ID, nonce);
 }

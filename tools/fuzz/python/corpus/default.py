@@ -125,7 +125,7 @@ if __name__ == "__main__":
 
     # --- Teardown ---
     # Unmap unprotected entry
-    packets.append(RTTUnmapUnprotected(
+    packets.append(RTTUnprotUnmap(
         rd_index=rd,
         base=UNPROTECTED_IPA,
         top=UNPROTECTED_IPA + GRANULE_SIZE,
