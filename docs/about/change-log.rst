@@ -5,6 +5,301 @@
 Change-log and Release notes
 ############################
 
+*******
+v0.10.0
+*******
+
+The following sections have the details on the release. This
+release has been verified with `TF-A v2.16`_ release.
+
+============================
+New features in this release
+============================
+
+- RMM v2.0 specification Beta 3 alignment
+
+  *  Updated RMI, RSI and Device Assignment flows through `RMM v2.0 Beta 3`_.
+  *  Added ``RMI_GPT_INFO`` to report platform and reserved memory ranges,
+     and initial ``RMI_PSMMU_INFO`` reporting.
+  *  Removed the explicit LPA2 Realm creation parameter. LPA2 is now
+     selected from architectural support and the Realm IPA space size.
+  *  Added ``RmiFeatureRegister0.S2OASZ`` and aligned stage-2 output address
+     size configuration with LPA2 availability.
+  *  Added level-address result data for GPT, tracking errors, and
+     unified RMI handler results through ``struct smc_result``.
+
+- Dynamic Granule tracking
+
+  *  Replaced fixed per-Granule descriptor storage with tracking regions
+     configurable to 2 MiB or 1 GiB through ``RMI_RMM_CONFIG_SET``.
+  *  Added coarse tracking for whole regions and fine tracking for
+     individual 4 KiB Granules, covering conventional and device memory.
+  *  Implemented tracking configuration, activation and range queries
+     using persistent tracking metadata and categorized platform banks.
+  *  Added ``RMM_ALLOC_TRACKING_DATA`` to select EL3-allocated fine metadata
+     at boot or Host donation and reclaim through
+     ``RMI_GRANULE_TRACKING_SET`` SROs.
+  *  Added resumable range delegation and undelegation, including memory
+     sanitization, FIRME continuation and delegation rollback.
+  *  Updated Realm, REC, RTT and device flows to use the active tracking
+     representation and retain descriptor ownership across SRO yields.
+
+- Range-aware RTT mapping and unmapping
+
+  *  Added range support to ``RMI_RTT_DATA_MAP``, ``RMI_RTT_DATA_UNMAP``,
+     ``RMI_RTT_DEV_MAP`` and ``RMI_RTT_DEV_UNMAP``.
+  *  Added ``RMI_RTT_UNPROT_MAP`` and ``RMI_RTT_UNPROT_UNMAP`` for
+     unprotected NS mappings, including range support.
+  *  Renamed ``RMI_VDEV_MAP`` and ``RMI_VDEV_UNMAP`` to
+     ``RMI_RTT_DEV_MAP`` and ``RMI_RTT_DEV_UNMAP``.
+  *  Added address range descriptor helpers and range-aware RTT SRO
+     contexts for partial progress and deferred cache/TLB maintenance.
+  *  Added software drain and TLBI markers to protect entries while
+     deferred operations complete through ``RMI_OP_CONTINUE``.
+
+- Realm and RMM lifecycle management
+
+  *  Added ``RMI_REALM_TERMINATE`` and the ZOMBIE Realm state, preventing
+     further REC entry while allowing Realm destruction.
+  *  Added SRO allocation of RD auxiliary granules and Realm create/destroy
+     flows, with sorted mappings for VDEV identifiers and REC MPIDRs.
+  *  Removed the requirement for REC MPIDRs to be sequential and created
+     in increasing order.
+  *  Handled ``PSCI_AFFINITY_INFO`` within RMM and updated
+     ``RMI_PSCI_COMPLETE`` to resolve target RECs internally.
+  *  Implemented ``RMI_RMM_STATE_GET`` and ``RMI_RMM_DEACTIVATE``.
+     Deactivation requires memory to be undelegated and operations to be
+     finished, retaining configuration and EL3-private backing for
+     reactivation.
+
+- Device Assignment updates
+
+  *  Updated PDEV creation, public key parameters and VDEV ABIs through
+     spec 2.0-bet3, and removed ``RMI_PDEV_IDE_RESET``.
+  *  Added PDEV stream connect, disconnect, complete and key refresh
+     operations, plus ``RMI_PDEV_STREAM_INFO`` state and type reporting.
+  *  Updated PDEV/VDEV communication, abort, stream completion and VDEV
+     destruction state transitions to spec 2.0-bet3.
+  *  Added an explicit VDEV INIT operation and freshness tracking, and
+     updated ``RMI_VDEV_GET_MEASUREMENTS``.
+  *  Moved PDEV stream and VDEV range data into auxiliary granules and
+     derived PDEV VDEV capacity from its RID span.
+  *  Enforced per-Realm VDEV limits, rejected overlapping VDEV ranges on
+     the same PDEV and checked VDEV ranges against stream ranges.
+  *  Allowed ``RMI_PDEV_STOP`` in the error state.
+
+- Attestation and measurements
+
+  *  Added SHA-384 support for Realm measurements, feature discovery and
+     ``RSI_REALM_CONFIG`` reporting.
+  *  Updated the attestation token format for RMM v2.0, including the
+     mandatory Realm Instance ID claim and the Beta 3 Realm profile.
+  *  Removed Realm creation parameters from the RIM calculation.
+  *  Aligned REM extension with spec 2.0-bet3 using the full previous REM
+     and a zero-padded contribution in a fixed 128-byte hash input.
+
+- Live Firmware Activation (LFA) improvements
+
+  *  Added Realm LFA policy enforcement. RMM tracks Realms that disallow
+     LFA and notifies EL3 when activation must be denied or can resume.
+  *  Rejected Realm creation and released allocated resources if EL3
+     cannot apply the required LFA denial.
+  *  Added full attestation app reinitialization after LFA and transparent
+     restart of unfinished token operations.
+  *  Preserved EL3 signing ticket allocation across LFA and rejected
+     obsolete signing responses from earlier firmware images.
+
+- SMMUv3 driver improvements
+
+  *  Added non-blocking TLBI submission and yieldable ``CMD_SYNC``
+     completion, integrated with deferred RTT unmap operations.
+  *  Used WFE for completion waits when SMMU event notification is
+     available, with polling otherwise.
+  *  Supported SMMUs with Broadcast TLB Maintenance (BTM) without requiring
+     MSI support; local TLBI operations retain the MSI requirement.
+  *  Made command and event queue sizes configurable, with contiguous
+     backing allocations.
+  *  Derived StreamID width from Root Complex BDF mappings.
+
+- FIRME and Memory Encryption Context (MEC) support
+
+  *  Added FIRME IDE key programming, activation and stop services, with
+     fallback to existing RMM EL3 key management calls.
+  *  Added ``FIRME_MEC_REFRESH`` and common MECID width discovery, with
+     fallback for platforms using legacy MEC refresh support.
+  *  Simplified shared MECID management and refreshed its key tweak when
+     the shared context becomes unused.
+
+- Memory management and architectural improvements
+
+  *  Added per-CPU regions for metadata, stacks, high-VA translation tables
+     and private data, with state recovered through EL3 activation tokens.
+  *  Added VA reservation, population, commit, decommit, depopulation and
+     release APIs to the xlat libraries.
+  *  Added a sorted array library for Realm object mappings and separated
+     SIMD support into its own library.
+  *  Enabled FEAT_PAN3 for EL0 apps and strengthened EL2 BTI landing pads.
+
+======================================
+Bug fixes/improvements in this release
+======================================
+
+- RTT, Granule and memory fixes:
+
+  *  Enforced type-based Granule lock ordering, including RTT backing
+     locks, and rejected aliased Granules during data map initialization.
+  *  Preserved drain-pending entries and SRO ownership during competing
+     RTT and RIPAS operations.
+  *  Corrected TLBI range coverage, invalidated all affected Plane VMIDs
+     and restored translation context after invalidation.
+  *  Invalidated stale block translations when unfolding, table walks
+     before RTT reclamation and valid device mappings on permission changes.
+  *  Preserved high device physical addresses and rejected folding device
+     entries with mixed memory attributes.
+  *  Corrected RTT destroy failure boundaries and reporting of
+     ``ASSIGNED_DEV`` entries with RIPAS DESTROYED.
+  *  Allowed ``RMI_RTT_INIT_RIPAS`` over RIPAS DESTROYED entries and restored
+     RIM extension for the completed range.
+  *  Allowed matching RIPAS updates, including partial RTT entries, and
+     rejected S2AP changes for RIPAS EMPTY.
+  *  Corrected ``RMI_GPT_INFO`` classification across leading memory holes.
+
+- Runtime, RSI and PSCI fixes:
+
+  *  Corrected ESR sanitization, data-abort write reporting, IPA recovery
+     for direct stage-2 faults and instruction-abort FnV reporting.
+  *  Corrected timed-wait REC exits and preserved Plane WFx traps.
+  *  Fixed PSCI target validation, unused MPIDR handling and the
+     ``REC_ENTER`` reference-count race with ``PSCI_COMPLETE``.
+  *  Reported ``PSCI_VERSION`` support through ``PSCI_FEATURES`` and used
+     the W0 PSCI function ID during completion.
+  *  Zeroed unused registers on PSCI CPU_ON completion and
+     ``RSI_MEASUREMENT_READ``, and unused ``RSI_REALM_CONFIG`` output bits.
+  *  Validated overlay permissions and extracted the named fields of
+     ``RSI_IPA_STATE_SET`` inputs.
+  *  Prevented unsigned wraparound in Realm bounds checks and RSI logging.
+  *  Removed the unconditional PMUv3p7 boot requirement and advertised
+     Realm PMU support only when available.
+  *  Reported unfinished SROs correctly when RMM deactivation is blocked.
+
+- Planes fixes:
+
+  *  Rejected EL2 PSTATE values and captured Plane entry state consistently.
+  *  Preserved GIC state across ownership return and checked the correct
+     pending interrupt state.
+  *  Removed stale fault state and reported Host-requested Plane exits.
+
+- Device Assignment and SMMUv3 fixes:
+
+  *  Completed PDEV creation checks, corrected VDEV Realm mismatch errors,
+     handled unaligned public key buffers and validated cached digest types.
+  *  Enforced VDEV freshness during mapping validation and rejected
+     validation after unlock starts.
+  *  Preserved DA app ownership across VDEV operations and unwound yielded
+     apps through their normal error path on abort.
+  *  Cleared pending SPDM cache state on failure, validated decoded SPDM
+     response lengths and copied measurement nonces into app parameters.
+  *  Corrected root-port communication error handling and completed stream
+     operations after ``RMI_PDEV_ABORT``.
+  *  Accepted valid out-of-order PDEV stream ranges.
+  *  Hardened ``CMD_SYNC`` completion across multiple VMIDs and SMMUs,
+     including locking, completion ordering and configuration checks.
+  *  Corrected SMMU TLBI hints for table invalidations and range tails.
+  *  Initialized PSMMU interrupt configuration for Linux.
+
+- EL0 app, attestation and library fixes:
+
+  *  Validated CCA token length before copying from EL0 shared memory and
+     expanded the attestation app memory pool for larger platform tokens.
+  *  Corrected attestation error reporting and random service cleanup and
+     return values.
+  *  Serialized dynamic low-VA operations and improved translation-table
+     range updates and failure handling.
+  *  Replaced assembly atomic operations with compiler atomics, reduced
+     contention in spinlocks and cleared spinlock wait reservations.
+  *  Fixed invalid pointer arithmetic in ``memcpy`` and validated sorted
+     array element sizes and buffer aliasing.
+
+==================================
+Build/Testing/Tooling improvements
+==================================
+
+- Added LLVM unsigned integer overflow sanitizer (IOSAN) support for
+  AArch64 and ``fake_host`` builds, including host unit tests.
+- Updated CppUTest for newer CMake and compiler versions, including Ubuntu
+  26.04 build environments, and corrected test dependency ordering.
+- Enabled real EL0 app execution and the DA responder in host unit tests.
+- Added regression coverage for RTT range map/unmap, TLBI coverage and
+  completion, Realm and REC SROs, RMM deactivation, VDEV freshness and
+  initialization, PDEV abort recovery, PSCI, measurements and GPT queries.
+- Added tests for sorted arrays, MEC, xlat reservation APIs and low-VA
+  failure paths, and adapted existing tests to dynamic tracking.
+- Added corpus-driven RSI command queues and per-iteration app cleanup for
+  fuzzing, with incomplete-loop guards and NS access-fault emulation.
+- Added per-FID RSI logging controls and corrected incomplete/error logs.
+- Added Shrinkwrap toolchain, sanitizer and tracking-allocation options,
+  9p filesystem support and optional cache state modelling.
+- Updated CCA Linux, kvmtool and kvm-unit-tests dependencies and DA flows.
+- Added a TFTF 2 MiB tracking overlay and a BTM model overlay. SMMU BTM is
+  disabled by default in the DA model configuration.
+- Added Linux compatibility overlays for GPT creation and ITS shared-page
+  zeroing, and removed the temporary VDEV limit patch when no longer needed.
+- Fixed Clang compilation of Mbed TLS and taught checkpatch to recognize
+  ``__unused``.
+
+=========
+Platforms
+=========
+
+- Exposed categorized conventional and device memory banks and cached
+  platform memory information in the EL3 interface.
+- Reused Root Complex lookup helpers for PDEV validation and SMMU discovery.
+- Replaced early assembly ``MAX_CPUS`` checks with architectural bounds and
+  validated warm-boot CPU IDs against the EL3-reported CPU count.
+- Updated ``fake_host`` activation, memory donation, SMMU reset and DA stream
+  setup to exercise the new tracking and device flows.
+
+=============
+Documentation
+=============
+
+- Added dynamic Granule management design documentation and diagrams for
+  tracking metadata, transitions, delegation, donation and reclaim.
+- Documented descriptor lifetime and locking rules, range-aware RTT
+  map/unmap flows and PDEV auxiliary Granule layout.
+- Updated memory management and EL0 app documentation, including the LFA
+  compatibility contract and attestation signing response handling.
+- Updated Shrinkwrap build options, CCA guest and DA testing instructions,
+  and fuzz corpus documentation.
+
+============================
+Known issues and limitations
+============================
+
+- Self-hosted debug for Realm is still not implemented (`issue#23`_).
+- Dynamic GPT L1 creation and destruction remain placeholders using static
+  GPT coverage; ``RMI_GPT_L1_CREATE`` and ``RMI_GPT_L1_DESTROY`` return
+  ``RMI_ERROR_GLOBAL`` for valid inputs.
+- Architectural-device map, unmap and activation ABIs have initial
+  validation stubs; their device and RTT operations remain unimplemented.
+- ``RMI_PSMMU_INFO`` reports a fixed MSI interrupt configuration; remaining
+  information fields are zero pending Boot Manifest integration.
+- Optional Realm LFA policy and Realm devices token hash claims, and the
+  optional CCA device token, are not yet included in attestation tokens.
+
+=================
+Upcoming features
+=================
+
+- Continued hardening of LFA, SRO, Device assignment and SMMUv3 features.
+- Further RMMv2.0 and FIRME specification alignment.
+- Fuzz testing expansion leveraging the ``fake_host`` architecture.
+- Support for Self-hosted debug and PMU in Realms.
+- Expand support for per-CPU memory and NUMA support.
+
+.. _TF-A v2.16: https://git.trustedfirmware.org/TF-A/trusted-firmware-a/+/refs/tags/v2.16.0
+.. _RMM v2.0 Beta 3: https://support.arm.com/documentation/den0137/2-0bet3/?lang=en
+
 ******
 v0.9.0
 ******
