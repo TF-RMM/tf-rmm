@@ -89,6 +89,7 @@ struct app_data_cfg {
 	bool app_entered;
 	uint32_t exit_flag; /* App Exit Flag */
 
+	/* ID of the app this instance belongs to */
 	unsigned long app_id;
 
 	/* Sequence of the firmware image used to initialize the app */

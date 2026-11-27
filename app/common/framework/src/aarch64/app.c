@@ -780,10 +780,45 @@ static void app_run_internal(struct app_data_cfg *app_data,
 			}
 		}
 
-		unsigned long elr_el2 = read_elr_el2();
+		unsigned long elr_el2 = app_reg_ctx->pc;
+		unsigned long ec = EXTRACT(ESR_EL2_EC, esr);
 
 		ERROR("Failed to return properly from the EL0 app\n");
 		ERROR("    ELR_EL2 = 0x%lx\n", elr_el2);
+		ERROR("    ESR_EL2 = 0x%lx (EC=0x%lx)\n", esr, ec);
+		ERROR("    exception_code = %d\n", app_exception_code);
+
+		/* Use app_data->app_id to precisely identify the running app */
+		struct app_header *hdr = NULL;
+
+		if ((app_get_header_ptr(app_data->app_id, &hdr) >= 0) &&
+		    (hdr != NULL)) {
+			ERROR("    Faulting app: \"%s\" (app_id=%u)\n",
+			      hdr->app_name, hdr->app_id);
+			ERROR("    .text VA [0x%lx - 0x%lx)\n",
+			      hdr->section_text_va,
+			      hdr->section_text_va +
+				      hdr->section_text_size);
+			if ((elr_el2 >= hdr->section_text_va) &&
+			    (elr_el2 < (hdr->section_text_va +
+					hdr->section_text_size))) {
+				ERROR("    offset in .text = 0x%lx\n",
+				      elr_el2 - hdr->section_text_va);
+			} else {
+				ERROR("    ELR_EL2 is outside .text\n");
+			}
+		} else {
+			ERROR("    app_id = %lu (header lookup failed)\n",
+				app_data->app_id);
+		}
+
+		for (unsigned int i = 0U; i < APP_SAVED_GEN_REG_COUNT - 1U; i += 2U) {
+			INFO("    X%u = 0x%016lx   X%u = 0x%016lx\n",
+			     i, app_reg_ctx->app_regs[i],
+			     i + 1U, app_reg_ctx->app_regs[i + 1U]);
+		}
+		INFO("    X30 (LR) = 0x%016lx   SP_EL0 = 0x%016lx\n",
+		     app_reg_ctx->app_regs[30], app_reg_ctx->sp_el0);
 
 		panic();
 	}
