@@ -19,6 +19,13 @@
 /* Delay in microseconds for handling busy IDE key operations */
 #define RP_IDE_BUSY_DELAY_US		U(10)
 
+/*
+ * PortIndex used in IDE_KM requests. An Endpoint Upstream Port that supports
+ * the IDE_KM responder role responds to a PortIndex of 00h (PCIe Base
+ * Specification, section 6.33.3).
+ */
+#define IDE_KM_EP_PORT_INDEX		((uint8_t)0)
+
 static bool ide_init_key_buffer(pci_ide_km_aes_256_gcm_key_buffer_t *key_buffer)
 {
 	bool got_rand_number;
@@ -133,11 +140,7 @@ ide_km_endpoint_rp_key_set_stop(struct dev_assign_info *info, uint8_t key_direct
 
 	stream_id = (uint8_t)info->ide_sid;
 
-	/*
-	 * TODO: Check whether using port_index 1 is necessary here, would 0
-	 * do as well?
-	 */
-	port_index = 1;
+	port_index = IDE_KM_EP_PORT_INDEX;
 
 	/* IDE_KM_KEY_SET_STOP: upstream port */
 	INFO("IDE_KM_KEY_SET_STOP: Endpoint dir: %d id/sub_id: %d/[0-%d]\n",
@@ -186,11 +189,7 @@ ide_km_endpoint_rp_key_set_go(struct dev_assign_info *info, uint8_t kslot,
 	uint8_t stream_id;
 
 	stream_id = (uint8_t)info->ide_sid;
-	/*
-	 * TODO: Check whether using port_index 1 is necessary here, would 0
-	 * do as well?
-	 */
-	port_index = 1;
+	port_index = IDE_KM_EP_PORT_INDEX;
 
 	/* IDE_KM_KEY_SET_GO: upstream port */
 	INFO("IDE_KM_KEY_SET_GO: Endpoint dir: %d id/sub_id: %d/[0-%d]\n",
@@ -241,11 +240,7 @@ ide_km_endpoint_rp_key_prog(struct dev_assign_info *info, uint8_t kslot)
 	uint8_t stream_id;
 	bool result;
 
-	/*
-	 * TODO: Check whether using port_index 1 is necessary here, would 0
-	 * do as well?
-	 */
-	port_index = 1;
+	port_index = IDE_KM_EP_PORT_INDEX;
 	stream_id = (uint8_t)info->ide_sid;
 
 	result = ide_init_key_buffer(&rx_key_buffer);
@@ -413,7 +408,8 @@ libspdm_return_t dev_assign_ide_setup(struct dev_assign_info *info)
 	/* coverity[misra_c_2012_rule_12_1_violation:SUPPRESS] */
 	ide_reg_block_count = PCI_IDE_KM_IDE_REG_BLOCK_SUPPORTED_COUNT;
 	status = pci_ide_km_query(NULL, info->libspdm_ctx,
-				  &info->session_id, 1, &dev_func_num,
+				  &info->session_id, IDE_KM_EP_PORT_INDEX,
+				  &dev_func_num,
 				  &bus_num, &segment, &max_port_index,
 				  ide_reg_block, &ide_reg_block_count);
 	if (status != LIBSPDM_STATUS_SUCCESS) {
